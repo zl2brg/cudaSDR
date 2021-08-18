@@ -1,5 +1,8 @@
-cmake_minimum_required(VERSION 2.8.11)
+cmake_minimum_required(VERSION 3.10)
 project(cudaSDR)
+set(QT_DIR "/home/simon/Qt/5.13.2/")
+set(CMAKE_PREFIX_PATH "/home/simon/Qt/5.13.2/gcc_64/lib/cmake")
+set(DCMAKE_INSTALL_PREFIX:PATH "/usr/local")
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC ON)
@@ -99,7 +102,7 @@ set (SOURCES
 #   ${CMAKE_SOURCE_DIR}/UI/newbandwidget.cpp
 
 
-        )
+		src/DataEngine/cusdr_transmitter.cpp src/DataEngine/cusdr_transmitter.h)
 
     
 set (HEADERS 
@@ -175,7 +178,7 @@ set (HEADERS
 
 
         ${WDSP_DIR}/wdsp.h
-)
+		src/DataEngine/cusdr_transmitter.cpp src/DataEngine/cusdr_transmitter.h)
 
 set(UI_SOURCES
 		${CMAKE_SOURCE_DIR}/UI/noisefilterwidget.ui

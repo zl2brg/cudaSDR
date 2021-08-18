@@ -59,6 +59,7 @@
 #include "Util/qcircularbuffer.h"
 #include "QtWDSP/qtwdsp_dspEngine.h"
 #include "cusdr_WidebandProcessor.h"
+#include "cusdr_transmitter.h"
 
 #ifdef LOG_DATA_ENGINE
 #   define DATA_ENGINE_DEBUG qDebug().nospace() << "DataEngine::\t"
@@ -100,6 +101,7 @@ public:
 	Settings*			set;
 	THPSDRParameter		io;
 
+	Transmitter*        TX;
     QList<Receiver *>	RX;
 	QList<qreal>		chirpData;
 
@@ -171,6 +173,7 @@ private:
 	void	createDiscoverer();
 	void	createDataIO();
 	void	createDataProcessor();
+	void    createTxProcessor();
 	void	createAudioOutProcessor();
 	void	createWideBandDataProcessor();
 	//void	createChirpDataProcessor();
@@ -178,6 +181,7 @@ private:
 	void	createAudioReceiver();
 
 	bool	initReceivers(int rx);
+	bool    initTransmitters(int tx);
 	bool	start();
 	bool	startDataEngineWithoutConnection();
 	bool	findHPSDRDevices();
@@ -188,12 +192,15 @@ private:
 	bool	startDataProcessor(QThread::Priority prio);
 	void	startAudioOutProcessor(QThread::Priority prio);
 	bool	startWideBandDataProcessor(QThread::Priority prio);
+	bool    start_TxProcessor();
+
 
 	void	stopDiscoverer();
 	void	stopDataIO();
 	void	stopDataProcessor();
 	void	stopAudioOutProcessor();
 	void	stopWideBandDataProcessor();
+	void    stop_TxProcessor();
 
 	void	setHPSDRConfig();
 	void    setWideBandBufferCount();
@@ -214,6 +221,7 @@ private:
 	QThreadEx*				m_AudioRcvrThread;
 	QThreadEx*				m_audioInProcThread;
 	QThreadEx*				m_audioOutProcThread;
+	QThreadEx*              m_txProcessorThread;
 
 	QList<QThreadEx* >		m_dspThreadList;
 

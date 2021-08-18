@@ -150,6 +150,7 @@ DataEngine::DataEngine(QObject *parent)
 }
 
 DataEngine::~DataEngine() {
+    delete TX;
 }
 
 void DataEngine::setupConnections() {
@@ -1060,7 +1061,6 @@ bool DataEngine::initReceivers(int rcvrs) {
 	for (int i = 0; i < rcvrs; i++) {
 			
 		Receiver *rx = new Receiver(i);
-
 		// init the DSP core
 		DATA_ENGINE_DEBUG << "trying to init a DSP core for rx " << i;
 
@@ -1103,8 +1103,7 @@ bool DataEngine::initReceivers(int rcvrs) {
 			return false;
 		}
     }
-
-	set->setRxList(RX);
+    set->setRxList(RX);
 
 	m_txFrame = 0;
 	
@@ -1208,7 +1207,7 @@ bool DataEngine::initReceivers(int rcvrs) {
 
 	// Bits 7,..,2
 	setHPSDRConfig();
-	
+
 	io.control_out[1] &= 0x03; // 0 0 0 0 0 0 1 1
 	io.control_out[1] |= io.ccTx.clockByte;
 
@@ -1257,6 +1256,8 @@ bool DataEngine::initReceivers(int rcvrs) {
 
 	io.control_out[4] &= 0x07; // 1 1 0 0 0 1 1 1
 	io.control_out[4] = (io.ccTx.duplex << 2) | ((io.receivers - 1) << 3);
+
+	TX = new Transmitter(2);
 
 	return true;
 }
@@ -1712,8 +1713,6 @@ void DataEngine::createWideBandDataProcessor() {
 							m_wbDataProcThread, 
 							SIGNAL(started()), 
 							SLOT(processWideBandData()));
-
-
 }
 
 bool DataEngine::startWideBandDataProcessor(QThread::Priority prio) {
@@ -3332,6 +3331,20 @@ void DataEngine::senddata(char * buffer, int length) {
     }
 
 }
+
+void DataEngine::createTxProcessor() {
+
+
+}
+
+bool DataEngine::start_TxProcessor() {
+    return false;
+}
+
+void DataEngine::stop_TxProcessor() {
+
+}
+
 
 void DataProcessor::processReadData()
 {

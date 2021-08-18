@@ -104,6 +104,8 @@ public slots:
 	void	alexBtnClickedEvent();
 	void	muteBtnClickedEvent();
 	//void	resizeWidget();
+	void    moxBtnClickedEvent();
+	void    tunBtnClickedEvent();
 	
 	void	showWidgetEvent(QObject *sender);
 	void	closeWidgetEvent(QObject *sender);

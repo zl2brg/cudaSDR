@@ -80,25 +80,25 @@ public:
 public slots:
 	bool getQtDSPStatus() { return m_qtdspOn; }
 	
-	void setNCOFrequency(int rx, long value);
-	void setSampleRate(QObject *sender, int value);
-	void setSampleSize(int rx, int size);
-	void setQtDSPStatus(bool value);
-	void setVolume(float value);
-	void setDSPMode(DSPMode mode);
-	void setAGCMode(AGCMode mode);
-    void setFilter(double  low,double high);
+	void    setNCOFrequency(int rx, long value);
+	void    setSampleRate(QObject *sender, int value);
+	void    setSampleSize(int rx, int size);
+	void    setQtDSPStatus(bool value);
+	void    setVolume(float value);
+	void    setDSPMode(DSPMode mode);
+	void    setAGCMode(AGCMode mode);
+    void    setFilter(double  low,double high);
 	void	setAGCMaximumGain(qreal);
-	void setAGCHangThreshold(int rx, double);
+	void    setAGCHangThreshold(int rx, double);
 	//void	setAGCHangLeveldBLine(qreal value);
 	//void	setAGCThresholdLine(QObject *sender, int rx, qreal value);
-    void setAGCLineValues(int rx);
-	void 	setAGCThreshold( double threshold);
-	void	setAGCHangTime(int hang);
+    void    setAGCLineValues(int rx);
+	void    setAGCThreshold( double threshold);
+	void    setAGCHangTime(int hang);
 	void 	setAGCHangLevel(double level);
-	void setAGCAttackTime(int rx, int value);
-    void setAGCDecayTime(int rx, int value);
-    void setAGCSlope(int rx, int value);
+	void    setAGCAttackTime(int rx, int value);
+    void    setAGCDecayTime(int rx, int value);
+    void    setAGCSlope(int rx, int value);
     void 	setFramesPerSecond(QObject* sender, int rx, int value);
 	void    setPanAdaptorAveragingMode( int rx, int value);
     void    setPanAdaptorDetectorMode( int rx, int value);

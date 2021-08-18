@@ -1018,6 +1018,19 @@ void MainWindow::createMainBtnToolBar() {
 		moxBtn->setEnabled(false);
 		tunBtn->setEnabled(false);
 	}
+	CHECKED_CONNECT(
+	        moxBtn,
+	        SIGNAL(clicked()),
+	        this,
+	        SLOT(moxBtnClickedEvent()));
+
+
+	CHECKED_CONNECT(
+	        tunBtn,
+	        SIGNAL(clicked()),
+	        this,
+	        SLOT(tunBtnClickedEvent()))
+	        ;
 
 	alexBtn = new AeroButton("Alex Auto", this);
 	alexBtn->setRoundness(10);
@@ -1054,16 +1067,16 @@ void MainWindow::createMainBtnToolBar() {
 		this,
 		SLOT(muteBtnClickedEvent()));
 
-//	lastFreqBtn = new AeroButton(" ", this);
-//	lastFreqBtn->setRoundness(10);
-//	lastFreqBtn->setFixedSize(btn_width1, btn_height3);
-//	lastFreqBtn->setBtnState(AeroButton::OFF);
-//
-//	CHECKED_CONNECT(
-//		lastFreqBtn,
-//		SIGNAL(clicked()),
-//		this,
-//		SLOT(getLastFrequency()));
+	lastFreqBtn = new AeroButton(" ", this);
+	lastFreqBtn->setRoundness(10);
+	lastFreqBtn->setFixedSize(btn_width1, btn_height3);
+	lastFreqBtn->setBtnState(AeroButton::OFF);
+
+	CHECKED_CONNECT(
+		lastFreqBtn,
+		SIGNAL(clicked()),
+		this,
+		SLOT(getLastFrequency()));
 
 	QHBoxLayout *firstBtnLayout = new QHBoxLayout;
 	firstBtnLayout->setSpacing(0);
@@ -1333,7 +1346,7 @@ void MainWindow::systemStateChanged(
 	moxBtn->setEnabled(m_hwInterface == QSDR::Hermes);
 	tunBtn->setEnabled(m_hwInterface == QSDR::Hermes);
 
-	/*
+
 	if (state == QSDR::DataEngineUp) {
 
 		m_dataEngineState = QSDR::DataEngineUp;
@@ -1346,7 +1359,7 @@ void MainWindow::systemStateChanged(
 		modeBtn->setEnabled(true);
 		//setCurrentReceiver(0);
 	}
-	*/
+
 }
 
 void MainWindow::setSystemState(
@@ -2440,6 +2453,35 @@ void MainWindow::keyPressEvent(
     }
     
     QWidget::keyPressEvent(event);
+}
+
+void MainWindow::moxBtnClickedEvent() {
+
+    if (set->getMox())
+    {
+        set->setMox(false);
+        moxBtn->setBtnState((AeroButton::OFF));
+    }
+    else {
+        set->setMox(true);
+        moxBtn->setBtnState(AeroButton::ON);
+
+    }
+}
+
+void MainWindow::tunBtnClickedEvent() {
+
+    if (set->getTune())
+    {
+        set->setTune(false);
+        tunBtn->setBtnState((AeroButton::OFF));
+    }
+    else {
+        set->setTune(true);
+        tunBtn->setBtnState(AeroButton::ON);
+
+    }
+
 }
 
 

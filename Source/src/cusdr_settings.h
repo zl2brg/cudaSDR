@@ -302,7 +302,8 @@ namespace QSDR {
 		
 		NoInterfaceMode, 
 		Metis,
-		Hermes
+        Hermes,
+        SoapySDR
 	};
 }
 
@@ -1300,6 +1301,10 @@ public slots:
 				WaterfallColorMode waterfallColorMode);
 
 	void setTxAllowed(QObject* sender, bool value);
+	void setMox(bool value);
+	void setTune(bool value);
+	bool getMox();
+	bool getTune();
 	void setMultiRxView(int view);
 	void setSMeterValue(int rx, double value);
 	void setSpectrumBuffer(int rx, const qVectorFloat &buffer);
@@ -1586,6 +1591,8 @@ private:
 	bool	setLoaded;
 
 	bool	m_mainPower;
+	bool    m_mox;
+	bool    m_tune;
 	bool	m_defaultSkin;
 	bool	m_connected;
 	bool	m_clientConnected;

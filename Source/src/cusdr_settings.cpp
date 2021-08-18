@@ -2581,7 +2581,7 @@ void Settings::setSystemState(
         m_dataEngineState = state;
 
     if (m_dataEngineState == QSDR::DataEngineDown)
-        setCurrentReceiver(this, 0);
+        setCurrentReceiver(this, 1);
     //m_currentReceiver = 0;
 
     //locker.unlock();
@@ -5173,4 +5173,22 @@ filterGroup Settings::getFilterGroup(int rx){
 
 int Settings::getFilterbtnIndex(int rx){
     return m_receiverDataList[rx].rxFilter.m_Index;
+}
+
+void Settings::setMox(bool value) {
+m_mox = value;
+qDebug() << "Mox" << m_mox;
+}
+
+void Settings::setTune(bool value) {
+m_tune= value;
+qDebug() << "Tune" << m_tune;
+}
+
+bool Settings::getMox() {
+    return m_mox;
+}
+
+bool Settings::getTune() {
+    return m_tune;
 }
