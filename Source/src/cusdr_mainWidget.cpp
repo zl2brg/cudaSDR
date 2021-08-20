@@ -2461,11 +2461,14 @@ void MainWindow::moxBtnClickedEvent() {
     {
         set->setMox(false);
         moxBtn->setBtnState((AeroButton::OFF));
+        tunBtn->setDisabled(false);
     }
     else {
         set->setMox(true);
         moxBtn->setBtnState(AeroButton::ON);
-
+        QColor col = QColor(180, 180, 0);
+        moxBtn->setColorOn(col);
+        tunBtn->setDisabled(true);
     }
 }
 
@@ -2475,10 +2478,14 @@ void MainWindow::tunBtnClickedEvent() {
     {
         set->setTune(false);
         tunBtn->setBtnState((AeroButton::OFF));
+        moxBtn->setDisabled(false);
     }
     else {
         set->setTune(true);
+        QColor col = QColor(180, 180, 0);
+        tunBtn->setColorOn(col);
         tunBtn->setBtnState(AeroButton::ON);
+        moxBtn->setDisabled(true);
 
     }
 

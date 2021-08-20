@@ -822,6 +822,8 @@ signals:
 
 	void masterSwitchChanged(QObject *sender, bool power);
 
+
+
 	void systemStateChanged(
 				QObject *sender, 
 				QSDR::_Error err, 
@@ -835,6 +837,8 @@ signals:
 				PanGraphicsMode panMode,
 				WaterfallColorMode waterfallColorMode);
 
+	void moxStateChanged(QObject *sender, bool state);
+	void tuneStateChanged(QObject *sender, bool state);
 	void cpuLoadChanged(short load);
 	void txAllowedChanged(QObject* sender, bool value);
 	void multiRxViewChanged(int view);
