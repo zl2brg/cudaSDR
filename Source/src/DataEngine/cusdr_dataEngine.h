@@ -173,6 +173,8 @@ private:
 	void	createDiscoverer();
 	void	createDataIO();
 	void	createDataProcessor();
+
+	bool    toggle_TxRx();
 	void    createTxProcessor();
 	void	createAudioOutProcessor();
 	void	createWideBandDataProcessor();
@@ -298,6 +300,7 @@ private:
 	float	m_sMeterCalibrationOffset;
 	float	m_micSample_float;
 	float	m_spectrumBuffer[SAMPLE_BUFFER_SIZE];
+    RadioState m_radioState;
 
 	qint64		m_audioFileBufferPosition;
     qint64		m_audioFileBufferLength;
@@ -325,6 +328,7 @@ private slots:
 	void	setPennyOCEnabled(bool value);
 	void	setRxJ6Pins(const QList<int> &list);
 	void	setTxJ6Pins(const QList<int> &list);
+    void    radioStateChange(RadioState state);
 
 
 signals:
@@ -344,6 +348,7 @@ signals:
 	void	clearSystemMessageEvent();
 	void	DataProcessorReadyEvent();
 	void	audioSenderReadyEvent(bool value);
+
 };
 
 
@@ -417,6 +422,7 @@ private:
 	int				m_idx;
 	int				m_sendState;
 	int				m_chirpStartSample;
+    CPX             m_iq_output_buffer;
 
 	double			m_lsample;
 	double			m_rsample;
@@ -442,7 +448,6 @@ signals:
 	void	disconnectedEvent();
 	void	serverVersionEvent(QString version);
 };
-
 
 // *********************************************************************
 // Audio out processor class

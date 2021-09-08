@@ -5175,20 +5175,21 @@ int Settings::getFilterbtnIndex(int rx){
     return m_receiverDataList[rx].rxFilter.m_Index;
 }
 
-void Settings::setMox(bool value) {
-m_mox = value;
-qDebug() << "Mox" << m_mox;
+
+RadioState Settings::setRadioState(RadioState mode) {
+    if (m_radioState == mode) {
+        m_radioState = RadioState::RX;
+
+    } else m_radioState = mode;
+
+    emit radioStateChanged(m_radioState);
+
 }
 
-void Settings::setTune(bool value) {
-m_tune= value;
-qDebug() << "Tune" << m_tune;
+
+
+RadioState Settings::getRadioState() {
+    return m_radioState;
 }
 
-bool Settings::getMox() {
-    return m_mox;
-}
 
-bool Settings::getTune() {
-    return m_tune;
-}

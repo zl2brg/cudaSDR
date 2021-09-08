@@ -35,6 +35,7 @@
 #include "cusdr_settings.h"
 #include "Util/cusdr_highResTimer.h"
 #include "QtWDSP/qtwdsp_dspEngine.h"
+#include "QtDSP/qtdsp_qComplex.h"
 
 #ifdef LOG_RECEIVER
 #   define RECEIVER_DEBUG qDebug().nospace() << "Receiver::\t"

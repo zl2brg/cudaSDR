@@ -95,7 +95,9 @@ DataEngine::DataEngine(QObject *parent)
 	, m_chirpSamples(0)
 	, m_spectrumSize(set->getSpectrumSize())
 	, m_sendState(0)
+    , m_radioState(RadioState::RX)
 	, m_sMeterCalibrationOffset(0.0f)//(35.0f)
+
 {
 	qRegisterMetaType<QAbstractSocket::SocketError>();
 
@@ -121,7 +123,6 @@ DataEngine::DataEngine(QObject *parent)
 	io.metisFW = 0;
 	io.hermesFW = 0;
 	io.mercuryFW = 0;
-	
     //m_audioBuffer.resize(0);
     //m_audiobuf.resize(IO_BUFFER_SIZE);
 
@@ -339,7 +340,11 @@ void DataEngine::setupConnections() {
 		this,
 		SLOT(setTxJ6Pins(const QList<int> &)));
 
-
+    CHECKED_CONNECT(
+            set,
+            SIGNAL(radioStateChanged(RadioState)),
+            this,
+            SLOT(radioStateChange(RadioState)));
 
 }
  
@@ -1190,7 +1195,7 @@ bool DataEngine::initReceivers(int rcvrs) {
 	//               |
 	//               +------------ MOX (1 = active, 0 = inactive)
 
-	io.control_out[0] |= MOX_DISABLED;
+	io.control_out[0] |= MOX_ENABLED;
 
 	// set C1
 	//
@@ -1257,7 +1262,7 @@ bool DataEngine::initReceivers(int rcvrs) {
 	io.control_out[4] &= 0x07; // 1 1 0 0 0 1 1 1
 	io.control_out[4] = (io.ccTx.duplex << 2) | ((io.receivers - 1) << 3);
 
-	TX = new Transmitter(2);
+	TX = new Transmitter(TX_ID);
 
 	return true;
 }
@@ -2290,6 +2295,8 @@ void DataEngine::setFrequency(QObject* sender, int mode, int rx, long frequency)
 	RX[rx]->setCtrFrequency(frequency);
 	io.rx_freq_change = rx;
 	io.tx_freq_change = rx;
+    qDebug() << "Tx Freq" << io.tx_freq_change;
+
 }
 
 void DataEngine::suspend() {
@@ -2342,7 +2349,7 @@ DataProcessor::DataProcessor(
 	m_deviceSendDataSignature[1] = (char)0xFE;
 	m_deviceSendDataSignature[2] = (char)0x01;
 	m_deviceSendDataSignature[3] = (char)0x02;
-
+    InitCPX(m_iq_output_buffer, BUFFER_SIZE, 0.0f);
 	//socket = new QUdpSocket();
 	m_deviceAddress = set->getCurrentMetisCard().ip_address;
 }
@@ -2479,9 +2486,8 @@ void DataProcessor::processInputBuffer(const QByteArray &buffer) {
     		m_micSample_float = (float) m_micSample / 32767.0f * de->io.mic_gain; // 16 bit sample
 
             // add to buffer
-            de->io.mic_left_buffer[m_rxSamples]  = m_micSample_float;
-            de->io.mic_right_buffer[m_rxSamples] = 0.0f;
-
+            de->io.mic_buffer[m_rxSamples * 2]  = 0.0f; m_micSample_float;
+            de->io.mic_buffer[(m_rxSamples * 2) + 1] = 0.0f;
 			////m_chirpSamples++;
 
 			//if (m_serverMode == QSDR::ChirpWSPR && m_chirpInititalized)
@@ -2521,7 +2527,23 @@ void DataProcessor::processInputBuffer(const QByteArray &buffer) {
 			m_chirpSamples++;
 
 			// when we have enough rx samples we start the DSP processing.
+            int error = 0;
             if (m_rxSamples == BUFFER_SIZE) {
+
+                if ( de->io.ccTx.mox ||  de->io.ccTx.ptt )
+                {
+                    fexchange0(TX_ID, de->io.mic_buffer, (double *) m_iq_output_buffer.data(), &error);
+
+
+                    for (s = 0;s < 1024;s++ ){
+                                         if (m_iq_output_buffer.at(s).re > 0)
+                                         {
+                              //               qDebug() << "TX Data !!" << s << m_iq_output_buffer.at(s).re;
+                                         }
+
+                                     }
+                }
+
 
 				for (int r = 0; r < de->io.receivers; r++) {
 
@@ -2735,21 +2757,38 @@ void DataProcessor::setOutputBuffer(int rx, const CPX &buffer) {
 
 void DataProcessor::setAudioBuffer(int rx, const CPX &buffer, int buffersize){
 
-	//DATA_PROCESSOR_DEBUG << "processOutputBuffer: " << this->thread();
+	DATA_PROCESSOR_DEBUG << "processOutputBuffer: " << this->thread();
 
 	qint16 leftRXSample;
 	qint16 rightRXSample;
 	qint16 leftTXSample;
 	qint16 rightTXSample;
+    double is,qs;
+    double gain = 32767.0 *(double) 25 * 0.00392;
+    int m_output_idx = 0;
 
-	// process the output
-	for (int j = 0; j < buffersize; j++) {
+    // process the output
+
+        for (int j = 0; j < buffersize; j++) {
 
 		leftRXSample  = (qint16)(buffer.at(j).re * 32767.0f);
 		rightRXSample = (qint16)(buffer.at(j).im * 32767.0f);
 
-		leftTXSample = 0;
-		rightTXSample = 0;
+
+        qs=m_iq_output_buffer.at(m_output_idx).re;
+        is=m_iq_output_buffer.at(m_output_idx).im;
+        m_output_idx++;
+        if (m_output_idx == BUFFER_SIZE) m_output_idx = 0;
+//qDebug() << "qs" <<qs;
+        leftTXSample=is>=0.0?(long)floor(is*gain+0.5):(long)ceil(is*gain-0.5);
+        rightTXSample=qs>=0.0?(long)floor(qs*gain+0.5):(long)ceil(qs*gain-0.5);
+
+      //  qDebug() << "qs" << qs << "is"<< "leftTxSample << " << leftTXSample;
+      //  qDebug() << "is" << is << "is"<< "rightTxSample << " << rightTXSample;
+
+
+		//leftTXSample =  (qint16) m_iq_output_buffer[j]  ;
+		//rightTXSample = 0;
 
 		de->io.output_buffer[m_idx++] = leftRXSample  >> 8;
 		de->io.output_buffer[m_idx++] = leftRXSample;
@@ -2791,10 +2830,14 @@ void DataProcessor::setAudioBuffer(int rx, const CPX &buffer, int buffersize){
 					break;
 			}
 			m_idx = IO_HEADER_SIZE;
-		}
-	}
+         }
+        }
+
 }
 
+
+
+/* UNUSED */
 void DataProcessor::processOutputBuffer(const CPX &buffer) {
 
 	DATA_PROCESSOR_DEBUG << "processOutputBuffer: " << this->thread();
@@ -2803,6 +2846,7 @@ void DataProcessor::processOutputBuffer(const CPX &buffer) {
     qint16 rightRXSample;
     qint16 leftTXSample;
     qint16 rightTXSample;
+    double test;
 
 	// process the output
 	for (int j = 0; j < BUFFER_SIZE; j++) {
@@ -2812,6 +2856,8 @@ void DataProcessor::processOutputBuffer(const CPX &buffer) {
 
 		leftTXSample = 0;
         rightTXSample = 0;
+
+    qDebug() << sizeof(de->io.output_buffer);
 
 		de->io.output_buffer[m_idx++] = leftRXSample  >> 8;
         de->io.output_buffer[m_idx++] = leftRXSample;
@@ -2862,6 +2908,7 @@ void DataProcessor::encodeCCBytes() {
     de->io.output_buffer[0] = SYNC;
     de->io.output_buffer[1] = SYNC;
     de->io.output_buffer[2] = SYNC;
+    long freq = 14134300;
 	
     de->io.mutex.lock();
     switch (m_sendState) {
@@ -2872,11 +2919,12 @@ void DataProcessor::encodeCCBytes() {
     		uchar rxOut;
     		uchar ant;
 
-    		de->io.control_out[0] = 0x0; // C0
+    		de->io.control_out[0] =  (de->io.ccTx.mox)? 1:0; // C0
     		de->io.control_out[1] = 0x0; // C1
     		de->io.control_out[2] = 0x0; // C2
     		de->io.control_out[3] = 0x0; // C3
     		de->io.control_out[4] = 0x0; // C4
+
 
     		// C0
     		// 0 0 0 0 0 0 0 0
@@ -2908,6 +2956,10 @@ void DataProcessor::encodeCCBytes() {
     		// +---------- +-------------- Open Collector Outputs on Penelope or Hermes (bit 6...bit 0)
 
     		de->io.control_out[2] = de->io.rxClass;
+            if  (de->io.ccTx.mox) {
+
+                de->io.control_out[2] |=0x01;
+            }
 
     		if (de->io.ccTx.pennyOCenabled) {
 
@@ -2968,7 +3020,9 @@ void DataProcessor::encodeCCBytes() {
     		// +-------------------------- Common Mercury Frequency (0 = independent frequencies to Mercury
     		//			                   Boards, 1 = same frequency to all Mercury boards)
 
-    		if (de->io.ccTx.mox || de->io.ccTx.ptt)
+
+
+            if (de->io.ccTx.mox || de->io.ccTx.ptt)
     			ant = (de->io.ccTx.alexStates.at(de->io.ccTx.currentBand) >> 5);
     		else
     			ant = de->io.ccTx.alexStates.at(de->io.ccTx.currentBand);
@@ -3003,15 +3057,23 @@ void DataProcessor::encodeCCBytes() {
 
     		de->io.output_buffer[3] = 0x2; // C0
 
-    		if (de->io.tx_freq_change >= 0) {
+//    		if (de->io.tx_freq_change >= 0) {
+                //qDebug() << "tx band" << de->io.ccTx.currentBand;
 
+                //qDebug() << "tx freq" <<   freq;
+                de->io.output_buffer[4] = freq >> 24;
+                de->io.output_buffer[5] = freq >> 16;
+                de->io.output_buffer[6] = freq >> 8;
+                de->io.output_buffer[7] = freq ;
+/*
     		    de->io.output_buffer[4] = de->RX.at(de->io.tx_freq_change)->getCtrFrequency() >> 24;
     		    de->io.output_buffer[5] = de->RX.at(de->io.tx_freq_change)->getCtrFrequency() >> 16;
     		    de->io.output_buffer[6] = de->RX.at(de->io.tx_freq_change)->getCtrFrequency() >> 8;
     		    de->io.output_buffer[7] = de->RX.at(de->io.tx_freq_change)->getCtrFrequency();
+    		    */
 
     		    de->io.tx_freq_change = -1;
-    		}
+//    		}
 
     		m_sendState = de->io.ccTx.duplex ? 2 : 3;
     		break;
@@ -3054,8 +3116,8 @@ void DataProcessor::encodeCCBytes() {
     	case 3:
 
     		de->io.control_out[0] = 0x12; // 0 0 0 1 0 0 1 0
-    		de->io.control_out[1] = 0x0; // C1
-    		de->io.control_out[2] = 0x0; // C2
+    		de->io.control_out[1] = 0x30; // C1
+    		de->io.control_out[2] = 0x10; // C2
     		de->io.control_out[3] = 0x0; // C3
     		de->io.control_out[4] = 0x0; // C4
 
@@ -3082,7 +3144,7 @@ void DataProcessor::encodeCCBytes() {
     		// manual 		  0
 
     		de->io.control_out[2] &= 0xBF; // 1 0 1 1 1 1 1 1
-    		de->io.control_out[2] |= (de->io.ccTx.alexConfig & 0x01) << 6;
+//    		de->io.control_out[2] |= (de->io.ccTx.alexConfig & 0x01) << 6;
 
     		// C3
     		// 0 0 0 0 0 0 0 0
@@ -3345,12 +3407,21 @@ void DataEngine::stop_TxProcessor() {
 
 }
 
+void DataEngine::radioStateChange(RadioState state) {
+
+    m_radioState = state;
+    if (state == RadioState::MOX)
+        io.ccTx.mox = true;
+    else io.ccTx.mox = false;
+
+    RX.at(0)->qtwdsp->set_txrx(state);
+}
 
 void DataProcessor::processReadData()
 {
     QByteArray buf;
     while(de->io.iq_queue.isEmpty() == false) {
-        buf = de->io.iq_queue.dequeue();
+      buf = de->io.iq_queue.dequeue();
       processInputBuffer(buf.left(BUFFER_SIZE / 2));
      processInputBuffer(buf.right(BUFFER_SIZE / 2));
     }

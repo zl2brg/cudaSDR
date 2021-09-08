@@ -120,7 +120,9 @@ QWDSPEngine::QWDSPEngine(QObject *parent, int rx, int size)
 
 QWDSPEngine::~QWDSPEngine() {
 	SetChannelState(m_rx,0,0);
-    CloseChannel(0);
+    SetChannelState(TX_ID,0,0);
+    CloseChannel(m_rx);
+    CloseChannel(TX_ID);
     DestroyAnalyzer(m_rx);
     SetRXAFMSQRun(m_rx,0);
 	destroy_nobEXT(m_rx);
@@ -759,4 +761,32 @@ void QWDSPEngine::setsnb(int rx, bool value) {
 	m_snb = value;
 	WDSP_ENGINE_DEBUG <<  "	snb mode" <<  value;
 	SetRXASNBARun(rx, m_snb);
+}
+
+void QWDSPEngine::set_txrx(RadioState state) {
+    switch (state){
+        case RadioState::RX:
+            SetTXAPostGenRun(TX_ID,0);
+            SetChannelState(TX_ID,0,1);
+            SetChannelState(0,1,1);
+            qDebug() << "RX";
+        break;
+        case RadioState::TUNE:
+        case RadioState::MOX:
+            SetTXAMode(TX_ID,5);
+
+       //     SetTXAPostGenToneFreq(TX_ID,1750);
+       //     SetTXAPostGenToneMag(TX_ID,0.2);
+       //     SetTXAPostGenMode(TX_ID,1);
+
+//            SetChannelState(0,0,1);
+
+        //    SetTXAPostGenRun(TX_ID,1);
+            SetChannelState(TX_ID,1,1);
+            qDebug() << "TX";
+
+        case RadioState::DUPLEX:
+        default:
+         break;
+    }
 }

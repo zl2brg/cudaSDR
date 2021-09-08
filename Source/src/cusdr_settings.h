@@ -515,8 +515,8 @@ typedef struct _hpsdrParameter {
 	int		tx_freq_change;
 	
 	float	mic_gain;
-	float	mic_left_buffer[BUFFER_SIZE];
-	float	mic_right_buffer[BUFFER_SIZE];
+	double	mic_buffer[BUFFER_SIZE *2 ];
+
 
 	qreal	penelopeForwardVolts;
 	qreal	penelopeForwardPower;
@@ -578,7 +578,12 @@ typedef enum _panDetectorMode {
 }PanDetectorMode;
 
 
-
+typedef enum _radioState {
+    RX,
+    MOX,
+    TUNE,
+    DUPLEX
+}RadioState;
 
 
 
@@ -657,9 +662,6 @@ typedef struct _receiver {
     bool     nr2_ae;
 	bool	anf;
 	bool	snb;
-
-
-
 } TReceiver;
 
 typedef struct _wideband {
@@ -822,6 +824,7 @@ signals:
 
 	void masterSwitchChanged(QObject *sender, bool power);
 
+	void radioStateChanged(RadioState state);
 
 
 	void systemStateChanged(
@@ -837,8 +840,8 @@ signals:
 				PanGraphicsMode panMode,
 				WaterfallColorMode waterfallColorMode);
 
-	void moxStateChanged(QObject *sender, bool state);
-	void tuneStateChanged(QObject *sender, bool state);
+	void moxStateChanged(QObject *sender, RadioState);
+	void tuneStateChanged(QObject *sender, RadioState);
 	void cpuLoadChanged(short load);
 	void txAllowedChanged(QObject* sender, bool value);
 	void multiRxViewChanged(int view);
@@ -1305,10 +1308,9 @@ public slots:
 				WaterfallColorMode waterfallColorMode);
 
 	void setTxAllowed(QObject* sender, bool value);
-	void setMox(bool value);
-	void setTune(bool value);
-	bool getMox();
-	bool getTune();
+
+    RadioState setRadioState(RadioState mode);
+	RadioState getRadioState();
 	void setMultiRxView(int view);
 	void setSMeterValue(int rx, double value);
 	void setSpectrumBuffer(int rx, const qVectorFloat &buffer);
@@ -1595,8 +1597,7 @@ private:
 	bool	setLoaded;
 
 	bool	m_mainPower;
-	bool    m_mox;
-	bool    m_tune;
+	RadioState m_radioState;
 	bool	m_defaultSkin;
 	bool	m_connected;
 	bool	m_clientConnected;

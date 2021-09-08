@@ -161,6 +161,15 @@ void MainWindow::setupConnections() {
 		this,
 		SLOT(clearStatusBarMessage()));
 
+	CHECKED_CONNECT(
+	        set,
+	        SIGNAL(radioStateChanged(RadioState)),
+	        this,
+	        SLOT(radioStateChange(RadioState)));
+
+
+
+
 
 	/*if (m_cudaPresence) {
 	
@@ -986,12 +995,6 @@ void MainWindow::createMainBtnToolBar() {
     moxBtn->setTextColor(btnCol);
 	moxBtn->setFixedSize(btn_width1, btn_height3);
 	moxBtn->setEnabled(false);
-	col = QColor(200, 100, 100);
-	moxBtn->setColor(col);
-	col = QColor(200, 200, 100);
-	moxBtn->setHighlight(col);
-	col = QColor(250, 100, 100);
-	moxBtn->setColorOn(col);
 	moxBtn->setBtnState(AeroButton::OFF);
 
 	tunBtn = new AeroButton("Tune", this);
@@ -1000,12 +1003,6 @@ void MainWindow::createMainBtnToolBar() {
     tunBtn->setTextColor(btnCol);
 	tunBtn->setFixedSize(btn_width1, btn_height3);
 	tunBtn->setEnabled(false);
-	col = QColor(200, 100, 100);
-	tunBtn->setColor(col);
-	col = QColor(200, 200, 100);
-	tunBtn->setHighlight(col);
-	col = QColor(250, 100, 100);
-	tunBtn->setColorOn(col);
 	tunBtn->setBtnState(AeroButton::OFF);
 
 	if (set->getPenelopePresence() || set->getPennyLanePresence() || (m_hwInterface == QSDR::Hermes)) {
@@ -2455,40 +2452,44 @@ void MainWindow::keyPressEvent(
     QWidget::keyPressEvent(event);
 }
 
-void MainWindow::moxBtnClickedEvent() {
 
-    if (set->getMox())
-    {
-        set->setMox(false);
-        moxBtn->setBtnState((AeroButton::OFF));
-        tunBtn->setDisabled(false);
+void MainWindow::radioStateChange(RadioState state) {
+
+
+    moxBtn->setBtnState((AeroButton::OFF));
+    tunBtn->setBtnState(AeroButton::OFF);
+    qDebug() << "Radio State Change" << state;
+
+    switch (state){
+        case RadioState::RX:
+        moxBtn->setBtnState(AeroButton::OFF);
+        tunBtn->setBtnState(AeroButton::OFF);
+
+
+        break;
+        case RadioState::MOX:
+            moxBtn->setBtnState(AeroButton::ON);
+            tunBtn->setBtnState(AeroButton::OFF);
+        break;
+        case RadioState::TUNE:
+            tunBtn->setBtnState(AeroButton::ON);
+            moxBtn->setBtnState(AeroButton::OFF);
+
+            break;
+        default:
+        break;
     }
-    else {
-        set->setMox(true);
-        moxBtn->setBtnState(AeroButton::ON);
-        QColor col = QColor(180, 180, 0);
-        moxBtn->setColorOn(col);
-        tunBtn->setDisabled(true);
-    }
+    tunBtn->repaint();
+    moxBtn->repaint();
+
+}
+
+void MainWindow::moxBtnClickedEvent() {
+    set->setRadioState(RadioState::MOX);
 }
 
 void MainWindow::tunBtnClickedEvent() {
-
-    if (set->getTune())
-    {
-        set->setTune(false);
-        tunBtn->setBtnState((AeroButton::OFF));
-        moxBtn->setDisabled(false);
-    }
-    else {
-        set->setTune(true);
-        QColor col = QColor(180, 180, 0);
-        tunBtn->setColorOn(col);
-        tunBtn->setBtnState(AeroButton::ON);
-        moxBtn->setDisabled(true);
-
-    }
-
+    set->setRadioState(RadioState::TUNE);
 }
 
 

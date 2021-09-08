@@ -29,7 +29,7 @@
 #include "cusdr_transmitter.h"
 
 Transmitter::Transmitter( int transmitter ) {
-    create_transmitter(transmitter,1024,4096,25,100,100);
+    create_transmitter(TX_ID,512,2048,10,100,100);
 
 }
 
@@ -163,7 +163,7 @@ bool  Transmitter::create_transmitter(int id, int buffer_size, int fft_size, int
                 this->mic_dsp_rate,
                 this->iq_output_rate,
                 1, // transmit
-                0, // run
+                1, // run
                 0.010, 0.025, 0.0, 0.010, 0);
 
     TXASetNC(this->id, this->fft_size);
@@ -211,19 +211,19 @@ bool  Transmitter::create_transmitter(int id, int buffer_size, int fft_size, int
     SetTXAPostGenTTMag(this->id, tone_level,tone_level);
     SetTXAPostGenToneFreq(this->id, 0.0);
     SetTXAPostGenRun(this->id, 0);
-
+/*
     double gain=pow(10.0, mic_gain / 20.0);
     SetTXAPanelGain1(this->id,gain);
     SetTXAPanelRun(this->id, 1);
-
+*/
     SetTXAFMDeviation(this->id, (double)this->deviation);
-    SetTXAAMCarrierLevel(this->id, this->am_carrier_level);
+    SetTXAAMCarrierLevel(this->id, 10);
 
     SetTXACompressorGain(this->id, this->compressor_level);
     SetTXACompressorRun(this->id, this->compressor);
 
     tx_set_mode(mode);
-
+/*
     XCreateAnalyzer(this->id, &rc, 262144, 1, 1, "");
     if (rc != 0) {
         fprintf(stderr, "XCreateAnalyzer id=%d failed: %d\n",this->id,rc);
@@ -232,7 +232,7 @@ bool  Transmitter::create_transmitter(int id, int buffer_size, int fft_size, int
     }
 
     //create_visual(tx);
-
+*/
     return true;
 }
 
@@ -242,7 +242,7 @@ void Transmitter::reconfigure_transmitter(int tx, int height) {
 
 void Transmitter::tx_set_mode(DSPMode  mode) {        mode=mode;
         SetTXAMode(this->id, mode);
-        tx_set_filter(this->id ,tx_filter_low,tx_filter_high);
+        tx_set_filter(this->id ,100,1000);
 }
 
 

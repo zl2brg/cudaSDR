@@ -30,6 +30,7 @@
 #ifndef _QTWDSP_DSP_ENGINE_H
 #define _QTWDSP_DSP_ENGINE_H
 
+#define TX_ID 8
 #define AGCOFFSET (-18.0)//-63.0
 
 //#include <QObject>
@@ -114,6 +115,7 @@ public slots:
     void    setNr2Ae(int rx , bool value);
     void    setanf(int rx, bool value);
     void    setsnb(int rx, bool value);
+    void    set_txrx(RadioState state);
 
 
 

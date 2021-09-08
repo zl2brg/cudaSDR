@@ -54,9 +54,11 @@ public:
 	void setColor(QColor &color)			{ m_color = color; }
 	void setColorOn(QColor &color)			{ m_color_on = color; }
 	void setTextColor(QColor &color)		{ m_textcolor = color; }
+	void setTextOnColor(QColor &color)      { m_onTextColor = color; }
 	void setHighlight(QColor &highlight)	{ m_highlight = highlight; }
 	void setShadow(QColor &shadow)			{ m_shadow = shadow; }
 	void setGlass(bool glass)				{ m_glass = glass; }
+
 
 	//Range: 0.0 [invisible] - 1.0 [opaque]
 	void setOpacity(qreal opacity)			{ m_opacity = opacity; }
@@ -88,7 +90,7 @@ private:
 	QColor m_highlight;
 	QColor m_shadow;
 	QColor m_textcolor;
-
+    QColor m_onTextColor;
 	QIcon  m_icon;
 
 	qreal m_opacity;

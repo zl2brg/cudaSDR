@@ -98,6 +98,7 @@ public slots:
 	void	startButtonClickedEvent();
 	void	widgetBtnClickedEvent();
 	void	wideBandBtnClickedEvent();
+	void    radioStateChange(RadioState state);
 	//void	avgBtnClickedEvent();
 	//void	gridBtnClickedEvent();
 	//void	peakHoldBtnClickedEvent();
