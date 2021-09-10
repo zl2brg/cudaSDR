@@ -125,6 +125,12 @@ DataEngine::DataEngine(QObject *parent)
 	io.mercuryFW = 0;
     //m_audioBuffer.resize(0);
     //m_audiobuf.resize(IO_BUFFER_SIZE);
+    file = new QFile("data.txt");
+    if ( file->open(QIODevice::ReadWrite) )
+    {
+        QTextStream stream( file );
+        stream << "something" << endl;
+    }
 
 	setupConnections();
 
@@ -151,6 +157,8 @@ DataEngine::DataEngine(QObject *parent)
 }
 
 DataEngine::~DataEngine() {
+
+    file->close();
     delete TX;
 }
 
@@ -2533,7 +2541,10 @@ void DataProcessor::processInputBuffer(const QByteArray &buffer) {
                 if ( de->io.ccTx.mox ||  de->io.ccTx.ptt )
                 {
                     fexchange0(TX_ID, de->io.mic_buffer, (double *) m_iq_output_buffer.data(), &error);
-
+                    if(error!=0) {
+                        qDebug() << "TX channel read error " << error;
+                    }
+                    Spectrum0(1, TX_ID, 0, 0, (double *) m_iq_output_buffer.data());
 
                     for (s = 0;s < 1024;s++ ){
                                          if (m_iq_output_buffer.at(s).re > 0)
@@ -2768,7 +2779,7 @@ void DataProcessor::setAudioBuffer(int rx, const CPX &buffer, int buffersize){
     int m_output_idx = 0;
 
     // process the output
-
+        qDebug() << "iq output index start" << m_output_idx;
         for (int j = 0; j < buffersize; j++) {
 
 		leftRXSample  = (qint16)(buffer.at(j).re * 32767.0f);
@@ -2808,7 +2819,7 @@ void DataProcessor::setAudioBuffer(int rx, const CPX &buffer, int buffersize){
 			//}
 			// set the C&C bytes
 			encodeCCBytes();
-
+            //qDebug() << "send audio" << m_output_idx;
 			switch (m_hwInterface) {
 
 				case QSDR::Metis:
@@ -2822,7 +2833,6 @@ void DataProcessor::setAudioBuffer(int rx, const CPX &buffer, int buffersize){
 					//}
 
 					de->m_dataIO->sendAudio(de->io.output_buffer); //RRK
-
 					writeData();
 					break;
 
@@ -3172,7 +3182,7 @@ void DataProcessor::encodeCCBytes() {
     		de->io.control_out[3] |= (de->io.ccTx.alexConfig & 0x20) >> 3;
 
     		de->io.control_out[3] &= 0xF7; // 1 1 1 1 0 1 1 1
-    		// HPF 6.5 MHz: 1 0 0 0 0
+    		// HPF 6.5 MHz: 1 0 0 0 0gv
     		de->io.control_out[3] |= (de->io.ccTx.alexConfig & 0x10) >> 1;
 
     		de->io.control_out[3] &= 0xEF; // 1 1 1 0 1 1 1 1
@@ -3413,7 +3423,7 @@ void DataEngine::radioStateChange(RadioState state) {
     if (state == RadioState::MOX)
         io.ccTx.mox = true;
     else io.ccTx.mox = false;
-
+    RX.at(0)->m_state = state;
     RX.at(0)->qtwdsp->set_txrx(state);
 }
 

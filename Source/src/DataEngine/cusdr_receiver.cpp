@@ -326,9 +326,14 @@ void Receiver::dspProcessing() {
     qtwdsp->processDSP(inBuf, audioOutputBuf);
 
 
+
 	if (highResTimer->getElapsedTimeInMicroSec() >= getDisplayDelay()) {
 		m_mutex.lock();
-		GetPixels(0,0,qtwdsp->spectrumBuffer.data(), &spectrumDataReady);
+        if (m_state == RadioState::RX) GetPixels(0,0,qtwdsp->spectrumBuffer.data(), &spectrumDataReady);
+         else {
+            GetPixels(TX_ID, 0, qtwdsp->spectrumBuffer.data(), &spectrumDataReady);
+
+        }
 		if (spectrumDataReady) {
 			memcpy(
 					newSpectrum.data(),

@@ -173,6 +173,7 @@ private:
 	void	createDiscoverer();
 	void	createDataIO();
 	void	createDataProcessor();
+    QFile           *file;
 
 	bool    toggle_TxRx();
 	void    createTxProcessor();
@@ -424,6 +425,7 @@ private:
 	int				m_chirpStartSample;
     CPX             m_iq_output_buffer;
 
+
 	double			m_lsample;
 	double			m_rsample;
 	float			m_micSample_float;
@@ -439,6 +441,7 @@ private:
 	quint32			m_oldSendSequence;
 
 	volatile bool	m_stopped;
+
 
 	uchar	m_ibuffer[IO_BUFFER_SIZE * IO_BUFFERS];
 signals:

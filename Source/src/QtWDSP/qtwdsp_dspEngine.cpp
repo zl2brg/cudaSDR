@@ -275,8 +275,6 @@ double QWDSPEngine::getSMeterInstValue() {
 void QWDSPEngine::setVolume(float value) {
     SetRXAPanelGain1(m_rx,  (double) value);
     WDSP_ENGINE_DEBUG << "WDSP volume set to " <<value;
-
-
 }
 
 void QWDSPEngine::setQtDSPStatus(bool value) { 
@@ -773,15 +771,15 @@ void QWDSPEngine::set_txrx(RadioState state) {
         break;
         case RadioState::TUNE:
         case RadioState::MOX:
-            SetTXAMode(TX_ID,5);
+        //    SetTXAMode(TX_ID,5);
 
-       //     SetTXAPostGenToneFreq(TX_ID,1750);
-       //     SetTXAPostGenToneMag(TX_ID,0.2);
-       //     SetTXAPostGenMode(TX_ID,1);
+            SetTXAPostGenToneFreq(TX_ID,1750);
+            SetTXAPostGenToneMag(TX_ID,0.1);
+            SetTXAPostGenMode(TX_ID,0);
 
 //            SetChannelState(0,0,1);
 
-        //    SetTXAPostGenRun(TX_ID,1);
+            SetTXAPostGenRun(TX_ID,1);
             SetChannelState(TX_ID,1,1);
             qDebug() << "TX";
 

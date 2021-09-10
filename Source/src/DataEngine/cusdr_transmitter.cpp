@@ -29,7 +29,7 @@
 #include "cusdr_transmitter.h"
 
 Transmitter::Transmitter( int transmitter ) {
-    create_transmitter(TX_ID,512,2048,10,100,100);
+    create_transmitter(TX_ID,1024,2048,10,2048,100);
 
 }
 
@@ -223,7 +223,7 @@ bool  Transmitter::create_transmitter(int id, int buffer_size, int fft_size, int
     SetTXACompressorRun(this->id, this->compressor);
 
     tx_set_mode(mode);
-/*
+
     XCreateAnalyzer(this->id, &rc, 262144, 1, 1, "");
     if (rc != 0) {
         fprintf(stderr, "XCreateAnalyzer id=%d failed: %d\n",this->id,rc);
@@ -232,7 +232,7 @@ bool  Transmitter::create_transmitter(int id, int buffer_size, int fft_size, int
     }
 
     //create_visual(tx);
-*/
+
     return true;
 }
 
@@ -361,10 +361,10 @@ void Transmitter::init_analyser(int tx) {
     int n_pixout=1;
     int spur_elimination_ffts = 1;
     int data_type = 1;
-    int fft_size = 8192;
+    int fft_size = 2048;
     int window_type = 4;
     double kaiser_pi = 14.0;
-    int overlap = 2048;
+    int overlap = 0;
     int clip = 0;
     int span_clip_l = 0;
     int span_clip_h = 0;
@@ -389,14 +389,14 @@ void Transmitter::init_analyser(int tx) {
                 data_type, //0 for real input data (I only); 1 for complex input data (I & Q)
                 flp, //vector with one elt for each LO frequency, 1 if high-side LO, 0 otherwise
                 fft_size, //size of the fft, i.e., number of input samples
-                this->output_samples, //number of samples transferred for each OpenBuffer()/CloseBuffer()
+                1024, //number of samples transferred for each OpenBuffer()/CloseBuffer()
                 window_type, //integer specifying which window function to use
                 kaiser_pi, //PiAlpha parameter for Kaiser window
                 overlap, //number of samples each fft (other than the first) is to re-use from the previous
                 clip, //number of fft output bins to be clipped from EACH side of each sub-span
                 span_clip_l, //number of bins to clip from low end of entire span
                 span_clip_h, //number of bins to clip from high end of entire span
-                pixels, //number of pixel values to return.  may be either <= or > number of bins
+                4096, //number of pixel values to return.  may be either <= or > number of bins
                 stitches, //number of sub-spans to concatenate to form a complete span
                 calibration_data_set, //identifier of which set of calibration data to use
                 span_min_freq, //frequency at first pixel value8192
