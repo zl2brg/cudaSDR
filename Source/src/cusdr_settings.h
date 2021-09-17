@@ -366,13 +366,13 @@ typedef struct _hpsdrDevices {
 	bool	hermesPresence;
 	bool	metisPresence;
 
-	int 	mercuryFWVersion;
-	int 	penelopeFWVersion;
-	int 	pennylaneFWVersion;
-	int 	excaliburFWVersion;
-	int 	alexFWVersion;
-	int		hermesFWVersion;
-	int  	metisFWVersion;
+	unsigned char 	mercuryFWVersion;
+    unsigned char 	penelopeFWVersion;
+    unsigned char 	pennylaneFWVersion;
+    unsigned char 	excaliburFWVersion;
+    unsigned char 	alexFWVersion;
+    unsigned char	hermesFWVersion;
+    unsigned char  	metisFWVersion;
 
 } THPSDRDevices;
 
@@ -934,6 +934,7 @@ signals:
 	void src10MhzChanged(QObject *sender, int source);
 	void src122_88MhzChanged(QObject *sender, int source);
 	void micSourceChanged(QObject *sender, int source);
+    void micInputChanged(QObject *sender, int source);
 	void classChanged(QObject *sender, int value);
 	void timingChanged(QObject *sender, int value);
 	void controlBytesOutChanged(QObject *sender, unsigned char *values);
@@ -1042,6 +1043,8 @@ signals:
     void nr2AeChanged(int rx, bool value);
     void snbChanged(int rx, bool value);
     void anfChanged(int rx, bool value);
+    void micInputLevelChanged(QObject *sender, int level);
+    void driveLevelChanged(QObject *sender, int level);
 
 
 
@@ -1205,7 +1208,10 @@ public:
 	int getMicSource()				{ return m_micSource; }
 	int getRxClass()				{ return m_RxClass; }
 	int	getRxTiming()				{ return m_RxTiming; }
-	
+    int getMicInputDev()            { return m_micInputDev;}
+    int getMicInputLevel()          { return m_micInputLevel;}
+    int getDriveLevel()             { return m_drivelevel;}
+
 	qreal	getMainVolume(int rx);
 	qreal	getMouseWheelFreqStep(int rx);// { return m_mouseWheelFreqStep; }
 	ADCMode getADCMode(int rx);
@@ -1394,6 +1400,9 @@ public slots:
 	void set10MhzSource(QObject *sender, int source);
 	void set122_88MhzSource(QObject *sender, int source);
 	void setMicSource(QObject *sender, int source);
+    void setMicInputDev(QObject *sender , int index);
+    void setMicInputLevel(QObject *sender , int level);
+    void setDriveLevel(QObject *sender , int level);
 	void setClass(QObject *sender, int value);
 	void setTiming(QObject *sender, int value);
 	void setCtrFrequency(QObject *sender, int mode, int rx, long frequency);
@@ -1637,6 +1646,9 @@ private:
 	int		m_10MHzSource;
 	int		m_122_8MHzSource;
 	int		m_micSource;
+    int     m_micInputDev;
+    int     m_micInputLevel;
+    int     m_drivelevel;
 	int		m_RxClass;
 	int		m_RxTiming;
 

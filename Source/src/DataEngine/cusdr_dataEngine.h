@@ -60,6 +60,7 @@
 #include "QtWDSP/qtwdsp_dspEngine.h"
 #include "cusdr_WidebandProcessor.h"
 #include "cusdr_transmitter.h"
+#include "AudioEngine/cusdr_audio_input.h"
 
 #ifdef LOG_DATA_ENGINE
 #   define DATA_ENGINE_DEBUG qDebug().nospace() << "DataEngine::\t"
@@ -107,6 +108,7 @@ public:
 
 	QUdpSocket*			sendSocket;
 	DataIO*				m_dataIO;
+    AudioInput *            m_audioInput;
 
     struct sockaddr_in  DataAddr;
     int data_socket;
@@ -173,6 +175,8 @@ private:
 	void	createDiscoverer();
 	void	createDataIO();
 	void	createDataProcessor();
+
+
     QFile           *file;
 
 	bool    toggle_TxRx();
@@ -182,6 +186,7 @@ private:
 	//void	createChirpDataProcessor();
 	//void	createAudioReceiver(int rx);
 	void	createAudioReceiver();
+    void    createAudioInputProcessor();
 
 	bool	initReceivers(int rx);
 	bool    initTransmitters(int tx);
@@ -194,6 +199,7 @@ private:
 	bool	startDataIO(QThread::Priority prio);
 	bool	startDataProcessor(QThread::Priority prio);
 	void	startAudioOutProcessor(QThread::Priority prio);
+    bool    startAudioInputProcessor(QThread::Priority prio);
 	bool	startWideBandDataProcessor(QThread::Priority prio);
 	bool    start_TxProcessor();
 
@@ -222,7 +228,7 @@ private:
 	QThreadEx*				m_wbDataProcThread;
 	QThreadEx*				m_chirpDataProcThread;
 	QThreadEx*				m_AudioRcvrThread;
-	QThreadEx*				m_audioInProcThread;
+	QThreadEx*				m_audioInputProcThread;
 	QThreadEx*				m_audioOutProcThread;
 	QThreadEx*              m_txProcessorThread;
 

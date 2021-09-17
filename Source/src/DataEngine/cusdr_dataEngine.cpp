@@ -1,3 +1,5 @@
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "EmptyDeclOrStmt"
 /**
 * @file  cusdr_dataEngine.cpp
 * @brief cuSDR data engine class
@@ -95,8 +97,9 @@ DataEngine::DataEngine(QObject *parent)
 	, m_chirpSamples(0)
 	, m_spectrumSize(set->getSpectrumSize())
 	, m_sendState(0)
-    , m_radioState(RadioState::RX)
-	, m_sMeterCalibrationOffset(0.0f)//(35.0f)
+    , m_sMeterCalibrationOffset(0.0f)//(35.0f)
+   , m_radioState(RadioState::RX)
+
 
 {
 	qRegisterMetaType<QAbstractSocket::SocketError>();
@@ -106,13 +109,14 @@ DataEngine::DataEngine(QObject *parent)
 	m_clientConnected = false;
 
 	//currentRx = 0;
-	m_discoverer = 0;
-	m_dataIO = 0;
-	m_dataProcessor = 0;
-	m_wbDataProcessor = 0;
-	m_audioReceiver = 0;
-	m_audioOutProcessor = 0;
-	//m_wbAverager = 0;
+	m_discoverer= nullptr;
+	m_dataIO= nullptr;
+	m_dataProcessor= nullptr;
+	m_wbDataProcessor= nullptr;
+	m_audioReceiver= nullptr;
+	m_audioOutProcessor= nullptr;
+    m_audioInput= nullptr;
+	//m_wbAverager= nullptr;
 
 	set->setMercuryVersion(0);
 	set->setPenelopeVersion(0);
@@ -154,12 +158,16 @@ DataEngine::DataEngine(QObject *parent)
 
 	m_message = "audio sample = %1";
 	m_counter = 0;
+    if (!m_audioInput) createAudioInputProcessor();
+ //   startAudioInputProcessor(QThread::NormalPriority);
+
 }
 
 DataEngine::~DataEngine() {
 
     file->close();
     delete TX;
+    if (m_audioInput) delete m_audioInput;
 }
 
 void DataEngine::setupConnections() {
@@ -167,36 +175,34 @@ void DataEngine::setupConnections() {
 	CHECKED_CONNECT(
 		set,
 		SIGNAL(systemStateChanged(
-					QObject *,
-					QSDR::_Error,
-					QSDR::_HWInterfaceMode,
-					QSDR::_ServerMode,
-					QSDR::_DataEngineState)),
-		this,
+                QObject*,QSDR::_Error,
+				QSDR::_HWInterfaceMode,
+				QSDR::_ServerMode,
+				QSDR::_DataEngineState)),this,
 		SLOT(systemStateChanged(
-					QObject *,
-					QSDR::_Error,
-					QSDR::_HWInterfaceMode,
-					QSDR::_ServerMode,
-					QSDR::_DataEngineState)));
+				QObject*,
+				QSDR::_Error,
+				QSDR::_HWInterfaceMode,
+				QSDR::_ServerMode,
+				QSDR::_DataEngineState)))
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(rxListChanged(QList<Receiver *>)),
+		SIGNAL(rxListChanged(QList<Receiver*>)),
 		this,
-		SLOT(rxListChanged(QList<Receiver *>)));
+		SLOT(rxListChanged(QList<Receiver*>)))
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(numberOfRXChanged(QObject *, int)), 
+		SIGNAL(numberOfRXChanged(QObject*,int)),
 		this, 
-		SLOT(setNumberOfRx(QObject *, int)));
+		SLOT(setNumberOfRx(QObject*,int)));
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(currentReceiverChanged(QObject *,int)),
+		SIGNAL(currentReceiverChanged(QObject*,int)),
 		this, 
-		SLOT(setCurrentReceiver(QObject *, int)));
+		SLOT(setCurrentReceiver(QObject*,int)));
 
 	CHECKED_CONNECT(
 		set,
@@ -224,15 +230,15 @@ void DataEngine::setupConnections() {
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(ditherChanged(QObject *, int)), 
+		SIGNAL(ditherChanged(QObject*,int)),
 		this, 
-		SLOT(setDither(QObject *, int)));
+		SLOT(setDither(QObject*,int)))
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(randomChanged(QObject *, int)), 
+		SIGNAL(randomChanged(QObject*,int)),
 		this, 
-		SLOT(setRandom(QObject *, int)));
+		SLOT(setRandom(QObject*,int)));
 
 	CHECKED_CONNECT(
 		set, 
@@ -367,6 +373,7 @@ bool DataEngine::startDataEngineWithoutConnection() {
 		initReceivers(1);
 		if (!m_dataIO)	createDataIO();
 		if (!m_dataProcessor)	createDataProcessor();
+
 		
 		// data receiver thread
 		if (!startDataIO(QThread::NormalPriority)) {
@@ -754,6 +761,8 @@ bool DataEngine::start() {
 	
 	if (!m_dataProcessor) createDataProcessor();
 
+    if (!m_audioInput) createAudioInputProcessor();
+
 	if (m_serverMode == QSDR::SDRMode && !m_wbDataProcessor)
 		createWideBandDataProcessor();
 
@@ -834,15 +843,7 @@ bool DataEngine::start() {
 
 		CHECKED_CONNECT(
 				RX.at(i),
-				SIGNAL(outputBufferSignal(int, const CPX &)),
-				m_dataProcessor,
-				SLOT(setOutputBuffer(int, const CPX &)));
-
-		CHECKED_CONNECT(
-				RX.at(i),
-				SIGNAL(audioBufferSignal(int, const CPX &, int)),
-				m_dataProcessor,
-				SLOT(setAudioBuffer(int, const CPX &,int)));
+				SIGNAL(outputBufferSignal(int, const CPX &)),m_dataProcessor,SLOT(setOutputBuffer(int, const CPX &)));CHECKED_CONNECT(RX.at(i),SIGNAL(audioBufferSignal(int, const CPX &, int)),m_dataProcessor,SLOT(setAudioBuffer(int, const CPX &,int)));
 
 		m_dspThreadList.at(i)->start(QThread::NormalPriority);//QThread::TimeCriticalPriority);
 				
@@ -862,7 +863,13 @@ bool DataEngine::start() {
 		m_dataIO->set_wbBuffers(set->getWidebandBuffers());
 	}
 
-
+/*
+    if (!startAudioInputProcessor(QThread::NormalPriority))
+    {
+        DATA_ENGINE_DEBUG << "Audio Input data processor thread could not be started.";
+        return false;
+    }
+*/
 
 	if (!startWideBandDataProcessor(QThread::NormalPriority)) {
 
@@ -904,13 +911,13 @@ bool DataEngine::start() {
     if (m_serverMode == QSDR::SDRMode && set->getWidebandData()) {
 			m_dataIO->networkDeviceStartStop(0x03); // 0x03 for starting the device with wide band data
 			SleeperThread::msleep(100);
-	}
-	else
-		m_dataIO->networkDeviceStartStop(0x01); // 0x01 for starting the device without wide band data
-		m_networkDeviceRunning = true;
-
-		setSystemState(QSDR::NoError, m_hwInterface, m_serverMode, QSDR::DataEngineUp);
-		set->setSystemMessage("System running", 4000);
+	    }
+	    else {
+            m_dataIO->networkDeviceStartStop(0x01); // 0x01 for starting the device without wide band data
+        }
+	m_networkDeviceRunning = true;
+	setSystemState(QSDR::NoError, m_hwInterface, m_serverMode, QSDR::DataEngineUp);
+	set->setSystemMessage("System running", 4000);
 
 		DATA_ENGINE_DEBUG << "Data Engine thread: " << this->thread();
 
@@ -1073,7 +1080,7 @@ bool DataEngine::initReceivers(int rcvrs) {
 		
 	for (int i = 0; i < rcvrs; i++) {
 			
-		Receiver *rx = new Receiver(i);
+		auto *rx = new Receiver(i);
 		// init the DSP core
 		DATA_ENGINE_DEBUG << "trying to init a DSP core for rx " << i;
 
@@ -1085,7 +1092,7 @@ bool DataEngine::initReceivers(int rcvrs) {
 			rx->setServerMode(m_serverMode);
 
 			// create dsp thread
-			QThreadEx* thread = new QThreadEx();
+			auto thread = new QThreadEx();
 			rx->moveToThread(thread);
 
 			//CHECKED_CONNECT(this, SIGNAL(doDSP()), rx, SLOT(dspProcessing()));
@@ -1334,6 +1341,9 @@ void DataEngine::disconnectDSPSlots() {
 		SLOT(setFrequency(QObject *, int, int, long)));
 }
 
+
+
+
 //********************************************************
 // create, start/stop HPSDR device network IO
 
@@ -1379,7 +1389,7 @@ void DataEngine::stopDiscoverer() {
 		m_discoveryThread->wait(1000);
 		delete m_discoveryThread;
 		delete m_discoverer;
-		m_discoverer = 0;
+		m_discoverer = nullptr;
 
 		m_discoveryThreadRunning = false;
 
@@ -1484,7 +1494,7 @@ void DataEngine::stopDataIO() {
 		
 		delete m_dataIOThread;
 		delete m_dataIO;
-		m_dataIO = 0;
+		m_dataIO = nullptr;
 		
 		if (m_serverMode == QSDR::ChirpWSPRFile) {
 
@@ -1614,7 +1624,7 @@ void DataEngine::stopDataProcessor() {
 		m_dataProcThread->wait();
 		delete m_dataProcThread;
 		delete m_dataProcessor;
-		m_dataProcessor = 0;
+		m_dataProcessor = nullptr;
 
 		if (m_serverMode == QSDR::SDRMode ) {
 
@@ -1761,7 +1771,7 @@ void DataEngine::stopWideBandDataProcessor() {
 		m_wbDataProcThread->wait();
 		delete m_wbDataProcThread;
 		delete m_wbDataProcessor;
-		m_wbDataProcessor = 0;
+		m_wbDataProcessor = nullptr;
 
 		m_wbDataRcvrThreadRunning = false;
 		
@@ -2617,7 +2627,7 @@ void DataProcessor::decodeCCBytes(const QByteArray &buffer) {
 				{
 					if (de->io.ccRx.devices.mercuryFWVersion != buffer.at(2))
 					{
-						de->io.ccRx.devices.mercuryFWVersion = buffer.at(2);
+                        de->io.ccRx.devices.mercuryFWVersion = buffer.at(2);
 						set->setMercuryVersion(de->io.ccRx.devices.mercuryFWVersion);
 						de->io.networkIOMutex.lock();
 						DATA_PROCESSOR_DEBUG << "Mercury firmware version: " << qPrintable(QString::number(buffer.at(2)));
@@ -2742,7 +2752,10 @@ void DataProcessor::decodeCCBytes(const QByteArray &buffer) {
 			//		io.ccRx.mercury2_LT2208 = (bool)((buffer.at(2) & 0x02) == 0x02);
 			//		io.ccRx.mercury3_LT2208 = (bool)((buffer.at(3) & 0x02) == 0x02);
 			//		//qDebug() << "mercury1_LT2208: " << io.ccRx.mercury1_LT2208 << "mercury2_LT2208" << io.ccRx.mercury2_LT2208;
-			//		//qDebug() << "mercury3_LT2208: " << io.ccRx.mercury3_LT2208;
+			//		//qDebug() << "mercury3_LT2208: " << io.ccRx.mercury3_LT2208;tart
+
+
+
 			//		break;
 
 			//	case 4:
@@ -2779,7 +2792,7 @@ void DataProcessor::setAudioBuffer(int rx, const CPX &buffer, int buffersize){
     int m_output_idx = 0;
 
     // process the output
-        qDebug() << "iq output index start" << m_output_idx;
+//        qDebug() << "iq output index start" << m_output_idx;
         for (int j = 0; j < buffersize; j++) {
 
 		leftRXSample  = (qint16)(buffer.at(j).re * 32767.0f);
@@ -3404,6 +3417,31 @@ void DataEngine::senddata(char * buffer, int length) {
 
 }
 
+
+void DataEngine::createAudioInputProcessor() {
+
+    m_audioInput = new AudioInput();
+
+}
+
+bool DataEngine::startAudioInputProcessor(QThread::Priority prio) {
+
+    m_audioInputProcThread->start(prio);
+
+
+    if (m_audioInputProcThread->isRunning()) {
+
+
+
+        return true;
+    }
+    else {
+
+        return false;
+    }
+
+}
+
 void DataEngine::createTxProcessor() {
 
 
@@ -3412,6 +3450,7 @@ void DataEngine::createTxProcessor() {
 bool DataEngine::start_TxProcessor() {
     return false;
 }
+
 
 void DataEngine::stop_TxProcessor() {
 
@@ -3430,9 +3469,11 @@ void DataEngine::radioStateChange(RadioState state) {
 void DataProcessor::processReadData()
 {
     QByteArray buf;
-    while(de->io.iq_queue.isEmpty() == false) {
+    while(!de->io.iq_queue.isEmpty()) {
       buf = de->io.iq_queue.dequeue();
       processInputBuffer(buf.left(BUFFER_SIZE / 2));
      processInputBuffer(buf.right(BUFFER_SIZE / 2));
     }
 }
+
+#pragma clang diagnostic pop

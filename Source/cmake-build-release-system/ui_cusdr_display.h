@@ -1,7 +1,7 @@
 /********************************************************************************
 ** Form generated from reading UI file 'cusdr_display.ui'
 **
-** Created by: Qt User Interface Compiler version 5.15.3
+** Created by: Qt User Interface Compiler version 5.13.2
 **
 ** WARNING! All changes made in this file will be lost when recompiling UI file!
 ********************************************************************************/
@@ -20,7 +20,7 @@
 #include <QtWidgets/QSpinBox>
 #include <QtWidgets/QVBoxLayout>
 #include <QtWidgets/QWidget>
-#include <aerobutton.h>
+#include <Util/cusdr_buttons.h>
 
 QT_BEGIN_NAMESPACE
 
@@ -73,10 +73,10 @@ public:
     {
         if (cusdr_Display->objectName().isEmpty())
             cusdr_Display->setObjectName(QString::fromUtf8("cusdr_Display"));
-        cusdr_Display->resize(336, 461);
+        cusdr_Display->resize(336, 546);
         verticalLayoutWidget = new QWidget(cusdr_Display);
         verticalLayoutWidget->setObjectName(QString::fromUtf8("verticalLayoutWidget"));
-        verticalLayoutWidget->setGeometry(QRect(10, 0, 311, 441));
+        verticalLayoutWidget->setGeometry(QRect(10, 0, 311, 532));
         verticalLayout = new QVBoxLayout(verticalLayoutWidget);
         verticalLayout->setObjectName(QString::fromUtf8("verticalLayout"));
         verticalLayout->setContentsMargins(0, 0, 0, 0);

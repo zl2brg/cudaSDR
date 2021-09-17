@@ -75,13 +75,29 @@ MainWindow::MainWindow(QWidget *parent)
     setupWidget = new SetupWidget();
     miniModeWidget = new MiniModeWidget();
     m_radioCtrl = new RadioCtrl();
+    m_audioInput = new audio_dialog();
+    QAction *test = new QAction();
 
-    setupActions();
+
+
     QMenuBar* menuBar = new QMenuBar();
     QMenu *File = menuBar->addMenu(tr("File"));
     menuBar->setStyleSheet(set->getMenuBarStyle());
-    File->addAction(setupAction);
     File->setStyleSheet(set->getMenuStyle());
+    File->setTitle("File");
+    test->setText("Test");
+//    test->setMenu(File);
+//    menuBar->addAction(test);
+
+
+    /* setup menu actions */
+    setupAction = new QAction(tr("&Setup"), this);
+    setupAction->setStatusTip(tr("Setup Menu"));
+    connect(setupAction, &QAction::triggered, this, &MainWindow::cusdr_setup);
+    connect(test, &QAction::triggered, m_audioInput,&audio_dialog::show);
+
+    File->addAction(setupAction);
+    File->addAction(test);
     this->layout()->setMenuBar(menuBar);
 	QPalette palette;
 	QColor color = Qt::black;
@@ -142,6 +158,8 @@ MainWindow::MainWindow(QWidget *parent)
 */
 MainWindow::~MainWindow() {
 }
+
+
 
 /*!
 	\brief set up connections.
@@ -341,19 +359,19 @@ void MainWindow::setup() {
 	createStatusToolBar();
 
 	// create the mode menu
-	createModeMenu();
+    createModeMenu();
 
 	// create the view menu
-	createViewMenu();
+    createViewMenu();
 
 	// create the attenuator menu
-	createAttenuatorMenu();
+    createAttenuatorMenu();
 	
 	// the wideband display
-	m_wbDisplay = new QGLWidebandPanel(this);
+    m_wbDisplay = new QGLWidebandPanel(this);
 
 	// create the receiver panels
-	createReceiverPanels(MAX_RECEIVERS);
+    createReceiverPanels(MAX_RECEIVERS);
 	
 	// setup the layout for the control widgets, the wideband panel and the receiver panels
 	setupLayout();
@@ -432,9 +450,7 @@ void MainWindow::cusdr_setup()
 
 void MainWindow::setupActions()
 {
-    setupAction = new QAction(tr("&Setup"), this);
-    setupAction->setStatusTip(tr("Setup Menu"));
-    connect(setupAction, &QAction::triggered, this, &MainWindow::cusdr_setup);
+
 
 }
 
@@ -845,11 +861,11 @@ void MainWindow::createMainBtnToolBar() {
 
 	QColor col = QColor(90, 90, 90);
 
-	nullBtn = new AeroButton(this);
-	nullBtn->setRoundness(0);
-	nullBtn->setFixedHeight(btn_height1);
-	nullBtn->setHighlight(col);
-	nullBtn->setEnabled(false);
+    nullBtn = new AeroButton(this);
+    nullBtn->setRoundness(0);
+    nullBtn->setFixedHeight(btn_height1);
+    nullBtn->setHighlight(col);
+    nullBtn->setEnabled(false);
 
     // +Rx disabled for now, requires addReceiver to be implemented
     plusRxBtn = new AeroButton("+Rx", this);
@@ -1088,7 +1104,7 @@ void MainWindow::createMainBtnToolBar() {
 	firstBtnLayout->addWidget(wideBandBtn);
 	//firstBtnLayout->addWidget(openclBtn);
 	firstBtnLayout->addWidget(displayBtn);
-	firstBtnLayout->addWidget(nullBtn);
+    firstBtnLayout->addWidget(nullBtn);
     firstBtnLayout->addWidget(plusRxBtn);
 	firstBtnLayout->addWidget(viewBtn);
 	firstBtnLayout->addWidget(modeBtn);
@@ -1178,7 +1194,7 @@ void MainWindow::createModeMenu() {
 	\brief create the receiver's dock windows view menu.
 */
 void MainWindow::createViewMenu() {
-	viewMenu = new QMenu(this);
+    viewMenu = new QMenu(this);
 	viewMenu->setStyleSheet(set->getMenuStyle());
 	viewBtn->setMenu(viewMenu);
 }

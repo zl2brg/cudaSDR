@@ -318,6 +318,13 @@ int Settings::loadSettings() {
     else
         m_micSource = 1;
 
+    m_micInputDev = settings->value("server/mic_InputDevice",0).toInt();
+
+    m_micInputLevel = settings->value("micInputLevel",0).toInt();
+    m_drivelevel = settings->value("driveLevel",0).toInt();
+
+
+
     str = settings->value("server/class", 0).toString();
     m_RxClass = (str.toLower() == "E");
     if (m_RxClass)
@@ -1604,8 +1611,15 @@ int Settings::saveSettings() {
     else if (m_micSource == 1)
         settings->setValue("server/mic_source", "penelope");
 
+    settings->setValue("micInputDevice",m_micInputDev);
+    settings->setValue("micInputLevel",m_micInputLevel);
+    settings->setValue("driveLevel",m_drivelevel);
+
+
     settings->setValue("server/class", m_RxClass);
     settings->setValue("server/timing", m_RxTiming);
+
+
     //settings->setValue("server/mainVolume", (int)(m_mainVolume * 100));
 
     //if (m_serverMode == QSDR::SDRMode)
@@ -3524,6 +3538,34 @@ void Settings::setMicSource(QObject *sender, int source) {
     m_micSource = source;
     emit micSourceChanged(sender, source);
 }
+
+void Settings::setMicInputDev(QObject *sender, int index) {
+
+    QMutexLocker locker(&settingsMutex);
+
+    m_micInputDev = index;
+    emit micInputChanged(sender, index);
+}
+
+void Settings::setMicInputLevel(QObject *sender, int level) {
+
+    QMutexLocker locker(&settingsMutex);
+
+    m_micInputLevel = level;
+    emit micInputLevelChanged(sender, level);
+}
+
+void Settings::setDriveLevel(QObject *sender, int level) {
+
+    QMutexLocker locker(&settingsMutex);
+
+    m_drivelevel = level;
+    emit driveLevelChanged(sender, level);
+}
+
+
+
+
 
 void Settings::setClass(QObject *sender, int value) {
 
