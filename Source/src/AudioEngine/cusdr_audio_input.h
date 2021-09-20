@@ -28,6 +28,7 @@ Q_OBJECT
 public:
 AudioInput(QObject *parent = 0);
 ~AudioInput();
+void setup();
 void stop();
 void start();
 
@@ -37,6 +38,8 @@ void start();
     QAudio::Mode mode() const       { return m_mode; }
     QAudio::State state() const     { return m_state; }
     const QAudioFormat& format() const  { return m_format; }
+    QHQueue<QByteArray> m_audioInQueue;
+
 
     QAudio::Mode m_mode;
     QAudio::State m_state;
@@ -51,16 +54,12 @@ public slots:
 
 private:
     Settings				*set;
-    QBuffer  mInputBuffer;
 
-    QVector<double> mSamples;
-    QVector<double> mIndices;
     const QList<QAudioDeviceInfo> m_availableAudioInputDevices;
     QAudioDeviceInfo    m_audioInputDevice;
-    QIODevice*          m_audioInputIODevice;
     qint64              m_recordPosition;
     volatile bool m_stopped;
-    QFile destinationFile;
+    QIODevice *m_in = nullptr;
 };
 
 

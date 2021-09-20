@@ -25,62 +25,69 @@ AudioInput::AudioInput(QObject *parent)
  QAudioDeviceInfo::availableDevices(QAudio::AudioInput))
 , m_audioInputDevice(QAudioDeviceInfo::defaultInputDevice())
 {
-    mInputBuffer.open(QBuffer::ReadWrite);
-       QAudioFormat format;
-      // Set up the desired format, for example:
-      format.setSampleRate(48000);
-      format.setChannelCount(1);
-      format.setSampleSize(16);
-      format.setCodec("audio/pcm");
-      format.setByteOrder(QAudioFormat::LittleEndian);
-      format.setSampleType(QAudioFormat::UnSignedInt);
 
-      QAudioDeviceInfo info = QAudioDeviceInfo::defaultInputDevice();
-      if (!info.isFormatSupported(format)) {
-          qWarning() << "Default format not supported, trying to use the nearest.";
-          format = info.nearestFormat(format);
-      }
 
-      m_AudioIn = new QAudioInput(format, this);
-      connect(m_AudioIn, SIGNAL(stateChanged(QAudio::State)), this, SLOT(stateChangeAudioIn(QAudio::State)));
+
 /*
-      CHECKED_CONNECT(
-                 m_AudioIn,
-                 SIGNAL(notify()),
-                 this,
-                 SLOT(audioUpdate()));
+
       m_AudioIn->setNotifyInterval(100);
 */
-
+/*
       CHECKED_CONNECT(
                   &mInputBuffer,
                   SIGNAL(readyRead()),
                   this,
                   SLOT(audioUpdate()));
+*/
 
-   //   m_AudioIn->setNotifyInterval(100);
-      m_AudioIn->start(&mInputBuffer);
-
+setup();
+start();
 
 }
 
 AudioInput::~AudioInput()
 {
-    m_AudioIn->stop();
     stop();
     if (m_AudioIn) delete m_AudioIn;
-     m_AudioIn = nullptr;
+}
+
+void AudioInput::setup(){
+
+    QAudioFormat format;
+    // Set up the desired format, for example:
+    format.setSampleRate(48000);
+    format.setChannelCount(1);
+    format.setSampleSize(24);
+    format.setCodec("audio/pcm");
+    format.setByteOrder(QAudioFormat::LittleEndian);
+    format.setSampleType(QAudioFormat::Float);
+
+    QAudioDeviceInfo info = QAudioDeviceInfo::defaultInputDevice();
+    if (!info.isFormatSupported(format)) {
+        qWarning() << "Default format not supported, trying to use the nearest.";
+        format = info.nearestFormat(format);
+    }
+
+    m_AudioIn = new QAudioInput(format, this);
+    connect(m_AudioIn, SIGNAL(stateChanged(QAudio::State)), this, SLOT(stateChangeAudioIn(QAudio::State)));
+
 }
 
 void AudioInput::start()
 {
-
+    m_AudioIn->setNotifyInterval(100);
+    m_in = m_AudioIn->start();
+    CHECKED_CONNECT(
+            m_in,
+            SIGNAL(readyRead()),
+            this,
+            SLOT(audioUpdate()));
 }
 
 
 void AudioInput::stop(){
     m_AudioIn->stop();
-    mInputBuffer.close();
+    m_audioInQueue.release_queue();
 }
 
 void AudioInput::processAudioIn() {
@@ -89,12 +96,8 @@ void AudioInput::processAudioIn() {
 
 while (!m_stopped)
     {
-    mInputBuffer.waitForReadyRead(1000);
-    AUDIO_INPUT_DEBUG << "State " << mInputBuffer.bytesAvailable() << "size" << mInputBuffer.size();
-    mInputBuffer.readAll();
 
     }
-mInputBuffer.close();
 }
 
 void AudioInput::stateChangeAudioIn(QAudio::State s) {
@@ -104,8 +107,8 @@ AUDIO_INPUT_DEBUG << "state changed " << s;
 
 
 void AudioInput::audioUpdate(){
-    AUDIO_INPUT_DEBUG << "State " << mInputBuffer.bytesAvailable() << "size" << mInputBuffer.size();
-    mInputBuffer.readAll();
-
+    AUDIO_INPUT_DEBUG << "State " << m_in->bytesAvailable() << "size" << m_in->size();
+    m_audioInQueue.enqueue(m_in->readAll());
+    AUDIO_INPUT_DEBUG << "Audio Queue size" << m_audioInQueue.count();
 }
 
