@@ -41,7 +41,6 @@ AudioInput::AudioInput(QObject *parent)
 */
 
 setup();
-start();
 
 }
 
@@ -57,7 +56,7 @@ void AudioInput::setup(){
     // Set up the desired format, for example:
     format.setSampleRate(48000);
     format.setChannelCount(1);
-    format.setSampleSize(24);
+    format.setSampleSize(16);
     format.setCodec("audio/pcm");
     format.setByteOrder(QAudioFormat::LittleEndian);
     format.setSampleType(QAudioFormat::Float);
@@ -75,8 +74,10 @@ void AudioInput::setup(){
 
 void AudioInput::start()
 {
-    m_AudioIn->setNotifyInterval(100);
+    m_AudioIn->setBufferSize(16384);
+    AUDIO_INPUT_DEBUG << "Audio input buffer size " << m_AudioIn->bufferSize();
     m_in = m_AudioIn->start();
+
     CHECKED_CONNECT(
             m_in,
             SIGNAL(readyRead()),
@@ -87,6 +88,7 @@ void AudioInput::start()
 
 void AudioInput::stop(){
     m_AudioIn->stop();
+    m_AudioIn->reset();
     m_audioInQueue.release_queue();
 }
 
@@ -107,8 +109,10 @@ AUDIO_INPUT_DEBUG << "state changed " << s;
 
 
 void AudioInput::audioUpdate(){
-    AUDIO_INPUT_DEBUG << "State " << m_in->bytesAvailable() << "size" << m_in->size();
-    m_audioInQueue.enqueue(m_in->readAll());
-    AUDIO_INPUT_DEBUG << "Audio Queue size" << m_audioInQueue.count();
+    while ( m_AudioIn->bytesReady() > (BUFFER_SIZE * 2))
+    {
+    m_audioInQueue.enqueue(m_in->read(BUFFER_SIZE * 2));
+    }
+//    AUDIO_INPUT_DEBUG << "Audio Queue " << m_audioInQueue.count();
 }
 

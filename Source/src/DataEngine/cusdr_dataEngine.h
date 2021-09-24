@@ -108,7 +108,8 @@ public:
 
 	QUdpSocket*			sendSocket;
 	DataIO*				m_dataIO;
-    AudioInput *            m_audioInput;
+    AudioInput *        audioInput;
+
 
     struct sockaddr_in  DataAddr;
     int data_socket;
@@ -180,8 +181,8 @@ private:
     QFile           *file;
 
 	bool    toggle_TxRx();
-	void    createTxProcessor();
-	void	createAudioOutProcessor();
+
+    void	createAudioOutProcessor();
 	void	createWideBandDataProcessor();
 	//void	createChirpDataProcessor();
 	//void	createAudioReceiver(int rx);
@@ -199,8 +200,8 @@ private:
 	bool	startDataIO(QThread::Priority prio);
 	bool	startDataProcessor(QThread::Priority prio);
 	void	startAudioOutProcessor(QThread::Priority prio);
-    bool    startAudioInputProcessor(QThread::Priority prio);
-	bool	startWideBandDataProcessor(QThread::Priority prio);
+
+    bool	startWideBandDataProcessor(QThread::Priority prio);
 	bool    start_TxProcessor();
 
 
@@ -247,7 +248,6 @@ private:
 	QSDR::_HWInterfaceMode	m_hwInterface;
 	QSDR::_DataEngineState	m_dataEngineState;
 
-	QCircularBuffer<int>	audioringbuffer;
 
 	TMeterType				m_meterType;
 
@@ -312,6 +312,7 @@ private:
 	qint64		m_audioFileBufferPosition;
     qint64		m_audioFileBufferLength;
 	QByteArray	m_audioFileBuffer;
+
 
 	float	getFilterSizeCalibrationOffset();
 
@@ -391,6 +392,7 @@ private slots:
 	void	setOutputBuffer(int rx, const CPX &buffer);
 	void 	setAudioBuffer(int rx, const CPX &buffer, int buffersize);
 	void	writeData();
+
 	
 private:
 	DataEngine*		de;
@@ -404,9 +406,11 @@ private:
 	QHostAddress	m_deviceAddress;
 	QMutex			m_mutex;
 	QMutex			m_spectrumMutex;
+    QQueue<uchar>   m_tx_iqdata;
 	QByteArray		m_IQDatagram;
 	QByteArray		m_outDatagram;
 	QByteArray		m_deviceSendDataSignature;
+    QByteArray      temp_audioIn;
 	QString			m_message;
 
 	QTime			m_SyncChangedTime;
@@ -447,6 +451,7 @@ private:
 	quint32			m_oldSendSequence;
 
 	volatile bool	m_stopped;
+    void            get_tx_iqData();
 
 
 	uchar	m_ibuffer[IO_BUFFER_SIZE * IO_BUFFERS];

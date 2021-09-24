@@ -771,11 +771,10 @@ void QWDSPEngine::set_txrx(RadioState state) {
         break;
         case RadioState::TUNE:
         case RadioState::MOX:
-        //    SetTXAMode(TX_ID,5);
-
-            SetTXAPostGenToneFreq(TX_ID,1750);
-            SetTXAPostGenToneMag(TX_ID,0.1);
-            SetTXAPostGenMode(TX_ID,0);
+            SetTXAMode(TX_ID,5);
+              SetTXAPostGenToneFreq(TX_ID,1000);
+              SetTXAPostGenToneMag(TX_ID,0.1);
+              SetTXAPostGenMode(TX_ID,0);
 
 //            SetChannelState(0,0,1);
 
