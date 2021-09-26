@@ -406,7 +406,7 @@ private:
 	QHostAddress	m_deviceAddress;
 	QMutex			m_mutex;
 	QMutex			m_spectrumMutex;
-    QQueue<uchar>   m_tx_iqdata;
+    QByteArray      m_tx_iqdata;
 	QByteArray		m_IQDatagram;
 	QByteArray		m_outDatagram;
 	QByteArray		m_deviceSendDataSignature;

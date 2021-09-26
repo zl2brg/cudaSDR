@@ -2766,24 +2766,21 @@ void DataProcessor::setOutputBuffer(int rx, const CPX &buffer) {
 
 
 void DataProcessor::get_tx_iqData(){
-    DATA_PROCESSOR_DEBUG << "processAudioBuffer: " << this->thread();
+
 
     int error;
-    qint16 leftRXSample;
-    qint16 rightRXSample;
+
     qint16 leftTXSample;
     qint16 rightTXSample;
     double is,qs;
     double gain = 32767.0 *(double) 25 * 0.00392;
     qint16 temp;
 
-    de->audioInput->m_audioInQueue.release_queue();
 
+    m_tx_iqdata.clear();
+    m_tx_iqdata.fill(0,2048);
 
-    while (m_tx_iqdata.count() < IO_BUFFER_SIZE)
-    {
-        /*
-        // fetch raw audio packet from input stream
+       // fetch raw audio packet from input stream
         if (de->audioInput->m_audioInQueue.count() > 0)
         {
             temp_audioIn = de->audioInput->m_audioInQueue.dequeue();
@@ -2801,69 +2798,55 @@ void DataProcessor::get_tx_iqData(){
             temp += (qint16) ((unsigned char) temp_audioIn.at((s * 2) + 1));
             de->io.mic_buffer[s] = (double)(temp/32768.0);
         }
-*/
+
 
         if ( de->io.ccTx.mox ||  de->io.ccTx.ptt )
         {
             fexchange0(TX_ID, de->io.mic_buffer, (double *) m_iq_output_buffer.data(), &error);
         }
 
-
+/* Queue the tx data */
         for (int j = 0; j < BUFFER_SIZE; j++) {
-
-            leftRXSample  = 0.0f;
-            rightRXSample = 0.0f;
-
             qs=m_iq_output_buffer.at(j).re;
             is=m_iq_output_buffer.at(j).im;
             leftTXSample=is>=0.0?(long)floor(is*gain+0.5):(long)ceil(is*gain-0.5);
             rightTXSample=qs>=0.0?(long)floor(qs*gain+0.5):(long)ceil(qs*gain-0.5);
-
-            m_tx_iqdata.append((unsigned char) (leftRXSample  >> 8));
-            m_tx_iqdata.append((unsigned char) (leftRXSample));
-            m_tx_iqdata.append((unsigned char) (rightRXSample >> 8));
-            m_tx_iqdata.append((unsigned char) (rightRXSample));
-            m_tx_iqdata.append((unsigned char) (leftTXSample  >> 8));
-            m_tx_iqdata.append((unsigned char) (leftTXSample));
-            m_tx_iqdata.append((unsigned char) (rightTXSample >> 8));
-            m_tx_iqdata.append((unsigned char) (rightTXSample));
-
-
-/*
-            m_tx_iqdata.append(j);
-            m_tx_iqdata.append(j);
-            m_tx_iqdata.append(j);
-            m_tx_iqdata.append(j);
-            m_tx_iqdata.append(j);
-            m_tx_iqdata.append(j);
-            m_tx_iqdata.append(j);
-            m_tx_iqdata.append(j);
-            */
-        }
-
+            m_tx_iqdata[(j * 4)] = leftTXSample  >> 8;
+            m_tx_iqdata[(j * 4) + 1] = leftTXSample;
+            m_tx_iqdata[(j * 4) + 2]= rightTXSample >> 8;
+            m_tx_iqdata[(j * 4) + 3]= rightTXSample ;
     }
-
 }
+
+
 
 void DataProcessor::setAudioBuffer(int rx, const CPX &buffer, int buffersize)
 {
-
+    qint16 leftRXSample;
+    qint16 rightRXSample;
 
     get_tx_iqData();
- //   DATA_ENGINE_DEBUG << "TX QUEUE SIZE " << m_tx_iqdata.size();
 
-    if ( de->io.ccTx.mox ||  de->io.ccTx.ptt )
-    {
-        Spectrum0(1, TX_ID, 0, 0, (double *) m_iq_output_buffer.data());
 
-    }
 
-    for (m_idx = IO_HEADER_SIZE; m_idx < IO_BUFFER_SIZE;m_idx++)
-    {
-        de->io.output_buffer[m_idx] = (unsigned char) ( m_tx_iqdata.dequeue());
-    }
+
+    // process the output
+        for (int j = 0; j < buffersize; j++) {
+
+            leftRXSample  = (qint16)(buffer.at(j).re * 32767.0f);
+            rightRXSample = (qint16)(buffer.at(j).im * 32767.0f);
+            de->io.output_buffer[m_idx++] = leftRXSample  >> 8;
+            de->io.output_buffer[m_idx++] = leftRXSample;
+            de->io.output_buffer[m_idx++] = rightRXSample >> 8;
+            de->io.output_buffer[m_idx++] = rightRXSample;
+            de->io.output_buffer[m_idx++] = (unsigned char) ( m_tx_iqdata[(j * 4) ]);
+            de->io.output_buffer[m_idx++] = (unsigned char) ( m_tx_iqdata[(j * 4) + 1 ]);
+            de->io.output_buffer[m_idx++] = (unsigned char) ( m_tx_iqdata[(j * 4) + 2 ]);
+            de->io.output_buffer[m_idx++] = (unsigned char) ( m_tx_iqdata[(j * 4) + 3 ]);
+
 
  //   qDebug() << "buffer " << de->io.output_buffer[IO_HEADER_SIZE ] << de->io.output_buffer[IO_BUFFER_SIZE - 1] ;
+        if (m_idx == IO_BUFFER_SIZE) {
 
 
 			encodeCCBytes();
@@ -2878,25 +2861,32 @@ void DataProcessor::setAudioBuffer(int rx, const CPX &buffer, int buffersize)
 					de->io.audioDatagram = QByteArray::fromRawData((const char *)&de->io.output_buffer, IO_BUFFER_SIZE);
 
 
-
-
-
 					//if (m_dataIOThreadRunning) {
 					//	de->m_dataIO->writeData();
 					//}
 
-                //	de->m_dataIO->sendAudio(de->io.output_buffer); //RRK
+
+                    de->m_dataIO->sendAudio(de->io.output_buffer); //RRK
 					writeData();
+                    if ( de->io.ccTx.mox ||  de->io.ccTx.ptt )
+                    {
+                        Spectrum0(1, TX_ID, 0, 0, (double *) m_iq_output_buffer.data());
+
+                    }
+
 					break;
 
 				case QSDR::NoInterfaceMode:
 					break;
 			}
+        m_idx = IO_HEADER_SIZE;
+        }
+       }
 
           //   DATA_ENGINE_DEBUG << "TX QUEUE SIZE end " << m_tx_iqdata.size();
-     }
 
 
+}
 
 
 
@@ -2954,7 +2944,6 @@ void DataProcessor::processOutputBuffer(const CPX &buffer) {
 					//}
 
 					de->m_dataIO->sendAudio(de->io.output_buffer); //RRK
-
 					writeData();
 					break;
 
@@ -2982,12 +2971,11 @@ void DataProcessor::encodeCCBytes() {
     		uchar rxOut;
     		uchar ant;
 
-    		de->io.control_out[0] =  (de->io.ccTx.mox)? 1:0; // C0
+            de->io.control_out[0] = (de->io.ccTx.mox)? 0x01:0x00; // C0
     		de->io.control_out[1] = 0x0; // C1
     		de->io.control_out[2] = 0x0; // C2
     		de->io.control_out[3] = 0x0; // C3
     		de->io.control_out[4] = 0x0; // C4
-
 
     		// C0
     		// 0 0 0 0 0 0 0 0
@@ -3118,7 +3106,10 @@ void DataProcessor::encodeCCBytes() {
     		// 0 0 0 0 0 0 1 x     C1, C2, C3, C4 NCO Frequency in Hz for Transmitter, Apollo ATU
     		//                     (32 bit binary representation - MSB in C1)
 
+
     		de->io.output_buffer[3] = 0x2; // C0
+
+            if (de->io.ccTx.mox)  de->io.output_buffer[3] |= 0x01;
 
 //    		if (de->io.tx_freq_change >= 0) {
                 //qDebug() << "tx band" << de->io.ccTx.currentBand;
@@ -3162,8 +3153,8 @@ void DataProcessor::encodeCCBytes() {
 
     		if (de->io.rx_freq_change >= 0) {
 
-    			de->io.output_buffer[3] = (de->io.rx_freq_change < 7) ? (de->io.rx_freq_change + 2) << 1
-    									      : (de->io.rx_freq_change + 11) << 1;
+                de->io.output_buffer[3] = (de->io.rx_freq_change < 7) ? (de->io.rx_freq_change + 2) << 1
+                                              : (de->io.rx_freq_change + 11) << 1;
     			//RRK removed 4HL de->io.output_buffer[3] = (de->io.rx_freq_change + 2) << 1;
     			de->io.output_buffer[4] = de->RX.at(de->io.rx_freq_change)->getCtrFrequency() >> 24;
     			de->io.output_buffer[5] = de->RX.at(de->io.rx_freq_change)->getCtrFrequency() >> 16;
@@ -3173,6 +3164,7 @@ void DataProcessor::encodeCCBytes() {
     			de->io.rx_freq_change = -1;
     		}
 
+            if (de->io.ccTx.mox) de->io.output_buffer[3]  |= 0x01;
     		m_sendState = 3;
     		break;
 
@@ -3182,7 +3174,8 @@ void DataProcessor::encodeCCBytes() {
     		de->io.control_out[1] = 0x30; // C1
     		de->io.control_out[2] = 0x10; // C2
     		de->io.control_out[3] = 0x0; // C3
-    		de->io.control_out[4] = 0x0; // C4
+            de->io.control_out[4] = 0x0; // C4
+            if (de->io.ccTx.mox)  de->io.control_out[0] |= 0x01;
 
     		// C1
     		// 0 0 0 0 0 0 0 0
@@ -3323,8 +3316,9 @@ void DataProcessor::encodeCCBytes() {
     		de->io.control_out[2] = adc_rx5_8; // C2
     		de->io.control_out[3] = 0x0; // C3, ADC Input Attenuator Tx (0-31dB) [4:0]
 		de->io.control_out[4] = adc_rx9_16; // C4
+  if (de->io.ccTx.mox)  de->io.control_out[0] |= 0x01;
 
-   		// fill the out buffer with the C&C bytes
+        // fill the out buffer with the C&C bytes
 		for (int i = 0; i < 5; i++)
 			de->io.output_buffer[i+3] = de->io.control_out[i];
 
@@ -3336,7 +3330,6 @@ void DataProcessor::encodeCCBytes() {
 
     }
     de->io.mutex.unlock();
-
 
 	/*switch (m_hwInterface) {
 

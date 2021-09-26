@@ -761,25 +761,49 @@ void QWDSPEngine::setsnb(int rx, bool value) {
 	SetRXASNBARun(rx, m_snb);
 }
 
+//#define POSTGEN
+
 void QWDSPEngine::set_txrx(RadioState state) {
+    bool tone = false;
     switch (state){
         case RadioState::RX:
+        if (tone)
+        {
+#ifdef POSTGEN
             SetTXAPostGenRun(TX_ID,0);
+#else
+         SetTXAPreGenRun(TX_ID,0);
+#endif
+        }
             SetChannelState(TX_ID,0,1);
             SetChannelState(0,1,1);
             qDebug() << "RX";
         break;
         case RadioState::TUNE:
         case RadioState::MOX:
-            SetTXAMode(TX_ID,5);
+            SetTXAMode(TX_ID,6);
+            if (tone)
+            {
+#ifdef POSTGEN
               SetTXAPostGenToneFreq(TX_ID,1000);
-              SetTXAPostGenToneMag(TX_ID,0.1);
+              SetTXAPostGenToneMag(TX_ID,0.5);
               SetTXAPostGenMode(TX_ID,0);
 
 //            SetChannelState(0,0,1);
 
-            SetTXAPostGenRun(TX_ID,1);
+              SetTXAPostGenRun(TX_ID,1);
+#else
+            SetTXAPreGenToneFreq(TX_ID,1000);
+            SetTXAPreGenToneMag(TX_ID,0.5);
+            SetTXAPreGenMode(TX_ID,0);
+
+//            SetChannelState(0,0,1);
+
+            SetTXAPreGenRun(TX_ID,1);
+#endif
+            }
             SetChannelState(TX_ID,1,1);
+
             qDebug() << "TX";
 
         case RadioState::DUPLEX:
