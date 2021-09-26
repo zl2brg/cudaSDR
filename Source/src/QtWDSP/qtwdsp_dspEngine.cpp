@@ -803,6 +803,8 @@ void QWDSPEngine::set_txrx(RadioState state) {
 #endif
             }
             SetChannelState(TX_ID,1,1);
+            SetTXAPanelGain1(TX_ID,pow(10.0, 20/20.0));
+            SetTXAPanelRun(TX_ID, 1);
 
             qDebug() << "TX";
 

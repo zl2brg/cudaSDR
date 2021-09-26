@@ -240,7 +240,8 @@ void Transmitter::reconfigure_transmitter(int tx, int height) {
 
 }
 
-void Transmitter::tx_set_mode(DSPMode  mode) {        mode=mode;
+void Transmitter::tx_set_mode(DSPMode  mode) {
+        mode=mode;
         SetTXAMode(this->id, mode);
         tx_set_filter(this->id ,100,1000);
 }

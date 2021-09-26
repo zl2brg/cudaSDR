@@ -2778,7 +2778,7 @@ void DataProcessor::get_tx_iqData(){
 
 
     m_tx_iqdata.clear();
-    m_tx_iqdata.fill(0,2048);
+    m_tx_iqdata.fill(0,4096);
 
        // fetch raw audio packet from input stream
         if (de->audioInput->m_audioInQueue.count() > 0)
@@ -2796,7 +2796,8 @@ void DataProcessor::get_tx_iqData(){
         {
             temp = (qint16) ((unsigned char) temp_audioIn.at(s * 2) << 8);
             temp += (qint16) ((unsigned char) temp_audioIn.at((s * 2) + 1));
-            de->io.mic_buffer[s] = (double)(temp/32768.0);
+             de->io.mic_buffer[s] = (double)(temp/32768.0);
+             qDebug() << (double)(temp/32768.0);
         }
 
 
@@ -2806,7 +2807,7 @@ void DataProcessor::get_tx_iqData(){
         }
 
 /* Queue the tx data */
-        for (int j = 0; j < BUFFER_SIZE; j++) {
+        for (int j = 0; j < BUFFER_SIZE  ; j++) {
             qs=m_iq_output_buffer.at(j).re;
             is=m_iq_output_buffer.at(j).im;
             leftTXSample=is>=0.0?(long)floor(is*gain+0.5):(long)ceil(is*gain-0.5);
@@ -2814,7 +2815,7 @@ void DataProcessor::get_tx_iqData(){
             m_tx_iqdata[(j * 4)] = leftTXSample  >> 8;
             m_tx_iqdata[(j * 4) + 1] = leftTXSample;
             m_tx_iqdata[(j * 4) + 2]= rightTXSample >> 8;
-            m_tx_iqdata[(j * 4) + 3]= rightTXSample ;
+            m_tx_iqdata[(j * 4) + 3]=  rightTXSample ;
     }
 }
 
@@ -2826,7 +2827,7 @@ void DataProcessor::setAudioBuffer(int rx, const CPX &buffer, int buffersize)
     qint16 rightRXSample;
 
     get_tx_iqData();
-
+m_tx_iqdata.resize(2048);
 
 
 
@@ -3480,6 +3481,7 @@ void DataEngine::radioStateChange(RadioState state) {
     }
     RX.at(0)->m_state = state;
     RX.at(0)->qtwdsp->set_txrx(state);
+    TX->tx_set_mode(DSPMode::AM);
 
 }
 
