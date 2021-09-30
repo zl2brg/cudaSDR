@@ -159,14 +159,21 @@ DataEngine::DataEngine(QObject *parent)
 	m_message = "audio sample = %1";
 	m_counter = 0;
     if (!audioInput) createAudioInputProcessor();
- //   startAudioInputProcessor(QThread::NormalPriority);
-
+    audioInput->Start();
 }
 
 DataEngine::~DataEngine() {
 
     file->close();
-    delete TX;
+    if (audioInput)
+    {
+        audioInput->Stop();
+        audioInput->wait(500);
+        delete audioInput;    }
+
+    if (TX) {
+        delete(TX);
+    }
     if (audioInput)delete audioInput;
 }
 
@@ -2773,12 +2780,13 @@ void DataProcessor::get_tx_iqData(){
     qint16 leftTXSample;
     qint16 rightTXSample;
     double is,qs;
-    double gain = 32767.0 *(double) 25 * 0.00392;
-    qint16 temp;
+    //double gain = 32767.0 *(double) 25 * 0.00392;
+    double gain = 32767.0;// *(double) 25 * 0.00392;
+    double temp;
 
 
     m_tx_iqdata.clear();
-    m_tx_iqdata.fill(0,4096);
+    m_tx_iqdata.fill(0,AUDIO_IN_PACKET_SIZE);
 
        // fetch raw audio packet from input stream
         if (de->audioInput->m_audioInQueue.count() > 0)
@@ -2786,37 +2794,41 @@ void DataProcessor::get_tx_iqData(){
             temp_audioIn = de->audioInput->m_audioInQueue.dequeue();
         }
 
-        if (temp_audioIn.size() != 2048)
+        if (temp_audioIn.size() != AUDIO_IN_PACKET_SIZE)
         {
             DATA_ENGINE_DEBUG << "audo buf size error" << temp_audioIn.size();
-            temp_audioIn.resize(2048);
+            temp_audioIn.resize(AUDIO_IN_PACKET_SIZE);
         }
         //convert input audio data for wdsp
         for (int s = 0; s < BUFFER_SIZE;s++)
         {
-            temp = (qint16) ((unsigned char) temp_audioIn.at(s * 2) << 8);
-            temp += (qint16) ((unsigned char) temp_audioIn.at((s * 2) + 1));
-             de->io.mic_buffer[s] = (double)(temp/32768.0);
-             qDebug() << (double)(temp/32768.0);
+            temp  = (double) ((unsigned char) temp_audioIn.at(s * 4)  << 24);
+            temp += (double) ((unsigned char) temp_audioIn.at((s * 4) + 1) << 16);
+            temp += (double) ((unsigned char) temp_audioIn.at((s * 4) + 2) << 8);
+            temp += (double) ((unsigned char) temp_audioIn.at(s * 4) + 3);
+            de->io.mic_buffer[s] = (double)(temp);
+
         }
 
 
         if ( de->io.ccTx.mox ||  de->io.ccTx.ptt )
         {
             fexchange0(TX_ID, de->io.mic_buffer, (double *) m_iq_output_buffer.data(), &error);
+            Spectrum0(1, TX_ID, 0, 0, (double *) m_iq_output_buffer.data());
         }
 
 /* Queue the tx data */
         for (int j = 0; j < BUFFER_SIZE  ; j++) {
             qs=m_iq_output_buffer.at(j).re;
             is=m_iq_output_buffer.at(j).im;
+
             leftTXSample=is>=0.0?(long)floor(is*gain+0.5):(long)ceil(is*gain-0.5);
             rightTXSample=qs>=0.0?(long)floor(qs*gain+0.5):(long)ceil(qs*gain-0.5);
             m_tx_iqdata[(j * 4)] = leftTXSample  >> 8;
             m_tx_iqdata[(j * 4) + 1] = leftTXSample;
             m_tx_iqdata[(j * 4) + 2]= rightTXSample >> 8;
             m_tx_iqdata[(j * 4) + 3]=  rightTXSample ;
-    }
+        }
 }
 
 
@@ -2827,7 +2839,7 @@ void DataProcessor::setAudioBuffer(int rx, const CPX &buffer, int buffersize)
     qint16 rightRXSample;
 
     get_tx_iqData();
-m_tx_iqdata.resize(2048);
+m_tx_iqdata.resize(4096);
 
 
 
@@ -2866,14 +2878,14 @@ m_tx_iqdata.resize(2048);
 					//	de->m_dataIO->writeData();
 					//}
 
-
-                    de->m_dataIO->sendAudio(de->io.output_buffer); //RRK
-					writeData();
                     if ( de->io.ccTx.mox ||  de->io.ccTx.ptt )
                     {
-                        Spectrum0(1, TX_ID, 0, 0, (double *) m_iq_output_buffer.data());
 
                     }
+
+//                    de->m_dataIO->sendAudio(de->io.output_buffer); //RRK
+					writeData();
+
 
 					break;
 
@@ -3010,7 +3022,7 @@ void DataProcessor::encodeCCBytes() {
     		de->io.control_out[2] = de->io.rxClass;
             if  (de->io.ccTx.mox) {
 
-                de->io.control_out[2] |=0x01;
+          //      de->io.control_out[2] |=0x01;
             }
 
     		if (de->io.ccTx.pennyOCenabled) {
@@ -3477,7 +3489,7 @@ void DataEngine::radioStateChange(RadioState state) {
     }
     else{
         io.ccTx.mox = false;
-        audioInput->stop();
+        audioInput->Stop();
     }
     RX.at(0)->m_state = state;
     RX.at(0)->qtwdsp->set_txrx(state);

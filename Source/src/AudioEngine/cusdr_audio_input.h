@@ -12,6 +12,8 @@
 #ifndef CUDASDR_CUSDR_AUDIO_INPUT_H
 #define CUDASDR_CUSDR_AUDIO_INPUT_H
 
+#define AUDIO_IN_BUFFER_SIZE 8192
+#define AUDIO_IN_PACKET_SIZE 8192
 
 #ifdef LOG_AUDIO_INPUT
 #   define AUDIO_INPUT_DEBUG qDebug().nospace() << "AudioInput::\t"
@@ -23,14 +25,14 @@ QT_FORWARD_DECLARE_CLASS(QAudioInput)
 QT_FORWARD_DECLARE_CLASS(QAudioOutput)
 QT_FORWARD_DECLARE_CLASS(QFile)
 
-class AudioInput : public QObject {
+class AudioInput : public QThread {
 Q_OBJECT
 public:
 AudioInput(QObject *parent = 0);
 ~AudioInput();
-void setup();
-void stop();
-void start();
+void Stop();
+bool Start();
+void run();
 
     const QList<QAudioDeviceInfo>& availableAudioInputDevices() const
     { return m_availableAudioInputDevices; }
@@ -45,16 +47,18 @@ void start();
     QAudio::State m_state;
     QAudioFormat m_format;
     QAudioInput* m_AudioIn;
+    QAudioOutput* m_AudioOut;
+    QByteArray temp;
+
+    QIODevice * out;
 
 
 public slots:
-    void processAudioIn();
-    void stateChangeAudioIn(QAudio::State s);
-    void audioUpdate();
-
 private:
     Settings				*set;
-
+    bool m_BlockingMode;
+    bool m_ThreadQuit;
+    bool m_Startup;
     const QList<QAudioDeviceInfo> m_availableAudioInputDevices;
     QAudioDeviceInfo    m_audioInputDevice;
     qint64              m_recordPosition;

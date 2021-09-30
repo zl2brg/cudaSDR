@@ -781,7 +781,7 @@ void QWDSPEngine::set_txrx(RadioState state) {
         break;
         case RadioState::TUNE:
         case RadioState::MOX:
-            SetTXAMode(TX_ID,6);
+
             if (tone)
             {
 #ifdef POSTGEN
@@ -800,12 +800,15 @@ void QWDSPEngine::set_txrx(RadioState state) {
 //            SetChannelState(0,0,1);
 
             SetTXAPreGenRun(TX_ID,1);
+
 #endif
             }
-            SetChannelState(TX_ID,1,1);
+            SetTXAMode(TX_ID,6);
+
+            SetTXABandpassFreqs(TX_ID, 100,1000);
             SetTXAPanelGain1(TX_ID,pow(10.0, 20/20.0));
             SetTXAPanelRun(TX_ID, 1);
-
+            SetChannelState(TX_ID,1,0);
             qDebug() << "TX";
 
         case RadioState::DUPLEX:

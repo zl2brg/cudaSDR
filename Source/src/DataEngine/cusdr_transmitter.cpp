@@ -211,12 +211,12 @@ bool  Transmitter::create_transmitter(int id, int buffer_size, int fft_size, int
     SetTXAPostGenTTMag(this->id, tone_level,tone_level);
     SetTXAPostGenToneFreq(this->id, 0.0);
     SetTXAPostGenRun(this->id, 0);
-/*
-    double gain=pow(10.0, mic_gain / 20.0);
+
+    double gain=pow(10.0, 20 / 20.0);
     SetTXAPanelGain1(this->id,gain);
     SetTXAPanelRun(this->id, 1);
-*/
-    SetTXAFMDeviation(this->id, (double)this->deviation);
+
+    SetTXAFMDeviation(this->id, (double)5);
     SetTXAAMCarrierLevel(this->id, 10);
 
     SetTXACompressorGain(this->id, this->compressor_level);
