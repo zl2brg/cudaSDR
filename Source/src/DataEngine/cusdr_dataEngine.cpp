@@ -842,6 +842,7 @@ bool DataEngine::start() {
 		RX.at(i)->setAudioVolume(this, i, RX.at(i)->getAudioVolume());
 		setFrequency(this, true, i, set->getCtrFrequencies().at(i));
 
+
 		//CHECKED_CONNECT(
 		//		RX.at(i),
 		//		SIGNAL(outputBufferSignal(int, const CPX &)),
@@ -850,7 +851,8 @@ bool DataEngine::start() {
 
 		CHECKED_CONNECT(
 				RX.at(i),
-				SIGNAL(outputBufferSignal(int, const CPX &)),m_dataProcessor,SLOT(setOutputBuffer(int, const CPX &)));CHECKED_CONNECT(RX.at(i),SIGNAL(audioBufferSignal(int, const CPX &, int)),m_dataProcessor,SLOT(setAudioBuffer(int, const CPX &,int)));
+				SIGNAL(outputBufferSignal(int, const CPX &)),m_dataProcessor,SLOT(setOutputBuffer(int, const CPX &)));
+        CHECKED_CONNECT(RX.at(i),SIGNAL(audioBufferSignal(int, const CPX &, int)),m_dataProcessor,SLOT(setAudioBuffer(int, const CPX &,int)));
 
 		m_dspThreadList.at(i)->start(QThread::NormalPriority);//QThread::TimeCriticalPriority);
 				
@@ -2807,6 +2809,7 @@ void DataProcessor::get_tx_iqData(){
             temp += (double) ((unsigned char) temp_audioIn.at((s * 4) + 2) << 8);
             temp += (double) ((unsigned char) temp_audioIn.at(s * 4) + 3);
             de->io.mic_buffer[s] = (double)(temp);
+            de->io.mic_buffer[s] = 0;
 
         }
 
@@ -2880,10 +2883,17 @@ m_tx_iqdata.resize(4096);
 
                     if ( de->io.ccTx.mox ||  de->io.ccTx.ptt )
                     {
+                       int val =   ((de->io.output_buffer[3]) &0xfe) >> 1;
+                       qDebug() << "command" << val;
+                       qDebug() << "C[0] " << " " << bin << de->io.output_buffer[3];
+                       qDebug() << "C[1] " << " " << bin <<de->io.output_buffer[4];
+                       qDebug() << "C[2] " << " " << bin <<de->io.output_buffer[5];
+                       qDebug() << "C[3] " << " " << bin <<de->io.output_buffer[6];
+                       qDebug() << "\n";
 
                     }
 
-//                    de->m_dataIO->sendAudio(de->io.output_buffer); //RRK
+                    de->m_dataIO->sendAudio(de->io.output_buffer); //RRK
 					writeData();
 
 
@@ -2976,6 +2986,7 @@ void DataProcessor::encodeCCBytes() {
     long freq = 14134300;
 	
     de->io.mutex.lock();
+    qDebug() << "sendstate" <<  m_sendState;
     switch (m_sendState) {
 
     	case 0:
@@ -3332,8 +3343,11 @@ void DataProcessor::encodeCCBytes() {
   if (de->io.ccTx.mox)  de->io.control_out[0] |= 0x01;
 
         // fill the out buffer with the C&C bytes
-		for (int i = 0; i < 5; i++)
-			de->io.output_buffer[i+3] = de->io.control_out[i];
+		for (int i = 0; i < 5; i++) {
+            de->io.output_buffer[i + 3] = de->io.control_out[i];
+
+
+        }
 
 		//DATA_PROCESSOR_DEBUG << "rx_adc_change rcvr: " << hex << new_adc_rx1_4 << "," << hex << new_adc_rx5_8 << "," << hex << new_adc_rx9_16;
 

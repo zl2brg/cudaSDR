@@ -56,20 +56,19 @@ bool AudioInput::Start()
 
     m_AudioIn = new QAudioInput(format, this);
   //  connect(m_AudioIn, SIGNAL(stateChanged(QAudio::State)), this, SLOT(stateChangeAudioIn(QAudio::State)));
-    m_AudioOut = new QAudioOutput(format,this);
+ //   m_AudioOut = new QAudioOutput(format,this);
     AUDIO_INPUT_DEBUG << "Audio input buffer size " << m_AudioIn->bufferSize();
     temp.fill(0,BUFFER_SIZE * 2);
 
     if (QAudio::NoError == m_AudioIn->error())
     {
-        AUDIO_INPUT_DEBUG << "Start" << m_AudioOut->error();
 
         m_ThreadQuit = false;
         start(QThread::HighestPriority);	//start worker thread and set its priority
         //		start(QThread::TimeCriticalPriority);	//start worker thread and set its priority
         m_AudioIn->setBufferSize(8192);
         m_in = m_AudioIn->start();
-        out = m_AudioOut->start();
+//        out = m_AudioOut->start();
         return true;
     }
     else
@@ -103,10 +102,10 @@ void AudioInput::run()
           //       AUDIO_INPUT_DEBUG << "Audio len" << len ;
                  if (temp.count() == AUDIO_IN_PACKET_SIZE)
                  {
-                    out->write(temp.data(),AUDIO_IN_PACKET_SIZE);
+           //         out->write(temp.data(),AUDIO_IN_PACKET_SIZE);
                     m_audioInQueue.enqueue(temp);
                  }
-                 else   AUDIO_INPUT_DEBUG << "Audio Queue size error " << temp.count() << len << m_AudioIn->periodSize();
+//                 else   AUDIO_INPUT_DEBUG << "Audio Queue size error " << temp.count() << len << m_AudioIn->periodSize();
                  }
                 else {
                  msleep(50);
@@ -128,7 +127,7 @@ void AudioInput::Stop(){
         {
             m_ThreadQuit = true;
             m_AudioIn->stop();
-            m_AudioOut->stop();
+      //      m_AudioOut->stop();
             wait(500);
         }
         if(m_AudioIn)
