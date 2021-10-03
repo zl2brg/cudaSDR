@@ -97,12 +97,20 @@ void AudioInput::run()
              len   =  m_AudioIn->bytesReady();
              if (len > AUDIO_IN_PACKET_SIZE)
                 {
-                 temp.resize(AUDIO_IN_PACKET_SIZE);
-                 temp = m_in->read(AUDIO_IN_PACKET_SIZE);
-          //       AUDIO_INPUT_DEBUG << "Audio len" << len ;
+                    temp.resize(AUDIO_IN_PACKET_SIZE);
+                    temp = m_in->read(AUDIO_IN_PACKET_SIZE);
+                    long *test = (long*) temp.data_ptr();
+                    double test1 = (unsigned char)(temp.at(0) << 24);
+                    test1 +=  (double)(unsigned char)(temp.at(1) << 16);
+                    test1 +=  (double)(unsigned char)(temp.at(2) << 8);
+                    test1 +=  (double)(unsigned char)(temp.at(3));
+                    float test2 = (float(test1));
+   //                 fprintf(stderr,"float  %f dpuble %f",test1,test2);
+   //                 AUDIO_INPUT_DEBUG << *test << " " << (float) test2  ;
+   //                 AUDIO_INPUT_DEBUG "data "<< hex <<  temp.at(0)<< hex  << temp.at(1) << hex << temp.at(2) << hex << temp.at(3) ;
+
                  if (temp.count() == AUDIO_IN_PACKET_SIZE)
                  {
-           //         out->write(temp.data(),AUDIO_IN_PACKET_SIZE);
                     m_audioInQueue.enqueue(temp);
                  }
 //                 else   AUDIO_INPUT_DEBUG << "Audio Queue size error " << temp.count() << len << m_AudioIn->periodSize();
@@ -127,7 +135,6 @@ void AudioInput::Stop(){
         {
             m_ThreadQuit = true;
             m_AudioIn->stop();
-      //      m_AudioOut->stop();
             wait(500);
         }
         if(m_AudioIn)
@@ -135,13 +142,5 @@ void AudioInput::Stop(){
             delete m_AudioIn;
             m_AudioIn = NULL;
         }
-
-        if(m_AudioOut)
-        {
-            delete m_AudioOut;
-            m_AudioOut = NULL;
-        }
-
-
 }
 

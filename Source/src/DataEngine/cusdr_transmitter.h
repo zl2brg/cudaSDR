@@ -25,7 +25,7 @@
 #include "cusdr_settings.h"
 #include "Util/cusdr_highResTimer.h"
 #include "QtWDSP/qtwdsp_dspEngine.h"
-
+#include "cusdr_hamDatabase.h"
 
 #ifdef LOG_TRANSMITTER
 #   define TRANSMITTER_DEBUG qDebug().nospace() << "Receiver::\t"
@@ -41,12 +41,14 @@ public:
     explicit Transmitter(int transmitter = 0);
     ~Transmitter() override;
 
+
+private:
     void	setupConnections();
     bool create_transmitter(int id, int buffer_size, int fft_size, int fps, int width, int height);
     void init_analyser(int id);
     void reconfigure_transmitter(int id,int height);
     void set_mode(int  tx, int m);
-    void tx_set_filter(int tx,int low,int high);
+    void tx_set_filter(double low,double high);
     void transmitter_set_deviation(int tx);
     void transmitter_set_am_carrier_level(int tx);
     void tx_set_pre_emphasize(int tx,int state);
@@ -54,7 +56,7 @@ public:
 
     void add_mic_sample(int tx,short mic_sample);
     void add_freedv_mic_sample(int tx,short mic_sample);
-
+    void setRadioState(RadioState state);
     void transmitter_save_state(int tx);
     void transmitter_set_out_of_band(int tx);
     void tx_set_displaying(int tx,int state);
@@ -74,6 +76,13 @@ public:
     double cw_shape_buffer48[BUFFER_SIZE];
     double cw_shape_buffer192[BUFFER_SIZE];
 
+
+
+public slots:
+    void setDSPMode(QObject *sender, int id, DSPMode dspMode);
+
+private:
+    Settings*				set;
     int id;
     int enable_tx_equalizer;
     int tx_equalizer[4];
@@ -97,8 +106,8 @@ public:
     int update_timer_id;
 
     DSPMode  mode;
-    int filter_low;
-    int filter_high;
+    double filter_low;
+    double filter_high;
 
     int rc;
     int tx_cfir;

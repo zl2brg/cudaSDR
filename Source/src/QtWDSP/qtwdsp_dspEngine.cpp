@@ -794,7 +794,7 @@ void QWDSPEngine::set_txrx(RadioState state) {
               SetTXAPostGenRun(TX_ID,1);
 #else
             SetTXAPreGenToneFreq(TX_ID,1000);
-            SetTXAPreGenToneMag(TX_ID,0.01);
+            SetTXAPreGenToneMag(TX_ID,1);
             SetTXAPreGenMode(TX_ID,0);
 
 //            SetChannelState(0,0,1);
@@ -803,12 +803,13 @@ void QWDSPEngine::set_txrx(RadioState state) {
 
 #endif
             }
-            SetTXAMode(TX_ID,5);
+            SetTXAMode(TX_ID,0);
 
-            SetTXABandpassFreqs(TX_ID, 100,1000);
-            SetTXAPanelGain1(TX_ID,pow(1.0, 0.01));
+//            SetTXABandpassFreqs(TX_ID, 100,1000);
+            SetTXAPanelGain1(TX_ID,pow(1.0, 10));
             SetTXAPanelRun(TX_ID, 1);
-            SetTXABandpassFreqs(TX_ID,100,100);
+            SetTXABandpassFreqs(TX_ID,1000,1);
+            SetTXABandpassWindow(TX_ID,1);
             SetTXABandpassRun(TX_ID,1);
             SetChannelState(TX_ID,1,0);
             qDebug() << "TX";

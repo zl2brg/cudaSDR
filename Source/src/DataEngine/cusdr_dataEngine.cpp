@@ -174,7 +174,6 @@ DataEngine::~DataEngine() {
     if (TX) {
         delete(TX);
     }
-    if (audioInput)delete audioInput;
 }
 
 void DataEngine::setupConnections() {
@@ -1133,7 +1132,7 @@ bool DataEngine::initReceivers(int rcvrs) {
 		}
     }
     set->setRxList(RX);
-
+    TX = new Transmitter(TX_ID);
 	m_txFrame = 0;
 	
 	io.currentReceiver = 0;
@@ -1286,7 +1285,7 @@ bool DataEngine::initReceivers(int rcvrs) {
 	io.control_out[4] &= 0x07; // 1 1 0 0 0 1 1 1
 	io.control_out[4] = (io.ccTx.duplex << 2) | ((io.receivers - 1) << 3);
 
-	TX = new Transmitter(TX_ID);
+
 
 	return true;
 }
@@ -2322,7 +2321,6 @@ void DataEngine::setFrequency(QObject* sender, int mode, int rx, long frequency)
 	RX[rx]->setCtrFrequency(frequency);
 	io.rx_freq_change = rx;
 	io.tx_freq_change = rx;
-    qDebug() << "Tx Freq" << io.tx_freq_change;
 
 }
 
@@ -2808,9 +2806,9 @@ void DataProcessor::get_tx_iqData(){
             temp += (double) ((unsigned char) temp_audioIn.at((s * 4) + 1) << 16);
             temp += (double) ((unsigned char) temp_audioIn.at((s * 4) + 2) << 8);
             temp += (double) ((unsigned char) temp_audioIn.at(s * 4) + 3);
-            de->io.mic_buffer[s] = (double)(temp);
-            de->io.mic_buffer[s] = 0;
-
+            de->io.mic_buffer[(s * 2 )] = (double)(temp);
+            de->io.mic_buffer[(s * 2 ) + 1 ] = 0.0f;
+           // qDebug() << temp;
         }
 
 
@@ -2818,6 +2816,13 @@ void DataProcessor::get_tx_iqData(){
         {
             fexchange0(TX_ID, de->io.mic_buffer, (double *) m_iq_output_buffer.data(), &error);
             Spectrum0(1, TX_ID, 0, 0, (double *) m_iq_output_buffer.data());
+        }
+        else
+        {
+            for (int j = 0; j < BUFFER_SIZE  ; j++) {
+                m_iq_output_buffer[j].re = 0.0f;
+                m_iq_output_buffer[j].im = 0.0f;
+           }
         }
 
 /* Queue the tx data */
@@ -2832,6 +2837,8 @@ void DataProcessor::get_tx_iqData(){
             m_tx_iqdata[(j * 4) + 2]= rightTXSample >> 8;
             m_tx_iqdata[(j * 4) + 3]=  rightTXSample ;
         }
+
+
 }
 
 
@@ -2883,6 +2890,7 @@ m_tx_iqdata.resize(4096);
 
                     if ( de->io.ccTx.mox ||  de->io.ccTx.ptt )
                     {
+                        /*
                        int val =   ((de->io.output_buffer[3]) &0xfe) >> 1;
                        qDebug() << "command" << val;
                        qDebug() << "C[0] " << " " << bin << de->io.output_buffer[3];
@@ -2890,6 +2898,7 @@ m_tx_iqdata.resize(4096);
                        qDebug() << "C[2] " << " " << bin <<de->io.output_buffer[5];
                        qDebug() << "C[3] " << " " << bin <<de->io.output_buffer[6];
                        qDebug() << "\n";
+                         */
 
                     }
 
@@ -2983,10 +2992,9 @@ void DataProcessor::encodeCCBytes() {
     de->io.output_buffer[0] = SYNC;
     de->io.output_buffer[1] = SYNC;
     de->io.output_buffer[2] = SYNC;
-    long freq = 14134300;
-	
+
     de->io.mutex.lock();
-    qDebug() << "sendstate" <<  m_sendState;
+ //   qDebug() << "sendstate" <<  m_sendState;
     switch (m_sendState) {
 
     	case 0:
@@ -3136,22 +3144,16 @@ void DataProcessor::encodeCCBytes() {
             if (de->io.ccTx.mox)  de->io.output_buffer[3] |= 0x01;
 
 //    		if (de->io.tx_freq_change >= 0) {
-                //qDebug() << "tx band" << de->io.ccTx.currentBand;
+  //              qDebug() << "tx band" << de->io.ccTx.currentBand;
 
-                //qDebug() << "tx freq" <<   freq;
-                de->io.output_buffer[4] = freq >> 24;
-                de->io.output_buffer[5] = freq >> 16;
-                de->io.output_buffer[6] = freq >> 8;
-                de->io.output_buffer[7] = freq ;
-/*
-    		    de->io.output_buffer[4] = de->RX.at(de->io.tx_freq_change)->getCtrFrequency() >> 24;
+                de->io.output_buffer[4] = de->RX.at(de->io.tx_freq_change)->getCtrFrequency() >> 24;
     		    de->io.output_buffer[5] = de->RX.at(de->io.tx_freq_change)->getCtrFrequency() >> 16;
     		    de->io.output_buffer[6] = de->RX.at(de->io.tx_freq_change)->getCtrFrequency() >> 8;
     		    de->io.output_buffer[7] = de->RX.at(de->io.tx_freq_change)->getCtrFrequency();
-    		    */
 
-    		    de->io.tx_freq_change = -1;
-//    		}
+
+    //		    de->io.tx_freq_change = -1;
+    //		}
 
     		m_sendState = de->io.ccTx.duplex ? 2 : 3;
     		break;
@@ -3506,9 +3508,6 @@ void DataEngine::radioStateChange(RadioState state) {
         audioInput->Stop();
     }
     RX.at(0)->m_state = state;
-    RX.at(0)->qtwdsp->set_txrx(state);
-    TX->tx_set_mode(DSPMode::AM);
-
 }
 
 void DataProcessor::processReadData()

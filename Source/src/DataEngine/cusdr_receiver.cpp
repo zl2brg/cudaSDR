@@ -1,3 +1,4 @@
+
 /**
 * @file cusdr_receiver.cpp
 * @brief cuSDR receiver class
@@ -230,6 +231,7 @@ void Receiver::setReceiverData(TReceiver data) {
 	m_dspModeList = m_receiverData.dspModeList;
 	m_adcMode = m_receiverData.adcMode;
 	m_agcMode = m_receiverData.agcMode;
+	m_agcMode = m_receiverData.agcMode;
 	m_agcGain = m_receiverData.acgGain;
 	m_agcFixedGain_dB = m_receiverData.agcFixedGain_dB;
 	m_agcMaximumGain_dB = m_receiverData.agcMaximumGain_dB;
@@ -329,14 +331,14 @@ void Receiver::dspProcessing() {
 
 	if (highResTimer->getElapsedTimeInMicroSec() >= getDisplayDelay()) {
         m_mutex.lock();
-        GetPixels(0,0,qtwdsp->spectrumBuffer.data(), &spectrumDataReady);
-/*
+ //       GetPixels(0,0,qtwdsp->spectrumBuffer.data(), &spectrumDataReady);
+
         if (m_state == RadioState::RX)
             GetPixels(0,0,qtwdsp->spectrumBuffer.data(), &spectrumDataReady);
          else {
             GetPixels(TX_ID, 0, qtwdsp->spectrumBuffer.data(), &spectrumDataReady);
         }
-*/
+
 
 		if (spectrumDataReady) {
 			memcpy(

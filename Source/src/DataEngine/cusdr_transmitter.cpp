@@ -28,8 +28,12 @@
 
 #include "cusdr_transmitter.h"
 
-Transmitter::Transmitter( int transmitter ) {
+Transmitter::Transmitter( int transmitter )
+: QObject()
+, set(Settings::instance())
+{
     create_transmitter(TX_ID,1024,2048,10,2048,100);
+    setupConnections();
 
 }
 
@@ -40,6 +44,11 @@ Transmitter::~Transmitter() {
 
 void Transmitter::setupConnections() {
     {
+        CHECKED_CONNECT(
+                set,
+                SIGNAL(dspModeChanged(QObject *, int, DSPMode)),
+                this,
+                SLOT(setDSPMode(QObject *,int,  DSPMode)));
 
     }
 }
@@ -221,9 +230,7 @@ bool  Transmitter::create_transmitter(int id, int buffer_size, int fft_size, int
 
     SetTXACompressorGain(this->id, this->compressor_level);
     SetTXACompressorRun(this->id, this->compressor);
-
-    tx_set_mode(mode);
-
+    setDSPMode(this,0,mode);
     XCreateAnalyzer(this->id, &rc, 262144, 1, 1, "");
     if (rc != 0) {
         fprintf(stderr, "XCreateAnalyzer id=%d failed: %d\n",this->id,rc);
@@ -240,11 +247,15 @@ void Transmitter::reconfigure_transmitter(int tx, int height) {
 
 }
 
-void Transmitter::tx_set_mode(DSPMode  mode) {
-        mode=mode;
-        SetTXAMode(this->id, mode);
-        tx_set_filter(this->id ,100,1000);
+void Transmitter::setDSPMode(QObject *sender,int id, DSPMode dspMode) {
+Q_UNUSED(sender)
+Q_UNUSED(id)
+mode = dspMode;
+    SetTXAMode(this->id, mode);
+    tx_set_filter(getFilterFromDSPMode(set->getDefaultFilterList(), mode).filterLo,getFilterFromDSPMode(set->getDefaultFilterList(), mode).filterHi);
 }
+
+
 
 
 void Transmitter::transmitter_set_ctcss(int tx, int, double)
@@ -261,45 +272,23 @@ void Transmitter::transmitter_set_deviation(int tx) {
 
 }
 
-void Transmitter::tx_set_filter(int tx,int low,int high){
-        fprintf(stderr,"tx_set_filter: tx=%p mode=%d low=%d high=%d\n",tx,mode,low,high);
-        switch(mode) {
-            case LSB:
-            case CWL:
-            case DIGL:
-                this->filter_low=-high;
-                this->filter_high=-low;
-            break;
-            case USB:
-            case CWU:
-            case DIGU:
-                this->filter_low=low;
-                this->filter_high=high;
-            break;
-            case DSB:
-            case AM:
-            case SAM:
-                this->filter_low=-high;
-                this->filter_high=high;
-            break;
-            case FMN:
-                if(this->deviation==2500) {
-                    this->filter_low=-4000;
-                    this->filter_high=4000;
-                } else {
-                        this->filter_low=-8000;
-                        this->filter_high=8000;
-                      }
-                break;
-            case DRM:
-                  this->filter_low=7000;
-                  this->filter_high=17000;
-           break;
-        }
+void Transmitter::setRadioState(RadioState state)
+{
 
-        double fl=this->filter_low;
-        double fh=this->filter_high;
-        SetTXABandpassFreqs(this->id, fl,fh);
+ if (state == RadioState::RX)
+ {
+     SetChannelState(TX_ID,0,1);
+     SetChannelState(0,1,1);
+ }
+ else {
+     SetChannelState(TX_ID,1,1);
+     SetChannelState(0,1,1);
+ }
+}
+
+void Transmitter::tx_set_filter(double filter_low,double filter_high){
+    TRANSMITTER_DEBUG << "set tx filter" << filter_low << filter_high;
+    SetTXABandpassFreqs(this->id, filter_low,filter_high);
 }
 
 

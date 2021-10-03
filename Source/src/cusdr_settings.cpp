@@ -2594,8 +2594,8 @@ void Settings::setSystemState(
     if (m_dataEngineState != state)
         m_dataEngineState = state;
 
-    if (m_dataEngineState == QSDR::DataEngineDown)
-        setCurrentReceiver(this, 1);
+  //if (m_dataEngineState == QSDR::DataEngineDown)
+//      setCurrentReceiver(this, 0);
     //m_currentReceiver = 0;
 
     //locker.unlock();

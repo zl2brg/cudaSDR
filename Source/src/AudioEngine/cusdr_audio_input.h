@@ -47,7 +47,6 @@ void run();
     QAudio::State m_state;
     QAudioFormat m_format;
     QAudioInput* m_AudioIn;
-    QAudioOutput* m_AudioOut;
     QByteArray temp;
 
     QIODevice * out;
