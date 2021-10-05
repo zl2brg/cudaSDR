@@ -164,8 +164,8 @@ set (HEADERS
 	${CMAKE_SOURCE_DIR}/cusdr_transmitTabWidget.h 
 	${CMAKE_SOURCE_DIR}/cusdr_transmitOptionsWidget.h 
 	${CMAKE_SOURCE_DIR}/cusdr_transmitPAWidget.h 
-    ${CMAKE_SOURCE_DIR}/Util/cusdr_cpuUsage_unix.h
-    ${CMAKE_SOURCE_DIR}/QtWDSP/qtwdsp_dspEngine.h
+        ${CMAKE_SOURCE_DIR}/Util/cusdr_cpuUsage_unix.h
+        ${CMAKE_SOURCE_DIR}/QtWDSP/qtwdsp_dspEngine.h
 	#${CMAKE_SOURCE_DIR}cusdr_NoiseFilterWidget.h
 	${CMAKE_SOURCE_DIR}/UI/noisefilterwidget.h
 	${CMAKE_SOURCE_DIR}/UI/setupwidget.h
@@ -190,6 +190,7 @@ set(UI_SOURCES
                 ${CMAKE_SOURCE_DIR}/UI/setupwidget.ui
                 ${CMAKE_SOURCE_DIR}/UI/display_ctrl.ui
                 ${CMAKE_SOURCE_DIR}/UI/band_widget.ui
+                ${CMAKE_SOURCE_DIR}/UI/audio_dialog.ui
 #                ${CMAKE_SOURCE_DIR}/UI/mode_widget.ui
                 ${CMAKE_SOURCE_DIR}/UI/mini_mode_widget.ui
 #                ${CMAKE_SOURCE_DIR}/UI/filter_widget.ui

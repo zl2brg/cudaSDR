@@ -54,6 +54,8 @@ bool AudioInput::Start()
         AUDIO_INPUT_DEBUG << "Default format not supported, trying to use the nearest." << info.nearestFormat(format);
     }
 
+
+    AUDIO_INPUT_DEBUG << format;
     m_AudioIn = new QAudioInput(format, this);
   //  connect(m_AudioIn, SIGNAL(stateChanged(QAudio::State)), this, SLOT(stateChangeAudioIn(QAudio::State)));
  //   m_AudioOut = new QAudioOutput(format,this);
@@ -68,7 +70,6 @@ bool AudioInput::Start()
         //		start(QThread::TimeCriticalPriority);	//start worker thread and set its priority
         m_AudioIn->setBufferSize(8192);
         m_in = m_AudioIn->start();
-//        out = m_AudioOut->start();
         return true;
     }
     else
@@ -105,7 +106,7 @@ void AudioInput::run()
                     test1 +=  (double)(unsigned char)(temp.at(2) << 8);
                     test1 +=  (double)(unsigned char)(temp.at(3));
                     float test2 = (float(test1));
-   //                 fprintf(stderr,"float  %f dpuble %f",test1,test2);
+                    //fprintf(stderr,"float  %f dpuble %f\n",test1,test2);
    //                 AUDIO_INPUT_DEBUG << *test << " " << (float) test2  ;
    //                 AUDIO_INPUT_DEBUG "data "<< hex <<  temp.at(0)<< hex  << temp.at(1) << hex << temp.at(2) << hex << temp.at(3) ;
 

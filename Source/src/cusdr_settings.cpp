@@ -319,11 +319,8 @@ int Settings::loadSettings() {
         m_micSource = 1;
 
     m_micInputDev = settings->value("server/mic_InputDevice",0).toInt();
-
-    m_micInputLevel = settings->value("micInputLevel",0).toInt();
+    m_micGain = settings->value("micGain", 0).toDouble();
     m_drivelevel = settings->value("driveLevel",0).toInt();
-
-
 
     str = settings->value("server/class", 0).toString();
     m_RxClass = (str.toLower() == "E");
@@ -1612,7 +1609,7 @@ int Settings::saveSettings() {
         settings->setValue("server/mic_source", "penelope");
 
     settings->setValue("micInputDevice",m_micInputDev);
-    settings->setValue("micInputLevel",m_micInputLevel);
+    settings->setValue("micGain", m_micGain);
     settings->setValue("driveLevel",m_drivelevel);
 
 
@@ -3551,7 +3548,7 @@ void Settings::setMicInputLevel(QObject *sender, int level) {
 
     QMutexLocker locker(&settingsMutex);
 
-    m_micInputLevel = level;
+    m_micGain = level;
     emit micInputLevelChanged(sender, level);
 }
 

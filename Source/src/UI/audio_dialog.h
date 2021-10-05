@@ -36,6 +36,7 @@ private slots:
     void ok_pressed();
     void cancel_pressed();
     void audio_input_changed(int index);
+    void mic_level_changed(int level);
 
 };
 

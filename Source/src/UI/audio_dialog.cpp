@@ -1,5 +1,6 @@
 #include "audio_dialog.h"
 #include "ui_audio_dialog.h"
+#include "QtWDSP/qtwdsp_dspEngine.h"
 
 audio_dialog::audio_dialog(QWidget *parent) :
     QDialog(parent),
@@ -13,6 +14,17 @@ audio_dialog::audio_dialog(QWidget *parent) :
     setContentsMargins(4, 0, 4, 0);
     ui->setupUi(this);
     this->setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
+    this->setStyleSheet(set->getSDRStyle());
+    ui->drivelevelSlider->setStyleSheet(set->getVolSliderStyle());
+    ui->inputLevelSlider->setStyleSheet(set->getVolSliderStyle());
+    ui->audiodevlist->setStyleSheet(set->getComboBoxStyle());
+    ui->groupBox->setStyleSheet(set->getWidgetStyle());
+    ui->groupBox_2->setStyleSheet(set->getWidgetStyle());
+    ui->groupBox_3->setStyleSheet(set->getWidgetStyle());
+
+
+
+
     ui->audiodevlist->clear();
     ui->audiodevlist->setCurrentIndex(set->getMicInputDev());
     for (QAudioDeviceInfo d : m_availableAudioInputDevices) {
@@ -28,10 +40,21 @@ audio_dialog::audio_dialog(QWidget *parent) :
             this,
             SLOT(ok_pressed()));
 
+ CHECKED_CONNECT(
+            ui->CancelButton ,
+            SIGNAL(clicked()),
+            this,
+            SLOT(cancel_pressed()));
+
  CHECKED_CONNECT(ui->audiodevlist,
                  SIGNAL(currentIndexChanged(int)),
                  this,
                  SLOT(audio_input_changed(int)));
+
+ CHECKED_CONNECT(ui->inputLevelSlider,
+                    SIGNAL(valueChanged(int)),
+                    this,
+                    SLOT(audio_input_changed(int)));
 
  }
 
@@ -55,11 +78,21 @@ close();
 
 void audio_dialog::cancel_pressed(){
     this->close();
-
-
 }
 
 void audio_dialog::audio_input_changed(int index){
 
 qDebug() << "selected" << index;
+}
+
+
+void audio_dialog::mic_level_changed(int level) {
+
+    qDebug() << "Mic Level Changed" << level;
+    set->setMicInputLevel(this,ui->inputLevelSlider->value());
+    double mic_gain = level;
+
+    SetTXAPanelGain1(TX_ID,pow(10.0, mic_gain/20.0));
+
+
 }

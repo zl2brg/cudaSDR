@@ -1209,7 +1209,7 @@ public:
 	int getRxClass()				{ return m_RxClass; }
 	int	getRxTiming()				{ return m_RxTiming; }
     int getMicInputDev()            { return m_micInputDev;}
-    int getMicInputLevel()          { return m_micInputLevel;}
+    int getMicInputLevel()          { return m_micGain;}
     int getDriveLevel()             { return m_drivelevel;}
 
 	qreal	getMainVolume(int rx);
@@ -1647,7 +1647,7 @@ private:
 	int		m_122_8MHzSource;
 	int		m_micSource;
     int     m_micInputDev;
-    int     m_micInputLevel;
+    double  m_micGain;
     int     m_drivelevel;
 	int		m_RxClass;
 	int		m_RxTiming;
