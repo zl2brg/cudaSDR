@@ -116,6 +116,7 @@ public:
 
     void    Connect();
     void    senddata(char * buffer, int length);
+     QFile           *file;
 
 public slots:
 
@@ -178,7 +179,8 @@ private:
 	void	createDataProcessor();
 
 
-    QFile           *file;
+
+
 
 	bool    toggle_TxRx();
 
@@ -373,6 +375,7 @@ public:
 		DataEngine* de = nullptr,
 		QSDR::_ServerMode serverMode = QSDR::NoServerMode,
 		QSDR::_HWInterfaceMode hwMode = QSDR::NoInterfaceMode);
+    int tx_index =0;
 
 	~DataProcessor() override;
 
@@ -406,6 +409,7 @@ private:
 	QHostAddress	m_deviceAddress;
 	QMutex			m_mutex;
 	QMutex			m_spectrumMutex;
+    uchar           m_txBuffer[DSP_SAMPLE_SIZE * 4];
     QByteArray      m_tx_iqdata;
 	QByteArray		m_IQDatagram;
 	QByteArray		m_outDatagram;
@@ -434,6 +438,8 @@ private:
 	int				m_sendState;
 	int				m_chirpStartSample;
     CPX             m_iq_output_buffer;
+    double          sine_table[BUFFER_SIZE];
+    QFile   *file;
 
 
 	double			m_lsample;
@@ -445,13 +451,13 @@ private:
 	unsigned short	m_offset;
 	unsigned short	m_length;
 
-//RRK	long			m_sendSequence;
-//RRK	long			m_oldSendSequence;
+//RRK	long			m_sendSequence;//RRK	long			m_oldSendSequence;
 	quint32			m_sendSequence;
 	quint32			m_oldSendSequence;
 
 	volatile bool	m_stopped;
     void            get_tx_iqData();
+    void    DumpBuffer(unsigned char *buffer,int length);
 
 
 	uchar	m_ibuffer[IO_BUFFER_SIZE * IO_BUFFERS];
@@ -461,6 +467,7 @@ signals:
 	void	connectedEvent(QString addr, quint16 port);
 	void	disconnectedEvent();
 	void	serverVersionEvent(QString version);
+
 };
 
 // *********************************************************************

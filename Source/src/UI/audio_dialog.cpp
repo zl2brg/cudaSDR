@@ -26,10 +26,10 @@ audio_dialog::audio_dialog(QWidget *parent) :
 
 
     ui->audiodevlist->clear();
-    ui->audiodevlist->setCurrentIndex(set->getMicInputDev());
     for (QAudioDeviceInfo d : m_availableAudioInputDevices) {
            ui->audiodevlist->addItem(d.deviceName(),QVariant::fromValue(d));
        }
+    ui->audiodevlist->setCurrentIndex(set->getMicInputDev());
     ui->inputLevelSlider->setValue(set->getMicInputLevel());
     ui->drivelevelSlider->setValue(set->getDriveLevel());
 
@@ -54,7 +54,7 @@ audio_dialog::audio_dialog(QWidget *parent) :
  CHECKED_CONNECT(ui->inputLevelSlider,
                     SIGNAL(valueChanged(int)),
                     this,
-                    SLOT(audio_input_changed(int)));
+                    SLOT(mic_level_changed(int)));
 
  }
 

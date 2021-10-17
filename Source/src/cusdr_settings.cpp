@@ -318,7 +318,8 @@ int Settings::loadSettings() {
     else
         m_micSource = 1;
 
-    m_micInputDev = settings->value("server/mic_InputDevice",0).toInt();
+    m_micInputDev = settings->value("mic_InputDevice",0).toInt();
+    qDebug() << "Read" <<  m_micInputDev;
     m_micGain = settings->value("micGain", 0).toDouble();
     m_drivelevel = settings->value("driveLevel",0).toInt();
 
@@ -1608,7 +1609,8 @@ int Settings::saveSettings() {
     else if (m_micSource == 1)
         settings->setValue("server/mic_source", "penelope");
 
-    settings->setValue("micInputDevice",m_micInputDev);
+    settings->setValue("mic_InputDevice",m_micInputDev);
+    qDebug() << "Write" << m_micInputDev;
     settings->setValue("micGain", m_micGain);
     settings->setValue("driveLevel",m_drivelevel);
 

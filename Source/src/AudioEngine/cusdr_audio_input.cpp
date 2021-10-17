@@ -39,6 +39,8 @@ AudioInput::~AudioInput()
 
 bool AudioInput::Start()
 {
+
+    AUDIO_INPUT_DEBUG << "Start";
     QAudioFormat format;
     // Set up the desired format, for example:
     format.setSampleRate(48000);
@@ -48,14 +50,16 @@ bool AudioInput::Start()
     format.setByteOrder(QAudioFormat::LittleEndian);
     format.setSampleType(QAudioFormat::Float);
 
-    QAudioDeviceInfo info = QAudioDeviceInfo::defaultInputDevice();
+    QAudioDeviceInfo info =m_availableAudioInputDevices.at(set->getMicInputDev());
     if (!info.isFormatSupported(format)) {
         format = info.nearestFormat(format);
         AUDIO_INPUT_DEBUG << "Default format not supported, trying to use the nearest." << info.nearestFormat(format);
     }
 
 
-    AUDIO_INPUT_DEBUG << format;
+    AUDIO_INPUT_DEBUG << format << info.deviceName();
+
+
     m_AudioIn = new QAudioInput(format, this);
   //  connect(m_AudioIn, SIGNAL(stateChanged(QAudio::State)), this, SLOT(stateChangeAudioIn(QAudio::State)));
  //   m_AudioOut = new QAudioOutput(format,this);
@@ -69,6 +73,7 @@ bool AudioInput::Start()
         start(QThread::HighestPriority);	//start worker thread and set its priority
         //		start(QThread::TimeCriticalPriority);	//start worker thread and set its priority
         m_AudioIn->setBufferSize(8192);
+        m_AudioIn->setVolume(1.0);
         m_in = m_AudioIn->start();
         return true;
     }
@@ -98,17 +103,19 @@ void AudioInput::run()
              len   =  m_AudioIn->bytesReady();
              if (len > AUDIO_IN_PACKET_SIZE)
                 {
-                    temp.resize(AUDIO_IN_PACKET_SIZE);
                     temp = m_in->read(AUDIO_IN_PACKET_SIZE);
-                    long *test = (long*) temp.data_ptr();
-                    double test1 = (unsigned char)(temp.at(0) << 24);
-                    test1 +=  (double)(unsigned char)(temp.at(1) << 16);
-                    test1 +=  (double)(unsigned char)(temp.at(2) << 8);
-                    test1 +=  (double)(unsigned char)(temp.at(3));
-                    float test2 = (float(test1));
-                    //fprintf(stderr,"float  %f dpuble %f\n",test1,test2);
-   //                 AUDIO_INPUT_DEBUG << *test << " " << (float) test2  ;
-   //                 AUDIO_INPUT_DEBUG "data "<< hex <<  temp.at(0)<< hex  << temp.at(1) << hex << temp.at(2) << hex << temp.at(3) ;
+                    if (temp.size() != AUDIO_IN_PACKET_SIZE)
+                    {
+                        qDebug() << "Audio Error" << temp.size();
+                        temp.fill(0,AUDIO_IN_PACKET_SIZE);
+                    }
+
+                    double test1 = (double)(temp.at(40) << 24);
+                    test1 +=  (double)(temp.at(41) << 16);
+                    test1 +=  (double)(temp.at(42) << 8);
+                    test1 +=  (double)(temp.at(43));
+//                    qDebug() << "addio read" << test1;
+
 
                  if (temp.count() == AUDIO_IN_PACKET_SIZE)
                  {
@@ -126,7 +133,7 @@ void AudioInput::run()
 
 
             }
-
+AUDIO_INPUT_DEBUG << "run thhread exit";
     }
 
 
@@ -134,6 +141,7 @@ void AudioInput::Stop(){
 
     if(!m_ThreadQuit)
         {
+            AUDIO_INPUT_DEBUG << "Stop";
             m_ThreadQuit = true;
             m_AudioIn->stop();
             wait(500);

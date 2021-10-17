@@ -32,7 +32,7 @@ Transmitter::Transmitter( int transmitter )
 : QObject()
 , set(Settings::instance())
 {
-    create_transmitter(TX_ID,1024,2048,10,2048,100);
+    create_transmitter(TX_ID,DSP_SAMPLE_SIZE,4096,10,2048,100);
     setupConnections();
 
 }
@@ -43,14 +43,18 @@ Transmitter::~Transmitter() {
 
 
 void Transmitter::setupConnections() {
-    {
+
         CHECKED_CONNECT(
                 set,
                 SIGNAL(dspModeChanged(QObject *, int, DSPMode)),
                 this,
                 SLOT(setDSPMode(QObject *,int,  DSPMode)));
 
-    }
+        CHECKED_CONNECT(
+                set,
+                SIGNAL(radioStateChanged(RadioState)),
+                this,
+                SLOT(setRadioState(RadioState)));
 }
 
 
@@ -172,7 +176,7 @@ bool  Transmitter::create_transmitter(int id, int buffer_size, int fft_size, int
                 this->mic_dsp_rate,
                 this->iq_output_rate,
                 1, // transmit
-                1, // run
+                0, // run
                 0.010, 0.025, 0.0, 0.010, 0);
 
     TXASetNC(this->id, this->fft_size);
@@ -206,8 +210,8 @@ bool  Transmitter::create_transmitter(int id, int buffer_size, int fft_size, int
     SetTXAALCSt(this->id, 1); // turn it on (always on)
 
     SetTXALevelerAttack(this->id, 1);
-    SetTXALevelerDecay(this->id, 500);
-    SetTXALevelerTop(this->id, 5.0);
+    SetTXALevelerDecay(this->id, 50);
+    SetTXALevelerTop(this->id, 1.0);
     SetTXALevelerSt(this->id, tx_leveler);
 
     SetTXAPreGenMode(this->id, 0);
@@ -218,16 +222,15 @@ bool  Transmitter::create_transmitter(int id, int buffer_size, int fft_size, int
     SetTXAPostGenMode(this->id, 0);
     SetTXAPostGenToneMag(this->id, tone_level);
     SetTXAPostGenTTMag(this->id, tone_level,tone_level);
-    SetTXAPostGenToneFreq(this->id, 0.0);
+    SetTXAPostGenToneFreq(this->id, 1000.0);
     SetTXAPostGenRun(this->id, 0);
 
-    double gain=pow(10.0, 20 / 20.0);
-    SetTXAPanelGain1(this->id,gain);
+    double mic_gain = 10;
+    SetTXAPanelGain1(this->id,pow(10.0, mic_gain/20.0));
     SetTXAPanelRun(this->id, 1);
 
     SetTXAFMDeviation(this->id, (double)5);
-    SetTXAAMCarrierLevel(this->id, 10);
-
+    SetTXAAMCarrierLevel(this->id, 50);
     SetTXACompressorGain(this->id, this->compressor_level);
     SetTXACompressorRun(this->id, this->compressor);
     setDSPMode(this,0,mode);
@@ -237,9 +240,6 @@ bool  Transmitter::create_transmitter(int id, int buffer_size, int fft_size, int
     } else {
         init_analyser(this->id);
     }
-
-    //create_visual(tx);
-
     return true;
 }
 
@@ -250,6 +250,7 @@ void Transmitter::reconfigure_transmitter(int tx, int height) {
 void Transmitter::setDSPMode(QObject *sender,int id, DSPMode dspMode) {
 Q_UNUSED(sender)
 Q_UNUSED(id)
+TRANSMITTER_DEBUG << "Set Tx Mode " << dspMode;
 mode = dspMode;
     SetTXAMode(this->id, mode);
     tx_set_filter(getFilterFromDSPMode(set->getDefaultFilterList(), mode).filterLo,getFilterFromDSPMode(set->getDefaultFilterList(), mode).filterHi);
@@ -275,126 +276,142 @@ void Transmitter::transmitter_set_deviation(int tx) {
 void Transmitter::setRadioState(RadioState state)
 {
 
- if (state == RadioState::RX)
- {
+    switch(state){
+
+case RadioState::MOX:
+     SetChannelState(TX_ID,1,1);
+     //SetChannelState(0,0,1);
+     SetTXAPostGenRun(this->id, 0);
+
+    break;
+case RadioState::TUNE:
+    SetChannelState(TX_ID,1,1);
+   // SetChannelState(0,0,1);
+    SetTXAPostGenRun(this->id, 1);
+    break;
+
+case RadioState::RX:
+default:
      SetChannelState(TX_ID,0,1);
      SetChannelState(0,1,1);
- }
- else {
-     SetChannelState(TX_ID,1,1);
-     SetChannelState(0,1,1);
- }
-}
+     SetTXAPostGenRun(this->id, 0);
 
-void Transmitter::tx_set_filter(double filter_low,double filter_high){
-    TRANSMITTER_DEBUG << "set tx filter" << filter_low << filter_high;
-    SetTXABandpassFreqs(this->id, filter_low,filter_high);
-}
+    break;
 
 
-void Transmitter::transmitter_set_am_carrier_level(int tx) {
-
-}
-
-void Transmitter::tx_set_pre_emphasize(int tx, int state) {
-
-}
-
-void Transmitter::add_freedv_mic_sample(int tx, short mic_sample) {
-
-}
-
-void Transmitter::transmitter_save_state(int tx) {
-
-}
-
-void Transmitter::transmitter_set_out_of_band(int tx) {
-
-}
-
-void Transmitter::tx_set_displaying(int tx, int state) {
-
-}
-
-void Transmitter::tx_set_ps(int tx, int state) {
-
-}
-
-void Transmitter::tx_set_twotone(int tx, int state) {
-
-}
-
-void Transmitter::transmitter_set_compressor_level(int tx, double level) {
-
-}
-
-void Transmitter::transmitter_set_compressor(int tx, int state) {
-
-}
-
-void Transmitter::tx_set_ps_sample_rate(int tx, int rate) {
-
-}
-
-void Transmitter::add_ps_iq_samples(int tx, double i_sample_0, double q_sample_0, double i_sample_1,
-                                    double q_sample_1) {
-
-}
-
-void Transmitter::cw_hold_key(int state) {
-
-}
-
-void Transmitter::init_analyser(int tx) {
-    int flp[] = {0};
-    double keep_time = 0.1;
-    int n_pixout=1;
-    int spur_elimination_ffts = 1;
-    int data_type = 1;
-    int fft_size = 2048;
-    int window_type = 4;
-    double kaiser_pi = 14.0;
-    int overlap = 0;
-    int clip = 0;
-    int span_clip_l = 0;
-    int span_clip_h = 0;
-    int pixels=this->pixels;
-    int stitches = 1;
-    int avm = 0;
-    double tau = 0.001 * 120.0;
-    int calibration_data_set = 0;
-    double span_min_freq = 0.0;
-    double span_max_freq = 0.0;
-
-    int max_w = fft_size + (int) min(keep_time * (double) this->fps, keep_time * (double) fft_size * (double) this->fps);
-
-    overlap = (int)max(0.0, ceil(fft_size - (double)this->mic_sample_rate / (double)this->fps));
-
-    fprintf(stderr,"SetAnalyzer id=%d buffer_size=%d overlap=%d\n",this->id,this->output_samples,overlap);
+    }
+    }
 
 
-    SetAnalyzer(this->id,
-                n_pixout,
-                spur_elimination_ffts, //number of LO frequencies = number of ffts used in elimination
-                data_type, //0 for real input data (I only); 1 for complex input data (I & Q)
-                flp, //vector with one elt for each LO frequency, 1 if high-side LO, 0 otherwise
-                fft_size, //size of the fft, i.e., number of input samples
-                1024, //number of samples transferred for each OpenBuffer()/CloseBuffer()
-                window_type, //integer specifying which window function to use
-                kaiser_pi, //PiAlpha parameter for Kaiser window
-                overlap, //number of samples each fft (other than the first) is to re-use from the previous
-                clip, //number of fft output bins to be clipped from EACH side of each sub-span
-                span_clip_l, //number of bins to clip from low end of entire span
-                span_clip_h, //number of bins to clip from high end of entire span
-                4096, //number of pixel values to return.  may be either <= or > number of bins
-                stitches, //number of sub-spans to concatenate to form a complete span
-                calibration_data_set, //identifier of which set of calibration data to use
-                span_min_freq, //frequency at first pixel value8192
-                span_max_freq, //frequency at last pixel value
-                max_w //max samples to hold in input ring buffers
-                );
+     void Transmitter::tx_set_filter(double filter_low,double filter_high){
+         TRANSMITTER_DEBUG << "Set Tx filter:Low " << filter_low << " High: " << filter_high;
+         SetTXABandpassFreqs(this->id, filter_low,filter_high);
+     }
 
 
-}
+     void Transmitter::transmitter_set_am_carrier_level(int tx) {
+
+     }
+
+     void Transmitter::tx_set_pre_emphasize(int tx, int state) {
+
+     }
+
+     void Transmitter::add_freedv_mic_sample(int tx, short mic_sample) {
+
+     }
+
+     void Transmitter::transmitter_save_state(int tx) {
+
+     }
+
+     void Transmitter::transmitter_set_out_of_band(int tx) {
+
+     }
+
+     void Transmitter::tx_set_displaying(int tx, int state) {
+
+     }
+
+     void Transmitter::tx_set_ps(int tx, int state) {
+
+     }
+
+     void Transmitter::tx_set_twotone(int tx, int state) {
+
+     }
+
+     void Transmitter::transmitter_set_compressor_level(int tx, double level) {
+
+     }
+
+     void Transmitter::transmitter_set_compressor(int tx, int state) {
+
+     }
+
+     void Transmitter::tx_set_ps_sample_rate(int tx, int rate) {
+
+     }
+
+     void Transmitter::add_ps_iq_samples(int tx, double i_sample_0, double q_sample_0, double i_sample_1,
+                                         double q_sample_1) {
+
+     }
+
+     void Transmitter::cw_hold_key(int state) {
+
+     }
+
+     void Transmitter::init_analyser(int tx) {
+         int flp[] = {0};
+         double keep_time = 0.1;
+         int n_pixout=1;
+         int spur_elimination_ffts = 1;
+         int data_type = 1;
+         int fft_size = 2048;
+         int window_type = 4;
+         double kaiser_pi = 14.0;
+         int overlap = 0;
+         int clip = 0;
+         int span_clip_l = 0;
+         int span_clip_h = 0;
+         int pixels=this->pixels;
+         int stitches = 1;
+         int avm = 0;
+         double tau = 0.001 * 120.0;
+         int calibration_data_set = 0;
+         double span_min_freq = 0.0;
+         double span_max_freq = 0.0;
+
+         int max_w = fft_size + (int) min(keep_time * (double) this->fps, keep_time * (double) fft_size * (double) this->fps);
+
+         overlap = (int)max(0.0, ceil(fft_size - (double)this->mic_sample_rate / (double)this->fps));
+
+         fprintf(stderr,"SetAnalyzer id=%d buffer_size=%d overlap=%d\n",this->id,this->output_samples,overlap);
+
+
+         SetAnalyzer(this->id,
+                     n_pixout,
+                     spur_elimination_ffts, //number of LO frequencies = number of ffts used in elimination
+                     data_type, //0 for real input data (I only); 1 for complex input data (I & Q)
+                     flp, //vector with one elt for each LO frequency, 1 if high-side LO, 0 otherwise
+                     fft_size, //size of the fft, i.e., number of input samples
+                     1024, //number of samples transferred for each OpenBuffer()/CloseBuffer()
+                     window_type, //integer specifying which window function to use
+                     kaiser_pi, //PiAlpha parameter for Kaiser window
+                     overlap, //number of samples each fft (other than the first) is to re-use from the previous
+                     clip, //number of fft output bins to be clipped from EACH side of each sub-span
+                     span_clip_l, //number of bins to clip from low end of entire span
+                     span_clip_h, //number of bins to clip from high end of entire span
+                     4096, //number of pixel values to return.  may be either <= or > number of bins
+                     stitches, //number of sub-spans to concatenate to form a complete span
+                     calibration_data_set, //identifier of which set of calibration data to use
+                     span_min_freq, //frequency at first pixel value8192
+                     span_max_freq, //frequency at last pixel value
+                     max_w //max samples to hold in input ring buffers
+                     );
+
+
+     }
 
 

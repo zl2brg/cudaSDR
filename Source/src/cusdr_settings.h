@@ -87,6 +87,7 @@
 #define MAX_BANDS					22
 #define BUFFER_SIZE					1024
 #define SAMPLE_BUFFER_SIZE			4096
+#define DSP_SAMPLE_SIZE             1024
 #define BANDSCOPE_BUFFER_SIZE		4096
 
 #define								SMALL_PACKETS
@@ -515,7 +516,7 @@ typedef struct _hpsdrParameter {
 	int		tx_freq_change;
 	
 	float	mic_gain;
-	double	mic_buffer[BUFFER_SIZE *2 ];
+    double	mic_buffer[DSP_SAMPLE_SIZE * sizeof(double) ];
 
 
 	qreal	penelopeForwardVolts;

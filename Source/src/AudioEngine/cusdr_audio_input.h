@@ -12,8 +12,8 @@
 #ifndef CUDASDR_CUSDR_AUDIO_INPUT_H
 #define CUDASDR_CUSDR_AUDIO_INPUT_H
 
-#define AUDIO_IN_BUFFER_SIZE 8192
-#define AUDIO_IN_PACKET_SIZE 8192
+#define AUDIO_IN_PACKET_SIZE 4096//2048
+
 
 #ifdef LOG_AUDIO_INPUT
 #   define AUDIO_INPUT_DEBUG qDebug().nospace() << "AudioInput::\t"
@@ -50,7 +50,7 @@ void run();
     QByteArray temp;
 
     QIODevice * out;
-
+   QIODevice *m_in = nullptr;
 
 public slots:
 private:
@@ -62,7 +62,7 @@ private:
     QAudioDeviceInfo    m_audioInputDevice;
     qint64              m_recordPosition;
     volatile bool m_stopped;
-    QIODevice *m_in = nullptr;
+
 };
 
 

@@ -27,8 +27,10 @@
 #include "QtWDSP/qtwdsp_dspEngine.h"
 #include "cusdr_hamDatabase.h"
 
+#define LOG_TRANSMITTER
+
 #ifdef LOG_TRANSMITTER
-#   define TRANSMITTER_DEBUG qDebug().nospace() << "Receiver::\t"
+#define TRANSMITTER_DEBUG qDebug().nospace() << "Transmitter::\t"
 #else
 #   define TRANSMITTER_DEBUG nullDebug()
 #endif
@@ -56,7 +58,7 @@ private:
 
     void add_mic_sample(int tx,short mic_sample);
     void add_freedv_mic_sample(int tx,short mic_sample);
-    void setRadioState(RadioState state);
+
     void transmitter_save_state(int tx);
     void transmitter_set_out_of_band(int tx);
     void tx_set_displaying(int tx,int state);
@@ -80,6 +82,7 @@ private:
 
 public slots:
     void setDSPMode(QObject *sender, int id, DSPMode dspMode);
+    void setRadioState(RadioState state);
 
 private:
     Settings*				set;
@@ -111,8 +114,8 @@ private:
 
     int rc;
     int tx_cfir;
-    int tx_leveler;
-    int tone_level;
+    int tx_leveler = 0;
+    double tone_level = 1.0;
     int mic_gain;
     int tx_filter_low;
     int tx_filter_high;
@@ -147,8 +150,8 @@ private:
     int panadapter_low;
     int displaying;
     int alex_antenna;
-    int compressor;
-    float compressor_level;
+    int compressor = 0;
+    float compressor_level = 0;
     int dac;
     int fps;
 

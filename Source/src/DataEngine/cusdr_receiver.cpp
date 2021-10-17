@@ -331,7 +331,7 @@ void Receiver::dspProcessing() {
 
 	if (highResTimer->getElapsedTimeInMicroSec() >= getDisplayDelay()) {
         m_mutex.lock();
- //       GetPixels(0,0,qtwdsp->spectrumBuffer.data(), &spectrumDataReady);
+//       GetPixels(0,0,qtwdsp->spectrumBuffer.data(), &spectrumDataReady);
 
         if (m_state == RadioState::RX)
             GetPixels(0,0,qtwdsp->spectrumBuffer.data(), &spectrumDataReady);

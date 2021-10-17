@@ -612,8 +612,7 @@ void DataIO::writeData() {
 		m_outDatagram.resize(0);
         m_outDatagram += m_deviceSendDataSignature;
 
-		QByteArray seq(reinterpret_cast<const char*>(&m_sendSequence), sizeof(m_sendSequence));
-
+        QByteArray seq(reinterpret_cast<const char*>(&m_sendSequence), sizeof(m_sendSequence));
 		m_outDatagram += seq;
 		m_outDatagram += io->audioDatagram;
 

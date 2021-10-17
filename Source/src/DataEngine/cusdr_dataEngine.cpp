@@ -60,6 +60,7 @@
 	- implements the interface to the Chirp WSPR decoding functionality.
 */
 
+#define FREQ_CONST ((2.0 * 3.14159) / 48000)
 static int firstTimeRxInit;
 static quint8  adc_rx1_4, adc_rx5_8, adc_rx9_16;
 static quint8  new_adc_rx1_4, new_adc_rx5_8, new_adc_rx9_16;
@@ -129,12 +130,7 @@ DataEngine::DataEngine(QObject *parent)
 	io.mercuryFW = 0;
     //m_audioBuffer.resize(0);
     //m_audiobuf.resize(IO_BUFFER_SIZE);
-    file = new QFile("data.txt");
-    if ( file->open(QIODevice::ReadWrite) )
-    {
-        QTextStream stream( file );
-        stream << "something" << endl;
-    }
+
 
 	setupConnections();
 
@@ -158,8 +154,11 @@ DataEngine::DataEngine(QObject *parent)
 
 	m_message = "audio sample = %1";
 	m_counter = 0;
+
+
     if (!audioInput) createAudioInputProcessor();
     audioInput->Start();
+
 }
 
 DataEngine::~DataEngine() {
@@ -1376,8 +1375,7 @@ bool DataEngine::startDiscoverer(QThread::Priority prio) {
 					
 		m_discoveryThreadRunning = true;
 		io.networkIOMutex.lock();
-		qDebug() << "";
-		DATA_ENGINE_DEBUG << "HPSDR device discovery thread started.";
+        DATA_ENGINE_DEBUG << "HPSDR device discovery thread started.";
 		io.networkIOMutex.unlock();
 
 		return true;
@@ -2374,12 +2372,17 @@ DataProcessor::DataProcessor(
 	m_deviceSendDataSignature[1] = (char)0xFE;
 	m_deviceSendDataSignature[2] = (char)0x01;
 	m_deviceSendDataSignature[3] = (char)0x02;
-    InitCPX(m_iq_output_buffer, BUFFER_SIZE, 0.0f);
+    InitCPX(m_iq_output_buffer, DSP_SAMPLE_SIZE, 0.0f);
 	//socket = new QUdpSocket();
 	m_deviceAddress = set->getCurrentMetisCard().ip_address;
+
+    file = new QFile("data.txt");
+    file->open(QIODevice::ReadWrite);
+
 }
 
 DataProcessor::~DataProcessor() {
+    file->close();
 }
 
 void DataProcessor::stop() {
@@ -2403,8 +2406,7 @@ void DataProcessor::processDeviceData() {
 	DATA_PROCESSOR_DEBUG << "Data Processor thread: " << this->thread();
 	forever {
 
-//		qDebug() << " got here";
-		//m_dataEngine->processInputBuffer(m_dataEngine->io.iq_queue.dequeue());
+        //m_dataEngine->processInputBuffer(m_dataEngine->io.iq_queue.dequeue());
 
 		QByteArray buf = de->io.iq_queue.dequeue();
 		//de->processInputBuffer(buf.left(BUFFER_SIZE/2));
@@ -2780,15 +2782,18 @@ void DataProcessor::get_tx_iqData(){
     qint16 leftTXSample;
     qint16 rightTXSample;
     double is,qs;
-    //double gain = 32767.0 *(double) 25 * 0.00392;
-    double gain = 32767.0;// *(double) 25 * 0.00392;
+    double gain = 32767.0f;
+   // double gain = 25 * 0.00392;
     double temp;
+    float *sample;
+    uchar *ptr;
 
 
     m_tx_iqdata.clear();
     m_tx_iqdata.fill(0,AUDIO_IN_PACKET_SIZE);
 
        // fetch raw audio packet from input stream
+
         if (de->audioInput->m_audioInQueue.count() > 0)
         {
             temp_audioIn = de->audioInput->m_audioInQueue.dequeue();
@@ -2799,59 +2804,97 @@ void DataProcessor::get_tx_iqData(){
             DATA_ENGINE_DEBUG << "audo buf size error" << temp_audioIn.size();
             temp_audioIn.resize(AUDIO_IN_PACKET_SIZE);
         }
-        //convert input audio data for wdsp
-        for (int s = 0; s < BUFFER_SIZE;s++)
+
+/*
+        if (de->audioInput->m_in->bytesAvailable())
+
+        temp_audioIn = this->de->audioInput->m_in->read(DSP_SAMPLE_SIZE * sizeof(float));
+        if (temp_audioIn.size() != DSP_SAMPLE_SIZE * sizeof(float))
         {
-            temp  = (double) ((unsigned char) temp_audioIn.at(s * 4)  << 24);
-            temp += (double) ((unsigned char) temp_audioIn.at((s * 4) + 1) << 16);
-            temp += (double) ((unsigned char) temp_audioIn.at((s * 4) + 2) << 8);
-            temp += (double) ((unsigned char) temp_audioIn.at(s * 4) + 3);
-            de->io.mic_buffer[(s * 2 )] = (double)(temp);
-            de->io.mic_buffer[(s * 2 ) + 1 ] = 0.0f;
-           // qDebug() << temp;
+            temp_audioIn.resize(DSP_SAMPLE_SIZE * sizeof(float));
         }
-
-
+*/
+        sample = (float *) temp_audioIn.data_ptr();
+        //convert input audio data for wdsp
+        for (int s = 0; s < DSP_SAMPLE_SIZE;s++)
+        {
+            de->io.mic_buffer[(s * 2 )]  = static_cast<double>(*sample) ;//4294967295.0f;
+            de->io.mic_buffer[(s * 2 ) + 1 ] = 0.0f;
+            sample++;
+        }
+//        fprintf(stdout, " TX Mic sample %f\n", de->io.mic_buffer[10]);
+        sample = (float *) temp_audioIn.data_ptr() + 16;
         if ( de->io.ccTx.mox ||  de->io.ccTx.ptt )
         {
+            //qDebug()  << "fexchange rawmic=" << *sample << "mic=" <<  de->io.mic_buffer[16] << "out=" << m_iq_output_buffer[16].re ;
             fexchange0(TX_ID, de->io.mic_buffer, (double *) m_iq_output_buffer.data(), &error);
             Spectrum0(1, TX_ID, 0, 0, (double *) m_iq_output_buffer.data());
         }
         else
         {
-            for (int j = 0; j < BUFFER_SIZE  ; j++) {
+            for (int j = 0; j < DSP_SAMPLE_SIZE  ; j++) {
                 m_iq_output_buffer[j].re = 0.0f;
                 m_iq_output_buffer[j].im = 0.0f;
            }
         }
 
 /* Queue the tx data */
-        for (int j = 0; j < BUFFER_SIZE  ; j++) {
+        int tx_index = 0;
+        for (int j = 0; j < DSP_SAMPLE_SIZE  ; j++) {
             qs=m_iq_output_buffer.at(j).re;
-            is=m_iq_output_buffer.at(j).im;
 
-            leftTXSample=is>=0.0?(long)floor(is*gain+0.5):(long)ceil(is*gain-0.5);
-            rightTXSample=qs>=0.0?(long)floor(qs*gain+0.5):(long)ceil(qs*gain-0.5);
-            m_tx_iqdata[(j * 4)] = leftTXSample  >> 8;
-            m_tx_iqdata[(j * 4) + 1] = leftTXSample;
-            m_tx_iqdata[(j * 4) + 2]= rightTXSample >> 8;
-            m_tx_iqdata[(j * 4) + 3]=  rightTXSample ;
+            is=m_iq_output_buffer.at(j).im;
+            rightTXSample=(int)(is +0.5);
+            leftTXSample=(int)(qs + 0.5);
+
+           // rightTXSample=is>=0.0?(long)floor(is*gain+0.5):(long)ceil(is*gain-0.5);
+           // leftTXSample=qs>=0.0?(long)floor(qs*gain+0.5):(long)ceil(qs*gain-0.5);
+//            if (j ==10)
+//                qDebug() << leftTXSample << rightTXSample << is << qs;
+            m_txBuffer[tx_index++] = (unsigned char) leftTXSample  >> 8;
+            m_txBuffer[tx_index++] = (unsigned char)leftTXSample;
+            m_txBuffer[tx_index++] = (unsigned char)rightTXSample >> 8;
+            m_txBuffer[tx_index++] = (unsigned char)rightTXSample ;
+
         }
+
+
+//        qDebug()  << " Tx iq samples Queued" << tx_index/4;
 
 
 }
 
 
+void DataProcessor::DumpBuffer(unsigned char *buffer,int length) {
+  QMutex dump_mutex;
+  dump_mutex.lock();
+  int i=0;
+  int line=0;
+  while(i<length) {
+    printf("%02X",buffer[i]);
+    i++;
+    line++;
+    if(line==16) {
+      printf("\n");
+      line=0;
+    }
+  }
+  if(line!=0) {
+    printf("\n");
+  }
+  printf("\n");
+  dump_mutex.unlock();
+}
 
 void DataProcessor::setAudioBuffer(int rx, const CPX &buffer, int buffersize)
 {
+    QTextStream stream( this->file );
     qint16 leftRXSample;
     qint16 rightRXSample;
-
-    get_tx_iqData();
-m_tx_iqdata.resize(4096);
+     char *ptr;
 
 
+//    qDebug() << "Buffer size" << buffersize << sizeof (de->io.output_buffer) ;
 
     // process the output
         for (int j = 0; j < buffersize; j++) {
@@ -2862,10 +2905,16 @@ m_tx_iqdata.resize(4096);
             de->io.output_buffer[m_idx++] = leftRXSample;
             de->io.output_buffer[m_idx++] = rightRXSample >> 8;
             de->io.output_buffer[m_idx++] = rightRXSample;
-            de->io.output_buffer[m_idx++] = (unsigned char) ( m_tx_iqdata[(j * 4) ]);
-            de->io.output_buffer[m_idx++] = (unsigned char) ( m_tx_iqdata[(j * 4) + 1 ]);
-            de->io.output_buffer[m_idx++] = (unsigned char) ( m_tx_iqdata[(j * 4) + 2 ]);
-            de->io.output_buffer[m_idx++] = (unsigned char) ( m_tx_iqdata[(j * 4) + 3 ]);
+            de->io.output_buffer[m_idx++] = m_txBuffer[tx_index++];
+            de->io.output_buffer[m_idx++] = m_txBuffer[tx_index++];
+            de->io.output_buffer[m_idx++] = m_txBuffer[tx_index++];
+            de->io.output_buffer[m_idx++] = m_txBuffer[tx_index++];
+
+            if (tx_index >= 4096)
+            {
+                  get_tx_iqData();
+                  tx_index = 0;
+            }
 
 
  //   qDebug() << "buffer " << de->io.output_buffer[IO_HEADER_SIZE ] << de->io.output_buffer[IO_BUFFER_SIZE - 1] ;
@@ -2901,8 +2950,26 @@ m_tx_iqdata.resize(4096);
                          */
 
                     }
+           //         DumpBuffer(de->io.output_buffer,IO_BUFFER_SIZE);
+           //         ptr = m_tx_iqdata.data();
+           //         DumpBuffer((unsigned char*) ptr,DSP_SAMPLE_SIZE);
+           //            DumpBuffer((unsigned char *) de->io.mic_buffer,DSP_SAMPLE_SIZE * sizeof(double));
 
                     de->m_dataIO->sendAudio(de->io.output_buffer); //RRK
+                    /*
+                    stream << "frame start:";
+                    for (int z=0; z < IO_BUFFER_SIZE;z++)
+                    {
+//                        QString str;
+//                      str = str.sprintf("%x", de->io.output_buffer[z] );
+//                        stream << str
+                          stream  << hex << de->io.output_buffer[z];
+                        stream << ',';
+
+                    }
+                      stream << "end";
+*/
+//                      qDebug() << "send  tx samples" << tx_index /4 ;
 					writeData();
 
 
@@ -2912,7 +2979,8 @@ m_tx_iqdata.resize(4096);
 					break;
 			}
         m_idx = IO_HEADER_SIZE;
-        }
+
+         }
        }
 
           //   DATA_ENGINE_DEBUG << "TX QUEUE SIZE end " << m_tx_iqdata.size();
@@ -2942,7 +3010,7 @@ void DataProcessor::processOutputBuffer(const CPX &buffer) {
 		leftTXSample = 0;
         rightTXSample = 0;
 
-    qDebug() << sizeof(de->io.output_buffer);
+//    qDebug() << sizeof(de->io.output_buffer);
 
 		de->io.output_buffer[m_idx++] = leftRXSample  >> 8;
         de->io.output_buffer[m_idx++] = leftRXSample;
@@ -2976,6 +3044,7 @@ void DataProcessor::processOutputBuffer(const CPX &buffer) {
 					//}
 
 					de->m_dataIO->sendAudio(de->io.output_buffer); //RRK
+                    qDebug() << "test write";
 					writeData();
 					break;
 
@@ -3197,7 +3266,7 @@ void DataProcessor::encodeCCBytes() {
     	case 3:
 
     		de->io.control_out[0] = 0x12; // 0 0 0 1 0 0 1 0
-    		de->io.control_out[1] = 0x30; // C1
+            de->io.control_out[1] = 0x7f; // C1
     		de->io.control_out[2] = 0x10; // C2
     		de->io.control_out[3] = 0x0; // C3
             de->io.control_out[4] = 0x0; // C4
@@ -3379,7 +3448,6 @@ void DataProcessor::encodeCCBytes() {
 }
 
 void DataProcessor::writeData() {
-
 	if (m_setNetworkDeviceHeader) {
 
 		//RRK updated for 4byte int and network order
@@ -3498,7 +3566,7 @@ void DataEngine::stop_TxProcessor() {
 void DataEngine::radioStateChange(RadioState state) {
 
     m_radioState = state;
-    if (state == RadioState::MOX)
+    if ((state == RadioState::MOX) || (state == RadioState::TUNE))
     {
         io.ccTx.mox = true;
         audioInput->start();
