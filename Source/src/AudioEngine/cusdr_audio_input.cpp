@@ -72,9 +72,10 @@ bool AudioInput::Start()
         m_ThreadQuit = false;
         start(QThread::HighestPriority);	//start worker thread and set its priority
         //		start(QThread::TimeCriticalPriority);	//start worker thread and set its priority
-        m_AudioIn->setBufferSize(8192);
+//        m_AudioIn->setBufferSize(8192);
         m_AudioIn->setVolume(1.0);
         m_in = m_AudioIn->start();
+
         return true;
     }
     else

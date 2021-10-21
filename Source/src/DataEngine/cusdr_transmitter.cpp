@@ -225,7 +225,7 @@ bool  Transmitter::create_transmitter(int id, int buffer_size, int fft_size, int
     SetTXAPostGenToneFreq(this->id, 1000.0);
     SetTXAPostGenRun(this->id, 0);
 
-    double mic_gain = 10;
+    double mic_gain = 0.01;
     SetTXAPanelGain1(this->id,pow(10.0, mic_gain/20.0));
     SetTXAPanelRun(this->id, 1);
 

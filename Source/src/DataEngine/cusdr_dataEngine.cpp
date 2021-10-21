@@ -2779,8 +2779,8 @@ void DataProcessor::get_tx_iqData(){
 
     int error;
 
-    qint16 leftTXSample;
-    qint16 rightTXSample;
+    long   leftTXSample;
+    long   rightTXSample;
     double is,qs;
     double gain = 32767.0f;
    // double gain = 25 * 0.00392;
@@ -2828,6 +2828,9 @@ void DataProcessor::get_tx_iqData(){
         {
             //qDebug()  << "fexchange rawmic=" << *sample << "mic=" <<  de->io.mic_buffer[16] << "out=" << m_iq_output_buffer[16].re ;
             fexchange0(TX_ID, de->io.mic_buffer, (double *) m_iq_output_buffer.data(), &error);
+            DumpBuffer((unsigned char *)de->io.mic_buffer,IO_BUFFER_SIZE,"Mic Buffer");
+            DumpBuffer((unsigned char *) m_iq_output_buffer.data(),IO_BUFFER_SIZE,"IQ Buffer");
+
             Spectrum0(1, TX_ID, 0, 0, (double *) m_iq_output_buffer.data());
         }
         else
@@ -2844,19 +2847,23 @@ void DataProcessor::get_tx_iqData(){
             qs=m_iq_output_buffer.at(j).re;
 
             is=m_iq_output_buffer.at(j).im;
-            rightTXSample=(int)(is +0.5);
-            leftTXSample=(int)(qs + 0.5);
+         //   rightTXSample=(int)(is +0.5);
+         //   leftTXSample=(int)(qs + 0.5);
 
-           // rightTXSample=is>=0.0?(long)floor(is*gain+0.5):(long)ceil(is*gain-0.5);
-           // leftTXSample=qs>=0.0?(long)floor(qs*gain+0.5):(long)ceil(qs*gain-0.5);
-//            if (j ==10)
-//                qDebug() << leftTXSample << rightTXSample << is << qs;
+            rightTXSample=is>=0.0?(long)floor(is*gain+0.5):(long)ceil(is*gain-0.5);
+            leftTXSample=qs>=0.0?(long)floor(qs*gain+0.5):(long)ceil(qs*gain-0.5);
+            if (j ==0)
+
+                printf(" Dump %x %x %x %x\n",leftTXSample,rightTXSample,is,qs);
+
             m_txBuffer[tx_index++] = (unsigned char) leftTXSample  >> 8;
             m_txBuffer[tx_index++] = (unsigned char)leftTXSample;
             m_txBuffer[tx_index++] = (unsigned char)rightTXSample >> 8;
             m_txBuffer[tx_index++] = (unsigned char)rightTXSample ;
 
         }
+
+    DumpBuffer((unsigned char *) m_txBuffer,IO_BUFFER_SIZE,"TX Buffer");
 
 
 //        qDebug()  << " Tx iq samples Queued" << tx_index/4;
@@ -2865,12 +2872,15 @@ void DataProcessor::get_tx_iqData(){
 }
 
 
-void DataProcessor::DumpBuffer(unsigned char *buffer,int length) {
+void DataProcessor::DumpBuffer(unsigned char *buffer,int length, const char *who) {
   QMutex dump_mutex;
   dump_mutex.lock();
+  printf("%s: %s: %d\n",__FUNCTION__,who,length);
   int i=0;
   int line=0;
+
   while(i<length) {
+
     printf("%02X",buffer[i]);
     i++;
     line++;
@@ -2950,7 +2960,7 @@ void DataProcessor::setAudioBuffer(int rx, const CPX &buffer, int buffersize)
                          */
 
                     }
-           //         DumpBuffer(de->io.output_buffer,IO_BUFFER_SIZE);
+           //         DumpBuffer(de->io.output_buffer,IO_BUFFER_SIZE,"Output Buffer");
            //         ptr = m_tx_iqdata.data();
            //         DumpBuffer((unsigned char*) ptr,DSP_SAMPLE_SIZE);
            //            DumpBuffer((unsigned char *) de->io.mic_buffer,DSP_SAMPLE_SIZE * sizeof(double));

@@ -457,7 +457,7 @@ private:
 
 	volatile bool	m_stopped;
     void            get_tx_iqData();
-    void    DumpBuffer(unsigned char *buffer,int length);
+    void    DumpBuffer(unsigned char *buffer,int length, const char *who);
 
 
 	uchar	m_ibuffer[IO_BUFFER_SIZE * IO_BUFFERS];
