@@ -2793,12 +2793,12 @@ void DataProcessor::get_tx_iqData(){
     m_tx_iqdata.fill(0,AUDIO_IN_PACKET_SIZE);
 
        // fetch raw audio packet from input stream
-
+/*
         if (de->audioInput->m_audioInQueue.count() > 0)
         {
             temp_audioIn = de->audioInput->m_audioInQueue.dequeue();
         }
-
+*/
         if (temp_audioIn.size() != AUDIO_IN_PACKET_SIZE)
         {
             DATA_ENGINE_DEBUG << "audo buf size error" << temp_audioIn.size();
@@ -3560,7 +3560,7 @@ void DataEngine::senddata(char * buffer, int length) {
 
 void DataEngine::createAudioInputProcessor() {
 
-    audioInput = new AudioInput();
+    audioInput = new PAudioInput();
 
 }
 

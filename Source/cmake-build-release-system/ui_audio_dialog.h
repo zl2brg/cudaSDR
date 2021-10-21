@@ -79,7 +79,7 @@ public:
         horizontalLayout_2->setObjectName(QString::fromUtf8("horizontalLayout_2"));
         drivelevelSlider = new QSlider(groupBox_3);
         drivelevelSlider->setObjectName(QString::fromUtf8("drivelevelSlider"));
-        drivelevelSlider->setMaximum(100);
+        drivelevelSlider->setMaximum(31);
         drivelevelSlider->setOrientation(Qt::Horizontal);
 
         horizontalLayout_2->addWidget(drivelevelSlider);
