@@ -222,7 +222,7 @@ QT5_WRAP_UI( UI_HEADERS ${UI_SOURCES} )
 ADD_EXECUTABLE(cudasdr ${SOURCES} ${HEADERS}  res/cusdr.qrc ${UI_SOURCES} ${UI_HEADERS})
 
 qt5_use_modules(cudasdr Core Gui Widgets OpenGL)
-target_link_libraries(cudasdr -lm -lstdc++ Qt5::Widgets Qt5::Network Qt5::Multimedia GL pulse-simple pulse asound wdsp)
+target_link_libraries(cudasdr -lm -lstdc++ Qt5::Widgets Qt5::Network Qt5::Multimedia GL asound wdsp portaudio)
 set_target_properties(cudasdr PROPERTIES LINKER_LANGUAGE CXX)
 
 #qt5_use_modules(Core Network)

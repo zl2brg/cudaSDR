@@ -108,7 +108,7 @@ public:
 
 	QUdpSocket*			sendSocket;
 	DataIO*				m_dataIO;
-    AudioInput *        audioInput;
+    PAudioInput *        audioInput;
 
 
     struct sockaddr_in  DataAddr;
