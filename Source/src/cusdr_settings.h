@@ -435,6 +435,9 @@ typedef struct _ccParameterTx {
 	int		dither;
 	int		random;
 	int		currentAlexState;
+    uchar   drivelevel;
+    int     repeaterOffset;
+    bool    use_repeaterOffset;
 
 	HamBand		currentBand;
 
@@ -456,14 +459,11 @@ typedef struct _hpsdrParameter {
 	QByteArray	ccOut;
 
 	uchar	output_buffer[IO_BUFFER_SIZE];
-	//float	in_buffer[2*BUFFER_SIZE];
-	float	out_buffer[2*BUFFER_SIZE];
+
 
 	qVectorFloat	wbWindow;
 
-	//CPX		cpxIn;
-	//CPX		cpxOut;
-	//CPX		cpxTmp;
+
 
 	QByteArray				audioDatagram;
 	
@@ -1046,6 +1046,7 @@ signals:
     void anfChanged(int rx, bool value);
     void micInputLevelChanged(QObject *sender, int level);
     void driveLevelChanged(QObject *sender, int level);
+    void repeaterModeChanged(bool mode);
 
 
 
@@ -1148,7 +1149,9 @@ public:
 	QList<long>					getLPFHiFrequencies()		{ return m_LPFHiFrequencyList; }
 	QList<int>					getRxJ6Pins()				{ return m_rxJ6pinList; }
 	QList<int>					getTxJ6Pins()				{ return m_txJ6pinList; }
-	int							getFramesPerSecond(int rx);
+    int                         get_tx_drivelevel()         {return m_drivelevel;   }
+    bool                        get_repeaterMode()          {return m_repeaterMode; }
+    int							getFramesPerSecond(int rx);
 	QString						getDSPModeString(int mode);
     DSPMode                     getDSPMode(int rx);
 
@@ -1317,7 +1320,7 @@ public slots:
 	void setTxAllowed(QObject* sender, bool value);
 
     RadioState setRadioState(RadioState mode);
-	RadioState getRadioState();
+	RadioState getRadioState() { return m_radioState;}
 	void setMultiRxView(int view);
 	void setSMeterValue(int rx, double value);
 	void setSpectrumBuffer(int rx, const qVectorFloat &buffer);
@@ -1532,6 +1535,7 @@ public slots:
     void setNR2Ae(int rx, bool value);
     void setAnf(int rx, bool value);
     void setSnb(int rx, bool value);
+    void setRepeaterMode(bool mode);
 
 
 
@@ -1659,6 +1663,7 @@ private:
 	//int		m_wbBuffers;
 	int		m_spectrumSize;
 	int		m_sMeterHoldTime;
+    bool    m_repeaterMode;
 
 	long freq1;
 	

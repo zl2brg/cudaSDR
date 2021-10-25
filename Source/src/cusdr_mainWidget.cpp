@@ -946,7 +946,35 @@ void MainWindow::createMainBtnToolBar() {
 	int fontMaxWidth = m_fonts.smallFontMetrics->boundingRect("100 % ").width();
 	int vol = (int)(set->getMainVolume(0) * 100);
 
-	m_volumeSlider = new QSlider(Qt::Horizontal, this);
+    m_micGainSlider = new QSlider(Qt::Horizontal, this);
+    m_micGainSlider->setTickPosition(QSlider::NoTicks);
+    m_micGainSlider->setFixedSize(100, 14);
+    m_micGainSlider->setSingleStep(1);
+    m_micGainSlider->setRange(0, 128);
+    m_micGainSlider->setValue(vol);
+    m_micGainSlider->setStyleSheet(set->getVolSliderStyle());
+    CHECKED_CONNECT(
+            m_micGainSlider,
+            SIGNAL(valueChanged(int)),
+            this,
+            SLOT(setMicLevel(int)));
+
+
+    m_drivelevelSlider =  new QSlider(Qt::Horizontal, this);
+    m_drivelevelSlider->setTickPosition(QSlider::NoTicks);
+    m_drivelevelSlider->setFixedSize(100, 14);
+    m_drivelevelSlider->setSingleStep(1);
+    m_drivelevelSlider->setRange(0, 128);
+    m_drivelevelSlider->setValue(vol);
+    m_drivelevelSlider->setStyleSheet(set->getVolSliderStyle());
+
+    CHECKED_CONNECT(
+            m_drivelevelSlider,
+            SIGNAL(valueChanged(int)),
+            this,
+            SLOT(setDriveLevel(int)));
+
+    m_volumeSlider = new QSlider(Qt::Horizontal, this);
 	m_volumeSlider->setTickPosition(QSlider::NoTicks);
 	m_volumeSlider->setFixedSize(100, 14);
 	m_volumeSlider->setSingleStep(1);
@@ -960,7 +988,16 @@ void MainWindow::createMainBtnToolBar() {
 		this, 
 		SLOT(setMainVolume(int)));
 
-	m_volumeLabel = new QLabel("Vol:", this);
+    m_micGainLabel = new QLabel("Mic:", this);
+    m_micGainLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
+    m_micGainLabel->setStyleSheet(set->getLabelStyle());
+
+    m_drivelevellLabel = new QLabel("Drive:", this);
+    m_drivelevellLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
+    m_drivelevellLabel->setStyleSheet(set->getLabelStyle());
+
+
+    m_volumeLabel = new QLabel("Vol:", this);
     m_volumeLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
 	m_volumeLabel->setStyleSheet(set->getLabelStyle());
 
@@ -1123,7 +1160,17 @@ void MainWindow::createMainBtnToolBar() {
 	secondBtnLayout->addWidget(alexBtn);
 	secondBtnLayout->addWidget(attenuatorBtn);
 	secondBtnLayout->addSpacing(5);
-	secondBtnLayout->addWidget(m_agcGainLabel);
+    secondBtnLayout->addWidget(m_drivelevellLabel);
+    secondBtnLayout->addWidget(m_drivelevelSlider);
+//    secondBtnLayout->addWidget(m_drivelevellLabell);
+    secondBtnLayout->addSpacing(10);
+
+    secondBtnLayout->addWidget(m_micGainLabel);
+    secondBtnLayout->addWidget(m_micGainSlider);
+//    secondBtnLayout->addWidget(m_drivelevellLabell);
+    secondBtnLayout->addSpacing(10);
+
+    secondBtnLayout->addWidget(m_agcGainLabel);
 	secondBtnLayout->addWidget(m_agcGainSlider);
 	secondBtnLayout->addWidget(m_agcGainLevelLabel);
 	secondBtnLayout->addSpacing(10);
@@ -1132,7 +1179,7 @@ void MainWindow::createMainBtnToolBar() {
 	secondBtnLayout->addWidget(m_volLevelLabel);
 	secondBtnLayout->addSpacing(2);
 	secondBtnLayout->addWidget(muteBtn);
-	//secondBtnLayout->addWidget(lastFreqBtn);
+	secondBtnLayout->addWidget(lastFreqBtn);
 	
 	/*QHBoxLayout *thirdBtnLayout = new QHBoxLayout;
 	thirdBtnLayout->setSpacing(0);
@@ -1750,6 +1797,33 @@ void MainWindow::setNumberOfReceivers(
 		if (rxDockWidgetList.at(i)->isVisible())
 			rxDockWidgetList.at(i)->hide();
 	}
+}
+
+
+void MainWindow::setMicLevel(int value)
+{
+    if (value < 0 ) value = 0;
+    if (value > 100 ) value = 100;
+    if (value < 0 ) value = 0;
+    if (value > 100 ) value = 100;
+
+    QString str = "%1 %";
+    // m_DriveLevelLabel->setText(str.arg(value, 2, 10, QLatin1Char(' ')));
+
+    set->setMicInputLevel(this, value);
+
+}
+
+
+void MainWindow::setDriveLevel(int value)
+{
+    if (value < 0 ) value = 0;
+    if (value > 100 ) value = 100;
+
+    QString str = "%1 %";
+   // m_DriveLevelLabel->setText(str.arg(value, 2, 10, QLatin1Char(' ')));
+
+    set->setDriveLevel(this, value);
 }
 
 /*!

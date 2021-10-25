@@ -15,12 +15,9 @@ audio_dialog::audio_dialog(QWidget *parent) :
     ui->setupUi(this);
     this->setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
     this->setStyleSheet(set->getSDRStyle());
-    ui->drivelevelSlider->setStyleSheet(set->getVolSliderStyle());
-    ui->inputLevelSlider->setStyleSheet(set->getVolSliderStyle());
     ui->audiodevlist->setStyleSheet(set->getComboBoxStyle());
     ui->groupBox->setStyleSheet(set->getWidgetStyle());
     ui->groupBox_2->setStyleSheet(set->getWidgetStyle());
-    ui->groupBox_3->setStyleSheet(set->getWidgetStyle());
 
 
 
@@ -30,8 +27,6 @@ audio_dialog::audio_dialog(QWidget *parent) :
            ui->audiodevlist->addItem(d.deviceName(),QVariant::fromValue(d));
        }
     ui->audiodevlist->setCurrentIndex(set->getMicInputDev());
-    ui->inputLevelSlider->setValue(set->getMicInputLevel());
-    ui->drivelevelSlider->setValue(set->getDriveLevel());
 
 
  CHECKED_CONNECT(
@@ -51,11 +46,6 @@ audio_dialog::audio_dialog(QWidget *parent) :
                  this,
                  SLOT(audio_input_changed(int)));
 
- CHECKED_CONNECT(ui->inputLevelSlider,
-                    SIGNAL(valueChanged(int)),
-                    this,
-                    SLOT(mic_level_changed(int)));
-
  }
 
 audio_dialog::~audio_dialog()
@@ -69,8 +59,6 @@ void audio_dialog::ok_pressed(){
     QAudioDeviceInfo dev = v.value<QAudioDeviceInfo>();
     qDebug() << "input device " << dev.deviceName();
     set->setMicInputDev(this,ui->audiodevlist->currentIndex());
-    set->setMicInputLevel(this,ui->inputLevelSlider->value());
-    set->setDriveLevel(this,ui->drivelevelSlider->value());
 close();
 }
 
@@ -86,13 +74,3 @@ qDebug() << "selected" << index;
 }
 
 
-void audio_dialog::mic_level_changed(int level) {
-
-    qDebug() << "Mic Level Changed" << level;
-    set->setMicInputLevel(this,ui->inputLevelSlider->value());
-    double mic_gain = level;
-
-    SetTXAPanelGain1(TX_ID,pow(10.0, mic_gain/20.0));
-
-
-}

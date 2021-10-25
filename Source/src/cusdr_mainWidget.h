@@ -195,7 +195,9 @@ private:
 	QLabel*			m_volLevelLabel;
 	QLabel*			m_agcGainLabel;
 	QLabel*			m_agcGainLevelLabel;
-	QLabel*			m_cpuLoadLabel;
+    QLabel*			m_micGainLabel;
+    QLabel*			m_drivelevellLabel;
+    QLabel*			m_cpuLoadLabel;
 	QLabel*			m_dateTimeLabel;
 	QLabel*			m_statusBarMessage;
 
@@ -206,8 +208,9 @@ private:
 
 	QWidget*		m_buttonWidget;
 	QWidget*		m_secondButtonWidget;
-	
-	QSlider*		m_volumeSlider;
+	QSlider*        m_micGainSlider;
+    QSlider*        m_drivelevelSlider;
+    QSlider*		m_volumeSlider;
 	QSlider*		m_agcGainSlider;
 	ADCMode			m_adcMode;
 	AGCMode			m_agcMode;
@@ -331,7 +334,10 @@ private slots:
 
 	void getNetworkInterfaces();
 	void setMainVolume(int value);
-	//void setHamBand(QObject *sender, int rx, bool byButton, HamBand band);
+    void setMicLevel(int value);
+    void setDriveLevel(int value);
+
+    //void setHamBand(QObject *sender, int rx, bool byButton, HamBand band);
     void setADCMode(QObject *sender, int rx, ADCMode mode);
 	void setAGCMode(QObject *sender, int rx, AGCMode mode, bool hang);
 	void setAGCGain(int value);

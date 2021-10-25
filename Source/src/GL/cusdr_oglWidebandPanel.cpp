@@ -330,7 +330,7 @@ void QGLWidebandPanel::paintGL() {
 
 				if (m_panGrid)
 					drawGrid();
-
+//#todo use ham database
 				// Ham band information
 				drawHamBand(1810000, 2000000, "160m");
 				drawHamBand(3500000, 3800000, "80m");
@@ -342,7 +342,7 @@ void QGLWidebandPanel::paintGL() {
 				drawHamBand(21000000, 21450000, "15m");
 				drawHamBand(24890000, 24990000, "12m");
 				drawHamBand(28000000, 29700000, "10m");
-				drawHamBand(50000000, 51990000, "6m");
+				drawHamBand(50000000, 54000000, "6m");
 
                 //glColor4f(QColor(255, 255, 255, 130));
 				//m_oglTextSmall->renderText(m_panRect.right() - 100, m_panRect.top(), 5.0f, "Region 1");
@@ -1403,8 +1403,10 @@ void QGLWidebandPanel::mousePressEvent(QMouseEvent* event) {
 		else if (event->buttons() == Qt::LeftButton) {
 			
 			float unit = (float)(m_panRect.width() / (MAXHPFREQUENCY * m_freqScaleZoomFactor));
+
 			
 			m_frequency = (long)(1000 * (int)(qRound(m_mousePos.x()/unit + m_lowerFrequency)/1000));
+            qDebug()  << "wideband "<< m_panRect.width() << MAXHPFREQUENCY <<  m_freqScaleZoomFactor << m_frequency;
 			set->setVFOFrequency(this, 1, m_currentReceiver, m_frequency);
 		}
 		update();

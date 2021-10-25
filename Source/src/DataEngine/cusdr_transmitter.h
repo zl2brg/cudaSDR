@@ -74,9 +74,11 @@ private:
     void add_ps_iq_samples(int tx, double i_sample_0,double q_sample_0, double i_sample_1, double q_sample_1);
 
     void cw_hold_key(int state);
+    long get_CtrFrequency(long rx_frequency,long repeater_offset, bool repeater_mode);
 
     double cw_shape_buffer48[BUFFER_SIZE];
     double cw_shape_buffer192[BUFFER_SIZE];
+
 
 
 

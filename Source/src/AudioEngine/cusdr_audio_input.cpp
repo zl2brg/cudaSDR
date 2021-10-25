@@ -1,5 +1,5 @@
 //
-// Created by simon on 14/09/21.
+// Created by Simon Eatough, ZL2BRG on 14/09/21.
 //
 
 
@@ -17,141 +17,6 @@
 
 #include "cusdr_audio_input.h"
 
-AudioInput::AudioInput(QObject *parent) : QThread(parent)
-  , set(Settings::instance())
-  , m_availableAudioInputDevices(
-        QAudioDeviceInfo::availableDevices(QAudio::AudioInput))
-  , m_audioInputDevice(QAudioDeviceInfo::defaultInputDevice())
-{
-
-
-}
-
-AudioInput::~AudioInput()
-{
-    Stop();
-    if (m_AudioIn) delete m_AudioIn;
-}
-
-
-bool AudioInput::Start()
-{
-    PAudioInput *pin= new PAudioInput();
-    AUDIO_INPUT_DEBUG << "Start";
-    QAudioFormat format;
-    // Set up the desired format, for example:
-    format.setSampleRate(48000);
-    format.setChannelCount(1);
-    format.setSampleSize(32);
-    format.setCodec("audio/pcm");
-    format.setByteOrder(QAudioFormat::LittleEndian);
-    format.setSampleType(QAudioFormat::Float);
-
-    QAudioDeviceInfo info =m_availableAudioInputDevices.at(set->getMicInputDev());
-    if (!info.isFormatSupported(format)) {
-        format = info.nearestFormat(format);
-        AUDIO_INPUT_DEBUG << "Default format not supported, trying to use the nearest." << info.nearestFormat(format);
-    }
-
-
-    AUDIO_INPUT_DEBUG << format << info.deviceName();
-
-
-    m_AudioIn = new QAudioInput(format, this);
-  //  connect(m_AudioIn, SIGNAL(stateChanged(QAudio::State)), this, SLOT(stateChangeAudioIn(QAudio::State)));
- //   m_AudioOut = new QAudioOutput(format,this);
-    AUDIO_INPUT_DEBUG << "Audio input buffer size " << m_AudioIn->bufferSize();
-    temp.fill(0,BUFFER_SIZE * 2);
-
-    if (QAudio::NoError == m_AudioIn->error())
-    {
-
-        m_ThreadQuit = false;
-        start(QThread::HighestPriority);	//start worker thread and set its priority
-        //		start(QThread::TimeCriticalPriority);	//start worker thread and set its priority
-//        m_AudioIn->setBufferSize(8192);
-        m_AudioIn->setVolume(1.0);
-        m_in = m_AudioIn->start();
-
-        return true;
-    }
-    else
-    {
-        qDebug()<<"Soundcard output error";
-        return false;
-    }
-}
-
-
-void AudioInput::run()
-{
-    qint64 len;
-    qint64 count = 0;
-    QMutex mutex;
-    QByteArray a;
-    return;
-
-//    m_AudioIn->reset();
-
-    while(!m_ThreadQuit )	//execute loop until quit flag set
-     {
-            if( (QAudio::IdleState == m_AudioIn->state() ) ||
-                (QAudio::ActiveState == m_AudioIn->state() ) )
-        {
-             len   =  m_AudioIn->bytesReady();
-             if (len > AUDIO_IN_PACKET_SIZE)
-                {
-                    temp = m_in->read(AUDIO_IN_PACKET_SIZE);
-                    if (temp.size() != AUDIO_IN_PACKET_SIZE)
-                    {
-                        qDebug() << "Audio Error" << temp.size();
-                        temp.fill(0,AUDIO_IN_PACKET_SIZE);
-                    }
-
-                    double test1 = (double)(temp.at(40) << 24);
-                    test1 +=  (double)(temp.at(41) << 16);
-                    test1 +=  (double)(temp.at(42) << 8);
-                    test1 +=  (double)(temp.at(43));
-//                    qDebug() << "addio read" << test1;
-
-
-                 if (temp.count() == AUDIO_IN_PACKET_SIZE)
-                 {
-                    m_audioInQueue.enqueue(temp);
-                 }
-//                 else   AUDIO_INPUT_DEBUG << "Audio Queue size error " << temp.count() << len << m_AudioIn->periodSize();
-                 }
-                else {
-                 msleep(50);
-             }
-
-
-                    //    AUDIO_INPUT_DEBUG << "Audio Queue " << m_audioInQueue.count();
-                }
-
-
-            }
-AUDIO_INPUT_DEBUG << "run thhread exit";
-    }
-
-
-void AudioInput::Stop(){
-
-    if(!m_ThreadQuit)
-        {
-            AUDIO_INPUT_DEBUG << "Stop";
-            m_ThreadQuit = true;
-
-            m_AudioIn->stop();
-            wait(500);
-        }
-        if(m_AudioIn)
-        {
-            delete m_AudioIn;
-            m_AudioIn = NULL;
-        }
-}
-
 
 PAudioInput::PAudioInput(QObject *parent) : QThread(parent)
         , set(Settings::instance())
@@ -163,7 +28,6 @@ PAudioInput::PAudioInput(QObject *parent) : QThread(parent)
     {
         printf( "ERROR: Pa_CountDevices returned 0x%x\n", numDevices );
         error = numDevices;
-
     }
     const   PaDeviceInfo *deviceInfo;
     for( int i=0; i<numDevices; i++ )
@@ -171,7 +35,6 @@ PAudioInput::PAudioInput(QObject *parent) : QThread(parent)
         deviceInfo = Pa_GetDeviceInfo( i );
         paDeviceList.append(QString(deviceInfo->name));
     }
-
     device = 17;
     bzero( &inputParameters, sizeof( inputParameters ) ); //not necessary if you are filling in all the fields
     inputParameters.channelCount = 1;
@@ -180,16 +43,11 @@ PAudioInput::PAudioInput(QObject *parent) : QThread(parent)
     inputParameters.sampleFormat = paFloat32;
     inputParameters.suggestedLatency = Pa_GetDeviceInfo(17)->defaultLowInputLatency ;
     inputParameters.hostApiSpecificStreamInfo = NULL; //See you specific host's API docs for info on using this field
-    PaStreamCallback  *callback = audioCallback;
-    error = Pa_OpenStream(
-            &stream,
-            &inputParameters,
-            NULL,
-            48000,
-            paFramesPerBufferUnspecified,
-            paNoFlag, //flags that can be used to define dither, clip settings and more
-            callback, //your callback function
-            (void *) &m_callbackStuff );
+    ;
+//    PaStreamCallback  *callback = audioCallback;
+
+
+
 
     AUDIO_INPUT_DEBUG << "PA Open stream " << error;
 }
@@ -200,32 +58,68 @@ PAudioInput::~PAudioInput()
 }
 
 void PAudioInput::Stop(){
+    m_ThreadQuit = true;
     error = Pa_CloseStream( stream );
+    msleep(100);
+
     AUDIO_INPUT_DEBUG << "PA Close stream " << error;
 }
 
 
 bool PAudioInput::Start() {
-
+    error = Pa_OpenStream(
+            &stream,
+            &inputParameters,
+            NULL,
+            48000,
+            AUDIO_FRAMESIZE,
+            paNoFlag, //flags that can be used to define dither, clip settings and more
+            NULL, //your callback function
+            NULL );
     error = Pa_StartStream(stream);
     AUDIO_INPUT_DEBUG << "PA Start stream " << error;
+    m_ThreadQuit = false;
+    start(QThread::HighestPriority);
+
 
 }
 
 void PAudioInput::run() {
+    unsigned char temp[AUDIO_IN_PACKET_SIZE];
+    QByteArray data;
+
+    while(!m_ThreadQuit )	//execute loop until quit flag set
+
+    {
+        if (Pa_IsStreamActive( stream ) ) {
+
+
+            if (Pa_GetStreamReadAvailable(stream) >= AUDIO_FRAMESIZE) {
+                Pa_ReadStream(stream, temp, AUDIO_FRAMESIZE);
+                m_audioInQueue.enqueue(QByteArray((const char *)temp, AUDIO_IN_PACKET_SIZE));
+//                qDebug() << "Data  Queued !";
+            } else msleep(5);
+        }
+    }
 
 }
 
 int  PAudioInput::callbackProcess(unsigned long framesPerBuffer, float *output, short *in, PADeviceCallbackStuff* callbackStuff){
-
-    qDebug() << "PortAudio Callback " << framesPerBuffer;
+//    qDebug() << "PortAudio Callback " << framesPerBuffer;
     const float *rptr = (const float*)in;
-    float *wptr = &callbackStuff->inputSamples[callbackStuff->frameIndex * 1];
+    const char *ptr = (const char *)in;
 
-    for (unsigned int i = 0; i < framesPerBuffer;i++)
+    if (framesPerBuffer == AUDIO_FRAMESIZE)
     {
-        qDebug() << "data" << *in++;
+
+        for (int i = 0; i < AUDIO_IN_PACKET_SIZE;i++) {
+
+            callbackStuff->buffer[i] = *ptr++;
+        }
+        callbackStuff->data_ready = true;
+        qDebug() << "Data !";
     }
+
 return paContinue;
 }
 

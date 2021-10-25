@@ -161,6 +161,8 @@ public slots:
 	void	setMercuryTiming(QObject* sender, int value);
 	void	setHamBand(QObject *sender, int rx, bool byBtn, HamBand band);
 	void	setFrequency(QObject* sender, int mode, int rx, long frequency);
+    void    set_tx_drivelevel(QObject* sender,int value);
+    void    setRepeaterMode(bool);
 
 	void	suspend();
 
@@ -438,7 +440,6 @@ private:
 	int				m_sendState;
 	int				m_chirpStartSample;
     CPX             m_iq_output_buffer;
-    double          sine_table[BUFFER_SIZE];
     QFile   *file;
 
 

@@ -46,6 +46,7 @@ Settings::Settings(QObject *parent)
 
     qRegisterMetaType<QSDR::_Error>();
     qRegisterMetaType<QSDR::_DataEngineState>();
+    qRegisterMetaType<QSDR::_DataEngineState>();
     qRegisterMetaType<QSDR::_ServerMode>();
     qRegisterMetaType<QSDR::_HWInterfaceMode>();
     qRegisterMetaType<HamBand>();
@@ -71,7 +72,7 @@ Settings::Settings(QObject *parent)
     m_titleString = "cudaSDR Debug BETA ";
 #endif
 
-    m_versionString = "v0.3.2.14 - ZL2BRG";
+    m_versionString = "v0.4.0.0 - ZL2BRG";
 
     qDebug() << qPrintable(m_titleString);
 
@@ -3688,7 +3689,7 @@ void Settings::setVFOFrequency(QObject *sender, int mode, int rx, long frequency
 
     if (m_receiverDataList.at(rx).vfoFrequency == frequency) return;
     m_receiverDataList[rx].vfoFrequency = frequency;
-    //SETTINGS_DEBUG << "vfo freq (Rx " << rx << ") " << m_receiverDataList[rx].vfoFrequency;
+    qDebug() << "vfo freq (Rx " << rx << ") " << m_receiverDataList[rx].vfoFrequency << frequency;
 
     HamBand band = getBandFromFrequency(m_bandList, frequency);
     m_receiverDataList[rx].lastVfoFrequencyList[(int) band] = frequency;
@@ -5227,10 +5228,10 @@ RadioState Settings::setRadioState(RadioState mode) {
 
 }
 
+void Settings::setRepeaterMode(bool mode){
+    m_repeaterMode = mode;
 
-
-RadioState Settings::getRadioState() {
-    return m_radioState;
+   emit repeaterModeChanged(mode);
 }
 
 

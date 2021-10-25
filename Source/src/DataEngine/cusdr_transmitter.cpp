@@ -229,7 +229,7 @@ bool  Transmitter::create_transmitter(int id, int buffer_size, int fft_size, int
     SetTXAPanelGain1(this->id,pow(10.0, mic_gain/20.0));
     SetTXAPanelRun(this->id, 1);
 
-    SetTXAFMDeviation(this->id, (double)5);
+    SetTXAFMDeviation(this->id, (double)5000);
     SetTXAAMCarrierLevel(this->id, 50);
     SetTXACompressorGain(this->id, this->compressor_level);
     SetTXACompressorRun(this->id, this->compressor);
@@ -362,6 +362,14 @@ default:
 
      }
 
+     long Transmitter::get_CtrFrequency(long rx_frequency, long repeater_offset, bool repeater_mode) {
+        if (repeater_mode) {
+            return rx_frequency + repeater_offset;
+        }
+        else return rx_frequency;
+
+}
+
      void Transmitter::init_analyser(int tx) {
          int flp[] = {0};
          double keep_time = 0.1;
@@ -410,8 +418,6 @@ default:
                      span_max_freq, //frequency at last pixel value
                      max_w //max samples to hold in input ring buffers
                      );
-
-
      }
 
 

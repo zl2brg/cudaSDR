@@ -1600,11 +1600,11 @@ void QGLReceiverPanel::drawCrossHair() {
 	}
 
 	// Ham band text
-	/*if (m_oldMousePosX != m_mousePos.x()) {
+	if (m_oldMousePosX != m_mousePos.x()) {
 
 		m_bandText = getHamBandTextString(set->getHamBandTextList(), true, frequency);
 		m_oldMousePosX = m_mousePos.x();
-	}*/
+	}
 
 	glColor3f(0.94f, 0.82f, 0.43f);
 	if (m_smallSize)
