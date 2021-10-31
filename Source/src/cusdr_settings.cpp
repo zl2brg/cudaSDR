@@ -320,9 +320,16 @@ int Settings::loadSettings() {
         m_micSource = 1;
 
     m_micInputDev = settings->value("mic_InputDevice",0).toInt();
-    qDebug() << "Read" <<  m_micInputDev;
     m_micGain = settings->value("micGain", 0).toDouble();
     m_drivelevel = settings->value("driveLevel",0).toInt();
+
+    m_repeaterOffset =  settings->value("repeater_offset",0).toDouble();
+    m_fmPremphasize =  settings->value("fm_preemphesize",0).toInt();
+    m_amCarrierLevel = settings->value("am_carrierlevel",0).toInt();
+    m_audioCompression = settings->value("audiocompression",0).toDouble();
+    m_fmDeveation = settings->value("fmdeveation",0).toDouble();
+    m_micmode  =settings->value("mic_mode",0).toBool();
+
 
     str = settings->value("server/class", 0).toString();
     m_RxClass = (str.toLower() == "E");
@@ -1618,6 +1625,14 @@ int Settings::saveSettings() {
 
     settings->setValue("server/class", m_RxClass);
     settings->setValue("server/timing", m_RxTiming);
+
+    settings->setValue("repeater_offset",m_repeaterOffset);
+    settings->setValue("fm_preemphesize",m_amCarrierLevel);
+    settings->setValue("am_carrierlevel",m_amCarrierLevel);
+    settings->setValue("audiocompression",m_audioCompression);
+    settings->setValue("fmdeveation",m_fmDeveation);
+    settings->setValue("micmode",m_micmode);
+
 
 
     //settings->setValue("server/mainVolume", (int)(m_mainVolume * 100));
@@ -5234,4 +5249,33 @@ void Settings::setRepeaterMode(bool mode){
    emit repeaterModeChanged(mode);
 }
 
+void Settings::setRepeaterOffset(double offset)
+{
+m_repeaterOffset = offset;
+}
 
+void Settings::setFMPreEmphasize(double value)
+{
+
+    m_fmPremphasize=value;
+}
+
+void Settings::setFmDeveation(double value)
+{
+    m_fmDeveation = value;
+}
+
+void Settings::setAMCarrierLevel(int level)
+{
+m_amCarrierLevel = level;
+}
+
+void Settings::setAudioCompression(double level){
+
+m_audioCompression = level;
+}
+
+void Settings::setMicMode(bool mode){
+
+
+}

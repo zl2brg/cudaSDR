@@ -436,8 +436,12 @@ typedef struct _ccParameterTx {
 	int		random;
 	int		currentAlexState;
     uchar   drivelevel;
-    int     repeaterOffset;
+    double  repeaterOffset;
     bool    use_repeaterOffset;
+    int     fmPremphasize;
+    int     amCarrierLevel;
+    int     audioCompression;
+    double  fmDeveation;
 
 	HamBand		currentBand;
 
@@ -1536,7 +1540,12 @@ public slots:
     void setAnf(int rx, bool value);
     void setSnb(int rx, bool value);
     void setRepeaterMode(bool mode);
-
+    void setRepeaterOffset(double offset);
+    void setAudioCompression(double gain);
+    void setAMCarrierLevel(int level);
+    void setMicMode(bool mode);
+    void setFMPreEmphasize(double level);
+    void setFmDeveation(double level);
 
 
 
@@ -1696,6 +1705,13 @@ private:
 	int		m_chirpAvgLength;
 	int		m_chirpFilterLowerFrequency;
 	int		m_chirpFilterUpperFrequency;
+    double  m_repeaterOffset;
+    bool    m_use_repeaterOffset;
+    int     m_fmPremphasize;
+    int     m_amCarrierLevel;
+    int     m_audioCompression;
+    double  m_fmDeveation;
+    bool    m_micmode;
 
 	//int		m_fft;
 
