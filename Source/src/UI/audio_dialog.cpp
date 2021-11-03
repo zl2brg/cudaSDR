@@ -18,6 +18,31 @@ audio_dialog::audio_dialog(QWidget *parent) :
     ui->audiodevlist->setStyleSheet(set->getComboBoxStyle());
     ui->groupBox->setStyleSheet(set->getWidgetStyle());
     ui->groupBox_2->setStyleSheet(set->getWidgetStyle());
+    ui->groupBox_3->setStyleSheet(set->getWidgetStyle());
+    ui->am_carrierlevel->setStyleSheet(set->getSpinBoxStyle());
+    ui->checkBox->setStyleSheet(set->getCheckBoxStyle());
+    ui->ctcss_tone->setStyleSheet(set->getCheckBoxStyle());
+    ui->fm_deviation->setStyleSheet(set->getSpinBoxStyle());
+    ui->am_carrierlevel->setStyleSheet(set->getSpinBoxStyle());
+    ui->fm_deviation->setStyleSheet(set->getSpinBoxStyle());
+    ui->audio_compression->setStyleSheet(set->getSpinBoxStyle());
+    ui->checkBox_3->setStyleSheet(set->getCheckBoxStyle());
+    ui->label->setStyleSheet(set->getLabelStyle());
+    ui->label_2->setStyleSheet(set->getLabelStyle());
+    ui->label_3->setStyleSheet(set->getLabelStyle());
+    ui->label_4->setStyleSheet(set->getLabelStyle());
+    ui->label->setFrameStyle(QFrame::Box | QFrame::Raised);
+    ui->label_2->setFrameStyle(QFrame::Box | QFrame::Raised);
+    ui->label_3->setFrameStyle(QFrame::Box | QFrame::Raised);
+    ui->label_4->setFrameStyle(QFrame::Box | QFrame::Raised);
+
+
+    ui->local_mic->setStyleSheet(set->getCheckBoxStyle());
+    ui->repeater_offset->setStyleSheet(set->getSpinBoxStyle());
+    setContentsMargins(4, 4, 4, 4);
+    setWindowOpacity(0.9);
+
+
 
 
 

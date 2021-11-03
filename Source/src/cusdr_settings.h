@@ -1051,8 +1051,12 @@ signals:
     void micInputLevelChanged(QObject *sender, int level);
     void driveLevelChanged(QObject *sender, int level);
     void repeaterModeChanged(bool mode);
-
-
+    void repeaterOffsetchanged(double value);
+    void fmPremphasizechanged(double value);
+    void fmdeveationchanged(double value);
+    void amCarrierlevelchanged(int level);
+    void audioCompressionchanged(int level);
+    void micModeChanged(bool mode);
 
 
     void showRadioPopupChanged(bool value);
@@ -1209,16 +1213,22 @@ public:
 	int		getSampleRate()				{ return m_sampleRate; }
 
 	//int getMercuryAttenuator()		{ return m_mercuryAttenuator; }
-	int getMercuryDither()			{ return m_mercuryDither; }
-	int getMercuryRandom()			{ return m_mercuryRandom; }
-	int get10MHzSource()			{ return m_10MHzSource; }
-	int get122_8MHzSource()			{ return m_122_8MHzSource; }
-	int getMicSource()				{ return m_micSource; }
-	int getRxClass()				{ return m_RxClass; }
-	int	getRxTiming()				{ return m_RxTiming; }
-    int getMicInputDev()            { return m_micInputDev;}
-    int getMicInputLevel()          { return m_micGain;}
-    int getDriveLevel()             { return m_drivelevel;}
+    int     getMercuryDither()			{ return m_mercuryDither; }
+    int     getMercuryRandom()			{ return m_mercuryRandom; }
+    int     get10MHzSource()			{ return m_10MHzSource; }
+    int     get122_8MHzSource()			{ return m_122_8MHzSource; }
+    int     getMicSource()				{ return m_micSource; }
+    int     getRxClass()				{ return m_RxClass; }
+    int     getRxTiming()				{ return m_RxTiming; }
+    int     getMicInputDev()            { return m_micInputDev;}
+    int     getMicInputLevel()          { return m_micGain;}
+    int     getDriveLevel()             { return m_drivelevel;}
+    bool    getRepeaterMode()           { return m_repeaterMode;}
+    double  getRepeaterOffset()         { return m_repeaterOffset;}
+    double  getFMpreemphesis()          { return m_fmPremphasize;}
+    double  getFMDeveation()            { return m_fmDeveation;}
+    int     getAMCarrierLevel()         { return m_amCarrierLevel;}
+    double  getAudioCompression()       { return m_audioCompression;}
 
 	qreal	getMainVolume(int rx);
 	qreal	getMouseWheelFreqStep(int rx);// { return m_mouseWheelFreqStep; }
@@ -1226,12 +1236,12 @@ public:
 	AGCMode getAGCMode(int rx);
 	QString getADCModeString(int rx);
 	QString getAGCModeString(int rx);
-	qreal getAGCGain(int rx);
-	int getAGCMaximumGain_dB(int rx);
+    qreal   getAGCGain(int rx);
+    int     getAGCMaximumGain_dB(int rx);
 	qreal	getAGCFixedGain_dB(int rx);
 	int		getAGCHangThreshold(int rx);
 	int		getAGCHangLeveldB(int rx);
-    int getAGCSlope(int rx);
+    int     getAGCSlope(int rx);
     int 	getfftSize(int rx);
     int     getNrAGC(int rx);
     int     getNr2GainMethod(int rx);
@@ -1287,10 +1297,10 @@ public:
 	int getFFTMultiplicator(int rx);//			{ return m_fft; }
     QStringList getFilterBtnText(int rx);
 
-	QMutex 		debugMutex;
+    QMutex debugMutex;
 
-	void getConfigPath();
-    QString         cfg_dir;
+    void    getConfigPath();
+    QString cfg_dir;
 
 public slots:
 	void	setMainPower(QObject *sender, bool power);

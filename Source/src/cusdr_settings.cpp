@@ -5252,30 +5252,38 @@ void Settings::setRepeaterMode(bool mode){
 void Settings::setRepeaterOffset(double offset)
 {
 m_repeaterOffset = offset;
+ emit repeaterOffsetchanged(offset);
 }
 
 void Settings::setFMPreEmphasize(double value)
 {
 
     m_fmPremphasize=value;
+    emit fmPremphasizechanged(value);
+
 }
 
 void Settings::setFmDeveation(double value)
 {
     m_fmDeveation = value;
+    emit fmdeveationchanged(value);
 }
 
 void Settings::setAMCarrierLevel(int level)
 {
-m_amCarrierLevel = level;
+    m_amCarrierLevel = level;
+ emit amCarrierlevelchanged(level);
 }
 
 void Settings::setAudioCompression(double level){
 
 m_audioCompression = level;
+emit audioCompressionchanged(level);
 }
 
 void Settings::setMicMode(bool mode){
+    m_micmode = mode;
+    emit micModeChanged(mode);
 
 
 }
