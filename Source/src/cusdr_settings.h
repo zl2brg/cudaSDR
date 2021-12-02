@@ -439,9 +439,10 @@ typedef struct _ccParameterTx {
     double  repeaterOffset;
     bool    use_repeaterOffset;
     int     fmPremphasize;
-    int     amCarrierLevel;
+    double  amCarrierLevel;
     int     audioCompression;
     double  fmDeveation;
+    double  txFrequency;
 
 	HamBand		currentBand;
 
@@ -938,8 +939,8 @@ signals:
 	void randomChanged(QObject *sender, int value);
 	void src10MhzChanged(QObject *sender, int source);
 	void src122_88MhzChanged(QObject *sender, int source);
-	void micSourceChanged(QObject *sender, int source);
-    void micInputChanged(QObject *sender, int source);
+    void micSourceChanged(int source);
+    void micInputChanged(int source);
 	void classChanged(QObject *sender, int value);
 	void timingChanged(QObject *sender, int value);
 	void controlBytesOutChanged(QObject *sender, unsigned char *values);
@@ -1054,7 +1055,7 @@ signals:
     void repeaterOffsetchanged(double value);
     void fmPremphasizechanged(double value);
     void fmdeveationchanged(double value);
-    void amCarrierlevelchanged(int level);
+    void amCarrierlevelchanged(double level);
     void audioCompressionchanged(int level);
     void micModeChanged(bool mode);
 
@@ -1227,7 +1228,7 @@ public:
     double  getRepeaterOffset()         { return m_repeaterOffset;}
     double  getFMpreemphesis()          { return m_fmPremphasize;}
     double  getFMDeveation()            { return m_fmDeveation;}
-    int     getAMCarrierLevel()         { return m_amCarrierLevel;}
+    double  getAMCarrierLevel()         { return m_amCarrierLevel;}
     double  getAudioCompression()       { return m_audioCompression;}
 
 	qreal	getMainVolume(int rx);
@@ -1417,8 +1418,8 @@ public slots:
 	void setRandom(QObject *sender, int value);
 	void set10MhzSource(QObject *sender, int source);
 	void set122_88MhzSource(QObject *sender, int source);
-	void setMicSource(QObject *sender, int source);
-    void setMicInputDev(QObject *sender , int index);
+    void setMicSource(int source);
+    void setMicInputDev(int index);
     void setMicInputLevel(QObject *sender , int level);
     void setDriveLevel(QObject *sender , int level);
 	void setClass(QObject *sender, int value);
@@ -1552,8 +1553,7 @@ public slots:
     void setRepeaterMode(bool mode);
     void setRepeaterOffset(double offset);
     void setAudioCompression(double gain);
-    void setAMCarrierLevel(int level);
-    void setMicMode(bool mode);
+    void setAMCarrierLevel(double level);
     void setFMPreEmphasize(double level);
     void setFmDeveation(double level);
 
@@ -1718,10 +1718,9 @@ private:
     double  m_repeaterOffset;
     bool    m_use_repeaterOffset;
     int     m_fmPremphasize;
-    int     m_amCarrierLevel;
+    double  m_amCarrierLevel;
     int     m_audioCompression;
     double  m_fmDeveation;
-    bool    m_micmode;
 
 	//int		m_fft;
 

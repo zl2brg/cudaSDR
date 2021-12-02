@@ -33,9 +33,9 @@
 
 #include "cusdr_radioPopupWidget.h"
 
-#define	btn_height		14
+#define	btn_height		20
 #define	btn_height1		16
-#define	btn_width		40
+#define	btn_width		60
 #define	btn_widthb		66
 #define	btn_widths		34
 

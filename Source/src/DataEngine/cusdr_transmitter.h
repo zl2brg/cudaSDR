@@ -51,17 +51,12 @@ private:
     void reconfigure_transmitter(int id,int height);
     void set_mode(int  tx, int m);
     void tx_set_filter(double low,double high);
-    void transmitter_set_deviation(int tx);
-    void transmitter_set_am_carrier_level(int tx);
-    void tx_set_pre_emphasize(int tx,int state);
-    void transmitter_set_ctcss(int tx,int run,double frequency);
 
-    void add_mic_sample(int tx,short mic_sample);
+
     void add_freedv_mic_sample(int tx,short mic_sample);
 
     void transmitter_save_state(int tx);
     void transmitter_set_out_of_band(int tx);
-    void tx_set_displaying(int tx,int state);
 
     void tx_set_mode(DSPMode mode);
     void tx_set_ps(int tx,int state);
@@ -86,6 +81,14 @@ public slots:
     void setDSPMode(QObject *sender, int id, DSPMode dspMode);
     void setRadioState(RadioState state);
 
+
+private slots:
+    void set_fm_deviation(double level);
+    void transmitter_set_am_carrier_level(double level);
+    void tx_set_pre_emphasize(int tx,int state);
+    void transmitter_set_ctcss(int tx,int run,double frequency);
+    void transmitter_set_mic_level(QObject *object, int level);
+
 private:
     Settings*				set;
     int id;
@@ -104,6 +107,7 @@ private:
     int output_samples;
     double mic_input_buffer[BUFFER_SIZE];
     double iq_output_buffer[BUFFER_SIZE];
+    double mic_gain = 1;
 
     float pixel_samples[BUFFER_SIZE];
     int display_panadapter;
@@ -118,7 +122,6 @@ private:
     int tx_cfir;
     int tx_leveler = 0;
     double tone_level = 1.0;
-    int mic_gain;
     int tx_filter_low;
     int tx_filter_high;
     int drive_level = 10;

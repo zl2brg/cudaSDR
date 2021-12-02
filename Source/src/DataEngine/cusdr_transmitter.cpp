@@ -55,6 +55,27 @@ void Transmitter::setupConnections() {
                 SIGNAL(radioStateChanged(RadioState)),
                 this,
                 SLOT(setRadioState(RadioState)));
+
+        CHECKED_CONNECT(
+            set,
+            SIGNAL(fmdeveationchanged(double)),
+            this,
+            SLOT(set_fm_deviation(double)));
+
+        CHECKED_CONNECT(
+            set,
+            SIGNAL(amCarrierlevelchanged(double)),
+            this,
+            SLOT(transmitter_set_am_carrier_level(double)));
+
+
+    CHECKED_CONNECT(
+            set,
+            SIGNAL(micInputLevelChanged(QObject *, int)),
+            this,
+            SLOT(transmitter_set_mic_level(QObject *, int)));
+
+
 }
 
 
@@ -130,21 +151,22 @@ bool  Transmitter::create_transmitter(int id, int buffer_size, int fft_size, int
     this->deviation=2500;
     this->am_carrier_level=0.5;
 
+
 #ifdef FREEDV
     strcpy(this->freedv_text_data,"Call, Name and Location");
     this->freedv_samples=0;
 #endif
 
-    this->drive=50;
-    this->tune_percent=10;
+    this->drive=set->get_tx_drivelevel();
+    this->tune_percent= 10;
     this->tune_use_drive=0;
 
     this->compressor=0;
-    this->compressor_level=0.0;
+    this->compressor_level=set->getAudioCompression();
 
     this->local_microphone=0;
 
-    //ansmitter_restore_state(tx);
+
 
 
     // allocate buffers
@@ -201,7 +223,7 @@ bool  Transmitter::create_transmitter(int id, int buffer_size, int fft_size, int
         SetTXAEQRun(this->id, 0);
     }
 
-    transmitter_set_ctcss(this->id,this->ctcss,this->ctcss_frequency);
+ //   transmitter_set_ctcss(this->id,this->ctcss,this->ctcss_frequency);
     SetTXAAMSQRun(this->id, 0);
     SetTXAosctrlRun(this->id, 0);
 
@@ -210,7 +232,7 @@ bool  Transmitter::create_transmitter(int id, int buffer_size, int fft_size, int
     SetTXAALCSt(this->id, 1); // turn it on (always on)
 
     SetTXALevelerAttack(this->id, 1);
-    SetTXALevelerDecay(this->id, 50);
+    SetTXALevelerDecay(this->id, 500);
     SetTXALevelerTop(this->id, 1.0);
     SetTXALevelerSt(this->id, tx_leveler);
 
@@ -225,15 +247,14 @@ bool  Transmitter::create_transmitter(int id, int buffer_size, int fft_size, int
     SetTXAPostGenToneFreq(this->id, 1000.0);
     SetTXAPostGenRun(this->id, 0);
 
-    double mic_gain = 0.01;
     SetTXAPanelGain1(this->id,pow(10.0, mic_gain/20.0));
     SetTXAPanelRun(this->id, 1);
 
-    SetTXAFMDeviation(this->id, (double)5000);
-    SetTXAAMCarrierLevel(this->id, 50);
-    SetTXACompressorGain(this->id, this->compressor_level);
-    SetTXACompressorRun(this->id, this->compressor);
-    setDSPMode(this,0,mode);
+    SetTXAFMDeviation(this->id, set->getFMDeveation());
+    SetTXAAMCarrierLevel(this->id, 0.5);
+    SetTXACompressorGain(this->id, 0);
+    SetTXACompressorRun(this->id, 0);
+    setDSPMode(this,0,set->getDSPMode(1));
     XCreateAnalyzer(this->id, &rc, 262144, 1, 1, "");
     if (rc != 0) {
         fprintf(stderr, "XCreateAnalyzer id=%d failed: %d\n",this->id,rc);
@@ -265,11 +286,9 @@ void Transmitter::transmitter_set_ctcss(int tx, int, double)
 
 }
 
-void Transmitter::add_mic_sample(int tx, short mic_sample) {
-
-}
-
-void Transmitter::transmitter_set_deviation(int tx) {
+void Transmitter::set_fm_deviation(double level) {
+    SetTXAFMDeviation(this->id, level);
+    TRANSMITTER_DEBUG << "Set Tx FM deveation " << level;
 
 }
 
@@ -309,8 +328,9 @@ default:
      }
 
 
-     void Transmitter::transmitter_set_am_carrier_level(int tx) {
-
+     void Transmitter::transmitter_set_am_carrier_level(double level ) {
+         TRANSMITTER_DEBUG << "Set Am Carrier Level " << level;
+         SetTXAAMCarrierLevel(this->id, level);
      }
 
      void Transmitter::tx_set_pre_emphasize(int tx, int state) {
@@ -329,11 +349,7 @@ default:
 
      }
 
-     void Transmitter::tx_set_displaying(int tx, int state) {
-
-     }
-
-     void Transmitter::tx_set_ps(int tx, int state) {
+    void Transmitter::tx_set_ps(int tx, int state) {
 
      }
 
@@ -369,6 +385,16 @@ default:
         else return rx_frequency;
 
 }
+
+
+void Transmitter::transmitter_set_mic_level(QObject *object, int level){
+    TRANSMITTER_DEBUG << "Set Tx mic level" << level;
+    mic_gain = level * 1.0;
+    SetTXAPanelGain1(this->id,pow(10.0, mic_gain/20.0));
+
+}
+
+
 
      void Transmitter::init_analyser(int tx) {
          int flp[] = {0};

@@ -50,16 +50,9 @@ QString mainWindowStyle = QString::fromUtf8(
 		);
 
 QString	widgetStyle = QString::fromUtf8(
-		//"background-color: rgba(0, 0, 0, 255); "
-		"QGroupBox { "
-		"	background-color: rgba(0, 0, 0, 255); "
-		//"	border: 1px solid rgba(45, 122, 148, 150); "
-		"	border: 1px solid rgba(255, 255, 255, 80); "
-		"	border-radius: 2px; margin-top: 2ex; } "
-		"QGroupBox::title { "
-		"	subcontrol-origin: margin; "
-		"	padding: 0 0px; "
-		"	color: rgba(170, 170, 170, 255); }"
+        "background-color: rgba(0, 0, 0, 255); "
+        "color: rgba(166, 196, 208, 255); "
+
 		);
 
 QString itemStyle = QString::fromUtf8(
@@ -274,7 +267,7 @@ QString	menuStyle = QString::fromUtf8(
 	);
 
 QString	miniButtonStyle = QString::fromUtf8(
-		"font-size: 7pt;"
+		"font-size: 10pt;"
 	);
 	
 QString	sliderLabelStyle = QString::fromUtf8(

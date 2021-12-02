@@ -75,7 +75,7 @@ MainWindow::MainWindow(QWidget *parent)
     setupWidget = new SetupWidget();
     miniModeWidget = new MiniModeWidget();
     m_radioCtrl = new RadioCtrl();
-    m_audioInput = new audio_dialog();
+    m_audioInput = new tx_settings_dialog();
     QAction *test = new QAction();
 
 
@@ -94,7 +94,7 @@ MainWindow::MainWindow(QWidget *parent)
     setupAction = new QAction(tr("&Setup"), this);
     setupAction->setStatusTip(tr("Setup Menu"));
     connect(setupAction, &QAction::triggered, this, &MainWindow::cusdr_setup);
-    connect(test, &QAction::triggered, m_audioInput,&audio_dialog::show);
+    connect(test, &QAction::triggered, m_audioInput,&tx_settings_dialog::show);
 
     File->addAction(setupAction);
     File->addAction(test);

@@ -262,9 +262,9 @@ void DataEngine::setupConnections() {
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(micSourceChanged(QObject *, int)), 
+        SIGNAL(micSourceChanged(int)),
 		this, 
-		SLOT(setMicSource(QObject *, int)));
+        SLOT(setMicSource(int)));
 
 	CHECKED_CONNECT(
 		set, 
@@ -2103,9 +2103,7 @@ void DataEngine::set122_88MhzSource(QObject *sender, int source) {
 	io.mutex.unlock();
 }
 
-void DataEngine::setMicSource(QObject *sender, int source) {
-
-	Q_UNUSED(sender)
+void DataEngine::setMicSource( int source) {
 
 	io.mutex.lock();
 	io.control_out[1] = io.control_out[1] & 0x7F;
@@ -3372,34 +3370,29 @@ void DataProcessor::encodeCCBytes() {
     		//
     		// *Only valid when Alex - manual HPF/LPF filter select is enabled
 
-    		de->io.control_out[4] &= 0xFE; // 1 1 1 1 1 1 1 0
-    		// LPF 30/20m: 1 0 0 0 0 0 0 0 0 0 0 0
-    		de->io.control_out[4] |= (de->io.ccTx.alexConfig & 0x800) >> 11;
+            if (de->io.ccTx.mox || de->io.ccTx.ptt) {
+                double txFrequency = de->RX.at(0)->getCtrFrequency();
+                if (txFrequency > 35600000L) {        // > 10m so use 6m LPF
+                    de->io.control_out[4] = 0x10;
+                } else if (txFrequency > 24000000L) {    // > 15m so use 10/12m LPF
+                    de->io.control_out[4]= 0x20;
+                } else if (txFrequency > 16500000L) {        // > 20m so use 17/15m LPF
+                    de->io.control_out[4] = 0x40;
+                } else if (txFrequency > 8000000L) {        // > 40m so use 30/20m LPF
+                    de->io.control_out[4] = 0x01;
+                } else if (txFrequency > 5000000L) {        // > 80m so use 60/40m LPF
+                    de->io.control_out[4] = 0x02;
+                } else if (txFrequency > 2500000L) {        // > 160m so use 80m LPF
+                    de->io.control_out[4] = 0x04;
+                } else {                    // < 2.5 MHz use 160m LPF
+                    de->io.control_out[4] = 0x08;
+                }
+            } else de->io.control_out[4] = 0;
 
-    		de->io.control_out[4] &= 0xFD; // 1 1 1 1 1 1 0 1
-    		// LPF 60/40m: 1 0 0 0 0 0 0 0 0 0 0
-    		de->io.control_out[4] |= (de->io.ccTx.alexConfig & 0x400) >> 9;
 
-    		de->io.control_out[4] &= 0xFB; // 1 1 1 1 1 0 1 1
-    		// LPF 80m: 1 0 0 0 0 0 0 0 0 0
-    		de->io.control_out[4] |= (de->io.ccTx.alexConfig & 0x200) >> 7;
 
-    		de->io.control_out[4] &= 0xF7; // 1 1 1 1 0 1 1 1
-    		// LPF 160m: 1 0 0 0 0 0 0 0 0
-    		de->io.control_out[4] |= (de->io.ccTx.alexConfig & 0x100) >> 5;
-
-    		de->io.control_out[4] &= 0xEF; // 1 1 1 0 1 1 1 1
-    		// LPF 6m: 1 0 0 0 0 0 0 0 0 0 0 0 0 0 0
-    		de->io.control_out[4] |= (de->io.ccTx.alexConfig & 0x4000) >> 10;
-
-    		de->io.control_out[4] &= 0xDF; // 1 1 0 1 1 1 1 1
-    		// LPF 12/10m : 1 0 0 0 0 0 0 0 0 0 0 0 0 0
-    		de->io.control_out[4] |= (de->io.ccTx.alexConfig & 0x2000) >> 8;
-
-    		de->io.control_out[4] &= 0xBF; // 1 0 1 1 1 1 1 1
-    		// LPF 17/15m: 1 0 0 0 0 0 0 0 0 0 0 0 0
-    		de->io.control_out[4] |= (de->io.ccTx.alexConfig & 0x1000) >> 6;
-
+            qDebug() << "Control3:" << hex << de->io.control_out[3];
+            qDebug() << "Control4:" << hex << de->io.control_out[4];
     		// fill the out buffer with the C&C bytes
     		for (int i = 0; i < 5; i++)
     			de->io.output_buffer[i+3] = de->io.control_out[i];

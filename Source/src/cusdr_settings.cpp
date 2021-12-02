@@ -325,10 +325,9 @@ int Settings::loadSettings() {
 
     m_repeaterOffset =  settings->value("repeater_offset",0).toDouble();
     m_fmPremphasize =  settings->value("fm_preemphesize",0).toInt();
-    m_amCarrierLevel = settings->value("am_carrierlevel",0).toInt();
+    m_amCarrierLevel = settings->value("am_carrierlevel",0.5).toDouble();
     m_audioCompression = settings->value("audiocompression",0).toDouble();
-    m_fmDeveation = settings->value("fmdeveation",0).toDouble();
-    m_micmode  =settings->value("mic_mode",0).toBool();
+    m_fmDeveation = settings->value("fmdeveation",5000).toDouble();
 
 
     str = settings->value("server/class", 0).toString();
@@ -1627,11 +1626,10 @@ int Settings::saveSettings() {
     settings->setValue("server/timing", m_RxTiming);
 
     settings->setValue("repeater_offset",m_repeaterOffset);
-    settings->setValue("fm_preemphesize",m_amCarrierLevel);
+    settings->setValue("fm_preemphesize",m_fmPremphasize);
     settings->setValue("am_carrierlevel",m_amCarrierLevel);
     settings->setValue("audiocompression",m_audioCompression);
     settings->setValue("fmdeveation",m_fmDeveation);
-    settings->setValue("micmode",m_micmode);
 
 
 
@@ -2523,6 +2521,8 @@ QString Settings::getMiniButtonStyle() {
 
     return miniButtonStyle;
 }
+
+
 
 QString Settings::getVolSliderStyle() {
 
@@ -3546,20 +3546,20 @@ void Settings::set122_88MhzSource(QObject *sender, int source) {
     emit src122_88MhzChanged(sender, source);
 }
 
-void Settings::setMicSource(QObject *sender, int source) {
+void Settings::setMicSource(int source) {
 
     QMutexLocker locker(&settingsMutex);
 
     m_micSource = source;
-    emit micSourceChanged(sender, source);
+    emit micSourceChanged(source);
 }
 
-void Settings::setMicInputDev(QObject *sender, int index) {
+void Settings::setMicInputDev(int index) {
 
     QMutexLocker locker(&settingsMutex);
 
     m_micInputDev = index;
-    emit micInputChanged(sender, index);
+    emit micInputChanged(index);
 }
 
 void Settings::setMicInputLevel(QObject *sender, int level) {
@@ -3705,6 +3705,10 @@ void Settings::setVFOFrequency(QObject *sender, int mode, int rx, long frequency
     if (m_receiverDataList.at(rx).vfoFrequency == frequency) return;
     m_receiverDataList[rx].vfoFrequency = frequency;
     qDebug() << "vfo freq (Rx " << rx << ") " << m_receiverDataList[rx].vfoFrequency << frequency;
+    if (frequency > 60000000)
+    {
+        qDebug() << "Frequency Setting EROR" << frequency ;
+    }
 
     HamBand band = getBandFromFrequency(m_bandList, frequency);
     m_receiverDataList[rx].lastVfoFrequencyList[(int) band] = frequency;
@@ -3752,7 +3756,7 @@ void Settings::setNCOFrequency(QObject *sender, bool value, int rx, long frequen
     Q_UNUSED(sender)
     Q_UNUSED(value)
 
-    //SETTINGS_DEBUG << "nco freq (Rx " << rx << ") " << m_receiverDataList[rx].ncoFrequency << "(direct)";
+    SETTINGS_DEBUG << "nco freq (Rx " << rx << ") " << m_receiverDataList[rx].ncoFrequency << "(direct)";
     m_receiverDataList[rx].ncoFrequency = frequency;
 
     emit ncoFrequencyChanged(rx, frequency);
@@ -3769,8 +3773,8 @@ void Settings::setHamBand(QObject *sender, int rx, bool byButton, HamBand band) 
     m_receiverDataList[rx].lastHamBand = m_receiverDataList[rx].hamBand;
     m_receiverDataList[rx].hamBand = band;
 
-    //SETTINGS_DEBUG << "last Ham band:  " << m_receiverDataList[rx].lastHamBand;
-    //SETTINGS_DEBUG << "Ham band:  " << m_receiverDataList[rx].hamBand;
+    SETTINGS_DEBUG << "last Ham band:  " << m_receiverDataList[rx].lastHamBand;
+    SETTINGS_DEBUG << "Ham band:  " << m_receiverDataList[rx].hamBand;
 
     if (m_receiverDataList[rx].hamBand == (HamBand) gen)
         setTxAllowed(this, false);
@@ -5269,8 +5273,9 @@ void Settings::setFmDeveation(double value)
     emit fmdeveationchanged(value);
 }
 
-void Settings::setAMCarrierLevel(int level)
+void Settings::setAMCarrierLevel(double level)
 {
+    qDebug() << "set Am carrier level" << level;
     m_amCarrierLevel = level;
  emit amCarrierlevelchanged(level);
 }
@@ -5281,9 +5286,3 @@ m_audioCompression = level;
 emit audioCompressionchanged(level);
 }
 
-void Settings::setMicMode(bool mode){
-    m_micmode = mode;
-    emit micModeChanged(mode);
-
-
-}

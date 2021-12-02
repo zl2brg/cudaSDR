@@ -156,7 +156,7 @@ public slots:
 	void	setTimeStamp(QObject *sender, bool value);
 	void	set10MhzSource(QObject *sender, int source);
 	void	set122_88MhzSource(QObject *sender, int source);
-	void	setMicSource(QObject *sender, int source);
+    void	setMicSource(int source);
 	void	setMercuryClass(QObject *sender, int value);
 	void	setMercuryTiming(QObject* sender, int value);
 	void	setHamBand(QObject *sender, int rx, bool byBtn, HamBand band);

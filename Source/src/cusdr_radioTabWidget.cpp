@@ -110,7 +110,7 @@ void RadioTabWidget::setupConnections() {
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(penelopePresenceChanged(bool)),
+        SIGNAL(penelopePresenceChanged(bool)),
 		this,
 		SLOT(setPennyPresence(bool)));
 

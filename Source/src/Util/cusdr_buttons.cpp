@@ -143,7 +143,7 @@ void AeroButton::paintEvent(QPaintEvent * pe)
 	//glass highlight
 	painter.setBrush(QBrush(Qt::white));
 	painter.setPen(QPen(QBrush(Qt::white), 0.01));
-	painter.setOpacity(0.30);
+	painter.setOpacity(0.20);
 	if (m_glass)
 		painter.drawRect(1, 1, button_rect.width() - 2, (button_rect.height() / 2) - 2);
 

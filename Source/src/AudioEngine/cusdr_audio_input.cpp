@@ -21,27 +21,34 @@
 PAudioInput::PAudioInput(QObject *parent) : QThread(parent)
         , set(Settings::instance())
 {
+    Setup();
+    CHECKED_CONNECT(set,
+                    SIGNAL(micInputChanged(int)),
+                    this,
+                    SLOT(MicInputChanged(int)));
+
+    device = set->getMicInputDev();
+
+    /* device 0 is Hermes mic input */
+    if (device > 0) device--;
+}
+
+
+
+PAudioInput::~PAudioInput()
+{
+    Stop();
+}
+
+void PAudioInput::Setup() {
+
     error = Pa_Initialize();
-    int numDevices;
-    numDevices = Pa_GetDeviceCount();
-    if( numDevices < 0 )
-    {
-        printf( "ERROR: Pa_CountDevices returned 0x%x\n", numDevices );
-        error = numDevices;
-    }
-    const   PaDeviceInfo *deviceInfo;
-    for( int i=0; i<numDevices; i++ )
-    {
-        deviceInfo = Pa_GetDeviceInfo( i );
-        paDeviceList.append(QString(deviceInfo->name));
-    }
-    device = 17;
     bzero( &inputParameters, sizeof( inputParameters ) ); //not necessary if you are filling in all the fields
     inputParameters.channelCount = 1;
     inputParameters.device = device;
     inputParameters.hostApiSpecificStreamInfo = NULL;
     inputParameters.sampleFormat = paFloat32;
-    inputParameters.suggestedLatency = Pa_GetDeviceInfo(17)->defaultLowInputLatency ;
+    inputParameters.suggestedLatency = Pa_GetDeviceInfo(device)->defaultLowInputLatency ;
     inputParameters.hostApiSpecificStreamInfo = NULL; //See you specific host's API docs for info on using this field
     ;
 //    PaStreamCallback  *callback = audioCallback;
@@ -50,11 +57,25 @@ PAudioInput::PAudioInput(QObject *parent) : QThread(parent)
 
 
     AUDIO_INPUT_DEBUG << "PA Open stream " << error;
+
 }
 
-PAudioInput::~PAudioInput()
-{
+void PAudioInput::MicInputChanged(int value){
+/* Index 0 is hpsdr local mic input */
+    if (value > 0)
+        device =value -1;
+
     Stop();
+    if (device > 0) {
+        Setup();
+        Start();
+        AUDIO_INPUT_DEBUG << "Mic Input Changed" << value;
+
+    } else {
+       AUDIO_INPUT_DEBUG << "Local HPSDR Mic Mode Selected" << value;
+
+    }
+
 }
 
 void PAudioInput::Stop(){

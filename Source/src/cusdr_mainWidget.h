@@ -64,7 +64,7 @@
 #include "setupwidget.h"
 #include "mini_mode_widget.h"
 #include"radio_widget.h"
-#include "audio_dialog.h"
+#include "tx_settings_dialog.h"
 
 #ifdef LOG_MAIN
 #define MAIN_DEBUG qDebug().nospace() << "MainWindow::\t"
@@ -228,7 +228,7 @@ private:
     NetworkIODialog*	m_netIODialog;
 	WarningDialog*		m_warningDialog;
     RadioCtrl*          m_radioCtrl;
-    audio_dialog*       m_audioInput;
+    tx_settings_dialog*       m_audioInput;
 	HamBand				m_currentHamBand;
 
 	quint16				m_alexConfig;

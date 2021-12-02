@@ -41,6 +41,7 @@ Q_OBJECT
 public:
 PAudioInput(QObject *parent = 0);
 ~PAudioInput();
+void Setup();
 void Stop();
 bool Start();
 void run();
@@ -62,11 +63,11 @@ private:
     bool m_BlockingMode;
     bool m_ThreadQuit;
     bool m_Startup;
-    const QList<QAudioDeviceInfo> m_availableAudioInputDevices;
-    QAudioDeviceInfo    m_audioInputDevice;
     qint64              m_recordPosition;
     volatile bool m_stopped;
 
+private slots:
+    void MicInputChanged(int source);
 
 };
 
