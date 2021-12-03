@@ -35,7 +35,7 @@
 
 #define	btn_height		20
 #define	btn_height1		16
-#define	btn_width		60
+#define	btn_width		50
 #define	btn_widthb		66
 #define	btn_widths		34
 
@@ -699,7 +699,9 @@ void RadioPopupWidget::createBandBtnGroup() {
 
 		btn->setRoundness(0);
 		btn->setFixedHeight(btn_height);
+            QColor col = QColor(0, 255, 0);
 		btn->setStyleSheet(set->getMiniButtonStyle());
+        btn->setTextOnColor(col);
 		btn->update();
 	}
 

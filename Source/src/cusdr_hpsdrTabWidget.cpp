@@ -42,7 +42,7 @@
 HPSDRTabWidget::HPSDRTabWidget(QWidget *parent) 
 	: QTabWidget(parent)
 	, set(Settings::instance())
-	, m_minimumWidgetWidth(set->getMinimumWidgetWidth())
+	, m_minimumWidgetWidth(500)
 	, m_minimumGroupBoxWidth(set->getMinimumGroupBoxWidth())
 {
 	setStyleSheet(set->getTabWidgetStyle());
@@ -51,13 +51,13 @@ HPSDRTabWidget::HPSDRTabWidget(QWidget *parent)
 	
 	m_hpsdrWidget = new HPSDRWidget(this);
 	m_networkWidget = new NetworkWidget(this);
-	//m_transmitTabWidget = new TransmitTabWidget(this);
+    m_transmitTabWidget = new TransmitTabWidget(this);
 	m_alexTabWidget = new AlexTabWidget(this);
 	m_extCtrlWidget = new ExtCtrlWidget(this);
 
 	this->addTab(m_hpsdrWidget, " Config ");
 	this->addTab(m_networkWidget, " Network ");
-	//this->addTab(m_transmitTabWidget, " Transmit ");
+    this->addTab(m_transmitTabWidget, " Transmit ");
 	this->addTab(m_extCtrlWidget, " Ext Ctrl ");
 	this->addTab(m_alexTabWidget, " Alex ");
 

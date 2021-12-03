@@ -37,7 +37,7 @@
 #include "cusdr_settings.h"
 #include "cusdr_hpsdrWidget.h"
 #include "cusdr_networkWidget.h"
-//#include "cusdr_transmitTabWidget.h"
+#include "cusdr_transmitTabWidget.h"
 #include "cusdr_alexTabWidget.h"
 #include "cusdr_extCtrlWidget.h"
 
@@ -77,6 +77,7 @@ private:
 	NetworkWidget		*m_networkWidget;
 	AlexTabWidget		*m_alexTabWidget;
 	ExtCtrlWidget		*m_extCtrlWidget;
+    TransmitTabWidget   *m_transmitTabWidget;
 
 	QString				m_message;
 

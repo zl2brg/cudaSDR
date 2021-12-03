@@ -121,7 +121,7 @@ private slots:
 					QSDR::_ServerMode mode, 
 					QSDR::_DataEngineState state);
 
-	void	graphicModeChanged(
+	static void	graphicModeChanged(
 					QObject *sender,
 					int rx,
 					PanGraphicsMode panMode,

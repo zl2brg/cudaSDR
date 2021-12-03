@@ -54,7 +54,7 @@ RadioTabWidget::RadioTabWidget(QWidget *parent)
 	
 	m_radioWidget = new RadioWidget(this);
     m_agcWidget = new AGCOptionsWidget(this);
-   // m_transmitTabWidget = new TransmitTabWidget(this);
+    m_transmitTabWidget = new TransmitTabWidget(this);
     m_noiseFilterWidget = new NoiseFilterWidget(this);
 
 
@@ -62,14 +62,14 @@ RadioTabWidget::RadioTabWidget(QWidget *parent)
     this->addTab(m_agcWidget, " AGC ");
     this->addTab(m_noiseFilterWidget, " Noise Filter ");
 
-//	this->addTab(m_transmitTabWidget, " Tx Ctrl ");
+    this->addTab(m_transmitTabWidget, " Tx Ctrl ");
 
-	/*
+
 	if (!set->getPenelopePresence() && !set->getPennyLanePresence() && (set->getHWInterface() != QSDR::Hermes)) {
 
         setTabEnabled(2, false);
 	}
-*/
+
 	setupConnections();
   //  QTabWidget::setCurrentIndex(2);
 }

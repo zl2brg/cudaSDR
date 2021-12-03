@@ -226,7 +226,18 @@ int Discoverer::findHPSDRDevices() {
 
 				mc.boardID = no;
 				mc.boardName = str;
+                if (mc.boardID == 1) {
+                    mc.adcs = 1;
+                    mc.dacs = 1;
+                    mc.frequency_min = 0;
+                }
+                if (mc.boardID == 6) {
+                  mc.frequency_max = 30720000;
+                }
+                else mc.frequency_max = 61440000;
+
 				io->networkIOMutex.lock();
+
 				DISCOVERER_DEBUG << "Device board ID: " <<  no;
 				DISCOVERER_DEBUG << "Device is: " << qPrintable(str);
 				io->networkIOMutex.unlock();

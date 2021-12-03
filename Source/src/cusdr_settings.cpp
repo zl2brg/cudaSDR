@@ -72,7 +72,7 @@ Settings::Settings(QObject *parent)
     m_titleString = "cudaSDR Debug BETA ";
 #endif
 
-    m_versionString = "v0.4.0.0 - ZL2BRG";
+    m_versionString = "v0.4.0.1 - ZL2BRG";
 
     qDebug() << qPrintable(m_titleString);
 
@@ -172,12 +172,12 @@ int Settings::loadSettings() {
     m_callsignString = str;
 
     // Window settings
-    value = settings->value("window/minimumWidgetWidth", 235).toInt();
-    if (value < 235 || value > 300) m_minimumWidgetWidth = 235;
+    value = settings->value("window/minimumWidgetWidth", 300).toInt();
+    if (value < 235 || value > 350) m_minimumWidgetWidth = 300;
     m_minimumWidgetWidth = value;
 
-    value = settings->value("window/minimumGroupBoxWidth", 230).toInt();
-    if (value < 230 || value > 295 || value > m_minimumWidgetWidth - 5) m_minimumGroupBoxWidth = 230;
+    value = settings->value("window/minimumGroupBoxWidth", 250).toInt();
+    if (value < 230 || value > 295 || value > m_minimumWidgetWidth - 5) m_minimumGroupBoxWidth = 250;
     m_minimumGroupBoxWidth = value;
 
     value = settings->value("window/multiRxView", 0).toInt();
