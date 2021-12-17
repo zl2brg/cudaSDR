@@ -29,11 +29,7 @@
 
 // use: COLOROPTIONS_DEBUG
 
-#include <QPen>
-#include <QDebug>
-#include <QDialog>
-#include <QBoxLayout>
-#include <QGroupBox>
+
 
 #include "cusdr_colorsWidget.h"
 
@@ -69,12 +65,12 @@ ColorOptionsWidget::ColorOptionsWidget(QWidget *parent)
 	
 	createColorChooserWidget();
 
-	auto *mainLayout = new QBoxLayout(QBoxLayout::TopToBottom, this);
+    mainLayout = new QBoxLayout(QBoxLayout::TopToBottom, this);
 	mainLayout->setSpacing(5);
 	mainLayout->setMargin(0);
 	mainLayout->addSpacing(8);
 
-	auto *hbox1 = new QHBoxLayout;
+    hbox1 = new QHBoxLayout;
 	hbox1->setSpacing(0);
 	hbox1->setMargin(0);
 	hbox1->addStretch();
@@ -522,6 +518,7 @@ void ColorOptionsWidget::createColorChooserWidget() {
 	m_colorChooserWidget->setLayout(hbox);
 	m_colorChooserWidget->setStyleSheet(set->getWidgetStyle());
 	m_colorChooserWidget->setFont(QFont("Arial", 8));
+    delete vbox1;
 }
 
 void ColorOptionsWidget::colorChooserChanged() {

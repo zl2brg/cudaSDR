@@ -83,7 +83,7 @@
 // **************************************
 // receiver settings
 
-#define MAX_RECEIVERS				20
+#define MAX_RECEIVERS				1
 #define MAX_BANDS					22
 #define BUFFER_SIZE					1024
 #define SAMPLE_BUFFER_SIZE			4096
@@ -443,6 +443,7 @@ typedef struct _ccParameterTx {
     int     audioCompression;
     double  fmDeveation;
     double  txFrequency;
+    DSPMode mode;
 
 	HamBand		currentBand;
 
@@ -1718,7 +1719,7 @@ private:
 	int		m_multiRxView;
 
 	//int		m_wbBuffers;
-	int		m_spectrumSize;
+    int		m_spectrumSize;
 	int		m_sMeterHoldTime;
     bool    m_repeaterMode;
 

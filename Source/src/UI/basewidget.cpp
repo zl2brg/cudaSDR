@@ -68,4 +68,8 @@ QSize baseWidget::minimumSizeHint() const {
 }
 
 
+baseWidget::~baseWidget(){
+
+}
+
 

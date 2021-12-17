@@ -1,4 +1,5 @@
-/**
+
+    /**
 * @file  cusdr_transmitOptionsWidget.h
 * @brief transmit control widget header file for cuSDR
 * @author Hermann von Hasseln, DL3HVH
@@ -32,6 +33,9 @@
 #include <QGroupBox>
 #include <QSpinBox>
 #include <QLineEdit>
+#include  <QComboBox>
+#include  <QSlider>
+#include "portaudio.h"
 
 #include "Util/cusdr_buttons.h"
 #include "cusdr_settings.h"
@@ -60,7 +64,10 @@ protected:
 private:
 	void	setupConnections();
 	void	createSourceGroup();
-	void	createTransmitFilterGroup();
+    void    createCompressorGroup();
+    void    createFMSettingsGroup();
+    void    createAMSettingsGroup();
+    void	createTransmitFilterGroup();
 	void	createPTTOptionsGroup();
 
 private:
@@ -69,13 +76,19 @@ private:
 	QString		m_message;
 
 	QGroupBox*	sourceGroup;
-	QGroupBox*	transmitFilterGroup;
+    QGroupBox*	transmitFilterGroup;
 	QGroupBox*	pttOptionsGroup;
+    QGroupBox*	amTxSettingsGroup;
+    QGroupBox*	fmTxSettingsGroup;
 
 	QSpinBox*	highFilterSpinBox;
 	QSpinBox*	lowFilterSpinBox;
 	QSpinBox*	micGainMaxSpinBox;
 	QSpinBox*	micGainMinSpinBox;
+    QComboBox*  micInputComboBox;
+    QSlider*    amCompressionSlider;
+    QSlider*    amCarrierLevelSlider;
+    QStringList paDeviceList;
 
 	AeroButton*	micInputBtn;
 	AeroButton*	lineInputBtn;

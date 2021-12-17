@@ -23,7 +23,7 @@ public:
     void setupModeBtn(AeroButton *btn);
     void setupFilterBtn(AeroButton *btn);
     void setupBandBtn(AeroButton *btn);
-
+    ~baseWidget();
     QList<TReceiver>	m_receiverDataList;
     QList<DSPMode>		m_dspModeList;
     QList<AeroButton *>	m_mode_btnList;

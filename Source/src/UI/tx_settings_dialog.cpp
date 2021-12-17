@@ -13,13 +13,8 @@ tx_settings_dialog::tx_settings_dialog(QWidget *parent) :
     qDebug() << "Am carrier level load" << m_amCarrierLevel;
     qDebug() << "compression l evel load" << m_audioCompressionLevel;
 
-    Pa_Initialize();
-    PaDeviceIndex numDevices = Pa_GetDeviceCount();
-    if( numDevices < 0 )
-    {
-        printf( "ERROR: Pa_CountDevices returned 0x%x\n", numDevices );
-      }
-    const   PaDeviceInfo *deviceInfo;
+
+
     setContentsMargins(4, 0, 4, 0);
     ui->setupUi(this);
  //   this->setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
@@ -32,9 +27,18 @@ tx_settings_dialog::tx_settings_dialog(QWidget *parent) :
     ui->audioCompression->setSliderPosition(m_audioCompressionLevel);
     ui->fm_deviation->setValue(int(set->getFMDeveation() / 1000.0));
 
-    setContentsMargins(4, 4, 4, 4);
-    setWindowOpacity(0.9);
 
+    error = Pa_Initialize();
+    if (error != paNoError )
+    {
+        qDebug() << " Pa_initialise failed";
+    }
+    PaDeviceIndex numDevices = Pa_GetDeviceCount();
+    if( numDevices < 0 )
+    {
+        printf( "ERROR: Pa_CountDevices returned 0x%x\n", numDevices );
+      }
+    const   PaDeviceInfo *deviceInfo;
 
     ui->audiodevlist->clear();
     ui->audiodevlist->addItem("HPSDR Mic Input");
@@ -49,17 +53,8 @@ tx_settings_dialog::tx_settings_dialog(QWidget *parent) :
     ui->audiodevlist->setCurrentIndex(set->getMicInputDev());
 
 
- CHECKED_CONNECT(
-            ui->OkButton ,
-            SIGNAL(clicked()),
-            this,
-            SLOT(ok_pressed()));
-
- CHECKED_CONNECT(
-            ui->CancelButton ,
-            SIGNAL(clicked()),
-            this,
-            SLOT(cancel_pressed()));
+    setContentsMargins(4, 4, 4, 4);
+    setWindowOpacity(0.9);
 
  CHECKED_CONNECT(ui->audiodevlist,
                  SIGNAL(currentIndexChanged(int)),
@@ -80,8 +75,6 @@ tx_settings_dialog::tx_settings_dialog(QWidget *parent) :
                   SIGNAL(valueChanged(int)),
                    this,
                   SLOT(fmDeviationChanged(int)));
-
-
 }
 
 
@@ -89,24 +82,9 @@ tx_settings_dialog::tx_settings_dialog(QWidget *parent) :
 
 tx_settings_dialog::~tx_settings_dialog()
 {
-    this->close();
-    delete ui;
+
 }
 
-
-void tx_settings_dialog::ok_pressed(){
-    QVariant v = ui->audiodevlist->currentData();
-    QAudioDeviceInfo dev = v.value<QAudioDeviceInfo>();
-    qDebug() << "input device " << dev.deviceName();
-    set->setMicInputDev(ui->audiodevlist->currentIndex());
-close();
-}
-
-
-
-void tx_settings_dialog::cancel_pressed(){
-    this->close();
-}
 
 void tx_settings_dialog::audio_input_changed(int index){
 

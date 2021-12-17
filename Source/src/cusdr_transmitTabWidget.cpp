@@ -54,10 +54,8 @@ TransmitTabWidget::TransmitTabWidget(QWidget *parent)
 	
 	m_transmitOptionsWidget = new TransmitOptionsWidget(this);
 	m_transmitPAWidget = new TransmitPAWidget(this);
-    m_transmitSettingsWidget = new tx_settings_dialog(this);
 	this->addTab(m_transmitOptionsWidget, "Options");
 	this->addTab(m_transmitPAWidget, "PA Settings");
-    this->addTab(m_transmitSettingsWidget,"Tx Settings");
 
 	if (!set->getPenelopePresence() && !set->getPennyLanePresence() && !QSDR::Hermes) {
 

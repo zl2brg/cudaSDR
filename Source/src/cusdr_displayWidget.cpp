@@ -65,7 +65,7 @@ DisplayOptionsWidget::DisplayOptionsWidget(QWidget *parent)
 	//setMinimumWidth(m_minimumWidgetWidth);
 	setContentsMargins(4, 0, 4, 0);
 	setMouseTracking(true);
-
+    qDebug() << "Display widget Size" << this->size();
 	m_rxDataList = set->getReceiverDataList();
 	m_widebandOptions = set->getWidebandOptions();
 	m_panadapterMode = set->getPanadapterMode(m_currentReceiver);

@@ -73,7 +73,6 @@ MainWindow::MainWindow(QWidget *parent)
 	, m_resizePosition(0)
 {	
     setupWidget = new SetupWidget();
-    miniModeWidget = new MiniModeWidget();
     m_radioCtrl = new RadioCtrl();
     m_audioInput = new tx_settings_dialog();
     QAction *test = new QAction();
@@ -139,17 +138,17 @@ MainWindow::MainWindow(QWidget *parent)
 	m_dataEngine = new DataEngine(this);
 
 	// control widgets
-	m_serverWidget = new ServerWidget(this);
-	m_hpsdrTabWidget = new HPSDRTabWidget(this);
-	m_radioTabWidget = new RadioTabWidget(this);
-	m_displayTabWidget = new DisplayTabWidget(this);
+    m_serverWidget = new ServerWidget(this);
+    m_hpsdrTabWidget = new HPSDRTabWidget(this);
+    m_radioTabWidget = new RadioTabWidget(this);
+    m_displayTabWidget = new DisplayTabWidget(this);
 
 	m_wbDisplay = 0;
 
-	m_serverWidget->hide();
-	m_hpsdrTabWidget->hide();
-	m_radioTabWidget->hide();
-	m_displayTabWidget->hide();
+    m_serverWidget->hide();
+    m_hpsdrTabWidget->hide();
+    m_radioTabWidget->hide();
+    m_displayTabWidget->hide();
 	MAIN_DEBUG << "main window init done";
 }
 
@@ -157,6 +156,9 @@ MainWindow::MainWindow(QWidget *parent)
 	\brief MainWindow Destructor
 */
 MainWindow::~MainWindow() {
+
+    qDebug() << "Main Window destructor";
+
 }
 
 
@@ -353,10 +355,10 @@ void MainWindow::setup() {
 	createDisplayPanelToolBar();
 
 	// create the main buttons tool bar
-	createMainBtnToolBar();
+    createMainBtnToolBar();
 
 	// create the status tool bar
-	createStatusToolBar();
+    createStatusToolBar();
 
 	// create the mode menu
     createModeMenu();
@@ -374,7 +376,7 @@ void MainWindow::setup() {
     createReceiverPanels(MAX_RECEIVERS);
 	
 	// setup the layout for the control widgets, the wideband panel and the receiver panels
-	setupLayout();
+    setupLayout();
 
 	// set the main window title
 	updateTitle();
@@ -480,12 +482,12 @@ void MainWindow::setupLayout() {
 	QDockWidget *dock = new QDockWidget(tr("Radio Ctrl"), this);
 	dock->setObjectName("RadioCtrl");
     dock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
-    //dock->setFeatures(QDockWidget::NoDockWidgetFeatures);
+    dock->setFeatures(QDockWidget::NoDockWidgetFeatures);
     dock->setFeatures(QDockWidget::DockWidgetFloatable);
 	dock->setStyleSheet(set->getDockStyle());
-	dock->setMaximumWidth(245);
-	dock->setMinimumWidth(245);
-	dock->setWidget(m_radioTabWidget);
+    dock->setMaximumWidth(245);
+    dock->setMinimumWidth(245);
+    dock->setWidget(m_radioTabWidget);
 	dockWidgetList.append(dock);
 
 
@@ -496,16 +498,15 @@ void MainWindow::setupLayout() {
 	dock = new QDockWidget(tr("Server Ctrl"), this);
 	dock->setObjectName("ServerCtrl");
     dock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
-	dock->setFeatures(QDockWidget::NoDockWidgetFeatures);
-	//dock->setFeatures(QDockWidget::DockWidgetFloatable);
+    dock->setFeatures(QDockWidget::DockWidgetFloatable);
 	dock->setStyleSheet(set->getDockStyle());
 	dock->setMaximumWidth(245);
 	dock->setMinimumWidth(245);
-	dock->setWidget(m_serverWidget);
-	dockWidgetList.append(dock);
+    dock->setWidget(m_serverWidget);
+    dockWidgetList.append(dock);
 
     addDockWidget(Qt::RightDockWidgetArea, dock);
-	dock->hide();
+    dock->hide();
 //    dock->show();
 
 
@@ -513,11 +514,10 @@ void MainWindow::setupLayout() {
 	dock = new QDockWidget(tr("HPSDR Ctrl"), this);
 	dock->setObjectName("HPSDRCtrl");
     dock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
-	dock->setFeatures(QDockWidget::NoDockWidgetFeatures);
-	//dock->setFeatures(QDockWidget::DockWidgetFloatable);
+    dock->setFeatures(QDockWidget::DockWidgetClosable | QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetMovable);
 	dock->setStyleSheet(set->getDockStyle());
-	dock->setMaximumWidth(245);
-	dock->setMinimumWidth(245);
+    dock->setMaximumWidth(245);
+    dock->setMinimumWidth(245);
 	dock->setWidget(m_hpsdrTabWidget);
 	dockWidgetList.append(dock);
 
@@ -532,7 +532,7 @@ void MainWindow::setupLayout() {
 	dock->setStyleSheet(set->getDockStyle());
 	dock->setMaximumWidth(245);
 	dock->setMinimumWidth(245);
-	dockWidgetList.append(dock);
+    dockWidgetList.append(dock);
 
     addDockWidget(Qt::RightDockWidgetArea, dock);
 	dock->hide();
@@ -546,8 +546,8 @@ void MainWindow::setupLayout() {
 	dock->setStyleSheet(set->getDockStyle());
 	dock->setMaximumWidth(245);
 	dock->setMinimumWidth(245);
-	dock->setWidget(m_displayTabWidget);
-	dockWidgetList.append(dock);
+    dock->setWidget(m_displayTabWidget);
+    dockWidgetList.append(dock);
 
     addDockWidget(Qt::RightDockWidgetArea, dock);
 	dock->hide();
@@ -580,8 +580,8 @@ void MainWindow::setupLayout() {
 	widebandDock->setStyleSheet(set->getDockStyle());
     widebandDock->setWidget(m_wbDisplay);
 	
-	centralwidget->addDockWidget(Qt::TopDockWidgetArea, widebandDock);
-	widebandDock->hide();
+    centralwidget->addDockWidget(Qt::TopDockWidgetArea, widebandDock);
+    widebandDock->hide();
 
 	CHECKED_CONNECT(
 		widebandDock,
@@ -849,9 +849,6 @@ void MainWindow::createMainBtnToolBar() {
 	displayBtn->setTextColor(btnCol);
 	displayBtn->setFixedSize(btn_width1, btn_height1);
 	mainBtnList.append(displayBtn);
-
-    miniModeWidget = new MiniModeWidget(this);
-    miniModeWidget->show();
 
 	CHECKED_CONNECT(
 		displayBtn, 
@@ -1155,8 +1152,6 @@ void MainWindow::createMainBtnToolBar() {
 	secondBtnLayout->addWidget(moxBtn);
 	secondBtnLayout->addWidget(tunBtn);
     secondBtnLayout->addStretch();
-    secondBtnLayout->addWidget(miniModeWidget);
-	secondBtnLayout->addStretch();
 	secondBtnLayout->addWidget(alexBtn);
 	secondBtnLayout->addWidget(attenuatorBtn);
 	secondBtnLayout->addSpacing(5);
@@ -1806,10 +1801,6 @@ void MainWindow::setMicLevel(int value)
     if (value > 100 ) value = 100;
     if (value < 0 ) value = 0;
     if (value > 100 ) value = 100;
-
-    QString str = "%1 %";
-    // m_DriveLevelLabel->setText(str.arg(value, 2, 10, QLatin1Char(' ')));
-
     set->setMicInputLevel(this, value);
 
 }
@@ -1819,10 +1810,6 @@ void MainWindow::setDriveLevel(int value)
 {
     if (value < 0 ) value = 0;
     if (value > 100 ) value = 100;
-
-    QString str = "%1 %";
-   // m_DriveLevelLabel->setText(str.arg(value, 2, 10, QLatin1Char(' ')));
-
     set->setDriveLevel(this, value);
 }
 
@@ -2428,7 +2415,7 @@ void MainWindow::resizeEvent(
 	//QTimer::singleShot(10, this, SLOT(getRegion()));
 	//m_resizeFrame = true;
 	//displayPanelToolBar->updateGeometry();
-	m_oglDisplayPanel->update();
+    m_oglDisplayPanel->update();
 	QWidget::resizeEvent(event);
 }
  
@@ -2470,8 +2457,8 @@ void MainWindow::closeEvent(
 
 	if (m_oglDisplayPanel) {
 		
-		disconnect(m_oglDisplayPanel, 0, 0, 0);
-		delete m_oglDisplayPanel;
+        disconnect(m_oglDisplayPanel, 0, 0, 0);
+        delete m_oglDisplayPanel;
 		m_oglDisplayPanel = NULL;
 	}
 

@@ -102,7 +102,7 @@ public:
 	Settings*			set;
 	THPSDRParameter		io;
 
-	Transmitter*        TX;
+    Transmitter         TX;
     QList<Receiver *>	RX;
 	QList<qreal>		chirpData;
 
@@ -341,7 +341,7 @@ private slots:
 	void	setRxJ6Pins(const QList<int> &list);
 	void	setTxJ6Pins(const QList<int> &list);
     void    radioStateChange(RadioState state);
-
+    void    dspModeChanged(QObject *, int, DSPMode);
 
 signals:
 	void	error(QUdpSocket::SocketError error);

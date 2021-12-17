@@ -21,7 +21,7 @@ public:
 private:
     Ui::tx_settings_dialog *ui;
     Settings*		set;
-    PaError         error;
+    PaError         error = paNoError;
     QStringList paDeviceList;
     double      m_amCarrierLevel;
     double      m_audioCompressionLevel;
@@ -32,8 +32,6 @@ signals:
     void micInputChanged(int);
 
 private slots:
-    void ok_pressed();
-    void cancel_pressed();
     void audio_input_changed(int index);
     void audioCompressionChanged(int level);
     void amCarrierLevelChanged(int level);

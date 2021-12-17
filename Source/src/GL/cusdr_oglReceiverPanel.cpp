@@ -141,7 +141,6 @@ QGLReceiverPanel::QGLReceiverPanel(QWidget *parent, int rx)
 	m_secScaleWaterfallUpdate = true;
 	m_secScaleWaterfallRenew = true;
 	m_waterfallDisplayUpdate = true;
-
 	m_panMode = m_rxDataList.at(m_receiver).panMode;
 	m_waterfallMode = m_rxDataList.at(m_receiver).waterfallMode;
 
@@ -267,7 +266,8 @@ QGLReceiverPanel::QGLReceiverPanel(QWidget *parent, int rx)
 
 QGLReceiverPanel::~QGLReceiverPanel() {
 
-	disconnect(set, 0, this, 0);
+    qDebug() << "rx panel destructor";
+    disconnect(set, 0, this, 0);
 	
 	if (m_frequencyScaleFBO) {
 
@@ -311,8 +311,8 @@ QGLReceiverPanel::~QGLReceiverPanel() {
 		m_secScaleWaterfallFBO = 0;
 	}
 
-	while (!specAv_queue.isEmpty())
-		specAv_queue.dequeue();
+    while (!specAv_queue.isEmpty())
+        specAv_queue.dequeue();
 }
 
 QSize QGLReceiverPanel::minimumSizeHint() const {

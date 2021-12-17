@@ -166,6 +166,8 @@ MiniModeWidget::MiniModeWidget(QWidget *parent)
 
 MiniModeWidget::~MiniModeWidget()
 {
+    m_mode_btnList.clear();
+    m_filter_btnList.clear();
     delete ui;
 }
 

@@ -110,7 +110,7 @@ private:
 	QSDR::_DataEngineState	m_dataEngineState;
 
 	bool	m_firmwareCheck;
-
+    bool    m_antialiased;
 	int		m_minimumWidgetWidth;
 	int		m_minimumGroupBoxWidth;
 	int		m_numberOfReceivers;

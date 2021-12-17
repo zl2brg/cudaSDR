@@ -45,13 +45,12 @@
 RadioTabWidget::RadioTabWidget(QWidget *parent)
 	: QTabWidget(parent)
 	, set(Settings::instance())
-	, m_minimumWidgetWidth(set->getMinimumWidgetWidth())
-	, m_minimumGroupBoxWidth(set->getMinimumGroupBoxWidth())
+    , m_minimumWidgetWidth(set->getMinimumWidgetWidth())
+    , m_minimumGroupBoxWidth(set->getMinimumGroupBoxWidth())
 {
-	setStyleSheet(set->getTabWidgetStyle());
+	//setStyleSheet(set->getTabWidgetStyle());
     setContentsMargins(4, 4, 4, 0);
 	setMouseTracking(true);
-	
 	m_radioWidget = new RadioWidget(this);
     m_agcWidget = new AGCOptionsWidget(this);
     m_transmitTabWidget = new TransmitTabWidget(this);

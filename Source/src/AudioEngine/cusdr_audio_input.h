@@ -58,7 +58,6 @@ private:
     PaError         error;
     PaStreamParameters inputParameters;
     PaStream        *stream;
-    PaDeviceIndex   device;
 
     bool m_BlockingMode;
     bool m_ThreadQuit;

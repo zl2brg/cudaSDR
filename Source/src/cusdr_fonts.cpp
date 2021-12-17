@@ -219,6 +219,18 @@ CFonts::CFonts(QObject *parent)
 }
 
 CFonts::~CFonts() {
-	
+
+    delete m_fonts.tinyFontMetrics;
+    delete m_fonts.smallFontMetrics;
+    delete m_fonts.normalFontMetrics;
+    delete m_fonts.bigFontMetrics;
+    delete m_fonts.bigFont1Metrics;
+    delete m_fonts.bigFont2Metrics;
+    delete m_fonts.freqFont1Metrics;
+    delete m_fonts.freqFont2Metrics;
+    delete m_fonts.impactFontMetrics;
+    delete m_fonts.hugeFontMetrics;
+
+
 }
 

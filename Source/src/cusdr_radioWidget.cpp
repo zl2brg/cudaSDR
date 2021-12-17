@@ -41,7 +41,7 @@ RadioWidget::RadioWidget(QWidget *parent)
 	: QWidget(parent)
 	, set(Settings::instance())
 	, m_currentRx(set->getCurrentReceiver())
-	, m_minimumWidgetWidth(set->getMinimumWidgetWidth())
+    , m_minimumWidgetWidth(set->getMinimumWidgetWidth())
 	, m_minimumGroupBoxWidth(set->getMinimumGroupBoxWidth())
 {
 	//setMinimumWidth(m_minimumWidgetWidth);

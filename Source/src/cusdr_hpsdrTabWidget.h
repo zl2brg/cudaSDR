@@ -40,6 +40,7 @@
 #include "cusdr_transmitTabWidget.h"
 #include "cusdr_alexTabWidget.h"
 #include "cusdr_extCtrlWidget.h"
+#include "setupwidget.h"
 
 
 class HPSDRTabWidget : public QTabWidget {
@@ -78,6 +79,7 @@ private:
 	AlexTabWidget		*m_alexTabWidget;
 	ExtCtrlWidget		*m_extCtrlWidget;
     TransmitTabWidget   *m_transmitTabWidget;
+    tx_settings_dialog  *m_txsettingsWidget;
 
 	QString				m_message;
 

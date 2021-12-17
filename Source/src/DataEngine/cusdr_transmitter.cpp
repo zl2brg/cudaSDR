@@ -254,7 +254,7 @@ bool  Transmitter::create_transmitter(int id, int buffer_size, int fft_size, int
     SetTXAAMCarrierLevel(this->id, 0.5);
     SetTXACompressorGain(this->id, 0);
     SetTXACompressorRun(this->id, 0);
-    setDSPMode(this,0,set->getDSPMode(1));
+//    setDSPMode(this,0,set->getDSPMode(1));
     XCreateAnalyzer(this->id, &rc, 262144, 1, 1, "");
     if (rc != 0) {
         fprintf(stderr, "XCreateAnalyzer id=%d failed: %d\n",this->id,rc);
@@ -270,7 +270,6 @@ void Transmitter::reconfigure_transmitter(int tx, int height) {
 
 void Transmitter::setDSPMode(QObject *sender,int id, DSPMode dspMode) {
 Q_UNUSED(sender)
-Q_UNUSED(id)
 TRANSMITTER_DEBUG << "Set Tx Mode " << dspMode;
 mode = dspMode;
     SetTXAMode(this->id, mode);

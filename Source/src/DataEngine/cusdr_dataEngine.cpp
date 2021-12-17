@@ -171,10 +171,7 @@ DataEngine::~DataEngine() {
     {
         audioInput->Stop();
         audioInput->wait(500);
-        delete audioInput;    }
-
-    if (TX) {
-        delete(TX);
+        delete audioInput;
     }
 }
 
@@ -379,6 +376,13 @@ void DataEngine::setupConnections() {
             SIGNAL(repeaterModeChanged(bool)),
             this,
             SLOT(setRepeaterMode(bool)));
+
+
+    CHECKED_CONNECT(
+            set,
+            SIGNAL(dspModeChanged(QObject *, int, DSPMode)),
+            this,
+            SLOT(dspModeChanged(QObject *, int, DSPMode)));
 
 
 }
@@ -1149,8 +1153,7 @@ bool DataEngine::initReceivers(int rcvrs) {
 		}
     }
     set->setRxList(RX);
-    TX = new Transmitter(TX_ID);
-	m_txFrame = 0;
+
 	
 	io.currentReceiver = 0;
 	io.receivers = rcvrs;
@@ -2339,6 +2342,8 @@ void DataEngine::setFrequency(QObject* sender, int mode, int rx, long frequency)
 	RX[rx]->setCtrFrequency(frequency);
 	io.rx_freq_change = rx;
 	io.tx_freq_change = rx;
+    io.ccTx.txFrequency = frequency;
+
 
 }
 
@@ -2841,15 +2846,10 @@ void DataProcessor::get_tx_iqData(){
             de->io.mic_buffer[(s * 2 ) + 1 ] = 0.0f;
             sample++;
         }
-//        fprintf(stdout, " TX Mic sample %f\n", de->io.mic_buffer[10]);
         sample = (float *) temp_audioIn.data_ptr() + 16;
         if ( de->io.ccTx.mox ||  de->io.ccTx.ptt )
         {
-            //qDebug()  << "fexchange rawmic=" << *sample << "mic=" <<  de->io.mic_buffer[16] << "out=" << m_iq_output_buffer[16].re ;
             fexchange0(TX_ID, de->io.mic_buffer, (double *) m_iq_output_buffer.data(), &error);
-         //   DumpBuffer((unsigned char *)de->io.mic_buffer,IO_BUFFER_SIZE,"Mic Buffer");
-//            DumpBuffer((unsigned char *) m_iq_output_buffer.data(),IO_BUFFER_SIZE,"IQ Buffer");
-
             Spectrum0(1, TX_ID, 0, 0, (double *) m_iq_output_buffer.data());
         }
         else
@@ -2879,7 +2879,7 @@ void DataProcessor::get_tx_iqData(){
         }
 }
 
-
+/* stolen from pihpsdr */
 void DataProcessor::DumpBuffer(unsigned char *buffer,int length, const char *who) {
   QMutex dump_mutex;
   dump_mutex.lock();
@@ -2910,10 +2910,6 @@ void DataProcessor::setAudioBuffer(int rx, const CPX &buffer, int buffersize)
     qint16 leftRXSample;
     qint16 rightRXSample;
      char *ptr;
-
-
-//    qDebug() << "Buffer size" << buffersize << sizeof (de->io.output_buffer) ;
-
     // process the output
         for (int j = 0; j < buffersize; j++) {
 
@@ -2968,26 +2964,8 @@ void DataProcessor::setAudioBuffer(int rx, const CPX &buffer, int buffersize)
                          */
 
                     }
-           //         DumpBuffer(de->io.output_buffer,IO_BUFFER_SIZE,"Output Buffer");
-           //         ptr = m_tx_iqdata.data();
-           //         DumpBuffer((unsigned char*) ptr,DSP_SAMPLE_SIZE);
-           //            DumpBuffer((unsigned char *) de->io.mic_buffer,DSP_SAMPLE_SIZE * sizeof(double));
 
                     de->m_dataIO->sendAudio(de->io.output_buffer); //RRK
-                    /*
-                    stream << "frame start:";
-                    for (int z=0; z < IO_BUFFER_SIZE;z++)
-                    {
-//                        QString str;
-//                      str = str.sprintf("%x", de->io.output_buffer[z] );
-//                        stream << str
-                          stream  << hex << de->io.output_buffer[z];
-                        stream << ',';
-
-                    }
-                      stream << "end";
-*/
-//                      qDebug() << "send  tx samples" << tx_index /4 ;
 					writeData();
 
 
@@ -3371,7 +3349,8 @@ void DataProcessor::encodeCCBytes() {
     		// *Only valid when Alex - manual HPF/LPF filter select is enabled
 
             if (de->io.ccTx.mox || de->io.ccTx.ptt) {
-                double txFrequency = de->RX.at(0)->getCtrFrequency();
+                double txFrequency = de->io.ccTx.txFrequency;
+                qDebug() << "Tx freq" << de->io.ccTx.txFrequency;
                 if (txFrequency > 35600000L) {        // > 10m so use 6m LPF
                     de->io.control_out[4] = 0x10;
                 } else if (txFrequency > 24000000L) {    // > 15m so use 10/12m LPF
@@ -3391,8 +3370,8 @@ void DataProcessor::encodeCCBytes() {
 
 
 
-            qDebug() << "Control3:" << hex << de->io.control_out[3];
-            qDebug() << "Control4:" << hex << de->io.control_out[4];
+     //       qDebug() << "Control3:" << hex << de->io.control_out[3];
+      //      qDebug() << "Control4:" << hex << de->io.control_out[4];
     		// fill the out buffer with the C&C bytes
     		for (int i = 0; i < 5; i++)
     			de->io.output_buffer[i+3] = de->io.control_out[i];
@@ -3505,6 +3484,13 @@ void 	DataEngine::setWbSpectrumAveraging(QObject* sender, int rx, int value)
 
 void DataEngine::setRepeaterMode(bool mode) {
         io.ccTx.use_repeaterOffset = mode;
+}
+
+void DataEngine::dspModeChanged(QObject* sender, int rx, DSPMode mode){
+    Q_UNUSED(sender);
+    Q_UNUSED(rx);
+    io.ccTx.mode = mode;
+    TX.setDSPMode(sender,1,mode);
 }
 
 // *********************************************************************

@@ -21,16 +21,17 @@
 PAudioInput::PAudioInput(QObject *parent) : QThread(parent)
         , set(Settings::instance())
 {
-    Setup();
+
     CHECKED_CONNECT(set,
                     SIGNAL(micInputChanged(int)),
                     this,
                     SLOT(MicInputChanged(int)));
 
-    device = set->getMicInputDev();
+    inputParameters.device = set->getMicInputDev();
 
     /* device 0 is Hermes mic input */
-    if (device > 0) device--;
+    if (inputParameters.device > 0) inputParameters.device--;
+     Setup();
 }
 
 
@@ -45,10 +46,9 @@ void PAudioInput::Setup() {
     error = Pa_Initialize();
     bzero( &inputParameters, sizeof( inputParameters ) ); //not necessary if you are filling in all the fields
     inputParameters.channelCount = 1;
-    inputParameters.device = device;
     inputParameters.hostApiSpecificStreamInfo = NULL;
     inputParameters.sampleFormat = paFloat32;
-    inputParameters.suggestedLatency = Pa_GetDeviceInfo(device)->defaultLowInputLatency ;
+    inputParameters.suggestedLatency = Pa_GetDeviceInfo(inputParameters.device)->defaultLowInputLatency ;
     inputParameters.hostApiSpecificStreamInfo = NULL; //See you specific host's API docs for info on using this field
     ;
 //    PaStreamCallback  *callback = audioCallback;
@@ -63,10 +63,10 @@ void PAudioInput::Setup() {
 void PAudioInput::MicInputChanged(int value){
 /* Index 0 is hpsdr local mic input */
     if (value > 0)
-        device =value -1;
+        inputParameters.device =value -1;
 
     Stop();
-    if (device > 0) {
+    if (inputParameters.device > 0) {
         Setup();
         Start();
         AUDIO_INPUT_DEBUG << "Mic Input Changed" << value;
@@ -82,7 +82,6 @@ void PAudioInput::Stop(){
     m_ThreadQuit = true;
     error = Pa_CloseStream( stream );
     msleep(100);
-
     AUDIO_INPUT_DEBUG << "PA Close stream " << error;
 }
 

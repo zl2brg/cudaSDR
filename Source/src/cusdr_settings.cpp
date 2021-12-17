@@ -153,7 +153,6 @@ Settings::Settings(QObject *parent)
 }
 
 Settings::~Settings()  {
-
     //m_clDevices.clear();
 }
 
@@ -328,6 +327,7 @@ int Settings::loadSettings() {
     m_amCarrierLevel = settings->value("am_carrierlevel",0.5).toDouble();
     m_audioCompression = settings->value("audiocompression",0).toDouble();
     m_fmDeveation = settings->value("fmdeveation",5000).toDouble();
+    m_spectrumSize = 0;
 
 
     str = settings->value("server/class", 0).toString();
@@ -5167,6 +5167,7 @@ DSPMode Settings::getDSPMode(int rx){
 
     HamBand band = m_receiverDataList[m_currentReceiver].hamBand;
     return m_receiverDataList[rx].dspModeList[band];
+    qDebug() << "DSP mode" <<  m_receiverDataList[rx].dspModeList[band];
 }
 
 filterMode Settings::getFilterMode( int rx){
