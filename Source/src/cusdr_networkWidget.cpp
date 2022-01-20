@@ -45,7 +45,7 @@
 
 
 NetworkWidget::NetworkWidget(QWidget *parent)
-	: QWidget(parent)
+    : QTabWidget(parent)
 	, set(Settings::instance())
 	, m_serverMode(set->getCurrentServerMode())
 	, m_hwInterface(set->getHWInterface())

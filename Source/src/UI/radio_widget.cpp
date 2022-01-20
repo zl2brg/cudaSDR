@@ -441,6 +441,8 @@ void RadioCtrl::slider_changed(int value){
 RadioCtrl::~RadioCtrl()
 {
     delete ui;
+    disconnect(set, 0, this, 0);
+    disconnect(this, 0, 0, 0);
 }
 
 QSize RadioCtrl::sizeHint() const {

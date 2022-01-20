@@ -25,6 +25,7 @@
  */
 
 #define LOG_MAIN
+#define DOCK_WIDTH 345
 //#define LOG_NETWORKDIALOG
 
 // use: MAIN_DEBUG
@@ -42,10 +43,10 @@
 #define window_height2		750
 #define window_width1		800
 #define window_width2		1030
-#define btn_width1			56//65
+#define btn_width1			75
 #define btn_width2			54
 #define btn_width3			48
-#define btn_height1			17
+#define btn_height1			21
 #define btn_height2			13
 #define btn_height3			16
 
@@ -119,7 +120,7 @@ MainWindow::MainWindow(QWidget *parent)
 	// Dock windows options
 	setDockOptions(QMainWindow::AnimatedDocks | QMainWindow::AllowNestedDocks);
 	setMinimumSize(QSize(window_width1, window_height1));
-	setStyleSheet(set->getSDRStyle());
+    setStyleSheet(set->getWidgetStyle());
 
 	m_oldSampleRate = set->getSampleRate();
 	m_numberOfReceivers = set->getNumberOfReceivers();
@@ -139,26 +140,22 @@ MainWindow::MainWindow(QWidget *parent)
 
 	// control widgets
     m_serverWidget = new ServerWidget(this);
-    m_hpsdrTabWidget = new HPSDRTabWidget(this);
+    m_hpsdrTabWidget = new cusdr_SetupWidget(this);
     m_radioTabWidget = new RadioTabWidget(this);
-    m_displayTabWidget = new DisplayTabWidget(this);
 
 	m_wbDisplay = 0;
 
     m_serverWidget->hide();
     m_hpsdrTabWidget->hide();
     m_radioTabWidget->hide();
-    m_displayTabWidget->hide();
 	MAIN_DEBUG << "main window init done";
 }
 
 /*!
 	\brief MainWindow Destructor
 */
-MainWindow::~MainWindow() {
-
-    qDebug() << "Main Window destructor";
-
+MainWindow::~MainWindow() {    disconnect(set, 0, this, 0);
+    disconnect(this, 0, 0, 0);
 }
 
 
@@ -296,7 +293,7 @@ void MainWindow::setupConnections() {
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(agcModeChanged(QObject *, int, AGCMode, bool)),
+        SIGNAL(agcModeChanged(QObject*, int, AGCMode, bool)),
 		this,
 		SLOT(setAGCMode(QObject *, int, AGCMode, bool)));
 
@@ -332,9 +329,9 @@ void MainWindow::setupConnections() {
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(alexStateChanged(HamBand, const QList<int> &)),
+        SIGNAL(alexStateChanged(HamBand,const QList<int> &)),
 		this,
-		SLOT(alexStateChanged(HamBand, const QList<int> &)));
+        SLOT(alexStateChanged(HamBand, const QList<int> &)));
 }
 
 /*!
@@ -500,54 +497,25 @@ void MainWindow::setupLayout() {
     dock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
     dock->setFeatures(QDockWidget::DockWidgetFloatable);
 	dock->setStyleSheet(set->getDockStyle());
-	dock->setMaximumWidth(245);
-	dock->setMinimumWidth(245);
+    dock->setMaximumWidth(DOCK_WIDTH);
+    dock->setMinimumWidth(DOCK_WIDTH);
     dock->setWidget(m_serverWidget);
     dockWidgetList.append(dock);
 
     addDockWidget(Qt::RightDockWidgetArea, dock);
     dock->hide();
-//    dock->show();
 
 
-	// HPSDR hardware control widget
-	dock = new QDockWidget(tr("HPSDR Ctrl"), this);
+    // CUDR Setup control widget
+    dock = new QDockWidget(tr("CUSDR Ctrl"), this);
 	dock->setObjectName("HPSDRCtrl");
     dock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
     dock->setFeatures(QDockWidget::DockWidgetClosable | QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetMovable);
 	dock->setStyleSheet(set->getDockStyle());
-    dock->setMaximumWidth(245);
-    dock->setMinimumWidth(245);
+    dock->setMaximumWidth(DOCK_WIDTH);
+    dock->setMinimumWidth(DOCK_WIDTH);
 	dock->setWidget(m_hpsdrTabWidget);
 	dockWidgetList.append(dock);
-
-    addDockWidget(Qt::RightDockWidgetArea, dock);
-	dock->hide();
-
-	// chirp mode control widget
-	dock = new QDockWidget(tr("Chirp Ctrl"), this);
-	dock->setObjectName("ChirpCtrl");
-    dock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
-	dock->setFeatures(QDockWidget::NoDockWidgetFeatures);
-	dock->setStyleSheet(set->getDockStyle());
-	dock->setMaximumWidth(245);
-	dock->setMinimumWidth(245);
-    dockWidgetList.append(dock);
-
-    addDockWidget(Qt::RightDockWidgetArea, dock);
-	dock->hide();
-
-	// display control widget
-	dock = new QDockWidget(tr("Display Ctrl"), this);
-	dock->setObjectName("DisplayCtrl");
-    dock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
-//	dock->setFeatures(QDockWidget::NoDockWidgetFeatures);
-	dock->setFeatures(QDockWidget::DockWidgetClosable | QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetMovable);
-	dock->setStyleSheet(set->getDockStyle());
-	dock->setMaximumWidth(245);
-	dock->setMinimumWidth(245);
-    dock->setWidget(m_displayTabWidget);
-    dockWidgetList.append(dock);
 
     addDockWidget(Qt::RightDockWidgetArea, dock);
 	dock->hide();
@@ -558,8 +526,8 @@ void MainWindow::setupLayout() {
 //	dock->setFeatures(QDockWidget::NoDockWidgetFeatures);
     rxDock->setFeatures(QDockWidget::DockWidgetClosable | QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetMovable);
     rxDock->setStyleSheet(set->getDockStyle());
-    rxDock->setMaximumWidth(245);
-    rxDock->setMinimumWidth(245);
+    rxDock->setMaximumWidth(DOCK_WIDTH);
+    rxDock->setMinimumWidth(DOCK_WIDTH);
 //    rxDock->setWidget(filterwidget);
     rxDock->setWidget(m_radioCtrl);
     dockWidgetList.append(rxDock);
@@ -762,28 +730,15 @@ void MainWindow::createMainBtnToolBar() {
 		this, 
 		SLOT(widgetBtnClickedEvent()));
 
-	hpsdrBtn = new AeroButton("HPSDR", this);
-	hpsdrBtn->setRoundness(10);
-    hpsdrBtn->setFont(m_fonts.normalFont);
-    hpsdrBtn->setTextColor(btnCol);
-	hpsdrBtn->setFixedSize(btn_width1, btn_height1);
-	mainBtnList.append(hpsdrBtn);
+    setupBtn = new AeroButton("Setup", this);
+    setupBtn->setRoundness(10);
+    setupBtn->setFont(m_fonts.normalFont);
+    setupBtn->setTextColor(btnCol);
+    setupBtn->setFixedSize(btn_width1, btn_height1);
+    mainBtnList.append(setupBtn);
 
 	CHECKED_CONNECT(
-		hpsdrBtn, 
-		SIGNAL(clicked()), 
-		this, 
-		SLOT(widgetBtnClickedEvent()));
-
-	chirpBtn = new AeroButton("Chirp", this);
-	chirpBtn->setRoundness(10);
-    chirpBtn->setFont(m_fonts.normalFont);
-    chirpBtn->setTextColor(btnCol);
-	chirpBtn->setFixedSize(btn_width1, btn_height1);
-	mainBtnList.append(chirpBtn);
-
-	CHECKED_CONNECT(
-		chirpBtn, 
+        setupBtn,
 		SIGNAL(clicked()), 
 		this, 
 		SLOT(widgetBtnClickedEvent()));
@@ -797,8 +752,6 @@ void MainWindow::createMainBtnToolBar() {
 
 	//mainBtnList.append(wideBandBtn);
 
-	if (m_serverMode == QSDR::ChirpWSPR)
-		wideBandBtn->setEnabled(false);
 
 	CHECKED_CONNECT(
 		wideBandBtn, 
@@ -842,19 +795,7 @@ void MainWindow::createMainBtnToolBar() {
 	//			this, 
 	//			SLOT(cudaTestBtnClickedEvent()));*/
 	//}
-	
-	displayBtn = new AeroButton("Display", this);
-	displayBtn->setRoundness(10);
-	displayBtn->setFont(m_fonts.normalFont);
-	displayBtn->setTextColor(btnCol);
-	displayBtn->setFixedSize(btn_width1, btn_height1);
-	mainBtnList.append(displayBtn);
 
-	CHECKED_CONNECT(
-		displayBtn, 
-		SIGNAL(clicked()), 
-		this, 
-		SLOT(widgetBtnClickedEvent()));
 
 	QColor col = QColor(90, 90, 90);
 
@@ -1133,11 +1074,9 @@ void MainWindow::createMainBtnToolBar() {
 	//firstBtnLayout->addWidget(serverLogBtn);
 	firstBtnLayout->addWidget(rxCtrlBtn);
 	firstBtnLayout->addWidget(serverBtn);
-	firstBtnLayout->addWidget(hpsdrBtn);
-	firstBtnLayout->addWidget(chirpBtn);
+    firstBtnLayout->addWidget(setupBtn);
 	firstBtnLayout->addWidget(wideBandBtn);
 	//firstBtnLayout->addWidget(openclBtn);
-	firstBtnLayout->addWidget(displayBtn);
     firstBtnLayout->addWidget(nullBtn);
     firstBtnLayout->addWidget(plusRxBtn);
 	firstBtnLayout->addWidget(viewBtn);

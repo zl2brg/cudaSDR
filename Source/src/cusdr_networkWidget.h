@@ -46,7 +46,7 @@
 #endif
 
 
-class NetworkWidget : public QWidget {
+class NetworkWidget : public QTabWidget {
 
 	Q_OBJECT
 

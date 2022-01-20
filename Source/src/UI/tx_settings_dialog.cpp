@@ -82,7 +82,9 @@ tx_settings_dialog::tx_settings_dialog(QWidget *parent) :
 
 tx_settings_dialog::~tx_settings_dialog()
 {
-
+    delete ui;
+    disconnect(set, 0, this, 0);
+    disconnect(this, 0, 0, 0);
 }
 
 

@@ -88,19 +88,16 @@ set (SOURCES
 	${CMAKE_SOURCE_DIR}/cusdr_transmitOptionsWidget.cpp 
 	${CMAKE_SOURCE_DIR}/cusdr_transmitPAWidget.cpp 
 	${CMAKE_SOURCE_DIR}/main.cpp 
-    ${CMAKE_SOURCE_DIR}/Util/cusdr_cpuUsage_unix.cpp
-    ${CMAKE_SOURCE_DIR}/QtWDSP/qtwdsp_dspEngine.cpp
-#	${CMAKE_SOURCE_DIR}cusdr_NoiseFilterWidget.cpp
+        ${CMAKE_SOURCE_DIR}/Util/cusdr_cpuUsage_unix.cpp
+        ${CMAKE_SOURCE_DIR}/QtWDSP/qtwdsp_dspEngine.cpp
 	${CMAKE_SOURCE_DIR}/UI/noisefilterwidget.cpp
-    ${CMAKE_SOURCE_DIR}/UI/setupwidget.cpp
-#/    ${CMAKE_SOURCE_DIR}/UI/mode_widget.cpp
-    ${CMAKE_SOURCE_DIR}/UI/mini_mode_widget.cpp
-#    ${CMAKE_SOURCE_DIR}/UI/filter_widget.cpp
-#    ${CMAKE_SOURCE_DIR}/UI/band_widget.cpp
-    ${CMAKE_SOURCE_DIR}/UI/basewidget.cpp
-    ${CMAKE_SOURCE_DIR}/UI/radio_widget.cpp
-#   ${CMAKE_SOURCE_DIR}/UI/newbandwidget.cpp
-    ${CMAKE_SOURCE_DIR}/UI/tx_settings_dialog.cpp
+        ${CMAKE_SOURCE_DIR}/UI/setupwidget.cpp
+        ${CMAKE_SOURCE_DIR}/UI/mini_mode_widget.cpp
+        ${CMAKE_SOURCE_DIR}/UI/basewidget.cpp
+        ${CMAKE_SOURCE_DIR}/UI/radio_widget.cpp
+        ${CMAKE_SOURCE_DIR}/UI/tx_settings_dialog.cpp
+        ${CMAKE_SOURCE_DIR}/UI/cusdr_setupwidget.cpp
+
 
 
 src/DataEngine/cusdr_transmitter.cpp src/DataEngine/cusdr_transmitter.h src/AudioEngine/cusdr_audio_input.cpp src/AudioEngine/cusdr_audio_input.h)
@@ -176,25 +173,21 @@ set (HEADERS
         ${CMAKE_SOURCE_DIR}/UI/basewidget.h
         ${CMAKE_SOURCE_DIR}/UI/radio_widget.h
         ${CMAKE_SOURCE_DIR}/UI/tx_settings_dialog.h
-
-#        ${CMAKE_SOURCE_DIR}/UI/newbandwidget.h
-
+        ${CMAKE_SOURCE_DIR}/UI/cusdr_setupwidget.h
 
         ${WDSP_DIR}/wdsp.h
 		src/DataEngine/cusdr_transmitter.cpp src/DataEngine/cusdr_transmitter.h)
 
 set(UI_SOURCES
-		${CMAKE_SOURCE_DIR}/UI/tx_settings_dialog.ui
-		${CMAKE_SOURCE_DIR}/UI/noisefilterwidget.ui
+        ${CMAKE_SOURCE_DIR}/UI/tx_settings_dialog.ui
+        ${CMAKE_SOURCE_DIR}/UI/noisefilterwidget.ui
         ${CMAKE_SOURCE_DIR}/UI/cusdr_display.ui
         ${CMAKE_SOURCE_DIR}/UI/radio_ctrl.ui
         ${CMAKE_SOURCE_DIR}/UI/setupwidget.ui
         ${CMAKE_SOURCE_DIR}/UI/display_ctrl.ui
         ${CMAKE_SOURCE_DIR}/UI/band_widget.ui
-#       ${CMAKE_SOURCE_DIR}/UI/mode_widget.ui
-                ${CMAKE_SOURCE_DIR}/UI/mini_mode_widget.ui
-#                ${CMAKE_SOURCE_DIR}/UI/filter_widget.ui
-#                ${CMAKE_SOURCE_DIR}/UI/newbandwidget.ui
+        ${CMAKE_SOURCE_DIR}/UI/mini_mode_widget.ui
+        ${CMAKE_SOURCE_DIR}/UI/cusdr_setupwidget.ui
 
                 )
 

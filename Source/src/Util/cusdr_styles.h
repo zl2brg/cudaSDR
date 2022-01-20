@@ -6,6 +6,8 @@
 * @date 2012-06-30
 */
 
+
+
 /*   
  *   Copyright 2012 Hermann von Hasseln, DL3HVH
  *
@@ -23,14 +25,21 @@
  *   Free Software Foundation, Inc.,
  *   51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
+
  
 #ifndef CUSDR_STYLES_H
 #define CUSDR_STYLES_H
 
+#define WIDGET_COLOR "color: rgba(255, 196, 208, 255);"
+
 QString sdrStyle = QString::fromUtf8(
-		"background-color: rgba(0, 0, 0, 255);"
+        "background-color: rgba(0, 0, 0, 255);"
 		);
 	
+QString dockWidgetStyle = QString::fromUtf8(
+        "background-color: rgba(32, 32, 32, 255);"
+        );
+
 QString dialogStyle = QString::fromUtf8(
 		"background-color: rgba(60, 60, 60, 255);");
 
@@ -50,8 +59,9 @@ QString mainWindowStyle = QString::fromUtf8(
 		);
 
 QString	widgetStyle = QString::fromUtf8(
-        "background-color: rgba(0, 0, 0, 255); "
+        "background-color: rgba(32, 32, 32, 255); "
         "color: rgba(166, 196, 208, 255); "
+
 
 		);
 
@@ -116,7 +126,7 @@ QString statusbarStyle = QString::fromUtf8(
 
 QString	dockStyle = QString::fromUtf8(
 		"QDockWidget {"
-		"	color: rgba(166, 196, 208, 255);"
+  //      "	color: rgba(255, 196, 208, 255);"
 		"	border: 1px solid rgba(60, 60, 60, 255);"
 		"}"
 		//"background-color: rgba(0, 0, 0, 255); "
@@ -359,23 +369,25 @@ QString	frameStyle = QString::fromUtf8(
 
 QString	tabWidgetStyle = QString::fromUtf8(
 		"QTabWidget::pane {"
+       // "	color: rgba(255, 196, 208, 235);"
 		"	margin-top: 4px;"
 		"	margin-left: 4px;"
 		//"	margin-right: 4px;"
 		"	margin-bottom: 2px;"
 		//"	border: 0px"
-		//"	border: 1px solid rgba(255, 255, 255, 80); "
-		"	border: 1px solid #565656; "
+        //"	border: 1px solid rgba(255, 255, 255, 80); "
+        "	border: 1px solid #565656; "
 		"	border-radius: 2px;"
 		"}"
 		"QTabWidget::tab-bar {"
 		"	left: 4px;"
 		"	top: 5px;"
 		"	right: 4px;"
+
 		"}"
 		"QTabBar::tab {"
 		//"	color: #000000;"
-		"	color: rgba(166, 196, 208, 235);"
+        "	color: rgba(166, 196, 208, 235);"
 		"	background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,"
 		"									stop: 0 #868686, stop: 0.3 #565656,"
 		"									stop: 0.4 #000000, stop: 1.0 #000000);"
@@ -386,9 +398,10 @@ QString	tabWidgetStyle = QString::fromUtf8(
 		"	border-right-color: #000000;"
 		"	border-top-left-radius: 1px;"
 		"	border-top-right-radius: 1px;"
-		"	min-width: 8ex;"
-		"	max-height: 10px;"
+        "	min-width: 55px;"
+        "	max-height: 18px;"
 		"	padding: 2px;"
+        "	background-color: rgba(32, 32, 32, 235);"
 		"}"
 		"QTabBar::tab:disabled {"
 		"	color: #000000;"
@@ -419,13 +432,14 @@ QString	tabWidgetStyle = QString::fromUtf8(
 		//"	border-bottom-color: #000000;"
 		"}"
 		"QTabBar::tab:selected {"
-		//"	border-color: #91EBFF;"
-		"	border-color: #565656;"
+        "	border-color: #91EBFF;"
+        //"	border-color: #565656;"
 		"	border-right-color: #000000;"
 		"	border-bottom-color: #000000;"
+        "color: rgba(85, 210, 250, 255);"
 		"}"
 		"QTabBar::tab:!selected {"
-		"	margin-top: 2px;"
+        "	margin-top: 5x;"
 		"}"
 	);
 

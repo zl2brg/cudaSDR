@@ -65,7 +65,6 @@ DisplayOptionsWidget::DisplayOptionsWidget(QWidget *parent)
 	//setMinimumWidth(m_minimumWidgetWidth);
 	setContentsMargins(4, 0, 4, 0);
 	setMouseTracking(true);
-    qDebug() << "Display widget Size" << this->size();
 	m_rxDataList = set->getReceiverDataList();
 	m_widebandOptions = set->getWidebandOptions();
 	m_panadapterMode = set->getPanadapterMode(m_currentReceiver);
@@ -190,7 +189,7 @@ void DisplayOptionsWidget::setupConnections() {
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(currentReceiverChanged(QObject *, int)),
+        SIGNAL(currentReceiverChanged(QObject*,int)),
 		this, 
 		SLOT(setCurrentReceiver(QObject *, int)));
 
@@ -285,7 +284,7 @@ void DisplayOptionsWidget::graphicModeChanged(
 
 void DisplayOptionsWidget::createFPSGroupBox() {
 
-	int fontMaxWidth = m_fonts.smallFontMetrics->boundingRect(" 200 ").width();
+    int fontMaxWidth = m_fonts.smallFontMetrics->boundingRect(" 200 ").width();
 
 	m_fpsSlider = new QSlider(Qt::Horizontal, this);
 	m_fpsSlider->setTickPosition(QSlider::NoTicks);
@@ -321,7 +320,7 @@ void DisplayOptionsWidget::createFPSGroupBox() {
 	m_fpsGroupBox->setMinimumWidth(m_minimumGroupBoxWidth);
 	m_fpsGroupBox->setLayout(vbox);
 	m_fpsGroupBox->setStyleSheet(set->getWidgetStyle());
-	m_fpsGroupBox->setFont(QFont("Arial", 8));
+    m_fpsGroupBox->setFont(QFont("Arial", 12));
 }
 
 void DisplayOptionsWidget::createPanSpectrumOptions() {
@@ -393,6 +392,8 @@ void DisplayOptionsWidget::createPanSpectrumOptions() {
 	m_fmSqlevel->setSingleStep(1);
 	m_fmSqlevel->setValue(80);
 	m_fmSqlevel->setRange(1, 100);
+    m_fmSqlevel->setStyleSheet(set->getVolSliderStyle());
+
 	CHECKED_CONNECT(m_fmSqlevel, SIGNAL(valueChanged(int)), this, SLOT(sqLevelChanged(int)));
 
 	m_avgSlider = new QSlider(Qt::Horizontal, this);
@@ -516,7 +517,7 @@ void DisplayOptionsWidget::createPanSpectrumOptions() {
 	m_panSpectrumOptions->setMinimumWidth(m_minimumGroupBoxWidth);
 	m_panSpectrumOptions->setLayout(vbox);
 	m_panSpectrumOptions->setStyleSheet(set->getWidgetStyle());
-	m_panSpectrumOptions->setFont(QFont("Arial", 8));
+    m_panSpectrumOptions->setFont(QFont("Arial", 12));
 }
 
 void DisplayOptionsWidget::createWidebandPanOptions() {
@@ -629,7 +630,7 @@ void DisplayOptionsWidget::createWidebandPanOptions() {
 	m_widebandPanOptions->setMinimumWidth(m_minimumGroupBoxWidth);
 	m_widebandPanOptions->setLayout(vbox);
 	m_widebandPanOptions->setStyleSheet(set->getWidgetStyle());
-	m_widebandPanOptions->setFont(QFont("Arial", 8));
+    m_widebandPanOptions->setFont(QFont("Arial", 12));
 }
 
 void DisplayOptionsWidget::createWaterfallSpectrumOptions() {
@@ -671,7 +672,7 @@ void DisplayOptionsWidget::createWaterfallSpectrumOptions() {
 
 		case (WaterfallColorMode) Simple:
 			
-			m_waterfallSimpleBtn->setBtnState(AeroButton::ON);
+            m_waterfallSimpleBtn->setBtnState(AeroButton::ON);
 			m_waterfallEnhancedBtn->setBtnState(AeroButton::OFF);
 			//m_waterfallSpectranBtn->setBtnState(AeroButton::OFF);
 			break;
@@ -780,7 +781,7 @@ void DisplayOptionsWidget::createWaterfallSpectrumOptions() {
 	m_waterfallSpectrumOptions->setMinimumWidth(m_minimumGroupBoxWidth);
 	m_waterfallSpectrumOptions->setLayout(vbox);
 	m_waterfallSpectrumOptions->setStyleSheet(set->getWidgetStyle());
-	m_waterfallSpectrumOptions->setFont(QFont("Arial", 8));
+    m_waterfallSpectrumOptions->setFont(QFont("Arial", 12));
 }
 
 void DisplayOptionsWidget::createSMeterOptions() {
@@ -847,7 +848,7 @@ void DisplayOptionsWidget::createSMeterOptions() {
 	m_sMeterOptions->setMinimumWidth(m_minimumGroupBoxWidth);
 	m_sMeterOptions->setLayout(vbox);
 	m_sMeterOptions->setStyleSheet(set->getWidgetStyle());
-	m_sMeterOptions->setFont(QFont("Arial", 8));
+    m_sMeterOptions->setFont(QFont("Arial", 12));
 }
 
 void DisplayOptionsWidget::createCallSignEditor() {
@@ -889,7 +890,7 @@ void DisplayOptionsWidget::createCallSignEditor() {
 	m_callSignEditor->setMinimumWidth(m_minimumGroupBoxWidth);
 	m_callSignEditor->setLayout(vbox);
 	m_callSignEditor->setStyleSheet(set->getWidgetStyle());
-	m_callSignEditor->setFont(QFont("Arial", 8));
+    m_callSignEditor->setFont(QFont("Arial", 12));
 }
 
 void DisplayOptionsWidget::panModeChanged() {

@@ -44,7 +44,8 @@
 #include "cusdr_fonts.h"
 #include "Util/cusdr_buttons.h"
 #include "DataEngine/cusdr_dataEngine.h"
-#include "cusdr_hpsdrTabWidget.h"
+//#include "cusdr_hpsdrTabWidget.h
+#include "UI/cusdr_setupwidget.h"
 #include "cusdr_radioTabWidget.h"
 #include "cusdr_displayTabWidget.h"
 #include "cusdr_serverWidget.h"
@@ -88,8 +89,8 @@ class MainWindow : public QMainWindow {
     Q_OBJECT
 
 public:
-    explicit MainWindow(QWidget *parent = 0);
-    ~MainWindow();
+    explicit MainWindow(QWidget *parent = nullptr);
+    ~MainWindow() override;
 
 	void	setup();
 
@@ -218,7 +219,7 @@ private:
 	DataEngine*			m_dataEngine;
 	RadioPopupWidget*	m_radioPopupWidget;
 	ServerWidget*		m_serverWidget;
-	HPSDRTabWidget*		m_hpsdrTabWidget;
+	cusdr_SetupWidget*  m_hpsdrTabWidget;
 	RadioTabWidget*		m_radioTabWidget;
 	DisplayTabWidget*	m_displayTabWidget;
 	OGLDisplayPanel*	m_oglDisplayPanel;
@@ -238,7 +239,7 @@ private:
 	
 	AeroButton*			startBtn;
 	AeroButton*			serverBtn;
-	AeroButton*			hpsdrBtn;
+	AeroButton*			setupBtn;
 	AeroButton*			modeBtn;
 	AeroButton*			viewBtn;
 	AeroButton*			chirpBtn;
@@ -392,8 +393,8 @@ class NetworkIODialog : public QDialog {
     Q_OBJECT
 
 public:
-    NetworkIODialog(QWidget *parent = 0);
-    ~NetworkIODialog();
+    NetworkIODialog(QWidget *parent = nullptr);
+    ~NetworkIODialog() override;
 
 public slots:
 	void addDeviceComboBoxItem(QString str);
@@ -421,7 +422,7 @@ class WarningDialog : public QDialog {
     Q_OBJECT
 
 public:
-    WarningDialog(QWidget *parent = 0);
+    WarningDialog(QWidget *parent = nullptr);
     ~WarningDialog();
 
 public slots:

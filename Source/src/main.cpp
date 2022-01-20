@@ -95,16 +95,6 @@ void cuSDRMessageHandler(QtMsgType type, const QMessageLogContext &context, cons
 
 
 void load_WDSPWisdom() {
-
-	if (QDir(Settings::instance()->cfg_dir.append("/wdspwisdom")).exists()) {
-
-		qDebug() << "Init::\twdsp_wisdom exists, initialisation should be quick";
-	} else {
-		qDebug() << "Init::\twdsp_wisdom does not exist - -- needs to be generated";
-	}
-
-    qDebug() << "Init::\twdsp_wisdom " << Settings::instance()->cfg_dir.toLocal8Bit().data();
-
 	WDSPwisdom(Settings::instance()->cfg_dir.toLocal8Bit().data());
 }
 
