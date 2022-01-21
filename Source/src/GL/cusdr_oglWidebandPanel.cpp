@@ -947,11 +947,9 @@ void QGLWidebandPanel::drawHamBand(
 	colorGradient.setSpread(QGradient::PadSpread);
 	colorGradient.setColorAt(0, QColor((int)(255 * m_bkgRed), (int)(255 * m_bkgGreen), (int)(255 * m_bkgBlue), 80));
 	colorGradient.setColorAt(1, QColor((int)(255 * m_bkgRed), (int)(255 * m_bkgGreen), (int)(255 * m_bkgBlue), 40));
-	QBrush colorGradiantBrush = QBrush(colorGradient);
 	saveGLState();
 	painter->begin(this);
-	painter->setBrush(colorGradient);
-	painter->drawRect(rect);
+	painter->fillRect(rect,colorGradient);
     int fontWidth = m_fonts.smallFontMetrics->boundingRect(band).width();
     painter->setPen(QPen(QColor(255,255,255,180)));
     painter->setFont(m_oglTextNormal->font());
