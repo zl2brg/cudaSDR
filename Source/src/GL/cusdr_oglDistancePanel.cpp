@@ -352,30 +352,7 @@ void QGLDistancePanel::initializeGL() {
 
 void QGLDistancePanel::paintGL() {
 
-	switch (m_serverMode) {
-
-		case QSDR::SDRMode:
-
-			drawGLRect(QRect(0, 0, width(), height()), QColor(0, 0, 0));
-			break;
-
-		case QSDR::ChirpWSPR:
-		case QSDR::ChirpWSPRFile:
-
-			//if (freqChangeTimer.elapsed() > 50)  m_spectrumAveraging = m_spectrumAveragingOld;
-
-			if (m_resizeTime.elapsed() > 100 || m_dataEngineState == QSDR::DataEngineDown) {
-
-				paintReceiverDisplay();
-				paintChirpWSPRDisplay();
-			}
-			
-			break;
-
-		default:
-			break;
-		
-	}
+		drawGLRect(QRect(0, 0, width(), height()), QColor(0, 0, 0));
 }
  
 //****************************************************
@@ -2300,17 +2277,8 @@ void QGLDistancePanel::computeDisplayBins(const float *panBuffer) {
 	int lIdx = 0;
 	int rIdx = 0;
 	qreal localMax;
-
-	if (m_serverMode == QSDR::ChirpWSPRFile) {
-		
-		newSampleSize = (int)floor(2 * BUFFER_SIZE * m_freqScaleZoomFactor);
-		deltaSampleSize = 2 * BUFFER_SIZE - newSampleSize;
-	}
-	else {
-
-		newSampleSize = (int)floor(4 * BUFFER_SIZE * m_freqScaleZoomFactor);
-		deltaSampleSize = 4 * BUFFER_SIZE - newSampleSize;
-	}
+	newSampleSize = (int)floor(4 * BUFFER_SIZE * m_freqScaleZoomFactor);
+	deltaSampleSize = 4 * BUFFER_SIZE - newSampleSize;
 
 	/*if (deltaSampleSize%2 != 0) {
 		deltaSampleSize += 1;

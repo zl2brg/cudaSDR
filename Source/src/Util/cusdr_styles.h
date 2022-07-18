@@ -276,7 +276,7 @@ QString	menuStyle = QString::fromUtf8(
 			left: 8px; }"*/
 	);
 
-QString	miniButtonStyle = QString::fromUtf8(
+const QString	miniButtonStyle = QString::fromUtf8(
 		"font-size: 10pt;"
 	);
 	

@@ -185,6 +185,11 @@ QGLWidebandPanel::~QGLWidebandPanel() {
 		delete m_gridFBO;
 		m_gridFBO = 0;
 	}
+    delete painter;
+    delete m_oglTextTiny;
+    delete m_oglTextSmall;
+    delete m_oglTextNormal;
+    delete fonts;
 }
 
 QSize QGLWidebandPanel::minimumSizeHint() const {
@@ -313,9 +318,6 @@ void QGLWidebandPanel::paintGL() {
 	switch (m_serverMode) {
 
 		case QSDR::NoServerMode:
-		case QSDR::ChirpWSPR:
-		case QSDR::ChirpWSPRFile:
-		case QSDR::DemoMode:
 
 			drawGLRect(QRect(0, 0, width(), height()), QColor(0, 0, 0));
 			break;
@@ -345,7 +347,7 @@ void QGLWidebandPanel::paintGL() {
 				drawHamBand(50000000, 54000000, "6m");
 
                 //glColor4f(QColor(255, 255, 255, 130));
-				//m_oglTextSmall->renderText(m_panRect.right() - 100, m_panRect.top(), 5.0f, "Region 1");
+				//m_oglTextSmall->renderFreqText(m_panRect.right() - 100, m_panRect.top(), 5.0f, "Region 1");
 
 				if (m_mouseRegion == panRegion && m_crossHairCursor)
 					drawCrossHair();

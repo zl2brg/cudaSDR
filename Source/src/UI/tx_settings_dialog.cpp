@@ -28,26 +28,15 @@ tx_settings_dialog::tx_settings_dialog(QWidget *parent) :
     ui->fm_deviation->setValue(int(set->getFMDeveation() / 1000.0));
 
 
-    error = Pa_Initialize();
-    if (error != paNoError )
-    {
-        qDebug() << " Pa_initialise failed";
-    }
-    PaDeviceIndex numDevices = Pa_GetDeviceCount();
-    if( numDevices < 0 )
-    {
-        printf( "ERROR: Pa_CountDevices returned 0x%x\n", numDevices );
-      }
-    const   PaDeviceInfo *deviceInfo;
 
     ui->audiodevlist->clear();
     ui->audiodevlist->addItem("HPSDR Mic Input");
-    for( int i=0; i<numDevices; i++ )
+    for( int i=0; i<set->numDevices; i++ )
     {
-        deviceInfo = Pa_GetDeviceInfo( i );
-        paDeviceList.append(QString(deviceInfo->name));
-        ui->audiodevlist->addItem(QString(deviceInfo->name));
-        qDebug() << "PA device " << deviceInfo->name;
+        set->deviceInfo = Pa_GetDeviceInfo( i );
+        paDeviceList.append(QString(set->deviceInfo->name));
+        ui->audiodevlist->addItem(QString(set->deviceInfo->name));
+        qDebug() << "PA device " << set->deviceInfo->name;
 
     }
     ui->audiodevlist->setCurrentIndex(set->getMicInputDev());

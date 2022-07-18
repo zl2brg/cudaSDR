@@ -9,9 +9,9 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_CXX_STANDARD 11)
 set (QT_USE_QTOPENGL TRUE)
-add_definitions(-O0 -D_FILE_OFFSET_BITS=64 -fPIC -g)
+add_definitions(-O4 -D_FILE_OFFSET_BITS=64 -fPIC -g)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
-set(CMAKE_CXX_FLAGS "-O0 -Wall -Wextra -g")
+set(CMAKE_CXX_FLAGS "-O4 -Wall -Wextra -g")
 set (CMAKE_BUILD_TYPE Debug)
 set(OpenGL_GL_PREFERENCE GLVND)
 find_package(PkgConfig)
@@ -88,17 +88,17 @@ set (SOURCES
 	${CMAKE_SOURCE_DIR}/cusdr_transmitOptionsWidget.cpp 
 	${CMAKE_SOURCE_DIR}/cusdr_transmitPAWidget.cpp 
 	${CMAKE_SOURCE_DIR}/main.cpp 
-        ${CMAKE_SOURCE_DIR}/Util/cusdr_cpuUsage_unix.cpp
-        ${CMAKE_SOURCE_DIR}/QtWDSP/qtwdsp_dspEngine.cpp
+    ${CMAKE_SOURCE_DIR}/Util/cusdr_cpuUsage_unix.cpp
+    ${CMAKE_SOURCE_DIR}/QtWDSP/qtwdsp_dspEngine.cpp
 	${CMAKE_SOURCE_DIR}/UI/noisefilterwidget.cpp
-        ${CMAKE_SOURCE_DIR}/UI/setupwidget.cpp
-        ${CMAKE_SOURCE_DIR}/UI/mini_mode_widget.cpp
-        ${CMAKE_SOURCE_DIR}/UI/basewidget.cpp
-        ${CMAKE_SOURCE_DIR}/UI/radio_widget.cpp
-        ${CMAKE_SOURCE_DIR}/UI/tx_settings_dialog.cpp
-        ${CMAKE_SOURCE_DIR}/UI/cusdr_setupwidget.cpp
-
-
+    ${CMAKE_SOURCE_DIR}/UI/setupwidget.cpp
+    ${CMAKE_SOURCE_DIR}/UI/mini_mode_widget.cpp
+    ${CMAKE_SOURCE_DIR}/UI/basewidget.cpp
+#    ${CMAKE_SOURCE_DIR}/UI/radio_widget.cpp
+    ${CMAKE_SOURCE_DIR}/UI/tx_settings_dialog.cpp
+    ${CMAKE_SOURCE_DIR}/UI/cusdr_setupwidget.cpp
+    ${CMAKE_SOURCE_DIR}/AudioEngine/cusdr_iambic.cpp
+    ${CMAKE_SOURCE_DIR}/AudioEngine/cwramp.cpp
 
 src/DataEngine/cusdr_transmitter.cpp src/DataEngine/cusdr_transmitter.h src/AudioEngine/cusdr_audio_input.cpp src/AudioEngine/cusdr_audio_input.h)
 
@@ -116,7 +116,7 @@ set (HEADERS
 	${CMAKE_SOURCE_DIR}/Util/cusdr_styles.h 
 	${CMAKE_SOURCE_DIR}/Util/cusdr_cpuUsage.h 
 	${CMAKE_SOURCE_DIR}/Util/qcircularbuffer.h 
-    ${CMAKE_SOURCE_DIR}/AudioEngine/cusdr_audio_settingsdialog.h
+        ${CMAKE_SOURCE_DIR}/AudioEngine/cusdr_audio_settingsdialog.h
 	${CMAKE_SOURCE_DIR}/AudioEngine/cusdr_audio_utils.h
 	${CMAKE_SOURCE_DIR}/AudioEngine/cusdr_audio_waveform.h 
 	${CMAKE_SOURCE_DIR}/AudioEngine/cusdr_audio_wavfile.h 
@@ -161,19 +161,21 @@ set (HEADERS
 	${CMAKE_SOURCE_DIR}/cusdr_transmitTabWidget.h 
 	${CMAKE_SOURCE_DIR}/cusdr_transmitOptionsWidget.h 
 	${CMAKE_SOURCE_DIR}/cusdr_transmitPAWidget.h 
-        ${CMAKE_SOURCE_DIR}/Util/cusdr_cpuUsage_unix.h
-        ${CMAKE_SOURCE_DIR}/QtWDSP/qtwdsp_dspEngine.h
+    ${CMAKE_SOURCE_DIR}/Util/cusdr_cpuUsage_unix.h
+    ${CMAKE_SOURCE_DIR}/QtWDSP/qtwdsp_dspEngine.h
 	#${CMAKE_SOURCE_DIR}cusdr_NoiseFilterWidget.h
 	${CMAKE_SOURCE_DIR}/UI/noisefilterwidget.h
 	${CMAKE_SOURCE_DIR}/UI/setupwidget.h
-#        ${CMAKE_SOURCE_DIR}/UI/mode_widget.h
-        ${CMAKE_SOURCE_DIR}/UI/mini_mode_widget.h
-#        ${CMAKE_SOURCE_DIR}/UI/band_widget.h
-#        ${CMAKE_SOURCE_DIR}/UI/filter_widget.h
-        ${CMAKE_SOURCE_DIR}/UI/basewidget.h
-        ${CMAKE_SOURCE_DIR}/UI/radio_widget.h
-        ${CMAKE_SOURCE_DIR}/UI/tx_settings_dialog.h
-        ${CMAKE_SOURCE_DIR}/UI/cusdr_setupwidget.h
+#    ${CMAKE_SOURCE_DIR}/UI/mode_widget.h
+    ${CMAKE_SOURCE_DIR}/UI/mini_mode_widget.h
+#   ${CMAKE_SOURCE_DIR}/UI/band_widget.h
+#   ${CMAKE_SOURCE_DIR}/UI/filter_widget.h
+    ${CMAKE_SOURCE_DIR}/UI/basewidget.h
+#    ${CMAKE_SOURCE_DIR}/UI/radio_widget.h
+    ${CMAKE_SOURCE_DIR}/UI/tx_settings_dialog.h
+    ${CMAKE_SOURCE_DIR}/UI/cusdr_setupwidget.h
+    ${CMAKE_SOURCE_DIR}/AudioEngine/cusdr_iambic.h
+
 
         ${WDSP_DIR}/wdsp.h
 		src/DataEngine/cusdr_transmitter.cpp src/DataEngine/cusdr_transmitter.h)
@@ -215,7 +217,7 @@ QT5_WRAP_UI( UI_HEADERS ${UI_SOURCES} )
 ADD_EXECUTABLE(cudasdr ${SOURCES} ${HEADERS}  res/cusdr.qrc ${UI_SOURCES} ${UI_HEADERS})
 
 qt5_use_modules(cudasdr Core Gui Widgets OpenGL)
-target_link_libraries(cudasdr -lm -lstdc++ Qt5::Widgets Qt5::Network Qt5::Multimedia GL asound wdsp portaudio)
+target_link_libraries(cudasdr -lrt -lm -lstdc++ Qt5::Widgets Qt5::Network Qt5::Multimedia GL asound wdsp portaudio)
 set_target_properties(cudasdr PROPERTIES LINKER_LANGUAGE CXX)
 
 #qt5_use_modules(Core Network)

@@ -25,7 +25,7 @@ class WideBandDataProcessor : public QObject {
 Q_OBJECT
 
 public:
-    explicit WideBandDataProcessor(THPSDRParameter *ioData = 0, QSDR::_ServerMode serverMode = QSDR::NoServerMode, int size = 0);
+    explicit WideBandDataProcessor(THPSDRParameter *ioData = nullptr, QSDR::_ServerMode serverMode = QSDR::NoServerMode, int size = 0);
     ~WideBandDataProcessor() override;
     void	setWbSpectrumAveraging(QObject* sender, int rx, int value);
 

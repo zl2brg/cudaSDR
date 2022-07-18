@@ -39,6 +39,8 @@
 
 #include "cusdr_hamDatabase.h"
 #include "fftw3.h"
+#include "portaudio.h"
+
 // test for OpenCL
 //#include "CL/qclcontext.h"
 
@@ -83,7 +85,7 @@
 // **************************************
 // receiver settings
 
-#define MAX_RECEIVERS				1
+#define MAX_RECEIVERS				2
 #define MAX_BANDS					22
 #define BUFFER_SIZE					1024
 #define SAMPLE_BUFFER_SIZE			4096
@@ -178,83 +180,6 @@
 
 
 
-
-typedef struct {
-    QString txt;
-    qreal filterWidth;
-
-}filterStruct;
-
-static filterStruct Narrow_FilterGroup[12]={
-
-    {"1k",1150.0f},
-    {"800",950.0f},
-    {"750",900.0f},
-    {"600",750.0f},
-    {"500",650.0f},
-    {"400",550.0f},
-    {"250",400.0f},
-    {"100",350.0f},
-    {"50",200.0f},
-    {"25",175.0f},
-    {"Var1",2000.0f},
-    {"Var2",2000.0f}
-};
-
-static filterStruct Mid_FilterGroup[12]={
-    {"5k",5150.0f},
-    {"4k4",4550.0f},
-    {"3k8",3950.0f},
-    {"3k3",3450.0f},
-    {"2k9",3050.0f},
-    {"2k7",2850.0f},
-    {"2k4",2550.0f},
-    {"2k1",2250.0f},
-    {"1k8",1950.0f},
-    {"1k",1150.0f},
-    {"Var1",10000.0f},
-    {"Var2",10000.0f}
-};
-
-static filterStruct Wide_FilterGroup[12]={
-    {"16k",8000.0f},
-    {"12k",6000.0f},
-    {"10k",5000.0f},
-    {"8k",4000.0f},
-    {"6k6",3300.0f},
-    {"5k2", 2600.0f},
-    {"4k",2000.0f},
-    {"3k3",3450.0f},
-    {"3k1",3250.0f},
-    {"2k9",3050.0f},
-    {"Var1",20000.0f},
-    {"Var2",20000.0f}
-};
-
-
-typedef enum _filterMode{
-    M_LSB,
-    M_USB,
-    M_DSB
-} filterMode;
-
-typedef enum _filterGroup{
-    NARROW_FILTER,
-    MID_FILTER,
-    WIDEBAND_FILTER
-} filterGroup;
-
-typedef struct _rxfilter{
-    int        m_Index = 0;
-    filterMode m_FilterMode;
-    filterGroup m_FilterGroup;
-    filterStruct* m_FilterPtr;
-    qreal m_filterHi;
-    qreal m_filterLo;
-    QStringList btnText = {" "," "," "," "," "," "," "," "," "," "};
-}RxFilter;
-
-
 // **************************************
 // Server modes
 
@@ -294,9 +219,6 @@ namespace QSDR {
 
 		NoServerMode,
 		SDRMode,
-		ChirpWSPR,
-		ChirpWSPRFile,
-		DemoMode
 	};
 
 	enum _HWInterfaceMode { 
@@ -385,9 +307,11 @@ typedef struct _ccParameterRx {
 						// all values which are sent in sequence. 
 
 	bool	ptt;		// PTT  (1 = active, 0 = inactive), GPIO[23]= Ozy J8-8, Hermes J16-1
-	bool	dash;		// DASH (1 = active, 0 = inactive), GPIO[21]= Ozy J8-6, Hermes J6-2
-	bool	dot;		// DOT  (1 = active, 0 = inactive), GPIO[22]= Ozy J8-7, Hermes J6-3
-	bool	lt2208;		// LT2208 Overflow (1 = active, 0 = inactive)
+	int 	dash;		// DASH (1 = active, 0 = inactive), GPIO[21]= Ozy J8-6, Hermes J6-2
+	int 	dot;		// DOT  (1 = active, 0 = inactive), GPIO[22]= Ozy J8-7, Hermes J6-3
+    int     previous_dash;//
+    int     previous_dot;//
+    bool	lt2208;		// LT2208 Overflow (1 = active, 0 = inactive)
 	bool	hermesI01;	// Hermes I01 (0 = active, 1 = inactive)
 	bool	hermesI02;	// Hermes I02 (0 = active, 1 = inactive)
 	bool	hermesI03;	// Hermes I03 (0 = active, 1 = inactive)
@@ -522,7 +446,6 @@ typedef struct _hpsdrParameter {
 	int		tx_freq_change;
 	
 	float	mic_gain;
-    double	mic_buffer[DSP_SAMPLE_SIZE * sizeof(double) ];
 
 
 	qreal	penelopeForwardVolts;
@@ -539,6 +462,8 @@ typedef struct _hpsdrParameter {
 	bool	sendIQ_toggle;
 	bool	timeStamp;
 	bool	mute;
+
+
 
 	qint16		audiofileChannels;
 
@@ -678,7 +603,6 @@ typedef struct _receiver {
 	qreal	mouseWheelFreqStep;
 	qreal	filterLo;
 	qreal	filterHi;
-    RxFilter rxFilter;
 
 
     int     m_filterIndex;
@@ -957,7 +881,7 @@ signals:
 	//void alexParametersChanged(TAlexParameters p);
 	void alexStatesChanged(const QList<int> &states);
 	void alexStateChanged(HamBand band, const QList<int> &states);
-	void alexStateChanged(int pos, int value);
+//	void alexStateChanged(int pos, int value);
 	void alexManualStateChanged(QObject *sender, bool value);
 	void checkFirmwareVersionChanged(QObject *sender, bool value);
 	void pennyOCEnabledChanged(bool value);
@@ -1104,8 +1028,10 @@ signals:
 	void receiverDataReady();
 
 public:
-	void	debugSystemState();
 
+    PaDeviceIndex numDevices;
+    const PaDeviceInfo *deviceInfo;
+    void	debugSystemState();
 	int 	loadSettings();
 	int 	saveSettings();
 	QSDR::_ServerMode			getCurrentServerMode();
@@ -1158,7 +1084,7 @@ public:
 	QString getDialogStyle();
 	QString getColorDialogStyle();
 	QString getItemStyle();
-	QString getLabelStyle();
+	static QString getLabelStyle();
 	QString getSliderLabelStyle();
 	QString getTableStyle();
 	QString getComboBoxStyle();
@@ -1166,7 +1092,7 @@ public:
 	QString getDoubleSpinBoxStyle();
 	QString getMenuStyle();
     QString getMenuBarStyle();
-	QString getMiniButtonStyle();
+	const QString getMiniButtonStyle();
 	QString getVolSliderStyle();
 	QString getSplitterStyle();
 	QString getFrameStyle();
@@ -1505,7 +1431,6 @@ public slots:
 	void setAGCDecayTime(QObject *sender, int rx, qreal value);
 	void setAGCHangTime(QObject *sender, int rx, qreal value);
 	void setRXFilter(QObject* sender, int rx, qreal low, qreal high);
-    void setRxFilterByIndex(QObject* sender, int rx, int filterIndex);
 
 	void setfftSize(int rx, int size);
 	void setfmsqLevel(int rx, int level);
@@ -1609,10 +1534,30 @@ public slots:
 	QList<long> getVfoFrequencies();
 
 
-    filterMode getFilterMode( int rx );
-    filterGroup getFilterGroup(int rx);
-    int getFilterbtnIndex(int rx);
-	
+public:
+    bool isInternalCw() const;
+    int getCwKeyerSpeed() const;
+    int getCwKeyerMode() const;
+    bool isCwKeyReversed() const;
+    int getCwSidetoneFreq() const;
+    int getCwSidetoneVolume() const;
+    int getCwPttDelay() const;
+    int getCwHangTime() const;
+
+    void setCwHangTime(int CwHangTime);
+    void setCwSidetoneFreq(int CwSidetoneFreq);
+    void setCwKeyReversed(bool CwKeyReversed);
+    void setCwKeyerMode(int CwKeyerMode);
+    void setInternalCw(bool InternalCW);
+    void setCwKeyerSpeed(int CwKeyerSpeed);
+    void setCwPttDelay(int CwPttDelay);
+    void setCwSidetoneVolume(int CwSidetoneVolume);
+    bool is_transmitting(){
+        if (m_radioState > 0) return true;
+        else return false;
+    }
+
+
 private slots:
 
 private:
@@ -1634,6 +1579,7 @@ private:
 
 	QList<TNetworkDevicecard>	m_metisCards;
 	QList<TReceiver>			m_receiverDataList;
+	QList<TReceiver>			pam_receiverDataList;
 	QList<THamBandFrequencies>	m_bandList;
 	QList<THamBandText>			m_bandTextList;
 	QList<TDefaultFilter>		m_defaultFilterList;
@@ -1669,7 +1615,7 @@ private:
 	bool	setLoaded;
 
 	bool	m_mainPower;
-	RadioState m_radioState;
+    RadioState m_radioState = RadioState::RX;
 	bool	m_defaultSkin;
 	bool	m_connected;
 	bool	m_clientConnected;
@@ -1697,7 +1643,7 @@ private:
 	int		m_minimumGroupBoxWidth;
 
 	int		m_mercuryReceivers;
-	int		m_currentReceiver;
+    int		m_currentReceiver = 0;
 	int		m_sampleRate;
 	int		m_mercurySpeed;
 
@@ -1760,6 +1706,15 @@ private:
     double  m_amCarrierLevel;
     int     m_audioCompression;
     double  m_fmDeveation;
+    bool    m_internal_cw;
+    bool    m_cw_key_reversed;
+    int     m_cw_keyer_speed;
+    int     m_cw_keyer_mode;
+    int     m_cw_sidetone_volume;
+    int     m_cw_ptt_delay;
+    int     m_cw_hang_time;
+    int     m_cw_sidetone_freq;
+
 
 	//int		m_fft;
 

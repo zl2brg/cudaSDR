@@ -31,7 +31,11 @@ PAudioInput::PAudioInput(QObject *parent) : QThread(parent)
 
     /* device 0 is Hermes mic input */
     if (inputParameters.device > 0) inputParameters.device--;
-     Setup();
+    Setup();
+    audioinputBuffer.resize(1024);
+    audioinputBuffer.fill(0.0);
+    qDebug() << "Audio Buffer Size"  << audioinputBuffer.size();
+
 }
 
 
@@ -46,15 +50,10 @@ void PAudioInput::Setup() {
     error = Pa_Initialize();
     bzero( &inputParameters, sizeof( inputParameters ) ); //not necessary if you are filling in all the fields
     inputParameters.channelCount = 1;
-    inputParameters.hostApiSpecificStreamInfo = NULL;
+    inputParameters.hostApiSpecificStreamInfo = 0;
     inputParameters.sampleFormat = paFloat32;
     inputParameters.suggestedLatency = Pa_GetDeviceInfo(inputParameters.device)->defaultLowInputLatency ;
-    inputParameters.hostApiSpecificStreamInfo = NULL; //See you specific host's API docs for info on using this field
-    ;
-//    PaStreamCallback  *callback = audioCallback;
-
-
-
+    inputParameters.hostApiSpecificStreamInfo = 0; //See you specific host's API docs for info on using this field
 
     AUDIO_INPUT_DEBUG << "PA Open stream " << error;
 
@@ -79,10 +78,15 @@ void PAudioInput::MicInputChanged(int value){
 }
 
 void PAudioInput::Stop(){
-    m_ThreadQuit = true;
-    error = Pa_CloseStream( stream );
-    msleep(100);
-    AUDIO_INPUT_DEBUG << "PA Close stream " << error;
+        if (stream)
+        {
+         error = Pa_CloseStream( stream );
+         msleep(100);
+         AUDIO_INPUT_DEBUG << "PA Close stream " << error;
+        }
+        m_ThreadQuit = true;
+
+
 }
 
 
@@ -100,54 +104,33 @@ bool PAudioInput::Start() {
     AUDIO_INPUT_DEBUG << "PA Start stream " << error;
     m_ThreadQuit = false;
     start(QThread::HighestPriority);
-
-
+    return true;
 }
 
 void PAudioInput::run() {
     unsigned char temp[AUDIO_IN_PACKET_SIZE];
     QByteArray data;
+    float *sample;
+    qDebug() << "Double" << sizeof(double);
 
     while(!m_ThreadQuit )	//execute loop until quit flag set
-
     {
         if (Pa_IsStreamActive( stream ) ) {
-
-
             if (Pa_GetStreamReadAvailable(stream) >= AUDIO_FRAMESIZE) {
                 Pa_ReadStream(stream, temp, AUDIO_FRAMESIZE);
+                sample = (float *) (temp);
+
+                for (int i = 0; i < AUDIO_FRAMESIZE; i++  )
+                {
+                   audioinputBuffer[i] = (double)(*sample);
+                   sample++;
+                }
+                emit tx_mic_data_ready();
+                m_faudioInQueue.enqueue(audioinputBuffer);
                 m_audioInQueue.enqueue(QByteArray((const char *)temp, AUDIO_IN_PACKET_SIZE));
-//                qDebug() << "Data  Queued !";
             } else msleep(5);
         }
     }
 
 }
 
-int  PAudioInput::callbackProcess(unsigned long framesPerBuffer, float *output, short *in, PADeviceCallbackStuff* callbackStuff){
-//    qDebug() << "PortAudio Callback " << framesPerBuffer;
-    const float *rptr = (const float*)in;
-    const char *ptr = (const char *)in;
-
-    if (framesPerBuffer == AUDIO_FRAMESIZE)
-    {
-
-        for (int i = 0; i < AUDIO_IN_PACKET_SIZE;i++) {
-
-            callbackStuff->buffer[i] = *ptr++;
-        }
-        callbackStuff->data_ready = true;
-        qDebug() << "Data !";
-    }
-
-return paContinue;
-}
-
-
-int audioCallback(const void *inputBuffer, void *outputBuffer, unsigned long framesPerBuffer,
-                  const PaStreamCallbackTimeInfo *timeInfo, PaStreamCallbackFlags statusFlags,
-                  void *_callbackStuff) {
-    return ((PADeviceCallbackStuff*)_callbackStuff)->soundDevice->callbackProcess(framesPerBuffer, (float *)outputBuffer, (short*)inputBuffer, (PADeviceCallbackStuff*) _callbackStuff);
-
-
-}

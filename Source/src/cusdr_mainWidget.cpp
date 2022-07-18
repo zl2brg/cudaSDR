@@ -74,27 +74,26 @@ MainWindow::MainWindow(QWidget *parent)
 	, m_resizePosition(0)
 {	
     setupWidget = new SetupWidget();
-    m_radioCtrl = new RadioCtrl();
-    m_audioInput = new tx_settings_dialog();
-    QAction *test = new QAction();
+ //   m_radioCtrl = new RadioCtrl(this);
+    //m_audioInput = new tx_settings_dialog(this);
+    test = new QAction();
 
 
-
-    QMenuBar* menuBar = new QMenuBar();
-    QMenu *File = menuBar->addMenu(tr("File"));
-    menuBar->setStyleSheet(set->getMenuBarStyle());
+    menuBar = new QMenuBar();
+    File = menuBar->addMenu(tr("File"));
+  //  menuBar->setStyleSheet(set->getMenuBarStyle());
     File->setStyleSheet(set->getMenuStyle());
     File->setTitle("File");
     test->setText("Test");
-//    test->setMenu(File);
-//    menuBar->addAction(test);
+    test->setMenu(File);
+     menuBar->addAction(test);
 
 
     /* setup menu actions */
     setupAction = new QAction(tr("&Setup"), this);
     setupAction->setStatusTip(tr("Setup Menu"));
     connect(setupAction, &QAction::triggered, this, &MainWindow::cusdr_setup);
-    connect(test, &QAction::triggered, m_audioInput,&tx_settings_dialog::show);
+    //connect(test, &QAction::triggered, m_audioInput,&tx_settings_dialog::show);
 
     File->addAction(setupAction);
     File->addAction(test);
@@ -154,8 +153,27 @@ MainWindow::MainWindow(QWidget *parent)
 /*!
 	\brief MainWindow Destructor
 */
-MainWindow::~MainWindow() {    disconnect(set, 0, this, 0);
+MainWindow::~MainWindow() {
+    qDebug() <<  "MainWindow delete";
+    disconnect(set, 0, this, 0);
     disconnect(this, 0, 0, 0);
+    delete fonts;
+    // the SDR data engine
+    delete  m_dataEngine;
+    // control widgets
+    delete m_serverWidget;
+    delete m_hpsdrTabWidget;
+    delete m_radioTabWidget;
+    delete setupAction;
+    delete File;
+    delete menuBar;
+    delete test;
+
+
+  //  delete rxDockWidgetList.at(0);
+
+
+
 }
 
 
@@ -257,9 +275,9 @@ void MainWindow::setupConnections() {
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(showWarning(const QString &)),
+        SIGNAL(showWarning(const QString)),
 		this,
-		SLOT(showWarningDialog(const QString &)));
+        SLOT(showWarningDialog(const QString)));
 
 	CHECKED_CONNECT(
 		set,
@@ -281,9 +299,9 @@ void MainWindow::setupConnections() {
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(txAllowedChanged(QObject *, bool)),
+        SIGNAL(txAllowedChanged(QObject*, bool)),
 		this,
-		SLOT(setTxAllowed(QObject *, bool)));
+        SLOT(setTxAllowed(QObject*, bool)));
 
 	CHECKED_CONNECT(
 		set,
@@ -349,7 +367,7 @@ void MainWindow::setup() {
 	//runFFTWWisdom();
 
 	// create the big display panel at the top of the application.	
-	createDisplayPanelToolBar();
+    createDisplayPanelToolBar();
 
 	// create the main buttons tool bar
     createMainBtnToolBar();
@@ -358,7 +376,7 @@ void MainWindow::setup() {
     createStatusToolBar();
 
 	// create the mode menu
-    createModeMenu();
+     createModeMenu();
 
 	// create the view menu
     createViewMenu();
@@ -421,7 +439,7 @@ void MainWindow::setup() {
 	setCentralWidget(centralwidget);
 
 	// update the display panel
-    m_oglDisplayPanel->update();
+  //  m_oglDisplayPanel->update();
 
 	// set the Alex configuration
 	alexConfigurationChanged(m_alexConfig);
@@ -529,7 +547,7 @@ void MainWindow::setupLayout() {
     rxDock->setMaximumWidth(DOCK_WIDTH);
     rxDock->setMinimumWidth(DOCK_WIDTH);
 //    rxDock->setWidget(filterwidget);
-    rxDock->setWidget(m_radioCtrl);
+//    rxDock->setWidget(m_radioCtrl);
     dockWidgetList.append(rxDock);
 
     addDockWidget(Qt::LeftDockWidgetArea, rxDock);
@@ -558,7 +576,7 @@ void MainWindow::setupLayout() {
 		SLOT(widebandVisibilityChanged(bool)));
 
 	// receiver dock windows
-	for (int i = 1; i < MAX_RECEIVERS; i++) {
+    for (int i = 1; i < MAX_RECEIVERS; i++) {
 
 		QString str = "Receiver ";
 		QString num = QString::number(i+1);
@@ -1157,8 +1175,7 @@ void MainWindow::createModeMenu() {
 
     chirpWSPRAction = modeActionGroup->addAction(tr("ChirpWSPR"));
     chirpWSPRAction->setCheckable(false);
-    chirpWSPRAction->setChecked(m_serverMode == QSDR::ChirpWSPR);
-	
+
     modeMenu->addActions(modeActionGroup->actions());
 
     if (sdrModeAction->isCheckable()) {
@@ -1529,7 +1546,7 @@ void MainWindow::startButtonClickedEvent() {
 		col = QColor(250, 0, 0);
 		startBtn->setHighlight(col);
 		startBtn->setText("Stop");
-		set->setMainPower(this, true);
+    		set->setMainPower(this, true);
 	}
 	else if (startBtn->btnState() == AeroButton::ON) {
 
@@ -2422,11 +2439,11 @@ void MainWindow::closeEvent(
 		m_hpsdrTabWidget = NULL;
 	}
 
+
 	if (m_displayTabWidget) {
-		
-		disconnect(m_displayTabWidget, 0, 0, 0);
-		delete m_displayTabWidget;
-		m_displayTabWidget = NULL;
+        qDebug() << "tab widget delete";
+        delete m_displayTabWidget;
+        m_displayTabWidget = NULL;
 	}
 
 	/*if (m_hpsdrServer) {
@@ -2471,17 +2488,15 @@ void MainWindow::keyPressEvent(
 
 void MainWindow::radioStateChange(RadioState state) {
 
-
+  qDebug() << "Radio State Change" << state;
     moxBtn->setBtnState((AeroButton::OFF));
     tunBtn->setBtnState(AeroButton::OFF);
-    qDebug() << "Radio State Change" << state;
+
 
     switch (state){
         case RadioState::RX:
         moxBtn->setBtnState(AeroButton::OFF);
         tunBtn->setBtnState(AeroButton::OFF);
-
-
         break;
         case RadioState::MOX:
             moxBtn->setBtnState(AeroButton::ON);
@@ -2501,11 +2516,19 @@ void MainWindow::radioStateChange(RadioState state) {
 }
 
 void MainWindow::moxBtnClickedEvent() {
-    set->setRadioState(RadioState::MOX);
+    if (set->getRadioState() == RadioState::MOX)
+    {
+        set->setRadioState(RadioState::RX);
+    }
+    else set->setRadioState(RadioState::MOX);
 }
 
 void MainWindow::tunBtnClickedEvent() {
-    set->setRadioState(RadioState::TUNE);
+    if (set->getRadioState() == RadioState::TUNE)
+    {
+        set->setRadioState(RadioState::RX);
+    }
+    else set->setRadioState(RadioState::TUNE);
 }
 
 

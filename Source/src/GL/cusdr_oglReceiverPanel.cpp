@@ -100,8 +100,8 @@ QGLReceiverPanel::QGLReceiverPanel(QWidget *parent, int rx)
 	//, m_freqRulerPosition(0.5)
 {
 //	QGL::setPreferredPaintEngine(QPaintEngine::OpenGL);
-
-	setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    qDebug() << "rx panel constructor" << rx;
+    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     setUpdateBehavior(QOpenGLWidget::PartialUpdate);
 	//setAutoBufferSwap(true);
 	setAutoFillBackground(false);
@@ -266,7 +266,7 @@ QGLReceiverPanel::QGLReceiverPanel(QWidget *parent, int rx)
 
 QGLReceiverPanel::~QGLReceiverPanel() {
 
-    qDebug() << "rx panel destructor";
+    qDebug() << "rx panel destructor" << m_receiver;
     disconnect(set, 0, this, 0);
 	
 	if (m_frequencyScaleFBO) {
@@ -313,6 +313,16 @@ QGLReceiverPanel::~QGLReceiverPanel() {
 
     while (!specAv_queue.isEmpty())
         specAv_queue.dequeue();
+    delete fonts;
+    delete m_oglTextTiny;
+    delete m_oglTextSmall;
+    delete m_oglTextNormal;
+    delete m_oglTextFreq1;
+    delete m_oglTextFreq2;
+    delete m_oglTextBig1;
+    delete m_oglTextBig2;
+    delete m_oglTextHuge;
+
 }
 
 QSize QGLReceiverPanel::minimumSizeHint() const {
@@ -576,20 +586,16 @@ void QGLReceiverPanel::initializeGL() {
 
 	if (!isValid()) return;
      initializeOpenGLFunctions();
-	/*QGLInfo glInfo;
-	glInfo.getInfo();
-	glInfo.printSelf();*/
 
 	//*****************************************************************
 	// default initialization
 
-	//glShadeModel(GL_FLAT);
 	glShadeModel(GL_SMOOTH);
-	//glClearColor(0.0f, 0.0f, 0.0f, 0.5f);
 	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 	glPixelStorei(GL_UNPACK_ALIGNMENT, 4); // 4-byte pixel alignment
-	//glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
-    //glHint(GL_POLYGON_SMOOTH_HINT, GL_NICEST);
+	glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
+    glHint(GL_POLYGON_SMOOTH_HINT, GL_NICEST);
+    glHint(GL_POINT_SMOOTH_HINT, GL_NICEST);
 
 	glDepthFunc(GL_LESS);
     glEnable(GL_DEPTH_TEST);
@@ -604,10 +610,7 @@ void QGLReceiverPanel::paintGL() {
 
 	switch (m_serverMode) {
 
-		case QSDR::ChirpWSPR:
-		case QSDR::ChirpWSPRFile:
 		case QSDR::NoServerMode:
-		case QSDR::DemoMode:
 
 			drawGLRect(QRect(0, 0, width(), height()), QColor(0, 0, 0));
 			break;
@@ -769,7 +772,7 @@ void QGLReceiverPanel::drawPanadapter() {
 			int rectWidth = m_fonts.hugeFontMetrics->boundingRect(str).width();
 
 			qglColor(QColor(255, 0, 0, 155));
-			m_oglTextHuge->renderText((x2-rectWidth)/2, y1+30, -3.5f, str);
+			m_oglTextHuge->renderFreqText((x2-rectWidth)/2, y1+30, -3.5f, str);
 		}
 #endif
 	}
@@ -1747,7 +1750,7 @@ void QGLReceiverPanel::drawVFOControl() {
 	}
 
 	//qglColor(QColor(0, 0, 0));
-	//m_oglTextSmall->renderText(x1+1, y1-2, 3.0f, str);
+	//m_oglTextSmall->renderFreqText(x1+1, y1-2, 3.0f, str);
 
 	// set Center = VFO frequency button
 	/*QColor col;
@@ -1772,7 +1775,7 @@ void QGLReceiverPanel::drawVFOControl() {
 	m_midToVfoButtonRect = QRect(x1, y1, m_fonts.smallFontMetrics->width(str) + 5, m_fonts.fontHeightSmallFont + 2);
 	drawGLRect(m_midToVfoButtonRect, col, 2.0f);
 	qglColor(QColor(0, 0, 0));
-	m_oglTextSmall->renderText(x1+1, y1-2, 3.0f, str);*/
+	m_oglTextSmall->renderFreqText(x1+1, y1-2, 3.0f, str);*/
 
 
 	// set VFO = Center frequency button
@@ -1792,7 +1795,7 @@ void QGLReceiverPanel::drawVFOControl() {
 	m_vfoToMidButtonRect = QRect(x1, y1, m_fonts.smallFontMetrics->width(str) + 5, m_fonts.fontHeightSmallFont + 2);
 	drawGLRect(m_vfoToMidButtonRect, col, 2.0f);
 	qglColor(QColor(0, 0, 0));
-	m_oglTextSmall->renderText(x1+1, y1-2, 3.0f, str);*/
+	m_oglTextSmall->renderFreqText(x1+1, y1-2, 3.0f, str);*/
 }
 
 void QGLReceiverPanel::drawReceiverInfo() {
@@ -1819,7 +1822,7 @@ void QGLReceiverPanel::drawReceiverInfo() {
 	rect = QRect(x1+2, y1, m_fonts.smallFontMetrics->tightBoundingRect(str).width() + 5, m_fonts.fontHeightSmallFont + 2);
 	drawGLRect(rect, col, 2.0f);
 	qglColor(QColor(0, 0, 0));
-	m_oglTextSmall->renderText(x1+3, y1-2, 3.0f, str);*/
+	m_oglTextSmall->renderFreqText(x1+3, y1-2, 3.0f, str);*/
 
 
 	// AGC mode
@@ -1848,7 +1851,7 @@ void QGLReceiverPanel::drawReceiverInfo() {
 	//m_agcButtonRect = QRect(x1+2, y1, m_fonts.smallFontMetrics->tightBoundingRect(str).width() + 5, m_fonts.fontHeightSmallFont + 2);
 	//drawGLRect(m_agcButtonRect, col, 2.0f);
 	//qglColor(QColor(0, 0, 0));
-	//m_oglTextSmall->renderText(x1+3, y1-2, 3.0f, str);
+	//m_oglTextSmall->renderFreqText(x1+3, y1-2, 3.0f, str);
 
 
 	// main frequency display
@@ -2820,20 +2823,11 @@ void QGLReceiverPanel::mousePressEvent(QMouseEvent* event) {
 			setCursor(Qt::OpenHandCursor);
 			m_dragMouse = true;
 
-			double freqStep = set->getMouseWheelFreqStep(m_currentReceiver);
+
+
 			int dx = m_panRect.width()/2 - m_mousePos.x();
 			qreal unit = (qreal)((m_sampleRate * m_freqScaleZoomFactor) / m_panRect.width());
-			
-			m_vfoFrequency = (long)(qRound((m_centerFrequency - unit * dx) / qAbs(freqStep)) * qAbs(freqStep));
-
-			/*if (m_vfoFrequency > m_centerFrequency + m_sampleRate/2)
-				m_vfoFrequency = m_centerFrequency + m_sampleRate/2;
-			else if (m_vfoFrequency < m_centerFrequency - m_sampleRate/2)
-				m_vfoFrequency = m_centerFrequency - m_sampleRate/2;*/
-				
-			m_deltaFrequency = m_centerFrequency - m_vfoFrequency;
-			m_deltaF = (qreal)(1.0*m_deltaFrequency/m_sampleRate);
-			
+            m_vfoFrequency = (long)(qRound((m_centerFrequency - (unit * dx))));
 			set->setVFOFrequency(this, 0, m_receiver, m_vfoFrequency);		
 		}
 		else if (event->buttons() == Qt::LeftButton) {
@@ -3067,7 +3061,7 @@ void QGLReceiverPanel::mouseMoveEvent(QMouseEvent* event) {
 				else {
 
 					m_vfoFrequency = m_centerFrequency - m_deltaFrequency;
-
+                    GRAPHICS_DEBUG << "vfo freq " << m_vfoFrequency << m_centerFrequency;
 					set->setVFOFrequency(this, 0, m_receiver, m_vfoFrequency);
 					set->setCtrFrequency(this, 0, m_receiver, m_centerFrequency);
 				}
@@ -3607,16 +3601,8 @@ void QGLReceiverPanel::computeDisplayBins(QVector<float>& buffer, QVector<float>
 	int rIdx = 0;
 	qreal localMax;
 
-	if (m_serverMode == QSDR::ChirpWSPRFile) {
-		
-		m_sampleSize = (int)floor(2 * BUFFER_SIZE * m_freqScaleZoomFactor);
-		deltaSampleSize = 2 * BUFFER_SIZE - m_sampleSize;
-	}
-	else {
-
 		m_sampleSize = (int)floor(m_fftMult * m_spectrumSize * m_freqScaleZoomFactor);
 		deltaSampleSize = m_spectrumSize - m_sampleSize;
-	}
 
 
 		if (m_sampleSize < 2048) {
@@ -3866,8 +3852,7 @@ QColor QGLReceiverPanel::getWaterfallColorAtPixel(qreal value) {
 
 				offset = value - lowerThreshold;
 				globalRange = offset / m_waterfallColorRange; // value from 0.0 to 1.0 where 1.0 is high and 0.0 is low.
-
-				if (globalRange < (float)2/9) { // background to blue
+                if (globalRange < (float)2/9) { // background to blue
 
 					localRange = globalRange / ((float)2/9);
 					r = (int)((1.0 - localRange) * m_waterfallLoColor.red());
@@ -3921,7 +3906,8 @@ QColor QGLReceiverPanel::getWaterfallColorAtPixel(qreal value) {
 					g = (int)(localRange * 255 * 0.5);
 					b = 255;
 				}
-				if (r > 255) r = 255;
+
+                if (r > 255) r = 255;
 				if (g > 255) g = 255;
 				if (b > 255) b = 255;
 				if (r < 0) r = 0;

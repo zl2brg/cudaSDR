@@ -168,6 +168,9 @@ private:
     QDockWidget*				rxDock;
 	QList<QDockWidget* >		dockWidgetList;
 	QList<QDockWidget* >		rxDockWidgetList;
+    QMenuBar*                   menuBar;
+    QMenu *                     File;
+    QAction                     *test;
 	
 	QList<QHostAddress>			m_ipList;
 	QList<QNetworkInterface>	m_niList;
@@ -221,7 +224,7 @@ private:
 	ServerWidget*		m_serverWidget;
 	cusdr_SetupWidget*  m_hpsdrTabWidget;
 	RadioTabWidget*		m_radioTabWidget;
-	DisplayTabWidget*	m_displayTabWidget;
+	DisplayTabWidget*	m_displayTabWidget = NULL;
 	OGLDisplayPanel*	m_oglDisplayPanel;
 	//CudaInfoWidget*	m_cudaInfoWidget;
 	QGLWidebandPanel*	m_wbDisplay;

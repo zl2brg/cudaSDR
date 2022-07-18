@@ -61,6 +61,9 @@
 #include "cusdr_WidebandProcessor.h"
 #include "cusdr_transmitter.h"
 #include "AudioEngine/cusdr_audio_input.h"
+#include "AudioEngine/cusdr_iambic.h"
+
+#define LOG_DATA_PROCESSOR
 
 #ifdef LOG_DATA_ENGINE
 #   define DATA_ENGINE_DEBUG qDebug().nospace() << "DataEngine::\t"
@@ -91,9 +94,12 @@ class WideBandDataProcessor;
 // *********************************************************************
 // data engine class
 
+
 class DataEngine : public QObject {
 
 	Q_OBJECT
+
+
 
 public:
 	explicit DataEngine(QObject* parent = nullptr);
@@ -106,17 +112,26 @@ public:
     QList<Receiver *>	RX;
 	QList<qreal>		chirpData;
 
-	QUdpSocket*			sendSocket;
+	QUdpSocket*			sendSocket{};
 	DataIO*				m_dataIO;
-    PAudioInput *        audioInput;
+    PAudioInput *       m_audioInput;
+    iambic *            m_cwIO;
+    bool                m_internal_cw;
+    bool                m_cw_key_reversed;
+    int                 m_cw_keyer_speed;
+    int                 m_cw_keyer_mode;
+    int                 m_cw_sidetone_volume;
+    int                 m_cw_ptt_delay;
+    int                 m_cw_hang_time;
+    int                 m_cw_sidetone_freq;
+    int                 cw_key_down;
 
-
-    struct sockaddr_in  DataAddr;
-    int data_socket;
+    struct sockaddr_in  DataAddr{};
+    int data_socket{};
 
     void    Connect();
     void    senddata(char * buffer, int length);
-     QFile           *file;
+     QFile           *file{};
 
 public slots:
 
@@ -203,7 +218,8 @@ private:
 	bool	startDiscoverer(QThread::Priority prio);
 	bool	startDataIO(QThread::Priority prio);
 	bool	startDataProcessor(QThread::Priority prio);
-	void	startAudioOutProcessor(QThread::Priority prio);
+
+    __attribute__((unused)) static void	startAudioOutProcessor(QThread::Priority prio);
 
     bool	startWideBandDataProcessor(QThread::Priority prio);
 	bool    start_TxProcessor();
@@ -222,20 +238,20 @@ private:
 private:
 	DataProcessor*			m_dataProcessor;
 	WideBandDataProcessor*	m_wbDataProcessor;
-	QWDSPEngine*			m_chirpDspEngine;
+	QWDSPEngine*			m_chirpDspEngine{};
 	AudioReceiver*			m_audioReceiver;
 	AudioOutProcessor*		m_audioOutProcessor;
 	Discoverer*				m_discoverer;
 	
-	QThreadEx*				m_discoveryThread;
-	QThreadEx*				m_dataIOThread;
-	QThreadEx*				m_dataProcThread;
-	QThreadEx*				m_wbDataProcThread;
-	QThreadEx*				m_chirpDataProcThread;
-	QThreadEx*				m_AudioRcvrThread;
-	QThreadEx*				m_audioInputProcThread;
-	QThreadEx*				m_audioOutProcThread;
-	QThreadEx*              m_txProcessorThread;
+	QThreadEx*				m_discoveryThread{};
+	QThreadEx*				m_dataIOThread{};
+	QThreadEx*				m_dataProcThread{};
+	QThreadEx*				m_wbDataProcThread{};
+	QThreadEx*				m_chirpDataProcThread{};
+	QThreadEx*				m_AudioRcvrThread{};
+	QThreadEx*				m_audioInputProcThread{};
+	QThreadEx*				m_audioOutProcThread{};
+	QThreadEx*              m_txProcessorThread{};
 
 	QList<QThreadEx* >		m_dspThreadList;
 
@@ -261,12 +277,12 @@ private:
 	bool	m_restart;
 	bool	m_networkDeviceRunning;
 	bool	m_soundFileLoaded;
-	bool	m_clientConnect;
+	bool	m_clientConnect{};
 	//bool	m_audioProcessorRunning;
 	bool	m_chirpInititalized;
 	bool	m_discoveryThreadRunning;
 	bool	m_dataIOThreadRunning;
-	bool	m_wbDataRcvrThreadRunning;
+	bool	m_wbDataRcvrThreadRunning{};
 	bool	m_chirpDataProcThreadRunning;
 	bool	m_dataProcThreadRunning;
 	bool	m_audioRcvrThreadRunning;
@@ -277,44 +293,45 @@ private:
 	bool	m_chirpThreadStopped;
 	bool	m_clientConnected;
 
-	float	m_mainVolume;
+	float	m_mainVolume{};
 
 	int		m_hpsdrDevices;
-	int		m_fwCount;
+	int		m_fwCount{};
 	int		m_configure;
 	int		m_timeout;
-	int		m_txFrame;
-	int		m_bytes;
+	int		m_txFrame{};
+	int		m_bytes{};
 	int		m_remainingTime;
-	int		m_found;
+	int		m_found{};
 	int		m_RxFrequencyChange;
 	int		m_counter;
 	
 	int		m_forwardPower;
-	int		m_maxSamples;
-	int		m_offset;
+	int		m_maxSamples{};
+	int		m_offset{};
 
 	int		m_rxSamples;
 	int		m_chirpSamples;
 
-	int		m_leftSample;
-	int		m_rightSample;
-	int		m_micSample;
+	int		m_leftSample{};
+	int		m_rightSample{};
+	int		m_micSample{};
 
 	int		m_spectrumSize;
 	int		m_sendState;
 
-	float	m_lsample;
-	float	m_rsample;
-	float	m_scale;
-	float	m_sMeterValue;
+
+	float	m_lsample{};
+	float	m_rsample{};
+	float	m_scale{};
+	float	m_sMeterValue{};
 	float	m_sMeterCalibrationOffset;
-	float	m_micSample_float;
-	float	m_spectrumBuffer[SAMPLE_BUFFER_SIZE];
+	float	m_micSample_float{};
+	float	m_spectrumBuffer[SAMPLE_BUFFER_SIZE]{};
     RadioState m_radioState;
 
-	qint64		m_audioFileBufferPosition;
-    qint64		m_audioFileBufferLength;
+	qint64		m_audioFileBufferPosition{};
+    qint64		m_audioFileBufferLength{};
 	QByteArray	m_audioFileBuffer;
 
 
@@ -385,18 +402,24 @@ public slots:
 	void	stop();
 	void	processReadData();
 	void	processDeviceData();
+    void    processMicData();
+
 
 
 private slots:
 	void	initDataProcessorSocket();
-	void	displayDataProcessorSocketError(QAbstractSocket::SocketError error);
+	static void	displayDataProcessorSocketError(QAbstractSocket::SocketError error);
 	void	processInputBuffer(const QByteArray &buffer);
 	void	processOutputBuffer(const CPX &buffer);
 	void	decodeCCBytes(const QByteArray &buffer);
 	void	encodeCCBytes();
 	void	setOutputBuffer(int rx, const CPX &buffer);
 	void 	setAudioBuffer(int rx, const CPX &buffer, int buffersize);
+    void    send_audio_samples(int rx, const CPX &buffer, int buffersize);
+    void 	setAudioBuffer_old(int rx, const CPX &buffer, int buffersize);
 	void	writeData();
+    void    buffer_tx_data();
+    void    key_down(int);
 
 	
 private:
@@ -412,12 +435,17 @@ private:
 	QMutex			m_mutex;
 	QMutex			m_spectrumMutex;
     uchar           m_txBuffer[DSP_SAMPLE_SIZE * 4];
+    double	        mic_buffer[DSP_SAMPLE_SIZE * 2]; // i & q
+    int             mic_buffer_index;
     QByteArray      m_tx_iqdata;
 	QByteArray		m_IQDatagram;
 	QByteArray		m_outDatagram;
 	QByteArray		m_deviceSendDataSignature;
     QByteArray      temp_audioIn;
 	QString			m_message;
+    float           tx_mic_data[DSP_SAMPLE_SIZE];
+    double          cw_shape_buffer[DSP_SAMPLE_SIZE * 2];
+
 
 	QTime			m_SyncChangedTime;
 	QTime			m_ADCChangedTime;
@@ -443,6 +471,7 @@ private:
     QFile   *file;
 
 
+
 	double			m_lsample;
 	double			m_rsample;
 	float			m_micSample_float;
@@ -458,8 +487,17 @@ private:
 
 	volatile bool	m_stopped;
     void            get_tx_iqData();
+    void            buffer_tx_iq_sample(int i, int q);
     void    DumpBuffer(unsigned char *buffer,int length, const char *who);
+    void    add_mic_sample(double sample);
+    void    add_audio_sample(qint16 leftAudioSample, qint16 rightAudioSample);
 
+    void full_txBuffer();
+
+    void fetch_MicData();
+
+    double get_next_mic_sample();
+    void send_mic_data();
 
 	uchar	m_ibuffer[IO_BUFFER_SIZE * IO_BUFFERS];
 signals:
@@ -468,6 +506,8 @@ signals:
 	void	connectedEvent(QString addr, quint16 port);
 	void	disconnectedEvent();
 	void	serverVersionEvent(QString version);
+    void    keyer_event(int val, int cw);
+
 
 };
 

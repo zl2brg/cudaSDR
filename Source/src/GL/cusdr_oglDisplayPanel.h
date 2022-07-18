@@ -62,12 +62,13 @@ class OGLDisplayPanel : public QOpenGLWidget, protected QOpenGLFunctions {
 public:
     OGLDisplayPanel(QWidget *parent = 0);
 	~OGLDisplayPanel();
-void renderText(int x, int y, QFont &font, QColor fontcolor, const QString &text);
+    void renderFreqText(GLint &x1, GLint  &y1, QFont &font,QFontMetrics  fontMetrics, QColor fontcolor, const QString freqstr, int digit, int digit_pos);
+    void renderText(int x, int y, QFont &font, QColor fontcolor, const QString &text);
 
-public slots:
 	QSize minimumSizeHint() const;
 	QSize sizeHint() const;
 
+public slots:
 	void setSampleRate(QObject *sender, int value);
 	void setFrequency(QObject *sender, int mode, int rx, long freq);
 
@@ -84,7 +85,7 @@ protected:
 	void wheelEvent(QWheelEvent * event );
 	void keyPressEvent(QKeyEvent* event);
 	void closeEvent(QCloseEvent *event);
-	void showEvent(QShowEvent *event);
+//	void showEvent(QShowEvent *event);
     void timerEvent(QTimerEvent *);
     void qglColor(QColor color);
     void saveGLState();
@@ -165,7 +166,11 @@ private:
 	QRegion		m_freg100000;
 	QRegion		m_freg1000000;
 	QRegion		m_freg10000000;
+    QRegion		m_point;
+    QRegion		m_point1;
 
+
+    QColor      m_txdigitColor;
 	QColor		m_digitColor;
 	QColor		m_bkgColor1;
 	QColor		m_bkgColor2;
@@ -190,17 +195,20 @@ private:
 	};
 
 	enum FreqDigit {
+        Freq10000000,
+        Freq1000000,
+        dp1,
+        Freq100000,
+        Freq10000,
+        Freq1000,
+        dp2,
+        Freq100,
+        Freq10,
+        Freq1,
+        None,
 
-		Freq1,
-		Freq10,
-		Freq100,
-		Freq1000,
-		Freq10000,
-		Freq100000,
-		Freq1000000,
-		Freq10000000,
-		None
-	};
+
+    };
 
 	GLuint	m_sMeterTex;
 
@@ -215,6 +223,7 @@ private:
 	bool	m_SMeterA;
 	bool	m_sMeterAvg;
 
+
 	long	m_oldFreq;
 
 	int		m_height;
@@ -223,7 +232,7 @@ private:
 	int		m_rxRectWidth;
 	int		m_lowerRectY;
 	int		m_upperRectY;
-	int		m_digitPosition;
+    int		m_digitPosition = None;
 	int		m_syncStatus;
 	int		m_adcStatus;
 	int		m_packetLossStatus;
@@ -344,6 +353,8 @@ private slots:
 	void	updateSyncStatus();
 	void	updateADCStatus();
 	void	updatePacketLossStatus();
+    //void    drawFrequency(GLint x1, GLiny y1,QString str,QFontMetrics font,QColor fontcolor, int xpos, int len, int highlight pos);
+
 
 signals:
 	void showEvent(QObject *sender);

@@ -72,7 +72,9 @@ setupConnections();
 
 cusdr_SetupWidget::~cusdr_SetupWidget()
 {
+    delete m_displaytabWidget;
     delete ui;
+
     disconnect(set, 0, this, 0);
     disconnect(this, 0, 0, 0);
 }

@@ -6,6 +6,7 @@
 #include <QList>
 #include <QtMultimedia/QAudioInput>
 #include <QBuffer>
+#include <QVector>
 #include "portaudio.h"
 
 #include "cusdr_settings.h"
@@ -36,6 +37,10 @@ struct PADeviceCallbackStuff
 #endif
 
 
+typedef QVector<double> AUDIOBUF;
+
+Q_DECLARE_METATYPE (AUDIOBUF)
+
 class PAudioInput : public QThread {
 Q_OBJECT
 public:
@@ -47,17 +52,20 @@ bool Start();
 void run();
 public:
     QStringList paDeviceList;
-    int callbackProcess(unsigned long framesPerBuffer, float *output, short *in, PADeviceCallbackStuff* callbackstuff);
     QHQueue<QByteArray> m_audioInQueue;
-    QMutex callbacklock;
-    PADeviceCallbackStuff m_callbackStuff;
+    AUDIOBUF  audioinputBuffer;
+    QHQueue<AUDIOBUF> m_faudioInQueue;
+
+signals:
+    void tx_mic_data_ready();
+
 
 
 private:
     Settings		*set;
     PaError         error;
     PaStreamParameters inputParameters;
-    PaStream        *stream;
+    PaStream        *stream =NULL;
 
     bool m_BlockingMode;
     bool m_ThreadQuit;
@@ -69,12 +77,6 @@ private slots:
     void MicInputChanged(int source);
 
 };
-
-int audioCallback(const void *inputBuffer, void *outputBuffer,
-                  unsigned long framesPerBuffer,
-                  const PaStreamCallbackTimeInfo* timeInfo,
-                  PaStreamCallbackFlags statusFlags,
-                  void *_callbackStuff);
 
 #endif //CUDASDR_CUSDR_AUDIO_INPUT_H
 

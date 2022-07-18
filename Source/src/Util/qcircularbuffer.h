@@ -537,7 +537,7 @@ QCircularBuffer<T>::QCircularBuffer(int capacity)
         while (i != b)
             new (--i) T;
     } else {
-        qMemSet(d->data, 0, capacity * sizeof(T));
+        memset(d->data, 0, capacity * sizeof(T));
     }
 }
 
@@ -1178,7 +1178,7 @@ void QCircularBuffer<T>::setCapacity(int capacity)
         }
 
         // Initialise any memory outside of the valid buffer (ie the unused items)
-        qMemSet(newData + newSize, 0, (capacity - newSize) * sizeof(T));
+        memset(newData + newSize, 0, (capacity - newSize) * sizeof(T));
     }
 
     // Release the raw memory for the old array

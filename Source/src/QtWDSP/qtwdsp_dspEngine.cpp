@@ -471,11 +471,11 @@ void QWDSPEngine::setNCOFrequency(int rx, long ncoFreq) {
 
 	if(ncoFreq==0) {
 		SetRXAShiftFreq(m_rx, (double)ncoFreq);
-//		RXANBPSetShiftFrequency(m_rx, (double)ncoFreq);
+		RXANBPSetShiftFrequency(m_rx, (double)ncoFreq);
 		SetRXAShiftRun(m_rx, 0);
 	} else {
 		SetRXAShiftFreq(m_rx, (double)ncoFreq);
-//		RXANBPSetShiftFrequency(m_rx, (double)ncoFreq);
+		RXANBPSetShiftFrequency(m_rx, (double)ncoFreq);
 		SetRXAShiftRun(m_rx, 1);
 	}
 }
@@ -812,8 +812,6 @@ void QWDSPEngine::set_txrx(RadioState state) {
             SetTXABandpassWindow(TX_ID,1);
             SetTXABandpassRun(TX_ID,1);
             SetChannelState(TX_ID,1,0);
-            qDebug() << "TX";
-
         case RadioState::DUPLEX:
         default:
          break;

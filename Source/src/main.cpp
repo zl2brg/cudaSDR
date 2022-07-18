@@ -137,8 +137,8 @@ int main(int argc, char *argv[]) {
 				QStyle::alignedRect(
 				Qt::LeftToRight,
 				Qt::AlignCenter,
-				splash->size(),
-				app.desktop()->availableGeometry()));
+                splash->size(),
+                app.desktop()->availableGeometry()));
 
     splash->show();
 

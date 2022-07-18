@@ -688,9 +688,6 @@ void HPSDRWidget::systemStateChanged(
 	//m_oldServerMode = m_serverMode;
 	if (m_serverMode != mode) {
 
-		if (m_serverMode == QSDR::ChirpWSPR)
-			enableButtons();
-
 		m_serverMode = mode;
 	}
 		
