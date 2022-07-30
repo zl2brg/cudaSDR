@@ -395,6 +395,7 @@ public:
 		QSDR::_ServerMode serverMode = QSDR::NoServerMode,
 		QSDR::_HWInterfaceMode hwMode = QSDR::NoInterfaceMode);
     int tx_index =0;
+    void    get_cwsample();
 
 	~DataProcessor() override;
 
@@ -415,7 +416,7 @@ private slots:
 	void	encodeCCBytes();
 	void	setOutputBuffer(int rx, const CPX &buffer);
 	void 	setAudioBuffer(int rx, const CPX &buffer, int buffersize);
-    void    send_audio_samples(int rx, const CPX &buffer, int buffersize);
+    void    send_hpsdr_data(int rx, const CPX &buffer, int buffersize);
     void 	setAudioBuffer_old(int rx, const CPX &buffer, int buffersize);
 	void	writeData();
     void    buffer_tx_data();
@@ -434,7 +435,7 @@ private:
 	QHostAddress	m_deviceAddress;
 	QMutex			m_mutex;
 	QMutex			m_spectrumMutex;
-    uchar           m_txBuffer[DSP_SAMPLE_SIZE * 4];
+    uchar           m_tx_iq_Buffer[DSP_SAMPLE_SIZE * 4];
     double	        mic_buffer[DSP_SAMPLE_SIZE * 2]; // i & q
     int             mic_buffer_index;
     QByteArray      m_tx_iqdata;
@@ -445,6 +446,7 @@ private:
 	QString			m_message;
     float           tx_mic_data[DSP_SAMPLE_SIZE];
     double          cw_shape_buffer[DSP_SAMPLE_SIZE * 2];
+    CPX             rx_audio_buffer[DSP_SAMPLE_SIZE];
 
 
 	QTime			m_SyncChangedTime;

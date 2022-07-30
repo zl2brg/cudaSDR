@@ -42,6 +42,32 @@ Transmitter::~Transmitter() {
 }
 
 
+
+// Sine tone generator:
+// somewhat improved, and provided two siblings
+// for generating side tones simultaneously on the
+// HPSDR board and local audio.
+
+#define TWOPIOVERSAMPLERATE 0.0001308996938995747;  // 2 Pi / 48000
+
+static long asteps = 0;
+static long bsteps = 0;
+
+double Transmitter::getNextSideToneSample() {
+    double angle = (asteps*cw_keyer_sidetone_frequency)*TWOPIOVERSAMPLERATE;
+    if (++asteps == 48000) asteps = 0;
+    return sin(angle);
+}
+
+double Transmitter::getNextInternalSideToneSample() {
+
+    double angle = (bsteps*cw_keyer_sidetone_frequency)*TWOPIOVERSAMPLERATE;
+    if (++bsteps == 48000) bsteps = 0;
+    return sin(angle);
+}
+
+
+
 void Transmitter::setupConnections() {
 
         CHECKED_CONNECT(

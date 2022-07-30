@@ -42,7 +42,7 @@ extern double cwramp48[];		// see cwramp.c, for 48 kHz sample rate
 // use AUDIO_PROCESSOR
 #define LOG_WIDEBAND_PROCESSOR
  //use WIDEBAND_PROCESSOR_DEBUG
-
+#define RAMPLEN 250
 #include "cusdr_dataEngine.h"
 
 
@@ -846,7 +846,8 @@ bool DataEngine::start() {
 		CHECKED_CONNECT(
 				RX.at(i),
 				SIGNAL(outputBufferSignal(int, const CPX &)),m_dataProcessor,SLOT(setOutputBuffer(int, const CPX &)));
-        CHECKED_CONNECT(RX.at(i),SIGNAL(audioBufferSignal(int, const CPX &, int)),m_dataProcessor,SLOT(send_audio_samples(int, const CPX &,int)));
+        CHECKED_CONNECT(RX.at(i),SIGNAL(audioBufferSignal(int, const CPX &, int)),m_dataProcessor,SLOT(
+                send_hpsdr_data(int, const CPX &,int)));
 
 		m_dspThreadList.at(i)->start(QThread::NormalPriority);//QThread::TimeCriticalPriority);
 				
@@ -2751,28 +2752,41 @@ void DataProcessor::full_txBuffer(){
 
 void DataProcessor::buffer_tx_data()
 {
-    de->io.output_buffer[m_idx++] = m_txBuffer[tx_index++];
-    de->io.output_buffer[m_idx++] = m_txBuffer[tx_index++];
-    de->io.output_buffer[m_idx++] = m_txBuffer[tx_index++];
-    de->io.output_buffer[m_idx++] = m_txBuffer[tx_index++];
+    de->io.output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
+    de->io.output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
+    de->io.output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
+    de->io.output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
 
 }
 
 
+/* Sends RX Audio and tx iq data back to hpsdr. Always at 48 KHz bandwidth */
 
-void DataProcessor::send_audio_samples(int rx, const CPX &buffer, int buffersize) {
+void DataProcessor::send_hpsdr_data(int rx, const CPX &buffer, int buffersize) {
     qint16 leftRXSample;
     qint16 rightRXSample;
     char *ptr;
+
+    for (int j = 0; j < buffersize; j++)
+        /* buffer rx audio */
+        rx_audio_buffer.at(j) = buffer.at(j);
+
+
     if (set->is_transmitting())
     {
      if  (!tx_index)  get_tx_iqData();
     }
-    else  memset(&m_txBuffer,0x0,sizeof(m_txBuffer));
+    else  memset(&m_tx_iq_Buffer, 0x0, sizeof(m_tx_iq_Buffer));
 
         for (int j = 0; j < buffersize; j++) {
-            leftRXSample = (qint16) (buffer.at(j).re * 32767.0f);
-            rightRXSample = (qint16) (buffer.at(j).im * 32767.0f);
+            /* buffer rx audio */
+            leftRXSample = (qint16) (rx_audio_buffer.at(j).re * 32767.0f);
+            rightRXSample = (qint16) (rx_audio_buffer.at(j).im * 32767.0f);
+            de->io.output_buffer[m_idx++] = leftRXSample >> 8;
+            de->io.output_buffer[m_idx++] = leftRXSample;
+            de->io.output_buffer[m_idx++] = rightRXSample >> 8;
+            de->io.output_buffer[m_idx++] = rightRXSample;
+
             add_audio_sample(leftRXSample, rightRXSample);
         }
 
@@ -2781,10 +2795,7 @@ void DataProcessor::send_audio_samples(int rx, const CPX &buffer, int buffersize
 
 void DataProcessor::add_audio_sample(qint16 leftRXSample, qint16 rightRXSample)
 {
-    de->io.output_buffer[m_idx++] = leftRXSample >> 8;
-    de->io.output_buffer[m_idx++] = leftRXSample;
-    de->io.output_buffer[m_idx++] = rightRXSample >> 8;
-    de->io.output_buffer[m_idx++] = rightRXSample;
+
     buffer_tx_data();
 
     if (m_idx == IO_BUFFER_SIZE)
@@ -2792,16 +2803,16 @@ void DataProcessor::add_audio_sample(qint16 leftRXSample, qint16 rightRXSample)
         full_txBuffer();
         m_idx =8;
     }
-    if (tx_index >= sizeof(m_txBuffer)) tx_index = 0;
+    if (tx_index >= sizeof(m_tx_iq_Buffer)) tx_index = 0;
 }
 
 
 void DataProcessor::buffer_tx_iq_sample(int i, int q)
 {
-    m_txBuffer[m_idx++] = i >> 8;
-    m_txBuffer[m_idx++] = i;
-    m_txBuffer[m_idx++] = q >> 8;
-    m_txBuffer[m_idx++] = q;
+    m_tx_iq_Buffer[m_idx++] = i >> 8;
+    m_tx_iq_Buffer[m_idx++] = i;
+    m_tx_iq_Buffer[m_idx++] = q >> 8;
+    m_tx_iq_Buffer[m_idx++] = q;
     if (m_idx == IO_BUFFER_SIZE) {
         full_txBuffer();
     }
@@ -2826,6 +2837,85 @@ void DataProcessor::add_mic_sample(double sample)
 
 }
 
+/* cw code from pihpsdr */
+void DataProcessor::get_cwsample() {
+    float cwsample;
+    double mic_sample_double;
+    double ramp;
+    static int cw_not_ready =1;
+    static int cw_shape;
+    int cw_key_up = 0;
+    int cw_key_down = 0;
+    int updown;
+    float cw_keyer_sidetone_volume=0.5;
+
+
+//
+//	We HAVE TO shape the signal to avoid hard clicks to be
+//	heard way beside our frequency. The envelope (ramp function)
+//      is stored in cwramp48[0::RAMPLEN], so we "move" cw_shape between these
+//      values. The ramp width is RAMPLEN/48000 seconds.
+//
+//      In the new protocol, we use this ramp for the side tone, but
+//      must use values from cwramp192 for the TX iq signal.
+//
+//      Note that usually, the pulse is much broader than the ramp,
+//      that is, cw_key_down and cw_key_up are much larger than RAMPLEN.
+//
+        cw_not_ready=0;
+        if (de->cw_key_down > 0 ) {
+            if (cw_shape < RAMPLEN) cw_shape++;	// walk up the ramp
+            cw_key_down--;			// decrement key-up counter
+            updown=1;
+        } else {
+            // dig into this even if cw_key_up is already zero, to ensure
+            // that we reach the bottom of the ramp for very small pauses
+            if (cw_shape > 0) cw_shape--;	// walk down the ramp
+            if (cw_key_up > 0) cw_key_up--; // decrement key-down counter
+            updown=0;
+        }
+        //
+        // store the ramp value in cw_shape_buffer, but also use it for shaping the "local"
+        // side tone
+
+        ramp=cwramp48[cw_shape];
+        cwsample=0.00197 * de->TX.getNextSideToneSample() * cw_keyer_sidetone_volume * ramp;
+//        if(active_receiver->local_audio) cw_audio_write(active_receiver,cwsample);
+        cw_shape_buffer[mic_buffer_index]=ramp;
+        //
+        // In the new protocol, we MUST maintain a constant flow of audio samples to the radio
+        // (at least for ANAN-200D and ANAN-7000 internal side tone generation)
+        // So we ship out audio: silence if CW is internal, side tone if CW is local.
+        //
+        // Furthermore, for each audio sample we have to create four TX samples. If we are at
+        // the beginning of the ramp, these are four zero samples, if we are at the, it is
+        // four unit samples, and in-between, we use the values from cwramp192.
+        // Note that this ramp has been extended a little, such that it begins with four zeros
+        // and ends with four times 1.0.
+        //
+
+
+//
+//	If no longer transmitting, or no longer doing CW: reset pulse shaper.
+//	This will also swallow any pending CW in rigtl CAT CW and wipe out
+//      cw_shape_buffer very quickly. In order to tell rigctl etc. that CW should be
+//	aborted, we also use the cw_not_ready flag.
+//
+        cw_not_ready=1;
+        cw_key_up=0;
+        cw_key_down=0;
+        cw_shape=0;
+        cw_shape_buffer[mic_buffer_index]=0.0;
+
+
+    mic_buffer[mic_buffer_index*2]=mic_sample_double;
+    mic_buffer[(mic_buffer_index*2)+1]=0.0; //mic_sample_double;
+    mic_buffer_index++;
+    if(mic_buffer_index >= DSP_SAMPLE_SIZE) {
+        full_txBuffer();
+        mic_buffer_index=0;
+    }
+}
 
 void DataProcessor::send_mic_data() {
     int error;
@@ -2838,10 +2928,9 @@ void DataProcessor::send_mic_data() {
     float *sample;
     int i,q;
     static AUDIOBUF a;
-
+    get_cwsample();
 
     if ( de->io.ccTx.mox ||  de->io.ccTx.ptt ) {
-
 
         fexchange0(TX_ID, a.data(), (double *) m_iq_output_buffer.data(), &error);
         Spectrum0(1, TX_ID, 0, 0, (double *) m_iq_output_buffer.data());
@@ -2893,17 +2982,30 @@ void DataProcessor::get_tx_iqData(){
     double is,qs;
     double gain = 32767.0f;
    // double gain = 25 * 0.00392;
-    double temp;
     int i,q;
     fetch_MicData();
-//    de->m_audioInput->m_audioInQueue.dequeue();
-        if ( de->io.ccTx.mox ||  de->io.ccTx.ptt )
+
+    if ( de->io.ccTx.mox ||  de->io.ccTx.ptt )
         {
-            fexchange0(TX_ID, mic_buffer, (double *) m_iq_output_buffer.data(), &error);
+
+            if  (de->io.ccTx.mode == DSPMode::CWL  || de->io.ccTx.mode == DSPMode::CWU)
+
+            {
+
+
+
+            }
+
+            else {
+
+                fexchange0(TX_ID, mic_buffer, (double *) m_iq_output_buffer.data(), &error);
+
+            }
             Spectrum0(1, TX_ID, 0, 0, (double *) m_iq_output_buffer.data());
+
         }
 
-        if (set->is_transmitting()) {
+
 /* Queue the tx data */
             int tx_index = 0;
             for (int j = 0; j < DSP_SAMPLE_SIZE; j++) {
@@ -2913,16 +3015,16 @@ void DataProcessor::get_tx_iqData(){
                 leftTXSample = qs >= 0.0 ? (long) floor(qs * gain + 0.5) : (long) ceil(qs * gain - 0.5);
                 i = (int) leftTXSample;
                 q = (int) rightTXSample;
-                m_txBuffer[tx_index++] = i >> 8;
-                m_txBuffer[tx_index++] = i;
-                m_txBuffer[tx_index++] = q >> 8;
-                m_txBuffer[tx_index++] = q;
+                m_tx_iq_Buffer[tx_index++] = i >> 8;
+                m_tx_iq_Buffer[tx_index++] = i;
+                m_tx_iq_Buffer[tx_index++] = q >> 8;
+                m_tx_iq_Buffer[tx_index++] = q;
             }
-        }
+
 
 }
 
-/* stolen from pihpsdr */
+/* copied from pihpsdr */
 void DataProcessor::DumpBuffer(unsigned char *buffer,int length, const char *who) {
   QMutex dump_mutex;
   dump_mutex.lock();
@@ -2953,7 +3055,7 @@ void DataProcessor::setAudioBuffer(int rx, const CPX &buffer, int buffersize)
 {
 //    qDebug() << "Buffer Size" << buffersize;
 
-    send_audio_samples(rx,buffer,buffersize);
+    send_hpsdr_data(rx, buffer, buffersize);
     return;
     QTextStream stream( this->file );
     qint16 leftRXSample;
@@ -2970,16 +3072,12 @@ void DataProcessor::setAudioBuffer(int rx, const CPX &buffer, int buffersize)
             de->io.output_buffer[m_idx++] = leftRXSample;
             de->io.output_buffer[m_idx++] = rightRXSample >> 8;
             de->io.output_buffer[m_idx++] = rightRXSample;
-            de->io.output_buffer[m_idx++] = m_txBuffer[tx_index++];
-            de->io.output_buffer[m_idx++] = m_txBuffer[tx_index++];
-            de->io.output_buffer[m_idx++] = m_txBuffer[tx_index++];
-            de->io.output_buffer[m_idx++] = m_txBuffer[tx_index++];
+            de->io.output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
+            de->io.output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
+            de->io.output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
+            de->io.output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
 
             if (tx_index >= 4096) tx_index = 0;
-
-
-
-
 
  //   qDebug() << "buffer " << de->io.output_buffer[IO_HEADER_SIZE ] << de->io.output_buffer[IO_BUFFER_SIZE - 1] ;
         if (m_idx == IO_BUFFER_SIZE) {
@@ -3050,10 +3148,10 @@ void DataProcessor::setAudioBuffer_old(int rx, const CPX &buffer, int buffersize
         de->io.output_buffer[m_idx++] = leftRXSample;
         de->io.output_buffer[m_idx++] = rightRXSample >> 8;
         de->io.output_buffer[m_idx++] = rightRXSample;
-        de->io.output_buffer[m_idx++] = m_txBuffer[tx_index++];
-        de->io.output_buffer[m_idx++] = m_txBuffer[tx_index++];
-        de->io.output_buffer[m_idx++] = m_txBuffer[tx_index++];
-        de->io.output_buffer[m_idx++] = m_txBuffer[tx_index++];
+        de->io.output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
+        de->io.output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
+        de->io.output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
+        de->io.output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
 
         if (tx_index >= 4096) tx_index = 0;
 

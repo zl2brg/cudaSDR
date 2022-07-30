@@ -42,6 +42,8 @@ class Transmitter : public QObject {
 public:
     explicit Transmitter(int transmitter = 0);
     ~Transmitter() override;
+     double getNextInternalSideToneSample();
+     double getNextSideToneSample();
 
 
 private:
@@ -73,6 +75,7 @@ private:
 
     double cw_shape_buffer48[BUFFER_SIZE];
     double cw_shape_buffer192[BUFFER_SIZE];
+    double cw_keyer_sidetone_frequency = 1000;
 
 
 
