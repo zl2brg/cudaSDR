@@ -2319,7 +2319,9 @@ DataProcessor::DataProcessor(
 	m_deviceSendDataSignature[2] = (char)0x01;
 	m_deviceSendDataSignature[3] = (char)0x02;
     InitCPX(m_iq_output_buffer, DSP_SAMPLE_SIZE, 0.0f);
-	//socket = new QUdpSocket();
+    InitCPX(rx_audio_buffer, DSP_SAMPLE_SIZE, 0.0f);
+
+    //socket = new QUdpSocket();
 	m_deviceAddress = set->getCurrentMetisCard().ip_address;
 
     file = new QFile("data.txt");
@@ -2766,10 +2768,11 @@ void DataProcessor::send_hpsdr_data(int rx, const CPX &buffer, int buffersize) {
     qint16 leftRXSample;
     qint16 rightRXSample;
     char *ptr;
-
+/* buffer rx audio */
     for (int j = 0; j < buffersize; j++)
-        /* buffer rx audio */
-        rx_audio_buffer.at(j) = buffer.at(j);
+        {
+        rx_audio_buffer[j] = buffer[j];
+    }
 
 
     if (set->is_transmitting())

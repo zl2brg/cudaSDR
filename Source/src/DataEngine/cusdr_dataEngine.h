@@ -446,7 +446,6 @@ private:
 	QString			m_message;
     float           tx_mic_data[DSP_SAMPLE_SIZE];
     double          cw_shape_buffer[DSP_SAMPLE_SIZE * 2];
-    CPX             rx_audio_buffer[DSP_SAMPLE_SIZE];
 
 
 	QTime			m_SyncChangedTime;
@@ -470,6 +469,8 @@ private:
 	int				m_sendState;
 	int				m_chirpStartSample;
     CPX             m_iq_output_buffer;
+    CPX             rx_audio_buffer;
+
     QFile   *file;
 
 
