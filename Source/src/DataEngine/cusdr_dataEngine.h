@@ -396,6 +396,7 @@ public:
 		QSDR::_HWInterfaceMode hwMode = QSDR::NoInterfaceMode);
     int tx_index =0;
     void    get_cwsample();
+    void add_rx_audio_sample();
 
 	~DataProcessor() override;
 
@@ -470,6 +471,7 @@ private:
 	int				m_chirpStartSample;
     CPX             m_iq_output_buffer;
     CPX             rx_audio_buffer;
+    volatile int       rx_audio_ptr;
 
     QFile   *file;
 
@@ -492,7 +494,7 @@ private:
     void            get_tx_iqData();
     void            buffer_tx_iq_sample(int i, int q);
     void    DumpBuffer(unsigned char *buffer,int length, const char *who);
-    void    add_mic_sample(double sample);
+    void add_mic_sample();
     void    add_audio_sample(qint16 leftAudioSample, qint16 rightAudioSample);
 
     void full_txBuffer();
@@ -510,6 +512,7 @@ signals:
 	void	disconnectedEvent();
 	void	serverVersionEvent(QString version);
     void    keyer_event(int val, int cw);
+
 
 
 };

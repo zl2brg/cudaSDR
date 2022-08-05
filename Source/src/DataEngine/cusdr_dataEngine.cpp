@@ -2761,6 +2761,18 @@ void DataProcessor::buffer_tx_data()
 
 }
 
+void DataProcessor::add_rx_audio_sample(){
+qint16 leftRXSample;
+qint16 rightRXSample;
+qDebug() << "RX ptr" << rx_audio_ptr << m_idx;
+    leftRXSample = (qint16) (rx_audio_buffer.at(rx_audio_ptr).re * 32767.0f);
+    rightRXSample = (qint16) (rx_audio_buffer.at(rx_audio_ptr).im * 32767.0f);
+    de->io.output_buffer[m_idx++] = leftRXSample >> 8;
+    de->io.output_buffer[m_idx++] = leftRXSample;
+    de->io.output_buffer[m_idx++] = rightRXSample >> 8;
+    de->io.output_buffer[m_idx++] = rightRXSample;
+    rx_audio_ptr++;
+}
 
 /* Sends RX Audio and tx iq data back to hpsdr. Always at 48 KHz bandwidth */
 
@@ -2768,39 +2780,32 @@ void DataProcessor::send_hpsdr_data(int rx, const CPX &buffer, int buffersize) {
     qint16 leftRXSample;
     qint16 rightRXSample;
     char *ptr;
+    rx_audio_ptr = 0;
 /* buffer rx audio */
+qDebug() << "buffer size" << buffersize;
     for (int j = 0; j < buffersize; j++)
         {
         rx_audio_buffer[j] = buffer[j];
     }
 
-
-    if (set->is_transmitting())
-    {
-     if  (!tx_index)  get_tx_iqData();
-    }
-    else  memset(&m_tx_iq_Buffer, 0x0, sizeof(m_tx_iq_Buffer));
-
-        for (int j = 0; j < buffersize; j++) {
-            /* buffer rx audio */
-            leftRXSample = (qint16) (rx_audio_buffer.at(j).re * 32767.0f);
-            rightRXSample = (qint16) (rx_audio_buffer.at(j).im * 32767.0f);
-            de->io.output_buffer[m_idx++] = leftRXSample >> 8;
-            de->io.output_buffer[m_idx++] = leftRXSample;
-            de->io.output_buffer[m_idx++] = rightRXSample >> 8;
-            de->io.output_buffer[m_idx++] = rightRXSample;
-
-            add_audio_sample(leftRXSample, rightRXSample);
+    if (set->is_transmitting()) {
+        if (!tx_index) get_tx_iqData();
+    } else memset(&m_tx_iq_Buffer, 0x0, sizeof(m_tx_iq_Buffer));
+    while (rx_audio_ptr  <   BUFFER_SIZE) {
+        add_rx_audio_sample();
+        add_mic_sample();
+        if (m_idx == IO_BUFFER_SIZE) {
+            full_txBuffer();
         }
 
+    }
+    rx_audio_ptr=0;
 }
 
 
 void DataProcessor::add_audio_sample(qint16 leftRXSample, qint16 rightRXSample)
 {
-
     buffer_tx_data();
-
     if (m_idx == IO_BUFFER_SIZE)
     {
         full_txBuffer();
@@ -2828,16 +2833,13 @@ void DataProcessor::processMicData() {
 
 }
 
-void DataProcessor::add_mic_sample(double sample)
+void DataProcessor::add_mic_sample()
 {
-   mic_buffer[mic_buffer_index++] = sample;
-   mic_buffer[mic_buffer_index++] = 0.0;
-   if (mic_buffer_index >= DSP_SAMPLE_SIZE)
-   {
-       mic_buffer_index = 0;
-       send_mic_data();
-   }
-
+    de->io.output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
+    de->io.output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
+    de->io.output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
+    de->io.output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
+    if (tx_index >= 4096) tx_index = 0;
 }
 
 /* cw code from pihpsdr */
@@ -2946,6 +2948,7 @@ void DataProcessor::send_mic_data() {
             buffer_tx_iq_sample(leftTXSample, rightTXSample);
         }
 
+
     }
     mic_buffer_index = 0;
 }
@@ -2977,6 +2980,7 @@ void DataProcessor::fetch_MicData(){
 
 }
 
+/*  processes mic samples ready to transmit */
 void DataProcessor::get_tx_iqData(){
 
     int error;
@@ -2988,42 +2992,27 @@ void DataProcessor::get_tx_iqData(){
     int i,q;
     fetch_MicData();
 
-    if ( de->io.ccTx.mox ||  de->io.ccTx.ptt )
-        {
+    if ( de->io.ccTx.mox ||  de->io.ccTx.ptt ) {
 
-            if  (de->io.ccTx.mode == DSPMode::CWL  || de->io.ccTx.mode == DSPMode::CWU)
-
-            {
-
-
-
-            }
-
-            else {
-
-                fexchange0(TX_ID, mic_buffer, (double *) m_iq_output_buffer.data(), &error);
-
-            }
-            Spectrum0(1, TX_ID, 0, 0, (double *) m_iq_output_buffer.data());
-
-        }
+        fexchange0(TX_ID, mic_buffer, (double *) m_iq_output_buffer.data(), &error);
+        Spectrum0(1, TX_ID, 0, 0, (double *) m_iq_output_buffer.data());
 
 
 /* Queue the tx data */
-            int tx_index = 0;
-            for (int j = 0; j < DSP_SAMPLE_SIZE; j++) {
-                qs = m_iq_output_buffer.at(j).re;
-                is = m_iq_output_buffer.at(j).im;
-                rightTXSample = is >= 0.0 ? (long) floor(is * gain + 0.5) : (long) ceil(is * gain - 0.5);
-                leftTXSample = qs >= 0.0 ? (long) floor(qs * gain + 0.5) : (long) ceil(qs * gain - 0.5);
-                i = (int) leftTXSample;
-                q = (int) rightTXSample;
-                m_tx_iq_Buffer[tx_index++] = i >> 8;
-                m_tx_iq_Buffer[tx_index++] = i;
-                m_tx_iq_Buffer[tx_index++] = q >> 8;
-                m_tx_iq_Buffer[tx_index++] = q;
-            }
-
+        int tx_index = 0;
+        for (int j = 0; j < DSP_SAMPLE_SIZE; j++) {
+            qs = m_iq_output_buffer.at(j).re;
+            is = m_iq_output_buffer.at(j).im;
+            rightTXSample = is >= 0.0 ? (long) floor(is * gain + 0.5) : (long) ceil(is * gain - 0.5);
+            leftTXSample = qs >= 0.0 ? (long) floor(qs * gain + 0.5) : (long) ceil(qs * gain - 0.5);
+            i = (int) leftTXSample;
+            q = (int) rightTXSample;
+            m_tx_iq_Buffer[tx_index++] = i >> 8;
+            m_tx_iq_Buffer[tx_index++] = i;
+            m_tx_iq_Buffer[tx_index++] = q >> 8;
+            m_tx_iq_Buffer[tx_index++] = q;
+        }
+    }
 
 }
 
