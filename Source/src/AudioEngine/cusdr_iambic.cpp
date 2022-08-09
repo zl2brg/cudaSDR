@@ -17,6 +17,7 @@
 #   define CW_ENGINE_DEBUG nullDebug()
 #endif
 
+int cw_keyer_spacing=10;
 
 void iambic::keyer_event(int left, int state) {
     bool cw_key_hit;
@@ -86,7 +87,6 @@ void  iambic::Stop(){
 
 void iambic::run()
 {
-        qDebug() << "Run";
         struct timespec loop_delay;
         int interval = 1000000; // 1 ms
         int i;
@@ -95,7 +95,7 @@ void iambic::run()
         bool cw_breakin = false;
         bool cw_not_ready = false;
         bool enforce_cw_vox = false;
-
+        cwvox=0;
         while(!m_ThreadQuit) {
 
             if (cw_event) {
@@ -149,7 +149,7 @@ void iambic::run()
                                     set_keyer_out(1);
                                     clock_gettime(CLOCK_MONOTONIC, &loop_delay);
                                     // wait until dash is released. Check once a milli-sec
-                                    for (;;) {
+                                    while (*kdash) {
 
 
                                         loop_delay.tv_nsec += interval;
@@ -157,16 +157,15 @@ void iambic::run()
                                             loop_delay.tv_nsec -= NSEC_PER_SEC;
                                             loop_delay.tv_sec++;
                                         }
-                                        if (!*kdash) break;
                                         clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &loop_delay, NULL);
                                        //msleep(1);
                                     }
-                                }
+
                                 // dash released.
                                 set_keyer_out(0);
                                 // since we stay in CHECK mode, re-trigger cwvox here
                                 cwvox = cw_keyer_hang_time;
-
+                                }
                                 if (*kdot) {
                                     // "bug" mode: dot key activates automatic dots
                                     key_state = SENDDOT;
@@ -203,7 +202,6 @@ void iambic::run()
 
                         case DOTDELAY:
                             kdelay++;
-            bool cw_keyer_spacing;
             if (kdelay > dot_length) {
                                 if (cw_keyer_mode == KEYER_STRAIGHT) {
                                     // bug mode: continue sending dots or exit, depending on current dot key status
@@ -319,6 +317,5 @@ void iambic::ext_mox_update() {
 }
 
 void iambic::set_keyer_out(int i) {
-
     emit key_down(i);
 }

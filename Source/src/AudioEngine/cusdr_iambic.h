@@ -58,7 +58,7 @@ public:
         volatile int *kmeml;
         RadioState radioState;
         DSPMode txmode;
-        int cwvox;
+        volatile int cwvox;
         int cw_keyer_hang_time=10;
         int cw_keyer_mode;
         int cw_keyer_speed = 12;

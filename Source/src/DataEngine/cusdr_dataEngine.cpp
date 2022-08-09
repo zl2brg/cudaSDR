@@ -2762,9 +2762,8 @@ void DataProcessor::buffer_tx_data()
 }
 
 void DataProcessor::add_rx_audio_sample(){
-qint16 leftRXSample;
-qint16 rightRXSample;
-qDebug() << "RX ptr" << rx_audio_ptr << m_idx;
+qint16 leftRXSample = 0;
+qint16 rightRXSample = 0;
     leftRXSample = (qint16) (rx_audio_buffer.at(rx_audio_ptr).re * 32767.0f);
     rightRXSample = (qint16) (rx_audio_buffer.at(rx_audio_ptr).im * 32767.0f);
     de->io.output_buffer[m_idx++] = leftRXSample >> 8;
@@ -2777,12 +2776,9 @@ qDebug() << "RX ptr" << rx_audio_ptr << m_idx;
 /* Sends RX Audio and tx iq data back to hpsdr. Always at 48 KHz bandwidth */
 
 void DataProcessor::send_hpsdr_data(int rx, const CPX &buffer, int buffersize) {
-    qint16 leftRXSample;
-    qint16 rightRXSample;
-    char *ptr;
+    Q_UNUSED(rx);
     rx_audio_ptr = 0;
 /* buffer rx audio */
-qDebug() << "buffer size" << buffersize;
     for (int j = 0; j < buffersize; j++)
         {
         rx_audio_buffer[j] = buffer[j];
@@ -2791,9 +2787,10 @@ qDebug() << "buffer size" << buffersize;
     if (set->is_transmitting()) {
         if (!tx_index) get_tx_iqData();
     } else memset(&m_tx_iq_Buffer, 0x0, sizeof(m_tx_iq_Buffer));
-    while (rx_audio_ptr  <   BUFFER_SIZE) {
+        while (rx_audio_ptr  <   BUFFER_SIZE) {
         add_rx_audio_sample();
         add_mic_sample();
+
         if (m_idx == IO_BUFFER_SIZE) {
             full_txBuffer();
         }
