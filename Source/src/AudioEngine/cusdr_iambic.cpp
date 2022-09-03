@@ -72,7 +72,8 @@ Stop();
 }
 
 void iambic::Start(){
-  start(QThread::NormalPriority);
+   qDebug() << "Start";
+  start(QThread::TimeCriticalPriority);
 }
 
 

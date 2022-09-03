@@ -63,8 +63,6 @@
 //#include "ui_display_ctrl.h"
 //#include "ui_radio_ctrl.h"
 #include "setupwidget.h"
-#include "mini_mode_widget.h"
-#include"radio_widget.h"
 #include "tx_settings_dialog.h"
 
 #ifdef LOG_MAIN
@@ -222,16 +220,14 @@ private:
 	DataEngine*			m_dataEngine;
 	RadioPopupWidget*	m_radioPopupWidget;
 	ServerWidget*		m_serverWidget;
-	cusdr_SetupWidget*  m_hpsdrTabWidget;
+    QTabWidget*  m_hpsdrTabWidget;
 	RadioTabWidget*		m_radioTabWidget;
 	DisplayTabWidget*	m_displayTabWidget = NULL;
 	OGLDisplayPanel*	m_oglDisplayPanel;
 	//CudaInfoWidget*	m_cudaInfoWidget;
 	QGLWidebandPanel*	m_wbDisplay;
-    MiniModeWidget*     miniModeWidget;
     NetworkIODialog*	m_netIODialog;
 	WarningDialog*		m_warningDialog;
-    RadioCtrl*          m_radioCtrl;
     tx_settings_dialog*       m_audioInput;
 	HamBand				m_currentHamBand;
 

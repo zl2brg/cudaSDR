@@ -67,12 +67,17 @@ Settings::Settings(QObject *parent)
     settings = new QSettings(QCoreApplication::applicationDirPath() + "/" + settingsFilename, QSettings::IniFormat);
     getConfigPath();
     m_titleString = "cudaSDR BETA";
+    QFile File(":/cusdr_stylesheet.qss");
+    int res =  File.open(QFile::ReadOnly);
+    qDebug() << "RES" << res;
+    appStyleSheet = QLatin1String(File.readAll());
+    File.close();
 
 #ifdef DEBUG
     m_titleString = "cudaSDR Debug BETA ";
 #endif
 
-    m_versionString = "v0.4.0.1 - ZL2BRG";
+    m_versionString = "v0.4.0.2 - ZL2BRG";
 
     qDebug() << qPrintable(m_titleString);
 
@@ -183,11 +188,11 @@ int Settings::loadSettings() {
     // Window settings
     value = settings->value("window/minimumWidgetWidth", 300).toInt();
     if (value < 235 || value > 350) m_minimumWidgetWidth = 300;
-    m_minimumWidgetWidth = value;
+    else m_minimumWidgetWidth = value;
 
     value = settings->value("window/minimumGroupBoxWidth", 250).toInt();
     if (value < 230 || value > 295 || value > m_minimumWidgetWidth - 5) m_minimumGroupBoxWidth = 250;
-    m_minimumGroupBoxWidth = value;
+    else m_minimumGroupBoxWidth = value;
 
     value = settings->value("window/multiRxView", 0).toInt();
     if (value < 0 || value > 2) m_multiRxView = 0;
@@ -339,20 +344,27 @@ int Settings::loadSettings() {
     m_fmDeveation = settings->value("fmdeveation",5000).toDouble();
 
     str = settings->value("cw/internal", "off").toString();
+    qDebug() << "internal" << str;
     if (str.toLower() == "on")
-        m_internal_cw=true;
-    else m_internal_cw = false;
+        m_internal_cw=1;
+    else m_internal_cw = 0;
 
     str = settings->value("cw/key_reversed", "off").toString();
     if (str.toLower() == "on")
-        m_cw_key_reversed=true;
-    else m_cw_key_reversed = false;
+        m_cw_key_reversed=1;
+    else m_cw_key_reversed = 0;
+    str = settings->value("cw/key_spacing", "off").toString();
+    if (str.toLower() == "on")
+        m_cw_keyer_spacing=1;
+    else m_cw_keyer_spacing = 0;
+
     m_cw_keyer_speed = settings->value("cw/keyer_speed",12).toInt();
     m_cw_keyer_mode = settings->value("cw/keyer_mode",0).toInt();
     m_cw_sidetone_volume = settings->value("cw/sidetone_volume",64).toInt();
     m_cw_sidetone_freq =  settings->value("cw/sidetone_freq",1000).toInt();
     m_cw_ptt_delay = settings->value("cw/ptt_delay",32).toInt();
     m_cw_hang_time  =settings->value("cw/hang_time",32).toInt();
+    m_cw_keyer_weight = settings->value("cw/keyer_weight",20).toInt();
 
 
 
@@ -1652,18 +1664,23 @@ int Settings::saveSettings() {
     settings->setValue("am_carrierlevel",m_amCarrierLevel);
     settings->setValue("audiocompression",m_audioCompression);
     settings->setValue("fmdeveation",m_fmDeveation);
-    if (m_internal_cw == true)
+    if (m_internal_cw )
         settings->setValue("cw/internal", "on");
     else settings->setValue("cw/internal", "off");
-    if (m_cw_key_reversed == true)
+    if (m_cw_key_reversed )
         settings->setValue("cw/key_reversed","on");
     else settings->setValue("cw/key_reversed","off");
+    if (m_cw_keyer_spacing )
+        settings->setValue("cw/key_spacing","on");
+    else settings->setValue("cw/key_spacing","off");
+
     settings->setValue("cw/keyer_speed", m_cw_keyer_speed);
     settings->setValue("cw/keyer_mode", m_cw_keyer_mode);
     settings->setValue("cw/sidetone_volume", m_cw_sidetone_volume);
     settings->setValue("cw/sidetone_freq", m_cw_sidetone_freq);
     settings->setValue("cw/hangime", m_cw_hang_time);
     settings->setValue("cw/ptt_delay", m_cw_ptt_delay);
+    settings->setValue("cw/keyer_weight", m_cw_keyer_weight);
 
 
 
@@ -2452,132 +2469,128 @@ void Settings::debugSystemState() {
 }
 
 QString Settings::getSDRStyle() {
-
+    return "";
     return sdrStyle;
 }
 
 QString Settings::getWidgetStyle() {
-
+    return "";
     return widgetStyle;
 }
 
 QString Settings::getMainWindowStyle() {
-
+    return "";
     return mainWindowStyle;
 }
 
 QString Settings::getDockStyle() {
-
+    return "";
     return dockStyle;
 }
 
 QString Settings::getDisplayToolbarStyle() {
-
+    return "";
     return displayToolbarStyle;
 }
 
 QString Settings::getMainBtnToolbarStyle() {
-
+    return "";
     return mainBtnToolbarStyle;
 }
 
 QString Settings::getStatusbarStyle() {
-
+    return "";
     return statusbarStyle;
 }
 
 QString Settings::getMessageBoxStyle() {
-
+    return "";
     return messageBoxStyle;
 }
 
 QString Settings::getLineEditStyle() {
-
+    return "";
     return lineEditStyle;
 }
 
 QString Settings::getDialogStyle() {
-
+    return "";
     return dialogStyle;
 }
 
 QString Settings::getColorDialogStyle() {
-
+    return "";
     return colorDialogStyle;
 }
 
 QString Settings::getItemStyle() {
-
+    return "";
     return itemStyle;
 }
 
 QString Settings::getLabelStyle() {
-
     return labelStyle;
 }
 
 QString Settings::getSliderLabelStyle() {
-
+    return "";
     return sliderLabelStyle;
 }
 
 QString Settings::getTableStyle() {
-
+    return "";
     return tableStyle;
 }
 
 QString Settings::getComboBoxStyle() {
-
+    return "";
     return comboBoxStyle;
 }
 
 QString Settings::getSpinBoxStyle() {
-
+    return "";
     return spinBoxStyle;
 }
 
 QString Settings::getDoubleSpinBoxStyle() {
-
+    return "";
     return dSpinBoxStyle;
 }
 
 QString Settings::getMenuStyle() {
-
+    return "";
     return menuStyle;
 }
 
 QString Settings::getMenuBarStyle() {
-
+    return "";
     return "";
 }
 
 
 const QString Settings::getMiniButtonStyle() {
-
-    return sliderLabelStyle;
-//    return miniButtonStyle;
+    return miniButtonStyle;
 }
 
 
 
 QString Settings::getVolSliderStyle() {
-
+    return "";
     return volSliderStyle;
 }
 
 QString Settings::getSplitterStyle() {
-
+    return "";
     return splitterStyle;
 }
 
 QString Settings::getFrameStyle() {
-
+    return "";
     return frameStyle;
 }
 
 QString Settings::getTabWidgetStyle() {
-
-    return tabWidgetStyle;
+        return tabWidgetStyle;
 }
 
 //QString Settings::getNewSliderStyle() {
@@ -2586,7 +2599,7 @@ QString Settings::getTabWidgetStyle() {
 //}
 
 QString Settings::getCheckBoxStyle() {
-
+    return "";
     return checkboxStyle;
 }
 
@@ -5170,51 +5183,51 @@ void Settings::setRepeaterMode(bool mode){
    emit repeaterModeChanged(mode);
 }
 
-void Settings::setRepeaterOffset(double offset)
+void Settings::setRepeaterOffset(int offset)
 {
-m_repeaterOffset = offset;
+m_repeaterOffset = (double)offset;
  emit repeaterOffsetchanged(offset);
 }
 
-void Settings::setFMPreEmphasize(double value)
+void Settings::setFMPreEmphasize(int value)
 {
 
-    m_fmPremphasize=value;
+    m_fmPremphasize=(double)value;
     emit fmPremphasizechanged(value);
 
 }
 
-void Settings::setFmDeveation(double value)
+void Settings::setFmDeveation(int value)
 {
-    m_fmDeveation = value;
+    m_fmDeveation = (double)value;
     emit fmdeveationchanged(value);
 }
 
-void Settings::setAMCarrierLevel(double level)
+void Settings::setAMCarrierLevel(int level)
 {
     qDebug() << "set Am carrier level" << level;
-    m_amCarrierLevel = level;
+    m_amCarrierLevel = (double) level;
  emit amCarrierlevelchanged(level);
 }
 
-void Settings::setAudioCompression(double level){
+void Settings::setAudioCompression(int level){
 
 m_audioCompression = level;
 emit audioCompressionchanged(level);
 }
 
 bool Settings::isInternalCw() const {
-    return true;
-    return m_internal_cw;
+    return (m_internal_cw > 0);
 }
 
-void Settings::setInternalCw(bool InternalCw) {
+void Settings::setInternalCw(int InternalCw) {
      m_internal_cw = InternalCw;
+     emit(InternalCwChanged (InternalCw));
 }
 
 int Settings::getCwKeyerSpeed() const {
-    return 10;
     return m_cw_keyer_speed;
+
 }
 
 int Settings::getCwKeyerMode() const {
@@ -5223,19 +5236,22 @@ int Settings::getCwKeyerMode() const {
 
 void Settings::setCwKeyerMode(int mCwKeyerMode) {
     m_cw_keyer_mode = mCwKeyerMode;
+    emit(CwKeyerModeChanged(m_cw_keyer_mode));
 }
 
-bool Settings::isCwKeyReversed() const {
-    return m_cw_key_reversed;
+int  Settings::isCwKeyReversed() const {
+      return m_cw_key_reversed;
 }
 
-void Settings::setCwKeyReversed(bool mCwKeyReversed) {
+void Settings::setCwKeyReversed(int mCwKeyReversed) {
     m_cw_key_reversed = mCwKeyReversed;
+    emit(CwKeyReversedChanged(mCwKeyReversed));
 }
 
 
 void Settings::setCwKeyerSpeed(int mCwKeyerSpeed) {
     m_cw_keyer_speed = mCwKeyerSpeed;
+    emit(CwKeyerSpeedChanged(mCwKeyerSpeed));
 }
 
 int Settings::getCwSidetoneVolume() const {
@@ -5244,7 +5260,9 @@ int Settings::getCwSidetoneVolume() const {
 
 void Settings::setCwSidetoneVolume(int mCwSidetoneVolume) {
     m_cw_sidetone_volume = mCwSidetoneVolume;
+    emit(CwSidetoneVolumeChanged(mCwSidetoneVolume));
 }
+
 
 int Settings::getCwPttDelay() const {
     return m_cw_ptt_delay;
@@ -5252,6 +5270,7 @@ int Settings::getCwPttDelay() const {
 
 void Settings::setCwPttDelay(int mCwPttDelay) {
     m_cw_ptt_delay = mCwPttDelay;
+    emit(CwPttDelayChanged(mCwPttDelay));
 }
 
 int Settings::getCwHangTime() const {
@@ -5260,6 +5279,7 @@ int Settings::getCwHangTime() const {
 
 void Settings::setCwHangTime(int mCwHangTime) {
     m_cw_hang_time = mCwHangTime;
+    emit(CwHangTimeChanged(mCwHangTime));
 }
 
 
@@ -5267,6 +5287,35 @@ int Settings::getCwSidetoneFreq() const {
     return m_cw_sidetone_freq;
 }
 
+
+int Settings::getCwKeyerWeight() const {
+    return m_cw_keyer_weight;
+}
+
+
+int Settings::getCwKeyerSpacing() const {
+    return m_cw_keyer_spacing;
+}
+
+
+
+
 void Settings::setCwSidetoneFreq(int mCwSidetoneFreq) {
     m_cw_sidetone_freq = mCwSidetoneFreq;
+    emit(CwSidetoneFreqChanged(mCwSidetoneFreq));
+}
+
+
+void Settings::setCwKeyerWeight(int val){
+    m_cw_keyer_weight= val;
+    qDebug() << "CW weight" << val;
+    emit(CwKeyerWeightChanged(val));
+
+}
+
+
+void Settings::setCwKeyerSpacing(int val) {
+    m_cw_keyer_spacing = val;
+    qDebug() << "CW spacing" << val;
+    emit(CwKeyerSpacingChanged(val));
 }

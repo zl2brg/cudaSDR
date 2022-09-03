@@ -59,8 +59,8 @@ QString mainWindowStyle = QString::fromUtf8(
 		);
 
 QString	widgetStyle = QString::fromUtf8(
-        "background-color: rgba(32, 32, 32, 255); "
-        "color: rgba(166, 196, 208, 255); "
+        "background-color: rgba(255 32, 32, 255); "
+        "color: rgba(255, 0, 208, 255); "
 
 
 		);
@@ -70,6 +70,7 @@ QString itemStyle = QString::fromUtf8(
 		"border: 0px solid; ");
 
 QString	labelStyle = QString::fromUtf8(
+        "background-color: rgba(255 32, 32, 255); "
 		"color: rgba(166, 196, 208, 255);");
 
 QString	tableStyle = QString::fromUtf8(
@@ -283,45 +284,46 @@ const QString	miniButtonStyle = QString::fromUtf8(
 QString	sliderLabelStyle = QString::fromUtf8(
 		"QLabel { "
 		"	color: rgba(126, 156, 168, 255); "
-		"	background: qlineargradient(y1:0, y2:1, stop: 0 #808080, stop: 0.5 #202020, stop: 1 #404040); "
+        "	background: qlineargradient(y1:0, y2:1, stop: 0 #808080, stop: 0.5 #202020, stop: 1 #404040); "
 		"	border: qlineargradient(y1:0, y2:1, stop:0 #B1B1B1, stop:1 #000000); }"
 		);
 
-QString	volSliderStyle = QString::fromUtf8(
-		"QSlider::groove:horizontal {"
-		"	border: qlineargradient(y1:0, y2:1, stop:0 #B1B1B1, stop:1 #000000);"
-		"	background-color: transparent;"
-		"}"
-		"QSlider::handle:horizontal {"
-		"	background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
-		"	stop: 0 #1592ba, stop: 0.5 #00527a, stop: 1 #0582aa);"
-		"	border-radius: 2px;"
-		"	width: 12px;"
-		"} "
-		"QSlider::handle:hover {"
-		"	background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
-		"	stop: 0 #55c2ea, stop: 0.5 #4092ba, stop: 1 #55c2ea);"
-		//"	margin: -4px 0;"
-		"	border: 1px solid #91ebff;"
-		"	border-radius: 2px;"
-		//"	height: 16px;"
-		"}"
-		"QSlider::handle:pressed {"
-		"  background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
-		"	stop: 0 #75e2fa, stop: 0.5 #60a2da, stop: 1 #75e2fa);"
-		"  border: 1px solid #91ebff;"
-		"  border-radius: 2px;"
-		"}"
-		"QSlider::add-page:horizontal {"
-		"	background: qlineargradient(y1:0, y2:1, "
-		"	stop: 0 #808080, stop: 0.5 #202020, stop: 1 #404040);"
-		//"	background-color: transparent;"
-		"}"
-		"QSlider::sub-page:horizontal {"
-		"	background: qlineargradient(y1:0, y2:1, "
-		"		stop: 0 #1592ba, stop: 0.5 #00527a, stop: 1 #0582aa);"
-		//"	background-color: transparent;"
-		"}");
+auto	volSliderStyle = R"(
+		QSlider::groove:horizontal {
+			border: qlineargradient(y1:0, y2:1, stop:0 #B1B1B1, stop:1 #000000);
+			background-color: transparent;
+		}
+		QSlider::handle:horizontal {
+			background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+			stop: 0 #1592ba, stop: 0.5 #00527a, stop: 1 #0582aa);
+			border-radius: 2px;
+			width: 12px;
+		}
+		QSlider::handle:hover {
+			background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+			stop: 0 #55c2ea, stop: 0.5 #4092ba, stop: 1 #55c2ea);
+
+			border: 1px solid #91ebff;
+			border-radius: 2px;
+
+		}
+		QSlider::handle:pressed {
+		  background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+			stop: 0 #75e2fa, stop: 0.5 #60a2da, stop: 1 #75e2fa);
+		  border: 1px solid #91ebff;
+		  border-radius: 2px;
+		}
+		QSlider::add-page:horizontal {
+			background: qlineargradient(y1:0, y2:1,
+			stop: 0 #808080, stop: 0.5 #202020, stop: 1 #404040);
+
+		}
+		QSlider::sub-page:horizontal {
+			background: qlineargradient(y1:0, y2:1,
+				stop: 0 #1592ba, stop: 0.5 #00527a, stop: 1 #0582aa);
+
+		})";
+
 
 
 QString	splitterStyle = QString::fromUtf8(
@@ -368,7 +370,9 @@ QString	frameStyle = QString::fromUtf8(
 	);
 
 QString	tabWidgetStyle = QString::fromUtf8(
+        "font-size: 8pt;"
 		"QTabWidget::pane {"
+        "font-size: 5pt;"
        // "	color: rgba(255, 196, 208, 235);"
 		"	margin-top: 4px;"
 		"	margin-left: 4px;"

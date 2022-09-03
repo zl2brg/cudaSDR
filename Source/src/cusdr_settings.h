@@ -1021,11 +1021,20 @@ signals:
     void amCarrierlevelchanged(double level);
     void audioCompressionchanged(int level);
     void micModeChanged(bool mode);
-
-
     void showRadioPopupChanged(bool value);
-
 	void receiverDataReady();
+
+    void CwHangTimeChanged(int CwHangTime);
+    void CwSidetoneFreqChanged(int CwSidetoneFreq);
+    void CwKeyReversedChanged(int CwKeyReversed);
+    void CwKeyerModeChanged(int CwKeyerMode);
+    void InternalCwChanged(int InternalCW);
+    void CwKeyerSpeedChanged(int CwKeyerSpeed);
+    void CwPttDelayChanged(int CwPttDelay);
+    void CwSidetoneVolumeChanged(int CwSidetoneVolume);
+    void CwKeyerWeightChanged(int CwKeyerWeight);
+    void CwKeyerSpacingChanged(int CwKeyerSpacing);
+
 
 public:
 
@@ -1066,7 +1075,11 @@ public:
 	bool getConnected();
 	bool getClientConnected();
 	bool getTxAllowed();
+    QString appStyleSheet;
 
+    QString get_appStyleSheet(){
+        return appStyleSheet;
+    }
 	QString getTitleStr();
 	QString getVersionStr();
 	QString getSettingsFilename();
@@ -1460,6 +1473,7 @@ public slots:
 	void setFreqRulerPosition(QObject* sender, int rx, float pos);
 	//void setRulerPosition(QObject *sender, float pos);
 
+
 	void setAudioFormat(QObject *sender, const QAudioFormat &format);
 	void setAudioPosition(QObject *sender, qint64 position);
 	void setAudioBuffer(QObject *sender, qint64 position, qint64 length, const QByteArray &buffer);
@@ -1500,12 +1514,13 @@ public slots:
 	void setSpectrumAveraging(QObject *sender, int rx, bool value);
 	void setSpectrumAveragingCnt(QObject *sender, int rx, int value);
 	
-
+/* Waterfall */
 	void setWaterfallTime(int rx, int value);
 	void setWaterfallOffesetLo(int rx, int value);
 	void setWaterfallOffesetHi(int rx, int value);
 	void setPanAveragingMode(int rx,PanAveragingMode mode);
     void setPanDetectorMode(int rx,PanDetectorMode mode);
+    /*Noiseblanker*/
     void setNoiseBlankerMode(int rx, int nb);
 	void setNoiseFilterMode(int rx, int nr);
 	void setNR2GainMethod(int rx, int value);
@@ -1515,11 +1530,22 @@ public slots:
     void setAnf(int rx, bool value);
     void setSnb(int rx, bool value);
     void setRepeaterMode(bool mode);
-    void setRepeaterOffset(double offset);
-    void setAudioCompression(double gain);
-    void setAMCarrierLevel(double level);
-    void setFMPreEmphasize(double level);
-    void setFmDeveation(double level);
+    void setRepeaterOffset(int offset);
+    void setAudioCompression(int level);
+    void setAMCarrierLevel(int level);
+    void setFMPreEmphasize(int level);
+    void setFmDeveation(int level);
+
+    void setCwHangTime(int CwHangTime);
+    void setCwSidetoneFreq(int CwSidetoneFreq);
+    void setCwKeyReversed(int CwKeyReversed);
+    void setCwKeyerMode(int CwKeyerMode);
+    void setInternalCw(int InternalCW);
+    void setCwKeyerSpeed(int CwKeyerSpeed);
+    void setCwPttDelay(int CwPttDelay);
+    void setCwSidetoneVolume(int CwSidetoneVolume);
+    void setCwKeyerWeight(int CwKeyerWeight);
+    void setCwKeyerSpacing(int CwKeyerSpacing);
 
 
 
@@ -1538,20 +1564,16 @@ public:
     bool isInternalCw() const;
     int getCwKeyerSpeed() const;
     int getCwKeyerMode() const;
-    bool isCwKeyReversed() const;
+    int isCwKeyReversed() const;
     int getCwSidetoneFreq() const;
     int getCwSidetoneVolume() const;
     int getCwPttDelay() const;
     int getCwHangTime() const;
+    int getCwKeyerWeight() const;
+    int getCwKeyerSpacing() const;
 
-    void setCwHangTime(int CwHangTime);
-    void setCwSidetoneFreq(int CwSidetoneFreq);
-    void setCwKeyReversed(bool CwKeyReversed);
-    void setCwKeyerMode(int CwKeyerMode);
-    void setInternalCw(bool InternalCW);
-    void setCwKeyerSpeed(int CwKeyerSpeed);
-    void setCwPttDelay(int CwPttDelay);
-    void setCwSidetoneVolume(int CwSidetoneVolume);
+
+
     bool is_transmitting(){
         if (m_radioState > 0) return true;
         else return false;
@@ -1706,8 +1728,10 @@ private:
     double  m_amCarrierLevel;
     int     m_audioCompression;
     double  m_fmDeveation;
-    bool    m_internal_cw;
-    bool    m_cw_key_reversed;
+    int     m_internal_cw;
+    int     m_cw_keyer_spacing;
+    int     m_cw_keyer_weight;
+    int     m_cw_key_reversed;
     int     m_cw_keyer_speed;
     int     m_cw_keyer_mode;
     int     m_cw_sidetone_volume;

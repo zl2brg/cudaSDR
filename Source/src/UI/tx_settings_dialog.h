@@ -32,10 +32,7 @@ signals:
     void micInputChanged(int);
 
 private slots:
-    void audio_input_changed(int index);
-    void audioCompressionChanged(int level);
-    void amCarrierLevelChanged(int level);
-    void fmDeviationChanged(int);
+
 
 
 };

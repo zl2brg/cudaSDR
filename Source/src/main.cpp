@@ -109,6 +109,7 @@ int main(int argc, char *argv[]) {
 
 
     QApplication app(argc, argv);
+
     app.setAttribute(Qt::AA_DontCreateNativeWidgetSiblings);
     QSurfaceFormat format;
     format.setDepthBufferSize(24);
@@ -141,6 +142,8 @@ int main(int argc, char *argv[]) {
                 app.desktop()->availableGeometry()));
 
     splash->show();
+
+    app.setStyleSheet(Settings::instance()->get_appStyleSheet());
 
     float splash_transparency = 0;
     QTime splash_fade_timer;

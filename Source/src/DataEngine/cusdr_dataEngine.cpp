@@ -78,6 +78,8 @@ DataEngine::DataEngine(QObject *parent)
 	, m_cw_sidetone_volume(set->getCwSidetoneVolume())
 	, m_cw_ptt_delay(set->getCwPttDelay())
 	, m_cw_hang_time(set->getCwHangTime())
+    , m_cw_keyer_spacing(set->getCwKeyerSpacing())
+    , m_cw_keyer_weight(set->getCwKeyerWeight())
 	, m_cw_sidetone_freq(set->getCwSidetoneFreq())
 	, m_serverMode(set->getCurrentServerMode())
 	, m_hwInterface(set->getHWInterface())
@@ -366,6 +368,81 @@ void DataEngine::setupConnections() {
             SIGNAL(dspModeChanged(QObject *, int, DSPMode)),
             this,
             SLOT(dspModeChanged(QObject *, int, DSPMode)));
+
+    CHECKED_CONNECT(
+            set,
+            SIGNAL(dspModeChanged(QObject *, int, DSPMode)),
+            this,
+            SLOT(dspModeChanged(QObject *, int, DSPMode)));
+
+
+    CHECKED_CONNECT(
+            set,
+            SIGNAL(CwHangTimeChanged(int)),
+            this,
+            SLOT(CwHangTimeChanged(int)));
+
+    CHECKED_CONNECT(
+            set,
+            SIGNAL(CwSidetoneFreqChanged(int)),
+            this,
+            SLOT(CwSidetoneFreqChanged(int)));
+
+
+    CHECKED_CONNECT(
+            set,
+            SIGNAL(CwKeyReversedChanged(int)),
+            this,
+            SLOT(CwKeyReversedChanged(int)));
+
+    CHECKED_CONNECT(
+            set,
+            SIGNAL(CwKeyReversedChanged(int)),
+            this,
+            SLOT(CwKeyReversedChanged(int)));
+
+    CHECKED_CONNECT(
+            set,
+            SIGNAL(CwKeyerModeChanged(int)),
+            this,
+            SLOT(CwKeyerModeChanged(int)));
+
+    CHECKED_CONNECT(
+               set,
+               SIGNAL(InternalCwChanged(int)),
+               this,
+               SLOT(InternalCwChanged(int)));
+
+    CHECKED_CONNECT(
+               set,
+               SIGNAL(CwKeyerSpeedChanged(int)),
+               this,
+               SLOT(CwKeyerSpeedChanged(int)));
+
+
+    CHECKED_CONNECT(
+               set,
+               SIGNAL(CwPttDelayChanged(int)),
+               this,
+               SLOT(CwPttDelayChanged(int)));
+
+    CHECKED_CONNECT(
+               set,
+               SIGNAL(CwSidetoneVolumeChanged(int)),
+               this,
+               SLOT(CwSidetoneVolumeChanged(int)));
+
+    CHECKED_CONNECT(
+            set,
+            SIGNAL(CwKeyerWeightChanged(int)),
+            this,
+            SLOT(CwKeyerWeightChanged(int)));
+
+    CHECKED_CONNECT(
+            set,
+            SIGNAL(CwKeyerSpacingChanged(int)),
+                    this,
+            SLOT(CwKeyerSpacingChanged(int)));
 
 
 }
@@ -2319,7 +2396,6 @@ DataProcessor::DataProcessor(
 	m_deviceSendDataSignature[2] = (char)0x01;
 	m_deviceSendDataSignature[3] = (char)0x02;
     InitCPX(m_iq_output_buffer, DSP_SAMPLE_SIZE, 0.0f);
-    InitCPX(rx_audio_buffer, DSP_SAMPLE_SIZE, 0.0f);
 
     //socket = new QUdpSocket();
 	m_deviceAddress = set->getCurrentMetisCard().ip_address;
@@ -2761,11 +2837,7 @@ void DataProcessor::buffer_tx_data()
 
 }
 
-void DataProcessor::add_rx_audio_sample(){
-qint16 leftRXSample = 0;
-qint16 rightRXSample = 0;
-    leftRXSample = (qint16) (rx_audio_buffer.at(rx_audio_ptr).re * 32767.0f);
-    rightRXSample = (qint16) (rx_audio_buffer.at(rx_audio_ptr).im * 32767.0f);
+void DataProcessor::add_rx_audio_sample(qint16 leftRXSample, qint16 rightRXSample) {
     de->io.output_buffer[m_idx++] = leftRXSample >> 8;
     de->io.output_buffer[m_idx++] = leftRXSample;
     de->io.output_buffer[m_idx++] = rightRXSample >> 8;
@@ -2777,26 +2849,63 @@ qint16 rightRXSample = 0;
 
 void DataProcessor::send_hpsdr_data(int rx, const CPX &buffer, int buffersize) {
     Q_UNUSED(rx);
+    qint16 leftRXSample;
+    qint16 rightRXSample;
+    double cw_ramp;
+    double cw_sample;
+    double cw_keyer_sidetone_volume=100.5;
     rx_audio_ptr = 0;
 /* buffer rx audio */
     for (int j = 0; j < buffersize; j++)
         {
-        rx_audio_buffer[j] = buffer[j];
-    }
+        rx_audio_buffer[j].re = buffer[j].re;
+        rx_audio_buffer[j].im = buffer[j].im;
 
-    if (set->is_transmitting()) {
-        if (!tx_index) get_tx_iqData();
-    } else memset(&m_tx_iq_Buffer, 0x0, sizeof(m_tx_iq_Buffer));
-        while (rx_audio_ptr  <   BUFFER_SIZE) {
-        add_rx_audio_sample();
-        add_mic_sample();
-
-        if (m_idx == IO_BUFFER_SIZE) {
-            full_txBuffer();
         }
 
+    if (set->is_transmitting()) {
+
+        if (de->io.ccTx.mode == DSPMode::CWL || de->io.ccTx.mode == DSPMode::CWU)
+        {
+
+            for (int j = 0; j < BUFFER_SIZE; j++)
+            {
+               cw_ramp = get_cwsample();
+               cw_sample=0.00197 * de->TX.getNextSideToneSample() * cw_keyer_sidetone_volume * cw_ramp;
+//               qDebug() << cw_ramp << j << m_idx << cw_sample;
+               leftRXSample = (qint16) (cw_sample * 32767.0f);
+               rightRXSample = (qint16) (cw_sample * 32767.0f);
+               m_iq_output_buffer[j].im = cw_ramp;
+               m_iq_output_buffer[j].re = 0.0;
+
+               add_rx_audio_sample(leftRXSample, rightRXSample);
+               add_tx_iq_sample(cw_ramp,0.0);
+                if (m_idx == IO_BUFFER_SIZE) {
+                    full_txBuffer();
+                }
+            }
+            Spectrum0(1, TX_ID, 0, 0, (double *) m_iq_output_buffer.data());
+            }
+
+
+        }
+      else{
+
+     memset(&m_tx_iq_Buffer, 0x0, sizeof(m_tx_iq_Buffer));
+        rx_audio_ptr = 0;
+        while (rx_audio_ptr  <   BUFFER_SIZE) {
+            leftRXSample = (qint16) (rx_audio_buffer[rx_audio_ptr].re * 32767.0f);
+            rightRXSample = (qint16) (rx_audio_buffer[rx_audio_ptr].im * 32767.0f);
+            add_rx_audio_sample(leftRXSample, rightRXSample);
+            add_mic_sample();
+
+            if (m_idx == IO_BUFFER_SIZE) {
+                full_txBuffer();
+            }
+        }
+        rx_audio_ptr=0;
     }
-    rx_audio_ptr=0;
+
 }
 
 
@@ -2812,16 +2921,25 @@ void DataProcessor::add_audio_sample(qint16 leftRXSample, qint16 rightRXSample)
 }
 
 
+void DataProcessor::add_tx_iq_sample(double i, double q)
+{
+    long   leftTXSample;
+    long   rightTXSample;
+    double gain = 32767.0f;
+
+    rightTXSample = i >= 0.0 ? (long) floor(i * gain + 0.5) : (long) ceil(i * gain - 0.5);
+    leftTXSample =  q >= 0.0 ? (long) floor(q * gain + 0.5) : (long) ceil(q * gain - 0.5);
+    buffer_tx_iq_sample(leftTXSample,rightTXSample);
+
+}
+
 void DataProcessor::buffer_tx_iq_sample(int i, int q)
 {
     m_tx_iq_Buffer[m_idx++] = i >> 8;
     m_tx_iq_Buffer[m_idx++] = i;
     m_tx_iq_Buffer[m_idx++] = q >> 8;
     m_tx_iq_Buffer[m_idx++] = q;
-    if (m_idx == IO_BUFFER_SIZE) {
-        full_txBuffer();
-    }
-}
+   }
 
 
 
@@ -2840,7 +2958,7 @@ void DataProcessor::add_mic_sample()
 }
 
 /* cw code from pihpsdr */
-void DataProcessor::get_cwsample() {
+double DataProcessor::get_cwsample() {
     float cwsample;
     double mic_sample_double;
     double ramp;
@@ -2864,7 +2982,9 @@ void DataProcessor::get_cwsample() {
 //      Note that usually, the pulse is much broader than the ramp,
 //      that is, cw_key_down and cw_key_up are much larger than RAMPLEN.
 //
-        cw_not_ready=0;
+        if (cw_not_ready)             qDebug() << QTime::currentTime().msec() <<" cw key down";
+
+    cw_not_ready=0;
         if (de->cw_key_down > 0 ) {
             if (cw_shape < RAMPLEN) cw_shape++;	// walk up the ramp
             cw_key_down--;			// decrement key-up counter
@@ -2876,47 +2996,9 @@ void DataProcessor::get_cwsample() {
             if (cw_key_up > 0) cw_key_up--; // decrement key-down counter
             updown=0;
         }
-        //
-        // store the ramp value in cw_shape_buffer, but also use it for shaping the "local"
-        // side tone
 
-        ramp=cwramp48[cw_shape];
-        cwsample=0.00197 * de->TX.getNextSideToneSample() * cw_keyer_sidetone_volume * ramp;
-//        if(active_receiver->local_audio) cw_audio_write(active_receiver,cwsample);
-        cw_shape_buffer[mic_buffer_index]=ramp;
-        //
-        // In the new protocol, we MUST maintain a constant flow of audio samples to the radio
-        // (at least for ANAN-200D and ANAN-7000 internal side tone generation)
-        // So we ship out audio: silence if CW is internal, side tone if CW is local.
-        //
-        // Furthermore, for each audio sample we have to create four TX samples. If we are at
-        // the beginning of the ramp, these are four zero samples, if we are at the, it is
-        // four unit samples, and in-between, we use the values from cwramp192.
-        // Note that this ramp has been extended a little, such that it begins with four zeros
-        // and ends with four times 1.0.
-        //
+        return cwramp48[cw_shape] * 100;
 
-
-//
-//	If no longer transmitting, or no longer doing CW: reset pulse shaper.
-//	This will also swallow any pending CW in rigtl CAT CW and wipe out
-//      cw_shape_buffer very quickly. In order to tell rigctl etc. that CW should be
-//	aborted, we also use the cw_not_ready flag.
-//
-        cw_not_ready=1;
-        cw_key_up=0;
-        cw_key_down=0;
-        cw_shape=0;
-        cw_shape_buffer[mic_buffer_index]=0.0;
-
-
-    mic_buffer[mic_buffer_index*2]=mic_sample_double;
-    mic_buffer[(mic_buffer_index*2)+1]=0.0; //mic_sample_double;
-    mic_buffer_index++;
-    if(mic_buffer_index >= DSP_SAMPLE_SIZE) {
-        full_txBuffer();
-        mic_buffer_index=0;
-    }
 }
 
 void DataProcessor::send_mic_data() {
@@ -2948,13 +3030,6 @@ void DataProcessor::send_mic_data() {
 
     }
     mic_buffer_index = 0;
-}
-
-double DataProcessor::get_next_mic_sample(){
-    double  result;
-    result = mic_buffer[mic_buffer_index++];
-    if (mic_buffer_index > DSP_SAMPLE_SIZE) mic_buffer_index = 0;
-    return result;
 }
 
 
@@ -3275,7 +3350,7 @@ void DataProcessor::encodeCCBytes() {
     		uchar rxOut;
     		uchar ant;
 
-            de->io.control_out[0] = (de->io.ccTx.mox)? 0x01:0x00; // C0
+            de->io.control_out[0] = 0x0; // C0
     		de->io.control_out[1] = 0x0; // C1
     		de->io.control_out[2] = 0x0; // C2
     		de->io.control_out[3] = 0x0; // C3
@@ -3398,9 +3473,6 @@ void DataProcessor::encodeCCBytes() {
     		//de->io.control_out[4] |= de->io.ccTx.commonMercuryFrequencies << 7;
 
     		// fill the out buffer with the C&C bytes
-    		for (int i = 0; i < 5; i++)
-    			de->io.output_buffer[i+3] = de->io.control_out[i];
-
     		m_sendState = 1;
     		break;
 
@@ -3411,17 +3483,16 @@ void DataProcessor::encodeCCBytes() {
     		//                     (32 bit binary representation - MSB in C1)
 
 
-    		de->io.output_buffer[3] = 0x2; // C0
+            de->io.control_out[0] = 0x2; // C0
 
-            if (de->io.ccTx.mox)  de->io.output_buffer[3] |= 0x01;
 
     	//	if (de->io.tx_freq_change >= 0) {
         //        qDebug() << "tx freq " <<  de->RX.at(de->io.tx_freq_change)->getCtrFrequency();
 
-                de->io.output_buffer[4] = de->RX.at(de->io.tx_freq_change)->getCtrFrequency() >> 24;
-    		    de->io.output_buffer[5] = de->RX.at(de->io.tx_freq_change)->getCtrFrequency() >> 16;
-    		    de->io.output_buffer[6] = de->RX.at(de->io.tx_freq_change)->getCtrFrequency() >> 8;
-    		    de->io.output_buffer[7] = de->RX.at(de->io.tx_freq_change)->getCtrFrequency();
+                de->io.control_out[1] = de->RX.at(de->io.tx_freq_change)->getCtrFrequency() >> 24;
+                de->io.control_out[2] = de->RX.at(de->io.tx_freq_change)->getCtrFrequency() >> 16;
+                de->io.control_out[3] = de->RX.at(de->io.tx_freq_change)->getCtrFrequency() >> 8;
+                de->io.control_out[4] = de->RX.at(de->io.tx_freq_change)->getCtrFrequency();
     		//    de->io.tx_freq_change = -1;
     	//	}
 
@@ -3449,18 +3520,18 @@ void DataProcessor::encodeCCBytes() {
 
     		if (de->io.rx_freq_change >= 0) {
                 qDebug() << "rx freq " <<  de->RX.at(de->io.rx_freq_change)->getCtrFrequency();
-                de->io.output_buffer[3] = (de->io.rx_freq_change < 7) ? (de->io.rx_freq_change + 2) << 1
-                                              : (de->io.rx_freq_change + 11) << 1;
+                de->io.control_out[0] = 0x04;
+                //(de->io.rx_freq_change < 7) ? (de->io.rx_freq_change + 2) << 1
+//                                              : (de->io.rx_freq_change + 11) << 1;
     			//RRK removed 4HL de->io.output_buffer[3] = (de->io.rx_freq_change + 2) << 1;
-    			de->io.output_buffer[4] = de->RX.at(de->io.rx_freq_change)->getCtrFrequency() >> 24;
-    			de->io.output_buffer[5] = de->RX.at(de->io.rx_freq_change)->getCtrFrequency() >> 16;
-    			de->io.output_buffer[6] = de->RX.at(de->io.rx_freq_change)->getCtrFrequency() >> 8;
-    			de->io.output_buffer[7] = de->RX.at(de->io.rx_freq_change)->getCtrFrequency();
+                de->io.control_out[1] = de->RX.at(de->io.rx_freq_change)->getCtrFrequency() >> 24;
+                de->io.control_out[2] = de->RX.at(de->io.rx_freq_change)->getCtrFrequency() >> 16;
+                de->io.control_out[3] = de->RX.at(de->io.rx_freq_change)->getCtrFrequency() >> 8;
+                de->io.control_out[4] = de->RX.at(de->io.rx_freq_change)->getCtrFrequency();
 
     			de->io.rx_freq_change = -1;
     		}
 
-            if (de->io.ccTx.mox) de->io.output_buffer[3]  |= 0x01;
     		m_sendState = 3;
     		break;
 
@@ -3471,7 +3542,6 @@ void DataProcessor::encodeCCBytes() {
     		de->io.control_out[2] = 0x10; // C2
     		de->io.control_out[3] = 0x0; // C3
             de->io.control_out[4] = 0x0; // C4
-            if (de->io.ccTx.mox)  de->io.control_out[0] |= 0x01;
 
     		// C1
     		// 0 0 0 0 0 0 0 0
@@ -3575,10 +3645,6 @@ void DataProcessor::encodeCCBytes() {
                 }
             } else de->io.control_out[4] = 0;
 
-     		// fill the out buffer with the C&C bytes
-    		for (int i = 0; i < 5; i++)
-    			de->io.output_buffer[i+3] = de->io.control_out[i];
-
 		// check if we need to update ADC C&C's
 		new_adc_rx1_4 = new_adc_rx5_8 = new_adc_rx9_16 = 0;
 		for (int i = 0; i < set->getNumberOfReceivers(); i++) {
@@ -3590,7 +3656,7 @@ void DataProcessor::encodeCCBytes() {
 		if ((new_adc_rx1_4 != adc_rx1_4) || (new_adc_rx5_8 != adc_rx5_8) || (new_adc_rx9_16 != adc_rx9_16))
     			m_sendState = 4;
 		else
-    			m_sendState = 0;
+    			m_sendState = 5;
     		break;
 
     	case 4:
@@ -3604,13 +3670,10 @@ void DataProcessor::encodeCCBytes() {
     	de->io.control_out[2] = adc_rx5_8; // C2
     	de->io.control_out[3] = 0x0; // C3, ADC Input Attenuator Tx (0-31dB) [4:0]
 		de->io.control_out[4] = adc_rx9_16; // C4
-        if (de->io.ccTx.mox)  de->io.control_out[0] |= 0x01;
 
-        // fill the out buffer with the C&C bytes
-		for (int i = 0; i < 5; i++) {
-            de->io.output_buffer[i + 3] = de->io.control_out[i];
-        }
-            m_sendState = 4;
+        m_sendState = 5;
+
+
 		//DATA_PROCESSOR_DEBUG << "rx_adc_change rcvr: " << hex << new_adc_rx1_4 << "," << hex << new_adc_rx5_8 << "," << hex << new_adc_rx9_16;
 
 
@@ -3618,35 +3681,61 @@ void DataProcessor::encodeCCBytes() {
 
         case 5:
             de->io.control_out[0] = 0x1e; // 0 0 0 1 1 1 1 x
-            if (de->m_internal_cw == true)
-            de->io.control_out[1] = 0x1; // cw internal / external
-            else de->io.control_out[1] = 0x0; // cw internal / external
-
+            de->io.control_out[1] = 0x01;
+         //   if((de->io.ccTx.mode==DSPMode::CWU || de->io.ccTx.mode==DSPMode::CWL) && (de->m_radioState != RadioState::TUNE)  && (de->m_internal_cw) )
+         //   {
+         //       de->io.control_out[1]|=0x01;
+         //   }
             de->io.control_out[2] = (de->m_cw_sidetone_volume & 0xff); //cw sidetone level
             de->io.control_out[3] = (de->m_cw_ptt_delay & 0xff); // ptt delay
             de->io.control_out[4] = 0x0;
 
-            for (int i = 0; i < 5; i++) {
-                de->io.output_buffer[i + 3] = de->io.control_out[i];
-            }
+
             m_sendState = 6;
             break;
 
         case 6:
             de->io.control_out[0] = 0x20; // 0 0 0 1 1 1 1 x
-            de->io.control_out[1] = (de->m_cw_hang_time & 0xfd) >> 2; // cw hang time bits 9:2
+            de->io.control_out[1] = (de->m_cw_hang_time >> 2) & 0xff; // cw hang time bits 9:2
             de->io.control_out[2] = (de->m_cw_hang_time & 0x03); //cw hang time 1:0
-            de->io.control_out[3] = (de->m_cw_sidetone_freq & 0x3f) >> 4; // cw sidetone frequnecy 11:4y
-            de->io.control_out[4] = (de->m_cw_hang_time & 0x07) ; // cw sidetone frequency 3:0;
+            de->io.control_out[3] = (de->m_cw_sidetone_freq >> 4) & 0x3f; // cw sidetone frequnecy 11:4y
+            de->io.control_out[4] = (de->m_cw_sidetone_freq & 0x0f) ; // cw sidetone frequency 3:0;
 
-            for (int i = 0; i < 5; i++) {
-                de->io.output_buffer[i + 3] = de->io.control_out[i];
-            }
+            m_sendState = 7;
+            break;
+
+        case 7:
+            de->io.control_out[0] = 0x16; // 0 0 0 1 1 1 1 x
+            de->io.control_out[1] = 0;
+            de->io.control_out[2] = (de->m_cw_key_reversed) << 6;
+            de->io.control_out[3] = (de->m_cw_keyer_speed & 0x3f);
+            de->io.control_out[3]  |= ((de->m_cw_keyer_mode  & 0x03) << 6);
+            de->io.control_out[4] = (de->m_cw_keyer_weight & 0x7f);
             m_sendState = 0;
             break;
 
+
+
     }
+    if ( (de->io.ccTx.mox)) {
+       if(de->io.ccTx.mode==DSPMode::CWU || de->io.ccTx.mode==DSPMode::CWL)
+       {
+   //
+   //    For "internal" CW, we should not set
+   //    the MOX bit, everything is done in the FPGA.
+   //
+   //    However, if we are doing CAT CW, local CW or tuning/TwoTone,
+   //    we must put the SDR into TX mode *here*.
+               } else {
+         // not doing CW? always set MOX if transmitting
+         de->io.control_out[0] |= 0x01;
+       }
+    }
+ //   if (de->io.ccTx.mox)  de->io.control_out[0] |= 0x01;
+    for (int i = 0; i < 5; i++)  de->io.output_buffer[i + 3] = de->io.control_out[i];
     de->io.mutex.unlock();
+//    qDebug() << "cw speed" << de->m_cw_keyer_speed << de->m_cw_keyer_mode << de->m_cw_sidetone_volume << de->m_internal_cw ;
+
 
 	/*switch (m_hwInterface) {
 
@@ -3722,6 +3811,59 @@ void DataEngine::dspModeChanged(QObject* sender, int rx, DSPMode mode){
     TX.setDSPMode(sender,1,mode);
 }
 
+void DataEngine::CwHangTimeChanged(int CwHangTime)
+{
+m_cw_hang_time = CwHangTime;
+}
+
+void DataEngine::CwSidetoneFreqChanged(int CwSidetoneFreq)
+{
+    m_cw_sidetone_freq = CwSidetoneFreq;
+
+}
+
+void DataEngine::CwKeyReversedChanged(int CwKeyReversed)
+{
+    m_cw_key_reversed = CwKeyReversed;
+}
+
+void DataEngine::CwKeyerModeChanged(int CwKeyerMode)
+{
+    m_cw_keyer_mode = CwKeyerMode;
+}
+
+void DataEngine::InternalCwChanged(int InternalCW)
+{
+    m_internal_cw = InternalCW;
+}
+
+void DataEngine::CwKeyerSpeedChanged(int CwKeyerSpeed)
+{
+    m_cw_keyer_speed = CwKeyerSpeed;
+}
+
+void DataEngine::CwPttDelayChanged(int CwPttDelay)
+{
+    m_cw_ptt_delay = CwPttDelay;
+}
+
+void DataEngine::CwSidetoneVolumeChanged(int CwSidetoneVolume)
+{
+    m_cw_sidetone_volume = CwSidetoneVolume;
+}
+
+
+void DataEngine::CwKeyerWeightChanged(int CwKeyerWeight)
+{
+    m_cw_keyer_weight = CwKeyerWeight;
+}
+
+void DataEngine::CwKeyerSpacingChanged(int CwKeyerSpacing)
+{
+    m_cw_keyer_weight = CwKeyerSpacing;
+}
+
+
 // *********************************************************************
 // Audio out processor
 
@@ -3792,7 +3934,7 @@ void DataEngine::createAudioInputProcessor() {
 
     m_cwIO = new iambic(this);
 
-    CHECKED_CONNECT(
+    CHECKED_CONNECT_OPT(
             m_dataProcessor,
             SIGNAL(keyer_event(
                     int,
@@ -3800,18 +3942,18 @@ void DataEngine::createAudioInputProcessor() {
             m_cwIO,
             SLOT(keyer_event(
                     int,
-                    int)));
+                    int)),Qt::DirectConnection);
 
-
-    CHECKED_CONNECT(
-            m_cwIO,
-            SIGNAL(key_down(
-                    int)),
+/*
+    CHECKED_CONNECT_OPT(
             m_dataProcessor,
-            SLOT(key_down(
-                    int)));
+            SIGNAL(keyer_event(
+                    int,int)),
+            m_dataProcessor,
+            SLOT(key_down_test(
+                    int,int)), Qt::DirectConnection);
 
-
+*/
             m_cwIO->Start();
 
 }
@@ -3867,5 +4009,13 @@ if (state) {
 }
 }
 
+void DataProcessor::key_down_test(int dummy,int state) {
+    qDebug() << QTime::currentTime().msec()  << "Key Down test" << state;
+    if (state) {
+        de->cw_key_down = 960000;    // up to 20 sec
+    } else {
+        de->cw_key_down = 0;
+    }
+}
 
 #pragma clang diagnostic pop

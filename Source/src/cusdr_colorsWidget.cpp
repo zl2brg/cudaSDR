@@ -516,7 +516,6 @@ void ColorOptionsWidget::createColorChooserWidget() {
 	m_colorChooserWidget = new QGroupBox(tr("Color Chooser"), this);
 	m_colorChooserWidget->setMinimumWidth(m_minimumGroupBoxWidth);
 	m_colorChooserWidget->setLayout(hbox);
-	m_colorChooserWidget->setStyleSheet(set->getWidgetStyle());
 	m_colorChooserWidget->setFont(QFont("Arial", 8));
     delete vbox1;
 }

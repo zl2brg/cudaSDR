@@ -319,7 +319,6 @@ void DisplayOptionsWidget::createFPSGroupBox() {
 	m_fpsGroupBox = new QGroupBox(tr("Frames per Second"), this);
 	m_fpsGroupBox->setMinimumWidth(m_minimumGroupBoxWidth);
 	m_fpsGroupBox->setLayout(vbox);
-	m_fpsGroupBox->setStyleSheet(set->getWidgetStyle());
     m_fpsGroupBox->setFont(QFont("Arial", 12));
 }
 
@@ -847,14 +846,12 @@ void DisplayOptionsWidget::createSMeterOptions() {
 	m_sMeterOptions = new QGroupBox(tr("S-Meter"), this);
 	m_sMeterOptions->setMinimumWidth(m_minimumGroupBoxWidth);
 	m_sMeterOptions->setLayout(vbox);
-	m_sMeterOptions->setStyleSheet(set->getWidgetStyle());
     m_sMeterOptions->setFont(QFont("Arial", 12));
 }
 
 void DisplayOptionsWidget::createCallSignEditor() {
 
 	callSignLineEdit = new QLineEdit(this);
-	callSignLineEdit->setStyleSheet(set->getLineEditStyle());
 	callSignLineEdit->setText(set->getCallsign());
 
 	CHECKED_CONNECT(
@@ -889,7 +886,6 @@ void DisplayOptionsWidget::createCallSignEditor() {
 	m_callSignEditor = new QGroupBox(tr("Call Sign Editor"), this);
 	m_callSignEditor->setMinimumWidth(m_minimumGroupBoxWidth);
 	m_callSignEditor->setLayout(vbox);
-	m_callSignEditor->setStyleSheet(set->getWidgetStyle());
     m_callSignEditor->setFont(QFont("Arial", 12));
 }
 

@@ -1,6 +1,6 @@
 /*
  *
- *   Copyright 2022, Simon Eatough ZL2BRG, based on Hermann von Hasseln's DL3HVH Work
+ *   Copyright 2022, Simon Eatough ZL2BRG, based on Hermann von Hasseln's DL3HVH work
  *
  *   This program is free software; you can redistribute it and/or modify
  *   it under the terms of the GNU Library General Public License version 2 as
@@ -25,7 +25,6 @@
 #include <QDebug>
 
 #include "cusdr_setupwidget.h"
-#include "ui_cusdr_setupwidget.h"
 
 
 #define	btn_height		15
@@ -35,13 +34,11 @@
 
 cusdr_SetupWidget::cusdr_SetupWidget(QWidget *parent)
 : QTabWidget(parent)
-, ui(new Ui::cusdr_SetupWidget)
 , set(Settings::instance())
 , m_minimumWidgetWidth(500)
 , m_minimumGroupBoxWidth(set->getMinimumGroupBoxWidth())
 {
-    ui->setupUi(this);
-    this->setStyleSheet(set->getTabWidgetStyle());
+
 
     setContentsMargins(4, 4, 4, 0);
     setMouseTracking(true);
@@ -51,21 +48,17 @@ cusdr_SetupWidget::cusdr_SetupWidget(QWidget *parent)
     m_extCtrlWidget = new ExtCtrlWidget(this);
     m_txsettingsWidget = new tx_settings_dialog(this);
     m_displaytabWidget = new DisplayTabWidget(this);
-
-   this->ui->hpsdr_tab->addTab(m_hpsdrWidget, " Config ");
-   this->ui->hpsdr_tab->addTab(m_networkWidget, " Network ");
-   this->ui->hpsdr_tab->addTab(m_extCtrlWidget, " Ext Ctrl ");
-   this->ui->hpsdr_tab->addTab(m_alexTabWidget, " Alex ");
-   this->ui->hpsdr_tab->addTab(m_txsettingsWidget, " Tx Settings ");
+   addTab(m_hpsdrWidget, " Config ");
+   addTab(m_networkWidget, " Network ");
+   addTab(m_extCtrlWidget, " Ext Ctrl ");
+   addTab(m_alexTabWidget, " Alex ");
+   addTab(m_txsettingsWidget, " Tx Settings ");
    this->addTab(m_displaytabWidget," Display Ctrl");
 if (!set->getPenelopePresence() && !set->getPennyLanePresence() && (set->getHWInterface() != QSDR::Hermes)) {
 
-//	setTabEnabled(2, false);
-//setTabEnabled(3, false);
 }
 
 if (!set->getAlexPresence())
-//	setTabEnabled(3, false);
 
 setupConnections();
 }
@@ -73,7 +66,6 @@ setupConnections();
 cusdr_SetupWidget::~cusdr_SetupWidget()
 {
     delete m_displaytabWidget;
-    delete ui;
 
     disconnect(set, 0, this, 0);
     disconnect(this, 0, 0, 0);

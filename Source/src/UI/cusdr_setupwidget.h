@@ -22,22 +22,17 @@
 #ifndef CUSDR_SETUPWIDGET_H
 #define CUSDR_SETUPWIDGET_H
 
-#include "Util/cusdr_buttons.h"
 #include "cusdr_settings.h"
 #include "cusdr_hpsdrWidget.h"
 #include "cusdr_networkWidget.h"
 #include "cusdr_transmitTabWidget.h"
 #include "cusdr_alexTabWidget.h"
 #include "cusdr_extCtrlWidget.h"
-#include "setupwidget.h"
 #include "cusdr_displayTabWidget.h"
 
 
 #include <QTabWidget>
 
-namespace Ui {
-class cusdr_SetupWidget;
-}
 
 class cusdr_SetupWidget : public QTabWidget
 {
@@ -48,15 +43,14 @@ public:
     ~cusdr_SetupWidget();
 
 private:
-    Ui::cusdr_SetupWidget *ui;
-
 
 public slots:
-    QSize	sizeHint() const;
-    QSize	minimumSizeHint() const;
     void	addNICChangedConnection();
 
 protected:
+    QSize	sizeHint() const;
+    QSize	minimumSizeHint() const;
+
     void	closeEvent(QCloseEvent *event);
     void	showEvent(QShowEvent *event);
     void	enterEvent(QEvent *event);

@@ -92,8 +92,6 @@ set (SOURCES
     ${CMAKE_SOURCE_DIR}/QtWDSP/qtwdsp_dspEngine.cpp
 	${CMAKE_SOURCE_DIR}/UI/noisefilterwidget.cpp
     ${CMAKE_SOURCE_DIR}/UI/setupwidget.cpp
-    ${CMAKE_SOURCE_DIR}/UI/mini_mode_widget.cpp
-    ${CMAKE_SOURCE_DIR}/UI/basewidget.cpp
 #    ${CMAKE_SOURCE_DIR}/UI/radio_widget.cpp
     ${CMAKE_SOURCE_DIR}/UI/tx_settings_dialog.cpp
     ${CMAKE_SOURCE_DIR}/UI/cusdr_setupwidget.cpp
@@ -166,32 +164,18 @@ set (HEADERS
 	#${CMAKE_SOURCE_DIR}cusdr_NoiseFilterWidget.h
 	${CMAKE_SOURCE_DIR}/UI/noisefilterwidget.h
 	${CMAKE_SOURCE_DIR}/UI/setupwidget.h
-#    ${CMAKE_SOURCE_DIR}/UI/mode_widget.h
-    ${CMAKE_SOURCE_DIR}/UI/mini_mode_widget.h
-#   ${CMAKE_SOURCE_DIR}/UI/band_widget.h
-#   ${CMAKE_SOURCE_DIR}/UI/filter_widget.h
-    ${CMAKE_SOURCE_DIR}/UI/basewidget.h
-#    ${CMAKE_SOURCE_DIR}/UI/radio_widget.h
     ${CMAKE_SOURCE_DIR}/UI/tx_settings_dialog.h
     ${CMAKE_SOURCE_DIR}/UI/cusdr_setupwidget.h
     ${CMAKE_SOURCE_DIR}/AudioEngine/cusdr_iambic.h
-
-
-        ${WDSP_DIR}/wdsp.h
-		src/DataEngine/cusdr_transmitter.cpp src/DataEngine/cusdr_transmitter.h)
+    ${WDSP_DIR}/wdsp.h
+src/DataEngine/cusdr_transmitter.cpp src/DataEngine/cusdr_transmitter.h)
 
 set(UI_SOURCES
         ${CMAKE_SOURCE_DIR}/UI/tx_settings_dialog.ui
         ${CMAKE_SOURCE_DIR}/UI/noisefilterwidget.ui
         ${CMAKE_SOURCE_DIR}/UI/cusdr_display.ui
-        ${CMAKE_SOURCE_DIR}/UI/radio_ctrl.ui
         ${CMAKE_SOURCE_DIR}/UI/setupwidget.ui
-        ${CMAKE_SOURCE_DIR}/UI/display_ctrl.ui
-        ${CMAKE_SOURCE_DIR}/UI/band_widget.ui
-        ${CMAKE_SOURCE_DIR}/UI/mini_mode_widget.ui
-        ${CMAKE_SOURCE_DIR}/UI/cusdr_setupwidget.ui
-
-                )
+    )
 
 
 add_definitions( ${QT_DEFINITIONS} )
@@ -217,62 +201,5 @@ QT5_WRAP_UI( UI_HEADERS ${UI_SOURCES} )
 ADD_EXECUTABLE(cudasdr ${SOURCES} ${HEADERS}  res/cusdr.qrc ${UI_SOURCES} ${UI_HEADERS})
 
 qt5_use_modules(cudasdr Core Gui Widgets OpenGL)
-target_link_libraries(cudasdr -lrt -lm -lstdc++ Qt5::Widgets Qt5::Network Qt5::Multimedia GL asound wdsp portaudio)
+target_link_libraries(cudasdr -lm -lstdc++ Qt5::Widgets Qt5::Network Qt5::Multimedia GL asound wdsp portaudio)
 set_target_properties(cudasdr PROPERTIES LINKER_LANGUAGE CXX)
-
-#qt5_use_modules(Core Network)
-
-#QT += core gui network multimedia opengl
-#QMAKE_CFLAGS_RELEASE = -O4
-#QMAKE_CXXFLAGS_RELEASE = -O4
-#QMAKE_LFLAGS_RELEASE = -O4
-
-#TARGET = cudaSDR
-#TEMPLATE = app
-
-#CONFIG += qt warn_on
-#CONFIG += console
-#CONFIG += mobility
-#CONFIG += $$QMAKE_HOST.arch
-#message(CONFIG: $$QMAKE_HOST.arch)
-
-#MOBILITY += multimedia
-
-#include(cudaSDR.pri)
-
-#RESOURCES += res/cusdr.qrc
-
-#DEFINES += AUDIO_ENGINE_DEBUG
-#DEFINES += _WINDOWS
-#DEFINES += _CRT_SECURE_NO_WARNINGS
-#DEFINES += QT_LARGEFILE_SUPPORT 
-#DEFINES += QT_DLL 
-#DEFINES += QT_MULTIMEDIA_LIB 
-#DEFINES += QT_OPENGL_LIB 
-#DEFINES += QT_NETWORK_LIB 
-#DEFINES += QT_HAVE_MMX 
-#DEFINES += QT_HAVE_3DNOW 
-#DEFINES += QT_HAVE_SSE 
-#DEFINES += QT_HAVE_MMXEXT 
-#DEFINES += QT_HAVE_SSE2
-
-#unix {
-#    CUDA_DIR = $$system(which nvcc | sed 's,/bin/nvcc$,,')
-
-#x86_64 { HOST_ARCH = x86_64-linux }
-#arm7   { HOST_ARCH = armv7-linux-gnueabihf }
-
-    #INCLUDEPATH += \
-    #    ./ \
-    #    src/ \
-    #    src/AudioEngine \
-    #    src/CL \
-    #    src/DataEngine \
-    #    src/GL \
-    #    src/QtDSP \
-    #    src/Util
-
-    #LIBS += \
-     #   -lfftw3f -lpulse-simple -lpulse -lasound
-#}
-

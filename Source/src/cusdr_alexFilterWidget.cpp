@@ -354,7 +354,6 @@ void AlexFilterWidget::createHPFGroup() {
 	HPFGroup = new QGroupBox(tr("HP Filters"), this);
 	HPFGroup->setMinimumWidth(m_minimumGroupBoxWidth);
 	HPFGroup->setLayout(grid);
-	HPFGroup->setStyleSheet(set->getWidgetStyle());
 	HPFGroup->setFont(QFont("Arial", 8));
 }
 
@@ -362,11 +361,9 @@ void AlexFilterWidget::createLPFGroup() {
 
 	QLabel *lpfLabel = new QLabel("LPF (kHz)", this);
 	lpfLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-	lpfLabel->setStyleSheet(set->getLabelStyle());
 
 	QLabel *emptyLabel = new QLabel(" ", this);
 	emptyLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-	emptyLabel->setStyleSheet(set->getLabelStyle());
 
 	QLabel *m160Label = new QLabel("160m", this);
 	m160Label->setFrameStyle(QFrame::Box | QFrame::Raised);
@@ -474,7 +471,6 @@ void AlexFilterWidget::createLPFGroup() {
 	LPFGroup = new QGroupBox(tr("LP Filters"), this);
 	LPFGroup->setMinimumWidth(m_minimumGroupBoxWidth);
 	LPFGroup->setLayout(grid);
-	LPFGroup->setStyleSheet(set->getWidgetStyle());
 	LPFGroup->setFont(QFont("Arial", 8));
 }
 

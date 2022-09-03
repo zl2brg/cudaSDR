@@ -58,7 +58,7 @@ CFonts::CFonts(QObject *parent)
 		m_fonts.smallFont.setPixelSize(10);
 		m_fonts.smallFont.setFamily("Arial");
 	#elif defined(Q_OS_LINUX)
-        m_fonts.smallFont.setPixelSize(12);
+        m_fonts.smallFont.setPixelSize(10);
 		m_fonts.smallFont.setFamily("Arial");
 	#endif
 
@@ -78,7 +78,7 @@ CFonts::CFonts(QObject *parent)
 		m_fonts.normalFont.setPixelSize(10);
 		m_fonts.normalFont.setFamily("Arial");
 	#elif defined(Q_OS_LINUX)
-        m_fonts.normalFont.setPixelSize(14);
+        m_fonts.normalFont.setPixelSize(12);
         m_fonts.normalFont.setFamily("Arial");
 	#endif
 
@@ -97,7 +97,7 @@ CFonts::CFonts(QObject *parent)
 		m_fonts.bigFont.setPixelSize(18);
 		m_fonts.bigFont.setFamily("Arial");
 	#elif defined(Q_OS_LINUX)
-		m_fonts.bigFont.setPixelSize(18);
+		m_fonts.bigFont.setPixelSize(16);
 		m_fonts.bigFont.setFamily("Arial");
 	#endif
 
@@ -135,7 +135,7 @@ CFonts::CFonts(QObject *parent)
 		m_fonts.bigFont2.setPixelSize(10);
 		m_fonts.bigFont2.setFamily("Arial");
 	#elif defined(Q_OS_LINUX)
-		m_fonts.bigFont2.setPixelSize(10);
+        m_fonts.bigFont2.setPixelSize(14);
 		m_fonts.bigFont2.setFamily("Arial");
 	#endif
 
@@ -191,7 +191,7 @@ CFonts::CFonts(QObject *parent)
 		m_fonts.impactFont.setPixelSize(12);
 		m_fonts.impactFont.setFamily("Impact");
 	#elif defined(Q_OS_LINUX)
-		m_fonts.impactFont.setPixelSize(18);
+        m_fonts.impactFont.setPixelSize(14);
 		m_fonts.impactFont.setFamily("Impact");
 	#endif
 

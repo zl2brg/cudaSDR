@@ -8,17 +8,18 @@ tx_settings_dialog::tx_settings_dialog(QWidget *parent) :
     set(Settings::instance())
 
 {
+
     m_amCarrierLevel = set->getAMCarrierLevel();
     m_audioCompressionLevel = set->getAudioCompression();
     qDebug() << "Am carrier level load" << m_amCarrierLevel;
-    qDebug() << "compression l evel load" << m_audioCompressionLevel;
+    qDebug() << "compressionl evel load" << m_audioCompressionLevel;
 
 
 
     setContentsMargins(4, 0, 4, 0);
     ui->setupUi(this);
- //   this->setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
-    this->setStyleSheet(set->getWidgetStyle());
+    this->setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
+    this->setStyleSheet(set->getTabWidgetStyle());
     this->ui->amCarrierLevel->setStyleSheet(set->getVolSliderStyle());
     this->ui->audioCompression->setStyleSheet(set->getVolSliderStyle());
 
@@ -40,6 +41,16 @@ tx_settings_dialog::tx_settings_dialog(QWidget *parent) :
 
     }
     ui->audiodevlist->setCurrentIndex(set->getMicInputDev());
+    ui->sidetone_freq->setValue(set->getCwSidetoneFreq());
+    ui->sidetone_volume->setValue(set->getCwSidetoneVolume());
+    ui->cw_hangtime->setValue(set->getCwHangTime());
+    ui->KeyerMode->setCurrentIndex(set->getCwKeyerMode());
+    ui->internal_keyer->setChecked(set->isInternalCw());
+    ui->keyer_reverse->setChecked(set->isCwKeyReversed());
+    ui->keyer_spacing->setChecked(set->getCwKeyerSpacing());
+
+    ui->weight->setValue(set->getCwKeyerWeight());
+    ui->groupBox->setContentsMargins(2,2,2,2);
 
 
     setContentsMargins(4, 4, 4, 4);
@@ -47,23 +58,76 @@ tx_settings_dialog::tx_settings_dialog(QWidget *parent) :
 
  CHECKED_CONNECT(ui->audiodevlist,
                  SIGNAL(currentIndexChanged(int)),
-                 this,
-                 SLOT(audio_input_changed(int)));
+                 set,
+                 SLOT(setMicInputDev(int)));
 
  CHECKED_CONNECT(ui->audioCompression,
                  SIGNAL(valueChanged(int)),
-                 this,
-                 SLOT(audioCompressionChanged(int)));
+                 set,
+                 SLOT(setAudioCompression(int)));
 
  CHECKED_CONNECT(ui->amCarrierLevel,
                  SIGNAL(valueChanged(int)),
-                 this,
-                 SLOT(amCarrierLevelChanged(int)));
+                 set,
+                 SLOT(setAMCarrierLevel(int)));
 
  CHECKED_CONNECT(ui->fm_deviation,
                   SIGNAL(valueChanged(int)),
-                   this,
-                  SLOT(fmDeviationChanged(int)));
+                   set,
+                 SLOT(setFmDeveation(int)));
+
+
+ CHECKED_CONNECT(ui->KeyerMode,
+                  SIGNAL(currentIndexChanged(int)),
+                   set,
+                  SLOT(setCwKeyerMode(int)));
+
+ CHECKED_CONNECT(ui->internal_keyer,
+                  SIGNAL(stateChanged(int)),
+                   set,
+                  SLOT(setInternalCw(int)));
+
+ CHECKED_CONNECT(ui->keyer_reverse,
+                  SIGNAL(stateChanged(int)),
+                   set,
+                  SLOT(setCwKeyReversed(int)));
+
+ CHECKED_CONNECT(ui->keyer_speed,
+                  SIGNAL(valueChanged(int)),
+                   set,
+                  SLOT(setCwKeyerSpeed(int)));
+
+ CHECKED_CONNECT(ui->ptt_delay,
+                  SIGNAL(valueChanged(int)),
+                   set,
+                  SLOT(setCwPttDelay(int)));
+
+ CHECKED_CONNECT(ui->sidetone_freq,
+                  SIGNAL(valueChanged(int)),
+                   set,
+                  SLOT(setCwSidetoneFreq(int)));
+
+
+    CHECKED_CONNECT(ui->sidetone_volume,
+                    SIGNAL(valueChanged(int)),
+                    set,
+                    SLOT(setCwSidetoneVolume(int)));
+
+ CHECKED_CONNECT(ui->cw_hangtime,
+                  SIGNAL(valueChanged(int)),
+                   set,
+                  SLOT(setCwHangTime(int)));
+
+    CHECKED_CONNECT(ui->weight,
+                    SIGNAL(valueChanged(int)),
+                    set,
+                    SLOT(setCwKeyerWeight(int)));
+
+    CHECKED_CONNECT(ui->keyer_spacing,
+                    SIGNAL(stateChanged(int)),
+                    set,
+                    SLOT(setCwKeyerSpacing(int)));
+
 }
 
 
@@ -74,34 +138,4 @@ tx_settings_dialog::~tx_settings_dialog()
     delete ui;
     disconnect(set, 0, this, 0);
     disconnect(this, 0, 0, 0);
-}
-
-
-void tx_settings_dialog::audio_input_changed(int index){
-
-qDebug() << "selected" << index;
-set->setMicInputDev(index);
-
-}
-
-
-void tx_settings_dialog::amCarrierLevelChanged(int level)
-{
-double temp = level/100.0;
-qDebug() << "Am Carrier Level" << temp;
-set->setAMCarrierLevel(temp);
-}
-
-void tx_settings_dialog::audioCompressionChanged(int level)
-{
-if (level < 0 || level > 20) level = 0;
-qDebug() << "Audio Compression Level" << level;
-
-//set->setAudioCompression(level + 0.0);
-}
-
-
-void tx_settings_dialog::fmDeviationChanged(int level) {
-    if (level > 15) level=15;
-    set->setFmDeveation( level * 1000.0 );
 }

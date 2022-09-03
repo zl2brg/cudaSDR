@@ -64,12 +64,13 @@ RadioPopupWidget::RadioPopupWidget(QWidget *parent, int rx)
 	setFocusPolicy(Qt::StrongFocus);
 
 	QString	style = QString::fromUtf8(
+            "font-size: 10pt;"
 			"border: 0px solid rgba(166, 196, 208, 255);"
-			//"border: 1px solid;"// rgba(166, 196, 208, 255);"
-			//"border-left-color: rgba(220, 120, 120, 255);"
-			//"border-top-color: rgba(220, 120, 120, 255);"
-			//"border-right-color: rgba(0, 0, 0, 255);"
-			//"border-bottom-color: rgba(0, 0, 0, 255);"
+			"border: 1px solid;"// rgba(166, 196, 208, 255);"
+			"border-left-color: rgba(220, 120, 120, 255);"
+			"border-top-color: rgba(220, 120, 120, 255);"
+			"border-right-color: rgba(0, 0, 0, 255);"
+			"border-bottom-color: rgba(0, 0, 0, 255);"
 			"color: rgb(166, 196, 208); "
 			//"background-color: rgba(40, 40, 40, 255); ");
 			"background-color: rgba(25, 25, 25, 255); ");
@@ -163,7 +164,7 @@ RadioPopupWidget::RadioPopupWidget(QWidget *parent, int rx)
 	mainLayout->addLayout(modeVBox);
 	mainLayout->addSpacing(8);
 	mainLayout->addWidget(m_filterStackedWidget);
-	mainLayout->addSpacing(16);
+	mainLayout->addSpacing(32);
 	mainLayout->addLayout(agcVBox);
 	mainLayout->addStretch();
 

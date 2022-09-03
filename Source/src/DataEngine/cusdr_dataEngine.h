@@ -118,13 +118,16 @@ public:
     iambic *            m_cwIO;
     bool                m_internal_cw;
     bool                m_cw_key_reversed;
+    int                 m_cw_keyer_spacing;
     int                 m_cw_keyer_speed;
     int                 m_cw_keyer_mode;
+    int                 m_cw_keyer_weight;
     int                 m_cw_sidetone_volume;
     int                 m_cw_ptt_delay;
     int                 m_cw_hang_time;
     int                 m_cw_sidetone_freq;
     int                 cw_key_down;
+    RadioState          m_radioState;
 
     struct sockaddr_in  DataAddr{};
     int data_socket{};
@@ -180,6 +183,18 @@ public slots:
     void    setRepeaterMode(bool);
 
 	void	suspend();
+
+    void    CwHangTimeChanged(int CwHangTime);
+    void    CwSidetoneFreqChanged(int CwSidetoneFreq);
+    void    CwKeyReversedChanged(int CwKeyReversed);
+    void    CwKeyerModeChanged(int CwKeyerMode);
+    void    InternalCwChanged(int InternalCW);
+    void    CwKeyerSpeedChanged(int CwKeyerSpeed);
+    void    CwPttDelayChanged(int CwPttDelay);
+    void    CwSidetoneVolumeChanged(int CwSidetoneVolume);
+    void    CwKeyerWeightChanged(int CwKeyerweight);
+    void    CwKeyerSpacingChanged(int CwKeyerSpacing);
+
 
 private:
 	void	setSystemState(
@@ -328,7 +343,6 @@ private:
 	float	m_sMeterCalibrationOffset;
 	float	m_micSample_float{};
 	float	m_spectrumBuffer[SAMPLE_BUFFER_SIZE]{};
-    RadioState m_radioState;
 
 	qint64		m_audioFileBufferPosition{};
     qint64		m_audioFileBufferLength{};
@@ -359,6 +373,8 @@ private slots:
 	void	setTxJ6Pins(const QList<int> &list);
     void    radioStateChange(RadioState state);
     void    dspModeChanged(QObject *, int, DSPMode);
+
+
 
 signals:
 	void	error(QUdpSocket::SocketError error);
@@ -395,8 +411,8 @@ public:
 		QSDR::_ServerMode serverMode = QSDR::NoServerMode,
 		QSDR::_HWInterfaceMode hwMode = QSDR::NoInterfaceMode);
     int tx_index =0;
-    void    get_cwsample();
-    void add_rx_audio_sample();
+    double get_cwsample();
+    void add_rx_audio_sample(qint16 leftRXSample, qint16 rightRXSample);
 
 	~DataProcessor() override;
 
@@ -422,6 +438,7 @@ private slots:
 	void	writeData();
     void    buffer_tx_data();
     void    key_down(int);
+    void    key_down_test(int,int);
 
 	
 private:
@@ -470,7 +487,7 @@ private:
 	int				m_sendState;
 	int				m_chirpStartSample;
     CPX             m_iq_output_buffer;
-    CPX             rx_audio_buffer;
+    TYPECPX         rx_audio_buffer[BUFFER_SIZE];
     volatile int       rx_audio_ptr;
 
     QFile   *file;
@@ -494,14 +511,14 @@ private:
     void            get_tx_iqData();
     void            buffer_tx_iq_sample(int i, int q);
     void    DumpBuffer(unsigned char *buffer,int length, const char *who);
-    void add_mic_sample();
+    void    add_mic_sample();
     void    add_audio_sample(qint16 leftAudioSample, qint16 rightAudioSample);
+    void    add_tx_iq_sample(double i, double q);
 
     void full_txBuffer();
 
     void fetch_MicData();
 
-    double get_next_mic_sample();
     void send_mic_data();
 
 	uchar	m_ibuffer[IO_BUFFER_SIZE * IO_BUFFERS];

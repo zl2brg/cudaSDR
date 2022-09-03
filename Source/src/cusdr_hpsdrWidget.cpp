@@ -281,7 +281,6 @@ QGroupBox* HPSDRWidget::hpsdrHardwareBtnGroup() {
 	QGroupBox *groupBox = new QGroupBox(tr("Hardware selection"), this);
 	groupBox->setMinimumWidth(m_minimumGroupBoxWidth);
 	groupBox->setLayout(vbox);
-	groupBox->setStyleSheet(set->getWidgetStyle());
 	groupBox->setFont(QFont("Arial", 8));
 
 	return groupBox;
@@ -372,7 +371,6 @@ void HPSDRWidget::createSource10MhzExclusiveGroup() {
 	source10MhzExclusiveGroup = new QGroupBox(tr("10 MHz Clock"), this);
 	source10MhzExclusiveGroup->setMinimumWidth(m_minimumGroupBoxWidth);
 	source10MhzExclusiveGroup->setLayout(vbox);
-	source10MhzExclusiveGroup->setStyleSheet(set->getWidgetStyle());
 	source10MhzExclusiveGroup->setFont(QFont("Arial", 8));
 }
 
@@ -425,7 +423,6 @@ void HPSDRWidget::createSource122_88MhzExclusiveGroup() {
 	source122_88MhzExclusiveGroup = new QGroupBox(tr("122.8 MHz Clock"), this);
 	source122_88MhzExclusiveGroup->setMinimumWidth(m_minimumGroupBoxWidth);
 	source122_88MhzExclusiveGroup->setLayout(vbox);
-	source122_88MhzExclusiveGroup->setStyleSheet(set->getWidgetStyle());
 	source122_88MhzExclusiveGroup->setFont(QFont("Arial", 8));
 }
 
@@ -531,8 +528,7 @@ QGroupBox *HPSDRWidget::numberOfReceiversGroup() {
 
 	m_receiversLabel = new QLabel("Receivers:", this);
     m_receiversLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-	m_receiversLabel->setStyleSheet(set->getLabelStyle());
-	
+
 
 	QHBoxLayout *hbox1 = new QHBoxLayout();
 	hbox1->setSpacing(5);
@@ -549,7 +545,6 @@ QGroupBox *HPSDRWidget::numberOfReceiversGroup() {
 	QGroupBox *groupBox = new QGroupBox(tr("Number of Receivers"), this);
 	groupBox->setMinimumWidth(m_minimumGroupBoxWidth);
 	groupBox->setLayout(vbox);
-	groupBox->setStyleSheet(set->getWidgetStyle());
 	groupBox->setFont(QFont("Arial", 8));
 
 	return groupBox;
