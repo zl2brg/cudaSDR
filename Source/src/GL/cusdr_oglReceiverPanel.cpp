@@ -100,7 +100,6 @@ QGLReceiverPanel::QGLReceiverPanel(QWidget *parent, int rx)
 	//, m_freqRulerPosition(0.5)
 {
 //	QGL::setPreferredPaintEngine(QPaintEngine::OpenGL);
-    qDebug() << "rx panel constructor" << rx;
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     setUpdateBehavior(QOpenGLWidget::PartialUpdate);
 	//setAutoBufferSwap(true);

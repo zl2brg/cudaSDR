@@ -7,7 +7,7 @@
 */
 
 /*   
- *   Copyright 2010, 2011, 2012 Hermann von Hasseln, DL3HVH
+ *   Copyright 2010, 2011, 2012 Hermann von Hasseln, DL3HVH, modified by Simon Eatough ZL2BRG
  *
  *   This program is free software; you can redistribute it and/or modify
  *   it under the terms of the GNU Library General Public License version 2 as
@@ -74,7 +74,7 @@ MainWindow::MainWindow(QWidget *parent)
 	, m_mover(false)
 	, m_resizePosition(0)
 {
-    setupWidget = new SetupWidget();
+    //setupWidget = new SetupWidget();
  //   m_radioCtrl = new RadioCtrl(this);
     //m_audioInput = new tx_settings_dialog(this);
     test = new QAction();
@@ -82,12 +82,10 @@ MainWindow::MainWindow(QWidget *parent)
 
     menuBar = new QMenuBar();
     File = menuBar->addMenu(tr("File"));
-  //  menuBar->setStyleSheet(set->getMenuBarStyle());
-//    File->setStyleSheet(set->getMenuStyle());
     File->setTitle("File");
     test->setText("Test");
     test->setMenu(File);
-     menuBar->addAction(test);
+    menuBar->addAction(test);
 
 
     /* setup menu actions */
@@ -139,17 +137,22 @@ MainWindow::MainWindow(QWidget *parent)
 	m_dataEngine = new DataEngine(this);
 
 	// control widgets
+    m_setupWidget = new QDialog(this);
+    m_setuplayout = new QHBoxLayout();
+    m_test_setupWidget = new cusdr_SetupWidget(m_setupWidget);
+    m_setuplayout->addWidget(m_test_setupWidget);
+    m_setupWidget->setLayout(m_setuplayout);
     m_serverWidget = new ServerWidget(this);
     m_hpsdrTabWidget = new cusdr_SetupWidget(this);
     m_radioTabWidget = new RadioTabWidget(this);
 
 	m_wbDisplay = 0;
-
+    m_setupWidget->hide();
     m_serverWidget->hide();
     m_hpsdrTabWidget->hide();
     m_radioTabWidget->hide();
-	MAIN_DEBUG << "main window init done";
 }
+
 
 /*!
 	\brief MainWindow Destructor
@@ -461,7 +464,8 @@ void MainWindow::cusdr_setup()
 {
  //   setupWidget->show();
   //bandwidget->show();
-    rxDock->show();
+//    rxDock->show();
+    m_setupWidget->show();
   //miniModeWidget->show();
 
 }
@@ -491,7 +495,6 @@ void MainWindow::setupLayout() {
 	centralwidget = new QMainWindow(this);
 	centralwidget->setWindowFlags(Qt::Widget);
 	centralwidget->setDockOptions(QMainWindow::AnimatedDocks | QMainWindow::AllowNestedDocks);
-//	centralwidget->setStyleSheet(set->getMainWindowStyle());
 	centralwidget->setContextMenuPolicy(Qt::NoContextMenu);  //setStyleSheet(set->getMenuStyle());
     
 
@@ -501,7 +504,6 @@ void MainWindow::setupLayout() {
     dock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
     dock->setFeatures(QDockWidget::NoDockWidgetFeatures);
     dock->setFeatures(QDockWidget::DockWidgetFloatable);
-//	dock->setStyleSheet(set->getDockStyle());
     dock->setMaximumWidth(245);
     dock->setMinimumWidth(245);
     dock->setWidget(m_radioTabWidget);
@@ -531,7 +533,6 @@ void MainWindow::setupLayout() {
 	dock->setObjectName("HPSDRCtrl");
     dock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
     dock->setFeatures(QDockWidget::DockWidgetClosable | QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetMovable);
-//	dock->setStyleSheet(set->getDockStyle());
     dock->setMaximumWidth(DOCK_WIDTH);
     dock->setMinimumWidth(DOCK_WIDTH);
 	dock->setWidget(m_hpsdrTabWidget);
@@ -543,9 +544,7 @@ void MainWindow::setupLayout() {
     rxDock = new QDockWidget(tr("Band Ctrl"), this);
     rxDock->setObjectName("bBandWidget");
     rxDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
-//	dock->setFeatures(QDockWidget::NoDockWidgetFeatures);
     rxDock->setFeatures(QDockWidget::DockWidgetClosable | QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetMovable);
-//    rxDock->setStyleSheet(set->getDockStyle());
     rxDock->setMaximumWidth(DOCK_WIDTH);
     rxDock->setMinimumWidth(DOCK_WIDTH);
 //    rxDock->setWidget(filterwidget);
@@ -585,7 +584,6 @@ void MainWindow::setupLayout() {
 		str.append(num);
 		dock = new QDockWidget(str, this);
 		widebandDock->setObjectName(str);
-//		dock->setStyleSheet(set->getDockStyle());
 		dock->setWidget(rxWidgetList.at(i));
 		rxDockWidgetList.append(dock);
 

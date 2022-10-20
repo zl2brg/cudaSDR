@@ -72,7 +72,7 @@ void  WideBandDataProcessor::initWidebandAnalyzer() {
 		int clip = 0;
 		int span_clip_l = 0;
 		int span_clip_h = 0;
-		int pixels = NUM_PIXELS * 2;
+		int pixels = NUM_PIXELS* 2;
 		int stitches = 1;
 		int avm = 0;
 		double tau = 0.001 * 120.0;
@@ -135,13 +135,14 @@ void WideBandDataProcessor::processWideBandData() {
 
 void WideBandDataProcessor::processWideBandInputBuffer(const QByteArray &buffer) {
 	int size;
-	short sample;
-	double sampledouble;
+    float sample;
+    int s;
 	//if (m_mercuryFW > 32 || m_hermesFW > 16)
 	if (io->mercuryFW > 32 || io->hermesFW > 11)
 		size = 2 * BIGWIDEBANDSIZE;
 	else
 		size = 2 * SMALLWIDEBANDSIZE;
+    float norm = 1.0f / (4 * size);
 
 	qint64 length = buffer.length();
 	if (buffer.length() != size) {
@@ -149,11 +150,16 @@ void WideBandDataProcessor::processWideBandInputBuffer(const QByteArray &buffer)
 		WIDEBAND_PROCESSOR_DEBUG << "wrong wide band buffer length: " << length << "size " << size <<  "ver " << io->hermesFW ;
 		return;
 	}
+
+
+
 	for (int i = 0; i < length; i += 2) {
-		sample = (short) ((buffer.at(i + 1) << 8)  + (short)(buffer.at(i) & 0xFF));
-		sampledouble=(double)sample/32767.0;
-		cpxWBIn[i/2].re = sampledouble;
-		cpxWBIn[i/2].im = 0.0;
+		s = (int) ((buffer.at(i + 1) << 8)  + (int)(buffer.at(i) & 0xFF));
+
+        sample = (float)(s * norm) * 1.0f;
+
+		cpxWBIn[i/2].re = (double)sample;
+		cpxWBIn[i/2].im = (double)sample;
 	}
 	getSpectrumData();
 }

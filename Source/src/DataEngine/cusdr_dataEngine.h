@@ -128,6 +128,7 @@ public:
     int                 m_cw_sidetone_freq;
     int                 cw_key_down;
     RadioState          m_radioState;
+    long    m_cw_txFrequencyOffset = 700;
 
     struct sockaddr_in  DataAddr{};
     int data_socket{};
@@ -412,7 +413,7 @@ public:
 		QSDR::_HWInterfaceMode hwMode = QSDR::NoInterfaceMode);
     int tx_index =0;
     double get_cwsample();
-    void add_rx_audio_sample(qint16 leftRXSample, qint16 rightRXSample);
+    void add_rx_audio_sample();
 
 	~DataProcessor() override;
 

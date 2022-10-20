@@ -100,6 +100,7 @@ NetworkWidget::NetworkWidget(QWidget *parent)
 
 	setupConnections();
 	setSocketBufSize(this, set->getSocketBufferSize());
+    addNICChangedConnection();
 }
 
 NetworkWidget::~NetworkWidget() {
@@ -168,6 +169,7 @@ void NetworkWidget::addNICChangedConnection() {
 
 void NetworkWidget::setDeviceNIC(int index) {
 
+    qDebug() << "click1";
 	networkDeviceInterfaces->setCurrentIndex(index);
 }
 
@@ -443,7 +445,6 @@ void NetworkWidget::interfaceBtnClicked() {
 }
 
 void NetworkWidget::searchHPSDRDeviceBtnClicked() {
-
 	set->searchHpsdrNetworkDevices();
 }
 

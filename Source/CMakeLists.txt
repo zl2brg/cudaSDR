@@ -91,8 +91,6 @@ set (SOURCES
     ${CMAKE_SOURCE_DIR}/Util/cusdr_cpuUsage_unix.cpp
     ${CMAKE_SOURCE_DIR}/QtWDSP/qtwdsp_dspEngine.cpp
 	${CMAKE_SOURCE_DIR}/UI/noisefilterwidget.cpp
-    ${CMAKE_SOURCE_DIR}/UI/setupwidget.cpp
-#    ${CMAKE_SOURCE_DIR}/UI/radio_widget.cpp
     ${CMAKE_SOURCE_DIR}/UI/tx_settings_dialog.cpp
     ${CMAKE_SOURCE_DIR}/UI/cusdr_setupwidget.cpp
     ${CMAKE_SOURCE_DIR}/AudioEngine/cusdr_iambic.cpp
@@ -114,7 +112,7 @@ set (HEADERS
 	${CMAKE_SOURCE_DIR}/Util/cusdr_styles.h 
 	${CMAKE_SOURCE_DIR}/Util/cusdr_cpuUsage.h 
 	${CMAKE_SOURCE_DIR}/Util/qcircularbuffer.h 
-        ${CMAKE_SOURCE_DIR}/AudioEngine/cusdr_audio_settingsdialog.h
+    ${CMAKE_SOURCE_DIR}/AudioEngine/cusdr_audio_settingsdialog.h
 	${CMAKE_SOURCE_DIR}/AudioEngine/cusdr_audio_utils.h
 	${CMAKE_SOURCE_DIR}/AudioEngine/cusdr_audio_waveform.h 
 	${CMAKE_SOURCE_DIR}/AudioEngine/cusdr_audio_wavfile.h 
@@ -163,7 +161,6 @@ set (HEADERS
     ${CMAKE_SOURCE_DIR}/QtWDSP/qtwdsp_dspEngine.h
 	#${CMAKE_SOURCE_DIR}cusdr_NoiseFilterWidget.h
 	${CMAKE_SOURCE_DIR}/UI/noisefilterwidget.h
-	${CMAKE_SOURCE_DIR}/UI/setupwidget.h
     ${CMAKE_SOURCE_DIR}/UI/tx_settings_dialog.h
     ${CMAKE_SOURCE_DIR}/UI/cusdr_setupwidget.h
     ${CMAKE_SOURCE_DIR}/AudioEngine/cusdr_iambic.h
@@ -174,7 +171,6 @@ set(UI_SOURCES
         ${CMAKE_SOURCE_DIR}/UI/tx_settings_dialog.ui
         ${CMAKE_SOURCE_DIR}/UI/noisefilterwidget.ui
         ${CMAKE_SOURCE_DIR}/UI/cusdr_display.ui
-        ${CMAKE_SOURCE_DIR}/UI/setupwidget.ui
     )
 
 

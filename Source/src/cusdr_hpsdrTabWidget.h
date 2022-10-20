@@ -40,7 +40,6 @@
 #include "cusdr_transmitTabWidget.h"
 #include "cusdr_alexTabWidget.h"
 #include "cusdr_extCtrlWidget.h"
-#include "setupwidget.h"
 
 
 class HPSDRTabWidget : public QTabWidget {

@@ -39,6 +39,8 @@
 #include "cusdr_settings.h"
 #include "soundout.h"
 
+#define LOG_DATAIO
+
 #ifdef LOG_DATAIO
 #   define DATAIO_DEBUG qDebug().nospace() << "DataIO::\t"
 #else

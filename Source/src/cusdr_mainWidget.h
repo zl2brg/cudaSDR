@@ -62,7 +62,6 @@
 //#include "ui_cusdr_display.h"
 //#include "ui_display_ctrl.h"
 //#include "ui_radio_ctrl.h"
-#include "setupwidget.h"
 #include "tx_settings_dialog.h"
 
 #ifdef LOG_MAIN
@@ -143,7 +142,6 @@ private:
 
 private:
 	Settings*					set;
-    SetupWidget                 *setupWidget;
 
 	QSDR::_Error				m_error;
 	QSDR::_ServerMode			m_serverMode;
@@ -220,7 +218,10 @@ private:
 	DataEngine*			m_dataEngine;
 	RadioPopupWidget*	m_radioPopupWidget;
 	ServerWidget*		m_serverWidget;
-    QTabWidget*  m_hpsdrTabWidget;
+    QDialog*            m_setupWidget;
+    QTabWidget*            m_test_setupWidget;
+    QTabWidget*         m_hpsdrTabWidget;
+    QHBoxLayout*        m_setuplayout;
 	RadioTabWidget*		m_radioTabWidget;
 	DisplayTabWidget*	m_displayTabWidget = NULL;
 	OGLDisplayPanel*	m_oglDisplayPanel;

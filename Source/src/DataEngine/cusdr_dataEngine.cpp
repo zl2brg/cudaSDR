@@ -2837,75 +2837,44 @@ void DataProcessor::buffer_tx_data()
 
 }
 
-void DataProcessor::add_rx_audio_sample(qint16 leftRXSample, qint16 rightRXSample) {
-    de->io.output_buffer[m_idx++] = leftRXSample >> 8;
-    de->io.output_buffer[m_idx++] = leftRXSample;
-    de->io.output_buffer[m_idx++] = rightRXSample >> 8;
-    de->io.output_buffer[m_idx++] = rightRXSample;
-    rx_audio_ptr++;
-}
+    void DataProcessor::add_rx_audio_sample(){
+        qint16 leftRXSample;
+        qint16 rightRXSample;
+        leftRXSample = (qint16) (rx_audio_buffer[rx_audio_ptr].re * 32767.0f);
+        rightRXSample = (qint16) (rx_audio_buffer[rx_audio_ptr].im * 32767.0f);
+        de->io.output_buffer[m_idx++] = leftRXSample >> 8;
+        de->io.output_buffer[m_idx++] = leftRXSample;
+        de->io.output_buffer[m_idx++] = rightRXSample >> 8;
+        de->io.output_buffer[m_idx++] = rightRXSample;
+        rx_audio_ptr++;
+    }
+
 
 /* Sends RX Audio and tx iq data back to hpsdr. Always at 48 KHz bandwidth */
 
 void DataProcessor::send_hpsdr_data(int rx, const CPX &buffer, int buffersize) {
     Q_UNUSED(rx);
-    qint16 leftRXSample;
-    qint16 rightRXSample;
-    double cw_ramp;
-    double cw_sample;
-    double cw_keyer_sidetone_volume=100.5;
     rx_audio_ptr = 0;
 /* buffer rx audio */
     for (int j = 0; j < buffersize; j++)
         {
         rx_audio_buffer[j].re = buffer[j].re;
         rx_audio_buffer[j].im = buffer[j].im;
-
         }
 
     if (set->is_transmitting()) {
+        if (!tx_index) get_tx_iqData();
+    } else memset(&m_tx_iq_Buffer, 0x0, sizeof(m_tx_iq_Buffer));
+        while (rx_audio_ptr  <   buffersize) {
+        add_rx_audio_sample();
+        add_mic_sample();
 
-        if (de->io.ccTx.mode == DSPMode::CWL || de->io.ccTx.mode == DSPMode::CWU)
-        {
-
-            for (int j = 0; j < BUFFER_SIZE; j++)
-            {
-               cw_ramp = get_cwsample();
-               cw_sample=0.00197 * de->TX.getNextSideToneSample() * cw_keyer_sidetone_volume * cw_ramp;
-//               qDebug() << cw_ramp << j << m_idx << cw_sample;
-               leftRXSample = (qint16) (cw_sample * 32767.0f);
-               rightRXSample = (qint16) (cw_sample * 32767.0f);
-               m_iq_output_buffer[j].im = cw_ramp;
-               m_iq_output_buffer[j].re = 0.0;
-
-               add_rx_audio_sample(leftRXSample, rightRXSample);
-               add_tx_iq_sample(cw_ramp,0.0);
-                if (m_idx == IO_BUFFER_SIZE) {
-                    full_txBuffer();
-                }
-            }
-            Spectrum0(1, TX_ID, 0, 0, (double *) m_iq_output_buffer.data());
-            }
-
-
+        if (m_idx == IO_BUFFER_SIZE) {
+            full_txBuffer();
         }
-      else{
 
-     memset(&m_tx_iq_Buffer, 0x0, sizeof(m_tx_iq_Buffer));
-        rx_audio_ptr = 0;
-        while (rx_audio_ptr  <   BUFFER_SIZE) {
-            leftRXSample = (qint16) (rx_audio_buffer[rx_audio_ptr].re * 32767.0f);
-            rightRXSample = (qint16) (rx_audio_buffer[rx_audio_ptr].im * 32767.0f);
-            add_rx_audio_sample(leftRXSample, rightRXSample);
-            add_mic_sample();
-
-            if (m_idx == IO_BUFFER_SIZE) {
-                full_txBuffer();
-            }
-        }
-        rx_audio_ptr=0;
     }
-
+    rx_audio_ptr=0;
 }
 
 
@@ -3341,6 +3310,7 @@ void DataProcessor::encodeCCBytes() {
     de->io.output_buffer[2] = SYNC;
 
     de->io.mutex.lock();
+
  //   qDebug() << "sendstate" <<  m_sendState;
     switch (m_sendState) {
 
@@ -3386,10 +3356,6 @@ void DataProcessor::encodeCCBytes() {
     		// +---------- +-------------- Open Collector Outputs on Penelope or Hermes (bit 6...bit 0)
 
     		de->io.control_out[2] = de->io.rxClass;
-            if  (de->io.ccTx.mox) {
-
-          //      de->io.control_out[2] |=0x01;
-            }
 
     		if (de->io.ccTx.pennyOCenabled) {
 
@@ -3485,22 +3451,23 @@ void DataProcessor::encodeCCBytes() {
 
             de->io.control_out[0] = 0x2; // C0
 
+                long txfrequency;
+                if (de->io.ccTx.mode == DSPMode::CWL)
+                    txfrequency = (de->io.ccTx.txFrequency - de->m_cw_txFrequencyOffset);
+                else if (de->io.ccTx.mode == DSPMode::CWU)
+                     txfrequency = (de->io.ccTx.txFrequency + de->m_cw_txFrequencyOffset);
 
-    	//	if (de->io.tx_freq_change >= 0) {
-        //        qDebug() << "tx freq " <<  de->RX.at(de->io.tx_freq_change)->getCtrFrequency();
+                else txfrequency =   de->io.ccTx.txFrequency;
 
-                de->io.control_out[1] = de->RX.at(de->io.tx_freq_change)->getCtrFrequency() >> 24;
-                de->io.control_out[2] = de->RX.at(de->io.tx_freq_change)->getCtrFrequency() >> 16;
-                de->io.control_out[3] = de->RX.at(de->io.tx_freq_change)->getCtrFrequency() >> 8;
-                de->io.control_out[4] = de->RX.at(de->io.tx_freq_change)->getCtrFrequency();
-    		//    de->io.tx_freq_change = -1;
-    	//	}
-
-    		m_sendState = de->io.ccTx.duplex ? 2 : 3;
+                de->io.control_out[1] = (txfrequency >> 24);
+                de->io.control_out[2] = (txfrequency >> 16);
+                de->io.control_out[3] = (txfrequency >> 8);
+                de->io.control_out[4] = txfrequency;
+                de->io.tx_freq_change = -1;
+            m_sendState = 2;
     		break;
 
     	case 2:
-
     		// C0 = 0 0 0 0 0 1 0 x     C1, C2, C3, C4   NCO Frequency in Hz for Receiver_1
     		// C0 = 0 0 0 0 0 1 1 x     C1, C2, C3, C4   NCO Frequency in Hz for Receiver _2
     		// C0 = 0 0 0 0 1 0 0 x     C1, C2, C3, C4   NCO Frequency in Hz for Receiver _3
@@ -3513,25 +3480,12 @@ void DataProcessor::encodeCCBytes() {
     		// C0 = 0 1 0 1 0 1 0 x     C1, C2, C3, C4   NCO Frequency in Hz for Receiver _32
 
     		// RRK, workaround for gige timing bug, make sure all rx freq's are sent on init.
-    		if (firstTimeRxInit) {
-    			firstTimeRxInit -= 1;
-    			de->io.rx_freq_change = firstTimeRxInit;
-    		}
 
-    		if (de->io.rx_freq_change >= 0) {
-                qDebug() << "rx freq " <<  de->RX.at(de->io.rx_freq_change)->getCtrFrequency();
                 de->io.control_out[0] = 0x04;
-                //(de->io.rx_freq_change < 7) ? (de->io.rx_freq_change + 2) << 1
-//                                              : (de->io.rx_freq_change + 11) << 1;
-    			//RRK removed 4HL de->io.output_buffer[3] = (de->io.rx_freq_change + 2) << 1;
                 de->io.control_out[1] = de->RX.at(de->io.rx_freq_change)->getCtrFrequency() >> 24;
                 de->io.control_out[2] = de->RX.at(de->io.rx_freq_change)->getCtrFrequency() >> 16;
                 de->io.control_out[3] = de->RX.at(de->io.rx_freq_change)->getCtrFrequency() >> 8;
                 de->io.control_out[4] = de->RX.at(de->io.rx_freq_change)->getCtrFrequency();
-
-    			de->io.rx_freq_change = -1;
-    		}
-
     		m_sendState = 3;
     		break;
 
@@ -3681,11 +3635,12 @@ void DataProcessor::encodeCCBytes() {
 
         case 5:
             de->io.control_out[0] = 0x1e; // 0 0 0 1 1 1 1 x
-            de->io.control_out[1] = 0x01;
-         //   if((de->io.ccTx.mode==DSPMode::CWU || de->io.ccTx.mode==DSPMode::CWL) && (de->m_radioState != RadioState::TUNE)  && (de->m_internal_cw) )
-         //   {
-         //       de->io.control_out[1]|=0x01;
-         //   }
+            de->io.control_out[1] = 0x00;
+
+            if((de->io.ccTx.mode==DSPMode::CWU || de->io.ccTx.mode==DSPMode::CWL)  && (de->m_internal_cw) &&!(de->m_radioState == RadioState::MOX))
+            {
+                de->io.control_out[1]|=0x01;
+            }
             de->io.control_out[2] = (de->m_cw_sidetone_volume & 0xff); //cw sidetone level
             de->io.control_out[3] = (de->m_cw_ptt_delay & 0xff); // ptt delay
             de->io.control_out[4] = 0x0;
@@ -3717,22 +3672,21 @@ void DataProcessor::encodeCCBytes() {
 
 
     }
-    if ( (de->io.ccTx.mox)) {
-       if(de->io.ccTx.mode==DSPMode::CWU || de->io.ccTx.mode==DSPMode::CWL)
-       {
-   //
-   //    For "internal" CW, we should not set
-   //    the MOX bit, everything is done in the FPGA.
-   //
-   //    However, if we are doing CAT CW, local CW or tuning/TwoTone,
-   //    we must put the SDR into TX mode *here*.
-               } else {
-         // not doing CW? always set MOX if transmitting
-         de->io.control_out[0] |= 0x01;
+    if ((de->io.ccTx.mode==DSPMode::CWU || de->io.ccTx.mode==DSPMode::CWL) )
+    {
+         de->io.control_out[0] &= ~0x01;
        }
-    }
+    else  if (de->io.ccTx.mox || de->io.ccTx.ptt) de->io.control_out[0] |= 0x01;
+    else de->io.control_out[0] &= ~0x01;
+
  //   if (de->io.ccTx.mox)  de->io.control_out[0] |= 0x01;
-    for (int i = 0; i < 5; i++)  de->io.output_buffer[i + 3] = de->io.control_out[i];
+    for (int i = 0; i < 5; i++) {
+        de->io.output_buffer[i + 3] = de->io.control_out[i];
+     //   de->io.control_out[i] = 0;
+    }
+
+    qDebug() << hex << (de->io.control_out[0] & 0x01);
+    //memset(&de->io.control_out,0,sizeof(de->io.control_out));
     de->io.mutex.unlock();
 //    qDebug() << "cw speed" << de->m_cw_keyer_speed << de->m_cw_keyer_mode << de->m_cw_sidetone_volume << de->m_internal_cw ;
 
@@ -3966,6 +3920,7 @@ bool DataEngine::start_TxProcessor() {
 void DataEngine::stop_TxProcessor() {
 
 }
+
 
 void DataEngine::set_tx_drivelevel(QObject* sender, int value){
 

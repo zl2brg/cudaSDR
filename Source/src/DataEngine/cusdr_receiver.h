@@ -81,6 +81,7 @@ public:
 	float	getAudioVolume()		{ return m_audioVolume; }
 	long	getCtrFrequency()		{ return m_ctrFrequency; }
 	long	getVfoFrequency()		{ return m_vfoFrequency; }
+    long    getTxFrequency();
 	double	getFilterLo()			{ return m_filterLo; }
 	double	getFilterHi()			{ return m_filterHi; }
 	qreal	getdBmPanScaleMin()		{ return m_dBmPanScaleMin; }

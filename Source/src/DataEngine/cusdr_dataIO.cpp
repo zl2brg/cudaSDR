@@ -447,7 +447,7 @@ void DataIO::readDeviceData() {
 						// enqueue
 						m_sendEP4 = false;
 						io->wb_queue.enqueue(m_wbDatagram);
-						m_wbDatagram.resize(0);
+                     	m_wbDatagram.resize(0);
 					}
 				}
 			}

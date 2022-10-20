@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>280</width>
-    <height>702</height>
+    <height>668</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -31,6 +31,15 @@
    <string>Dialog</string>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout_5">
+   <property name="spacing">
+    <number>4</number>
+   </property>
+   <property name="topMargin">
+    <number>6</number>
+   </property>
+   <property name="bottomMargin">
+    <number>6</number>
+   </property>
    <item>
     <widget class="QGroupBox" name="groupBox">
      <property name="sizePolicy">
@@ -48,6 +57,12 @@
      <layout class="QVBoxLayout" name="verticalLayout_4">
       <property name="spacing">
        <number>9</number>
+      </property>
+      <property name="topMargin">
+       <number>6</number>
+      </property>
+      <property name="bottomMargin">
+       <number>6</number>
       </property>
       <item>
        <widget class="QComboBox" name="audiodevlist"/>
@@ -97,7 +112,7 @@
    <item>
     <widget class="QGroupBox" name="groupBox_3">
      <property name="sizePolicy">
-      <sizepolicy hsizetype="Preferred" vsizetype="Minimum">
+      <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
        <horstretch>0</horstretch>
        <verstretch>0</verstretch>
       </sizepolicy>
@@ -115,6 +130,15 @@
       <string>AM</string>
      </property>
      <layout class="QVBoxLayout" name="verticalLayout_3">
+      <property name="spacing">
+       <number>4</number>
+      </property>
+      <property name="topMargin">
+       <number>6</number>
+      </property>
+      <property name="bottomMargin">
+       <number>6</number>
+      </property>
       <item>
        <layout class="QHBoxLayout" name="horizontalLayout">
         <property name="spacing">
@@ -156,6 +180,12 @@
    </item>
    <item>
     <widget class="QGroupBox" name="groupBox_2">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
      <property name="autoFillBackground">
       <bool>true</bool>
      </property>
@@ -166,6 +196,12 @@
       <bool>false</bool>
      </property>
      <layout class="QGridLayout" name="gridLayout">
+      <property name="bottomMargin">
+       <number>6</number>
+      </property>
+      <property name="spacing">
+       <number>4</number>
+      </property>
       <item row="0" column="0" colspan="2">
        <layout class="QVBoxLayout" name="verticalLayout">
         <item>
@@ -269,6 +305,12 @@
    </item>
    <item>
     <widget class="QGroupBox" name="groupBox_4">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
      <property name="title">
       <string>CW</string>
      </property>

@@ -41,6 +41,8 @@
 
 #include "cusdr_settings.h"
 
+#define LOG_DISCOVERER
+
 #ifdef LOG_DISCOVERER
 #   define DISCOVERER_DEBUG qDebug().nospace() << "Discoverer::\t"
 #else

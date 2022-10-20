@@ -366,7 +366,7 @@ typedef struct _ccParameterTx {
     double  amCarrierLevel;
     int     audioCompression;
     double  fmDeveation;
-    double  txFrequency;
+    long    txFrequency;
     DSPMode mode;
 
 	HamBand		currentBand;
