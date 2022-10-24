@@ -119,9 +119,9 @@ RadioPopupWidget::RadioPopupWidget(QWidget *parent, int rx)
 	CHECKED_CONNECT(stickyBtn, SIGNAL(clicked()), this, SLOT(setSticky()));
 
 	createOptionsBtnGroup();
-	createFFTOptionsGroup();
+//	createFFTOptionsGroup();
 	createBandBtnGroup();
-	createAdcBtnGroup();
+//	createAdcBtnGroup();
 	createModeBtnGroup();
 	createAgcBtnGroup();
 	createFilterBtnWidgetA();
@@ -130,7 +130,7 @@ RadioPopupWidget::RadioPopupWidget(QWidget *parent, int rx)
 
 	m_filterStackedWidget = new QStackedWidget(this);
 	m_filterStackedWidget->setContentsMargins(0, 0, 0, 0);
-	m_filterStackedWidget->setFixedHeight(30);
+	m_filterStackedWidget->setFixedHeight(40);
 	m_filterStackedWidget->addWidget(filterAWidget);
 	m_filterStackedWidget->addWidget(filterBWidget);
 	m_filterStackedWidget->addWidget(filterCWidget);
@@ -155,17 +155,18 @@ RadioPopupWidget::RadioPopupWidget(QWidget *parent, int rx)
 	//mainLayout->addStretch();
 	mainLayout->addLayout(optionsVBox);
 	mainLayout->addSpacing(8);
-	mainLayout->addLayout(fftOptionsVBox);
-	mainLayout->addSpacing(16);
+//	mainLayout->addLayout(fftOptionsVBox);
+///	mainLayout->addSpacing(16);
 	mainLayout->addLayout(bandVBox);
 	mainLayout->addSpacing(8);
-	mainLayout->addLayout(adcVBox);
-	mainLayout->addSpacing(8);
+//	mainLayout->addLayout(adcVBox);
+///	mainLayout->addSpacing(8);
 	mainLayout->addLayout(modeVBox);
 	mainLayout->addSpacing(8);
 	mainLayout->addWidget(m_filterStackedWidget);
-	mainLayout->addSpacing(32);
+	mainLayout->addSpacing(16);
 	mainLayout->addLayout(agcVBox);
+    mainLayout->addSpacing(32);
 	mainLayout->addStretch();
 
 	setLayout(mainLayout);
@@ -2239,8 +2240,8 @@ void RadioPopupWidget::adcModeChanged(QObject *sender, int rx, ADCMode mode) {
 		btn->update();
 	}
 
-	adcModeBtnList.at(mode)->setBtnState(AeroButton::ON);
-	adcModeBtnList.at(mode)->update();
+//	adcModeBtnList.at(mode)->setBtnState(AeroButton::ON);
+//	adcModeBtnList.at(mode)->update();
 }
 
 void RadioPopupWidget::agcModeChangedByBtn() {
