@@ -7,9 +7,9 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
 set (QT_USE_QTOPENGL TRUE)
-add_definitions(-O4 -D_FILE_OFFSET_BITS=64 -fPIC -g)
+add_definitions(-O0 -D_FILE_OFFSET_BITS=64 -fPIC -g)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_CXX_FLAGS "-O4 -Wall -Wextra -g")
 set (CMAKE_BUILD_TYPE Debug)
@@ -62,8 +62,9 @@ set (SOURCES
 	${CMAKE_SOURCE_DIR}/GL/cusdr_oglInfo.cpp 
 	${CMAKE_SOURCE_DIR}/GL/cusdr_oglReceiverPanel.cpp 
 	${CMAKE_SOURCE_DIR}/GL/cusdr_oglText.cpp 
-	${CMAKE_SOURCE_DIR}/GL/cusdr_oglWidebandPanel.cpp 
-	${CMAKE_SOURCE_DIR}/cusdr_alexAntennaWidget.cpp 
+	${CMAKE_SOURCE_DIR}/GL/cusdr_oglWidebandPanel.cpp
+	${CMAKE_SOURCE_DIR}/GL/GLWaterfall.cpp
+	${CMAKE_SOURCE_DIR}/cusdr_alexAntennaWidget.cpp
 	${CMAKE_SOURCE_DIR}/cusdr_alexFilterWidget.cpp 
 	${CMAKE_SOURCE_DIR}/cusdr_alexTabWidget.cpp 
 	${CMAKE_SOURCE_DIR}/cusdr_displayWidget.cpp
@@ -132,8 +133,9 @@ set (HEADERS
 	${CMAKE_SOURCE_DIR}/GL/cusdr_oglReceiverPanel.h 
 	${CMAKE_SOURCE_DIR}/GL/cusdr_oglText.h 
 	${CMAKE_SOURCE_DIR}/GL/cusdr_oglUtils.h 
-	${CMAKE_SOURCE_DIR}/GL/cusdr_oglWidebandPanel.h 
-	${CMAKE_SOURCE_DIR}/cusdr_alexAntennaWidget.h 
+	${CMAKE_SOURCE_DIR}/GL/cusdr_oglWidebandPanel.h
+	${CMAKE_SOURCE_DIR}/GL/GLWaterfall.h
+	${CMAKE_SOURCE_DIR}/cusdr_alexAntennaWidget.h
 	${CMAKE_SOURCE_DIR}/cusdr_alexFilterWidget.h 
 	${CMAKE_SOURCE_DIR}/cusdr_alexTabWidget.h 
 	${CMAKE_SOURCE_DIR}/cusdr_displayWidget.h

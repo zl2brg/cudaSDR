@@ -3685,7 +3685,6 @@ void DataProcessor::encodeCCBytes() {
      //   de->io.control_out[i] = 0;
     }
 
-    qDebug() << hex << (de->io.control_out[0] & 0x01);
     //memset(&de->io.control_out,0,sizeof(de->io.control_out));
     de->io.mutex.unlock();
 //    qDebug() << "cw speed" << de->m_cw_keyer_speed << de->m_cw_keyer_mode << de->m_cw_sidetone_volume << de->m_internal_cw ;

@@ -39,7 +39,7 @@
 //#include <QTimer>
 
 #include "cusdr_mainWidget.h"
-
+#include "GL/GLWaterfall.h"
 #define window_height1		600
 #define window_height2		750
 #define window_width1		800
@@ -557,7 +557,7 @@ void MainWindow::setupLayout() {
 
 	// receiver and wideband panel docks;
 	// set receiver 0 as the main receiver
-	centralwidget->setCentralWidget(rxWidgetList.at(0));
+    centralwidget->setCentralWidget(rxWidgetList.at(0));
 
 	// wideband panel dock window
 	widebandDock = new QDockWidget(tr("Wideband"), this);
@@ -584,8 +584,8 @@ void MainWindow::setupLayout() {
 		str.append(num);
 		dock = new QDockWidget(str, this);
 		widebandDock->setObjectName(str);
-		dock->setWidget(rxWidgetList.at(i));
-		rxDockWidgetList.append(dock);
+        dock->setWidget(rxWidgetList.at(i));
+        rxDockWidgetList.append(dock);
 
 		centralwidget->addDockWidget(Qt::BottomDockWidgetArea, dock);
 		dock->hide();
@@ -609,11 +609,13 @@ void MainWindow::setupLayout() {
 void MainWindow::createReceiverPanels(int rx) {
 
 	rxWidgetList.clear();
-	
+
 	for (int i = 0; i < rx; i++) {
 	
-		QGLReceiverPanel* rxPanel = new QGLReceiverPanel(this, i);
-		rxWidgetList.append(rxPanel);
+//		QGLReceiverPanel* rxPanel = new QGLReceiverPanel(this, i);
+        GLWaterfall* rxPanel = new GLWaterfall(this);
+
+        rxWidgetList.append(rxPanel);
     }
 }
 

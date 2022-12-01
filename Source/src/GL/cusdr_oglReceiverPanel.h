@@ -38,6 +38,14 @@
 #include <QWheelEvent>
 #include <QOpenGLWidget>
 #include <QOpenGLFunctions>
+#include <QtGui>
+#include <QFont>
+#include <QFrame>
+#include <QImage>
+#include <QList>
+#include <vector>
+#include <QMap>
+
 
 
 #ifdef LOG_GRAPHICS
@@ -47,10 +55,10 @@
 #endif
 
 
+
 class QGLReceiverPanel : public QOpenGLWidget, protected QOpenGLFunctions {
 
     Q_OBJECT
-
 public:
     QGLReceiverPanel(QWidget *parent = 0, int rx = 0);
 	~QGLReceiverPanel();

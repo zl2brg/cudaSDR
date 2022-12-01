@@ -1954,8 +1954,7 @@ void OGLDisplayPanel::setSMeterValue(int rx, double value) {
 	Q_UNUSED(rx)
 		//float tmp = (1.00423f * value + 93.3932f);
 		float tmp;
-
-		tmp = value + 140.0f;
+		tmp = value + 130.0f;
 
 		if (m_sMeterTimer.elapsed() > 40) {
 

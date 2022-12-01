@@ -509,7 +509,8 @@ void NetworkWidget::setCurrentNetworkDevice(TNetworkDevicecard card) {
 
 		if (dev.ip_address == card.ip_address) networkDeviceIPAdresses->setCurrentIndex(i);
 		i++;
-	}	
+    }
+    set->saveSettings();
 }
 
 void NetworkWidget::setSocketBufSize(QObject *sender, int size) {

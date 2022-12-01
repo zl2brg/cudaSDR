@@ -63,7 +63,7 @@
 //#include "ui_display_ctrl.h"
 //#include "ui_radio_ctrl.h"
 #include "tx_settings_dialog.h"
-
+#include "GL/GLWaterfall.h"
 #ifdef LOG_MAIN
 #define MAIN_DEBUG qDebug().nospace() << "MainWindow::\t"
 #else
@@ -155,8 +155,8 @@ private:
 	QToolBar*					displayPanelToolBar;
 	
 	QMainWindow*				centralwidget;
-
-	QList<QGLReceiverPanel* >	rxWidgetList;
+    GLWaterfall *               rx_widget;
+	QList<GLWaterfall* >	rxWidgetList;
 	QVector<float>				rxVolumeList;
 
 	QDockWidget*				widebandDock;

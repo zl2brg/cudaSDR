@@ -22,6 +22,7 @@
  *   License along with this program; if not, write to the
  *   Free Software Foundation, Inc.,
  *   51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ *   Modified by Simon Eatough ZL2BRG
  */
 
 #define LOG_GRAPHICS
@@ -47,6 +48,7 @@
 #define	btn_width		60
 #define	btn_widthb		70
 #define	btn_widths		34
+
 
 QGLReceiverPanel::QGLReceiverPanel(QWidget *parent, int rx)
 	: QOpenGLWidget(parent)
@@ -99,6 +101,7 @@ QGLReceiverPanel::QGLReceiverPanel(QWidget *parent, int rx)
 	, m_filterUpperFrequency(-150.0)
 	//, m_freqRulerPosition(0.5)
 {
+
 //	QGL::setPreferredPaintEngine(QPaintEngine::OpenGL);
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     setUpdateBehavior(QOpenGLWidget::PartialUpdate);
@@ -1969,11 +1972,11 @@ void QGLReceiverPanel::drawReceiverInfo() {
 		if (f1 / 1000 < 10) {
 
             glColor4f(0, 0, 0, alpha);
-			m_oglTextBig2->renderText(x + 36, 14, 4.0f, str.arg(f2, 3, 10, QLatin1Char('0')));
+			m_oglTextBig1->renderText(x + 36, 14, 4.0f, str.arg(f2, 3, 10, QLatin1Char('0')));
 			m_oglTextBig1->renderText(x + 60, 14, 4.0f, "MHz");
 
             glColor4f(255, 255, 255, alpha);
-			m_oglTextBig2->renderText(x + 34, 12, 5.0f, str.arg(f2, 3, 10, QLatin1Char('0')));
+			m_oglTextBig1->renderText(x + 34, 12, 5.0f, str.arg(f2, 3, 10, QLatin1Char('0')));
 			m_oglTextBig1->renderText(x + 58, 12, 5.0f, "MHz");
 		}
 		else {
