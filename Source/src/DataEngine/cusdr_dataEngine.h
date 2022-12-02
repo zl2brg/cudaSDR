@@ -61,7 +61,6 @@
 #include "cusdr_WidebandProcessor.h"
 #include "cusdr_transmitter.h"
 #include "AudioEngine/cusdr_audio_input.h"
-#include "AudioEngine/cusdr_iambic.h"
 
 #define LOG_DATA_PROCESSOR
 
@@ -115,7 +114,6 @@ public:
 	QUdpSocket*			sendSocket{};
 	DataIO*				m_dataIO;
     PAudioInput *       m_audioInput;
-    iambic *            m_cwIO;
     bool                m_internal_cw;
     bool                m_cw_key_reversed;
     int                 m_cw_keyer_spacing;

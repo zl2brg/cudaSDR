@@ -32,7 +32,6 @@
  */
 
 //#define TESTING
-extern double cwramp48[];		// see cwramp.c, for 48 kHz sample rate
 
 #define LOG_DATA_ENGINE
 // use DATA_ENGINE_DEBUG
@@ -131,7 +130,6 @@ DataEngine::DataEngine(QObject *parent)
 	m_audioReceiver= nullptr;
 	m_audioOutProcessor= nullptr;
     m_audioInput= nullptr;
-    m_cwIO = nullptr;
 	//m_wbAverager= nullptr;
 	set->setMercuryVersion(0);
 	set->setPenelopeVersion(0);
@@ -2616,9 +2614,6 @@ void DataProcessor::decodeCCBytes(const QByteArray &buffer) {
 	de->io.ccRx.dot    = (bool)((buffer.at(0) & 0x04) == 0x04);
 	de->io.ccRx.lt2208 = (bool)((buffer.at(1) & 0x01) == 0x01);
 
-    if (de->io.ccRx.dash != de->io.ccRx.previous_dash) emit keyer_event(0,de->io.ccRx.dash);
-    if (de->io.ccRx.dot != de->io.ccRx.previous_dot) emit keyer_event(1,de->io.ccRx.dot);
-
 	de->io.ccRx.roundRobin = (uchar)(buffer.at(0) >> 3);
 	
     switch (de->io.ccRx.roundRobin) // cycle through C0
@@ -2926,50 +2921,6 @@ void DataProcessor::add_mic_sample()
     if (tx_index >= 4096) tx_index = 0;
 }
 
-/* cw code from pihpsdr */
-double DataProcessor::get_cwsample() {
-    float cwsample;
-    double mic_sample_double;
-    double ramp;
-    static int cw_not_ready =1;
-    static int cw_shape;
-    int cw_key_up = 0;
-    int cw_key_down = 0;
-    int updown;
-    float cw_keyer_sidetone_volume=0.5;
-
-
-//
-//	We HAVE TO shape the signal to avoid hard clicks to be
-//	heard way beside our frequency. The envelope (ramp function)
-//      is stored in cwramp48[0::RAMPLEN], so we "move" cw_shape between these
-//      values. The ramp width is RAMPLEN/48000 seconds.
-//
-//      In the new protocol, we use this ramp for the side tone, but
-//      must use values from cwramp192 for the TX iq signal.
-//
-//      Note that usually, the pulse is much broader than the ramp,
-//      that is, cw_key_down and cw_key_up are much larger than RAMPLEN.
-//
-        if (cw_not_ready)             qDebug() << QTime::currentTime().msec() <<" cw key down";
-
-    cw_not_ready=0;
-        if (de->cw_key_down > 0 ) {
-            if (cw_shape < RAMPLEN) cw_shape++;	// walk up the ramp
-            cw_key_down--;			// decrement key-up counter
-            updown=1;
-        } else {
-            // dig into this even if cw_key_up is already zero, to ensure
-            // that we reach the bottom of the ramp for very small pauses
-            if (cw_shape > 0) cw_shape--;	// walk down the ramp
-            if (cw_key_up > 0) cw_key_up--; // decrement key-down counter
-            updown=0;
-        }
-
-        return cwramp48[cw_shape] * 100;
-
-}
-
 void DataProcessor::send_mic_data() {
     int error;
     long   leftTXSample;
@@ -2981,7 +2932,6 @@ void DataProcessor::send_mic_data() {
     float *sample;
     int i,q;
     static AUDIOBUF a;
-    get_cwsample();
 
     if ( de->io.ccTx.mox ||  de->io.ccTx.ptt ) {
 
@@ -2995,8 +2945,6 @@ void DataProcessor::send_mic_data() {
             leftTXSample = qs >= 0.0 ? (long) floor(qs * gain + 0.5) : (long) ceil(qs * gain - 0.5);
             buffer_tx_iq_sample(leftTXSample, rightTXSample);
         }
-
-
     }
     mic_buffer_index = 0;
 }
@@ -3685,28 +3633,7 @@ void DataProcessor::encodeCCBytes() {
      //   de->io.control_out[i] = 0;
     }
 
-    qDebug() << hex << (de->io.control_out[0] & 0x01);
-    //memset(&de->io.control_out,0,sizeof(de->io.control_out));
     de->io.mutex.unlock();
-//    qDebug() << "cw speed" << de->m_cw_keyer_speed << de->m_cw_keyer_mode << de->m_cw_sidetone_volume << de->m_internal_cw ;
-
-
-	/*switch (m_hwInterface) {
-
-		case QSDR::Metis:
-		case QSDR::Hermes:
-
-			io.audioDatagram.resize(IO_BUFFER_SIZE);
-			io.audioDatagram = QByteArray::fromRawData((const char *)&io.output_buffer, IO_BUFFER_SIZE);
-			
-			if (m_dataIOThreadRunning) {
-				m_dataIO->writeData();
-			}
-			break;
-			
-		case QSDR::NoInterfaceMode:
-			break;
-	}*/
 }
 
 
@@ -3885,31 +3812,6 @@ void DataEngine::createAudioInputProcessor() {
             SIGNAL(tx_mic_data_ready()),
             m_dataProcessor,
             SLOT(processMicData()));
-
-    m_cwIO = new iambic(this);
-
-    CHECKED_CONNECT_OPT(
-            m_dataProcessor,
-            SIGNAL(keyer_event(
-                    int,
-                    int)),
-            m_cwIO,
-            SLOT(keyer_event(
-                    int,
-                    int)),Qt::DirectConnection);
-
-/*
-    CHECKED_CONNECT_OPT(
-            m_dataProcessor,
-            SIGNAL(keyer_event(
-                    int,int)),
-            m_dataProcessor,
-            SLOT(key_down_test(
-                    int,int)), Qt::DirectConnection);
-
-*/
-            m_cwIO->Start();
-
 }
 
 bool DataEngine::start_TxProcessor() {

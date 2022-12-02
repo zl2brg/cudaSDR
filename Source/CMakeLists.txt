@@ -93,8 +93,6 @@ set (SOURCES
 	${CMAKE_SOURCE_DIR}/UI/noisefilterwidget.cpp
     ${CMAKE_SOURCE_DIR}/UI/tx_settings_dialog.cpp
     ${CMAKE_SOURCE_DIR}/UI/cusdr_setupwidget.cpp
-    ${CMAKE_SOURCE_DIR}/AudioEngine/cusdr_iambic.cpp
-    ${CMAKE_SOURCE_DIR}/AudioEngine/cwramp.cpp
 
 src/DataEngine/cusdr_transmitter.cpp src/DataEngine/cusdr_transmitter.h src/AudioEngine/cusdr_audio_input.cpp src/AudioEngine/cusdr_audio_input.h)
 
@@ -163,7 +161,6 @@ set (HEADERS
 	${CMAKE_SOURCE_DIR}/UI/noisefilterwidget.h
     ${CMAKE_SOURCE_DIR}/UI/tx_settings_dialog.h
     ${CMAKE_SOURCE_DIR}/UI/cusdr_setupwidget.h
-    ${CMAKE_SOURCE_DIR}/AudioEngine/cusdr_iambic.h
     ${WDSP_DIR}/wdsp.h
 src/DataEngine/cusdr_transmitter.cpp src/DataEngine/cusdr_transmitter.h)
 
