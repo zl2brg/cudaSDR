@@ -98,6 +98,10 @@ private:
 	QVBoxLayout*	adcVBox;
 	QVBoxLayout*	modeVBox;
 	QVBoxLayout*	agcVBox;
+    QVBoxLayout*	sqlVBox;
+
+    QSlider*        m_fmSqlevel;
+
 	//QVBoxLayout*	mercuryBtnVBox();
 
 	QWidget*		filterAWidget;
@@ -284,14 +288,8 @@ private:
 	void setupConnections();
 	void createBackground(QSize size);
 
-private slots:
-	void	graphicModeChanged(
-					QObject* sender,
-					int rx,
-					PanGraphicsMode panMode,
-					WaterfallColorMode waterfallColorMode);
 
-	void setSticky();
+
 	void createOptionsBtnGroup();
 	void createFFTOptionsGroup();
 	void createBandBtnGroup();
@@ -301,6 +299,16 @@ private slots:
 	void createFilterBtnWidgetA();
 	void createFilterBtnWidgetB();
 	void createFilterBtnWidgetC();
+    void createSquelchGroup();
+
+private slots:
+    void	graphicModeChanged(
+                    QObject* sender,
+                    int rx,
+                    PanGraphicsMode panMode,
+                    WaterfallColorMode waterfallColorMode);
+    void setSticky();
+    void sqLevelChanged(int val);
 
 	//QLabel *createLabel(const QString &text);
 

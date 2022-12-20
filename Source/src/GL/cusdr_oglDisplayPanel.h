@@ -307,6 +307,7 @@ private:
 	void	renderSMeterScale();
 	void	renderSMeterA();
 	void	renderSMeterB();
+
 	
 	void	getSelectedDigit(QPoint p);
 	

@@ -48,10 +48,7 @@ RadioTabWidget::RadioTabWidget(QWidget *parent)
     , m_minimumWidgetWidth(set->getMinimumWidgetWidth())
     , m_minimumGroupBoxWidth(set->getMinimumGroupBoxWidth())
 {
-//	setStyleSheet(set->getWidgetStyle());
     setContentsMargins(4, 4, 4, 0);
-
-
 	setMouseTracking(true);
 	m_radioWidget = new RadioWidget(this);
     m_agcWidget = new AGCOptionsWidget(this);

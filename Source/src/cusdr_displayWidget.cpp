@@ -9,6 +9,7 @@
 /*
  *   
  *   Copyright 2010, 2011 Hermann von Hasseln, DL3HVH
+ *   Updates Copyright 2022 Simon Eatough ZL2BRG
  *
  *   This program is free software; you can redistribute it and/or modify
  *   it under the terms of the GNU Library General Public License version 2 as
@@ -159,8 +160,7 @@ void DisplayOptionsWidget::setupConnections() {
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(systemStateChanged(
-					QObject *,
+        SIGNAL(systemStateChanged(QObject*,
 					QSDR::_Error,
 					QSDR::_HWInterfaceMode,
 					QSDR::_ServerMode,
@@ -385,16 +385,6 @@ void DisplayOptionsWidget::createPanSpectrumOptions() {
 
 	m_avgValue = set->getSpectrumAveragingCnt(m_currentReceiver);
 
-	m_fmSqlevel = new QSlider(Qt::Horizontal, this);
-	m_fmSqlevel->setTickPosition(QSlider::NoTicks);
-	m_fmSqlevel->setFixedSize(130, 12);
-	m_fmSqlevel->setSingleStep(1);
-	m_fmSqlevel->setValue(80);
-	m_fmSqlevel->setRange(1, 100);
-    m_fmSqlevel->setStyleSheet(set->getVolSliderStyle());
-
-	CHECKED_CONNECT(m_fmSqlevel, SIGNAL(valueChanged(int)), this, SLOT(sqLevelChanged(int)));
-
 	m_avgSlider = new QSlider(Qt::Horizontal, this);
 	m_avgSlider->setTickPosition(QSlider::NoTicks);
 	m_avgSlider->setFixedSize(130, 12);
@@ -412,10 +402,6 @@ void DisplayOptionsWidget::createPanSpectrumOptions() {
 	m_avgLevelLabel->setFixedSize(fontMaxWidth, 12);
 	m_avgLevelLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
 	m_avgLevelLabel->setStyleSheet(set->getSliderLabelStyle());
-
-	m_sqlabel = new QLabel("FM Thresh:", this);
-	m_sqlabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-	m_sqlabel->setStyleSheet(set->getLabelStyle());
 
 	m_avgLabel = new QLabel("Avg Filter:", this);
 	m_avgLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
@@ -494,13 +480,6 @@ void DisplayOptionsWidget::createPanSpectrumOptions() {
 	hbox5->addWidget(m_fftLabel);
 	hbox5->addWidget(m_fftSizeCombo);
 
-	QHBoxLayout* hbox6 = new QHBoxLayout;
-	hbox6->setSpacing(0);
-	hbox6->setMargin(0);
-	hbox6->addWidget(m_sqlabel);
-	hbox6->addWidget(m_fmSqlevel);
-
-
 	QVBoxLayout *vbox = new QVBoxLayout;
 	vbox->setSpacing(6);
 	vbox->addSpacing(6);
@@ -509,7 +488,6 @@ void DisplayOptionsWidget::createPanSpectrumOptions() {
     vbox->addLayout(hbox3);
     vbox->addLayout(hbox4);
 	vbox->addLayout(hbox5);
-	vbox->addLayout(hbox6);
 
 
 	m_panSpectrumOptions = new QGroupBox(tr("Panadapter Spectrum"), this);
@@ -1155,11 +1133,5 @@ void DisplayOptionsWidget::panDetectorModeChanged(int mode)  {
 }
 
 void DisplayOptionsWidget::fftSizeChanged(int mode)  {
-
 	set->setfftSize(m_currentReceiver, mode);
-}
-
-void DisplayOptionsWidget::sqLevelChanged(int val) {
-
-	set->setfmsqLevel(m_currentReceiver, val);
 }

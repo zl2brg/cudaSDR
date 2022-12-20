@@ -107,7 +107,7 @@ QGLReceiverPanel::QGLReceiverPanel(QWidget *parent, int rx)
 
 	setMouseTracking(true);
 	setFocusPolicy(Qt::StrongFocus);
-
+    painter = new QPainter(this);
 	//GRAPHICS_DEBUG << "set spectrum buffer size to: " << m_spectrumSize;
 
 	m_bigHeight = 600;
@@ -1549,7 +1549,7 @@ void QGLReceiverPanel::drawCrossHair() {
 	}
 	else {
 
-		rectWidth = m_fonts.bigFont1Metrics->width(fstr);
+        rectWidth = m_fonts.bigFont1Metrics->horizontalAdvance(fstr);
 		fontHeight = m_fonts.bigFont1Metrics->tightBoundingRect("0").height() + spacing;
 	}
 
@@ -1626,6 +1626,7 @@ void QGLReceiverPanel::drawVFOControl() {
 	int x1 = m_dBmScalePanRect.right() + 5;
 	int y1 = 3;
 
+
 	if (m_panLocked) {
 		
 		if (m_dataEngineState == QSDR::DataEngineUp) {
@@ -1645,7 +1646,7 @@ void QGLReceiverPanel::drawVFOControl() {
 	}
 	
 	// click VFO
-	x1 += m_fonts.smallFontMetrics->width(str) + 12;
+    x1 += m_fonts.smallFontMetrics->horizontalAdvance(str) + 12;
 	str = "CLICK VFO";
 
 	if (m_clickVFO) {
@@ -1668,7 +1669,7 @@ void QGLReceiverPanel::drawVFOControl() {
 
 	// FFT size
 		str = "sample size: %1";
-		x1 = m_panRect.right() - m_fonts.smallFontMetrics->width(str) - 65;
+        x1 = m_panRect.right() - m_fonts.smallFontMetrics->horizontalAdvance(str) - 65;
 
 		if (m_dataEngineState == QSDR::DataEngineUp) {
 				
@@ -1704,7 +1705,7 @@ void QGLReceiverPanel::drawVFOControl() {
 				s = "64k";
 				break;
 		}
-		x1 = m_panRect.right() - m_fonts.smallFontMetrics->width(str) - 5;
+        x1 = m_panRect.right() - m_fonts.smallFontMetrics->horizontalAdvance(str) - 5;
 
 		if (m_dataEngineState == QSDR::DataEngineUp) {
 				
@@ -1727,7 +1728,7 @@ void QGLReceiverPanel::drawVFOControl() {
 		int x = m_dBmScalePanRect.right();
 		int y = 25;
 
-		QRect rect = QRect(x, y, m_fonts.smallFontMetrics->width(str) + 4, m_fonts.fontHeightSmallFont + 2);
+        QRect rect = QRect(x, y, m_fonts.smallFontMetrics->horizontalAdvance(str) + 4, m_fonts.fontHeightSmallFont + 2);
 		drawGLRect(rect, col, 2.0f);
 		qglColor(QColor(255, 255, 255, 255));
 		m_oglTextSmall->renderText(x+1, y-2, 3.0f, str);
@@ -1739,10 +1740,10 @@ void QGLReceiverPanel::drawVFOControl() {
 		str = "%1 VFO >>";
 		str = str.arg(frequencyString(m_vfoFrequency, false));
 
-		int x = m_panRect.right() - m_fonts.smallFontMetrics->width(str);
+        int x = m_panRect.right() - m_fonts.smallFontMetrics->horizontalAdvance(str);
 		int y = 25;
 
-		QRect rect = QRect(x, y, m_fonts.smallFontMetrics->width(str) + 4, m_fonts.fontHeightSmallFont + 2);
+        QRect rect = QRect(x, y, m_fonts.smallFontMetrics->horizontalAdvance(str) + 4, m_fonts.fontHeightSmallFont + 2);
 		drawGLRect(rect, col, 2.0f);
 		qglColor(QColor(255, 255, 255, 255));
 		m_oglTextSmall->renderText(x+1, y-2, 3.0f, str);
@@ -1753,7 +1754,7 @@ void QGLReceiverPanel::drawVFOControl() {
 
 	// set Center = VFO frequency button
 	/*QColor col;
-	x1 += m_fonts.smallFontMetrics->width(str) + 7;
+    x1 += m_fonts.smallFontMetrics->horizontalAdvance(str) + 7;
 	str = "mid = vfo";
 
 	if (m_dataEngineState == QSDR::DataEngineUp) {
@@ -1771,14 +1772,14 @@ void QGLReceiverPanel::drawVFOControl() {
 	else
 		col = m_darkColor;
 	
-	m_midToVfoButtonRect = QRect(x1, y1, m_fonts.smallFontMetrics->width(str) + 5, m_fonts.fontHeightSmallFont + 2);
+    m_midToVfoButtonRect = QRect(x1, y1, m_fonts.smallFontMetrics->horizontalAdvance(str) + 5, m_fonts.fontHeightSmallFont + 2);
 	drawGLRect(m_midToVfoButtonRect, col, 2.0f);
 	qglColor(QColor(0, 0, 0));
 	m_oglTextSmall->renderFreqText(x1+1, y1-2, 3.0f, str);*/
 
 
 	// set VFO = Center frequency button
-	/*x1 += m_fonts.smallFontMetrics->width(str) + 7;
+    /*x1 += m_fonts.smallFontMetrics->horizontalAdvance(str) + 7;
 	str = "vfo = mid";
 	
 	if (m_dataEngineState == QSDR::DataEngineUp) {
@@ -1791,7 +1792,7 @@ void QGLReceiverPanel::drawVFOControl() {
 	else
 		col = m_darkColor;
 
-	m_vfoToMidButtonRect = QRect(x1, y1, m_fonts.smallFontMetrics->width(str) + 5, m_fonts.fontHeightSmallFont + 2);
+    m_vfoToMidButtonRect = QRect(x1, y1, m_fonts.smallFontMetrics->horizontalAdvance(str) + 5, m_fonts.fontHeightSmallFont + 2);
 	drawGLRect(m_vfoToMidButtonRect, col, 2.0f);
 	qglColor(QColor(0, 0, 0));
 	m_oglTextSmall->renderFreqText(x1+1, y1-2, 3.0f, str);*/
@@ -1800,7 +1801,10 @@ void QGLReceiverPanel::drawVFOControl() {
 void QGLReceiverPanel::drawReceiverInfo() {
 
 	QString str;
-	
+    int yfontpos = 20;
+    int alpha;
+    QColor fontcolor;
+
 	// mouse wheel freq step size
 	/*if (m_dataEngineState == QSDR::DataEngineUp) {
 
@@ -1857,12 +1861,12 @@ void QGLReceiverPanel::drawReceiverInfo() {
 	glDisable(GL_MULTISAMPLE);
 	if (m_panRect.height() > 15) {
 
-		int fLength = m_fonts.bigFont1Metrics->width("55.555.555") + 30;
+        int fLength = m_fonts.bigFont1Metrics->horizontalAdvance("55.555.555") + 30;
 		//GLint x = m_panRect.width()/2 - 65;
 		GLint x = m_panRect.left() + qRound((qreal)(m_panRect.width()/2.0f)  - m_deltaF * m_panRect.width() / m_freqScaleZoomFactor) + 10;
 		if (x > m_panRect.right() - fLength) x -= fLength + 20;
 
-		int alpha;
+
 		QColor colFlt;
 		QColor colADC;
 		QColor colAGC;
@@ -1880,8 +1884,10 @@ void QGLReceiverPanel::drawReceiverInfo() {
 					colAGC = QColor(255, 170, 90, 180);
 				else
 					colAGC = QColor(215, 130, 50, 180);
-							
+
+
 				alpha = 255;
+                fontcolor = QColor(255, 255, 255);
 			}
 			else {
 
@@ -1890,6 +1896,7 @@ void QGLReceiverPanel::drawReceiverInfo() {
 				colDSP = QColor(1, 100, 90, 180);
 				colAGC = QColor(165, 80, 1);
 				colADC = QColor(165, 80, 1);
+                fontcolor = QColor(68, 68, 68);
 			}
 		}
 		else {
@@ -1899,6 +1906,7 @@ void QGLReceiverPanel::drawReceiverInfo() {
 			colADC = m_darkColor;
 			colAGC = m_darkColor;
 			colDSP = m_darkColor;
+            fontcolor = m_darkColor;
 		}
 
 
@@ -1907,85 +1915,73 @@ void QGLReceiverPanel::drawReceiverInfo() {
 		str = str.arg(m_filterWidthString);
 
 		int x1 = x;
-		int y1 = 3;
+        int y1 = 5;
 
-		rect = QRect(x1, y1, m_fonts.smallFontMetrics->width(str) + 4, m_fonts.fontHeightSmallFont + 2);
+
+        rect = QRect(x1, y1, m_fonts.smallFontMetrics->horizontalAdvance(str) + 4, m_fonts.fontHeightSmallFont + 2);
 		drawGLRect(rect, colFlt, 2.0f);
 		qglColor(QColor(0, 0, 0));
 		m_oglTextSmall->renderText(x1+1, y1-2, 3.0f, str);
 
 		// DSP mode
-		x1 += m_fonts.smallFontMetrics->width(str) + 5;
+        x1 += m_fonts.smallFontMetrics->horizontalAdvance(str) + 5;
 
 		str = "%1";
 		str = str.arg(m_dspModeString);
 		
-		rect = QRect(x1, y1, m_fonts.smallFontMetrics->width(str) + 3, m_fonts.fontHeightSmallFont + 2);
+        rect = QRect(x1, y1, m_fonts.smallFontMetrics->horizontalAdvance(str) + 3, m_fonts.fontHeightSmallFont + 2);
 		drawGLRect(rect, colDSP, 2.0f);
 		qglColor(QColor(0, 0, 0));
 		m_oglTextSmall->renderText(x1+1, y1-2, 3.0f, str);
 
 		// AGC mode
-		x1 += m_fonts.smallFontMetrics->width(str) + 4;
+        x1 += m_fonts.smallFontMetrics->horizontalAdvance(str) + 4;
 
 		str = "%1";
 		str = str.arg(m_agcModeString);
 
-		rect = QRect(x1, y1, m_fonts.smallFontMetrics->width(str) + 4, m_fonts.fontHeightSmallFont + 2);
+        rect = QRect(x1, y1, m_fonts.smallFontMetrics->horizontalAdvance(str) + 4, m_fonts.fontHeightSmallFont + 2);
 		drawGLRect(rect, colAGC, 2.0f);
 		qglColor(QColor(0, 0, 0));
 		m_oglTextSmall->renderText(x1+1, y1-2, 3.0f, str);
 
 		// ADC mode
-		x1 += m_fonts.smallFontMetrics->width(str) + 4;
+        x1 += m_fonts.smallFontMetrics->horizontalAdvance(str) + 4;
 
 		str = "%1";
 		str = str.arg(m_adcModeString);
 
-		rect = QRect(x1, y1, m_fonts.smallFontMetrics->width(str) + 4, m_fonts.fontHeightSmallFont + 2);
+        rect = QRect(x1, y1, m_fonts.smallFontMetrics->horizontalAdvance(str) + 4, m_fonts.fontHeightSmallFont + 2);
 		drawGLRect(rect, colADC, 2.0f);
-		qglColor(QColor(0, 0, 0));
+        qglColor(QColor(0, 0, 0));
 		m_oglTextSmall->renderText(x1+1, y1-2, 3.0f, str);
-
 		// VFO frequency
 		TFrequency f;
 		f.freqMHz = (int)(m_vfoFrequency / 1000);
 		f.freqkHz = (int)(m_vfoFrequency % 1000);
 
-		str = "%1.%2";
+        str = "%1.%2 MHz";
 		int f1 = f.freqMHz;
 		int f2 = f.freqkHz;
 
 		QString fstr = str.arg(f1/1000).arg(f1 - 1000 * (int)(f1/1000), 3, 10, QLatin1Char('0'));
-		//int fLength = m_fonts.bigFont1Metrics->width(fstr) + 55;
 
-        glColor4f(0, 0, 0, alpha);
-		m_oglTextBig1->renderText(x+2, 14, 4.0f, fstr);
-		
         glColor4f(255, 255, 255, alpha);
-		m_oglTextBig1->renderText(x, 12, 5.0f, fstr);
-
+        m_oglTextBig1->renderText(x, yfontpos, 5.0f, fstr);
 		str = "%1";
 		if (f1 / 1000 < 10) {
 
-            glColor4f(0, 0, 0, alpha);
-			m_oglTextBig2->renderText(x + 36, 14, 4.0f, str.arg(f2, 3, 10, QLatin1Char('0')));
-			m_oglTextBig1->renderText(x + 60, 14, 4.0f, "MHz");
-
-            glColor4f(255, 255, 255, alpha);
-			m_oglTextBig2->renderText(x + 34, 12, 5.0f, str.arg(f2, 3, 10, QLatin1Char('0')));
-			m_oglTextBig1->renderText(x + 58, 12, 5.0f, "MHz");
+            glColor4f(68,68,68,68);
+            m_oglTextBig1->renderText(x + 34,yfontpos, 5.0f, str.arg(f2, 3, 10, QLatin1Char('0')));
 		}
 		else {
 
-            glColor4f(0, 0, 0, alpha);
-			m_oglTextBig2->renderText(x + 39, 13, 4.0f, str.arg(f2, 3, 10, QLatin1Char('0')));
-			m_oglTextBig1->renderText(x + 65, 13, 4.0f, "MHz");
-
             glColor4f(255, 255, 255, alpha);
-			m_oglTextBig2->renderText(x + 41, 11, 5.0f, str.arg(f2, 3, 10, QLatin1Char('0')));
-			m_oglTextBig1->renderText(x + 63, 11, 5.0f, "MHz");
-		}
+            m_oglTextBig1->renderText(x + 41, yfontpos, 5.0f, str.arg(f2, 3, 10, QLatin1Char('0')));
+        }
+
+
+
 	}
 
 	if (m_panRect.height() > 15 && m_deltaFrequency != 0) {
@@ -2002,23 +1998,38 @@ void QGLReceiverPanel::drawReceiverInfo() {
 		QString fstr = str.arg(f1/1000).arg(f1 - 1000 * (int)(f1/1000), 3, 10, QLatin1Char('0'));
 		GLint x = m_panRect.width()/2 + 10;
 		
-		qglColor(QColor(80, 180, 240, 180));
-		m_oglTextBig1->renderText(x, 27, 5.0f, fstr);
+        qglColor(QColor(80, 180, 240, alpha));
+        m_oglTextBig1->renderText(x, yfontpos, 5.0f, fstr);
 
 		str = "%1";
 		if (f1 / 1000 < 10) {
 
-			m_oglTextBig2->renderText(x + 34, 27, 5.0f, str.arg(f2, 3, 10, QLatin1Char('0')));
-			m_oglTextBig1->renderText(x + 58, 27, 5.0f, "MHz");
+            m_oglTextBig1->renderText(x + 34, yfontpos, 5.0f, str.arg(f2, 3, 10, QLatin1Char('0')));
+            m_oglTextBig1->renderText(x + 58, yfontpos, 5.0f, "MHz");
 		}
 		else {
 
-			m_oglTextBig2->renderText(x + 41, 27, 5.0f, str.arg(f2, 3, 10, QLatin1Char('0')));
-			m_oglTextBig1->renderText(x + 63, 27, 5.0f, "MHz");
+            m_oglTextBig1->renderText(x + 41, yfontpos, 5.0f, str.arg(f2, 3, 10, QLatin1Char('0')));
+            m_oglTextBig1->renderText(x + 63, yfontpos, 5.0f, "MHz");
 		}
 	}
+
+
 	glEnable(GL_MULTISAMPLE);
 }
+
+
+void QGLReceiverPanel::renderText(int x,int y, QFont &font, QColor fontcolor, const QString &text) {
+                saveGLState();
+                painter->begin(this);
+                painter->setPen(fontcolor);
+                painter->setFont(font);
+                painter->setRenderHint(QPainter::TextAntialiasing ,true);
+                painter->drawText(int(x) ,int(y), text);
+                painter->end();
+                restoreGLState();
+            }
+
 
 void QGLReceiverPanel::drawAGCControl() {
 
@@ -2243,9 +2254,9 @@ void QGLReceiverPanel::renderPanHorizontalScale() {
 	QRect scaledTextRect(0, textOffset_y, 1, m_freqScalePanRect.height());
 
 	if (m_smallSize)
-		scaledTextRect.setWidth(m_fonts.smallFontMetrics->width(fstr));
+        scaledTextRect.setWidth(m_fonts.smallFontMetrics->horizontalAdvance(fstr));
 	else
-		scaledTextRect.setWidth(m_fonts.bigFont1Metrics->width(fstr));
+        scaledTextRect.setWidth(m_fonts.bigFont1Metrics->horizontalAdvance(fstr));
 
 	scaledTextRect.moveLeft(m_freqScalePanRect.width() - scaledTextRect.width());
 
@@ -2279,9 +2290,9 @@ void QGLReceiverPanel::renderPanHorizontalScale() {
 
 			int textWidth;
 			if (m_smallSize)
-				textWidth = m_fonts.smallFontMetrics->width(str);
+                textWidth = m_fonts.smallFontMetrics->horizontalAdvance(str);
 			else
-				textWidth = m_fonts.bigFont1Metrics->width(str);
+                textWidth = m_fonts.bigFont1Metrics->horizontalAdvance(str);
 			QRect textRect(m_frequencyScale.mainPointPositions.at(i) + offset_X - (textWidth / 2), textOffset_y, textWidth, fontHeight);
 
 			if (textRect.left() < 0 || textRect.right() >= scaledTextRect.left()) continue;
@@ -3579,14 +3590,14 @@ void QGLReceiverPanel::setSpectrumBuffer(int rx, const qVectorFloat& buffer) {
 	
 			spectrumBufferMutex.lock();
 			specBuf = buffer;
-			computeDisplayBins(specBuf, waterBuf);
+            computeDisplayBins(specBuf, waterBuf);
 			spectrumBufferMutex.unlock();
 		}
 		else {
 
 			specBuf = buffer;
-			if (m_dataEngineState == QSDR::DataEngineUp)
-				computeDisplayBins(specBuf, waterBuf);
+            if (m_dataEngineState == QSDR::DataEngineUp)
+                computeDisplayBins(specBuf, waterBuf);
 		}
 	}
 }

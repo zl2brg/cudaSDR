@@ -64,19 +64,18 @@ RadioPopupWidget::RadioPopupWidget(QWidget *parent, int rx)
 	setFocusPolicy(Qt::StrongFocus);
 
 	QString	style = QString::fromUtf8(
-            "font-size: 10pt;"
+            "font-size: 12pt;"
 			"border: 0px solid rgba(166, 196, 208, 255);"
-			"border: 1px solid;"// rgba(166, 196, 208, 255);"
-			"border-left-color: rgba(220, 120, 120, 255);"
-			"border-top-color: rgba(220, 120, 120, 255);"
+            //"border: 1px solid;"// rgba(166, 196, 208, 255);"
+            //"border-left-color: rgba(220, 120, 120, 255);"
+            //"border-top-color: rgba(220, 120, 120, 255);"
 			"border-right-color: rgba(0, 0, 0, 255);"
 			"border-bottom-color: rgba(0, 0, 0, 255);"
 			"color: rgb(166, 196, 208); "
-			//"background-color: rgba(40, 40, 40, 255); ");
-			"background-color: rgba(25, 25, 25, 255); ");
+            "background-color: rgba(40, 40, 40, 255); ");
+            //"background-color: rgba(25, 25, 25, 255); ");
 
-	setStyleSheet(style);
-
+    setStyleSheet(style);
 	fonts = new CFonts(this);
 	m_fonts = fonts->getFonts();
 
@@ -127,6 +126,7 @@ RadioPopupWidget::RadioPopupWidget(QWidget *parent, int rx)
 	createFilterBtnWidgetA();
 	createFilterBtnWidgetB();
 	createFilterBtnWidgetC();
+    createSquelchGroup();
 
 	m_filterStackedWidget = new QStackedWidget(this);
 	m_filterStackedWidget->setContentsMargins(0, 0, 0, 0);
@@ -166,9 +166,11 @@ RadioPopupWidget::RadioPopupWidget(QWidget *parent, int rx)
 	mainLayout->addWidget(m_filterStackedWidget);
 	mainLayout->addSpacing(16);
 	mainLayout->addLayout(agcVBox);
-    mainLayout->addSpacing(32);
+    mainLayout->addSpacing(8);
 	mainLayout->addStretch();
-
+    mainLayout->addLayout(sqlVBox);
+    mainLayout->addSpacing(32);
+    mainLayout->addStretch();
 	setLayout(mainLayout);
 	
 	// setup values from settings.ini
@@ -292,6 +294,36 @@ void RadioPopupWidget::setupConnections() {
 		SIGNAL(filterFrequenciesChanged(QObject *, int, qreal, qreal)), 
 		this, 
 		SLOT(filterChanged(QObject *, int, qreal, qreal)));
+}
+
+
+void RadioPopupWidget::createSquelchGroup(){
+    m_fmSqlevel = new QSlider(Qt::Horizontal, this);
+    m_fmSqlevel->setTickPosition(QSlider::NoTicks);
+    m_fmSqlevel->setFixedSize(130, 12);
+    m_fmSqlevel->setSingleStep(1);
+    m_fmSqlevel->setValue(80);
+    m_fmSqlevel->setRange(1, 100);
+    m_fmSqlevel->setStyleSheet(set->getVolSliderStyle());
+
+    QLabel* squelchLabel = new QLabel("FM Squelch");
+    squelchLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
+    squelchLabel->setStyleSheet(set->getLabelStyle());
+
+    QHBoxLayout* hbox = new QHBoxLayout();
+    hbox->setContentsMargins(0, 0, 0, 0);
+    hbox->setSpacing(5);
+    hbox->addWidget(squelchLabel);
+    hbox->addWidget(m_fmSqlevel);
+//    hbox->addStretch();
+    sqlVBox = new QVBoxLayout;
+    sqlVBox->setSpacing(1);
+    sqlVBox->addLayout(hbox);
+    sqlVBox->addStretch();
+    CHECKED_CONNECT(m_fmSqlevel, SIGNAL(valueChanged(int)), this, SLOT(sqLevelChanged(int)));
+
+
+
 }
 
 void RadioPopupWidget::createOptionsBtnGroup() {
@@ -539,6 +571,7 @@ void RadioPopupWidget::createOptionsBtnGroup() {
 	hbox5->setSpacing(0);
 	hbox5->addWidget(m_WaterfallSimpleBtn);
 	hbox5->addWidget(m_WaterfallEnhancedBtn);
+
 	
 	optionsVBox = new QVBoxLayout;
 	optionsVBox->setSpacing(1);
@@ -948,11 +981,12 @@ void RadioPopupWidget::createAgcBtnGroup() {
 	hbox2->addStretch();
 
 
+
 	agcVBox = new QVBoxLayout;
 	agcVBox->setSpacing(1);
 	agcVBox->addLayout(hbox1);
 	agcVBox->addLayout(hbox2);
-	agcVBox->addLayout(hbox3);
+//	agcVBox->addLayout(hbox3);
 
 
 }
@@ -2795,4 +2829,10 @@ void RadioPopupWidget::createBackground(QSize size) {
 	palette.setBrush(backgroundRole(), QBrush(image));
 	setPalette(palette);
 	setAutoFillBackground(true);
+}
+
+
+void RadioPopupWidget::sqLevelChanged(int val){
+
+    set->setfmsqLevel(m_currentRx, val);
 }

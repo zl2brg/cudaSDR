@@ -388,26 +388,7 @@ void QGLDistancePanel::paintChirpWSPRDisplay() {
 	drawDistHorizontalScale();
 	drawDistVerticalScale();
 	
-	//// chirp distance spectrum
-	//m_distancePanadapter->drawGLDistanceRuler(
-	//				m_freqScaleDistancePanRect,
-	//				m_freqScalePanadapterRect,
-	//				m_mouseRegion,
-	//				m_distRulerZoomFactor,
-	//				m_distRulerDisplayDelta,
-	//				m_kilometersPerGate,
-	//				m_showChirpFFT,
-	//				m_chirpBufferLength);
 
-	//m_distancePanadapter->drawGLdBmScale(
-	//				m_dBmScaleDistancePanRect,
-	//				m_distanceSpectrumRect,
-	//				m_mouseRegion,
-	//				m_dBmDistScaleMin,
-	//				m_dBmDistScaleMax,
-	//				m_showZerodBmLine);
-
-	//m_distancePanadapter->drawGLGrid(m_distanceSpectrumRect, m_dBmScaleDistancePanRect);
 }
 
 void QGLDistancePanel::drawPanadapter() {

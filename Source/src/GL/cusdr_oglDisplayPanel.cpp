@@ -2716,9 +2716,6 @@ void OGLDisplayPanel::renderFreqText(GLint &x1, GLint &y1,QFont &font,QFontMetri
     int len = freqstr.length();
     QColor freqdigitcolor;
 
-
-
-
     for (int x = 0; x < len; x++) {
 
         if (set->getRadioState() > RadioState::RX) {

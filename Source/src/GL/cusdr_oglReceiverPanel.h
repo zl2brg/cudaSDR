@@ -96,6 +96,7 @@ private:
 	DSPMode						m_dspMode;
 	PanGraphicsMode				m_panMode;
 	WaterfallColorMode			m_waterfallMode;
+    QPainter                    *painter;
 
 	QTime						m_displayTime;
 	QTime						m_resizeTime;
@@ -369,6 +370,8 @@ private:
 	void	computeDisplayBins(QVector<float>& panBuffer, QVector<float>& waterfallBuffer);
 	void 	showText(float x, float y, float z, const QString &text, bool smallText);
 	void	showRadioPopup(bool value);
+    void    renderText(int x, int y, QFont &font, QColor fontcolor, const QString &text);
+
 
 private slots:
 	void	systemStateChanged(

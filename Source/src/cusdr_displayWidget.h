@@ -96,7 +96,6 @@ private:
 	QSlider*				m_fpsSlider;
 	QSlider*				m_avgSlider;
 	QSlider*				m_wbAvgSlider;
-	QSlider*				m_fmSqlevel;
 
 	QComboBox*              m_panAverageCombo;
     QComboBox*              m_panDetectorCombo;
@@ -120,8 +119,6 @@ private:
 	QLabel*                 m_panAvgModeLabel;
     QLabel*                 m_panDetModeLabel;
 	QLabel*					m_fftLabel;
-	QLabel*					m_sqlabel;
-
 
 	AeroButton*				m_PanLineBtn;
 	AeroButton*				m_PanFilledLineBtn;
@@ -205,7 +202,6 @@ private slots:
 	void    panAverageModeChanged(int value);
     void    panDetectorModeChanged(int value);
 	void    fftSizeChanged(int value);
-	void 	sqLevelChanged(int);
 
 
 signals:
