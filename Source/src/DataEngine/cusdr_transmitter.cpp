@@ -32,7 +32,7 @@ Transmitter::Transmitter( int transmitter )
 : QObject()
 , set(Settings::instance())
 {
-    create_transmitter(TX_ID,DSP_SAMPLE_SIZE,4096,10,2048,100);
+    createTransmitter(TX_ID,DSP_SAMPLE_SIZE,4096,10,2048,100);
     setupConnections();
 
 }
@@ -106,7 +106,7 @@ void Transmitter::setupConnections() {
 
 
 
-bool  Transmitter::create_transmitter(int id, int buffer_size, int fft_size, int fps, int width, int height) {
+bool  Transmitter::createTransmitter(int id, int buffer_size, int fft_size, int fps, int width, int height) {
 
     int protocol = ORIGINAL_PROTOCOL;
     int pre_emphasize =0;
@@ -432,7 +432,7 @@ void Transmitter::transmitter_set_mic_level(QObject *object, int level){
          int clip = 0;
          int span_clip_l = 0;
          int span_clip_h = 0;
-         int pixels=this->pixels;
+         int pixels=2048;
          int stitches = 1;
          int avm = 0;
          double tau = 0.001 * 120.0;

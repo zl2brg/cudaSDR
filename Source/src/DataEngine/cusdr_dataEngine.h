@@ -411,7 +411,7 @@ public:
 		QSDR::_HWInterfaceMode hwMode = QSDR::NoInterfaceMode);
     int tx_index =0;
     double get_cwsample();
-    void add_rx_audio_sample();
+    void addRxAudioSample();
 
 	~DataProcessor() override;
 
@@ -435,7 +435,7 @@ private slots:
     void    send_hpsdr_data(int rx, const CPX &buffer, int buffersize);
     void 	setAudioBuffer_old(int rx, const CPX &buffer, int buffersize);
 	void	writeData();
-    void    buffer_tx_data();
+    void    bufferTxData();
     void    key_down(int);
     void    key_down_test(int,int);
 
@@ -507,10 +507,10 @@ private:
 	quint32			m_oldSendSequence;
 
 	volatile bool	m_stopped;
-    void            get_tx_iqData();
+    void            getTxIqData();
     void            buffer_tx_iq_sample(int i, int q);
     void    DumpBuffer(unsigned char *buffer,int length, const char *who);
-    void    add_mic_sample();
+    void    addMicSample();
     void    add_audio_sample(qint16 leftAudioSample, qint16 rightAudioSample);
     void    add_tx_iq_sample(double i, double q);
 
@@ -518,7 +518,7 @@ private:
 
     void fetch_MicData();
 
-    void send_mic_data();
+    void sendMicData();
 
 	uchar	m_ibuffer[IO_BUFFER_SIZE * IO_BUFFERS];
 signals:

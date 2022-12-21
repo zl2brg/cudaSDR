@@ -143,7 +143,7 @@ DataEngine::DataEngine(QObject *parent)
 	io.hermesFW = 0;
 	io.mercuryFW = 0;
     io.ccTx.use_repeaterOffset = set->get_repeaterMode();
-
+    TX.setDSPMode(this,TX_ID,set->getDSPMode(1));
     //m_audioBuffer.resize(0);
     //m_audiobuf.resize(IO_BUFFER_SIZE);
 
@@ -367,14 +367,7 @@ void DataEngine::setupConnections() {
             this,
             SLOT(dspModeChanged(QObject *, int, DSPMode)));
 
-    CHECKED_CONNECT(
-            set,
-            SIGNAL(dspModeChanged(QObject *, int, DSPMode)),
-            this,
-            SLOT(dspModeChanged(QObject *, int, DSPMode)));
-
-
-    CHECKED_CONNECT(
+     CHECKED_CONNECT(
             set,
             SIGNAL(CwHangTimeChanged(int)),
             this,
@@ -2823,7 +2816,7 @@ void DataProcessor::full_txBuffer(){
 
 }
 
-void DataProcessor::buffer_tx_data()
+void DataProcessor::bufferTxData()
 {
     de->io.output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
     de->io.output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
@@ -2832,7 +2825,7 @@ void DataProcessor::buffer_tx_data()
 
 }
 
-    void DataProcessor::add_rx_audio_sample(){
+    void DataProcessor::addRxAudioSample(){
         qint16 leftRXSample;
         qint16 rightRXSample;
         leftRXSample = (qint16) (rx_audio_buffer[rx_audio_ptr].re * 32767.0f);
@@ -2858,11 +2851,11 @@ void DataProcessor::send_hpsdr_data(int rx, const CPX &buffer, int buffersize) {
         }
 
     if (set->is_transmitting()) {
-        if (!tx_index) get_tx_iqData();
+        if (!tx_index) getTxIqData();
     } else memset(&m_tx_iq_Buffer, 0x0, sizeof(m_tx_iq_Buffer));
         while (rx_audio_ptr  <   buffersize) {
-        add_rx_audio_sample();
-        add_mic_sample();
+        addRxAudioSample();
+        addMicSample();
 
         if (m_idx == IO_BUFFER_SIZE) {
             full_txBuffer();
@@ -2875,7 +2868,7 @@ void DataProcessor::send_hpsdr_data(int rx, const CPX &buffer, int buffersize) {
 
 void DataProcessor::add_audio_sample(qint16 leftRXSample, qint16 rightRXSample)
 {
-    buffer_tx_data();
+    bufferTxData();
     if (m_idx == IO_BUFFER_SIZE)
     {
         full_txBuffer();
@@ -2912,7 +2905,7 @@ void DataProcessor::processMicData() {
 
 }
 
-void DataProcessor::add_mic_sample()
+void DataProcessor::addMicSample()
 {
     de->io.output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
     de->io.output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
@@ -2921,22 +2914,20 @@ void DataProcessor::add_mic_sample()
     if (tx_index >= 4096) tx_index = 0;
 }
 
-void DataProcessor::send_mic_data() {
+void DataProcessor::sendMicData() {
     int error;
     long   leftTXSample;
     long   rightTXSample;
     double is,qs;
     double gain = 32767.0f;
     // double gain = 25 * 0.00392;
-    double temp;
-    float *sample;
-    int i,q;
     static AUDIOBUF a;
 
     if ( de->io.ccTx.mox ||  de->io.ccTx.ptt ) {
 
         fexchange0(TX_ID, a.data(), (double *) m_iq_output_buffer.data(), &error);
         Spectrum0(1, TX_ID, 0, 0, (double *) m_iq_output_buffer.data());
+        qDebug() << "tx spectrum size " << sizeof( m_iq_output_buffer.data());
 
         for (int j = 0; j < DSP_SAMPLE_SIZE; j++) {
             qs = m_iq_output_buffer.at(j).re;
@@ -2970,7 +2961,7 @@ void DataProcessor::fetch_MicData(){
 }
 
 /*  processes mic samples ready to transmit */
-void DataProcessor::get_tx_iqData(){
+void DataProcessor::getTxIqData(){
 
     int error;
     long int   leftTXSample;
@@ -3043,7 +3034,7 @@ void DataProcessor::setAudioBuffer(int rx, const CPX &buffer, int buffersize)
     qint16 rightRXSample;
      char *ptr;
     // process the output
-    if (tx_index == 0)  get_tx_iqData();
+    if (tx_index == 0)  getTxIqData();
         for (int j = 0; j < buffersize; j++) {
 
             leftRXSample  = (qint16)(buffer.at(j).re * 32767.0f);
@@ -3120,7 +3111,7 @@ void DataProcessor::setAudioBuffer_old(int rx, const CPX &buffer, int buffersize
     qint16 rightRXSample;
     char *ptr;
     // process the output
-    if (tx_index == 0)  get_tx_iqData();
+    if (tx_index == 0)  getTxIqData();
     for (int j = 0; j < buffersize; j++) {
 
         leftRXSample  = (qint16)(buffer.at(j).re * 32767.0f);

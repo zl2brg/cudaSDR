@@ -48,7 +48,7 @@ public:
 
 private:
     void	setupConnections();
-    bool create_transmitter(int id, int buffer_size, int fft_size, int fps, int width, int height);
+    bool createTransmitter(int id, int buffer_size, int fft_size, int fps, int width, int height);
     void init_analyser(int id);
     void reconfigure_transmitter(int id,int height);
     void set_mode(int  tx, int m);
