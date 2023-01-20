@@ -220,7 +220,7 @@ void DataEngine::setupConnections() {
 		set,
 		SIGNAL(ditherChanged(QObject*,int)),
 		this, 
-		SLOT(setDither(QObject*,int)))
+        SLOT(setDither(QObject*,int)))
 
 	CHECKED_CONNECT(
 		set, 
@@ -445,7 +445,6 @@ bool DataEngine::startDataEngineWithoutConnection() {
 	DATA_ENGINE_DEBUG << "no HPSDR-HW interface";
 
 	if (io.inputBuffer.length() > 0) {
-
 		initReceivers(1);
 		if (!m_dataIO)	createDataIO();
 		if (!m_dataProcessor)	createDataProcessor();
@@ -1154,9 +1153,8 @@ bool DataEngine::initReceivers(int rcvrs) {
 		
 	for (int i = 0; i < rcvrs; i++) {
 			
-		auto *rx = new Receiver(i);
+        auto *rx = new Receiver(i);
 		// init the DSP core
-		DATA_ENGINE_DEBUG << "trying to init a DSP core for rx " << i;
 
 		if (rx->initDSPInterface()) {
 
@@ -2579,10 +2577,7 @@ void DataProcessor::processInputBuffer(const QByteArray &buffer) {
 
 
 				for (int r = 0; r < de->io.receivers; r++) {
-
-					if (de->RX.at(r)->qtwdsp) {
 						QMetaObject::invokeMethod(de->RX.at(r), "dspProcessing", Qt::DirectConnection);// Qt::QueuedConnection);
-					}
 				}
 				m_rxSamples = 0;
             }

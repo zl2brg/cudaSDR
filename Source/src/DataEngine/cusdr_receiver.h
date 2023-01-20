@@ -88,11 +88,14 @@ public:
 	qreal	getdBmPanScaleMax()		{ return m_dBmPanScaleMax; }
 	bool	getConnectedStatus()	{ return m_connected; }
 	void 	setAudioBufferSize();
+    void    init_analyzer(int refreshrate);
+    void    calcDisplayAveraging();
 
     float	in[BUFFER_SIZE * 2];
     float	out[BUFFER_SIZE * 2];
 	float	temp[BUFFER_SIZE * 4];
 	float	spectrum[BUFFER_SIZE * 4];
+    qVectorFloat spectrumBuffer;
     RadioState m_state  = RadioState::RX;
 
 	QVector<float>	newSpectrum;
@@ -107,6 +110,8 @@ public:
 	QHQueue<CPX>	inQueue;
 
 public slots:
+    void    setNCOFrequency(int rx, long value);
+    void    setSampleSize(int rx, int size);
 	void	setReceiverData(TReceiver data);
 	void	setAudioMode(QObject* sender, int mode);
 	void	setServerMode(QSDR::_ServerMode mode);
@@ -133,7 +138,28 @@ public slots:
 	void	setdBmPanScaleMin(qreal value);
 	void	setdBmPanScaleMax(qreal value);
 	void	setMercuryAttenuators(const QList<int> &attenuators);
+    void    setAGC_Line(int rx);
+//    double getSMeterInstValue();
+    void ProcessFrequencyShift(CPX &in, CPX &out);
+    void setPanAdaptorAveragingMode(int rx, int mode);
+    void setPanAdaptorDetectorMode(int rx, int mode);
+    void setPanAdaptorAveragingCnt(QObject *sender, int rx, int count);
+    void setfftSize(int rx, int value);
+    void setfmsqLevel(int rx, int value);
+    void setNoiseBlankerMode(int rx);
+    void setNoiseBlankerMode(int rx, int nb);
+    void setNoiseFilterMode(int rx, int nr);
 
+    void setNr2Ae(int rx, bool value);
+
+    void setNr2GainMethod(int rx, int value);
+
+    void setNr2NpeMethod(int rx, int value);
+
+    void setanf(int rx, bool value);
+
+    void setsnb(int rx, bool value);
+    void setNrAGC(int rx, int value);
 	void	dspProcessing();
 	void	stop();
 
@@ -150,10 +176,8 @@ private slots:
 
 	bool	initQtWDSPInterface();
 
-    void	deleteQtWDSP();
 
-    
-	//void	setAGCMaximumGain_dBm(QObject* sender, int rx, int value);
+    //void	setAGCMaximumGain_dBm(QObject* sender, int rx, int value);
 	void	setAGCMaximumGain_dB(QObject* sender, int rx, qreal value);
 	void	setAGCFixedGain_dB(QObject* sender, int rx, qreal value);
 	void	setAGCThreshold_dB(QObject* sender, int rx, qreal value);
@@ -163,6 +187,7 @@ private slots:
 	void	setAGCAttackTime(QObject* sender, int rx, qreal value);
 	void 	setAGCDecayTime(QObject* sender, int rx, qreal value);
 	void 	setAGCHangTime(QObject* sender, int rx, qreal value);
+
 
 private:
 	Settings*				set;
@@ -228,6 +253,30 @@ private:
 
 	bool	m_connected;
 	bool	m_hangEnabled;
+    int		m_spectrumSize;
+    int		m_fftMultiplier;
+    int 	m_fftSize;
+    int     m_averageCount;
+    double  m_display_avb;
+    int     m_display_average;
+    int     m_PanAvMode;
+    int     m_PanDetMode;
+    float	m_volume;
+    qreal   m_agcThreshold;
+    double   m_agcMaximumGain;
+    DSPMode	m_dspmode;
+    int 	m_nb;
+    int 	m_nb2;
+    int 	m_nr;
+    int 	m_nr2;
+    int 	m_anf;
+    int 	m_snb;
+    int     m_nr_agc;
+    int     m_nr2_ae;
+    int     m_nr2_npe_method;
+    int     m_nr2_gain_method;
+    int     m_nbMode;
+    int     m_nrMode;
 
 	//void	setupConnections();
 
@@ -237,6 +286,11 @@ signals:
 	void	sMeterValueChanged(int rx, double value);
 	void	outputBufferSignal(int rx, const CPX &buffer);
 	void	audioBufferSignal(int rx, const CPX &buffer, int);
+
+
+
+
+
 
 };
 

@@ -61,6 +61,7 @@
 #include "cusdr_WidebandProcessor.h"
 #include "cusdr_transmitter.h"
 #include "AudioEngine/cusdr_audio_input.h"
+#include "QtWDSP/qtwdsp_dspEngine.h"
 
 #define LOG_DATA_PROCESSOR
 
@@ -107,6 +108,7 @@ public:
 	Settings*			set;
 	THPSDRParameter		io;
 
+
     Transmitter         TX;
     QList<Receiver *>	RX;
 	QList<qreal>		chirpData;
@@ -135,263 +137,247 @@ public:
     void    senddata(char * buffer, int length);
      QFile           *file{};
 
-public slots:
+   public slots:
 
-	bool	initDataEngine();
-	void	stop();
-	void 	setWbSpectrumAveraging(QObject*, int rx, int value);
+     bool initDataEngine();
+     void stop();
+     void setWbSpectrumAveraging(QObject *, int rx, int value);
 
+     // set Server parameter
+     void setRxPeerAddress(int rx, QHostAddress address);
+     void setRxClient(int rx, int client);
+     void setRx(int rx);
+     void setRxSocketState(int rx, const char *prop, QString);
 
-	// set Server parameter
-	void	setRxPeerAddress(int rx, QHostAddress address);
-	void	setRxClient(int rx, int client);
-	void	setRx(int rx);
-	void	setRxSocketState(int rx, const char* prop, QString);
-	
-	//void	setSendIQSignal(QObject *sender, int value);
-	void	setRcveIQSignal(QObject *sender, int value);
-	void	setAudioReceiver(QObject *sender, int rx);
-	//void	setAudioInProcessorRunning(bool value);
-	void	setIQPort(int rx, int port);
-	void	setRxConnectedStatus(QObject* sender, int rx, bool value);
-	void	setClientConnected(QObject* sender, int rx);
-	void	setClientConnected(bool value);
-	void	setClientDisconnected(int client);
-	void	setFramesPerSecond(QObject *sender, int rx, int value);
+     // void	setSendIQSignal(QObject *sender, int value);
+     void setRcveIQSignal(QObject *sender, int value);
+     void setAudioReceiver(QObject *sender, int rx);
+     // void	setAudioInProcessorRunning(bool value);
+     void setIQPort(int rx, int port);
+     void setRxConnectedStatus(QObject *sender, int rx, bool value);
+     void setClientConnected(QObject *sender, int rx);
+     void setClientConnected(bool value);
+     void setClientDisconnected(int client);
+     void setFramesPerSecond(QObject *sender, int rx, int value);
 
-    // DSP processing
-	void	processFileBuffer(const QList<qreal> data);
-	
-	// change HPSDR hardware settings
-	void	setPenelopeVersion(QObject *sender, int version);
-	void	setHwIOVersion(QObject *sender, int version);
-	void	setNumberOfRx(QObject *sender, int value);
-	void	setSampleRate(QObject *sender, int value);
-	void	setMercuryAttenuator(QObject *sender, HamBand band, int value);
-	void	setDither(QObject *sender, int value);
-	void	setRandom(QObject *sender, int value);
-	void	setTimeStamp(QObject *sender, bool value);
-	void	set10MhzSource(QObject *sender, int source);
-	void	set122_88MhzSource(QObject *sender, int source);
-    void	setMicSource(int source);
-	void	setMercuryClass(QObject *sender, int value);
-	void	setMercuryTiming(QObject* sender, int value);
-	void	setHamBand(QObject *sender, int rx, bool byBtn, HamBand band);
-	void	setFrequency(QObject* sender, int mode, int rx, long frequency);
-    void    set_tx_drivelevel(QObject* sender,int value);
-    void    setRepeaterMode(bool);
+     // DSP processing
+     void processFileBuffer(const QList<qreal> data);
 
-	void	suspend();
+     // change HPSDR hardware settings
+     void setPenelopeVersion(QObject *sender, int version);
+     void setHwIOVersion(QObject *sender, int version);
+     void setNumberOfRx(QObject *sender, int value);
+     void setSampleRate(QObject *sender, int value);
+     void setMercuryAttenuator(QObject *sender, HamBand band, int value);
+     void setDither(QObject *sender, int value);
+     void setRandom(QObject *sender, int value);
+     void setTimeStamp(QObject *sender, bool value);
+     void set10MhzSource(QObject *sender, int source);
+     void set122_88MhzSource(QObject *sender, int source);
+     void setMicSource(int source);
+     void setMercuryClass(QObject *sender, int value);
+     void setMercuryTiming(QObject *sender, int value);
+     void setHamBand(QObject *sender, int rx, bool byBtn, HamBand band);
+     void setFrequency(QObject *sender, int mode, int rx, long frequency);
+     void set_tx_drivelevel(QObject *sender, int value);
+     void setRepeaterMode(bool);
 
-    void    CwHangTimeChanged(int CwHangTime);
-    void    CwSidetoneFreqChanged(int CwSidetoneFreq);
-    void    CwKeyReversedChanged(int CwKeyReversed);
-    void    CwKeyerModeChanged(int CwKeyerMode);
-    void    InternalCwChanged(int InternalCW);
-    void    CwKeyerSpeedChanged(int CwKeyerSpeed);
-    void    CwPttDelayChanged(int CwPttDelay);
-    void    CwSidetoneVolumeChanged(int CwSidetoneVolume);
-    void    CwKeyerWeightChanged(int CwKeyerweight);
-    void    CwKeyerSpacingChanged(int CwKeyerSpacing);
+     void suspend();
 
+     void CwHangTimeChanged(int CwHangTime);
+     void CwSidetoneFreqChanged(int CwSidetoneFreq);
+     void CwKeyReversedChanged(int CwKeyReversed);
+     void CwKeyerModeChanged(int CwKeyerMode);
+     void InternalCwChanged(int InternalCW);
+     void CwKeyerSpeedChanged(int CwKeyerSpeed);
+     void CwPttDelayChanged(int CwPttDelay);
+     void CwSidetoneVolumeChanged(int CwSidetoneVolume);
+     void CwKeyerWeightChanged(int CwKeyerweight);
+     void CwKeyerSpacingChanged(int CwKeyerSpacing);
 
-private:
-	void	setSystemState(
-				QSDR::_Error err,
-				QSDR::_HWInterfaceMode hwmode,
-				QSDR::_ServerMode mode,
-				QSDR::_DataEngineState state);
+   private:
+     void setSystemState(QSDR::_Error err, QSDR::_HWInterfaceMode hwmode,
+                         QSDR::_ServerMode mode, QSDR::_DataEngineState state);
 
-	void	setupConnections();
-	void	connectDSPSlots();
-	void	disconnectDSPSlots();
-	void	createDiscoverer();
-	void	createDataIO();
-	void	createDataProcessor();
+     void setupConnections();
+     void connectDSPSlots();
+     void disconnectDSPSlots();
+     void createDiscoverer();
+     void createDataIO();
+     void createDataProcessor();
 
+     bool toggle_TxRx();
 
+     void createAudioOutProcessor();
+     void createWideBandDataProcessor();
+     // void	createChirpDataProcessor();
+     // void	createAudioReceiver(int rx);
+     void createAudioReceiver();
+     void createAudioInputProcessor();
 
+     bool initReceivers(int rx);
+     bool initTransmitters(int tx);
+     bool start();
+     bool startDataEngineWithoutConnection();
+     bool findHPSDRDevices();
+     bool getFirmwareVersions();
+     bool checkFirmwareVersions();
+     bool startDiscoverer(QThread::Priority prio);
+     bool startDataIO(QThread::Priority prio);
+     bool startDataProcessor(QThread::Priority prio);
 
+     __attribute__((unused)) static void
+     startAudioOutProcessor(QThread::Priority prio);
 
-	bool    toggle_TxRx();
+     bool startWideBandDataProcessor(QThread::Priority prio);
+     bool start_TxProcessor();
 
-    void	createAudioOutProcessor();
-	void	createWideBandDataProcessor();
-	//void	createChirpDataProcessor();
-	//void	createAudioReceiver(int rx);
-	void	createAudioReceiver();
-    void    createAudioInputProcessor();
+     void stopDiscoverer();
+     void stopDataIO();
+     void stopDataProcessor();
+     void stopAudioOutProcessor();
+     void stopWideBandDataProcessor();
+     void stop_TxProcessor();
 
-	bool	initReceivers(int rx);
-	bool    initTransmitters(int tx);
-	bool	start();
-	bool	startDataEngineWithoutConnection();
-	bool	findHPSDRDevices();
-	bool	getFirmwareVersions();
-	bool	checkFirmwareVersions();
-	bool	startDiscoverer(QThread::Priority prio);
-	bool	startDataIO(QThread::Priority prio);
-	bool	startDataProcessor(QThread::Priority prio);
+     void setHPSDRConfig();
+     void setWideBandBufferCount();
 
-    __attribute__((unused)) static void	startAudioOutProcessor(QThread::Priority prio);
+   private:
+     DataProcessor *m_dataProcessor;
+     WideBandDataProcessor *m_wbDataProcessor;
+     QWDSPEngine *m_chirpDspEngine{};
+     AudioReceiver *m_audioReceiver;
+     AudioOutProcessor *m_audioOutProcessor;
+     Discoverer *m_discoverer;
 
-    bool	startWideBandDataProcessor(QThread::Priority prio);
-	bool    start_TxProcessor();
+     QThreadEx *m_discoveryThread{};
+     QThreadEx *m_dataIOThread{};
+     QThreadEx *m_dataProcThread{};
+     QThreadEx *m_wbDataProcThread{};
+     QThreadEx *m_chirpDataProcThread{};
+     QThreadEx *m_AudioRcvrThread{};
+     QThreadEx *m_audioInputProcThread{};
+     QThreadEx *m_audioOutProcThread{};
+     QThreadEx *m_txProcessorThread{};
 
+     QList<QThreadEx *> m_dspThreadList;
 
-	void	stopDiscoverer();
-	void	stopDataIO();
-	void	stopDataProcessor();
-	void	stopAudioOutProcessor();
-	void	stopWideBandDataProcessor();
-	void    stop_TxProcessor();
+     QMutex m_mutex;
 
-	void	setHPSDRConfig();
-	void    setWideBandBufferCount();
+     QString m_message;
+     QString m_HPSDRDevice;
 
-private:
-	DataProcessor*			m_dataProcessor;
-	WideBandDataProcessor*	m_wbDataProcessor;
-	QWDSPEngine*			m_chirpDspEngine{};
-	AudioReceiver*			m_audioReceiver;
-	AudioOutProcessor*		m_audioOutProcessor;
-	Discoverer*				m_discoverer;
-	
-	QThreadEx*				m_discoveryThread{};
-	QThreadEx*				m_dataIOThread{};
-	QThreadEx*				m_dataProcThread{};
-	QThreadEx*				m_wbDataProcThread{};
-	QThreadEx*				m_chirpDataProcThread{};
-	QThreadEx*				m_AudioRcvrThread{};
-	QThreadEx*				m_audioInputProcThread{};
-	QThreadEx*				m_audioOutProcThread{};
-	QThreadEx*              m_txProcessorThread{};
+     QByteArray m_commandDatagram;
+     QByteArray m_datagram;
 
-	QList<QThreadEx* >		m_dspThreadList;
+     QSDR::_Error m_error;
+     QSDR::_ServerMode m_serverMode;
+     QSDR::_HWInterfaceMode m_hwInterface;
+     QSDR::_DataEngineState m_dataEngineState;
 
-	QMutex					m_mutex;
+     TMeterType m_meterType;
 
-	QString					m_message;
-	QString					m_HPSDRDevice;
+     CPX cpxIn;
+     CPX cpxOut;
 
-	QByteArray				m_commandDatagram;
-	QByteArray				m_datagram;
+     bool m_restart;
+     bool m_networkDeviceRunning;
+     bool m_soundFileLoaded;
+     bool m_clientConnect{};
+     // bool	m_audioProcessorRunning;
+     bool m_chirpInititalized;
+     bool m_discoveryThreadRunning;
+     bool m_dataIOThreadRunning;
+     bool m_wbDataRcvrThreadRunning{};
+     bool m_chirpDataProcThreadRunning;
+     bool m_dataProcThreadRunning;
+     bool m_audioRcvrThreadRunning;
+     bool m_audioInProcThreadRunning;
+     bool m_audioOutProcThreadRunning;
+     bool m_frequencyChange;
+     bool m_hamBandChanged;
+     bool m_chirpThreadStopped;
+     bool m_clientConnected;
 
-	QSDR::_Error			m_error;
-	QSDR::_ServerMode		m_serverMode;
-	QSDR::_HWInterfaceMode	m_hwInterface;
-	QSDR::_DataEngineState	m_dataEngineState;
+     float m_mainVolume{};
 
+     int m_hpsdrDevices;
+     int m_fwCount{};
+     int m_configure;
+     int m_timeout;
+     int m_txFrame{};
+     int m_bytes{};
+     int m_remainingTime;
+     int m_found{};
+     int m_RxFrequencyChange;
+     int m_counter;
 
-	TMeterType				m_meterType;
+     int m_forwardPower;
+     int m_maxSamples{};
+     int m_offset{};
 
-	CPX		cpxIn;
-	CPX		cpxOut;
+     int m_rxSamples;
+     int m_chirpSamples;
 
-	bool	m_restart;
-	bool	m_networkDeviceRunning;
-	bool	m_soundFileLoaded;
-	bool	m_clientConnect{};
-	//bool	m_audioProcessorRunning;
-	bool	m_chirpInititalized;
-	bool	m_discoveryThreadRunning;
-	bool	m_dataIOThreadRunning;
-	bool	m_wbDataRcvrThreadRunning{};
-	bool	m_chirpDataProcThreadRunning;
-	bool	m_dataProcThreadRunning;
-	bool	m_audioRcvrThreadRunning;
-	bool	m_audioInProcThreadRunning;
-	bool	m_audioOutProcThreadRunning;
-	bool	m_frequencyChange;
-	bool	m_hamBandChanged;
-	bool	m_chirpThreadStopped;
-	bool	m_clientConnected;
+     int m_leftSample{};
+     int m_rightSample{};
+     int m_micSample{};
 
-	float	m_mainVolume{};
+     int m_spectrumSize;
+     int m_sendState;
 
-	int		m_hpsdrDevices;
-	int		m_fwCount{};
-	int		m_configure;
-	int		m_timeout;
-	int		m_txFrame{};
-	int		m_bytes{};
-	int		m_remainingTime;
-	int		m_found{};
-	int		m_RxFrequencyChange;
-	int		m_counter;
-	
-	int		m_forwardPower;
-	int		m_maxSamples{};
-	int		m_offset{};
+     float m_lsample{};
+     float m_rsample{};
+     float m_scale{};
+     float m_sMeterValue{};
+     float m_sMeterCalibrationOffset;
+     float m_micSample_float{};
+     float m_spectrumBuffer[SAMPLE_BUFFER_SIZE]{};
 
-	int		m_rxSamples;
-	int		m_chirpSamples;
+     qint64 m_audioFileBufferPosition{};
+     qint64 m_audioFileBufferLength{};
+     QByteArray m_audioFileBuffer;
 
-	int		m_leftSample{};
-	int		m_rightSample{};
-	int		m_micSample{};
+     float getFilterSizeCalibrationOffset();
 
-	int		m_spectrumSize;
-	int		m_sendState;
+   private slots:
+     void systemStateChanged(QObject *sender, QSDR::_Error err,
+                             QSDR::_HWInterfaceMode hwmode,
+                             QSDR::_ServerMode mode,
+                             QSDR::_DataEngineState state);
 
+     // void	setCurrentNetworkDevice(TNetworkDevicecard card);
+     void setHPSDRDeviceNumber(int value);
+     void rxListChanged(QList<Receiver *> rxList);
+     void searchHpsdrNetworkDevices();
+     void setCurrentReceiver(QObject *sender, int rx);
 
-	float	m_lsample{};
-	float	m_rsample{};
-	float	m_scale{};
-	float	m_sMeterValue{};
-	float	m_sMeterCalibrationOffset;
-	float	m_micSample_float{};
-	float	m_spectrumBuffer[SAMPLE_BUFFER_SIZE]{};
+     void setMercuryAttenuators(QObject *sender, QList<int> attn);
+     void setAlexConfiguration(quint16 conf);
+     void setAlexStates(HamBand band, const QList<int> &states);
+     void setPennyOCEnabled(bool value);
+     void setRxJ6Pins(const QList<int> &list);
+     void setTxJ6Pins(const QList<int> &list);
+     void radioStateChange(RadioState state);
+     void dspModeChanged(QObject *, int, DSPMode);
 
-	qint64		m_audioFileBufferPosition{};
-    qint64		m_audioFileBufferLength{};
-	QByteArray	m_audioFileBuffer;
-
-
-	float	getFilterSizeCalibrationOffset();
-
-private slots:
-	void	systemStateChanged(
-					QObject *sender, 
-					QSDR::_Error err, 
-					QSDR::_HWInterfaceMode hwmode, 
-					QSDR::_ServerMode mode, 
-					QSDR::_DataEngineState state);
-
-	//void	setCurrentNetworkDevice(TNetworkDevicecard card);
-	void	setHPSDRDeviceNumber(int value);
-	void	rxListChanged(QList<Receiver *> rxList);
-	void	searchHpsdrNetworkDevices();
-	void	setCurrentReceiver(QObject* sender, int rx);
-	
-	void	setMercuryAttenuators(QObject *sender, QList<int> attn);
-	void 	setAlexConfiguration(quint16 conf);
-	void 	setAlexStates(HamBand band, const QList<int> &states);
-	void	setPennyOCEnabled(bool value);
-	void	setRxJ6Pins(const QList<int> &list);
-	void	setTxJ6Pins(const QList<int> &list);
-    void    radioStateChange(RadioState state);
-    void    dspModeChanged(QObject *, int, DSPMode);
-
-
-
-signals:
-	void	error(QUdpSocket::SocketError error);
-	void	masterSwitchEvent(QObject *sender, bool power);
-	//void	messageEvent(QString message);
-	void	penelopeVersionInfoEvent(QObject *sender, int version);
-	void	hwIOVersionInfoEvent(QObject *sender, int version);
-	void	sendIQEvent(QObject *sender, int sendIQ);
-	void	rcveIQEvent(QObject *sender, int value);
-	//void	iqDataReady(int rx);
-	void	chirpDataReady(int samples);
-	void	audioDataReady();
-	void	clientConnectedEvent(int rx);
-	void	audioRxEvent(int rx);
-	void	systemMessageEvent(const QString &str, int time);
-	void	clearSystemMessageEvent();
-	void	DataProcessorReadyEvent();
-	void	audioSenderReadyEvent(bool value);
+   signals:
+     void error(QUdpSocket::SocketError error);
+     void masterSwitchEvent(QObject *sender, bool power);
+     // void	messageEvent(QString message);
+     void penelopeVersionInfoEvent(QObject *sender, int version);
+     void hwIOVersionInfoEvent(QObject *sender, int version);
+     void sendIQEvent(QObject *sender, int sendIQ);
+     void rcveIQEvent(QObject *sender, int value);
+     // void	iqDataReady(int rx);
+     void chirpDataReady(int samples);
+     void audioDataReady();
+     void clientConnectedEvent(int rx);
+     void audioRxEvent(int rx);
+     void systemMessageEvent(const QString &str, int time);
+     void clearSystemMessageEvent();
+     void DataProcessorReadyEvent();
+     void audioSenderReadyEvent(bool value);
 
 };
 

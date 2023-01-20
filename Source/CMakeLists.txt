@@ -89,7 +89,6 @@ set (SOURCES
 	${CMAKE_SOURCE_DIR}/cusdr_transmitPAWidget.cpp 
 	${CMAKE_SOURCE_DIR}/main.cpp 
     ${CMAKE_SOURCE_DIR}/Util/cusdr_cpuUsage_unix.cpp
-    ${CMAKE_SOURCE_DIR}/QtWDSP/qtwdsp_dspEngine.cpp
 	${CMAKE_SOURCE_DIR}/UI/noisefilterwidget.cpp
     ${CMAKE_SOURCE_DIR}/UI/tx_settings_dialog.cpp
     ${CMAKE_SOURCE_DIR}/UI/cusdr_setupwidget.cpp
@@ -156,8 +155,6 @@ set (HEADERS
 	${CMAKE_SOURCE_DIR}/cusdr_transmitOptionsWidget.h 
 	${CMAKE_SOURCE_DIR}/cusdr_transmitPAWidget.h 
     ${CMAKE_SOURCE_DIR}/Util/cusdr_cpuUsage_unix.h
-    ${CMAKE_SOURCE_DIR}/QtWDSP/qtwdsp_dspEngine.h
-	#${CMAKE_SOURCE_DIR}cusdr_NoiseFilterWidget.h
 	${CMAKE_SOURCE_DIR}/UI/noisefilterwidget.h
     ${CMAKE_SOURCE_DIR}/UI/tx_settings_dialog.h
     ${CMAKE_SOURCE_DIR}/UI/cusdr_setupwidget.h

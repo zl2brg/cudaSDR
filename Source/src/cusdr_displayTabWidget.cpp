@@ -57,7 +57,6 @@ DisplayTabWidget::DisplayTabWidget(QWidget *parent)
 
 	setTabEnabled(1, true);
 	setTabEnabled(2, true);
-    qDebug() << "display setup";
 	setupConnections();
 }
 
@@ -67,9 +66,7 @@ DisplayTabWidget::~DisplayTabWidget() {
     disconnect(this, 0, 0, 0);
     disconnect(set, 0, this, 0);
     delete m_displayWidget;
-    qDebug() << "Delete";
     delete m_colorWidget;
-    qDebug() << "Delete";
 }
 
 QSize DisplayTabWidget::sizeHint() const {
