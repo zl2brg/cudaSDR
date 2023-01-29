@@ -421,9 +421,25 @@ void DisplayOptionsWidget::createPanSpectrumOptions() {
 	m_fftLabel->setStyleSheet(set->getLabelStyle());
 
 	m_fftSizeCombo = new QComboBox(this);
-	m_fftSizeCombo->addItems(QStringList() << "2k" << "4k" <<  "8k" <<"16k" << "32k");
+    m_fftSizeCombo->addItems(QStringList() << "2048" << "4096" <<  "8192" <<"16384" << "32768");
 	m_fftSizeCombo->setFont(m_fonts.normalFont);
-	m_fftSizeCombo->setCurrentIndex(m_fftSize);
+    int index = 0;
+    switch (m_fftSize){
+    case 4096:
+        break;
+    case 8192:
+        break;
+    case 16384:
+        break;
+    case 32768:
+        break;
+    case 2048:
+    default:
+        break;
+
+    }
+
+    m_fftSizeCombo->setCurrentIndex(index);
 	m_fftSizeCombo->setStyleSheet(set->getComboBoxStyle());
 	CHECKED_CONNECT(m_fftSizeCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(fftSizeChanged(int)));
 
@@ -1133,5 +1149,7 @@ void DisplayOptionsWidget::panDetectorModeChanged(int mode)  {
 }
 
 void DisplayOptionsWidget::fftSizeChanged(int mode)  {
-	set->setfftSize(m_currentReceiver, mode);
+unsigned int ffttable[] = {2048,4096,8192,16384,32768,655356};
+if (mode > 5) mode = 0;
+    set->setfftSize(m_currentReceiver, ffttable[mode]);
 }

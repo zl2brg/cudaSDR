@@ -215,7 +215,7 @@ public:
      void createAudioReceiver();
      void createAudioInputProcessor();
 
-     bool initReceivers(int rx);
+     bool initReceivers(int rcvrs);
      bool initTransmitters(int tx);
      bool start();
      bool startDataEngineWithoutConnection();
@@ -422,10 +422,8 @@ private slots:
     void 	setAudioBuffer_old(int rx, const CPX &buffer, int buffersize);
 	void	writeData();
     void    bufferTxData();
-    void    key_down(int);
-    void    key_down_test(int,int);
 
-	
+
 private:
 	DataEngine*		de;
 	Settings*		set;

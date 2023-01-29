@@ -10,6 +10,7 @@
 /* Copyright (C)
 *
 * 2010 - Hermann von Hasseln, DL3HVH
+* 2023 updated by Simon Eatough ZL2BRG
 *
 * This program is free software; you can redistribute it and/or
 * modify it under the terms of the GNU General Public License
@@ -54,21 +55,11 @@ Receiver::Receiver(int rx)
 	m_displayTime = (int)(1000000.0/set->getFramesPerSecond(m_receiver));
 	m_smeterTime.start();
     setupConnections();
-
 }
 
 Receiver::~Receiver() {
-
-    SetChannelState(m_receiver,0,0);
-    CloseChannel(m_receiver);
-    DestroyAnalyzer(m_receiver);
-    SetRXAFMSQRun(m_receiver,0);
-    destroy_nobEXT(m_receiver);
-    destroy_anbEXT(m_receiver);
 	inBuf.clear();
 	outBuf.clear();
-
-	m_stopped = false;
 }
 
 
@@ -96,6 +87,11 @@ void Receiver::setupConnections() {
 					QSDR::_HWInterfaceMode,
 					QSDR::_ServerMode,
 					QSDR::_DataEngineState)));
+    CHECKED_CONNECT(
+            set,
+            SIGNAL(mainVolumeChanged(QObject *, int, float)),
+            this,
+            SLOT(setAudioVolume(QObject *, int, float)));
 
 	CHECKED_CONNECT(
 		set,
@@ -120,12 +116,6 @@ void Receiver::setupConnections() {
 		SIGNAL(adcModeChanged(QObject *, int, ADCMode)),
 		this,
 		SLOT(setADCMode(QObject *, int, ADCMode)));
-
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(agcModeChanged(QObject *, int, AGCMode, bool)),
-		this,
-		SLOT(setAGCMode(QObject *, int, AGCMode, bool)));
 
 	CHECKED_CONNECT(
 		set,
@@ -217,12 +207,6 @@ void Receiver::setupConnections() {
             SIGNAL(sampleSizeChanged(int, int)),
             this,
             SLOT(setSampleSize(int, int)));
-
-    CHECKED_CONNECT(
-            set,
-            SIGNAL(framesPerSecondChanged(QObject*, int, int)),
-            this,
-            SLOT(setFramesPerSecond(QObject*, int, int)));
 
 
     CHECKED_CONNECT(
@@ -354,21 +338,17 @@ void Receiver::setReceiverData(TReceiver data) {
     m_nrMode = set->getnrMode(m_receiver);
     m_anf = set->getAnf(m_receiver);
     m_snb= set->getSnb(m_receiver);
-    initQtWDSPInterface();
+    setfftSize(m_receiver,set->getfftSize(m_receiver));
+}
+
+void Receiver::start() {
+    SetChannelState(m_receiver,1,0);
+    m_stopped = false;
+    RECEIVER_DEBUG << "Receiver: " << m_receiver << "Started";
 
 }
 
-bool Receiver::initDSPInterface() {
-
-//    initQtWDSPInterface();
-
-
-	return true;
-}
-
-
-
-bool Receiver::initQtWDSPInterface() {
+bool Receiver::initWDSPInterface() {
     int result;
 
     RECEIVER_DEBUG << "Open RX Channel" << m_receiver;
@@ -388,8 +368,6 @@ bool Receiver::initQtWDSPInterface() {
     RXASetNC(m_receiver, m_fftSize);
 
     setNoiseBlankerMode(m_receiver);
-//	fprintf(stderr,"RXASetMP %d\n",rx->low_latency);
-//	RXASetMP(rx->id, rx->low_latency);
     SetRXAFMDeviation(m_receiver, (double)8000.0);
     SetRXAMode(m_receiver, FMN);
     RXASetNC(m_receiver,4096);
@@ -405,21 +383,13 @@ bool Receiver::initQtWDSPInterface() {
     SetDisplayNumAverage(m_receiver, 0, m_display_average);
     SetDisplayDetectorMode(m_receiver,0,m_PanDetMode);
     SetDisplayAverageMode(m_receiver,0,m_PanAvMode);
-    SetRXAFMSQRun(m_receiver,1);
-    SetChannelState(m_receiver,1,0);
-    
-
-    setAudioVolume(this,m_receiver,m_audioVolume);
-
-
+   // SetRXAFMSQRun(m_receiver,1);
+ //   SetChannelState(m_receiver,1,0);
     DSPMode mode = m_dspModeList.at(m_hamBand);
-    RECEIVER_DEBUG << "set DSP mode to: " << set->getDSPModeString(mode);
-
-    setDspMode(this, m_receiver, mode);
-    setFilterFrequencies(this,m_receiver,getFilterFromDSPMode(set->getDefaultFilterList(), mode).filterLo,getFilterFromDSPMode(set->getDefaultFilterList(), mode).filterHi);
-
-	RECEIVER_DEBUG << "QtWDSP for receiver: " << m_receiver << " started.";
-
+    setAudioVolume(this,m_receiver,0.2);
+//    RECEIVER_DEBUG << "set DSP mode to: " << set->getDSPModeString(mode);
+   setFilterFrequencies(this,m_receiver,getFilterFromDSPMode(set->getDefaultFilterList(), mode).filterLo,getFilterFromDSPMode(set->getDefaultFilterList(), mode).filterHi);
+    RECEIVER_DEBUG << "QtWDSP for receiver: " << m_receiver << "Initialised";
 	return true;
 }
 
@@ -441,17 +411,30 @@ void Receiver::enqueueData() {
 }
 
 void Receiver::stop() {
-
+    SetChannelState(m_receiver,0,1);
+    CloseChannel(m_receiver);
+    DestroyAnalyzer(m_receiver);
+ //   SetRXAFMSQRun(m_receiver,0);
+    destroy_nobEXT(m_receiver);
+    destroy_anbEXT(m_receiver);
+    inBuf.clear();
+    outBuf.clear();
+    SetChannelState(TX_ID,0,1);
+    CloseChannel(TX_ID);
+    QThread::msleep(100);
 	m_mutex.lock();
 	m_stopped = true;
 	m_mutex.unlock();
+    RECEIVER_DEBUG << "QtWDSP for receiver: " << m_receiver << "Stopped";
 }
 
 void Receiver::dspProcessing() {
 	int spectrumDataReady;
    int error;
       m_mutex.lock();
-          fexchange0(m_receiver, (double *) inBuf.data(),  (double *) audioOutputBuf.data(), &error);
+
+
+        fexchange0(m_receiver, (double *) inBuf.data(),  (double *) audioOutputBuf.data(), &error);
         if(error!=0) {
             RECEIVER_DEBUG << "WDSP channel read error " << error;
         }
@@ -460,14 +443,16 @@ void Receiver::dspProcessing() {
         if (highResTimer->getElapsedTimeInMicroSec() >= getDisplayDelay()) {
             m_mutex.lock();
             if (m_state == RadioState::RX)
-                GetPixels(0,0,spectrumBuffer.data(), &spectrumDataReady);
+            {
+                GetPixels(m_receiver,0,spectrumBuffer.data(), &spectrumDataReady);
+            }
             else {
                 GetPixels(TX_ID, 0, spectrumBuffer.data(), &spectrumDataReady);
             }
 
         if (spectrumDataReady) {
-             RECEIVER_DEBUG << "data ready";
 			memcpy(
+
 					newSpectrum.data(),
                     spectrumBuffer.data(),
 					4096 * sizeof(float)
@@ -690,7 +675,7 @@ void Receiver::setAGCThreshold_dB(QObject *sender, int rx, qreal value) {
 	if (m_agcThreshold_dBm == value) return;
 
 	m_agcThreshold_dBm = value;
-    SetRXAAGCThresh(m_receiver,m_agcHangThreshold,2048,this->m_samplerate);
+    SetRXAAGCThresh(m_receiver,m_agcThreshold_dBm,this->m_fftSize,this->m_samplerate);
     setAGC_Line(m_receiver);
     RECEIVER_DEBUG << "Set AGC threshold " << value;
 
@@ -767,7 +752,8 @@ void Receiver::setAudioVolume(QObject *sender, int rx, float value) {
 
 	if (m_receiver != rx) return;
 	if (m_audioVolume == value) return;
-    SetRXAPanelGain1(m_receiver,  (double) value);
+    RECEIVER_DEBUG << "Set RX Volume" << rx << value;
+    SetRXAPanelGain1(m_receiver, value);
 }
 
 void Receiver::setFilterFrequencies(QObject *sender, int rx, double low, double high) {
@@ -783,8 +769,7 @@ void Receiver::setFilterFrequencies(QObject *sender, int rx, double low, double 
             SetRXAFMDeviation(m_receiver, (double)8000.0);
         }
         RXASetPassband(m_receiver,low,high);
-        setAGC_Line(m_receiver);
-	}
+     	}
 }
 
 void Receiver::setCtrFrequency(long frequency) {
@@ -869,14 +854,16 @@ void Receiver::setAGC_Line(int rx) {
     double thresh;
 
     GetRXAAGCHangLevel(m_receiver, &hang);
-    GetRXAAGCThresh(m_receiver, &thresh, 2048, (double)m_samplerate);
+    GetRXAAGCThresh(m_receiver, &thresh, this->m_fftSize, (double)m_samplerate);
 
     if ((hang != m_agcHangLevel) || (thresh != m_agcHangThreshold))
 	{
-		m_agcHangLevel = hang;
+        printf("level %f\n",thresh);
+        m_agcHangLevel = hang;
 		m_agcThreshold = thresh;
-		emit set->agcLineLevelsChanged(this,m_receiver,thresh,hang);
-        RECEIVER_DEBUG << "Set AGC line value" << hang;
+
+        set->setAGCLineLevels(this,m_receiver,thresh,hang);
+        RECEIVER_DEBUG << "Set AGC line value" << thresh, hang;
 
 	}
 
@@ -929,7 +916,7 @@ void Receiver::setSampleRate(QObject *sender, int value) {
 void Receiver::setNCOFrequency(int rx, long ncoFreq) {
 
 	if (m_receiver != rx) return;
-
+    RECEIVER_DEBUG << "set NCO frequency" << ncoFreq;
 	if(ncoFreq==0) {
 		SetRXAShiftFreq(m_receiver, (double)ncoFreq);
 		RXANBPSetShiftFrequency(m_receiver, (double)ncoFreq);
@@ -960,13 +947,13 @@ void Receiver::ProcessFrequencyShift(CPX &in, CPX &out) {
 void Receiver::init_analyzer(int refreshrate) {
 	int flp[] = {0};
 	double keep_time = 0.1;
-	int n_pixout = 1;
+    int n_pixout = 1;
 	int spur_elimination_ffts = 1;
 	int data_type = 1;
-	int fft_size = m_fftSize;
-	int window_type = 6;
+    int fft_size = 2048;
+    int window_type = 6;
 	double kaiser_pi = 14.0;
-	int overlap;
+    int overlap;
 	int clip = 0;
 	int span_clip_l = 0;
 	int span_clip_h = 0;
@@ -976,9 +963,9 @@ void Receiver::init_analyzer(int refreshrate) {
 	double span_min_freq = 0.0;
 	double span_max_freq = 0.0;
 
-	int max_w = fft_size + (int) min(keep_time * refreshrate, keep_time * (double) fft_size * (double) refreshrate);
+    int max_w = fft_size + (int) min(keep_time * refreshrate, keep_time * (double) fft_size * (double) refreshrate);
 
-	overlap = (int) max(0.0, ceil(fft_size - (double) m_samplerate / (double) refreshrate));
+    overlap = (int) max(0.0, ceil(fft_size - (double) m_samplerate / (double) refreshrate));
 
     printf("SetAnalyzer id=%d buffer_size=%d overlap=%d\n fft%d\n", m_receiver, BUFFER_SIZE, overlap,m_fftSize);
 
@@ -988,8 +975,8 @@ void Receiver::init_analyzer(int refreshrate) {
 				spur_elimination_ffts, //number of LO frequencies = number of ffts used in elimination
 				data_type, //0 for real input data (I only); 1 for complex input data (I & Q)
 				flp, //vector with one elt for each LO frequency, 1 if high-side LO, 0 otherwise
-				fft_size, //size of the fft, i.e., number of input samples
-				1024, //number of samples transferred for each OpenBuffer()/CloseBuffer()
+                fft_size, //size of the fft, i.e., number of input samples
+                1024, //number of samples transferred for each OpenBuffer()/CloseBuffer()
 				window_type, //integer specifying which window function to use
 				kaiser_pi, //PiAlpha parameter for Kaiser window
 				overlap, //number of samples each fft (other than the first) is to re-use from the previous
@@ -1053,17 +1040,12 @@ void Receiver::setPanAdaptorAveragingCnt(QObject* sender, int rx, int count){
 }
 
 void Receiver::setfftSize(int rx, int value) {
-    const unsigned int fftTable[] = {2048,4096,8192,16386,32768,655356,131072};
-	if (rx != m_receiver) return;
-    if (value > 6)
-        m_fftSize =  fftTable[0];
-    else
-        m_fftSize = fftTable[value];
-     m_mutex.lock();
+    m_fftSize =  value;
+    m_mutex.lock();
 //	init_analyzer(value);
-	calcDisplayAveraging();
-	SetDisplayAvBackmult(rx, 0, m_display_avb);
-	SetDisplayNumAverage(rx, 0, m_display_average);
+//	calcDisplayAveraging();
+//	SetDisplayAvBackmult(rx, 0, m_display_avb);
+//	SetDisplayNumAverage(rx, 0, m_display_average);
 	m_mutex.unlock();
 
 }

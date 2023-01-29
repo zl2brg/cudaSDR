@@ -157,7 +157,7 @@ private:
 	QMainWindow*				centralwidget;
 
 	QList<QGLReceiverPanel* >	rxWidgetList;
-	QVector<float>				rxVolumeList;
+    QList<float>				rxVolumeList;
 
 	QDockWidget*				widebandDock;
 	QDockWidget*				rx1Dock;

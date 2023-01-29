@@ -577,7 +577,7 @@ void MainWindow::setupLayout() {
 		SLOT(widebandVisibilityChanged(bool)));
 
 	// receiver dock windows
-    for (int i = 1; i < MAX_RECEIVERS; i++) {
+    for (int i = 0; i < MAX_RECEIVERS; i++) {
 
 		QString str = "Receiver ";
 		QString num = QString::number(i+1);
@@ -586,18 +586,17 @@ void MainWindow::setupLayout() {
 		widebandDock->setObjectName(str);
 		dock->setWidget(rxWidgetList.at(i));
 		rxDockWidgetList.append(dock);
-
+        rxVolumeList.append(0.0f);
 		centralwidget->addDockWidget(Qt::BottomDockWidgetArea, dock);
-		dock->hide();
+//		dock->hide();
 
-		rxVolumeList << 0.0f;
+        rxVolumeList.append(0.0f);
 		//viewMenu->addAction(dock->toggleViewAction());
 	}
 
 	// the outline of the receiver panels
 	for (int i = 0; i < (int)(MAX_RECEIVERS-1)/2; i++) {
-
-		centralwidget->splitDockWidget(rxDockWidgetList.at(i), rxDockWidgetList.at(i+3), Qt::Vertical);
+        centralwidget->splitDockWidget(rxDockWidgetList.at(i), rxDockWidgetList.at(i+3), Qt::Vertical);
 	}
 
 	//viewMenu->addAction(dock->toggleViewAction());
@@ -1302,7 +1301,7 @@ void MainWindow::masterSwitchChanged(
 	if (power) {
 
 		if (m_dataEngine->initDataEngine()) { // start data engine
-
+            set->setCurrentReceiver(this,0);
 			//if (m_serverMode == QSDR::ExternalDSP && !m_hpsdrServer->startServer())
 			//	m_hpsdrServer->stopServer();
 			return;

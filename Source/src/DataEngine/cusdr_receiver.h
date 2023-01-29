@@ -53,8 +53,8 @@ public:
 	~Receiver() override;
 
 	void	setupConnections();
-	bool	initDSPInterface();
-	void	deleteDSPInterface();
+
+    void	deleteDSPInterface();
 
 	void	enqueueData();
 
@@ -90,6 +90,7 @@ public:
 	void 	setAudioBufferSize();
     void    init_analyzer(int refreshrate);
     void    calcDisplayAveraging();
+    void    start();
 
     float	in[BUFFER_SIZE * 2];
     float	out[BUFFER_SIZE * 2];
@@ -160,7 +161,8 @@ public slots:
 
     void setsnb(int rx, bool value);
     void setNrAGC(int rx, int value);
-	void	dspProcessing();
+    bool	initWDSPInterface();
+    void	dspProcessing();
 	void	stop();
 
 private slots:
@@ -174,7 +176,6 @@ private slots:
 	void	setSampleRate(QObject *sender, int value);
 	void 	setFramesPerSecond(QObject *sender, int rx, int value);
 
-	bool	initQtWDSPInterface();
 
 
     //void	setAGCMaximumGain_dBm(QObject* sender, int rx, int value);
@@ -212,7 +213,7 @@ private:
 	QList<DSPMode>		m_dspModeList;
 	QList<int>			m_mercuryAttenuators;
 
-	QTime				m_smeterTime;
+	QElapsedTimer   	m_smeterTime;
 	QMutex				m_mutex;
 
 	volatile bool	m_stopped;

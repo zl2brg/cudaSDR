@@ -144,9 +144,6 @@ DataEngine::DataEngine(QObject *parent)
 	io.mercuryFW = 0;
     io.ccTx.use_repeaterOffset = set->get_repeaterMode();
     TX.setDSPMode(this,TX_ID,set->getDSPMode(1));
-    //m_audioBuffer.resize(0);
-    //m_audiobuf.resize(IO_BUFFER_SIZE);
-
 	m_counter = 0;
 
 }
@@ -577,8 +574,8 @@ bool DataEngine::getFirmwareVersions() {
 	set->setRxList(RX);
 	connectDSPSlots();
 
-//	for (int i = 0; i < set->getNumberOfReceivers(); i++)
-//		RX.at(i)->setAudioVolume(this, i, set->getMainVolume());
+	for (int i = 0; i < set->getNumberOfReceivers(); i++)
+		RX.at(i)->setAudioVolume(this, i, set->getMainVolume(i));
 
 	// IQ data processing thread
 	if (!startDataProcessor(QThread::NormalPriority)) {
@@ -900,11 +897,13 @@ bool DataEngine::start() {
 	for (int i = 0; i < rcvrs; i++) {
 
 		RX.at(i)->setConnectedStatus(true);
-		RX.at(i)->setAudioVolume(this, i, RX.at(i)->getAudioVolume());
+        RX.at(i)->start();
+        RX.at(i)->setAudioVolume(this, i, RX.at(i)->getAudioVolume());
+        QThread::msleep(100);
 		setFrequency(this, true, i, set->getCtrFrequencies().at(i));
 
 
-		//CHECKED_CONNECT(
+        //CHECKED_CONNECT(
 		//		RX.at(i),
 		//		SIGNAL(outputBufferSignal(int, const CPX &)),
 		//		this, //m_dataProcessor,
@@ -991,7 +990,7 @@ bool DataEngine::start() {
 	set->setSystemMessage("System running", 4000);
 
 		DATA_ENGINE_DEBUG << "Data Engine thread: " << this->thread();
-
+    set->setCurrentReceiver(this,0);
 	return true;
 }
 
@@ -1053,9 +1052,11 @@ void DataEngine::stop() {
 		m_dspThreadList.clear();
 
 		// clear receiver list
+        DATA_ENGINE_DEBUG << "RX count" << RX.count();
 		foreach (Receiver *rx, RX) {
-
-			rx->stop();
+            DATA_ENGINE_DEBUG << "pASS";
+            DATA_ENGINE_DEBUG << " Stopping RX";
+            rx->stop();
 			rx->setConnectedStatus(false);
 			disconnectDSPSlots();
 
@@ -1150,13 +1151,13 @@ bool DataEngine::initDataEngine() {
 }
 
 bool DataEngine::initReceivers(int rcvrs) {
-		
+
 	for (int i = 0; i < rcvrs; i++) {
 			
         auto *rx = new Receiver(i);
 		// init the DSP core
 
-		if (rx->initDSPInterface()) {
+		if (rx->initWDSPInterface()) {
 
 			DATA_ENGINE_DEBUG << "init DSP core for rx " << i << " successful !";
 
@@ -2513,11 +2514,8 @@ void DataProcessor::processInputBuffer(const QByteArray &buffer) {
 					chirpData << m_rsample;
 				}*/
 
-				if (de->RX.at(r)->qtwdsp) {
-
-					de->RX[r]->inBuf[m_rxSamples].re = m_lsample; // 24 bit sample
-					de->RX[r]->inBuf[m_rxSamples].im = m_rsample; // 24 bit sample
-				}
+                de->RX[r]->inBuf[m_rxSamples].re = m_lsample; // 24 bit sample
+                de->RX[r]->inBuf[m_rxSamples].im = m_rsample; // 24 bit sample
             }
 
             m_micSample = (int)((signed char) buffer.at(s++)) << 8;
@@ -2577,7 +2575,7 @@ void DataProcessor::processInputBuffer(const QByteArray &buffer) {
 
 
 				for (int r = 0; r < de->io.receivers; r++) {
-						QMetaObject::invokeMethod(de->RX.at(r), "dspProcessing", Qt::DirectConnection);// Qt::QueuedConnection);
+                    QMetaObject::invokeMethod(de->RX.at(r), "dspProcessing", Qt::DirectConnection);// Qt::QueuedConnection);
 				}
 				m_rxSamples = 0;
             }
@@ -3840,24 +3838,6 @@ void DataProcessor::processReadData()
       buf = de->io.iq_queue.dequeue();
       processInputBuffer(buf.left(BUFFER_SIZE / 2));
       processInputBuffer(buf.right(BUFFER_SIZE / 2));
-    }
-}
-
-void DataProcessor::key_down(int state) {
-qDebug() << "Key Down" << state;
-if (state) {
-  de->cw_key_down = 960000;    // up to 20 sec
-} else {
-  de->cw_key_down = 0;
-}
-}
-
-void DataProcessor::key_down_test(int dummy,int state) {
-    qDebug() << QTime::currentTime().msec()  << "Key Down test" << state;
-    if (state) {
-        de->cw_key_down = 960000;    // up to 20 sec
-    } else {
-        de->cw_key_down = 0;
     }
 }
 

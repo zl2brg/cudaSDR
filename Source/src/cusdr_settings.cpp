@@ -77,7 +77,7 @@ Settings::Settings(QObject *parent)
     m_titleString = "cudaSDR Debug BETA ";
 #endif
 
-    m_versionString = "v0.4.0.3 - ZL2BRG";
+    m_versionString = "v0.4.0.4 - ZL2BRG";
 
     qDebug() << qPrintable(m_titleString);
 
@@ -3469,12 +3469,20 @@ void Settings::setCurrentReceiver(QObject *sender, int value) {
 
     SETTINGS_DEBUG << "switch to receiver: " << m_currentReceiver;
     emit currentReceiverChanged(sender, value);
-    //emit frequencyChanged(sender, true, value, m_receiverDataList.at(m_currentReceiver).frequency);
+ //   emit frequencyChanged(sender, true, value, m_receiverDataList.at(m_currentReceiver).frequency);
     long vfoF = m_receiverDataList.at(m_currentReceiver).vfoFrequency;
     long ctrF = m_receiverDataList.at(m_currentReceiver).ctrFrequency;
+    if (vfoF > (ctrF  + m_sampleRate/2 ))
+    {
+          vfoF = ctrF;
+    }
+    else  if (vfoF < (ctrF - m_sampleRate/2))
+        vfoF = ctrF;
 
+    
     emit ctrFrequencyChanged(sender, true, value, ctrF);
     emit vfoFrequencyChanged(sender, true, value, vfoF);
+    
     emit ncoFrequencyChanged(m_currentReceiver, vfoF - ctrF);
     emit hamBandChanged(sender, m_currentReceiver, false, band);
     emit dspModeChanged(sender, m_currentReceiver, mode);
@@ -3658,7 +3666,7 @@ void Settings::setMainVolume(QObject *sender, int rx, float volume) {
 
     QMutexLocker locker(&settingsMutex);
 
-    //if (m_receiverDataList[rx].audioVolume == volume) return;
+    if (m_receiverDataList[rx].audioVolume == volume) return;
     m_receiverDataList[rx].audioVolume = volume;
 
     emit mainVolumeChanged(sender, rx, volume);
@@ -3698,8 +3706,19 @@ void Settings::setVfoFrequency(int rx, long frequency) {
     m_receiverDataList[rx].hamBand = band;
     m_receiverDataList[rx].lastHamBand = band;
     m_receiverDataList[rx].lastVfoFrequencyList[(int) band] = frequency;
+    if  (m_receiverDataList[rx].ncoFrequency  < m_receiverDataList.at(rx).ctrFrequency ){
+        if  (m_receiverDataList[rx].ncoFrequency < (m_receiverDataList.at(rx).ctrFrequency - m_sampleRate / 2) )
+            SETTINGS_DEBUG << "NCO OUT OF RANGE" << m_receiverDataList[rx].ncoFrequency << m_receiverDataList.at(rx).ctrFrequency;
+        m_receiverDataList[rx].ncoFrequency = 0;
+    }
+    else  if  (m_receiverDataList[rx].ncoFrequency  > m_receiverDataList.at(rx).ctrFrequency ){
+        if  (m_receiverDataList[rx].ncoFrequency > (m_receiverDataList.at(rx).ctrFrequency + m_sampleRate / 2) )
+            SETTINGS_DEBUG << "NCO OUT OF RANGE" << m_receiverDataList[rx].ncoFrequency << m_receiverDataList.at(rx).ctrFrequency;
 
-    m_receiverDataList[rx].ncoFrequency = frequency - m_receiverDataList.at(rx).ctrFrequency;
+        m_receiverDataList[rx].ncoFrequency = 0;
+    }
+
+    else   m_receiverDataList[rx].ncoFrequency = frequency - m_receiverDataList.at(rx).ctrFrequency;
  //   setDSPMode(this,rx,m_receiverDataList[rx].dspModeList[band]);
     SETTINGS_DEBUG << "set vfo freq (Rx " << rx << ") " << m_receiverDataList[rx].ctrFrequency;
 }
@@ -3724,7 +3743,13 @@ void Settings::setCtrFrequency(QObject *sender, int mode, int rx, long frequency
             break;
     }
 
+
     SETTINGS_DEBUG << "ctr freq (Rx " << rx << ") " << m_receiverDataList[rx].ctrFrequency;
+    if (m_receiverDataList[rx].ctrFrequency >  MAXFREQUENCY){
+        SETTINGS_DEBUG << "***ERROR  Center frequnecy out of limits *** ctr freq (Rx " << rx << ") " << m_receiverDataList[rx].ctrFrequency;
+        frequency = 14100000;
+
+    }
     emit ctrFrequencyChanged(sender, mode, rx, frequency);
 }
 
@@ -3751,7 +3776,7 @@ void Settings::setVFOFrequency(QObject *sender, int mode, int rx, long frequency
     locker.unlock();
     if (m_receiverDataList.at(rx).hamBand != band) {
 
-        //m_receiverDataList[rx].ctrFrequency = m_receiverDataList[rx].vfoFrequency;
+        m_receiverDataList[rx].ctrFrequency = m_receiverDataList[rx].vfoFrequency;
         setHamBand(this, rx, false, band);
     }
 
@@ -3775,6 +3800,7 @@ void Settings::setVFOFrequency(QObject *sender, int mode, int rx, long frequency
             break;
     }
 
+
     emit vfoFrequencyChanged(sender, mode, rx, frequency);
 
     SETTINGS_DEBUG << "nco freq (Rx " << rx << ")" << m_receiverDataList[rx].ncoFrequency ;
@@ -3790,7 +3816,17 @@ void Settings::setNCOFrequency(QObject *sender, bool value, int rx, long frequen
 
     Q_UNUSED(sender)
     Q_UNUSED(value)
+    if  (m_receiverDataList[rx].ncoFrequency  < m_receiverDataList.at(rx).ctrFrequency ){
+        if  (m_receiverDataList[rx].ncoFrequency < (m_receiverDataList.at(rx).ctrFrequency - m_sampleRate / 2) )
+            SETTINGS_DEBUG << "NCO OUT OF RANGE" << m_receiverDataList[rx].ncoFrequency << m_receiverDataList.at(rx).ctrFrequency;
+        m_receiverDataList[rx].ncoFrequency = 0;
+    }
+    else  if  (m_receiverDataList[rx].ncoFrequency  > m_receiverDataList.at(rx).ctrFrequency ){
+        if  (m_receiverDataList[rx].ncoFrequency > (m_receiverDataList.at(rx).ctrFrequency + m_sampleRate / 2) )
+            SETTINGS_DEBUG << "NCO OUT OF RANGE" << m_receiverDataList[rx].ncoFrequency << m_receiverDataList.at(rx).ctrFrequency;
 
+        m_receiverDataList[rx].ncoFrequency = 0;
+    }
     SETTINGS_DEBUG << "nco freq (Rx " << rx << ") " << m_receiverDataList[rx].ncoFrequency << "(direct)";
     m_receiverDataList[rx].ncoFrequency = frequency;
 
