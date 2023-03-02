@@ -1061,14 +1061,16 @@ void QGLWidebandPanel::renderHorizontalScale() {
 	if (m_upperFrequency >= 1e3) { freqScale = 1e3; fstr = QString("  kHz "); }
 
 	// draw the wide band scale background
-	drawGLScaleBackground(QRect(0, 0, m_freqScaleRect.width(), m_freqScaleRect.height()), QColor(0, 0, 0, 255));
+//	drawGLScaleBackground(QRect(0, 0, m_freqScaleRect.width(), m_freqScaleRect.height()), QColor(0, 0, 255, 255));
 
 	QRect scaledTextRect(0, textOffset_y, 1, fontHeight);
 	scaledTextRect.setWidth(m_fonts.smallFontMetrics->width(fstr));
 	scaledTextRect.moveLeft(m_freqScaleRect.width() - scaledTextRect.width());// - menu_pull_right_rect.width());
 
 	saveGLState();
+
     painter->begin(m_frequencyScaleFBO);
+    painter->fillRect(QRect(0, 0, m_freqScaleRect.width(), m_freqScaleRect.height()), QColor(0, 0, 255, 255));
     painter->setRenderHint(QPainter::Antialiasing);
     painter->setPen(QPen(textColor,3, Qt::SolidLine, Qt::FlatCap));
     int len = m_frequencyScale.mainPointPositions.length();

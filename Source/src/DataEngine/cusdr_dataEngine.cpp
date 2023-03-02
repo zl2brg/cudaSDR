@@ -434,7 +434,7 @@ void DataEngine::setupConnections() {
 
 
 }
- 
+
 //********************************************************
 // start/stop data engine
 bool DataEngine::startDataEngineWithoutConnection() {
@@ -447,7 +447,7 @@ bool DataEngine::startDataEngineWithoutConnection() {
 		if (!m_dataProcessor)	createDataProcessor();
 
 
-		
+
 		// data receiver thread
 		if (!startDataIO(QThread::NormalPriority)) {
 
@@ -824,7 +824,7 @@ bool DataEngine::start() {
     if (!m_audioInput) createAudioInputProcessor();
 
 	if (!m_dataIO) createDataIO();
-	
+
 	if (!m_dataProcessor) createDataProcessor();
 
 
@@ -835,7 +835,7 @@ bool DataEngine::start() {
 	switch (m_serverMode) {
 
 		//case QSDR::ExternalDSP:
-		
+
 			/*
 			//CHECKED_CONNECT(
 			//	set,
@@ -843,30 +843,30 @@ bool DataEngine::start() {
 			//	this,
 			//	SLOT(setFrequency(QObject*, bool, int, long)));
 
-			//if (!m_audioProcessorRunning) {
+        //if (!m_audioProcessorRunning) {
 
-			//	//if (!m_audioProcessor)	createAudioProcessor();
-			//	if (!m_audioReceiver)	createAudioReceiver();
+        //	//if (!m_audioProcessor)	createAudioProcessor();
+        //	if (!m_audioReceiver)	createAudioReceiver();
 
-			//	m_audioInProcThread->start();
-			//	if (m_audioInProcThread->isRunning()) {
-			//
-			//		m_audioInProcThreadRunning = true;
-			//		DATA_ENGINE_DEBUG << "Audio processor process started.";
-			//	}
-			//	else {
+        //	m_audioInProcThread->start();
+        //	if (m_audioInProcThread->isRunning()) {
+        //
+        //		m_audioInProcThreadRunning = true;
+        //		DATA_ENGINE_DEBUG << "Audio processor process started.";
+        //	}
+        //	else {
 
-			//		m_audioInProcThreadRunning = false;
-			//		setSystemState(
-			//						QSDR::AudioThreadError,
-			//						m_hwInterface,
-			//						m_serverMode,
-			//						QSDR::DataEngineDown);
-			//		return false;
-			//	}
-			//
-			//	io.audio_rx = 0;
-			//	io.clientList.append(0);
+        //		m_audioInProcThreadRunning = false;
+        //		setSystemState(
+        //						QSDR::AudioThreadError,
+        //						m_hwInterface,
+        //						m_serverMode,
+        //						QSDR::DataEngineDown);
+        //		return false;
+        //	}
+        //
+        //	io.audio_rx = 0;
+        //	io.clientList.append(0);
 
 			//	m_audioProcessorRunning = true;
 			//	setSystemState(
@@ -878,10 +878,10 @@ bool DataEngine::start() {
 			 */
 			//return false;
 
-		case QSDR::SDRMode:
-			
-			setTimeStamp(this, false);
-			break;
+        case QSDR::SDRMode:
+
+            setTimeStamp(this, false);
+            break;
 
 		default:
 
@@ -916,9 +916,9 @@ bool DataEngine::start() {
                 send_hpsdr_data(int, const CPX &,int)));
 
 		m_dspThreadList.at(i)->start(QThread::NormalPriority);//QThread::TimeCriticalPriority);
-				
+
 		if (m_dspThreadList.at(i)->isRunning()) {
-					
+
 			//m_dataProcThreadRunning = true;
 			io.networkIOMutex.lock();
 			DATA_ENGINE_DEBUG << "receiver processor thread started for Rx " << i;
@@ -967,7 +967,7 @@ bool DataEngine::start() {
 		DATA_ENGINE_DEBUG << "data IO thread could not be started.";
 		return false;
 	}
-	
+
 	// start Sync,ADC and S-Meter timers
 	//m_SyncChangedTime.start();
 	//m_ADCChangedTime.start();
@@ -1153,7 +1153,7 @@ bool DataEngine::initDataEngine() {
 bool DataEngine::initReceivers(int rcvrs) {
 
 	for (int i = 0; i < rcvrs; i++) {
-			
+
         auto *rx = new Receiver(i);
 		// init the DSP core
 
@@ -1169,7 +1169,7 @@ bool DataEngine::initReceivers(int rcvrs) {
 			rx->moveToThread(thread);
 
 			//CHECKED_CONNECT(this, SIGNAL(doDSP()), rx, SLOT(dspProcessing()));
-			
+
 			CHECKED_CONNECT(
 				rx,
 				SIGNAL(spectrumBufferChanged(int, const qVectorFloat&)),
@@ -1187,7 +1187,7 @@ bool DataEngine::initReceivers(int rcvrs) {
 				SIGNAL(outputBufferSignal(int, const CPX &)),
 				m_dataProcessor,
 				SLOT(setOutputBuffer(int, const CPX &)));*/
-			
+
 			m_dspThreadList.append(thread);
 			RX.append(rx);
 		}
@@ -1568,7 +1568,7 @@ void DataEngine::stopDataIO() {
 		delete m_dataIOThread;
 		delete m_dataIO;
 		m_dataIO = nullptr;
-		
+
 		DATA_ENGINE_DEBUG << "data IO thread deleted.";
 	}
 	else
@@ -2180,7 +2180,7 @@ void DataEngine::setNumberOfRx(QObject *sender, int value) {
 	Q_UNUSED(sender)
 
 	if (io.receivers == value) return;
-	
+
 	io.mutex.lock();
 	io.receivers = value;
 	io.mutex.unlock();
@@ -3737,7 +3737,7 @@ AudioOutProcessor::AudioOutProcessor(DataEngine *de, QSDR::_ServerMode serverMod
 	, m_dataEngine(de)
 	, m_serverMode(serverMode)
 	, m_stopped(false)
-{	
+{
 	m_IQDatagram.resize(0);
 }
 

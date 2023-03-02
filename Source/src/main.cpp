@@ -90,7 +90,7 @@ void cuSDRMessageHandler(QtMsgType type, const QMessageLogContext &context, cons
     QFile outFile("cudaSDR.log");
     outFile.open(QIODevice::WriteOnly | QIODevice::Append);
     QTextStream ts(&outFile);
-    ts << txt << endl << flush;
+    ts << txt << Qt::endl << Qt::flush;
 }
 
 
@@ -105,13 +105,12 @@ int main(int argc, char *argv[]) {
       
 
         qInstallMessageHandler(cuSDRMessageHandler);
-	#endif
-
-
+    #endif
+    QApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
+    QApplication::setAttribute(Qt::AA_DisableHighDpiScaling); // dpi scaling disabled for now - issue with gl widget
     QApplication app(argc, argv);
-
     app.setAttribute(Qt::AA_DontCreateNativeWidgetSiblings);
-    app.setAttribute(Qt::AA_EnableHighDpiScaling);
+
 
     QSurfaceFormat format;
     format.setDepthBufferSize(24);

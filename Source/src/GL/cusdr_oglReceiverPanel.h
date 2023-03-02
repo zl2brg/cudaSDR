@@ -39,7 +39,7 @@
 #include <QOpenGLWidget>
 #include <QOpenGLFunctions>
 
-
+#define LOG_GRAPHICS
 #ifdef LOG_GRAPHICS
 #   define GRAPHICS_DEBUG qDebug().nospace() << "ReceiverPanel::\t"
 #else
@@ -64,6 +64,7 @@ public slots:
 	void setSpectrumBuffer(int rx, const qVectorFloat& buffer);
 	void setCtrFrequency(QObject* sender, int mode, int rx, long freq);
 	void setVFOFrequency(QObject* sender, int mode, int rx, long freq);
+    void messagelogged(QOpenGLDebugMessage message);
 
 protected:
     void initializeGL();
@@ -126,7 +127,6 @@ private:
 	QOpenGLFramebufferObject*	m_waterfallLineFBO;
 	QOpenGLFramebufferObject*	m_waterfallFBO;
 	QOpenGLFramebufferObject*	m_secScaleWaterfallFBO;
-
 	QRect						m_panRect;
 	QRect						m_dBmScalePanRect;
 	QRect						m_freqScalePanRect;
@@ -327,7 +327,7 @@ private:
 	qreal		m_mouseDownAGCHangLevel;
 	qreal		m_agcFixedGain;
 	qreal		m_mouseDownFixedGainLevel;
-
+    qreal       dpi_scaling;
 	float		m_scale;
 	float		m_cameraDistance;
 	float		m_freqRulerPosition;
@@ -340,10 +340,7 @@ private:
 
 	QColor	getWaterfallColorAtPixel(qreal value);
 
-	void	saveGLState();
-	void	restoreGLState();
-
-	// drawing
+    // drawing
 	void	paintReceiverDisplay();
 	void	paint3DPanadapterMode();
 
@@ -361,6 +358,7 @@ private:
 	void	drawVFOControl();
 
 	void 	renderPanVerticalScale();
+    void 	renderPanVerticalScaleNew();
 	void 	renderPanHorizontalScale();
 	void 	renderPanadapterGrid();
 	void 	renderWaterfallVerticalScale();
@@ -423,12 +421,14 @@ private slots:
 	void	setAGCLineFixedLevel(QObject* sender, int rx, qreal value);
 	void	setAGCLinesStatus(QObject* sender, bool value, int rx);
 	//void	setAGCHangEnabled(QObject *sender, int rx, bool hangEnabled);
-
+    void draw_rxIndicator(const QString &str, const QColor &fontColor,const QColor &indicatorColor, int x1, int y1);
 signals:
 	void	showEvent(QObject *sender);
 	void	closeEvent(QObject *sender);
 	void	messageEvent(QString msg);
 	void	coordChanged(int x,int y);
+
+
 };
 
 #endif  // _CUSDR_QGL_RECEIVERPANEL_H

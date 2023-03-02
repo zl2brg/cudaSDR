@@ -85,7 +85,7 @@
 // **************************************
 // receiver settings
 
-#define MAX_RECEIVERS				1
+#define MAX_RECEIVERS				2
 #define MAX_BANDS					22
 #define BUFFER_SIZE					1024
 #define SAMPLE_BUFFER_SIZE			4096

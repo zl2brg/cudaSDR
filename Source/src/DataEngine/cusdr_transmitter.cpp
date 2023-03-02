@@ -155,7 +155,7 @@ bool  Transmitter::createTransmitter(int id, int buffer_size, int fft_size, int 
 
     this->alex_antenna=0;
 
-    fprintf(stderr,"create_transmitter: id=%d buffer_size=%d mic_sample_rate=%d mic_dsp_rate=%d iq_output_rate=%d output_samples=%d fps=%d\n",this->id, this->buffer_size, this->mic_sample_rate, this->mic_dsp_rate, this->iq_output_rate, this->output_samples,this->fps);
+  //  fprintf(stderr,"create_transmitter: id=%d buffer_size=%d mic_sample_rate=%d mic_dsp_rate=%d iq_output_rate=%d output_samples=%d fps=%d\n",this->id, this->buffer_size, this->mic_sample_rate, this->mic_dsp_rate, this->iq_output_rate, this->output_samples,this->fps);
 
     this->filter_low=0;
     this->filter_high=2500;
@@ -207,16 +207,6 @@ bool  Transmitter::createTransmitter(int id, int buffer_size, int fft_size, int 
         // We need this buffer for the new protocol only, where it is only
         // used to shape the TX envelope
     }
-    fprintf(stderr,"transmitter: allocate buffers: mic_input_buffer=%p iq_output_buffer=%p pixels=%p\n",this->mic_input_buffer,this->iq_output_buffer,this->pixel_samples);
-
-    fprintf(stderr,"create_transmitter: OpenChannel id=%d buffer_size=%d fft_size=%d sample_rate=%d dspRate=%d outputRate=%d\n",
-            this->id,
-            this->buffer_size,
-            2048, // this->fft_size,
-            this->mic_sample_rate,
-            this->mic_dsp_rate,
-            this->iq_output_rate);
-
     OpenChannel(this->id,
                 this->buffer_size,
                 2048, // this->fft_size,
@@ -444,7 +434,7 @@ void Transmitter::transmitter_set_mic_level(QObject *object, int level){
 
          overlap = (int)max(0.0, ceil(fft_size - (double)this->mic_sample_rate / (double)this->fps));
 
-         fprintf(stderr,"SetAnalyzer id=%d buffer_size=%d overlap=%d\n",this->id,this->output_samples,overlap);
+       //  fprintf(stderr,"SetAnalyzer id=%d buffer_size=%d overlap=%d\n",this->id,this->output_samples,overlap);
 
 
          SetAnalyzer(this->id,

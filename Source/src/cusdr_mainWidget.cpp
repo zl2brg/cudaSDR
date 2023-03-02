@@ -577,7 +577,7 @@ void MainWindow::setupLayout() {
 		SLOT(widebandVisibilityChanged(bool)));
 
 	// receiver dock windows
-    for (int i = 0; i < MAX_RECEIVERS; i++) {
+    for (int i = 1; i < MAX_RECEIVERS; i++) {
 
 		QString str = "Receiver ";
 		QString num = QString::number(i+1);

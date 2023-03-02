@@ -1270,7 +1270,7 @@ int Settings::loadSettings() {
 
         cstr = m_rxStringList.at(i);
         cstr.append("/centerFrequency");
-        lvalue = settings->value(cstr, 3672000).toInt();
+        lvalue = settings->value(cstr, 1420000).toInt();
         if ((lvalue < 0) || (lvalue > MAXFREQUENCY)) lvalue = 1800000;
         m_receiverDataList[i].ctrFrequency = lvalue;
 
@@ -1278,8 +1278,8 @@ int Settings::loadSettings() {
 
         cstr = m_rxStringList.at(i);
         cstr.append("/vfoFrequency");
-        lvalue = settings->value(cstr, 3672000).toInt();
-        if ((lvalue < 0) || (lvalue > 50000000)) lvalue = 3600000;
+        lvalue = settings->value(cstr,14200000).toInt();
+        if ((lvalue < 0) || (lvalue > MAXFREQUENCY)) lvalue = 1420000;
         m_receiverDataList[i].vfoFrequency = lvalue;
 
         setVfoFrequency(i, lvalue);
@@ -3429,7 +3429,7 @@ void Settings::setReceivers(QObject *sender, int value) {
     locker.unlock();
 
     SETTINGS_DEBUG << "set number of receivers to: " << m_mercuryReceivers;
-    emit numberOfRXChanged(sender, value);
+   // emit numberOfRXChanged(sender, value);
 }
 
 //void Settings::setReceiver(QObject *sender, int value) {
