@@ -442,7 +442,7 @@ bool DataEngine::startDataEngineWithoutConnection() {
 	DATA_ENGINE_DEBUG << "no HPSDR-HW interface";
 
 	if (io.inputBuffer.length() > 0) {
-		initReceivers(1);
+        initReceivers(1);
 		if (!m_dataIO)	createDataIO();
 		if (!m_dataProcessor)	createDataProcessor();
 
@@ -542,6 +542,8 @@ bool DataEngine::getFirmwareVersions() {
 
 	// init receivers
 	int rcvrs = set->getNumberOfReceivers();
+    rcvrs = 2;
+
 	firstTimeRxInit = rcvrs;
 
 	QString str = "Initializing %1 receiver(s)...please wait";
@@ -603,7 +605,7 @@ bool DataEngine::getFirmwareVersions() {
 		
 	m_networkDeviceRunning = true;
 	setSystemState(QSDR::NoError, m_hwInterface, m_serverMode, QSDR::DataEngineUp);
-	SleeperThread::msleep(300);
+    SleeperThread::msleep(100);
 
     io.metisFW = set->getMetisVersion();
     io.mercuryFW = set->getMercuryVersion();
@@ -1152,7 +1154,7 @@ bool DataEngine::initDataEngine() {
 
 bool DataEngine::initReceivers(int rcvrs) {
 
-	for (int i = 0; i < rcvrs; i++) {
+    for (int i = 0; i < rcvrs; i++) {
 
         auto *rx = new Receiver(i);
 		// init the DSP core
@@ -1200,7 +1202,7 @@ bool DataEngine::initReceivers(int rcvrs) {
 
 	
 	io.currentReceiver = 0;
-	io.receivers = rcvrs;
+	io.receivers = 2 ;
 
 	io.timing = 0;
 	m_configure = io.receivers + 1;
@@ -2526,44 +2528,7 @@ void DataProcessor::processInputBuffer(const QByteArray &buffer) {
 			m_micSample += (int)((unsigned char) buffer.at(s++));
     		m_micSample_float = (float) m_micSample / 32767.0f * de->io.mic_gain; // 16 bit sample
 
-            // add to buffer
-    //        de->io.mic_buffer[m_rxSamples * 2]  = 0.0f; m_micSample_float;
-    //        de->io.mic_buffer[(m_rxSamples * 2) + 1] = 0.0f;
-			////m_chirpSamples++;
 
-			//if (m_serverMode == QSDR::ChirpWSPR && m_chirpInititalized)
-			//{
-			//	if (m_chirpBit)
-			//	{
-			//		if (m_chirpGateBit)
-			//		{
-			//			// we've found the rising edge of the GPS 1PPS signal, so we set the samples
-			//			// counter back to zero in order to have a simple and precise synchronisation
-			//			// with the local chirp.
-			//			io.networkIOMutex.lock();
-			//			DATA_ENGINE_DEBUG << "GPS 1 PPS";
-			//			io.networkIOMutex.unlock();
-
-			//			// remove the last sample (real and imag) and enqueue the buffer
-			//			chirpData.removeLast();
-			//			chirpData.removeLast();
-			//			io.chirp_queue.enqueue(chirpData);
-
-			//			// empty the buffer and add the last sample, which is the starting point of the chirp
-			//			m_chirpSamples = 0;
-			//			chirpData.clear();
-
-			//			chirpData << m_lsample;
-			//			chirpData << m_rsample;
-
-			//			m_chirpStart = true;
-			//			m_chirpStartSample = m_rxSamples;
-			//			m_chirpGateBit = false;
-			//		}
-			//	}
-			//	else
-			//		m_chirpGateBit = true;
-			//}
 			m_rxSamples++;
 			m_chirpSamples++;
 
@@ -2574,7 +2539,7 @@ void DataProcessor::processInputBuffer(const QByteArray &buffer) {
 
 
 
-				for (int r = 0; r < de->io.receivers; r++) {
+                for (int r = 0; r < de->io.receivers; r++) {
                     QMetaObject::invokeMethod(de->RX.at(r), "dspProcessing", Qt::DirectConnection);// Qt::QueuedConnection);
 				}
 				m_rxSamples = 0;
@@ -2920,7 +2885,7 @@ void DataProcessor::sendMicData() {
 
         fexchange0(TX_ID, a.data(), (double *) m_iq_output_buffer.data(), &error);
         Spectrum0(1, TX_ID, 0, 0, (double *) m_iq_output_buffer.data());
-        qDebug() << "tx spectrum size " << sizeof( m_iq_output_buffer.data());
+//        qDebug() << "tx spectrum size " << sizeof( m_iq_output_buffer.data());
 
         for (int j = 0; j < DSP_SAMPLE_SIZE; j++) {
             qs = m_iq_output_buffer.at(j).re;
@@ -3298,6 +3263,7 @@ void DataProcessor::encodeCCBytes() {
     				if (de->io.ccTx.mox || de->io.ccTx.ptt)
     					de->io.control_out[2] |= (de->io.ccTx.txJ6pinList.at(de->io.ccTx.currentBand) >> 1) << 1;
     				else
+//todo what are we doing here
     					de->io.control_out[2] |= (de->io.ccTx.rxJ6pinList.at(de->io.ccTx.currentBand) >> 1) << 1;
     			}
     		}
@@ -3362,7 +3328,6 @@ void DataProcessor::encodeCCBytes() {
 
     		de->io.control_out[4] &= 0x07; // 0 0 0 0 0 1 1 1
     		de->io.control_out[4] |= (de->io.receivers - 1) << 3;
-
     		//RRK removed 4HL
     		//de->io.control_out[4] &= 0xBF; // 1 0 1 1 1 1 1 1
     		//de->io.control_out[4] |= de->io.ccTx.timeStamp << 6;
@@ -3412,12 +3377,16 @@ void DataProcessor::encodeCCBytes() {
     		// C0 = 0 1 0 1 0 1 0 x     C1, C2, C3, C4   NCO Frequency in Hz for Receiver _32
 
     		// RRK, workaround for gige timing bug, make sure all rx freq's are sent on init.
-
-                de->io.control_out[0] = 0x04;
+            qDebug() << "rx_freq change" <<  de->io.rx_freq_change;
+            if (de->io.rx_freq_change >= 0) {
+                qDebug() << "rx_freq change" <<  de->io.rx_freq_change <<  de->RX.at(de->io.rx_freq_change)->getCtrFrequency() ;
+                de->io.control_out[0] = (de->io.rx_freq_change + 2) << 1;
                 de->io.control_out[1] = de->RX.at(de->io.rx_freq_change)->getCtrFrequency() >> 24;
                 de->io.control_out[2] = de->RX.at(de->io.rx_freq_change)->getCtrFrequency() >> 16;
                 de->io.control_out[3] = de->RX.at(de->io.rx_freq_change)->getCtrFrequency() >> 8;
                 de->io.control_out[4] = de->RX.at(de->io.rx_freq_change)->getCtrFrequency();
+                de->io.rx_freq_change = -1;
+            }
     		m_sendState = 3;
     		break;
 

@@ -419,8 +419,10 @@ void Receiver::stop() {
     destroy_anbEXT(m_receiver);
     inBuf.clear();
     outBuf.clear();
+    if (this->m_receiver == 0){ // tx channel tied to RX 0
     SetChannelState(TX_ID,0,1);
     CloseChannel(TX_ID);
+    }
     QThread::msleep(100);
 	m_mutex.lock();
 	m_stopped = true;
@@ -432,7 +434,6 @@ void Receiver::dspProcessing() {
 	int spectrumDataReady;
    int error;
       m_mutex.lock();
-
 
         fexchange0(m_receiver, (double *) inBuf.data(),  (double *) audioOutputBuf.data(), &error);
         if(error!=0) {
@@ -457,7 +458,7 @@ void Receiver::dspProcessing() {
                     spectrumBuffer.data(),
 					4096 * sizeof(float)
 			);
-			emit spectrumBufferChanged(m_receiver, newSpectrum);
+ 			emit spectrumBufferChanged(m_receiver, newSpectrum);
 		}
 
 		m_mutex.unlock();

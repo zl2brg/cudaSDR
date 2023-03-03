@@ -308,7 +308,7 @@ bool overflow = false;
 		}
 		if(overflow)
 		{
-			qDebug()<<"Snd Overflow";
+//			qDebug()<<"Snd Overflow";
 			m_AveOutQLevel = m_OutQLevel;
 		}
 		//calculate average Queue fill level
@@ -429,7 +429,7 @@ bool underflow = false;
 	m_AveOutQLevel = (1.0-FILTERQLEVEL_ALPHA)*m_AveOutQLevel + FILTERQLEVEL_ALPHA*m_OutQLevel;
 	if(underflow)
 	{
-		qDebug()<<"Snd Underflow";
+//		qDebug()<<"Snd Underflow";
 		m_AveOutQLevel = m_OutQLevel;
 	}
 
@@ -502,7 +502,7 @@ bool underflow = false;
 
 	if(underflow)
 	{
-		qDebug()<<"Snd Underflow";
+	//	qDebug()<<"Snd Underflow";
 		m_AveOutQLevel = m_OutQLevel;
 	}
 	// See if time to update rate error calculation routine

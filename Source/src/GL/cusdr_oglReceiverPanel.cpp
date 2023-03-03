@@ -3625,24 +3625,18 @@ void QGLReceiverPanel::freqRulerPositionChanged(QObject *sender, int rx, float p
 void QGLReceiverPanel::setSpectrumBuffer(int rx, const qVectorFloat& buffer) {
 
 	if (m_receiver != rx) return;
-
 	QVector<float> specBuf(m_spectrumSize);
 	QVector<float> waterBuf(m_spectrumSize);
 	waterBuf = buffer;
-
-
 	if (m_dataEngineState == QSDR::DataEngineUp) {
-
 		if (m_spectrumAveraging) {
-	
 			spectrumBufferMutex.lock();
 			specBuf = buffer;
             computeDisplayBins(specBuf, waterBuf);
 			spectrumBufferMutex.unlock();
 		}
 		else {
-
-			specBuf = buffer;
+    		specBuf = buffer;
             if (m_dataEngineState == QSDR::DataEngineUp)
                 computeDisplayBins(specBuf, waterBuf);
 		}

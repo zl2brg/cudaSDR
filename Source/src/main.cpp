@@ -90,7 +90,7 @@ void cuSDRMessageHandler(QtMsgType type, const QMessageLogContext &context, cons
     QFile outFile("cudaSDR.log");
     outFile.open(QIODevice::WriteOnly | QIODevice::Append);
     QTextStream ts(&outFile);
-    ts << txt << Qt::endl << Qt::flush;
+    ts << txt << endl << flush;
 }
 
 
