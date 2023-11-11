@@ -81,6 +81,7 @@ protected:
 	void keyPressEvent(QKeyEvent* event);
 	void qglColor(QColor color);
 
+
 private:
 	Settings*					set;
 
@@ -369,6 +370,10 @@ private:
 	void 	showText(float x, float y, float z, const QString &text, bool smallText);
 	void	showRadioPopup(bool value);
     void    renderText(int x, int y, QFont &font, QColor fontcolor, const QString &text);
+    void setupLogger();
+    void configureOpenGL();
+    void setupGLState();
+    void setColorAndHintSettings();
 
 
 private slots:
@@ -410,6 +415,7 @@ private slots:
 	void	setdBmScaleMin(int rx, qreal value);
 	void	setdBmScaleMax(int rx, qreal value);
 	void	setMouseWheelFreqStep(QObject *, int, qreal);
+	//void	setMouseWheelFreqStep(QObject *, int, qreal);
 
 	void 	setADCStatus(int value);
 	void 	updateADCStatus();
@@ -421,7 +427,7 @@ private slots:
 	void	setAGCLineFixedLevel(QObject* sender, int rx, qreal value);
 	void	setAGCLinesStatus(QObject* sender, bool value, int rx);
 	//void	setAGCHangEnabled(QObject *sender, int rx, bool hangEnabled);
-    void draw_rxIndicator(const QString &str, const QColor &fontColor,const QColor &indicatorColor, int x1, int y1);
+ //   void draw_rxIndicator(const QString &str, const QColor &fontColor,const QColor &indicatorColor, int x1, int y1);
 signals:
 	void	showEvent(QObject *sender);
 	void	closeEvent(QObject *sender);

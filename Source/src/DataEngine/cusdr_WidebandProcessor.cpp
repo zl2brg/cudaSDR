@@ -48,7 +48,7 @@ WideBandDataProcessor::WideBandDataProcessor(THPSDRParameter *ioData, QSDR::_Ser
 	int result;
 	m_wbSpectrumAveraging = set->getSpectrumAveragingCnt(-1);
 	cpxWBIn.resize(WIDEBAND_BUFFER_SIZE);
-	specBuf.resize(NUM_PIXELS * 2);
+    specBuf.resize(NUM_PIXELS);
 	XCreateAnalyzer(WIDEBAND_DISPLAY_NUMBER, &result, 262144, 1, 1, "");
 	if(result != 0) {
 		WIDEBAND_PROCESSOR_DEBUG <<  "wideband XCreateAnalyzer failed:" << result;
@@ -64,15 +64,15 @@ void  WideBandDataProcessor::initWidebandAnalyzer() {
 		double keep_time = 0.1;
 		int n_pixout = 1;
 		int spur_elimination_ffts = 1;
-		int data_type = 1;
-		int fft_size = 8192;
+        int data_type = 0;
+        int fft_size = 8192;
 		int window_type = 4;
 		double kaiser_pi = 14.0;
 		int overlap = 0; //1024; //4096;
 		int clip = 0;
 		int span_clip_l = 0;
 		int span_clip_h = 0;
-		int pixels = NUM_PIXELS* 2;
+        int pixels = NUM_PIXELS;
 		int stitches = 1;
 		int avm = 0;
 		double tau = 0.001 * 120.0;
@@ -88,7 +88,7 @@ void  WideBandDataProcessor::initWidebandAnalyzer() {
 					data_type, //0 for real input data (I only); 1 for complex input data (I & Q)
 					flp, //vector with one elt for each LO frequency, 1 if high-side LO, 0 otherwise
 					fft_size, //size of the fft, i.e., number of input samples
-					WIDEBAND_BUFFER_SIZE, //number of samples transferred for each OpenBuffer()/CloseBuffer()
+                    WIDEBAND_BUFFER_SIZE, //number of samples transferred for each OpenBuffer()/CloseBuffer()
 					window_type, //integer specifying which window function to use
 					kaiser_pi, //PiAlpha parameter for Kaiser window
 					overlap, //number of samples each fft (other than the first) is to re-use from the previous
@@ -152,13 +152,12 @@ void WideBandDataProcessor::processWideBandInputBuffer(const QByteArray &buffer)
 	}
 
 
-
 	for (int i = 0; i < length; i += 2) {
 		s = (int) ((buffer.at(i + 1) << 8)  + (int)(buffer.at(i) & 0xFF));
 
         sample = (float)(s * norm) * 1.0f;
 
-		cpxWBIn[i/2].re = (double)sample;
+		cpxWBIn[i/2].re = 0;
 		cpxWBIn[i/2].im = (double)sample;
 	}
 	getSpectrumData();
@@ -170,8 +169,8 @@ void WideBandDataProcessor::getSpectrumData(){
 	m_mutex.lock();
     Spectrum0(1, WIDEBAND_DISPLAY_NUMBER, 0, 0,(double *) cpxWBIn.data());
 	GetPixels(WIDEBAND_DISPLAY_NUMBER,0,specBuf.data(), &spectrumDataReady);
-	if (spectrumDataReady)
-			emit wbSpectrumBufferChanged(specBuf.mid(NUM_PIXELS,specBuf.length()));
+    if (spectrumDataReady)
+        emit wbSpectrumBufferChanged(specBuf);
 	m_mutex.unlock();
 }
 

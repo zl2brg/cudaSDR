@@ -160,6 +160,7 @@ set(UI_SOURCES
         ${CMAKE_SOURCE_DIR}/UI/tx_settings_dialog.ui
         ${CMAKE_SOURCE_DIR}/UI/noisefilterwidget.ui
         ${CMAKE_SOURCE_DIR}/UI/cusdr_display.ui
+        ${CMAKE_SOURCE_DIR}/UI/cusdr_setupwidget.ui
     )
 
 

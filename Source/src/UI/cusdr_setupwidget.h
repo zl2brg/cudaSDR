@@ -29,10 +29,16 @@
 #include "cusdr_alexTabWidget.h"
 #include "cusdr_extCtrlWidget.h"
 #include "cusdr_displayTabWidget.h"
+#include "ui_cusdr_setupwidget.h"
 
 
 #include <QTabWidget>
 
+
+
+namespace Ui {
+class cusdr_setupWidget;
+}
 
 class cusdr_SetupWidget : public QTabWidget
 {
@@ -43,7 +49,7 @@ public:
     ~cusdr_SetupWidget();
 
 private:
-
+    Ui::setupWidget *ui;
 public slots:
     void	addNICChangedConnection();
 
@@ -66,7 +72,6 @@ private:
     QSDR::_ServerMode			m_serverMode;
     QSDR::_HWInterfaceMode		m_hwInterface;
     QSDR::_DataEngineState		m_dataEngineState;
-
     HPSDRWidget			*m_hpsdrWidget;
     NetworkWidget		*m_networkWidget;
     AlexTabWidget		*m_alexTabWidget;

@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>setupWidget</class>
+ <widget class="QTabWidget" name="setupWidget">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>903</width>
+    <height>1012</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>TabWidget</string>
+  </property>
+  <widget class="QWidget" name="tab">
+   <attribute name="title">
+    <string>Page</string>
+   </attribute>
+   <layout class="QVBoxLayout" name="verticalLayout">
+    <item>
+     <widget class="QComboBox" name="radioType"/>
+    </item>
+    <item>
+     <widget class="QComboBox" name="radioSelect"/>
+    </item>
+    <item>
+     <widget class="QTabWidget" name="setupTab">
+      <property name="currentIndex">
+       <number>0</number>
+      </property>
+      <widget class="QWidget" name="hermes">
+       <attribute name="title">
+        <string>Hermes</string>
+       </attribute>
+       <layout class="QVBoxLayout" name="verticalLayout_2">
+        <item>
+         <widget class="QToolBox" name="toolBox">
+          <property name="currentIndex">
+           <number>4</number>
+          </property>
+          <widget class="QWidget" name="config">
+           <property name="geometry">
+            <rect>
+             <x>0</x>
+             <y>0</y>
+             <width>851</width>
+             <height>579</height>
+            </rect>
+           </property>
+           <attribute name="label">
+            <string>Config</string>
+           </attribute>
+          </widget>
+          <widget class="QWidget" name="network">
+           <attribute name="label">
+            <string>Network</string>
+           </attribute>
+          </widget>
+          <widget class="QWidget" name="ext_ctrl">
+           <attribute name="label">
+            <string>Ext Ctrl</string>
+           </attribute>
+          </widget>
+          <widget class="QWidget" name="alex">
+           <property name="geometry">
+            <rect>
+             <x>0</x>
+             <y>0</y>
+             <width>851</width>
+             <height>579</height>
+            </rect>
+           </property>
+           <attribute name="label">
+            <string>Alex</string>
+           </attribute>
+          </widget>
+          <widget class="QWidget" name="tx_settings">
+           <attribute name="label">
+            <string>Tx Settings</string>
+           </attribute>
+          </widget>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="display">
+       <attribute name="title">
+        <string>Display</string>
+       </attribute>
+      </widget>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

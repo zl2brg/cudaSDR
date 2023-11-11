@@ -1046,7 +1046,7 @@ void DisplayOptionsWidget::sampleRateChanged(QObject *sender, int value) {
 	//if (currentValue > m_sampleRate/1000) {
 
 	//	m_framesPerSecondSpinBox->setValue(m_sampleRate/1000);
-	//	set->setFramesPerSecond(value);
+	//	set->setDisplayFramesPerSecond(value);
 	//}
 }
 

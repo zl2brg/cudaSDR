@@ -48,13 +48,15 @@ RadioTabWidget::RadioTabWidget(QWidget *parent)
     , m_minimumWidgetWidth(set->getMinimumWidgetWidth())
     , m_minimumGroupBoxWidth(set->getMinimumGroupBoxWidth())
 {
-    setContentsMargins(4, 4, 4, 0);
+    setContentsMargins(40, 40, 40, 0);
 	setMouseTracking(true);
 	m_radioWidget = new RadioWidget(this);
     m_agcWidget = new AGCOptionsWidget(this);
     m_transmitTabWidget = new TransmitTabWidget(this);
     m_noiseFilterWidget = new NoiseFilterWidget(this);
-
+    this->setTabPosition(QTabWidget::West);
+    this->setMinimumHeight(400);
+    this->setElideMode(Qt::ElideNone);
 
     this->addTab(m_radioWidget, "  General ");
     this->addTab(m_agcWidget, " AGC ");

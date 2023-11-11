@@ -23,8 +23,8 @@
 #include <QMenu>
 #include <QFileDialog>
 #include <QDebug>
-
 #include "cusdr_setupwidget.h"
+#include "ui_cusdr_setupwidget.h"
 
 
 #define	btn_height		15
@@ -32,11 +32,16 @@
 #define	btn_width2		52
 #define	btn_widths		40
 
+
+
+
 cusdr_SetupWidget::cusdr_SetupWidget(QWidget *parent)
 : QTabWidget(parent)
 , set(Settings::instance())
 , m_minimumWidgetWidth(500)
 , m_minimumGroupBoxWidth(set->getMinimumGroupBoxWidth())
+, ui(new Ui::setupWidget)
+
 {
 
 

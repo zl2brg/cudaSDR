@@ -25,7 +25,7 @@
  */
 
 #define LOG_MAIN
-#define DOCK_WIDTH  400
+#define DOCK_WIDTH  800
 
 //#define LOG_NETWORKDIALOG
 
@@ -144,6 +144,7 @@ MainWindow::MainWindow(QWidget *parent)
     m_setupWidget->setLayout(m_setuplayout);
     m_serverWidget = new ServerWidget(this);
     m_hpsdrTabWidget = new cusdr_SetupWidget(this);
+
     m_radioTabWidget = new RadioTabWidget(this);
 
 	m_wbDisplay = 0;

@@ -42,7 +42,7 @@
 HPSDRTabWidget::HPSDRTabWidget(QWidget *parent) 
 	: QTabWidget(parent)
 	, set(Settings::instance())
-	, m_minimumWidgetWidth(500)
+    , m_minimumWidgetWidth(800)
 	, m_minimumGroupBoxWidth(set->getMinimumGroupBoxWidth())
 {
 	setStyleSheet(set->getTabWidgetStyle());

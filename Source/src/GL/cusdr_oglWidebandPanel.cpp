@@ -450,7 +450,9 @@ void QGLWidebandPanel::drawSpectrum() {
 	glEnable(GL_SCISSOR_TEST);
 
 	// set up the vertex arrays
-	vertexArrayLength = (GLint)(scaleMult * width);
+
+    vertexArrayLength = (GLint)(scaleMult * width);
+    
 	//WBGRAPHICS_DEBUG << "vertexArrayLength: " << vertexArrayLength;
 
 	TGL3float *vertexArray = new TGL3float[vertexArrayLength];
@@ -1070,7 +1072,7 @@ void QGLWidebandPanel::renderHorizontalScale() {
 	saveGLState();
 
     painter->begin(m_frequencyScaleFBO);
-    painter->fillRect(QRect(0, 0, m_freqScaleRect.width(), m_freqScaleRect.height()), QColor(0, 0, 255, 255));
+    painter->fillRect(QRect(0, 0, m_freqScaleRect.width(), m_freqScaleRect.height()), QColor(0, 0, 0, 255));
     painter->setRenderHint(QPainter::Antialiasing);
     painter->setPen(QPen(textColor,3, Qt::SolidLine, Qt::FlatCap));
     int len = m_frequencyScale.mainPointPositions.length();

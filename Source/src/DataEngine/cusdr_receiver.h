@@ -142,9 +142,9 @@ public slots:
     void    setAGC_Line(int rx);
 //    double getSMeterInstValue();
     void ProcessFrequencyShift(CPX &in, CPX &out);
-    void setPanAdaptorAveragingMode(int rx, int mode);
-    void setPanAdaptorDetectorMode(int rx, int mode);
-    void setPanAdaptorAveragingCnt(QObject *sender, int rx, int count);
+    void setDisplayrAveragegMode(int rx, int mode);
+    void setDisplayDetectorMode(int rx, int mode);
+    void setDisplyAveragingCount(QObject *sender, int rx, int count);
     void setfftSize(int rx, int value);
     void setfmsqLevel(int rx, int value);
     void setNoiseBlankerMode(int rx);
@@ -164,6 +164,9 @@ public slots:
     bool	initWDSPInterface();
     void	dspProcessing();
 	void	stop();
+    bool openReceiver();
+
+    void closeReceiver();
 
 private slots:
 	void	setSystemState(
@@ -174,7 +177,7 @@ private slots:
 					QSDR::_DataEngineState state);
 
 	void	setSampleRate(QObject *sender, int value);
-	void 	setFramesPerSecond(QObject *sender, int rx, int value);
+	void 	setDisplayFramesPerSecond(QObject *sender, int rx, int value);
 
 
 
@@ -290,9 +293,7 @@ signals:
 
 
 
-
-
-
+//    void closeReceiver();
 };
 
 #endif  // CUSDR_RECEIVER_H

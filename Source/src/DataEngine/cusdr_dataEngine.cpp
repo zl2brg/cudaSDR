@@ -542,7 +542,7 @@ bool DataEngine::getFirmwareVersions() {
 
 	// init receivers
 	int rcvrs = set->getNumberOfReceivers();
-    rcvrs = 2;
+//    rcvrs = 2;
 
 	firstTimeRxInit = rcvrs;
 
@@ -823,6 +823,7 @@ bool DataEngine::start() {
 	m_sendState = 0;
 
 	int rcvrs = set->getNumberOfReceivers();
+
     if (!m_audioInput) createAudioInputProcessor();
 
 	if (!m_dataIO) createDataIO();
@@ -896,7 +897,7 @@ bool DataEngine::start() {
 	set->setRxList(RX);
 	connectDSPSlots();
 
-	for (int i = 0; i < rcvrs; i++) {
+    for (int i = 0; i < rcvrs ; i++) {
 
 		RX.at(i)->setConnectedStatus(true);
         RX.at(i)->start();
@@ -910,7 +911,6 @@ bool DataEngine::start() {
 		//		SIGNAL(outputBufferSignal(int, const CPX &)),
 		//		this, //m_dataProcessor,
 		//		SLOT(setOutputBuffer(int, const CPX &)));
-
 		CHECKED_CONNECT(
 				RX.at(i),
 				SIGNAL(outputBufferSignal(int, const CPX &)),m_dataProcessor,SLOT(setOutputBuffer(int, const CPX &)));
@@ -1202,7 +1202,7 @@ bool DataEngine::initReceivers(int rcvrs) {
 
 	
 	io.currentReceiver = 0;
-	io.receivers = 2 ;
+	io.receivers = set->getNumberOfReceivers() ;
 
 	io.timing = 0;
 	m_configure = io.receivers + 1;
@@ -2007,7 +2007,7 @@ void DataEngine::setFramesPerSecond(QObject *sender, int rx, int value) {
 void DataEngine::setSampleRate(QObject *sender, int value) {
 
 	Q_UNUSED(sender)
-
+    DATA_ENGINE_DEBUG << "set sample rate ! " << value;
 	switch (value) {
 	
 		case 48000:
@@ -2535,10 +2535,6 @@ void DataProcessor::processInputBuffer(const QByteArray &buffer) {
 			// when we have enough rx samples we start the DSP processing.
             int error = 0;
             if (m_rxSamples == BUFFER_SIZE) {
-
-
-
-
                 for (int r = 0; r < de->io.receivers; r++) {
                     QMetaObject::invokeMethod(de->RX.at(r), "dspProcessing", Qt::DirectConnection);// Qt::QueuedConnection);
 				}
@@ -2744,9 +2740,8 @@ void DataProcessor::decodeCCBytes(const QByteArray &buffer) {
 }
 
 void DataProcessor::setOutputBuffer(int rx, const CPX &buffer) {
-
 	if (rx == de->io.currentReceiver) {
-		processOutputBuffer(buffer);
+		//processOutputBuffer(buffer);
 
 	}
 }
@@ -2885,7 +2880,6 @@ void DataProcessor::sendMicData() {
 
         fexchange0(TX_ID, a.data(), (double *) m_iq_output_buffer.data(), &error);
         Spectrum0(1, TX_ID, 0, 0, (double *) m_iq_output_buffer.data());
-//        qDebug() << "tx spectrum size " << sizeof( m_iq_output_buffer.data());
 
         for (int j = 0; j < DSP_SAMPLE_SIZE; j++) {
             qs = m_iq_output_buffer.at(j).re;
@@ -2983,7 +2977,6 @@ void DataProcessor::DumpBuffer(unsigned char *buffer,int length, const char *who
 /* Sends rx audio data from wdsp to  hermes audio and to PC */
 void DataProcessor::setAudioBuffer(int rx, const CPX &buffer, int buffersize)
 {
-//    qDebug() << "Buffer Size" << buffersize;
 
     send_hpsdr_data(rx, buffer, buffersize);
     return;
@@ -3377,9 +3370,7 @@ void DataProcessor::encodeCCBytes() {
     		// C0 = 0 1 0 1 0 1 0 x     C1, C2, C3, C4   NCO Frequency in Hz for Receiver _32
 
     		// RRK, workaround for gige timing bug, make sure all rx freq's are sent on init.
-            qDebug() << "rx_freq change" <<  de->io.rx_freq_change;
             if (de->io.rx_freq_change >= 0) {
-                qDebug() << "rx_freq change" <<  de->io.rx_freq_change <<  de->RX.at(de->io.rx_freq_change)->getCtrFrequency() ;
                 de->io.control_out[0] = (de->io.rx_freq_change + 2) << 1;
                 de->io.control_out[1] = de->RX.at(de->io.rx_freq_change)->getCtrFrequency() >> 24;
                 de->io.control_out[2] = de->RX.at(de->io.rx_freq_change)->getCtrFrequency() >> 16;

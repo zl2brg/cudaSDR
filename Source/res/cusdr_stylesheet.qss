@@ -61,7 +61,7 @@ background: qlineargradient(y1:0, y2:1,
 
 
 /* Q Tab Widget */
-
+/*
 QTabWidget::tab-bar {
 left: 4px;
 top: 5px;
@@ -112,7 +112,7 @@ color: rgba(85, 210, 250, 255);
 QTabBar::tab:!selected {
     margin-top: 5x;
 }
-
+*/
 
 /* Q Checkbox*/
 

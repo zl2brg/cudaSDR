@@ -817,9 +817,9 @@ int Settings::loadSettings() {
         cstr = m_rxStringList.at(i);
         cstr.append("/agcGain");
 
-        value = settings->value(cstr, 100).toInt();
+        value = settings->value(cstr, 150).toInt();
         if (value < -20) value = -20;
-        if (value > 120) value = 120;
+        if (value > 120) value = 150;
         m_receiverDataList[i].acgGain = value;
 
         cstr = m_rxStringList.at(i);
@@ -3973,8 +3973,9 @@ void Settings::setAGCShowLines(QObject *sender, int rx, bool value) {
 }
 
 qreal Settings::getAGCGain(int rx) {
-
+qDebug() << "agc gain is " <<  m_receiverDataList[rx].acgGain;
     return m_receiverDataList[rx].acgGain;
+
 }
 
 void Settings::setAGCGain(QObject *sender, int rx, int value) {
@@ -4018,6 +4019,13 @@ void Settings::setAGCFixedGain_dB(QObject *sender, int rx, qreal value) {
 qreal Settings::getAGCFixedGain_dB(int rx) {
 
     return m_receiverDataList[rx].agcFixedGain_dB;
+}
+
+
+qreal Settings::get_agcThreshold(QObject *sender, int rx){
+
+    return    m_receiverDataList[rx].acgThreshold_dB;
+
 }
 
 void Settings::setAGCThreshold_dB(QObject *sender, int rx, qreal value) {
@@ -4067,6 +4075,8 @@ void Settings::setAGCHangLevel_dB(QObject *sender, int rx, qreal value) {
     //SETTINGS_DEBUG << "agcHangLevel = " << m_receiverDataList[rx].agcHangLevel;
     emit agcHangLevelChanged_dB(sender, rx, value);
 }
+
+
 
 void Settings::setAGCLineLevels(QObject *sender, int rx, qreal thresh, qreal hang) {
 
