@@ -30,8 +30,10 @@
 
 Transmitter::Transmitter( int transmitter )
 : QObject()
+
 , set(Settings::instance())
 {
+     Q_UNUSED(transmitter)
     createTransmitter(TX_ID,DSP_SAMPLE_SIZE,4096,10,2048,100);
     setupConnections();
 
@@ -270,7 +272,7 @@ bool  Transmitter::createTransmitter(int id, int buffer_size, int fft_size, int 
     SetTXAAMCarrierLevel(this->id, 0.5);
     SetTXACompressorGain(this->id, 0);
     SetTXACompressorRun(this->id, 0);
-    XCreateAnalyzer(this->id, &rc, 262144, 1, 1, "");
+    XCreateAnalyzer(this->id, &rc, 262144, 1, 1, (char *) "");
     if (rc != 0) {
         fprintf(stderr, "XCreateAnalyzer id=%d failed: %d\n",this->id,rc);
     } else {
@@ -280,24 +282,18 @@ bool  Transmitter::createTransmitter(int id, int buffer_size, int fft_size, int 
 }
 
 void Transmitter::reconfigure_transmitter(int tx, int height) {
-
+    Q_UNUSED(tx)
+    Q_UNUSED(height)
 }
 
 void Transmitter::setDSPMode(QObject *sender,int id, DSPMode dspMode) {
 Q_UNUSED(sender)
+Q_UNUSED(id)
 mode = dspMode;
     SetTXAMode(this->id, mode);
     tx_set_filter(getFilterFromDSPMode(set->getDefaultFilterList(), mode).filterLo,getFilterFromDSPMode(set->getDefaultFilterList(), mode).filterHi);
 }
 
-
-
-
-void Transmitter::transmitter_set_ctcss(int tx, int, double)
-{
-
-
-}
 
 void Transmitter::set_fm_deviation(double level) {
     SetTXAFMDeviation(this->id, level);
@@ -347,47 +343,50 @@ default:
      }
 
      void Transmitter::tx_set_pre_emphasize(int tx, int state) {
-
+         Q_UNUSED(tx)
+         Q_UNUSED(state)
      }
 
      void Transmitter::add_freedv_mic_sample(int tx, short mic_sample) {
+         Q_UNUSED(tx)
+         Q_UNUSED(mic_sample)
 
      }
 
      void Transmitter::transmitter_save_state(int tx) {
-
+         Q_UNUSED(tx)
      }
 
      void Transmitter::transmitter_set_out_of_band(int tx) {
-
+         Q_UNUSED(tx)
      }
 
     void Transmitter::tx_set_ps(int tx, int state) {
+        Q_UNUSED(tx)
+        Q_UNUSED(state)
 
      }
 
      void Transmitter::tx_set_twotone(int tx, int state) {
+         Q_UNUSED(tx)
+         Q_UNUSED(state)
 
      }
 
      void Transmitter::transmitter_set_compressor_level(int tx, double level) {
-
+     Q_UNUSED(tx)
+     Q_UNUSED(level)
      }
 
      void Transmitter::transmitter_set_compressor(int tx, int state) {
+         Q_UNUSED(tx)
+         Q_UNUSED(state)
 
      }
 
-     void Transmitter::tx_set_ps_sample_rate(int tx, int rate) {
-
-     }
-
-     void Transmitter::add_ps_iq_samples(int tx, double i_sample_0, double q_sample_0, double i_sample_1,
-                                         double q_sample_1) {
-
-     }
 
      void Transmitter::cw_hold_key(int state) {
+         Q_UNUSED(state)
 
      }
 
@@ -401,6 +400,8 @@ default:
 
 
 void Transmitter::transmitter_set_mic_level(QObject *object, int level){
+    Q_UNUSED(object)
+
     TRANSMITTER_DEBUG << "Set Tx mic level" << level;
     mic_gain = level * 1.0;
     SetTXAPanelGain1(this->id,pow(10.0, mic_gain/20.0));
@@ -410,6 +411,7 @@ void Transmitter::transmitter_set_mic_level(QObject *object, int level){
 
 
      void Transmitter::init_analyser(int tx) {
+         Q_UNUSED(tx)
          int flp[] = {0};
          double keep_time = 0.1;
          int n_pixout=1;
@@ -422,10 +424,7 @@ void Transmitter::transmitter_set_mic_level(QObject *object, int level){
          int clip = 0;
          int span_clip_l = 0;
          int span_clip_h = 0;
-         int pixels=2048;
          int stitches = 1;
-         int avm = 0;
-         double tau = 0.001 * 120.0;
          int calibration_data_set = 0;
          double span_min_freq = 0.0;
          double span_max_freq = 0.0;

@@ -23,7 +23,7 @@ tx_settings_dialog::tx_settings_dialog(QWidget *parent) :
     this->ui->amCarrierLevel->setStyleSheet(set->getVolSliderStyle());
     this->ui->audioCompression->setStyleSheet(set->getVolSliderStyle());
 
-    int temp = m_amCarrierLevel * 100;
+    //int temp = m_amCarrierLevel * 100;
     ui->amCarrierLevel->setSliderPosition(0.5);
     ui->audioCompression->setSliderPosition(m_audioCompressionLevel);
     ui->fm_deviation->setValue(int(set->getFMDeveation() / 1000.0));

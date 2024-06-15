@@ -84,9 +84,9 @@ private:
 
 	PanGraphicsMode				m_panMode;
 	
-	QTime			m_displayTime;
-	QTime			m_resizeTime;
-	QTime			freqChangeTimer;
+    QElapsedTimer			m_displayTime;
+    QElapsedTimer			m_resizeTime;
+    QElapsedTimer			freqChangeTimer;
 	
 	CFonts			*fonts;
 

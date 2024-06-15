@@ -20,17 +20,11 @@ public:
     ~NoiseFilterWidget();
 
 private:
-    Ui::NoiseFilterWidget *ui;
+
     Settings	*set;
     QSDR::_ServerMode			m_serverMode;
     QSDR::_HWInterfaceMode		m_hwInterface;
     QSDR::_DataEngineState		m_dataEngineState;
-
-    QList<TReceiver>	m_rxDataList;
-    void        getSettings();
-    CFonts		*fonts;
-    TFonts		m_fonts;
-
     int     m_rx;
     int		m_minimumWidgetWidth;
     int		m_minimumGroupBoxWidth;
@@ -41,7 +35,14 @@ private:
     bool	m_mouseOver;
 
     void	setupConnections();
+    Ui::NoiseFilterWidget *ui;
 
+
+
+    QList<TReceiver>	m_rxDataList;
+    void        getSettings();
+    CFonts		*fonts;
+    TFonts		m_fonts;
 
 private slots:
     void	systemStateChanged(

@@ -39,6 +39,8 @@
 
 #ifdef LOG_RECEIVER
 #   define RECEIVER_DEBUG qDebug().nospace() << "Receiver::\t"
+#define DSPSIZE 2048
+#define DSP_RATE 48000
 #else
 #   define RECEIVER_DEBUG nullDebug()
 #endif
@@ -59,9 +61,7 @@ public:
 	void	enqueueData();
 
 
-	QSDR::_ServerMode	getServerMode()	const;
-	QSDR::_DSPCore		getDSPCoreMode() const;
-	QHostAddress		getPeerAddress()		{ return m_peerAddress; }
+    QHostAddress		getPeerAddress()		{ return m_peerAddress; }
 	HamBand				getHamBand()			{ return m_hamBand; }
 	ADCMode				getADCMode()			{ return m_adcMode; }
 	AGCMode				getAGCMode()			{ return m_agcMode; }
@@ -113,8 +113,8 @@ public:
 public slots:
     void    setNCOFrequency(int rx, long value);
     void    setSampleSize(int rx, int size);
-	void	setReceiverData(TReceiver data);
-	void	setAudioMode(QObject* sender, int mode);
+
+    void	setAudioMode(QObject* sender, int mode);
 	void	setServerMode(QSDR::_ServerMode mode);
 	void	setPeerAddress(QHostAddress addr);
 	void	setSocketDescriptor(int value);
@@ -128,7 +128,6 @@ public slots:
 	void	setHamBand(QObject* sender, int rx, bool byBtn, HamBand band);
 	void	setDspMode(QObject* sender, int rx, DSPMode mode);
 	void	setADCMode(QObject* sender, int rx, ADCMode mode);
-	void	setAGCMode(QObject* sender, int rx, AGCMode mode, bool hang);
 	void	setAGCGain(QObject* sender, int rx, int value);
 	void	setAudioVolume(QObject* sender, int rx, float value);
 	void	setCtrFrequency(long frequency);
@@ -164,7 +163,6 @@ public slots:
     bool	initWDSPInterface();
     void	dspProcessing();
 	void	stop();
-    bool openReceiver();
 
     void closeReceiver();
 
@@ -237,16 +235,8 @@ private:
 	float	m_audioVolume;
 	double	m_sMeterValue;
 
-	qreal	m_agcGain;
-	qreal	m_agcFixedGain_dB;
-	qreal	m_agcMaximumGain_dB;
-	qreal	m_agcThreshold_dBm;
-	qreal	m_agcHangThreshold;
-	qreal	m_agcHangLevel;
-	int		m_agcSlope;
-	int		m_agcAttackTime;
-	int		m_agcDecayTime;
-	int		m_agcHangTime;
+
+
 	//qreal	m_calOffset;
 	qreal	m_filterLo;
 	qreal	m_filterHi;
@@ -266,21 +256,32 @@ private:
     int     m_PanAvMode;
     int     m_PanDetMode;
     float	m_volume;
+
+    int		m_agcSlope;
+    int		m_agcAttackTime;
+    int		m_agcDecayTime;
+    int		m_agcHangTime;
     qreal   m_agcThreshold;
+    qreal	m_agcHangThreshold;
     double   m_agcMaximumGain;
+    qreal	m_agcGain;
+    qreal	m_agcFixedGain_dB;
+    qreal	m_agcMaximumGain_dB;
+    qreal	m_agcThreshold_dBm;
+    qreal	m_agcHangLevel;
     DSPMode	m_dspmode;
+    int     m_nrMode;
     int 	m_nb;
     int 	m_nb2;
     int 	m_nr;
     int 	m_nr2;
-    int 	m_anf;
-    int 	m_snb;
     int     m_nr_agc;
     int     m_nr2_ae;
-    int     m_nr2_npe_method;
     int     m_nr2_gain_method;
+    int     m_nr2_npe_method;
     int     m_nbMode;
-    int     m_nrMode;
+    int 	m_anf;
+    int 	m_snb;
 
 	//void	setupConnections();
 

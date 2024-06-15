@@ -34,7 +34,8 @@
 
 #include <QTabWidget>
 
-
+#define DOCK_MAX_WIDTH  800
+#define DOCK_MIN_WIDTH  350
 
 namespace Ui {
 class cusdr_setupWidget;
@@ -48,8 +49,6 @@ public:
     explicit cusdr_SetupWidget(QWidget *parent = nullptr);
     ~cusdr_SetupWidget();
 
-private:
-    Ui::setupWidget *ui;
 public slots:
     void	addNICChangedConnection();
 
@@ -68,6 +67,7 @@ protected:
 private:
     Settings			*set;
 
+    Ui::setupWidget *ui;
     QSDR::_Error				m_error;
     QSDR::_ServerMode			m_serverMode;
     QSDR::_HWInterfaceMode		m_hwInterface;

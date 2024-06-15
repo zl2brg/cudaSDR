@@ -34,18 +34,18 @@
 #elif defined(Q_OS_LINUX)
     #include "Util/cusdr_cpuUsage_unix.h"
 	#include <unistd.h>
-	#include <errno.h>
+    //#include <errno.h>
 	#define fopen_s(pFile,filename,mode) ((*(pFile))=fopen((filename),  (mode)))==NULL
 #endif
 
-#include "fftw3.h"
+//#include "fftw3.h"
 #include "cusdr_mainWidget.h"
 
 //#include <QtGui>
 #include <QApplication>
 #include <QMessageBox>
 #include <QDebug>
-//#include <QTime>
+//#include <QElapsedTimer>
 #include <QTextBrowser>
 #include <QThread>
 //#include <QtOpenGL/QGLFramebufferObject>
@@ -76,9 +76,10 @@
 #endif
 
 #define DEBUG
-void cuSDRMessageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg) {
+    void cuSDRMessageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg) {
 
 	Q_UNUSED(type)
+        Q_UNUSED(context)
 
     QString txt;
     QDateTime date;
@@ -90,7 +91,7 @@ void cuSDRMessageHandler(QtMsgType type, const QMessageLogContext &context, cons
     QFile outFile("cudaSDR.log");
     outFile.open(QIODevice::WriteOnly | QIODevice::Append);
     QTextStream ts(&outFile);
-    ts << txt << endl << flush;
+    ts << txt << Qt::endl << Qt::flush;
 }
 
 
@@ -134,20 +135,20 @@ int main(int argc, char *argv[]) {
     QPixmap splash_pixmap(":/img/cudaSDRLogo.png");
 
     CSplashScreen* splash = new CSplashScreen(splash_pixmap);
-
+    QList <QScreen*> list =  QGuiApplication::screens();
 	splash->setGeometry(
 				QStyle::alignedRect(
 				Qt::LeftToRight,
 				Qt::AlignCenter,
                 splash->size(),
-                app.desktop()->availableGeometry()));
+                list[0]->availableGeometry()));
 
     splash->show();
 
     app.setStyleSheet(Settings::instance()->get_appStyleSheet());
 
     float splash_transparency = 0;
-    QTime splash_fade_timer;
+    QElapsedTimer splash_fade_timer;
     splash_fade_timer.start();
 
     while (splash_transparency < 1) {
@@ -207,7 +208,7 @@ int main(int argc, char *argv[]) {
 
     SleeperThread::msleep(100);
 
-	if (!QGLFormat::hasOpenGL() && QGLFormat::OpenGL_Version_2_0) {
+    if (!(QGLFormat::hasOpenGL())) {
 
 		qDebug() << "Init::\tOpenGL not found!";
 		splash->showMessage(

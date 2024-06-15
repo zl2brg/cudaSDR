@@ -106,7 +106,7 @@ CharData &OGLTextPrivate::createCharacter(QChar c) {
 
 	GLuint texture = textures.last();
 
-	GLsizei width = fontMetrics.width(c);
+    GLsizei width = fontMetrics.horizontalAdvance(c);
 	GLsizei height = fontMetrics.height();
 
     QPixmap pixmap(width, height);
@@ -215,7 +215,7 @@ void OGLText::renderText(float x, float y, const QString &text) {
 
         glBegin(GL_QUADS);
 			glTexCoord2f(c.s[0], c.t[0]); glVertex2f(0, c.height);
-			glTexCoord2f(c.s[1], c.t[0]); glVertex2f(c.width, c.height);
+            glTexCoord2f(c.s[1], c.t[0]); glVertex2f(c.width, c.height);
 			glTexCoord2f(c.s[1], c.t[1]); glVertex2f(c.width, 0);
 			glTexCoord2f(c.s[0], c.t[1]); glVertex2f(0, 0);
         glEnd();

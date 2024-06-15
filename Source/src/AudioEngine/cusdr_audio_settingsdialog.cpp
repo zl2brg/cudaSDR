@@ -105,10 +105,10 @@ SettingsDialog::SettingsDialog(
     QAudioDeviceInfo device;
     foreach (device, availableInputDevices)
         m_inputDeviceComboBox->addItem(device.deviceName(),
-                                       qVariantFromValue(device));
+                                       QVariant::fromValue(device));
     foreach (device, availableOutputDevices)
         m_outputDeviceComboBox->addItem(device.deviceName(),
-                                       qVariantFromValue(device));
+                                        QVariant::fromValue(device));
 
     //m_windowFunctionComboBox->addItem(tr("None"), qVariantFromValue(int(NoWindow)));
     //m_windowFunctionComboBox->addItem("Hann", qVariantFromValue(int(HannWindow)));

@@ -38,13 +38,13 @@
 cusdr_SetupWidget::cusdr_SetupWidget(QWidget *parent)
 : QTabWidget(parent)
 , set(Settings::instance())
-, m_minimumWidgetWidth(500)
-, m_minimumGroupBoxWidth(set->getMinimumGroupBoxWidth())
 , ui(new Ui::setupWidget)
+, m_minimumGroupBoxWidth(set->getMinimumGroupBoxWidth())
+
 
 {
-
-
+    setMinimumWidth(DOCK_MIN_WIDTH);
+    setMaximumWidth(DOCK_MAX_WIDTH);
     setContentsMargins(4, 4, 4, 0);
     setMouseTracking(true);
     m_networkWidget = new NetworkWidget(this);

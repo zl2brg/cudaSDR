@@ -48,7 +48,7 @@ PAudioInput::~PAudioInput()
 void PAudioInput::Setup() {
 
     error = Pa_Initialize();
-    bzero( &inputParameters, sizeof( inputParameters ) ); //not necessary if you are filling in all the fields
+    memset( &inputParameters,0, sizeof( inputParameters ) ); //not necessary if you are filling in all the fields
     inputParameters.channelCount = 1;
     inputParameters.hostApiSpecificStreamInfo = 0;
     inputParameters.sampleFormat = paFloat32;

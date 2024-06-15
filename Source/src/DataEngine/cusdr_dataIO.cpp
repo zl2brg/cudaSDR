@@ -1,5 +1,4 @@
 /**
-/**
 * @file  cusdr_dataIO.cpp
 * @brief Data IO class
 * @author Hermann von Hasseln, DL3HVH
@@ -24,7 +23,6 @@
 - Multiple simultaneous CAT connections
 - MIDI controller support
 
-/*   
  *   Copyright 2011 Hermann von Hasseln, DL3HVH
  *
  *   This program is free software; you can redistribute it and/or modify
@@ -50,7 +48,6 @@
 #if defined(Q_OS_WIN32)
 #include <winsock2.h>
 #endif
-#include <iostream>
 using namespace std;
 
 
@@ -149,41 +146,29 @@ void DataIO::initDataReceiverSocket() {
 
 	m_dataIOSocket = new QUdpSocket();
 
-	int newBufferSize;
 
 	if (m_manualBufferSize) {
-
-		newBufferSize = m_socketBufferSize * 1024;//m_socketBufferSize * 1032;
 		io->networkIOMutex.lock();
 		DATAIO_DEBUG << "initDataReceiverSocket socket buffer size set to " << m_socketBufferSize << " kB.";
 		io->networkIOMutex.unlock();
 	}
 	else {
-
 		if (io->samplerate == 384000) {
-
-			newBufferSize = 128*1024;//128 * 1032;
 			io->networkIOMutex.lock();
 			DATAIO_DEBUG << "socket buffer size set to 128 kB.";
 			io->networkIOMutex.unlock();
 		}
 		else if (io->samplerate == 192000) {
-
-			newBufferSize = 64*1024;//64 * 1032;
 			io->networkIOMutex.lock();
 			DATAIO_DEBUG << "socket buffer size set to 64 kB.";
 			io->networkIOMutex.unlock();
 		}
 		else if (io->samplerate == 96000) {
-
-			newBufferSize = 32*1024;//32 * 1032;
 			io->networkIOMutex.lock();
 			DATAIO_DEBUG << "socket buffer size set to 32 kB.";
 			io->networkIOMutex.unlock();
 		}
 		else if (io->samplerate == 48000) {
-
-			newBufferSize = 16*1024;//16 * 1032;
 			io->networkIOMutex.lock();
 			DATAIO_DEBUG << "socket buffer size set to 16 kB.";
 			io->networkIOMutex.unlock();
@@ -652,7 +637,6 @@ void DataIO::setManualSocketBufferSize(QObject *sender, bool value) {
 
 	m_manualBufferSize = value;
 	DATAIO_DEBUG << "m_manualBufferSize to change = " << m_manualBufferSize;
-	int socketBufferSize = 1032 * set->getSocketBufferSize();
 
 	io->networkIOMutex.lock();
 
@@ -670,9 +654,7 @@ void DataIO::setManualSocketBufferSize(QObject *sender, bool value) {
 #endif
 		}
 		else {
-
 			DATAIO_DEBUG << "set data IO socket BufferSize to 32 kB.";
-			socketBufferSize = 1032 * 32;
 #if defined(Q_OS_WIN32)
 			if (::setsockopt(m_dataIOSocket->socketDescriptor(), SOL_SOCKET,
                      SO_RCVBUF, (char *)&socketBufferSize, sizeof(socketBufferSize)) == -1) {
@@ -689,8 +671,6 @@ void DataIO::setManualSocketBufferSize(QObject *sender, bool value) {
 void DataIO::setSocketBufferSize(QObject *sender, int value) {
 
 	Q_UNUSED (sender)
-
-	int socketBufferSize = value * 1024;
 	DATAIO_DEBUG << "m_socketBufferSize = " << value;
 
 	io->networkIOMutex.lock();
@@ -710,27 +690,22 @@ void DataIO::setSampleRate(QObject *sender, int value) {
 
 	Q_UNUSED(sender)
 
-	int bufferSize;
-	io->networkIOMutex.lock();
+    io->networkIOMutex.lock();
 	switch (value) {
 	
 		case 48000:
-			bufferSize = 16*1024;//128 * 1032
 			DATAIO_DEBUG << "socket buffer size set to 16 kB.";
 			break;
 			
 		case 96000:
-			bufferSize = 32*1024;//128 * 1032
 			DATAIO_DEBUG << "socket buffer size set to 32 kB.";
 			break;
 			
 		case 192000:
-			bufferSize = 64*1024;//128 * 1032
 			DATAIO_DEBUG << "socket buffer size set to 64 kB.";
 			break;
 			
 		case 384000:
-			bufferSize = 128*1024;//128 * 1032
 			DATAIO_DEBUG << "socket buffer size set to 128 kB.";
 			break;
 

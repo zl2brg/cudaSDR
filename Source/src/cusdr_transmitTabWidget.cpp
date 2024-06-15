@@ -57,7 +57,7 @@ TransmitTabWidget::TransmitTabWidget(QWidget *parent)
 	this->addTab(m_transmitOptionsWidget, "Options");
 	this->addTab(m_transmitPAWidget, "PA Settings");
 
-	if (!set->getPenelopePresence() && !set->getPennyLanePresence() && !QSDR::Hermes) {
+    if (!set->getPenelopePresence() && !set->getPennyLanePresence()) {
 
 		setTabEnabled(1, false);
 //		setTabEnabled(2, false);

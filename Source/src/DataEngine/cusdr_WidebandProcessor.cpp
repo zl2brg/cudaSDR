@@ -46,12 +46,13 @@ WideBandDataProcessor::WideBandDataProcessor(THPSDRParameter *ioData, QSDR::_Ser
 	, m_stopped(false)
 {
 	int result;
+    char str[]="";
 	m_wbSpectrumAveraging = set->getSpectrumAveragingCnt(-1);
 	cpxWBIn.resize(WIDEBAND_BUFFER_SIZE);
     specBuf.resize(NUM_PIXELS);
-	XCreateAnalyzer(WIDEBAND_DISPLAY_NUMBER, &result, 262144, 1, 1, "");
+    XCreateAnalyzer(WIDEBAND_DISPLAY_NUMBER, &result, 262144, 1, 1,str);
 	if(result != 0) {
-		WIDEBAND_PROCESSOR_DEBUG <<  "wideband XCreateAnalyzer failed:" << result;
+        WIDEBAND_PROCESSOR_DEBUG <<  "wideband XCreateAnalyzer failed:";
 	} else {
 		initWidebandAnalyzer();
 	}
@@ -74,8 +75,6 @@ void  WideBandDataProcessor::initWidebandAnalyzer() {
 		int span_clip_h = 0;
         int pixels = NUM_PIXELS;
 		int stitches = 1;
-		int avm = 0;
-		double tau = 0.001 * 120.0;
 		int calibration_data_set = 0;
 		double span_min_freq = 0.0;
 		double span_max_freq = 0.0;

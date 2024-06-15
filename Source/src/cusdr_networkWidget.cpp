@@ -322,7 +322,7 @@ void NetworkWidget::createDeviceSearchGroup() {
 // ************************************************************************
 
 void NetworkWidget::addDeviceNICEntry(QString niName, QString ipAddress) {
-
+    Q_UNUSED(niName)
 	//QString item = niName;
 	QString item = ipAddress;
 	//item.append(" (");
@@ -385,6 +385,8 @@ void NetworkWidget::hwInterfaceChanged() {
 			
 			noHWBtn->setBtnState(AeroButton::OFF);
 			networkPresenceBtn->setBtnState(AeroButton::ON);
+        case QSDR::SoapySDR:
+        default:
 			break;
 	}
 

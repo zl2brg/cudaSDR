@@ -178,10 +178,10 @@ private:
 	QColor		m_inactiveTextColor;
 	QColor		m_textBackgroundColor;
 
-	QTime		m_sMeterTimer;
-	QTime		m_sMeterMaxTimer;
-	QTime		m_sMeterMinTimer;
-	QTime		m_sMeterDisplayTime;
+	QElapsedTimer		m_sMeterTimer;
+	QElapsedTimer		m_sMeterMaxTimer;
+	QElapsedTimer		m_sMeterMinTimer;
+	QElapsedTimer		m_sMeterDisplayTime;
 
 	enum Region {
 

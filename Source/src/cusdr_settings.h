@@ -606,7 +606,7 @@ typedef struct _receiver {
 
 
     int     m_filterIndex;
-	qreal	acgGain;
+	qreal	agcgGain;
 	qreal	acgThreshold_dB;
 	int		agcHangThreshold;
 	qreal	agcHangLevel;

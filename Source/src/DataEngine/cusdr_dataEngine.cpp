@@ -1,7 +1,3 @@
-#pragma clang diagnostic push
-#pragma clang diagnostic push
-#pragma clang diagnostic push
-#pragma ide diagnostic ignored "EmptyDeclOrStmt"
 /**
 * @file  cusdr_dataEngine.cpp
 * @brief cuSDR data engine class
@@ -70,15 +66,17 @@ static quint8  new_adc_rx1_4, new_adc_rx5_8, new_adc_rx9_16;
 DataEngine::DataEngine(QObject *parent)
 	: QObject(parent)
 	, set(Settings::instance())
-	, m_internal_cw(set->isInternalCw())
+    , m_radioState(RadioState::RX)
+
+    , m_internal_cw(set->isInternalCw())
 	, m_cw_key_reversed(set->isCwKeyReversed())
 	, m_cw_keyer_speed(set->getCwKeyerSpeed())
 	, m_cw_keyer_mode(set->getCwKeyerMode())
 	, m_cw_sidetone_volume(set->getCwSidetoneVolume())
 	, m_cw_ptt_delay(set->getCwPttDelay())
 	, m_cw_hang_time(set->getCwHangTime())
-    , m_cw_keyer_spacing(set->getCwKeyerSpacing())
     , m_cw_keyer_weight(set->getCwKeyerWeight())
+    , m_cw_keyer_spacing(set->getCwKeyerSpacing())
 	, m_cw_sidetone_freq(set->getCwSidetoneFreq())
 	, m_serverMode(set->getCurrentServerMode())
 	, m_hwInterface(set->getHWInterface())
@@ -86,20 +84,17 @@ DataEngine::DataEngine(QObject *parent)
 	, m_meterType(SIGNAL_STRENGTH)
 	, m_restart(false)
 	, m_networkDeviceRunning(false)
-	, m_soundFileLoaded(false)
-	, m_chirpInititalized(false)
 	//, m_wbSpectrumAveraging(set->getSpectrumAveraging())
 	//, m_wbSpectrumAveraging(true)
-	, m_discoveryThreadRunning(false)
-	, m_dataIOThreadRunning(false)
-	, m_chirpDataProcThreadRunning(false)
-	, m_dataProcThreadRunning(false)
+    , m_discoveryThreadRunning(false)
+    , m_dataProcThreadRunning(false)
 	, m_audioRcvrThreadRunning(false)
 	, m_audioInProcThreadRunning(false)
-	, m_audioOutProcThreadRunning(false)
+    , m_dataIOThreadRunning(false)
+
+    , m_audioOutProcThreadRunning(false)
 	, m_frequencyChange(false)
 	, m_hamBandChanged(true)
-	, m_chirpThreadStopped(true)
 	, m_hpsdrDevices(0)
 	, m_configure(10)
     , m_timeout(5000)
@@ -107,11 +102,9 @@ DataEngine::DataEngine(QObject *parent)
     , m_RxFrequencyChange(0)//(35.0f)
     , m_forwardPower(0)
     , m_rxSamples(0)
-    , m_chirpSamples(0)
     , m_spectrumSize(set->getSpectrumSize())
     , m_sendState(0)
     , m_sMeterCalibrationOffset(0.0f)
-    , m_radioState(RadioState::RX)
 
 
 
@@ -906,6 +899,7 @@ bool DataEngine::start() {
 		setFrequency(this, true, i, set->getCtrFrequencies().at(i));
 
 
+
         //CHECKED_CONNECT(
 		//		RX.at(i),
 		//		SIGNAL(outputBufferSignal(int, const CPX &)),
@@ -1093,7 +1087,6 @@ void DataEngine::stop() {
 	}
 
 	m_rxSamples = 0;
-	m_chirpSamples = 0;
 	m_restart = true;
 	m_found = 0;
 	m_hpsdrDevices = 0;
@@ -1862,13 +1855,7 @@ void DataEngine::processFileBuffer(const QList<qreal> buffer) {
 		chirpData << buffer.at(2*i);
 		chirpData << buffer.at(2*i+1);
 
-		m_chirpSamples++;
-		if (m_chirpSamples == io.samplerate) {
 
-			io.chirp_queue.enqueue(chirpData);
-			chirpData.clear();
-			m_chirpSamples = 0;
-		}
 	}
 	m_rxSamples += 64;
 
@@ -2356,17 +2343,13 @@ DataProcessor::DataProcessor(
 	, m_hwInterface(hwMode)
 	, m_socketConnected(false)
 	, m_setNetworkDeviceHeader(true)
-	, m_chirpGateBit(true)
-	, m_chirpBit(false)
-	, m_chirpStart(false)
 	, m_bytes(0)
-	, m_offset(0)
-	, m_length(0)
 	, m_rxSamples(0)
-	, m_chirpSamples(0)
-	, m_chirpStartSample(0)
-	, m_idx(IO_HEADER_SIZE)
-	, m_sendState(0)
+    , m_idx(IO_HEADER_SIZE)
+    , m_sendState(0)
+    , m_length(0)
+    , m_offset(0)
+
 	, m_stopped(false)
 {
 	m_IQSequence = 0L;
@@ -2455,8 +2438,6 @@ void DataProcessor::processDeviceData() {
 
 
 void DataProcessor::processInputBuffer(const QByteArray &buffer) {
-    int previous_dot;
-    int previous_dash;
 
 
 	//DATA_PROCESSOR_DEBUG << "processInputBuffer: " << this->thread();
@@ -2530,10 +2511,8 @@ void DataProcessor::processInputBuffer(const QByteArray &buffer) {
 
 
 			m_rxSamples++;
-			m_chirpSamples++;
 
 			// when we have enough rx samples we start the DSP processing.
-            int error = 0;
             if (m_rxSamples == BUFFER_SIZE) {
                 for (int r = 0; r < de->io.receivers; r++) {
                     QMetaObject::invokeMethod(de->RX.at(r), "dspProcessing", Qt::DirectConnection);// Qt::QueuedConnection);
@@ -2740,7 +2719,8 @@ void DataProcessor::decodeCCBytes(const QByteArray &buffer) {
 }
 
 void DataProcessor::setOutputBuffer(int rx, const CPX &buffer) {
-	if (rx == de->io.currentReceiver) {
+    Q_UNUSED(buffer);
+    if (rx == de->io.currentReceiver) {
 		//processOutputBuffer(buffer);
 
 	}
@@ -2821,6 +2801,9 @@ void DataProcessor::send_hpsdr_data(int rx, const CPX &buffer, int buffersize) {
 
 void DataProcessor::add_audio_sample(qint16 leftRXSample, qint16 rightRXSample)
 {
+    Q_UNUSED(leftRXSample);
+    Q_UNUSED(rightRXSample);
+
     bufferTxData();
     if (m_idx == IO_BUFFER_SIZE)
     {
@@ -2983,7 +2966,6 @@ void DataProcessor::setAudioBuffer(int rx, const CPX &buffer, int buffersize)
     QTextStream stream( this->file );
     qint16 leftRXSample;
     qint16 rightRXSample;
-     char *ptr;
     // process the output
     if (tx_index == 0)  getTxIqData();
         for (int j = 0; j < buffersize; j++) {
@@ -3055,12 +3037,11 @@ void DataProcessor::setAudioBuffer(int rx, const CPX &buffer, int buffersize)
 void DataProcessor::setAudioBuffer_old(int rx, const CPX &buffer, int buffersize)
 {
 
-
+    Q_UNUSED(rx);
 //    qDebug() << "Buffer Size" << buffersize;
     QTextStream stream( this->file );
     qint16 leftRXSample;
     qint16 rightRXSample;
-    char *ptr;
     // process the output
     if (tx_index == 0)  getTxIqData();
     for (int j = 0; j < buffersize; j++) {
@@ -3117,6 +3098,7 @@ void DataProcessor::setAudioBuffer_old(int rx, const CPX &buffer, int buffersize
                     break;
 
                 case QSDR::NoInterfaceMode:
+                case QSDR::SoapySDR:
                     break;
             }
             m_idx = IO_HEADER_SIZE;
@@ -3186,6 +3168,8 @@ void DataProcessor::processOutputBuffer(const CPX &buffer) {
 					break;
 
 				case QSDR::NoInterfaceMode:
+                case QSDR::SoapySDR:
+
 					break;
 			}
 			m_idx = IO_HEADER_SIZE;
@@ -3769,7 +3753,7 @@ void DataEngine::stop_TxProcessor() {
 
 
 void DataEngine::set_tx_drivelevel(QObject* sender, int value){
-
+    Q_UNUSED(sender);
     qDebug() << "Drive level change" << value;
     io.ccTx.drivelevel = value;
 
@@ -3801,4 +3785,3 @@ void DataProcessor::processReadData()
     }
 }
 
-#pragma clang diagnostic pop

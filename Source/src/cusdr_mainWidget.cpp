@@ -25,7 +25,8 @@
  */
 
 #define LOG_MAIN
-#define DOCK_WIDTH  800
+#define DOCK_MAX_WIDTH  800
+#define DOCK_MIN_WIDTH  350
 
 //#define LOG_NETWORKDIALOG
 
@@ -497,7 +498,7 @@ void MainWindow::setupLayout() {
 	centralwidget->setWindowFlags(Qt::Widget);
 	centralwidget->setDockOptions(QMainWindow::AnimatedDocks | QMainWindow::AllowNestedDocks);
 	centralwidget->setContextMenuPolicy(Qt::NoContextMenu);  //setStyleSheet(set->getMenuStyle());
-    
+
 
 	// radio control widget
 	QDockWidget *dock = new QDockWidget(tr("Setup"), this);
@@ -505,8 +506,8 @@ void MainWindow::setupLayout() {
     dock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
     dock->setFeatures(QDockWidget::NoDockWidgetFeatures);
     dock->setFeatures(QDockWidget::DockWidgetFloatable);
-    dock->setMaximumWidth(245);
-    dock->setMinimumWidth(245);
+    dock->setMaximumWidth(DOCK_MAX_WIDTH);
+    dock->setMinimumWidth(DOCK_MIN_WIDTH);
     dock->setWidget(m_radioTabWidget);
 	dockWidgetList.append(dock);
 
@@ -520,8 +521,8 @@ void MainWindow::setupLayout() {
     dock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
     dock->setFeatures(QDockWidget::DockWidgetFloatable);
 //	dock->setStyleSheet(set->getDockStyle());
-    dock->setMaximumWidth(DOCK_WIDTH);
-    dock->setMinimumWidth(DOCK_WIDTH);
+    dock->setMaximumWidth(DOCK_MAX_WIDTH);
+    dock->setMinimumWidth(DOCK_MIN_WIDTH);
     dock->setWidget(m_serverWidget);
     dockWidgetList.append(dock);
 
@@ -534,8 +535,8 @@ void MainWindow::setupLayout() {
 	dock->setObjectName("HPSDRCtrl");
     dock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
     dock->setFeatures(QDockWidget::DockWidgetClosable | QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetMovable);
-    dock->setMaximumWidth(DOCK_WIDTH);
-    dock->setMinimumWidth(DOCK_WIDTH);
+    dock->setMaximumWidth(DOCK_MAX_WIDTH);
+    dock->setMinimumWidth(DOCK_MIN_WIDTH);
 	dock->setWidget(m_hpsdrTabWidget);
 	dockWidgetList.append(dock);
 
@@ -546,8 +547,8 @@ void MainWindow::setupLayout() {
     rxDock->setObjectName("bBandWidget");
     rxDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
     rxDock->setFeatures(QDockWidget::DockWidgetClosable | QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetMovable);
-    rxDock->setMaximumWidth(DOCK_WIDTH);
-    rxDock->setMinimumWidth(DOCK_WIDTH);
+    rxDock->setMaximumWidth(DOCK_MAX_WIDTH);
+    rxDock->setMinimumWidth(DOCK_MIN_WIDTH);
 //    rxDock->setWidget(filterwidget);
 //    rxDock->setWidget(m_radioCtrl);
     dockWidgetList.append(rxDock);
@@ -567,7 +568,7 @@ void MainWindow::setupLayout() {
     widebandDock->setFeatures(QDockWidget::DockWidgetClosable | QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetMovable);
 //	widebandDock->setStyleSheet(set->getDockStyle());
     widebandDock->setWidget(m_wbDisplay);
-	
+
     centralwidget->addDockWidget(Qt::TopDockWidgetArea, widebandDock);
     widebandDock->hide();
 
@@ -1014,16 +1015,7 @@ void MainWindow::createMainBtnToolBar() {
 	tunBtn->setEnabled(false);
 	tunBtn->setBtnState(AeroButton::OFF);
 
-	if (set->getPenelopePresence() || set->getPennyLanePresence() || (m_hwInterface == QSDR::Hermes)) {
 
-		moxBtn->setEnabled(true);
-		tunBtn->setEnabled(true);
-	}
-	else {
-
-		moxBtn->setEnabled(false);
-		tunBtn->setEnabled(false);
-	}
 	CHECKED_CONNECT(
 	        moxBtn,
 	        SIGNAL(clicked()),
@@ -1554,7 +1546,11 @@ void MainWindow::startButtonClickedEvent() {
 
 		QColor col = QColor(0x91, 0xeb, 0xff);
 		startBtn->setHighlight(col);
-		startBtn->setText("Start");
+        startBtn->setText("Start");
+        moxBtn->setBtnState(AeroButton::OFF);
+        tunBtn->setBtnState(AeroButton::OFF);
+        moxBtn->setEnabled(false);
+        tunBtn->setEnabled(false);
 		set->saveSettings();
 		set->setMainPower(this, false);
 
@@ -1562,6 +1558,8 @@ void MainWindow::startButtonClickedEvent() {
 
 			muteBtn->setBtnState(AeroButton::OFF);
 			muteBtn->update();
+            moxBtn->setBtnState(AeroButton::OFF);
+            tunBtn->setBtnState(AeroButton::OFF);
 
 			m_volumeSlider->setEnabled(true);
 			for (int i = 0; i < set->getNumberOfReceivers(); i++)
@@ -2738,7 +2736,7 @@ void WarningDialog::setWarningMessage(const QString &msg) {
 	m_message = msg;
 	
 	QFontMetrics tfm(m_titleFont);
-	m_msgFontWidth = tfm.width(m_message);
+    m_msgFontWidth = tfm.horizontalAdvance(m_message);
 	m_msgFontHeight = tfm.height();
 
 	this->setFixedWidth(m_msgFontWidth + 60);

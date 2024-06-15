@@ -820,7 +820,7 @@ int Settings::loadSettings() {
         value = settings->value(cstr, 150).toInt();
         if (value < -20) value = -20;
         if (value > 120) value = 150;
-        m_receiverDataList[i].acgGain = value;
+        m_receiverDataList[i].agcgGain = value;
 
         cstr = m_rxStringList.at(i);
         cstr.append("/agcFixedGain");
@@ -836,7 +836,7 @@ int Settings::loadSettings() {
         value = settings->value(cstr, 30).toInt();
         if (value < -20) value = -20;
         if (value > 150) value = 150;
-        m_receiverDataList[i].agcMaximumGain_dB = value - 0;
+        m_receiverDataList[i].agcMaximumGain_dB = value;
 
         cstr = m_rxStringList.at(i);
         cstr.append("/agcSlope");
@@ -1983,7 +1983,7 @@ int Settings::saveSettings() {
 
         str = m_rxStringList.at(i);
         str.append("/agcGain");
-        settings->setValue(str, m_receiverDataList[i].acgGain);
+        settings->setValue(str, m_receiverDataList[i].agcgGain);
 
         str = m_rxStringList.at(i);
         str.append("/agcFixedGain");
@@ -2789,7 +2789,11 @@ QString Settings::getHWInterfaceModeString(QSDR::_HWInterfaceMode mode) {
 
         case QSDR::_HWInterfaceMode::Hermes:
             str = "Hermes";
+        case QSDR::SoapySDR:
+        default:
             break;
+
+
     }
     return str;
 }
@@ -3419,7 +3423,7 @@ void Settings::setRcveIQ(int value) {
  * Thus it determines how the I & Q samples read from EP6 are placed in the data stream to dspservers.
  */
 void Settings::setReceivers(QObject *sender, int value) {
-
+    Q_UNUSED(sender)
     QMutexLocker locker(&settingsMutex);
 
     if (m_mercuryReceivers == value) return;
@@ -3973,8 +3977,7 @@ void Settings::setAGCShowLines(QObject *sender, int rx, bool value) {
 }
 
 qreal Settings::getAGCGain(int rx) {
-qDebug() << "agc gain is " <<  m_receiverDataList[rx].acgGain;
-    return m_receiverDataList[rx].acgGain;
+    return m_receiverDataList[rx].agcgGain;
 
 }
 
@@ -3982,18 +3985,17 @@ void Settings::setAGCGain(QObject *sender, int rx, int value) {
 
     //QMutexLocker locker(&settingsMutex);
 
-    if (m_receiverDataList[rx].acgGain == value) return;
-    m_receiverDataList[rx].acgGain = value;
-    //SETTINGS_DEBUG << "acgGain " << value;
+    if (m_receiverDataList[rx].agcgGain == value) return;
+    m_receiverDataList[rx].agcgGain = value;
+    //SETTINGS_DEBUG << "agcgGain " << value;
     emit agcGainChanged(sender, rx, value);
 }
 
 void Settings::setAGCMaximumGain_dB(QObject *sender, int rx, qreal value) {
 
     //QMutexLocker locker(&settingsMutex);
-
     if (m_receiverDataList[rx].agcMaximumGain_dB == value) return;
-    m_receiverDataList[rx].agcMaximumGain_dB = value;
+    m_receiverDataList[rx].agcMaximumGain_dB = value ;
 
     SETTINGS_DEBUG << "set agcMaximumGain_dB = " << m_receiverDataList[rx].agcMaximumGain_dB << " (sender: " << sender
                    << ")";
@@ -4011,7 +4013,6 @@ void Settings::setAGCFixedGain_dB(QObject *sender, int rx, qreal value) {
 
     if (m_receiverDataList[rx].agcFixedGain_dB == value) return;
     m_receiverDataList[rx].agcFixedGain_dB = value;
-
     SETTINGS_DEBUG << "m_receiverDataList[rx].agcFixedGain_dB = " << m_receiverDataList[rx].agcFixedGain_dB;
     emit agcFixedGainChanged_dB(sender, rx, value);
 }
@@ -4023,7 +4024,7 @@ qreal Settings::getAGCFixedGain_dB(int rx) {
 
 
 qreal Settings::get_agcThreshold(QObject *sender, int rx){
-
+    Q_UNUSED(sender)
     return    m_receiverDataList[rx].acgThreshold_dB;
 
 }

@@ -90,7 +90,7 @@ private:
 	unsigned char 	m_buffer[METIS_DATA_SIZE];
 	QByteArray  	m_iqbuffer;
 
-	QTime			m_packetLossTime;
+    QElapsedTimer			m_packetLossTime;
 
 	THPSDRParameter*	io;
 	//TNetworkDevicecard 	netDevice;

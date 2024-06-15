@@ -115,7 +115,7 @@ void AeroButton::paintEvent(QPaintEvent * pe)
 	//outline
 	painter.setPen(QPen(QBrush(Qt::black), 2.0));
 	QPainterPath outline;
-	outline.addRoundRect(0, 0, button_rect.width(), button_rect.height(), m_roundness, m_roundness);
+    outline.addRoundedRect(0, 0, button_rect.width(), button_rect.height(), m_roundness, m_roundness);
 	painter.setOpacity(m_opacity);
 	painter.drawPath(outline);
 
@@ -134,11 +134,11 @@ void AeroButton::paintEvent(QPaintEvent * pe)
 
 	//main button
 	QPainterPath painter_path;
-	painter_path.addRoundRect(1, 1, button_rect.width() - 2, button_rect.height() - 2, m_roundness, m_roundness);
+    painter_path.addRoundedRect(1, 1, button_rect.width() - 2, button_rect.height() - 2, m_roundness, m_roundness);
 	painter.setClipPath(painter_path);
 
 	painter.setOpacity(m_opacity);
-	painter.drawRoundRect(1, 1, button_rect.width() - 2, button_rect.height() - 2, m_roundness, m_roundness);
+    painter.drawRoundedRect(1, 1, button_rect.width() - 2, button_rect.height() - 2, m_roundness, m_roundness);
 
 	//glass highlight
 	painter.setBrush(QBrush(Qt::white));

@@ -106,6 +106,36 @@ struct DoubleColor
     DoubleColor() : r(0.0), g(0.0), b(0.0) {}
     DoubleColor(double red, double green, double blue) : r(red), g(green), b(blue) {}
     DoubleColor(const DoubleColor &c) : r(c.r), g(c.g), b(c.b) {}
+
+        DoubleColor& operator=(const DoubleColor &c) {
+            if (this != &c) {
+                r = c.r;
+                g = c.g;
+                b = c.b;
+            }
+            return *this;
+        }
+
+        // Move Constructor
+        DoubleColor(DoubleColor &&c) noexcept : r(c.r), g(c.g), b(c.b) {
+            c.r = 0.0;
+            c.g = 0.0;
+            c.b = 0.0;
+        }
+
+        // Move Assignment Operator
+        DoubleColor& operator=(DoubleColor &&c) noexcept {
+            if (this != &c) {
+                r = c.r;
+                g = c.g;
+                b = c.b;
+                c.r = 0.0;
+                c.g = 0.0;
+                c.b = 0.0;
+            }
+            return *this;
+        }
+
 };
 
 /*

@@ -27,7 +27,6 @@
  */
 
 //#define LOG_GRAPHICS
-#define GRAPHICS_DEBUG
 
 // use: GRAPHICS_DEBUG
 
@@ -99,17 +98,16 @@ QGLReceiverPanel::QGLReceiverPanel(QWidget *parent, int rx)
 	, m_scaleMult(1.0f)
 	, m_filterLowerFrequency(-3050.0)
 	, m_filterUpperFrequency(-150.0)
-    , m_agcThresholdOld(set->getAGCGain(m_receiver))
+    , m_agcThresholdOld(set->getAGCMaximumGain_dB(rx))
+    , m_agcHangLevelOld(set->getAGCHangLeveldB(rx))
 //, m_freqRulerPosition(0.5)
 {
 //	QGL::setPreferredPaintEngine(QPaintEngine::OpenGL);
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     setUpdateBehavior(QOpenGLWidget::PartialUpdate);
-    qDebug() << "threshold" << m_agcThresholdOld;
 	//setAutoBufferSwap(true);
 	setAutoFillBackground(false);
-
-	setMouseTracking(true);
+    setMouseTracking(true);
 	setFocusPolicy(Qt::StrongFocus);
 	//GRAPHICS_DEBUG << "set spectrum buffer size to: " << m_spectrumSize;
 
@@ -160,6 +158,7 @@ QGLReceiverPanel::QGLReceiverPanel(QWidget *parent, int rx)
 
 	m_filterLowerFrequency = m_rxDataList.at(m_receiver).filterLo;
 	m_filterUpperFrequency = m_rxDataList.at(m_receiver).filterHi;
+    qDebug() << " Filter freq" << m_filterLowerFrequency << m_filterUpperFrequency;
 	m_filterWidth = qAbs((int)(m_filterUpperFrequency - m_filterLowerFrequency));
 
 	m_mouseWheelFreqStep = m_rxDataList.at(m_receiver).mouseWheelFreqStep;
@@ -610,7 +609,6 @@ void QGLReceiverPanel::messagelogged(QOpenGLDebugMessage message) {
     }
 
     void QGLReceiverPanel::configureOpenGL() {
-        QOpenGLContext *ctx = QOpenGLContext::currentContext();
         glShadeModel(GL_SMOOTH);
         glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
         glPixelStorei(GL_UNPACK_ALIGNMENT, 4); // 4-byte pixel alignment
@@ -642,7 +640,7 @@ void QGLReceiverPanel::paintGL() {
 			if (m_resizeTime.elapsed() > 200 || m_dataEngineState == QSDR::DataEngineDown)
 				paintReceiverDisplay();
             drawPanVerticalScale();
-			
+        default:
 			break;
 	}
 
@@ -658,36 +656,36 @@ void QGLReceiverPanel::paintReceiverDisplay() {
     dpi_scaling = devicePixelRatioF();
     QRect mouse_rect(0, 0, 100, 100);
 	mouse_rect.moveCenter(m_mousePos);
-    if (m_filterChanged) {
 
-		m_filterLo = m_filterLowerFrequency / m_sampleRate;
-		m_filterHi = m_filterUpperFrequency / m_sampleRate;
-		m_filterWidth = qAbs((int)(m_filterUpperFrequency - m_filterLowerFrequency));
-
-		if (m_filterWidth < 1000) {
-
-			QString str = "%1";
-			m_filterWidthString = str.arg(m_filterWidth);
-		}
-		else {
-
-			QString str = "%1k%2";
-			m_filterWidthString = str.arg((int)(m_filterWidth/1000)).arg((int)((m_filterWidth%1000)/100));
-		}
-		
-		m_filterChanged = false;
-	}
 	//m_displayTime.restart();
 
 	drawPanadapter();
+    if (m_filterChanged) {
+
+        m_filterLo = m_filterLowerFrequency / m_sampleRate;
+        m_filterHi = m_filterUpperFrequency / m_sampleRate;
+        m_filterWidth = qAbs((int)(m_filterUpperFrequency - m_filterLowerFrequency));
+
+        if (m_filterWidth < 1000) {
+
+            QString str = "%1";
+            m_filterWidthString = str.arg(m_filterWidth);
+        }
+        else {
+
+            QString str = "%1k%2";
+            m_filterWidthString = str.arg((int)(m_filterWidth/1000)).arg((int)((m_filterWidth%1000)/100));
+        }
+
+        m_filterChanged = false;
+    }
 	drawPanHorizontalScale();
 	drawPanVerticalScale();
 	drawPanadapterGrid();
-
 	drawPanFilter();
 
-	if (m_dataEngineState == QSDR::DataEngineUp && m_showAGCLines && (m_receiver == m_currentReceiver))
-		drawAGCControl();
+//	if (m_dataEngineState == QSDR::DataEngineUp && m_showAGCLines && (m_receiver == m_currentReceiver))
+        drawAGCControl();
 
 	if (m_panRect.width() > 300 && m_panRect.height() > 80) {
         drawCenterLine();
@@ -752,7 +750,7 @@ void QGLReceiverPanel::drawPanadapter() {
 	glEnable(GL_MULTISAMPLE);
 	glEnable(GL_LINE_SMOOTH);
 
-	//glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_BLEND);
+    glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_BLEND);
 
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glEnable(GL_BLEND);
@@ -878,31 +876,31 @@ void QGLReceiverPanel::drawPanadapter() {
 			break;
 
 		case (PanGraphicsMode) Line:
+            for (int i = 0; i < vertexArrayLength; i++) {
 
-			for (int i = 0; i < vertexArrayLength; i++) {
-	
-				mutex.lock();
-				vertexColorArray[i].x = m_red;
-				vertexColorArray[i].y = m_green;
-				vertexColorArray[i].z = m_blue;
+                mutex.lock();
+                vertexColorArray[i].x = m_red;
+                vertexColorArray[i].y = m_green;
+                vertexColorArray[i].z = m_blue;
 
-				mutex.unlock();
-				
-				vertexArray[i].x = (GLfloat)(i/m_scaleMult);
-				vertexArray[i].y = (GLfloat)(yTop - yScale * m_panadapterBins.at(i));
-				vertexArray[i].z = -1.0;
-			}
-		
-			glEnableClientState(GL_VERTEX_ARRAY);
-			glEnableClientState(GL_COLOR_ARRAY);
-			
-			glVertexPointer(3, GL_FLOAT, 0, vertexArray);
-			glColorPointer(3, GL_FLOAT, 0, vertexColorArray);
-			glDrawArrays(GL_LINE_STRIP, 0, vertexArrayLength);
-			
+                mutex.unlock();
 
-			glDisableClientState(GL_VERTEX_ARRAY);
-			glDisableClientState(GL_COLOR_ARRAY);
+                vertexArray[i].x = (GLfloat)(i/m_scaleMult);
+                vertexArray[i].y = (GLfloat)(yTop - yScale * m_panadapterBins.at(i));
+                vertexArray[i].z = -1.0;
+            }
+
+            glEnableClientState(GL_VERTEX_ARRAY);
+            glEnableClientState(GL_COLOR_ARRAY);
+
+            glVertexPointer(3, GL_FLOAT, 0, vertexArray);
+            glColorPointer(3, GL_FLOAT, 0, vertexColorArray);
+            glDrawArrays(GL_LINE_STRIP, 0, vertexArrayLength);
+
+
+            glDisableClientState(GL_VERTEX_ARRAY);
+            glDisableClientState(GL_COLOR_ARRAY);
+
 
 			break;
 
@@ -1967,29 +1965,6 @@ void QGLReceiverPanel::drawReceiverInfo() {
         qglColor(QColor(0, 0, 0));
 		m_oglTextSmall->renderText(x1+1, y1-2, 3.0f, str);
 		// VFO frequency
-		TFrequency f;
-		f.freqMHz = (int)(m_vfoFrequency / 1000);
-		f.freqkHz = (int)(m_vfoFrequency % 1000);
-
-        str = "%1.%2 MHz";
-		int f1 = f.freqMHz;
-		int f2 = f.freqkHz;
-
-//		QString fstr = str.arg(f1/1000).arg(f1 - 1000 * (int)(f1/1000), 3, 10, QLatin1Char('0'));
-//
-//        glColor4f(255, 255, 255, alpha);
-//        m_oglTextBig1->renderText(x, yfontpos, 5.0f, fstr);
-//		str = "%1";
-//		if (f1 / 1000 < 10) {
-//
-//            glColor4f(68,68,68,68);
-//            m_oglTextBig1->renderText(x + 34,yfontpos, 5.0f, str.arg(f2, 3, 10, QLatin1Char('0')));
-//		}
-//		else {
-//
-//            glColor4f(255, 255, 255, alpha);
-//            m_oglTextBig1->renderText(x + 41, yfontpos, 5.0f, str.arg(f2, 3, 10, QLatin1Char('0')));
-//        }
 
 
     }
@@ -2049,10 +2024,8 @@ void QGLReceiverPanel::drawAGCControl() {
     int     fontHeight = m_fonts.smallFontMetrics->tightBoundingRect("XXXXX").height() + spacing;
     int     fontMaxWidth = m_fonts.smallFontMetrics->boundingRect("-000.0").width();
     QRectF   textRect(0, 0, fontMaxWidth, fontHeight);
-    painter->endNativePainting();
-    painter->setRenderHint(QPainter::Antialiasing);
 
-    if (m_agcMode == (AGCMode) agcOFF) {
+       if (m_agcMode == (AGCMode) agcOFF) {
 
             painter->setPen(QPen(QColor(255,125,255),1, Qt::DashLine, Qt::FlatCap));
             painter->drawLine(m_dBmScalePanRect.right() - 1, m_agcFixedGainLevelPixel + 2,m_panRect.right() - 1,m_agcFixedGainLevelPixel);
@@ -2061,10 +2034,9 @@ void QGLReceiverPanel::drawAGCControl() {
             painter->drawText(textRect.x() + 10, textRect.y() +  fontHeight, QString("AGC-F"));
 	}
     else {
-            m_agcThresholdPixel = dBmToGLPixel(m_panRect, m_dBmPanMax, m_dBmPanMin, m_agcThresholdOld);
+           m_agcThresholdPixel = dBmToGLPixel(m_panRect, m_dBmPanMax, m_dBmPanMin, (m_agcThresholdOld));
             if (m_agcHangEnabled)
             m_agcHangLevelPixel = dBmToGLPixel(m_panRect, m_dBmPanMax, m_dBmPanMin, m_agcHangLevelOld);
-            qDebug() << "AGC draw" <<m_agcThresholdPixel << m_agcHangLevelPixel  ;
 
             painter->setPen(QPen(QColor(255,125,125,255),1, Qt::DashLine, Qt::FlatCap));
             painter->drawLine(m_dBmScalePanRect.right() - 1, m_agcThresholdPixel + 2,m_panRect.right() - 1,m_agcThresholdPixel);
@@ -2079,6 +2051,7 @@ void QGLReceiverPanel::drawAGCControl() {
             painter->setFont(m_oglTextNormal->font());
             textRect.moveRight(m_panRect.right() - 20 ) ;
             textRect.moveBottom(m_agcHangLevelPixel - 2) ;
+  //          qDebug() << "AGC draw hang";
             painter->drawText(textRect.x() + 10, textRect.y() +  fontHeight, QString("AGC-H"));
 		}
 	}
@@ -2698,7 +2671,8 @@ void QGLReceiverPanel::leaveEvent(QEvent *event) {
 void QGLReceiverPanel::wheelEvent(QWheelEvent* event) {
 	
 	//GRAPHICS_DEBUG << "wheelEvent";
-	QPoint pos = event->pos();
+
+    QPoint pos = event->angleDelta();
 
 	if (event->buttons() == Qt::NoButton) getRegion(pos);
 
@@ -2713,9 +2687,9 @@ void QGLReceiverPanel::wheelEvent(QWheelEvent* event) {
 		case filterRegionHigh:
 
 			double delta = 0;
-			if (event->delta() < 0)
+            if (event->angleDelta().x() < 0)
 				delta = -freqStep;
-			else if (event->delta() > 0)
+            else if (event->angleDelta().x() > 0)
 				delta =  freqStep;
 
 			if (!m_panLocked) {
@@ -3719,7 +3693,7 @@ void QGLReceiverPanel::computeDisplayBins(QVector<float>& buffer, QVector<float>
 
 		QColor pColor;
 
-		float val = -0;
+//		float val = -0;
 //		if (buffer.at(idx) < -120)
 //		{
 //			val = -120 - buffer.at(idx);
@@ -3997,7 +3971,7 @@ void QGLReceiverPanel::setPanGridStatus(bool value, int rx) {
 }
 
 void QGLReceiverPanel::setPeakHoldStatus(bool value, int rx) {
-
+    Q_UNUSED(value)
 	if (m_receiver != rx) return;
 }
 
@@ -4176,6 +4150,7 @@ void QGLReceiverPanel::setAGCLineLevels(QObject *sender, int rx, qreal thresh, q
 
 	if (m_receiver != rx) return;
 	qDebug() << "Agc level changed" << thresh;
+  //  if (thresh > 0) thresh = thresh * -1;
 	m_agcThresholdOld = thresh;
 	m_agcHangLevelOld = hang;
 }

@@ -52,7 +52,7 @@ class QGLReceiverPanel : public QOpenGLWidget, protected QOpenGLFunctions {
     Q_OBJECT
 
 public:
-    QGLReceiverPanel(QWidget *parent = 0, int rx = 0);
+    explicit QGLReceiverPanel(QWidget *parent = 0, int rx = 0);
 	~QGLReceiverPanel();
 
 public slots:
@@ -100,9 +100,9 @@ private:
 	WaterfallColorMode			m_waterfallMode;
     QPainter                    *painter;
 
-	QTime						m_displayTime;
-	QTime						m_resizeTime;
-	QTime						freqChangeTimer;
+	QElapsedTimer						m_displayTime;
+	QElapsedTimer						m_resizeTime;
+	QElapsedTimer						freqChangeTimer;
 
 	QString						m_bandText;
 	QString						m_adcModeString;

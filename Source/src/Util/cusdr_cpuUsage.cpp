@@ -60,7 +60,7 @@ static int get_usage(const pid_t pid, struct pstat* result) {
 	}
 
     //read values from /proc/pid/stat
-    bzero(result, sizeof(struct pstat));
+    memset(result,0, sizeof(struct pstat));
     long int rss;
     if (fscanf(fpstat, "%*d %*s %*c %*d %*d %*d %*d %*d %*u %*u %*u %*u %*u %lu"
                 "%lu %ld %ld %*d %*d %*d %*d %*u %lu %ld",
@@ -77,7 +77,7 @@ static int get_usage(const pid_t pid, struct pstat* result) {
 
     //read+calc cpu total time from /proc/stat
     long unsigned int cpu_time[10];
-    bzero(cpu_time, sizeof(cpu_time));
+    memset(cpu_time,0, sizeof(cpu_time));
 
     if (fscanf(fstat, "%*s %lu %lu %lu %lu %lu %lu %lu %lu %lu %lu",
                 &cpu_time[0], &cpu_time[1], &cpu_time[2], &cpu_time[3],

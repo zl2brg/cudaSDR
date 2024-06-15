@@ -84,7 +84,7 @@ protected:
 private:
 	Settings*				set;
 
-	QTime					m_closingTimer;
+	QElapsedTimer					m_closingTimer;
 
 	CFonts*					fonts;
 	TFonts					m_fonts;

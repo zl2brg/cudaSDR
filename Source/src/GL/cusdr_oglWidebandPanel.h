@@ -106,9 +106,9 @@ private:
 	CFonts		*fonts;
 	TFonts		m_fonts;
 
-	QTime		m_panTimer;
-	QTime		m_displayTime;
-	QTime		m_resizeTime;
+	QElapsedTimer		m_panTimer;
+	QElapsedTimer		m_displayTime;
+	QElapsedTimer		m_resizeTime;
 	
 	QRect		m_panRect;
 	QRect		m_freqScaleRect;

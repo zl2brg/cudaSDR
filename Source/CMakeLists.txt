@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 project(cudaSDR)
 #set(QT_DIR "/home/simon/Qt/5.13.2/")
-set(CMAKE_PREFIX_PATH "/home/simon/Qt/5.13.2/gcc_64/lib/cmake")
+set(CMAKE_PREFIX_PATH "/home/simon/Qt/5.15.2/gcc_64/lib/cmake")
 set(DCMAKE_INSTALL_PREFIX:PATH "/usr/local")
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
@@ -10,6 +10,7 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_CXX_STANDARD 11)
 set (QT_USE_QTOPENGL TRUE)
 add_definitions(-O0 -D_FILE_OFFSET_BITS=64 -fPIC -g)
+add_compile_definitions(QT_DISABLE_DEPRECATED_UP_TO=0x050F00)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_CXX_FLAGS "-O0 -Wall -Wextra -g")
 set (CMAKE_BUILD_TYPE Debug)
@@ -28,7 +29,6 @@ SET(UTIL_DIR ${CMAKE_SOURCE_DIR}/Utility_source)
 SET(QTWDSP_DIR ${CMAKE_SOURCE_DIR}/QtWDSP)
 SET(UI_DIR ${CMAKE_SOURCE_DIR}/UI)
 SET(WDSP_DIR "/usr/local/include")
-
 set (SOURCES
         ${CMAKE_SOURCE_DIR}/Util/cusdr_buttons.cpp 
 	${CMAKE_SOURCE_DIR}/Util/cusdr_colorTriangle.cpp 

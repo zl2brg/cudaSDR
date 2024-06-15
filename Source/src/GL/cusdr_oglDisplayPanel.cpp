@@ -2315,8 +2315,8 @@ void OGLDisplayPanel::wheelEvent(QWheelEvent * event) {
 			case None:
 				return;
 		}
-
-		int numDegrees = event->delta() / 8;
+         QPoint angle = event->angleDelta();
+        int numDegrees = angle.y() / 8;
 		int numSteps = numDegrees / 15;
 
 		int f1 = m_frequencyList[m_currentReceiver].freqMHz;

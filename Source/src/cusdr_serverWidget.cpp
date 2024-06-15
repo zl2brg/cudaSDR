@@ -147,7 +147,7 @@ void ServerWidget::createServerNIGroup() {
 }
 
 void ServerWidget::addServerNIEntry(QString niName, QString ipAddress) {
-
+    Q_UNUSED(niName)
 	//QString item = niName;
 	QString item = ipAddress;
 	//item.append(" (");

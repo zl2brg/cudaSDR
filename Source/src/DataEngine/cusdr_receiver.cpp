@@ -41,10 +41,50 @@ Receiver::Receiver(int rx)
 	, m_receiver(rx)
 	, m_samplerate(set->getSampleRate())
 	, m_audioMode(1)
+    , m_refreshrate(set->getFramesPerSecond(rx))
+
+    , m_fftSize ( set->getfftSize(rx))
+
+    , m_averageCount(set->getSpectrumAveragingCnt(rx))
+    , m_PanAvMode(set->getPanAveragingMode(rx))
+    , m_PanDetMode ( set->getPanDetectorMode(rx))
+    , m_agcSlope ( set->getAGCSlope(rx))
+
+    , m_agcHangThreshold ( set->getAGCHangThreshold(rx))
+    , m_agcMaximumGain ( set->getAGCMaximumGain_dB(rx))
+    ,m_nrMode ( set->getnrMode(rx))
+    , m_nr_agc ( set->getNrAGC(rx))
+    , m_nr2_ae ( set->getNr2ae(rx))
+    , m_nr2_gain_method ( set->getNr2GainMethod(rx))
+    , m_nr2_npe_method ( set->getNr2NpeMethod(rx))
+    , m_nbMode ( set->getnbMode(rx))
+    , m_anf ( set->getAnf(rx))
+    , m_snb( set->getSnb(rx))
 	//, m_calOffset(63.0)
 	//, m_calOffset(33.0)
 {
-	setReceiverData(set->getReceiverDataList().at(m_receiver));
+    m_receiverData = set->getReceiverDataList().at(rx);
+
+    m_sampleRate = m_receiverData.sampleRate;
+    m_hamBand = m_receiverData.hamBand;
+    m_dspMode = m_receiverData.dspMode;
+    m_dspModeList = m_receiverData.dspModeList;
+    m_adcMode = m_receiverData.adcMode;
+    m_agcMode = m_receiverData.agcMode;
+    m_agcMode = m_receiverData.agcMode;
+    m_agcGain = m_receiverData.agcgGain;
+    m_agcFixedGain_dB = m_receiverData.agcFixedGain_dB;
+    m_agcHangThreshold = m_receiverData.agcHangThreshold;
+    m_agcSlope = m_receiverData.agcSlope;
+
+    m_audioVolume = m_receiverData.audioVolume;
+    m_filterLo = m_receiverData.filterLo;
+    m_filterHi = m_receiverData.filterHi;
+
+    m_lastCtrFrequencyList = m_receiverData.lastCenterFrequencyList;
+    m_lastVfoFrequencyList = m_receiverData.lastVfoFrequencyList;
+    spectrumBuffer.resize(BUFFER_SIZE*4);
+    m_mercuryAttenuators = m_receiverData.mercuryAttenuators;
 
 	InitCPX(inBuf, BUFFER_SIZE, 0.0f);
 	InitCPX(outBuf, BUFFER_SIZE, 0.0f);
@@ -65,7 +105,7 @@ Receiver::~Receiver() {
 
 
 void Receiver::setAudioBufferSize() {
-	int scale=m_samplerate/48000;
+	int scale=m_samplerate/DSP_RATE;
 	m_audiobuffersize = 1024/scale;
 	RECEIVER_DEBUG << "set Audio buffer size to: " << m_audiobuffersize;
 	}
@@ -294,53 +334,6 @@ void Receiver::setupConnections() {
 		SLOT(dspProcessing()));*/
 }
 
-void Receiver::setReceiverData(TReceiver data) {
-
-	m_receiverData = data;
-
-	//m_serverMode = m_receiverData.serverMode;
-	m_dspCore = m_receiverData.dspCore;
-	m_sampleRate = m_receiverData.sampleRate;
-	m_hamBand = m_receiverData.hamBand;
-	m_dspMode = m_receiverData.dspMode;
-	m_dspModeList = m_receiverData.dspModeList;
-	m_adcMode = m_receiverData.adcMode;
-	m_agcMode = m_receiverData.agcMode;
-	m_agcMode = m_receiverData.agcMode;
-	m_agcGain = m_receiverData.acgGain;
-	m_agcFixedGain_dB = m_receiverData.agcFixedGain_dB;
-	m_agcMaximumGain_dB = m_receiverData.agcMaximumGain_dB;
-	m_agcHangThreshold = m_receiverData.agcHangThreshold;
-	m_agcSlope = m_receiverData.agcSlope;
-
-	m_audioVolume = m_receiverData.audioVolume;
-
-	m_filterLo = m_receiverData.filterLo;
-	m_filterHi = m_receiverData.filterHi;
-
-	m_lastCtrFrequencyList = m_receiverData.lastCenterFrequencyList;
-	m_lastVfoFrequencyList = m_receiverData.lastVfoFrequencyList;
-	m_mercuryAttenuators = m_receiverData.mercuryAttenuators;
-    m_refreshrate = set->getFramesPerSecond(m_receiver);
-    m_averageCount= set->getSpectrumAveragingCnt(m_receiver);
-    m_PanAvMode = set->getPanAveragingMode(m_receiver);
-    m_PanDetMode = set->getPanDetectorMode(m_receiver);
-    m_agcSlope = set->getAGCSlope(m_receiver);
-    m_agcMaximumGain = set->getAGCMaximumGain_dB(m_receiver);
-    m_agcHangThreshold = set->getAGCHangThreshold(m_receiver);
-    spectrumBuffer.resize(BUFFER_SIZE*4);
-
-    m_nr_agc = set->getNrAGC(m_receiver);
-    m_nr2_ae = set->getNr2ae(m_receiver);
-    m_nr2_gain_method = set->getNr2GainMethod(m_receiver);
-    m_nr2_npe_method = set->getNr2NpeMethod(m_receiver);
-    m_nbMode = set->getnbMode(m_receiver);
-    m_nrMode = set->getnrMode(m_receiver);
-    m_anf = set->getAnf(m_receiver);
-    m_snb= set->getSnb(m_receiver);
-    m_fftSize = set->getfftSize(m_receiver);
-}
-
 void Receiver::start() {
     SetChannelState(m_receiver,1,0);
     m_stopped = false;
@@ -349,20 +342,15 @@ void Receiver::start() {
 }
 
 bool Receiver::initWDSPInterface() {
-    return openReceiver();
-
-}
-
-bool Receiver::openReceiver() {
     int result;
 
     RECEIVER_DEBUG << "Open RX Channel" << m_receiver;
     OpenChannel(m_receiver,
                 BUFFER_SIZE,
-                2048, // ,
+                DSPSIZE, // ,
                 m_samplerate,
-                48000, // dsp rate
-                48000, // output rate
+                DSP_RATE, // dsp rate
+                DSP_RATE, // output rate
                 0, // receive
                 0, // run
                 0.010, 0.025, 0.0, 0.010, 0);
@@ -371,10 +359,9 @@ bool Receiver::openReceiver() {
     create_nobEXT(m_receiver, 1, 0, DSP_SAMPLE_SIZE, m_samplerate, 0.0001, 0.0001, 0.0001, 0.05, 20);
     fprintf(stderr, "RXASetNC %d\n", m_fftSize);
     RXASetNC(m_receiver, m_fftSize);
-
     setNoiseBlankerMode(m_receiver);
     SetRXAFMDeviation(m_receiver, (double)8000.0);
-    SetRXAMode(m_receiver, FMN);
+
     RXASetNC(m_receiver, 4096);
     SetRXAPanelRun(m_receiver, 1);
     SetRXAPanelSelect(m_receiver, 3);
@@ -387,15 +374,18 @@ bool Receiver::openReceiver() {
     SetDisplayAverageMode(m_receiver, 0, m_PanAvMode);
     SetRXAFMSQRun(m_receiver,1);
 //   SetChannelState(m_receiver,1,0);
-    DSPMode mode = m_dspModeList.at(m_hamBand);
+    DSPMode mode = set->getDSPMode(m_receiver);
     setAudioVolume(this, m_receiver, 0.2);
-//    RECEIVER_DEBUG << "set DSP mode to: " << set->getDSPModeString(mode);
+    RECEIVER_DEBUG << "set DSP mode to: " << set->getDSPModeString(mode);
+    SetRXAMode(m_receiver, mode);
     setFilterFrequencies(this, m_receiver, getFilterFromDSPMode(set->getDefaultFilterList(), mode).filterLo, getFilterFromDSPMode(
             set->getDefaultFilterList(), mode).filterHi);
     SetRXAAGCThresh(m_receiver, set->getAGCGain(m_receiver),this->m_fftSize,this->m_samplerate);
-    set->setAGCMaximumGain_dB(this, m_receiver, (qreal) 121);
-    RECEIVER_DEBUG << "QtWDSP for receiver: " << m_receiver << "Initialised" << set->getAGCGain(m_receiver);
+    set->setAGCMaximumGain_dB(this, m_receiver, set->getAGCGain(m_receiver));
+    setAGC_Line(m_receiver);
+    setAGCGain(this,m_receiver,set->getAGCGain(m_receiver));
     return true;
+
 }
 
 
@@ -493,16 +483,6 @@ void Receiver::setServerMode(QSDR::_ServerMode mode) {
 	m_serverMode = mode;
 }
 
-QSDR::_ServerMode Receiver::getServerMode()	const {
-
-	return m_serverMode;
-}
-
-QSDR::_DSPCore Receiver::getDSPCoreMode() const {
-
-	return m_dspCore;
-}
-
 //void Receiver::setSocketState(SocketState state) {
 //
 //	m_socketState = state;
@@ -593,59 +573,15 @@ void Receiver::setADCMode(QObject *sender, int rx, ADCMode mode) {
 	//RECEIVER_DEBUG << "RRK setADCMode = " << m_adcMode;
 }
 
-void Receiver::setAGCMode(QObject *sender, int rx, AGCMode mode, bool hang) {
 
-	Q_UNUSED(sender)
-	Q_UNUSED(hang)
-    if (rx != m_receiver) return;
-    SetRXAAGCMode(m_receiver, mode);
-    //SetRXAAGCThresh(rx->id, agc_thresh_point, 4096.0, rx->sample_rate);
-    SetRXAAGCSlope(m_receiver,m_agcSlope);
-    //	SetRXAAGCTop(m_receiver,m_agcMaximumGain);
-    switch(mode) {
-        case agcOFF:
-            break;
-        case agcLONG:
-            SetRXAAGCAttack(m_receiver,2);
-            SetRXAAGCHang(m_receiver,2000);
-            SetRXAAGCDecay(m_receiver,2000);
-            SetRXAAGCHangThreshold(m_receiver, m_agcHangThreshold);
-            break;
-        case agcSLOW:
-            SetRXAAGCAttack(m_receiver,2);
-            SetRXAAGCHang(m_receiver,1000);
-            SetRXAAGCDecay(m_receiver,500);
-            SetRXAAGCHangThreshold(m_receiver,m_agcHangThreshold);
-            break;
-        case agcMED:
-            SetRXAAGCAttack(m_receiver,2);
-            SetRXAAGCHang(m_receiver,0);
-            SetRXAAGCDecay(m_receiver,250);
-            SetRXAAGCHangThreshold(m_receiver,100);
-            break;
-        case agcFAST:
-            SetRXAAGCAttack(m_receiver,2);
-            SetRXAAGCHang(m_receiver,0);
-            SetRXAAGCDecay(m_receiver,50);
-            SetRXAAGCHangThreshold(m_receiver,100);
-            break;
-
-        case agcUser:
-            SetRXAAGCAttack(m_receiver,m_agcAttackTime);
-            SetRXAAGCHang(m_receiver,0);
-            SetRXAAGCDecay(m_receiver,m_agcDecayTime);
-            SetRXAAGCHangThreshold(m_receiver,m_agcHangThreshold);
-            break;
-    }
-    setAGC_Line(m_receiver);
-}
 
 void Receiver::setAGCGain(QObject *sender, int rx, int value) {
 
 	Q_UNUSED(sender)
+    Q_UNUSED(rx)
 
-	if (m_receiver != rx) return;
-	if (m_agcGain == value) return;
+//	if (m_receiver != rx) return;
+//	if (m_agcGain == value) return;
 
 	    m_agcGain = value;
 
@@ -861,14 +797,16 @@ void Receiver::setAGC_Line(int rx) {
     GetRXAAGCHangLevel(m_receiver, &hang);
     GetRXAAGCThresh(m_receiver, &thresh, this->m_fftSize, (double)m_samplerate);
 
+    set->setAGCLineLevels(this,m_receiver,-100,hang);
+
     if ((hang != m_agcHangLevel) || (thresh != m_agcHangThreshold))
 	{
         printf("level %f\n",thresh);
         m_agcHangLevel = hang;
 		m_agcThreshold = thresh;
 
-        set->setAGCLineLevels(this,m_receiver,thresh,hang);
-        RECEIVER_DEBUG << "Set AGC line value" << thresh, hang;
+
+        RECEIVER_DEBUG << "Set AGC line value" << thresh << hang;
 
 	}
 
@@ -887,7 +825,7 @@ void Receiver::setSampleRate(QObject *sender, int value) {
 
 	switch (value) {
 
-		case 48000:
+		case DSP_RATE:
 			m_samplerate = value;
 			break;
 
@@ -944,6 +882,8 @@ void Receiver::setSampleSize(int rx, int size) {
 }
 
 void Receiver::ProcessFrequencyShift(CPX &in, CPX &out) {
+    Q_UNUSED(in)
+    Q_UNUSED(out)
 
 
 }

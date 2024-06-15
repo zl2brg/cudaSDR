@@ -1094,7 +1094,7 @@ void QGLDistancePanel::drawDistHorizontalScale() {
 		
 			QString str = QString::number(m_distanceScale.mainPoints.at(i) / distScale, 'f', 0);
 
-			int textWidth = m_fonts.smallFontMetrics->width(str);
+            int textWidth = m_fonts.smallFontMetrics->horizontalAdvance(str);
 			QRect textRect(m_distanceScale.mainPointPositions.at(i) + offset_X - (textWidth / 2), textOffset_y, textWidth, rulerFontHeight);
 
 			QByteArray ba = str.toLatin1();
@@ -1352,7 +1352,7 @@ void QGLDistancePanel::renderPanHorizontalScale() {
 	drawGLScaleBackground(QRect(0, 0, m_freqScalePanRect.width(), m_freqScalePanRect.height()), QColor(0, 0, 0, 255));
 	
 	QRect scaledTextRect(0, textOffset_y, 1, m_freqScalePanRect.height());
-	scaledTextRect.setWidth(m_fonts.smallFontMetrics->width(fstr));
+    scaledTextRect.setWidth(m_fonts.smallFontMetrics->horizontalAdvance(fstr));
 	scaledTextRect.moveLeft(m_freqScalePanRect.width() - scaledTextRect.width());
 
 	glColor3f(0.65f, 0.76f, 0.81f);
@@ -1383,7 +1383,7 @@ void QGLDistancePanel::renderPanHorizontalScale() {
 			}
 			if (str.endsWith('.')) str.remove(str.size() - 1, 1);
 
-			int text_width = m_fonts.smallFontMetrics->width(str);
+            int text_width = m_fonts.smallFontMetrics->horizontalAdvance(str);
 			QRect textRect(m_frequencyScale.mainPointPositions.at(i) + offset_X - (text_width / 2), textOffset_y, text_width, fontHeight);
 
 			if (textRect.left() < 0 || textRect.right() >= scaledTextRect.left()) continue;
@@ -1720,7 +1720,7 @@ void QGLDistancePanel::leaveEvent(QEvent *event) {
 void QGLDistancePanel::wheelEvent(QWheelEvent* event) {
 	
 	//GRAPHICS_DEBUG << "wheelEvent";
-	QPoint pos = event->pos();
+    QPoint pos = event->pixelDelta();
 
 	if (event->buttons() == Qt::NoButton) getRegion(pos);
 
@@ -1731,9 +1731,10 @@ void QGLDistancePanel::wheelEvent(QWheelEvent* event) {
 		case panadapterRegion:
 
 			double delta = 0;
-			if (event->delta() < 0) delta = -freqStep;
+
+            if (event->angleDelta().y() < 0) delta = -freqStep;
 			else
-			if (event->delta() > 0) delta =  freqStep;
+            if (event->angleDelta().y() > 0) delta =  freqStep;
 
 			if (m_frequency + delta > MAXFREQUENCY)
 				m_frequency = MAXFREQUENCY;

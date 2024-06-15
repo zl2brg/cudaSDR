@@ -15,13 +15,14 @@ NoiseFilterWidget::NoiseFilterWidget(QWidget *parent)
     , m_serverMode(set->getCurrentServerMode())
     , m_hwInterface(set->getHWInterface())
     , m_dataEngineState(set->getDataEngineState())
+    , m_rx(set->getCurrentReceiver())
+
         //, m_panadapterMode(set->getPanadapterMode())
         //, m_waterColorScheme(set->getWaterfallColorScheme())
     , m_minimumWidgetWidth(set->getMinimumWidgetWidth())
     , m_minimumGroupBoxWidth(set->getMinimumGroupBoxWidth())
 
     , m_btnSpacing(5)
-    , m_rx(set->getCurrentReceiver())
     , m_mouseOver(false)
     , ui(new Ui::NoiseFilterWidget)
 
@@ -101,7 +102,8 @@ QSize NoiseFilterWidget::minimumSizeHint() const {
 
 
 void NoiseFilterWidget::setCurrentReceiver(QObject *sender, int rx) {
-
+    Q_UNUSED(sender)
+    Q_UNUSED(rx)
 }
 
 void NoiseFilterWidget::setupConnections() {

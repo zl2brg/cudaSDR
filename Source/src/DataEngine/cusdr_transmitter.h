@@ -89,7 +89,6 @@ private slots:
     void set_fm_deviation(double level);
     void transmitter_set_am_carrier_level(double level);
     void tx_set_pre_emphasize(int tx,int state);
-    void transmitter_set_ctcss(int tx,int run,double frequency);
     void transmitter_set_mic_level(QObject *object, int level);
 
 private:

@@ -2572,7 +2572,8 @@ bool RadioPopupWidget::showPopupWidget(QObject *sender, QPoint position) {
 	show();
 
 	QDesktopWidget *desktop = QApplication::desktop();
-	QRect desktopRect = desktop->availableGeometry(desktop->screenNumber());
+    QList <QScreen*> screen = QGuiApplication::screens();
+    QRect desktopRect = screen[desktop->screenNumber()]->geometry();
 
 	position.setX(position.x() - frameGeometry().width() / 2);
 	position.setY(position.y() - frameGeometry().height() / 2);
@@ -2684,8 +2685,9 @@ void RadioPopupWidget::mouseMoveEvent(QMouseEvent *event) {
 		QPoint new_pos = m_mouseDownWindowPos + delta;
 
 		QDesktopWidget *desktop = QApplication::desktop();
+        QList <QScreen *> screen = QGuiApplication::screens();
 //		QRect desktopRect = desktop->availableGeometry();
-		QRect desktopRect = desktop->availableGeometry(desktop->screenNumber());
+        QRect desktopRect = screen[desktop->screenNumber()]->availableGeometry();
 //		QRect desktopRect = desktop->screenGeometry(desktop->screenNumber());
 //		QRect desktopRect = desktop->geometry();
 

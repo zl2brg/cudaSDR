@@ -86,7 +86,6 @@ CSoundOut::~CSoundOut()
 
 void GetAlsaMasterVolume(long *volume)
 {
-    long min, max;
     snd_mixer_t *handle;
     snd_mixer_selem_id_t *sid;
     const char *card = "default";
@@ -137,7 +136,7 @@ void SetAlsaMasterVolume(long volume)
 bool CSoundOut::Start(int OutDevIndx, bool StereoOut, double UsrDataRate, bool BlockingMode)
 {
 QAudioDeviceInfo  DeviceInfo;
-	long mvolume;
+    long mvolume = 0;
 	m_StereoOut = StereoOut;
 	m_BlockingMode = BlockingMode;
 	//Get required soundcard from list
