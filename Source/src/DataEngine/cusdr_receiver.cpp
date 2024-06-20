@@ -369,7 +369,7 @@ bool Receiver::initWDSPInterface() {
     if(result != 0) {
         RECEIVER_DEBUG <<  "XCreateAnalyzer id=%d failed: %d\n" <<  result;
     }
-    setfftSize(m_receiver, m_fftSize);
+    setfftSize(m_receiver, 2048);
     SetDisplayDetectorMode(m_receiver, 0, m_PanDetMode);
     SetDisplayAverageMode(m_receiver, 0, m_PanAvMode);
     SetRXAFMSQRun(m_receiver,1);

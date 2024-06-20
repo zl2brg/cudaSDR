@@ -590,14 +590,15 @@ void MainWindow::setupLayout() {
 		rxDockWidgetList.append(dock);
         rxVolumeList.append(0.0f);
 		centralwidget->addDockWidget(Qt::BottomDockWidgetArea, dock);
-//		dock->hide();
+        dock->hide();
 
         rxVolumeList.append(0.0f);
 		//viewMenu->addAction(dock->toggleViewAction());
 	}
 
 	// the outline of the receiver panels
-	for (int i = 0; i < (int)(MAX_RECEIVERS-1)/2; i++) {
+    for (int i = 0; i < (int) (MAX_RECEIVERS-1)/2; i++) {
+
         centralwidget->splitDockWidget(rxDockWidgetList.at(i), rxDockWidgetList.at(i+3), Qt::Vertical);
 	}
 

@@ -249,7 +249,7 @@ private:
 	bool	m_hangEnabled;
     int		m_spectrumSize;
     int		m_fftMultiplier;
-    int 	m_fftSize;
+    int 	m_fftSize = 8192;
     int     m_averageCount;
     double  m_display_avb;
     int     m_display_average;

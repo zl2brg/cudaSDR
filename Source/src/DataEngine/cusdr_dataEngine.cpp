@@ -535,7 +535,6 @@ bool DataEngine::getFirmwareVersions() {
 
 	// init receivers
 	int rcvrs = set->getNumberOfReceivers();
-//    rcvrs = 2;
 
 	firstTimeRxInit = rcvrs;
 
@@ -1147,7 +1146,7 @@ bool DataEngine::initDataEngine() {
 
 bool DataEngine::initReceivers(int rcvrs) {
 
-    for (int i = 0; i < rcvrs; i++) {
+    for (int i = 0; i < set->getNumberOfReceivers(); i++) {
 
         auto *rx = new Receiver(i);
 		// init the DSP core

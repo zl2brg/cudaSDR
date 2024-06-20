@@ -3433,7 +3433,7 @@ void Settings::setReceivers(QObject *sender, int value) {
     locker.unlock();
 
     SETTINGS_DEBUG << "set number of receivers to: " << m_mercuryReceivers;
-   // emit numberOfRXChanged(sender, value);
+    emit numberOfRXChanged(sender, value);
 }
 
 //void Settings::setReceiver(QObject *sender, int value) {
@@ -4837,7 +4837,7 @@ void Settings::setFramesPerSecond(QObject *sender, int rx, int value) {
 }
 
 int Settings::getFramesPerSecond(int rx) {
-
+    return 25;
     return m_receiverDataList.at(rx).framesPerSecond;
 }
 
@@ -5091,6 +5091,7 @@ void Settings::setfmsqLevel(int rx, int level) {
 
 
 int Settings::getfftSize(int rx) {
+
     return m_receiverDataList[rx].fftsize;
 }
 

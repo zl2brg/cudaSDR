@@ -85,7 +85,7 @@
 // **************************************
 // receiver settings
 
-#define MAX_RECEIVERS				1
+#define MAX_RECEIVERS				20
 #define MAX_BANDS					22
 #define BUFFER_SIZE					1024
 #define SAMPLE_BUFFER_SIZE			4096
@@ -1185,7 +1185,7 @@ public:
 
 	int		getMercurySpeed()			{ return m_mercurySpeed; }
 	int		getOutputSampleIncrement()	{ return m_outputSampleIncrement; }
-	int		getNumberOfReceivers()		{ return m_mercuryReceivers; }
+    int		getNumberOfReceivers()		{ return 4; }
     int     getCurrentReceivers()		{ return m_mercuryReceivers; }
 	int		getCurrentReceiver()		{ return m_currentReceiver; }
 	bool	getFrequencyRx1onRx2()		{ return m_frequencyRx1onRx2; }
@@ -1665,7 +1665,7 @@ private:
 	int		m_minimumWidgetWidth;
 	int		m_minimumGroupBoxWidth;
 
-	int		m_mercuryReceivers;
+    int		m_mercuryReceivers = 4;
     int		m_currentReceiver = 0;
 	int		m_sampleRate;
 	int		m_mercurySpeed;
