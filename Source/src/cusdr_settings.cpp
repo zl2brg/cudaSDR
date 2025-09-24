@@ -106,15 +106,7 @@ Settings::Settings(QObject *parent)
             m_receiverDataList[i].dspModeList << (DSPMode) LSB;
         }
 
-         if ( Pa_Initialize() == paNoError )
-         {
-            numDevices = Pa_GetDeviceCount();
-         } else  {
-             qDebug() << "Port Audio Init Failed";
-         }
-
-
-    }
+      }
 
     // Alex parameter configurations
     m_alexConfig = 0;
@@ -180,8 +172,8 @@ int Settings::loadSettings() {
 
     // user's call sign
     str = settings->value("user/callSign", "Your Call sign").toString();
-    //while (str.startsWith('\"')) str = str.right(str.count() - 1).trimmed();
-    //while (str.endsWith('\"')) str = str.left(str.count() - 1).trimmed();
+    //while (str.startsWith('\"')) str = str.right(str.length() - 1).trimmed();
+    //while (str.endsWith('\"')) str = str.left(str.length() - 1).trimmed();
 
     m_callsignString = str;
 
@@ -201,13 +193,13 @@ int Settings::loadSettings() {
 
     // network settings
     str = settings->value("network/server_ipAddress", "127.0.0.1").toString();
-    while (str.startsWith('\"')) str = str.right(str.count() - 1).trimmed();
-    while (str.endsWith('\"')) str = str.left(str.count() - 1).trimmed();
+    while (str.startsWith('\"')) str = str.right(str.length() - 1).trimmed();
+    while (str.endsWith('\"')) str = str.left(str.length() - 1).trimmed();
     m_serverAddress = str;
 
     str = settings->value("network/hpsdr_local_ipAddress", "127.0.0.1").toString();
-    while (str.startsWith('\"')) str = str.right(str.count() - 1).trimmed();
-    while (str.endsWith('\"')) str = str.left(str.count() - 1).trimmed();
+    while (str.startsWith('\"')) str = str.right(str.length() - 1).trimmed();
+    while (str.endsWith('\"')) str = str.left(str.length() - 1).trimmed();
     m_hpsdrDeviceLocalAddr = str;
 
     value = settings->value("network/server_port", 52685).toInt();
@@ -1373,45 +1365,7 @@ int Settings::loadSettings() {
         }
     }
 
-    //******************************************************************
-    // Chirp WSPR settings
-    value = settings->value("ChirpWSPR/lowerChirpFrequency", 500).toInt();
-    if (value < 1 || value > 10000) value = 500;
-    m_lowerChirpFreq = value;
-
-    value = settings->value("ChirpWSPR/upperChirpFrequency", 2500).toInt();
-    if (value < 2 || value < m_lowerChirpFreq + 1 || value > 50000) value = 2500;
-    m_upperChirpFreq = value;
-
-    value = settings->value("ChirpWSPR/chirpAmplitude", 75).toInt();
-    if (value < 0 || value > 100) return -1;
-    m_chirpAmplitude = (value / 100.0);
-
-    value = settings->value("ChirpWSPR/chirpSamplingFrequency", 48000).toInt();
-    if ((value != 8000) & (value != 48000) & (value != 96000)) value = 48000;
-    m_chirpSamplingFreq = value;
-
-    value = settings->value("ChirpWSPR/chirpBufferDurationUs", 10000000).toInt();
-    if (value < 0 || value > 100000000) value = 10000000;
-    m_chirpBufferDurationUs = (qint64) value;
-
-    value = settings->value("ChirpWSPR/chirpChannels", 1).toInt();
-    if ((value != 1) & (value != 2)) value = 1;
-    m_chirpChannels = value;
-
-    value = settings->value("ChirpWSPR/chirpBufferLength", 4096).toInt();
-    if ((value != 4096) & (value != 16384)) value = 4096;
-    m_chirpBufferLength = (qint64) value;
-
-    value = settings->value("ChirpWSPR/chirpFilterLowerFrequency", 500).toInt();
-    if (value < 10000 || value > 10000) value = 500;
-    m_chirpFilterLowerFrequency = value;
-
-    value = settings->value("ChirpWSPR/chirpFilterUpperFrequency", 2500).toInt();
-    if (value < 10000 || value > 10000) value = 2500;
-    m_chirpFilterUpperFrequency = value;
-
-    //******************************************************************
+     //******************************************************************
     // graphics settings
 
     value = settings->value("graphics/dBmDistScaleMin", -20).toInt();
@@ -2226,19 +2180,6 @@ int Settings::saveSettings() {
 
 
     //******************************************************************
-    // Chirp WSPR settings
-    settings->setValue("ChirpWSPR/lowerChirpFrequency", m_lowerChirpFreq);
-    settings->setValue("ChirpWSPR/upperChirpFrequency", m_upperChirpFreq);
-    settings->setValue("ChirpWSPR/chirpAmplitude", int(m_chirpAmplitude * 100));
-    settings->setValue("ChirpWSPR/chirpSamplingFrequency", m_chirpSamplingFreq);
-    settings->setValue("ChirpWSPR/chirpBufferDurationUs", m_chirpBufferDurationUs);
-    settings->setValue("ChirpWSPR/chirpChannels", m_chirpChannels);
-    settings->setValue("ChirpWSPR/chirpBufferLength", m_chirpBufferLength);
-    settings->setValue("ChirpWSPR/chirpFilterLowerFrequency", m_chirpFilterLowerFrequency);
-    settings->setValue("ChirpWSPR/chirpFilterUpperFrequency", m_chirpFilterUpperFrequency);
-
-
-    //settings->setValue("ChirpWSPR/chirpDownSampleRate", m_chirpDownSampleRate);
 
 
     //******************************************************************
@@ -2722,9 +2663,6 @@ QString Settings::getErrorString(QSDR::_Error err) {
             str = "audioThread error";
             break;
 
-        case QSDR::_Error::ChirpDataProcessThreadError:
-            str = "ChirpDataProcessThread error";
-            break;
 
         case QSDR::_Error::UnderrunError:
             str = "underrun error";
@@ -3495,28 +3433,24 @@ void Settings::setSampleRate(QObject *sender, int value) {
             m_sampleRate = value;
             m_mercurySpeed = 0;
             m_outputSampleIncrement = 1;
-            m_chirpDownSampleRate = 4;
             break;
 
         case 96000:
             m_sampleRate = value;
             m_mercurySpeed = 1;
             m_outputSampleIncrement = 2;
-            m_chirpDownSampleRate = 8;
             break;
 
         case 192000:
             m_sampleRate = value;
             m_mercurySpeed = 2;
             m_outputSampleIncrement = 4;
-            m_chirpDownSampleRate = 16;
             break;
 
         case 384000:
             m_sampleRate = value;
             m_mercurySpeed = 3;
             m_outputSampleIncrement = 8;
-            m_chirpDownSampleRate = 32;
             break;
 
         default:
@@ -4107,7 +4041,7 @@ void Settings::setIQPort(QObject *sender, int rx, int port) {
     emit iqPortChanged(sender, rx, port);
 }
 
-void Settings::setSpectrumBuffer(int rx, const qVectorFloat &buffer) {
+void Settings::setSpectrumBuffer(int rx, const QList<float> &buffer) {
 
     emit spectrumBufferChanged(rx, buffer);
 }
@@ -4554,164 +4488,6 @@ void Settings::setWideBandRulerPosition(QObject *sender, float position) {
     emit wideBandScalePositionChanged(sender, m_widebandOptions.scalePosition);
 }
 
-
-//**********************************************************************************
-// chirp signal settings
-
-void Settings::switchToChirpSignalMode(QObject *sender) {
-
-    emit chirpSignalModeChanged(sender);
-}
-
-void Settings::setLowerChirpFreq(int value) {
-
-    QMutexLocker locker(&settingsMutex);
-
-    if (m_lowerChirpFreq == value) return;
-    if (m_lowerChirpFreq >= m_upperChirpFreq)
-        m_lowerChirpFreq = m_upperChirpFreq;
-    else
-        m_lowerChirpFreq = value;
-
-    emit lowerChirpFreqChanged(this, m_lowerChirpFreq);
-}
-
-void Settings::setUpperChirpFreq(int value) {
-
-    QMutexLocker locker(&settingsMutex);
-
-    if (m_upperChirpFreq == value) return;
-    if (m_lowerChirpFreq >= m_upperChirpFreq)
-        m_upperChirpFreq = m_lowerChirpFreq;
-    else
-        m_upperChirpFreq = value;
-
-    emit upperChirpFreqChanged(this, m_upperChirpFreq);
-}
-
-void Settings::setChirpAmplitude(qreal value) {
-
-    QMutexLocker locker(&settingsMutex);
-
-    if (m_chirpAmplitude == value) return;
-    m_chirpAmplitude = value;
-
-    emit chirpAmplitudeChanged(this, m_chirpAmplitude);
-}
-
-void Settings::setChirpSamplingFreq(int value) {
-
-    QMutexLocker locker(&settingsMutex);
-
-    if (m_chirpSamplingFreq == value) return;
-    m_chirpSamplingFreq = value;
-
-    emit chirpSamplingFreqChanged(this, m_chirpSamplingFreq);
-}
-
-void Settings::setChirpBufferDurationUs(int value) {
-
-    QMutexLocker locker(&settingsMutex);
-
-    if (m_chirpBufferDurationUs == (qint64) value) return;
-    m_chirpBufferDurationUs = (qint64) (1000 * value);
-
-    emit chirpBufferDurationUsChanged(this, m_chirpBufferDurationUs);
-}
-
-void Settings::setChirpRepetitionTimes(int value) {
-
-    QMutexLocker locker(&settingsMutex);
-
-    if (m_chirpRepetitionTimes == value) return;
-    m_chirpRepetitionTimes = value;
-
-    emit chirpRepetitionTimesChanged(this, m_chirpRepetitionTimes);
-}
-
-void Settings::setChirpReceiver(bool value) {
-
-    QMutexLocker locker(&settingsMutex);
-
-    if (m_chirpReceiverOn == value) return;
-    m_chirpReceiverOn = value;
-
-    emit chirpReceiverChanged(this, m_chirpReceiverOn);
-}
-
-void Settings::setChirpAvgLength(int value) {
-
-    QMutexLocker locker(&settingsMutex);
-
-    if (m_chirpAvgLength == value) return;
-    m_chirpAvgLength = value;
-
-    emit chirpAvgLengthChanged(m_chirpAvgLength);
-}
-
-void Settings::setChirpFFTShow(bool value) {
-
-    QMutexLocker locker(&settingsMutex);
-
-    if (m_showChirpFFT == value) return;
-    m_showChirpFFT = value;
-
-    emit chirpFFTShowChanged(m_showChirpFFT);
-}
-
-void Settings::setChirpUSB(bool value) {
-
-    QMutexLocker locker(&settingsMutex);
-
-    if (m_chirpUSB == value) return;
-    m_chirpUSB = value;
-
-    emit chirpSidebandChanged(m_chirpUSB);
-}
-
-//void Settings::setChirpDownSampleRate(int value) {
-//
-//	if (m_chirpDownSampleRate == value) return;
-//	m_chirpDownSampleRate = value;
-//}
-
-void Settings::setChirpBuffer(qint64 length, const QList<qreal> &buffer) {
-
-    emit chirpBufferChanged(length, buffer);
-}
-
-void Settings::setChirpSpectrumBuffer(int sampleRate, qint64 length, const float *buffer) {
-
-    emit chirpSpectrumBufferChanged(sampleRate, length, buffer);
-}
-
-void Settings::setChirpSpectrum(qint64 position, qint64 length, const FrequencySpectrum &spectrum) {
-
-    emit chirpSpectrumChanged(position, length, spectrum);
-}
-
-void Settings::setChirpSpectrumList(const QList<FrequencySpectrum> &spectrumList) {
-
-    emit chirpSpectrumListChanged(spectrumList);
-}
-
-void Settings::setChirpFilterLowerFrequency(int value) {
-
-    if (m_chirpFilterLowerFrequency == value) return;
-    m_chirpFilterLowerFrequency = value;
-
-    emit chirpFilterLowerFrequencyChanged(m_chirpFilterLowerFrequency);
-}
-
-void Settings::setChirpFilterUpperFrequency(int value) {
-
-    if (m_chirpFilterUpperFrequency == value) return;
-    m_chirpFilterUpperFrequency = value;
-
-    emit chirpFilterUpperFrequencyChanged(m_chirpFilterUpperFrequency);
-}
-
-//********************************
 
 void Settings::setSpectrumSize(QObject *sender, int value) {
 

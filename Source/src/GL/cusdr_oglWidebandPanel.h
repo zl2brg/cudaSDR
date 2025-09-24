@@ -44,6 +44,7 @@
 
 #include <QOpenGLWidget>
 #include <QOpenGLFunctions>
+#include <QOpenGLPaintDevice>
 
 #ifdef LOG_WBGRAPHICS
 #   define WBGRAPHICS_DEBUG qDebug().nospace() << "WB-Graphics::\t"
@@ -72,8 +73,8 @@ protected:
     void resizeGL(int iWidth, int iHeight);
     void paintGL();
     
-	void enterEvent(QEvent *event);
-	void leaveEvent(QEvent *event);
+    void enterEvent(QEnterEvent *event);
+    void leaveEvent(QEnterEvent *event);
 	void mousePressEvent(QMouseEvent *event);
 	void mouseReleaseEvent(QMouseEvent *event);
 	void mouseMoveEvent(QMouseEvent *event);
@@ -81,7 +82,7 @@ protected:
 	void keyPressEvent(QKeyEvent* event);
 	void closeEvent(QCloseEvent *event);
 	void showEvent(QShowEvent *event);
-	void timerEvent(QTimerEvent *);
+    void timerEvent(QTimerEvent *);
 
 private:
 	Settings*							set;
@@ -98,17 +99,15 @@ private:
 	QList<TReceiver>			m_rxDataList;
 	TWideband					m_widebandOptions;
 
-	QGLFramebufferObject*		m_frequencyScaleFBO;
-	QGLFramebufferObject*		m_dBmScaleFBO;
-	QGLFramebufferObject*		m_gridFBO;
-	QPainter*					painter;
-
-	CFonts		*fonts;
+    QOpenGLFramebufferObject*		m_frequencyScaleFBO;
+    QOpenGLFramebufferObject*		m_dBmScaleFBO;
+    QOpenGLFramebufferObject*		m_gridFBO;
+    CFonts		*fonts;
 	TFonts		m_fonts;
 
-	QTime		m_panTimer;
-	QTime		m_displayTime;
-	QTime		m_resizeTime;
+    QElapsedTimer		m_panTimer;
+    QElapsedTimer		m_displayTime;
+    QElapsedTimer		m_resizeTime;
 	
 	QRect		m_panRect;
 	QRect		m_freqScaleRect;
@@ -249,7 +248,6 @@ private:
 	void renderVerticalScale();
 	void renderHorizontalScale();
 	void renderGrid();
-	void renderText(float x, float y, QPaintDevice *fbo, QFont font, int size, QColor color, const QString str);
 
 private slots:
 	void	systemStateChanged(

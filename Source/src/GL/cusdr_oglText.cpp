@@ -87,7 +87,7 @@ void OGLTextPrivate::allocateTexture() {
 
     QImage image(TEXTURE_SIZE, TEXTURE_SIZE, QImage::Format_ARGB32);
     image.fill(Qt::transparent);
-    image.convertToFormat(QImage::Format_RGBA8888).mirrored();
+    image.convertToFormat(QImage::Format_RGBA8888).flipped();
     glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
     //glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, TEXTURE_SIZE, TEXTURE_SIZE, 0, GL_RGBA, GL_UNSIGNED_BYTE, image.bits());
     glTexImage2D(GL_TEXTURE_2D, 0, GL_ALPHA, TEXTURE_SIZE, TEXTURE_SIZE, 0, GL_RGBA, GL_UNSIGNED_BYTE, image.bits());
@@ -106,7 +106,7 @@ CharData &OGLTextPrivate::createCharacter(QChar c) {
 
         GLuint texture = textures.last();
 
-        GLsizei width = fontMetrics.width(c);
+        GLsizei width = fontMetrics.horizontalAdvance(c);
         GLsizei height = fontMetrics.height();
 
         QPixmap pixmap(width, height);
@@ -124,7 +124,7 @@ CharData &OGLTextPrivate::createCharacter(QChar c) {
         //painter.setCompositionMode(QPainter::CompositionMode_Source);
         painter.begin(&pixmap);
         //painter.setRenderHints(QPainter::HighQualityAntialiasing | QPainter::TextAntialiasing);
-        painter.setRenderHints(QPainter::Antialiasing | QPainter::HighQualityAntialiasing | QPainter::TextAntialiasing, false);
+        painter.setRenderHints(QPainter::Antialiasing | QPainter::Antialiasing | QPainter::TextAntialiasing, false);
         painter.setFont(font);
         painter.setPen(Qt::white);
 
@@ -133,7 +133,7 @@ CharData &OGLTextPrivate::createCharacter(QChar c) {
         painter.end();
 
 
-        QImage image = pixmap.toImage().convertToFormat(QImage::Format_RGBA8888).mirrored();
+        QImage image = pixmap.toImage().convertToFormat(QImage::Format_RGBA8888).flipped();
         glBindTexture(GL_TEXTURE_2D, texture);
         glTexSubImage2D(GL_TEXTURE_2D, 0, xOffset, yOffset, width, height, GL_RGBA, GL_UNSIGNED_BYTE, image.bits());
 

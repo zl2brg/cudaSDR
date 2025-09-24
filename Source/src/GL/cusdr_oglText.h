@@ -35,6 +35,7 @@
 
 #include <QtGlobal>
 #include <QOpenGLTexture>
+#include <QPainter>
 class QChar;
 class QFont;
 class QFontMetrics;

@@ -54,20 +54,22 @@ void AudioReceiver::initClient() {
 	socket->setSocketOption(QAbstractSocket::LowDelayOption, 1);
 
 	if (socket->bind(port, QUdpSocket::ReuseAddressHint | QUdpSocket::ShareAddress)) {
-	
-		CHECKED_CONNECT(
-			socket, 
-			SIGNAL(error(QAbstractSocket::SocketError)), 
-			this, 
-			SLOT(displayAudioRcvrSocketError(QAbstractSocket::SocketError)));
 
-		CHECKED_CONNECT(
-			socket,
-			SIGNAL(readyRead()), 
-			this, 
-			SLOT(readPendingAudioRcvrData()));
+        connect(
+            socket,
+            &QUdpSocket::errorOccurred,
+            this,
+            &AudioReceiver::displayAudioRcvrSocketError
+            );
 
-		clientConnections.append(socket);
+        connect(
+            socket,
+            &QUdpSocket::readyRead,
+            this,
+            &AudioReceiver::readPendingAudioRcvrData
+            );
+
+        clientConnections.append(socket);
 
 		AUDIO_RECEIVER << "client socket binding successful.";
 		m_message = tr("[server]: listening for rx %1 audio on port %2.");

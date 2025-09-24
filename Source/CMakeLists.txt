@@ -1,205 +1,250 @@
-cmake_minimum_required(VERSION 3.10)
-project(cudaSDR)
-set(QT_DIR "/home/simon/Qt/5.13.2/")
-set(CMAKE_PREFIX_PATH "/home/simon/Qt/5.13.2/gcc_64/lib/cmake")
-set(DCMAKE_INSTALL_PREFIX:PATH "/usr/local")
+cmake_minimum_required(VERSION 3.16)
+project(cudaSDR LANGUAGES CXX)
+
+# --- Basic Setup ---
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
-set(CMAKE_CXX_STANDARD 11)
-set (QT_USE_QTOPENGL TRUE)
-add_definitions(-O4 -D_FILE_OFFSET_BITS=64 -fPIC -g)
-set(CMAKE_INCLUDE_CURRENT_DIR ON)
-set(CMAKE_CXX_FLAGS "-O4 -Wall -Wextra -g")
-set (CMAKE_BUILD_TYPE Debug)
-set(OpenGL_GL_PREFERENCE GLVND)
-find_package(PkgConfig)
-find_package(Qt5 REQUIRED COMPONENTS Widgets Core)
-find_package(Qt5Gui 5.0 REQUIRED )
-find_package(Qt5Multimedia 5.0 REQUIRED)
-find_package(Qt5Network 5.0 REQUIRED)
-#find_package(QT5OpenGL)
-find_package(OpenGL REQUIRED)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_PREFIX_PATH "/home/simon/Qt/6.9.1/gcc_64")
+set(SANITIZE_FLAGS "-fsanitize=address")
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} ${SANITIZE_FLAGS}")
+set(CMAKE_LINKER_FLAGS_DEBUG "${CMAKE_LINKER_FLAGS_DEBUG} ${SANITIZE_FLAGS}")
 
-SET(CMAKE_SOURCE_DIR ${CMAKE_SOURCE_DIR}/src)
 
-SET(AUDIOENGINE_DIR ${CMAKE_SOURCE_DIR}/AudioEngine)
-SET(CL_DIR ${CMAKE_SOURCE_DIR}/CL)
-SET(DATAENGINE_DIR ${CMAKE_SOURCE_DIR}/DataEngine)
-SET(GL_DIR ${CMAKE_SOURCE_DIR}/GL)
-SET(QTDSP_DIR ${CMAKE_SOURCE_DIR}/QtDSP)
-SET(UTIL_DIR ${CMAKE_SOURCE_DIR}/Utility_source)
-SET(QTWDSP_DIR ${CMAKE_SOURCE_DIR}/QtWDSP)
-SET(UI_DIR ${CMAKE_SOURCE_DIR}/UI)
+# --- Find Dependencies ---
+find_package(Qt6 REQUIRED COMPONENTS Widgets Core Gui Multimedia Network OpenGL OpenGLWidgets)
+find_package(Qt6 REQUIRED COMPONENTS Core)
+find_package(Qt6 REQUIRED COMPONENTS Core)
+find_package(PkgConfig REQUIRED)
+
+# --- Project Configuration ---
+set(SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
 SET(WDSP_DIR "/usr/local/include")
 
-set (SOURCES
-        ${CMAKE_SOURCE_DIR}/Util/cusdr_buttons.cpp 
-	${CMAKE_SOURCE_DIR}/Util/cusdr_colorTriangle.cpp 
-	${CMAKE_SOURCE_DIR}/Util/cusdr_highResTimer.cpp 
-	${CMAKE_SOURCE_DIR}/Util/cusdr_image.cpp 
-	${CMAKE_SOURCE_DIR}/Util/cusdr_imageblur.cpp 
-	${CMAKE_SOURCE_DIR}/Util/cusdr_led.cpp 
-	${CMAKE_SOURCE_DIR}/Util/cusdr_painter.cpp 
-	${CMAKE_SOURCE_DIR}/Util/cusdr_splash.cpp 
-	${CMAKE_SOURCE_DIR}/Util/cusdr_cpuUsage.cpp 
-	${CMAKE_SOURCE_DIR}/AudioEngine/cusdr_audio_settingsdialog.cpp
-	${CMAKE_SOURCE_DIR}/AudioEngine/cusdr_audio_utils.cpp
-	${CMAKE_SOURCE_DIR}/AudioEngine/cusdr_audio_waveform.cpp 
-	${CMAKE_SOURCE_DIR}/AudioEngine/cusdr_audio_wavfile.cpp 
-	${CMAKE_SOURCE_DIR}/AudioEngine/cusdr_fspectrum.cpp 
-	${CMAKE_SOURCE_DIR}/DataEngine/cusdr_audioReceiver.cpp 
-	${CMAKE_SOURCE_DIR}/DataEngine/cusdr_dataEngine.cpp
-	${CMAKE_SOURCE_DIR}/DataEngine/cusdr_dataIO.cpp 
-	${CMAKE_SOURCE_DIR}/DataEngine/cusdr_discoverer.cpp 
-	${CMAKE_SOURCE_DIR}/DataEngine/cusdr_receiver.cpp 
-	${CMAKE_SOURCE_DIR}/DataEngine/soundout.cpp 
-    ${CMAKE_SOURCE_DIR}/DataEngine/fractresampler.cpp
-	${CMAKE_SOURCE_DIR}/DataEngine/cusdr_WidebandProcessor.cpp
-	${CMAKE_SOURCE_DIR}/GL/cusdr_oglDisplayPanel.cpp
-	${CMAKE_SOURCE_DIR}/GL/cusdr_oglDistancePanel.cpp 
-	${CMAKE_SOURCE_DIR}/GL/cusdr_oglInfo.cpp 
-	${CMAKE_SOURCE_DIR}/GL/cusdr_oglReceiverPanel.cpp 
-	${CMAKE_SOURCE_DIR}/GL/cusdr_oglText.cpp 
-	${CMAKE_SOURCE_DIR}/GL/cusdr_oglWidebandPanel.cpp 
-	${CMAKE_SOURCE_DIR}/cusdr_alexAntennaWidget.cpp 
-	${CMAKE_SOURCE_DIR}/cusdr_alexFilterWidget.cpp 
-	${CMAKE_SOURCE_DIR}/cusdr_alexTabWidget.cpp 
-	${CMAKE_SOURCE_DIR}/cusdr_displayWidget.cpp
-	${CMAKE_SOURCE_DIR}/cusdr_colorsWidget.cpp 
-	${CMAKE_SOURCE_DIR}/cusdr_hamDatabase.cpp 
-	${CMAKE_SOURCE_DIR}/cusdr_hpsdrTabWidget.cpp 
-	${CMAKE_SOURCE_DIR}/cusdr_hpsdrWidget.cpp 
-	${CMAKE_SOURCE_DIR}/cusdr_networkWidget.cpp 
-	${CMAKE_SOURCE_DIR}/cusdr_mainWidget.cpp 
-	${CMAKE_SOURCE_DIR}/cusdr_extCtrlWidget.cpp 
-	${CMAKE_SOURCE_DIR}/cusdr_radioTabWidget.cpp 
-	${CMAKE_SOURCE_DIR}/cusdr_radioWidget.cpp 
-	${CMAKE_SOURCE_DIR}/cusdr_agcWidget.cpp 
-	${CMAKE_SOURCE_DIR}/cusdr_displayTabWidget.cpp 
-	${CMAKE_SOURCE_DIR}/cusdr_radioPopupWidget.cpp 
-	${CMAKE_SOURCE_DIR}/cusdr_receiverWidget.cpp 
-	#${CMAKE_SOURCE_DIR}/cusdr_server.cpp 
-	${CMAKE_SOURCE_DIR}/cusdr_serverWidget.cpp 
-	${CMAKE_SOURCE_DIR}/cusdr_settings.cpp 
-	${CMAKE_SOURCE_DIR}/cusdr_fonts.cpp 
-	${CMAKE_SOURCE_DIR}/cusdr_transmitTabWidget.cpp 
-	${CMAKE_SOURCE_DIR}/cusdr_transmitOptionsWidget.cpp 
-	${CMAKE_SOURCE_DIR}/cusdr_transmitPAWidget.cpp 
-	${CMAKE_SOURCE_DIR}/main.cpp 
-    ${CMAKE_SOURCE_DIR}/Util/cusdr_cpuUsage_unix.cpp
-    ${CMAKE_SOURCE_DIR}/QtWDSP/qtwdsp_dspEngine.cpp
-	${CMAKE_SOURCE_DIR}/UI/noisefilterwidget.cpp
-    ${CMAKE_SOURCE_DIR}/UI/setupwidget.cpp
-#    ${CMAKE_SOURCE_DIR}/UI/radio_widget.cpp
-    ${CMAKE_SOURCE_DIR}/UI/tx_settings_dialog.cpp
-    ${CMAKE_SOURCE_DIR}/UI/cusdr_setupwidget.cpp
-    ${CMAKE_SOURCE_DIR}/AudioEngine/cusdr_iambic.cpp
-    ${CMAKE_SOURCE_DIR}/AudioEngine/cwramp.cpp
+# --- Define Source Files ---
+set(SOURCES
+    # Main application
+    ${SRC_DIR}/main.cpp
+    ${SRC_DIR}/cusdr_settings.cpp
+    ${SRC_DIR}/cusdr_hamDatabase.cpp
+    ${SRC_DIR}/cusdr_fonts.cpp
+    # Audio Engine
+    ${SRC_DIR}/AudioEngine/cusdr_audio_settingsdialog.cpp
+    ${SRC_DIR}/AudioEngine/cwramp.cpp
+    ${SRC_DIR}/AudioEngine/cusdr_iambic.cpp
+    ${SRC_DIR}/AudioEngine/audioinput.cpp
 
-src/DataEngine/cusdr_transmitter.cpp src/DataEngine/cusdr_transmitter.h src/AudioEngine/cusdr_audio_input.cpp src/AudioEngine/cusdr_audio_input.h)
-
+#    ${SRC_DIR}/AudioEngine/cusdr_audio_utils.cpp
+#    ${SRC_DIR}/AudioEngine/cusdr_audio_waveform.cpp
+#    ${SRC_DIR}/AudioEngine/cusdr_audio_wavfile.cpp
+#    ${SRC_DIR}/AudioEngine/cusdr_fspectrum.cpp
+# CL (OpenCL?)
+ #   ${SRC_DIR}/CL/cusdr_clWdspAudioProcessor.cpp
+ #   ${SRC_DIR}/CL/cusdr_clWdspFftProcessor.cpp
+ #   ${SRC_DIR}/CL/cusdr_clWdspReceiver.cpp
     
-set (HEADERS 
-    ${CMAKE_SOURCE_DIR}/Util/cusdr_buttons.h
-	${CMAKE_SOURCE_DIR}/Util/cusdr_colorTriangle.h 
-	${CMAKE_SOURCE_DIR}/Util/cusdr_highResTimer.h 
-	${CMAKE_SOURCE_DIR}/Util/cusdr_image.h 
-	${CMAKE_SOURCE_DIR}/Util/cusdr_imageblur.h 
-	${CMAKE_SOURCE_DIR}/Util/cusdr_led.h 
-	${CMAKE_SOURCE_DIR}/Util/cusdr_painter.h 
-	${CMAKE_SOURCE_DIR}/Util/cusdr_queue.h 
-	${CMAKE_SOURCE_DIR}/Util/cusdr_splash.h 
-	${CMAKE_SOURCE_DIR}/Util/cusdr_styles.h 
-	${CMAKE_SOURCE_DIR}/Util/cusdr_cpuUsage.h 
-	${CMAKE_SOURCE_DIR}/Util/qcircularbuffer.h 
-        ${CMAKE_SOURCE_DIR}/AudioEngine/cusdr_audio_settingsdialog.h
-	${CMAKE_SOURCE_DIR}/AudioEngine/cusdr_audio_utils.h
-	${CMAKE_SOURCE_DIR}/AudioEngine/cusdr_audio_waveform.h 
-	${CMAKE_SOURCE_DIR}/AudioEngine/cusdr_audio_wavfile.h 
-	${CMAKE_SOURCE_DIR}/AudioEngine/cusdr_fspectrum.h 
-	${CMAKE_SOURCE_DIR}/DataEngine/cusdr_audioReceiver.h 
-	${CMAKE_SOURCE_DIR}/DataEngine/cusdr_dataEngine.h
-	${CMAKE_SOURCE_DIR}/DataEngine/cusdr_dataIO.h 
-	${CMAKE_SOURCE_DIR}/DataEngine/cusdr_discoverer.h 
-	${CMAKE_SOURCE_DIR}/DataEngine/cusdr_receiver.h 
-	${CMAKE_SOURCE_DIR}/DataEngine/soundout.h 
-    ${CMAKE_SOURCE_DIR}/DataEngine/fractresampler.h
-	${CMAKE_SOURCE_DIR}/DataEngine/datatypes.h
-	${CMAKE_SOURCE_DIR}/DataEngine/cusdr_WidebandProcessor.h
-	${CMAKE_SOURCE_DIR}/GL/cusdr_oglDisplayPanel.h
-	${CMAKE_SOURCE_DIR}/GL/cusdr_oglDistancePanel.h 
-	${CMAKE_SOURCE_DIR}/GL/cusdr_oglInfo.h 
-	${CMAKE_SOURCE_DIR}/GL/cusdr_oglReceiverPanel.h 
-	${CMAKE_SOURCE_DIR}/GL/cusdr_oglText.h 
-	${CMAKE_SOURCE_DIR}/GL/cusdr_oglUtils.h 
-	${CMAKE_SOURCE_DIR}/GL/cusdr_oglWidebandPanel.h 
-	${CMAKE_SOURCE_DIR}/cusdr_alexAntennaWidget.h 
-	${CMAKE_SOURCE_DIR}/cusdr_alexFilterWidget.h 
-	${CMAKE_SOURCE_DIR}/cusdr_alexTabWidget.h 
-	${CMAKE_SOURCE_DIR}/cusdr_displayWidget.h
-	${CMAKE_SOURCE_DIR}/cusdr_colorsWidget.h 
-	${CMAKE_SOURCE_DIR}/cusdr_hamDatabase.h 
-	${CMAKE_SOURCE_DIR}/cusdr_hpsdrTabWidget.h 
-	${CMAKE_SOURCE_DIR}/cusdr_hpsdrWidget.h 
-	${CMAKE_SOURCE_DIR}/cusdr_networkWidget.h 
-	${CMAKE_SOURCE_DIR}/cusdr_mainWidget.h 
-	${CMAKE_SOURCE_DIR}/cusdr_extCtrlWidget.h 
-	${CMAKE_SOURCE_DIR}/cusdr_radioTabWidget.h 
-	${CMAKE_SOURCE_DIR}/cusdr_radioWidget.h 
-	${CMAKE_SOURCE_DIR}/cusdr_agcWidget.h 
-	${CMAKE_SOURCE_DIR}/cusdr_displayTabWidget.h 
-	${CMAKE_SOURCE_DIR}/cusdr_radioPopupWidget.h 
-	${CMAKE_SOURCE_DIR}/cusdr_receiverWidget.h 
-	#.${CMAKE_SOURCE_DIR}/cusdr_server.h 
-	${CMAKE_SOURCE_DIR}/cusdr_serverWidget.h 
-	${CMAKE_SOURCE_DIR}/cusdr_settings.h 
-	${CMAKE_SOURCE_DIR}/cusdr_fonts.h 
-	${CMAKE_SOURCE_DIR}/cusdr_transmitTabWidget.h 
-	${CMAKE_SOURCE_DIR}/cusdr_transmitOptionsWidget.h 
-	${CMAKE_SOURCE_DIR}/cusdr_transmitPAWidget.h 
-    ${CMAKE_SOURCE_DIR}/Util/cusdr_cpuUsage_unix.h
-    ${CMAKE_SOURCE_DIR}/QtWDSP/qtwdsp_dspEngine.h
-	#${CMAKE_SOURCE_DIR}cusdr_NoiseFilterWidget.h
-	${CMAKE_SOURCE_DIR}/UI/noisefilterwidget.h
-	${CMAKE_SOURCE_DIR}/UI/setupwidget.h
-    ${CMAKE_SOURCE_DIR}/UI/tx_settings_dialog.h
-    ${CMAKE_SOURCE_DIR}/UI/cusdr_setupwidget.h
-    ${CMAKE_SOURCE_DIR}/AudioEngine/cusdr_iambic.h
+    # Data Engine
+    ${SRC_DIR}/DataEngine/cusdr_audioReceiver.cpp
+    ${SRC_DIR}/DataEngine/cusdr_dataEngine.cpp
+    ${SRC_DIR}/DataEngine/cusdr_dataIO.cpp
+    ${SRC_DIR}/DataEngine/cusdr_discoverer.cpp
+    ${SRC_DIR}/DataEngine/cusdr_receiver.cpp
+    ${SRC_DIR}/DataEngine/cusdr_transmitter.cpp
+    ${SRC_DIR}/DataEngine/soundout.cpp
+    ${SRC_DIR}/DataEngine/fractresampler.cpp
+    ${SRC_DIR}/DataEngine/cusdr_WidebandProcessor.cpp
+
+
+    # GL (OpenGL)
+    ${SRC_DIR}/GL/cusdr_oglDisplayPanel.cpp
+    ${SRC_DIR}/GL/cusdr_oglDistancePanel.cpp
+    ${SRC_DIR}/GL/cusdr_oglInfo.cpp
+    ${SRC_DIR}/GL/cusdr_oglReceiverPanel.cpp
+    ${SRC_DIR}/GL/cusdr_oglText.cpp
+    ${SRC_DIR}/GL/cusdr_oglWidebandPanel.cpp
+
+    # QtWDSP
+    ${SRC_DIR}/QtWDSP/qtwdsp_dspEngine.cpp
     ${WDSP_DIR}/wdsp.h
-src/DataEngine/cusdr_transmitter.cpp src/DataEngine/cusdr_transmitter.h)
 
-set(UI_SOURCES
-        ${CMAKE_SOURCE_DIR}/UI/tx_settings_dialog.ui
-        ${CMAKE_SOURCE_DIR}/UI/noisefilterwidget.ui
-        ${CMAKE_SOURCE_DIR}/UI/cusdr_display.ui
-        ${CMAKE_SOURCE_DIR}/UI/setupwidget.ui
-    )
+    # Util
+    ${SRC_DIR}/Util/cusdr_buttons.cpp
+    ${SRC_DIR}/Util/cusdr_colorTriangle.cpp
+    ${SRC_DIR}/Util/cusdr_cpuUsage.cpp
+    ${SRC_DIR}/Util/cusdr_cpuUsage_unix.cpp
+    ${SRC_DIR}/Util/cusdr_image.cpp
+    ${SRC_DIR}/Util/cusdr_imageblur.cpp
+    ${SRC_DIR}/Util/cusdr_led.cpp
+    ${SRC_DIR}/Util/cusdr_splash.cpp
+    ${SRC_DIR}/Util/cusdr_highResTimer.cpp
+    ${SRC_DIR}/Util/cusdr_painter.cpp
+
+    # Main Widget Classes
+    ${SRC_DIR}/cusdr_alexAntennaWidget.cpp
+    ${SRC_DIR}/cusdr_alexFilterWidget.cpp
+    ${SRC_DIR}/cusdr_alexTabWidget.cpp
+    ${SRC_DIR}/cusdr_displayWidget.cpp
+    ${SRC_DIR}/cusdr_colorsWidget.cpp
+    ${SRC_DIR}/cusdr_hpsdrTabWidget.cpp
+    ${SRC_DIR}/cusdr_hpsdrWidget.cpp
+    ${SRC_DIR}/cusdr_networkWidget.cpp
+    ${SRC_DIR}/cusdr_mainWidget.cpp
+    ${SRC_DIR}/cusdr_extCtrlWidget.cpp
+    ${SRC_DIR}/cusdr_radioTabWidget.cpp
+    ${SRC_DIR}/cusdr_radioWidget.cpp
+    ${SRC_DIR}/cusdr_agcWidget.cpp
+    ${SRC_DIR}/cusdr_displayTabWidget.cpp
+    ${SRC_DIR}/cusdr_radioPopupWidget.cpp
+    ${SRC_DIR}/cusdr_receiverWidget.cpp
+   #${SRC_DIR}/cusdr_server.cpp
+    ${SRC_DIR}/cusdr_serverWidget.cpp
+    ${SRC_DIR}/cusdr_transmitTabWidget.cpp
+    ${SRC_DIR}/cusdr_transmitOptionsWidget.cpp
+    ${SRC_DIR}/cusdr_transmitPAWidget.cpp
+    ${SRC_DIR}/UI/noisefilterwidget.cpp
+    ${SRC_DIR}/UI/tx_settings_dialog.cpp
+    ${SRC_DIR}/UI/cusdr_setupwidget.cpp
+
+  )
+
+# --- Define Header Files ---
+set(HEADERS
+    # Audio Engine
+    ${SRC_DIR}/AudioEngine/cusdr_audio_settingsdialog.h
+    ${SRC_DIR}/AudioEngine/cusdr_iambic.h
+    ${SRC_DIR}/AudioEngine/audioinput.h
+
+    # Data Engine
+    ${SRC_DIR}/DataEngine/cusdr_dataIO.h
+    ${SRC_DIR}/DataEngine/cusdr_receiver.h
+    ${SRC_DIR}/DataEngine/cusdr_transmitter.h
+    ${SRC_DIR}/DataEngine/soundout.h
+
+    #Widgets
+    ${SRC_DIR}/cusdr_hpsdrTabWidget.h
+    ${SRC_DIR}/cusdr_hpsdrWidget.h
+    ${SRC_DIR}/cusdr_networkWidget.h
+    ${SRC_DIR}/UI/noisefilterwidget.h
+    ${SRC_DIR}/UI/tx_settings_dialog.h
+    ${SRC_DIR}/UI/cusdr_setupwidget.h
 
 
-add_definitions( ${QT_DEFINITIONS} )
-include_directories( ${CMAKE_BINARY_DIR} )
-include_directories( ${Qt5Widgets_INCLUDE_DIRS})
-include_directories( ${Qt5Network_INCLUDE_DIRS})
-include_directories( ${Qt5Multimedia_INCLUDE_DIRS})
-include_directories( ${Qt5Gui_INCLUDE_DIRS})
-include_directories( ${CMAKE_SOURCE_DIR})
-include_directories( ${Qt5Gui_INCLUDE_DIRS})
-#include_directories( ${QT5OpenGL_INCLUDE_DIRS})
-include_directories( ${OpenGL_INCLUDE_DIR})
-include_directories( ${DATAENGINE_DIR})
-include_directories( ${UI_DIR})
-include_directories( ${AUTOGEN_BUILD_DIR})
-include_directories( ${WDSP_DIR})
+    # GL
+    ${SRC_DIR}/GL/cusdr_oglDisplayPanel.h
+    ${SRC_DIR}/GL/cusdr_oglDistancePanel.h
+    ${SRC_DIR}/GL/cusdr_oglInfo.h
+    ${SRC_DIR}/GL/cusdr_oglReceiverPanel.h
+    ${SRC_DIR}/GL/cusdr_oglText.h
+    ${SRC_DIR}/GL/cusdr_oglUtils.h
+    
 
-set ( MOC_HEADERS
- ..h
+    # Util
+    ${SRC_DIR}/Util/cusdr_buttons.h
+    ${SRC_DIR}/Util/cusdr_colorTriangle.h
+    ${SRC_DIR}/Util/cusdr_cpuUsage.h
+    ${SRC_DIR}/Util/cusdr_cpuUsage_unix.h
+    ${SRC_DIR}/Util/cusdr_splash.h
+    ${SRC_DIR}/Util/cusdr_highResTimer.h
+    ${SRC_DIR}/Util/cusdr_led.h
+    ${SRC_DIR}/Util/cusdr_image.h
+    ${SRC_DIR}/Util/cusdr_imageblur.h
+    ${SRC_DIR}/Util/cusdr_painter.h
+
+    # Main Headers
+    ${SRC_DIR}/cusdr_settings.h
+    ${SRC_DIR}/cusdr_displayTabWidget.h
+    ${SRC_DIR}/cusdr_displayWidget.h
+    ${SRC_DIR}/cusdr_mainWidget.h
+    ${SRC_DIR}/cusdr_radioPopupWidget.h
+    ${SRC_DIR}/cusdr_radioTabWidget.h
+    ${SRC_DIR}/cusdr_radioWidget.h
+    
+    # Shared headers
+    ${SRC_DIR}/Util/cusdr_queue.h
 )
 
-QT5_WRAP_UI( UI_HEADERS ${UI_SOURCES} )
-ADD_EXECUTABLE(cudasdr ${SOURCES} ${HEADERS}  res/cusdr.qrc ${UI_SOURCES} ${UI_HEADERS})
+# --- Define UI Files ---
+set(UI_SOURCES
+    ${SRC_DIR}/UI/tx_settings_dialog.ui
+    ${SRC_DIR}/UI/noisefilterwidget.ui
+    ${SRC_DIR}/UI/cusdr_display.ui
+    ${SRC_DIR}/UI/setupwidget.ui
+)
 
-qt5_use_modules(cudasdr Core Gui Widgets OpenGL)
-target_link_libraries(cudasdr -lm -lstdc++ Qt5::Widgets Qt5::Network Qt5::Multimedia GL asound wdsp portaudio)
-set_target_properties(cudasdr PROPERTIES LINKER_LANGUAGE CXX)
+# --- Create Executable ---
+qt6_wrap_ui(UI_HEADERS ${UI_SOURCES})
+qt_add_executable(cudasdr 
+    ${SOURCES} 
+    ${HEADERS}  
+    res/cusdr.qrc 
+    ${UI_SOURCES} 
+    ${UI_HEADERS}
+    src/DataEngine/receiveraudiooutput.h src/DataEngine/receiveraudiooutput.cpp
+    src/AudioEngine/audiooutputmanager.h src/AudioEngine/audiooutputmanager.cpp
+)
+
+# --- Configure Include Directories ---
+target_include_directories(cudasdr PRIVATE
+    ${CMAKE_CURRENT_BINARY_DIR}
+    ${SRC_DIR}
+    ${SRC_DIR}/AudioEngine
+    ${SRC_DIR}/CL
+    ${SRC_DIR}/DataEngine
+    ${SRC_DIR}/GL
+    ${SRC_DIR}/QtDSP
+    ${SRC_DIR}/QtWDSP
+    ${SRC_DIR}/Util
+    ${SRC_DIR}/UI
+    "/usr/local/include" # WDSP_DIR
+)
+
+# --- Link Libraries ---
+target_link_libraries(cudasdr PRIVATE
+    Qt6::Widgets
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Multimedia
+    Qt6::Network
+    Qt6::OpenGL
+    Qt6::OpenGLWidgets
+    # System libraries
+    -lm
+    -lstdc++
+    GL
+    asound
+    wdsp
+
+)
+target_link_libraries(cudasdr PRIVATE Qt6::Core)
+target_link_libraries(cudasdr PRIVATE Qt6::Core)
+
+# --- Compiler Options ---
+target_compile_features(cudasdr PRIVATE cxx_std_17)
+target_compile_options(cudasdr PRIVATE
+    $<$<CONFIG:Debug>:-g>
+    $<$<CONFIG:Release>:-O3>
+    -Wall
+    -Wextra
+    -fPIC
+)
+
+target_compile_definitions(cudasdr PRIVATE 
+    -D_FILE_OFFSET_BITS=64
+    QT_CORE_LIB
+    QT_GUI_LIB
+    QT_WIDGETS_LIB
+    QT_NETWORK_LIB
+    QT_MULTIMEDIA_LIB
+    QT_OPENGL_LIB
+    QT_OPENGLWIDGETS_LIB
+)
+
+# --- Installation ---
+install(TARGETS cudasdr
+    BUNDLE DESTINATION .
+    RUNTIME DESTINATION bin
+)

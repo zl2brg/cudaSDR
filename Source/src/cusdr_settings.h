@@ -26,7 +26,7 @@
  
 #ifndef CUSDR_SETTINGS_H
 #define CUSDR_SETTINGS_H
-
+#define USE_INTERNAL_AUDIO
 //#define DEBUG
 
 #include <QObject>
@@ -36,6 +36,8 @@
 #include <QString>
 #include <QAudioInput>
 #include <QAudioOutput>
+#include <QAudioFormat>
+#include <qaudiodevice.h>
 
 #include "cusdr_hamDatabase.h"
 #include "fftw3.h"
@@ -80,6 +82,7 @@
 #define MINDISTDBM -150
 #define MAXDISTDBM 150
 #define MAX_FFTSIZE	262144
+#define TX_ID 0
 
 
 // **************************************
@@ -196,7 +199,6 @@ namespace QSDR {
 		DataProcessThreadError,
 		WideBandDataProcessThreadError,
 		AudioThreadError,
-		ChirpDataProcessThreadError,
 		UnderrunError, 
 		FirmwareError,
 		FatalError
@@ -400,7 +402,6 @@ typedef struct _hpsdrParameter {
 	QHQueue<QByteArray>		iq_queue;
 	QHQueue<QByteArray>		au_queue;
 	QHQueue<QByteArray>		wb_queue;
-	QHQueue<QList<qreal> >	chirp_queue;
 	QHQueue<QList<qreal> >	data_queue;
 
 	QList<qreal> inputBuffer;
@@ -819,8 +820,8 @@ signals:
 	void postSpectrumBufferChanged(int rx, const float* buffer);
 
 	void sampleSizeChanged(int rx, int size);
-	void rxListChanged(QList<Receiver *> rxList);
-	void clientConnectedChanged(QObject* sender, bool connect);
+    void rxListChanged(QList<Receiver *> rxList);
+    void clientConnectedChanged(QObject* sender, bool connect);
 	void clientNoConnectedChanged(QObject* sender, int client);
 	void audioRxChanged(QObject* sender, int rx);
 	void receiverChanged(int value);
@@ -965,23 +966,6 @@ signals:
 	void audioBufferChanged(QObject *sender, qint64 position, qint64 length, const QByteArray &buffer);
 	//void audioBufferChanged(QObject *sender, const QByteArray &buffer);
 
-	void chirpSignalModeChanged(QObject *sender);
-	void lowerChirpFreqChanged(QObject *sender, int value);
-	void upperChirpFreqChanged(QObject *sender, int value);
-	void chirpAmplitudeChanged(QObject *sender, qreal value);
-	void chirpSamplingFreqChanged(QObject *sender, int value);
-	void chirpBufferDurationUsChanged(QObject *sender, qint64 value);
-	void chirpRepetitionTimesChanged(QObject *sender, int value);
-	void chirpReceiverChanged(QObject *sender, int value);
-	void chirpBufferChanged(qint64 length, const QList<qreal> &buffer);
-	void chirpAvgLengthChanged(int length);
-	void chirpFFTShowChanged(bool value);
-	void chirpSidebandChanged(bool value);
-	void chirpFilterLowerFrequencyChanged(int value);
-	void chirpFilterUpperFrequencyChanged(int value);
-	void chirpSpectrumBufferChanged(int sampleRate, qint64 length, const float *buffer);
-	void chirpSpectrumChanged(qint64 position, qint64 length, const FrequencySpectrum &spectrum);
-	void chirpSpectrumListChanged(const QList<FrequencySpectrum> &spectrumList);
 
 	void displayWidgetHeightChanged(int value);
 	void spectrumSizeChanged(QObject *sender, int value);
@@ -1038,8 +1022,9 @@ signals:
 
 public:
 
-    PaDeviceIndex numDevices;
-    const PaDeviceInfo *deviceInfo;
+    QAudioDevice m_inputDevice;
+    QAudioDevice m_outputDevice;
+
     void	debugSystemState();
 	int 	loadSettings();
 	int 	saveSettings();
@@ -1234,21 +1219,7 @@ public:
 
 
 
-    int		getLowerChirpFreq()				{ return m_lowerChirpFreq; }
-	int		getUpperChirpFreq()				{ return m_upperChirpFreq; }
-	qreal	getChirpAmplitude()				{ return m_chirpAmplitude; }
-	int		getChirpSamplingFreq()			{ return m_chirpSamplingFreq; }
-	qint64	getChirpBufferDurationUs()		{ return m_chirpBufferDurationUs; }
-	qint64	getChirpBufferLength()			{ return m_chirpBufferLength; }
-	int		getChirpChannels()				{ return m_chirpChannels; }
-	int		getChirpRepetitionTimes()		{ return m_chirpRepetitionTimes; }
-	int		getChirpDownSampleRate()		{ return m_chirpDownSampleRate; }
-	int		getChirpAvgLength()				{ return m_chirpAvgLength; }
-	int		getChirpFilterLowerFrequency()	{ return m_chirpFilterLowerFrequency; }
-	int		getChirpFilterUpperFrequency()	{ return m_chirpFilterUpperFrequency; }
-	bool	getChirpReceiver()				{ return m_chirpReceiverOn; }
-	bool	getChirpFFTShow()				{ return m_showChirpFFT; }
-	bool	getChirpSideband()				{ return m_chirpUSB; }
+
 	
 	int		getSpectrumSize()			{ return m_spectrumSize; }
 	
@@ -1264,7 +1235,7 @@ public:
 	QList<QNetworkInterface>		m_networkInterfaces;
 	
 	// audio
-	QAudio::Mode mode() const			{ return m_audioMode; }
+//	QAudio::Mode mode() const			{ return m_audioMode; }
     QAudio::State state() const			{ return m_audioState; }
 	QAudioFormat getAudioFormat() const { return m_format; }
 
@@ -1316,10 +1287,10 @@ public slots:
 	RadioState getRadioState() { return m_radioState;}
 	void setMultiRxView(int view);
 	void setSMeterValue(int rx, double value);
-	void setSpectrumBuffer(int rx, const qVectorFloat &buffer);
+    void setSpectrumBuffer(int rx, const QList<float> &buffer);
 	void setPostSpectrumBuffer(int rx, const float*);
 	void setSampleSize(QObject* sender, int rx, int size);
-	void setRxList(QList<Receiver *> rxList);
+    void setRxList (QList<Receiver*> list);
 	void setMetisCardList(QList<TNetworkDevicecard> list);
 	void searchHpsdrNetworkDevices();
 	void clearMetisCardList();
@@ -1479,28 +1450,6 @@ public slots:
 	void setAudioBuffer(QObject *sender, qint64 position, qint64 length, const QByteArray &buffer);
 	//void setAudioBuffer(QObject *sender, const QByteArray &buffer);
 
-	void switchToChirpSignalMode(QObject *sender);
-	void setLowerChirpFreq(int value);
-	void setUpperChirpFreq(int value);
-	void setChirpAmplitude(qreal value);
-	void setChirpSamplingFreq(int value);
-	void setChirpBufferDurationUs(int value);
-	void setChirpRepetitionTimes(int value);
-	void setChirpReceiver(bool value);
-	void setChirpAvgLength(int value);
-	void setChirpFFTShow(bool value);
-	void setChirpUSB(bool value);
-	void setChirpFilterLowerFrequency(int value);
-	void setChirpFilterUpperFrequency(int value);
-	//void setChirpDownSampleRate(int value);
-	//void setChirpBufferLength(qint64 length);
-	void setChirpBuffer(qint64 length, const QList<qreal> &buffer);
-	//void setChirpSpectrumBuffer(const QList<qreal> &buffer);
-	void setChirpSpectrumBuffer(int sampleRate, qint64 length, const float *buffer);
-
-	//void setSpectrumBuffer(const float *buffer);
-	void setChirpSpectrum(qint64 position, qint64 length, const FrequencySpectrum &spectrum);
-	void setChirpSpectrumList(const QList<FrequencySpectrum> &spectrumList);
 
 	void moveDisplayWidget(int value);
 
@@ -1588,7 +1537,7 @@ private:
 	QSDR::_HWInterfaceMode		m_hwInterface;
 	QSDR::_DataEngineState		m_dataEngineState;
 
-	QAudio::Mode	m_audioMode;
+//	QAudio::Mode	m_audioMode;
     QAudio::State	m_audioState;
 	QAudioFormat    m_format;
 
@@ -1704,24 +1653,7 @@ private:
 	qreal	m_filterFrequencyLow;
 	qreal	m_filterFrequencyHigh;
 
-	qreal	m_chirpAmplitude;
 
-	qint64	m_chirpBufferDurationUs;
-	qint64	m_chirpBufferLength;
-
-	bool	m_chirpReceiverOn;
-	bool	m_showChirpFFT;
-	bool	m_chirpUSB;
-
-	int		m_lowerChirpFreq;
-	int		m_upperChirpFreq;
-	int		m_chirpSamplingFreq;
-	int		m_chirpChannels;
-	int		m_chirpRepetitionTimes;
-	int		m_chirpDownSampleRate;
-	int		m_chirpAvgLength;
-	int		m_chirpFilterLowerFrequency;
-	int		m_chirpFilterUpperFrequency;
     double  m_repeaterOffset;
     bool    m_use_repeaterOffset;
     int     m_fmPremphasize;

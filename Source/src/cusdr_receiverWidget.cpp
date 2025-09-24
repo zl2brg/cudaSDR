@@ -46,7 +46,7 @@ ReceiverWidget::ReceiverWidget()
 
 	QBoxLayout *mainLayout = new QBoxLayout(QBoxLayout::TopToBottom, this);
 	mainLayout->setSpacing(1);
-	mainLayout->setMargin(0);
+    mainLayout->setContentsMargins(0,0,0,0);
 	mainLayout->addSpacing(8);
 	//mainLayout->addWidget(dspBtnGroup());
 	//mainLayout->addSpacing(5);

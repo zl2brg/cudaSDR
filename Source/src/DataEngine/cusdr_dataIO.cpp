@@ -1,5 +1,4 @@
 /**
-/**
 * @file  cusdr_dataIO.cpp
 * @brief Data IO class
 * @author Hermann von Hasseln, DL3HVH
@@ -24,7 +23,6 @@
 - Multiple simultaneous CAT connections
 - MIDI controller support
 
-/*   
  *   Copyright 2011 Hermann von Hasseln, DL3HVH
  *
  *   This program is free software; you can redistribute it and/or modify
@@ -97,57 +95,52 @@ DataIO::DataIO(THPSDRParameter *ioData)
 
 	m_packetLossTime.start();
 
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(sampleRateChanged(QObject *, int)), 
-		this, 
-		SLOT(setSampleRate(QObject *, int)));
+	  connect(set, &Settings::sampleRateChanged, 
+            this, &DataIO::setSampleRate);
 
-	CHECKED_CONNECT(
-		set, 
-		SIGNAL(manualSocketBufferChanged(QObject*, bool)), 
-		this, 
-		SLOT(setManualSocketBufferSize(QObject*, bool)));
+    connect(set, &Settings::manualSocketBufferChanged, 
+            this, &DataIO::setManualSocketBufferSize);
 
-	CHECKED_CONNECT(
-		set, 
-		SIGNAL(socketBufferSizeChanged(QObject*, int)), 
-		this, 
-		SLOT(setSocketBufferSize(QObject*, int)));
+    connect(set, &Settings::socketBufferSizeChanged, 
+            this, &DataIO::setSocketBufferSize);
 
 	m_message = "m_sendSequence = %1, bytes sent: %2";
+#ifndef USE_INTERNAL_AUDIO
+     m_pSoundCardOut = std::make_unique<CSoundOut>(this);
 
-	m_pSoundCardOut = new CSoundOut(this);
-	//RRK pass -1 to get the systems "default" audio device
-	m_pSoundCardOut->Start(-1, true, 48000, false);
-	m_pSoundCardOut->SetVolume(80);
+    //RRK pass -1 to get the systems "default" audio device
+    m_pSoundCardOut->Start(-1, true, 48000, false);
+    m_pSoundCardOut->SetVolume(80);
+#endif
 }
 
 DataIO::~DataIO() {
 
 	if (m_dataIOSocketOn) {
 		m_dataIOSocket->close();
-		delete m_dataIOSocket;
-		m_dataIOSocket = 0;
 	}
+    if (m_pSoundCardOut) {
+        m_pSoundCardOut->Stop();
+        // Automatic deletion
+    }
 }
 
 void DataIO::stop() {
+    io->networkIOMutex.lock();
+        m_stopped = true;
+    io->networkIOMutex.unlock();
 
-	io->networkIOMutex.lock();
-		m_stopped = true;
-	io->networkIOMutex.unlock();
-
-	if(m_pSoundCardOut) {
-		SleeperThread::msleep(100);
-		m_pSoundCardOut->Stop();
-		delete m_pSoundCardOut;
-	}
+    if (m_pSoundCardOut) {
+        SleeperThread::msleep(100);
+        m_pSoundCardOut->Stop();
+        m_pSoundCardOut.reset(); // Reset smart pointer instead of delete
+    }
 }
 
 void DataIO::initDataReceiverSocket() {
 
-	m_dataIOSocket = new QUdpSocket();
+	  m_dataIOSocket = std::make_unique<QUdpSocket>();
+
 
 	int newBufferSize;
 
@@ -209,11 +202,14 @@ void DataIO::initDataReceiverSocket() {
 		//m_dataIOSocket->setSocketOption(QAbstractSocket::LowDelayOption, 1);
 		//m_dataIOSocket->setSocketOption(QAbstractSocket::KeepAliveOption, 1);
 
-		CHECKED_CONNECT(
-			m_dataIOSocket,
-			SIGNAL(error(QAbstractSocket::SocketError)), 
-			this, 
-			SLOT(displayDataReceiverSocketError(QAbstractSocket::SocketError)));
+        connect(
+            m_dataIOSocket.get(),
+            &QUdpSocket::errorOccurred,
+            this,
+            &DataIO::displayDataReceiverSocketError
+            );
+
+
 
 		/*CHECKED_CONNECT_OPT(
 			m_dataIOSocket,
@@ -222,11 +218,12 @@ void DataIO::initDataReceiverSocket() {
 			SLOT(readDeviceData()),
 			Qt::DirectConnection);*/
 
-		CHECKED_CONNECT(
-			m_dataIOSocket,
-			SIGNAL(readyRead()), 
+        connect(
+            m_dataIOSocket.get(),
+            &QUdpSocket::readyRead,
 			this, 
-			SLOT(readDeviceData()));
+            &DataIO::readDeviceData
+            );
 
 
 		io->networkIOMutex.lock();
@@ -424,8 +421,8 @@ void DataIO::readDeviceData() {
 
 						if (m_packetLossTime.elapsed() > 100) {
 							
-							set->setPacketLoss(2);
-							m_packetLossTime.restart();
+						 set->setPacketLoss(2);
+						 m_packetLossTime.restart();
 						}
 					}
 					
@@ -600,9 +597,10 @@ void DataIO::sendAudio(u_char *buf) {
 		sample = buf[i+2] << 8 | buf[i+3]; //right
 		cbuf[j].im = (double)sample;
 	}
-
+#ifndef USE_INTERNAL_AUDIO
     if((m_stopped != true) && m_pSoundCardOut)
-		m_pSoundCardOut->PutOutQueue(63, cbuf);
+        m_pSoundCardOut->PutOutQueue(63, cbuf);
+#endif
 }
 
 void DataIO::writeData() {
@@ -639,9 +637,10 @@ void DataIO::writeData() {
     }
 }
 
+// Handles and logs errors that occur on the data IO socket during network operations.
 void DataIO::displayDataReceiverSocketError(QAbstractSocket::SocketError error) {
 
-	io->networkIOMutex.lock();
+	DATAIO_DEBUG << "data IO socket error: " << m_dataIOSocket->errorString();
 	DATAIO_DEBUG << "data IO socket error: " << error;
 	io->networkIOMutex.unlock();
 }

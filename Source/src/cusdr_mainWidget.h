@@ -34,7 +34,7 @@
 //#include <QStyleOptionToolBar>
 //#include <QWidget>
 //#include <QListWidget>
-//#include <QTimer>
+//#include <QElapsedTimerr>
 //#include <QNetworkInterface>
 //#include <QSlider>
 //#include <QMessageBox>
@@ -143,7 +143,8 @@ private:
 
 private:
 	Settings*					set;
-    SetupWidget                 *setupWidget;
+    QDialog                     *setupWidget;
+    cusdr_SetupWidget           *test_widget;
 
 	QSDR::_Error				m_error;
 	QSDR::_ServerMode			m_serverMode;
@@ -184,7 +185,7 @@ private:
 	QPixmap			m_originalPixmap;
 	QPixmap			m_widgetMask;
 
-	QTimer*			m_resizeTimer;
+    QTimer*			m_resizeTimer;
 
 	QPoint			m_dragPosition;
 	QPoint			m_pos;
@@ -228,7 +229,7 @@ private:
 	QGLWidebandPanel*	m_wbDisplay;
     NetworkIODialog*	m_netIODialog;
 	WarningDialog*		m_warningDialog;
-    tx_settings_dialog*       m_audioInput;
+    tx_settings_dialog* m_audioInput;
 	HamBand				m_currentHamBand;
 
 	quint16				m_alexConfig;

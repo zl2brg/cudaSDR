@@ -68,7 +68,6 @@ CFonts::CFonts(QObject *parent)
 
     //m_fonts.normalFont.setStyleStrategy(QFont::PreferAntialias);
     //m_fonts.normalFont.setStyleHint(QFont::SansSerif, QFont::PreferAntialias);
-    m_fonts.normalFont.setStyleStrategy(QFont::OpenGLCompatible);
     m_fonts.normalFont.setBold(true);
 	m_fonts.normalFont.setFixedPitch(true);
 	#if defined(Q_OS_MAC)

@@ -67,15 +67,15 @@ public slots:
 	
 private slots:
 	void setSampleRate(QObject *sender, int value);
-	void displayDataReceiverSocketError(QAbstractSocket::SocketError error);
 	void setManualSocketBufferSize(QObject *sender, bool value);
 	void setSocketBufferSize(QObject *sender, int value);
+	void displayDataReceiverSocketError(QAbstractSocket::SocketError error);
 	void readDeviceData();
 	void new_readDeviceData();
 
 private:
 	Settings*		set;
-	QUdpSocket*		m_dataIOSocket;
+	std::unique_ptr<QUdpSocket>	m_dataIOSocket;
 	//QMutex			m_mutex;
 	QByteArray		m_commandDatagram;
 	QByteArray		m_datagram;
@@ -88,7 +88,7 @@ private:
 	unsigned char 	m_buffer[METIS_DATA_SIZE];
 	QByteArray  	m_iqbuffer;
 
-	QTime			m_packetLossTime;
+    QElapsedTimer	m_packetLossTime;
 
 	THPSDRParameter*	io;
 	//TNetworkDevicecard 	netDevice;
@@ -104,7 +104,7 @@ private:
 	long	m_sendSequence;
 	long	m_oldSendSequence;
 
-
+    std::unique_ptr<CSoundOut> m_pSoundCardOut;
 	int		m_wbBuffers;
 	int		m_wbCount;
 	int		m_socketBufferSize;
@@ -115,7 +115,6 @@ private:
 	bool	m_firstFrame;
 	
 	volatile bool	m_stopped;
-	CSoundOut* m_pSoundCardOut;
 
 signals:
 	void	messageEvent(QString message);

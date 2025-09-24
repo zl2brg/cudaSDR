@@ -1,0 +1,9 @@
+/home/simon/Projects/Personal/test/cudaSDR/Source/build_kdevelop/CMakeFiles/cudasdr.dir
+/home/simon/Projects/Personal/test/cudaSDR/Source/build_kdevelop/CMakeFiles/edit_cache.dir
+/home/simon/Projects/Personal/test/cudaSDR/Source/build_kdevelop/CMakeFiles/rebuild_cache.dir
+/home/simon/Projects/Personal/test/cudaSDR/Source/build_kdevelop/CMakeFiles/list_install_components.dir
+/home/simon/Projects/Personal/test/cudaSDR/Source/build_kdevelop/CMakeFiles/install.dir
+/home/simon/Projects/Personal/test/cudaSDR/Source/build_kdevelop/CMakeFiles/install/local.dir
+/home/simon/Projects/Personal/test/cudaSDR/Source/build_kdevelop/CMakeFiles/install/strip.dir
+/home/simon/Projects/Personal/test/cudaSDR/Source/build_kdevelop/CMakeFiles/cudasdr_autogen_timestamp_deps.dir
+/home/simon/Projects/Personal/test/cudaSDR/Source/build_kdevelop/CMakeFiles/cudasdr_autogen.dir

@@ -1,0 +1,37 @@
+{
+    "version": 4,
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/Source/**",
+                "${workspaceFolder}/Source/src/**",
+                "/home/simon/Qt/6.9.1/gcc_64/include/**",
+                "/home/simon/Qt/6.9.1/gcc_64/include/QtCore",
+                "/home/simon/Qt/6.9.1/gcc_64/include/QtGui",
+                "/home/simon/Qt/6.9.1/gcc_64/include/QtWidgets",
+                "/home/simon/Qt/6.9.1/gcc_64/include/QtNetwork",
+                "/home/simon/Qt/6.9.1/gcc_64/include/QtMultimedia",
+                "/home/simon/Qt/6.9.1/gcc_64/include/QtOpenGL",
+                "/home/simon/Qt/6.9.1/gcc_64/include/QtOpenGLWidgets",
+                "/usr/include/**",
+                "/usr/local/include/**"
+            ],
+            "defines": [
+                "_FILE_OFFSET_BITS=64",
+                "QT_CORE_LIB",
+                "QT_GUI_LIB",
+                "QT_WIDGETS_LIB",
+                "QT_NETWORK_LIB",
+                "QT_MULTIMEDIA_LIB",
+                "QT_OPENGL_LIB",
+                "QT_OPENGLWIDGETS_LIB"
+            ],
+            "compilerPath": "/usr/bin/gcc",
+            "cStandard": "c11",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "gcc-x64",
+            "configurationProvider": "ms-vscode.cmake-tools"
+        }
+    ]
+}

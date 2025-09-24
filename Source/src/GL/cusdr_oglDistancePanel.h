@@ -37,7 +37,6 @@
 //#include <QImage>
 //#include <QFontMetrics>
 #include <QWheelEvent>
-#include <QGL>
 //#include <QQueue>
 //#include <QDebug>
 
@@ -64,8 +63,8 @@ protected:
     void resizeGL(int iWidth, int iHeight);
     void paintGL();
     
-	void enterEvent(QEvent *event);
-	void leaveEvent(QEvent *event);
+    void enterEvent(QEnterEvent *event);
+    void leaveEvent(QEnterEvent *event);
 	void mousePressEvent(QMouseEvent *event);
 	void mouseReleaseEvent(QMouseEvent *event);
 	void mouseMoveEvent(QMouseEvent *event);
@@ -73,7 +72,7 @@ protected:
 	void keyPressEvent(QKeyEvent* event);
 	void closeEvent(QCloseEvent *event);
 	void showEvent(QShowEvent *event);
-	void timerEvent(QTimerEvent *);
+    void timerEvent(QTimerEvent *);
 
 private:
 	Settings*	set;
@@ -84,9 +83,9 @@ private:
 
 	PanGraphicsMode				m_panMode;
 	
-	QTime			m_displayTime;
-	QTime			m_resizeTime;
-	QTime			freqChangeTimer;
+    QElapsedTimer			m_displayTime;
+    QElapsedTimer			m_resizeTime;
+    QElapsedTimer			freqChangeTimer;
 	
 	CFonts			*fonts;
 
@@ -101,10 +100,10 @@ private:
 	QVector<qreal>					m_panadapterBins;
 	QQueue<QVector<float> >			specAv_queue;
 
-	QGLFramebufferObject*			m_frequencyScaleFBO;
-	QGLFramebufferObject*			m_dBmScaleFBO;
-	QGLFramebufferObject*			m_panadapterGridFBO;
-	QGLFramebufferObject*			m_textureFBO;
+    QOpenGLFramebufferObject*			m_frequencyScaleFBO;
+    QOpenGLFramebufferObject*			m_dBmScaleFBO;
+    QOpenGLFramebufferObject*			m_panadapterGridFBO;
+    QOpenGLFramebufferObject*			m_textureFBO;
 	
 	QRect		m_panRect;
 	QRect		m_dBmScalePanRect;

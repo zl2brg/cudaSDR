@@ -34,7 +34,7 @@
 //#include <QtGui>
 //#include <QDebug>
 //#include <QFileInfo>
-//#include <QTimer>
+//#include <QElapsedTimerr>
 //#include <QImage>
 //#include <QString>
 //#include <QOpenGLFrameBufferObject>
@@ -75,7 +75,6 @@ QGLReceiverPanel::QGLReceiverPanel(QWidget *parent, int rx)
 	, m_panSpectrumMinimumHeight(0)
 	, m_snapMouse(3)
 	, m_sampleRate(set->getSampleRate())
-	, m_downRate(set->getChirpDownSampleRate())
 	, m_adcStatus(0)
 	, m_fftMult(1)
 	, m_smallSize(true)
@@ -99,7 +98,6 @@ QGLReceiverPanel::QGLReceiverPanel(QWidget *parent, int rx)
 	, m_filterUpperFrequency(-150.0)
 	//, m_freqRulerPosition(0.5)
 {
-//	QGL::setPreferredPaintEngine(QPaintEngine::OpenGL);
     qDebug() << "rx panel constructor" << rx;
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     setUpdateBehavior(QOpenGLWidget::PartialUpdate);
@@ -607,7 +605,6 @@ void QGLReceiverPanel::initializeGL() {
 }
 
 void QGLReceiverPanel::paintGL() {
-
 	switch (m_serverMode) {
 
 		case QSDR::NoServerMode:
@@ -617,7 +614,7 @@ void QGLReceiverPanel::paintGL() {
 
 		case QSDR::SDRMode:
 
-			//if (freqChangeTimer.elapsed() > 50)  m_spectrumAveraging = m_spectrumAveragingOld;
+       //     if (freqChangeTimer.elapsed() > 50)  m_spectrumAveraging = m_spectrumAveragingOld;
 
 			if (m_resizeTime.elapsed() > 200 || m_dataEngineState == QSDR::DataEngineDown)
 				paintReceiverDisplay();
@@ -1094,7 +1091,6 @@ void QGLReceiverPanel::drawCenterLine() {
 
 	// draw a line for the center frequency
 	GLint y1, y2;
-
 	y1 = m_panRect.top();
 	y2 = m_displayCenterlineHeight;
 	
@@ -1165,7 +1161,6 @@ void QGLReceiverPanel::drawCenterLine() {
 }
 
 void QGLReceiverPanel::drawPanFilter() {
-
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glEnable(GL_BLEND);
 	
@@ -1280,7 +1275,6 @@ void QGLReceiverPanel::drawPanFilter() {
 }
 
 void QGLReceiverPanel::drawWaterfall() {
-
 	if (m_waterfallRect.isEmpty()) return;
 	
 	int top = m_waterfallRect.top();
@@ -1550,7 +1544,7 @@ void QGLReceiverPanel::drawCrossHair() {
 	}
 	else {
 
-		rectWidth = m_fonts.bigFont1Metrics->width(fstr);
+        rectWidth = m_fonts.bigFont1Metrics->horizontalAdvance(fstr);
 		fontHeight = m_fonts.bigFont1Metrics->tightBoundingRect("0").height() + spacing;
 	}
 
@@ -1646,7 +1640,7 @@ void QGLReceiverPanel::drawVFOControl() {
 	}
 	
 	// click VFO
-	x1 += m_fonts.smallFontMetrics->width(str) + 12;
+    x1 += m_fonts.smallFontMetrics->horizontalAdvance(str) + 12;
 	str = "CLICK VFO";
 
 	if (m_clickVFO) {
@@ -1669,7 +1663,7 @@ void QGLReceiverPanel::drawVFOControl() {
 
 	// FFT size
 		str = "sample size: %1";
-		x1 = m_panRect.right() - m_fonts.smallFontMetrics->width(str) - 65;
+        x1 = m_panRect.right() - m_fonts.smallFontMetrics->horizontalAdvance(str) - 65;
 
 		if (m_dataEngineState == QSDR::DataEngineUp) {
 				
@@ -1705,7 +1699,7 @@ void QGLReceiverPanel::drawVFOControl() {
 				s = "64k";
 				break;
 		}
-		x1 = m_panRect.right() - m_fonts.smallFontMetrics->width(str) - 5;
+        x1 = m_panRect.right() - m_fonts.smallFontMetrics->horizontalAdvance(str) - 5;
 
 		if (m_dataEngineState == QSDR::DataEngineUp) {
 				
@@ -1728,7 +1722,7 @@ void QGLReceiverPanel::drawVFOControl() {
 		int x = m_dBmScalePanRect.right();
 		int y = 25;
 
-		QRect rect = QRect(x, y, m_fonts.smallFontMetrics->width(str) + 4, m_fonts.fontHeightSmallFont + 2);
+        QRect rect = QRect(x, y, m_fonts.smallFontMetrics->horizontalAdvance(str) + 4, m_fonts.fontHeightSmallFont + 2);
 		drawGLRect(rect, col, 2.0f);
 		qglColor(QColor(255, 255, 255, 255));
 		m_oglTextSmall->renderText(x+1, y-2, 3.0f, str);
@@ -1740,10 +1734,10 @@ void QGLReceiverPanel::drawVFOControl() {
 		str = "%1 VFO >>";
 		str = str.arg(frequencyString(m_vfoFrequency, false));
 
-		int x = m_panRect.right() - m_fonts.smallFontMetrics->width(str);
+        int x = m_panRect.right() - m_fonts.smallFontMetrics->horizontalAdvance(str);
 		int y = 25;
 
-		QRect rect = QRect(x, y, m_fonts.smallFontMetrics->width(str) + 4, m_fonts.fontHeightSmallFont + 2);
+        QRect rect = QRect(x, y, m_fonts.smallFontMetrics->horizontalAdvance(str) + 4, m_fonts.fontHeightSmallFont + 2);
 		drawGLRect(rect, col, 2.0f);
 		qglColor(QColor(255, 255, 255, 255));
 		m_oglTextSmall->renderText(x+1, y-2, 3.0f, str);
@@ -1754,7 +1748,7 @@ void QGLReceiverPanel::drawVFOControl() {
 
 	// set Center = VFO frequency button
 	/*QColor col;
-	x1 += m_fonts.smallFontMetrics->width(str) + 7;
+    x1 += m_fonts.smallFontMetrics->horizontalAdvance(str) + 7;
 	str = "mid = vfo";
 
 	if (m_dataEngineState == QSDR::DataEngineUp) {
@@ -1772,14 +1766,14 @@ void QGLReceiverPanel::drawVFOControl() {
 	else
 		col = m_darkColor;
 	
-	m_midToVfoButtonRect = QRect(x1, y1, m_fonts.smallFontMetrics->width(str) + 5, m_fonts.fontHeightSmallFont + 2);
+    m_midToVfoButtonRect = QRect(x1, y1, m_fonts.smallFontMetrics->horizontalAdvance(str) + 5, m_fonts.fontHeightSmallFont + 2);
 	drawGLRect(m_midToVfoButtonRect, col, 2.0f);
 	qglColor(QColor(0, 0, 0));
 	m_oglTextSmall->renderFreqText(x1+1, y1-2, 3.0f, str);*/
 
 
 	// set VFO = Center frequency button
-	/*x1 += m_fonts.smallFontMetrics->width(str) + 7;
+    /*x1 += m_fonts.smallFontMetrics->horizontalAdvance(str) + 7;
 	str = "vfo = mid";
 	
 	if (m_dataEngineState == QSDR::DataEngineUp) {
@@ -1792,7 +1786,7 @@ void QGLReceiverPanel::drawVFOControl() {
 	else
 		col = m_darkColor;
 
-	m_vfoToMidButtonRect = QRect(x1, y1, m_fonts.smallFontMetrics->width(str) + 5, m_fonts.fontHeightSmallFont + 2);
+    m_vfoToMidButtonRect = QRect(x1, y1, m_fonts.smallFontMetrics->horizontalAdvance(str) + 5, m_fonts.fontHeightSmallFont + 2);
 	drawGLRect(m_vfoToMidButtonRect, col, 2.0f);
 	qglColor(QColor(0, 0, 0));
 	m_oglTextSmall->renderFreqText(x1+1, y1-2, 3.0f, str);*/
@@ -1858,7 +1852,7 @@ void QGLReceiverPanel::drawReceiverInfo() {
 	glDisable(GL_MULTISAMPLE);
 	if (m_panRect.height() > 15) {
 
-		int fLength = m_fonts.bigFont1Metrics->width("55.555.555") + 30;
+        int fLength = m_fonts.bigFont1Metrics->horizontalAdvance("55.555.555") + 30;
 		//GLint x = m_panRect.width()/2 - 65;
 		GLint x = m_panRect.left() + qRound((qreal)(m_panRect.width()/2.0f)  - m_deltaF * m_panRect.width() / m_freqScaleZoomFactor) + 10;
 		if (x > m_panRect.right() - fLength) x -= fLength + 20;
@@ -1910,40 +1904,40 @@ void QGLReceiverPanel::drawReceiverInfo() {
 		int x1 = x;
 		int y1 = 3;
 
-		rect = QRect(x1, y1, m_fonts.smallFontMetrics->width(str) + 4, m_fonts.fontHeightSmallFont + 2);
+        rect = QRect(x1, y1, m_fonts.smallFontMetrics->horizontalAdvance(str) + 4, m_fonts.fontHeightSmallFont + 2);
 		drawGLRect(rect, colFlt, 2.0f);
 		qglColor(QColor(0, 0, 0));
 		m_oglTextSmall->renderText(x1+1, y1-2, 3.0f, str);
 
 		// DSP mode
-		x1 += m_fonts.smallFontMetrics->width(str) + 5;
+        x1 += m_fonts.smallFontMetrics->horizontalAdvance(str) + 5;
 
 		str = "%1";
 		str = str.arg(m_dspModeString);
 		
-		rect = QRect(x1, y1, m_fonts.smallFontMetrics->width(str) + 3, m_fonts.fontHeightSmallFont + 2);
+        rect = QRect(x1, y1, m_fonts.smallFontMetrics->horizontalAdvance(str) + 3, m_fonts.fontHeightSmallFont + 2);
 		drawGLRect(rect, colDSP, 2.0f);
 		qglColor(QColor(0, 0, 0));
 		m_oglTextSmall->renderText(x1+1, y1-2, 3.0f, str);
 
 		// AGC mode
-		x1 += m_fonts.smallFontMetrics->width(str) + 4;
+        x1 += m_fonts.smallFontMetrics->horizontalAdvance(str) + 4;
 
 		str = "%1";
 		str = str.arg(m_agcModeString);
 
-		rect = QRect(x1, y1, m_fonts.smallFontMetrics->width(str) + 4, m_fonts.fontHeightSmallFont + 2);
+        rect = QRect(x1, y1, m_fonts.smallFontMetrics->horizontalAdvance(str) + 4, m_fonts.fontHeightSmallFont + 2);
 		drawGLRect(rect, colAGC, 2.0f);
 		qglColor(QColor(0, 0, 0));
 		m_oglTextSmall->renderText(x1+1, y1-2, 3.0f, str);
 
 		// ADC mode
-		x1 += m_fonts.smallFontMetrics->width(str) + 4;
+        x1 += m_fonts.smallFontMetrics->horizontalAdvance(str) + 4;
 
 		str = "%1";
 		str = str.arg(m_adcModeString);
 
-		rect = QRect(x1, y1, m_fonts.smallFontMetrics->width(str) + 4, m_fonts.fontHeightSmallFont + 2);
+        rect = QRect(x1, y1, m_fonts.smallFontMetrics->horizontalAdvance(str) + 4, m_fonts.fontHeightSmallFont + 2);
 		drawGLRect(rect, colADC, 2.0f);
 		qglColor(QColor(0, 0, 0));
 		m_oglTextSmall->renderText(x1+1, y1-2, 3.0f, str);
@@ -1958,7 +1952,7 @@ void QGLReceiverPanel::drawReceiverInfo() {
 		int f2 = f.freqkHz;
 
 		QString fstr = str.arg(f1/1000).arg(f1 - 1000 * (int)(f1/1000), 3, 10, QLatin1Char('0'));
-		//int fLength = m_fonts.bigFont1Metrics->width(fstr) + 55;
+        //int fLength = m_fonts.bigFont1Metrics->horizontalAdvance(fstr) + 55;
 
         glColor4f(0, 0, 0, alpha);
 		m_oglTextBig1->renderText(x+2, 14, 4.0f, fstr);
@@ -2244,9 +2238,9 @@ void QGLReceiverPanel::renderPanHorizontalScale() {
 	QRect scaledTextRect(0, textOffset_y, 1, m_freqScalePanRect.height());
 
 	if (m_smallSize)
-		scaledTextRect.setWidth(m_fonts.smallFontMetrics->width(fstr));
+        scaledTextRect.setWidth(m_fonts.smallFontMetrics->horizontalAdvance(fstr));
 	else
-		scaledTextRect.setWidth(m_fonts.bigFont1Metrics->width(fstr));
+        scaledTextRect.setWidth(m_fonts.bigFont1Metrics->horizontalAdvance(fstr));
 
 	scaledTextRect.moveLeft(m_freqScalePanRect.width() - scaledTextRect.width());
 
@@ -2280,9 +2274,9 @@ void QGLReceiverPanel::renderPanHorizontalScale() {
 
 			int textWidth;
 			if (m_smallSize)
-				textWidth = m_fonts.smallFontMetrics->width(str);
+                textWidth = m_fonts.smallFontMetrics->horizontalAdvance(str);
 			else
-				textWidth = m_fonts.bigFont1Metrics->width(str);
+                textWidth = m_fonts.bigFont1Metrics->horizontalAdvance(str);
 			QRect textRect(m_frequencyScale.mainPointPositions.at(i) + offset_X - (textWidth / 2), textOffset_y, textWidth, fontHeight);
 
 			if (textRect.left() < 0 || textRect.right() >= scaledTextRect.left()) continue;
@@ -2562,7 +2556,6 @@ void QGLReceiverPanel::getRegion(QPoint p) {
 		m_mouseDownFixedGainLevel = -m_agcFixedGain;
 	}
 	else if (m_panRect.contains(p)) {
-
 		m_mouseRegion = panadapterRegion;
 	}
 	else if (m_waterfallRect.contains(p)) {
@@ -2572,7 +2565,6 @@ void QGLReceiverPanel::getRegion(QPoint p) {
 	}
 	else
 		m_mouseRegion = elsewhere;
-
 	//GRAPHICS_DEBUG << "region" << m_mouseRegion;
 }
 
@@ -2709,7 +2701,7 @@ void QGLReceiverPanel::showText(float x, float y, float z = 0.0f, const QString 
 //********************************************************************
 // HMI control
  
-void QGLReceiverPanel::enterEvent(QEvent *event) {
+void QGLReceiverPanel::enterEvent(QEnterEvent *event) {
 
 	setFocus(Qt::MouseFocusReason);
 
@@ -2721,7 +2713,7 @@ void QGLReceiverPanel::enterEvent(QEvent *event) {
 	QOpenGLWidget::enterEvent(event);
 }
 
-void QGLReceiverPanel::leaveEvent(QEvent *event) {
+void QGLReceiverPanel::leaveEvent(QEnterEvent *event) {
 
 	m_mousePos = QPoint(-100, -100);
 	m_mouseRegion = elsewhere;
@@ -2729,12 +2721,9 @@ void QGLReceiverPanel::leaveEvent(QEvent *event) {
 }
 
 void QGLReceiverPanel::wheelEvent(QWheelEvent* event) {
-	
-	//GRAPHICS_DEBUG << "wheelEvent";
-	QPoint pos = event->pos();
 
-	if (event->buttons() == Qt::NoButton) getRegion(pos);
-
+    QPoint pos = event->angleDelta();
+    getRegion(event->position().toPoint());  // mouse pos set by mouseMoveEvent
 	double freqStep = set->getMouseWheelFreqStep(m_currentReceiver);
 
 	switch (m_mouseRegion) {
@@ -2746,9 +2735,9 @@ void QGLReceiverPanel::wheelEvent(QWheelEvent* event) {
 		case filterRegionHigh:
 
 			double delta = 0;
-			if (event->delta() < 0)
+            if (event->angleDelta().y() < 0)
 				delta = -freqStep;
-			else if (event->delta() > 0)
+            else if (event->angleDelta().y() > 0)
 				delta =  freqStep;
 
 			if (!m_panLocked) {
@@ -2780,7 +2769,6 @@ void QGLReceiverPanel::wheelEvent(QWheelEvent* event) {
 			
 			set->setCtrFrequency(this, 0, m_receiver, m_centerFrequency);
 			set->setVFOFrequency(this, 0, m_receiver, m_vfoFrequency);
-
 			break;
 	}
 
@@ -2910,12 +2898,9 @@ void QGLReceiverPanel::mouseDoubleClickEvent(QMouseEvent *event) {
 }
 
 void QGLReceiverPanel::mouseMoveEvent(QMouseEvent* event) {
-	
-	//GRAPHICS_DEBUG << "mouseMoveEvent";
-	QPoint pos = event->pos();
 	m_mousePos = event->pos();
 
-	if (event->buttons() == Qt::NoButton) getRegion(pos);
+    if (event->buttons() == Qt::NoButton) getRegion(m_mousePos);
 	
 	switch (m_mouseRegion) {
 
@@ -2938,7 +2923,7 @@ void QGLReceiverPanel::mouseMoveEvent(QMouseEvent* event) {
 
 			if (event->buttons() == Qt::LeftButton) {
 
-				QPoint dPos = m_mouseDownPos - pos;
+                QPoint dPos = m_mouseDownPos - m_mousePos;
 
 				qreal unit = qAbs(m_dBmPanMax - m_dBmPanMin) / m_panRect.height();
 				qreal dAGCThreshold =  dPos.y() * unit;
@@ -2966,7 +2951,7 @@ void QGLReceiverPanel::mouseMoveEvent(QMouseEvent* event) {
 
 			if (event->buttons() == Qt::LeftButton) {
 
-				QPoint dPos = m_mouseDownPos - pos;
+                QPoint dPos = m_mouseDownPos - m_mousePos;
 
 				qreal unit = qAbs(m_dBmPanMax - m_dBmPanMin) / m_panRect.height();
 				qreal dAGCThreshold =  dPos.y() * unit;
@@ -2993,7 +2978,7 @@ void QGLReceiverPanel::mouseMoveEvent(QMouseEvent* event) {
 
 			if (event->buttons() == Qt::LeftButton) {
 
-				QPoint dPos = m_mouseDownPos - pos;
+                QPoint dPos = m_mouseDownPos - m_mousePos;
 
 				qreal unit = qAbs(m_dBmPanMax - m_dBmPanMin) / m_panRect.height();
 				qreal dAGCFixedGain =  dPos.y() * unit;
@@ -3025,7 +3010,7 @@ void QGLReceiverPanel::mouseMoveEvent(QMouseEvent* event) {
 			
 			if (event->buttons() == Qt::LeftButton) {
 
-				QPoint dPos = m_mouseDownPos - pos;
+                QPoint dPos = m_mouseDownPos - m_mousePos;
 				
 				qreal unit = (qreal)((m_sampleRate * m_freqScaleZoomFactor) / m_freqScalePanRect.width());
 				qreal deltaFreq = unit * dPos.x();
@@ -3066,7 +3051,7 @@ void QGLReceiverPanel::mouseMoveEvent(QMouseEvent* event) {
 					set->setCtrFrequency(this, 0, m_receiver, m_centerFrequency);
 				}
 
-				m_mouseDownPos = pos;
+                m_mouseDownPos = m_mousePos;
 
 				m_displayCenterlineHeight = m_panRect.top() + (m_panRect.height() - 3);
 
@@ -3112,7 +3097,7 @@ void QGLReceiverPanel::mouseMoveEvent(QMouseEvent* event) {
 			//GRAPHICS_DEBUG << "dBmScalePanadapterRegion";
 			if (event->buttons() == Qt::LeftButton) {
 
-				QPoint dPos = m_mouseDownPos - pos;
+                QPoint dPos = m_mouseDownPos - m_mousePos;
 				qreal unit = (qreal)(qAbs(m_dBmPanMax - m_dBmPanMin) / m_panRect.height());
 				
 				qreal newMin = m_dBmPanMin - unit * dPos.y();
@@ -3127,7 +3112,7 @@ void QGLReceiverPanel::mouseMoveEvent(QMouseEvent* event) {
 					set->setdBmPanScaleMax(m_receiver, m_dBmPanMax);
 				}
 				
-				m_mouseDownPos = pos;
+                m_mouseDownPos = m_mousePos;
 				m_dBmScalePanadapterUpdate = true;
 				m_panGridUpdate = true;
 
@@ -3141,7 +3126,7 @@ void QGLReceiverPanel::mouseMoveEvent(QMouseEvent* event) {
 			if (event->buttons() == Qt::RightButton &&
 				event->modifiers() == Qt::ControlModifier) {
 
-				QPoint dPos = m_mouseDownPos - pos;
+                QPoint dPos = m_mouseDownPos - m_mousePos;
 				if (dPos.y() > 0)
 					m_dBmPanDelta = 0.5f;
 				else if (dPos.y() < 0)
@@ -3161,7 +3146,7 @@ void QGLReceiverPanel::mouseMoveEvent(QMouseEvent* event) {
 				set->setdBmPanScaleMin(m_receiver, m_dBmPanMin);
 				set->setdBmPanScaleMax(m_receiver, m_dBmPanMax);
 
-				m_mouseDownPos = pos;
+                m_mouseDownPos = m_mousePos;
 				m_dBmScalePanadapterUpdate = true;
 				m_panGridUpdate = true;
 
@@ -3173,7 +3158,7 @@ void QGLReceiverPanel::mouseMoveEvent(QMouseEvent* event) {
 			}
 			if (event->buttons() == Qt::RightButton) {
 
-				QPoint dPos = m_mouseDownPos - pos;
+                QPoint dPos = m_mouseDownPos - m_mousePos;
 				if (dPos.y() > 0)
 					m_dBmPanDelta = 0.5f;
 				else if (dPos.y() < 0)
@@ -3192,7 +3177,7 @@ void QGLReceiverPanel::mouseMoveEvent(QMouseEvent* event) {
 				set->setdBmPanScaleMin(m_receiver, m_dBmPanMin);
 				set->setdBmPanScaleMax(m_receiver, m_dBmPanMax);
 
-				m_mouseDownPos = pos;
+                m_mouseDownPos = m_mousePos;
 				m_dBmScalePanadapterUpdate = true;
 				m_panGridUpdate = true;
 
@@ -3219,7 +3204,7 @@ void QGLReceiverPanel::mouseMoveEvent(QMouseEvent* event) {
 			if (event->buttons() == Qt::LeftButton &&
 				event->modifiers() == Qt::ShiftModifier) {
 				
-				QPoint dPos = m_mouseDownPos - pos;
+                QPoint dPos = m_mouseDownPos - m_mousePos;
 				int bottom_y = height() - m_freqScalePanRect.height();
 				int new_y = m_rulerMouseDownPos.y() - dPos.y();
 				
@@ -3239,7 +3224,7 @@ void QGLReceiverPanel::mouseMoveEvent(QMouseEvent* event) {
 			}
 			else if (event->buttons() == Qt::LeftButton) {
 
-				QPoint dPos = m_mouseDownPos - pos;
+                QPoint dPos = m_mouseDownPos - m_mousePos;
 				
 				qreal unit = (qreal)((m_sampleRate * m_freqScaleZoomFactor) / m_freqScalePanRect.width());
 				qreal deltaFreq = unit * dPos.x();
@@ -3284,7 +3269,7 @@ void QGLReceiverPanel::mouseMoveEvent(QMouseEvent* event) {
 
 					//set->setCtrFrequency(this, 0, m_receiver, m_centerFrequency);
 				//}
-				m_mouseDownPos = pos;
+                m_mouseDownPos = m_mousePos;
 
 				m_displayCenterlineHeight = m_panRect.top() + (m_panRect.height() - 3);
 
@@ -3295,7 +3280,7 @@ void QGLReceiverPanel::mouseMoveEvent(QMouseEvent* event) {
 			else
 			if (event->buttons() == Qt::RightButton) {
 
-				QPoint dPos = m_mouseDownPos - pos;
+                QPoint dPos = m_mouseDownPos - m_mousePos;
 				if (dPos.x() > 0)
 					m_freqScaleZoomFactor += 0.01;
 				else if (dPos.x() < 0)
@@ -3305,7 +3290,7 @@ void QGLReceiverPanel::mouseMoveEvent(QMouseEvent* event) {
 				if (m_freqScaleZoomFactor < 0.05) m_freqScaleZoomFactor = 0.05;
 				//if (m_freqScaleZoomFactor < 0.15) m_freqScaleZoomFactor = 0.15;
 
-				m_mouseDownPos = pos;
+                m_mouseDownPos = m_mousePos;
 				m_freqScalePanadapterUpdate = true;
 				m_panGridUpdate = true;
 
@@ -3329,7 +3314,7 @@ void QGLReceiverPanel::mouseMoveEvent(QMouseEvent* event) {
 			m_showFilterLeftBoundary = true;
 			if (event->buttons() == Qt::LeftButton) {
 
-				QPoint dPos = m_mouseDownPos - pos;
+                QPoint dPos = m_mouseDownPos - m_mousePos;
 				qreal dFreq = (qreal)(dPos.x() * m_sampleRate * m_freqScaleZoomFactor) / m_panRect.width();
 
 				m_filterLowerFrequency = qRound(m_mouseDownFilterFrequencyLo - dFreq);
@@ -3351,7 +3336,7 @@ void QGLReceiverPanel::mouseMoveEvent(QMouseEvent* event) {
 			m_showFilterRightBoundary = true;
 			if (event->buttons() == Qt::LeftButton) {
 
-				QPoint dPos = m_mouseDownPos - pos;
+                QPoint dPos = m_mouseDownPos - m_mousePos;
 				qreal dFreq = (qreal)(dPos.x() * m_sampleRate * m_freqScaleZoomFactor) / m_panRect.width();
 
 				m_filterUpperFrequency = qRound(m_mouseDownFilterFrequencyHi - dFreq);
@@ -3375,7 +3360,7 @@ void QGLReceiverPanel::mouseMoveEvent(QMouseEvent* event) {
 			if (event->buttons() == Qt::LeftButton) {
 
 				m_highlightFilter = true;
-				QPoint dPos = m_mouseDownPos - pos;
+                QPoint dPos = m_mouseDownPos - m_mousePos;
 				qreal dFreq = (qreal)(dPos.x() * m_sampleRate * m_freqScaleZoomFactor) / m_panRect.width();
 
 				m_filterUpperFrequency = qRound(m_mouseDownFilterFrequencyHi - dFreq);
@@ -3443,7 +3428,7 @@ void QGLReceiverPanel::keyPressEvent(QKeyEvent* event) {
 //	update();
 }
 
-//void QGLReceiverPanel::timerEvent(QTimerEvent *) {
+//void QGLReceiverPanel::timerEvent(QElapsedTimerrEvent *) {
 //
 //	update();
 //}
@@ -4198,7 +4183,7 @@ void QGLReceiverPanel::setHamBand(QObject *sender, int rx, bool byButton, HamBan
 void QGLReceiverPanel::setADCStatus(int value) {
 
 	m_adcStatus = value;
-	QTimer::singleShot(50, this, SLOT(updateADCStatus()));
+    QTimer::singleShot(50, this, SLOT(updateADCStatus()));
 }
 
 void QGLReceiverPanel::updateADCStatus() {

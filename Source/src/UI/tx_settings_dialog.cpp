@@ -32,14 +32,7 @@ tx_settings_dialog::tx_settings_dialog(QWidget *parent) :
 
     ui->audiodevlist->clear();
     ui->audiodevlist->addItem("HPSDR Mic Input");
-    for( int i=0; i<set->numDevices; i++ )
-    {
-        set->deviceInfo = Pa_GetDeviceInfo( i );
-        paDeviceList.append(QString(set->deviceInfo->name));
-        ui->audiodevlist->addItem(QString(set->deviceInfo->name));
-        qDebug() << "PA device " << set->deviceInfo->name;
 
-    }
     ui->audiodevlist->setCurrentIndex(set->getMicInputDev());
     ui->sidetone_freq->setValue(set->getCwSidetoneFreq());
     ui->sidetone_volume->setValue(set->getCwSidetoneVolume());

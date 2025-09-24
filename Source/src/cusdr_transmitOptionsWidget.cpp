@@ -61,7 +61,7 @@ TransmitOptionsWidget::TransmitOptionsWidget(QWidget *parent)
 
 	QBoxLayout *mainLayout = new QBoxLayout(QBoxLayout::TopToBottom, this);
 	mainLayout->setSpacing(5);
-	mainLayout->setMargin(0);
+    mainLayout->setContentsMargins(0,0,0,0);
 	mainLayout->addSpacing(8);
     mainLayout->setSizeConstraint(QLayout::SetMaximumSize);
 
@@ -290,20 +290,10 @@ void TransmitOptionsWidget::createSourceGroup() {
     sourceGroup->setStyleSheet(set->getWidgetStyle());
     sourceGroup->setFont(QFont("Arial", 10));
 
-    /*populate input selector*/
-    Pa_Initialize();
-    const   PaDeviceInfo *deviceInfo;
-    micInputComboBox->clear();
-    micInputComboBox->addItem("HPSDR Mic Input");
-    PaDeviceIndex numDevices = Pa_GetDeviceCount();
-    for( int i=0; i<numDevices; i++ )
-    {
-        deviceInfo = Pa_GetDeviceInfo( i );
-        paDeviceList.append(QString(deviceInfo->name));
-        micInputComboBox->addItem(QString(deviceInfo->name));
+  //SettingsDialog::      micInputComboBox->addItem(QString(deviceInfo->name));
 
-    }
-     micInputComboBox->setCurrentIndex(set->getMicInputDev());
+
+//     micInputComboBox->setCurrentIndex(set->getMicInputDev());
 
 }
 

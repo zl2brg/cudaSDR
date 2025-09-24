@@ -67,7 +67,7 @@ void QHLed::setLEDText(const QString& text) {
 QSize QHLed::minimumSizeHint(void) const {
 
 	QFontMetrics fontMetrics(QFont("Arial", 8, QFont::Bold));
-	int width = fontMetrics.width(text()) + 12;
+    int width = fontMetrics.horizontalAdvance(text()) + 12;
 	return(QSize(width, 13));
 }
 

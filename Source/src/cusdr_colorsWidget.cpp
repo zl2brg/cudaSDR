@@ -67,12 +67,12 @@ ColorOptionsWidget::ColorOptionsWidget(QWidget *parent)
 
     mainLayout = new QBoxLayout(QBoxLayout::TopToBottom, this);
 	mainLayout->setSpacing(5);
-	mainLayout->setMargin(0);
+    mainLayout->setContentsMargins(0,0,0,0);
 	mainLayout->addSpacing(8);
 
     hbox1 = new QHBoxLayout;
 	hbox1->setSpacing(0);
-	hbox1->setMargin(0);
+    hbox1->setContentsMargins(0,0,0,0);
 	hbox1->addStretch();
 	hbox1->addWidget(m_colorChooserWidget);
 	hbox1->addStretch();

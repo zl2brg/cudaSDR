@@ -86,42 +86,42 @@ DisplayOptionsWidget::DisplayOptionsWidget(QWidget *parent)
 
 	QBoxLayout *mainLayout = new QBoxLayout(QBoxLayout::TopToBottom, this);
 	mainLayout->setSpacing(5);
-	mainLayout->setMargin(0);
+    mainLayout->setContentsMargins(0,0,0,0);
 	mainLayout->addSpacing(8);
 
 	QHBoxLayout *hbox1 = new QHBoxLayout;
 	hbox1->setSpacing(0);
-	hbox1->setMargin(0);
+    hbox1->setContentsMargins(0,0,0,0);
 	hbox1->addStretch();
 	hbox1->addWidget(m_fpsGroupBox);
 
 	QHBoxLayout *hbox2 = new QHBoxLayout;
 	hbox2->setSpacing(0);
-	hbox2->setMargin(0);
+    hbox2->setContentsMargins(0,0,0,0);
 	hbox2->addStretch();
 	hbox2->addWidget(m_panSpectrumOptions);
 
 	QHBoxLayout *hbox3 = new QHBoxLayout;
 	hbox3->setSpacing(0);
-	hbox3->setMargin(0);
+    hbox3->setContentsMargins(0,0,0,0);
 	hbox3->addStretch();
 	hbox3->addWidget(m_widebandPanOptions);
 	
 	QHBoxLayout *hbox4 = new QHBoxLayout;
 	hbox4->setSpacing(0);
-	hbox4->setMargin(0);
+    hbox4->setContentsMargins(0,0,0,0);
 	hbox4->addStretch();
 	hbox4->addWidget(m_waterfallSpectrumOptions);
 
 	QHBoxLayout *hbox5 = new QHBoxLayout;
 	hbox5->setSpacing(0);
-	hbox5->setMargin(0);
+    hbox5->setContentsMargins(0,0,0,0);
 	hbox5->addStretch();
 	hbox5->addWidget(m_sMeterOptions);
 
 	QHBoxLayout *hbox6 = new QHBoxLayout;
 	hbox6->setSpacing(0);
-	hbox6->setMargin(0);
+    hbox6->setContentsMargins(0,0,0,0);
 	hbox6->addStretch();
 	hbox6->addWidget(m_callSignEditor);
 	hbox6->addStretch();
@@ -306,7 +306,7 @@ void DisplayOptionsWidget::createFPSGroupBox() {
 
 	QHBoxLayout *hbox = new QHBoxLayout;
 	hbox->setSpacing(0);
-	hbox->setMargin(0);
+    hbox->setContentsMargins(0,0,0,0);
 	hbox->addStretch();
 	hbox->addWidget(m_fpsSlider);
 	hbox->addWidget(m_fpsLevelLabel);
@@ -470,7 +470,7 @@ void DisplayOptionsWidget::createPanSpectrumOptions() {
 
 	QHBoxLayout *hbox2 = new QHBoxLayout;
 	hbox2->setSpacing(0);
-	hbox2->setMargin(0);
+    hbox2->setContentsMargins(0,0,0,0);
 	hbox2->addWidget(m_avgLabel);
 	hbox2->addStretch();
 	hbox2->addWidget(m_avgSlider);
@@ -478,25 +478,25 @@ void DisplayOptionsWidget::createPanSpectrumOptions() {
 
     QHBoxLayout* hbox3 = new QHBoxLayout;
     hbox3->setSpacing(0);
-    hbox3->setMargin(0);
+    hbox3->setContentsMargins(0,0,0,0);
     hbox3->addWidget(m_panAvgModeLabel);
     hbox3->addWidget(m_panAverageCombo);
 
     QHBoxLayout* hbox4 = new QHBoxLayout;
     hbox4->setSpacing(0);
-    hbox4->setMargin(0);
+    hbox4->setContentsMargins(0,0,0,0);
     hbox4->addWidget(m_panDetModeLabel);
     hbox4->addWidget(m_panDetectorCombo);
 
 	QHBoxLayout* hbox5 = new QHBoxLayout;
 	hbox5->setSpacing(0);
-	hbox5->setMargin(0);
+    hbox5->setContentsMargins(0,0,0,0);
 	hbox5->addWidget(m_fftLabel);
 	hbox5->addWidget(m_fftSizeCombo);
 
 	QHBoxLayout* hbox6 = new QHBoxLayout;
 	hbox6->setSpacing(0);
-	hbox6->setMargin(0);
+    hbox6->setContentsMargins(0,0,0,0);
 	hbox6->addWidget(m_sqlabel);
 	hbox6->addWidget(m_fmSqlevel);
 
@@ -613,7 +613,7 @@ void DisplayOptionsWidget::createWidebandPanOptions() {
 
 	QHBoxLayout* hbox2 = new QHBoxLayout;
 	hbox2->setSpacing(0);
-	hbox2->setMargin(0);
+    hbox2->setContentsMargins(0,0,0,0);
 	hbox2->addWidget(m_wbAvgLabel);
 	hbox2->addStretch();
 	hbox2->addWidget(m_wbAvgSlider);

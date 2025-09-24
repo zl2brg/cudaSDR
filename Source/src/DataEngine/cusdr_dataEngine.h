@@ -60,7 +60,7 @@
 #include "QtWDSP/qtwdsp_dspEngine.h"
 #include "cusdr_WidebandProcessor.h"
 #include "cusdr_transmitter.h"
-#include "AudioEngine/cusdr_audio_input.h"
+#include "AudioEngine/audioinput.h"
 #include "AudioEngine/cusdr_iambic.h"
 
 #define LOG_DATA_PROCESSOR
@@ -109,12 +109,11 @@ public:
 	THPSDRParameter		io;
 
     Transmitter         TX;
-    QList<Receiver *>	RX;
-	QList<qreal>		chirpData;
+    QList<Receiver*> 	RX;
 
 	QUdpSocket*			sendSocket{};
 	DataIO*				m_dataIO;
-    PAudioInput *       m_audioInput;
+    AudioInput *       m_audioInput;
     iambic *            m_cwIO;
     bool                m_internal_cw;
     bool                m_cw_key_reversed;
@@ -343,11 +342,7 @@ private:
 	float	m_sMeterCalibrationOffset;
 	float	m_micSample_float{};
 	float	m_spectrumBuffer[SAMPLE_BUFFER_SIZE]{};
-
-	qint64		m_audioFileBufferPosition{};
-    qint64		m_audioFileBufferLength{};
-	QByteArray	m_audioFileBuffer;
-
+    double  cw_txBuffer[SAMPLE_BUFFER_SIZE * 4];
 
 	float	getFilterSizeCalibrationOffset();
 
@@ -412,7 +407,7 @@ public:
 		QSDR::_HWInterfaceMode hwMode = QSDR::NoInterfaceMode);
     int tx_index =0;
     double get_cwsample();
-    void add_rx_audio_sample(qint16 leftRXSample, qint16 rightRXSample);
+    void add_rx_audio_sample();
 
 	~DataProcessor() override;
 
@@ -421,12 +416,12 @@ public slots:
 	void	processReadData();
 	void	processDeviceData();
     void    processMicData();
+    void	displayDataProcessorSocketError(QAbstractSocket::SocketError error);
 
 
 
 private slots:
 	void	initDataProcessorSocket();
-	static void	displayDataProcessorSocketError(QAbstractSocket::SocketError error);
 	void	processInputBuffer(const QByteArray &buffer);
 	void	processOutputBuffer(const CPX &buffer);
 	void	decodeCCBytes(const QByteArray &buffer);
@@ -466,8 +461,8 @@ private:
     double          cw_shape_buffer[DSP_SAMPLE_SIZE * 2];
 
 
-	QTime			m_SyncChangedTime;
-	QTime			m_ADCChangedTime;
+    QElapsedTimer	m_SyncChangedTime;
+    QElapsedTimer	m_ADCChangedTime;
 
 	bool			m_socketConnected;
 	bool			m_setNetworkDeviceHeader;

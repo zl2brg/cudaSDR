@@ -33,10 +33,10 @@
 //#include <QtGui>
 #include <QDebug>
 //#include <QFileInfo>
-//#include <QTimer>
+//#include <QElapsedTimerr>
 //#include <QImage>
 //#include <QString>
-//#include <QGLFramebufferObject>
+//#include <QOpenGLFramebufferObject>
 
 #ifndef GL_MULTISAMPLE
 #define GL_MULTISAMPLE  0x809D
@@ -71,9 +71,6 @@ QGLWidebandPanel::QGLWidebandPanel(QWidget *parent)
 		, m_dBmScaleOffset(0.0)
 {
 //	QGL::setPreferredPaintEngine(QPaintEngine::OpenGL);
-
-    painter = new QPainter(this);
-
 
 	setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
@@ -129,10 +126,6 @@ QGLWidebandPanel::QGLWidebandPanel(QWidget *parent)
 	else
 		m_scale = 1.0f;
 
-	m_frequencyScaleFBO = 0;
-	m_dBmScaleFBO = 0;
-	m_gridFBO = 0;
-
 
 	m_gridColor = set->getPanadapterColors().gridLineColor;
 
@@ -168,24 +161,7 @@ QGLWidebandPanel::~QGLWidebandPanel() {
 	while (!specAv_queue.isEmpty())
 		specAv_queue.dequeue();
 
-	if (m_frequencyScaleFBO) {
 
-		delete m_frequencyScaleFBO;
-		m_frequencyScaleFBO = 0;
-	}
-
-	if (m_dBmScaleFBO) {
-
-		delete m_dBmScaleFBO;
-		m_dBmScaleFBO = 0;
-	}
-
-	if (m_gridFBO) {
-
-		delete m_gridFBO;
-		m_gridFBO = 0;
-	}
-    delete painter;
     delete m_oglTextTiny;
     delete m_oglTextSmall;
     delete m_oglTextNormal;
@@ -313,6 +289,7 @@ void QGLWidebandPanel::initializeGL() {
 }
 
 void QGLWidebandPanel::paintGL() {
+
     QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
     f->glClear(GL_COLOR_BUFFER_BIT);
 	switch (m_serverMode) {
@@ -761,7 +738,7 @@ void QGLWidebandPanel::drawVerticalScale() {
 				m_dBmScaleFBO = 0;
 			}
 
-			m_dBmScaleFBO = new QGLFramebufferObject(width, height);//, format);
+            m_dBmScaleFBO = new QOpenGLFramebufferObject(width, height);//, format);
 			//WBGRAPHICS_DEBUG << "dBmScaleFBO generated.";
 		}
 
@@ -807,7 +784,7 @@ void QGLWidebandPanel::drawHorizontalScale() {
 				m_frequencyScaleFBO = 0;
 			}
 
-			m_frequencyScaleFBO = new QGLFramebufferObject(width, height);//, format);
+            m_frequencyScaleFBO = new QOpenGLFramebufferObject(width, height);//, format);
 			//WBGRAPHICS_DEBUG << "wb-frequencyScaleFBO generated.";
 		}
 
@@ -857,7 +834,7 @@ void QGLWidebandPanel::drawGrid() {
 				m_gridFBO = 0;
 			}
 
-			m_gridFBO = new QGLFramebufferObject(width, height);//, format);
+            m_gridFBO = new QOpenGLFramebufferObject(width, height);//, format);
 			//WBGRAPHICS_DEBUG << "gridFBO generated.";
 		}
 
@@ -891,6 +868,7 @@ void QGLWidebandPanel::drawCrossHair() {
 
 	int x = m_mousePos.x();
 	int y = m_mousePos.y();
+    QPainter *painter = new QPainter();
 
 	painter->begin(this);
 	painter->setRenderHint(QPainter::Antialiasing);
@@ -927,7 +905,6 @@ void QGLWidebandPanel::drawCrossHair() {
             painter->drawText(x + 4, y + 16,str);
 	}
     painter->end();
-    restoreGLState();
 
 }
 
@@ -936,6 +913,8 @@ void QGLWidebandPanel::drawHamBand(
 		int hi,
 		const QString &band
 ) {
+    QPainter painter(this);
+    painter.beginNativePainting();
     glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
@@ -949,18 +928,13 @@ void QGLWidebandPanel::drawHamBand(
 	colorGradient.setSpread(QGradient::PadSpread);
 	colorGradient.setColorAt(0, QColor((int)(255 * m_bkgRed), (int)(255 * m_bkgGreen), (int)(255 * m_bkgBlue), 80));
 	colorGradient.setColorAt(1, QColor((int)(255 * m_bkgRed), (int)(255 * m_bkgGreen), (int)(255 * m_bkgBlue), 40));
-	saveGLState();
-	painter->begin(this);
-	painter->fillRect(rect,colorGradient);
+    painter.endNativePainting();
+    painter.fillRect(rect,colorGradient);
     int fontWidth = m_fonts.smallFontMetrics->boundingRect(band).width();
-    painter->setPen(QPen(QColor(255,255,255,180)));
-    painter->setFont(m_oglTextNormal->font());
-    painter->drawText((x2 + x1 - fontWidth)/2 , y1 +  m_fonts.smallFontMetrics->height() , band);
- 	painter->end();
-	restoreGLState();
-
-
-
+    painter.setPen(QPen(QColor(255,255,255,180)));
+    painter.setFont(m_oglTextNormal->font());
+    painter.drawText((x2 + x1 - fontWidth)/2 , y1 +  m_fonts.smallFontMetrics->height() , band);
+    painter.end();
 }
 
 //************************************************************************
@@ -970,6 +944,20 @@ void QGLWidebandPanel::drawHamBand(
 void QGLWidebandPanel::renderVerticalScale() {
 
 	QString str;
+    if (!m_dBmScaleFBO->bind()) {
+        qWarning() << "Failed to bind FBO!";
+        return;
+    }
+    QOpenGLPaintDevice paintDevice(m_dBmScaleFBO->size());
+
+    QPainter painter(&paintDevice);
+    if (!painter.isActive()) {
+        qWarning() << "Failed to begin painting on FBO!";
+        m_dBmScaleFBO->release(); // Clean up before returning
+        return;
+    }
+
+    painter.beginNativePainting();
 	//QFontMetrics d_fm(m_smallFont);
 	int spacing = 6;
 	int fontHeight = m_fonts.smallFontMetrics->tightBoundingRect(".0dBm").height() + spacing;
@@ -992,26 +980,25 @@ void QGLWidebandPanel::renderVerticalScale() {
 	
 	// draw the scale background
 	drawGLScaleBackground(QRect(0, 0, width, height), QColor(30, 30, 30, 180));
+    painter.endNativePainting();
 
-    saveGLState();
-    painter->begin(m_dBmScaleFBO);
-    painter->setRenderHint(QPainter::Antialiasing);
-    painter->setPen(QPen(QColor(165,193,206),1, Qt::SolidLine, Qt::FlatCap));
+    painter.setRenderHint(QPainter::Antialiasing);
+    painter.setPen(QPen(QColor(165,193,206),1, Qt::SolidLine, Qt::FlatCap));
 	if (len > 0) {
 		for (int i = 0; i < len; i++) {
-		    painter->drawLine(0, m_dBmScale.mainPointPositions.at(i),4,m_dBmScale.mainPointPositions.at(i));
+            painter.drawLine(0, m_dBmScale.mainPointPositions.at(i),4,m_dBmScale.mainPointPositions.at(i));
   		}
-    painter->setPen(QPen(QColor(114,142,232),1, Qt::SolidLine, Qt::FlatCap));
+    painter.setPen(QPen(QColor(114,142,232),1, Qt::SolidLine, Qt::FlatCap));
 		if (sublen > 0) {
 
 			for (int i = 1; i < sublen; i++) {
-               painter->drawLine(0,m_dBmScale.subPointPositions.at(i),2,m_dBmScale.subPointPositions.at(i));
+               painter.drawLine(0,m_dBmScale.subPointPositions.at(i),2,m_dBmScale.subPointPositions.at(i));
 			}
 		}
 
 		//glColor3f(0.75f, 0.86f, 0.91f);
-    painter->setPen(QPen(QColor(191,219,232)));
-    painter->setFont(m_oglTextNormal->font());
+    painter.setPen(QPen(QColor(191,219,232)));
+    painter.setFont(m_oglTextNormal->font());
 
         for (int i = 0; i < len; i++) {
 
@@ -1021,23 +1008,37 @@ void QGLWidebandPanel::renderVerticalScale() {
 			if (textRect.y() > m_dBmScaleRect.top() + textRect.height() && textRect.bottom() <= (m_dBmScaleRect.height() - textRect.height()/2)) {
 			
 				str = QString::number((qreal)m_dBmScale.mainPoints.at(i), 'f', 1);
-                painter->drawText(textRect.x() + 10, textRect.y() +  fontHeight, str);
+                painter.drawText(textRect.x() + 10, textRect.y() +  fontHeight, str);
 				m_dBmScaleTextPos = textRect.bottom();
 			}
 		}
 	}
 
 	textRect.moveTop(m_dBmScaleRect.top());
-    painter->setPen(QPen(QColor(239,56,109)));
+    painter.setPen(QPen(QColor(239,56,109)));
 	str = QString("dBm");
-    painter->drawText(textRect.x() + 18  , textRect.y() +  fontHeight , str);
-    painter->end();
-    restoreGLState();
+    painter.drawText(textRect.x() + 18  , textRect.y() +  fontHeight , str);
+    painter.end();
+    m_dBmScaleFBO->release();
 }
 
 
 
 void QGLWidebandPanel::renderHorizontalScale() {
+    if (!m_frequencyScaleFBO->bind()) {
+        qWarning() << "Failed to bind FBO!";
+        return;
+    }
+    QOpenGLPaintDevice paintDevice(m_frequencyScaleFBO->size());
+
+    // 2. Create a painter directly on the FBO.
+    QPainter painter(&paintDevice);
+    if (!painter.isActive()) {
+        qWarning() << "Failed to begin painting on FBO!";
+        !m_frequencyScaleFBO->release(); // Clean up before returning
+        return;
+    }
+    painter.beginNativePainting();
 	if (m_freqScaleRect.isEmpty()) return;
 	QColor freqlabelColor = QColor(239,56,109);
     QColor textColor = QColor(140, 180, 200);
@@ -1064,21 +1065,19 @@ void QGLWidebandPanel::renderHorizontalScale() {
 	drawGLScaleBackground(QRect(0, 0, m_freqScaleRect.width(), m_freqScaleRect.height()), QColor(0, 0, 0, 255));
 
 	QRect scaledTextRect(0, textOffset_y, 1, fontHeight);
-	scaledTextRect.setWidth(m_fonts.smallFontMetrics->width(fstr));
+    scaledTextRect.setWidth(m_fonts.smallFontMetrics->horizontalAdvance(fstr));
 	scaledTextRect.moveLeft(m_freqScaleRect.width() - scaledTextRect.width());// - menu_pull_right_rect.width());
-
-	saveGLState();
-    painter->begin(m_frequencyScaleFBO);
-    painter->setRenderHint(QPainter::Antialiasing);
-    painter->setPen(QPen(textColor,3, Qt::SolidLine, Qt::FlatCap));
+    painter.endNativePainting();
+    painter.setRenderHint(QPainter::Antialiasing);
+    painter.setPen(QPen(textColor,3, Qt::SolidLine, Qt::FlatCap));
     int len = m_frequencyScale.mainPointPositions.length();
     if (len > 0) {
 		for (int i = 0; i < len; i++) {
-			painter->drawLine(m_frequencyScale.mainPointPositions.at(i),1,m_frequencyScale.mainPointPositions.at(i),4);
+            painter.drawLine(m_frequencyScale.mainPointPositions.at(i),1,m_frequencyScale.mainPointPositions.at(i),4);
 		}
 
-        painter->setRenderHint(QPainter::TextAntialiasing ,true);
-        painter->setFont( m_oglTextSmall->font());
+        painter.setRenderHint(QPainter::TextAntialiasing ,true);
+        painter.setFont( m_oglTextSmall->font());
 
         for (int i = 0; i < len; i++) {
 		
@@ -1088,35 +1087,40 @@ void QGLWidebandPanel::renderHorizontalScale() {
 
 			if (str.endsWith('.')) str.remove(str.size() - 1, 1);
 
-			int text_width = m_fonts.smallFontMetrics->width(str);
+            int text_width = m_fonts.smallFontMetrics->horizontalAdvance(str);
 			QRect textRect(m_frequencyScale.mainPointPositions.at(i) + offset_X - (text_width / 2), textOffset_y, text_width, fontHeight);
 
 			if (textRect.left() < 0 || textRect.right() >= scaledTextRect.left()) continue;
-            painter->drawText(textRect.x() , textRect.y() +  m_oglTextSmall->fontMetrics().height() , str);
+            painter.drawText(textRect.x() , textRect.y() +  m_oglTextSmall->fontMetrics().height() , str);
         }
-
 	}
 
     len = m_frequencyScale.subPointPositions.length();
     if (len > 0) {
         for (int i = 0; i < len; i++) {
-            painter->drawLine(m_frequencyScale.subPointPositions.at(i),1,m_frequencyScale.subPointPositions.at(i),3);
+            painter.drawLine(m_frequencyScale.subPointPositions.at(i),1,m_frequencyScale.subPointPositions.at(i),3);
         }
     }
 
-    painter->setPen(QPen(freqlabelColor));
-    painter->drawText(m_freqScaleRect.width() - 30,  textOffset_y + 10 , fstr);
-    painter->end();
-    restoreGLState();
-
+    painter.setPen(QPen(freqlabelColor));
+    painter.drawText(m_freqScaleRect.width() - 30,  textOffset_y + 10 , fstr);
+    painter.end();
+    m_frequencyScaleFBO->release();
 }
 
 void QGLWidebandPanel::renderGrid() {
 	glClear(GL_COLOR_BUFFER_BIT);
-    saveGLState();
-    painter->begin(m_gridFBO);
-    painter->setRenderHint(QPainter::Antialiasing);
-    painter->setPen(QPen(m_gridColor,1, Qt::DotLine, Qt::FlatCap));
+    if (!m_gridFBO->bind()) {
+        qWarning() << "Failed to bind FBO!";
+        return;
+    }
+    QOpenGLPaintDevice paintDevice(m_gridFBO->size());
+
+    // 2. Create a painter directly on the FBO.
+    QPainter painter(&paintDevice);
+
+    painter.setRenderHint(QPainter::Antialiasing);
+    painter.setPen(QPen(m_gridColor,1, Qt::DotLine, Qt::FlatCap));
 
 	// vertical lines
 	int len = m_frequencyScale.mainPointPositions.length();
@@ -1126,7 +1130,7 @@ void QGLWidebandPanel::renderGrid() {
 
 		for (int i = 0; i < len; i++) {
 			GLint x = m_frequencyScale.mainPointPositions.at(i);
-            painter->drawLine(x,1,x,y2);
+            painter.drawLine(x,1,x,y2);
 		}
 	}
 
@@ -1137,12 +1141,11 @@ void QGLWidebandPanel::renderGrid() {
 		GLint x2 = m_panRect.right();
         for (int i = 0; i < len; i++) {
             GLint y =  m_dBmScale.mainPointPositions.at(i);
-            painter->drawLine(x1,y,x2,y);
+            painter.drawLine(x1,y,x2,y);
         }
     }
-
-    painter->end();
-    restoreGLState();
+    painter.end();
+    m_gridFBO->release();
 }
  
 //********************************************************************
@@ -1265,29 +1268,13 @@ void QGLWidebandPanel::setupDisplayRegions(QSize size) {
 	WBGRAPHICS_DEBUG << "m_dBmScaleWideBandRect" << m_dBmScaleRect.top() << m_dBmScaleRect.bottom() << m_dBmScaleRect.height();
 	WBGRAPHICS_DEBUG << "";*/
 }
- 
-void QGLWidebandPanel::saveGLState() {
 
-    glPushAttrib(GL_ALL_ATTRIB_BITS);
-    glMatrixMode(GL_PROJECTION);
-    glPushMatrix();
-    glMatrixMode(GL_MODELVIEW);
-    glPushMatrix();
-}
 
-void QGLWidebandPanel::restoreGLState() {
-
-    glMatrixMode(GL_PROJECTION);
-    glPopMatrix();
-    glMatrixMode(GL_MODELVIEW);
-    glPopMatrix();
-    glPopAttrib();
-}
  
 //********************************************************************
 // HMI control
  
-void QGLWidebandPanel::enterEvent(QEvent *event) {
+void QGLWidebandPanel::enterEvent(QEnterEvent *event) {
 
 	setFocus(Qt::MouseFocusReason);
 
@@ -1298,7 +1285,7 @@ void QGLWidebandPanel::enterEvent(QEvent *event) {
 	QOpenGLWidget::enterEvent(event);
 }
 
-void QGLWidebandPanel::leaveEvent(QEvent *event) {
+void QGLWidebandPanel::leaveEvent(QEnterEvent *event) {
 
 	m_mousePos = QPoint(-1, -1);
 	m_mouseRegion = elsewhere;
@@ -1310,7 +1297,7 @@ void QGLWidebandPanel::leaveEvent(QEvent *event) {
 void QGLWidebandPanel::wheelEvent(QWheelEvent* event) {
 	
 	//GRAPHICS_DEBUG << "wheelEvent";
-	QPoint pos = event->pos();
+    QPoint pos = event->angleDelta();
 
 	//if (event->buttons() == Qt::NoButton) getRegion(pos);
 
@@ -2000,16 +1987,3 @@ void QGLWidebandPanel::showEvent(QShowEvent *event) {
 	QWidget::showEvent(event);
 }
 
-
-
-void QGLWidebandPanel::renderText(float x, float y, QPaintDevice *fbo, QFont font, int size, QColor color, const QString str) {
-    saveGLState();
-    painter->begin(fbo);
-    painter->setPen(color);
-    painter->setRenderHint(QPainter::TextAntialiasing ,true);
-    painter->setFont(font);
-    qDebug() << "render text " << x << y << str;
-    painter->drawText(int(x) , int(y) + size, str);
-    painter->end();
-    restoreGLState();
-}

@@ -31,11 +31,11 @@
 //#include <QtGui>
 //#include <QDebug>
 //#include <QFileInfo>
-//#include <QTimer>SetRXAAGCHangLevel
+//#include <QElapsedTimer>SetRXAAGCHangLevel
 //#include <QImage>
 //#include <QString>
 //#include <QOpenGLFramebufferObject>
-
+#include <QOpenGLPaintDevice>
 
 #ifndef GL_MULTISAMPLE
 #define GL_MULTISAMPLE  0x809D
@@ -84,20 +84,17 @@ OGLDisplayPanel::OGLDisplayPanel(QWidget *parent)
 	, m_sMeterMeanValue(0.0f)
 	, m_sMeterMaxValueA((float)(-ONEPI/2.0f))
 	, m_sMeterMinValueA((float)(ONEPI/2.0f))
-	, m_sMeterMaxValueB(-1000.0f)
-	, m_sMeterMinValueB(1000.0f)
+        , m_sMeterMaxValueB(-1000.0f)
+        , m_sMeterMinValueB(1000.0f)
 {
-//	QOpenGL::setPreferredPaintEngine(QPaintEngine::OpenGL);
-	setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    //setAutoBufferSwap(true);
+        setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     setAutoFillBackground(false);
-	setMouseTracking(true);
+        setMouseTracking(true);
     setUpdateBehavior(QOpenGLWidget::PartialUpdate);
-	m_freqStringLeftPos = 20;
-	painter = new QPainter(this);
-	setupDisplayRegions(size());
+        m_freqStringLeftPos = 20;
+        setupDisplayRegions(size());
 
-	fonts = new CFonts(this);
+        fonts = new CFonts(this);
 	m_fonts = fonts->getFonts();
 
 	m_fonts.smallFont.setBold(true);
@@ -136,12 +133,11 @@ OGLDisplayPanel::OGLDisplayPanel(QWidget *parent)
 	QList<THamBandFrequencies> bandList = getHamBandFrequencies();
 	HamBand band = getBandFromFrequency(bandList, fList.at(0));
 
-	m_mercuryAttenuator = set->getMercuryAttenuators(0).at(band);
+        m_mercuryAttenuator = set->getMercuryAttenuators(0).at(band);
 
 
-	m_smeterFBO = 0;
 
-	m_colors = set->getPanadapterColors();
+        m_colors = set->getPanadapterColors();
 
     m_txdigitColor = QColor(230,40,40);
 	m_digitColor = QColor(68, 68, 68);
@@ -160,8 +156,6 @@ OGLDisplayPanel::OGLDisplayPanel(QWidget *parent)
 }
 
 OGLDisplayPanel::~OGLDisplayPanel() {
-    delete m_smeterFBO;
-    delete painter;
     delete  m_oglTextBigItalic;
     delete  m_oglTextFreq1;
     delete  m_oglTextFreq2;
@@ -473,15 +467,15 @@ void OGLDisplayPanel::paintGL() {
 	glEnable(GL_BLEND);
 //m_mutex.lock();
 	paintUpperRegion();
-	paintRxRegion();
-	paintLowerRegion();
-	paintSMeter();
-	//m_mutex.unlock();
+        paintRxRegion();
+        paintLowerRegion();
+        paintSMeter();
+ //   renderSMeterB();
+        //m_mutex.unlock();
 
 }
 
 void OGLDisplayPanel::paintUpperRegion() {
-
 	QString str;
 
 	GLint x1 = m_rxRect.left() + m_blankWidth;
@@ -978,9 +972,11 @@ void OGLDisplayPanel::paintLowerRegion() {
 void OGLDisplayPanel::paintRxRegion() {
     QString str;
     QColor fontcolor;
+    QPainter painter(this);
+    painter.beginNativePainting();
     GLint x1 = m_rxRect.left() + 20;
-	GLint y1 = m_rxRect.top() + m_freqDigitsPosY;
-	// draw background
+        GLint y1 = m_rxRect.top() + m_freqDigitsPosY;
+        // draw background
 	if (m_dataEngineState == QSDR::DataEngineUp) {
 
 		drawGLRect(m_rect, Qt::black, m_bkgColor2, -3.0f, false);
@@ -1008,29 +1004,29 @@ void OGLDisplayPanel::paintRxRegion() {
 
     str = "%1";
     QString f2str = str.arg(f2, 3, 10, QLatin1Char('0'));
-
-    renderFreqText(x1,y1,m_fonts.freqFont1,m_oglTextFreq1->fontMetrics(), fontcolor,f1str,0,  (f1 / 1000 < 10)? m_digitPosition -1: m_digitPosition );
-    renderText(x1, y1, m_fonts.freqFont2,fontcolor, ".");
+    painter.endNativePainting();
+    renderFreqText(painter,x1,y1,m_fonts.freqFont1,m_oglTextFreq1->fontMetrics(), fontcolor,f1str,0,  (f1 / 1000 < 10)? m_digitPosition -1: m_digitPosition );
+    renderText(painter,x1, y1, m_fonts.freqFont2,fontcolor, ".");
     x1 += (m_oglTextFreq2->fontMetrics().horizontalAdvance("."));
-    renderFreqText(x1,y1,m_fonts.freqFont2,m_oglTextFreq2->fontMetrics(), fontcolor,f2str,7, m_digitPosition);
+    renderFreqText(painter,x1,y1,m_fonts.freqFont2,m_oglTextFreq2->fontMetrics(), fontcolor,f2str,7, m_digitPosition);
     x1+= 2 * m_blankWidth;
 
-    renderText(x1, y1 - 1, m_fonts.freqFont2, fontcolor, "MHz");
+    renderText(painter,x1, y1 - 1, m_fonts.freqFont2, fontcolor, "MHz");
 
-	// current mouse wheel step size
-	str = "step: %1";
-	x1 += m_fUnitStringWidth + 3 * m_blankWidthf2;
+        // current mouse wheel step size
+        str = "step: %1";
+        x1 += m_fUnitStringWidth + 3 * m_blankWidthf2;
 
-	renderText(x1, y1 , m_fonts.normalFont, fontcolor, str.arg(set->getValue1000(m_mouseWheelFreqStep, 0, "Hz")));
+    renderText(painter,x1, y1 , m_fonts.normalFont, fontcolor, str.arg(set->getValue1000(m_mouseWheelFreqStep, 0, "Hz")));
 
-	// current receiver
+        // current receiver
     if (set->getRadioState() == RadioState::RX){
         str = "Rx: %1";
-        renderText(x1, y1 - (int)( m_fonts.fontHeightBigFont ) ,m_fonts.bigFont, fontcolor, str.arg(m_currentReceiver + 1));
+        renderText(painter,x1, y1 - (int)( m_fonts.fontHeightBigFont ) ,m_fonts.bigFont, fontcolor, str.arg(m_currentReceiver + 1));
     }
     else{
         str ="Tx: %1";
-        renderText(x1, y1 - (int)( m_fonts.fontHeightBigFont ) ,m_fonts.bigFont, m_txdigitColor, str.arg(m_currentReceiver + 1));
+        renderText(painter,x1, y1 - (int)( m_fonts.fontHeightBigFont ) ,m_fonts.bigFont, m_txdigitColor, str.arg(m_currentReceiver + 1));
     }
 
 
@@ -1038,120 +1034,91 @@ void OGLDisplayPanel::paintRxRegion() {
 	if (m_oldFreq != m_frequencyList[m_currentReceiver].frequency) {
 
 		m_bandText = getHamBandTextString(set->getHamBandTextList(), false, m_frequencyList[m_currentReceiver].frequency);
-		m_oldFreq = m_frequencyList[m_currentReceiver].frequency;
-	}
+                m_oldFreq = m_frequencyList[m_currentReceiver].frequency;
+        }
 
-	renderText(m_freqStringLeftPos,  y1 + (int) (m_fonts.fontHeightFreqFont1) - 10 ,m_fonts.smallFont, fontcolor, m_bandText);
+    renderText(painter,m_freqStringLeftPos,  y1 + (int) (m_fonts.fontHeightFreqFont1) - 10 ,m_fonts.smallFont, fontcolor, m_bandText);
 
     }
 
 //void OGLDisplayPanel::paintRXFrequency(GLint &x1, GLint &y1 )
 
-void OGLDisplayPanel::paintSMeter() {
+    void OGLDisplayPanel::paintSMeter() {
 
-	GLint width = m_smeterRect.width();
-	GLint height = m_smeterRect.height();
-	GLint x1 = m_smeterRect.left();
-	GLint x2 = x1 + width;
-	GLint y1 = m_smeterRect.top();
-	GLint y2 = y1 + height;
-	
-	//float X = m_smeterRect.left() + width/2.0f;
-	//float Y = 370;
-	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	glEnable(GL_BLEND);
-	glEnable(GL_LINE_SMOOTH);
-	
-	if (!m_smeterFBO || m_smeterUpdate || m_smeterRenew) {
+        GLint width = m_smeterRect.width();
+        GLint height = m_smeterRect.height();
+        GLint x1 = m_smeterRect.left();
+        GLint x2 = x1 + width;
+        GLint y1 = m_smeterRect.top();
+        GLint y2 = y1 + height;
 
-		if (!m_smeterFBO || m_smeterRenew) {
+        glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glEnable(GL_BLEND);
+        glEnable(GL_LINE_SMOOTH);
 
-			if (m_smeterFBO) {
-			
-				delete m_smeterFBO;
-				m_smeterFBO = 0;
-			}
+        // Only recreate FBO if needed
+        if (!m_smeterFBO || m_smeterRenew) {
+            if (m_smeterFBO) {
+                qDebug() << "delete" << m_smeterFBO;
+                delete m_smeterFBO;
+                m_smeterFBO = nullptr;
+            }
+            m_smeterFBO = new QOpenGLFramebufferObject(m_sMeterWidth, height);
+            m_smeterUpdate = true; // Need to re-render after FBO recreation
+            m_smeterRenew = false;
+        }
 
-			m_smeterFBO = new QOpenGLFramebufferObject(m_sMeterWidth, height);
-			//DISPLAYPANEL_DEBUG << "m_smeterFBO generated.";
-		}
+        // Only re-render scale if needed
+        if (m_smeterUpdate) {
+            m_smeterFBO->bind();
+            renderSMeterScale();
+            m_smeterFBO->release();
+            m_smeterUpdate = false;
+        }
 
-		m_smeterFBO->bind();
-		renderSMeterScale();
-		m_smeterFBO->release();
+        QRect rect(m_rxRect.right() + m_sMeterOffset, 0, m_sMeterWidth, height);
+        renderTexture(rect, m_smeterFBO->texture(), -2.0f);
 
-		m_smeterUpdate = false;
-		m_smeterRenew = false;
-	}
+        // Correct glScissor usage: width, not x2
+        glScissor(x1, size().height() - y2, width, height);
+        glEnable(GL_SCISSOR_TEST);
 
-	QRect rect = QRect(m_rxRect.right() + m_sMeterOffset, 0, m_sMeterWidth, height);
-	//renderTexture(rect, m_smeterFBO->texture(), -1.0f);
-	renderTexture(rect, m_smeterFBO->texture(), -2.0f);
-	
-	// set a scissor box
-	glScissor(x1, size().height() - y2, x2, height);
-	glEnable(GL_SCISSOR_TEST);
+        if (m_dataEngineState == QSDR::DataEngineUp) {
 
-	if (m_dataEngineState == QSDR::DataEngineUp) {
+            glLineWidth(1);
+            int min = (int)(m_sMeterMinValueB * m_unit);
+            int max = (int)(m_sMeterMaxValueB * m_unit);
+            min += min % 2;
+            max += max % 2;
 
-		// S-Meter hold value
-		glLineWidth(1);
-		int min = (int)(m_sMeterMinValueB * m_unit);
-		int max = (int)(m_sMeterMaxValueB * m_unit);
-		min += min%2;
-		max += max%2;
+            QRect bar(x1 + min, m_sMeterPosY + 4, max - min, 5);
+            if (min > 0)
+                drawGLRect(bar, QColor(255, 50, 50), QColor(255, 255, 50), true);
 
-		QRect bar = QRect(x1 + min, m_sMeterPosY + 4, max - min, 5);
-		if (min > 0)
-			drawGLRect(bar, QColor(255, 50, 50), QColor(255, 255, 50), true);
+            // S-Meter needle
+            glLineWidth(2);
+            qglColor(QColor(255, 255, 255));
+            if (m_sMeterValue > 0) {
+                glBegin(GL_LINES);
+                glVertex3f(x1 + (int)(m_sMeterValue * m_unit), m_sMeterPosY - 15, 1.0f);
+                glVertex3f(x1 + (int)(m_sMeterValue * m_unit), m_sMeterPosY + 28, 1.0f);
+                glEnd();
+            }
 
-//		glDisable(GL_LINE_SMOOTH);
-//		glDisable(GL_BLEND);
-//		glDisable(GL_MULTISAMPLE);
+            // Actual S-Meter value
+            qglColor(m_activeTextColor);
+            m_sMeterNumValueString = QString::number(m_sMeterOrgValue, 'f', 1);
+            m_oglTextBig->renderText(x1 + m_sMeterWidth - 85, 2, 3.0, m_sMeterNumValueString);
+            m_oglTextNormal->renderText(x1 + m_sMeterWidth - 28, 9, 3.0, "dBm");
+        }
 
-		/*if (min > 0) {
-
-			for (int i = min; i <= max; i += 2) {
-
-				glBegin(GL_LINES);
-					glVertex3i(x1 + i, m_sMeterPosY + 3, 0.0);
-					glVertex3i(x1 + i, m_sMeterPosY + 10, 0.0);
-				glEnd();
-			}
-		}*/
-
-		// S-Meter needle
-		glLineWidth(2);
-		qglColor(QColor(255, 255, 255));
-		if (m_sMeterValue > 0) {
-
-			glBegin(GL_LINES);
-				glVertex3f(x1 + (int)(m_sMeterValue * m_unit), m_sMeterPosY - 15, 1.0f);
-				glVertex3f(x1 + (int)(m_sMeterValue * m_unit), m_sMeterPosY + 28, 1.0f);
-			glEnd();
-		}
-
-		// actual S-Meter value
-		qglColor(m_activeTextColor);
-
-		QString str = "%1";
-		m_sMeterNumValueString = QString(str.arg(m_sMeterOrgValue, 0, 'f', 1));
-		//m_oglTextBig->renderFreqText(x1 + m_sMeterWidth - 85, 80, 3.0, m_sMeterNumValueString);
-		//m_oglTextNormal->renderFreqText(x1 + m_sMeterWidth - 28, 86, 3.0, "dBm");
-		m_oglTextBig->renderText(x1 + m_sMeterWidth - 85, 2, 3.0, m_sMeterNumValueString);
-		m_oglTextNormal->renderText(x1 + m_sMeterWidth - 28, 9, 3.0, "dBm");
-
-	}
-
-	// disable scissor box
-    glDisable(GL_SCISSOR_TEST);
-	
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glEnable(GL_BLEND);
-    glDisable(GL_LINE_SMOOTH);
-    glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-}
+        glDisable(GL_SCISSOR_TEST);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glEnable(GL_BLEND);
+        glDisable(GL_LINE_SMOOTH);
+        glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+    }
 
 void OGLDisplayPanel::renderSMeterA() {
 
@@ -2123,7 +2090,6 @@ void OGLDisplayPanel::mousePressEvent(QMouseEvent *event) {
 	QPoint pos = event->pos();
 	
 	//if (m_serverMode != QSDR::ExternalDSP) {
-
 		getSelectedDigit(pos);
 		switch (m_digitPosition) {
 
@@ -2275,12 +2241,8 @@ void OGLDisplayPanel::mouseMoveEvent(QMouseEvent *event) {
 }
 
 void OGLDisplayPanel::wheelEvent(QWheelEvent * event) {
-
-	//if (m_serverMode != QSDR::ExternalDSP) {
-
 		long deltaF = 0;
 		switch (m_digitPosition) {
-
 			case Freq1:
 				deltaF = 1;
 				break;
@@ -2317,9 +2279,8 @@ void OGLDisplayPanel::wheelEvent(QWheelEvent * event) {
 				return;
 		}
 
-		int numDegrees = event->delta() / 8;
-		int numSteps = numDegrees / 15;
-
+        int  numDegrees = event->angleDelta().y()/ 8;
+        int  numSteps = numDegrees / 15;
 		int f1 = m_frequencyList[m_currentReceiver].freqMHz;
 		int f2 = m_frequencyList[m_currentReceiver].freqkHz;
 
@@ -2344,9 +2305,6 @@ void OGLDisplayPanel::wheelEvent(QWheelEvent * event) {
 			else
 				set->setVFOFrequency(this, 1, m_currentReceiver, newFreq);
 		}
-
-
-	//}
 	event->accept();
 	QOpenGLWidget::wheelEvent(event);
 }
@@ -2381,7 +2339,7 @@ void OGLDisplayPanel::setSyncStatus(int value) {
 
 	m_syncStatus = value;
 
-	//QTimer::singleShot(50, this, SLOT(updateSyncStatus()));
+    //QElapsedTimer::singleShot(50, this, SLOT(updateSyncStatus()));
 }
 
 void OGLDisplayPanel::updateSyncStatus() {
@@ -2397,7 +2355,7 @@ void OGLDisplayPanel::setADCStatus(int value) {
 
 	m_adcStatus = value;
 
-	QTimer::singleShot(500, this, SLOT(updateADCStatus()));
+    QTimer::singleShot(500, this, SLOT(updateADCStatus()));
 }
 
 void OGLDisplayPanel::updateADCStatus() {
@@ -2412,7 +2370,7 @@ void OGLDisplayPanel::updateADCStatus() {
 void OGLDisplayPanel::setPacketLossStatus(int value) {
 
 	m_packetLossStatus = value;
-	QTimer::singleShot(100, this, SLOT(updatePacketLossStatus()));
+    QTimer::singleShot(100, this, SLOT(updatePacketLossStatus()));
 }
 
 void OGLDisplayPanel::updatePacketLossStatus() {
@@ -2671,9 +2629,9 @@ void OGLDisplayPanel::systemStateChanged(
 		m_sMeterMaxTimer.restart();
 		m_sMeterMinTimer.restart();
 
-		QTimer::singleShot(50, this, SLOT(updateADCStatus()));
-		QTimer::singleShot(50, this, SLOT(updateSyncStatus()));
-		QTimer::singleShot(50, this, SLOT(updatePacketLossStatus()));
+        QTimer::singleShot(50, this, SLOT(updateADCStatus()));
+        QTimer::singleShot(50, this, SLOT(updateSyncStatus()));
+        QTimer::singleShot(50, this, SLOT(updatePacketLossStatus()));
 
 		//resizeGL(width(), height());
 	}
@@ -2713,11 +2671,9 @@ void OGLDisplayPanel::restoreGLState() {
 }
 
 
-void OGLDisplayPanel::renderFreqText(GLint &x1, GLint &y1,QFont &font,QFontMetrics fontMetrics, QColor fontcolor, const QString freqstr,int digit,int digit_pos) {
+void OGLDisplayPanel::renderFreqText(QPainter &painter, GLint &x1, GLint &y1,QFont &font,QFontMetrics fontMetrics, QColor fontcolor, const QString freqstr,int digit,int digit_pos) {
     int len = freqstr.length();
     QColor freqdigitcolor;
-
-
 
 
     for (int x = 0; x < len; x++) {
@@ -2730,20 +2686,18 @@ void OGLDisplayPanel::renderFreqText(GLint &x1, GLint &y1,QFont &font,QFontMetri
             freqdigitcolor = QColor(106, 236, 248);
         else freqdigitcolor = fontcolor;
 
-        renderText(x1, y1, font, freqdigitcolor, freqstr.at(x));
+        renderText(painter,x1, y1, font, freqdigitcolor, freqstr.at(x));
         x1 += (fontMetrics.horizontalAdvance(freqstr.at(x)));
     }
 }
 
 
-void OGLDisplayPanel::renderText(int x,int y, QFont &font, QColor fontcolor, const QString &text) {
-		saveGLState();
-		painter->begin(this);
-		painter->setPen(fontcolor);
-		painter->setFont(font);
-        painter->setRenderHint(QPainter::TextAntialiasing ,true);
-        painter->drawText(int(x) ,int(y), text);
-        painter->end();
-		restoreGLState();
-	}
+void OGLDisplayPanel::renderText(QPainter &painter, int x,int y, QFont &font, QColor fontcolor, const QString &text ) {
+        painter.save();
+        painter.setPen(fontcolor);
+        painter.setFont(font);
+        painter.setRenderHint(QPainter::TextAntialiasing ,true);
+        painter.drawText(int(x) ,int(y), text);
+        painter.restore();
+        }
 

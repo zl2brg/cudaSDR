@@ -49,7 +49,7 @@ WideBandDataProcessor::WideBandDataProcessor(THPSDRParameter *ioData, QSDR::_Ser
 	m_wbSpectrumAveraging = set->getSpectrumAveragingCnt(-1);
 	cpxWBIn.resize(WIDEBAND_BUFFER_SIZE);
 	specBuf.resize(NUM_PIXELS * 2);
-	XCreateAnalyzer(WIDEBAND_DISPLAY_NUMBER, &result, 262144, 1, 1, "");
+    XCreateAnalyzer(WIDEBAND_DISPLAY_NUMBER, &result, 262144, 1, 1, nullptr);
 	if(result != 0) {
 		WIDEBAND_PROCESSOR_DEBUG <<  "wideband XCreateAnalyzer failed:" << result;
 	} else {

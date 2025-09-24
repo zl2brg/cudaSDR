@@ -66,7 +66,7 @@ HPSDRWidget::HPSDRWidget(QWidget *parent)
 
 	QBoxLayout *mainLayout = new QBoxLayout(QBoxLayout::TopToBottom, this);
 	mainLayout->setSpacing(5);
-	mainLayout->setMargin(0);
+    mainLayout->setContentsMargins(0,0,0,0);
 	mainLayout->addSpacing(8);
 
 	QHBoxLayout *hbox1 = new QHBoxLayout();
@@ -86,7 +86,7 @@ HPSDRWidget::HPSDRWidget(QWidget *parent)
 
 	QHBoxLayout *hbox4 = new QHBoxLayout();
 	hbox4->setSpacing(0);
-	//hbox4->setMargin(0);
+    //hbox4->setContentsMargins(0,0,0,0);
 	//hbox4->addStretch();
 	hbox4->setContentsMargins(4, 0, 4, 0);
 	hbox4->addWidget(sampleRateExclusiveGroup());

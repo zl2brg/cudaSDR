@@ -72,18 +72,18 @@ AGCOptionsWidget::AGCOptionsWidget(QWidget *parent)
 
 	QBoxLayout *mainLayout = new QBoxLayout(QBoxLayout::TopToBottom, this);
 	mainLayout->setSpacing(5);
-	mainLayout->setMargin(0);
+    mainLayout->setContentsMargins(0,0,0,0);
 	mainLayout->addSpacing(8);
 
 	QHBoxLayout *hbox1 = new QHBoxLayout;
 	hbox1->setSpacing(0);
-	hbox1->setMargin(0);
+    hbox1->setContentsMargins(0,0,0,0);
 	hbox1->addStretch();
 	hbox1->addWidget(agcModeGroupBox);
 
 	QHBoxLayout *hbox2 = new QHBoxLayout;
 	hbox2->setSpacing(0);
-	hbox2->setMargin(0);
+    hbox2->setContentsMargins(0,0,0,0);
 	hbox2->addStretch();
 	hbox2->addWidget(agcOptionsGroupBox);
 
@@ -424,7 +424,7 @@ void AGCOptionsWidget::createAgcOptionsGroup() {
 
 	QHBoxLayout *hbox8 = new QHBoxLayout;
 	hbox8->setSpacing(0);
-	hbox8->setMargin(0);
+    hbox8->setContentsMargins(0,0,0,0);
 	hbox8->addStretch();
 	hbox8->addWidget(m_hangThresholdSlider);
 	hbox8->addWidget(m_hangThresholdValueLabel);

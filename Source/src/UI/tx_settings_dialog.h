@@ -2,8 +2,8 @@
 #define AUDIO_DIALOG_H
 
 #include <QDialog>
-
-#include "portaudio.h"
+#include <QAudioDevice>
+#include <QMediaDevices>
 #include "cusdr_settings.h"
 
 namespace Ui {
@@ -21,6 +21,8 @@ public:
 private:
     Ui::tx_settings_dialog *ui;
     Settings*		set;
+    QAudioDevice m_inputDevice;
+    QAudioDevice m_outputDevice;
     PaError         error = paNoError;
     QStringList paDeviceList;
     double      m_amCarrierLevel;

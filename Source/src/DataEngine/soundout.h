@@ -1,76 +1,73 @@
-//////////////////////////////////////////////////////////////////////
-// soundout.h: interface for the CSoundOut class.
-//
-// History:
-//	2010-09-15  Initial creation MSW
-//	2011-03-27  Initial release
-/////////////////////////////////////////////////////////////////////
-#ifndef SOUNDOUT_H
-#define SOUNDOUT_H
+#pragma once
 
-#include <QObject>
 #include <QThread>
-#include <QList>
 #include <QMutex>
-#include <QAudioOutput>
+#include <QAudioDevice>
+#include <QAudioSink>
+#include <QIODevice>
 #include "fractresampler.h"
 #include <alsa/asoundlib.h>
 #include <alsa/mixer.h>
+#include <atomic>
 
-#define OUTQSIZE 16384	//max samples (keep power of 2 for ptr wrap around)
-#define SOUND_WRITEBUFSIZE 8192
+
+#define OUTQSIZE 4096
+#define SOUND_WRITEBUFSIZE 4096
+
+// Forward declaration for the resampler class
+class CFractResampler;
 
 class CSoundOut : public QThread
 {
-	Q_OBJECT
+    Q_OBJECT
 public:
-	explicit CSoundOut(QObject *parent = 0);
-	virtual ~CSoundOut();
+    explicit CSoundOut(QObject *parent = nullptr);
+    ~CSoundOut();
 
-	//Exposed functions
-	bool Start(int OutDevIndx, bool StereoOut, double UsrDataRate, bool BlockingMode);	//starts soundcard output
-	void Stop();	//stops soundcard output
-	void PutOutQueue(int numsamples, TYPEREAL* pData );
-	void PutOutQueue(int numsamples, TYPECPX* pData );
-	void ChangeUserDataRate(double UsrDataRate);
-	void SetVolume(qint32 vol);
-	int GetRateError(){return (int)m_PpmError;}
+    bool Start(int OutDevIndx, bool StereoOut, double UsrDataRate, bool BlockingMode);
+    void Stop();
+    void ChangeUserDataRate(double UsrDataRate);
+    void SetVolume(qint32 vol);
+
+    void PutOutQueue(int numsamples, TYPECPX *pData);
+    void PutOutQueue(int numsamples, TYPEREAL *pData);
 
 protected:
-	void run();		//implements worker thread loop
-	int m_BlockTime;
+    void run() override;
 
 private:
-	void GetOutQueue(int numsamples, TYPEMONO16* pData );
-	void GetOutQueue(int numsamples, TYPESTEREO16* pData );
-	void CalcError();
+    void GetOutQueue(int numsamples, TYPEMONO16 *pData);
+    void GetOutQueue(int numsamples, TYPESTEREO16 *pData);
+    void CalcError();
 
-	QList<QAudioDeviceInfo> m_OutDevices;
-	QAudioDeviceInfo  m_OutDeviceInfo;
-	QAudioFormat m_OutAudioFormat;
-	QAudioOutput* m_pAudioOutput;
-	QIODevice* m_pOutput; // ptr to internal soundout IODevice
-	QObject* m_pParent;
-	QMutex m_Mutex;
-	CFractResampler m_OutResampler;
+    QObject *m_pParent;
+    QAudioDevice m_OutDeviceInfo;  // Qt6 device representation
+    QAudioSink *m_pAudioSink;      // Changed from QAudioOutput to QAudioSink
+    QIODevice *m_pOutput;
 
-	TYPEMONO16 m_OutQueueMono[OUTQSIZE];
-	TYPESTEREO16 m_OutQueueStereo[OUTQSIZE];
-	bool m_BlockingMode;
-	bool m_ThreadQuit;
-	bool m_Startup;
-	bool m_StereoOut;
-	bool m_UpdateToggle;
-	quint32 m_OutQHead;
-	quint32 m_OutQTail;
-	char m_pData[SOUND_WRITEBUFSIZE];
-	int m_RateUpdateCount;
-	int m_OutQLevel;
-	int m_PpmError;
-	double m_Gain;
-	double m_UserDataRate;
-	double m_OutRatio;
-	double m_RateCorrection;
-	double m_AveOutQLevel;
+    double m_UserDataRate;
+    double m_OutRatio;
+    double m_RateCorrection;
+    double m_Gain;
+    double m_AveOutQLevel;
+    double m_BlockTime;
+    int m_OutQHead, m_OutQTail, m_OutQLevel;
+    int m_RateUpdateCount;
+    int m_PpmError;
+    bool m_Startup;
+    bool m_BlockingMode;
+    bool m_StereoOut;
+    bool m_UpdateToggle;
+
+    QMutex m_Mutex;
+
+    // Output Queues
+    TYPEMONO16 m_OutQueueMono[OUTQSIZE];
+    TYPESTEREO16 m_OutQueueStereo[OUTQSIZE];
+
+    // Data buffer for audio writes
+    char m_pData[SOUND_WRITEBUFSIZE];
+
+    // Resampler
+    CFractResampler m_OutResampler;
 };
-#endif // SOUNDOUT_H

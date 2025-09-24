@@ -1,0 +1,30 @@
+[
+  {
+    "name": "Qt6.9.1 GCC",
+    "compilers": {
+      "C": "/usr/bin/gcc",
+      "CXX": "/usr/bin/g++"
+    },
+    "environmentVariables": {
+      "CMAKE_PREFIX_PATH": "/home/simon/Qt/6.9.1/gcc_64",
+      "Qt6_DIR": "/home/simon/Qt/6.9.1/gcc_64/lib/cmake/Qt6"
+    },
+    "preferredGenerator": {
+      "name": "Unix Makefiles"
+    }
+  },
+  {
+    "name": "Qt5.15.2 GCC (Fallback)",
+    "compilers": {
+      "C": "/usr/bin/gcc",
+      "CXX": "/usr/bin/g++"
+    },
+    "environmentVariables": {
+      "CMAKE_PREFIX_PATH": "/home/simon/Qt/5.15.2/gcc_64",
+      "Qt5_DIR": "/home/simon/Qt/5.15.2/gcc_64/lib/cmake/Qt5"
+    },
+    "preferredGenerator": {
+      "name": "Unix Makefiles"
+    }
+  }
+]

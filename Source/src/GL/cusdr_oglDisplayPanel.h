@@ -42,7 +42,7 @@
 //#include <QMutex>
 //#include <QtOpenGL/QOpenGLWidget>
 #include <QOpenGLWidget>
-#include <QtGui/QOpenGLFramebufferObject>
+#include <QtOpenGL/QOpenGLFramebufferObject>
 #include <QOpenGLFunctions>
 #include <QMenu>
 #include <QMenuBar>
@@ -62,8 +62,8 @@ class OGLDisplayPanel : public QOpenGLWidget, protected QOpenGLFunctions {
 public:
     OGLDisplayPanel(QWidget *parent = 0);
 	~OGLDisplayPanel();
-    void renderFreqText(GLint &x1, GLint  &y1, QFont &font,QFontMetrics  fontMetrics, QColor fontcolor, const QString freqstr, int digit, int digit_pos);
-    void renderText(int x, int y, QFont &font, QColor fontcolor, const QString &text);
+    void renderFreqText(QPainter &painter,GLint &x1, GLint  &y1, QFont &font,QFontMetrics  fontMetrics, QColor fontcolor, const QString freqstr, int digit, int digit_pos);
+    void renderText(QPainter &painter, int x, int y, QFont &font, QColor fontcolor, const QString &text);
 
 	QSize minimumSizeHint() const;
 	QSize sizeHint() const;
@@ -97,9 +97,6 @@ private:
 	QSDR::_ServerMode			m_serverMode;
 	QSDR::_HWInterfaceMode		m_hwInterface;
 	QSDR::_DataEngineState		m_dataEngineState;
-
-	QOpenGLFramebufferObject		*m_smeterFBO;
-
 	QList<TFrequency>			m_frequencyList;
 
 	TPanadapterColors			m_colors;
@@ -109,8 +106,8 @@ private:
 	TFonts		m_fonts;
 
 	QMutex		m_mutex;
-	QPainter	*painter;
-	OGLText		*m_oglTextTiny;
+
+    OGLText		*m_oglTextTiny;
 	OGLText		*m_oglTextSmall;
 	OGLText		*m_oglTextSmallItalic;
 	OGLText		*m_oglTextNormal;
@@ -178,10 +175,10 @@ private:
 	QColor		m_inactiveTextColor;
 	QColor		m_textBackgroundColor;
 
-	QTime		m_sMeterTimer;
-	QTime		m_sMeterMaxTimer;
-	QTime		m_sMeterMinTimer;
-	QTime		m_sMeterDisplayTime;
+    QElapsedTimer		m_sMeterTimer;
+    QElapsedTimer		m_sMeterMaxTimer;
+    QElapsedTimer		m_sMeterMinTimer;
+    QElapsedTimer		m_sMeterDisplayTime;
 
 	enum Region {
 
@@ -211,8 +208,7 @@ private:
     };
 
 	GLuint	m_sMeterTex;
-
-	bool	m_mercury;
+    bool	m_mercury;
 	bool	m_penelope;
 	bool	m_pennylane;
 	bool	m_excalibur;
@@ -281,7 +277,8 @@ private:
 	int		m_sMeterPrevHoldTimeMax;
 	int		m_sMeterPrevHoldTimeMin;
 	int		m_sMeterMeanValueCnt;
-	
+    QOpenGLFramebufferObject * m_smeterFBO =nullptr;
+
 	qreal	m_mouseWheelFreqStep;
 	qreal	m_dBmPanMin;
 	qreal	m_dBmPanMax;

@@ -70,7 +70,7 @@ private slots:
 private:
 	Settings*			set;
 	THPSDRParameter*	io;
-	QTime				m_searchTime;
+    QElapsedTimer   	m_searchTime;
 	
 	QByteArray		m_findDatagram;
 	QByteArray		m_deviceDatagram;

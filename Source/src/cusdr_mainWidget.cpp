@@ -36,8 +36,8 @@
 //#include <QHBoxLayout>
 //#include <QVBoxLayout>
 //#include <QtNetwork>
-//#include <QTimer>
-
+//#include <QElapsedTimerr>
+#include "cusdr_audio_settingsdialog.h"
 #include "cusdr_mainWidget.h"
 
 #define window_height1		600
@@ -74,11 +74,13 @@ MainWindow::MainWindow(QWidget *parent)
 	, m_mover(false)
 	, m_resizePosition(0)
 {
-    setupWidget = new SetupWidget();
+    setupWidget = new QDialog(this);
+    setupWidget->setSizePolicy(QSizePolicy::Maximum,QSizePolicy::Maximum);
+
  //   m_radioCtrl = new RadioCtrl(this);
     //m_audioInput = new tx_settings_dialog(this);
     test = new QAction();
-
+//qRegisterMetaType<QAudioDevice>("QAudioDevice");
 
     menuBar = new QMenuBar();
     File = menuBar->addMenu(tr("File"));
@@ -108,7 +110,7 @@ MainWindow::MainWindow(QWidget *parent)
 	setAutoFillBackground(true);
 	setMouseTracking(true);
 	setContentsMargins(0, 0, 0, 0);
-	
+
 	m_fullScreen = false;
 
 	// save and reload the windows size and state
@@ -116,7 +118,8 @@ MainWindow::MainWindow(QWidget *parent)
 	QSettings settings(QCoreApplication::applicationDirPath() +  "/" + m_windowsSettingsFilename, QSettings::IniFormat);
 	restoreGeometry(settings.value("geometry").toByteArray());
 	restoreState(settings.value("windowState").toByteArray());
-
+    SettingsDialog *aud = new SettingsDialog(this);
+    aud->show();
 	// Dock windows options
 	setDockOptions(QMainWindow::AnimatedDocks | QMainWindow::AllowNestedDocks);
 	setMinimumSize(QSize(window_width1, window_height1));
@@ -141,6 +144,14 @@ MainWindow::MainWindow(QWidget *parent)
 	// control widgets
     m_serverWidget = new ServerWidget(this);
     m_hpsdrTabWidget = new cusdr_SetupWidget(this);
+    test_widget = new  cusdr_SetupWidget(setupWidget);
+    test_widget->setSizePolicy(QSizePolicy::Expanding,QSizePolicy::Expanding);
+    QVBoxLayout *layout = new QVBoxLayout;
+    layout->addWidget(test_widget);
+    setupWidget->setLayout(layout);
+
+    test_widget->setMaximumSize(800,600);
+
     m_radioTabWidget = new RadioTabWidget(this);
 
 	m_wbDisplay = 0;
@@ -414,9 +425,9 @@ void MainWindow::setup() {
 	m_netIODialog = new NetworkIODialog();
 
 	// init warning dialog
-	m_warningDialog = new WarningDialog();
-
-	// setup connection for the NIC lists of the server and hpsdr widgets.
+    m_warningDialog = new WarningDialog(this);
+    m_warningDialog->hide();
+        // setup connection for the NIC lists of the server and hpsdr widgets.
 	// We need to add these connections after detecting the network interfaces.
 	m_serverWidget->addNICChangedConnection();
     //m_hpsdrTabWidget->addNICChangedConnection();
@@ -459,7 +470,7 @@ void MainWindow::setup() {
 
 void MainWindow::cusdr_setup()
 {
- //   setupWidget->show();
+    setupWidget->show();
   //bandwidget->show();
     rxDock->show();
   //miniModeWidget->show();
@@ -695,7 +706,7 @@ void MainWindow::createMainBtnToolBar() {
     QColor btnCol = QColor(230, 230, 230);
 //	QHBoxLayout *firstBtnLayout = new QHBoxLayout;
 //	firstBtnLayout->setSpacing(0);
-//	firstBtnLayout->setMargin(0);
+//	firstBtnLayout->setContentsMargins(0,0,0,0));
 	
 	startBtn = new AeroButton("Start", this);
 	startBtn->setRoundness(10);
@@ -880,7 +891,7 @@ void MainWindow::createMainBtnToolBar() {
 	
 //	QHBoxLayout *firstBtnLayout = new QHBoxLayout;
 //	firstBtnLayout->setSpacing(0);
-//	firstBtnLayout->setMargin(0);
+//	firstBtnLayout->setContentsMargins(0,0,0,0));
 //
 //	firstBtnLayout->addWidget(startBtn);
 //	//firstBtnLayout->addWidget(serverLogBtn);
@@ -899,7 +910,7 @@ void MainWindow::createMainBtnToolBar() {
 
 //	QHBoxLayout *secondBtnLayout = new QHBoxLayout;
 //	secondBtnLayout->setSpacing(0);
-//	secondBtnLayout->setMargin(0);
+//	secondBtnLayout->setContentsMargins(0,0,0,0));
 
 	int fontMaxWidth = m_fonts.smallFontMetrics->boundingRect("100 % ").width();
 	int vol = (int)(set->getMainVolume(0) * 100);
@@ -1088,7 +1099,7 @@ void MainWindow::createMainBtnToolBar() {
 
 	QHBoxLayout *firstBtnLayout = new QHBoxLayout;
 	firstBtnLayout->setSpacing(0);
-	firstBtnLayout->setMargin(0);
+    firstBtnLayout->setContentsMargins(0,0,0,0);
 
 	firstBtnLayout->addWidget(startBtn);
 	//firstBtnLayout->addWidget(serverLogBtn);
@@ -1106,7 +1117,7 @@ void MainWindow::createMainBtnToolBar() {
 
 	QHBoxLayout* secondBtnLayout = new QHBoxLayout;
 	secondBtnLayout->setSpacing(0);
-	secondBtnLayout->setMargin(0);
+    secondBtnLayout->setContentsMargins(0,0,0,0);
 
 	secondBtnLayout->addWidget(moxBtn);
 	secondBtnLayout->addWidget(tunBtn);
@@ -1137,14 +1148,14 @@ void MainWindow::createMainBtnToolBar() {
 	
 	/*QHBoxLayout *thirdBtnLayout = new QHBoxLayout;
 	thirdBtnLayout->setSpacing(0);
-	thirdBtnLayout->setMargin(0);
+	thirdBtnLayout->setContentsMargins(0,0,0,0));
 
 	thirdBtnLayout->addWidget(lockPanBtn);
 	thirdBtnLayout->addStretch();*/
 
 	QVBoxLayout* btnLayout = new QVBoxLayout;
 	btnLayout->setSpacing(0);
-	btnLayout->setMargin(0);
+    btnLayout->setContentsMargins(0,0,0,0);
 	btnLayout->addLayout(firstBtnLayout);
 	btnLayout->addLayout(secondBtnLayout);
 	//btnLayout->addLayout(thirdBtnLayout);
@@ -2370,7 +2381,7 @@ void MainWindow::resizeEvent(
 ) {
 	//Q_UNUSED(event);
 	
-	//QTimer::singleShot(10, this, SLOT(getRegion()));
+    //QElapsedTimerr::singleShot(10, this, SLOT(getRegion()));
 	//m_resizeFrame = true;
 	//displayPanelToolBar->updateGeometry();
     m_oglDisplayPanel->update();
@@ -2740,7 +2751,7 @@ void WarningDialog::setWarningMessage(const QString &msg) {
 	m_message = msg;
 	
 	QFontMetrics tfm(m_titleFont);
-	m_msgFontWidth = tfm.width(m_message);
+    m_msgFontWidth = tfm.horizontalAdvance(m_message);
 	m_msgFontHeight = tfm.height();
 
 	this->setFixedWidth(m_msgFontWidth + 60);

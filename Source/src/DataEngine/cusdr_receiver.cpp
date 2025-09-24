@@ -1,4 +1,3 @@
-
 /**
 * @file cusdr_receiver.cpp
 * @brief cuSDR receiver class
@@ -48,175 +47,93 @@ Receiver::Receiver(int rx)
 	InitCPX(inBuf, BUFFER_SIZE, 0.0f);
 	InitCPX(outBuf, BUFFER_SIZE, 0.0f);
     InitCPX(audioOutputBuf, BUFFER_SIZE, 0.0f);
-	setAudioBufferSize();
-	newSpectrum.resize(BUFFER_SIZE*4);
-
-	qtwdsp = nullptr;
-
+    setAudioBufferSize();
+    newSpectrum.resize(BUFFER_SIZE*4);
+	highResTimer = std::make_unique<HResTimer>();
+#ifdef USE_INTERNAL_AUDIO
+    m_audioOutput = new ReceiverAudioOutput(this);
+    m_audioOutput->start();
+#endif
 	setupConnections();
-
-	highResTimer = new HResTimer();
-	m_displayTime = (int)(1000000.0/set->getFramesPerSecond(m_receiver));
+    m_displayTime = (int)(1000000.0/set->getFramesPerSecond(m_receiver));
 	m_smeterTime.start();
 }
 
 Receiver::~Receiver() {
-
-
-	if (qtwdsp) {
-
-		delete qtwdsp;
-		qtwdsp = nullptr;
-	}
-	inBuf.clear();
-	outBuf.clear();
-
-	m_stopped = false;
+    qDebug() << "Destroy Receiver " << m_receiver;
+    inBuf.clear();
+    outBuf.clear();
+    #ifdef USE_INTERNAL_AUDIO
+        m_audioOutput->stop();
+    #endif
+    delete m_audioOutput;
+    m_stopped = false;
+    delete qtwdsp;
 }
 
 void Receiver::setAudioBufferSize() {
-	int scale=m_samplerate/48000;
-	m_audiobuffersize = 1024/scale;
-	RECEIVER_DEBUG << "set Audio buffer size to: " << m_audiobuffersize;
-	}
+    int scale=m_samplerate/48000;
+    m_audiobuffersize = 1024/scale;
+    RECEIVER_DEBUG << "set Audio buffer size to: " << m_audiobuffersize;
+    }
 
 void Receiver::setupConnections() {
-
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(systemStateChanged(
-					QObject *,
-					QSDR::_Error,
-					QSDR::_HWInterfaceMode,
-					QSDR::_ServerMode,
-					QSDR::_DataEngineState)),
-		this,
-		SLOT(setSystemState(
-					QObject *,
-					QSDR::_Error,
-					QSDR::_HWInterfaceMode,
-					QSDR::_ServerMode,
-					QSDR::_DataEngineState)));
-
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(mainVolumeChanged(QObject *, int, float)),
-		this,
-		SLOT(setAudioVolume(QObject *, int, float)));
-
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(sampleRateChanged(QObject *, int)),
-		this,
-		SLOT(setSampleRate(QObject *, int)));
-
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(dspModeChanged(QObject *, int, DSPMode)),
-		this,
-		SLOT(setDspMode(QObject *, int, DSPMode)));
-
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(hamBandChanged(QObject *, int, bool, HamBand)),
-		this,
-		SLOT(setHamBand(QObject *, int, bool, HamBand)));
-
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(adcModeChanged(QObject *, int, ADCMode)),
-		this,
-		SLOT(setADCMode(QObject *, int, ADCMode)));
-
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(agcModeChanged(QObject *, int, AGCMode, bool)),
-		this,
-		SLOT(setAGCMode(QObject *, int, AGCMode, bool)));
-
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(agcGainChanged(QObject *, int, int)),
-		this,
-		SLOT(setAGCGain(QObject *, int, int)));
-
-//	CHECKED_CONNECT(
-//		set,
-//		SIGNAL(agcMaximumGain_dBmChanged(QObject *, int, int)),
-//		this,
-//		SLOT(setAGCMaximumGain_dBm(QObject *, int, int)));
-
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(agcMaximumGainChanged(QObject *, int, qreal)),
-		this,
-		SLOT(setAGCMaximumGain_dB(QObject *, int, qreal)));
-
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(agcFixedGainChanged_dB(QObject *, int, qreal)),
-		this,
-		SLOT(setAGCFixedGain_dB(QObject *, int, qreal)));
-
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(agcThresholdChanged_dB(QObject *, int, qreal)),
-		this,
-		SLOT(setAGCThreshold_dB(QObject *, int, qreal)));
-
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(agcHangThresholdChanged(QObject *, int, int)),
-		this,
-		SLOT(setAGCHangThreshold(QObject *, int, int)));
-
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(agcHangLevelChanged_dB(QObject *, int, qreal)),
-		this,
-		SLOT(setAGCHangLevel_dB(QObject *, int, qreal)));
-
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(agcVariableGainChanged_dB(QObject *, int, qreal)),
-		this,
-		SLOT(setAGCSlope_dB(QObject * , int, qreal)));
-
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(agcAttackTimeChanged(QObject *, int, qreal)),
-		this,
-		SLOT(setAGCAttackTime(QObject *, int, qreal)));
-
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(agcDecayTimeChanged(QObject *, int, qreal)),
-		this,
-		SLOT(setAGCDecayTime(QObject *, int, qreal)));
-
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(agcHangTimeChanged(QObject *, int, qreal)),
-		this,
-		SLOT(setAGCHangTime(QObject *, int, qreal)));
-
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(filterFrequenciesChanged(QObject *, int, qreal, qreal)),
-		this,
-		SLOT(setFilterFrequencies(QObject *, int, qreal, qreal)));
-
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(framesPerSecondChanged(QObject*, int, int)),
-		this,
-		SLOT(setFramesPerSecond(QObject*, int, int)));
-
-	/*CHECKED_CONNECT(
-		set,
-		SIGNAL(receiverDataReady()),
-		this,
-		SLOT(dspProcessing()));*/
+    connect(set, &Settings::systemStateChanged,
+            this, &Receiver::setSystemState);
+    
+    connect(set, &Settings::mainVolumeChanged,
+            this, &Receiver::setAudioVolume);
+    
+    connect(set, &Settings::sampleRateChanged,
+            this, &Receiver::setSampleRate);
+    
+    connect(set, &Settings::dspModeChanged,
+            this, &Receiver::setDspMode);
+    
+    connect(set, &Settings::hamBandChanged,
+            this, &Receiver::setHamBand);
+    
+    connect(set, &Settings::adcModeChanged,
+            this, &Receiver::setADCMode);
+    
+    connect(set, &Settings::agcModeChanged,
+            this, &Receiver::setAGCMode);
+    
+    connect(set, &Settings::agcGainChanged,
+            this, &Receiver::setAGCGain);
+    
+    connect(set, &Settings::agcMaximumGainChanged,
+            this, &Receiver::setAGCMaximumGain_dB);
+    
+    connect(set, &Settings::agcFixedGainChanged_dB,
+            this, &Receiver::setAGCFixedGain_dB);
+    
+    connect(set, &Settings::agcThresholdChanged_dB,
+            this, &Receiver::setAGCThreshold_dB);
+    
+    connect(set, &Settings::agcHangThresholdChanged,
+            this, &Receiver::setAGCHangThreshold);
+    
+    connect(set, &Settings::agcHangLevelChanged_dB,
+            this, &Receiver::setAGCHangLevel_dB);
+    
+    connect(set, &Settings::agcVariableGainChanged_dB,
+            this, &Receiver::setAGCSlope_dB);
+    
+    connect(set, &Settings::agcAttackTimeChanged,
+            this, &Receiver::setAGCAttackTime);
+    
+    connect(set, &Settings::agcDecayTimeChanged,
+            this, &Receiver::setAGCDecayTime);
+    
+    connect(set, &Settings::agcHangTimeChanged,
+            this, &Receiver::setAGCHangTime);
+    
+    connect(set, &Settings::filterFrequenciesChanged,
+            this, &Receiver::setFilterFrequencies);
+    
+    connect(set, &Settings::framesPerSecondChanged,
+            this, &Receiver::setFramesPerSecond);
 }
 
 void Receiver::setReceiverData(TReceiver data) {
@@ -263,47 +180,28 @@ bool Receiver::initDSPInterface() {
 
 bool Receiver::initQtWDSPInterface() {
 
+//    qtwdsp = std::make_unique<QWDSPEngine>(this, m_receiver, BUFFER_SIZE);
     qtwdsp = new QWDSPEngine(this, m_receiver, BUFFER_SIZE);
 
-    if (qtwdsp)
-        qtwdsp->setQtDSPStatus(true);
-    else {
-
+    if (!qtwdsp || !qtwdsp->isValid()) {  // Add validity check
         RECEIVER_DEBUG << "could not start QWtDSP for receiver: " << m_receiver;
-        qtwdsp = nullptr;
         return false;
     }
 
+    qtwdsp->setQtDSPStatus(true);
     qtwdsp->setVolume(m_audioVolume);
-
 
     DSPMode mode = m_dspModeList.at(m_hamBand);
     RECEIVER_DEBUG << "set DSP mode to: " << set->getDSPModeString(mode);
 
     qtwdsp->setDSPMode(mode);
-    qtwdsp->setFilter(getFilterFromDSPMode(set->getDefaultFilterList(), mode).filterLo,getFilterFromDSPMode(set->getDefaultFilterList(), mode).filterHi);
+    
+    auto filter = getFilterFromDSPMode(set->getDefaultFilterList(), mode);
+    qtwdsp->setFilter(filter.filterLo, filter.filterHi);
 
-	RECEIVER_DEBUG << "QtWDSP for receiver: " << m_receiver << " started.";
-
-	return true;
+    RECEIVER_DEBUG << "QtWDSP for receiver: " << m_receiver << " started.";
+    return true;
 }
-
-
-void Receiver::deleteDSPInterface() {
-
-	if (m_dspCore == QSDR::QtDSP)
-		deleteQtWDSP();
-}
-
-void Receiver::deleteQtWDSP() {
-
-	if (qtwdsp) {
-
-		delete qtwdsp;
-		qtwdsp = nullptr;
-	}
-}
-
 
 void Receiver::enqueueData() {
 
@@ -323,50 +221,49 @@ void Receiver::stop() {
 }
 
 void Receiver::dspProcessing() {
-	int spectrumDataReady;
-	//RECEIVER_DEBUG << "dspProcessing: " << this->thread();
+    int spectrumDataReady;
     qtwdsp->processDSP(inBuf, audioOutputBuf);
-
-
-
-	if (highResTimer->getElapsedTimeInMicroSec() >= getDisplayDelay()) {
-        m_mutex.lock();
-//       GetPixels(0,0,qtwdsp->spectrumBuffer.data(), &spectrumDataReady);
-
+    if (highResTimer->getElapsedTimeInMicroSec() >= getDisplayDelay()) {
+  //      std::lock_guard<QMutex> lock(m_mutex);  // RAII - automatic unlock
+        
         if (m_state == RadioState::RX)
             GetPixels(0,0,qtwdsp->spectrumBuffer.data(), &spectrumDataReady);
-         else {
-            GetPixels(TX_ID, 0, qtwdsp->spectrumBuffer.data(), &spectrumDataReady);
+        else {
+            GetPixels(0, 0, qtwdsp->spectrumBuffer.data(), &spectrumDataReady);
+            if (!spectrumDataReady) qDebug() << "Tx spectrum fetch fail";
         }
 
+        if (spectrumDataReady) {
+            newSpectrum = qtwdsp->spectrumBuffer;  // Direct assignment
+            emit spectrumBufferChanged(m_receiver, newSpectrum);
+        }
+        
+        highResTimer->start();
+    }
 
-		if (spectrumDataReady) {
-			memcpy(
-					newSpectrum.data(),
-					qtwdsp->spectrumBuffer.data(),
-					4096 * sizeof(float)
-			);
-			emit spectrumBufferChanged(m_receiver, newSpectrum);
-		}
+    if (m_receiver == set->getCurrentReceiver()) {
+        // Consider if this needs mutex protection too
+        if (m_smeterTime.elapsed() > 200) {
+            m_sMeterValue = qtwdsp->getSMeterInstValue();
+            emit sMeterValueChanged(m_receiver, m_sMeterValue);
+            m_smeterTime.restart();
+        }
+#ifdef USE_INTERNAL_AUDIO
+        m_audioOutput->writeAudio(interleaveFromCPX(audioOutputBuf));
+#endif
+        emit audioBufferSignal(m_receiver, audioOutputBuf, m_audiobuffersize);
+    }
+}
 
-		m_mutex.unlock();
-		highResTimer->start();
-	}
+QVector<float> Receiver::interleaveFromCPX(const CPX& in) {
+    QVector<float> out;
 
-
-
-	if (m_receiver == set->getCurrentReceiver()) {
-		// S-Meter
-		if (m_smeterTime.elapsed() > 200) {
-
-			m_sMeterValue = qtwdsp->getSMeterInstValue();
-			emit sMeterValueChanged(m_receiver, m_sMeterValue);
-			m_smeterTime.restart();
-		}
-
-		// process output data
-		emit audioBufferSignal(m_receiver, audioOutputBuf,m_audiobuffersize);
-	}
+    out.reserve(in.size() * 2);
+    for (const cpx& val : in) {
+        out.append(val.re);
+        out.append(val.im);
+    }
+    return out;
 }
 
 void Receiver::setSampleRate(QObject *sender, int value) {
@@ -471,10 +368,6 @@ void Receiver::setReceiver(int value) {
 	m_receiver = value;
 }
 
-void Receiver::setSampleRate(int value) {
-
-	m_sampleRate = value;
-}
 
 void Receiver::setHamBand(QObject *sender, int rx, bool byBtn, HamBand band) {
 
