@@ -222,9 +222,12 @@ void Receiver::stop() {
 
 void Receiver::dspProcessing() {
     int spectrumDataReady;
+    mutex.lock();
     qtwdsp->processDSP(inBuf, audioOutputBuf);
-    if (highResTimer->getElapsedTimeInMicroSec() >= getDisplayDelay()) {
-  //      std::lock_guard<QMutex> lock(m_mutex);  // RAII - automatic unlock
+    mutex.unlock();
+
+      if (highResTimer->getElapsedTimeInMicroSec() >= getDisplayDelay()) {
+
         
         if (m_state == RadioState::RX)
             GetPixels(0,0,qtwdsp->spectrumBuffer.data(), &spectrumDataReady);

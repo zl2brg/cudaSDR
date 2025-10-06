@@ -28,11 +28,10 @@
 #define _CUSDR_OGL_WIDEBANDPANEL_H
 
 #include "cusdr_oglUtils.h"
-#include "cusdr_oglInfo.h"
 #include "cusdr_settings.h"
 #include "cusdr_fonts.h"
 #include "cusdr_oglText.h"
-
+#include <QEvent>
 //#include <QPixmap>
 //#include <QImage>
 //#include <QFontMetrics>
@@ -72,7 +71,7 @@ protected:
     void initializeGL();
     void resizeGL(int iWidth, int iHeight);
     void paintGL();
-    
+
     void enterEvent(QEnterEvent *event);
     void leaveEvent(QEnterEvent *event);
 	void mousePressEvent(QMouseEvent *event);
@@ -86,7 +85,7 @@ protected:
 
 private:
 	Settings*							set;
-
+    QPainter                    painter;
 	QSDR::_ServerMode			m_serverMode;
 	QSDR::_HWInterfaceMode		m_hwInterface;
 	QSDR::_DataEngineState		m_dataEngineState;
@@ -99,14 +98,14 @@ private:
 	QList<TReceiver>			m_rxDataList;
 	TWideband					m_widebandOptions;
 
-    QOpenGLFramebufferObject*		m_frequencyScaleFBO;
-    QOpenGLFramebufferObject*		m_dBmScaleFBO;
-    QOpenGLFramebufferObject*		m_gridFBO;
+    QOpenGLFramebufferObject*		m_frequencyScaleFBO = nullptr;
+    QOpenGLFramebufferObject*		m_dBmScaleFBO = nullptr;
+    QOpenGLFramebufferObject*		m_gridFBO = nullptr;
     CFonts		*fonts;
 	TFonts		m_fonts;
 
     QElapsedTimer		m_panTimer;
-    QElapsedTimer		m_displayTime;
+    QElapsedTimer       m_displayTime;
     QElapsedTimer		m_resizeTime;
 	
 	QRect		m_panRect;
@@ -202,7 +201,7 @@ private:
 	int			m_scaledBufferSize;
 	
 	float		m_cameraDistance;
-
+    int         m_dprPollTimerId;
 	unsigned int timer;
     
 	GLint		m_panRectWidth;
@@ -232,10 +231,13 @@ private:
 	qreal		m_frequencyUnit;
 	qreal		m_lowerFrequency;
 	qreal		m_upperFrequency;
+    qreal       dpr;
 	
 	//******************************************************************
 	void saveGLState();
 	void restoreGLState();
+    void connectScreenChanged();
+
 	//void computeDisplayBins(const float* panBuffer);
 
 	void drawSpectrum();
@@ -262,7 +264,6 @@ private slots:
 					int rx,
 					PanGraphicsMode panMode,
 					WaterfallColorMode waterfallColorMode);
-
 	void	setupConnections();
 	void	setCurrentReceiver(QObject *sender, int value);
 	void	setFrequency(QObject *sender, int mode, int rx, long freq);
@@ -276,12 +277,6 @@ private slots:
 
 	void	getRegion(QPoint p);
 	void	sampleRateChanged(QObject* sender, int value);
-	void	freqScaleUpdate(bool value);
-	void	freqScaleRenew(bool value);
-	void	dBmScaleUpdate(bool value);
-	void	dBmScaleRenew(bool value);
-	void	panGridUpdate(bool value);
-	void	panGridRenew(bool value);
 
 signals:
 	void showEvent(QObject* sender);

@@ -119,7 +119,6 @@ void WideBandDataProcessor::stop() {
 }
 
 void WideBandDataProcessor::processWideBandData() {
-
 	forever {
 		processWideBandInputBuffer(io->wb_queue.dequeue());
 

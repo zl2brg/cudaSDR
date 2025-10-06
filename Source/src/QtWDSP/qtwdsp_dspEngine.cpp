@@ -204,15 +204,14 @@ void QWDSPEngine::setupConnections() {
 
 void QWDSPEngine::processDSP(CPX &in, CPX &out) {
     int error;
-    std::lock_guard<QMutex> lock(m_mutex);  // RAII - automatic unlock
-    
-    fexchange0(m_rx, reinterpret_cast<double*>(in.data()), 
+    fexchange0(m_rx, reinterpret_cast<double*>(in.data()),
                reinterpret_cast<double*>(out.data()), &error);
     if (error != 0) {
         WDSP_ENGINE_DEBUG << "WDSP channel read error" << error;
     } else {
         Spectrum0(1, m_rx, 0, 0, reinterpret_cast<double*>(in.data()));
     }
+
 }
 
 double QWDSPEngine::getSMeterInstValue() {

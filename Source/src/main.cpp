@@ -99,10 +99,8 @@ int main(int argc, char *argv[]) {
     // NOTE: The function name is the same, but it now works with the updated handler signature.
     qInstallMessageHandler(cuSDRMessageHandler);
 #endif
-
-    QApplication::setAttribute(Qt::AA_EnableHighDpiScaling); // NOTE: Added for modern High-DPI displays
+    QApplication::setHighDpiScaleFactorRoundingPolicy(Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
     QApplication app(argc, argv);
-
     app.setAttribute(Qt::AA_DontCreateNativeWidgetSiblings);
     QSurfaceFormat format;
     format.setDepthBufferSize(24);

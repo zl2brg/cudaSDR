@@ -118,8 +118,8 @@ MainWindow::MainWindow(QWidget *parent)
 	QSettings settings(QCoreApplication::applicationDirPath() +  "/" + m_windowsSettingsFilename, QSettings::IniFormat);
 	restoreGeometry(settings.value("geometry").toByteArray());
 	restoreState(settings.value("windowState").toByteArray());
-    SettingsDialog *aud = new SettingsDialog(this);
-    aud->show();
+//    SettingsDialog *aud = new SettingsDialog(this);
+ //   aud->show();
 	// Dock windows options
 	setDockOptions(QMainWindow::AnimatedDocks | QMainWindow::AllowNestedDocks);
 	setMinimumSize(QSize(window_width1, window_height1));

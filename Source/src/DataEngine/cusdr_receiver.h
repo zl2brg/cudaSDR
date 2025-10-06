@@ -232,6 +232,7 @@ private:
 
 	bool	m_connected;
 	bool	m_hangEnabled;
+    QMutex  mutex;
 
 	//void	setupConnections();
 

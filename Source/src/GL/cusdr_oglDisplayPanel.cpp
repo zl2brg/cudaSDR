@@ -93,7 +93,7 @@ OGLDisplayPanel::OGLDisplayPanel(QWidget *parent)
     setUpdateBehavior(QOpenGLWidget::PartialUpdate);
         m_freqStringLeftPos = 20;
         setupDisplayRegions(size());
-
+        dpr = devicePixelRatioF();
         fonts = new CFonts(this);
 	m_fonts = fonts->getFonts();
 
@@ -446,17 +446,12 @@ void OGLDisplayPanel::initializeGL() {
 }
 
 void OGLDisplayPanel::resizeGL(int iWidth,int iHeight) {
+        //m_resizeTime.restart();
+    setupDisplayRegions(QSize(iWidth, iHeight));
+    glViewport(0, 0, (GLsizei)iWidth * dpr, (GLsizei)iHeight * dpr);
+    setProjectionOrthographic(iWidth, iHeight);
+    update();
 
-	int width = (int)(iWidth/2) * 2;
-	int height = iHeight;
-
-	glFinish();
-
-	//m_resizeTime.restart();
-	setupDisplayRegions(QSize(width, height));
-    glViewport(0, 0, (GLsizei)width, (GLsizei)height);
-
-	setProjectionOrthographic(width, height);
 }
 
 void OGLDisplayPanel::paintGL() {
@@ -465,21 +460,21 @@ void OGLDisplayPanel::paintGL() {
 	glClear(GL_DEPTH_BUFFER_BIT);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glEnable(GL_BLEND);
-//m_mutex.lock();
-	paintUpperRegion();
         paintRxRegion();
+        paintUpperRegion();
         paintLowerRegion();
         paintSMeter();
- //   renderSMeterB();
-        //m_mutex.unlock();
+     //   renderSMeterB();
+
 
 }
 
 void OGLDisplayPanel::paintUpperRegion() {
 	QString str;
 
-	GLint x1 = m_rxRect.left() + m_blankWidth;
-	GLint y1 = m_rxRect.top() + m_upperRectY;
+
+    GLint x1 =  m_rxRect.left() + m_blankWidth;
+    GLint y1 =  m_rxRect.top() ;
 
 	// sync status
 	str = QString(m_SYNCString);
@@ -973,13 +968,16 @@ void OGLDisplayPanel::paintRxRegion() {
     QString str;
     QColor fontcolor;
     QPainter painter(this);
+  //  painter.setPen(Qt::red);
+  //  painter.drawRect(m_rxRect);
     painter.beginNativePainting();
     GLint x1 = m_rxRect.left() + 20;
-        GLint y1 = m_rxRect.top() + m_freqDigitsPosY;
+    GLint y1 = ((m_rxRect.top()) + m_freqDigitsPosY);
+
         // draw background
 	if (m_dataEngineState == QSDR::DataEngineUp) {
 
-		drawGLRect(m_rect, Qt::black, m_bkgColor2, -3.0f, false);
+        drawGLRect(m_rect, Qt::black, m_bkgColor2, -3.0f, false);
 		qglColor(m_activeTextColor);
         fontcolor = m_activeTextColor;
 	}
@@ -1005,8 +1003,11 @@ void OGLDisplayPanel::paintRxRegion() {
     str = "%1";
     QString f2str = str.arg(f2, 3, 10, QLatin1Char('0'));
     painter.endNativePainting();
+    painter.scale(1,1);
+//    painter.drawText(x1,y1,"here");
     renderFreqText(painter,x1,y1,m_fonts.freqFont1,m_oglTextFreq1->fontMetrics(), fontcolor,f1str,0,  (f1 / 1000 < 10)? m_digitPosition -1: m_digitPosition );
     renderText(painter,x1, y1, m_fonts.freqFont2,fontcolor, ".");
+
     x1 += (m_oglTextFreq2->fontMetrics().horizontalAdvance("."));
     renderFreqText(painter,x1,y1,m_fonts.freqFont2,m_oglTextFreq2->fontMetrics(), fontcolor,f2str,7, m_digitPosition);
     x1+= 2 * m_blankWidth;
@@ -1038,6 +1039,7 @@ void OGLDisplayPanel::paintRxRegion() {
         }
 
     renderText(painter,m_freqStringLeftPos,  y1 + (int) (m_fonts.fontHeightFreqFont1) - 10 ,m_fonts.smallFont, fontcolor, m_bandText);
+        painter.end();
 
     }
 
@@ -1060,11 +1062,10 @@ void OGLDisplayPanel::paintRxRegion() {
         // Only recreate FBO if needed
         if (!m_smeterFBO || m_smeterRenew) {
             if (m_smeterFBO) {
-                qDebug() << "delete" << m_smeterFBO;
                 delete m_smeterFBO;
                 m_smeterFBO = nullptr;
             }
-            m_smeterFBO = new QOpenGLFramebufferObject(m_sMeterWidth, height);
+            m_smeterFBO = new QOpenGLFramebufferObject(m_sMeterWidth *dpr, height * dpr);
             m_smeterUpdate = true; // Need to re-render after FBO recreation
             m_smeterRenew = false;
         }
@@ -2300,10 +2301,10 @@ void OGLDisplayPanel::wheelEvent(QWheelEvent * event) {
 				else if (newFreq < ctrf - s)
 					newFreq = ctrf - s;
 
-				set->setVFOFrequency(this, 0, m_currentReceiver, newFreq);
+                set->setVFOFrequency(this, 0, m_currentReceiver, newFreq);
 			}
-			else
-				set->setVFOFrequency(this, 1, m_currentReceiver, newFreq);
+            else
+                set->setVFOFrequency(this, 1, m_currentReceiver, newFreq);
 		}
 	event->accept();
 	QOpenGLWidget::wheelEvent(event);

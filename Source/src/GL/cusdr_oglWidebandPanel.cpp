@@ -30,13 +30,10 @@
 
 #include "cusdr_oglWidebandPanel.h"
 
-//#include <QtGui>
+
 #include <QDebug>
-//#include <QFileInfo>
-//#include <QElapsedTimerr>
-//#include <QImage>
-//#include <QString>
-//#include <QOpenGLFramebufferObject>
+#include <QScreen>
+#include <QWindow>
 
 #ifndef GL_MULTISAMPLE
 #define GL_MULTISAMPLE  0x809D
@@ -71,16 +68,14 @@ QGLWidebandPanel::QGLWidebandPanel(QWidget *parent)
 		, m_dBmScaleOffset(0.0)
 {
 //	QGL::setPreferredPaintEngine(QPaintEngine::OpenGL);
-    float dpr= this->devicePixelRatioF();
+    dpr = devicePixelRatioF();
 	setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
-	//setAutoBufferSwap(true);
-	setAutoFillBackground(false);
+    setAutoFillBackground(false);
     setUpdateBehavior(QOpenGLWidget::PartialUpdate);
 	
 	setMouseTracking(true);
 	//setFocusPolicy(Qt::StrongFocus);
-
 	setupDisplayRegions(size());
 	m_oldWidth = size().width();
 	m_oldHeight = size().height();
@@ -105,7 +100,7 @@ QGLWidebandPanel::QGLWidebandPanel(QWidget *parent)
 	m_oglTextTiny = new OGLText(m_fonts.tinyFont);
 	m_oglTextSmall = new OGLText(m_fonts.smallFont);
 	m_oglTextNormal = new OGLText(m_fonts.normalFont);
-	
+     m_dprPollTimerId = startTimer(1000);
 
 	timer = 0;
 
@@ -181,91 +176,40 @@ QSize QGLWidebandPanel::sizeHint() const {
 }
 
 void QGLWidebandPanel::setupConnections() {
+    connect(set, &Settings::systemStateChanged,
+            this, &QGLWidebandPanel::systemStateChanged);
 
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(systemStateChanged(
-					QObject *,
-					QSDR::_Error,
-					QSDR::_HWInterfaceMode,
-					QSDR::_ServerMode,
-					QSDR::_DataEngineState)),
-		this,
-		SLOT(systemStateChanged(
-					QObject *,
-					QSDR::_Error,
-					QSDR::_HWInterfaceMode,
-					QSDR::_ServerMode,
-					QSDR::_DataEngineState))
-	);
+    connect(set, &Settings::graphicModeChanged,
+            this, &QGLWidebandPanel::graphicModeChanged);
 
-	CHECKED_CONNECT(
-		set, 
-		SIGNAL(graphicModeChanged(
-					QObject *,
-					int,
-					PanGraphicsMode,
-					WaterfallColorMode)),
-		this, 
-		SLOT(graphicModeChanged(
-					QObject *,
-					int,
-					PanGraphicsMode,
-					WaterfallColorMode)));
+    connect(set, &Settings::widebandSpectrumBufferChanged,
+            this, &QGLWidebandPanel::setWidebandSpectrumBuffer);
 
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(widebandSpectrumBufferChanged(const qVectorFloat &)),
-		this,
-		SLOT(setWidebandSpectrumBuffer(const qVectorFloat &)));
+    connect(set, &Settings::widebandSpectrumBufferReset,
+            this, &QGLWidebandPanel::resetWidebandSpectrumBuffer);
 
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(widebandSpectrumBufferReset()),
-		this,
-		SLOT(resetWidebandSpectrumBuffer()));
+    connect(set, &Settings::vfoFrequencyChanged,
+            this, &QGLWidebandPanel::setFrequency);
 
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(vfoFrequencyChanged(QObject *, int, int, long)),
-		this,
-		SLOT(setFrequency(QObject *, int, int, long)));
+    connect(set, &Settings::currentReceiverChanged,
+            this, &QGLWidebandPanel::setCurrentReceiver);
 
-	CHECKED_CONNECT(
-		set, 
-		SIGNAL(currentReceiverChanged(QObject *, int)),
-		this, 
-		SLOT(setCurrentReceiver(QObject *, int)));
+    connect(set, &Settings::sampleRateChanged,
+            this, &QGLWidebandPanel::sampleRateChanged);
 
-	CHECKED_CONNECT(
-		set, 
-		SIGNAL(sampleRateChanged(QObject *, int)), 
-		this, 
-		SLOT(sampleRateChanged(QObject *, int)));
+    connect(set, &Settings::panadapterColorChanged,
+            this, &QGLWidebandPanel::setPanadapterColors);
 
-	CHECKED_CONNECT(
-		set, 
-		SIGNAL(panadapterColorChanged()), 
-		this, 
-		SLOT(setPanadapterColors()));
+    // Uncomment if needed
+    // connect(set, &Settings::panGridStatusChanged,
+    //         this, &QGLWidebandPanel::setPanGridStatus);
 
-	/*CHECKED_CONNECT(
-		set, 
-		SIGNAL(panGridStatusChanged(bool, int)),
-		this,
-		SLOT(setPanGridStatus(bool, int)));*/
+    connect(set, &Settings::mercuryAttenuatorChanged,
+            this, &QGLWidebandPanel::setMercuryAttenuator);
 
-	CHECKED_CONNECT(
-		set, 
-		SIGNAL(mercuryAttenuatorChanged(QObject *, HamBand, int)),
-		this, 
-		SLOT(setMercuryAttenuator(QObject *, HamBand, int)));
-
-	//CHECKED_CONNECT(
-	//	set, 
-	//	SIGNAL(spectrumAveragingCntChanged(int)), 
-	//	this, 
-	//	SLOT(setSpectrumAveragingCnt(int)));
+    // Uncomment if needed
+    // connect(set, &Settings::spectrumAveragingCntChanged,
+    //         this, &QGLWidebandPanel::setSpectrumAvera
 }
 
 void QGLWidebandPanel::initializeGL() {
@@ -289,9 +233,10 @@ void QGLWidebandPanel::initializeGL() {
 }
 
 void QGLWidebandPanel::paintGL() {
-
     QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
     f->glClear(GL_COLOR_BUFFER_BIT);
+
+
 	switch (m_serverMode) {
 
 		case QSDR::NoServerMode:
@@ -304,11 +249,11 @@ void QGLWidebandPanel::paintGL() {
 			if (m_resizeTime.elapsed() > 200 || m_dataEngineState == QSDR::DataEngineDown) {
 			
                 drawSpectrum();
-                drawHorizontalScale();
+               drawHorizontalScale();
                 drawVerticalScale();
 
-				if (m_panGrid)
-					drawGrid();
+            if (m_panGrid)
+                    drawGrid();
 //#todo use ham database
 				// Ham band information
 				drawHamBand(1810000, 2000000, "160m");
@@ -337,7 +282,6 @@ void QGLWidebandPanel::paintGL() {
 //************************************************************************
 void QGLWidebandPanel::drawSpectrum() {
 
-    float dpr = devicePixelRatioF();
 
     GLint width  = m_panRect.width() * dpr;
     GLint height = m_panRect.height() * dpr;
@@ -716,14 +660,15 @@ void QGLWidebandPanel::drawSpectrum() {
 	//glDisable(GL_SCISSOR_TEST);
 	glDisable(GL_BLEND);
 	glDisable(GL_LINE_SMOOTH);
+    update();
 }
 
 void QGLWidebandPanel::drawVerticalScale() {
 
 	if (!m_dBmScaleRect.isValid()) return;
-    float dpr = devicePixelRatioF();
-    int width = m_dBmScaleRect.width() * dpr;
-    int height = m_dBmScaleRect.height() * dpr;
+
+    int width = m_dBmScaleRect.width();
+    int height = m_dBmScaleRect.height();
 
 	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
 
@@ -737,16 +682,16 @@ void QGLWidebandPanel::drawVerticalScale() {
 			if (m_dBmScaleFBO) {
 			
 				delete m_dBmScaleFBO;
-				m_dBmScaleFBO = 0;
+                m_dBmScaleFBO = nullptr;
 			}
 
-            m_dBmScaleFBO = new QOpenGLFramebufferObject(width , height);//, format);
+            m_dBmScaleFBO = new QOpenGLFramebufferObject(width * dpr,  height * dpr);//, format);
 			//WBGRAPHICS_DEBUG << "dBmScaleFBO generated.";
 		}
 
 		glPushAttrib(GL_VIEWPORT_BIT);
 
-        glViewport(0, 0, width* dpr , height * dpr);
+        glViewport(0, 0, width * dpr , height * dpr);
         setProjectionOrthographic(width, height);
 
 		m_dBmScaleFBO->bind();
@@ -768,7 +713,6 @@ void QGLWidebandPanel::drawVerticalScale() {
 void QGLWidebandPanel::drawHorizontalScale() {
 
 	if (!m_freqScaleRect.isValid()) return;
-    float dpr = devicePixelRatioF();
 
     int width = m_freqScaleRect.width() ;
     int height = m_freqScaleRect.height();
@@ -778,30 +722,29 @@ void QGLWidebandPanel::drawHorizontalScale() {
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glEnable(GL_BLEND);
 
-	if (!m_frequencyScaleFBO || m_freqScaleUpdate || m_freqScaleRenew) {
+    if (!m_frequencyScaleFBO || m_freqScaleUpdate || m_freqScaleRenew) {
 
 		if (!m_frequencyScaleFBO || m_freqScaleRenew) {
-
-			if (m_frequencyScaleFBO) {
+        if (m_frequencyScaleFBO) {
 			
 				delete m_frequencyScaleFBO;
                 m_frequencyScaleFBO = nullptr;
 			}
 
-            m_frequencyScaleFBO = new QOpenGLFramebufferObject(width * dpr, height * dpr);//, format);
-			//WBGRAPHICS_DEBUG << "wb-frequencyScaleFBO generated.";
+            m_frequencyScaleFBO = new QOpenGLFramebufferObject(width * dpr, height * dpr);
 
-		}
-        qDebug() << "width " << width << "height" << height << "dpr" << dpr;
-		glPushAttrib(GL_VIEWPORT_BIT);
+        }
+
+        glPushAttrib(GL_VIEWPORT_BIT);
         glViewport(0, 0, width * dpr, height * dpr);
         setProjectionOrthographic(width, height);
 		
 		m_frequencyScaleFBO->bind();
-			renderHorizontalScale();
-		m_frequencyScaleFBO->release();
-
-		glPopAttrib();
+        renderHorizontalScale();
+        m_frequencyScaleFBO->release();
+        glViewport(0, 0, size().width() * dpr, size().height()* dpr);
+        setProjectionOrthographic(size().width(), size().height());
+        glPopAttrib();
 
 		
 		//WBGRAPHICS_DEBUG << "frequency scale updated.";
@@ -816,9 +759,10 @@ void QGLWidebandPanel::drawHorizontalScale() {
 }
 
 void QGLWidebandPanel::drawGrid() {
+    return;
 	if (!m_panRect.isValid()) return;
-    float dpr = devicePixelRatioF();
-	int width = m_panRect.width();
+
+    int width = m_panRect.width();
 	int height = m_panRect.height();
 	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
     glColor4f(m_redGrid, m_greenGrid, m_blueGrid, 1.0);
@@ -850,10 +794,9 @@ void QGLWidebandPanel::drawGrid() {
 		m_gridFBO->release();
 
 		glPopAttrib();
-//	glViewport(0, 0, size().width(), size().height());
-//		setProjectionOrthographic(size().width(), size().height());
+        glViewport(0, 0, size().width(), size().height());
+        setProjectionOrthographic(size().width(), size().height());
 		
-		//WBGRAPHICS_DEBUG << "grid updated.";
 		m_panGridUpdate = false;
 		m_panGridRenew = false;
 	}
@@ -871,20 +814,19 @@ void QGLWidebandPanel::drawCrossHair() {
 
 	int x = m_mousePos.x();
 	int y = m_mousePos.y();
-    QPainter *painter = new QPainter();
 
-	painter->begin(this);
-	painter->setRenderHint(QPainter::Antialiasing);
-	painter->setPen(QPen(QColor(255,255,255,80),2, Qt::SolidLine, Qt::FlatCap));
+    painter.begin(this);
+    painter.setRenderHint(QPainter::Antialiasing);
+    painter.setPen(QPen(QColor(255,255,255,80),2, Qt::SolidLine, Qt::FlatCap));
 	//horizontal line
-	painter->drawLine(rect.left() - 1,y,m_dBmScaleRect.left() - 2,y);
+    painter.drawLine(rect.left() - 1,y,m_dBmScaleRect.left() - 2,y);
 	//vertical line
-	painter->drawLine(x,rect.top() + 1,x, rect.bottom() - 1);
+    painter.drawLine(x,rect.top() + 1,x, rect.bottom() - 1);
     // cross hair
-    painter->setPen(QPen(QColor(255,255,255,180),1,Qt::SolidLine, Qt::FlatCap));
+    painter.setPen(QPen(QColor(255,255,255,180),1,Qt::SolidLine, Qt::FlatCap));
 
-    painter->drawLine(x,y-20,x,y + 20);
-    painter->drawLine(x-20,y,x + 20, y);
+    painter.drawLine(x,y-20,x,y + 20);
+    painter.drawLine(x-20,y,x + 20, y);
 
     // text only on panadapter
 	if (m_mouseRegion == panRegion) {
@@ -896,18 +838,18 @@ void QGLWidebandPanel::drawCrossHair() {
 
 		str = frequencyString(frequency);
 		if (x > m_panRect.width() - 85)
-		    painter->drawText(x- 90, y - 8,str);
+            painter.drawText(x- 90, y - 8,str);
 		else
-            painter->drawText(x + 4, y - 8,str);
+            painter.drawText(x + 4, y - 8,str);
 
 		qreal dBm = m_dBmPanMax - ((m_dBmPanMax - m_dBmPanMin) * ((qreal)(y - m_panRect.top()) / m_panRect.height()));
 		str = QString::number(dBm, 'f', 1) + " dBm";
 		if (x > m_panRect.width() - 85)
-            painter->drawText(x- 90, y + 16,str);
+            painter.drawText(x- 90, y + 16,str);
 		else
-            painter->drawText(x + 4, y + 16,str);
+            painter.drawText(x + 4, y + 16,str);
 	}
-    painter->end();
+    painter.end();
 
 }
 
@@ -916,7 +858,7 @@ void QGLWidebandPanel::drawHamBand(
 		int hi,
 		const QString &band
 ) {
-    QPainter painter(this);
+    painter.begin(this);
     painter.beginNativePainting();
     glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -945,21 +887,17 @@ void QGLWidebandPanel::drawHamBand(
 // (c) Catherine Moss, with permission.
 
 void QGLWidebandPanel::renderVerticalScale() {
-    float dpr = devicePixelRatioF();
 
 	QString str;
     if (!m_dBmScaleFBO->bind()) {
         qWarning() << "Failed to bind FBO!";
         return;
-    }
-    QOpenGLPaintDevice paintDevice(m_dBmScaleFBO->size());
 
-    QPainter painter(&paintDevice);
-    if (!painter.isActive()) {
-        qWarning() << "Failed to begin painting on FBO!";
-        m_dBmScaleFBO->release(); // Clean up before returning
-        return;
     }
+
+   QOpenGLPaintDevice paintDevice(m_dBmScaleFBO->size());
+
+    painter.begin(&paintDevice);
 
     painter.beginNativePainting();
 	//QFontMetrics d_fm(m_smallFont);
@@ -967,8 +905,8 @@ void QGLWidebandPanel::renderVerticalScale() {
 	int fontHeight = m_fonts.smallFontMetrics->tightBoundingRect(".0dBm").height() + spacing;
 	int fontMaxWidth = m_fonts.smallFontMetrics->boundingRect("-000.0").width();
 
-    GLint width = m_dBmScaleRect.width() * dpr;
-    GLint height = m_dBmScaleRect.height() * dpr;
+    GLint width = m_dBmScaleRect.width();
+    GLint height = m_dBmScaleRect.height();
 
 	qreal unit = (qreal)(m_dBmScaleRect.height() / qAbs(m_dBmPanMax - m_dBmPanMin));
 
@@ -1021,33 +959,19 @@ void QGLWidebandPanel::renderVerticalScale() {
 
 	textRect.moveTop(m_dBmScaleRect.top());
     painter.setPen(QPen(QColor(239,56,109)));
-    painter.setRenderHint(QPainter::Antialiasing);
-    painter.scale(dpr,dpr);
 	str = QString("dBm");
     painter.drawText(textRect.x() + 18  , textRect.y() +  fontHeight , str);
     painter.end();
-    m_dBmScaleFBO->release();
 }
 
 
 
 void QGLWidebandPanel::renderHorizontalScale() {
-    if (!m_frequencyScaleFBO->bind()) {
-        qWarning() << "Failed to bind FBO!";
-        return;
-    }
-    float dpr = devicePixelRatioF();
-    QOpenGLPaintDevice paintDevice(m_frequencyScaleFBO->size());
 
-    // 2. Create a painter directly on the FBO.
-    QPainter painter(&paintDevice);
-    if (!painter.isActive()) {
-        qWarning() << "Failed to begin painting on FBO!";
-        !m_frequencyScaleFBO->release(); // Clean up before returning
-        return;
-    }
+    QOpenGLPaintDevice paintDevice(m_frequencyScaleFBO->size());
+    painter.begin(&paintDevice);
     painter.beginNativePainting();
-	if (m_freqScaleRect.isEmpty()) return;
+    if (m_freqScaleRect.isEmpty()) return;
 	QColor freqlabelColor = QColor(239,56,109);
     QColor textColor = QColor(140, 180, 200);
 
@@ -1073,7 +997,7 @@ void QGLWidebandPanel::renderHorizontalScale() {
     drawGLScaleBackground(QRect(0, 0, m_freqScaleRect.width() * dpr, m_freqScaleRect.height() *dpr), QColor(0, 0, 0, 255));
 	QRect scaledTextRect(0, textOffset_y, 1, fontHeight);
     scaledTextRect.setWidth(m_fonts.smallFontMetrics->horizontalAdvance(fstr));
-	scaledTextRect.moveLeft(m_freqScaleRect.width() - scaledTextRect.width());// - menu_pull_right_rect.width());
+    scaledTextRect.moveLeft(m_freqScaleRect.width() - scaledTextRect.width());// - menu_pull_right_rect.width());
     painter.endNativePainting();
     painter.setRenderHint(QPainter::Antialiasing);
     painter.scale(dpr,dpr);
@@ -1113,22 +1037,16 @@ void QGLWidebandPanel::renderHorizontalScale() {
     painter.setPen(QPen(freqlabelColor));
     painter.drawText(m_freqScaleRect.width() - 30,  textOffset_y + 10 , fstr);
     painter.end();
-    m_frequencyScaleFBO->release();
-}
+   }
 
 void QGLWidebandPanel::renderGrid() {
 	glClear(GL_COLOR_BUFFER_BIT);
-    if (!m_gridFBO->bind()) {
-        qWarning() << "Failed to bind FBO!";
-        return;
-    }
     QOpenGLPaintDevice paintDevice(m_gridFBO->size());
-
-    // 2. Create a painter directly on the FBO.
-    QPainter painter(&paintDevice);
+    painter.begin(&paintDevice);
 
     painter.setRenderHint(QPainter::Antialiasing);
     painter.setPen(QPen(m_gridColor,1, Qt::DotLine, Qt::FlatCap));
+    painter.scale(dpr,dpr);
 
 	// vertical lines
 	int len = m_frequencyScale.mainPointPositions.length();
@@ -1167,7 +1085,7 @@ void QGLWidebandPanel::getRegion(QPoint p) {
 		if (m_displayTime.elapsed() >= 50) {
 			
 			m_displayTime.restart();
-            update();
+       //     update();
 		}
 	}
 	else if (m_dBmScaleRect.contains(p)) {
@@ -1177,7 +1095,7 @@ void QGLWidebandPanel::getRegion(QPoint p) {
 		if (m_displayTime.elapsed() >= 50) {
 			
 			m_displayTime.restart();
-            update();
+         //   update();
 		}
 	}
 	else if (m_panRect.contains(p)) {
@@ -1203,36 +1121,21 @@ void QGLWidebandPanel::getRegion(QPoint p) {
 }
 
 void QGLWidebandPanel::resizeGL(int iWidth, int iHeight) {
-    float dpr = devicePixelRatioF();
-	int width = (int)(iWidth/2) * 2;
-	int height = iHeight;
-    qDebug() << "resize" << "width " << width << "height" << height << "dpr" << dpr;
-	if (width != m_oldWidth) {
 
-		m_freqScaleRenew = true;
-		m_panGridRenew = true;
+    if (m_dBmScaleFBO) { delete m_dBmScaleFBO; m_dBmScaleFBO = nullptr; }
+    if (m_frequencyScaleFBO) { delete m_frequencyScaleFBO; m_frequencyScaleFBO = nullptr; }
+    if (m_gridFBO) { delete m_gridFBO; m_gridFBO = nullptr; }
 
-		m_oldWidth = width;
-	}
+    // Update all sizes and rectangles
+    setupDisplayRegions(QSize(iWidth, iHeight));
 
-	if (height != m_oldHeight) {
+    // Mark all for renewal
+    m_dBmScaleRenew = true;
+    m_freqScaleRenew = true;
+    m_panGridRenew = true;
 
-		m_dBmScaleRenew = true;
-		m_panGridRenew = true;
-
-		m_oldHeight = height;
-	}
-
-	m_spectrumVertexColorUpdate = true;
-	
-    glFinish();
-
-	m_resizeTime.restart();
-    qDebug() << "display region";
-    setupDisplayRegions(QSize(width,  height));
-    glViewport(0, 0, (GLsizei)width * dpr, (GLsizei)height * dpr);
-
-	setProjectionOrthographic(width, height);
+    // Now, and only now, trigger update
+    update();
 }
 
 void QGLWidebandPanel::setupDisplayRegions(QSize size) {
@@ -1287,7 +1190,7 @@ void QGLWidebandPanel::enterEvent(QEnterEvent *event) {
 
 	m_mousePos = QPoint(-1, -1);
 	m_mouseRegion = elsewhere;
-	update();
+    update();
 
 	QOpenGLWidget::enterEvent(event);
 }
@@ -1295,7 +1198,7 @@ void QGLWidebandPanel::enterEvent(QEnterEvent *event) {
 void QGLWidebandPanel::leaveEvent(QEnterEvent *event) {
 	m_mousePos = QPoint(-1, -1);
 	m_mouseRegion = elsewhere;
-	update();
+    update();
 
 	QOpenGLWidget::leaveEvent(event);
 }
@@ -1303,7 +1206,6 @@ void QGLWidebandPanel::leaveEvent(QEnterEvent *event) {
 void QGLWidebandPanel::wheelEvent(QWheelEvent* event) {
 	
 	//GRAPHICS_DEBUG << "wheelEvent";
-    QPoint pos = event->angleDelta();
 
 	//if (event->buttons() == Qt::NoButton) getRegion(pos);
 
@@ -1336,7 +1238,6 @@ void QGLWidebandPanel::wheelEvent(QWheelEvent* event) {
 }
 
 void QGLWidebandPanel::mousePressEvent(QMouseEvent* event) {
-    return;
 	//GRAPHICS_DEBUG << "mousePressEvent";
 	m_mousePos = event->pos();
 	m_mouseDownPos = m_mousePos;
@@ -1348,7 +1249,7 @@ void QGLWidebandPanel::mousePressEvent(QMouseEvent* event) {
 		m_yScaleMouseDownPos = m_freqScaleRect.topLeft();
 		
 		if (event->buttons() == Qt::RightButton) setCursor(Qt::SplitHCursor);
-//		update();
+        update();
 
 		return;
 	}
@@ -1376,8 +1277,9 @@ void QGLWidebandPanel::mousePressEvent(QMouseEvent* event) {
         // ADD THESE:
         setupDisplayRegions(size());
         m_dBmScaleUpdate = true;
+        m_freqScaleUpdate = true;
 
-//		update();
+        update();
 
 		return;
 	}
@@ -1402,19 +1304,17 @@ void QGLWidebandPanel::mousePressEvent(QMouseEvent* event) {
 
 			
 			m_frequency = (long)(1000 * (int)(qRound(m_mousePos.x()/unit + m_lowerFrequency)/1000));
-            qDebug()  << "wideband "<< m_panRect.width() << MAXHPFREQUENCY <<  m_freqScaleZoomFactor << m_frequency;
 			set->setVFOFrequency(this, 1, m_currentReceiver, m_frequency);
 		}
-//		update();
+        update();
 
 		return;
 	}
 
- 	update();
+    update();
 }
 
 void QGLWidebandPanel::mouseReleaseEvent(QMouseEvent *event) {
-
 	//GRAPHICS_DEBUG << "mouseReleaseEvent";
 	m_mousePos = event->pos();
 	m_mouseDownPos = m_mousePos;
@@ -1432,11 +1332,10 @@ void QGLWidebandPanel::mouseReleaseEvent(QMouseEvent *event) {
 	
 	if (m_calibrate) m_calibrate = false;
 
- 	update();
+    update();
 }
 
 void QGLWidebandPanel::mouseMoveEvent(QMouseEvent* event) {
-
 	QPoint pos = event->pos();
 	m_mousePos = event->pos();
 
@@ -1451,7 +1350,7 @@ void QGLWidebandPanel::mouseMoveEvent(QMouseEvent* event) {
 			else
 				setCursor(Qt::ArrowCursor);
 
-			update();
+            update();
 			break;
 
 		case dBmScaleRegion:
@@ -1505,7 +1404,6 @@ void QGLWidebandPanel::mouseMoveEvent(QMouseEvent* event) {
 			}
 			else
 			if (event->buttons() == Qt::RightButton) {
-
 				QPoint dPos = m_mouseDownPos - pos;
 				if (dPos.y() > 0)
 					m_dBmPanDelta = 1.0;
@@ -1537,7 +1435,6 @@ void QGLWidebandPanel::mouseMoveEvent(QMouseEvent* event) {
 			break;
 
 		case freqScaleRegion:
-			
 			if (event->buttons() == Qt::LeftButton) {
 
 				if (m_freqScaleZoomFactor < 1.0) {
@@ -1559,8 +1456,9 @@ void QGLWidebandPanel::mouseMoveEvent(QMouseEvent* event) {
 					}
 
 					m_mouseDownPos = pos;
-					m_freqScaleUpdate = true;
-					m_panGridUpdate = true;
+                    m_freqScaleUpdate = true;
+                    m_dBmScaleUpdate = true;
+                    m_panGridUpdate = true;
 				}
 				else {
 
@@ -1569,7 +1467,7 @@ void QGLWidebandPanel::mouseMoveEvent(QMouseEvent* event) {
 				}
 			}
 			else if (event->buttons() == Qt::RightButton) {
-				
+
 				QPoint dPos = m_mouseDownPos - pos;
 
 				if (dPos.x() > 0) {
@@ -1596,7 +1494,9 @@ void QGLWidebandPanel::mouseMoveEvent(QMouseEvent* event) {
 
 				m_mouseDownPos = pos;
                 m_freqScaleUpdate = true;
-                //m_panGridUpdate = true;
+                m_dBmScaleUpdate = true;
+                m_panGridUpdate = true;
+             //   update();
 			}
 			else
 				setCursor(Qt::ArrowCursor);
@@ -1662,13 +1562,28 @@ void QGLWidebandPanel::keyPressEvent(QKeyEvent* event) {
  	}
 
 	QWidget::keyPressEvent(event);
- 	//updateGL();
-	update();
+    //updateGL();
+    update();
 }
 
-void QGLWidebandPanel::timerEvent(QTimerEvent *) {
-	
-	update();
+void QGLWidebandPanel::timerEvent(QTimerEvent *event) {
+    if (event->timerId() == m_dprPollTimerId) {
+        qreal currentDpr = devicePixelRatioF();
+        if (!qFuzzyCompare(currentDpr, dpr)) { // seems like dpr is not updated on the fly.
+            qDebug() << "DPR changed! Old:" << dpr << "New:" << currentDpr;
+            dpr = currentDpr;
+            // Recreate FBOs and update geometry
+            if (m_dBmScaleFBO) { delete m_dBmScaleFBO; m_dBmScaleFBO = nullptr; }
+            if (m_frequencyScaleFBO) { delete m_frequencyScaleFBO; m_frequencyScaleFBO = nullptr; }
+            if (m_gridFBO) { delete m_gridFBO; m_gridFBO = nullptr; }
+            setupDisplayRegions(size());
+            m_dBmScaleRenew = true;
+            m_freqScaleRenew = true;
+            m_panGridRenew = true;
+            update();
+        }
+    }
+    update();
 }
  
 //********************************************************************
@@ -1683,8 +1598,8 @@ void QGLWidebandPanel::setFrequency(QObject *sender, int mode, int rx, long freq
 	m_freqScaleUpdate = true;
 	m_panGridUpdate = true;
 
-	//updateGL();
-	update();
+    //updateGL();
+    update();
 }
 
 void QGLWidebandPanel::setCurrentReceiver(QObject *sender, int value) {
@@ -1761,11 +1676,9 @@ void QGLWidebandPanel::setCurrentReceiver(QObject *sender, int value) {
 //}
 
 void QGLWidebandPanel::setWidebandSpectrumBuffer(const qVectorFloat &buffer) {
-
 	//int deltaIdx;
 	//qreal frequencyScale;
 	//qreal scaleMult = 1.0;
-
 	m_wbSpectrumBufferLength = buffer.size();
 
 	mutex.lock();
@@ -1955,35 +1868,6 @@ void QGLWidebandPanel::sampleRateChanged(QObject *sender, int value) {
 	update();
 }
 
-void QGLWidebandPanel::freqScaleUpdate(bool value) {
-
-	m_freqScaleUpdate = value;
-}
-
-void QGLWidebandPanel::freqScaleRenew(bool value) {
-
-	m_freqScaleRenew = value;
-}
-
-void QGLWidebandPanel::dBmScaleUpdate(bool value) {
-
-	m_dBmScaleUpdate = value;
-}
-
-void QGLWidebandPanel::dBmScaleRenew(bool value) {
-
-	m_dBmScaleRenew = value;
-}
-
-void QGLWidebandPanel::panGridUpdate(bool value) {
-
-	m_panGridUpdate = value;
-}
-
-void QGLWidebandPanel::panGridRenew(bool value) {
-
-	m_panGridRenew = value;
-}
 
 void QGLWidebandPanel::closeEvent(QCloseEvent *event) {
 

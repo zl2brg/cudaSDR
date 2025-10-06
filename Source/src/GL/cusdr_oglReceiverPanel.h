@@ -162,6 +162,7 @@ private:
 	
 	QMutex						mutex;
 	QMutex						spectrumBufferMutex;
+    qreal                       dpr;
 
 	enum Region {
 

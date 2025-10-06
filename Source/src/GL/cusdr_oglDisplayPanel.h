@@ -93,6 +93,7 @@ protected:
 
 private:
 	Settings*	set;
+    qreal dpr;
 
 	QSDR::_ServerMode			m_serverMode;
 	QSDR::_HWInterfaceMode		m_hwInterface;

@@ -844,8 +844,8 @@ bool DataEngine::start() {
 	if (!m_dataProcessor) createDataProcessor();
 
 
-	if (m_serverMode == QSDR::SDRMode && !m_wbDataProcessor)
-		createWideBandDataProcessor();
+    if (m_serverMode == QSDR::SDRMode && !m_wbDataProcessor)
+        createWideBandDataProcessor();
 
 
 	switch (m_serverMode) {
@@ -1769,7 +1769,6 @@ void DataEngine::createWideBandDataProcessor() {
 }
 
 bool DataEngine::startWideBandDataProcessor(QThread::Priority prio) {
-
 	m_wbDataProcThread->start(prio);//(QThread::TimeCriticalPriority);//(QThread::HighPriority);//(QThread::LowPriority);
 
 	if (m_wbDataProcThread->isRunning()) {

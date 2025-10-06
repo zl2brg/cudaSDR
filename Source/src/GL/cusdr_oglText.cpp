@@ -41,7 +41,7 @@ struct CharData {
 
 struct OGLTextPrivate {
 
-    OGLTextPrivate(const QFont &f);
+    OGLTextPrivate(const QFont &f, qreal devicePixelRatio);
     ~OGLTextPrivate();
 
     void allocateTexture();
@@ -49,6 +49,7 @@ struct OGLTextPrivate {
 
     QFont font;
     QFontMetrics fontMetrics;
+    qreal dpr;
 
     QHash<ushort, CharData> characters;
     QList<GLuint> textures;
@@ -57,8 +58,10 @@ struct OGLTextPrivate {
     GLint yOffset;
 };
 
-OGLTextPrivate::OGLTextPrivate(const QFont &f)
-    : font(f), fontMetrics(f), xOffset(0), yOffset(0) {}
+OGLTextPrivate::OGLTextPrivate(const QFont &f, qreal devicePixelRatio)
+    : font(f), fontMetrics(f), dpr(devicePixelRatio), xOffset(0), yOffset(0) {
+    // Note: DPR is stored for potential future use
+}
 
 OGLTextPrivate::~OGLTextPrivate() {
 	
@@ -120,15 +123,11 @@ CharData &OGLTextPrivate::createCharacter(QChar c) {
         }*/
 
         QPainter painter;
-        //const QPainter::CompositionMode comp_mode = painter.compositionMode();
-        //painter.setCompositionMode(QPainter::CompositionMode_Source);
         painter.begin(&pixmap);
-        //painter.setRenderHints(QPainter::HighQualityAntialiasing | QPainter::TextAntialiasing);
-        painter.setRenderHints(QPainter::Antialiasing | QPainter::Antialiasing | QPainter::TextAntialiasing, false);
+        painter.setRenderHints(QPainter::Antialiasing | QPainter::TextAntialiasing, true);
         painter.setFont(font);
         painter.setPen(Qt::white);
 
-        //painter.drawText(0, fontMetrics.ascent(), c);
         painter.drawText(pixmap.rect(), Qt::TextSingleLine | Qt::TextDontClip | Qt::AlignCenter, c);
         painter.end();
 
@@ -162,7 +161,7 @@ CharData &OGLTextPrivate::createCharacter(QChar c) {
 
 
 
-OGLText::OGLText(const QFont &f) : d(new OGLTextPrivate(f)) {}
+OGLText::OGLText(const QFont &f, qreal devicePixelRatio) : d(new OGLTextPrivate(f, devicePixelRatio)) {}
 
 
 OGLText::~OGLText() {
