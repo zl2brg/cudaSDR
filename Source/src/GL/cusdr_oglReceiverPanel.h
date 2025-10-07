@@ -38,6 +38,7 @@
 #include <QWheelEvent>
 #include <QOpenGLWidget>
 #include <QOpenGLFunctions>
+#include <QOpenGLPaintDevice>
 
 
 #ifdef LOG_GRAPHICS
@@ -163,7 +164,7 @@ private:
 	QMutex						mutex;
 	QMutex						spectrumBufferMutex;
     qreal                       dpr;
-
+    QPainter                    painter;
 	enum Region {
 
 		freqScalePanadapterRegion,

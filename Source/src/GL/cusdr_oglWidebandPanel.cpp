@@ -249,7 +249,7 @@ void QGLWidebandPanel::paintGL() {
 			if (m_resizeTime.elapsed() > 200 || m_dataEngineState == QSDR::DataEngineDown) {
 			
                 drawSpectrum();
-               drawHorizontalScale();
+                drawHorizontalScale();
                 drawVerticalScale();
 
             if (m_panGrid)
@@ -660,7 +660,6 @@ void QGLWidebandPanel::drawSpectrum() {
 	//glDisable(GL_SCISSOR_TEST);
 	glDisable(GL_BLEND);
 	glDisable(GL_LINE_SMOOTH);
-    update();
 }
 
 void QGLWidebandPanel::drawVerticalScale() {
@@ -759,7 +758,6 @@ void QGLWidebandPanel::drawHorizontalScale() {
 }
 
 void QGLWidebandPanel::drawGrid() {
-    return;
 	if (!m_panRect.isValid()) return;
 
     int width = m_panRect.width();

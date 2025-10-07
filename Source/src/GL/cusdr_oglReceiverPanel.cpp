@@ -929,6 +929,10 @@ void QGLReceiverPanel::drawPanVerticalScale() {
             // Create FBO with DPR-scaled size
             m_dBmScaleFBO = new QOpenGLFramebufferObject(width, height);
         }
+        glPushAttrib(GL_VIEWPORT_BIT);
+
+        glViewport(0, 0, width * dpr , height * dpr);
+        setProjectionOrthographic(m_dBmScalePanRect.width(), m_dBmScalePanRect.height());
 
         m_dBmScaleFBO->bind();
         // Make sure to use scaled width/height in renderPanVerticalScale
@@ -937,6 +941,10 @@ void QGLReceiverPanel::drawPanVerticalScale() {
 
         m_dBmScalePanadapterUpdate = false;
         m_dBmScalePanadapterRenew = false;
+        glPopAttrib();
+        glViewport(0, 0, size().width() * dpr, size().height()* dpr);
+        setProjectionOrthographic(size().width(), size().height());
+
     }
 
     // Render texture at logical coordinates
@@ -946,7 +954,6 @@ void QGLReceiverPanel::drawPanVerticalScale() {
     glColor3f(0.65f, 0.76f, 0.81f);
 }
 
-// And update renderPanVerticalScale to use DPR-scaling for viewport and projection:
 
 void QGLReceiverPanel::renderPanVerticalScale() {
 
@@ -954,6 +961,12 @@ void QGLReceiverPanel::renderPanVerticalScale() {
     int spacing = 7;
     int fontHeight;
     int fontMaxWidth;
+    QOpenGLPaintDevice paintDevice(m_dBmScaleFBO->size());
+
+    painter.begin(&paintDevice);
+    #include <QOpenGLPaintDevice>
+    painter.beginNativePainting();
+
     if (m_smallSize) {
         fontHeight = m_fonts.smallFontMetrics->tightBoundingRect(".0dBm").height() + spacing;
         fontMaxWidth = m_fonts.smallFontMetrics->boundingRect("-000.0").width();
@@ -976,19 +989,16 @@ void QGLReceiverPanel::renderPanVerticalScale() {
     glClear(GL_COLOR_BUFFER_BIT);
 
     QRect textRect(0, 0, fontMaxWidth, fontHeight);
-    if (m_smallSize)
-        textRect.moveLeft(3);
-    else
-        textRect.moveLeft(-1);
-
+    textRect.moveLeft(3);
     int yOld = -textRect.height();
+
 
     int len		= m_dBmScale.mainPointPositions.length();
     int sublen	= m_dBmScale.subPointPositions.length();
 
     // Set DPR-scaled viewport and projection
-    glViewport(0, 0, width, height);
-    setProjectionOrthographic(width, height);
+  glViewport(0, 0, width, height);
+    setProjectionOrthographic(m_dBmScalePanRect.width(),m_dBmScalePanRect.height());
 
     // draw the scale background
     drawGLScaleBackground(QRect(0, 0, width, height), QColor(30, 30, 30, 180));
@@ -1015,16 +1025,20 @@ void QGLReceiverPanel::renderPanVerticalScale() {
             glEnd();
         }
 
-        glColor3f(0.75f, 0.86f, 0.91f);
-        for (int i = 0; i < len; i++) {
-            textRect.moveBottom(m_dBmScale.mainPointPositions.at(i) * dpr + textRect.height()/2);
 
-            if (textRect.y() >= yOld && textRect.bottom() <= (height - textRect.height())) {
+        painter.endNativePainting();
+        painter.setPen(QPen(QColor(191,219,232)));
+        painter.setFont(m_oglTextNormal->font());
+        painter.scale(dpr,dpr);
+
+
+
+
+        for (int i = 0; i < len; i++) {
+            textRect.moveBottom(m_dBmScale.mainPointPositions.at(i) + textRect.height()/2);
+           if (textRect.y() > m_dBmScalePanRect.top() + textRect.height() && textRect.bottom() <= (m_dBmScalePanRect.height() - textRect.height()/2)) {
                 str = QString::number(m_dBmScale.mainPoints.at(i), 'f', 1);
-                if (m_smallSize)
-                    m_oglTextSmall->renderText(textRect.x() + fontMaxWidth - m_fonts.smallFontMetrics->tightBoundingRect(str).width(), textRect.y(), str);
-                else
-                    m_oglTextBig1->renderText(textRect.x() + fontMaxWidth - m_fonts.bigFont1Metrics->tightBoundingRect(str).width(), textRect.y(), str);
+                painter.drawText(textRect.x(),textRect.y() + fontHeight,str);
                 yOld = textRect.bottom();
             }
         }
@@ -1032,16 +1046,10 @@ void QGLReceiverPanel::renderPanVerticalScale() {
 
     textRect.moveTop(height - textRect.height());
     glColor3f(0.94f, 0.22f, 0.43f);
+     str = QString("dBm");
+    painter.drawText(textRect.x() + 18  , textRect.y() +  fontHeight , str);
+    painter.end();
 
-    str = QString("dBm");
-    if (m_smallSize)
-        m_oglTextSmall->renderText(textRect.x(), textRect.y(), str);
-    else
-        m_oglTextBig1->renderText(textRect.x() + 10, textRect.y(), str);
-
-    // Restore main widget viewport and projection
-    glViewport(0, 0, size().width() * dpr, size().height() * dpr);
-    setProjectionOrthographic(size().width() * dpr, size().height() * dpr);
 }
 
 void QGLReceiverPanel::drawPanHorizontalScale() {
@@ -1074,15 +1082,15 @@ void QGLReceiverPanel::drawPanHorizontalScale() {
 
 		glPushAttrib(GL_VIEWPORT_BIT);
         glViewport(0, 0, width * dpr, height * dpr);
-        setProjectionOrthographic(width, height);
+        setProjectionOrthographic(width,height) ;
 		
 		m_frequencyScaleFBO->bind();
 			renderPanHorizontalScale();
 		m_frequencyScaleFBO->release();
 
 		glPopAttrib();
-  //      glViewport(0, 0, size().width() * dpr, size().height()* dpr);
-  //      setProjectionOrthographic(size().width(), size().height());
+        glViewport(0, 0, size().width() * dpr, size().height()* dpr);
+        setProjectionOrthographic(size().width() , size().height());
 		m_freqScalePanadapterUpdate = false;
 		m_freqScalePanadapterRenew = false;
 	}
@@ -2166,21 +2174,19 @@ void QGLReceiverPanel::renderPanHorizontalScale() {
 	//GRAPHICS_DEBUG << "render frequency scale";
 	int fontHeight;
 	int fontMaxWidth;
-	if (m_smallSize) {
+    QColor textColor = QColor(140, 180, 200);
+    qreal freqSpan = (qreal)(m_sampleRate * m_freqScaleZoomFactor);
+    qreal lowerFreq = (qreal)m_centerFrequency - freqSpan / 2;
+    qreal upperFreq = (qreal)m_centerFrequency + freqSpan / 2;
+    qreal unit = (qreal)(m_freqScalePanRect.width() / freqSpan);
 
-		fontHeight = m_fonts.smallFontMetrics->tightBoundingRect(".0kMGHz").height();
-		fontMaxWidth = m_fonts.smallFontMetrics->boundingRect("000.000.0").width();
-	}
-	else {
+    QOpenGLPaintDevice paintDevice(m_frequencyScaleFBO->size());
+    painter.begin(&paintDevice);
+    painter.beginNativePainting();
 
-		fontHeight = m_fonts.bigFont1Metrics->tightBoundingRect(".0kMGHz").height();
-		fontMaxWidth = m_fonts.bigFont1Metrics->boundingRect("000.000.0").width();
-	}
+    fontHeight = m_fonts.smallFontMetrics->tightBoundingRect(".0kMGHz").height();
+    fontMaxWidth = m_fonts.smallFontMetrics->boundingRect("000.000.0").width();
 
-	qreal freqSpan = (qreal)(m_sampleRate * m_freqScaleZoomFactor);
-	qreal lowerFreq = (qreal)m_centerFrequency - freqSpan / 2;
-	qreal upperFreq = (qreal)m_centerFrequency + freqSpan / 2;
-	qreal unit = (qreal)(m_freqScalePanRect.width() / freqSpan);
 
 	m_frequencyScale = getXRuler(m_freqScalePanRect, fontMaxWidth, unit, lowerFreq, upperFreq);
 
@@ -2195,29 +2201,21 @@ void QGLReceiverPanel::renderPanHorizontalScale() {
 	if (upperFreq >= 1e3) { freqScale = 1e3; fstr = QString("  kHz "); }
 
 	// draw the scale background
-    drawGLScaleBackground(QRect(0, 0, m_freqScalePanRect.width(), m_freqScalePanRect.height()), QColor(0, 0, 0, 255));
-	
-	QRect scaledTextRect(0, textOffset_y, 1, m_freqScalePanRect.height());
+    drawGLScaleBackground(QRect(0, 0, m_freqScalePanRect.width() * dpr, m_freqScalePanRect.height() *dpr), QColor(0, 0, 0, 255));
+    painter.endNativePainting();
 
-	if (m_smallSize)
-        scaledTextRect.setWidth(m_fonts.smallFontMetrics->horizontalAdvance(fstr));
-	else
-        scaledTextRect.setWidth(m_fonts.bigFont1Metrics->horizontalAdvance(fstr));
-
-	scaledTextRect.moveLeft(m_freqScalePanRect.width() - scaledTextRect.width());
-
-	glColor3f(0.65f, 0.76f, 0.81f);
+    QRect scaledTextRect(0, textOffset_y, 1, m_freqScalePanRect.height());
+    scaledTextRect.setWidth(m_fonts.smallFontMetrics->horizontalAdvance(fstr));
+    scaledTextRect.moveLeft(m_freqScalePanRect.width() - scaledTextRect.width());// - menu_pull_right_rect.width());
+    painter.setRenderHint(QPainter::Antialiasing);
+    painter.scale(dpr,dpr);
+    painter.setPen(QPen(textColor,3, Qt::SolidLine, Qt::FlatCap));
 	int len = m_frequencyScale.mainPointPositions.length();
 	if (len > 0) {
 
-		glLineWidth(3);
-		glBegin(GL_LINES);
 		for (int i = 0; i < len; i++) {
-
-			glVertex3f(m_frequencyScale.mainPointPositions.at(i), 1.0f, 0.0f);
-			glVertex3f(m_frequencyScale.mainPointPositions.at(i), 4.0f, 0.0f);
+            painter.drawLine(m_frequencyScale.mainPointPositions.at(i),1,m_frequencyScale.mainPointPositions.at(i),4);
 		}
-		glEnd();
 		
 		for (int i = 0; i < len; i++) {
 		
@@ -2234,40 +2232,26 @@ void QGLReceiverPanel::renderPanHorizontalScale() {
 			}
 			if (str.endsWith('.')) str.remove(str.size() - 1, 1);
 
-			int textWidth;
-			if (m_smallSize)
-                textWidth = m_fonts.smallFontMetrics->horizontalAdvance(str);
-			else
-                textWidth = m_fonts.bigFont1Metrics->horizontalAdvance(str);
-			QRect textRect(m_frequencyScale.mainPointPositions.at(i) + offset_X - (textWidth / 2), textOffset_y, textWidth, fontHeight);
+            int textWidth = m_fonts.smallFontMetrics->horizontalAdvance(str);
+
+            QRect textRect(m_frequencyScale.mainPointPositions.at(i) + offset_X - (textWidth / 2), textOffset_y, textWidth, fontHeight);
 
 			if (textRect.left() < 0 || textRect.right() >= scaledTextRect.left()) continue;
-			
-			if (m_smallSize)
-				m_oglTextSmall->renderText(textRect.x(), textRect.y(), str);
-			else
-				m_oglTextBig1->renderText(textRect.x(), textRect.y(), str);
+             painter.drawText(textRect.x() , textRect.y() +  m_oglTextSmall->fontMetrics().height() , str);
+
 		}
 	}
 
-	if (m_frequencyScale.subPointPositions.length() > 0) {
-
-		glLineWidth(1);
-		glBegin(GL_LINES);
-		for (int i = 0; i < m_frequencyScale.subPointPositions.length(); i++) {
-
-			glVertex3f(m_frequencyScale.subPointPositions.at(i), 1.0f, 0.0f);
-			glVertex3f(m_frequencyScale.subPointPositions.at(i), 3.0f, 0.0f);
-		}
-		glEnd();
-	}
+    len = m_frequencyScale.subPointPositions.length();
+    if (len > 0) {
+        for (int i = 0; i < len; i++) {
+            painter.drawLine(m_frequencyScale.subPointPositions.at(i),1,m_frequencyScale.subPointPositions.at(i),3);
+        }
+    }
 
 	glColor3f(0.94f, 0.22f, 0.43f);
-
-	if (m_smallSize)
-		m_oglTextSmall->renderText(m_freqScalePanRect.width() - 30, textOffset_y, fstr);
-	else
-		m_oglTextBig1->renderText(m_freqScalePanRect.width() - 33, textOffset_y, fstr);
+     painter.drawText(m_freqScalePanRect.width() - 30,  textOffset_y + 10 , fstr);
+    painter.end();
 }
 
 void QGLReceiverPanel::renderPanadapterGrid() {
@@ -2532,27 +2516,24 @@ void QGLReceiverPanel::getRegion(QPoint p) {
 
 void QGLReceiverPanel::resizeGL(int iWidth, int iHeight) {
 
-	int width = (int)(iWidth/2) * 2;
-	int height = iHeight;
+    if (m_dBmScaleFBO) { delete m_dBmScaleFBO; m_dBmScaleFBO = nullptr; }
+    if (m_frequencyScaleFBO) { delete m_frequencyScaleFBO; m_frequencyScaleFBO = nullptr; }
+    if (m_panadapterGridFBO) { delete m_panadapterGridFBO; m_panadapterGridFBO = nullptr; }
 
-	if (width != m_oldWidth) {
-
-		m_freqScalePanadapterRenew = true;
-		m_panGridRenew = true;
-
-		m_oldWidth = width;
-	}
-
+    // Update all sizes and rectangles
+    setupDisplayRegions(QSize(iWidth, iHeight));
+    setProjectionOrthographic(iWidth * dpr, iHeight * dpr);
+    // Mark all for renewal
+    m_panGridRenew = true;
+    m_panFrequencyScale = true;
+    m_panGridRenew = true;
     m_spectrumVertexColorUpdate = true;
     m_waterfallUpdate = true;
-
 	glFinish();
 
 	m_resizeTime.restart();
-	setupDisplayRegions(QSize(width, height));
-    glViewport(0, 0, (GLsizei)width, (GLsizei)height);
+    update();
 
-	setProjectionOrthographic(width, height);
 }
 
 void QGLReceiverPanel::setupDisplayRegions(QSize size) {
