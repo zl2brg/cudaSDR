@@ -14,9 +14,13 @@
 const int QGL3DPanel::MAX_TIME_SLICES;
 const int QGL3DPanel::MAX_FREQ_BINS;
 
-QGL3DPanel::QGL3DPanel(QWidget *parent, Settings* settings)
+QGL3DPanel::QGL3DPanel(QWidget *parent, int rx)
     : QOpenGLWidget(parent)
-    , set(settings)
+    , set(Settings::instance())
+    , m_receiver(rx)
+    , m_centerFrequency(set->getCtrFrequency(m_receiver))
+    , m_vfoFrequency(set->getVfoFrequency(m_receiver))
+    , m_sampleRate(set->getSampleRate())
     , m_shaderProgram(nullptr)
     , m_vertexBuffer(nullptr)
     , m_indexBuffer(nullptr)
@@ -503,6 +507,33 @@ void QGL3DPanel::onUpdateTimer() {
 // Slots
 void QGL3DPanel::spectrumDataChanged(const QVector<float>& data) {
     setSpectrumData(data);
+}
+
+// SDR integration methods
+void QGL3DPanel::setSpectrumBuffer(int rx, const QVector<float>& buffer) {
+    if (rx != m_receiver) return; // Only accept data for our receiver
+    
+    setSpectrumData(buffer);
+}
+
+void QGL3DPanel::setCtrFrequency(QObject* sender, int mode, int rx, long freq) {
+    Q_UNUSED(sender)
+    Q_UNUSED(mode)
+    
+    if (rx != m_receiver) return;
+    
+    m_centerFrequency = freq;
+    update(); // Trigger repaint to update frequency labels
+}
+
+void QGL3DPanel::setVFOFrequency(QObject* sender, int mode, int rx, long freq) {
+    Q_UNUSED(sender)
+    Q_UNUSED(mode)
+    
+    if (rx != m_receiver) return;
+    
+    m_vfoFrequency = freq;
+    update(); // Trigger repaint to update frequency cursor
 }
 
 void QGL3DPanel::updateDisplay() {

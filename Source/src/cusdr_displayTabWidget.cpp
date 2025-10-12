@@ -29,6 +29,7 @@
 #include <QMenu>
 #include <QFileDialog>
 #include <QDebug>
+#include <QVBoxLayout>
 
 #include "cusdr_displayTabWidget.h"
 
@@ -44,6 +45,8 @@ DisplayTabWidget::DisplayTabWidget(QWidget *parent)
 	, set(Settings::instance())
 	, m_minimumWidgetWidth(set->getMinimumWidgetWidth())
 	, m_minimumGroupBoxWidth(set->getMinimumGroupBoxWidth())
+	, m_3DDialog(nullptr)
+	, m_3DPanel(nullptr)
 {
 	setStyleSheet(set->getTabWidgetStyle());
 	setContentsMargins(4, 4, 4, 0);
@@ -51,10 +54,13 @@ DisplayTabWidget::DisplayTabWidget(QWidget *parent)
 	
 	m_displayWidget = new DisplayOptionsWidget(this);
 	m_colorWidget = new ColorOptionsWidget(this);
+	m_3DWidget = new Options3DWidget(this);
 
 	this->addTab(m_displayWidget, " Display ");
 	this->addTab(m_colorWidget, " Colors ");
+	this->addTab(m_3DWidget, " 3D View ");
 
+	setTabEnabled(0, true);
 	setTabEnabled(1, true);
 	setTabEnabled(2, true);
     qDebug() << "display setup";
@@ -69,6 +75,8 @@ DisplayTabWidget::~DisplayTabWidget() {
     delete m_displayWidget;
     qDebug() << "Delete";
     delete m_colorWidget;
+    qDebug() << "Delete";
+    delete m_3DWidget;
     qDebug() << "Delete";
 }
 
@@ -114,9 +122,16 @@ void DisplayTabWidget::setupConnections() {
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(pennyLanePresenceChanged(bool)),
+		SIGNAL(penelopePresenceChanged(bool)),
 		this,
 		SLOT(setPennyPresence(bool)));
+
+	// Connect 3D options widget
+	CHECKED_CONNECT(
+		m_3DWidget,
+		SIGNAL(show3DPanadapterChanged(bool)),
+		this,
+		SLOT(show3DPanadapter(bool)));
 }
 
 void DisplayTabWidget::systemStateChanged(
@@ -161,6 +176,38 @@ void DisplayTabWidget::setAlexPresence(bool value) {
 void DisplayTabWidget::addNICChangedConnection() {
 
 	//m_networkWidget->addNICChangedConnection();
+}
+
+void DisplayTabWidget::show3DPanadapter(bool enabled) {
+	if (enabled) {
+		if (!m_3DDialog) {
+			// Create the 3D dialog window
+			m_3DDialog = new QDialog(this);
+			m_3DDialog->setWindowTitle("3D Panadapter");
+			m_3DDialog->setModal(false);
+			m_3DDialog->resize(800, 600);
+			
+			// Create the 3D panel for receiver 0
+			m_3DPanel = new QGL3DPanel(m_3DDialog, 0);
+			
+			// Set up layout
+			QVBoxLayout *layout = new QVBoxLayout;
+			layout->setContentsMargins(0, 0, 0, 0);
+			layout->addWidget(m_3DPanel);
+			m_3DDialog->setLayout(layout);
+			
+			// TODO: Connect to real spectrum data
+			// For now, this will show the 3D display with demo data
+		}
+		
+		if (m_3DDialog) {
+			m_3DDialog->show();
+		}
+	} else {
+		if (m_3DDialog) {
+			m_3DDialog->hide();
+		}
+	}
 }
 
 void DisplayTabWidget::closeEvent(QCloseEvent *event) {

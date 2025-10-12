@@ -92,6 +92,7 @@ set(SOURCES
     ${SRC_DIR}/cusdr_alexTabWidget.cpp
     ${SRC_DIR}/cusdr_displayWidget.cpp
     ${SRC_DIR}/cusdr_colorsWidget.cpp
+    ${SRC_DIR}/cusdr_3DOptionsWidget.cpp
     ${SRC_DIR}/cusdr_hpsdrTabWidget.cpp
     ${SRC_DIR}/cusdr_hpsdrWidget.cpp
     ${SRC_DIR}/cusdr_networkWidget.cpp
@@ -163,6 +164,7 @@ set(HEADERS
     ${SRC_DIR}/cusdr_settings.h
     ${SRC_DIR}/cusdr_displayTabWidget.h
     ${SRC_DIR}/cusdr_displayWidget.h
+    ${SRC_DIR}/cusdr_3DOptionsWidget.h
     ${SRC_DIR}/cusdr_mainWidget.h
     ${SRC_DIR}/cusdr_radioPopupWidget.h
     ${SRC_DIR}/cusdr_radioTabWidget.h

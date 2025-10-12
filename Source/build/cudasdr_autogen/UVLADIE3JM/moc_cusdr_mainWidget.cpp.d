@@ -34,6 +34,7 @@
   /home/simon/Projects/cudaSDR/Source/src/Util/cusdr_painter.h \
   /home/simon/Projects/cudaSDR/Source/src/Util/cusdr_queue.h \
   /home/simon/Projects/cudaSDR/Source/src/Util/qcircularbuffer.h \
+  /home/simon/Projects/cudaSDR/Source/src/cusdr_3DOptionsWidget.h \
   /home/simon/Projects/cudaSDR/Source/src/cusdr_agcWidget.h \
   /home/simon/Projects/cudaSDR/Source/src/cusdr_alexAntennaWidget.h \
   /home/simon/Projects/cudaSDR/Source/src/cusdr_alexFilterWidget.h \
@@ -590,6 +591,7 @@
   /home/simon/Qt/6.9.2/gcc_64/include/QtOpenGLWidgets/qtopenglwidgetsglobal.h \
   /home/simon/Qt/6.9.2/gcc_64/include/QtWidgets/QAbstractButton \
   /home/simon/Qt/6.9.2/gcc_64/include/QtWidgets/QBoxLayout \
+  /home/simon/Qt/6.9.2/gcc_64/include/QtWidgets/QCheckBox \
   /home/simon/Qt/6.9.2/gcc_64/include/QtWidgets/QComboBox \
   /home/simon/Qt/6.9.2/gcc_64/include/QtWidgets/QCommonStyle \
   /home/simon/Qt/6.9.2/gcc_64/include/QtWidgets/QDialog \

@@ -852,6 +852,12 @@
 			null
 		],
 		[
+			"/home/simon/Projects/cudaSDR/Source/src/cusdr_3DOptionsWidget.h",
+			"MU",
+			"UVLADIE3JM/moc_cusdr_3DOptionsWidget.cpp",
+			null
+		],
+		[
 			"/home/simon/Projects/cudaSDR/Source/src/cusdr_agcWidget.h",
 			"MU",
 			"UVLADIE3JM/moc_cusdr_agcWidget.cpp",
@@ -1258,6 +1264,11 @@
 		],
 		[
 			"/home/simon/Projects/cudaSDR/Source/src/Util/cusdr_splash.cpp",
+			"MU",
+			null
+		],
+		[
+			"/home/simon/Projects/cudaSDR/Source/src/cusdr_3DOptionsWidget.cpp",
 			"MU",
 			null
 		],

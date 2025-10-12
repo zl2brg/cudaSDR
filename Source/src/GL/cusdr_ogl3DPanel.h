@@ -48,13 +48,19 @@ class QGL3DPanel : public QOpenGLWidget, protected QOpenGLFunctions {
     Q_OBJECT
 
 public:
-    explicit QGL3DPanel(QWidget *parent, Settings* settings);
+    explicit QGL3DPanel(QWidget *parent, int rx = 0);
     ~QGL3DPanel();
 
     // Public interface
     void setSpectrumData(const QVector<float>& spectrumData);
     void setPanadapterColors();
     void setDisplaySize(QSize size);
+
+public slots:
+    // SDR integration slots
+    void setSpectrumBuffer(int rx, const QVector<float>& buffer);
+    void setCtrFrequency(QObject* sender, int mode, int rx, long freq);
+    void setVFOFrequency(QObject* sender, int mode, int rx, long freq);
 
 protected:
     // OpenGL overrides
@@ -89,6 +95,12 @@ private:
 
 private:
     Settings* set;
+    
+    // SDR integration
+    int m_receiver;
+    long m_centerFrequency;
+    long m_vfoFrequency;
+    float m_sampleRate;
     
     // 3D Rendering infrastructure
     QOpenGLShaderProgram* m_shaderProgram;

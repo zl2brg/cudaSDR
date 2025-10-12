@@ -1,12 +1,17 @@
 /home/simon/Projects/cudaSDR/Source/build/cudasdr_autogen/WAYUIA5GRM/moc_cusdr_setupwidget.cpp: /home/simon/Projects/cudaSDR/Source/src/UI/cusdr_setupwidget.h \
   /home/simon/Projects/cudaSDR/Source/build/cudasdr_autogen/moc_predefs.h \
   /home/simon/Projects/cudaSDR/Source/src/AudioEngine/cusdr_fspectrum.h \
+  /home/simon/Projects/cudaSDR/Source/src/GL/cusdr_ogl3DPanel.h \
+  /home/simon/Projects/cudaSDR/Source/src/GL/cusdr_oglInfo.h \
+  /home/simon/Projects/cudaSDR/Source/src/GL/cusdr_oglText.h \
+  /home/simon/Projects/cudaSDR/Source/src/GL/cusdr_oglUtils.h \
   /home/simon/Projects/cudaSDR/Source/src/UI/tx_settings_dialog.h \
   /home/simon/Projects/cudaSDR/Source/src/Util/cusdr_buttons.h \
   /home/simon/Projects/cudaSDR/Source/src/Util/cusdr_colorTriangle.h \
   /home/simon/Projects/cudaSDR/Source/src/Util/cusdr_led.h \
   /home/simon/Projects/cudaSDR/Source/src/Util/cusdr_painter.h \
   /home/simon/Projects/cudaSDR/Source/src/Util/cusdr_queue.h \
+  /home/simon/Projects/cudaSDR/Source/src/cusdr_3DOptionsWidget.h \
   /home/simon/Projects/cudaSDR/Source/src/cusdr_alexAntennaWidget.h \
   /home/simon/Projects/cudaSDR/Source/src/cusdr_alexFilterWidget.h \
   /home/simon/Projects/cudaSDR/Source/src/cusdr_alexTabWidget.h \
@@ -38,17 +43,20 @@
   /home/simon/Qt/6.9.2/gcc_64/include/QtCore/QObject \
   /home/simon/Qt/6.9.2/gcc_64/include/QtCore/QQueue \
   /home/simon/Qt/6.9.2/gcc_64/include/QtCore/QRect \
+  /home/simon/Qt/6.9.2/gcc_64/include/QtCore/QScopedPointer \
   /home/simon/Qt/6.9.2/gcc_64/include/QtCore/QSemaphore \
   /home/simon/Qt/6.9.2/gcc_64/include/QtCore/QSharedDataPointer \
   /home/simon/Qt/6.9.2/gcc_64/include/QtCore/QSize \
   /home/simon/Qt/6.9.2/gcc_64/include/QtCore/QSizeF \
   /home/simon/Qt/6.9.2/gcc_64/include/QtCore/QString \
   /home/simon/Qt/6.9.2/gcc_64/include/QtCore/QStringList \
+  /home/simon/Qt/6.9.2/gcc_64/include/QtCore/QTimer \
   /home/simon/Qt/6.9.2/gcc_64/include/QtCore/QUrl \
   /home/simon/Qt/6.9.2/gcc_64/include/QtCore/QVariant \
   /home/simon/Qt/6.9.2/gcc_64/include/QtCore/QVector \
   /home/simon/Qt/6.9.2/gcc_64/include/QtCore/QtCore \
   /home/simon/Qt/6.9.2/gcc_64/include/QtCore/QtCoreDepends \
+  /home/simon/Qt/6.9.2/gcc_64/include/QtCore/QtGlobal \
   /home/simon/Qt/6.9.2/gcc_64/include/QtCore/q17memory.h \
   /home/simon/Qt/6.9.2/gcc_64/include/QtCore/q20algorithm.h \
   /home/simon/Qt/6.9.2/gcc_64/include/QtCore/q20chrono.h \
@@ -322,12 +330,17 @@
   /home/simon/Qt/6.9.2/gcc_64/include/QtGui/QFont \
   /home/simon/Qt/6.9.2/gcc_64/include/QtGui/QFontMetrics \
   /home/simon/Qt/6.9.2/gcc_64/include/QtGui/QImage \
+  /home/simon/Qt/6.9.2/gcc_64/include/QtGui/QMatrix4x4 \
+  /home/simon/Qt/6.9.2/gcc_64/include/QtGui/QMouseEvent \
+  /home/simon/Qt/6.9.2/gcc_64/include/QtGui/QOpenGLFunctions \
   /home/simon/Qt/6.9.2/gcc_64/include/QtGui/QPaintDevice \
   /home/simon/Qt/6.9.2/gcc_64/include/QtGui/QPaintDeviceWindow \
   /home/simon/Qt/6.9.2/gcc_64/include/QtGui/QPainter \
   /home/simon/Qt/6.9.2/gcc_64/include/QtGui/QPen \
   /home/simon/Qt/6.9.2/gcc_64/include/QtGui/QSurfaceFormat \
   /home/simon/Qt/6.9.2/gcc_64/include/QtGui/QTransform \
+  /home/simon/Qt/6.9.2/gcc_64/include/QtGui/QVector3D \
+  /home/simon/Qt/6.9.2/gcc_64/include/QtGui/QWheelEvent \
   /home/simon/Qt/6.9.2/gcc_64/include/QtGui/QWindow \
   /home/simon/Qt/6.9.2/gcc_64/include/QtGui/QtGui \
   /home/simon/Qt/6.9.2/gcc_64/include/QtGui/QtGuiDepends \
@@ -518,8 +531,25 @@
   /home/simon/Qt/6.9.2/gcc_64/include/QtNetwork/qtnetworkglobal.h \
   /home/simon/Qt/6.9.2/gcc_64/include/QtNetwork/qtnetworkversion.h \
   /home/simon/Qt/6.9.2/gcc_64/include/QtNetwork/qudpsocket.h \
+  /home/simon/Qt/6.9.2/gcc_64/include/QtOpenGL/QOpenGLBuffer \
+  /home/simon/Qt/6.9.2/gcc_64/include/QtOpenGL/QOpenGLFramebufferObject \
+  /home/simon/Qt/6.9.2/gcc_64/include/QtOpenGL/QOpenGLShaderProgram \
+  /home/simon/Qt/6.9.2/gcc_64/include/QtOpenGL/QOpenGLTexture \
+  /home/simon/Qt/6.9.2/gcc_64/include/QtOpenGL/QOpenGLVertexArrayObject \
+  /home/simon/Qt/6.9.2/gcc_64/include/QtOpenGL/qopenglbuffer.h \
+  /home/simon/Qt/6.9.2/gcc_64/include/QtOpenGL/qopenglframebufferobject.h \
+  /home/simon/Qt/6.9.2/gcc_64/include/QtOpenGL/qopenglshaderprogram.h \
+  /home/simon/Qt/6.9.2/gcc_64/include/QtOpenGL/qopengltexture.h \
+  /home/simon/Qt/6.9.2/gcc_64/include/QtOpenGL/qopenglvertexarrayobject.h \
+  /home/simon/Qt/6.9.2/gcc_64/include/QtOpenGL/qtopenglexports.h \
+  /home/simon/Qt/6.9.2/gcc_64/include/QtOpenGL/qtopenglglobal.h \
+  /home/simon/Qt/6.9.2/gcc_64/include/QtOpenGLWidgets/QOpenGLWidget \
+  /home/simon/Qt/6.9.2/gcc_64/include/QtOpenGLWidgets/qopenglwidget.h \
+  /home/simon/Qt/6.9.2/gcc_64/include/QtOpenGLWidgets/qtopenglwidgetsexports.h \
+  /home/simon/Qt/6.9.2/gcc_64/include/QtOpenGLWidgets/qtopenglwidgetsglobal.h \
   /home/simon/Qt/6.9.2/gcc_64/include/QtWidgets/QAbstractButton \
   /home/simon/Qt/6.9.2/gcc_64/include/QtWidgets/QBoxLayout \
+  /home/simon/Qt/6.9.2/gcc_64/include/QtWidgets/QCheckBox \
   /home/simon/Qt/6.9.2/gcc_64/include/QtWidgets/QComboBox \
   /home/simon/Qt/6.9.2/gcc_64/include/QtWidgets/QDialog \
   /home/simon/Qt/6.9.2/gcc_64/include/QtWidgets/QDoubleSpinBox \
@@ -537,6 +567,7 @@
   /home/simon/Qt/6.9.2/gcc_64/include/QtWidgets/qabstractslider.h \
   /home/simon/Qt/6.9.2/gcc_64/include/QtWidgets/qabstractspinbox.h \
   /home/simon/Qt/6.9.2/gcc_64/include/QtWidgets/qboxlayout.h \
+  /home/simon/Qt/6.9.2/gcc_64/include/QtWidgets/qcheckbox.h \
   /home/simon/Qt/6.9.2/gcc_64/include/QtWidgets/qcombobox.h \
   /home/simon/Qt/6.9.2/gcc_64/include/QtWidgets/qdialog.h \
   /home/simon/Qt/6.9.2/gcc_64/include/QtWidgets/qerrormessage.h \

@@ -26,6 +26,7 @@
 #include "BBNFRHYJQ7/moc_cusdr_colorTriangle.cpp"
 #include "BBNFRHYJQ7/moc_cusdr_cpuUsage_unix.cpp"
 #include "BBNFRHYJQ7/moc_cusdr_led.cpp"
+#include "UVLADIE3JM/moc_cusdr_3DOptionsWidget.cpp"
 #include "UVLADIE3JM/moc_cusdr_agcWidget.cpp"
 #include "UVLADIE3JM/moc_cusdr_alexAntennaWidget.cpp"
 #include "UVLADIE3JM/moc_cusdr_alexFilterWidget.cpp"

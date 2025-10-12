@@ -47,8 +47,16 @@ template <> constexpr inline auto QGL3DPanel::qt_create_metaobjectdata<qt_meta_t
         "position",
         "frequencySelected",
         "frequency",
-        "spectrumDataChanged",
+        "setSpectrumBuffer",
+        "rx",
         "QList<float>",
+        "buffer",
+        "setCtrFrequency",
+        "sender",
+        "mode",
+        "freq",
+        "setVFOFrequency",
+        "spectrumDataChanged",
         "data",
         "updateDisplay",
         "onUpdateTimer"
@@ -63,14 +71,26 @@ template <> constexpr inline auto QGL3DPanel::qt_create_metaobjectdata<qt_meta_t
         QtMocHelpers::SignalData<void(float)>(4, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Float, 5 },
         }}),
+        // Slot 'setSpectrumBuffer'
+        QtMocHelpers::SlotData<void(int, const QVector<float> &)>(6, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Int, 7 }, { 0x80000000 | 8, 9 },
+        }}),
+        // Slot 'setCtrFrequency'
+        QtMocHelpers::SlotData<void(QObject *, int, int, long)>(10, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 11 }, { QMetaType::Int, 12 }, { QMetaType::Int, 7 }, { QMetaType::Long, 13 },
+        }}),
+        // Slot 'setVFOFrequency'
+        QtMocHelpers::SlotData<void(QObject *, int, int, long)>(14, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 11 }, { QMetaType::Int, 12 }, { QMetaType::Int, 7 }, { QMetaType::Long, 13 },
+        }}),
         // Slot 'spectrumDataChanged'
-        QtMocHelpers::SlotData<void(const QVector<float> &)>(6, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { 0x80000000 | 7, 8 },
+        QtMocHelpers::SlotData<void(const QVector<float> &)>(15, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { 0x80000000 | 8, 16 },
         }}),
         // Slot 'updateDisplay'
-        QtMocHelpers::SlotData<void()>(9, 2, QMC::AccessPublic, QMetaType::Void),
+        QtMocHelpers::SlotData<void()>(17, 2, QMC::AccessPublic, QMetaType::Void),
         // Slot 'onUpdateTimer'
-        QtMocHelpers::SlotData<void()>(10, 2, QMC::AccessPrivate, QMetaType::Void),
+        QtMocHelpers::SlotData<void()>(18, 2, QMC::AccessPrivate, QMetaType::Void),
     };
     QtMocHelpers::UintData qt_properties {
     };
@@ -96,9 +116,12 @@ void QGL3DPanel::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, 
         switch (_id) {
         case 0: _t->mousePositionChanged((*reinterpret_cast< std::add_pointer_t<QPoint>>(_a[1]))); break;
         case 1: _t->frequencySelected((*reinterpret_cast< std::add_pointer_t<float>>(_a[1]))); break;
-        case 2: _t->spectrumDataChanged((*reinterpret_cast< std::add_pointer_t<QList<float>>>(_a[1]))); break;
-        case 3: _t->updateDisplay(); break;
-        case 4: _t->onUpdateTimer(); break;
+        case 2: _t->setSpectrumBuffer((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<QList<float>>>(_a[2]))); break;
+        case 3: _t->setCtrFrequency((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[3])),(*reinterpret_cast< std::add_pointer_t<long>>(_a[4]))); break;
+        case 4: _t->setVFOFrequency((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[3])),(*reinterpret_cast< std::add_pointer_t<long>>(_a[4]))); break;
+        case 5: _t->spectrumDataChanged((*reinterpret_cast< std::add_pointer_t<QList<float>>>(_a[1]))); break;
+        case 6: _t->updateDisplay(); break;
+        case 7: _t->onUpdateTimer(); break;
         default: ;
         }
     }
@@ -106,6 +129,13 @@ void QGL3DPanel::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, 
         switch (_id) {
         default: *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType(); break;
         case 2:
+            switch (*reinterpret_cast<int*>(_a[1])) {
+            default: *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType(); break;
+            case 1:
+                *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType::fromType< QList<float> >(); break;
+            }
+            break;
+        case 5:
             switch (*reinterpret_cast<int*>(_a[1])) {
             default: *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType(); break;
             case 0:
@@ -143,14 +173,14 @@ int QGL3DPanel::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
     if (_id < 0)
         return _id;
     if (_c == QMetaObject::InvokeMetaMethod) {
-        if (_id < 5)
+        if (_id < 8)
             qt_static_metacall(this, _c, _id, _a);
-        _id -= 5;
+        _id -= 8;
     }
     if (_c == QMetaObject::RegisterMethodArgumentMetaType) {
-        if (_id < 5)
+        if (_id < 8)
             qt_static_metacall(this, _c, _id, _a);
-        _id -= 5;
+        _id -= 8;
     }
     return _id;
 }
