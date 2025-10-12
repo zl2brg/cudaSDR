@@ -121,7 +121,6 @@ private:
 
 	QOpenGLFramebufferObject*	m_frequencyScaleFBO;
 	QOpenGLFramebufferObject*	m_dBmScaleFBO;
-	QOpenGLFramebufferObject*	m_panadapterGridFBO;
     QOpenGLFramebufferObject*	m_textureFBO;
 	QOpenGLFramebufferObject*	m_waterfallLineFBO;
 	QOpenGLFramebufferObject*	m_waterfallFBO;

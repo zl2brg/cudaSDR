@@ -56,6 +56,7 @@
 #include "GL/cusdr_oglWidebandPanel.h"
 #include "GL/cusdr_oglReceiverPanel.h"
 #include "GL/cusdr_oglDisplayPanel.h"
+#include "GL/cusdr_ogl3DPanel.h"
 //#include "cusdr_graphicOptionsWidget.h"
 //#include "cusdr_server.h"
 //#include "ui_setup.h"

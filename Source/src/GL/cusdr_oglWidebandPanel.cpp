@@ -8,7 +8,7 @@
 
 /*
  *   Copyright 2012 Hermann von Hasseln, DL3HVH
- *
+ *   Copyright 2025 Simon Eatough, ZL2BRG
  *   This program is free software; you can redistribute it and/or modify
  *   it under the terms of the GNU Library General Public License version 2 as
  *   published by the Free Software Foundation
@@ -234,14 +234,14 @@ void QGLWidebandPanel::initializeGL() {
 
 void QGLWidebandPanel::paintGL() {
     QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
-    f->glClear(GL_COLOR_BUFFER_BIT);
+//    f->glClear(GL_COLOR_BUFFER_BIT);
 
 
 	switch (m_serverMode) {
 
 		case QSDR::NoServerMode:
 
-            drawGLRect(QRect(0, 0, width(), height()), QColor(65, 54, 54));
+            drawGLRect(QRect(0, 0, width()* dpr, height() * dpr), QColor(65, 54, 54));
 			break;
 
 		case QSDR::SDRMode:
@@ -249,7 +249,7 @@ void QGLWidebandPanel::paintGL() {
 			if (m_resizeTime.elapsed() > 200 || m_dataEngineState == QSDR::DataEngineDown) {
 			
                 drawSpectrum();
-                drawHorizontalScale();
+                               drawHorizontalScale();
                 drawVerticalScale();
 
             if (m_panGrid)
@@ -283,10 +283,10 @@ void QGLWidebandPanel::paintGL() {
 void QGLWidebandPanel::drawSpectrum() {
 
 
-    GLint width  = m_panRect.width() * dpr;
-    GLint height = m_panRect.height() * dpr;
-    GLint x1 = m_panRect.left() * dpr;
-    GLint y1 = m_panRect.top() * dpr;
+    GLint width  = m_panRect.width();
+    GLint height = m_panRect.height() ;
+    GLint x1 = m_panRect.left();
+    GLint y1 = m_panRect.top();
 	GLint x2 = x1 + width;
 	GLint y2 = y1 + height;
 
@@ -368,7 +368,7 @@ void QGLWidebandPanel::drawSpectrum() {
 	}
 
 	// set a scissor box
-    glScissor(x1 * dpr, (size().height() - y2) * dpr, x2 * dpr, height * dpr);
+    glScissor(x1, (size().height() * dpr - y2 * dpr), x2 * dpr, height * dpr);
 
     glEnable(GL_SCISSOR_TEST);
 
@@ -730,20 +730,22 @@ void QGLWidebandPanel::drawHorizontalScale() {
                 m_frequencyScaleFBO = nullptr;
 			}
 
-            m_frequencyScaleFBO = new QOpenGLFramebufferObject(width * dpr, height * dpr);
+            m_frequencyScaleFBO = new QOpenGLFramebufferObject(width, height);
 
         }
 
-        glPushAttrib(GL_VIEWPORT_BIT);
-        glViewport(0, 0, width * dpr, height * dpr);
+        glPushAttrib(GL_VIEWPORT_BIT | GL_TEXTURE_BIT);
+    //    glViewport(0, 0, width, height);
         setProjectionOrthographic(width, height);
-		
+        qDebug() << "horizontal scale";
+
 		m_frequencyScaleFBO->bind();
         renderHorizontalScale();
         m_frequencyScaleFBO->release();
-        glViewport(0, 0, size().width() * dpr, size().height()* dpr);
-        setProjectionOrthographic(size().width(), size().height());
         glPopAttrib();
+
+    //    glViewport(0, 0, size().width(), size().height());
+        setProjectionOrthographic(size().width(), size().height());
 
 		
 		//WBGRAPHICS_DEBUG << "frequency scale updated.";
@@ -758,49 +760,17 @@ void QGLWidebandPanel::drawHorizontalScale() {
 }
 
 void QGLWidebandPanel::drawGrid() {
-	if (!m_panRect.isValid()) return;
-
-    int width = m_panRect.width();
-	int height = m_panRect.height();
+    if (!m_panRect.isValid()) return;
 	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
-    glColor4f(m_redGrid, m_greenGrid, m_blueGrid, 1.0);
-	
+	glColor4f(m_redGrid, m_greenGrid, m_blueGrid, 1.0);
+
 	glDisable(GL_MULTISAMPLE);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glEnable(GL_BLEND);
 	
-	if (!m_gridFBO || m_panGridUpdate || m_panGridRenew)	{
+	// Render grid directly to the main framebuffer
+	renderGrid();
 
-		if (!m_gridFBO || m_panGridRenew) {
-
-			if (m_gridFBO) {
-			
-				delete m_gridFBO;
-				m_gridFBO = 0;
-			}
-
-            m_gridFBO = new QOpenGLFramebufferObject(width * dpr, height * dpr);//, format);
-			//WBGRAPHICS_DEBUG << "gridFBO generated.";
-		}
-
-		glPushAttrib(GL_VIEWPORT_BIT);
-        glViewport(0, 0, width * dpr, height * dpr);
-		setProjectionOrthographic(width, height);
-		
-		m_gridFBO->bind();
-			renderGrid();
-		m_gridFBO->release();
-
-		glPopAttrib();
-        glViewport(0, 0, size().width(), size().height());
-        setProjectionOrthographic(size().width(), size().height());
-		
-		m_panGridUpdate = false;
-		m_panGridRenew = false;
-	}
-
-	renderTexture(m_panRect, m_gridFBO->texture(), -3.0f);
-	
 	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 	glColor3f(0.65f, 0.76f, 0.81f);
 	glEnable(GL_MULTISAMPLE);
@@ -962,17 +932,15 @@ void QGLWidebandPanel::renderVerticalScale() {
     painter.end();
 }
 
-
-
 void QGLWidebandPanel::renderHorizontalScale() {
 
-    QOpenGLPaintDevice paintDevice(m_frequencyScaleFBO->size());
-    painter.begin(&paintDevice);
-    painter.beginNativePainting();
+
     if (m_freqScaleRect.isEmpty()) return;
 	QColor freqlabelColor = QColor(239,56,109);
     QColor textColor = QColor(140, 180, 200);
-
+    QOpenGLPaintDevice paintDevice(m_frequencyScaleFBO->size());
+    painter.begin(&paintDevice);
+    painter.beginNativePainting();
     //QFontMetrics d_fm(m_smallFont);
 	int fontHeight = m_fonts.smallFontMetrics->tightBoundingRect(".0kMGHz").height();
 	int fontMaxWidth = m_fonts.smallFontMetrics->boundingRect("000.000").width();
@@ -992,21 +960,18 @@ void QGLWidebandPanel::renderHorizontalScale() {
 	if (m_upperFrequency >= 1e3) { freqScale = 1e3; fstr = QString("  kHz "); }
 
 	// draw the wide band scale background
-    drawGLScaleBackground(QRect(0, 0, m_freqScaleRect.width() * dpr, m_freqScaleRect.height() *dpr), QColor(0, 0, 0, 255));
+    drawGLScaleBackground(QRect(0, 0, m_freqScaleRect.width(), m_freqScaleRect.height()), QColor(0, 0, 0, 255));
 	QRect scaledTextRect(0, textOffset_y, 1, fontHeight);
     scaledTextRect.setWidth(m_fonts.smallFontMetrics->horizontalAdvance(fstr));
     scaledTextRect.moveLeft(m_freqScaleRect.width() - scaledTextRect.width());// - menu_pull_right_rect.width());
     painter.endNativePainting();
     painter.setRenderHint(QPainter::Antialiasing);
-    painter.scale(dpr,dpr);
     painter.setPen(QPen(textColor,3, Qt::SolidLine, Qt::FlatCap));
     int len = m_frequencyScale.mainPointPositions.length();
     if (len > 0) {
 		for (int i = 0; i < len; i++) {
             painter.drawLine(m_frequencyScale.mainPointPositions.at(i),1,m_frequencyScale.mainPointPositions.at(i),4);
 		}
-
-        painter.setRenderHint(QPainter::TextAntialiasing ,true);
         painter.setFont( m_oglTextSmall->font());
 
         for (int i = 0; i < len; i++) {
@@ -1035,41 +1000,52 @@ void QGLWidebandPanel::renderHorizontalScale() {
     painter.setPen(QPen(freqlabelColor));
     painter.drawText(m_freqScaleRect.width() - 30,  textOffset_y + 10 , fstr);
     painter.end();
-   }
+}
 
 void QGLWidebandPanel::renderGrid() {
-	glClear(GL_COLOR_BUFFER_BIT);
-    QOpenGLPaintDevice paintDevice(m_gridFBO->size());
-    painter.begin(&paintDevice);
-
-    painter.setRenderHint(QPainter::Antialiasing);
-    painter.setPen(QPen(m_gridColor,1, Qt::DotLine, Qt::FlatCap));
-    painter.scale(dpr,dpr);
-
-	// vertical lines
-	int len = m_frequencyScale.mainPointPositions.length();
-	if (len > 0) {
-
-		GLint y2 = m_panRect.bottom() - 1;
-
-		for (int i = 0; i < len; i++) {
-			GLint x = m_frequencyScale.mainPointPositions.at(i);
-            painter.drawLine(x,1,x,y2);
-		}
-	}
-
-	// horizontal lines
-	len = m_dBmScale.mainPointPositions.length();
+    // Direct OpenGL grid rendering (no FBO/QPainter)
+    glDisable(GL_MULTISAMPLE);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    
+    glEnable(GL_LINE_STIPPLE);
+    glLineStipple(1, 0x5555);  // Dotted pattern
+    glLineWidth(2.0f);  // Normal line width
+    
+    // Vertical lines (frequency grid)
+    int len = m_frequencyScale.mainPointPositions.length();
     if (len > 0) {
-		GLint x1 = m_panRect.left();
-		GLint x2 = m_panRect.right();
+        GLint y1 = 0;
+        GLint y2 = m_panRect.height() - 1;
+        
+        glBegin(GL_LINES);
         for (int i = 0; i < len; i++) {
-            GLint y =  m_dBmScale.mainPointPositions.at(i);
-            painter.drawLine(x1,y,x2,y);
+            GLint x = m_frequencyScale.mainPointPositions.at(i);
+            glVertex2i(x, y1);
+            glVertex2i(x, y2);
         }
+        glEnd();
     }
-    painter.end();
-    m_gridFBO->release();
+    
+    // Horizontal lines (dBm grid) 
+    len = m_dBmScale.mainPointPositions.length();
+    if (len > 0) {
+        GLint x1 = 0;
+        GLint x2 = m_panRect.width() - 1;
+        
+        glBegin(GL_LINES);
+        for (int i = 0; i < len; i++) {
+            GLint y = m_dBmScale.mainPointPositions.at(i);
+            glVertex2i(x1, y);
+            glVertex2i(x2, y);
+        }
+        glEnd();
+    }
+    
+    // Restore OpenGL state
+    glDisable(GL_LINE_STIPPLE);
+    glDisable(GL_BLEND);
+    glEnable(GL_MULTISAMPLE);
 }
  
 //********************************************************************
@@ -1092,7 +1068,7 @@ void QGLWidebandPanel::getRegion(QPoint p) {
 
 		if (m_displayTime.elapsed() >= 50) {
 			
-			m_displayTime.restart();
+            m_displayTime.restart();
          //   update();
 		}
 	}
@@ -1876,5 +1852,10 @@ void QGLWidebandPanel::closeEvent(QCloseEvent *event) {
 void QGLWidebandPanel::showEvent(QShowEvent *event) {
 	emit showEvent(this);
 	QWidget::showEvent(event);
+}
+
+void QGLWidebandPanel::qglColor(QColor color)
+{
+	glColor4f(color.redF(), color.greenF(), color.blueF(), color.alphaF());
 }
 

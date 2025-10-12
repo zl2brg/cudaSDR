@@ -84,12 +84,12 @@ OGLDisplayPanel::OGLDisplayPanel(QWidget *parent)
 	, m_sMeterMeanValue(0.0f)
 	, m_sMeterMaxValueA((float)(-ONEPI/2.0f))
 	, m_sMeterMinValueA((float)(ONEPI/2.0f))
-        , m_sMeterMaxValueB(-1000.0f)
-        , m_sMeterMinValueB(1000.0f)
+    , m_sMeterMaxValueB(-1000.0f)
+    , m_sMeterMinValueB(1000.0f)
 {
-        setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     setAutoFillBackground(false);
-        setMouseTracking(true);
+    setMouseTracking(true);
     setUpdateBehavior(QOpenGLWidget::PartialUpdate);
         m_freqStringLeftPos = 20;
         setupDisplayRegions(size());
@@ -2697,7 +2697,7 @@ void OGLDisplayPanel::renderText(QPainter &painter, int x,int y, QFont &font, QC
         painter.save();
         painter.setPen(fontcolor);
         painter.setFont(font);
-        painter.setRenderHint(QPainter::TextAntialiasing ,true);
+        painter.setRenderHint(QPainter::Antialiasing);
         painter.drawText(int(x) ,int(y), text);
         painter.restore();
         }

@@ -28,7 +28,7 @@
 
 #include "cusdr_oglText.h"
 
-const int TEXTURE_SIZE = 256;
+const int TEXTURE_SIZE = 1024;
 	
 struct CharData {
 		
@@ -112,6 +112,11 @@ CharData &OGLTextPrivate::createCharacter(QChar c) {
         GLsizei width = fontMetrics.horizontalAdvance(c);
         GLsizei height = fontMetrics.height();
 
+        // Save OpenGL state before QPainter operations
+        GLint oldTexture;
+        glGetIntegerv(GL_TEXTURE_BINDING_2D, &oldTexture);
+        const bool textureEnabled = glIsEnabled(GL_TEXTURE_2D);
+        
         QPixmap pixmap(width, height);
         pixmap.fill(Qt::transparent);
 
@@ -124,17 +129,27 @@ CharData &OGLTextPrivate::createCharacter(QChar c) {
 
         QPainter painter;
         painter.begin(&pixmap);
-        painter.setRenderHints(QPainter::Antialiasing | QPainter::TextAntialiasing, true);
+        painter.setRenderHints(QPainter::Antialiasing  ,  true);
         painter.setFont(font);
+//        painter.scale(dpr,dpr);
         painter.setPen(Qt::white);
 
-        painter.drawText(pixmap.rect(), Qt::TextSingleLine | Qt::TextDontClip | Qt::AlignCenter, c);
+        painter.drawText(pixmap.rect(),Qt::TextSingleLine | Qt::TextDontClip | Qt::AlignCenter, c);
         painter.end();
 
+        // Restore OpenGL state after QPainter operations
+        if (textureEnabled) {
+            glEnable(GL_TEXTURE_2D);
+        } else {
+            glDisable(GL_TEXTURE_2D);
+        }
+        glBindTexture(GL_TEXTURE_2D, texture);
 
         QImage image = pixmap.toImage().convertToFormat(QImage::Format_RGBA8888).flipped();
-        glBindTexture(GL_TEXTURE_2D, texture);
         glTexSubImage2D(GL_TEXTURE_2D, 0, xOffset, yOffset, width, height, GL_RGBA, GL_UNSIGNED_BYTE, image.bits());
+
+        // Restore the original texture binding
+        glBindTexture(GL_TEXTURE_2D, oldTexture);
 
         CharData& character = characters[unicodeC];
         character.textureId = texture;

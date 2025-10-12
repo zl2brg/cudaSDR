@@ -3713,6 +3713,7 @@ void Settings::setVFOFrequency(QObject *sender, int mode, int rx, long frequency
 
     SETTINGS_DEBUG << "nco freq (Rx " << rx << ")" << m_receiverDataList[rx].ncoFrequency ;
     emit ncoFrequencyChanged(rx, m_receiverDataList[rx].ncoFrequency);
+
 }
 
 long Settings::getVfoFrequency(int rx) {

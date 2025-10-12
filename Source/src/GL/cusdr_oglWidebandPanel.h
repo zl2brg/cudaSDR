@@ -246,10 +246,10 @@ private:
 	void drawGrid();
 	void drawCrossHair();
 	void drawHamBand(int lo, int hi, const QString &band);
-
 	void renderVerticalScale();
 	void renderHorizontalScale();
 	void renderGrid();
+	void qglColor(QColor color);
 
 private slots:
 	void	systemStateChanged(

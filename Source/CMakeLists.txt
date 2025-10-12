@@ -9,7 +9,7 @@ set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-set(CMAKE_PREFIX_PATH "/home/simon/Qt/6.9.2/gcc_64")
+set(CMAKE_PREFIX_PATH "~/Qt/6.9.2/gcc_64")
 set(SANITIZE_FLAGS "-fsanitize=address")
 #set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} ${SANITIZE_FLAGS}")
 #set(CMAKE_LINKER_FLAGS_DEBUG "${CMAKE_LINKER_FLAGS_DEBUG} ${SANITIZE_FLAGS}")
@@ -37,6 +37,7 @@ set(SOURCES
     ${SRC_DIR}/AudioEngine/cwramp.cpp
     ${SRC_DIR}/AudioEngine/cusdr_iambic.cpp
     ${SRC_DIR}/AudioEngine/audioinput.cpp
+    ${SRC_DIR}/AudioEngine/audiooutputmanager.cpp
 
 #    ${SRC_DIR}/AudioEngine/cusdr_audio_utils.cpp
 #    ${SRC_DIR}/AudioEngine/cusdr_audio_waveform.cpp
@@ -53,6 +54,7 @@ set(SOURCES
     ${SRC_DIR}/DataEngine/cusdr_dataIO.cpp
     ${SRC_DIR}/DataEngine/cusdr_discoverer.cpp
     ${SRC_DIR}/DataEngine/cusdr_receiver.cpp
+    ${SRC_DIR}/DataEngine/receiveraudiooutput.cpp
     ${SRC_DIR}/DataEngine/cusdr_transmitter.cpp
     ${SRC_DIR}/DataEngine/soundout.cpp
     ${SRC_DIR}/DataEngine/fractresampler.cpp
@@ -66,6 +68,7 @@ set(SOURCES
     ${SRC_DIR}/GL/cusdr_oglReceiverPanel.cpp
     ${SRC_DIR}/GL/cusdr_oglText.cpp
     ${SRC_DIR}/GL/cusdr_oglWidebandPanel.cpp
+    ${SRC_DIR}/GL/cusdr_ogl3DPanel.cpp
 
     # QtWDSP
     ${SRC_DIR}/QtWDSP/qtwdsp_dspEngine.cpp
@@ -117,6 +120,7 @@ set(HEADERS
     ${SRC_DIR}/AudioEngine/cusdr_audio_settingsdialog.h
     ${SRC_DIR}/AudioEngine/cusdr_iambic.h
     ${SRC_DIR}/AudioEngine/audioinput.h
+    ${SRC_DIR}/AudioEngine/audiooutputmanager.h
 
     # Data Engine
     ${SRC_DIR}/DataEngine/cusdr_dataIO.h
@@ -140,6 +144,7 @@ set(HEADERS
     ${SRC_DIR}/GL/cusdr_oglReceiverPanel.h
     ${SRC_DIR}/GL/cusdr_oglText.h
     ${SRC_DIR}/GL/cusdr_oglUtils.h
+    ${SRC_DIR}/GL/cusdr_ogl3DPanel.h
     
 
     # Util
@@ -183,8 +188,7 @@ qt_add_executable(cudasdr
     res/cusdr.qrc 
     ${UI_SOURCES} 
     ${UI_HEADERS}
-    src/DataEngine/receiveraudiooutput.h src/DataEngine/receiveraudiooutput.cpp
-    src/AudioEngine/audiooutputmanager.h src/AudioEngine/audiooutputmanager.cpp
+
 )
 
 # --- Configure Include Directories ---
@@ -219,7 +223,6 @@ target_link_libraries(cudasdr PRIVATE
     wdsp
 
 )
-target_link_libraries(cudasdr PRIVATE Qt6::Core)
 target_link_libraries(cudasdr PRIVATE Qt6::Core)
 
 # --- Compiler Options ---
