@@ -89,3 +89,14 @@
 2093	15338	1760237848050570865	CMakeFiles/cudasdr.dir/src/cusdr_mainWidget.cpp.o	70413d57f25c820
 2092	20486	1760237853190731722	CMakeFiles/cudasdr.dir/cudasdr_autogen/mocs_compilation.cpp.o	209c0c1e05186e24
 20486	22367	1760237855068032355	cudasdr	72f4fed0877b914e
+16	1978	1760238087897745064	cudasdr_autogen/timestamp	947789e10c02b823
+16	1978	1760238087897745064	cudasdr_autogen/mocs_compilation.cpp	947789e10c02b823
+16	1978	1760238087897745064	/home/simon/Projects/cudaSDR/Source/build/cudasdr_autogen/timestamp	947789e10c02b823
+16	1978	1760238087897745064	/home/simon/Projects/cudaSDR/Source/build/cudasdr_autogen/mocs_compilation.cpp	947789e10c02b823
+1979	10087	1760238096010889939	CMakeFiles/cudasdr.dir/src/GL/cusdr_ogl3DPanel.cpp.o	7fb1f57dbcd2cfc8
+1980	10207	1760238096135429998	CMakeFiles/cudasdr.dir/src/UI/cusdr_setupwidget.cpp.o	cf710f9bf0b6985e
+1980	10345	1760238096274993947	CMakeFiles/cudasdr.dir/src/cusdr_displayTabWidget.cpp.o	7d41bc59301cb16e
+1979	11905	1760238097834105338	CMakeFiles/cudasdr.dir/src/main.cpp.o	3c9382806fa9dbcf
+1979	13456	1760238099381261212	CMakeFiles/cudasdr.dir/src/cusdr_mainWidget.cpp.o	70413d57f25c820
+1978	19092	1760238105011852760	CMakeFiles/cudasdr.dir/cudasdr_autogen/mocs_compilation.cpp.o	209c0c1e05186e24
+19092	20937	1760238106853904308	cudasdr	72f4fed0877b914e

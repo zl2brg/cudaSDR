@@ -58,9 +58,22 @@ public:
 
 public slots:
     // SDR integration slots
-    void setSpectrumBuffer(int rx, const QVector<float>& buffer);
+    void setSpectrumBuffer(int rx, const qVectorFloat& buffer);
     void setCtrFrequency(QObject* sender, int mode, int rx, long freq);
     void setVFOFrequency(QObject* sender, int mode, int rx, long freq);
+    
+    // 3D Display control slots
+    void setHeightScale(float scale);
+    void setFrequencyScale(float scale);
+    void setTimeScale(float scale);
+    void setUpdateRate(int intervalMs);
+    void setShowGrid(bool show);
+    void setShowAxes(bool show);
+    void setWireframeMode(bool wireframe);
+    void setShowContours(bool show);
+    void setContourInterval(float interval);
+    void setContourMinLevel(float minLevel);
+    void setWaterfallOffset(float offset);
 
 protected:
     // OpenGL overrides
@@ -71,17 +84,24 @@ protected:
     // Event handlers
     void mousePressEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
+    void mouseReleaseEvent(QMouseEvent *event) override;
     void wheelEvent(QWheelEvent *event) override;
     void keyPressEvent(QKeyEvent *event) override;
+    void showEvent(QShowEvent *event) override;
+    void hideEvent(QHideEvent *event) override;
 
 private:
     // Core rendering
     void setupShaders();
     void setupMesh();
+    void setupGrid();
+    void setupContours();
     void updateMesh();
+    void updateContours();
     void renderSpectrum3D();
     void renderGrid();
     void renderAxes();
+    void renderContours();
     
     // Camera system
     void updateCamera();
@@ -91,7 +111,17 @@ private:
     // Utility functions
     QVector3D spectrumToWorld(int freqBin, float amplitude, int timeSlice);
     QColor amplitudeToColor(float amplitude);
+    QColor amplitudeToColorWithOffset(float amplitude, float offset);
     void qglColor(QColor color);
+    
+    // Contour generation
+    void generateContourLines(const QVector<float>& spectrumSlice, int timeSlice, QVector<float>& contourVertices);
+    QVector<QPointF> findContourSegments(const QVector<float>& data, float level, int timeSlice);
+    QColor contourLevelToColor(float level);
+
+private slots:
+    void performUpdate();
+    void calculateFPS();
 
 private:
     Settings* set;
@@ -108,6 +138,11 @@ private:
     QOpenGLBuffer* m_indexBuffer;
     QOpenGLVertexArrayObject* m_vao;
     
+    // Grid rendering
+    QOpenGLBuffer* m_gridVertexBuffer;
+    QOpenGLVertexArrayObject* m_gridVAO;
+    int m_gridVertexCount;
+    
     // Camera state
     QVector3D m_cameraPosition;
     QVector3D m_cameraTarget;
@@ -115,6 +150,8 @@ private:
     float m_cameraDistance;
     float m_cameraPitch;
     float m_cameraYaw;
+    float m_cameraOffsetX;      // Horizontal pan offset
+    float m_cameraOffsetY;      // Vertical pan offset
     QMatrix4x4 m_viewMatrix;
     QMatrix4x4 m_projectionMatrix;
     QMatrix4x4 m_modelMatrix;
@@ -125,10 +162,12 @@ private:
     Qt::MouseButton m_mouseButton;
     
     // Spectrum data management
-    static const int MAX_TIME_SLICES = 100;
-    static const int MAX_FREQ_BINS = 2048;
+    static const int MAX_TIME_SLICES = 300;  // Increased for deeper waterfall effect
+    static const int MAX_FREQ_BINS = 8192;  // Increased to handle 4096+ samples
     QVector<QVector<float>> m_spectrumHistory;
     QVector<float> m_currentSpectrum;
+    QVector<QVector<float>> m_meshSpectrumSnapshot;  // Stable snapshot for mesh generation
+    float m_meshWaterfallOffset;  // Waterfall offset snapshot for consistent colors
     int m_spectrumWidth;
     int m_currentTimeSlice;
     
@@ -139,16 +178,35 @@ private:
     int m_indexCount;
     bool m_meshNeedsUpdate;
     
+    // Performance optimization
+    QTimer* m_updateTimer;
+    QTimer* m_frameTimer;
+    qint64 m_lastUpdateTime;
+    qint64 m_lastFrameTime;
+    
+    // Contour mode
+    bool m_showContours;
+    float m_contourInterval;  // dB spacing between contours
+    float m_contourMinLevel;  // Minimum contour level in dB
+    QOpenGLBuffer* m_contourVertexBuffer;
+    QOpenGLVertexArrayObject* m_contourVAO;
+    int m_contourVertexCount;
+    int m_frameCount;
+    float m_currentFPS;
+    int m_targetFPS;
+    int m_updateFrequencyMs;
+    bool m_isVisible;
+    
     // Rendering parameters
     float m_heightScale;
     float m_frequencyScale;
     float m_timeScale;
+    float m_waterfallOffset;  // dBm offset for color mapping
     QColor m_backgroundColor;
     QColor m_gridColor;
     QColor m_axesColor;
     
-    // Performance
-    QTimer* m_updateTimer;
+    // Legacy performance (keep for compatibility)
     int m_updateInterval;  // ms
     
     // Fonts and text
@@ -160,6 +218,11 @@ private:
     bool m_showAxes;
     bool m_showWireframe;
     float m_aspectRatio;
+    
+    // Debug and monitoring
+    int m_dataUpdateCount;
+    int m_meshUpdateCount;
+    qint64 m_lastDebugTime;
 
 public slots:
     void spectrumDataChanged(const QVector<float>& data);

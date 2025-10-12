@@ -49,7 +49,7 @@ template <> constexpr inline auto QGL3DPanel::qt_create_metaobjectdata<qt_meta_t
         "frequency",
         "setSpectrumBuffer",
         "rx",
-        "QList<float>",
+        "qVectorFloat",
         "buffer",
         "setCtrFrequency",
         "sender",
@@ -57,6 +57,7 @@ template <> constexpr inline auto QGL3DPanel::qt_create_metaobjectdata<qt_meta_t
         "freq",
         "setVFOFrequency",
         "spectrumDataChanged",
+        "QList<float>",
         "data",
         "updateDisplay",
         "onUpdateTimer"
@@ -72,7 +73,7 @@ template <> constexpr inline auto QGL3DPanel::qt_create_metaobjectdata<qt_meta_t
             { QMetaType::Float, 5 },
         }}),
         // Slot 'setSpectrumBuffer'
-        QtMocHelpers::SlotData<void(int, const QVector<float> &)>(6, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(int, const qVectorFloat &)>(6, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 7 }, { 0x80000000 | 8, 9 },
         }}),
         // Slot 'setCtrFrequency'
@@ -85,12 +86,12 @@ template <> constexpr inline auto QGL3DPanel::qt_create_metaobjectdata<qt_meta_t
         }}),
         // Slot 'spectrumDataChanged'
         QtMocHelpers::SlotData<void(const QVector<float> &)>(15, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { 0x80000000 | 8, 16 },
+            { 0x80000000 | 16, 17 },
         }}),
         // Slot 'updateDisplay'
-        QtMocHelpers::SlotData<void()>(17, 2, QMC::AccessPublic, QMetaType::Void),
+        QtMocHelpers::SlotData<void()>(18, 2, QMC::AccessPublic, QMetaType::Void),
         // Slot 'onUpdateTimer'
-        QtMocHelpers::SlotData<void()>(18, 2, QMC::AccessPrivate, QMetaType::Void),
+        QtMocHelpers::SlotData<void()>(19, 2, QMC::AccessPrivate, QMetaType::Void),
     };
     QtMocHelpers::UintData qt_properties {
     };
@@ -116,7 +117,7 @@ void QGL3DPanel::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, 
         switch (_id) {
         case 0: _t->mousePositionChanged((*reinterpret_cast< std::add_pointer_t<QPoint>>(_a[1]))); break;
         case 1: _t->frequencySelected((*reinterpret_cast< std::add_pointer_t<float>>(_a[1]))); break;
-        case 2: _t->setSpectrumBuffer((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<QList<float>>>(_a[2]))); break;
+        case 2: _t->setSpectrumBuffer((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<qVectorFloat>>(_a[2]))); break;
         case 3: _t->setCtrFrequency((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[3])),(*reinterpret_cast< std::add_pointer_t<long>>(_a[4]))); break;
         case 4: _t->setVFOFrequency((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[3])),(*reinterpret_cast< std::add_pointer_t<long>>(_a[4]))); break;
         case 5: _t->spectrumDataChanged((*reinterpret_cast< std::add_pointer_t<QList<float>>>(_a[1]))); break;
@@ -128,13 +129,6 @@ void QGL3DPanel::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, 
     if (_c == QMetaObject::RegisterMethodArgumentMetaType) {
         switch (_id) {
         default: *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType(); break;
-        case 2:
-            switch (*reinterpret_cast<int*>(_a[1])) {
-            default: *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType(); break;
-            case 1:
-                *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType::fromType< QList<float> >(); break;
-            }
-            break;
         case 5:
             switch (*reinterpret_cast<int*>(_a[1])) {
             default: *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType(); break;

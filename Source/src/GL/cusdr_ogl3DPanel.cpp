@@ -9,6 +9,11 @@
 #include "cusdr_ogl3DPanel.h"
 #include <QDebug>
 #include <QtMath>
+#include <QDateTime>
+
+#ifndef M_PI_2
+#define M_PI_2 (M_PI / 2.0)
+#endif
 
 // Static constants definition
 const int QGL3DPanel::MAX_TIME_SLICES;
@@ -25,9 +30,14 @@ QGL3DPanel::QGL3DPanel(QWidget *parent, int rx)
     , m_vertexBuffer(nullptr)
     , m_indexBuffer(nullptr)
     , m_vao(nullptr)
-    , m_cameraDistance(50.0f)
-    , m_cameraPitch(-30.0f)
-    , m_cameraYaw(45.0f)
+    , m_gridVertexBuffer(nullptr)
+    , m_gridVAO(nullptr)
+    , m_gridVertexCount(0)
+    , m_cameraDistance(300.0f)  // Zoomed out to show full spectrum
+    , m_cameraPitch(30.0f)      // Elevated view from above (positive pitch)
+    , m_cameraYaw(45.0f)        // Angled view for better perspective
+    , m_cameraOffsetX(0.0f)     // Centered horizontally
+    , m_cameraOffsetY(10.0f)    // Slightly elevated center point
     , m_mousePressed(false)
     , m_spectrumWidth(512)
     , m_currentTimeSlice(0)
@@ -37,6 +47,8 @@ QGL3DPanel::QGL3DPanel(QWidget *parent, int rx)
     , m_heightScale(10.0f)
     , m_frequencyScale(1.0f)
     , m_timeScale(1.0f)
+    , m_waterfallOffset(0.0f)   // Default offset
+    , m_meshWaterfallOffset(0.0f)  // Initialize snapshot offset
     , m_backgroundColor(Qt::black)
     , m_gridColor(Qt::darkGray)
     , m_axesColor(Qt::white)
@@ -46,23 +58,59 @@ QGL3DPanel::QGL3DPanel(QWidget *parent, int rx)
     , m_showAxes(true)
     , m_showWireframe(false)
     , m_aspectRatio(1.0f)
+    , m_updateTimer(nullptr)
+    , m_frameTimer(nullptr)
+    , m_lastUpdateTime(0)
+    , m_lastFrameTime(0)
+    , m_frameCount(0)
+    , m_currentFPS(0.0f)
+    , m_targetFPS(30)
+    , m_updateFrequencyMs(100)  // 10 Hz spectrum updates - slower to reduce jitter
+    , m_isVisible(true)
+    , m_dataUpdateCount(0)
+    , m_meshUpdateCount(0)
+    , m_lastDebugTime(0)
+    , m_showContours(false)
+    , m_contourInterval(10.0f)  // 10 dB between contours
+    , m_contourMinLevel(-140.0f)  // Start at -140 dB
+    , m_contourVertexBuffer(nullptr)
+    , m_contourVAO(nullptr)
+    , m_contourVertexCount(0)
 {
-    // Initialize camera
-    m_cameraPosition = QVector3D(0, 20, 30);
+    // Initialize camera target and up vector
     m_cameraTarget = QVector3D(0, 0, 0);
     m_cameraUp = QVector3D(0, 1, 0);
 
     // Initialize spectrum history
     m_spectrumHistory.reserve(MAX_TIME_SLICES);
     m_currentSpectrum.resize(m_spectrumWidth);
+    
+    // Generate some test data initially to verify 3D rendering
     for (int i = 0; i < m_spectrumWidth; i++) {
-        m_currentSpectrum[i] = 0.0f;
+        // Create a simple static test pattern with a couple of peaks
+        float freq = float(i) / float(m_spectrumWidth) * 2.0f * M_PI;
+        m_currentSpectrum[i] = -80.0f + 15.0f * (sin(freq * 8) + 0.3f * sin(freq * 20));
+    }
+    
+    // Add initial test data with very gentle animation for smooth waterfall
+    for (int t = 0; t < 30; t++) {
+        QVector<float> testData = m_currentSpectrum;
+        // Very gentle variation to show waterfall effect without jitter
+        for (int i = 0; i < testData.size(); i++) {
+            testData[i] += 1.0f * sin(float(t) * 0.05f) * sin(float(i) / 50.0f);
+        }
+        m_spectrumHistory.prepend(testData);
     }
 
-    // Setup update timer
-    m_updateTimer = new QTimer(this);
-    connect(m_updateTimer, &QTimer::timeout, this, &QGL3DPanel::onUpdateTimer);
-    m_updateTimer->start(m_updateInterval);
+    // Initialize camera position from spherical coordinates
+    updateCamera();
+
+    // Setup simple FPS monitoring
+    m_frameTimer = new QTimer(this);
+    connect(m_frameTimer, &QTimer::timeout, this, &QGL3DPanel::calculateFPS);
+    m_frameTimer->start(1000); // Calculate FPS every second
+    
+    m_lastUpdateTime = QDateTime::currentMSecsSinceEpoch();
 
     // Enable mouse tracking
     setMouseTracking(true);
@@ -85,6 +133,28 @@ QGL3DPanel::~QGL3DPanel() {
     if (m_indexBuffer) {
         m_indexBuffer->destroy();
         delete m_indexBuffer;
+    }
+    
+    // Clean up grid resources
+    if (m_gridVAO) {
+        m_gridVAO->destroy();
+        delete m_gridVAO;
+    }
+    
+    if (m_gridVertexBuffer) {
+        m_gridVertexBuffer->destroy();
+        delete m_gridVertexBuffer;
+    }
+    
+    // Clean up contour resources
+    if (m_contourVAO) {
+        m_contourVAO->destroy();
+        delete m_contourVAO;
+    }
+    
+    if (m_contourVertexBuffer) {
+        m_contourVertexBuffer->destroy();
+        delete m_contourVertexBuffer;
     }
     
     delete m_shaderProgram;
@@ -114,12 +184,19 @@ void QGL3DPanel::initializeGL() {
     // Setup mesh buffers
     setupMesh();
     
+    // Setup grid rendering
+    setupGrid();
+    
+    // Setup contour rendering
+    setupContours();
+    
     // Initialize text rendering
     QFont smallFont = QFont("Arial", 8);
     qreal dpr = devicePixelRatio();
     m_oglTextSmall = new OGLText(smallFont, dpr);
     
-    qDebug() << "3D Panel initialized successfully";
+    // Initialize camera view matrix with our spherical coordinates
+    updateCamera();
 }
 
 void QGL3DPanel::setupShaders() {
@@ -174,8 +251,6 @@ void QGL3DPanel::setupShaders() {
         qDebug() << "Failed to link shader program:" << m_shaderProgram->log();
         return;
     }
-    
-    qDebug() << "Shaders compiled and linked successfully";
 }
 
 void QGL3DPanel::setupMesh() {
@@ -190,49 +265,171 @@ void QGL3DPanel::setupMesh() {
     // Create index buffer
     m_indexBuffer = new QOpenGLBuffer(QOpenGLBuffer::IndexBuffer);
     m_indexBuffer->create();
+}
+
+void QGL3DPanel::setupGrid() {
+    // Create grid VAO and vertex buffer
+    m_gridVAO = new QOpenGLVertexArrayObject();
+    m_gridVAO->create();
+    m_gridVAO->bind();
     
-    qDebug() << "Mesh buffers created";
+    m_gridVertexBuffer = new QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
+    m_gridVertexBuffer->create();
+    m_gridVertexBuffer->bind();
+    
+    // Generate grid vertices
+    QVector<float> gridVertices;
+    
+    // Frequency grid lines (X-axis lines at different Z positions)
+    for (int f = -200; f <= 200; f += 40) {  // Every 40 units for cleaner look
+        // Vertical line through Z-axis - make more visible at higher Y
+        gridVertices << f << 5.0f << -100.0f << 0.6f << 0.6f << 0.6f;  // Position + Gray color, elevated
+        gridVertices << f << 5.0f << 100.0f << 0.6f << 0.6f << 0.6f;
+    }
+    
+    // Time grid lines (Z-axis lines at different X positions)  
+    for (int t = -100; t <= 100; t += 20) {  // Every 20 units
+        // Horizontal line through X-axis - make more visible at higher Y
+        gridVertices << -200.0f << 5.0f << t << 0.6f << 0.6f << 0.6f;  // Position + Gray color, elevated
+        gridVertices << 200.0f << 5.0f << t << 0.6f << 0.6f << 0.6f;
+    }
+    
+    // Vertical amplitude grid lines on the sides - extend to full spectrum height
+    // Create vertical lines from bottom to well above the spectrum (0 to 60)
+    for (int i = 0; i <= 8; i++) {  // 9 lines total (every 25 units from -100 to +100)
+        float zPos = -100.0f + (i * 25.0f);  // Z positions: -100, -75, -50, -25, 0, 25, 50, 75, 100
+        
+        // Left side vertical lines (at X = -200) - full height to cover all spectrum
+        gridVertices << -200.0f << 0.0f << zPos << 0.75f << 0.75f << 0.75f;  // Light grey, bottom
+        gridVertices << -200.0f << 60.0f << zPos << 0.75f << 0.75f << 0.75f; // Light grey, well above spectrum
+        
+        // Right side vertical lines (at X = +200) - full height to cover all spectrum
+        gridVertices << 200.0f << 0.0f << zPos << 0.75f << 0.75f << 0.75f;   // Light grey, bottom
+        gridVertices << 200.0f << 60.0f << zPos << 0.75f << 0.75f << 0.75f;  // Light grey, well above spectrum
+    }
+    
+    // Horizontal dBm reference lines on the sides (every 10 dBm)
+    // These show the amplitude scale: -120, -110, -100, -90, -80, -70, -60, -50, -40 dBm
+    for (int dbm = -120; dbm <= -40; dbm += 10) {  // 10 dBm steps
+        float height = (dbm + 120.0f) / 80.0f * 40.0f;  // Convert dBm to visual height (0-40 range)
+        
+        // Left side horizontal dBm lines (at X = -200) - span front to back at specific height
+        gridVertices << -200.0f << height << -100.0f << 0.9f << 0.9f << 0.9f;  // Very light grey for dBm marks
+        gridVertices << -200.0f << height << 100.0f << 0.9f << 0.9f << 0.9f;
+        
+        // Right side horizontal dBm lines (at X = +200) - span front to back at specific height
+        gridVertices << 200.0f << height << -100.0f << 0.9f << 0.9f << 0.9f;   // Very light grey for dBm marks
+        gridVertices << 200.0f << height << 100.0f << 0.9f << 0.9f << 0.9f;
+    }
+    
+    m_gridVertexCount = gridVertices.size() / 6;  // 6 values per vertex (pos + color)
+    
+    // Upload grid data
+    m_gridVertexBuffer->allocate(gridVertices.data(), gridVertices.size() * sizeof(float));
+    
+    // Setup vertex attributes for grid
+    glEnableVertexAttribArray(0);  // Position
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), nullptr);
+    
+    glEnableVertexAttribArray(1);  // Color
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+    
+    m_gridVertexBuffer->release();
+    m_gridVAO->release();
+}
+
+void QGL3DPanel::setupContours() {
+    // Create contour VAO and vertex buffer
+    m_contourVAO = new QOpenGLVertexArrayObject();
+    m_contourVAO->create();
+    m_contourVAO->bind();
+    
+    m_contourVertexBuffer = new QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
+    m_contourVertexBuffer->create();
+    m_contourVertexBuffer->bind();
+    
+    // Initial empty buffer - will be populated by updateContours()
+    m_contourVertexBuffer->allocate(nullptr, 0);
+    m_contourVertexCount = 0;
+    
+    // Setup vertex attributes for contours (position + color)
+    glEnableVertexAttribArray(0);  // Position
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), nullptr);
+    
+    glEnableVertexAttribArray(1);  // Color
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+    
+    m_contourVertexBuffer->release();
+    m_contourVAO->release();
 }
 
 void QGL3DPanel::updateMesh() {
     if (m_spectrumHistory.isEmpty()) return;
     
+    // Create a deep copy snapshot of spectrum history at mesh generation time
+    // This prevents older data from changing as new spectrum data gets added
+    m_meshSpectrumSnapshot.clear();
+    m_meshSpectrumSnapshot.reserve(m_spectrumHistory.size());
+    for (const QVector<float>& slice : m_spectrumHistory) {
+        m_meshSpectrumSnapshot.append(QVector<float>(slice)); // Explicit deep copy
+    }
+    
+    // Also snapshot the waterfall offset to ensure consistent colors
+    m_meshWaterfallOffset = m_waterfallOffset;
+    
     m_vertices.clear();
     m_indices.clear();
     
-    int timeSlices = qMin(m_spectrumHistory.size(), MAX_TIME_SLICES);
-    int freqBins = qMin(m_spectrumWidth, MAX_FREQ_BINS);
+    int timeSlices = qMin(m_meshSpectrumSnapshot.size(), MAX_TIME_SLICES);
+    int freqBins = m_spectrumWidth;  // Use full spectrum width, no artificial limiting
     
-    // Generate vertices
-    for (int t = 0; t < timeSlices; t++) {
-        const QVector<float>& spectrum = m_spectrumHistory[t];
-        for (int f = 0; f < freqBins; f++) {
-            float amplitude = (f < spectrum.size()) ? spectrum[f] : 0.0f;
+    // Level of Detail (LOD) optimization based on camera distance
+    int lodFactor = 1;
+    if (m_cameraDistance > 200.0f) {
+        lodFactor = 4; // Skip every 4th point when far away
+    } else if (m_cameraDistance > 100.0f) {
+        lodFactor = 2; // Skip every 2nd point when moderately far
+    }
+    
+    int effectiveFreqBins = freqBins / lodFactor;
+    int effectiveTimeSlices = timeSlices / lodFactor;
+    
+    // Generate vertices with LOD
+    for (int t = 0; t < effectiveTimeSlices; t++) {
+        int actualTimeIndex = t * lodFactor;
+        if (actualTimeIndex >= m_meshSpectrumSnapshot.size()) break;
+        
+        const QVector<float>& spectrum = m_meshSpectrumSnapshot[actualTimeIndex];
+        for (int f = 0; f < effectiveFreqBins; f++) {
+            int actualFreqIndex = f * lodFactor;
+            float amplitude = (actualFreqIndex < spectrum.size()) ? spectrum[actualFreqIndex] : -120.0f;
             
-            // Position (frequency, amplitude, time)
-            float x = (float)f - freqBins / 2.0f;  // Center frequency
-            float y = amplitude;
-            float z = (float)t - timeSlices / 2.0f;  // Center time
+            // Position (frequency, amplitude, time) with user-controllable scales
+            float x = (float)f / (float)effectiveFreqBins * 400.0f * m_frequencyScale - 200.0f * m_frequencyScale;  // Apply frequency scale
+            // Scale amplitude from dB to visual height, centered in view
+            float y = (amplitude + 120.0f) / 80.0f * 40.0f; // Range 0 to 40, visible in center
+            // Reverse Z-axis: newest data (t=0) in foreground, older data goes back
+            float z = (effectiveTimeSlices - (float)t) * 4.0f * m_timeScale - effectiveTimeSlices * 2.0f * m_timeScale;
             
             m_vertices.append(x);
             m_vertices.append(y);
             m_vertices.append(z);
             
-            // Color based on amplitude
-            QColor color = amplitudeToColor(amplitude);
+            // Color based on amplitude using snapshotted offset
+            QColor color = amplitudeToColorWithOffset(amplitude, m_meshWaterfallOffset);
             m_vertices.append(color.redF());
             m_vertices.append(color.greenF());
             m_vertices.append(color.blueF());
         }
     }
     
-    // Generate indices for triangle strips
-    for (int t = 0; t < timeSlices - 1; t++) {
-        for (int f = 0; f < freqBins - 1; f++) {
-            int i0 = t * freqBins + f;
-            int i1 = t * freqBins + (f + 1);
-            int i2 = (t + 1) * freqBins + f;
-            int i3 = (t + 1) * freqBins + (f + 1);
+    // Generate indices for triangle strips using LOD dimensions
+    for (int t = 0; t < effectiveTimeSlices - 1; t++) {
+        for (int f = 0; f < effectiveFreqBins - 1; f++) {
+            int i0 = t * effectiveFreqBins + f;
+            int i1 = t * effectiveFreqBins + (f + 1);
+            int i2 = (t + 1) * effectiveFreqBins + f;
+            int i3 = (t + 1) * effectiveFreqBins + (f + 1);
             
             // First triangle
             m_indices.append(i0);
@@ -269,17 +466,61 @@ void QGL3DPanel::updateMesh() {
     
     m_meshNeedsUpdate = false;
     
-    qDebug() << "Mesh updated: " << m_vertexCount << " vertices, " << m_indexCount << " indices";
+    // Update contours less frequently for better performance
+    static int contourUpdateCounter = 0;
+    if (m_showContours && (++contourUpdateCounter % 3 == 0)) {  // Update every 3rd mesh update
+        updateContours();
+    }
+}
+
+void QGL3DPanel::updateContours() {
+    if (m_meshSpectrumSnapshot.isEmpty() || !m_contourVAO) return;
+    
+    QVector<float> contourVertices;
+    
+    // Only generate contours for visible time slices and with LOD
+    int timeSlices = qMin(m_meshSpectrumSnapshot.size(), MAX_TIME_SLICES);
+    int lodFactor = (m_cameraDistance > 150.0f) ? 4 : 2;  // Reduce detail when far away
+    int effectiveTimeSlices = timeSlices / lodFactor;
+    
+    // Limit to recent slices for better performance
+    int maxSlicesToProcess = qMin(effectiveTimeSlices, 50);  // Only process 50 slices max
+    
+    for (int t = 0; t < maxSlicesToProcess; t += 2) {  // Skip every other slice for performance
+        int actualTimeIndex = t * lodFactor;
+        if (actualTimeIndex >= m_meshSpectrumSnapshot.size()) break;
+        
+        const QVector<float>& spectrum = m_meshSpectrumSnapshot[actualTimeIndex];
+        generateContourLines(spectrum, actualTimeIndex, contourVertices);
+    }
+    
+    m_contourVertexCount = contourVertices.size() / 6;  // 6 floats per vertex (pos + color)
+    
+    // Update contour buffer
+    m_contourVAO->bind();
+    m_contourVertexBuffer->bind();
+    
+    if (m_contourVertexCount > 0) {
+        m_contourVertexBuffer->allocate(contourVertices.constData(), contourVertices.size() * sizeof(float));
+    } else {
+        m_contourVertexBuffer->allocate(nullptr, 0);
+    }
+    
+    m_contourVertexBuffer->release();
+    m_contourVAO->release();
 }
 
 void QGL3DPanel::paintGL() {
+    // Frame counting for FPS calculation
+    m_frameCount++;
+    
     // Clear buffers
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     
-    // Update camera
+    // Update camera matrix (this should always work for mouse interaction)
     updateCamera();
     
-    // Update mesh if needed
+    // Update mesh when needed
     if (m_meshNeedsUpdate) {
         updateMesh();
     }
@@ -290,25 +531,40 @@ void QGL3DPanel::paintGL() {
     // Render grid and axes
     if (m_showGrid) renderGrid();
     if (m_showAxes) renderAxes();
+    
+    // Render contours
+    if (m_showContours) renderContours();
 }
 
 void QGL3DPanel::renderSpectrum3D() {
     if (!m_shaderProgram || m_vertexCount == 0) return;
     
+    // Bind shader program once
     m_shaderProgram->bind();
     
-    // Set uniforms
+    // Set uniforms only when they change
+    static QMatrix4x4 lastMvpMatrix;
     QMatrix4x4 mvpMatrix = m_projectionMatrix * m_viewMatrix * m_modelMatrix;
-    m_shaderProgram->setUniformValue("mvpMatrix", mvpMatrix);
+    if (mvpMatrix != lastMvpMatrix) {
+        m_shaderProgram->setUniformValue("mvpMatrix", mvpMatrix);
+        lastMvpMatrix = mvpMatrix;
+    }
+    
+    // Always set height scale for spectrum rendering (grid may have changed it)
     m_shaderProgram->setUniformValue("heightScale", m_heightScale);
     
-    // Render mesh
+    // Bind VAO once
     m_vao->bind();
     
-    if (m_showWireframe) {
-        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-    } else {
-        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    // Set polygon mode only when it changes
+    static bool lastWireframe = false;
+    if (m_showWireframe != lastWireframe) {
+        if (m_showWireframe) {
+            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+        } else {
+            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+        }
+        lastWireframe = m_showWireframe;
     }
     
     glDrawElements(GL_TRIANGLES, m_indexCount, GL_UNSIGNED_INT, 0);
@@ -318,30 +574,97 @@ void QGL3DPanel::renderSpectrum3D() {
 }
 
 void QGL3DPanel::renderGrid() {
-    // Simple grid rendering using immediate mode (for proof of concept)
+    if (!m_gridVAO || !m_shaderProgram) return;
+    
+    // Save current height scale
+    float currentHeightScale = m_heightScale;
+    
+    // Use the same shader program as the spectrum
+    m_shaderProgram->bind();
+    
+    // Set matrices
+    m_shaderProgram->setUniformValue("mvpMatrix", m_projectionMatrix * m_viewMatrix * m_modelMatrix);
+    m_shaderProgram->setUniformValue("heightScale", 1.0f);  // No height scaling for grid
+    
+    // Bind grid VAO and render as lines
+    m_gridVAO->bind();
+    
+    // Disable depth test briefly for grid lines to show through
     glDisable(GL_DEPTH_TEST);
+    glLineWidth(1.0f);
     
-    QMatrix4x4 mvpMatrix = m_projectionMatrix * m_viewMatrix * m_modelMatrix;
-    
-    // This would be better implemented with shaders in a production version
-    glBegin(GL_LINES);
-    qglColor(m_gridColor);
-    
-    // Frequency grid lines
-    for (int f = -256; f <= 256; f += 64) {
-        glVertex3f(f, 0, -50);
-        glVertex3f(f, 0, 50);
-    }
-    
-    // Time grid lines  
-    for (int t = -50; t <= 50; t += 10) {
-        glVertex3f(-256, 0, t);
-        glVertex3f(256, 0, t);
-    }
-    
-    glEnd();
+    glDrawArrays(GL_LINES, 0, m_gridVertexCount);
     
     glEnable(GL_DEPTH_TEST);
+    
+    m_gridVAO->release();
+    
+    // Restore height scale for subsequent rendering
+    m_shaderProgram->setUniformValue("heightScale", currentHeightScale);
+    
+    m_shaderProgram->release();
+}
+
+void QGL3DPanel::renderContours() {
+    if (!m_contourVAO || !m_shaderProgram || m_contourVertexCount == 0) return;
+    
+    // Save current height scale
+    float currentHeightScale = m_heightScale;
+    
+    // Use the same shader program as the spectrum
+    m_shaderProgram->bind();
+    
+    // Set matrices
+    m_shaderProgram->setUniformValue("mvpMatrix", m_projectionMatrix * m_viewMatrix * m_modelMatrix);
+    m_shaderProgram->setUniformValue("heightScale", 1.0f);  // No additional height scaling for contours
+    
+    // Bind contour VAO and render as lines
+    m_contourVAO->bind();
+    
+    // Improve line visibility significantly
+    glDisable(GL_DEPTH_TEST);  // Draw contours on top
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glLineWidth(4.0f);  // Much thicker lines for better visibility
+    
+    // Enable line smoothing for better visual quality
+    glEnable(GL_LINE_SMOOTH);
+    glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
+    
+    // Render contours as line segments
+    glDrawArrays(GL_LINES, 0, m_contourVertexCount);
+    
+    glDisable(GL_LINE_SMOOTH);
+    glEnable(GL_DEPTH_TEST);  // Restore depth testing
+    glDisable(GL_BLEND);
+    
+    m_contourVAO->release();
+    
+    // Restore height scale for subsequent rendering
+    m_shaderProgram->setUniformValue("heightScale", currentHeightScale);
+    
+    m_shaderProgram->release();
+}
+
+QColor QGL3DPanel::contourLevelToColor(float level) {
+    // High-contrast color scheme for maximum visibility
+    float normalizedLevel = (level - m_contourMinLevel) / (60.0f);  // Reduced range
+    normalizedLevel = qBound(0.0f, normalizedLevel, 1.0f);
+    
+    // Use bold, highly contrasting colors that stand out against spectrum
+    if (normalizedLevel < 0.25f) {
+        // Bright cyan for lowest levels
+        return QColor(0, 255, 255);
+    } else if (normalizedLevel < 0.5f) {
+        // Bright green for low-medium levels
+        return QColor(0, 255, 0);
+    } else if (normalizedLevel < 0.75f) {
+        // Bright yellow for medium-high levels
+        return QColor(255, 255, 0);
+    } else {
+        // Bright magenta for highest levels
+        return QColor(255, 0, 255);
+    }
 }
 
 void QGL3DPanel::renderAxes() {
@@ -352,13 +675,13 @@ void QGL3DPanel::renderAxes() {
     
     // X axis (frequency) - Red
     glColor3f(1.0f, 0.0f, 0.0f);
-    glVertex3f(-300, 0, 0);
-    glVertex3f(300, 0, 0);
+    glVertex3f(-250, 0, 0);
+    glVertex3f(250, 0, 0);
     
     // Y axis (amplitude) - Green
     glColor3f(0.0f, 1.0f, 0.0f);
     glVertex3f(0, 0, 0);
-    glVertex3f(0, 30, 0);
+    glVertex3f(0, 60, 0);
     
     // Z axis (time) - Blue
     glColor3f(0.0f, 0.0f, 1.0f);
@@ -382,13 +705,23 @@ void QGL3DPanel::resizeGL(int width, int height) {
 }
 
 void QGL3DPanel::updateCamera() {
-    // Convert spherical coordinates to cartesian
+    // Convert degrees to radians
     float radPitch = qDegreesToRadians(m_cameraPitch);
     float radYaw = qDegreesToRadians(m_cameraYaw);
     
-    m_cameraPosition.setX(m_cameraDistance * cos(radPitch) * cos(radYaw));
-    m_cameraPosition.setY(m_cameraDistance * sin(radPitch));
-    m_cameraPosition.setZ(m_cameraDistance * cos(radPitch) * sin(radYaw));
+    // Calculate camera position using proper spherical coordinates
+    float cosYaw = cos(radYaw);
+    float sinYaw = sin(radYaw);
+    float cosPitch = cos(radPitch);
+    float sinPitch = sin(radPitch);
+    
+    // Position camera using spherical coordinates
+    m_cameraPosition.setX(m_cameraDistance * cosPitch * cosYaw + m_cameraOffsetX);
+    m_cameraPosition.setY(m_cameraDistance * sinPitch + m_cameraOffsetY);
+    m_cameraPosition.setZ(m_cameraDistance * cosPitch * sinYaw);
+    
+    // Look at the center of the spectrum (with offsets)
+    m_cameraTarget = QVector3D(m_cameraOffsetX, 20.0f + m_cameraOffsetY, 0.0f);
     
     // Update view matrix
     m_viewMatrix.setToIdentity();
@@ -399,21 +732,45 @@ void QGL3DPanel::mousePressEvent(QMouseEvent *event) {
     m_lastMousePos = event->pos();
     m_mousePressed = true;
     m_mouseButton = event->button();
+    setFocus(); // Ensure widget has focus for keyboard events
 }
 
 void QGL3DPanel::mouseMoveEvent(QMouseEvent *event) {
     if (!m_mousePressed) return;
     
     QPoint delta = event->pos() - m_lastMousePos;
+    float sensitivity = 0.5f;
+    float panSensitivity = 0.2f;
     
     if (m_mouseButton == Qt::LeftButton) {
         // Rotate camera
-        m_cameraYaw += delta.x() * 0.5f;
-        m_cameraPitch += delta.y() * 0.5f;
+        m_cameraYaw += delta.x() * sensitivity;
+        m_cameraPitch += delta.y() * sensitivity;
         
-        // Clamp pitch
-        m_cameraPitch = qBound(-89.0f, m_cameraPitch, 89.0f);
+        // Allow nearly full range for top-down and bottom-up views
+        m_cameraPitch = qBound(-89.9f, m_cameraPitch, 89.9f);
         
+        updateCamera();
+        update();
+    }
+    else if (m_mouseButton == Qt::RightButton) {
+        // Pan camera (horizontal and vertical movement)
+        float panX = delta.x() * panSensitivity;
+        float panY = -delta.y() * panSensitivity; // Invert Y for natural feel
+        
+        // Apply pan relative to camera orientation
+        float radYaw = qDegreesToRadians(m_cameraYaw);
+        m_cameraOffsetX += panX * cos(radYaw + M_PI_2); // Perpendicular to view direction
+        m_cameraOffsetY += panY;
+        
+        updateCamera();
+        update();
+    }
+    else if (m_mouseButton == Qt::MiddleButton) {
+        // Vertical movement only
+        m_cameraOffsetY -= delta.y() * panSensitivity;
+        
+        updateCamera();
         update();
     }
     
@@ -421,17 +778,52 @@ void QGL3DPanel::mouseMoveEvent(QMouseEvent *event) {
 }
 
 void QGL3DPanel::wheelEvent(QWheelEvent *event) {
-    float delta = event->angleDelta().y() / 120.0f;
-    m_cameraDistance -= delta * 2.0f;
-    m_cameraDistance = qBound(5.0f, m_cameraDistance, 200.0f);
+    float delta = event->angleDelta().y() / 120.0f; // Normalize wheel delta
+    float zoomFactor = 1.1f;
     
+    if (delta > 0) {
+        // Zoom in
+        m_cameraDistance /= zoomFactor;
+    } else {
+        // Zoom out  
+        m_cameraDistance *= zoomFactor;
+    }
+    
+    // Clamp zoom distance to reasonable limits
+    m_cameraDistance = qBound(10.0f, m_cameraDistance, 500.0f);
+    
+    updateCamera();
     update();
+    event->accept();
+}
+
+void QGL3DPanel::mouseReleaseEvent(QMouseEvent *event) {
+    Q_UNUSED(event)
+    m_mousePressed = false;
 }
 
 void QGL3DPanel::keyPressEvent(QKeyEvent *event) {
     switch (event->key()) {
     case Qt::Key_R:
         resetCamera();
+        break;
+    case Qt::Key_T:
+        // Top-down view
+        m_cameraPitch = -85.0f;  // Nearly straight down
+        m_cameraYaw = 0.0f;      // Face forward
+        m_cameraDistance = 150.0f; // Good overview distance
+        m_cameraOffsetX = 0.0f;
+        m_cameraOffsetY = 0.0f;
+        updateCamera();
+        break;
+    case Qt::Key_O:
+        // Overview - nice angled perspective showing full spectrum
+        m_cameraDistance = 300.0f;  // Zoomed out
+        m_cameraPitch = 30.0f;      // Elevated view from above (positive pitch)
+        m_cameraYaw = 45.0f;        // Angled view for perspective
+        m_cameraOffsetX = 0.0f;     // Centered
+        m_cameraOffsetY = 10.0f;    // Slightly elevated center
+        updateCamera();
         break;
     case Qt::Key_G:
         m_showGrid = !m_showGrid;
@@ -443,65 +835,356 @@ void QGL3DPanel::keyPressEvent(QKeyEvent *event) {
         m_showWireframe = !m_showWireframe;
         break;
     case Qt::Key_Plus:
+    case Qt::Key_Equal:
         m_heightScale *= 1.2f;
         break;
     case Qt::Key_Minus:
         m_heightScale /= 1.2f;
+        break;
+    // Camera movement with arrow keys
+    case Qt::Key_Up:
+        if (event->modifiers() & Qt::ShiftModifier) {
+            // Shift+Up: Move camera position up
+            m_cameraOffsetY += 2.0f;
+        } else {
+            // Up: Tilt camera up (decrease pitch)
+            m_cameraPitch = qMax(-89.9f, m_cameraPitch - 5.0f);
+        }
+        updateCamera();
+        break;
+    case Qt::Key_Down:
+        if (event->modifiers() & Qt::ShiftModifier) {
+            // Shift+Down: Move camera position down
+            m_cameraOffsetY -= 2.0f;
+        } else {
+            // Down: Tilt camera down (increase pitch)
+            m_cameraPitch = qMin(89.9f, m_cameraPitch + 5.0f);
+        }
+        updateCamera();
+        break;
+    case Qt::Key_Left:
+        if (event->modifiers() & Qt::ShiftModifier) {
+            // Shift+Left: Move camera position left
+            m_cameraOffsetX -= 2.0f;
+        } else {
+            // Left: Rotate camera left
+            m_cameraYaw -= 5.0f;
+        }
+        updateCamera();
+        break;
+    case Qt::Key_Right:
+        if (event->modifiers() & Qt::ShiftModifier) {
+            // Shift+Right: Move camera position right
+            m_cameraOffsetX += 2.0f;
+        } else {
+            // Right: Rotate camera right
+            m_cameraYaw += 5.0f;
+        }
+        updateCamera();
+        break;
+    // Zoom with Page Up/Down
+    case Qt::Key_PageUp:
+        m_cameraDistance /= 1.1f;
+        m_cameraDistance = qMax(10.0f, m_cameraDistance);
+        updateCamera();
+        break;
+    case Qt::Key_PageDown:
+        m_cameraDistance *= 1.1f;
+        m_cameraDistance = qMin(500.0f, m_cameraDistance);
+        updateCamera();
         break;
     }
     update();
 }
 
 void QGL3DPanel::resetCamera() {
-    m_cameraDistance = 50.0f;
-    m_cameraPitch = -30.0f;
-    m_cameraYaw = 45.0f;
+    m_cameraDistance = 300.0f;  // Zoomed out to show full spectrum
+    m_cameraPitch = 30.0f;      // Elevated view from above (positive pitch)
+    m_cameraYaw = 45.0f;        // Angled view for better perspective
+    m_cameraOffsetX = 0.0f;     // Centered horizontally
+    m_cameraOffsetY = 10.0f;    // Slightly elevated center point
+    updateCamera();
     update();
 }
 
 void QGL3DPanel::setSpectrumData(const QVector<float>& spectrumData) {
+    // Always accept and store the data immediately - don't lose any spectrum updates
     m_currentSpectrum = spectrumData;
     m_spectrumWidth = spectrumData.size();
+    m_dataUpdateCount++;
     
-    // Add to history
-    m_spectrumHistory.prepend(spectrumData);
+    // Add EVERY incoming spectrum to history with explicit deep copy
+    // This prevents issues if the source data gets reused or modified
+    QVector<float> spectrumCopy(spectrumData);  // Explicit deep copy
+    m_spectrumHistory.prepend(spectrumCopy);
     if (m_spectrumHistory.size() > MAX_TIME_SLICES) {
         m_spectrumHistory.removeLast();
     }
     
-    m_meshNeedsUpdate = true;
+    // But only trigger mesh regeneration at our controlled rate
+    qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
+    if (currentTime - m_lastUpdateTime >= m_updateFrequencyMs) {
+        m_meshNeedsUpdate = true;
+        m_lastUpdateTime = currentTime;
+        m_meshUpdateCount++;
+        
+        // Debug output every 5 seconds
+        if (currentTime - m_lastDebugTime >= 5000) {
+            qDebug() << "3D Panel: Data updates:" << m_dataUpdateCount 
+                     << "Mesh updates:" << m_meshUpdateCount 
+                     << "History size:" << m_spectrumHistory.size();
+            m_lastDebugTime = currentTime;
+        }
+        
+        if (m_isVisible) {
+            update(); // Trigger repaint
+        }
+    }
 }
 
 QColor QGL3DPanel::amplitudeToColor(float amplitude) {
-    // Simple height-to-color mapping
-    float normalized = qBound(0.0f, amplitude / 20.0f, 1.0f);  // Assuming max amplitude ~20
+    // Use the same Enhanced waterfall color algorithm as the RX panel
+    // This matches the getWaterfallColorAtPixel() Enhanced mode
     
-    if (normalized < 0.25f) {
-        // Blue to cyan
-        float t = normalized * 4.0f;
-        return QColor::fromRgbF(0, t, 1.0f);
-    } else if (normalized < 0.5f) {
-        // Cyan to green
-        float t = (normalized - 0.25f) * 4.0f;
-        return QColor::fromRgbF(0, 1.0f, 1.0f - t);
-    } else if (normalized < 0.75f) {
-        // Green to yellow
-        float t = (normalized - 0.5f) * 4.0f;
-        return QColor::fromRgbF(t, 1.0f, 0);
-    } else {
-        // Yellow to red
-        float t = (normalized - 0.75f) * 4.0f;
-        return QColor::fromRgbF(1.0f, 1.0f - t, 0);
+    // Adjust the dB range and apply user offset for color mapping
+    float lowerThreshold = -160.0f + m_waterfallOffset;  // User-adjustable minimum color level
+    float upperThreshold = -80.0f + m_waterfallOffset;   // Upper end adjusts with offset
+    
+    QColor color;
+    int r, g, b;
+    
+    if (amplitude <= lowerThreshold) {
+        // Use black/dark blue for lowest signals
+        color = QColor(0, 0, 20);
     }
+    else if (amplitude >= upperThreshold) {
+        // White for highest signals  
+        color = QColor(255, 255, 255);
+    }
+    else {
+        // Enhanced waterfall color algorithm - exact copy from RX panel
+        float offset = amplitude - lowerThreshold;
+        float globalRange = offset / (upperThreshold - lowerThreshold);
+        
+        if (globalRange < 2.0f/9.0f) { // background to blue
+            float localRange = globalRange / (2.0f/9.0f);
+            r = (int)((1.0f - localRange) * 0);
+            g = (int)((1.0f - localRange) * 0);
+            b = (int)(20 + localRange * (255 - 20));
+        }
+        else if (globalRange < 3.0f/9.0f) { // blue to blue-green
+            float localRange = (globalRange - 2.0f/9.0f) / (1.0f/9.0f);
+            r = 0;
+            g = (int)(localRange * 255);
+            b = 255;
+        }
+        else if (globalRange < 4.0f/9.0f) { // blue-green to green
+            float localRange = (globalRange - 3.0f/9.0f) / (1.0f/9.0f);
+            r = 0;
+            g = 255;
+            b = (int)((1.0f - localRange) * 255);
+        }
+        else if (globalRange < 5.0f/9.0f) { // green to red-green
+            float localRange = (globalRange - 4.0f/9.0f) / (1.0f/9.0f);
+            r = (int)(localRange * 255);
+            g = 255;
+            b = 0;
+        }
+        else if (globalRange < 7.0f/9.0f) { // red-green to red
+            float localRange = (globalRange - 5.0f/9.0f) / (2.0f/9.0f);
+            r = 255;
+            g = (int)((1.0f - localRange) * 255);
+            b = 0;
+        }
+        else if (globalRange < 8.0f/9.0f) { // red to red-blue
+            float localRange = (globalRange - 7.0f/9.0f) / (1.0f/9.0f);
+            r = 255;
+            g = 0;
+            b = (int)(localRange * 255);
+        }
+        else { // red-blue to purple end
+            float localRange = (globalRange - 8.0f/9.0f) / (1.0f/9.0f);
+            r = (int)((0.75f + 0.25f * (1.0f - localRange)) * 255);
+            g = (int)(localRange * 255 * 0.5f);
+            b = 255;
+        }
+        
+        // Clamp values - no intensity reduction, keep original colors
+        r = qBound(0, r, 255);
+        g = qBound(0, g, 255);
+        b = qBound(0, b, 255);
+        
+        color = QColor(r, g, b);
+    }
+    
+    return color;
+}
+
+QColor QGL3DPanel::amplitudeToColorWithOffset(float amplitude, float offset) {
+    // Use the same Enhanced waterfall color algorithm as the RX panel
+    // This matches the getWaterfallColorAtPixel() Enhanced mode
+    
+    // Adjust the dB range and apply provided offset for color mapping
+    float lowerThreshold = -160.0f + offset;  // User-adjustable minimum color level
+    float upperThreshold = -80.0f + offset;   // Upper end adjusts with offset
+    
+    QColor color;
+    int r, g, b;
+    
+    if (amplitude <= lowerThreshold) {
+        // Use black/dark blue for lowest signals
+        color = QColor(0, 0, 20);
+    }
+    else if (amplitude >= upperThreshold) {
+        // White for highest signals  
+        color = QColor(255, 255, 255);
+    }
+    else {
+        // Enhanced waterfall color algorithm - exact copy from RX panel
+        float offset_amp = amplitude - lowerThreshold;
+        float globalRange = offset_amp / (upperThreshold - lowerThreshold);
+        
+        if (globalRange < 2.0f/9.0f) { // background to blue
+            float localRange = globalRange / (2.0f/9.0f);
+            r = (int)((1.0f - localRange) * 0);
+            g = (int)((1.0f - localRange) * 0);
+            b = (int)(20 + localRange * (255 - 20));
+        }
+        else if (globalRange < 3.0f/9.0f) { // blue to blue-green
+            float localRange = (globalRange - 2.0f/9.0f) / (1.0f/9.0f);
+            r = 0;
+            g = (int)(localRange * 255);
+            b = 255;
+        }
+        else if (globalRange < 4.0f/9.0f) { // blue-green to green
+            float localRange = (globalRange - 3.0f/9.0f) / (1.0f/9.0f);
+            r = 0;
+            g = 255;
+            b = (int)((1.0f - localRange) * 255);
+        }
+        else if (globalRange < 5.0f/9.0f) { // green to red-green
+            float localRange = (globalRange - 4.0f/9.0f) / (1.0f/9.0f);
+            r = (int)(localRange * 255);
+            g = 255;
+            b = 0;
+        }
+        else if (globalRange < 7.0f/9.0f) { // red-green to red
+            float localRange = (globalRange - 5.0f/9.0f) / (2.0f/9.0f);
+            r = 255;
+            g = (int)((1.0f - localRange) * 255);
+            b = 0;
+        }
+        else if (globalRange < 8.0f/9.0f) { // red to red-blue
+            float localRange = (globalRange - 7.0f/9.0f) / (1.0f/9.0f);
+            r = 255;
+            g = 0;
+            b = (int)(localRange * 255);
+        }
+        else { // red-blue to purple end
+            float localRange = (globalRange - 8.0f/9.0f) / (1.0f/9.0f);
+            r = (int)((0.75f + 0.25f * (1.0f - localRange)) * 255);
+            g = (int)(localRange * 255 * 0.5f);
+            b = 255;
+        }
+        
+        // Clamp values - no intensity reduction, keep original colors
+        r = qBound(0, r, 255);
+        g = qBound(0, g, 255);
+        b = qBound(0, b, 255);
+        
+        color = QColor(r, g, b);
+    }
+    
+    return color;
 }
 
 void QGL3DPanel::qglColor(QColor color) {
     glColor4f(color.redF(), color.greenF(), color.blueF(), color.alphaF());
 }
 
+// Contour generation methods
+void QGL3DPanel::generateContourLines(const QVector<float>& spectrumSlice, int timeSlice, QVector<float>& contourVertices) {
+    if (spectrumSlice.isEmpty() || spectrumSlice.size() < 10) return;
+    
+    // Use fewer contour levels for better performance
+    float maxLevel = m_contourMinLevel + 60.0f;  // Reduced range for performance
+    int levelCount = 0;
+    
+    for (float level = m_contourMinLevel; level <= maxLevel && levelCount < 8; level += m_contourInterval, levelCount++) {
+        QVector<QPointF> segments = findContourSegments(spectrumSlice, level, timeSlice);
+        
+        if (segments.size() < 2) continue;  // Need at least 2 points for a line
+        
+        // Convert segments to 3D vertices - make them more visible
+        QColor levelColor = contourLevelToColor(level);
+        
+        // Create line segments from consecutive points
+        for (int i = 0; i < segments.size() - 1; i++) {
+            const QPointF& p1 = segments[i];
+            const QPointF& p2 = segments[i + 1];
+            
+            // Convert to world coordinates with better positioning
+            float x1 = p1.x() / (float)m_spectrumWidth * 400.0f * m_frequencyScale - 200.0f * m_frequencyScale;
+            float y1 = qMax(2.0f, (level + 120.0f) / 80.0f * 8.0f + 5.0f);  // Higher above base, more distinct positioning
+            float z1 = (MAX_TIME_SLICES - (float)timeSlice) * 4.0f * m_timeScale - MAX_TIME_SLICES * 2.0f * m_timeScale;
+            
+            float x2 = p2.x() / (float)m_spectrumWidth * 400.0f * m_frequencyScale - 200.0f * m_frequencyScale;
+            float y2 = qMax(2.0f, (level + 120.0f) / 80.0f * 8.0f + 5.0f);  // Same height, well above spectrum
+            float z2 = z1;  // Same time slice
+            
+            // Add line segment (2 vertices)
+            contourVertices.append(x1); contourVertices.append(y1); contourVertices.append(z1);
+            contourVertices.append(levelColor.redF()); contourVertices.append(levelColor.greenF()); contourVertices.append(levelColor.blueF());
+            
+            contourVertices.append(x2); contourVertices.append(y2); contourVertices.append(z2);
+            contourVertices.append(levelColor.redF()); contourVertices.append(levelColor.greenF()); contourVertices.append(levelColor.blueF());
+        }
+    }
+}
+
+QVector<QPointF> QGL3DPanel::findContourSegments(const QVector<float>& data, float level, int timeSlice) {
+    QVector<QPointF> segments;
+    
+    // Improved marching algorithm with better interpolation
+    int step = qMax(1, data.size() / 200);  // Adaptive step size for performance
+    
+    for (int i = 0; i < data.size() - step; i += step) {
+        if (i + step >= data.size()) break;
+        
+        float val1 = data[i];
+        float val2 = data[i + step];
+        
+        // Check if contour level crosses between these two points
+        if ((val1 <= level && val2 > level) || (val1 > level && val2 <= level)) {
+            // Linear interpolation to find exact crossing point
+            float t = (level - val1) / (val2 - val1);
+            t = qBound(0.0f, t, 1.0f);  // Clamp interpolation factor
+            float freqPos = (float)i + t * step;
+            
+            segments.append(QPointF(freqPos, level));
+        }
+        
+        // Also add local maxima/minima near the level for more detail
+        if (i > 0 && i < data.size() - 1) {
+            float prev = data[i - 1];
+            float curr = data[i];
+            float next = data[i + 1];
+            
+            // Local peak near contour level
+            if (curr > prev && curr > next && abs(curr - level) < m_contourInterval / 2.0f) {
+                segments.append(QPointF((float)i, curr));
+            }
+        }
+    }
+    
+    return segments;
+}
+
 void QGL3DPanel::onUpdateTimer() {
-    // Trigger a repaint
-    update();
+    // Only trigger repaints when we have data to update and are visible
+    if (m_isVisible && m_meshNeedsUpdate) {
+        update();
+    }
 }
 
 // Slots
@@ -510,10 +1193,17 @@ void QGL3DPanel::spectrumDataChanged(const QVector<float>& data) {
 }
 
 // SDR integration methods
-void QGL3DPanel::setSpectrumBuffer(int rx, const QVector<float>& buffer) {
+void QGL3DPanel::setSpectrumBuffer(int rx, const qVectorFloat& buffer) {
     if (rx != m_receiver) return; // Only accept data for our receiver
     
-    setSpectrumData(buffer);
+    // Convert qVectorFloat to QVector<float> for our internal use
+    QVector<float> spectrumData;
+    spectrumData.reserve(buffer.size());
+    for (const auto& value : buffer) {
+        spectrumData.append(value);
+    }
+    
+    setSpectrumData(spectrumData);
 }
 
 void QGL3DPanel::setCtrFrequency(QObject* sender, int mode, int rx, long freq) {
@@ -537,5 +1227,110 @@ void QGL3DPanel::setVFOFrequency(QObject* sender, int mode, int rx, long freq) {
 }
 
 void QGL3DPanel::updateDisplay() {
+    if (m_isVisible) {
+        update();
+    }
+}
+
+// Performance optimization methods
+void QGL3DPanel::performUpdate() {
+    qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
+    
+    // Only update if the panel is visible and enough time has passed
+    if (m_isVisible && (currentTime - m_lastUpdateTime >= m_updateFrequencyMs)) {
+        if (m_meshNeedsUpdate) {
+            updateMesh();
+            m_lastUpdateTime = currentTime;
+        }
+    }
+}
+
+void QGL3DPanel::calculateFPS() {
+    m_currentFPS = m_frameCount;
+    m_frameCount = 0;
+}
+
+void QGL3DPanel::showEvent(QShowEvent* event) {
+    QOpenGLWidget::showEvent(event);
+    m_isVisible = true;
+    if (m_updateTimer) {
+        m_updateTimer->start(m_updateFrequencyMs);
+    }
+}
+
+void QGL3DPanel::hideEvent(QHideEvent* event) {
+    QOpenGLWidget::hideEvent(event);
+    m_isVisible = false;
+    if (m_updateTimer) {
+        m_updateTimer->stop();
+    }
+}
+
+// 3D Display control methods
+void QGL3DPanel::setHeightScale(float scale) {
+    m_heightScale = qBound(0.1f, scale, 100.0f); // Reasonable range
+    update(); // Trigger redraw
+}
+
+void QGL3DPanel::setFrequencyScale(float scale) {
+    m_frequencyScale = qBound(0.1f, scale, 10.0f); // Reasonable range
+    m_meshNeedsUpdate = true; // Need to regenerate mesh for scale changes
+    update(); // Trigger redraw
+}
+
+void QGL3DPanel::setTimeScale(float scale) {
+    m_timeScale = qBound(0.1f, scale, 10.0f); // Reasonable range
+    m_meshNeedsUpdate = true; // Need to regenerate mesh for scale changes
+    update(); // Trigger redraw
+}
+
+void QGL3DPanel::setUpdateRate(int intervalMs) {
+    m_updateFrequencyMs = qBound(16, intervalMs, 1000); // 16ms (60 FPS) to 1000ms (1 FPS)
+    qDebug() << "3D Panel: Update rate changed to" << intervalMs << "ms (" << (1000.0f / intervalMs) << "FPS)";
+    if (m_updateTimer) {
+        m_updateTimer->setInterval(m_updateFrequencyMs);
+    }
+}
+
+void QGL3DPanel::setShowGrid(bool show) {
+    m_showGrid = show;
+    update(); // Trigger redraw
+}
+
+void QGL3DPanel::setShowAxes(bool show) {
+    m_showAxes = show;
+    update(); // Trigger redraw
+}
+
+void QGL3DPanel::setWireframeMode(bool wireframe) {
+    m_showWireframe = wireframe;
+    update(); // Trigger redraw
+}
+
+void QGL3DPanel::setShowContours(bool show) {
+    m_showContours = show;
+    m_meshNeedsUpdate = true;  // Force mesh and contour update
+    update(); // Trigger redraw
+}
+
+void QGL3DPanel::setContourInterval(float interval) {
+    m_contourInterval = qBound(1.0f, interval, 20.0f);  // Limit to reasonable range
+    if (m_showContours) {
+        m_meshNeedsUpdate = true;  // Force contour regeneration
+        update(); // Trigger redraw
+    }
+}
+
+void QGL3DPanel::setContourMinLevel(float minLevel) {
+    m_contourMinLevel = qBound(-180.0f, minLevel, -60.0f);  // Reasonable dB range
+    if (m_showContours) {
+        m_meshNeedsUpdate = true;  // Force contour regeneration
+        update(); // Trigger redraw
+    }
+}
+
+void QGL3DPanel::setWaterfallOffset(float offset) {
+    m_waterfallOffset = qBound(-50.0f, offset, 50.0f);  // Reasonable offset range
+    // Trigger a color update for the waterfall
     update();
 }

@@ -63,21 +63,27 @@ DisplayTabWidget::DisplayTabWidget(QWidget *parent)
 	setTabEnabled(0, true);
 	setTabEnabled(1, true);
 	setTabEnabled(2, true);
-    qDebug() << "display setup";
 	setupConnections();
 }
 
 DisplayTabWidget::~DisplayTabWidget() {
-    qDebug() << "Delete";
+    // Clean up 3D dialog and panel first
+    if (m_3DPanel) {
+        disconnect(set, 0, m_3DPanel, 0);
+    }
+    
+    if (m_3DDialog) {
+        delete m_3DDialog;
+        m_3DDialog = nullptr;
+        m_3DPanel = nullptr; // Panel is deleted with dialog since it's a child
+    }
 
     disconnect(this, 0, 0, 0);
     disconnect(set, 0, this, 0);
+    
     delete m_displayWidget;
-    qDebug() << "Delete";
     delete m_colorWidget;
-    qDebug() << "Delete";
     delete m_3DWidget;
-    qDebug() << "Delete";
 }
 
 QSize DisplayTabWidget::sizeHint() const {
@@ -183,7 +189,7 @@ void DisplayTabWidget::show3DPanadapter(bool enabled) {
 		if (!m_3DDialog) {
 			// Create the 3D dialog window
 			m_3DDialog = new QDialog(this);
-			m_3DDialog->setWindowTitle("3D Panadapter");
+			m_3DDialog->setWindowTitle("3D Panadapter - cuSDR");
 			m_3DDialog->setModal(false);
 			m_3DDialog->resize(800, 600);
 			
@@ -196,8 +202,93 @@ void DisplayTabWidget::show3DPanadapter(bool enabled) {
 			layout->addWidget(m_3DPanel);
 			m_3DDialog->setLayout(layout);
 			
-			// TODO: Connect to real spectrum data
-			// For now, this will show the 3D display with demo data
+			// Connect to real spectrum data
+			CHECKED_CONNECT(
+				set,
+				SIGNAL(spectrumBufferChanged(int, const qVectorFloat&)),
+				m_3DPanel,
+				SLOT(setSpectrumBuffer(int, const qVectorFloat&)));
+				
+			// Connect to frequency changes
+			CHECKED_CONNECT(
+				set,
+				SIGNAL(ctrFrequencyChanged(QObject*, int, int, long)),
+				m_3DPanel,
+				SLOT(setCtrFrequency(QObject*, int, int, long)));
+				
+			CHECKED_CONNECT(
+				set,
+				SIGNAL(vfoFrequencyChanged(QObject*, int, int, long)),
+				m_3DPanel,
+				SLOT(setVFOFrequency(QObject*, int, int, long)));
+			
+			// Connect 3D options widget controls to 3D panel
+			CHECKED_CONNECT(
+				m_3DWidget,
+				SIGNAL(heightScaleValueChanged(float)),
+				m_3DPanel,
+				SLOT(setHeightScale(float)));
+				
+			CHECKED_CONNECT(
+				m_3DWidget,
+				SIGNAL(frequencyScaleValueChanged(float)),
+				m_3DPanel,
+				SLOT(setFrequencyScale(float)));
+				
+			CHECKED_CONNECT(
+				m_3DWidget,
+				SIGNAL(timeScaleValueChanged(float)),
+				m_3DPanel,
+				SLOT(setTimeScale(float)));
+				
+			CHECKED_CONNECT(
+				m_3DWidget,
+				SIGNAL(updateIntervalValueChanged(int)),
+				m_3DPanel,
+				SLOT(setUpdateRate(int)));
+				
+			CHECKED_CONNECT(
+				m_3DWidget,
+				SIGNAL(showGridValueChanged(bool)),
+				m_3DPanel,
+				SLOT(setShowGrid(bool)));
+				
+			CHECKED_CONNECT(
+				m_3DWidget,
+				SIGNAL(showAxesValueChanged(bool)),
+				m_3DPanel,
+				SLOT(setShowAxes(bool)));
+				
+			CHECKED_CONNECT(
+				m_3DWidget,
+				SIGNAL(wireframeModeValueChanged(bool)),
+				m_3DPanel,
+				SLOT(setWireframeMode(bool)));
+				
+			CHECKED_CONNECT(
+				m_3DWidget,
+				SIGNAL(showContoursValueChanged(bool)),
+				m_3DPanel,
+				SLOT(setShowContours(bool)));
+				
+			CHECKED_CONNECT(
+				m_3DWidget,
+				SIGNAL(contourIntervalValueChanged(float)),
+				m_3DPanel,
+				SLOT(setContourInterval(float)));
+				
+			CHECKED_CONNECT(
+				m_3DWidget,
+				SIGNAL(contourMinLevelValueChanged(float)),
+				m_3DPanel,
+				SLOT(setContourMinLevel(float)));
+				
+			CHECKED_CONNECT(
+				m_3DWidget,
+				SIGNAL(waterfallOffsetValueChanged(float)),
+				m_3DPanel,
+				SLOT(setWaterfallOffset(float)));
+				
 		}
 		
 		if (m_3DDialog) {
