@@ -56,6 +56,21 @@ template <> constexpr inline auto QGL3DPanel::qt_create_metaobjectdata<qt_meta_t
         "mode",
         "freq",
         "setVFOFrequency",
+        "setHeightScale",
+        "scale",
+        "setFrequencyScale",
+        "setTimeScale",
+        "setUpdateRate",
+        "intervalMs",
+        "setShowGrid",
+        "show",
+        "setShowAxes",
+        "setWireframeMode",
+        "wireframe",
+        "setWaterfallOffset",
+        "offset",
+        "performUpdate",
+        "calculateFPS",
         "spectrumDataChanged",
         "QList<float>",
         "data",
@@ -84,14 +99,50 @@ template <> constexpr inline auto QGL3DPanel::qt_create_metaobjectdata<qt_meta_t
         QtMocHelpers::SlotData<void(QObject *, int, int, long)>(14, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 11 }, { QMetaType::Int, 12 }, { QMetaType::Int, 7 }, { QMetaType::Long, 13 },
         }}),
+        // Slot 'setHeightScale'
+        QtMocHelpers::SlotData<void(float)>(15, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Float, 16 },
+        }}),
+        // Slot 'setFrequencyScale'
+        QtMocHelpers::SlotData<void(float)>(17, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Float, 16 },
+        }}),
+        // Slot 'setTimeScale'
+        QtMocHelpers::SlotData<void(float)>(18, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Float, 16 },
+        }}),
+        // Slot 'setUpdateRate'
+        QtMocHelpers::SlotData<void(int)>(19, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Int, 20 },
+        }}),
+        // Slot 'setShowGrid'
+        QtMocHelpers::SlotData<void(bool)>(21, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Bool, 22 },
+        }}),
+        // Slot 'setShowAxes'
+        QtMocHelpers::SlotData<void(bool)>(23, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Bool, 22 },
+        }}),
+        // Slot 'setWireframeMode'
+        QtMocHelpers::SlotData<void(bool)>(24, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Bool, 25 },
+        }}),
+        // Slot 'setWaterfallOffset'
+        QtMocHelpers::SlotData<void(float)>(26, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Float, 27 },
+        }}),
+        // Slot 'performUpdate'
+        QtMocHelpers::SlotData<void()>(28, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'calculateFPS'
+        QtMocHelpers::SlotData<void()>(29, 2, QMC::AccessPrivate, QMetaType::Void),
         // Slot 'spectrumDataChanged'
-        QtMocHelpers::SlotData<void(const QVector<float> &)>(15, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { 0x80000000 | 16, 17 },
+        QtMocHelpers::SlotData<void(const QVector<float> &)>(30, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { 0x80000000 | 31, 32 },
         }}),
         // Slot 'updateDisplay'
-        QtMocHelpers::SlotData<void()>(18, 2, QMC::AccessPublic, QMetaType::Void),
+        QtMocHelpers::SlotData<void()>(33, 2, QMC::AccessPublic, QMetaType::Void),
         // Slot 'onUpdateTimer'
-        QtMocHelpers::SlotData<void()>(19, 2, QMC::AccessPrivate, QMetaType::Void),
+        QtMocHelpers::SlotData<void()>(34, 2, QMC::AccessPrivate, QMetaType::Void),
     };
     QtMocHelpers::UintData qt_properties {
     };
@@ -120,16 +171,26 @@ void QGL3DPanel::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, 
         case 2: _t->setSpectrumBuffer((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<qVectorFloat>>(_a[2]))); break;
         case 3: _t->setCtrFrequency((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[3])),(*reinterpret_cast< std::add_pointer_t<long>>(_a[4]))); break;
         case 4: _t->setVFOFrequency((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[3])),(*reinterpret_cast< std::add_pointer_t<long>>(_a[4]))); break;
-        case 5: _t->spectrumDataChanged((*reinterpret_cast< std::add_pointer_t<QList<float>>>(_a[1]))); break;
-        case 6: _t->updateDisplay(); break;
-        case 7: _t->onUpdateTimer(); break;
+        case 5: _t->setHeightScale((*reinterpret_cast< std::add_pointer_t<float>>(_a[1]))); break;
+        case 6: _t->setFrequencyScale((*reinterpret_cast< std::add_pointer_t<float>>(_a[1]))); break;
+        case 7: _t->setTimeScale((*reinterpret_cast< std::add_pointer_t<float>>(_a[1]))); break;
+        case 8: _t->setUpdateRate((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 9: _t->setShowGrid((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1]))); break;
+        case 10: _t->setShowAxes((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1]))); break;
+        case 11: _t->setWireframeMode((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1]))); break;
+        case 12: _t->setWaterfallOffset((*reinterpret_cast< std::add_pointer_t<float>>(_a[1]))); break;
+        case 13: _t->performUpdate(); break;
+        case 14: _t->calculateFPS(); break;
+        case 15: _t->spectrumDataChanged((*reinterpret_cast< std::add_pointer_t<QList<float>>>(_a[1]))); break;
+        case 16: _t->updateDisplay(); break;
+        case 17: _t->onUpdateTimer(); break;
         default: ;
         }
     }
     if (_c == QMetaObject::RegisterMethodArgumentMetaType) {
         switch (_id) {
         default: *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType(); break;
-        case 5:
+        case 15:
             switch (*reinterpret_cast<int*>(_a[1])) {
             default: *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType(); break;
             case 0:
@@ -167,14 +228,14 @@ int QGL3DPanel::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
     if (_id < 0)
         return _id;
     if (_c == QMetaObject::InvokeMetaMethod) {
-        if (_id < 8)
+        if (_id < 18)
             qt_static_metacall(this, _c, _id, _a);
-        _id -= 8;
+        _id -= 18;
     }
     if (_c == QMetaObject::RegisterMethodArgumentMetaType) {
-        if (_id < 8)
+        if (_id < 18)
             qt_static_metacall(this, _c, _id, _a);
-        _id -= 8;
+        _id -= 18;
     }
     return _id;
 }

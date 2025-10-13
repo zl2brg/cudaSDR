@@ -38,9 +38,6 @@ private slots:
     void showGridChanged();
     void showAxesChanged();
     void wireframeModeChanged();
-    void showContoursChanged();
-    void contourIntervalChanged(int value);
-    void contourMinLevelChanged(int value);
     void waterfallOffsetChanged(int value);
 
 private:
@@ -69,11 +66,6 @@ private:
     QCheckBox* m_showGridCheckBox;
     QCheckBox* m_showAxesCheckBox;
     QCheckBox* m_wireframeModeCheckBox;
-    QCheckBox* m_showContoursCheckBox;
-    QSlider* m_contourIntervalSlider;
-    QLabel* m_contourIntervalLabel;
-    QSlider* m_contourMinLevelSlider;
-    QLabel* m_contourMinLevelLabel;
     QSlider* m_waterfallOffsetSlider;
     QLabel* m_waterfallOffsetLabel;
     
@@ -94,9 +86,6 @@ signals:
     void showGridValueChanged(bool show);
     void showAxesValueChanged(bool show);
     void wireframeModeValueChanged(bool wireframe);
-    void showContoursValueChanged(bool show);
-    void contourIntervalValueChanged(float interval);
-    void contourMinLevelValueChanged(float minLevel);
     void waterfallOffsetValueChanged(float offset);
 };
 

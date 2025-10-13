@@ -70,12 +70,6 @@ QGL3DPanel::QGL3DPanel(QWidget *parent, int rx)
     , m_dataUpdateCount(0)
     , m_meshUpdateCount(0)
     , m_lastDebugTime(0)
-    , m_showContours(false)
-    , m_contourInterval(10.0f)  // 10 dB between contours
-    , m_contourMinLevel(-140.0f)  // Start at -140 dB
-    , m_contourVertexBuffer(nullptr)
-    , m_contourVAO(nullptr)
-    , m_contourVertexCount(0)
 {
     // Initialize camera target and up vector
     m_cameraTarget = QVector3D(0, 0, 0);
@@ -146,17 +140,6 @@ QGL3DPanel::~QGL3DPanel() {
         delete m_gridVertexBuffer;
     }
     
-    // Clean up contour resources
-    if (m_contourVAO) {
-        m_contourVAO->destroy();
-        delete m_contourVAO;
-    }
-    
-    if (m_contourVertexBuffer) {
-        m_contourVertexBuffer->destroy();
-        delete m_contourVertexBuffer;
-    }
-    
     delete m_shaderProgram;
     delete m_oglTextSmall;
     
@@ -186,9 +169,6 @@ void QGL3DPanel::initializeGL() {
     
     // Setup grid rendering
     setupGrid();
-    
-    // Setup contour rendering
-    setupContours();
     
     // Initialize text rendering
     QFont smallFont = QFont("Arial", 8);
@@ -338,31 +318,6 @@ void QGL3DPanel::setupGrid() {
     m_gridVAO->release();
 }
 
-void QGL3DPanel::setupContours() {
-    // Create contour VAO and vertex buffer
-    m_contourVAO = new QOpenGLVertexArrayObject();
-    m_contourVAO->create();
-    m_contourVAO->bind();
-    
-    m_contourVertexBuffer = new QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
-    m_contourVertexBuffer->create();
-    m_contourVertexBuffer->bind();
-    
-    // Initial empty buffer - will be populated by updateContours()
-    m_contourVertexBuffer->allocate(nullptr, 0);
-    m_contourVertexCount = 0;
-    
-    // Setup vertex attributes for contours (position + color)
-    glEnableVertexAttribArray(0);  // Position
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), nullptr);
-    
-    glEnableVertexAttribArray(1);  // Color
-    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
-    
-    m_contourVertexBuffer->release();
-    m_contourVAO->release();
-}
-
 void QGL3DPanel::updateMesh() {
     if (m_spectrumHistory.isEmpty()) return;
     
@@ -465,49 +420,6 @@ void QGL3DPanel::updateMesh() {
     m_vao->release();
     
     m_meshNeedsUpdate = false;
-    
-    // Update contours less frequently for better performance
-    static int contourUpdateCounter = 0;
-    if (m_showContours && (++contourUpdateCounter % 3 == 0)) {  // Update every 3rd mesh update
-        updateContours();
-    }
-}
-
-void QGL3DPanel::updateContours() {
-    if (m_meshSpectrumSnapshot.isEmpty() || !m_contourVAO) return;
-    
-    QVector<float> contourVertices;
-    
-    // Only generate contours for visible time slices and with LOD
-    int timeSlices = qMin(m_meshSpectrumSnapshot.size(), MAX_TIME_SLICES);
-    int lodFactor = (m_cameraDistance > 150.0f) ? 4 : 2;  // Reduce detail when far away
-    int effectiveTimeSlices = timeSlices / lodFactor;
-    
-    // Limit to recent slices for better performance
-    int maxSlicesToProcess = qMin(effectiveTimeSlices, 50);  // Only process 50 slices max
-    
-    for (int t = 0; t < maxSlicesToProcess; t += 2) {  // Skip every other slice for performance
-        int actualTimeIndex = t * lodFactor;
-        if (actualTimeIndex >= m_meshSpectrumSnapshot.size()) break;
-        
-        const QVector<float>& spectrum = m_meshSpectrumSnapshot[actualTimeIndex];
-        generateContourLines(spectrum, actualTimeIndex, contourVertices);
-    }
-    
-    m_contourVertexCount = contourVertices.size() / 6;  // 6 floats per vertex (pos + color)
-    
-    // Update contour buffer
-    m_contourVAO->bind();
-    m_contourVertexBuffer->bind();
-    
-    if (m_contourVertexCount > 0) {
-        m_contourVertexBuffer->allocate(contourVertices.constData(), contourVertices.size() * sizeof(float));
-    } else {
-        m_contourVertexBuffer->allocate(nullptr, 0);
-    }
-    
-    m_contourVertexBuffer->release();
-    m_contourVAO->release();
 }
 
 void QGL3DPanel::paintGL() {
@@ -531,9 +443,6 @@ void QGL3DPanel::paintGL() {
     // Render grid and axes
     if (m_showGrid) renderGrid();
     if (m_showAxes) renderAxes();
-    
-    // Render contours
-    if (m_showContours) renderContours();
 }
 
 void QGL3DPanel::renderSpectrum3D() {
@@ -603,68 +512,6 @@ void QGL3DPanel::renderGrid() {
     m_shaderProgram->setUniformValue("heightScale", currentHeightScale);
     
     m_shaderProgram->release();
-}
-
-void QGL3DPanel::renderContours() {
-    if (!m_contourVAO || !m_shaderProgram || m_contourVertexCount == 0) return;
-    
-    // Save current height scale
-    float currentHeightScale = m_heightScale;
-    
-    // Use the same shader program as the spectrum
-    m_shaderProgram->bind();
-    
-    // Set matrices
-    m_shaderProgram->setUniformValue("mvpMatrix", m_projectionMatrix * m_viewMatrix * m_modelMatrix);
-    m_shaderProgram->setUniformValue("heightScale", 1.0f);  // No additional height scaling for contours
-    
-    // Bind contour VAO and render as lines
-    m_contourVAO->bind();
-    
-    // Improve line visibility significantly
-    glDisable(GL_DEPTH_TEST);  // Draw contours on top
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glLineWidth(4.0f);  // Much thicker lines for better visibility
-    
-    // Enable line smoothing for better visual quality
-    glEnable(GL_LINE_SMOOTH);
-    glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
-    
-    // Render contours as line segments
-    glDrawArrays(GL_LINES, 0, m_contourVertexCount);
-    
-    glDisable(GL_LINE_SMOOTH);
-    glEnable(GL_DEPTH_TEST);  // Restore depth testing
-    glDisable(GL_BLEND);
-    
-    m_contourVAO->release();
-    
-    // Restore height scale for subsequent rendering
-    m_shaderProgram->setUniformValue("heightScale", currentHeightScale);
-    
-    m_shaderProgram->release();
-}
-
-QColor QGL3DPanel::contourLevelToColor(float level) {
-    // High-contrast color scheme for maximum visibility
-    float normalizedLevel = (level - m_contourMinLevel) / (60.0f);  // Reduced range
-    normalizedLevel = qBound(0.0f, normalizedLevel, 1.0f);
-    
-    // Use bold, highly contrasting colors that stand out against spectrum
-    if (normalizedLevel < 0.25f) {
-        // Bright cyan for lowest levels
-        return QColor(0, 255, 255);
-    } else if (normalizedLevel < 0.5f) {
-        // Bright green for low-medium levels
-        return QColor(0, 255, 0);
-    } else if (normalizedLevel < 0.75f) {
-        // Bright yellow for medium-high levels
-        return QColor(255, 255, 0);
-    } else {
-        // Bright magenta for highest levels
-        return QColor(255, 0, 255);
-    }
 }
 
 void QGL3DPanel::renderAxes() {
@@ -1102,84 +949,6 @@ void QGL3DPanel::qglColor(QColor color) {
     glColor4f(color.redF(), color.greenF(), color.blueF(), color.alphaF());
 }
 
-// Contour generation methods
-void QGL3DPanel::generateContourLines(const QVector<float>& spectrumSlice, int timeSlice, QVector<float>& contourVertices) {
-    if (spectrumSlice.isEmpty() || spectrumSlice.size() < 10) return;
-    
-    // Use fewer contour levels for better performance
-    float maxLevel = m_contourMinLevel + 60.0f;  // Reduced range for performance
-    int levelCount = 0;
-    
-    for (float level = m_contourMinLevel; level <= maxLevel && levelCount < 8; level += m_contourInterval, levelCount++) {
-        QVector<QPointF> segments = findContourSegments(spectrumSlice, level, timeSlice);
-        
-        if (segments.size() < 2) continue;  // Need at least 2 points for a line
-        
-        // Convert segments to 3D vertices - make them more visible
-        QColor levelColor = contourLevelToColor(level);
-        
-        // Create line segments from consecutive points
-        for (int i = 0; i < segments.size() - 1; i++) {
-            const QPointF& p1 = segments[i];
-            const QPointF& p2 = segments[i + 1];
-            
-            // Convert to world coordinates with better positioning
-            float x1 = p1.x() / (float)m_spectrumWidth * 400.0f * m_frequencyScale - 200.0f * m_frequencyScale;
-            float y1 = qMax(2.0f, (level + 120.0f) / 80.0f * 8.0f + 5.0f);  // Higher above base, more distinct positioning
-            float z1 = (MAX_TIME_SLICES - (float)timeSlice) * 4.0f * m_timeScale - MAX_TIME_SLICES * 2.0f * m_timeScale;
-            
-            float x2 = p2.x() / (float)m_spectrumWidth * 400.0f * m_frequencyScale - 200.0f * m_frequencyScale;
-            float y2 = qMax(2.0f, (level + 120.0f) / 80.0f * 8.0f + 5.0f);  // Same height, well above spectrum
-            float z2 = z1;  // Same time slice
-            
-            // Add line segment (2 vertices)
-            contourVertices.append(x1); contourVertices.append(y1); contourVertices.append(z1);
-            contourVertices.append(levelColor.redF()); contourVertices.append(levelColor.greenF()); contourVertices.append(levelColor.blueF());
-            
-            contourVertices.append(x2); contourVertices.append(y2); contourVertices.append(z2);
-            contourVertices.append(levelColor.redF()); contourVertices.append(levelColor.greenF()); contourVertices.append(levelColor.blueF());
-        }
-    }
-}
-
-QVector<QPointF> QGL3DPanel::findContourSegments(const QVector<float>& data, float level, int timeSlice) {
-    QVector<QPointF> segments;
-    
-    // Improved marching algorithm with better interpolation
-    int step = qMax(1, data.size() / 200);  // Adaptive step size for performance
-    
-    for (int i = 0; i < data.size() - step; i += step) {
-        if (i + step >= data.size()) break;
-        
-        float val1 = data[i];
-        float val2 = data[i + step];
-        
-        // Check if contour level crosses between these two points
-        if ((val1 <= level && val2 > level) || (val1 > level && val2 <= level)) {
-            // Linear interpolation to find exact crossing point
-            float t = (level - val1) / (val2 - val1);
-            t = qBound(0.0f, t, 1.0f);  // Clamp interpolation factor
-            float freqPos = (float)i + t * step;
-            
-            segments.append(QPointF(freqPos, level));
-        }
-        
-        // Also add local maxima/minima near the level for more detail
-        if (i > 0 && i < data.size() - 1) {
-            float prev = data[i - 1];
-            float curr = data[i];
-            float next = data[i + 1];
-            
-            // Local peak near contour level
-            if (curr > prev && curr > next && abs(curr - level) < m_contourInterval / 2.0f) {
-                segments.append(QPointF((float)i, curr));
-            }
-        }
-    }
-    
-    return segments;
-}
-
 void QGL3DPanel::onUpdateTimer() {
     // Only trigger repaints when we have data to update and are visible
     if (m_isVisible && m_meshNeedsUpdate) {
@@ -1305,28 +1074,6 @@ void QGL3DPanel::setShowAxes(bool show) {
 void QGL3DPanel::setWireframeMode(bool wireframe) {
     m_showWireframe = wireframe;
     update(); // Trigger redraw
-}
-
-void QGL3DPanel::setShowContours(bool show) {
-    m_showContours = show;
-    m_meshNeedsUpdate = true;  // Force mesh and contour update
-    update(); // Trigger redraw
-}
-
-void QGL3DPanel::setContourInterval(float interval) {
-    m_contourInterval = qBound(1.0f, interval, 20.0f);  // Limit to reasonable range
-    if (m_showContours) {
-        m_meshNeedsUpdate = true;  // Force contour regeneration
-        update(); // Trigger redraw
-    }
-}
-
-void QGL3DPanel::setContourMinLevel(float minLevel) {
-    m_contourMinLevel = qBound(-180.0f, minLevel, -60.0f);  // Reasonable dB range
-    if (m_showContours) {
-        m_meshNeedsUpdate = true;  // Force contour regeneration
-        update(); // Trigger redraw
-    }
 }
 
 void QGL3DPanel::setWaterfallOffset(float offset) {

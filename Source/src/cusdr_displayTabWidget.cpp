@@ -267,24 +267,6 @@ void DisplayTabWidget::show3DPanadapter(bool enabled) {
 				
 			CHECKED_CONNECT(
 				m_3DWidget,
-				SIGNAL(showContoursValueChanged(bool)),
-				m_3DPanel,
-				SLOT(setShowContours(bool)));
-				
-			CHECKED_CONNECT(
-				m_3DWidget,
-				SIGNAL(contourIntervalValueChanged(float)),
-				m_3DPanel,
-				SLOT(setContourInterval(float)));
-				
-			CHECKED_CONNECT(
-				m_3DWidget,
-				SIGNAL(contourMinLevelValueChanged(float)),
-				m_3DPanel,
-				SLOT(setContourMinLevel(float)));
-				
-			CHECKED_CONNECT(
-				m_3DWidget,
 				SIGNAL(waterfallOffsetValueChanged(float)),
 				m_3DPanel,
 				SLOT(setWaterfallOffset(float)));

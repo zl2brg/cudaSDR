@@ -130,27 +130,6 @@ void Options3DWidget::createRenderingGroup() {
     m_wireframeModeCheckBox->setChecked(false);
     m_wireframeModeCheckBox->setFont(QFont("Arial", 8));
 
-    // Contour mode
-    m_showContoursCheckBox = new QCheckBox("Show Contours", this);
-    m_showContoursCheckBox->setChecked(false);
-    m_showContoursCheckBox->setFont(QFont("Arial", 8));
-    
-    // Contour interval (dB between contours)
-    m_contourIntervalLabel = new QLabel("Contour Interval: 10.0 dB", this);
-    m_contourIntervalLabel->setFont(QFont("Arial", 8));
-    m_contourIntervalSlider = new QSlider(Qt::Horizontal, this);
-    m_contourIntervalSlider->setRange(5, 20);  // 0.5 to 2.0 (x10)
-    m_contourIntervalSlider->setValue(10);  // 1.0 default (x10)
-    m_contourIntervalSlider->setMinimumWidth(160);
-    
-    // Contour minimum level
-    m_contourMinLevelLabel = new QLabel("Contour Min Level: -140 dB", this);
-    m_contourMinLevelLabel->setFont(QFont("Arial", 8));
-    m_contourMinLevelSlider = new QSlider(Qt::Horizontal, this);
-    m_contourMinLevelSlider->setRange(-180, -80);  // -180 to -80 dB
-    m_contourMinLevelSlider->setValue(-140);  // -140 dB default
-    m_contourMinLevelSlider->setMinimumWidth(160);
-    
     // Waterfall dBm offset
     m_waterfallOffsetLabel = new QLabel("Waterfall Offset: 0 dB", this);
     m_waterfallOffsetLabel->setFont(QFont("Arial", 8));
@@ -162,9 +141,6 @@ void Options3DWidget::createRenderingGroup() {
     connect(m_showGridCheckBox, &QCheckBox::toggled, this, &Options3DWidget::showGridChanged);
     connect(m_showAxesCheckBox, &QCheckBox::toggled, this, &Options3DWidget::showAxesChanged);
     connect(m_wireframeModeCheckBox, &QCheckBox::toggled, this, &Options3DWidget::wireframeModeChanged);
-    connect(m_showContoursCheckBox, &QCheckBox::toggled, this, &Options3DWidget::showContoursChanged);
-    connect(m_contourIntervalSlider, &QSlider::valueChanged, this, &Options3DWidget::contourIntervalChanged);
-    connect(m_contourMinLevelSlider, &QSlider::valueChanged, this, &Options3DWidget::contourMinLevelChanged);
     connect(m_waterfallOffsetSlider, &QSlider::valueChanged, this, &Options3DWidget::waterfallOffsetChanged);
 
     QGridLayout *layout = new QGridLayout;
@@ -179,13 +155,8 @@ void Options3DWidget::createRenderingGroup() {
     layout->addWidget(m_showGridCheckBox, 6, 0);
     layout->addWidget(m_showAxesCheckBox, 7, 0);
     layout->addWidget(m_wireframeModeCheckBox, 8, 0);
-    layout->addWidget(m_showContoursCheckBox, 9, 0);
-    layout->addWidget(m_contourIntervalLabel, 10, 0);
-    layout->addWidget(m_contourIntervalSlider, 11, 0);
-    layout->addWidget(m_contourMinLevelLabel, 12, 0);
-    layout->addWidget(m_contourMinLevelSlider, 13, 0);
-    layout->addWidget(m_waterfallOffsetLabel, 14, 0);
-    layout->addWidget(m_waterfallOffsetSlider, 15, 0);
+    layout->addWidget(m_waterfallOffsetLabel, 9, 0);
+    layout->addWidget(m_waterfallOffsetSlider, 10, 0);
     m_renderingGroup->setLayout(layout);
 }
 
@@ -269,22 +240,6 @@ void Options3DWidget::showAxesChanged() {
 
 void Options3DWidget::wireframeModeChanged() {
     emit wireframeModeValueChanged(m_wireframeModeCheckBox->isChecked());
-}
-
-void Options3DWidget::showContoursChanged() {
-    emit showContoursValueChanged(m_showContoursCheckBox->isChecked());
-}
-
-void Options3DWidget::contourIntervalChanged(int value) {
-    float interval = (float)value;  // Direct value mapping: 5-20 dB
-    m_contourIntervalLabel->setText(QString("Contour Interval: %1 dB").arg(interval, 0, 'f', 1));
-    emit contourIntervalValueChanged(interval);
-}
-
-void Options3DWidget::contourMinLevelChanged(int value) {
-    float minLevel = (float)value;  // Direct value mapping: -180 to -80 dB
-    m_contourMinLevelLabel->setText(QString("Contour Min Level: %1 dB").arg(minLevel, 0, 'f', 0));
-    emit contourMinLevelValueChanged(minLevel);
 }
 
 void Options3DWidget::waterfallOffsetChanged(int value) {

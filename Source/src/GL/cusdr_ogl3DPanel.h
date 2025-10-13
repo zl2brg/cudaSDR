@@ -70,9 +70,6 @@ public slots:
     void setShowGrid(bool show);
     void setShowAxes(bool show);
     void setWireframeMode(bool wireframe);
-    void setShowContours(bool show);
-    void setContourInterval(float interval);
-    void setContourMinLevel(float minLevel);
     void setWaterfallOffset(float offset);
 
 protected:
@@ -95,13 +92,10 @@ private:
     void setupShaders();
     void setupMesh();
     void setupGrid();
-    void setupContours();
     void updateMesh();
-    void updateContours();
     void renderSpectrum3D();
     void renderGrid();
     void renderAxes();
-    void renderContours();
     
     // Camera system
     void updateCamera();
@@ -113,11 +107,6 @@ private:
     QColor amplitudeToColor(float amplitude);
     QColor amplitudeToColorWithOffset(float amplitude, float offset);
     void qglColor(QColor color);
-    
-    // Contour generation
-    void generateContourLines(const QVector<float>& spectrumSlice, int timeSlice, QVector<float>& contourVertices);
-    QVector<QPointF> findContourSegments(const QVector<float>& data, float level, int timeSlice);
-    QColor contourLevelToColor(float level);
 
 private slots:
     void performUpdate();
@@ -184,13 +173,6 @@ private:
     qint64 m_lastUpdateTime;
     qint64 m_lastFrameTime;
     
-    // Contour mode
-    bool m_showContours;
-    float m_contourInterval;  // dB spacing between contours
-    float m_contourMinLevel;  // Minimum contour level in dB
-    QOpenGLBuffer* m_contourVertexBuffer;
-    QOpenGLVertexArrayObject* m_contourVAO;
-    int m_contourVertexCount;
     int m_frameCount;
     float m_currentFPS;
     int m_targetFPS;

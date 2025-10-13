@@ -48,6 +48,8 @@ template <> constexpr inline auto Options3DWidget::qt_create_metaobjectdata<qt_m
         "enabled",
         "heightScaleValueChanged",
         "scale",
+        "frequencyScaleValueChanged",
+        "timeScaleValueChanged",
         "updateIntervalValueChanged",
         "interval",
         "showGridValueChanged",
@@ -55,13 +57,18 @@ template <> constexpr inline auto Options3DWidget::qt_create_metaobjectdata<qt_m
         "showAxesValueChanged",
         "wireframeModeValueChanged",
         "wireframe",
+        "waterfallOffsetValueChanged",
+        "offset",
         "enable3DChanged",
         "heightScaleChanged",
         "value",
+        "frequencyScaleChanged",
+        "timeScaleChanged",
         "updateIntervalChanged",
         "showGridChanged",
         "showAxesChanged",
-        "wireframeModeChanged"
+        "wireframeModeChanged",
+        "waterfallOffsetChanged"
     };
 
     QtMocHelpers::UintData qt_methods {
@@ -73,38 +80,62 @@ template <> constexpr inline auto Options3DWidget::qt_create_metaobjectdata<qt_m
         QtMocHelpers::SignalData<void(float)>(4, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Float, 5 },
         }}),
+        // Signal 'frequencyScaleValueChanged'
+        QtMocHelpers::SignalData<void(float)>(6, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Float, 5 },
+        }}),
+        // Signal 'timeScaleValueChanged'
+        QtMocHelpers::SignalData<void(float)>(7, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Float, 5 },
+        }}),
         // Signal 'updateIntervalValueChanged'
-        QtMocHelpers::SignalData<void(int)>(6, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::Int, 7 },
+        QtMocHelpers::SignalData<void(int)>(8, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Int, 9 },
         }}),
         // Signal 'showGridValueChanged'
-        QtMocHelpers::SignalData<void(bool)>(8, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::Bool, 9 },
+        QtMocHelpers::SignalData<void(bool)>(10, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Bool, 11 },
         }}),
         // Signal 'showAxesValueChanged'
-        QtMocHelpers::SignalData<void(bool)>(10, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::Bool, 9 },
+        QtMocHelpers::SignalData<void(bool)>(12, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Bool, 11 },
         }}),
         // Signal 'wireframeModeValueChanged'
-        QtMocHelpers::SignalData<void(bool)>(11, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::Bool, 12 },
+        QtMocHelpers::SignalData<void(bool)>(13, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Bool, 14 },
+        }}),
+        // Signal 'waterfallOffsetValueChanged'
+        QtMocHelpers::SignalData<void(float)>(15, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Float, 16 },
         }}),
         // Slot 'enable3DChanged'
-        QtMocHelpers::SlotData<void()>(13, 2, QMC::AccessPrivate, QMetaType::Void),
+        QtMocHelpers::SlotData<void()>(17, 2, QMC::AccessPrivate, QMetaType::Void),
         // Slot 'heightScaleChanged'
-        QtMocHelpers::SlotData<void(int)>(14, 2, QMC::AccessPrivate, QMetaType::Void, {{
-            { QMetaType::Int, 15 },
+        QtMocHelpers::SlotData<void(int)>(18, 2, QMC::AccessPrivate, QMetaType::Void, {{
+            { QMetaType::Int, 19 },
+        }}),
+        // Slot 'frequencyScaleChanged'
+        QtMocHelpers::SlotData<void(int)>(20, 2, QMC::AccessPrivate, QMetaType::Void, {{
+            { QMetaType::Int, 19 },
+        }}),
+        // Slot 'timeScaleChanged'
+        QtMocHelpers::SlotData<void(int)>(21, 2, QMC::AccessPrivate, QMetaType::Void, {{
+            { QMetaType::Int, 19 },
         }}),
         // Slot 'updateIntervalChanged'
-        QtMocHelpers::SlotData<void(int)>(16, 2, QMC::AccessPrivate, QMetaType::Void, {{
-            { QMetaType::Int, 15 },
+        QtMocHelpers::SlotData<void(int)>(22, 2, QMC::AccessPrivate, QMetaType::Void, {{
+            { QMetaType::Int, 19 },
         }}),
         // Slot 'showGridChanged'
-        QtMocHelpers::SlotData<void()>(17, 2, QMC::AccessPrivate, QMetaType::Void),
+        QtMocHelpers::SlotData<void()>(23, 2, QMC::AccessPrivate, QMetaType::Void),
         // Slot 'showAxesChanged'
-        QtMocHelpers::SlotData<void()>(18, 2, QMC::AccessPrivate, QMetaType::Void),
+        QtMocHelpers::SlotData<void()>(24, 2, QMC::AccessPrivate, QMetaType::Void),
         // Slot 'wireframeModeChanged'
-        QtMocHelpers::SlotData<void()>(19, 2, QMC::AccessPrivate, QMetaType::Void),
+        QtMocHelpers::SlotData<void()>(25, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'waterfallOffsetChanged'
+        QtMocHelpers::SlotData<void(int)>(26, 2, QMC::AccessPrivate, QMetaType::Void, {{
+            { QMetaType::Int, 19 },
+        }}),
     };
     QtMocHelpers::UintData qt_properties {
     };
@@ -130,16 +161,22 @@ void Options3DWidget::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int 
         switch (_id) {
         case 0: _t->show3DPanadapterChanged((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1]))); break;
         case 1: _t->heightScaleValueChanged((*reinterpret_cast< std::add_pointer_t<float>>(_a[1]))); break;
-        case 2: _t->updateIntervalValueChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 3: _t->showGridValueChanged((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1]))); break;
-        case 4: _t->showAxesValueChanged((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1]))); break;
-        case 5: _t->wireframeModeValueChanged((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1]))); break;
-        case 6: _t->enable3DChanged(); break;
-        case 7: _t->heightScaleChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 8: _t->updateIntervalChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 9: _t->showGridChanged(); break;
-        case 10: _t->showAxesChanged(); break;
-        case 11: _t->wireframeModeChanged(); break;
+        case 2: _t->frequencyScaleValueChanged((*reinterpret_cast< std::add_pointer_t<float>>(_a[1]))); break;
+        case 3: _t->timeScaleValueChanged((*reinterpret_cast< std::add_pointer_t<float>>(_a[1]))); break;
+        case 4: _t->updateIntervalValueChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 5: _t->showGridValueChanged((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1]))); break;
+        case 6: _t->showAxesValueChanged((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1]))); break;
+        case 7: _t->wireframeModeValueChanged((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1]))); break;
+        case 8: _t->waterfallOffsetValueChanged((*reinterpret_cast< std::add_pointer_t<float>>(_a[1]))); break;
+        case 9: _t->enable3DChanged(); break;
+        case 10: _t->heightScaleChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 11: _t->frequencyScaleChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 12: _t->timeScaleChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 13: _t->updateIntervalChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 14: _t->showGridChanged(); break;
+        case 15: _t->showAxesChanged(); break;
+        case 16: _t->wireframeModeChanged(); break;
+        case 17: _t->waterfallOffsetChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
         default: ;
         }
     }
@@ -148,13 +185,19 @@ void Options3DWidget::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int 
             return;
         if (QtMocHelpers::indexOfMethod<void (Options3DWidget::*)(float )>(_a, &Options3DWidget::heightScaleValueChanged, 1))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Options3DWidget::*)(int )>(_a, &Options3DWidget::updateIntervalValueChanged, 2))
+        if (QtMocHelpers::indexOfMethod<void (Options3DWidget::*)(float )>(_a, &Options3DWidget::frequencyScaleValueChanged, 2))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Options3DWidget::*)(bool )>(_a, &Options3DWidget::showGridValueChanged, 3))
+        if (QtMocHelpers::indexOfMethod<void (Options3DWidget::*)(float )>(_a, &Options3DWidget::timeScaleValueChanged, 3))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Options3DWidget::*)(bool )>(_a, &Options3DWidget::showAxesValueChanged, 4))
+        if (QtMocHelpers::indexOfMethod<void (Options3DWidget::*)(int )>(_a, &Options3DWidget::updateIntervalValueChanged, 4))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Options3DWidget::*)(bool )>(_a, &Options3DWidget::wireframeModeValueChanged, 5))
+        if (QtMocHelpers::indexOfMethod<void (Options3DWidget::*)(bool )>(_a, &Options3DWidget::showGridValueChanged, 5))
+            return;
+        if (QtMocHelpers::indexOfMethod<void (Options3DWidget::*)(bool )>(_a, &Options3DWidget::showAxesValueChanged, 6))
+            return;
+        if (QtMocHelpers::indexOfMethod<void (Options3DWidget::*)(bool )>(_a, &Options3DWidget::wireframeModeValueChanged, 7))
+            return;
+        if (QtMocHelpers::indexOfMethod<void (Options3DWidget::*)(float )>(_a, &Options3DWidget::waterfallOffsetValueChanged, 8))
             return;
     }
 }
@@ -178,14 +221,14 @@ int Options3DWidget::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
     if (_id < 0)
         return _id;
     if (_c == QMetaObject::InvokeMetaMethod) {
-        if (_id < 12)
+        if (_id < 18)
             qt_static_metacall(this, _c, _id, _a);
-        _id -= 12;
+        _id -= 18;
     }
     if (_c == QMetaObject::RegisterMethodArgumentMetaType) {
-        if (_id < 12)
+        if (_id < 18)
             *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType();
-        _id -= 12;
+        _id -= 18;
     }
     return _id;
 }
@@ -203,26 +246,44 @@ void Options3DWidget::heightScaleValueChanged(float _t1)
 }
 
 // SIGNAL 2
-void Options3DWidget::updateIntervalValueChanged(int _t1)
+void Options3DWidget::frequencyScaleValueChanged(float _t1)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 2, nullptr, _t1);
 }
 
 // SIGNAL 3
-void Options3DWidget::showGridValueChanged(bool _t1)
+void Options3DWidget::timeScaleValueChanged(float _t1)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 3, nullptr, _t1);
 }
 
 // SIGNAL 4
-void Options3DWidget::showAxesValueChanged(bool _t1)
+void Options3DWidget::updateIntervalValueChanged(int _t1)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 4, nullptr, _t1);
 }
 
 // SIGNAL 5
-void Options3DWidget::wireframeModeValueChanged(bool _t1)
+void Options3DWidget::showGridValueChanged(bool _t1)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 5, nullptr, _t1);
+}
+
+// SIGNAL 6
+void Options3DWidget::showAxesValueChanged(bool _t1)
+{
+    QMetaObject::activate<void>(this, &staticMetaObject, 6, nullptr, _t1);
+}
+
+// SIGNAL 7
+void Options3DWidget::wireframeModeValueChanged(bool _t1)
+{
+    QMetaObject::activate<void>(this, &staticMetaObject, 7, nullptr, _t1);
+}
+
+// SIGNAL 8
+void Options3DWidget::waterfallOffsetValueChanged(float _t1)
+{
+    QMetaObject::activate<void>(this, &staticMetaObject, 8, nullptr, _t1);
 }
 QT_WARNING_POP
