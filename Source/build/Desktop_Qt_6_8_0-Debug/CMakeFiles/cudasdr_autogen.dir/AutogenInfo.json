@@ -847,6 +847,12 @@
 			null
 		],
 		[
+			"/home/simon/Projects/cudaSDR/Source/src/GL/cusdr_ogl3DPanel.h",
+			"MU",
+			"DSVVE7EPJE/moc_cusdr_ogl3DPanel.cpp",
+			null
+		],
+		[
 			"/home/simon/Projects/cudaSDR/Source/src/GL/cusdr_oglDisplayPanel.h",
 			"MU",
 			"DSVVE7EPJE/moc_cusdr_oglDisplayPanel.cpp",
@@ -976,6 +982,12 @@
 			"/home/simon/Projects/cudaSDR/Source/src/Util/cusdr_splash.h",
 			"MU",
 			"BBNFRHYJQ7/moc_cusdr_splash.cpp",
+			null
+		],
+		[
+			"/home/simon/Projects/cudaSDR/Source/src/cusdr_3DOptionsWidget.h",
+			"MU",
+			"UVLADIE3JM/moc_cusdr_3DOptionsWidget.cpp",
 			null
 		],
 		[
@@ -1285,6 +1297,11 @@
 			null
 		],
 		[
+			"/home/simon/Projects/cudaSDR/Source/src/GL/cusdr_ogl3DPanel.cpp",
+			"MU",
+			null
+		],
+		[
 			"/home/simon/Projects/cudaSDR/Source/src/GL/cusdr_oglDisplayPanel.cpp",
 			"MU",
 			null
@@ -1381,6 +1398,11 @@
 		],
 		[
 			"/home/simon/Projects/cudaSDR/Source/src/Util/cusdr_splash.cpp",
+			"MU",
+			null
+		],
+		[
+			"/home/simon/Projects/cudaSDR/Source/src/cusdr_3DOptionsWidget.cpp",
 			"MU",
 			null
 		],

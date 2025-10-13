@@ -96,6 +96,7 @@ private:
     void renderSpectrum3D();
     void renderGrid();
     void renderAxes();
+    void renderVerticalScale();
     
     // Camera system
     void updateCamera();

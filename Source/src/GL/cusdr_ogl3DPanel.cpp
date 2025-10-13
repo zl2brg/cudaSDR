@@ -443,6 +443,9 @@ void QGL3DPanel::paintGL() {
     // Render grid and axes
     if (m_showGrid) renderGrid();
     if (m_showAxes) renderAxes();
+    
+    // Render vertical dBm scale
+    renderVerticalScale();
 }
 
 void QGL3DPanel::renderSpectrum3D() {
@@ -541,6 +544,145 @@ void QGL3DPanel::renderAxes() {
     glEnable(GL_DEPTH_TEST);
 }
 
+void QGL3DPanel::renderVerticalScale() {
+    if (!m_oglTextSmall) return;
+    
+    // Create scale lines using VAO/VBO like the grid does
+    // Position the scale at the front left of the 3D scene
+    // Scale positioning should respond to time scale changes but stay reasonable
+    float scaleX = -200.0f * m_frequencyScale;  // Left side, scaled with frequency
+    // Move closer to front - increase Z value to get to front corner
+    float scaleZ = 150.0f * m_timeScale;  // Higher value to move toward front corner
+    
+    // dB range
+    float minDb = -120.0f;
+    float maxDb = -40.0f;
+    float dbRange = maxDb - minDb;
+    float scaleHeight = 60.0f * m_heightScale;  // Scale height with height scale too
+    
+    // Create vertices for the scale lines
+    QVector<float> scaleVertices;
+    
+    // Main vertical line (position + color)
+    scaleVertices << scaleX << 0.0f << scaleZ << 0.9f << 0.9f << 0.9f;  // Bottom
+    scaleVertices << scaleX << scaleHeight << scaleZ << 0.9f << 0.9f << 0.9f;  // Top
+    
+    // Tick marks every 10 dB
+    for (int db = -120; db <= -40; db += 10) {
+        float normalizedPos = (float)(db - minDb) / dbRange;
+        float yPos = normalizedPos * scaleHeight;
+        
+        // Major tick every 20 dB
+        float tickLength = (db % 20 == 0) ? 15.0f : 8.0f;
+        
+        // Tick mark line
+        scaleVertices << scaleX << yPos << scaleZ << 0.9f << 0.9f << 0.9f;
+        scaleVertices << (scaleX + tickLength) << yPos << scaleZ << 0.9f << 0.9f << 0.9f;
+    }
+    
+    // Render using OpenGL similar to how grid is rendered
+    if (!scaleVertices.isEmpty() && m_shaderProgram) {
+        // Use the same shader program as the spectrum
+        m_shaderProgram->bind();
+        
+        // Set matrices
+        m_shaderProgram->setUniformValue("mvpMatrix", m_projectionMatrix * m_viewMatrix * m_modelMatrix);
+        m_shaderProgram->setUniformValue("heightScale", 1.0f);  // No height scaling for scale
+        
+        // Create temporary VAO and VBO for the scale
+        QOpenGLVertexArrayObject scaleVAO;
+        scaleVAO.create();
+        scaleVAO.bind();
+        
+        QOpenGLBuffer scaleVBO(QOpenGLBuffer::VertexBuffer);
+        scaleVBO.create();
+        scaleVBO.bind();
+        scaleVBO.allocate(scaleVertices.constData(), scaleVertices.size() * sizeof(float));
+        
+        // Setup vertex attributes (position + color)
+        glEnableVertexAttribArray(0);  // Position
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), nullptr);
+        
+        glEnableVertexAttribArray(1);  // Color
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+        
+        // Disable depth test and render as lines
+        glDisable(GL_DEPTH_TEST);
+        glLineWidth(2.0f);
+        
+        // Draw the scale lines
+        int vertexCount = scaleVertices.size() / 6;  // 6 floats per vertex (pos + color)
+        glDrawArrays(GL_LINES, 0, vertexCount);
+        
+        // Restore state
+        glEnable(GL_DEPTH_TEST);
+        glLineWidth(1.0f);
+        
+        scaleVBO.release();
+        scaleVAO.release();
+        
+        m_shaderProgram->release();
+    }
+    
+    // Render text labels using 2D overlay (this part is working)
+    glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+    glLoadIdentity();
+    glOrtho(0, width(), height(), 0, -1, 1);
+    
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+    glLoadIdentity();
+    
+    // Calculate MVP matrix for 3D to screen conversion
+    QMatrix4x4 mvpMatrix = m_projectionMatrix * m_viewMatrix * m_modelMatrix;
+    
+    // Render labels for major ticks only
+    for (int db = -120; db <= -40; db += 20) {
+        float normalizedPos = (float)(db - minDb) / dbRange;
+        float yPos = normalizedPos * scaleHeight;
+        
+        // 3D position of label - now scales with frequency scale
+        QVector3D worldPos(scaleX - 25.0f * m_frequencyScale, yPos, scaleZ);
+        
+        // Convert to screen coordinates
+        QVector4D clipPos = mvpMatrix * QVector4D(worldPos, 1.0f);
+        if (clipPos.w() > 0.001f) {
+            QVector3D ndcPos = clipPos.toVector3D() / clipPos.w();
+            
+            float screenX = (ndcPos.x() + 1.0f) * 0.5f * width();
+            float screenY = (1.0f - ndcPos.y()) * 0.5f * height();
+            
+            // Only render if on screen
+            if (screenX >= -100 && screenX < width() + 100 && screenY >= -100 && screenY < height() + 100) {
+                QString label = QString("%1").arg(db);
+                glColor3f(1.0f, 1.0f, 1.0f);
+                m_oglTextSmall->renderText(screenX, screenY, 1.0f, label);
+            }
+        }
+    }
+    
+    // Add "dBm" label at the top - now scales with frequency scale
+    QVector3D topWorldPos(scaleX - 20.0f * m_frequencyScale, scaleHeight + 10.0f * m_heightScale, scaleZ);
+    QVector4D topClipPos = mvpMatrix * QVector4D(topWorldPos, 1.0f);
+    if (topClipPos.w() > 0.001f) {
+        QVector3D topNdcPos = topClipPos.toVector3D() / topClipPos.w();
+        float topScreenX = (topNdcPos.x() + 1.0f) * 0.5f * width();
+        float topScreenY = (1.0f - topNdcPos.y()) * 0.5f * height();
+        
+        if (topScreenX >= -100 && topScreenX < width() + 100 && topScreenY >= -100 && topScreenY < height() + 100) {
+            glColor3f(1.0f, 1.0f, 1.0f);
+            m_oglTextSmall->renderText(topScreenX, topScreenY, 1.0f, "dBm");
+        }
+    }
+    
+    // Restore matrices
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+    glMatrixMode(GL_MODELVIEW);
+    glPopMatrix();
+}
+
 void QGL3DPanel::resizeGL(int width, int height) {
     m_aspectRatio = (float)width / (float)height;
     
@@ -636,8 +778,8 @@ void QGL3DPanel::wheelEvent(QWheelEvent *event) {
         m_cameraDistance *= zoomFactor;
     }
     
-    // Clamp zoom distance to reasonable limits
-    m_cameraDistance = qBound(10.0f, m_cameraDistance, 500.0f);
+    // Clamp zoom distance to reasonable limits (increased max zoom out by 25%)
+    m_cameraDistance = qBound(10.0f, m_cameraDistance, 625.0f);
     
     updateCamera();
     update();
