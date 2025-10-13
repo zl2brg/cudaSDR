@@ -1,0 +1,30 @@
+Source/build/
+.vscode/
+*.backup
+*.usr
+
+# Performance profiling files
+perf.data*
+gmon.out
+callgrind.out.*
+
+# Qt generated files
+ui_*.h
+moc_*.cpp
+qrc_*.cpp
+
+# IDE files
+*.kdev4
+*.pro.user*
+*.user*
+
+# Settings files (optional - you may want to keep these)
+settings.ini
+windowsSettings.ini
+
+# Large binary files
+*.jar
+
+# BFG report directory
+..bfg-report/
+
