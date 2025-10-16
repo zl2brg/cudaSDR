@@ -1,13 +1,13 @@
 /**
 * @file  cusdr_ogl3DPanel.h
 * @brief 3D Panadapter panel header file for cuSDR
-* @author Simon Brown, ZL2BRG (based on cuSDR framework by Hermann von Hasseln, DL3HVH)
+* @author Simon Eatough, ZL2BRG (based on cuSDR framework by Hermann von Hasseln, DL3HVH)
 * @version 0.1
 * @date 2025-10-12
 */
 
 /*
- *   Copyright 2025 Simon Brown, ZL2BRG
+ *   Copyright 2025 Simon Eatough, ZL2BRG
  *   Based on cuSDR framework Copyright 2011 Hermann von Hasseln, DL3HVH
  *
  *   This program is free software; you can redistribute it and/or modify

@@ -1,7 +1,7 @@
 /**
 * @file  cusdr_ogl3DPanel.cpp
 * @brief 3D Panadapter panel implementation for cuSDR
-* @author Simon Brown, ZL2BRG (based on cuSDR framework by Hermann von Hasseln, DL3HVH)
+* @author Simon Eatough, ZL2BRG (based on cuSDR framework by Hermann von Hasseln, DL3HVH)
 * @version 0.1
 * @date 2025-10-12
 */
@@ -321,13 +321,10 @@ void QGL3DPanel::setupGrid() {
 void QGL3DPanel::updateMesh() {
     if (m_spectrumHistory.isEmpty()) return;
     
-    // Create a deep copy snapshot of spectrum history at mesh generation time
-    // This prevents older data from changing as new spectrum data gets added
-    m_meshSpectrumSnapshot.clear();
-    m_meshSpectrumSnapshot.reserve(m_spectrumHistory.size());
-    for (const QVector<float>& slice : m_spectrumHistory) {
-        m_meshSpectrumSnapshot.append(QVector<float>(slice)); // Explicit deep copy
-    }
+    // Create a stable snapshot of spectrum history at mesh generation time
+    // This prevents the data from changing mid-render
+    // Qt's implicit sharing means this is a shallow copy until data is modified
+    m_meshSpectrumSnapshot = m_spectrumHistory;
     
     // Also snapshot the waterfall offset to ensure consistent colors
     m_meshWaterfallOffset = m_waterfallOffset;
@@ -347,17 +344,41 @@ void QGL3DPanel::updateMesh() {
     }
     
     int effectiveFreqBins = freqBins / lodFactor;
+    // Apply LOD to time dimension as well for better performance
     int effectiveTimeSlices = timeSlices / lodFactor;
     
-    // Generate vertices with LOD
+    // Generate vertices with peak-preserving LOD in BOTH dimensions
+    // When LOD > 1, we must not skip data - instead, take the MAXIMUM of all samples
+    // in both the frequency and time ranges to ensure strong signals are never missed
     for (int t = 0; t < effectiveTimeSlices; t++) {
-        int actualTimeIndex = t * lodFactor;
-        if (actualTimeIndex >= m_meshSpectrumSnapshot.size()) break;
+        // For each effective time slice, we'll examine multiple actual time slices
+        // and take the maximum across both time AND frequency
         
-        const QVector<float>& spectrum = m_meshSpectrumSnapshot[actualTimeIndex];
         for (int f = 0; f < effectiveFreqBins; f++) {
-            int actualFreqIndex = f * lodFactor;
-            float amplitude = (actualFreqIndex < spectrum.size()) ? spectrum[actualFreqIndex] : -120.0f;
+            // Peak-preserving LOD: Take MAXIMUM across both time and frequency ranges
+            float amplitude = -200.0f;  // Start with very low value
+            
+            // Loop through time samples in this LOD bin
+            for (int timeSample = 0; timeSample < lodFactor; timeSample++) {
+                int actualTimeIndex = t * lodFactor + timeSample;
+                if (actualTimeIndex >= m_meshSpectrumSnapshot.size()) break;
+                
+                const QVector<float>& spectrum = m_meshSpectrumSnapshot[actualTimeIndex];
+                
+                // Loop through frequency samples in this LOD bin
+                for (int freqSample = 0; freqSample < lodFactor; freqSample++) {
+                    int actualFreqIndex = f * lodFactor + freqSample;
+                    if (actualFreqIndex < spectrum.size()) {
+                        // Take maximum across BOTH dimensions
+                        amplitude = qMax(amplitude, spectrum[actualFreqIndex]);
+                    }
+                }
+            }
+            
+            // If no samples found, use default
+            if (amplitude < -199.0f) {
+                amplitude = -120.0f;
+            }
             
             // Position (frequency, amplitude, time) with user-controllable scales
             float x = (float)f / (float)effectiveFreqBins * 400.0f * m_frequencyScale - 200.0f * m_frequencyScale;  // Apply frequency scale
@@ -902,10 +923,9 @@ void QGL3DPanel::setSpectrumData(const QVector<float>& spectrumData) {
     m_spectrumWidth = spectrumData.size();
     m_dataUpdateCount++;
     
-    // Add EVERY incoming spectrum to history with explicit deep copy
-    // This prevents issues if the source data gets reused or modified
-    QVector<float> spectrumCopy(spectrumData);  // Explicit deep copy
-    m_spectrumHistory.prepend(spectrumCopy);
+    // Add incoming spectrum to history
+    // prepend() does implicit copy-on-write, no need for explicit deep copy
+    m_spectrumHistory.prepend(spectrumData);
     if (m_spectrumHistory.size() > MAX_TIME_SLICES) {
         m_spectrumHistory.removeLast();
     }
