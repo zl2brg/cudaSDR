@@ -32,6 +32,7 @@
 #include "cusdr_settings.h"
 #include "cusdr_fonts.h"
 #include "cusdr_oglText.h"
+#include "cusdr_meshGeneratorWorker.h"
 
 #include <QOpenGLWidget>
 #include <QOpenGLFunctions>
@@ -207,6 +208,9 @@ private:
     int m_meshUpdateCount;
     qint64 m_lastDebugTime;
 
+    // Threaded mesh generation
+    MeshGeneratorWorker* m_meshWorker;
+
 public slots:
     void spectrumDataChanged(const QVector<float>& data);
     void updateDisplay();
@@ -217,6 +221,7 @@ signals:
 
 private slots:
     void onUpdateTimer();
+    void onMeshReady(const MeshGeneratorWorker::MeshData& meshData);
 };
 
 #endif // _CUSDR_OGL3D_PANEL_H

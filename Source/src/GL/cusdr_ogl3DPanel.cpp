@@ -70,10 +70,17 @@ QGL3DPanel::QGL3DPanel(QWidget *parent, int rx)
     , m_dataUpdateCount(0)
     , m_meshUpdateCount(0)
     , m_lastDebugTime(0)
+    , m_meshWorker(nullptr)
 {
     // Initialize camera target and up vector
     m_cameraTarget = QVector3D(0, 0, 0);
     m_cameraUp = QVector3D(0, 1, 0);
+    
+    // Create and start mesh generation worker thread
+    m_meshWorker = new MeshGeneratorWorker(this);
+    connect(m_meshWorker, &MeshGeneratorWorker::meshReady, 
+            this, &QGL3DPanel::onMeshReady, Qt::QueuedConnection);
+    m_meshWorker->start();
 
     // Initialize spectrum history
     m_spectrumHistory.reserve(MAX_TIME_SLICES);
@@ -112,6 +119,13 @@ QGL3DPanel::QGL3DPanel(QWidget *parent, int rx)
 }
 
 QGL3DPanel::~QGL3DPanel() {
+    // Stop worker thread first
+    if (m_meshWorker) {
+        m_meshWorker->stop();
+        m_meshWorker->wait();
+        delete m_meshWorker;
+    }
+    
     makeCurrent();
     
     if (m_vao) {
@@ -319,110 +333,35 @@ void QGL3DPanel::setupGrid() {
 }
 
 void QGL3DPanel::updateMesh() {
-    if (m_spectrumHistory.isEmpty()) return;
+    if (m_spectrumHistory.isEmpty() || !m_meshWorker) return;
     
-    // Create a stable snapshot of spectrum history at mesh generation time
-    // This prevents the data from changing mid-render
-    // Qt's implicit sharing means this is a shallow copy until data is modified
-    m_meshSpectrumSnapshot = m_spectrumHistory;
+    // Request mesh generation in worker thread
+    // This offloads CPU-intensive calculations from the main thread
+    m_meshWorker->generateMesh(m_spectrumHistory,
+                               m_spectrumWidth,
+                               m_cameraDistance,
+                               m_heightScale,
+                               m_frequencyScale,
+                               m_timeScale,
+                               m_waterfallOffset);
     
-    // Also snapshot the waterfall offset to ensure consistent colors
-    m_meshWaterfallOffset = m_waterfallOffset;
+    // Mesh will be uploaded to GPU when onMeshReady() slot is called
+    m_meshNeedsUpdate = false;
+}
+
+void QGL3DPanel::onMeshReady(const MeshGeneratorWorker::MeshData& meshData) {
+    // This slot is called on the main thread when mesh generation is complete
+    // Now we can safely upload data to GPU
     
-    m_vertices.clear();
-    m_indices.clear();
+    makeCurrent(); // Ensure we have OpenGL context
     
-    int timeSlices = qMin(m_meshSpectrumSnapshot.size(), MAX_TIME_SLICES);
-    int freqBins = m_spectrumWidth;  // Use full spectrum width, no artificial limiting
+    // Copy mesh data
+    m_vertices = meshData.vertices;
+    m_indices = meshData.indices;
+    m_vertexCount = meshData.vertexCount;
+    m_indexCount = meshData.indexCount;
     
-    // Level of Detail (LOD) optimization based on camera distance
-    int lodFactor = 1;
-    if (m_cameraDistance > 200.0f) {
-        lodFactor = 4; // Skip every 4th point when far away
-    } else if (m_cameraDistance > 100.0f) {
-        lodFactor = 2; // Skip every 2nd point when moderately far
-    }
-    
-    int effectiveFreqBins = freqBins / lodFactor;
-    // Apply LOD to time dimension as well for better performance
-    int effectiveTimeSlices = timeSlices / lodFactor;
-    
-    // Generate vertices with peak-preserving LOD in BOTH dimensions
-    // When LOD > 1, we must not skip data - instead, take the MAXIMUM of all samples
-    // in both the frequency and time ranges to ensure strong signals are never missed
-    for (int t = 0; t < effectiveTimeSlices; t++) {
-        // For each effective time slice, we'll examine multiple actual time slices
-        // and take the maximum across both time AND frequency
-        
-        for (int f = 0; f < effectiveFreqBins; f++) {
-            // Peak-preserving LOD: Take MAXIMUM across both time and frequency ranges
-            float amplitude = -200.0f;  // Start with very low value
-            
-            // Loop through time samples in this LOD bin
-            for (int timeSample = 0; timeSample < lodFactor; timeSample++) {
-                int actualTimeIndex = t * lodFactor + timeSample;
-                if (actualTimeIndex >= m_meshSpectrumSnapshot.size()) break;
-                
-                const QVector<float>& spectrum = m_meshSpectrumSnapshot[actualTimeIndex];
-                
-                // Loop through frequency samples in this LOD bin
-                for (int freqSample = 0; freqSample < lodFactor; freqSample++) {
-                    int actualFreqIndex = f * lodFactor + freqSample;
-                    if (actualFreqIndex < spectrum.size()) {
-                        // Take maximum across BOTH dimensions
-                        amplitude = qMax(amplitude, spectrum[actualFreqIndex]);
-                    }
-                }
-            }
-            
-            // If no samples found, use default
-            if (amplitude < -199.0f) {
-                amplitude = -120.0f;
-            }
-            
-            // Position (frequency, amplitude, time) with user-controllable scales
-            float x = (float)f / (float)effectiveFreqBins * 400.0f * m_frequencyScale - 200.0f * m_frequencyScale;  // Apply frequency scale
-            // Scale amplitude from dB to visual height, centered in view
-            float y = (amplitude + 120.0f) / 80.0f * 40.0f; // Range 0 to 40, visible in center
-            // Reverse Z-axis: newest data (t=0) in foreground, older data goes back
-            float z = (effectiveTimeSlices - (float)t) * 4.0f * m_timeScale - effectiveTimeSlices * 2.0f * m_timeScale;
-            
-            m_vertices.append(x);
-            m_vertices.append(y);
-            m_vertices.append(z);
-            
-            // Color based on amplitude using snapshotted offset
-            QColor color = amplitudeToColorWithOffset(amplitude, m_meshWaterfallOffset);
-            m_vertices.append(color.redF());
-            m_vertices.append(color.greenF());
-            m_vertices.append(color.blueF());
-        }
-    }
-    
-    // Generate indices for triangle strips using LOD dimensions
-    for (int t = 0; t < effectiveTimeSlices - 1; t++) {
-        for (int f = 0; f < effectiveFreqBins - 1; f++) {
-            int i0 = t * effectiveFreqBins + f;
-            int i1 = t * effectiveFreqBins + (f + 1);
-            int i2 = (t + 1) * effectiveFreqBins + f;
-            int i3 = (t + 1) * effectiveFreqBins + (f + 1);
-            
-            // First triangle
-            m_indices.append(i0);
-            m_indices.append(i1);
-            m_indices.append(i2);
-            
-            // Second triangle
-            m_indices.append(i1);
-            m_indices.append(i3);
-            m_indices.append(i2);
-        }
-    }
-    
-    m_vertexCount = m_vertices.size() / 6;  // 6 floats per vertex (pos + color)
-    m_indexCount = m_indices.size();
-    
-    // Update buffers
+    // Upload to GPU buffers
     m_vao->bind();
     
     m_vertexBuffer->bind();
@@ -440,7 +379,10 @@ void QGL3DPanel::updateMesh() {
     
     m_vao->release();
     
-    m_meshNeedsUpdate = false;
+    doneCurrent();
+    
+    // Trigger repaint with new mesh
+    update();
 }
 
 void QGL3DPanel::paintGL() {

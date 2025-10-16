@@ -69,6 +69,7 @@ set(SOURCES
     ${SRC_DIR}/GL/cusdr_oglText.cpp
     ${SRC_DIR}/GL/cusdr_oglWidebandPanel.cpp
     ${SRC_DIR}/GL/cusdr_ogl3DPanel.cpp
+    ${SRC_DIR}/GL/cusdr_meshGeneratorWorker.cpp
 
     # QtWDSP
     ${SRC_DIR}/QtWDSP/qtwdsp_dspEngine.cpp
@@ -146,6 +147,7 @@ set(HEADERS
     ${SRC_DIR}/GL/cusdr_oglText.h
     ${SRC_DIR}/GL/cusdr_oglUtils.h
     ${SRC_DIR}/GL/cusdr_ogl3DPanel.h
+    ${SRC_DIR}/GL/cusdr_meshGeneratorWorker.h
     
 
     # Util
