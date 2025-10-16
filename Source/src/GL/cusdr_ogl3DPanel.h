@@ -109,6 +109,7 @@ private:
     QColor amplitudeToColor(float amplitude);
     QColor amplitudeToColorWithOffset(float amplitude, float offset);
     void qglColor(QColor color);
+    void calculateVisibleRange(int& minTimeSlice, int& maxTimeSlice, int& minFreqBin, int& maxFreqBin);
 
 private slots:
     void performUpdate();

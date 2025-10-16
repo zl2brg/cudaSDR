@@ -335,6 +335,19 @@ void QGL3DPanel::setupGrid() {
 void QGL3DPanel::updateMesh() {
     if (m_spectrumHistory.isEmpty() || !m_meshWorker) return;
     
+    // Calculate visible range for frustum culling
+    int minTimeSlice, maxTimeSlice, minFreqBin, maxFreqBin;
+    calculateVisibleRange(minTimeSlice, maxTimeSlice, minFreqBin, maxFreqBin);
+    
+    // Debug: Print culling statistics
+    int totalTimeSlices = qMin(m_spectrumHistory.size(), MAX_TIME_SLICES);
+    int visibleTimeSlices = maxTimeSlice - minTimeSlice;
+    int visibleFreqBins = maxFreqBin - minFreqBin;
+    float cullPercentage = 100.0f * (1.0f - (float)(visibleTimeSlices * visibleFreqBins) / (float)(totalTimeSlices * m_spectrumWidth));
+    qDebug() << "Frustum culling:" << visibleTimeSlices << "/" << totalTimeSlices << "time slices," 
+             << visibleFreqBins << "/" << m_spectrumWidth << "freq bins," 
+             << QString::number(cullPercentage, 'f', 1) << "% culled";
+    
     // Request mesh generation in worker thread
     // This offloads CPU-intensive calculations from the main thread
     m_meshWorker->generateMesh(m_spectrumHistory,
@@ -343,7 +356,11 @@ void QGL3DPanel::updateMesh() {
                                m_heightScale,
                                m_frequencyScale,
                                m_timeScale,
-                               m_waterfallOffset);
+                               m_waterfallOffset,
+                               minTimeSlice,
+                               maxTimeSlice,
+                               minFreqBin,
+                               maxFreqBin);
     
     // Mesh will be uploaded to GPU when onMeshReady() slot is called
     m_meshNeedsUpdate = false;
@@ -678,6 +695,85 @@ void QGL3DPanel::updateCamera() {
     // Update view matrix
     m_viewMatrix.setToIdentity();
     m_viewMatrix.lookAt(m_cameraPosition, m_cameraTarget, m_cameraUp);
+}
+
+void QGL3DPanel::calculateVisibleRange(int& minTimeSlice, int& maxTimeSlice, int& minFreqBin, int& maxFreqBin) {
+    // Calculate view-projection matrix
+    QMatrix4x4 vpMatrix = m_projectionMatrix * m_viewMatrix;
+    
+    // Get the inverse to transform from NDC back to world space
+    bool invertible;
+    QMatrix4x4 invVP = vpMatrix.inverted(&invertible);
+    if (!invertible) {
+        // Fallback: use full range
+        minTimeSlice = 0;
+        maxTimeSlice = qMin(m_spectrumHistory.size(), MAX_TIME_SLICES);
+        minFreqBin = 0;
+        maxFreqBin = m_spectrumWidth;
+        return;
+    }
+    
+    // Calculate visible bounds in world space
+    // Sample the frustum corners to find min/max X and Z
+    float minX = 1e10f, maxX = -1e10f;
+    float minZ = 1e10f, maxZ = -1e10f;
+    
+    // Sample NDC frustum corners at near and far planes
+    float ndcPoints[16][4] = {
+        // Near plane corners (z = -1 in NDC)
+        {-1, -1, -1, 1}, {1, -1, -1, 1}, {-1, 1, -1, 1}, {1, 1, -1, 1},
+        // Far plane corners (z = 1 in NDC)
+        {-1, -1, 1, 1}, {1, -1, 1, 1}, {-1, 1, 1, 1}, {1, 1, 1, 1},
+        // Additional samples at mid-depth
+        {-1, -1, 0, 1}, {1, -1, 0, 1}, {-1, 1, 0, 1}, {1, 1, 0, 1},
+        {0, 0, -1, 1}, {0, 0, 0, 1}, {0, 0, 1, 1}, {0, -1, 0, 1}
+    };
+    
+    for (int i = 0; i < 16; i++) {
+        QVector4D ndc(ndcPoints[i][0], ndcPoints[i][1], ndcPoints[i][2], ndcPoints[i][3]);
+        QVector4D world = invVP * ndc;
+        
+        if (world.w() != 0.0f) {
+            world /= world.w();  // Perspective divide
+            minX = qMin(minX, world.x());
+            maxX = qMax(maxX, world.x());
+            minZ = qMin(minZ, world.z());
+            maxZ = qMax(maxZ, world.z());
+        }
+    }
+    
+    // Add margin for safety (10% extra on each side)
+    float xRange = maxX - minX;
+    float zRange = maxZ - minZ;
+    minX -= xRange * 0.1f;
+    maxX += xRange * 0.1f;
+    minZ -= zRange * 0.1f;
+    maxZ += zRange * 0.1f;
+    
+    // Convert world coordinates to mesh indices
+    // X coordinate formula: x = (f / effectiveFreqBins) * 400 * freqScale - 200 * freqScale
+    // So: f = (x + 200 * freqScale) / (400 * freqScale) * effectiveFreqBins
+    float freqScale = m_frequencyScale;
+    minFreqBin = qMax(0, (int)((minX + 200.0f * freqScale) / (400.0f * freqScale) * m_spectrumWidth));
+    maxFreqBin = qMin(m_spectrumWidth, (int)((maxX + 200.0f * freqScale) / (400.0f * freqScale) * m_spectrumWidth) + 1);
+    
+    // Z coordinate formula: z = (effectiveTimeSlices - t) * 4 * timeScale - effectiveTimeSlices * 2 * timeScale
+    // Simplified: z = -t * 4 * timeScale + effectiveTimeSlices * 2 * timeScale
+    // So: t = (effectiveTimeSlices * 2 * timeScale - z) / (4 * timeScale)
+    int totalTimeSlices = qMin(m_spectrumHistory.size(), MAX_TIME_SLICES);
+    float timeScale = m_timeScale;
+    minTimeSlice = qMax(0, (int)((totalTimeSlices * 2.0f * timeScale - maxZ) / (4.0f * timeScale)));
+    maxTimeSlice = qMin(totalTimeSlices, (int)((totalTimeSlices * 2.0f * timeScale - minZ) / (4.0f * timeScale)) + 1);
+    
+    // Ensure valid range
+    if (minTimeSlice >= maxTimeSlice) {
+        minTimeSlice = 0;
+        maxTimeSlice = totalTimeSlices;
+    }
+    if (minFreqBin >= maxFreqBin) {
+        minFreqBin = 0;
+        maxFreqBin = m_spectrumWidth;
+    }
 }
 
 void QGL3DPanel::mousePressEvent(QMouseEvent *event) {

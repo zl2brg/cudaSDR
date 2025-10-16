@@ -36,7 +36,11 @@ void MeshGeneratorWorker::generateMesh(const QVector<QVector<float>>& spectrumHi
                                        float heightScale,
                                        float frequencyScale,
                                        float timeScale,
-                                       float waterfallOffset) {
+                                       float waterfallOffset,
+                                       int minTimeSlice,
+                                       int maxTimeSlice,
+                                       int minFreqBin,
+                                       int maxFreqBin) {
     QMutexLocker locker(&m_mutex);
     
     // Update parameters
@@ -47,6 +51,10 @@ void MeshGeneratorWorker::generateMesh(const QVector<QVector<float>>& spectrumHi
     m_frequencyScale = frequencyScale;
     m_timeScale = timeScale;
     m_waterfallOffset = waterfallOffset;
+    m_minTimeSlice = minTimeSlice;
+    m_maxTimeSlice = maxTimeSlice;
+    m_minFreqBin = minFreqBin;
+    m_maxFreqBin = maxFreqBin;
     
     m_newDataAvailable = true;
     m_condition.wakeOne(); // Wake up the worker thread
@@ -78,6 +86,10 @@ void MeshGeneratorWorker::run() {
         float frequencyScale = m_frequencyScale;
         float timeScale = m_timeScale;
         float waterfallOffset = m_waterfallOffset;
+        int minTimeSlice = m_minTimeSlice;
+        int maxTimeSlice = m_maxTimeSlice;
+        int minFreqBin = m_minFreqBin;
+        int maxFreqBin = m_maxFreqBin;
         
         m_newDataAvailable = false;
         m_mutex.unlock();
@@ -92,6 +104,19 @@ void MeshGeneratorWorker::run() {
         int timeSlices = qMin(spectrumHistory.size(), MAX_TIME_SLICES);
         int freqBins = spectrumWidth;
         
+        // Clamp visible range to valid bounds
+        minTimeSlice = qMax(0, minTimeSlice);
+        maxTimeSlice = qMin(timeSlices, maxTimeSlice);
+        minFreqBin = qMax(0, minFreqBin);
+        maxFreqBin = qMin(freqBins, maxFreqBin);
+        
+        int visibleTimeSlices = maxTimeSlice - minTimeSlice;
+        int visibleFreqBins = maxFreqBin - minFreqBin;
+        
+        if (visibleTimeSlices <= 0 || visibleFreqBins <= 0) {
+            continue; // Nothing visible
+        }
+        
         // Level of Detail (LOD) optimization based on camera distance
         int lodFactor = 1;
         if (cameraDistance > 200.0f) {
@@ -100,8 +125,8 @@ void MeshGeneratorWorker::run() {
             lodFactor = 2;
         }
         
-        int effectiveFreqBins = freqBins / lodFactor;
-        int effectiveTimeSlices = timeSlices / lodFactor;
+        int effectiveFreqBins = visibleFreqBins / lodFactor;
+        int effectiveTimeSlices = visibleTimeSlices / lodFactor;
         
         // Pre-allocate memory for efficiency
         int estimatedVertices = effectiveTimeSlices * effectiveFreqBins * 6; // 6 floats per vertex
@@ -110,22 +135,22 @@ void MeshGeneratorWorker::run() {
         meshData.vertices.reserve(estimatedVertices);
         meshData.indices.reserve(estimatedIndices);
         
-        // Generate vertices with peak-preserving LOD
+        // Generate vertices with peak-preserving LOD (only for visible region)
         for (int t = 0; t < effectiveTimeSlices; t++) {
             for (int f = 0; f < effectiveFreqBins; f++) {
                 // Peak-preserving LOD: Take MAXIMUM across both time and frequency ranges
                 float amplitude = -200.0f;
                 
-                // Loop through time samples in this LOD bin
+                // Loop through time samples in this LOD bin (offset by minTimeSlice)
                 for (int timeSample = 0; timeSample < lodFactor; timeSample++) {
-                    int actualTimeIndex = t * lodFactor + timeSample;
+                    int actualTimeIndex = minTimeSlice + t * lodFactor + timeSample;
                     if (actualTimeIndex >= spectrumHistory.size()) break;
                     
                     const QVector<float>& spectrum = spectrumHistory[actualTimeIndex];
                     
-                    // Loop through frequency samples in this LOD bin
+                    // Loop through frequency samples in this LOD bin (offset by minFreqBin)
                     for (int freqSample = 0; freqSample < lodFactor; freqSample++) {
-                        int actualFreqIndex = f * lodFactor + freqSample;
+                        int actualFreqIndex = minFreqBin + f * lodFactor + freqSample;
                         if (actualFreqIndex < spectrum.size()) {
                             amplitude = qMax(amplitude, spectrum[actualFreqIndex]);
                         }
@@ -137,10 +162,15 @@ void MeshGeneratorWorker::run() {
                     amplitude = -120.0f;
                 }
                 
+                // Calculate global position (where this bin sits in the full spectrum)
+                float globalF = minFreqBin + f * lodFactor;
+                float globalT = minTimeSlice + t * lodFactor;
+                
                 // Position (frequency, amplitude, time) with user-controllable scales
-                float x = (float)f / (float)effectiveFreqBins * 400.0f * frequencyScale - 200.0f * frequencyScale;
+                // Use global positions to maintain correct world coordinates
+                float x = (globalF / (float)freqBins) * 400.0f * frequencyScale - 200.0f * frequencyScale;
                 float y = (amplitude + 120.0f) / 80.0f * 40.0f; // Range 0 to 40
-                float z = (effectiveTimeSlices - (float)t) * 4.0f * timeScale - effectiveTimeSlices * 2.0f * timeScale;
+                float z = ((float)timeSlices - globalT) * 4.0f * timeScale - (float)timeSlices * 2.0f * timeScale;
                 
                 meshData.vertices.append(x);
                 meshData.vertices.append(y);

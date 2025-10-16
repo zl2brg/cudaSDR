@@ -43,7 +43,11 @@ public:
                      float heightScale,
                      float frequencyScale,
                      float timeScale,
-                     float waterfallOffset);
+                     float waterfallOffset,
+                     int minTimeSlice,
+                     int maxTimeSlice,
+                     int minFreqBin,
+                     int maxFreqBin);
 
     // Stop the worker thread
     void stop();
@@ -73,6 +77,10 @@ private:
     float m_frequencyScale;
     float m_timeScale;
     float m_waterfallOffset;
+    int m_minTimeSlice;
+    int m_maxTimeSlice;
+    int m_minFreqBin;
+    int m_maxFreqBin;
     
     // Constants
     static const int MAX_TIME_SLICES = 300;
