@@ -86,23 +86,6 @@ QGL3DPanel::QGL3DPanel(QWidget *parent, int rx)
     m_spectrumHistory.reserve(MAX_TIME_SLICES);
     m_currentSpectrum.resize(m_spectrumWidth);
     
-    // Generate some test data initially to verify 3D rendering
-    for (int i = 0; i < m_spectrumWidth; i++) {
-        // Create a simple static test pattern with a couple of peaks
-        float freq = float(i) / float(m_spectrumWidth) * 2.0f * M_PI;
-        m_currentSpectrum[i] = -80.0f + 15.0f * (sin(freq * 8) + 0.3f * sin(freq * 20));
-    }
-    
-    // Add initial test data with very gentle animation for smooth waterfall
-    for (int t = 0; t < 30; t++) {
-        QVector<float> testData = m_currentSpectrum;
-        // Very gentle variation to show waterfall effect without jitter
-        for (int i = 0; i < testData.size(); i++) {
-            testData[i] += 1.0f * sin(float(t) * 0.05f) * sin(float(i) / 50.0f);
-        }
-        m_spectrumHistory.prepend(testData);
-    }
-
     // Initialize camera position from spherical coordinates
     updateCamera();
 
@@ -699,81 +682,85 @@ void QGL3DPanel::updateCamera() {
 
 void QGL3DPanel::calculateVisibleRange(int& minTimeSlice, int& maxTimeSlice, int& minFreqBin, int& maxFreqBin) {
     // Calculate view-projection matrix
-    QMatrix4x4 vpMatrix = m_projectionMatrix * m_viewMatrix;
+    QMatrix4x4 mvpMatrix = m_projectionMatrix * m_viewMatrix * m_modelMatrix;
     
-    // Get the inverse to transform from NDC back to world space
-    bool invertible;
-    QMatrix4x4 invVP = vpMatrix.inverted(&invertible);
-    if (!invertible) {
-        // Fallback: use full range
+    int totalTimeSlices = qMin(m_spectrumHistory.size(), MAX_TIME_SLICES);
+    
+    // Mesh bounds in world space:
+    // X: -200*freqScale to +200*freqScale
+    // Z: -totalTimeSlices*2*timeScale to +totalTimeSlices*2*timeScale
+    
+    // Instead of trying to unproject the frustum, we'll test a grid of points
+    // on the mesh and see which ones are visible
+    
+    // Sample grid resolution for testing visibility
+    const int testSamplesTime = 10;
+    const int testSamplesFreq = 10;
+    
+    minTimeSlice = totalTimeSlices;
+    maxTimeSlice = 0;
+    minFreqBin = m_spectrumWidth;
+    maxFreqBin = 0;
+    
+    bool anyVisible = false;
+    
+    // Test points across the mesh at Y=0 (the base plane)
+    for (int ts = 0; ts < testSamplesTime; ts++) {
+        for (int fs = 0; fs < testSamplesFreq; fs++) {
+            // Calculate world position for this test point
+            float t = (float)ts / (testSamplesTime - 1) * totalTimeSlices;
+            float f = (float)fs / (testSamplesFreq - 1) * m_spectrumWidth;
+            
+            float x = (f / (float)m_spectrumWidth) * 400.0f * m_frequencyScale - 200.0f * m_frequencyScale;
+            float y = 0.0f; // Test at base of mesh
+            float z = ((float)totalTimeSlices - t) * 4.0f * m_timeScale - (float)totalTimeSlices * 2.0f * m_timeScale;
+            
+            // Transform to clip space
+            QVector4D worldPos(x, y, z, 1.0f);
+            QVector4D clipPos = mvpMatrix * worldPos;
+            
+            // Perspective divide to get NDC
+            if (clipPos.w() > 0.0001f) {
+                float ndcX = clipPos.x() / clipPos.w();
+                float ndcY = clipPos.y() / clipPos.w();
+                float ndcZ = clipPos.z() / clipPos.w();
+                
+                // Check if in frustum (with margin)
+                const float margin = 0.3f; // 30% margin outside screen
+                if (ndcX >= -1.0f - margin && ndcX <= 1.0f + margin &&
+                    ndcY >= -1.0f - margin && ndcY <= 1.0f + margin &&
+                    ndcZ >= -1.0f && ndcZ <= 1.0f) {
+                    
+                    anyVisible = true;
+                    int timeSlice = (int)t;
+                    int freqBin = (int)f;
+                    
+                    minTimeSlice = qMin(minTimeSlice, timeSlice);
+                    maxTimeSlice = qMax(maxTimeSlice, timeSlice + 1);
+                    minFreqBin = qMin(minFreqBin, freqBin);
+                    maxFreqBin = qMax(maxFreqBin, freqBin + 1);
+                }
+            }
+        }
+    }
+    
+    if (!anyVisible) {
+        // Nothing visible in our samples, use full range as fallback
         minTimeSlice = 0;
-        maxTimeSlice = qMin(m_spectrumHistory.size(), MAX_TIME_SLICES);
+        maxTimeSlice = totalTimeSlices;
         minFreqBin = 0;
         maxFreqBin = m_spectrumWidth;
         return;
     }
     
-    // Calculate visible bounds in world space
-    // Sample the frustum corners to find min/max X and Z
-    float minX = 1e10f, maxX = -1e10f;
-    float minZ = 1e10f, maxZ = -1e10f;
+    // Expand range slightly to avoid edge artifacts
+    int timeMargin = qMax(1, (maxTimeSlice - minTimeSlice) / 5);
+    int freqMargin = qMax(1, (maxFreqBin - minFreqBin) / 5);
     
-    // Sample NDC frustum corners at near and far planes
-    float ndcPoints[16][4] = {
-        // Near plane corners (z = -1 in NDC)
-        {-1, -1, -1, 1}, {1, -1, -1, 1}, {-1, 1, -1, 1}, {1, 1, -1, 1},
-        // Far plane corners (z = 1 in NDC)
-        {-1, -1, 1, 1}, {1, -1, 1, 1}, {-1, 1, 1, 1}, {1, 1, 1, 1},
-        // Additional samples at mid-depth
-        {-1, -1, 0, 1}, {1, -1, 0, 1}, {-1, 1, 0, 1}, {1, 1, 0, 1},
-        {0, 0, -1, 1}, {0, 0, 0, 1}, {0, 0, 1, 1}, {0, -1, 0, 1}
-    };
-    
-    for (int i = 0; i < 16; i++) {
-        QVector4D ndc(ndcPoints[i][0], ndcPoints[i][1], ndcPoints[i][2], ndcPoints[i][3]);
-        QVector4D world = invVP * ndc;
-        
-        if (world.w() != 0.0f) {
-            world /= world.w();  // Perspective divide
-            minX = qMin(minX, world.x());
-            maxX = qMax(maxX, world.x());
-            minZ = qMin(minZ, world.z());
-            maxZ = qMax(maxZ, world.z());
-        }
-    }
-    
-    // Add margin for safety (10% extra on each side)
-    float xRange = maxX - minX;
-    float zRange = maxZ - minZ;
-    minX -= xRange * 0.1f;
-    maxX += xRange * 0.1f;
-    minZ -= zRange * 0.1f;
-    maxZ += zRange * 0.1f;
-    
-    // Convert world coordinates to mesh indices
-    // X coordinate formula: x = (f / effectiveFreqBins) * 400 * freqScale - 200 * freqScale
-    // So: f = (x + 200 * freqScale) / (400 * freqScale) * effectiveFreqBins
-    float freqScale = m_frequencyScale;
-    minFreqBin = qMax(0, (int)((minX + 200.0f * freqScale) / (400.0f * freqScale) * m_spectrumWidth));
-    maxFreqBin = qMin(m_spectrumWidth, (int)((maxX + 200.0f * freqScale) / (400.0f * freqScale) * m_spectrumWidth) + 1);
-    
-    // Z coordinate formula: z = (effectiveTimeSlices - t) * 4 * timeScale - effectiveTimeSlices * 2 * timeScale
-    // Simplified: z = -t * 4 * timeScale + effectiveTimeSlices * 2 * timeScale
-    // So: t = (effectiveTimeSlices * 2 * timeScale - z) / (4 * timeScale)
-    int totalTimeSlices = qMin(m_spectrumHistory.size(), MAX_TIME_SLICES);
-    float timeScale = m_timeScale;
-    minTimeSlice = qMax(0, (int)((totalTimeSlices * 2.0f * timeScale - maxZ) / (4.0f * timeScale)));
-    maxTimeSlice = qMin(totalTimeSlices, (int)((totalTimeSlices * 2.0f * timeScale - minZ) / (4.0f * timeScale)) + 1);
-    
-    // Ensure valid range
-    if (minTimeSlice >= maxTimeSlice) {
-        minTimeSlice = 0;
-        maxTimeSlice = totalTimeSlices;
-    }
-    if (minFreqBin >= maxFreqBin) {
-        minFreqBin = 0;
-        maxFreqBin = m_spectrumWidth;
-    }
+    minTimeSlice = qMax(0, minTimeSlice - timeMargin);
+    maxTimeSlice = qMin(totalTimeSlices, maxTimeSlice + timeMargin);
+    minFreqBin = qMax(0, minFreqBin - freqMargin);
+    maxFreqBin = qMin(m_spectrumWidth, maxFreqBin + freqMargin);
 }
 
 void QGL3DPanel::mousePressEvent(QMouseEvent *event) {

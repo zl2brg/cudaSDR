@@ -124,7 +124,7 @@ void MeshGeneratorWorker::run() {
         } else if (cameraDistance > 100.0f) {
             lodFactor = 2;
         }
-        
+        lodFactor = 1;
         int effectiveFreqBins = visibleFreqBins / lodFactor;
         int effectiveTimeSlices = visibleTimeSlices / lodFactor;
         
