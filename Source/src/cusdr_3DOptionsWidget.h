@@ -40,6 +40,9 @@ private slots:
     void wireframeModeChanged();
     void waterfallOffsetChanged(int value);
 
+public slots:
+    void emitInitialValues();
+
 private:
     void setupConnections();
     void createGeneralGroup();

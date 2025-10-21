@@ -167,11 +167,11 @@ void Options3DWidget::createPerformanceGroup() {
     m_performanceGroup->setFont(QFont("Arial", 8));
 
     // Update interval
-    m_updateIntervalLabel = new QLabel("Update Rate: 20 FPS", this);
+    m_updateIntervalLabel = new QLabel("Update Rate: 30 FPS", this);
     m_updateIntervalLabel->setFont(QFont("Arial", 8));
     m_updateIntervalSlider = new QSlider(Qt::Horizontal, this);
     m_updateIntervalSlider->setRange(10, 60); // 10-60 FPS
-    m_updateIntervalSlider->setValue(20);
+    m_updateIntervalSlider->setValue(30);
     m_updateIntervalSlider->setTickPosition(QSlider::TicksBelow);
     m_updateIntervalSlider->setTickInterval(10);
 
@@ -243,7 +243,19 @@ void Options3DWidget::wireframeModeChanged() {
 }
 
 void Options3DWidget::waterfallOffsetChanged(int value) {
-    float offset = (float)value;  // Direct value mapping: -50 to +50 dB
-    m_waterfallOffsetLabel->setText(QString("Waterfall Offset: %1 dB").arg(offset, 0, 'f', 0));
+    float offset = static_cast<float>(value) / 10.0f; // Convert to 0.0 - 10.0 range
+    m_waterfallOffsetLabel->setText(QString("Waterfall Offset: %1").arg(offset, 0, 'f', 1));
     emit waterfallOffsetValueChanged(offset);
+}
+
+void Options3DWidget::emitInitialValues() {
+    // Emit all current slider/checkbox values to initialize the 3D panel
+    emit heightScaleValueChanged(static_cast<float>(m_heightScaleSlider->value()));
+    emit frequencyScaleValueChanged(static_cast<float>(m_frequencyScaleSlider->value()) / 10.0f);
+    emit timeScaleValueChanged(static_cast<float>(m_timeScaleSlider->value()) / 10.0f);
+    emit updateIntervalValueChanged(1000 / m_updateIntervalSlider->value()); // FPS to ms
+    emit showGridValueChanged(m_showGridCheckBox->isChecked());
+    emit showAxesValueChanged(m_showAxesCheckBox->isChecked());
+    emit wireframeModeValueChanged(m_wireframeModeCheckBox->isChecked());
+    emit waterfallOffsetValueChanged(static_cast<float>(m_waterfallOffsetSlider->value()) / 10.0f);
 }

@@ -41,6 +41,8 @@ class cusdr_SetupWidget : public QTabWidget
 public:
     explicit cusdr_SetupWidget(QWidget *parent = nullptr);
     ~cusdr_SetupWidget();
+    
+    DisplayTabWidget* getDisplayTabWidget() const { return m_displaytabWidget; }
 
 private:
 

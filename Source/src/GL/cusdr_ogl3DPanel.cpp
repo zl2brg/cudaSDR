@@ -65,7 +65,7 @@ QGL3DPanel::QGL3DPanel(QWidget *parent, int rx)
     , m_frameCount(0)
     , m_currentFPS(0.0f)
     , m_targetFPS(30)
-    , m_updateFrequencyMs(100)  // 10 Hz spectrum updates - slower to reduce jitter
+    , m_updateFrequencyMs(33)  // ~30 Hz (30 FPS) spectrum updates
     , m_isVisible(true)
     , m_dataUpdateCount(0)
     , m_meshUpdateCount(0)
@@ -89,6 +89,11 @@ QGL3DPanel::QGL3DPanel(QWidget *parent, int rx)
     // Initialize camera position from spherical coordinates
     updateCamera();
 
+    // Setup update timer for continuous rendering
+    m_updateTimer = new QTimer(this);
+    connect(m_updateTimer, &QTimer::timeout, this, QOverload<>::of(&QOpenGLWidget::update));
+    m_updateTimer->start(m_updateFrequencyMs);
+    
     // Setup simple FPS monitoring
     m_frameTimer = new QTimer(this);
     connect(m_frameTimer, &QTimer::timeout, this, &QGL3DPanel::calculateFPS);

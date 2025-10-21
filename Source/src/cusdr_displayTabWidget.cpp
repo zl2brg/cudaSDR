@@ -45,7 +45,7 @@ DisplayTabWidget::DisplayTabWidget(QWidget *parent)
 	, set(Settings::instance())
 	, m_minimumWidgetWidth(set->getMinimumWidgetWidth())
 	, m_minimumGroupBoxWidth(set->getMinimumGroupBoxWidth())
-	, m_3DDialog(nullptr)
+	, m_3DDockWidget(nullptr)
 	, m_3DPanel(nullptr)
 {
 	setStyleSheet(set->getTabWidgetStyle());
@@ -67,15 +67,15 @@ DisplayTabWidget::DisplayTabWidget(QWidget *parent)
 }
 
 DisplayTabWidget::~DisplayTabWidget() {
-    // Clean up 3D dialog and panel first
+    // Clean up 3D dock widget and panel first
     if (m_3DPanel) {
         disconnect(set, 0, m_3DPanel, 0);
     }
     
-    if (m_3DDialog) {
-        delete m_3DDialog;
-        m_3DDialog = nullptr;
-        m_3DPanel = nullptr; // Panel is deleted with dialog since it's a child
+    if (m_3DDockWidget) {
+        delete m_3DDockWidget;
+        m_3DDockWidget = nullptr;
+        m_3DPanel = nullptr; // Panel is deleted with dock widget since it's a child
     }
 
     disconnect(this, 0, 0, 0);
@@ -184,101 +184,107 @@ void DisplayTabWidget::addNICChangedConnection() {
 	//m_networkWidget->addNICChangedConnection();
 }
 
+void DisplayTabWidget::create3DDockWidget(QWidget *mainWindow) {
+	if (!m_3DDockWidget && mainWindow) {
+		// Create the 3D dock widget with the main window as parent
+		m_3DDockWidget = new QDockWidget(tr("3D Panadapter"), mainWindow);
+		m_3DDockWidget->setObjectName("OGL3DPanelDock");
+		m_3DDockWidget->setAllowedAreas(Qt::AllDockWidgetAreas);
+		m_3DDockWidget->setFeatures(QDockWidget::DockWidgetClosable | 
+		                            QDockWidget::DockWidgetFloatable | 
+		                            QDockWidget::DockWidgetMovable);
+		m_3DDockWidget->setMinimumSize(800, 400);
+		
+		// Create the 3D panel for receiver 0
+		m_3DPanel = new QGL3DPanel(m_3DDockWidget, 0);
+		m_3DPanel->setMinimumSize(400, 300);
+		m_3DDockWidget->setWidget(m_3DPanel);
+		
+		// Connect to real spectrum data
+		CHECKED_CONNECT(
+			set,
+			SIGNAL(spectrumBufferChanged(int, const qVectorFloat&)),
+			m_3DPanel,
+			SLOT(setSpectrumBuffer(int, const qVectorFloat&)));
+			
+		// Connect to frequency changes
+		CHECKED_CONNECT(
+			set,
+			SIGNAL(ctrFrequencyChanged(QObject*, int, int, long)),
+			m_3DPanel,
+			SLOT(setCtrFrequency(QObject*, int, int, long)));
+			
+		CHECKED_CONNECT(
+			set,
+			SIGNAL(vfoFrequencyChanged(QObject*, int, int, long)),
+			m_3DPanel,
+			SLOT(setVFOFrequency(QObject*, int, int, long)));
+		
+		// Connect 3D options widget controls to 3D panel
+		CHECKED_CONNECT(
+			m_3DWidget,
+			SIGNAL(heightScaleValueChanged(float)),
+			m_3DPanel,
+			SLOT(setHeightScale(float)));
+			
+		CHECKED_CONNECT(
+			m_3DWidget,
+			SIGNAL(frequencyScaleValueChanged(float)),
+			m_3DPanel,
+			SLOT(setFrequencyScale(float)));
+			
+		CHECKED_CONNECT(
+			m_3DWidget,
+			SIGNAL(timeScaleValueChanged(float)),
+			m_3DPanel,
+			SLOT(setTimeScale(float)));
+			
+		CHECKED_CONNECT(
+			m_3DWidget,
+			SIGNAL(updateIntervalValueChanged(int)),
+			m_3DPanel,
+			SLOT(setUpdateRate(int)));
+			
+		CHECKED_CONNECT(
+			m_3DWidget,
+			SIGNAL(showGridValueChanged(bool)),
+			m_3DPanel,
+			SLOT(setShowGrid(bool)));
+			
+		CHECKED_CONNECT(
+			m_3DWidget,
+			SIGNAL(showAxesValueChanged(bool)),
+			m_3DPanel,
+			SLOT(setShowAxes(bool)));
+			
+		CHECKED_CONNECT(
+			m_3DWidget,
+			SIGNAL(wireframeModeValueChanged(bool)),
+			m_3DPanel,
+			SLOT(setWireframeMode(bool)));
+			
+		CHECKED_CONNECT(
+			m_3DWidget,
+			SIGNAL(waterfallOffsetValueChanged(float)),
+			m_3DPanel,
+			SLOT(setWaterfallOffset(float)));
+		
+		// Emit initial values to configure the 3D panel with current slider settings
+		m_3DWidget->emitInitialValues();
+	}
+}
+
 void DisplayTabWidget::show3DPanadapter(bool enabled) {
 	if (enabled) {
-		if (!m_3DDialog) {
-			// Create the 3D dialog window
-			m_3DDialog = new QDialog(this);
-			m_3DDialog->setWindowTitle("3D Panadapter - cuSDR");
-			m_3DDialog->setModal(false);
-			m_3DDialog->resize(800, 600);
-			
-			// Create the 3D panel for receiver 0
-			m_3DPanel = new QGL3DPanel(m_3DDialog, 0);
-			
-			// Set up layout
-			QVBoxLayout *layout = new QVBoxLayout;
-			layout->setContentsMargins(0, 0, 0, 0);
-			layout->addWidget(m_3DPanel);
-			m_3DDialog->setLayout(layout);
-			
-			// Connect to real spectrum data
-			CHECKED_CONNECT(
-				set,
-				SIGNAL(spectrumBufferChanged(int, const qVectorFloat&)),
-				m_3DPanel,
-				SLOT(setSpectrumBuffer(int, const qVectorFloat&)));
-				
-			// Connect to frequency changes
-			CHECKED_CONNECT(
-				set,
-				SIGNAL(ctrFrequencyChanged(QObject*, int, int, long)),
-				m_3DPanel,
-				SLOT(setCtrFrequency(QObject*, int, int, long)));
-				
-			CHECKED_CONNECT(
-				set,
-				SIGNAL(vfoFrequencyChanged(QObject*, int, int, long)),
-				m_3DPanel,
-				SLOT(setVFOFrequency(QObject*, int, int, long)));
-			
-			// Connect 3D options widget controls to 3D panel
-			CHECKED_CONNECT(
-				m_3DWidget,
-				SIGNAL(heightScaleValueChanged(float)),
-				m_3DPanel,
-				SLOT(setHeightScale(float)));
-				
-			CHECKED_CONNECT(
-				m_3DWidget,
-				SIGNAL(frequencyScaleValueChanged(float)),
-				m_3DPanel,
-				SLOT(setFrequencyScale(float)));
-				
-			CHECKED_CONNECT(
-				m_3DWidget,
-				SIGNAL(timeScaleValueChanged(float)),
-				m_3DPanel,
-				SLOT(setTimeScale(float)));
-				
-			CHECKED_CONNECT(
-				m_3DWidget,
-				SIGNAL(updateIntervalValueChanged(int)),
-				m_3DPanel,
-				SLOT(setUpdateRate(int)));
-				
-			CHECKED_CONNECT(
-				m_3DWidget,
-				SIGNAL(showGridValueChanged(bool)),
-				m_3DPanel,
-				SLOT(setShowGrid(bool)));
-				
-			CHECKED_CONNECT(
-				m_3DWidget,
-				SIGNAL(showAxesValueChanged(bool)),
-				m_3DPanel,
-				SLOT(setShowAxes(bool)));
-				
-			CHECKED_CONNECT(
-				m_3DWidget,
-				SIGNAL(wireframeModeValueChanged(bool)),
-				m_3DPanel,
-				SLOT(setWireframeMode(bool)));
-				
-			CHECKED_CONNECT(
-				m_3DWidget,
-				SIGNAL(waterfallOffsetValueChanged(float)),
-				m_3DPanel,
-				SLOT(setWaterfallOffset(float)));
-				
-		}
-		
-		if (m_3DDialog) {
-			m_3DDialog->show();
+		if (m_3DDockWidget) {
+			m_3DDockWidget->setVisible(true);
+			m_3DDockWidget->show();
+			m_3DDockWidget->raise();
+			m_3DDockWidget->activateWindow();
 		}
 	} else {
-		if (m_3DDialog) {
-			m_3DDialog->hide();
+		if (m_3DDockWidget) {
+			m_3DDockWidget->hide();
 		}
 	}
 }

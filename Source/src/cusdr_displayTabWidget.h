@@ -33,6 +33,7 @@
 //#include <QGroupBox>
 //#include <QLineEdit>
 #include <QDialog>
+#include <QDockWidget>
 
 #include "Util/cusdr_buttons.h"
 #include "cusdr_settings.h"
@@ -61,6 +62,7 @@ public slots:
 	QSize	minimumSizeHint() const;
 	void	addNICChangedConnection();
 	void	show3DPanadapter(bool enabled);
+	void	create3DDockWidget(QWidget *mainWindow);
 
 protected:
 	void	closeEvent(QCloseEvent *event);
@@ -83,15 +85,18 @@ private:
 	ColorOptionsWidget			*m_colorWidget;
 	Options3DWidget				*m_3DWidget;
 	
-	// 3D panel window
-	QDialog						*m_3DDialog;
-	QGL3DPanel					*m_3DPanel;
-
-	QString						m_message;
-
-
 	int		m_minimumWidgetWidth;
 	int		m_minimumGroupBoxWidth;
+	
+	// 3D panel dockable window
+	QDockWidget					*m_3DDockWidget;
+	QGL3DPanel					*m_3DPanel;
+
+public:
+	QDockWidget* get3DDockWidget() const { return m_3DDockWidget; }
+
+private:
+	QString						m_message;
 
 	void	setupConnections();
 

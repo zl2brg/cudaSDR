@@ -613,6 +613,23 @@ void MainWindow::setupLayout() {
 		centralwidget->splitDockWidget(rxDockWidgetList.at(i), rxDockWidgetList.at(i+3), Qt::Vertical);
 	}
 
+	// Create and add 3D Panadapter dock widget if display tab widget exists in setup widget
+	// Note: m_hpsdrTabWidget is actually a cusdr_SetupWidget that contains the DisplayTabWidget
+	if (m_hpsdrTabWidget) {
+		cusdr_SetupWidget* setupWidget = qobject_cast<cusdr_SetupWidget*>(m_hpsdrTabWidget);
+		if (setupWidget) {
+			DisplayTabWidget* displayTabWidget = setupWidget->getDisplayTabWidget();
+			if (displayTabWidget) {
+				displayTabWidget->create3DDockWidget(centralwidget);
+				QDockWidget* dock3D = displayTabWidget->get3DDockWidget();
+				if (dock3D) {
+					centralwidget->addDockWidget(Qt::BottomDockWidgetArea, dock3D);
+					dock3D->hide(); // Initially hidden, user can show via 3D options
+				}
+			}
+		}
+	}
+
 	//viewMenu->addAction(dock->toggleViewAction());
 }
 

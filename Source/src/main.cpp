@@ -100,6 +100,8 @@ int main(int argc, char *argv[]) {
     qInstallMessageHandler(cuSDRMessageHandler);
 #endif
     QApplication::setHighDpiScaleFactorRoundingPolicy(Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
+  //  QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
+    
     QApplication app(argc, argv);
     app.setAttribute(Qt::AA_DontCreateNativeWidgetSiblings);
     QSurfaceFormat format;
