@@ -16,6 +16,7 @@ MeshGeneratorWorker::MeshGeneratorWorker(QObject *parent)
     : QThread(parent)
     , m_stop(false)
     , m_newDataAvailable(false)
+    , m_processing(false)
     , m_spectrumWidth(512)
     , m_cameraDistance(300.0f)
     , m_heightScale(10.0f)
@@ -66,6 +67,11 @@ void MeshGeneratorWorker::stop() {
     m_condition.wakeOne();
 }
 
+bool MeshGeneratorWorker::isBusy() const {
+    QMutexLocker locker(&m_mutex);
+    return m_processing || m_newDataAvailable;
+}
+
 void MeshGeneratorWorker::run() {
     while (true) {
         // Wait for new data or stop signal
@@ -92,6 +98,7 @@ void MeshGeneratorWorker::run() {
         int maxFreqBin = m_maxFreqBin;
         
         m_newDataAvailable = false;
+        m_processing = true;
         m_mutex.unlock();
         
         // Generate mesh (CPU-intensive part, no locks needed)
@@ -118,13 +125,14 @@ void MeshGeneratorWorker::run() {
         }
         
         // Level of Detail (LOD) optimization based on camera distance
+        // Use LOD to reduce mesh complexity and improve performance
         int lodFactor = 1;
-        if (cameraDistance > 200.0f) {
-            lodFactor = 4;
-        } else if (cameraDistance > 100.0f) {
-            lodFactor = 2;
+        if (cameraDistance > 250.0f) {
+            lodFactor = 4;  // Very far - skip 3 out of 4 points
+        } else if (cameraDistance > 150.0f) {
+            lodFactor = 2;  // Medium distance - skip every other point
         }
-        lodFactor = 1;
+        // Note: LOD is now enabled for better performance
         int effectiveFreqBins = visibleFreqBins / lodFactor;
         int effectiveTimeSlices = visibleTimeSlices / lodFactor;
         
@@ -206,6 +214,12 @@ void MeshGeneratorWorker::run() {
         
         meshData.vertexCount = meshData.vertices.size() / 6;
         meshData.indexCount = meshData.indices.size();
+        
+        // Mark processing complete before emitting
+        {
+            QMutexLocker locker(&m_mutex);
+            m_processing = false;
+        }
         
         // Emit signal with generated mesh data
         emit meshReady(meshData);

@@ -76,11 +76,11 @@ QGL3DPanel::QGL3DPanel(QWidget *parent, int rx)
     m_cameraTarget = QVector3D(0, 0, 0);
     m_cameraUp = QVector3D(0, 1, 0);
     
-    // Create and start mesh generation worker thread
+    // Create and start mesh generation worker thread with high priority
     m_meshWorker = new MeshGeneratorWorker(this);
     connect(m_meshWorker, &MeshGeneratorWorker::meshReady, 
             this, &QGL3DPanel::onMeshReady, Qt::QueuedConnection);
-    m_meshWorker->start();
+    m_meshWorker->start(QThread::HighPriority);  // Run at higher priority for responsive mesh updates
 
     // Initialize spectrum history
     m_spectrumHistory.reserve(MAX_TIME_SLICES);
@@ -89,9 +89,17 @@ QGL3DPanel::QGL3DPanel(QWidget *parent, int rx)
     // Initialize camera position from spherical coordinates
     updateCamera();
 
-    // Set partial update behavior for better performance with shared contexts
-    // This is the same approach used by the 2D receiver panel
+    // Try to bypass Qt's synchronized update throttling for docked widgets with shared contexts
+    // Set the widget to not share its context even though AA_ShareOpenGLContexts is set
+    // This may help with refresh rate while still allowing reparenting
+    QSurfaceFormat format = QSurfaceFormat::defaultFormat();
+    format.setSwapInterval(0);  // Disable VSync for this widget specifically
+    setFormat(format);
+    
+    // Match the 2D receiver panel settings exactly
+    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     setUpdateBehavior(QOpenGLWidget::PartialUpdate);
+    setAutoFillBackground(false);
 
     // Don't use a timer - make it fully data-driven like the 2D receiver panel
     // The 2D panel doesn't use any recurring timer, only updates when data arrives
@@ -326,6 +334,12 @@ void QGL3DPanel::setupGrid() {
 void QGL3DPanel::updateMesh() {
     if (m_spectrumHistory.isEmpty() || !m_meshWorker) return;
     
+    // Skip if worker is still busy processing previous mesh
+    // This prevents overwhelming the worker thread with requests
+    if (m_meshWorker->isBusy()) {
+        return;
+    }
+    
     // Calculate visible range for frustum culling
     int minTimeSlice, maxTimeSlice, minFreqBin, maxFreqBin;
     calculateVisibleRange(minTimeSlice, maxTimeSlice, minFreqBin, maxFreqBin);
@@ -403,9 +417,10 @@ void QGL3DPanel::paintGL() {
     // Update camera matrix (this should always work for mouse interaction)
     updateCamera();
     
-    // Update mesh when needed
+    // Update mesh when needed (throttled in setSpectrumData)
     if (m_meshNeedsUpdate) {
         updateMesh();
+        m_meshNeedsUpdate = false;
     }
     
     // Render 3D spectrum
@@ -963,12 +978,17 @@ void QGL3DPanel::setSpectrumData(const QVector<float>& spectrumData) {
         m_spectrumHistory.removeLast();
     }
     
-    // Mark that mesh needs updating
-    m_meshNeedsUpdate = true;
-    m_meshUpdateCount++;
+    // Throttle mesh regeneration to avoid overwhelming the worker thread
+    // But always call update() so paintGL() is called frequently (for smooth rendering)
+    qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
+    if (currentTime - m_lastUpdateTime >= m_updateFrequencyMs) {
+        m_meshNeedsUpdate = true;
+        m_lastUpdateTime = currentTime;
+        m_meshUpdateCount++;
+    }
     
-    // Update immediately when data arrives, just like the 2D receiver panel
-    // This makes the display data-driven rather than timer-driven
+    // Update display immediately when data arrives (data-driven like 2D panel)
+    // paintGL() will be called frequently, but mesh regeneration is throttled above
     if (m_isVisible) {
         update();
     }

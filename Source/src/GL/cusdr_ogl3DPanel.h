@@ -154,7 +154,7 @@ private:
     Qt::MouseButton m_mouseButton;
     
     // Spectrum data management
-    static const int MAX_TIME_SLICES = 300;  // Increased for deeper waterfall effect
+    static const int MAX_TIME_SLICES = 100;  // Reduced for better real-time performance (was 300)
     static const int MAX_FREQ_BINS = 8192;  // Increased to handle 4096+ samples
     QVector<QVector<float>> m_spectrumHistory;
     QVector<float> m_currentSpectrum;

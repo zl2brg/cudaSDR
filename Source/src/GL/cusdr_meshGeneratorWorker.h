@@ -51,6 +51,9 @@ public:
 
     // Stop the worker thread
     void stop();
+    
+    // Check if worker is currently processing
+    bool isBusy() const;
 
 signals:
     // Emitted when mesh generation is complete
@@ -66,8 +69,9 @@ private:
     // Generation state
     bool m_stop;
     bool m_newDataAvailable;
-    QMutex m_mutex;
+    mutable QMutex m_mutex;
     QWaitCondition m_condition;
+    bool m_processing;  // True when actively generating mesh
 
     // Input parameters (protected by mutex)
     QVector<QVector<float>> m_spectrumHistory;
