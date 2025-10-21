@@ -89,10 +89,13 @@ QGL3DPanel::QGL3DPanel(QWidget *parent, int rx)
     // Initialize camera position from spherical coordinates
     updateCamera();
 
-    // Setup update timer for continuous rendering
-    m_updateTimer = new QTimer(this);
-    connect(m_updateTimer, &QTimer::timeout, this, QOverload<>::of(&QOpenGLWidget::update));
-    m_updateTimer->start(m_updateFrequencyMs);
+    // Set partial update behavior for better performance with shared contexts
+    // This is the same approach used by the 2D receiver panel
+    setUpdateBehavior(QOpenGLWidget::PartialUpdate);
+
+    // Don't use a timer - make it fully data-driven like the 2D receiver panel
+    // The 2D panel doesn't use any recurring timer, only updates when data arrives
+    // This prevents Qt from throttling updates with shared OpenGL contexts
     
     // Setup simple FPS monitoring
     m_frameTimer = new QTimer(this);
@@ -960,24 +963,14 @@ void QGL3DPanel::setSpectrumData(const QVector<float>& spectrumData) {
         m_spectrumHistory.removeLast();
     }
     
-    // But only trigger mesh regeneration at our controlled rate
-    qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
-    if (currentTime - m_lastUpdateTime >= m_updateFrequencyMs) {
-        m_meshNeedsUpdate = true;
-        m_lastUpdateTime = currentTime;
-        m_meshUpdateCount++;
-        
-        // Debug output every 5 seconds
-        if (currentTime - m_lastDebugTime >= 5000) {
-            qDebug() << "3D Panel: Data updates:" << m_dataUpdateCount 
-                     << "Mesh updates:" << m_meshUpdateCount 
-                     << "History size:" << m_spectrumHistory.size();
-            m_lastDebugTime = currentTime;
-        }
-        
-        if (m_isVisible) {
-            update(); // Trigger repaint
-        }
+    // Mark that mesh needs updating
+    m_meshNeedsUpdate = true;
+    m_meshUpdateCount++;
+    
+    // Update immediately when data arrives, just like the 2D receiver panel
+    // This makes the display data-driven rather than timer-driven
+    if (m_isVisible) {
+        update();
     }
 }
 

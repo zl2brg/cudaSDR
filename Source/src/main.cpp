@@ -100,7 +100,8 @@ int main(int argc, char *argv[]) {
     qInstallMessageHandler(cuSDRMessageHandler);
 #endif
     QApplication::setHighDpiScaleFactorRoundingPolicy(Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
-  //  QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
+    // Temporarily disable shared contexts to test if this is causing the refresh issue
+    QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
     
     QApplication app(argc, argv);
     app.setAttribute(Qt::AA_DontCreateNativeWidgetSiblings);
@@ -109,6 +110,7 @@ int main(int argc, char *argv[]) {
     format.setStencilBufferSize(8);
     format.setVersion(2, 0);
     format.setProfile(QSurfaceFormat::CoreProfile);
+    format.setSwapInterval(0);  // Disable VSync to allow independent update rates
     QSurfaceFormat::setDefaultFormat(format);
 
     Settings::instance(&app);
