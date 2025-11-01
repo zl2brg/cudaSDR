@@ -181,6 +181,8 @@ private:
     int m_targetFPS;
     int m_updateFrequencyMs;
     bool m_isVisible;
+    qreal		m_dBmPanMin;
+    qreal		m_dBmPanMax;
     
     // Rendering parameters
     float m_heightScale;
@@ -215,6 +217,8 @@ private:
 public slots:
     void spectrumDataChanged(const QVector<float>& data);
     void updateDisplay();
+    void dBmScaleMaxChanged(int rx, qreal val);
+    void dBmScaleMinChanged(int rx, qreal val);
 
 signals:
     void mousePositionChanged(QPoint position);

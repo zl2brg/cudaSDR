@@ -243,7 +243,7 @@ void Options3DWidget::wireframeModeChanged() {
 }
 
 void Options3DWidget::waterfallOffsetChanged(int value) {
-    float offset = static_cast<float>(value) / 10.0f; // Convert to 0.0 - 10.0 range
+    float offset = static_cast<float>(value);  // Convert to 0.0 - 10.0 range
     m_waterfallOffsetLabel->setText(QString("Waterfall Offset: %1").arg(offset, 0, 'f', 1));
     emit waterfallOffsetValueChanged(offset);
 }
@@ -257,5 +257,5 @@ void Options3DWidget::emitInitialValues() {
     emit showGridValueChanged(m_showGridCheckBox->isChecked());
     emit showAxesValueChanged(m_showAxesCheckBox->isChecked());
     emit wireframeModeValueChanged(m_wireframeModeCheckBox->isChecked());
-    emit waterfallOffsetValueChanged(static_cast<float>(m_waterfallOffsetSlider->value()) / 10.0f);
+    emit waterfallOffsetValueChanged(static_cast<float>(m_waterfallOffsetSlider->value()) );
 }

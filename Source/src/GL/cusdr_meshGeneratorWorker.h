@@ -47,7 +47,9 @@ public:
                      int minTimeSlice,
                      int maxTimeSlice,
                      int minFreqBin,
-                     int maxFreqBin);
+                     int maxFreqBin,
+                     float dBmPanMin,
+                     float dBmPanMax);
 
     // Stop the worker thread
     void stop();
@@ -85,6 +87,8 @@ private:
     int m_maxTimeSlice;
     int m_minFreqBin;
     int m_maxFreqBin;
+    float m_dBmPanMin;
+    float m_dBmPanMax;
     
     // Constants
     static const int MAX_TIME_SLICES = 300;

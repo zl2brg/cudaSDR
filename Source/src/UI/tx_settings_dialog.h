@@ -23,8 +23,6 @@ private:
     Settings*		set;
     QAudioDevice m_inputDevice;
     QAudioDevice m_outputDevice;
-    PaError         error = paNoError;
-    QStringList paDeviceList;
     double      m_amCarrierLevel;
     double      m_audioCompressionLevel;
     QFont			m_titleFont;

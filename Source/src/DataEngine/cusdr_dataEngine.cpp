@@ -11,7 +11,7 @@
 */
 
 /*
- *
+ *   
  *   Copyright 2010 Hermann von Hasseln, DL3HVH
  *
  *	 using original C code by John Melton, G0ORX/N6LYT and Dave McQuate, WA8YWQ
@@ -70,7 +70,7 @@ static quint8  new_adc_rx1_4, new_adc_rx5_8, new_adc_rx9_16;
 DataEngine::DataEngine(QObject *parent)
 	: QObject(parent)
 	, set(Settings::instance())
-	, m_internal_cw(set->isInternalCw())
+    , m_internal_cw(set->isInternalCw())
 	, m_cw_key_reversed(set->isCwKeyReversed())
 	, m_cw_keyer_speed(set->getCwKeyerSpeed())
 	, m_cw_keyer_mode(set->getCwKeyerMode())
@@ -89,12 +89,12 @@ DataEngine::DataEngine(QObject *parent)
 	, m_soundFileLoaded(false)
 	//, m_wbSpectrumAveraging(set->getSpectrumAveraging())
 	//, m_wbSpectrumAveraging(true)
-	, m_discoveryThreadRunning(false)
+    , m_discoveryThreadRunning(false)
 	, m_dataIOThreadRunning(false)
-	, m_dataProcThreadRunning(false)
+    , m_dataProcThreadRunning(false)
 	, m_audioRcvrThreadRunning(false)
 	, m_audioInProcThreadRunning(false)
-	, m_audioOutProcThreadRunning(false)
+    , m_audioOutProcThreadRunning(false)
 	, m_frequencyChange(false)
 	, m_hamBandChanged(true)
 	, m_hpsdrDevices(0)
@@ -154,13 +154,13 @@ DataEngine::~DataEngine() {
         delete sendSocket;
         sendSocket = nullptr;
     }
-    
+
     // Add raw socket cleanup
     if (data_socket >= 0) {
         close(data_socket);
         data_socket = -1;
     }
-    // file->close();
+   // file->close();
     if (m_audioInput)
         delete m_audioInput;
 }
@@ -227,7 +227,7 @@ void DataEngine::setupConnections() {
 		set,
 		SIGNAL(ditherChanged(QObject*,int)),
 		this, 
-		SLOT(setDither(QObject*,int)))
+        SLOT(setDither(QObject*,int)))
 
 	CHECKED_CONNECT(
 		set, 
@@ -374,7 +374,7 @@ void DataEngine::setupConnections() {
             this,
             SLOT(dspModeChanged(QObject *, int, DSPMode)));
 
-    CHECKED_CONNECT(
+     CHECKED_CONNECT(
             set,
             SIGNAL(dspModeChanged(QObject *, int, DSPMode)),
             this,
@@ -451,7 +451,7 @@ void DataEngine::setupConnections() {
 
 
 }
- 
+
 //********************************************************
 // start/stop data engine
 bool DataEngine::startDataEngineWithoutConnection() {
@@ -460,12 +460,12 @@ bool DataEngine::startDataEngineWithoutConnection() {
 
 	if (io.inputBuffer.length() > 0) {
 
-		initReceivers(1);
+        initReceivers(1);
 		if (!m_dataIO)	createDataIO();
 		if (!m_dataProcessor)	createDataProcessor();
 
 
-		
+
 		// data receiver thread
 		if (!startDataIO(QThread::NormalPriority)) {
 
@@ -573,12 +573,12 @@ bool DataEngine::getFirmwareVersions() {
 	switch (m_serverMode) {
 
 		case QSDR::SDRMode:
+			
+			for (int i = 0; i < set->getNumberOfReceivers(); i++) {
 
-        for (int i = 0; i < set->getNumberOfReceivers(); i++) {
-
-            RX.at(i)->setConnectedStatus(true);
-        }
-        break;
+				RX.at(i)->setConnectedStatus(true);
+			}
+			break;
 		default:
 
 			DATA_ENGINE_DEBUG << "no valid server mode";
@@ -698,7 +698,7 @@ bool DataEngine::checkFirmwareVersions() {
 					stop();
 
 					msg = "Penny[Lane] FW Version V1.4 and Mercury FW V2.7 requires Metis FW V1.4!";
-				 set->showWarningDialog(msg);
+					set->showWarningDialog(msg);
 					return false;
 				}
 				break;
@@ -712,7 +712,7 @@ bool DataEngine::checkFirmwareVersions() {
 					stop();
 
 					msg = "Penny[Lane] FW Version V1.5 and Mercury FW V3.0 requires Metis FW V1.5!";
-				 set->showWarningDialog(msg);
+					set->showWarningDialog(msg);
 					return false;
 				}
 				break;
@@ -840,18 +840,18 @@ bool DataEngine::start() {
     if (!m_audioInput) createAudioInputProcessor();
 
 	if (!m_dataIO) createDataIO();
-	
+
 	if (!m_dataProcessor) createDataProcessor();
 
 
-    if (m_serverMode == QSDR::SDRMode && !m_wbDataProcessor)
-        createWideBandDataProcessor();
+	if (m_serverMode == QSDR::SDRMode && !m_wbDataProcessor)
+		createWideBandDataProcessor();
 
 
 	switch (m_serverMode) {
 
 		//case QSDR::ExternalDSP:
-		
+
 			/*
 			//CHECKED_CONNECT(
 			//	set,
@@ -859,30 +859,30 @@ bool DataEngine::start() {
 			//	this,
 			//	SLOT(setFrequency(QObject*, bool, int, long)));
 
-			//if (!m_audioProcessorRunning) {
+        //if (!m_audioProcessorRunning) {
 
-			//	//if (!m_audioProcessor)	createAudioProcessor();
-			//	if (!m_audioReceiver)	createAudioReceiver();
+        //	//if (!m_audioProcessor)	createAudioProcessor();
+        //	if (!m_audioReceiver)	createAudioReceiver();
 
-			//	m_audioInProcThread->start();
-			//	if (m_audioInProcThread->isRunning()) {
-			//
-			//		m_audioInProcThreadRunning = true;
-			//		DATA_ENGINE_DEBUG << "Audio processor process started.";
-			//	}
-			//	else {
+        //	m_audioInProcThread->start();
+        //	if (m_audioInProcThread->isRunning()) {
+        //
+        //		m_audioInProcThreadRunning = true;
+        //		DATA_ENGINE_DEBUG << "Audio processor process started.";
+        //	}
+        //	else {
 
-			//		m_audioInProcThreadRunning = false;
-			//		setSystemState(
-			//						QSDR::AudioThreadError,
-			//						m_hwInterface,
-			//						m_serverMode,
-			//						QSDR::DataEngineDown);
-			//		return false;
-			//	}
-			//
-			//	io.audio_rx = 0;
-			//	io.clientList.append(0);
+        //		m_audioInProcThreadRunning = false;
+        //		setSystemState(
+        //						QSDR::AudioThreadError,
+        //						m_hwInterface,
+        //						m_serverMode,
+        //						QSDR::DataEngineDown);
+        //		return false;
+        //	}
+        //
+        //	io.audio_rx = 0;
+        //	io.clientList.append(0);
 
 			//	m_audioProcessorRunning = true;
 			//	setSystemState(
@@ -894,10 +894,10 @@ bool DataEngine::start() {
 			 */
 			//return false;
 
-		case QSDR::SDRMode:
-			
-			setTimeStamp(this, false);
-			break;
+        case QSDR::SDRMode:
+
+            setTimeStamp(this, false);
+            break;
 
 		default:
 
@@ -910,14 +910,14 @@ bool DataEngine::start() {
 	set->setRxList(RX);
 	connectDSPSlots();
 
-	for (int i = 0; i < rcvrs; i++) {
+    for (int i = 0; i < rcvrs ; i++) {
 
 		RX.at(i)->setConnectedStatus(true);
-		RX.at(i)->setAudioVolume(this, i, RX.at(i)->getAudioVolume());
+        RX.at(i)->setAudioVolume(this, i, RX.at(i)->getAudioVolume());
 		setFrequency(this, true, i, set->getCtrFrequencies().at(i));
 
 
-		//CHECKED_CONNECT(
+        //CHECKED_CONNECT(
 		//		RX.at(i),
 		//		SIGNAL(outputBufferSignal(int, const CPX &)),
 		//		this, //m_dataProcessor,
@@ -926,17 +926,17 @@ bool DataEngine::start() {
 		CHECKED_CONNECT(
 				RX.at(i),
 				SIGNAL(outputBufferSignal(int, const CPX &)),m_dataProcessor,SLOT(setOutputBuffer(int, const CPX &)));
-//        CHECKED_CONNECT(RX.at(i),SIGNAL(audioBufferSignal(int, const CPX &, int)),m_dataProcessor,SLOT(
-//                send_hpsdr_data(int, const CPX &,int)));
-
         CHECKED_CONNECT(RX.at(i),SIGNAL(audioBufferSignal(int, const CPX &, int)),m_dataProcessor,SLOT(
-         setAudioBuffer(int, const CPX &,int)));
+                send_hpsdr_data(int, const CPX &,int)));
+
+   //     CHECKED_CONNECT(RX.at(i),SIGNAL(audioBufferSignal(int, const CPX &, int)),m_dataProcessor,SLOT(
+    ///     setAudioBuffer(int, const CPX &,int)));
 
 
 		m_dspThreadList.at(i)->start(QThread::NormalPriority);//QThread::TimeCriticalPriority);
-				
+
 		if (m_dspThreadList.at(i)->isRunning()) {
-					
+
 			//m_dataProcThreadRunning = true;
 			io.networkIOMutex.lock();
 			DATA_ENGINE_DEBUG << "receiver processor thread started for Rx " << i;
@@ -985,7 +985,7 @@ bool DataEngine::start() {
 		DATA_ENGINE_DEBUG << "data IO thread could not be started.";
 		return false;
 	}
-	
+
 	// start Sync,ADC and S-Meter timers
 	//m_SyncChangedTime.start();
 	//m_ADCChangedTime.start();
@@ -1070,7 +1070,7 @@ void DataEngine::stop() {
 		// clear receiver list
         for (const auto &rx : RX) {
 
-			rx->stop();
+            rx->stop();
 			rx->setConnectedStatus(false);
 			disconnectDSPSlots();
 
@@ -1156,7 +1156,7 @@ bool DataEngine::initDataEngine() {
 			else {
 
 				DATA_ENGINE_DEBUG << "did not get firmware versions!";
-			 setSystemState(QSDR::FirmwareError, m_hwInterface, m_serverMode, QSDR::DataEngineDown);
+				setSystemState(QSDR::FirmwareError, m_hwInterface, m_serverMode, QSDR::DataEngineDown);
 			}
 		}
 	}
@@ -1164,7 +1164,7 @@ bool DataEngine::initDataEngine() {
 }
 
 bool DataEngine::initReceivers(int rcvrs) {
-		
+
 	for (int i = 0; i < rcvrs; i++) {
 
         auto rx =  new Receiver(i);
@@ -1182,12 +1182,12 @@ bool DataEngine::initReceivers(int rcvrs) {
 			auto thread = new QThreadEx();
 			rx->moveToThread(thread);
 
-            //CHECKED_CONNECT(this, SIGNAL(doDSP()), rx, SLOT(dspProcessing()));
+			//CHECKED_CONNECT(this, SIGNAL(doDSP()), rx, SLOT(dspProcessing()));
 
             connect(
                 rx, // Connect to the raw pointer managed by the unique_ptr
                 &Receiver::spectrumBufferChanged,
-                set,
+				set,
                 // The lambda captures the 'set' pointer and calls the slot
                 [this](int receiverId, const QList<float> &buffer) {
                     set->setSpectrumBuffer(receiverId, buffer);
@@ -1199,7 +1199,7 @@ bool DataEngine::initReceivers(int rcvrs) {
 
 
 			m_dspThreadList.append(thread);
-            RX.append(rx);
+			RX.append(rx);
 		}
 		else {
 
@@ -1578,7 +1578,7 @@ void DataEngine::stopDataIO() {
 		delete m_dataIOThread;
 		delete m_dataIO;
 		m_dataIO = nullptr;
-		
+
 		DATA_ENGINE_DEBUG << "data IO thread deleted.";
 	}
 	else
@@ -1594,9 +1594,9 @@ void DataEngine::createDataProcessor() {
 	sendSocket = new QUdpSocket();
 	Connect();
     connect(
-        sendSocket,
+			sendSocket,
         &QAbstractSocket::errorOccurred,
-        m_dataProcessor,
+			m_dataProcessor,
         &DataProcessor::displayDataProcessorSocketError
         );
 
@@ -1867,12 +1867,12 @@ void DataEngine::processFileBuffer(const QList<qreal> buffer) {
 		cpxIn[i + m_rxSamples].re = buffer.at(2*i);
 		cpxIn[i + m_rxSamples].im = buffer.at(2*i+1);
 
-        }
+	}
 	m_rxSamples += 64;
 
 	if (m_rxSamples == 2*BUFFER_SIZE) {
 
-            // reorder the spectrum buffer
+		// reorder the spectrum buffer
 		for (int i = 0; i < BUFFER_SIZE; i++) {
 
 			m_spectrumBuffer[topsize - i] =
@@ -2178,7 +2178,7 @@ void DataEngine::setNumberOfRx(QObject *sender, int value) {
 	Q_UNUSED(sender)
 
 	if (io.receivers == value) return;
-	
+
 	io.mutex.lock();
 	io.receivers = value;
 	io.mutex.unlock();
@@ -2356,8 +2356,8 @@ DataProcessor::DataProcessor(
 	, m_offset(0)
 	, m_length(0)
 	, m_rxSamples(0)
-	, m_idx(IO_HEADER_SIZE)
-	, m_sendState(0)
+    , m_idx(IO_HEADER_SIZE)
+    , m_sendState(0)
 	, m_stopped(false)
 {
 	m_IQSequence = 0L;
@@ -2390,7 +2390,7 @@ DataProcessor::DataProcessor(
 
 DataProcessor::~DataProcessor() {
     if (file) {
-        file->close();
+    file->close();
         delete file;  // Add this
         file = nullptr;
     }
@@ -2506,9 +2506,9 @@ void DataProcessor::processInputBuffer(const QByteArray &buffer) {
 
 				if (de->RX.at(r)->qtwdsp) {
 
-					de->RX[r]->inBuf[m_rxSamples].re = m_lsample; // 24 bit sample
-					de->RX[r]->inBuf[m_rxSamples].im = m_rsample; // 24 bit sample
-				}
+                de->RX[r]->inBuf[m_rxSamples].re = m_lsample; // 24 bit sample
+                de->RX[r]->inBuf[m_rxSamples].im = m_rsample; // 24 bit sample
+            }
             }
 
             m_micSample = (int)((signed char) buffer.at(s++)) << 8;
@@ -2529,11 +2529,11 @@ void DataProcessor::processInputBuffer(const QByteArray &buffer) {
 
 
 
-				for (int r = 0; r < de->io.receivers; r++) {
+                for (int r = 0; r < de->io.receivers; r++) {
 
 					if (de->RX.at(r)->qtwdsp) {
-						QMetaObject::invokeMethod(de->RX.at(r), "dspProcessing", Qt::DirectConnection);// Qt::QueuedConnection);
-					}
+                    QMetaObject::invokeMethod(de->RX.at(r), "dspProcessing", Qt::DirectConnection);// Qt::QueuedConnection);
+				}
 				}
 				m_rxSamples = 0;
             }
@@ -2741,7 +2741,7 @@ void DataProcessor::decodeCCBytes(const QByteArray &buffer) {
 
 void DataProcessor::setOutputBuffer(int rx, const CPX &buffer) {
 
-	if (rx == de->io.currentReceiver) {
+    if (rx == de->io.currentReceiver) {
 		processOutputBuffer(buffer);
 
 	}
@@ -2780,33 +2780,33 @@ void DataProcessor::buffer_tx_data()
 }
 
 void DataProcessor::add_rx_audio_sample() {
-    qint16 leftRXSample;
-    qint16 rightRXSample;
-    leftRXSample = (qint16) (rx_audio_buffer[rx_audio_ptr].re * 32767.0f);
-    rightRXSample = (qint16) (rx_audio_buffer[rx_audio_ptr].im * 32767.0f);
-    de->io.output_buffer[m_idx++] = leftRXSample >> 8;
-    de->io.output_buffer[m_idx++] = leftRXSample;
-    de->io.output_buffer[m_idx++] = rightRXSample >> 8;
-    de->io.output_buffer[m_idx++] = rightRXSample;
-    rx_audio_ptr++;
-}
+        qint16 leftRXSample;
+        qint16 rightRXSample;
+        leftRXSample = (qint16) (rx_audio_buffer[rx_audio_ptr].re * 32767.0f);
+        rightRXSample = (qint16) (rx_audio_buffer[rx_audio_ptr].im * 32767.0f);
+        de->io.output_buffer[m_idx++] = leftRXSample >> 8;
+        de->io.output_buffer[m_idx++] = leftRXSample;
+        de->io.output_buffer[m_idx++] = rightRXSample >> 8;
+        de->io.output_buffer[m_idx++] = rightRXSample;
+        rx_audio_ptr++;
+    }
 
 /* Sends RX Audio and tx iq data back to hpsdr. Always at 48 KHz bandwidth */
 
 void DataProcessor::send_hpsdr_data(int rx, const CPX &buffer, int buffersize) {
     Q_UNUSED(rx);
     rx_audio_ptr = 0;
-    /* buffer rx audio */
+/* buffer rx audio */
     for (int j = 0; j < buffersize; j++)
-    {
+        {
         rx_audio_buffer[j].re = buffer[j].re;
         rx_audio_buffer[j].im = buffer[j].im;
-    }
+        }
 
     if (set->is_transmitting()) {
         if (!tx_index) get_tx_iqData();
     } else memset(&m_tx_iq_Buffer, 0x0, sizeof(m_tx_iq_Buffer));
-    while (rx_audio_ptr  <   buffersize) {
+        while (rx_audio_ptr  <   buffersize) {
         add_rx_audio_sample();
         add_mic_sample();
 
@@ -2854,12 +2854,39 @@ void DataProcessor::buffer_tx_iq_sample(int i, int q)
 
 
 void DataProcessor::processMicData() {
+    
+    AUDIOBUF temp_data;
+    int queueCount = de->m_audioInput->m_faudioInQueue.count();
+    
+    if (queueCount > 0)
+    {
+	    qDebug() << "processMicData called, queue count:" << queueCount;
 
+        temp_data = de->m_audioInput->m_faudioInQueue.dequeue();
+        // Only process the actual number of samples in the buffer
+        int numSamples = qMin((int)temp_data.size(), DSP_SAMPLE_SIZE);
+        for (int s = 0; s < numSamples; s++)
+        {
+            mic_buffer[(s * 2)]  = temp_data[s];
+            mic_buffer[(s * 2) + 1] = 0.0f;
+        }
+
+		qDebug() << "Mic buffer processed with " << numSamples << " samples." << mic_buffer[0] << mic_buffer[1];
+    }
+    else {
+        temp_data.clear();
+        memset(&mic_buffer, 0x0, sizeof(mic_buffer));
+    }
+    mic_buffer_index = 0;
 
 }
 
 void DataProcessor::add_mic_sample()
 {
+ //    de->io.output_buffer[m_idx++] = 0;
+  //  de->io.output_buffer[m_idx++] = 0;
+  //  de->io.output_buffer[m_idx++] = 0;
+  //  de->io.output_buffer[m_idx++] = 0;
     de->io.output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
     de->io.output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
     de->io.output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
@@ -2933,7 +2960,7 @@ void DataProcessor::send_mic_data() {
             qs = m_iq_output_buffer.at(j).re;
             is = m_iq_output_buffer.at(j).im;
             rightTXSample = is >= 0.0 ? (long) floor(is * gain + 0.5) : (long) ceil(is * gain - 0.5);
-            leftTXSample =  qs >= 0.0 ? (long) floor(qs * gain + 0.5) : (long) ceil(qs * gain - 0.5);
+            leftTXSample = qs >= 0.0 ? (long) floor(qs * gain + 0.5) : (long) ceil(qs * gain - 0.5);
             buffer_tx_iq_sample(leftTXSample, rightTXSample);
         }
 
@@ -2948,6 +2975,8 @@ void DataProcessor::fetch_MicData(){
     if (de->m_audioInput->m_faudioInQueue.count() > 0)
     {
         temp_data = de->m_audioInput->m_faudioInQueue.dequeue();
+		qDebug() << "fetchmic data" << temp_data.size();
+
         for (int s = 0; s < DSP_SAMPLE_SIZE;s++)
         {
             mic_buffer[(s * 2 )]  = temp_data[s] ;//4294967295.0f;
@@ -2964,7 +2993,6 @@ void DataProcessor::fetch_MicData(){
 
 /*  processes mic samples ready to transmit */
 void DataProcessor::get_tx_iqData(){
-
     int error;
     long int   leftTXSample;
     long int rightTXSample;
@@ -2975,9 +3003,9 @@ void DataProcessor::get_tx_iqData(){
     fetch_MicData();
 
     if ( de->io.ccTx.mox ||  de->io.ccTx.ptt ) {
-
         fexchange0(TX_ID, mic_buffer, (double *) m_iq_output_buffer.data(), &error);
-        Spectrum0(1, TX_ID, 0, 0, (double *) m_iq_output_buffer.data());
+     
+		Spectrum0(1, TX_ID, 0, 0, (double *) m_iq_output_buffer.data());
 
 
 /* Queue the tx data */
@@ -2986,7 +3014,7 @@ void DataProcessor::get_tx_iqData(){
             qs = m_iq_output_buffer.at(j).re;
             is = m_iq_output_buffer.at(j).im;
             rightTXSample = is >= 0.0 ? (long) floor(is * gain + 0.5) : (long) ceil(is * gain - 0.5);
-            leftTXSample =  qs >= 0.0 ? (long) floor(qs * gain + 0.5) : (long) ceil(qs * gain - 0.5);
+            leftTXSample = qs >= 0.0 ? (long) floor(qs * gain + 0.5) : (long) ceil(qs * gain - 0.5);
             i = (int) leftTXSample;
             q = (int) rightTXSample;
             m_tx_iq_Buffer[tx_index++] = i >> 8;
@@ -3035,23 +3063,24 @@ void DataProcessor::setAudioBuffer(int rx, const CPX &buffer, int buffersize)
     qint16 rightTXSample;
 
     // process the output
-    for (int j = 0; j < buffersize; j++) {
+    if (tx_index == 0)  get_tx_iqData();
+        for (int j = 0; j < buffersize; j++) {
 
-        leftRXSample  = (qint16)(buffer.at(j).re * 32767.0f);
-        rightRXSample = (qint16)(buffer.at(j).im * 32767.0f);
+            leftRXSample  = (qint16)(buffer.at(j).re * 32767.0f);
+            rightRXSample = (qint16)(buffer.at(j).im * 32767.0f);
 
-        leftTXSample = 0;
-        rightTXSample = 0;
+            de->io.output_buffer[m_idx++] = leftRXSample  >> 8;
+            de->io.output_buffer[m_idx++] = leftRXSample;
+            de->io.output_buffer[m_idx++] = rightRXSample >> 8;
+            de->io.output_buffer[m_idx++] = rightRXSample;
+            de->io.output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
+            de->io.output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
+            de->io.output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
+            de->io.output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
 
-        de->io.output_buffer[m_idx++] = leftRXSample  >> 8;
-        de->io.output_buffer[m_idx++] = leftRXSample;
-        de->io.output_buffer[m_idx++] = rightRXSample >> 8;
-        de->io.output_buffer[m_idx++] = rightRXSample;
-        de->io.output_buffer[m_idx++] = leftTXSample  >> 8;
-        de->io.output_buffer[m_idx++] = leftTXSample;
-        de->io.output_buffer[m_idx++] = rightTXSample >> 8;
-        de->io.output_buffer[m_idx++] = rightTXSample;
+            if (tx_index >= 4096) tx_index = 0;
 
+ //   qDebug() << "buffer " << de->io.output_buffer[IO_HEADER_SIZE ] << de->io.output_buffer[IO_BUFFER_SIZE - 1] ;
         if (m_idx == IO_BUFFER_SIZE) {
 
                 //if (de->m_audioBuffer.length() == 1024) {
@@ -3060,31 +3089,45 @@ void DataProcessor::setAudioBuffer(int rx, const CPX &buffer, int buffersize)
             //	de->m_audioBuffer.resize(0);
             //}
             // set the C&C bytes
-            encodeCCBytes();
+			encodeCCBytes();
 
             switch (m_hwInterface) {
 
-            case QSDR::Metis:
-            case QSDR::Hermes:
+				case QSDR::Metis:
+				case QSDR::Hermes:
 
-                de->io.audioDatagram.resize(IO_BUFFER_SIZE);
-                de->io.audioDatagram = QByteArray::fromRawData((const char *)&de->io.output_buffer, IO_BUFFER_SIZE);
+					de->io.audioDatagram.resize(IO_BUFFER_SIZE);
+					de->io.audioDatagram = QByteArray::fromRawData((const char *)&de->io.output_buffer, IO_BUFFER_SIZE);
 
-                //if (m_dataIOThreadRunning) {
-                //	de->m_dataIO->writeData();
-                //}
+					//if (m_dataIOThreadRunning) {
+					//	de->m_dataIO->writeData();
+					//}
 
-                de->m_dataIO->sendAudio(de->io.output_buffer); //RRK
+                    if ( de->io.ccTx.mox ||  de->io.ccTx.ptt )
+                    {
+                        /*
+                       int val =   ((de->io.output_buffer[3]) &0xfe) >> 1;
+                       qDebug() << "command" << val;
+                       qDebug() << "C[0] " << " " << bin << de->io.output_buffer[3];
+                       qDebug() << "C[1] " << " " << bin <<de->io.output_buffer[4];
+                       qDebug() << "C[2] " << " " << bin <<de->io.output_buffer[5];
+                       qDebug() << "C[3] " << " " << bin <<de->io.output_buffer[6];
+                       qDebug() << "\n";
+                         */
 
-                writeData();
-                break;
+                    }
 
-            case QSDR::NoInterfaceMode:
-                break;
+                    de->m_dataIO->sendAudio(de->io.output_buffer); //RRK
+
+					writeData();
+					break;
+
+				case QSDR::NoInterfaceMode:
+					break;
             }
-            m_idx = IO_HEADER_SIZE;
-        }
-    }
+        m_idx = IO_HEADER_SIZE;
+         }
+       }
 }
 
 
@@ -3220,8 +3263,7 @@ void DataProcessor::processOutputBuffer(const CPX &buffer) {
 					//}
 
                  //   de->m_dataIO->sendAudio(de->io.output_buffer); //RRK
-                    qDebug() << "test write";
-					writeData();
+                    writeData();
 					break;
 
 				case QSDR::NoInterfaceMode:
@@ -3269,14 +3311,10 @@ void DataProcessor::encodeCCBytes() {
     		// | + +---------------------- Config (00 = nil, 01 = Penelope, 10 = Mercury, 11 = both)*
     		// +-------------------------- Mic source (0 = Janus, 1 = Penelope)*
 
-    		// Bits 1,0
-      //      de->setSampleRate(this, set->getSampleRate());
+    		de->io.control_out[1] |= de->io.speed; // sample rate
 
-    		// Bits 7,..,2
-      //      de->setHPSDRConfig();
-
-            de->io.control_out[1] &= 0x03; // 0 0 0 0 0 0 1 1
-            de->io.control_out[1] |= de->io.ccTx.clockByte;
+    		de->io.control_out[1] &= 0x03; // 0 0 0 0 0 0 1 1
+    		de->io.control_out[1] |= de->io.ccTx.clockByte;
 
     		// set C2
     		//
@@ -3286,10 +3324,6 @@ void DataProcessor::encodeCCBytes() {
     		// +---------- +-------------- Open Collector Outputs on Penelope or Hermes (bit 6...bit 0)
 
     		de->io.control_out[2] = de->io.rxClass;
-            if  (de->io.ccTx.mox) {
-
-          //      de->io.control_out[2] |=0x01;
-            }
 
     		if (de->io.ccTx.pennyOCenabled) {
 
@@ -3384,18 +3418,20 @@ void DataProcessor::encodeCCBytes() {
 
             de->io.control_out[0] = 0x2; // C0
 
+                long txfrequency;
+                if (de->io.ccTx.mode == DSPMode::CWL)
+                    txfrequency = de->io.ccTx.txFrequency;
+                else if (de->io.ccTx.mode == DSPMode::CWU)
+                     txfrequency = de->io.ccTx.txFrequency;
 
-    	//	if (de->io.tx_freq_change >= 0) {
-        //        qDebug() << "tx freq " <<  de->RX.at(de->io.tx_freq_change)->getCtrFrequency();
+                else txfrequency =   de->io.ccTx.txFrequency;
 
-                de->io.control_out[1] = de->RX.at(de->io.tx_freq_change)->getCtrFrequency() >> 24;
-                de->io.control_out[2] = de->RX.at(de->io.tx_freq_change)->getCtrFrequency() >> 16;
-                de->io.control_out[3] = de->RX.at(de->io.tx_freq_change)->getCtrFrequency() >> 8;
-                de->io.control_out[4] = de->RX.at(de->io.tx_freq_change)->getCtrFrequency();
-    		//    de->io.tx_freq_change = -1;
-    	//	}
-
-    		m_sendState = de->io.ccTx.duplex ? 2 : 3;
+                de->io.control_out[1] = (txfrequency >> 24);
+                de->io.control_out[2] = (txfrequency >> 16);
+                de->io.control_out[3] = (txfrequency >> 8);
+                de->io.control_out[4] = txfrequency;
+                de->io.tx_freq_change = -1;
+            m_sendState = 2;
     		break;
 
     	case 2:
@@ -3417,19 +3453,15 @@ void DataProcessor::encodeCCBytes() {
     			de->io.rx_freq_change = firstTimeRxInit;
     		}
 
-    		if (de->io.rx_freq_change >= 0) {
-                qDebug() << "rx freq " <<  de->RX.at(de->io.rx_freq_change)->getCtrFrequency();
-                de->io.control_out[0] = 0x04;
-                //(de->io.rx_freq_change < 7) ? (de->io.rx_freq_change + 2) << 1
-//                                              : (de->io.rx_freq_change + 11) << 1;
-    			//RRK removed 4HL de->io.output_buffer[3] = (de->io.rx_freq_change + 2) << 1;
+            if (de->io.rx_freq_change >= 0) {
+                de->io.control_out[0] = (de->io.rx_freq_change + 2) << 1;
                 de->io.control_out[1] = de->RX.at(de->io.rx_freq_change)->getCtrFrequency() >> 24;
                 de->io.control_out[2] = de->RX.at(de->io.rx_freq_change)->getCtrFrequency() >> 16;
                 de->io.control_out[3] = de->RX.at(de->io.rx_freq_change)->getCtrFrequency() >> 8;
                 de->io.control_out[4] = de->RX.at(de->io.rx_freq_change)->getCtrFrequency();
 
-    			de->io.rx_freq_change = -1;
-    		}
+                de->io.rx_freq_change = -1;
+            }
 
     		m_sendState = 3;
     		break;
@@ -3580,11 +3612,12 @@ void DataProcessor::encodeCCBytes() {
 
         case 5:
             de->io.control_out[0] = 0x1e; // 0 0 0 1 1 1 1 x
-            de->io.control_out[1] = 0x01;
-         //   if((de->io.ccTx.mode==DSPMode::CWU || de->io.ccTx.mode==DSPMode::CWL) && (de->m_radioState != RadioState::TUNE)  && (de->m_internal_cw) )
-         //   {
-         //       de->io.control_out[1]|=0x01;
-         //   }
+            de->io.control_out[1] = 0x00;
+
+            if((de->io.ccTx.mode==DSPMode::CWU || de->io.ccTx.mode==DSPMode::CWL)  && (de->m_internal_cw) &&!(de->m_radioState == RadioState::MOX))
+            {
+                de->io.control_out[1]|=0x01;
+            }
             de->io.control_out[2] = (de->m_cw_sidetone_volume & 0xff); //cw sidetone level
             de->io.control_out[3] = (de->m_cw_ptt_delay & 0xff); // ptt delay
             de->io.control_out[4] = 0x0;
@@ -3616,42 +3649,20 @@ void DataProcessor::encodeCCBytes() {
 
 
     }
-    if ( (de->io.ccTx.mox)) {
-       if(de->io.ccTx.mode==DSPMode::CWU || de->io.ccTx.mode==DSPMode::CWL)
-       {
-   //
-   //    For "internal" CW, we should not set
-   //    the MOX bit, everything is done in the FPGA.
-   //
-   //    However, if we are doing CAT CW, local CW or tuning/TwoTone,
-   //    we must put the SDR into TX mode *here*.
-               } else {
-         // not doing CW? always set MOX if transmitting
-         de->io.control_out[0] |= 0x01;
+    if ((de->io.ccTx.mode==DSPMode::CWU || de->io.ccTx.mode==DSPMode::CWL) )
+    {
+         de->io.control_out[0] &= ~0x01;
        }
-    }
+    else  if (de->io.ccTx.mox || de->io.ccTx.ptt) de->io.control_out[0] |= 0x01;
+    else de->io.control_out[0] &= ~0x01;
+
  //   if (de->io.ccTx.mox)  de->io.control_out[0] |= 0x01;
-    for (int i = 0; i < 5; i++)  de->io.output_buffer[i + 3] = de->io.control_out[i];
+    for (int i = 0; i < 5; i++) {
+        de->io.output_buffer[i + 3] = de->io.control_out[i];
+     //   de->io.control_out[i] = 0;
+    }
+
     de->io.mutex.unlock();
-//    qDebug() << "cw speed" << de->m_cw_keyer_speed << de->m_cw_keyer_mode << de->m_cw_sidetone_volume << de->m_internal_cw ;
-
-
-	/*switch (m_hwInterface) {
-
-		case QSDR::Metis:
-		case QSDR::Hermes:
-
-			io.audioDatagram.resize(IO_BUFFER_SIZE);
-			io.audioDatagram = QByteArray::fromRawData((const char *)&io.output_buffer, IO_BUFFER_SIZE);
-			
-			if (m_dataIOThreadRunning) {
-				m_dataIO->writeData();
-			}
-			break;
-			
-		case QSDR::NoInterfaceMode:
-			break;
-	}*/
 }
 
 
@@ -3771,7 +3782,7 @@ AudioOutProcessor::AudioOutProcessor(DataEngine *de, QSDR::_ServerMode serverMod
 	, m_dataEngine(de)
 	, m_serverMode(serverMode)
 	, m_stopped(false)
-{	
+{
 	m_IQDatagram.resize(0);
 }
 
@@ -3786,7 +3797,7 @@ void AudioOutProcessor::stop() {
 
 void DataEngine::Connect(){
 	qDebug() << "protocol1: Connect";
-	data_socket=socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	data_socket=socket(PF_INET,SOCK_DGRAM,IPPROTO_UDP);
     if(data_socket< 0) {
         qDebug() << "protocol1: create socket failed for data_socket";
         return;
@@ -3823,14 +3834,14 @@ void DataEngine::senddata(char * buffer, int length) {
 
 void DataEngine::createAudioInputProcessor() {
 
-    m_audioInput = new AudioInput();
-
+    m_audioInput = new PAudioInput();
+/*
     CHECKED_CONNECT(
-        m_audioInput,
-        SIGNAL(tx_mic_data_ready()),
-        m_dataProcessor,
-        SLOT(processMicData()));
-
+            m_audioInput,
+            SIGNAL(tx_mic_data_ready()),
+            m_dataProcessor,
+            SLOT(processMicData()));
+*/
 
     m_cwIO = new iambic(this);
 

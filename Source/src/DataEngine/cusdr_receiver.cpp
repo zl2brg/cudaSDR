@@ -232,7 +232,7 @@ void Receiver::dspProcessing() {
         if (m_state == RadioState::RX)
             GetPixels(0,0,qtwdsp->spectrumBuffer.data(), &spectrumDataReady);
         else {
-            GetPixels(0, 0, qtwdsp->spectrumBuffer.data(), &spectrumDataReady);
+            GetPixels(TX_ID, 0, qtwdsp->spectrumBuffer.data(), &spectrumDataReady);
             if (!spectrumDataReady) qDebug() << "Tx spectrum fetch fail";
         }
 

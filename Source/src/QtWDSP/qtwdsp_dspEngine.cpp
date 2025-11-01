@@ -685,10 +685,11 @@ void QWDSPEngine::setsnb(int rx, bool value) {
 	SetRXASNBARun(rx, m_snb);
 }
 
-//#define POSTGEN
+#define POSTGEN
 
 void QWDSPEngine::set_txrx(RadioState state) {
     bool tone = true;
+    qDebug() << "txMode " << state;
     switch (state){
         case RadioState::RX:
         if (tone)

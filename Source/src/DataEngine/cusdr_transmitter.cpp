@@ -330,6 +330,7 @@ case RadioState::TUNE:
     SetChannelState(TX_ID,1,1);
    // SetChannelState(0,0,1);
     SetTXAPostGenRun(this->id, 1);
+    
     break;
 
 case RadioState::RX:

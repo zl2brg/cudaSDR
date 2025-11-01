@@ -2,135 +2,192 @@
 // Created by Simon Eatough, ZL2BRG on 14/09/21.
 //
 
-
 #include <QCoreApplication>
 #include <QMetaObject>
 #include <QSet>
-#include <QAudioInput>
-#include <QAudioOutput>
 #include <QDebug>
 #include <QThread>
 #include <QFile>
 #include <QElapsedTimer>
-#include <QDebug>
+#include <QtEndian>
 #define LOG_AUDIO_INPUT
 
 #include "cusdr_audio_input.h"
 
 
-PAudioInput::PAudioInput(QObject *parent) : QThread(parent)
-        , set(Settings::instance())
+PAudioInput::PAudioInput(QObject *parent) 
+    : QObject(parent)
+    , set(Settings::instance())
+    , m_audioSource(nullptr)
+    , m_audioInputDevice(nullptr)
+    , m_running(false)
+    , m_sampleRate(48000)
+    , m_bufferSize(AUDIO_FRAMESIZE)
+    , m_deviceIndex(0)
 {
-
     CHECKED_CONNECT(set,
                     SIGNAL(micInputChanged(int)),
                     this,
                     SLOT(MicInputChanged(int)));
 
-    inputParameters.device = set->getMicInputDev();
-
-    /* device 0 is Hermes mic input */
-    if (inputParameters.device > 0) inputParameters.device--;
-    Setup();
-    audioinputBuffer.resize(1024);
+    m_deviceIndex = set->getMicInputDev();
+    
+    audioinputBuffer.resize(AUDIO_FRAMESIZE);
     audioinputBuffer.fill(0.0);
-    qDebug() << "Audio Buffer Size"  << audioinputBuffer.size();
-
+    
+    Setup();
+    
+    AUDIO_INPUT_DEBUG << "Audio Buffer Size: " << audioinputBuffer.size();
 }
-
-
 
 PAudioInput::~PAudioInput()
 {
     Stop();
+    if (m_audioSource) {
+        delete m_audioSource;
+        m_audioSource = nullptr;
+    }
 }
 
 void PAudioInput::Setup() {
+    m_mutex.lock();
+    
+    // Clean up existing audio source
+    if (m_audioSource) {
+        if (m_running) {
+            m_audioSource->stop();
+        }
+        delete m_audioSource;
+        m_audioSource = nullptr;
+    }
+    
+    // Configure audio format
+    m_format.setSampleRate(m_sampleRate);
+    m_format.setChannelCount(1);  // Mono
+    m_format.setSampleFormat(QAudioFormat::Int16); // 16-bit PCM
 
-    error = Pa_Initialize();
-    bzero( &inputParameters, sizeof( inputParameters ) ); //not necessary if you are filling in all the fields
-    inputParameters.channelCount = 1;
-    inputParameters.hostApiSpecificStreamInfo = 0;
-    inputParameters.sampleFormat = paFloat32;
-    inputParameters.suggestedLatency = Pa_GetDeviceInfo(inputParameters.device)->defaultLowInputLatency ;
-    inputParameters.hostApiSpecificStreamInfo = 0; //See you specific host's API docs for info on using this field
-
-    AUDIO_INPUT_DEBUG << "PA Open stream " << error;
-
-}
-
-void PAudioInput::MicInputChanged(int value){
-/* Index 0 is hpsdr local mic input */
-    if (value > 0)
-        inputParameters.device =value -1;
-
-    Stop();
-    if (inputParameters.device > 0) {
-        Setup();
-        Start();
-        AUDIO_INPUT_DEBUG << "Mic Input Changed" << value;
-
+    // Get audio input device
+    QAudioDevice inputDevice;
+    if (m_deviceIndex == 0) {
+        // Index 0 is HPSDR local mic input - use default device
+        inputDevice = QMediaDevices::defaultAudioInput();
+        AUDIO_INPUT_DEBUG << "Using default audio input device for HPSDR";
     } else {
-       AUDIO_INPUT_DEBUG << "Local HPSDR Mic Mode Selected" << value;
-
+        // Use specific device (adjust index since 0 is HPSDR)
+        QList<QAudioDevice> devices = QMediaDevices::audioInputs();
+        int actualIndex = m_deviceIndex - 1;
+        if (actualIndex >= 0 && actualIndex < devices.size()) {
+            inputDevice = devices[actualIndex];
+            AUDIO_INPUT_DEBUG << "Using audio input device:" << inputDevice.description();
+        } else {
+            inputDevice = QMediaDevices::defaultAudioInput();
+            AUDIO_INPUT_DEBUG << "Device index out of range, using default";
+        }
+    }
+    
+    // Check if format is supported
+    if (!inputDevice.isFormatSupported(m_format)) {
+        AUDIO_INPUT_DEBUG << "Format not supported, using nearest format";
+        m_format = inputDevice.preferredFormat();
     }
 
+    // Create the audio source
+    m_audioSource = new QAudioSource(inputDevice, m_format, this);
+    m_audioSource->setBufferSize(4 * m_bufferSize); // Larger buffer to prevent underruns
+    
+    AUDIO_INPUT_DEBUG << "Audio input setup complete";
+    
+    m_mutex.unlock();
 }
 
-void PAudioInput::Stop(){
-        if (stream)
-        {
-         error = Pa_CloseStream( stream );
-         msleep(100);
-         AUDIO_INPUT_DEBUG << "PA Close stream " << error;
+void PAudioInput::MicInputChanged(int value) {
+    /* Index 0 is HPSDR local mic input */
+    AUDIO_INPUT_DEBUG << "Mic Input Changed to:" << value;
+    
+    m_deviceIndex = value;
+    
+    Stop();
+    Setup();
+    
+    if (m_deviceIndex > 0) {
+        Start();
+        AUDIO_INPUT_DEBUG << "External mic mode started";
+    } else {
+        AUDIO_INPUT_DEBUG << "Local HPSDR Mic Mode Selected";
+    }
+}
+
+void PAudioInput::Stop() {
+    m_mutex.lock();
+    if (m_running && m_audioSource) {
+        if (m_audioInputDevice) {
+            disconnect(m_audioInputDevice, &QIODevice::readyRead,
+                      this, &PAudioInput::handleReadyRead);
         }
-        m_ThreadQuit = true;
-
-
+        m_audioSource->stop();
+        m_audioInputDevice = nullptr;
+        m_running = false;
+        AUDIO_INPUT_DEBUG << "Audio input stopped";
+    }
+    m_mutex.unlock();
 }
-
 
 bool PAudioInput::Start() {
-    error = Pa_OpenStream(
-            &stream,
-            &inputParameters,
-            NULL,
-            48000,
-            AUDIO_FRAMESIZE,
-            paNoFlag, //flags that can be used to define dither, clip settings and more
-            NULL, //your callback function
-            NULL );
-    error = Pa_StartStream(stream);
-    AUDIO_INPUT_DEBUG << "PA Start stream " << error;
-    m_ThreadQuit = false;
-    start(QThread::HighestPriority);
+    if (m_running)
+        return true;
+
+    m_mutex.lock();
+    if (m_audioSource) {
+        // Start the audio input
+        m_audioInputDevice = m_audioSource->start();
+        if (m_audioInputDevice) {
+            connect(m_audioInputDevice, &QIODevice::readyRead,
+                    this, &PAudioInput::handleReadyRead);
+            m_running = true;
+            AUDIO_INPUT_DEBUG << "Audio input started";
+        } else {
+            AUDIO_INPUT_DEBUG << "Could not start audio input";
+            m_mutex.unlock();
+            return false;
+        }
+    }
+    m_mutex.unlock();
     return true;
 }
 
-void PAudioInput::run() {
-    unsigned char temp[AUDIO_IN_PACKET_SIZE];
-    QByteArray data;
-    float *sample;
-    qDebug() << "Double" << sizeof(double);
-
-    while(!m_ThreadQuit )	//execute loop until quit flag set
-    {
-        if (Pa_IsStreamActive( stream ) ) {
-            if (Pa_GetStreamReadAvailable(stream) >= AUDIO_FRAMESIZE) {
-                Pa_ReadStream(stream, temp, AUDIO_FRAMESIZE);
-                sample = (float *) (temp);
-
-                for (int i = 0; i < AUDIO_FRAMESIZE; i++  )
-                {
-                   audioinputBuffer[i] = (double)(*sample);
-                   sample++;
-                }
-                emit tx_mic_data_ready();
-                m_faudioInQueue.enqueue(audioinputBuffer);
-                m_audioInQueue.enqueue(QByteArray((const char *)temp, AUDIO_IN_PACKET_SIZE));
-            } else msleep(5);
+void PAudioInput::handleReadyRead()
+{
+    m_mutex.lock();
+    if (m_running && m_audioInputDevice) {
+        // Read all available data
+        QByteArray buffer = m_audioInputDevice->readAll();
+        if (!buffer.isEmpty()) {
+            processAudioData(buffer);
         }
     }
+    m_mutex.unlock();
+}
 
+void PAudioInput::processAudioData(const QByteArray &data)
+{
+    // Process the incoming audio data
+    const qint16 *ptr = reinterpret_cast<const qint16 *>(data.constData());
+    int numSamples = data.size() / sizeof(qint16);
+    if (numSamples > 0)
+    {
+    // Resize buffer to hold all samples
+    audioinputBuffer.resize(numSamples);
+    qDebug() << "Processing" << numSamples << "audio samples";
+    // Convert all PCM samples to double in the range [-1.0, 1.0]
+    for (int i = 0; i < numSamples; ++i) {
+        audioinputBuffer[i] = static_cast<double>(ptr[i]) / 32768.0;
+    }
+
+    // Add entire buffer to the queue
+    m_faudioInQueue.enqueue(audioinputBuffer);
+
+    // Emit signal to notify that data is ready
+    emit tx_mic_data_ready();
+    }
 }
 

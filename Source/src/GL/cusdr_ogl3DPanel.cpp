@@ -82,6 +82,19 @@ QGL3DPanel::QGL3DPanel(QWidget *parent, int rx)
             this, &QGL3DPanel::onMeshReady, Qt::QueuedConnection);
     m_meshWorker->start(QThread::HighPriority);  // Run at higher priority for responsive mesh updates
 
+    // Get dBm scale from receiver panadapter settings (same as 2D panel)
+    QList<TReceiver> m_rxDataList = set->getReceiverDataList();
+    HamBand band = m_rxDataList.at(m_receiver).hamBand;
+    m_dBmPanMin = m_rxDataList.at(m_receiver).dBmPanScaleMinList.at(band);
+    m_dBmPanMax = m_rxDataList.at(m_receiver).dBmPanScaleMaxList.at(band);
+
+    // Connect to panadapter scale change signals
+    connect(set, &Settings::dBmScaleMaxChanged,
+        this, &QGL3DPanel::dBmScaleMaxChanged);
+    connect(set, &Settings::dBmScaleMinChanged,
+        this, &QGL3DPanel::dBmScaleMinChanged);
+
+
     // Initialize spectrum history
     m_spectrumHistory.reserve(MAX_TIME_SLICES);
     m_currentSpectrum.resize(m_spectrumWidth);
@@ -157,6 +170,18 @@ QGL3DPanel::~QGL3DPanel() {
     delete m_oglTextSmall;
     
     doneCurrent();
+}
+
+void QGL3DPanel::dBmScaleMaxChanged(int rx, qreal val){
+    if (rx != m_receiver) return;  // Only update if it's for this receiver
+    m_dBmPanMax = val;
+    update();  // Trigger redraw with new scale
+}
+
+void QGL3DPanel::dBmScaleMinChanged(int rx, qreal val){
+    if (rx != m_receiver) return;  // Only update if it's for this receiver
+    m_dBmPanMin = val;  // Fixed: was incorrectly setting m_dBmPanMax
+    update();  // Trigger redraw with new scale
 }
 
 void QGL3DPanel::initializeGL() {
@@ -365,7 +390,9 @@ void QGL3DPanel::updateMesh() {
                                minTimeSlice,
                                maxTimeSlice,
                                minFreqBin,
-                               maxFreqBin);
+                               maxFreqBin,
+                               m_dBmPanMin,
+                               m_dBmPanMax);
     
     // Mesh will be uploaded to GPU when onMeshReady() slot is called
     m_meshNeedsUpdate = false;
@@ -540,11 +567,12 @@ void QGL3DPanel::renderVerticalScale() {
     // Move closer to front - increase Z value to get to front corner
     float scaleZ = 150.0f * m_timeScale;  // Higher value to move toward front corner
     
-    // dB range
-    float minDb = -120.0f;
-    float maxDb = -40.0f;
+    // Use dynamic dBm range from 2D panadapter for scale labels
+    // Even though mesh height is fixed, scale labels reflect current dBm range
+    float minDb = m_dBmPanMin;
+    float maxDb = m_dBmPanMax;
     float dbRange = maxDb - minDb;
-    float scaleHeight = 60.0f * m_heightScale;  // Scale height with height scale too
+    float scaleHeight = 40.0f * m_heightScale;  // Match mesh height (40 units base)
     
     // Create vertices for the scale lines
     QVector<float> scaleVertices;
@@ -554,7 +582,8 @@ void QGL3DPanel::renderVerticalScale() {
     scaleVertices << scaleX << scaleHeight << scaleZ << 0.9f << 0.9f << 0.9f;  // Top
     
     // Tick marks every 10 dB
-    for (int db = -120; db <= -40; db += 10) {
+    // Note: maxDb (e.g., -40) is GREATER than minDb (e.g., -140), so iterate downwards
+    for (int db = (int)maxDb; db >= (int)minDb; db -= 10) {
         float normalizedPos = (float)(db - minDb) / dbRange;
         float yPos = normalizedPos * scaleHeight;
         
@@ -624,7 +653,9 @@ void QGL3DPanel::renderVerticalScale() {
     QMatrix4x4 mvpMatrix = m_projectionMatrix * m_viewMatrix * m_modelMatrix;
     
     // Render labels for major ticks only
-    for (int db = -120; db <= -40; db += 20) {
+    // Note: m_dBmPanMax (e.g., -40) is GREATER than m_dBmPanMin (e.g., -140)
+    // So we need to iterate from max down to min (stepping by -20)
+    for (int db = (int)m_dBmPanMax; db >= (int)m_dBmPanMin; db -= 20) {
         float normalizedPos = (float)(db - minDb) / dbRange;
         float yPos = normalizedPos * scaleHeight;
         

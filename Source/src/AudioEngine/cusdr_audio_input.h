@@ -4,10 +4,13 @@
 
 #include <QObject>
 #include <QList>
-#include <QtMultimedia/QAudioInput>
+#include <QtMultimedia/QAudioSource>
+#include <QtMultimedia/QAudioDevice>
+#include <QtMultimedia/QMediaDevices>
 #include <QBuffer>
 #include <QVector>
-#include "portaudio.h"
+#include <QMutex>
+#include <QIODevice>
 
 #include "cusdr_settings.h"
 
@@ -17,18 +20,8 @@
 
 #define AUDIO_FRAMESIZE  1024
 #define AUDIO_IN_PACKET_SIZE 4096//2048
-class PAudioInput;
 
-struct PADeviceCallbackStuff
-{
-        PAudioInput* soundDevice;
-        int devIndex;
-        int          frameIndex;  /* Index into sample array. */
-        int          maxFrameIndex;
-        unsigned char buffer[AUDIO_IN_PACKET_SIZE];
-        bool data_ready;
-};
-
+#define LOG_AUDIO_INPUT
 
 #ifdef LOG_AUDIO_INPUT
 #   define AUDIO_INPUT_DEBUG qDebug().nospace() << "AudioInput::\t"
@@ -41,15 +34,15 @@ typedef QVector<double> AUDIOBUF;
 
 Q_DECLARE_METATYPE (AUDIOBUF)
 
-class PAudioInput : public QThread {
+class PAudioInput : public QObject {
 Q_OBJECT
 public:
-PAudioInput(QObject *parent = 0);
-~PAudioInput();
-void Setup();
-void Stop();
-bool Start();
-void run();
+    PAudioInput(QObject *parent = nullptr);
+    ~PAudioInput();
+    void Setup();
+    void Stop();
+    bool Start();
+    
 public:
     QStringList paDeviceList;
     QHQueue<QByteArray> m_audioInQueue;
@@ -59,23 +52,24 @@ public:
 signals:
     void tx_mic_data_ready();
 
-
-
 private:
-    Settings		*set;
-    PaError         error;
-    PaStreamParameters inputParameters;
-    PaStream        *stream =NULL;
-
-    bool m_BlockingMode;
-    bool m_ThreadQuit;
-    bool m_Startup;
-    qint64              m_recordPosition;
-    volatile bool m_stopped;
-
+    void setupAudioSource();
+    void processAudioData(const QByteArray &data);
+    
 private slots:
     void MicInputChanged(int source);
+    void handleReadyRead();
 
+private:
+    Settings*           set;
+    QAudioSource*       m_audioSource;
+    QIODevice*          m_audioInputDevice;
+    QAudioFormat        m_format;
+    QMutex              m_mutex;
+    bool                m_running;
+    int                 m_sampleRate;
+    int                 m_bufferSize;
+    int                 m_deviceIndex;
 };
 
 #endif //CUDASDR_CUSDR_AUDIO_INPUT_H

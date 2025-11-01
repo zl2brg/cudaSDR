@@ -41,7 +41,9 @@ void MeshGeneratorWorker::generateMesh(const QVector<QVector<float>>& spectrumHi
                                        int minTimeSlice,
                                        int maxTimeSlice,
                                        int minFreqBin,
-                                       int maxFreqBin) {
+                                       int maxFreqBin,
+                                       float dBmPanMin,
+                                       float dBmPanMax) {
     QMutexLocker locker(&m_mutex);
     
     // Update parameters
@@ -56,6 +58,8 @@ void MeshGeneratorWorker::generateMesh(const QVector<QVector<float>>& spectrumHi
     m_maxTimeSlice = maxTimeSlice;
     m_minFreqBin = minFreqBin;
     m_maxFreqBin = maxFreqBin;
+    m_dBmPanMin = dBmPanMin;
+    m_dBmPanMax = dBmPanMax;
     
     m_newDataAvailable = true;
     m_condition.wakeOne(); // Wake up the worker thread
@@ -96,6 +100,8 @@ void MeshGeneratorWorker::run() {
         int maxTimeSlice = m_maxTimeSlice;
         int minFreqBin = m_minFreqBin;
         int maxFreqBin = m_maxFreqBin;
+        float dBmPanMin = m_dBmPanMin;
+        float dBmPanMax = m_dBmPanMax;
         
         m_newDataAvailable = false;
         m_processing = true;
@@ -124,17 +130,38 @@ void MeshGeneratorWorker::run() {
             continue; // Nothing visible
         }
         
-        // Level of Detail (LOD) optimization based on camera distance
-        // Use LOD to reduce mesh complexity and improve performance
-        int lodFactor = 1;
+        // Level of Detail (LOD) optimization based on camera distance AND frequency density
+        // Similar to computeDisplayBins() in 2D panadapter
+        
+        // Camera distance LOD
+        int distanceLodFactor = 1;
         if (cameraDistance > 250.0f) {
-            lodFactor = 4;  // Very far - skip 3 out of 4 points
+            distanceLodFactor = 4;  // Very far - skip 3 out of 4 points
         } else if (cameraDistance > 150.0f) {
-            lodFactor = 2;  // Medium distance - skip every other point
+            distanceLodFactor = 2;  // Medium distance - skip every other point
         }
-        // Note: LOD is now enabled for better performance
-        int effectiveFreqBins = visibleFreqBins / lodFactor;
-        int effectiveTimeSlices = visibleTimeSlices / lodFactor;
+        
+        // Frequency density LOD - downsample if we have way more bins than needed
+        // Target ~800-1000 frequency bins for display (similar to 2D panadapter)
+        int frequencyLodFactor = 1;
+        if (visibleFreqBins > 4000) {
+            frequencyLodFactor = 4;  // 4096 bins -> ~1024 display bins
+        } else if (visibleFreqBins > 2000) {
+            frequencyLodFactor = 2;  // 2048+ bins -> ~1024 display bins
+        }
+        
+        // Time LOD - similar logic for time slices
+        int timeLodFactor = 1;
+        if (visibleTimeSlices > 80) {
+            timeLodFactor = 2;  // Reduce if we have many time slices
+        }
+        
+        // Combine LOD factors (use max to avoid over-reduction)
+        int freqLodFactor = qMax(distanceLodFactor, frequencyLodFactor);
+        int timeLodFactorFinal = qMax(distanceLodFactor, timeLodFactor);
+        
+        int effectiveFreqBins = visibleFreqBins / freqLodFactor;
+        int effectiveTimeSlices = visibleTimeSlices / timeLodFactorFinal;
         
         // Pre-allocate memory for efficiency
         int estimatedVertices = effectiveTimeSlices * effectiveFreqBins * 6; // 6 floats per vertex
@@ -150,15 +177,15 @@ void MeshGeneratorWorker::run() {
                 float amplitude = -200.0f;
                 
                 // Loop through time samples in this LOD bin (offset by minTimeSlice)
-                for (int timeSample = 0; timeSample < lodFactor; timeSample++) {
-                    int actualTimeIndex = minTimeSlice + t * lodFactor + timeSample;
+                for (int timeSample = 0; timeSample < timeLodFactorFinal; timeSample++) {
+                    int actualTimeIndex = minTimeSlice + t * timeLodFactorFinal + timeSample;
                     if (actualTimeIndex >= spectrumHistory.size()) break;
                     
                     const QVector<float>& spectrum = spectrumHistory[actualTimeIndex];
                     
                     // Loop through frequency samples in this LOD bin (offset by minFreqBin)
-                    for (int freqSample = 0; freqSample < lodFactor; freqSample++) {
-                        int actualFreqIndex = minFreqBin + f * lodFactor + freqSample;
+                    for (int freqSample = 0; freqSample < freqLodFactor; freqSample++) {
+                        int actualFreqIndex = minFreqBin + f * freqLodFactor + freqSample;
                         if (actualFreqIndex < spectrum.size()) {
                             amplitude = qMax(amplitude, spectrum[actualFreqIndex]);
                         }
@@ -171,20 +198,23 @@ void MeshGeneratorWorker::run() {
                 }
                 
                 // Calculate global position (where this bin sits in the full spectrum)
-                float globalF = minFreqBin + f * lodFactor;
-                float globalT = minTimeSlice + t * lodFactor;
+                float globalF = minFreqBin + f * freqLodFactor;
+                float globalT = minTimeSlice + t * timeLodFactorFinal;
                 
                 // Position (frequency, amplitude, time) with user-controllable scales
                 // Use global positions to maintain correct world coordinates
                 float x = (globalF / (float)freqBins) * 400.0f * frequencyScale - 200.0f * frequencyScale;
-                float y = (amplitude + 120.0f) / 80.0f * 40.0f; // Range 0 to 40
+                // Position mesh so dBmPanMin is at y=0 and dBmPanMax is at y=40
+                // When scale moves up/down, mesh moves with it
+                // When scale expands/compresses, signals scale to maintain accurate positioning
+                float y = (amplitude - dBmPanMin) / (dBmPanMax - dBmPanMin) * 40.0f;
                 float z = ((float)timeSlices - globalT) * 4.0f * timeScale - (float)timeSlices * 2.0f * timeScale;
                 
                 meshData.vertices.append(x);
                 meshData.vertices.append(y);
                 meshData.vertices.append(z);
                 
-                // Color based on amplitude
+                // Color based on amplitude with waterfall offset
                 QColor color = amplitudeToColorWithOffset(amplitude, waterfallOffset);
                 meshData.vertices.append(color.redF());
                 meshData.vertices.append(color.greenF());

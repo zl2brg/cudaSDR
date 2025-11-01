@@ -10,9 +10,20 @@ set(CMAKE_AUTORCC ON)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_PREFIX_PATH "~/Qt/6.9.2/gcc_64")
+
+# --- Debug Configuration ---
+# Enable debug symbols and disable optimizations for Debug builds
+if(CMAKE_BUILD_TYPE MATCHES Debug)
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g3 -O0 -DDEBUG")
+    message(STATUS "Debug build with symbols enabled")
+endif()
+
+# Optional: Enable AddressSanitizer (uncomment to use)
 set(SANITIZE_FLAGS "-fsanitize=address")
 #set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} ${SANITIZE_FLAGS}")
 #set(CMAKE_LINKER_FLAGS_DEBUG "${CMAKE_LINKER_FLAGS_DEBUG} ${SANITIZE_FLAGS}")
+
+# Optional: Enable profiling with gprof (uncomment to use)
 #set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -pg")
 
 # --- Find Dependencies ---
@@ -36,7 +47,7 @@ set(SOURCES
     ${SRC_DIR}/AudioEngine/cusdr_audio_settingsdialog.cpp
     ${SRC_DIR}/AudioEngine/cwramp.cpp
     ${SRC_DIR}/AudioEngine/cusdr_iambic.cpp
-    ${SRC_DIR}/AudioEngine/audioinput.cpp
+    ${SRC_DIR}/AudioEngine/cusdr_audio_input.cpp
     ${SRC_DIR}/AudioEngine/audiooutputmanager.cpp
 
 #    ${SRC_DIR}/AudioEngine/cusdr_audio_utils.cpp
@@ -121,7 +132,7 @@ set(HEADERS
     # Audio Engine
     ${SRC_DIR}/AudioEngine/cusdr_audio_settingsdialog.h
     ${SRC_DIR}/AudioEngine/cusdr_iambic.h
-    ${SRC_DIR}/AudioEngine/audioinput.h
+    ${SRC_DIR}/AudioEngine/cusdr_audio_input.h
     ${SRC_DIR}/AudioEngine/audiooutputmanager.h
 
     # Data Engine

@@ -688,7 +688,7 @@ void QGLReceiverPanel::drawPanadapter() {
     // Get device pixel ratio (float, so use devicePixelRatioF for accuracy)
     float dpr = devicePixelRatio();
    GLint vertexArrayLength = (GLint)m_panadapterBins.size();
-
+//	qDebug() << "vertex array length:" << vertexArrayLength;
     GLint height = m_panRect.height();
     GLint x1 = m_panRect.left();
     GLint y1 = m_panRect.top();
@@ -3502,7 +3502,8 @@ void QGLReceiverPanel::computeDisplayBins(QVector<float>& buffer, QVector<float>
 
 		m_sampleSize = (int)floor(m_fftMult * m_spectrumSize * m_freqScaleZoomFactor);
 		deltaSampleSize = m_spectrumSize - m_sampleSize;
-
+	//	qDebug() << "m_ssamplesdize" << m_sampleSize << deltaSampleSize << m_fftMult;
+			
 
 		if (m_sampleSize < 2048) {
 
@@ -3612,7 +3613,7 @@ void QGLReceiverPanel::computeDisplayBins(QVector<float>& buffer, QVector<float>
 	}
 
 	m_panSpectrumBinsLength = (GLint)(m_scaleMult * m_panRectWidth);
-
+//	qDebug() << "m_panSpectrumBinsLength =" << m_panSpectrumBinsLength;
 	if (m_sampleSize != m_oldSampleSize) {
 	
 		GRAPHICS_DEBUG << "m_panSpectrumBinsLength = " << m_panSpectrumBinsLength;

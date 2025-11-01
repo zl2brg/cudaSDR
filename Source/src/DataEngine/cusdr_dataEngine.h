@@ -60,7 +60,7 @@
 #include "QtWDSP/qtwdsp_dspEngine.h"
 #include "cusdr_WidebandProcessor.h"
 #include "cusdr_transmitter.h"
-#include "AudioEngine/audioinput.h"
+#include "AudioEngine/cusdr_audio_input.h"
 #include "AudioEngine/cusdr_iambic.h"
 
 #define LOG_DATA_PROCESSOR
@@ -113,7 +113,7 @@ public:
 
 	QUdpSocket*			sendSocket{};
 	DataIO*				m_dataIO;
-    AudioInput *       m_audioInput;
+    PAudioInput *       m_audioInput;
     iambic *            m_cwIO;
     bool                m_internal_cw;
     bool                m_cw_key_reversed;
@@ -449,7 +449,7 @@ private:
 	QMutex			m_mutex;
 	QMutex			m_spectrumMutex;
     uchar           m_tx_iq_Buffer[DSP_SAMPLE_SIZE * 4];
-    double	        mic_buffer[DSP_SAMPLE_SIZE * 2]; // i & q
+    double	        mic_buffer[DSP_SAMPLE_SIZE * 2]; // i & q  - audio is either i or q - dependant on patch panel selection
     int             mic_buffer_index;
     QByteArray      m_tx_iqdata;
 	QByteArray		m_IQDatagram;

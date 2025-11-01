@@ -28,10 +28,16 @@ tx_settings_dialog::tx_settings_dialog(QWidget *parent) :
     ui->audioCompression->setSliderPosition(m_audioCompressionLevel);
     ui->fm_deviation->setValue(int(set->getFMDeveation() / 1000.0));
 
-
-
+    // Populate audio input device list using Qt6 API
     ui->audiodevlist->clear();
     ui->audiodevlist->addItem("HPSDR Mic Input");
+    
+    // Get available audio input devices
+    QList<QAudioDevice> audioInputs = QMediaDevices::audioInputs();
+    for (const QAudioDevice &deviceInfo : audioInputs) {
+        ui->audiodevlist->addItem(deviceInfo.description());
+        qDebug() << "Audio input device:" << deviceInfo.description();
+    }
 
     ui->audiodevlist->setCurrentIndex(set->getMicInputDev());
     ui->sidetone_freq->setValue(set->getCwSidetoneFreq());

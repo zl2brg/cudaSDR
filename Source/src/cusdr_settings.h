@@ -82,7 +82,7 @@
 #define MINDISTDBM -150
 #define MAXDISTDBM 150
 #define MAX_FFTSIZE	262144
-#define TX_ID 0
+#define TX_ID 1
 
 
 // **************************************
