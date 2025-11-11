@@ -1,4 +1,3 @@
-
 /**
 * @file  qtwdsp_dspEngine.cpp
 * @brief QtWDSP DSP engine class
@@ -34,6 +33,23 @@
 
 #include "qtwdsp_dspEngine.h"
 
+#include <algorithm>
+#include <cmath>
+#ifdef max
+#undef max
+#endif
+#ifdef min
+#undef min
+#endif
+
+// Add missing constants here
+namespace {
+    constexpr double DEFAULT_KEEP_TIME = 0.1;
+    constexpr double DEFAULT_KAISER_PI = 14.0;
+    constexpr int DEFAULT_PIXELS = 4096;
+    constexpr int DEFAULT_FFT_SIZE = 2048;
+    constexpr int QWDSPEngine_BUFFER_SIZE = 1024;
+}
 
 double wmyLog(double x, double base) {
 
@@ -49,220 +65,154 @@ QWDSPEngine::QWDSPEngine(QObject *parent, int rx, int size)
 	, m_samplerate(set->getSampleRate())
 	, m_fftMultiplier(1)
 	, m_volume(0.0f)
-
 {
-    int result;
-    qRegisterMetaType<QVector<cpx> >();
-	qRegisterMetaType<CPX>();
+    if (!set) {
+        qCritical() << "Settings instance is null!";
+        return;
+    }
+    
+    if (rx < 0 || size <= 0) {
+        qCritical() << "Invalid parameters: rx=" << rx << " size=" << size;
+        return;
+    }
+
+    qRegisterMetaType<QVector<cpx>>();
+    qRegisterMetaType<CPX>();
+    
     m_refreshrate = set->getFramesPerSecond(m_rx);
-    m_averageCount= set->getSpectrumAveragingCnt(m_rx);
+    m_averageCount = set->getSpectrumAveragingCnt(m_rx);
     m_PanAvMode = set->getPanAveragingMode(m_rx);
     m_PanDetMode = set->getPanDetectorMode(m_rx);
     m_agcSlope = set->getAGCSlope(m_rx);
     m_agcMaximumGain = set->getAGCMaximumGain_dB(m_rx);
-	m_agcHangThreshold = set->getAGCHangThreshold(m_rx);
-	spectrumBuffer.resize(BUFFER_SIZE*4);
-	m_fftSize = getfftVal(set->getfftSize(m_rx));
-	m_nr_agc = set->getNrAGC(m_rx);
+    spectrumBuffer.resize(QWDSPEngine_BUFFER_SIZE * 4);
+    spectrumBuffer.resize(BUFFER_SIZE * 4);
+    m_fftSize = getfftVal(set->getfftSize(m_rx));
+    m_nr_agc = set->getNrAGC(m_rx);
     m_nr2_ae = set->getNr2ae(m_rx);
     m_nr2_gain_method = set->getNr2GainMethod(m_rx);
     m_nr2_npe_method = set->getNr2NpeMethod(m_rx);
     m_nbMode = set->getnbMode(m_rx);
-	m_nrMode = set->getnrMode(m_rx);
-	m_anf = set->getAnf(m_rx);
-    m_snb= set->getSnb(m_rx);
+    m_nrMode = set->getnrMode(m_rx);
+    m_anf = set->getAnf(m_rx);
+    m_snb = set->getSnb(m_rx);
 
     setNCOFrequency(m_rx, m_rxData.vfoFrequency - m_rxData.ctrFrequency);
-	WDSP_ENGINE_DEBUG << "init DSPEngine with size: " << m_size;
-	SleeperThread::msleep(100);
+    WDSP_ENGINE_DEBUG << "init DSPEngine with size: " << m_size;
+    SleeperThread::msleep(100);
 
-	setupConnections();
+    setupConnections();
 
     WDSP_ENGINE_DEBUG << "Opening WDSP channel" << m_rx << "m_size=" << m_size << "Sample rate=" << m_samplerate;
-    OpenChannel(m_rx,
-                m_size,
-                2048, // ,
-                m_samplerate,
-                48000, // dsp rate
-                48000, // output rate
-                0, // receive
-                0, // run
-                0.010, 0.025, 0.0, 0.010, 0);
+    OpenChannel(m_rx, m_size, 2048, m_samplerate, 48000, 48000, 0, 0, 0.010, 0.025, 0.0, 0.010, 0);
+    create_anbEXT(m_rx, 1, size, m_samplerate, 0.0001, 0.0001, 0.0001, 0.05, 20);
+    create_nobEXT(m_rx, 1, 0, size, m_samplerate, 0.0001, 0.0001, 0.0001, 0.05, 20);
+    
+    qDebug() << "RXASetNC" << m_fftSize;
+    RXASetNC(m_rx, m_fftSize);
 
-	create_anbEXT(m_rx,1,size,m_samplerate,0.0001,0.0001,0.0001,0.05,20);
-	create_nobEXT(m_rx,1,0,size,m_samplerate,0.0001,0.0001,0.0001,0.05,20);
-	fprintf(stderr,"RXASetNC %d\n",m_fftSize);
-	RXASetNC(m_rx, m_fftSize);
-
-	setFilterMode(m_rx);
-//	fprintf(stderr,"RXASetMP %d\n",rx->low_latency);
-//	RXASetMP(rx->id, rx->low_latency);
-    SetRXAFMDeviation(m_rx, (double)8000.0);
-	SetRXAMode(m_rx, FMN);
-	RXASetNC(m_rx,4096);
+    setFilterMode(m_rx);
+    SetRXAFMDeviation(m_rx, 8000.0);
+    SetRXAMode(m_rx, FMN);
+    RXASetNC(m_rx, 4096);
     SetRXAPanelRun(m_rx, 1);
-    SetRXAPanelSelect(m_rx,3);
-	XCreateAnalyzer(m_rx, &result,262144, 1, 1, (char *) "");
-    if(result != 0) {
-        WDSP_ENGINE_DEBUG <<  "XCreateAnalyzer id=%d failed: %d\n" <<  result;
+    SetRXAPanelSelect(m_rx, 3);
+    
+    int analyzerResult;
+    XCreateAnalyzer(m_rx, &analyzerResult, 262144, 1, 1, const_cast<char*>(""));
+    if (analyzerResult != 0) {
+        qWarning() << "XCreateAnalyzer id=" << m_rx << "failed:" << analyzerResult;
     }
-	init_analyzer(m_refreshrate);
+    init_analyzer(m_refreshrate);
     calcDisplayAveraging();
-    SetDisplayAvBackmult(rx, 0, m_display_avb);
-    SetDisplayNumAverage(rx, 0, m_display_average);
-    SetDisplayDetectorMode(rx,0,m_PanDetMode);
-    SetDisplayAverageMode(rx,0,m_PanAvMode);
-	SetRXAFMSQRun(rx,1);
-    SetChannelState(m_rx,1,0);
+    SetDisplayAvBackmult(m_rx, 0, m_display_avb);
+    SetDisplayNumAverage(m_rx, 0, m_display_average);
+    SetDisplayDetectorMode(m_rx, 0, m_PanDetMode);
+    SetDisplayAverageMode(m_rx, 0, m_PanAvMode);
+    SetRXAFMSQRun(m_rx, 1);
+    SetChannelState(m_rx, 1, 0);
 }
 
-
-
 QWDSPEngine::~QWDSPEngine() {
-	SetChannelState(m_rx,0,0);
-    CloseChannel(0);
-    DestroyAnalyzer(m_rx);
-    SetRXAFMSQRun(m_rx,0);
-	destroy_nobEXT(m_rx);
-	destroy_anbEXT(m_rx);
 
+    if (SetChannelState(m_rx, 0, 0) != 0) {
+        qWarning() << "Failed to stop RX channel" << m_rx;
+    }
+    if (SetChannelState(TX_ID, 0, 0) != 0) {
+        qWarning() << "Failed to stop TX channel" << TX_ID;
+    }
+  //  CloseChannel(m_rx);
+  //  CloseChannel(TX_ID);
+    DestroyAnalyzer(m_rx);
+    SetRXAFMSQRun(m_rx, 0);
+    destroy_nobEXT(m_rx);
+    destroy_anbEXT(m_rx);
 }
 
 void QWDSPEngine::setupConnections() {
 
-	CHECKED_CONNECT(
-			set,
-			SIGNAL(ncoFrequencyChanged(int, long)),
-			this,
-			SLOT(setNCOFrequency(int, long)));
+    connect(set, &Settings::ncoFrequencyChanged,
+            this, &QWDSPEngine::setNCOFrequency);
 
-	CHECKED_CONNECT(
-			set,
-			SIGNAL(sampleSizeChanged(int, int)),
-			this,
-			SLOT(setSampleSize(int, int)));
+    connect(set, &Settings::sampleSizeChanged,
+            this, &QWDSPEngine::setSampleSize);
 
-	CHECKED_CONNECT(
-			set,
-			SIGNAL(framesPerSecondChanged(QObject*, int, int)),
-			this,
-			SLOT(setFramesPerSecond(QObject*, int, int)));
+    connect(set, &Settings::framesPerSecondChanged,
+            this, &QWDSPEngine::setFramesPerSecond);
 
-    CHECKED_CONNECT(
-            set,
-            SIGNAL(framesPerSecondChanged(QObject*, int, int)),
-            this,
-            SLOT(setFramesPerSecond(QObject*, int, int)));
+    connect(set, &Settings::panAveragingModeChanged,
+            this, &QWDSPEngine::setPanAdaptorAveragingMode);
 
-    CHECKED_CONNECT(
-            set,
-            SIGNAL(panAveragingModeChanged( int, int)),
-            this,
-            SLOT(setPanAdaptorAveragingMode( int, int)));
+    connect(set, &Settings::panDetectorModeChanged,
+            this, &QWDSPEngine::setPanAdaptorDetectorMode);
 
+    connect(set, &Settings::spectrumAveragingCntChanged,
+            this, &QWDSPEngine::setPanAdaptorAveragingCnt);
 
-    CHECKED_CONNECT(
-            set,
-            SIGNAL(panDetectorModeChanged( int, int)),
-            this,
-            SLOT(setPanAdaptorDetectorMode( int, int)));
+    connect(set, &Settings::fftSizeChanged,
+            this, &QWDSPEngine::setfftSize);
 
-    CHECKED_CONNECT(
-            set,
-            SIGNAL(spectrumAveragingCntChanged(QObject*, int , int)),
-            this,
-            SLOT(setPanAdaptorAveragingCnt(QObject*, int, int)));
+    connect(set, &Settings::fmsqLevelChanged,
+            this, &QWDSPEngine::setfmsqLevel);
 
-	CHECKED_CONNECT(
-			set,
-			SIGNAL(fftSizeChanged( int , int)),
-			this,
-			SLOT(setfftSize(int, int)));
+    connect(set, &Settings::noiseBlankerChanged,
+            this, &QWDSPEngine::setNoiseBlankerMode);
 
-	CHECKED_CONNECT(
-			set,
-			SIGNAL(fmsqLevelChanged( int , int)),
-			this,
-			SLOT(setfmsqLevel(int, int)));
+    connect(set, &Settings::noiseFilterChanged,
+            this, &QWDSPEngine::setNoiseFilterMode);
 
-	CHECKED_CONNECT(
-			set,
-			SIGNAL(noiseBlankerChanged( int , int)),
-			this,
-			SLOT(setNoiseBlankerMode(int, int )));
+    connect(set, &Settings::nr2AeChanged,
+            this, &QWDSPEngine::setNr2Ae);
 
-	CHECKED_CONNECT(
-			set,
-			SIGNAL(noiseFilterChanged( int , int)),
-			this,
-			SLOT(setNoiseFilterMode(int, int )));
+    connect(set, &Settings::nr2NpeMethodChanged,
+            this, &QWDSPEngine::setNr2NpeMethod);
 
-    CHECKED_CONNECT(
-            set,
-            SIGNAL(nr2AeChanged(int, bool)),
-            this,
-            SLOT(setNr2Ae(int, bool )));
+    connect(set, &Settings::nr2GainMethodChanged,
+            this, &QWDSPEngine::setNr2GainMethod);
 
-    CHECKED_CONNECT(
-            set,
-            SIGNAL(nr2NpeMethodChanged(int, int)),
-            this,
-            SLOT(setNr2NpeMethod(int, int )));
+    connect(set, &Settings::nrAgcChanged,
+            this, &QWDSPEngine::setNrAGC);
 
-    CHECKED_CONNECT(
-            set,
-            SIGNAL(nr2GainMethodChanged(int, int)),
-            this,
-            SLOT(setNr2GainMethod(int, int )));
+    connect(set, &Settings::anfChanged,
+            this, &QWDSPEngine::setanf);
 
-    CHECKED_CONNECT(
-            set,
-            SIGNAL(nrAgcChanged(int, int)),
-            this,
-            SLOT(setNrAGC(int, int )));
-
-	CHECKED_CONNECT(
-			set,
-			SIGNAL(anfChanged(int, bool)),
-			this,
-			SLOT(setanf(int, bool )));
-
-	CHECKED_CONNECT(
-			set,
-			SIGNAL(snbChanged(int, bool)),
-			this,
-			SLOT(setsnb(int, bool )));
-
-//	CHECKED_CONNECT(
-//		wpagc,
-//		SIGNAL(hangLeveldBLineChanged(qreal)),
-//		this,
-//		SLOT(setAGCHangLeveldBLine(qreal)));
-//
-//	CHECKED_CONNECT(
-//		wpagc,
-//		SIGNAL(minimumVoltageChanged(QObject *, int, qreal)),
-//		this,
-//		SLOT(setAGCThresholdLine(QObject *, int, qreal)));
-
-
+    connect(set, &Settings::snbChanged,
+            this, &QWDSPEngine::setsnb);
 }
 
 
 
 void QWDSPEngine::processDSP(CPX &in, CPX &out) {
-
-int error;
-	m_mutex.lock();
-    fexchange0(m_rx, (double *) in.data(),  (double *) out.data(), &error);
-    if(error!=0) {
-        WDSP_ENGINE_DEBUG << "WDSP channel read error " << error;
+    int error;
+    fexchange0(m_rx, reinterpret_cast<double*>(in.data()),
+               reinterpret_cast<double*>(out.data()), &error);
+    if (error != 0) {
+        WDSP_ENGINE_DEBUG << "WDSP channel read error" << error;
+    } else {
+        Spectrum0(1, m_rx, 0, 0, reinterpret_cast<double*>(in.data()));
     }
-    else  Spectrum0(1, m_rx, 0, 0, (double *) in.data());
-	m_mutex.unlock();
 
 }
-
 
 double QWDSPEngine::getSMeterInstValue() {
 
@@ -271,10 +221,14 @@ double QWDSPEngine::getSMeterInstValue() {
 }
 
 void QWDSPEngine::setVolume(float value) {
-    SetRXAPanelGain1(m_rx,  (double) value);
-    WDSP_ENGINE_DEBUG << "WDSP volume set to " <<value;
-
-
+    // Add parameter validation
+    if (value < 0.0f || value > 100.0f) {
+        qWarning() << "Invalid volume value:" << value << "valid range: 0.0-100.0";
+        return;
+    }
+    
+    SetRXAPanelGain1(m_rx, static_cast<double>(value));
+    WDSP_ENGINE_DEBUG << "WDSP volume set to" << value;
 }
 
 void QWDSPEngine::setQtDSPStatus(bool value) { 
@@ -412,42 +366,36 @@ void QWDSPEngine::setAGCHangTime(int value) {
 
 
 void QWDSPEngine::setSampleRate(QObject *sender, int value) {
+    Q_UNUSED(sender)
 
-	Q_UNUSED(sender)
+    if (m_samplerate == value) return;
 
-	if (m_samplerate == value) return;
+    // Use modern validation
+    static const std::set<int> validRates{48000, 96000, 192000, 384000};
+    if (validRates.find(value) == validRates.end()) {
+        WDSP_ENGINE_DEBUG << "Invalid sample rate:" << value 
+                          << "Valid rates: 48, 96, 192, or 384 kHz";
+        return;
+    }
 
-	switch (value) {
+    m_samplerate = value;
+    
+    // Add error checking for WDSP calls
+    if (SetChannelState(m_rx, 0, 1) != 0) {
+        qWarning() << "Failed to stop channel" << m_rx;
+    }
+    
+    SetInputSamplerate(m_rx, m_samplerate);
 
-		case 48000:
-			m_samplerate = value;
-			break;
-
-		case 96000:
-			m_samplerate = value;
-			break;
-
-		case 192000:
-			m_samplerate = value;
-			break;
-
-		case 384000:
-			m_samplerate = value;
-			break;
-
-		default:
-			WDSP_ENGINE_DEBUG << "invalid sample rate (possible values are: 48, 96, 192, or 384 kHz)!\n";
-			break;
-	}
- 	SetChannelState(m_rx,0,1);
-	SetInputSamplerate(m_rx,m_samplerate);
-
-	init_analyzer(m_refreshrate);
-    SetEXTANBSamplerate (m_rx, m_samplerate);
-    SetEXTNOBSamplerate (m_rx, m_samplerate);
-	SetChannelState(m_rx,1,0);
-	WDSP_ENGINE_DEBUG << "sample rate set to " << m_samplerate ;
-
+    init_analyzer(m_refreshrate);
+    SetEXTANBSamplerate(m_rx, m_samplerate);
+    SetEXTNOBSamplerate(m_rx, m_samplerate);
+    
+    if (SetChannelState(m_rx, 1, 0) != 0) {
+        qWarning() << "Failed to restart channel" << m_rx;
+    }
+    
+    WDSP_ENGINE_DEBUG << "Sample rate set to" << m_samplerate;
 }
 
 
@@ -471,11 +419,11 @@ void QWDSPEngine::setNCOFrequency(int rx, long ncoFreq) {
 
 	if(ncoFreq==0) {
 		SetRXAShiftFreq(m_rx, (double)ncoFreq);
-//		RXANBPSetShiftFrequency(m_rx, (double)ncoFreq);
+		RXANBPSetShiftFrequency(m_rx, (double)ncoFreq);
 		SetRXAShiftRun(m_rx, 0);
 	} else {
 		SetRXAShiftFreq(m_rx, (double)ncoFreq);
-//		RXANBPSetShiftFrequency(m_rx, (double)ncoFreq);
+		RXANBPSetShiftFrequency(m_rx, (double)ncoFreq);
 		SetRXAShiftRun(m_rx, 1);
 	}
 }
@@ -497,51 +445,39 @@ void QWDSPEngine::ProcessFrequencyShift(CPX &in, CPX &out) {
 }
 
 void QWDSPEngine::init_analyzer(int refreshrate) {
-	int flp[] = {0};
-	double keep_time = 0.1;
-	int n_pixout = 1;
-	int spur_elimination_ffts = 1;
-	int data_type = 1;
-	int fft_size = m_fftSize;
-	int window_type = 6;
-	double kaiser_pi = 14.0;
-	int overlap;
-	int clip = 0;
-	int span_clip_l = 0;
-	int span_clip_h = 0;
-	int pixels = 4096;
-	int stitches = 1;
-	int calibration_data_set = 0;
-	double span_min_freq = 0.0;
-	double span_max_freq = 0.0;
+    constexpr int flp[] = {0};
+    constexpr double keep_time = DEFAULT_KEEP_TIME;
+    constexpr int n_pixout = 1;
+    constexpr int spur_elimination_ffts = 1;
+    constexpr int data_type = 1;
+    const int fft_size = m_fftSize;
+    constexpr int window_type = 6;
+    constexpr double kaiser_pi = DEFAULT_KAISER_PI;
+    constexpr int clip = 0;
+    constexpr int span_clip_l = 0;
+    constexpr int span_clip_h = 0;
+    constexpr int pixels = DEFAULT_PIXELS;
+    constexpr int stitches = 1;
+    constexpr int calibration_data_set = 0;
+    constexpr double span_min_freq = 0.0;
+    constexpr double span_max_freq = 0.0;
 
-	int max_w = fft_size + (int) min(keep_time * refreshrate, keep_time * (double) fft_size * (double) refreshrate);
+    const int max_w = fft_size + static_cast<int>(
+        std::min(keep_time * refreshrate, 
+                keep_time * static_cast<double>(fft_size) * static_cast<double>(refreshrate))
+    );
 
-	overlap = (int) max(0.0, ceil(fft_size - (double) m_samplerate / (double) refreshrate));
+    const int overlap = static_cast<int>(
+        std::max(0.0, std::ceil(fft_size - static_cast<double>(m_samplerate) / static_cast<double>(refreshrate)))
+    );
 
-	fprintf(stderr, "SetAnalyzer id=%d buffer_size=%d overlap=%d\n fft%d\n", m_rx, m_size, overlap,m_fftSize);
+    qDebug() << "SetAnalyzer id=" << m_rx << "buffer_size=" << m_size 
+             << "overlap=" << overlap << "fft=" << m_fftSize;
 
-
-	SetAnalyzer(m_rx,
-				n_pixout,
-				spur_elimination_ffts, //number of LO frequencies = number of ffts used in elimination
-				data_type, //0 for real input data (I only); 1 for complex input data (I & Q)
-				flp, //vector with one elt for each LO frequency, 1 if high-side LO, 0 otherwise
-				fft_size, //size of the fft, i.e., number of input samples
-				1024, //number of samples transferred for each OpenBuffer()/CloseBuffer()
-				window_type, //integer specifying which window function to use
-				kaiser_pi, //PiAlpha parameter for Kaiser window
-				overlap, //number of samples each fft (other than the first) is to re-use from the previous
-				clip, //number of fft output bins to be clipped from EACH side of each sub-span
-				span_clip_l, //number of bins to clip from low end of entire span
-				span_clip_h, //number of bins to clip from high end of entire span
-				pixels, //number of pixel values to return.  may be either <= or > number of bins
-				stitches, //number of sub-spans to concatenate to form a complete span
-				calibration_data_set, //identifier of which set of calibration data to use
-				span_min_freq, //frequency at first pixel value8192
-				span_max_freq, //frequency at last pixel value
-				max_w //max samples to hold in input ring buffers
-	);
+    SetAnalyzer(m_rx, n_pixout, spur_elimination_ffts, data_type, 
+                const_cast<int*>(flp), fft_size, 1024, window_type, kaiser_pi, 
+                overlap, clip, span_clip_l, span_clip_h, pixels, stitches, 
+                calibration_data_set, span_min_freq, span_max_freq, max_w);
 }
 
 
@@ -550,14 +486,14 @@ void QWDSPEngine::setFramesPerSecond(QObject* sender, int rx, int value){
 
 	Q_UNUSED(sender)
 	if (rx != m_rx) return;
-	m_mutex.lock();
-	m_refreshrate = value;
+    
+    std::lock_guard<QMutex> lock(m_mutex);  // RAII mutex guard
+    m_refreshrate = value;
     init_analyzer(value);
     calcDisplayAveraging();
     SetDisplayAvBackmult(rx, 0, m_display_avb);
     SetDisplayNumAverage(rx, 0, m_display_average);
-    m_mutex.unlock();
-    WDSP_ENGINE_DEBUG <<  "SetFramesPerSecond" <<  value;
+    WDSP_ENGINE_DEBUG << "SetFramesPerSecond" << value;
 }
 
 
@@ -589,59 +525,47 @@ void QWDSPEngine::setPanAdaptorAveragingCnt(QObject* sender, int rx, int count){
 }
 
 void QWDSPEngine::calcDisplayAveraging() {
-    double t=0.001*m_averageCount;
-    m_display_avb = exp(-1.0 / ((double)m_refreshrate * t));
-    m_display_average = max(2, (int)min(60, (double)m_refreshrate * t));
+    const double t = 0.001 * m_averageCount;
+    m_display_avb = std::exp(-1.0 / (static_cast<double>(m_refreshrate) * t));
+    m_display_average = std::max(2, static_cast<int>(
+        std::min(60.0, static_cast<double>(m_refreshrate) * t)
+    ));
 }
 
 int QWDSPEngine::getfftVal(int size) {
-	int fftSize;
-	switch (size){
-
-		case 0:
-			fftSize = 2048;
-			break;
-		case 1:
-			fftSize = 4096;
-			break;
-		case 2:
-			fftSize = 8192;
-			break;
-		case 3:
-			fftSize = 16384;
-			break;
-		case 4:
-			fftSize = 32768;
-			break;
-		case 5:
-			fftSize = 655356;
-			break;
-		case 6:
-			fftSize = 131072;
-			break;
-		case 7:
-			fftSize = 655356;
-			break;
-		default:
-			fftSize = 2048;
-			WDSP_ENGINE_DEBUG <<  "invalid fft size set" <<  size;
-			break;
-	}
-	return fftSize;
+    // Use modern container for better maintainability
+    static const std::map<int, int> fftSizeMap = {
+        {0, 2048},
+        {1, 4096},
+        {2, 8192},
+        {3, 16384},
+        {4, 32768},
+        {5, 65536},   // FIX: was 655356 - typo!
+        {6, 131072},
+        {7, 262144}   // FIX: was 655356 - another typo!
+    };
+    
+    auto it = fftSizeMap.find(size);
+    if (it != fftSizeMap.end()) {
+        return it->second;
+    }
+    
+    WDSP_ENGINE_DEBUG << "invalid fft size set" << size << "using default 2048";
+    return 2048;  // Default fallback
 }
 
 
 void QWDSPEngine::setfftSize(int rx, int value) {
 	if (rx != m_rx) return;
-	m_fftSize = getfftVal(value);
-	WDSP_ENGINE_DEBUG <<  "mfftsize set" <<  m_fftSize;
-	m_mutex.lock();
-	init_analyzer(value);
-	calcDisplayAveraging();
-	SetDisplayAvBackmult(rx, 0, m_display_avb);
-	SetDisplayNumAverage(rx, 0, m_display_average);
-	m_mutex.unlock();
-
+    
+    m_fftSize = getfftVal(value);
+    WDSP_ENGINE_DEBUG << "mfftsize set" << m_fftSize;
+    
+    std::lock_guard<QMutex> lock(m_mutex);  // RAII mutex guard
+    init_analyzer(value);
+    calcDisplayAveraging();
+    SetDisplayAvBackmult(rx, 0, m_display_avb);
+    SetDisplayNumAverage(rx, 0, m_display_average);
 }
 
 
@@ -759,4 +683,62 @@ void QWDSPEngine::setsnb(int rx, bool value) {
 	m_snb = value;
 	WDSP_ENGINE_DEBUG <<  "	snb mode" <<  value;
 	SetRXASNBARun(rx, m_snb);
+}
+
+#define POSTGEN
+
+void QWDSPEngine::set_txrx(RadioState state) {
+    bool tone = true;
+    qDebug() << "txMode " << state;
+    switch (state){
+        case RadioState::RX:
+        if (tone)
+        {
+#ifdef POSTGEN
+            SetTXAPostGenRun(TX_ID,0);
+#else
+         SetTXAPreGenRun(TX_ID,0);
+#endif
+        }
+            SetChannelState(TX_ID,0,1);
+            SetChannelState(0,1,1);
+            qDebug() << "RX";
+        break;
+        case RadioState::TUNE:
+        case RadioState::MOX:
+
+            if (tone)
+            {
+#ifdef POSTGEN
+              SetTXAPostGenToneFreq(TX_ID,1000);
+              SetTXAPostGenToneMag(TX_ID,0.5);
+              SetTXAPostGenMode(TX_ID,0);
+
+//            SetChannelState(0,0,1);
+
+              SetTXAPostGenRun(TX_ID,1);
+#else
+            SetTXAPreGenToneFreq(TX_ID,1000);
+            SetTXAPreGenToneMag(TX_ID,1);
+            SetTXAPreGenMode(TX_ID,0);
+
+//            SetChannelState(0,0,1);
+
+            SetTXAPreGenRun(TX_ID,1);
+
+#endif
+            }
+            SetTXAMode(TX_ID,0);
+
+//            SetTXABandpassFreqs(TX_ID, 100,1000);
+            SetTXAPanelGain1(TX_ID,pow(1.0, 10));
+            SetTXAPanelRun(TX_ID, 1);
+            SetTXABandpassFreqs(TX_ID,1000,1);
+            SetTXABandpassWindow(TX_ID,1);
+            SetTXABandpassRun(TX_ID,1);
+            SetChannelState(TX_ID,1,0);
+        case RadioState::DUPLEX:
+        default:
+         break;
+    }
 }

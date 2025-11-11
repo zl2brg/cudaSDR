@@ -28,7 +28,7 @@
 
 #include "cusdr_oglText.h"
 
-const int TEXTURE_SIZE = 256;
+const int TEXTURE_SIZE = 1024;
 	
 struct CharData {
 		
@@ -41,7 +41,7 @@ struct CharData {
 
 struct OGLTextPrivate {
 
-    OGLTextPrivate(const QFont &f);
+    OGLTextPrivate(const QFont &f, qreal devicePixelRatio);
     ~OGLTextPrivate();
 
     void allocateTexture();
@@ -49,6 +49,7 @@ struct OGLTextPrivate {
 
     QFont font;
     QFontMetrics fontMetrics;
+    qreal dpr;
 
     QHash<ushort, CharData> characters;
     QList<GLuint> textures;
@@ -57,8 +58,10 @@ struct OGLTextPrivate {
     GLint yOffset;
 };
 
-OGLTextPrivate::OGLTextPrivate(const QFont &f)
-    : font(f), fontMetrics(f), xOffset(0), yOffset(0) {}
+OGLTextPrivate::OGLTextPrivate(const QFont &f, qreal devicePixelRatio)
+    : font(f), fontMetrics(f), dpr(devicePixelRatio), xOffset(0), yOffset(0) {
+    // Note: DPR is stored for potential future use
+}
 
 OGLTextPrivate::~OGLTextPrivate() {
 	
@@ -87,7 +90,7 @@ void OGLTextPrivate::allocateTexture() {
 
     QImage image(TEXTURE_SIZE, TEXTURE_SIZE, QImage::Format_ARGB32);
     image.fill(Qt::transparent);
-    image.convertToFormat(QImage::Format_RGBA8888).mirrored();
+    image.convertToFormat(QImage::Format_RGBA8888).flipped();
     glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
     //glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, TEXTURE_SIZE, TEXTURE_SIZE, 0, GL_RGBA, GL_UNSIGNED_BYTE, image.bits());
     glTexImage2D(GL_TEXTURE_2D, 0, GL_ALPHA, TEXTURE_SIZE, TEXTURE_SIZE, 0, GL_RGBA, GL_UNSIGNED_BYTE, image.bits());
@@ -106,9 +109,14 @@ CharData &OGLTextPrivate::createCharacter(QChar c) {
 
         GLuint texture = textures.last();
 
-        GLsizei width = fontMetrics.width(c);
+        GLsizei width = fontMetrics.horizontalAdvance(c);
         GLsizei height = fontMetrics.height();
 
+        // Save OpenGL state before QPainter operations
+        GLint oldTexture;
+        glGetIntegerv(GL_TEXTURE_BINDING_2D, &oldTexture);
+        const bool textureEnabled = glIsEnabled(GL_TEXTURE_2D);
+        
         QPixmap pixmap(width, height);
         pixmap.fill(Qt::transparent);
 
@@ -120,22 +128,28 @@ CharData &OGLTextPrivate::createCharacter(QChar c) {
         }*/
 
         QPainter painter;
-        //const QPainter::CompositionMode comp_mode = painter.compositionMode();
-        //painter.setCompositionMode(QPainter::CompositionMode_Source);
         painter.begin(&pixmap);
-        //painter.setRenderHints(QPainter::HighQualityAntialiasing | QPainter::TextAntialiasing);
-        painter.setRenderHints(QPainter::Antialiasing | QPainter::HighQualityAntialiasing | QPainter::TextAntialiasing, false);
+        painter.setRenderHints(QPainter::Antialiasing  ,  true);
         painter.setFont(font);
+//        painter.scale(dpr,dpr);
         painter.setPen(Qt::white);
 
-        //painter.drawText(0, fontMetrics.ascent(), c);
-        painter.drawText(pixmap.rect(), Qt::TextSingleLine | Qt::TextDontClip | Qt::AlignCenter, c);
+        painter.drawText(pixmap.rect(),Qt::TextSingleLine | Qt::TextDontClip | Qt::AlignCenter, c);
         painter.end();
 
-
-        QImage image = pixmap.toImage().convertToFormat(QImage::Format_RGBA8888).mirrored();
+        // Restore OpenGL state after QPainter operations
+        if (textureEnabled) {
+            glEnable(GL_TEXTURE_2D);
+        } else {
+            glDisable(GL_TEXTURE_2D);
+        }
         glBindTexture(GL_TEXTURE_2D, texture);
+
+        QImage image = pixmap.toImage().convertToFormat(QImage::Format_RGBA8888).flipped();
         glTexSubImage2D(GL_TEXTURE_2D, 0, xOffset, yOffset, width, height, GL_RGBA, GL_UNSIGNED_BYTE, image.bits());
+
+        // Restore the original texture binding
+        glBindTexture(GL_TEXTURE_2D, oldTexture);
 
         CharData& character = characters[unicodeC];
         character.textureId = texture;
@@ -162,7 +176,7 @@ CharData &OGLTextPrivate::createCharacter(QChar c) {
 
 
 
-OGLText::OGLText(const QFont &f) : d(new OGLTextPrivate(f)) {}
+OGLText::OGLText(const QFont &f, qreal devicePixelRatio) : d(new OGLTextPrivate(f, devicePixelRatio)) {}
 
 
 OGLText::~OGLText() {

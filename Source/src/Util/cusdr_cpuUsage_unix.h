@@ -2,7 +2,7 @@
 #define CUSDR_CPULOAD_H
 
 #include <QThread>
-#include <QTimer>
+#include <QElapsedTimer>
 
 class cusdr_cpuUsage : public QThread
 {
@@ -10,7 +10,7 @@ class cusdr_cpuUsage : public QThread
 public:
     clock_t ptick;
     double ptime;
-    QTimer *timer;
+    QTime *timer;
 
     cusdr_cpuUsage();
 

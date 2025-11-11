@@ -38,6 +38,7 @@
 #include <QWheelEvent>
 #include <QOpenGLWidget>
 #include <QOpenGLFunctions>
+#include <QOpenGLPaintDevice>
 
 
 #ifdef LOG_GRAPHICS
@@ -70,8 +71,8 @@ protected:
     void resizeGL(int iWidth, int iHeight);
     void paintGL();
     
-	void enterEvent(QEvent *event);
-	void leaveEvent(QEvent *event);
+	void enterEvent(QEnterEvent *event);
+	void leaveEvent(QEnterEvent *event);
 	void mousePressEvent(QMouseEvent *event);
 	void mouseDoubleClickEvent(QMouseEvent *event);
 	void mouseReleaseEvent(QMouseEvent *event);
@@ -97,9 +98,9 @@ private:
 	PanGraphicsMode				m_panMode;
 	WaterfallColorMode			m_waterfallMode;
 
-	QTime						m_displayTime;
-	QTime						m_resizeTime;
-	QTime						freqChangeTimer;
+    QElapsedTimer						m_displayTime;
+    QElapsedTimer						m_resizeTime;
+    QElapsedTimer						freqChangeTimer;
 
 	QString						m_bandText;
 	QString						m_adcModeString;
@@ -120,7 +121,6 @@ private:
 
 	QOpenGLFramebufferObject*	m_frequencyScaleFBO;
 	QOpenGLFramebufferObject*	m_dBmScaleFBO;
-	QOpenGLFramebufferObject*	m_panadapterGridFBO;
     QOpenGLFramebufferObject*	m_textureFBO;
 	QOpenGLFramebufferObject*	m_waterfallLineFBO;
 	QOpenGLFramebufferObject*	m_waterfallFBO;
@@ -162,7 +162,8 @@ private:
 	
 	QMutex						mutex;
 	QMutex						spectrumBufferMutex;
-
+    qreal                       dpr;
+    QPainter                    painter;
 	enum Region {
 
 		freqScalePanadapterRegion,

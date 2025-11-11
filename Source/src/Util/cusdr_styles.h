@@ -6,6 +6,8 @@
 * @date 2012-06-30
 */
 
+
+
 /*   
  *   Copyright 2012 Hermann von Hasseln, DL3HVH
  *
@@ -23,14 +25,21 @@
  *   Free Software Foundation, Inc.,
  *   51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
+
  
 #ifndef CUSDR_STYLES_H
 #define CUSDR_STYLES_H
 
+#define WIDGET_COLOR "color: rgba(255, 196, 208, 255);"
+
 QString sdrStyle = QString::fromUtf8(
-		"background-color: rgba(0, 0, 0, 255);"
+        "background-color: rgba(0, 0, 0, 255);"
 		);
 	
+QString dockWidgetStyle = QString::fromUtf8(
+        "background-color: rgba(32, 32, 32, 255);"
+        );
+
 QString dialogStyle = QString::fromUtf8(
 		"background-color: rgba(60, 60, 60, 255);");
 
@@ -50,16 +59,10 @@ QString mainWindowStyle = QString::fromUtf8(
 		);
 
 QString	widgetStyle = QString::fromUtf8(
-		//"background-color: rgba(0, 0, 0, 255); "
-		"QGroupBox { "
-		"	background-color: rgba(0, 0, 0, 255); "
-		//"	border: 1px solid rgba(45, 122, 148, 150); "
-		"	border: 1px solid rgba(255, 255, 255, 80); "
-		"	border-radius: 2px; margin-top: 2ex; } "
-		"QGroupBox::title { "
-		"	subcontrol-origin: margin; "
-		"	padding: 0 0px; "
-		"	color: rgba(170, 170, 170, 255); }"
+        "background-color: rgba(255 32, 32, 255); "
+        "color: rgba(255, 0, 208, 255); "
+
+
 		);
 
 QString itemStyle = QString::fromUtf8(
@@ -67,6 +70,7 @@ QString itemStyle = QString::fromUtf8(
 		"border: 0px solid; ");
 
 QString	labelStyle = QString::fromUtf8(
+        "background-color: rgba(255 32, 32, 255); "
 		"color: rgba(166, 196, 208, 255);");
 
 QString	tableStyle = QString::fromUtf8(
@@ -123,7 +127,7 @@ QString statusbarStyle = QString::fromUtf8(
 
 QString	dockStyle = QString::fromUtf8(
 		"QDockWidget {"
-		"	color: rgba(166, 196, 208, 255);"
+  //      "	color: rgba(255, 196, 208, 255);"
 		"	border: 1px solid rgba(60, 60, 60, 255);"
 		"}"
 		//"background-color: rgba(0, 0, 0, 255); "
@@ -273,52 +277,53 @@ QString	menuStyle = QString::fromUtf8(
 			left: 8px; }"*/
 	);
 
-QString	miniButtonStyle = QString::fromUtf8(
-		"font-size: 7pt;"
+const QString	miniButtonStyle = QString::fromUtf8(
+		"font-size: 10pt;"
 	);
 	
 QString	sliderLabelStyle = QString::fromUtf8(
 		"QLabel { "
 		"	color: rgba(126, 156, 168, 255); "
-		"	background: qlineargradient(y1:0, y2:1, stop: 0 #808080, stop: 0.5 #202020, stop: 1 #404040); "
+        "	background: qlineargradient(y1:0, y2:1, stop: 0 #808080, stop: 0.5 #202020, stop: 1 #404040); "
 		"	border: qlineargradient(y1:0, y2:1, stop:0 #B1B1B1, stop:1 #000000); }"
 		);
 
-QString	volSliderStyle = QString::fromUtf8(
-		"QSlider::groove:horizontal {"
-		"	border: qlineargradient(y1:0, y2:1, stop:0 #B1B1B1, stop:1 #000000);"
-		"	background-color: transparent;"
-		"}"
-		"QSlider::handle:horizontal {"
-		"	background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
-		"	stop: 0 #1592ba, stop: 0.5 #00527a, stop: 1 #0582aa);"
-		"	border-radius: 2px;"
-		"	width: 12px;"
-		"} "
-		"QSlider::handle:hover {"
-		"	background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
-		"	stop: 0 #55c2ea, stop: 0.5 #4092ba, stop: 1 #55c2ea);"
-		//"	margin: -4px 0;"
-		"	border: 1px solid #91ebff;"
-		"	border-radius: 2px;"
-		//"	height: 16px;"
-		"}"
-		"QSlider::handle:pressed {"
-		"  background: qlineargradient(x1:0, y1:0, x2:0, y2:1, "
-		"	stop: 0 #75e2fa, stop: 0.5 #60a2da, stop: 1 #75e2fa);"
-		"  border: 1px solid #91ebff;"
-		"  border-radius: 2px;"
-		"}"
-		"QSlider::add-page:horizontal {"
-		"	background: qlineargradient(y1:0, y2:1, "
-		"	stop: 0 #808080, stop: 0.5 #202020, stop: 1 #404040);"
-		//"	background-color: transparent;"
-		"}"
-		"QSlider::sub-page:horizontal {"
-		"	background: qlineargradient(y1:0, y2:1, "
-		"		stop: 0 #1592ba, stop: 0.5 #00527a, stop: 1 #0582aa);"
-		//"	background-color: transparent;"
-		"}");
+auto	volSliderStyle = R"(
+		QSlider::groove:horizontal {
+			border: qlineargradient(y1:0, y2:1, stop:0 #B1B1B1, stop:1 #000000);
+			background-color: transparent;
+		}
+		QSlider::handle:horizontal {
+			background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+			stop: 0 #1592ba, stop: 0.5 #00527a, stop: 1 #0582aa);
+			border-radius: 2px;
+			width: 12px;
+		}
+		QSlider::handle:hover {
+			background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+			stop: 0 #55c2ea, stop: 0.5 #4092ba, stop: 1 #55c2ea);
+
+			border: 1px solid #91ebff;
+			border-radius: 2px;
+
+		}
+		QSlider::handle:pressed {
+		  background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+			stop: 0 #75e2fa, stop: 0.5 #60a2da, stop: 1 #75e2fa);
+		  border: 1px solid #91ebff;
+		  border-radius: 2px;
+		}
+		QSlider::add-page:horizontal {
+			background: qlineargradient(y1:0, y2:1,
+			stop: 0 #808080, stop: 0.5 #202020, stop: 1 #404040);
+
+		}
+		QSlider::sub-page:horizontal {
+			background: qlineargradient(y1:0, y2:1,
+				stop: 0 #1592ba, stop: 0.5 #00527a, stop: 1 #0582aa);
+
+		})";
+
 
 
 QString	splitterStyle = QString::fromUtf8(
@@ -365,24 +370,28 @@ QString	frameStyle = QString::fromUtf8(
 	);
 
 QString	tabWidgetStyle = QString::fromUtf8(
+        "font-size: 8pt;"
 		"QTabWidget::pane {"
+        "font-size: 5pt;"
+       // "	color: rgba(255, 196, 208, 235);"
 		"	margin-top: 4px;"
 		"	margin-left: 4px;"
 		//"	margin-right: 4px;"
 		"	margin-bottom: 2px;"
 		//"	border: 0px"
-		//"	border: 1px solid rgba(255, 255, 255, 80); "
-		"	border: 1px solid #565656; "
+        //"	border: 1px solid rgba(255, 255, 255, 80); "
+        "	border: 1px solid #565656; "
 		"	border-radius: 2px;"
 		"}"
 		"QTabWidget::tab-bar {"
 		"	left: 4px;"
 		"	top: 5px;"
 		"	right: 4px;"
+
 		"}"
 		"QTabBar::tab {"
 		//"	color: #000000;"
-		"	color: rgba(166, 196, 208, 235);"
+        "	color: rgba(166, 196, 208, 235);"
 		"	background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,"
 		"									stop: 0 #868686, stop: 0.3 #565656,"
 		"									stop: 0.4 #000000, stop: 1.0 #000000);"
@@ -393,9 +402,10 @@ QString	tabWidgetStyle = QString::fromUtf8(
 		"	border-right-color: #000000;"
 		"	border-top-left-radius: 1px;"
 		"	border-top-right-radius: 1px;"
-		"	min-width: 8ex;"
-		"	max-height: 10px;"
+        "	min-width: 55px;"
+        "	max-height: 18px;"
 		"	padding: 2px;"
+        "	background-color: rgba(32, 32, 32, 235);"
 		"}"
 		"QTabBar::tab:disabled {"
 		"	color: #000000;"
@@ -426,13 +436,14 @@ QString	tabWidgetStyle = QString::fromUtf8(
 		//"	border-bottom-color: #000000;"
 		"}"
 		"QTabBar::tab:selected {"
-		//"	border-color: #91EBFF;"
-		"	border-color: #565656;"
+        "	border-color: #91EBFF;"
+        //"	border-color: #565656;"
 		"	border-right-color: #000000;"
 		"	border-bottom-color: #000000;"
+        "color: rgba(85, 210, 250, 255);"
 		"}"
 		"QTabBar::tab:!selected {"
-		"	margin-top: 2px;"
+        "	margin-top: 5x;"
 		"}"
 	);
 
@@ -442,6 +453,12 @@ QString	checkboxStyle = QString::fromUtf8(
 "spacing: 5px;"
 "}"
 "QCheckBox::indicator {"
+"border: 3px solid #ffffff;"
+"width: 13px;"
+"height: 13px;"
+"}"
+"QCheckBox::indicator::unchecked {"
+"border: 3px solid #ffffff;"
 "width: 13px;"
 "height: 13px;"
 "}"

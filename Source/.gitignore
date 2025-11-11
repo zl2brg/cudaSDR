@@ -1,0 +1,52 @@
+# Build directories
+build/
+build-*/
+
+# CMake generated files
+cmake_install.cmake
+CMakeCache.txt
+CMakeFiles/
+
+# Qt generated files
+moc_*.cpp
+moc_*.h
+ui_*.h
+qrc_*.cpp
+*.moc
+moc_predefs.h
+
+# IDE directories
+.cache/
+.idea/
+.kdev4/
+.qt/
+.qtcreator/
+
+# Compiled executables
+cudasdr
+simple3d
+
+# Qt Creator user files
+*.user
+*.user.*
+*.pro.user
+
+# Qt make files
+.qmake.stash
+Makefile
+
+# Profiling and debugging output
+gmon.out
+perf.data
+perf.data.old
+callgrind.out.*
+
+# Settings files (local configuration)
+settings.ini
+windowsSettings.ini
+
+# Test files
+data.txt
+test3d.cpp
+simple3d.cpp
+simple3d.pro

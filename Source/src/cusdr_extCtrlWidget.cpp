@@ -90,7 +90,7 @@ ExtCtrlWidget::ExtCtrlWidget(QWidget *parent)
 	// set main layout
 	QBoxLayout *mainLayout = new QBoxLayout(QBoxLayout::TopToBottom, this);
 	mainLayout->setSpacing(5);
-	mainLayout->setMargin(0);
+    mainLayout->setContentsMargins(0,0,0,0);
 	mainLayout->addSpacing(8);
 
 	QHBoxLayout *hbox1 = new QHBoxLayout;
@@ -200,7 +200,6 @@ void ExtCtrlWidget::createReceivePinsGroup() {
 	receivePinsGroup = new QGroupBox(tr("Receive Pins"), this);
 	receivePinsGroup->setMinimumWidth(m_minimumGroupBoxWidth);
 	receivePinsGroup->setLayout(grid);
-	receivePinsGroup->setStyleSheet(set->getWidgetStyle());
 	receivePinsGroup->setFont(QFont("Arial", 8));
 }
 
@@ -208,7 +207,6 @@ void ExtCtrlWidget::createTransmitPinsGroup() {
 
 	QLabel* emptyLabel = new QLabel(" ", this);
     emptyLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-	emptyLabel->setStyleSheet(set->getLabelStyle());
 
 	// band label
 	QStringList bandNames;
@@ -220,7 +218,6 @@ void ExtCtrlWidget::createTransmitPinsGroup() {
 
 		QLabel *label = new QLabel(bandNames.at(i), this);
 		label->setFrameStyle(QFrame::Box | QFrame::Raised);
-		label->setStyleSheet(set->getLabelStyle());
 
 		bandLabelList << label;
 	}
@@ -235,7 +232,6 @@ void ExtCtrlWidget::createTransmitPinsGroup() {
 			AeroButton* btn = new AeroButton(str.arg(j+1), this);
 			btn->setRoundness(0);
 			btn->setFixedSize (btn_width, btn_height);
-			btn->setStyleSheet(set->getMiniButtonStyle());
 			btnList.append(btn);
 
 			CHECKED_CONNECT(
@@ -270,7 +266,6 @@ void ExtCtrlWidget::createTransmitPinsGroup() {
 	transmitPinsGroup = new QGroupBox(tr("Transmit Pins"), this);
 	transmitPinsGroup->setMinimumWidth(m_minimumGroupBoxWidth);
 	transmitPinsGroup->setLayout(grid);
-	transmitPinsGroup->setStyleSheet(set->getWidgetStyle());
 	transmitPinsGroup->setFont(QFont("Arial", 8));
 }
 

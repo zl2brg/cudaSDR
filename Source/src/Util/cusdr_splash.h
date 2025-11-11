@@ -19,14 +19,14 @@
  
 #include <QFrame>
  
-class CSplashScreen : public QFrame {
+class CSplashScreen : public QWidget {
 
 public:
 	CSplashScreen(const QPixmap& pixmap);
 	
 	void clearMessage();
 	void showMessage(const QString& theMessage, int theAlignment = Qt::AlignLeft, const QColor& theColor = Qt::black);
- 
+    void finish(QWidget *mainWin);
 private:
 	virtual void paintEvent(QPaintEvent* pe);
 	

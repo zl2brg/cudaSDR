@@ -1,0 +1,84 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug cudasdr",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/Debug/cudasdr",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [
+                {
+                    "name": "QT_QPA_PLATFORM_PLUGIN_PATH",
+                    "value": "/home/simon/Qt/5.15.2/gcc_64/plugins/platforms"
+                },
+                {
+                    "name": "LD_LIBRARY_PATH",
+                    "value": "/home/simon/Qt/5.15.2/gcc_64/lib:${env:LD_LIBRARY_PATH}"
+                },
+                {
+                    "name": "QT_QPA_PLATFORM",
+                    "value": "xcb"
+                },
+                {
+                    "name": "QT_XCB_GL_INTEGRATION",
+                    "value": "xcb_egl"
+                },
+                {
+                    "name": "WAYLAND_DISPLAY",
+                    "value": ""
+                }
+            ],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "preLaunchTask": "Build Debug",
+            "miDebuggerPath": "/usr/bin/gdb",
+            "visualizerFile": "/home/simon/.config/Code/User/workspaceStorage/bf85d90dc65be7e7bd9a73db4c40b622/tonka3000.qtvsctools/qt.natvis.xml"
+        },
+        {
+            "name": "Release cudasdr",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build-release/cudasdr",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [
+                {
+                    "name": "QT_QPA_PLATFORM_PLUGIN_PATH",
+                    "value": "/home/simon/Qt/5.15.2/gcc_64/plugins/platforms"
+                },
+                {
+                    "name": "LD_LIBRARY_PATH",
+                    "value": "/home/simon/Qt/5.15.2/gcc_64/lib:${env:LD_LIBRARY_PATH}"
+                },
+                {
+                    "name": "QT_QPA_PLATFORM",
+                    "value": "xcb"
+                },
+                {
+                    "name": "QT_XCB_GL_INTEGRATION",
+                    "value": "xcb_egl"
+                },
+                {
+                    "name": "WAYLAND_DISPLAY",
+                    "value": ""
+                }
+            ],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "preLaunchTask": "Build Release",
+            "miDebuggerPath": "/usr/bin/gdb",
+            "visualizerFile": "/home/simon/.config/Code/User/workspaceStorage/bf85d90dc65be7e7bd9a73db4c40b622/tonka3000.qtvsctools/qt.natvis.xml"
+        }
+    ]
+}

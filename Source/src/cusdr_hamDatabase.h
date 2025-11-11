@@ -33,9 +33,9 @@
 
 typedef enum _iaruRegion {
 
-  region1,		//  0
-  region2,		//  1
-  region3,		//  2
+  region1,
+  region2,
+  region3
 
 } IARURegion;
 
@@ -1163,9 +1163,53 @@ inline QList<THamBandText> getHamBandText() {
 	hamBandText.text = "All modes, FM repeater outputs (RH1 to RH8)";
 	hamBandText.shortText = "All modes";
 
+    hamBandTextList << hamBandText;
+
+    hamBandText.frequencyLo = 50000000;
+    hamBandText.frequencyHi = 50020000;
+    hamBandText.hamBand = (HamBand) m6;
+    hamBandText.region = (IARURegion) region1;
+    hamBandText.maxBandwith = 2700;
+    hamBandText.text = "CW";
+    hamBandText.shortText = "All modes";
+
+    hamBandTextList << hamBandText;
+
+    hamBandText.frequencyLo = 50020000;
+    hamBandText.frequencyHi = 50080000;
+    hamBandText.hamBand = (HamBand) m6;
+    hamBandText.region = (IARURegion) region1;
+    hamBandText.maxBandwith = 2700;
+    hamBandText.text = "Beacons";
+    hamBandText.shortText = "All modes";
+    hamBandText.freqTextList << "50.2937  kHz: WSPR";
+    hamBandText.freqTextList << "50.2760 JT65";
+    hamBandText.freqTextList << "50.3130 FT8";
+
 	hamBandTextList << hamBandText;
 
-	return hamBandTextList;
+    hamBandText.frequencyLo = 50080000;
+    hamBandText.frequencyHi = 53000000;
+    hamBandText.hamBand = (HamBand) m6;
+    hamBandText.region = (IARURegion) region1;
+    hamBandText.maxBandwith = 2700;
+    hamBandText.text = "All Modes";
+    hamBandText.shortText = "All modes";
+
+    hamBandTextList << hamBandText;
+
+    hamBandText.frequencyLo = 53000000;
+    hamBandText.frequencyHi = 54000000;
+    hamBandText.hamBand = (HamBand) m6;
+    hamBandText.region = (IARURegion) region1;
+    hamBandText.maxBandwith = 5000;
+    hamBandText.text = "FM Repeaters";
+    hamBandText.shortText = "All modes";
+
+    hamBandTextList << hamBandText;
+
+
+    return hamBandTextList;
 }
 
 inline QList<TDefaultFilter> getDefaultFilterFrequencies() {
@@ -1399,7 +1443,15 @@ inline QList<QList<THamBandDefaults> > getHamBandDefaults() {
 	defaults.frequencyLo = 50125000;
 	hamBandDefault << defaults;
 
-	hamBandDefaults << hamBandDefault;
+    defaults.hamBand = (HamBand) m6;
+    defaults.dspMode = (DSPMode) FMN;
+    defaults.frequencyLo = 53000000;
+
+    hamBandDefault << defaults;
+
+
+
+    hamBandDefaults << hamBandDefault;
 
 	defaults.hamBand = (HamBand) gen;
 	defaults.dspMode = (DSPMode) SAM;
@@ -1438,7 +1490,7 @@ inline HamBand getBandFromFrequency(const QList<THamBandFrequencies> bandList, l
 	for (int i = 0; i < bandList.size(); ++i) {
 		
 		if (bandList.at(i).frequencyLo <= frequency && bandList.at(i).frequencyHi >= frequency) {
-
+            qDebug() << "bandlist" << bandList.at(i).frequencyLo << bandList.at(i).bandString;
 			band = bandList.at(i).hamBand;
 			return band;
 		}

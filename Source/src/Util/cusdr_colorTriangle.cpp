@@ -69,7 +69,7 @@
 //#include <QtGui/QVBoxLayout>
 
 //#include <math.h>
-
+#include <QPainterPath>
 /*! \class QtColorTriangle
 
     \brief The QtColorTriangle class provides a triangular color

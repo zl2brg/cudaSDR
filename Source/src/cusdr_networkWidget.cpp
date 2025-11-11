@@ -45,7 +45,7 @@
 
 
 NetworkWidget::NetworkWidget(QWidget *parent)
-	: QWidget(parent)
+    : QTabWidget(parent)
 	, set(Settings::instance())
 	, m_serverMode(set->getCurrentServerMode())
 	, m_hwInterface(set->getHWInterface())
@@ -59,6 +59,7 @@ NetworkWidget::NetworkWidget(QWidget *parent)
 	setMinimumWidth(m_minimumWidgetWidth);
 	setContentsMargins(4, 8, 4, 0);
 	setMouseTracking(true);
+    setFont(QFont("Arial",10));
 	
 	m_deviceCards = set->getMetisCardsList();
 
@@ -67,7 +68,7 @@ NetworkWidget::NetworkWidget(QWidget *parent)
 
 	QBoxLayout *mainLayout = new QBoxLayout(QBoxLayout::TopToBottom, this);
 	mainLayout->setSpacing(5);
-	mainLayout->setMargin(0);
+    mainLayout->setContentsMargins(0,0,0,0);
 	mainLayout->addSpacing(8);
 
 	QHBoxLayout *hbox1 = new QHBoxLayout();
@@ -98,6 +99,7 @@ NetworkWidget::NetworkWidget(QWidget *parent)
 	setLayout(mainLayout);
 
 	setupConnections();
+    addNICChangedConnection();
 	setSocketBufSize(this, set->getSocketBufferSize());
 }
 
@@ -173,6 +175,7 @@ void NetworkWidget::setDeviceNIC(int index) {
 QGroupBox* NetworkWidget::hpsdrInterfaceExclusiveBtnGroup() {
 
 	networkPresenceBtn = new AeroButton("Network", this);
+    networkPresenceBtn->setFont(QFont("Arial",8));
 	networkPresenceBtn->setRoundness(0);
 	networkPresenceBtn->setFixedSize (btn_width, btn_height);
 
@@ -183,7 +186,8 @@ QGroupBox* NetworkWidget::hpsdrInterfaceExclusiveBtnGroup() {
 		SLOT(interfaceBtnClicked()));
 	
 	noHWBtn = new AeroButton("None", this);
-	noHWBtn->setRoundness(0);
+    noHWBtn->setFont(QFont("Arial",8));
+    noHWBtn->setRoundness(0);
 	noHWBtn->setFixedSize (btn_width, btn_height);
 	
 	CHECKED_CONNECT(
@@ -208,7 +212,6 @@ QGroupBox* NetworkWidget::hpsdrInterfaceExclusiveBtnGroup() {
 	QGroupBox *groupBox = new QGroupBox(tr("Hardware Interface"), this);
 	groupBox->setMinimumWidth(m_minimumGroupBoxWidth);
 	groupBox->setLayout(vbox);
-	groupBox->setStyleSheet(set->getWidgetStyle());
 	groupBox->setFont(QFont("Arial", 8));
 
 	return groupBox;
@@ -218,11 +221,11 @@ void NetworkWidget::createDeviceNetworkInterfaceGroup() {
 
 	networkDeviceInterfaces = new QComboBox();
 
-	networkDeviceInterfaces->setStyleSheet(set->getComboBoxStyle());
 	networkDeviceInterfaces->setMinimumContentsLength(22);
 	
 	socketBufSizeBtn = new AeroButton("Enable", this);
-	socketBufSizeBtn->setRoundness(10);
+    socketBufSizeBtn->setFont(QFont("Arial",8));
+    socketBufSizeBtn->setRoundness(10);
 	socketBufSizeBtn->setFixedSize(btn_widths, btn_height);
 	socketBufSizeBtn->setBtnState(AeroButton::OFF);
 
@@ -233,7 +236,6 @@ void NetworkWidget::createDeviceNetworkInterfaceGroup() {
 		SLOT(socketBufSizeBtnClicked()));
 
 	socketBufferSizes = new QComboBox();
-	socketBufferSizes->setStyleSheet(set->getComboBoxStyle());
 	socketBufferSizes->addItem("1 kB");
 	socketBufferSizes->addItem("8 kB");
 	socketBufferSizes->addItem("16 kB");
@@ -252,7 +254,6 @@ void NetworkWidget::createDeviceNetworkInterfaceGroup() {
 
 	socketBufferSizeLabel = new QLabel("Socket Buffer Size:", this);
 	socketBufferSizeLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-	socketBufferSizeLabel->setStyleSheet(set->getLabelStyle());
 
 	QHBoxLayout *hbox1 = new QHBoxLayout();
 	hbox1->setSpacing(1);
@@ -278,7 +279,6 @@ void NetworkWidget::createDeviceNetworkInterfaceGroup() {
 	deviceNIGroupBox = new QGroupBox(tr("Local network interface"), this);
 	deviceNIGroupBox->setMinimumWidth(m_minimumGroupBoxWidth);
 	deviceNIGroupBox->setLayout(vbox);
-	deviceNIGroupBox->setStyleSheet(set->getWidgetStyle());
 	deviceNIGroupBox->setFont(QFont("Arial", 8));
 }
 
@@ -315,7 +315,6 @@ void NetworkWidget::createDeviceSearchGroup() {
 	searchNetworkDeviceGroupBox = new QGroupBox(tr("HPSDR device IP address"), this);
 	searchNetworkDeviceGroupBox->setMinimumWidth(m_minimumGroupBoxWidth);
 	searchNetworkDeviceGroupBox->setLayout(vbox);
-	searchNetworkDeviceGroupBox->setStyleSheet(set->getWidgetStyle());
 	searchNetworkDeviceGroupBox->setFont(QFont("Arial", 8));
 }
 
@@ -351,11 +350,7 @@ void NetworkWidget::systemStateChanged(
 	//m_oldServerMode = m_serverMode;
 	if (m_serverMode != mode) {
 
-		if (mode == QSDR::ChirpWSPR)
-			disableButtons();
-
-		if (m_serverMode == QSDR::ChirpWSPR)
-			enableButtons();
+		enableButtons();
 		
 		m_serverMode = mode;
 	}

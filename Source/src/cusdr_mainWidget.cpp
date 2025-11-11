@@ -25,6 +25,8 @@
  */
 
 #define LOG_MAIN
+#define DOCK_WIDTH  400
+
 //#define LOG_NETWORKDIALOG
 
 // use: MAIN_DEBUG
@@ -34,18 +36,18 @@
 //#include <QHBoxLayout>
 //#include <QVBoxLayout>
 //#include <QtNetwork>
-//#include <QTimer>
-
+//#include <QElapsedTimerr>
+#include "cusdr_audio_settingsdialog.h"
 #include "cusdr_mainWidget.h"
 
 #define window_height1		600
 #define window_height2		750
 #define window_width1		800
 #define window_width2		1030
-#define btn_width1			56//65
+#define btn_width1			75
 #define btn_width2			54
 #define btn_width3			48
-#define btn_height1			17
+#define btn_height1			21
 #define btn_height2			13
 #define btn_height3			16
 
@@ -71,17 +73,33 @@ MainWindow::MainWindow(QWidget *parent)
 	, m_cudaPresence(false)
 	, m_mover(false)
 	, m_resizePosition(0)
-{	
-    setupWidget = new SetupWidget();
-    miniModeWidget = new MiniModeWidget();
-    m_radioCtrl = new RadioCtrl();
+{
+    setupWidget = new QDialog(this);
+    setupWidget->setSizePolicy(QSizePolicy::Maximum,QSizePolicy::Maximum);
 
-    setupActions();
-    QMenuBar* menuBar = new QMenuBar();
-    QMenu *File = menuBar->addMenu(tr("File"));
-    menuBar->setStyleSheet(set->getMenuBarStyle());
+ //   m_radioCtrl = new RadioCtrl(this);
+    //m_audioInput = new tx_settings_dialog(this);
+    test = new QAction();
+//qRegisterMetaType<QAudioDevice>("QAudioDevice");
+
+    menuBar = new QMenuBar();
+    File = menuBar->addMenu(tr("File"));
+  //  menuBar->setStyleSheet(set->getMenuBarStyle());
+//    File->setStyleSheet(set->getMenuStyle());
+    File->setTitle("File");
+    test->setText("Test");
+    test->setMenu(File);
+     menuBar->addAction(test);
+
+
+    /* setup menu actions */
+    setupAction = new QAction(tr("&Setup"), this);
+    setupAction->setStatusTip(tr("Setup Menu"));
+    connect(setupAction, &QAction::triggered, this, &MainWindow::cusdr_setup);
+    //connect(test, &QAction::triggered, m_audioInput,&tx_settings_dialog::show);
+
     File->addAction(setupAction);
-    File->setStyleSheet(set->getMenuStyle());
+    File->addAction(test);
     this->layout()->setMenuBar(menuBar);
 	QPalette palette;
 	QColor color = Qt::black;
@@ -92,7 +110,7 @@ MainWindow::MainWindow(QWidget *parent)
 	setAutoFillBackground(true);
 	setMouseTracking(true);
 	setContentsMargins(0, 0, 0, 0);
-	
+
 	m_fullScreen = false;
 
 	// save and reload the windows size and state
@@ -100,11 +118,12 @@ MainWindow::MainWindow(QWidget *parent)
 	QSettings settings(QCoreApplication::applicationDirPath() +  "/" + m_windowsSettingsFilename, QSettings::IniFormat);
 	restoreGeometry(settings.value("geometry").toByteArray());
 	restoreState(settings.value("windowState").toByteArray());
-
+//    SettingsDialog *aud = new SettingsDialog(this);
+ //   aud->show();
 	// Dock windows options
 	setDockOptions(QMainWindow::AnimatedDocks | QMainWindow::AllowNestedDocks);
 	setMinimumSize(QSize(window_width1, window_height1));
-	setStyleSheet(set->getSDRStyle());
+    setStyleSheet(set->get_appStyleSheet() );
 
 	m_oldSampleRate = set->getSampleRate();
 	m_numberOfReceivers = set->getNumberOfReceivers();
@@ -123,17 +142,23 @@ MainWindow::MainWindow(QWidget *parent)
 	m_dataEngine = new DataEngine(this);
 
 	// control widgets
-	m_serverWidget = new ServerWidget(this);
-	m_hpsdrTabWidget = new HPSDRTabWidget(this);
-	m_radioTabWidget = new RadioTabWidget(this);
-	m_displayTabWidget = new DisplayTabWidget(this);
+    m_serverWidget = new ServerWidget(this);
+    m_hpsdrTabWidget = new cusdr_SetupWidget(this);
+    test_widget = new  cusdr_SetupWidget(setupWidget);
+    test_widget->setSizePolicy(QSizePolicy::Expanding,QSizePolicy::Expanding);
+    QVBoxLayout *layout = new QVBoxLayout;
+    layout->addWidget(test_widget);
+    setupWidget->setLayout(layout);
+
+    test_widget->setMaximumSize(800,600);
+
+    m_radioTabWidget = new RadioTabWidget(this);
 
 	m_wbDisplay = 0;
 
-	m_serverWidget->hide();
-	m_hpsdrTabWidget->hide();
-	m_radioTabWidget->hide();
-	m_displayTabWidget->hide();
+    m_serverWidget->hide();
+    m_hpsdrTabWidget->hide();
+    m_radioTabWidget->hide();
 	MAIN_DEBUG << "main window init done";
 }
 
@@ -141,7 +166,29 @@ MainWindow::MainWindow(QWidget *parent)
 	\brief MainWindow Destructor
 */
 MainWindow::~MainWindow() {
+    qDebug() <<  "MainWindow delete";
+    disconnect(set, 0, this, 0);
+    disconnect(this, 0, 0, 0);
+    delete fonts;
+    // the SDR data engine
+    delete  m_dataEngine;
+    // control widgets
+    delete m_serverWidget;
+    delete m_hpsdrTabWidget;
+    delete m_radioTabWidget;
+    delete setupAction;
+    delete File;
+    delete menuBar;
+    delete test;
+
+
+  //  delete rxDockWidgetList.at(0);
+
+
+
 }
+
+
 
 /*!
 	\brief set up connections.
@@ -160,6 +207,15 @@ void MainWindow::setupConnections() {
 		SIGNAL(clearSystemMessageEvent()),
 		this,
 		SLOT(clearStatusBarMessage()));
+
+	CHECKED_CONNECT(
+	        set,
+	        SIGNAL(radioStateChanged(RadioState)),
+	        this,
+	        SLOT(radioStateChange(RadioState)));
+
+
+
 
 
 	/*if (m_cudaPresence) {
@@ -231,9 +287,9 @@ void MainWindow::setupConnections() {
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(showWarning(const QString &)),
+        SIGNAL(showWarning(const QString)),
 		this,
-		SLOT(showWarningDialog(const QString &)));
+        SLOT(showWarningDialog(const QString)));
 
 	CHECKED_CONNECT(
 		set,
@@ -255,9 +311,9 @@ void MainWindow::setupConnections() {
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(txAllowedChanged(QObject *, bool)),
+        SIGNAL(txAllowedChanged(QObject*, bool)),
 		this,
-		SLOT(setTxAllowed(QObject *, bool)));
+        SLOT(setTxAllowed(QObject*, bool)));
 
 	CHECKED_CONNECT(
 		set,
@@ -267,7 +323,7 @@ void MainWindow::setupConnections() {
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(agcModeChanged(QObject *, int, AGCMode, bool)),
+        SIGNAL(agcModeChanged(QObject*, int, AGCMode, bool)),
 		this,
 		SLOT(setAGCMode(QObject *, int, AGCMode, bool)));
 
@@ -303,9 +359,9 @@ void MainWindow::setupConnections() {
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(alexStateChanged(HamBand, const QList<int> &)),
+        SIGNAL(alexStateChanged(HamBand,const QList<int> &)),
 		this,
-		SLOT(alexStateChanged(HamBand, const QList<int> &)));
+        SLOT(alexStateChanged(HamBand, const QList<int> &)));
 }
 
 /*!
@@ -323,31 +379,31 @@ void MainWindow::setup() {
 	//runFFTWWisdom();
 
 	// create the big display panel at the top of the application.	
-	createDisplayPanelToolBar();
+    createDisplayPanelToolBar();
 
 	// create the main buttons tool bar
-	createMainBtnToolBar();
+    createMainBtnToolBar();
 
 	// create the status tool bar
-	createStatusToolBar();
+    createStatusToolBar();
 
 	// create the mode menu
-	createModeMenu();
+     createModeMenu();
 
 	// create the view menu
-	createViewMenu();
+    createViewMenu();
 
 	// create the attenuator menu
-	createAttenuatorMenu();
+    createAttenuatorMenu();
 	
 	// the wideband display
-	m_wbDisplay = new QGLWidebandPanel(this);
+    m_wbDisplay = new QGLWidebandPanel(this);
 
 	// create the receiver panels
-	createReceiverPanels(MAX_RECEIVERS);
+    createReceiverPanels(MAX_RECEIVERS);
 	
 	// setup the layout for the control widgets, the wideband panel and the receiver panels
-	setupLayout();
+    setupLayout();
 
 	// set the main window title
 	updateTitle();
@@ -369,12 +425,12 @@ void MainWindow::setup() {
 	m_netIODialog = new NetworkIODialog();
 
 	// init warning dialog
-	m_warningDialog = new WarningDialog();
-
-	// setup connection for the NIC lists of the server and hpsdr widgets.
+    m_warningDialog = new WarningDialog(this);
+    m_warningDialog->hide();
+        // setup connection for the NIC lists of the server and hpsdr widgets.
 	// We need to add these connections after detecting the network interfaces.
 	m_serverWidget->addNICChangedConnection();
-	m_hpsdrTabWidget->addNICChangedConnection();
+    //m_hpsdrTabWidget->addNICChangedConnection();
 	
 	// experimental:
 	// check for OpenCL devices
@@ -395,7 +451,7 @@ void MainWindow::setup() {
 	setCentralWidget(centralwidget);
 
 	// update the display panel
-    m_oglDisplayPanel->update();
+  //  m_oglDisplayPanel->update();
 
 	// set the Alex configuration
 	alexConfigurationChanged(m_alexConfig);
@@ -414,7 +470,7 @@ void MainWindow::setup() {
 
 void MainWindow::cusdr_setup()
 {
- //   setupWidget->show();
+    setupWidget->show();
   //bandwidget->show();
     rxDock->show();
   //miniModeWidget->show();
@@ -423,9 +479,7 @@ void MainWindow::cusdr_setup()
 
 void MainWindow::setupActions()
 {
-    setupAction = new QAction(tr("&Setup"), this);
-    setupAction->setStatusTip(tr("Setup Menu"));
-    connect(setupAction, &QAction::triggered, this, &MainWindow::cusdr_setup);
+
 
 }
 
@@ -448,19 +502,20 @@ void MainWindow::setupLayout() {
 	centralwidget = new QMainWindow(this);
 	centralwidget->setWindowFlags(Qt::Widget);
 	centralwidget->setDockOptions(QMainWindow::AnimatedDocks | QMainWindow::AllowNestedDocks);
-	centralwidget->setStyleSheet(set->getMainWindowStyle());
+//	centralwidget->setStyleSheet(set->getMainWindowStyle());
 	centralwidget->setContextMenuPolicy(Qt::NoContextMenu);  //setStyleSheet(set->getMenuStyle());
+    
 
 	// radio control widget
-	QDockWidget *dock = new QDockWidget(tr("Radio Ctrl"), this);
-	dock->setObjectName("RadioCtrl");
+	QDockWidget *dock = new QDockWidget(tr("Setup"), this);
+	dock->setObjectName("Setup");
     dock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
-    //dock->setFeatures(QDockWidget::NoDockWidgetFeatures);
+    dock->setFeatures(QDockWidget::NoDockWidgetFeatures);
     dock->setFeatures(QDockWidget::DockWidgetFloatable);
-	dock->setStyleSheet(set->getDockStyle());
-	dock->setMaximumWidth(245);
-	dock->setMinimumWidth(245);
-	dock->setWidget(m_radioTabWidget);
+//	dock->setStyleSheet(set->getDockStyle());
+    dock->setMaximumWidth(245);
+    dock->setMinimumWidth(245);
+    dock->setWidget(m_radioTabWidget);
 	dockWidgetList.append(dock);
 
 
@@ -471,57 +526,26 @@ void MainWindow::setupLayout() {
 	dock = new QDockWidget(tr("Server Ctrl"), this);
 	dock->setObjectName("ServerCtrl");
     dock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
-	dock->setFeatures(QDockWidget::NoDockWidgetFeatures);
-	//dock->setFeatures(QDockWidget::DockWidgetFloatable);
-	dock->setStyleSheet(set->getDockStyle());
-	dock->setMaximumWidth(245);
-	dock->setMinimumWidth(245);
-	dock->setWidget(m_serverWidget);
-	dockWidgetList.append(dock);
+    dock->setFeatures(QDockWidget::DockWidgetFloatable);
+//	dock->setStyleSheet(set->getDockStyle());
+    dock->setMaximumWidth(DOCK_WIDTH);
+    dock->setMinimumWidth(DOCK_WIDTH);
+    dock->setWidget(m_serverWidget);
+    dockWidgetList.append(dock);
 
     addDockWidget(Qt::RightDockWidgetArea, dock);
-	dock->hide();
-//    dock->show();
+    dock->hide();
 
 
-	// HPSDR hardware control widget
-	dock = new QDockWidget(tr("HPSDR Ctrl"), this);
+    // CUDR Setup control widget
+    dock = new QDockWidget(tr("CUSDR Ctrl"), this);
 	dock->setObjectName("HPSDRCtrl");
     dock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
-	dock->setFeatures(QDockWidget::NoDockWidgetFeatures);
-	//dock->setFeatures(QDockWidget::DockWidgetFloatable);
-	dock->setStyleSheet(set->getDockStyle());
-	dock->setMaximumWidth(245);
-	dock->setMinimumWidth(245);
+    dock->setFeatures(QDockWidget::DockWidgetClosable | QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetMovable);
+//	dock->setStyleSheet(set->getDockStyle());
+    dock->setMaximumWidth(DOCK_WIDTH);
+    dock->setMinimumWidth(DOCK_WIDTH);
 	dock->setWidget(m_hpsdrTabWidget);
-	dockWidgetList.append(dock);
-
-    addDockWidget(Qt::RightDockWidgetArea, dock);
-	dock->hide();
-
-	// chirp mode control widget
-	dock = new QDockWidget(tr("Chirp Ctrl"), this);
-	dock->setObjectName("ChirpCtrl");
-    dock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
-	dock->setFeatures(QDockWidget::NoDockWidgetFeatures);
-	dock->setStyleSheet(set->getDockStyle());
-	dock->setMaximumWidth(245);
-	dock->setMinimumWidth(245);
-	dockWidgetList.append(dock);
-
-    addDockWidget(Qt::RightDockWidgetArea, dock);
-	dock->hide();
-
-	// display control widget
-	dock = new QDockWidget(tr("Display Ctrl"), this);
-	dock->setObjectName("DisplayCtrl");
-    dock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
-//	dock->setFeatures(QDockWidget::NoDockWidgetFeatures);
-	dock->setFeatures(QDockWidget::DockWidgetClosable | QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetMovable);
-	dock->setStyleSheet(set->getDockStyle());
-	dock->setMaximumWidth(245);
-	dock->setMinimumWidth(245);
-	dock->setWidget(m_displayTabWidget);
 	dockWidgetList.append(dock);
 
     addDockWidget(Qt::RightDockWidgetArea, dock);
@@ -532,11 +556,11 @@ void MainWindow::setupLayout() {
     rxDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
 //	dock->setFeatures(QDockWidget::NoDockWidgetFeatures);
     rxDock->setFeatures(QDockWidget::DockWidgetClosable | QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetMovable);
-    rxDock->setStyleSheet(set->getDockStyle());
-    rxDock->setMaximumWidth(245);
-    rxDock->setMinimumWidth(245);
+//    rxDock->setStyleSheet(set->getDockStyle());
+    rxDock->setMaximumWidth(DOCK_WIDTH);
+    rxDock->setMinimumWidth(DOCK_WIDTH);
 //    rxDock->setWidget(filterwidget);
-    rxDock->setWidget(m_radioCtrl);
+//    rxDock->setWidget(m_radioCtrl);
     dockWidgetList.append(rxDock);
 
     addDockWidget(Qt::LeftDockWidgetArea, rxDock);
@@ -552,11 +576,11 @@ void MainWindow::setupLayout() {
 	widebandDock->setObjectName("Wideband");
 	widebandDock->setAllowedAreas(Qt::TopDockWidgetArea | Qt::BottomDockWidgetArea);
     widebandDock->setFeatures(QDockWidget::DockWidgetClosable | QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetMovable);
-	widebandDock->setStyleSheet(set->getDockStyle());
+//	widebandDock->setStyleSheet(set->getDockStyle());
     widebandDock->setWidget(m_wbDisplay);
 	
-	centralwidget->addDockWidget(Qt::TopDockWidgetArea, widebandDock);
-	widebandDock->hide();
+    centralwidget->addDockWidget(Qt::TopDockWidgetArea, widebandDock);
+    widebandDock->hide();
 
 	CHECKED_CONNECT(
 		widebandDock,
@@ -565,14 +589,14 @@ void MainWindow::setupLayout() {
 		SLOT(widebandVisibilityChanged(bool)));
 
 	// receiver dock windows
-	for (int i = 1; i < MAX_RECEIVERS; i++) {
+    for (int i = 1; i < MAX_RECEIVERS; i++) {
 
 		QString str = "Receiver ";
 		QString num = QString::number(i+1);
 		str.append(num);
 		dock = new QDockWidget(str, this);
 		widebandDock->setObjectName(str);
-		dock->setStyleSheet(set->getDockStyle());
+//		dock->setStyleSheet(set->getDockStyle());
 		dock->setWidget(rxWidgetList.at(i));
 		rxDockWidgetList.append(dock);
 
@@ -587,6 +611,23 @@ void MainWindow::setupLayout() {
 	for (int i = 0; i < (int)(MAX_RECEIVERS-1)/2; i++) {
 
 		centralwidget->splitDockWidget(rxDockWidgetList.at(i), rxDockWidgetList.at(i+3), Qt::Vertical);
+	}
+
+	// Create and add 3D Panadapter dock widget if display tab widget exists in setup widget
+	// Note: m_hpsdrTabWidget is actually a cusdr_SetupWidget that contains the DisplayTabWidget
+	if (m_hpsdrTabWidget) {
+		cusdr_SetupWidget* setupWidget = qobject_cast<cusdr_SetupWidget*>(m_hpsdrTabWidget);
+		if (setupWidget) {
+			DisplayTabWidget* displayTabWidget = setupWidget->getDisplayTabWidget();
+			if (displayTabWidget) {
+				displayTabWidget->create3DDockWidget(centralwidget);
+				QDockWidget* dock3D = displayTabWidget->get3DDockWidget();
+				if (dock3D) {
+					centralwidget->addDockWidget(Qt::BottomDockWidgetArea, dock3D);
+					dock3D->hide(); // Initially hidden, user can show via 3D options
+				}
+			}
+		}
 	}
 
 	//viewMenu->addAction(dock->toggleViewAction());
@@ -617,7 +658,7 @@ void MainWindow::createStatusToolBar() {
 
 	m_cpuLoadString = "CPU load:     ";
 	m_cpuLoadLabel = new QLabel(m_cpuLoadString, this);
-	m_cpuLoadLabel->setStyleSheet(set->getLabelStyle());
+//	m_cpuLoadLabel->setStyleSheet(set->getLabelStyle());
 
 	m_dateTimeLabel = new QLabel(m_dateTimeString, this);
 	m_dateTimeLabel->setStyleSheet(set->getLabelStyle());
@@ -674,7 +715,7 @@ void MainWindow::createMainBtnToolBar() {
 	mainBtnToolBar->setObjectName("MainButtons");
 	mainBtnToolBar->setAllowedAreas(Qt::TopToolBarArea);
 	mainBtnToolBar->setMovable(false);
-	mainBtnToolBar->setStyleSheet(set->getMainBtnToolbarStyle());
+	//mainBtnToolBar->setStyleSheet(set->getMainBtnToolbarStyle());
 //	mainBtnToolBar->show();
 	
 	m_buttonWidget = new QWidget(this);
@@ -682,7 +723,7 @@ void MainWindow::createMainBtnToolBar() {
     QColor btnCol = QColor(230, 230, 230);
 //	QHBoxLayout *firstBtnLayout = new QHBoxLayout;
 //	firstBtnLayout->setSpacing(0);
-//	firstBtnLayout->setMargin(0);
+//	firstBtnLayout->setContentsMargins(0,0,0,0));
 	
 	startBtn = new AeroButton("Start", this);
 	startBtn->setRoundness(10);
@@ -737,28 +778,15 @@ void MainWindow::createMainBtnToolBar() {
 		this, 
 		SLOT(widgetBtnClickedEvent()));
 
-	hpsdrBtn = new AeroButton("HPSDR", this);
-	hpsdrBtn->setRoundness(10);
-    hpsdrBtn->setFont(m_fonts.normalFont);
-    hpsdrBtn->setTextColor(btnCol);
-	hpsdrBtn->setFixedSize(btn_width1, btn_height1);
-	mainBtnList.append(hpsdrBtn);
+    setupBtn = new AeroButton("Setup", this);
+    setupBtn->setRoundness(10);
+    setupBtn->setFont(m_fonts.normalFont);
+    setupBtn->setTextColor(btnCol);
+    setupBtn->setFixedSize(btn_width1, btn_height1);
+    mainBtnList.append(setupBtn);
 
 	CHECKED_CONNECT(
-		hpsdrBtn, 
-		SIGNAL(clicked()), 
-		this, 
-		SLOT(widgetBtnClickedEvent()));
-
-	chirpBtn = new AeroButton("Chirp", this);
-	chirpBtn->setRoundness(10);
-    chirpBtn->setFont(m_fonts.normalFont);
-    chirpBtn->setTextColor(btnCol);
-	chirpBtn->setFixedSize(btn_width1, btn_height1);
-	mainBtnList.append(chirpBtn);
-
-	CHECKED_CONNECT(
-		chirpBtn, 
+        setupBtn,
 		SIGNAL(clicked()), 
 		this, 
 		SLOT(widgetBtnClickedEvent()));
@@ -772,8 +800,6 @@ void MainWindow::createMainBtnToolBar() {
 
 	//mainBtnList.append(wideBandBtn);
 
-	if (m_serverMode == QSDR::ChirpWSPR)
-		wideBandBtn->setEnabled(false);
 
 	CHECKED_CONNECT(
 		wideBandBtn, 
@@ -817,30 +843,15 @@ void MainWindow::createMainBtnToolBar() {
 	//			this, 
 	//			SLOT(cudaTestBtnClickedEvent()));*/
 	//}
-	
-	displayBtn = new AeroButton("Display", this);
-	displayBtn->setRoundness(10);
-	displayBtn->setFont(m_fonts.normalFont);
-	displayBtn->setTextColor(btnCol);
-	displayBtn->setFixedSize(btn_width1, btn_height1);
-	mainBtnList.append(displayBtn);
 
-    miniModeWidget = new MiniModeWidget(this);
-    miniModeWidget->show();
-
-	CHECKED_CONNECT(
-		displayBtn, 
-		SIGNAL(clicked()), 
-		this, 
-		SLOT(widgetBtnClickedEvent()));
 
 	QColor col = QColor(90, 90, 90);
 
-	nullBtn = new AeroButton(this);
-	nullBtn->setRoundness(0);
-	nullBtn->setFixedHeight(btn_height1);
-	nullBtn->setHighlight(col);
-	nullBtn->setEnabled(false);
+    nullBtn = new AeroButton(this);
+    nullBtn->setRoundness(0);
+    nullBtn->setFixedHeight(btn_height1);
+    nullBtn->setHighlight(col);
+    nullBtn->setEnabled(false);
 
     // +Rx disabled for now, requires addReceiver to be implemented
     plusRxBtn = new AeroButton("+Rx", this);
@@ -897,7 +908,7 @@ void MainWindow::createMainBtnToolBar() {
 	
 //	QHBoxLayout *firstBtnLayout = new QHBoxLayout;
 //	firstBtnLayout->setSpacing(0);
-//	firstBtnLayout->setMargin(0);
+//	firstBtnLayout->setContentsMargins(0,0,0,0));
 //
 //	firstBtnLayout->addWidget(startBtn);
 //	//firstBtnLayout->addWidget(serverLogBtn);
@@ -916,18 +927,46 @@ void MainWindow::createMainBtnToolBar() {
 
 //	QHBoxLayout *secondBtnLayout = new QHBoxLayout;
 //	secondBtnLayout->setSpacing(0);
-//	secondBtnLayout->setMargin(0);
+//	secondBtnLayout->setContentsMargins(0,0,0,0));
 
 	int fontMaxWidth = m_fonts.smallFontMetrics->boundingRect("100 % ").width();
 	int vol = (int)(set->getMainVolume(0) * 100);
 
-	m_volumeSlider = new QSlider(Qt::Horizontal, this);
+    m_micGainSlider = new QSlider(Qt::Horizontal, this);
+    m_micGainSlider->setTickPosition(QSlider::NoTicks);
+    m_micGainSlider->setFixedSize(100, 14);
+    m_micGainSlider->setSingleStep(1);
+    m_micGainSlider->setRange(0, 128);
+    m_micGainSlider->setValue(vol);
+    //m_micGainSlider->setStyleSheet(set->getVolSliderStyle());
+    CHECKED_CONNECT(
+            m_micGainSlider,
+            SIGNAL(valueChanged(int)),
+            this,
+            SLOT(setMicLevel(int)));
+
+
+    m_drivelevelSlider =  new QSlider(Qt::Horizontal, this);
+    m_drivelevelSlider->setTickPosition(QSlider::NoTicks);
+    m_drivelevelSlider->setFixedSize(100, 14);
+    m_drivelevelSlider->setSingleStep(1);
+    m_drivelevelSlider->setRange(0, 128);
+    m_drivelevelSlider->setValue(set->getDriveLevel());
+//    m_drivelevelSlider->setStyleSheet(set->getVolSliderStyle());
+
+    CHECKED_CONNECT(
+            m_drivelevelSlider,
+            SIGNAL(valueChanged(int)),
+            this,
+            SLOT(setDriveLevel(int)));
+
+    m_volumeSlider = new QSlider(Qt::Horizontal, this);
 	m_volumeSlider->setTickPosition(QSlider::NoTicks);
 	m_volumeSlider->setFixedSize(100, 14);
 	m_volumeSlider->setSingleStep(1);
 	m_volumeSlider->setRange(0, 100);
 	m_volumeSlider->setValue(vol);
-	m_volumeSlider->setStyleSheet(set->getVolSliderStyle());
+//	m_volumeSlider->setStyleSheet(set->getVolSliderStyle());
 
 	CHECKED_CONNECT(
 		m_volumeSlider, 
@@ -935,16 +974,25 @@ void MainWindow::createMainBtnToolBar() {
 		this, 
 		SLOT(setMainVolume(int)));
 
-	m_volumeLabel = new QLabel("Vol:", this);
+    m_micGainLabel = new QLabel("Mic:", this);
+    m_micGainLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
+//    m_micGainLabel->setStyleSheet(set->getLabelStyle());
+
+    m_drivelevellLabel = new QLabel("Drive:", this);
+    m_drivelevellLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
+   // m_drivelevellLabel->setStyleSheet(set->getLabelStyle());
+
+
+    m_volumeLabel = new QLabel("Vol:", this);
     m_volumeLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-	m_volumeLabel->setStyleSheet(set->getLabelStyle());
+//	m_volumeLabel->setStyleSheet(set->getLabelStyle());
 
 	QString str = "%1 %";
 	m_volLevelLabel = new QLabel(str.arg(vol, 2, 10, QLatin1Char(' ')), this);
 	m_volLevelLabel->setFont(m_fonts.smallFont);
 	m_volLevelLabel->setFixedSize(fontMaxWidth, 14);
     m_volLevelLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-	m_volLevelLabel->setStyleSheet(set->getSliderLabelStyle());
+//	m_volLevelLabel->setStyleSheet(set->getSliderLabelStyle());
 
 	
 	int agcMaxGain = (int) set->getAGCMaximumGain_dB(0);
@@ -955,7 +1003,7 @@ void MainWindow::createMainBtnToolBar() {
 	m_agcGainSlider->setSingleStep(1);
 	m_agcGainSlider->setRange(-20, 120);
 	m_agcGainSlider->setValue(agcMaxGain);
-	m_agcGainSlider->setStyleSheet(set->getVolSliderStyle());
+	//m_agcGainSlider->setStyleSheet(set->getVolSliderStyle());
 	
 	CHECKED_CONNECT(
 		m_agcGainSlider, 
@@ -965,7 +1013,7 @@ void MainWindow::createMainBtnToolBar() {
 
 	m_agcGainLabel = new QLabel("", this);
     m_agcGainLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-	m_agcGainLabel->setStyleSheet(set->getLabelStyle());
+//	m_agcGainLabel->setStyleSheet(set->getLabelStyle());
 	if(m_agcMode == (AGCMode) agcOFF)
 		m_agcGainLabel->setText("AGC-F:");
 	else
@@ -977,7 +1025,7 @@ void MainWindow::createMainBtnToolBar() {
 	m_agcGainLevelLabel->setFont(m_fonts.smallFont);
 	m_agcGainLevelLabel->setFixedSize(fontMaxWidth, 14);
     m_agcGainLevelLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-	m_agcGainLevelLabel->setStyleSheet(set->getSliderLabelStyle());
+//	m_agcGainLevelLabel->setStyleSheet(set->getSliderLabelStyle());
 	
 
 	moxBtn = new AeroButton("MOX", this);
@@ -986,12 +1034,6 @@ void MainWindow::createMainBtnToolBar() {
     moxBtn->setTextColor(btnCol);
 	moxBtn->setFixedSize(btn_width1, btn_height3);
 	moxBtn->setEnabled(false);
-	col = QColor(200, 100, 100);
-	moxBtn->setColor(col);
-	col = QColor(200, 200, 100);
-	moxBtn->setHighlight(col);
-	col = QColor(250, 100, 100);
-	moxBtn->setColorOn(col);
 	moxBtn->setBtnState(AeroButton::OFF);
 
 	tunBtn = new AeroButton("Tune", this);
@@ -1000,12 +1042,6 @@ void MainWindow::createMainBtnToolBar() {
     tunBtn->setTextColor(btnCol);
 	tunBtn->setFixedSize(btn_width1, btn_height3);
 	tunBtn->setEnabled(false);
-	col = QColor(200, 100, 100);
-	tunBtn->setColor(col);
-	col = QColor(200, 200, 100);
-	tunBtn->setHighlight(col);
-	col = QColor(250, 100, 100);
-	tunBtn->setColorOn(col);
 	tunBtn->setBtnState(AeroButton::OFF);
 
 	if (set->getPenelopePresence() || set->getPennyLanePresence() || (m_hwInterface == QSDR::Hermes)) {
@@ -1018,6 +1054,19 @@ void MainWindow::createMainBtnToolBar() {
 		moxBtn->setEnabled(false);
 		tunBtn->setEnabled(false);
 	}
+	CHECKED_CONNECT(
+	        moxBtn,
+	        SIGNAL(clicked()),
+	        this,
+	        SLOT(moxBtnClickedEvent()));
+
+
+	CHECKED_CONNECT(
+	        tunBtn,
+	        SIGNAL(clicked()),
+	        this,
+	        SLOT(tunBtnClickedEvent()))
+	        ;
 
 	alexBtn = new AeroButton("Alex Auto", this);
 	alexBtn->setRoundness(10);
@@ -1054,31 +1103,29 @@ void MainWindow::createMainBtnToolBar() {
 		this,
 		SLOT(muteBtnClickedEvent()));
 
-//	lastFreqBtn = new AeroButton(" ", this);
-//	lastFreqBtn->setRoundness(10);
-//	lastFreqBtn->setFixedSize(btn_width1, btn_height3);
-//	lastFreqBtn->setBtnState(AeroButton::OFF);
-//
-//	CHECKED_CONNECT(
-//		lastFreqBtn,
-//		SIGNAL(clicked()),
-//		this,
-//		SLOT(getLastFrequency()));
+	lastFreqBtn = new AeroButton(" ", this);
+	lastFreqBtn->setRoundness(10);
+	lastFreqBtn->setFixedSize(btn_width1, btn_height3);
+	lastFreqBtn->setBtnState(AeroButton::OFF);
+
+	CHECKED_CONNECT(
+		lastFreqBtn,
+		SIGNAL(clicked()),
+		this,
+		SLOT(getLastFrequency()));
 
 	QHBoxLayout *firstBtnLayout = new QHBoxLayout;
 	firstBtnLayout->setSpacing(0);
-	firstBtnLayout->setMargin(0);
+    firstBtnLayout->setContentsMargins(0,0,0,0);
 
 	firstBtnLayout->addWidget(startBtn);
 	//firstBtnLayout->addWidget(serverLogBtn);
 	firstBtnLayout->addWidget(rxCtrlBtn);
 	firstBtnLayout->addWidget(serverBtn);
-	firstBtnLayout->addWidget(hpsdrBtn);
-	firstBtnLayout->addWidget(chirpBtn);
+    firstBtnLayout->addWidget(setupBtn);
 	firstBtnLayout->addWidget(wideBandBtn);
 	//firstBtnLayout->addWidget(openclBtn);
-	firstBtnLayout->addWidget(displayBtn);
-	firstBtnLayout->addWidget(nullBtn);
+    firstBtnLayout->addWidget(nullBtn);
     firstBtnLayout->addWidget(plusRxBtn);
 	firstBtnLayout->addWidget(viewBtn);
 	firstBtnLayout->addWidget(modeBtn);
@@ -1087,17 +1134,25 @@ void MainWindow::createMainBtnToolBar() {
 
 	QHBoxLayout* secondBtnLayout = new QHBoxLayout;
 	secondBtnLayout->setSpacing(0);
-	secondBtnLayout->setMargin(0);
+    secondBtnLayout->setContentsMargins(0,0,0,0);
 
 	secondBtnLayout->addWidget(moxBtn);
 	secondBtnLayout->addWidget(tunBtn);
     secondBtnLayout->addStretch();
-    secondBtnLayout->addWidget(miniModeWidget);
-	secondBtnLayout->addStretch();
 	secondBtnLayout->addWidget(alexBtn);
 	secondBtnLayout->addWidget(attenuatorBtn);
 	secondBtnLayout->addSpacing(5);
-	secondBtnLayout->addWidget(m_agcGainLabel);
+    secondBtnLayout->addWidget(m_drivelevellLabel);
+    secondBtnLayout->addWidget(m_drivelevelSlider);
+//    secondBtnLayout->addWidget(m_drivelevellLabell);
+    secondBtnLayout->addSpacing(10);
+
+    secondBtnLayout->addWidget(m_micGainLabel);
+    secondBtnLayout->addWidget(m_micGainSlider);
+//    secondBtnLayout->addWidget(m_drivelevellLabell);
+    secondBtnLayout->addSpacing(10);
+
+    secondBtnLayout->addWidget(m_agcGainLabel);
 	secondBtnLayout->addWidget(m_agcGainSlider);
 	secondBtnLayout->addWidget(m_agcGainLevelLabel);
 	secondBtnLayout->addSpacing(10);
@@ -1106,18 +1161,18 @@ void MainWindow::createMainBtnToolBar() {
 	secondBtnLayout->addWidget(m_volLevelLabel);
 	secondBtnLayout->addSpacing(2);
 	secondBtnLayout->addWidget(muteBtn);
-	//secondBtnLayout->addWidget(lastFreqBtn);
+	secondBtnLayout->addWidget(lastFreqBtn);
 	
 	/*QHBoxLayout *thirdBtnLayout = new QHBoxLayout;
 	thirdBtnLayout->setSpacing(0);
-	thirdBtnLayout->setMargin(0);
+	thirdBtnLayout->setContentsMargins(0,0,0,0));
 
 	thirdBtnLayout->addWidget(lockPanBtn);
 	thirdBtnLayout->addStretch();*/
 
 	QVBoxLayout* btnLayout = new QVBoxLayout;
 	btnLayout->setSpacing(0);
-	btnLayout->setMargin(0);
+    btnLayout->setContentsMargins(0,0,0,0);
 	btnLayout->addLayout(firstBtnLayout);
 	btnLayout->addLayout(secondBtnLayout);
 	//btnLayout->addLayout(thirdBtnLayout);
@@ -1134,7 +1189,7 @@ void MainWindow::createMainBtnToolBar() {
 void MainWindow::createModeMenu() {
 
 	modeMenu = new QMenu(this);
-	modeMenu->setStyleSheet(set->getMenuStyle());
+//	modeMenu->setStyleSheet(set->getMenuStyle());
     modeBtn->setMenu(modeMenu);
 
 	modeActionGroup = new QActionGroup(this);
@@ -1150,8 +1205,7 @@ void MainWindow::createModeMenu() {
 
     chirpWSPRAction = modeActionGroup->addAction(tr("ChirpWSPR"));
     chirpWSPRAction->setCheckable(false);
-    chirpWSPRAction->setChecked(m_serverMode == QSDR::ChirpWSPR);
-	
+
     modeMenu->addActions(modeActionGroup->actions());
 
     if (sdrModeAction->isCheckable()) {
@@ -1168,7 +1222,7 @@ void MainWindow::createModeMenu() {
 	\brief create the receiver's dock windows view menu.
 */
 void MainWindow::createViewMenu() {
-	viewMenu = new QMenu(this);
+    viewMenu = new QMenu(this);
 	viewMenu->setStyleSheet(set->getMenuStyle());
 	viewBtn->setMenu(viewMenu);
 }
@@ -1179,7 +1233,7 @@ void MainWindow::createViewMenu() {
 void MainWindow::createAttenuatorMenu() {
 
 	attenuatorMenu = new QMenu(this);
-	attenuatorMenu->setStyleSheet(set->getMenuStyle());
+//	attenuatorMenu->setStyleSheet(set->getMenuStyle());
 	attenuatorBtn->setMenu(attenuatorMenu);
 
 	mercuryAttn_0dBAction = attenuatorMenu->addAction(tr("Mercury Attn 0 dB"));
@@ -1333,7 +1387,7 @@ void MainWindow::systemStateChanged(
 	moxBtn->setEnabled(m_hwInterface == QSDR::Hermes);
 	tunBtn->setEnabled(m_hwInterface == QSDR::Hermes);
 
-	/*
+
 	if (state == QSDR::DataEngineUp) {
 
 		m_dataEngineState = QSDR::DataEngineUp;
@@ -1346,7 +1400,7 @@ void MainWindow::systemStateChanged(
 		modeBtn->setEnabled(true);
 		//setCurrentReceiver(0);
 	}
-	*/
+
 }
 
 void MainWindow::setSystemState(
@@ -1522,7 +1576,7 @@ void MainWindow::startButtonClickedEvent() {
 		col = QColor(250, 0, 0);
 		startBtn->setHighlight(col);
 		startBtn->setText("Stop");
-		set->setMainPower(this, true);
+    		set->setMainPower(this, true);
 	}
 	else if (startBtn->btnState() == AeroButton::ON) {
 
@@ -1724,6 +1778,25 @@ void MainWindow::setNumberOfReceivers(
 		if (rxDockWidgetList.at(i)->isVisible())
 			rxDockWidgetList.at(i)->hide();
 	}
+}
+
+
+void MainWindow::setMicLevel(int value)
+{
+    if (value < 0 ) value = 0;
+    if (value > 100 ) value = 100;
+    if (value < 0 ) value = 0;
+    if (value > 100 ) value = 100;
+    set->setMicInputLevel(this, value);
+
+}
+
+
+void MainWindow::setDriveLevel(int value)
+{
+    if (value < 0 ) value = 0;
+    if (value > 100 ) value = 100;
+    set->setDriveLevel(this, value);
 }
 
 /*!
@@ -2325,10 +2398,10 @@ void MainWindow::resizeEvent(
 ) {
 	//Q_UNUSED(event);
 	
-	//QTimer::singleShot(10, this, SLOT(getRegion()));
+    //QElapsedTimerr::singleShot(10, this, SLOT(getRegion()));
 	//m_resizeFrame = true;
 	//displayPanelToolBar->updateGeometry();
-	m_oglDisplayPanel->update();
+    m_oglDisplayPanel->update();
 	QWidget::resizeEvent(event);
 }
  
@@ -2370,8 +2443,8 @@ void MainWindow::closeEvent(
 
 	if (m_oglDisplayPanel) {
 		
-		disconnect(m_oglDisplayPanel, 0, 0, 0);
-		delete m_oglDisplayPanel;
+        disconnect(m_oglDisplayPanel, 0, 0, 0);
+        delete m_oglDisplayPanel;
 		m_oglDisplayPanel = NULL;
 	}
 
@@ -2396,11 +2469,11 @@ void MainWindow::closeEvent(
 		m_hpsdrTabWidget = NULL;
 	}
 
+
 	if (m_displayTabWidget) {
-		
-		disconnect(m_displayTabWidget, 0, 0, 0);
-		delete m_displayTabWidget;
-		m_displayTabWidget = NULL;
+        qDebug() << "tab widget delete";
+        delete m_displayTabWidget;
+        m_displayTabWidget = NULL;
 	}
 
 	/*if (m_hpsdrServer) {
@@ -2443,6 +2516,52 @@ void MainWindow::keyPressEvent(
 }
 
 
+void MainWindow::radioStateChange(RadioState state) {
+
+  qDebug() << "Radio State Change" << state;
+    moxBtn->setBtnState((AeroButton::OFF));
+    tunBtn->setBtnState(AeroButton::OFF);
+
+
+    switch (state){
+        case RadioState::RX:
+        moxBtn->setBtnState(AeroButton::OFF);
+        tunBtn->setBtnState(AeroButton::OFF);
+        break;
+        case RadioState::MOX:
+            moxBtn->setBtnState(AeroButton::ON);
+            tunBtn->setBtnState(AeroButton::OFF);
+        break;
+        case RadioState::TUNE:
+            tunBtn->setBtnState(AeroButton::ON);
+            moxBtn->setBtnState(AeroButton::OFF);
+
+            break;
+        default:
+        break;
+    }
+    tunBtn->repaint();
+    moxBtn->repaint();
+
+}
+
+void MainWindow::moxBtnClickedEvent() {
+    if (set->getRadioState() == RadioState::MOX)
+    {
+        set->setRadioState(RadioState::RX);
+    }
+    else set->setRadioState(RadioState::MOX);
+}
+
+void MainWindow::tunBtnClickedEvent() {
+    if (set->getRadioState() == RadioState::TUNE)
+    {
+        set->setRadioState(RadioState::RX);
+    }
+    else set->setRadioState(RadioState::TUNE);
+}
+
+
 //***************************************************************************
 // NetworkIODialog class
 
@@ -2457,7 +2576,7 @@ NetworkIODialog::NetworkIODialog(QWidget *parent)
 
 	setWindowModality(Qt::NonModal);
 	setWindowOpacity(0.9);
-	setStyleSheet(set->getDialogStyle());
+//	setStyleSheet(set->getDialogStyle());
 
 	setMouseTracking(true);
 
@@ -2471,20 +2590,20 @@ NetworkIODialog::NetworkIODialog(QWidget *parent)
 	QVBoxLayout *dialogLayout = new QVBoxLayout(this);
 
 	m_deviceComboBox = new QComboBox(this);
-	m_deviceComboBox->setStyleSheet(set->getComboBoxStyle());
+//	m_deviceComboBox->setStyleSheet(set->getComboBoxStyle());
 	m_deviceComboBox->setMinimumContentsLength(30);
 	
 	QScopedPointer<QHBoxLayout> titleLayout(new QHBoxLayout);
 	QLabel *titleLabel = new QLabel(tr("found more than one device:"), this);
 	titleLabel->setFont(m_titleFont);
-	titleLabel->setStyleSheet(set->getLabelStyle());
+//	titleLabel->setStyleSheet(set->getLabelStyle());
 	titleLayout->addWidget(titleLabel);
 	dialogLayout->addLayout(titleLayout.data());
 	titleLayout.take(); // ownership transferred to dialogLayout
 
 	QScopedPointer<QHBoxLayout> metisDeviceLayout(new QHBoxLayout);
 	QLabel *ipAddressLabel = new QLabel(tr("Device (IP Addr):"), this);
-	ipAddressLabel->setStyleSheet(set->getLabelStyle());
+//	ipAddressLabel->setStyleSheet(set->getLabelStyle());
 	metisDeviceLayout->addWidget(ipAddressLabel);
 	metisDeviceLayout->addWidget(m_deviceComboBox);
 	dialogLayout->addLayout(metisDeviceLayout.data());
@@ -2563,7 +2682,7 @@ WarningDialog::WarningDialog(QWidget *parent)
 	setWindowModality(Qt::NonModal);
 	setWindowTitle("Warning");
 	setWindowOpacity(0.9);
-	setStyleSheet(set->getDialogStyle());
+//	setStyleSheet(set->getDialogStyle());
 
 	setMouseTracking(true);
 
@@ -2649,7 +2768,7 @@ void WarningDialog::setWarningMessage(const QString &msg) {
 	m_message = msg;
 	
 	QFontMetrics tfm(m_titleFont);
-	m_msgFontWidth = tfm.width(m_message);
+    m_msgFontWidth = tfm.horizontalAdvance(m_message);
 	m_msgFontHeight = tfm.height();
 
 	this->setFixedWidth(m_msgFontWidth + 60);

@@ -4,6 +4,7 @@
 * @author Hermann von Hasseln, DL3HVH
 * @version 0.1
 * @date 2012-08-22
+* QT6 update ZL2BRG
 */
 
 /*
@@ -76,15 +77,13 @@ protected:
 	void mousePressEvent(QMouseEvent *event);
 	void mouseMoveEvent(QMouseEvent *event);
 	void mouseReleaseEvent(QMouseEvent *event);
-	void enterEvent(QEvent *event);
-	void leaveEvent(QEvent *event);
-	void timerEvent(QTimerEvent *event);
-	bool event(QEvent *event);
+    void enterEvent(QEnterEvent *event);
+    void leaveEvent(QEnterEvent *event);
+    bool event(QEvent *event);
 
 private:
 	Settings*				set;
 
-	QTime					m_closingTimer;
 
 	CFonts*					fonts;
 	TFonts					m_fonts;
@@ -253,8 +252,6 @@ private:
 	QPoint				m_mouseDownPos;
 	QPoint				m_mouseDownWindowPos;
 
-	bool				m_mouseOver;
-
 	//QList<long>			m_lastFrequencyList;
 	QList<long>			m_lastCtrFrequencyList;
 	QList<long>			m_lastVfoFrequencyList;
@@ -273,13 +270,13 @@ private:
 	qreal	m_filterLo;
 	qreal	m_filterHi;
 
-	int		m_timerID;
 	int		m_receiver;
 	int		m_currentRx;
 	int		current_band;
 	int		current_dsp_mode;
 	int		m_minimumWidgetWidth;
 	int		m_minimumGroupBoxWidth;
+    QTimer* m_closeTimer;
 
 	void setupConnections();
 	void createBackground(QSize size);

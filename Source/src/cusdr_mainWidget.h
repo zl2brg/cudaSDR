@@ -34,7 +34,7 @@
 //#include <QStyleOptionToolBar>
 //#include <QWidget>
 //#include <QListWidget>
-//#include <QTimer>
+//#include <QElapsedTimerr>
 //#include <QNetworkInterface>
 //#include <QSlider>
 //#include <QMessageBox>
@@ -44,7 +44,8 @@
 #include "cusdr_fonts.h"
 #include "Util/cusdr_buttons.h"
 #include "DataEngine/cusdr_dataEngine.h"
-#include "cusdr_hpsdrTabWidget.h"
+//#include "cusdr_hpsdrTabWidget.h
+#include "UI/cusdr_setupwidget.h"
 #include "cusdr_radioTabWidget.h"
 #include "cusdr_displayTabWidget.h"
 #include "cusdr_serverWidget.h"
@@ -55,6 +56,7 @@
 #include "GL/cusdr_oglWidebandPanel.h"
 #include "GL/cusdr_oglReceiverPanel.h"
 #include "GL/cusdr_oglDisplayPanel.h"
+#include "GL/cusdr_ogl3DPanel.h"
 //#include "cusdr_graphicOptionsWidget.h"
 //#include "cusdr_server.h"
 //#include "ui_setup.h"
@@ -62,8 +64,7 @@
 //#include "ui_display_ctrl.h"
 //#include "ui_radio_ctrl.h"
 #include "setupwidget.h"
-#include "mini_mode_widget.h"
-#include"radio_widget.h"
+#include "tx_settings_dialog.h"
 
 #ifdef LOG_MAIN
 #define MAIN_DEBUG qDebug().nospace() << "MainWindow::\t"
@@ -87,8 +88,8 @@ class MainWindow : public QMainWindow {
     Q_OBJECT
 
 public:
-    explicit MainWindow(QWidget *parent = 0);
-    ~MainWindow();
+    explicit MainWindow(QWidget *parent = nullptr);
+    ~MainWindow() override;
 
 	void	setup();
 
@@ -98,12 +99,15 @@ public slots:
 	void	startButtonClickedEvent();
 	void	widgetBtnClickedEvent();
 	void	wideBandBtnClickedEvent();
+	void    radioStateChange(RadioState state);
 	//void	avgBtnClickedEvent();
 	//void	gridBtnClickedEvent();
 	//void	peakHoldBtnClickedEvent();
 	void	alexBtnClickedEvent();
 	void	muteBtnClickedEvent();
 	//void	resizeWidget();
+	void    moxBtnClickedEvent();
+	void    tunBtnClickedEvent();
 	
 	void	showWidgetEvent(QObject *sender);
 	void	closeWidgetEvent(QObject *sender);
@@ -137,9 +141,11 @@ private:
 	void	setAttenuatorButton();
     void    setupActions();
 
+
 private:
 	Settings*					set;
-    SetupWidget                 *setupWidget;
+    QDialog                     *setupWidget;
+    cusdr_SetupWidget           *test_widget;
 
 	QSDR::_Error				m_error;
 	QSDR::_ServerMode			m_serverMode;
@@ -162,6 +168,9 @@ private:
     QDockWidget*				rxDock;
 	QList<QDockWidget* >		dockWidgetList;
 	QList<QDockWidget* >		rxDockWidgetList;
+    QMenuBar*                   menuBar;
+    QMenu *                     File;
+    QAction                     *test;
 	
 	QList<QHostAddress>			m_ipList;
 	QList<QNetworkInterface>	m_niList;
@@ -177,7 +186,7 @@ private:
 	QPixmap			m_originalPixmap;
 	QPixmap			m_widgetMask;
 
-	QTimer*			m_resizeTimer;
+    QTimer*			m_resizeTimer;
 
 	QPoint			m_dragPosition;
 	QPoint			m_pos;
@@ -190,7 +199,9 @@ private:
 	QLabel*			m_volLevelLabel;
 	QLabel*			m_agcGainLabel;
 	QLabel*			m_agcGainLevelLabel;
-	QLabel*			m_cpuLoadLabel;
+    QLabel*			m_micGainLabel;
+    QLabel*			m_drivelevellLabel;
+    QLabel*			m_cpuLoadLabel;
 	QLabel*			m_dateTimeLabel;
 	QLabel*			m_statusBarMessage;
 
@@ -201,8 +212,9 @@ private:
 
 	QWidget*		m_buttonWidget;
 	QWidget*		m_secondButtonWidget;
-	
-	QSlider*		m_volumeSlider;
+	QSlider*        m_micGainSlider;
+    QSlider*        m_drivelevelSlider;
+    QSlider*		m_volumeSlider;
 	QSlider*		m_agcGainSlider;
 	ADCMode			m_adcMode;
 	AGCMode			m_agcMode;
@@ -210,17 +222,15 @@ private:
 	DataEngine*			m_dataEngine;
 	RadioPopupWidget*	m_radioPopupWidget;
 	ServerWidget*		m_serverWidget;
-	HPSDRTabWidget*		m_hpsdrTabWidget;
+    QTabWidget*  m_hpsdrTabWidget;
 	RadioTabWidget*		m_radioTabWidget;
-	DisplayTabWidget*	m_displayTabWidget;
+	DisplayTabWidget*	m_displayTabWidget = NULL;
 	OGLDisplayPanel*	m_oglDisplayPanel;
 	//CudaInfoWidget*	m_cudaInfoWidget;
 	QGLWidebandPanel*	m_wbDisplay;
-    MiniModeWidget*     miniModeWidget;
     NetworkIODialog*	m_netIODialog;
 	WarningDialog*		m_warningDialog;
-    RadioCtrl*          m_radioCtrl;
-
+    tx_settings_dialog* m_audioInput;
 	HamBand				m_currentHamBand;
 
 	quint16				m_alexConfig;
@@ -230,7 +240,7 @@ private:
 	
 	AeroButton*			startBtn;
 	AeroButton*			serverBtn;
-	AeroButton*			hpsdrBtn;
+	AeroButton*			setupBtn;
 	AeroButton*			modeBtn;
 	AeroButton*			viewBtn;
 	AeroButton*			chirpBtn;
@@ -270,6 +280,7 @@ private:
     QAction			*alexAttn_20dBAction;
     QAction			*alexAttn_30dBAction;
     QAction         *setupAction;
+    QAction         *setupAudioInput;
 
 
     QList<QAction *> mercuryAttnActionList;
@@ -325,7 +336,10 @@ private slots:
 
 	void getNetworkInterfaces();
 	void setMainVolume(int value);
-	//void setHamBand(QObject *sender, int rx, bool byButton, HamBand band);
+    void setMicLevel(int value);
+    void setDriveLevel(int value);
+
+    //void setHamBand(QObject *sender, int rx, bool byButton, HamBand band);
     void setADCMode(QObject *sender, int rx, ADCMode mode);
 	void setAGCMode(QObject *sender, int rx, AGCMode mode, bool hang);
 	void setAGCGain(int value);
@@ -380,8 +394,8 @@ class NetworkIODialog : public QDialog {
     Q_OBJECT
 
 public:
-    NetworkIODialog(QWidget *parent = 0);
-    ~NetworkIODialog();
+    NetworkIODialog(QWidget *parent = nullptr);
+    ~NetworkIODialog() override;
 
 public slots:
 	void addDeviceComboBoxItem(QString str);
@@ -409,7 +423,7 @@ class WarningDialog : public QDialog {
     Q_OBJECT
 
 public:
-    WarningDialog(QWidget *parent = 0);
+    WarningDialog(QWidget *parent = nullptr);
     ~WarningDialog();
 
 public slots:

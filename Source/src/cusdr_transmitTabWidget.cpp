@@ -30,6 +30,7 @@
 #include <QFileDialog>
 #include <QDebug>
 
+
 #include "cusdr_transmitTabWidget.h"
 
 
@@ -53,7 +54,6 @@ TransmitTabWidget::TransmitTabWidget(QWidget *parent)
 	
 	m_transmitOptionsWidget = new TransmitOptionsWidget(this);
 	m_transmitPAWidget = new TransmitPAWidget(this);
-
 	this->addTab(m_transmitOptionsWidget, "Options");
 	this->addTab(m_transmitPAWidget, "PA Settings");
 

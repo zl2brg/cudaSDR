@@ -73,14 +73,11 @@ RadioCtrl::RadioCtrl(QWidget *parent, int rx)
          this,
          SLOT(bandChanged(QObject *, int, bool, HamBand)));
 
+qDebug() << "RX" << m_receiver;
 
 setFilterWidget();
 setModeWidget();
 setBandWidget();
-set->getFilterGroup(m_receiver);
-set->getFilterMode(m_receiver);
-set->setRxFilterByIndex(this,m_receiver,set->getFilterbtnIndex(m_receiver));
-
 dspModeChanged(this, 0, m_dspModeList.at(m_hamBand));
 
 
@@ -174,12 +171,6 @@ void RadioCtrl::updateFilterWidget()
 
 qreal RadioCtrl::SetVarSlider(QAbstractSlider *slider)
 {
-    if (m_FilterData->filterWidth != slider->maximum())
-    {
-//         slider->setMaximum(m_FilterData->filterWidth);
-         qDebug() << "set slider max" << slider->maximum();
-//         return m_FilterData->filterWidth/2;
-    }
     return  (qreal) ui->Var1_Slider->value();
 }
 
@@ -337,7 +328,6 @@ void RadioCtrl::FilterbtnCallback() {
 
     button->update();
     updateFilterWidget();
-    set->setRxFilterByIndex(this, m_receiver, index);
 
 
 }
@@ -400,47 +390,14 @@ void RadioCtrl::dspModeChanged(QObject *sender,int rx, DSPMode mode)
 }
 
 
-void RadioCtrl::slider_changed(int value){
-    qreal filter = 0.0f;
-
-    switch(m_FilterGroup){
-    case NARROW_FILTER:
-        m_FilterData = Narrow_FilterGroup;
-        break;
-    case    MID_FILTER:
-    default:
-        m_FilterData = Wide_FilterGroup;
-           break;
-    }
-    filter = value + 150.0f;
-
-    switch (m_FilterMode) {
-    case M_DSB:
-      m_filterHi = filter;
-      m_filterLo = -filter;
-    break;
-    case M_LSB:
-        m_filterLo =  -filter;
-        m_filterHi =  -150.0f;
-    break;
-    case M_USB:
-        m_filterLo = 150.0f;
-        m_filterHi = filter;
-
-    break;
-    }
-
-    set->setRXFilter(this, m_receiver, m_filterLo, m_filterHi);
-
-
-};
-
 
 
 
 RadioCtrl::~RadioCtrl()
 {
     delete ui;
+    disconnect(set, 0, this, 0);
+    disconnect(this, 0, 0, 0);
 }
 
 QSize RadioCtrl::sizeHint() const {

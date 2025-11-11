@@ -28,11 +28,10 @@
 #define _CUSDR_OGL_WIDEBANDPANEL_H
 
 #include "cusdr_oglUtils.h"
-#include "cusdr_oglInfo.h"
 #include "cusdr_settings.h"
 #include "cusdr_fonts.h"
 #include "cusdr_oglText.h"
-
+#include <QEvent>
 //#include <QPixmap>
 //#include <QImage>
 //#include <QFontMetrics>
@@ -44,6 +43,7 @@
 
 #include <QOpenGLWidget>
 #include <QOpenGLFunctions>
+#include <QOpenGLPaintDevice>
 
 #ifdef LOG_WBGRAPHICS
 #   define WBGRAPHICS_DEBUG qDebug().nospace() << "WB-Graphics::\t"
@@ -71,9 +71,9 @@ protected:
     void initializeGL();
     void resizeGL(int iWidth, int iHeight);
     void paintGL();
-    
-	void enterEvent(QEvent *event);
-	void leaveEvent(QEvent *event);
+
+    void enterEvent(QEnterEvent *event);
+    void leaveEvent(QEnterEvent *event);
 	void mousePressEvent(QMouseEvent *event);
 	void mouseReleaseEvent(QMouseEvent *event);
 	void mouseMoveEvent(QMouseEvent *event);
@@ -81,11 +81,11 @@ protected:
 	void keyPressEvent(QKeyEvent* event);
 	void closeEvent(QCloseEvent *event);
 	void showEvent(QShowEvent *event);
-	void timerEvent(QTimerEvent *);
+    void timerEvent(QTimerEvent *);
 
 private:
 	Settings*							set;
-
+    QPainter                    painter;
 	QSDR::_ServerMode			m_serverMode;
 	QSDR::_HWInterfaceMode		m_hwInterface;
 	QSDR::_DataEngineState		m_dataEngineState;
@@ -98,17 +98,15 @@ private:
 	QList<TReceiver>			m_rxDataList;
 	TWideband					m_widebandOptions;
 
-	QGLFramebufferObject*		m_frequencyScaleFBO;
-	QGLFramebufferObject*		m_dBmScaleFBO;
-	QGLFramebufferObject*		m_gridFBO;
-	QPainter*					painter;
-
-	CFonts		*fonts;
+    QOpenGLFramebufferObject*		m_frequencyScaleFBO = nullptr;
+    QOpenGLFramebufferObject*		m_dBmScaleFBO = nullptr;
+    QOpenGLFramebufferObject*		m_gridFBO = nullptr;
+    CFonts		*fonts;
 	TFonts		m_fonts;
 
-	QTime		m_panTimer;
-	QTime		m_displayTime;
-	QTime		m_resizeTime;
+    QElapsedTimer		m_panTimer;
+    QElapsedTimer       m_displayTime;
+    QElapsedTimer		m_resizeTime;
 	
 	QRect		m_panRect;
 	QRect		m_freqScaleRect;
@@ -203,7 +201,7 @@ private:
 	int			m_scaledBufferSize;
 	
 	float		m_cameraDistance;
-
+    int         m_dprPollTimerId;
 	unsigned int timer;
     
 	GLint		m_panRectWidth;
@@ -233,10 +231,13 @@ private:
 	qreal		m_frequencyUnit;
 	qreal		m_lowerFrequency;
 	qreal		m_upperFrequency;
+    qreal       dpr;
 	
 	//******************************************************************
 	void saveGLState();
 	void restoreGLState();
+    void connectScreenChanged();
+
 	//void computeDisplayBins(const float* panBuffer);
 
 	void drawSpectrum();
@@ -245,11 +246,10 @@ private:
 	void drawGrid();
 	void drawCrossHair();
 	void drawHamBand(int lo, int hi, const QString &band);
-
 	void renderVerticalScale();
 	void renderHorizontalScale();
 	void renderGrid();
-	void renderText(float x, float y, QPaintDevice *fbo, QFont font, int size, QColor color, const QString str);
+	void qglColor(QColor color);
 
 private slots:
 	void	systemStateChanged(
@@ -264,7 +264,6 @@ private slots:
 					int rx,
 					PanGraphicsMode panMode,
 					WaterfallColorMode waterfallColorMode);
-
 	void	setupConnections();
 	void	setCurrentReceiver(QObject *sender, int value);
 	void	setFrequency(QObject *sender, int mode, int rx, long freq);
@@ -278,12 +277,6 @@ private slots:
 
 	void	getRegion(QPoint p);
 	void	sampleRateChanged(QObject* sender, int value);
-	void	freqScaleUpdate(bool value);
-	void	freqScaleRenew(bool value);
-	void	dBmScaleUpdate(bool value);
-	void	dBmScaleRenew(bool value);
-	void	panGridUpdate(bool value);
-	void	panGridRenew(bool value);
 
 signals:
 	void showEvent(QObject* sender);

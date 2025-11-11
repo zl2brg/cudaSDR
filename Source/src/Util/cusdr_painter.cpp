@@ -25,6 +25,7 @@
  *   Free Software Foundation, Inc.,
  *   51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
+#include <QPainterPath>
 #include "cusdr_painter.h"
 #include "cusdr_image.h"
 

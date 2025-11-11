@@ -72,18 +72,18 @@ AGCOptionsWidget::AGCOptionsWidget(QWidget *parent)
 
 	QBoxLayout *mainLayout = new QBoxLayout(QBoxLayout::TopToBottom, this);
 	mainLayout->setSpacing(5);
-	mainLayout->setMargin(0);
+    mainLayout->setContentsMargins(0,0,0,0);
 	mainLayout->addSpacing(8);
 
 	QHBoxLayout *hbox1 = new QHBoxLayout;
 	hbox1->setSpacing(0);
-	hbox1->setMargin(0);
+    hbox1->setContentsMargins(0,0,0,0);
 	hbox1->addStretch();
 	hbox1->addWidget(agcModeGroupBox);
 
 	QHBoxLayout *hbox2 = new QHBoxLayout;
 	hbox2->setSpacing(0);
-	hbox2->setMargin(0);
+    hbox2->setContentsMargins(0,0,0,0);
 	hbox2->addStretch();
 	hbox2->addWidget(agcOptionsGroupBox);
 
@@ -248,7 +248,6 @@ void AGCOptionsWidget::createAgcModeBtnGroup() {
 	agcModeGroupBox = new QGroupBox(tr("AGC Mode"), this);
 	agcModeGroupBox->setMinimumWidth(m_minimumGroupBoxWidth);
 	agcModeGroupBox->setLayout(vbox);
-	agcModeGroupBox->setStyleSheet(set->getWidgetStyle());
 	//agcModeGroupBox->setMinimumWidth(175);
 	agcModeGroupBox->setFont(QFont("Arial", 8));
 }
@@ -259,7 +258,6 @@ void AGCOptionsWidget::createAgcOptionsGroup() {
 	m_slopeSpinBox->setMinimum(0);
 	m_slopeSpinBox->setMaximum(20);
 	m_slopeSpinBox->setSingleStep(1);
-	m_slopeSpinBox->setStyleSheet(set->getSpinBoxStyle());
 	m_slopeSpinBox->setMinimumWidth(60);
 	m_slopeSpinBox->setValue((int) m_rxDataList.at(m_currentReceiver).agcSlope);
 
@@ -271,14 +269,12 @@ void AGCOptionsWidget::createAgcOptionsGroup() {
 
 	m_slopeLabel = new QLabel("Slope (dB):", this);
 	m_slopeLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-	m_slopeLabel->setStyleSheet(set->getLabelStyle());
 
 
 	m_maxGainSpinBox = new QSpinBox(this);
 	m_maxGainSpinBox->setMinimum(-60);
 	m_maxGainSpinBox->setMaximum(120);
 	m_maxGainSpinBox->setSingleStep(1);
-	m_maxGainSpinBox->setStyleSheet(set->getSpinBoxStyle());
 	m_maxGainSpinBox->setMinimumWidth(60);
 	m_maxGainSpinBox->setValue((int) m_rxDataList.at(m_currentReceiver).agcMaximumGain_dB);
 
@@ -290,14 +286,12 @@ void AGCOptionsWidget::createAgcOptionsGroup() {
 
 	m_maxGainLabel = new QLabel("Max Gain (dB):", this);
 	m_maxGainLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-	m_maxGainLabel->setStyleSheet(set->getLabelStyle());
 
 
 	m_attackTimeSpinBox = new QSpinBox(this);
 	m_attackTimeSpinBox->setMinimum(1);
 	m_attackTimeSpinBox->setMaximum(10);
 	m_attackTimeSpinBox->setSingleStep(1);
-	m_attackTimeSpinBox->setStyleSheet(set->getSpinBoxStyle());
 	m_attackTimeSpinBox->setMinimumWidth(60);
 	m_attackTimeSpinBox->setValue((int) m_rxDataList.at(m_currentReceiver).agcAttackTime * 1000);
 
@@ -309,14 +303,12 @@ void AGCOptionsWidget::createAgcOptionsGroup() {
 
 	m_attackTimeLabel = new QLabel("Attack Time (ms):", this);
 	m_attackTimeLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-	m_attackTimeLabel->setStyleSheet(set->getLabelStyle());
 
 
 	m_decayTimeSpinBox = new QSpinBox(this);
 	m_decayTimeSpinBox->setMinimum(10);
 	m_decayTimeSpinBox->setMaximum(5000);
 	m_decayTimeSpinBox->setSingleStep(1);
-	m_decayTimeSpinBox->setStyleSheet(set->getSpinBoxStyle());
 	m_decayTimeSpinBox->setMinimumWidth(60);
 	m_decayTimeSpinBox->setValue((int) (m_rxDataList.at(m_currentReceiver).agcDecayTime * 1000));
 
@@ -328,14 +320,12 @@ void AGCOptionsWidget::createAgcOptionsGroup() {
 
 	m_decayTimeLabel = new QLabel("Decay Time (ms):", this);
 	m_decayTimeLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-	m_decayTimeLabel->setStyleSheet(set->getLabelStyle());
 
 
 	m_hangTimeSpinBox = new QSpinBox(this);
 	m_hangTimeSpinBox->setMinimum(10);
 	m_hangTimeSpinBox->setMaximum(5000);
 	m_hangTimeSpinBox->setSingleStep(1);
-	m_hangTimeSpinBox->setStyleSheet(set->getSpinBoxStyle());
 	m_hangTimeSpinBox->setMinimumWidth(60);
 	m_hangTimeSpinBox->setValue((int) (m_rxDataList.at(m_currentReceiver).agcHangTime * 1000));
 
@@ -347,7 +337,6 @@ void AGCOptionsWidget::createAgcOptionsGroup() {
 
 	m_hangTimeLabel = new QLabel("Hang Time (ms):", this);
 	m_hangTimeLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-	m_hangTimeLabel->setStyleSheet(set->getLabelStyle());
 
 	m_hangThresholdSlider = new QSlider(Qt::Horizontal, this);
 	m_hangThresholdSlider->setTickPosition(QSlider::NoTicks);
@@ -355,7 +344,6 @@ void AGCOptionsWidget::createAgcOptionsGroup() {
 	m_hangThresholdSlider->setSingleStep(1);
 	m_hangThresholdSlider->setRange(0, 100);
 	m_hangThresholdSlider->setValue(0);
-	m_hangThresholdSlider->setStyleSheet(set->getVolSliderStyle());
 
 	CHECKED_CONNECT(
 		m_hangThresholdSlider,
@@ -370,18 +358,15 @@ void AGCOptionsWidget::createAgcOptionsGroup() {
 	m_hangThresholdValueLabel->setFont(m_fonts.smallFont);
 	m_hangThresholdValueLabel->setFixedSize(fontMaxWidth, 12);
 	m_hangThresholdValueLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-	m_hangThresholdValueLabel->setStyleSheet(set->getSliderLabelStyle());
 
 	m_hangThresholdLabel = new QLabel("Hang Threshold:", this);
 	m_hangThresholdLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-	m_hangThresholdLabel->setStyleSheet(set->getLabelStyle());
 
 
 	m_fixedGainSpinBox = new QSpinBox(this);
 	m_fixedGainSpinBox->setMinimum(-20);
 	m_fixedGainSpinBox->setMaximum(120);
 	m_fixedGainSpinBox->setSingleStep(1);
-	m_fixedGainSpinBox->setStyleSheet(set->getSpinBoxStyle());
 	m_fixedGainSpinBox->setMinimumWidth(60);
 	m_fixedGainSpinBox->setValue((int) m_rxDataList.at(m_currentReceiver).agcFixedGain_dB);
 
@@ -393,7 +378,6 @@ void AGCOptionsWidget::createAgcOptionsGroup() {
 
 	m_fixedGainLabel = new QLabel("Fixed Gain (dB):", this);
 	m_fixedGainLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-	m_fixedGainLabel->setStyleSheet(set->getLabelStyle());
 
 
 	QHBoxLayout *hbox1 = new QHBoxLayout();
@@ -440,7 +424,7 @@ void AGCOptionsWidget::createAgcOptionsGroup() {
 
 	QHBoxLayout *hbox8 = new QHBoxLayout;
 	hbox8->setSpacing(0);
-	hbox8->setMargin(0);
+    hbox8->setContentsMargins(0,0,0,0);
 	hbox8->addStretch();
 	hbox8->addWidget(m_hangThresholdSlider);
 	hbox8->addWidget(m_hangThresholdValueLabel);
@@ -463,7 +447,6 @@ void AGCOptionsWidget::createAgcOptionsGroup() {
 	agcOptionsGroupBox = new QGroupBox(tr("AGC Options"), this);
 	agcOptionsGroupBox->setMinimumWidth(m_minimumGroupBoxWidth);
 	agcOptionsGroupBox->setLayout(vbox);
-	agcOptionsGroupBox->setStyleSheet(set->getWidgetStyle());
 	//agcModeGroupBox->setMinimumWidth(175);
 	agcOptionsGroupBox->setFont(QFont("Arial", 8));
 }

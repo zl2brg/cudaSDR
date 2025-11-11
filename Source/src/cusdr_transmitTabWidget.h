@@ -37,6 +37,7 @@
 #include "cusdr_settings.h"
 #include "cusdr_transmitOptionsWidget.h"
 #include "cusdr_transmitPAWidget.h"
+#include "UI/tx_settings_dialog.h"
 
 
 class TransmitTabWidget : public QTabWidget {
@@ -69,6 +70,7 @@ private:
 
 	TransmitOptionsWidget	*m_transmitOptionsWidget;
 	TransmitPAWidget		*m_transmitPAWidget;
+    tx_settings_dialog      *m_transmitSettingsWidget;
 
 	int		m_minimumWidgetWidth;
 	int		m_minimumGroupBoxWidth;

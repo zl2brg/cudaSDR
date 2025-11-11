@@ -28,12 +28,11 @@
 #ifndef _CUSDR_COLOR_OPTIONS_WIDGET_H
 #define _CUSDR_COLOR_OPTIONS_WIDGET_H
 
-//#include <QWidget>
-//#include <QPainter>
-//#include <QComboBox>
+#include <QPen>
+#include <QDebug>
+#include <QDialog>
+#include <QBoxLayout>
 #include <QGroupBox>
-//#include <QSpinBox>
-//#include <QLineEdit>
 
 #include "Util/cusdr_buttons.h"
 #include "Util/cusdr_colorTriangle.h"
@@ -91,6 +90,10 @@ private:
 	AeroButton		*m_setDistanceLine;
 	AeroButton		*m_setDistanceLineFilling;
 	AeroButton		*m_setGridLine;
+    QHBoxLayout     *hbox,*hbox1;
+    QBoxLayout      *mainLayout;
+    QVBoxLayout     *vbox;
+    QGridLayout     *grid1;
 
 	QList<AeroButton *>		m_changeColorBtnList;
 
@@ -121,7 +124,7 @@ private slots:
 					QSDR::_ServerMode mode, 
 					QSDR::_DataEngineState state);
 
-	void	graphicModeChanged(
+	static void	graphicModeChanged(
 					QObject *sender,
 					int rx,
 					PanGraphicsMode panMode,

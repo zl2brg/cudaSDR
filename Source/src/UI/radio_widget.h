@@ -38,9 +38,6 @@ private:
     QList<long>			m_lastCtrFrequencyList;
     QList<long>			m_lastVfoFrequencyList;
     void setFilterbyMode(QString str, DSPMode mode);
-    filterGroup m_FilterGroup;
-    filterMode m_FilterMode;
-    filterStruct * m_FilterData;
     long	m_ctrFrequency;
     long	m_vfoFrequency;
 

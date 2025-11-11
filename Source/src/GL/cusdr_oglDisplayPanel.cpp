@@ -31,11 +31,11 @@
 //#include <QtGui>
 //#include <QDebug>
 //#include <QFileInfo>
-//#include <QTimer>SetRXAAGCHangLevel
+//#include <QElapsedTimer>SetRXAAGCHangLevel
 //#include <QImage>
 //#include <QString>
 //#include <QOpenGLFramebufferObject>
-
+#include <QOpenGLPaintDevice>
 
 #ifndef GL_MULTISAMPLE
 #define GL_MULTISAMPLE  0x809D
@@ -84,20 +84,17 @@ OGLDisplayPanel::OGLDisplayPanel(QWidget *parent)
 	, m_sMeterMeanValue(0.0f)
 	, m_sMeterMaxValueA((float)(-ONEPI/2.0f))
 	, m_sMeterMinValueA((float)(ONEPI/2.0f))
-	, m_sMeterMaxValueB(-1000.0f)
-	, m_sMeterMinValueB(1000.0f)
+    , m_sMeterMaxValueB(-1000.0f)
+    , m_sMeterMinValueB(1000.0f)
 {
-//	QOpenGL::setPreferredPaintEngine(QPaintEngine::OpenGL);
-	setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    //setAutoBufferSwap(true);
+    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     setAutoFillBackground(false);
-	setMouseTracking(true);
+    setMouseTracking(true);
     setUpdateBehavior(QOpenGLWidget::PartialUpdate);
-	m_freqStringLeftPos = 20;
-	painter = new QPainter(this);
-	setupDisplayRegions(size());
-
-	fonts = new CFonts(this);
+        m_freqStringLeftPos = 20;
+        setupDisplayRegions(size());
+        dpr = devicePixelRatioF();
+        fonts = new CFonts(this);
 	m_fonts = fonts->getFonts();
 
 	m_fonts.smallFont.setBold(true);
@@ -136,13 +133,13 @@ OGLDisplayPanel::OGLDisplayPanel(QWidget *parent)
 	QList<THamBandFrequencies> bandList = getHamBandFrequencies();
 	HamBand band = getBandFromFrequency(bandList, fList.at(0));
 
-	m_mercuryAttenuator = set->getMercuryAttenuators(0).at(band);
+        m_mercuryAttenuator = set->getMercuryAttenuators(0).at(band);
 
 
-	m_smeterFBO = 0;
 
-	m_colors = set->getPanadapterColors();
+        m_colors = set->getPanadapterColors();
 
+    m_txdigitColor = QColor(230,40,40);
 	m_digitColor = QColor(68, 68, 68);
 	m_bkgColor1 = QColor(30, 30, 30);
 	m_bkgColor2 = QColor(50, 50, 50);
@@ -159,6 +156,16 @@ OGLDisplayPanel::OGLDisplayPanel(QWidget *parent)
 }
 
 OGLDisplayPanel::~OGLDisplayPanel() {
+    delete  m_oglTextBigItalic;
+    delete  m_oglTextFreq1;
+    delete  m_oglTextFreq2;
+    delete  m_oglTextImpact;
+    delete m_oglTextSmallItalic;
+    delete m_oglTextNormal;
+    delete m_oglTextBig;
+    delete m_oglTextTiny;
+    delete m_oglTextSmall;
+
 }
 
 QSize OGLDisplayPanel::minimumSizeHint() const {
@@ -176,61 +183,51 @@ void OGLDisplayPanel::setupConnections() {
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(systemStateChanged(
-					QObject *,
-					QSDR::_Error,
-					QSDR::_HWInterfaceMode,
-					QSDR::_ServerMode,
-					QSDR::_DataEngineState)),
+        SIGNAL(systemStateChanged(QObject*,QSDR::_Error,QSDR::_HWInterfaceMode,QSDR::_ServerMode,QSDR::_DataEngineState)),
 		this,
-		SLOT(systemStateChanged(
-					QObject *,
-					QSDR::_Error,
-					QSDR::_HWInterfaceMode,
-					QSDR::_ServerMode,
-					QSDR::_DataEngineState)));
+        SLOT(systemStateChanged(QObject*,QSDR::_Error,QSDR::_HWInterfaceMode,QSDR::_ServerMode,QSDR::_DataEngineState)));
 		
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(vfoFrequencyChanged(QObject *, int, int, long)),
+        SIGNAL(vfoFrequencyChanged(QObject*,int,int,long)),
 		this,
-		SLOT(setFrequency(QObject *, int, int, long)));
+        SLOT(setFrequency(QObject*,int,int,long)));
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(numberOfRXChanged(QObject *, int)), 
+        SIGNAL(numberOfRXChanged(QObject*,int)),
 		this, 
-		SLOT(setReceivers(QObject *, int)));
+        SLOT(setReceivers(QObject*,int)));
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(currentReceiverChanged(QObject *, int)),
+        SIGNAL(currentReceiverChanged(QObject*,int)),
 		this, 
-		SLOT(setCurrentReceiver(QObject *, int)));
+        SLOT(setCurrentReceiver(QObject*,int)));
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(mercuryAttenuatorChanged(QObject *, HamBand, int)),
+        SIGNAL(mercuryAttenuatorChanged(QObject*,HamBand,int)),
 		this, 
-		SLOT(setMercuryAttenuator(QObject *, HamBand, int)));
+        SLOT(setMercuryAttenuator(QObject*,HamBand,int)));
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(ditherChanged(QObject *, int)), 
+        SIGNAL(ditherChanged(QObject*,int)),
 		this, 
-		SLOT(setDither(QObject *, int)));
+        SLOT(setDither(QObject*,int)));
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(randomChanged(QObject *, int)), 
+        SIGNAL(randomChanged(QObject*,int)),
 		this, 
-		SLOT(setRandom(QObject *, int)));
+        SLOT(setRandom(QObject*,int)));
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(sampleRateChanged(QObject *, int)), 
+        SIGNAL(sampleRateChanged(QObject*,int)),
 		this, 
-		SLOT(setSampleRate(QObject *, int)));
+        SLOT(setSampleRate(QObject*,int)));
 
 	CHECKED_CONNECT(
 		set, 
@@ -294,15 +291,15 @@ void OGLDisplayPanel::setupConnections() {
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(src10MhzChanged(QObject *, int)), 
+        SIGNAL(src10MhzChanged(QObject*,int)),
 		this, 
-		SLOT(set10mhzSource(QObject *, int)));
+        SLOT(set10mhzSource(QObject*,int)));
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(src122_88MhzChanged(QObject *, int)), 
+        SIGNAL(src122_88MhzChanged(QObject*,int)),
 		this, 
-		SLOT(set122_88mhzSource(QObject *, int)));
+        SLOT(set122_88mhzSource(QObject*,int)));
 
 	CHECKED_CONNECT(
 		set,
@@ -336,15 +333,15 @@ void OGLDisplayPanel::setupConnections() {
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(mouseWheelFreqStepChanged(QObject*, int, qreal)),
+        SIGNAL(mouseWheelFreqStepChanged(QObject*,int,qreal)),
 		this, 
-		SLOT(setMouseWheelFreqStep(QObject*, int, qreal)));
+        SLOT(setMouseWheelFreqStep(QObject*,int,qreal)));
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(sMeterValueChanged(int, double)),
+        SIGNAL(sMeterValueChanged(int,double)),
 		this,
-		SLOT(setSMeterValue(int, double)));
+        SLOT(setSMeterValue(int,double)));
 
 	CHECKED_CONNECT(
 		set, 
@@ -355,76 +352,76 @@ void OGLDisplayPanel::setupConnections() {
 
 void OGLDisplayPanel::setupTextstrings() {
 
-    m_blankWidth = m_oglTextSmall->fontMetrics().width(".");
+    m_blankWidth = m_oglTextSmall->fontMetrics().horizontalAdvance(".");
     m_blankHeight = m_oglTextSmall->fontMetrics().height()-1;
 
-	m_pointStringWidth = m_oglTextFreq1->fontMetrics().width(".");
-    m_blankWidthf = m_oglTextFreq1->fontMetrics().width("59.999");
-	m_blankWidthf1 = m_oglTextFreq1->fontMetrics().width("0");
-	m_blankWidthf2 = m_oglTextFreq2->fontMetrics().width("0");
-	m_fUnitStringWidth = m_oglTextFreq2->fontMetrics().width("MHz");
+    m_pointStringWidth = m_oglTextFreq1->fontMetrics().horizontalAdvance(".");
+    m_blankWidthf = m_oglTextFreq1->fontMetrics().horizontalAdvance("59.999");
+    m_blankWidthf1 = m_oglTextFreq1->fontMetrics().horizontalAdvance("0");
+    m_blankWidthf2 = m_oglTextFreq2->fontMetrics().horizontalAdvance("0");
+    m_fUnitStringWidth = m_oglTextFreq2->fontMetrics().horizontalAdvance("MHz");
 
-    m_versionStringWidth = m_oglTextSmall->fontMetrics().width("2.22");
+    m_versionStringWidth = m_oglTextSmall->fontMetrics().horizontalAdvance("2.22");
 
 	m_SYNCString = QString("SYNC");
-    m_syncWidth = m_oglTextSmall->fontMetrics().width(m_SYNCString);
+    m_syncWidth = m_oglTextSmall->fontMetrics().horizontalAdvance(m_SYNCString);
 
 	m_ADCString = QString("ADC");
-    m_adcWidth = m_oglTextSmall->fontMetrics().width(m_ADCString);
+    m_adcWidth = m_oglTextSmall->fontMetrics().horizontalAdvance(m_ADCString);
 
 	m_PacketLossString = QString("IP Packets");
-    m_packetLossWidth = m_oglTextSmall->fontMetrics().width(m_PacketLossString);
+    m_packetLossWidth = m_oglTextSmall->fontMetrics().horizontalAdvance(m_PacketLossString);
 
 	m_sendIQString = QString("send IQ");
-    m_sendIQWidth = m_oglTextSmall->fontMetrics().width(m_sendIQString);
+    m_sendIQWidth = m_oglTextSmall->fontMetrics().horizontalAdvance(m_sendIQString);
 
 	m_recvAudioString = QString("recv Audio");
-    m_recvAudioWidth = m_oglTextSmall->fontMetrics().width(m_recvAudioString);
+    m_recvAudioWidth = m_oglTextSmall->fontMetrics().horizontalAdvance(m_recvAudioString);
 
 	m_AttnString = QString("Attn:");
-    m_AttnWidth = m_oglTextSmall->fontMetrics().width(m_AttnString);
+    m_AttnWidth = m_oglTextSmall->fontMetrics().horizontalAdvance(m_AttnString);
 
 	m_ditherString = QString("Dither");
-    m_ditherWidth = m_oglTextSmall->fontMetrics().width(m_ditherString);
+    m_ditherWidth = m_oglTextSmall->fontMetrics().horizontalAdvance(m_ditherString);
 
 	m_randomString = QString("Random");
-    m_randomWidth = m_oglTextSmall->fontMetrics().width(m_randomString);
+    m_randomWidth = m_oglTextSmall->fontMetrics().horizontalAdvance(m_randomString);
 
 	m_sampleRateString = QString("SampleRate:");
-    m_sampleRateWidth = m_oglTextSmall->fontMetrics().width(m_sampleRateString);
+    m_sampleRateWidth = m_oglTextSmall->fontMetrics().horizontalAdvance(m_sampleRateString);
 
 	m_modusString = QString("Modus:");
-    m_modusWidth = m_oglTextSmall->fontMetrics().width(m_modusString);
+    m_modusWidth = m_oglTextSmall->fontMetrics().horizontalAdvance(m_modusString);
 
 	m_10MHzString = QString("10 MHz:");
-    m_10MHzWidth = m_oglTextSmall->fontMetrics().width(m_10MHzString);
+    m_10MHzWidth = m_oglTextSmall->fontMetrics().horizontalAdvance(m_10MHzString);
 
 	m_12288MHzString = QString("122.88 MHz:");
-    m_12288MHzWidth = m_oglTextSmall->fontMetrics().width(m_12288MHzString);
+    m_12288MHzWidth = m_oglTextSmall->fontMetrics().horizontalAdvance(m_12288MHzString);
 
 	m_mercuryString = QString("Mercury ");
-    m_mercuryStringWidth = m_oglTextSmall->fontMetrics().width(m_mercuryString);
+    m_mercuryStringWidth = m_oglTextSmall->fontMetrics().horizontalAdvance(m_mercuryString);
 
 	m_penelopeString = QString("Penelope ");
-    m_penelopeStringWidth = m_oglTextSmall->fontMetrics().width(m_penelopeString);
+    m_penelopeStringWidth = m_oglTextSmall->fontMetrics().horizontalAdvance(m_penelopeString);
 
 	m_pennylaneString = QString("Pennylane ");
-    m_pennylaneStringWidth = m_oglTextSmall->fontMetrics().width(m_pennylaneString);
+    m_pennylaneStringWidth = m_oglTextSmall->fontMetrics().horizontalAdvance(m_pennylaneString);
 
 	m_excaliburString = QString("Excalibur ");
-    m_excaliburStringWidth = m_oglTextSmall->fontMetrics().width(m_excaliburString);
+    m_excaliburStringWidth = m_oglTextSmall->fontMetrics().horizontalAdvance(m_excaliburString);
 
 	m_metisString = QString("Metis ");
-    m_metisStringWidth = m_oglTextSmall->fontMetrics().width(m_metisString);
+    m_metisStringWidth = m_oglTextSmall->fontMetrics().horizontalAdvance(m_metisString);
 
 	m_alexString = QString("Alex ");
-    m_alexStringWidth = m_oglTextSmall->fontMetrics().width(m_alexString);
+    m_alexStringWidth = m_oglTextSmall->fontMetrics().horizontalAdvance(m_alexString);
 
 	m_hermesString = QString("Hermes ");
-    m_hermesStringWidth = m_oglTextSmall->fontMetrics().width(m_hermesString);
+    m_hermesStringWidth = m_oglTextSmall->fontMetrics().horizontalAdvance(m_hermesString);
 
     m_hermesStepAttnString = QString("Hermes Step-Attn:");
-    m_hermesStepAttnStringWidth = m_oglTextSmall->fontMetrics().width(m_hermesStepAttnString);
+    m_hermesStepAttnStringWidth = m_oglTextSmall->fontMetrics().horizontalAdvance(m_hermesStepAttnString);
 }
 
 void OGLDisplayPanel::initializeGL() {
@@ -435,34 +432,26 @@ void OGLDisplayPanel::initializeGL() {
     //glShadeModel(GL_FLAT);
 	glShadeModel(GL_SMOOTH);
 	glClearColor(0.0f, 0.0f, 0.0f, 0.5f);
-	//glPixelStorei(GL_UNPACK_ALIGNMENT, 4); // 4-byte pixel alignment
-	//glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
-    //glHint(GL_POLYGON_SMOOTH_HINT, GL_NICEST);
-	glDisable(GL_LINE_SMOOTH);
 	glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
+    glHint(GL_POLYGON_SMOOTH_HINT, GL_NICEST);
+    glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
 	glDisable(GL_POINT_SMOOTH);
-	glHint(GL_POINT_SMOOTH_HINT, GL_NICEST);
-	glEnable(GL_POLYGON_SMOOTH);
-	glHint(GL_POLYGON_SMOOTH_HINT, GL_NICEST);
+    glHint(GL_POINT_SMOOTH_HINT, GL_NICEST);
 
-	//glDepthFunc(GL_LESS);
+
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 4); // 4-byte pixel ali
     glEnable(GL_DEPTH_TEST);
 	glDisable(GL_CULL_FACE);
 	glEnable(GL_MULTISAMPLE);
 }
 
-void OGLDisplayPanel::resizeGL(int iWidth, int iHeight) {
+void OGLDisplayPanel::resizeGL(int iWidth,int iHeight) {
+        //m_resizeTime.restart();
+    setupDisplayRegions(QSize(iWidth, iHeight));
+    glViewport(0, 0, (GLsizei)iWidth * dpr, (GLsizei)iHeight * dpr);
+    setProjectionOrthographic(iWidth, iHeight);
+    update();
 
-	int width = (int)(iWidth/2) * 2;
-	int height = iHeight;
-
-	glFinish();
-
-	//m_resizeTime.restart();
-	setupDisplayRegions(QSize(width, height));
-    glViewport(0, 0, (GLsizei)width, (GLsizei)height);
-
-	setProjectionOrthographic(width, height);
 }
 
 void OGLDisplayPanel::paintGL() {
@@ -471,21 +460,21 @@ void OGLDisplayPanel::paintGL() {
 	glClear(GL_DEPTH_BUFFER_BIT);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glEnable(GL_BLEND);
-//m_mutex.lock();
-	paintUpperRegion();
-	paintRxRegion();
-	paintLowerRegion();
-	paintSMeter();
-	//m_mutex.unlock();
+        paintRxRegion();
+        paintUpperRegion();
+        paintLowerRegion();
+        paintSMeter();
+     //   renderSMeterB();
+
 
 }
 
 void OGLDisplayPanel::paintUpperRegion() {
-
 	QString str;
 
-	GLint x1 = m_rxRect.left() + m_blankWidth;
-	GLint y1 = m_rxRect.top() + m_upperRectY;
+
+    GLint x1 =  m_rxRect.left() + m_blankWidth;
+    GLint y1 =  m_rxRect.top() ;
 
 	// sync status
 	str = QString(m_SYNCString);
@@ -512,7 +501,7 @@ void OGLDisplayPanel::paintUpperRegion() {
 	str = QString(m_ADCString);
     x1 += m_syncWidth + 2*m_blankWidth + 2;
 	rect = QRect(x1, y1, m_adcWidth + 2*m_blankWidth, m_blankHeight);
-    
+
 	switch (m_adcStatus) {
 
 		case 0:
@@ -529,7 +518,7 @@ void OGLDisplayPanel::paintUpperRegion() {
 	}
 	qglColor(QColor(0, 0, 0));
 	m_oglTextSmallItalic->renderText(x1 + m_blankWidth, y1, m_ADCString);
-	
+
 	// Packet loss status
 	str = QString(m_PacketLossString);
     x1 += m_adcWidth + 2*m_blankWidth + 2;
@@ -554,7 +543,7 @@ void OGLDisplayPanel::paintUpperRegion() {
 
 //	// send IQ data status
 //	str = QString(m_sendIQString);
-//	rect = QRect(x1+63, y1 + m_upperRectY, d_fm.tightBoundingRect(str).width() + 6, fontHeight + 4);
+//	rect = QRect(x1+63, y1 + m_upperRectY, d_fm.tightBoundingRect(str).horizontalAdvance() + 6, fontHeight + 4);
 //
 //	switch (m_sendIQStatus) {
 //
@@ -574,11 +563,11 @@ void OGLDisplayPanel::paintUpperRegion() {
 //			break;
 //	}
 //	qglColor(QColor(0, 0, 0));
-//	m_oglTextSmallItalic->renderText(m_syncWidth + m_adcWidth + 19, y1 + m_upperRectY, m_sendIQString);
+//	m_oglTextSmallItalic->renderFreqText(m_syncWidth + m_adcWidth + 19, y1 + m_upperRectY, m_sendIQString);
 
 //	// receiver Audio status
 //	str = QString(m_recvAudioString);
-//	rect = QRect(x1+108, y1 + m_upperRectY, d_fm.tightBoundingRect(str).width() + 8, fontHeight + 4);
+//	rect = QRect(x1+108, y1 + m_upperRectY, d_fm.tightBoundingRect(str).horizontalAdvance() + 8, fontHeight + 4);
 //
 //	switch (m_recvAudioStatus) {
 //
@@ -598,7 +587,7 @@ void OGLDisplayPanel::paintUpperRegion() {
 //			break;
 //	}
 //	qglColor(QColor(0, 0, 0));
-//	m_oglTextSmallItalic->renderText(m_syncWidth + m_adcWidth + m_sendIQWidth + 29, y1 + m_upperRectY, m_recvAudioString);
+//	m_oglTextSmallItalic->renderFreqText(m_syncWidth + m_adcWidth + m_sendIQWidth + 29, y1 + m_upperRectY, m_recvAudioString);
 
 
 	// Metis status
@@ -659,7 +648,7 @@ void OGLDisplayPanel::paintUpperRegion() {
 		qglColor(QColor(0, 0, 0));
 	}
 
-	//m_oglTextSmallItalic->renderText(x1 + m_blankWidth, y1, 1.0f, str);
+	//m_oglTextSmallItalic->renderFreqText(x1 + m_blankWidth, y1, 1.0f, str);
 	m_oglTextSmallItalic->renderText(x1, y1, 1.0f, str);
 
 
@@ -760,7 +749,7 @@ void OGLDisplayPanel::paintUpperRegion() {
 		qglColor(QColor(0, 0, 0));
 	}
 
-	//m_oglTextSmallItalic->renderText(x1 + m_blankWidth, y1, 1.0f, str);
+	//m_oglTextSmallItalic->renderFreqText(x1 + m_blankWidth, y1, 1.0f, str);
     m_oglTextSmallItalic->renderText(x1, y1, 1.0f, str);
 
 
@@ -792,7 +781,7 @@ void OGLDisplayPanel::paintUpperRegion() {
 		drawGLRect(rect, QColor(68, 68, 68), -2.0f);
 		qglColor(QColor(0, 0, 0));
 	}
-	//m_oglTextSmallItalic->renderText(x1 + m_blankWidth, y1, 1.0f, str);
+	//m_oglTextSmallItalic->renderFreqText(x1 + m_blankWidth, y1, 1.0f, str);
     m_oglTextSmallItalic->renderText(x1, y1, 1.0f, str);
 
 	
@@ -819,7 +808,7 @@ void OGLDisplayPanel::paintUpperRegion() {
 		drawGLRect(rect, QColor(68, 68, 68), -2.0f);
 		qglColor(QColor(0, 0, 0));
 	}
-	//m_oglTextSmallItalic->renderText(x1 + m_blankWidth, y1, 1.0f, str);
+	//m_oglTextSmallItalic->renderFreqText(x1 + m_blankWidth, y1, 1.0f, str);
     m_oglTextSmallItalic->renderText(x1, y1, 1.0f, str);
 }
 
@@ -840,7 +829,7 @@ void OGLDisplayPanel::paintLowerRegion() {
 	else
 		str = "-20 dB";
 
-	int attnValueWidth = m_oglTextSmall->fontMetrics().tightBoundingRect(str).width();
+    int attnValueWidth = m_oglTextSmall->fontMetrics().tightBoundingRect(str).width();
 	qglColor(m_activeTextColor);
 	m_oglTextSmallItalic->renderText(x1, y2, str);
 
@@ -883,11 +872,6 @@ void OGLDisplayPanel::paintLowerRegion() {
     x1 += samplerateUnitWidth + 10*m_blankWidth;
 	switch (m_serverMode) {
 
-		case QSDR::DemoMode:
-
-			str = "Demo mode";
-			break;
-
 		case QSDR::NoServerMode:
 
 			str = "No Server mode";
@@ -898,15 +882,6 @@ void OGLDisplayPanel::paintLowerRegion() {
 			str = "SDR Mode";
 			break;
 
-		case QSDR::ChirpWSPR:
-				
-			str = "Chirp Dec";
-			break;
-
-		case QSDR::ChirpWSPRFile:
-				
-			str = "Chirp Dec File";
-			break;
 	}
 	int serverModeStringWidth = m_oglTextSmall->fontMetrics().tightBoundingRect(str).width();
 
@@ -940,7 +915,7 @@ void OGLDisplayPanel::paintLowerRegion() {
 		//x1 += serverModeStringWidth + 10*m_blankWidth;
 
 		//qglColor(QColor(166, 196, 208));
-		//m_oglTextSmallItalic->renderText(x1, y2, m_hermesStepAttnString);
+		//m_oglTextSmallItalic->renderFreqText(x1, y2, m_hermesStepAttnString);
 
 		//x1 += m_hermesStepAttnStringWidth + 2*m_blankWidth;
 		//y2 += 1;
@@ -983,24 +958,28 @@ void OGLDisplayPanel::paintLowerRegion() {
 		//	qglColor(QColor(0, 0, 0));
 
 		//x1 += 12;
-		//m_oglTextSmallItalic->renderText(x1, y2, "-19 dB");
+		//m_oglTextSmallItalic->renderFreqText(x1, y2, "-19 dB");
 	}
 }
 
 
 
 void OGLDisplayPanel::paintRxRegion() {
+    QString str;
+    QColor fontcolor;
+    QPainter painter(this);
+  //  painter.setPen(Qt::red);
+  //  painter.drawRect(m_rxRect);
+    painter.beginNativePainting();
+    GLint x1 = m_rxRect.left() + 20;
+    GLint y1 = ((m_rxRect.top()) + m_freqDigitsPosY);
 
-	QString str;
-	QColor fontcolor;
-	GLint x1 = m_rxRect.left() + 20;
-	GLint y1 = m_rxRect.top() + m_freqDigitsPosY;
-	// draw background
+        // draw background
 	if (m_dataEngineState == QSDR::DataEngineUp) {
 
-		drawGLRect(m_rect, Qt::black, m_bkgColor2, -3.0f, false);
+        drawGLRect(m_rect, Qt::black, m_bkgColor2, -3.0f, false);
 		qglColor(m_activeTextColor);
-		fontcolor = m_activeTextColor;
+        fontcolor = m_activeTextColor;
 	}
 	else {
 
@@ -1020,155 +999,127 @@ void OGLDisplayPanel::paintRxRegion() {
 		x1 += m_blankWidthf1;
 
 	m_freqStringLeftPos = x1;
-//	m_oglTextFreq1->renderText(x1, y1, f1str);
-	renderText(x1, y1, m_fonts.freqFont1, fontcolor, f1str);
 
-	str = "%1";
-	x1 = m_rxRect.left() + m_blankWidthf + 2*m_blankWidthf2;
+    str = "%1";
+    QString f2str = str.arg(f2, 3, 10, QLatin1Char('0'));
+    painter.endNativePainting();
+    painter.scale(1,1);
+//    painter.drawText(x1,y1,"here");
+    renderFreqText(painter,x1,y1,m_fonts.freqFont1,m_oglTextFreq1->fontMetrics(), fontcolor,f1str,0,  (f1 / 1000 < 10)? m_digitPosition -1: m_digitPosition );
+    renderText(painter,x1, y1, m_fonts.freqFont2,fontcolor, ".");
 
-	QString f2str = str.arg(f2, 3, 10, QLatin1Char('0'));
-	//int f2strWidth = m_oglTextFreq2->fontMetrics().tightBoundingRect(f2str).width();
+    x1 += (m_oglTextFreq2->fontMetrics().horizontalAdvance("."));
+    renderFreqText(painter,x1,y1,m_fonts.freqFont2,m_oglTextFreq2->fontMetrics(), fontcolor,f2str,7, m_digitPosition);
+    x1+= 2 * m_blankWidth;
 
-//	m_oglTextFreq2->renderText(x1, y1 + 1, f2str);
-	renderText(x1, y1, m_fonts.freqFont2, fontcolor, f2str);
+    renderText(painter,x1, y1 - 1, m_fonts.freqFont2, fontcolor, "MHz");
 
-	//x1 += f2strWidth + m_blankWidthf2;
-	x1 = m_rxRect.left() + m_blankWidthf + 6*m_blankWidthf2;
-//	m_oglTextFreq1->renderText(x1, y1 - 1, "MHz");
-	renderText(x1, y1 - 1, m_fonts.freqFont1, fontcolor, "MHz");
+        // current mouse wheel step size
+        str = "step: %1";
+        x1 += m_fUnitStringWidth + 3 * m_blankWidthf2;
 
-	// current mouse wheel step size
-	str = "step: %1";
-	x1 += m_fUnitStringWidth + 3 * m_blankWidthf2;
+    renderText(painter,x1, y1 , m_fonts.normalFont, fontcolor, str.arg(set->getValue1000(m_mouseWheelFreqStep, 0, "Hz")));
 
-//	m_oglTextNormal->renderText(x1, y1 + 2, str.arg(set->getValue1000(m_mouseWheelFreqStep, 0, "Hz")));
-	renderText(x1, y1 , m_fonts.normalFont, fontcolor, str.arg(set->getValue1000(m_mouseWheelFreqStep, 0, "Hz")));
-
-	// current receiver
-	str = "Rx: %1";
-//	m_oglTextBig->renderText(x1, y1 + 1.5f * m_fonts.fontHeightBigFont, str.arg(m_currentReceiver + 1));
-	renderText(x1, y1 - (int)( m_fonts.fontHeightBigFont ) ,m_fonts.bigFont, fontcolor, str.arg(m_currentReceiver + 1));
+        // current receiver
+    if (set->getRadioState() == RadioState::RX){
+        str = "Rx: %1";
+        renderText(painter,x1, y1 - (int)( m_fonts.fontHeightBigFont ) ,m_fonts.bigFont, fontcolor, str.arg(m_currentReceiver + 1));
+    }
+    else{
+        str ="Tx: %1";
+        renderText(painter,x1, y1 - (int)( m_fonts.fontHeightBigFont ) ,m_fonts.bigFont, m_txdigitColor, str.arg(m_currentReceiver + 1));
+    }
 
 
 	// frequency info
 	if (m_oldFreq != m_frequencyList[m_currentReceiver].frequency) {
 
 		m_bandText = getHamBandTextString(set->getHamBandTextList(), false, m_frequencyList[m_currentReceiver].frequency);
-		m_oldFreq = m_frequencyList[m_currentReceiver].frequency;
-	}
+                m_oldFreq = m_frequencyList[m_currentReceiver].frequency;
+        }
 
-//	m_oglTextSmall->renderText(m_freqStringLeftPos, y1 + 1.75*m_fonts.fontHeightFreqFont1, m_bandText);
-	renderText(m_freqStringLeftPos,  y1 + (int) (m_fonts.fontHeightFreqFont1) - 10 ,m_fonts.smallFont, fontcolor, m_bandText);
+    renderText(painter,m_freqStringLeftPos,  y1 + (int) (m_fonts.fontHeightFreqFont1) - 10 ,m_fonts.smallFont, fontcolor, m_bandText);
+        painter.end();
 
-}
+    }
 
-void OGLDisplayPanel::paintSMeter() {
+//void OGLDisplayPanel::paintRXFrequency(GLint &x1, GLint &y1 )
 
-	GLint width = m_smeterRect.width();
-	GLint height = m_smeterRect.height();
-	GLint x1 = m_smeterRect.left();
-	GLint x2 = x1 + width;
-	GLint y1 = m_smeterRect.top();
-	GLint y2 = y1 + height;
-	
-	//float X = m_smeterRect.left() + width/2.0f;
-	//float Y = 370;
-	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	glEnable(GL_BLEND);
-	glEnable(GL_LINE_SMOOTH);
-	
-	if (!m_smeterFBO || m_smeterUpdate || m_smeterRenew) {
+    void OGLDisplayPanel::paintSMeter() {
 
-		if (!m_smeterFBO || m_smeterRenew) {
+        GLint width = m_smeterRect.width();
+        GLint height = m_smeterRect.height();
+        GLint x1 = m_smeterRect.left();
+        GLint x2 = x1 + width;
+        GLint y1 = m_smeterRect.top();
+        GLint y2 = y1 + height;
 
-			if (m_smeterFBO) {
-			
-				delete m_smeterFBO;
-				m_smeterFBO = 0;
-			}
+        glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glEnable(GL_BLEND);
+        glEnable(GL_LINE_SMOOTH);
 
-			m_smeterFBO = new QOpenGLFramebufferObject(m_sMeterWidth, height);
-			//DISPLAYPANEL_DEBUG << "m_smeterFBO generated.";
-		}
+        // Only recreate FBO if needed
+        if (!m_smeterFBO || m_smeterRenew) {
+            if (m_smeterFBO) {
+                delete m_smeterFBO;
+                m_smeterFBO = nullptr;
+            }
+            m_smeterFBO = new QOpenGLFramebufferObject(m_sMeterWidth *dpr, height * dpr);
+            m_smeterUpdate = true; // Need to re-render after FBO recreation
+            m_smeterRenew = false;
+        }
 
-		m_smeterFBO->bind();
-		renderSMeterScale();
-		m_smeterFBO->release();
+        // Only re-render scale if needed
+        if (m_smeterUpdate) {
+            m_smeterFBO->bind();
+            renderSMeterScale();
+            m_smeterFBO->release();
+            m_smeterUpdate = false;
+        }
 
-		m_smeterUpdate = false;
-		m_smeterRenew = false;
-	}
+        QRect rect(m_rxRect.right() + m_sMeterOffset, 0, m_sMeterWidth, height);
+        renderTexture(rect, m_smeterFBO->texture(), -2.0f);
 
-	QRect rect = QRect(m_rxRect.right() + m_sMeterOffset, 0, m_sMeterWidth, height);
-	//renderTexture(rect, m_smeterFBO->texture(), -1.0f);
-	renderTexture(rect, m_smeterFBO->texture(), -2.0f);
-	
-	// set a scissor box
-	glScissor(x1, size().height() - y2, x2, height);
-	glEnable(GL_SCISSOR_TEST);
+        // Correct glScissor usage: width, not x2
+        glScissor(x1, size().height() - y2, width, height);
+        glEnable(GL_SCISSOR_TEST);
 
-	if (m_dataEngineState == QSDR::DataEngineUp) {
+        if (m_dataEngineState == QSDR::DataEngineUp) {
 
-		// S-Meter hold value
-		glLineWidth(1);
-		int min = (int)(m_sMeterMinValueB * m_unit);
-		int max = (int)(m_sMeterMaxValueB * m_unit);
-		min += min%2;
-		max += max%2;
+            glLineWidth(1);
+            int min = (int)(m_sMeterMinValueB * m_unit);
+            int max = (int)(m_sMeterMaxValueB * m_unit);
+            min += min % 2;
+            max += max % 2;
 
-		QRect bar = QRect(x1 + min, m_sMeterPosY + 4, max - min, 5);
-		if (min > 0)
-			drawGLRect(bar, QColor(255, 50, 50), QColor(255, 255, 50), true);
+            QRect bar(x1 + min, m_sMeterPosY + 4, max - min, 5);
+            if (min > 0)
+                drawGLRect(bar, QColor(255, 50, 50), QColor(255, 255, 50), true);
 
-		glDisable(GL_LINE_SMOOTH);
-		glDisable(GL_BLEND);
-		glDisable(GL_MULTISAMPLE);
+            // S-Meter needle
+            glLineWidth(2);
+            qglColor(QColor(255, 255, 255));
+            if (m_sMeterValue > 0) {
+                glBegin(GL_LINES);
+                glVertex3f(x1 + (int)(m_sMeterValue * m_unit), m_sMeterPosY - 15, 1.0f);
+                glVertex3f(x1 + (int)(m_sMeterValue * m_unit), m_sMeterPosY + 28, 1.0f);
+                glEnd();
+            }
 
-		/*if (min > 0) {
+            // Actual S-Meter value
+            qglColor(m_activeTextColor);
+            m_sMeterNumValueString = QString::number(m_sMeterOrgValue, 'f', 1);
+            m_oglTextBig->renderText(x1 + m_sMeterWidth - 85, 2, 3.0, m_sMeterNumValueString);
+            m_oglTextNormal->renderText(x1 + m_sMeterWidth - 28, 9, 3.0, "dBm");
+        }
 
-			for (int i = min; i <= max; i += 2) {
-
-				glBegin(GL_LINES);
-					glVertex3i(x1 + i, m_sMeterPosY + 3, 0.0);
-					glVertex3i(x1 + i, m_sMeterPosY + 10, 0.0);
-				glEnd();
-			}
-		}*/
-
-		// S-Meter needle
-		glLineWidth(2);
-		qglColor(QColor(255, 255, 255));
-		if (m_sMeterValue > 0) {
-
-			glBegin(GL_LINES);
-				glVertex3f(x1 + (int)(m_sMeterValue * m_unit), m_sMeterPosY - 15, 1.0f);
-				glVertex3f(x1 + (int)(m_sMeterValue * m_unit), m_sMeterPosY + 28, 1.0f);
-			glEnd();
-		}
-
-		// actual S-Meter value
-		glEnable(GL_MULTISAMPLE);
-		qglColor(m_activeTextColor);
-
-		QString str = "%1";
-		m_sMeterNumValueString = QString(str.arg(m_sMeterOrgValue, 0, 'f', 1));
-		//m_oglTextBig->renderText(x1 + m_sMeterWidth - 85, 80, 3.0, m_sMeterNumValueString);
-		//m_oglTextNormal->renderText(x1 + m_sMeterWidth - 28, 86, 3.0, "dBm");
-		m_oglTextBig->renderText(x1 + m_sMeterWidth - 85, 2, 3.0, m_sMeterNumValueString);
-		m_oglTextNormal->renderText(x1 + m_sMeterWidth - 28, 9, 3.0, "dBm");
-
-		glEnable(GL_MULTISAMPLE);
-	}
-
-	// disable scissor box
-	glDisable(GL_SCISSOR_TEST);
-	
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	glEnable(GL_BLEND);
-	glDisable(GL_LINE_SMOOTH);
-	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-}
+        glDisable(GL_SCISSOR_TEST);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        glEnable(GL_BLEND);
+        glDisable(GL_LINE_SMOOTH);
+        glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+    }
 
 void OGLDisplayPanel::renderSMeterA() {
 
@@ -1257,7 +1208,7 @@ void OGLDisplayPanel::renderSMeterA() {
 
 
 	// circle 2
-	/*if (m_dataEngineState == QSDR::DataEngineUp)
+    /*if (m_dataEngineState == QSDR::DataEngineUp)
 		qglColor(QColor(106, 136, 148));
 	else
 		qglColor(QColor(68, 68, 68));
@@ -1272,7 +1223,7 @@ void OGLDisplayPanel::renderSMeterA() {
 		t += TWOPI / numVertices;
 		if ( t > -99*ONEPI/256.0f) break;
 	}
-	glEnd();*/
+    glEnd();*/
 
 
 	// circle 3
@@ -1311,7 +1262,7 @@ void OGLDisplayPanel::renderSMeterA() {
 	glVertex3f(X + (R0+11) * qCos(t), Y + (R0+11) * qSin(t), 0.0);
 	glEnd();
 
-	int d = fm.width("1");
+    int d = fm.horizontalAdvance("1");
 	m_oglTextNormal->renderText(X + (R0+28) * qCos(t) - d/2, Y + (R0+28) * qSin(t), "1");
 
 	t = (float)(-149*ONEPI/256.0f);
@@ -1326,7 +1277,7 @@ void OGLDisplayPanel::renderSMeterA() {
 	glVertex3f(X + (R0+11) * qCos(t), Y + (R0+11) * qSin(t), 0.0);
 	glEnd();
 
-	d = fm.width("3");
+    d = fm.horizontalAdvance("3");
 	m_oglTextNormal->renderText(X + (R0+28) * qCos(t) - d/2, Y + (R0+28) * qSin(t), "3");
 
 	t = (float)(-143*ONEPI/256.0f);
@@ -1341,7 +1292,7 @@ void OGLDisplayPanel::renderSMeterA() {
 	glVertex3f(X + (R0+11) * qCos(t), Y + (R0+11) * qSin(t), 0.0);
 	glEnd();
 
-	d = fm.width("5");
+    d = fm.horizontalAdvance("5");
 	m_oglTextNormal->renderText(X + (R0+28) * qCos(t) - d/2, Y + (R0+28) * qSin(t), "5");
 
 	t = (float)(-137*ONEPI/256.0f);
@@ -1356,7 +1307,7 @@ void OGLDisplayPanel::renderSMeterA() {
 	glVertex3f(X + (R0+11) * qCos(t), Y + (R0+11) * qSin(t), 0.0);
 	glEnd();
 
-	d = fm.width("7");
+    d = fm.horizontalAdvance("7");
 	m_oglTextNormal->renderText(X + (R0+28) * qCos(t) - d/2, Y + (R0+28) * qSin(t), "7");
 
 	t = (float)(-131*ONEPI/256.0f);
@@ -1371,7 +1322,7 @@ void OGLDisplayPanel::renderSMeterA() {
 	glVertex3f(X + (R0+11) * qCos(t), Y + (R0+11) * qSin(t), 0.0);
 	glEnd();
 
-	d = fm.width("9");
+    d = fm.horizontalAdvance("9");
 	m_oglTextNormal->renderText(X + (R0+28) * qCos(t) - d/2, Y + (R0+28) * qSin(t), "9");
 
 	if (m_dataEngineState == QSDR::DataEngineUp)
@@ -1391,7 +1342,7 @@ void OGLDisplayPanel::renderSMeterA() {
 	glVertex3f(X + (R0+11) * qCos(t), Y + (R0+11) * qSin(t), 0.0);
 	glEnd();
 
-	d = fm.width("+20");
+    d = fm.horizontalAdvance("+20");
 	m_oglTextNormal->renderText(X + (R0+28) * qCos(t) - d/2, Y + (R0+28) * qSin(t), "+20");
 
 	t = (float)(-113*ONEPI/256.0f);
@@ -1406,7 +1357,7 @@ void OGLDisplayPanel::renderSMeterA() {
 	glVertex3f(X + (R0+11) * qCos(t), Y + (R0+11) * qSin(t), 0.0);
 	glEnd();
 
-	d = fm.width("+40");
+    d = fm.horizontalAdvance("+40");
 	m_oglTextNormal->renderText(X + (R0+28) * qCos(t) - d/2, Y + (R0+28) * qSin(t), "+40");
 
 	t = (float)(-103*ONEPI/256.0f);
@@ -1432,7 +1383,7 @@ void OGLDisplayPanel::renderSMeterScale() {
 	QFontMetrics fm = m_oglTextNormal->fontMetrics();
 
 	//int fontHeight = fm.tightBoundingRect("S9").height();
-	//int fontMaxWidth = fm.boundingRect("-000").width();
+    //int fontMaxWidth = fm.boundingRect("-000").horizontalAdvance();
 
 	qreal dBmRange = qAbs(m_dBmPanMax - m_dBmPanMin);
 	m_unit = (qreal)(m_sMeterWidth / dBmRange);
@@ -1441,8 +1392,7 @@ void OGLDisplayPanel::renderSMeterScale() {
 	// draw background
     if (m_dataEngineState == QSDR::DataEngineUp)
         drawGLRect(rect, Qt::black, m_bkgColor2, -3.0f, false);
-    else
-        drawGLRect(rect, Qt::black);
+    else drawGLRect(rect, Qt::black);
 
 	glDisable(GL_MULTISAMPLE);
 	glDisable(GL_LINE_SMOOTH);
@@ -1514,7 +1464,7 @@ void OGLDisplayPanel::renderSMeterScale() {
 		glEnd();
 		
 		marker = QString::number(z, 'f', 0);
-		int d = fm.width(marker);
+        int d = fm.horizontalAdvance(marker);
 
 		if (z == -120 || z == -100 || z == -80 || z == -60 || z == -40 || z == -20) 
 			m_oglTextNormal->renderText(10*i*m_unit-d/2-2, m_sMeterPosY - 18, marker);
@@ -1542,7 +1492,7 @@ void OGLDisplayPanel::renderSMeterScale() {
 			glEnd();
 
 			marker = "S1";
-			int d = fm.width(marker);
+            int d = fm.horizontalAdvance(marker);
 
 			if (i == 1) {	
 			
@@ -1584,7 +1534,7 @@ void OGLDisplayPanel::renderSMeterScale() {
 			glEnd();
 
 			marker = "+20";
-			int d = fm.width(marker);
+            int d = fm.horizontalAdvance(marker);
 
 			if (i == 11) {
 				m_oglTextNormal->renderText(idx - d/2 - 2, m_sMeterPosY + 18, marker);
@@ -1602,7 +1552,7 @@ void OGLDisplayPanel::renderSMeterScale() {
 			/*else if (i == 17) {
 				
 				marker = "+80";
-				m_oglTextNormal->renderText(idx - d/2 - 2, m_sMeterPosY + 18, marker);
+				m_oglTextNormal->renderFreqText(idx - d/2 - 2, m_sMeterPosY + 18, marker);
 			}*/
 		}
 	}
@@ -1625,7 +1575,7 @@ void OGLDisplayPanel::renderSMeterScale() {
 
 void OGLDisplayPanel::renderSMeterB() {
 
-	//GLint width = m_smeterRect.width();
+    //GLint width = m_smeterRect.horizontalAdvance();
 	GLint width = m_sMeterWidth;
 	GLint height = m_smeterRect.height();
 
@@ -1724,7 +1674,7 @@ void OGLDisplayPanel::renderSMeterB() {
 		glEnd();
 
 		// S strings
-		//d = fm.width(marker);
+        //d = fm.horizontalAdvance(marker);
 		m_oglTextNormal->renderText(x-7, m_sMeterPosY + 18, marker);
 	}
 
@@ -1770,7 +1720,7 @@ void OGLDisplayPanel::renderSMeterB() {
 	for (int x = markerSpacing - 16, y = x + markerSpacing/2, z = -130; z < 10; x += markerSpacing, y += markerSpacing, z += 10) {
 		
 		marker = QString::number(z, 'f', 0);
-		int d = fm.width(marker);
+        int d = fm.horizontalAdvance(marker);
 		
 		// big ticks
 		glBegin(GL_LINES);
@@ -1893,7 +1843,7 @@ void OGLDisplayPanel::renderSMeterB() {
 //
 //		// S strings
 //		//d = fm.width(marker);
-//		m_oglTextNormal->renderText(x-7, m_sMeterPosY + 18, marker);
+//		m_oglTextNormal->renderFreqText(x-7, m_sMeterPosY + 18, marker);
 //	}
 //
 //	// Draw the S+ value items
@@ -1929,7 +1879,7 @@ void OGLDisplayPanel::renderSMeterB() {
 //		else
 //			qglColor(QColor(68, 68, 68));
 //
-//		m_oglTextNormal->renderText(y, m_sMeterPosY + 18, marker);
+//		m_oglTextNormal->renderFreqText(y, m_sMeterPosY + 18, marker);
 //	}
 //
 //	// Draw the dbm items
@@ -1956,12 +1906,12 @@ void OGLDisplayPanel::renderSMeterB() {
 //		glEnd();
 //		
 //		if (z == -120 || z == -100 || z == -80 || z == -60 || z == -40 || z == -20) 
-//			m_oglTextNormal->renderText(x-d/2-2, m_sMeterPosY - 18, marker);
+//			m_oglTextNormal->renderFreqText(x-d/2-2, m_sMeterPosY - 18, marker);
 //
-//		if (z == 0) m_oglTextNormal->renderText(x-d/2-1, m_sMeterPosY - 18, marker);
+//		if (z == 0) m_oglTextNormal->renderFreqText(x-d/2-1, m_sMeterPosY - 18, marker);
 //	}
 //
-//	m_oglTextSmallItalic->renderText(width - 25, m_sMeterPosY - 16, "dBm");
+//	m_oglTextSmallItalic->renderFreqText(width - 25, m_sMeterPosY - 16, "dBm");
 //
 //	glEnable(GL_MULTISAMPLE);
 //}
@@ -2037,7 +1987,7 @@ void OGLDisplayPanel::setSMeterValue(int rx, double value) {
 
 void OGLDisplayPanel::setupDisplayRegions(QSize size) {
 
-	int width  = size.width();
+    int width  = size.width();
 	int height = size.height();
 
 	m_sMeterWidth = (int)(0.8f*(width - m_rxRectWidth));
@@ -2068,23 +2018,20 @@ void OGLDisplayPanel::setupDisplayRegions(QSize size) {
 	m_freg10000000	 = QRegion(QRect(x, y -  m_fonts.fontHeightFreqFont1, m_blankWidthf1, m_fonts.fontHeightFreqFont1));
     x += m_blankWidthf1;
 	m_freg1000000	 = QRegion(QRect(x, y -  m_fonts.fontHeightFreqFont1, m_blankWidthf1, m_fonts.fontHeightFreqFont1));
-
-	x += m_blankWidthf1;
-	m_freg100000	 = QRegion(QRect(x, y -  m_fonts.fontHeightFreqFont1, m_blankWidthf1, m_fonts.fontHeightFreqFont1));
-
-	x += m_blankWidthf1 + m_pointStringWidth;
-	m_freg10000 	 = QRegion(QRect(x, y -  m_fonts.fontHeightFreqFont1 , m_blankWidthf1, m_fonts.fontHeightFreqFont1));
-
+    x += m_blankWidthf1;
+    m_point =           QRegion(QRect(x, y -  m_fonts.fontHeightFreqFont1, m_pointStringWidth, m_fonts.fontHeightFreqFont1));
+    x += m_pointStringWidth;
+    m_freg100000	 = QRegion(QRect(x, y -  m_fonts.fontHeightFreqFont1, m_blankWidthf1, m_fonts.fontHeightFreqFont1));
+    x += m_blankWidthf1;
+    m_freg10000 	 = QRegion(QRect(x, y -  m_fonts.fontHeightFreqFont1 , m_blankWidthf1, m_fonts.fontHeightFreqFont1));
 	x += m_blankWidthf1;
 	m_freg1000 		 = QRegion(QRect(x, y -  m_fonts.fontHeightFreqFont1 , m_blankWidthf1, m_fonts.fontHeightFreqFont1));
-
-	//x += m_blankWidthf1;
-	x = m_rxRect.left() + m_blankWidthf + 2*m_blankWidthf2;
-	m_freg100 		 = QRegion(QRect(x, y -  m_fonts.fontHeightFreqFont2, m_blankWidthf2, m_fonts.fontHeightFreqFont2));
-
+    x += m_blankWidthf1;
+    m_point1         = QRegion(QRect(x, y -  m_fonts.fontHeightFreqFont1, m_pointStringWidth, m_fonts.fontHeightFreqFont1));
+    x += m_pointStringWidth;
+    m_freg100 		 = QRegion(QRect(x, y -  m_fonts.fontHeightFreqFont2, m_blankWidthf2, m_fonts.fontHeightFreqFont2));
 	x += m_blankWidthf2;
 	m_freg10 		 = QRegion(QRect(x, y -  m_fonts.fontHeightFreqFont2 , m_blankWidthf2, m_fonts.fontHeightFreqFont2));
-
 	x += m_blankWidthf2;
 	m_freg1 		 = QRegion(QRect(x, y -  m_fonts.fontHeightFreqFont2 , m_blankWidthf2, m_fonts.fontHeightFreqFont2));
 
@@ -2092,6 +2039,8 @@ void OGLDisplayPanel::setupDisplayRegions(QSize size) {
 }
 
 void OGLDisplayPanel::getSelectedDigit(QPoint p) {
+
+    static int pos;
 
 	if (m_freg1.contains(p))
 		m_digitPosition = Freq1;
@@ -2109,15 +2058,21 @@ void OGLDisplayPanel::getSelectedDigit(QPoint p) {
 		m_digitPosition = Freq10000;
 	else 
 	if (m_freg100000.contains(p))
-		m_digitPosition = Freq100000;
-	else 
+        m_digitPosition = Freq100000;
+    else
 	if (m_freg1000000.contains(p))
 		m_digitPosition = Freq1000000;
 	else 
 	if (m_freg10000000.contains(p))
 		m_digitPosition = Freq10000000;
-	else
+    else
 		m_digitPosition = None;
+
+    if (pos != m_digitPosition){
+        pos=m_digitPosition;
+        update();
+     }
+
 }
 
 //***********************************************
@@ -2136,7 +2091,6 @@ void OGLDisplayPanel::mousePressEvent(QMouseEvent *event) {
 	QPoint pos = event->pos();
 	
 	//if (m_serverMode != QSDR::ExternalDSP) {
-
 		getSelectedDigit(pos);
 		switch (m_digitPosition) {
 
@@ -2226,82 +2180,58 @@ void OGLDisplayPanel::mouseMoveEvent(QMouseEvent *event) {
 
 	QColor oldDigitColor = m_digitColor;
 
-	//if (m_serverMode != QSDR::ExternalDSP) {
+    if (m_dataEngineState != QSDR::DataEngineUp)
+    {
+        m_digitColor = QColor(98, 98, 98);
+        return;
+    }
 
 		getSelectedDigit(pos);
 		switch (m_digitPosition) {
 
 			case Freq1:
 				setCursor(Qt::PointingHandCursor);
-				if (m_dataEngineState == QSDR::DataEngineUp)
-					m_digitColor = QColor(136, 166, 178);
-				else
-					m_digitColor = QColor(98, 98, 98);
-				break;
+                    m_digitColor = QColor(136, 166, 178);
+                break;
 
 			case Freq10:
 				setCursor(Qt::PointingHandCursor);
-				if (m_dataEngineState == QSDR::DataEngineUp)
-					m_digitColor = QColor(136, 166, 178);
-				else
-					m_digitColor = QColor(98, 98, 98);
-				break;
+                    m_digitColor = QColor(136, 166, 178);
+                break;
 
 			case Freq100:
 				setCursor(Qt::PointingHandCursor);
-				if (m_dataEngineState == QSDR::DataEngineUp)
-					m_digitColor = QColor(136, 166, 178);
-				else
-					m_digitColor = QColor(98, 98, 98);
-				break;
+                    m_digitColor = QColor(136, 166, 178);
+                break;
 
 			case Freq1000:
 				setCursor(Qt::PointingHandCursor);
-				if (m_dataEngineState == QSDR::DataEngineUp)
-					m_digitColor = QColor(136, 166, 178);
-				else
-					m_digitColor = QColor(98, 98, 98);
-				break;
+                    m_digitColor = QColor(136, 166, 178);
+                break;
 
 			case Freq10000:
 				setCursor(Qt::PointingHandCursor);
-				if (m_dataEngineState == QSDR::DataEngineUp)
-					m_digitColor = QColor(136, 166, 178);
-				else
-					m_digitColor = QColor(98, 98, 98);
-				break;
+                    m_digitColor = QColor(136, 166, 178);
+                break;
 
 			case Freq100000:
 				setCursor(Qt::PointingHandCursor);
-				if (m_dataEngineState == QSDR::DataEngineUp)
-					m_digitColor = QColor(136, 166, 178);
-				else
-					m_digitColor = QColor(98, 98, 98);
-				break;
+                    m_digitColor = QColor(136, 166, 178);
+                break;
 
 			case Freq1000000:
 				setCursor(Qt::PointingHandCursor);
-				if (m_dataEngineState == QSDR::DataEngineUp)
 					m_digitColor = QColor(136, 166, 178);
-				else
-					m_digitColor = QColor(98, 98, 98);
-				break;
-
+                 break;
 			case Freq10000000:
 				setCursor(Qt::PointingHandCursor);
-				if (m_dataEngineState == QSDR::DataEngineUp)
 					m_digitColor = QColor(136, 166, 178);
-				else
-					m_digitColor = QColor(98, 98, 98);
 				break;
 
 			case None:
 				setCursor(Qt::ArrowCursor);
-				if (m_dataEngineState == QSDR::DataEngineUp)
 					m_digitColor = QColor(106, 136, 148);
-				else
-					m_digitColor = QColor(68, 68, 68);
-				
+
 				break;
 		}
 	//}
@@ -2312,12 +2242,8 @@ void OGLDisplayPanel::mouseMoveEvent(QMouseEvent *event) {
 }
 
 void OGLDisplayPanel::wheelEvent(QWheelEvent * event) {
-
-	//if (m_serverMode != QSDR::ExternalDSP) {
-
 		long deltaF = 0;
 		switch (m_digitPosition) {
-
 			case Freq1:
 				deltaF = 1;
 				break;
@@ -2354,9 +2280,8 @@ void OGLDisplayPanel::wheelEvent(QWheelEvent * event) {
 				return;
 		}
 
-		int numDegrees = event->delta() / 8;
-		int numSteps = numDegrees / 15;
-
+        int  numDegrees = event->angleDelta().y()/ 8;
+        int  numSteps = numDegrees / 15;
 		int f1 = m_frequencyList[m_currentReceiver].freqMHz;
 		int f2 = m_frequencyList[m_currentReceiver].freqkHz;
 
@@ -2376,15 +2301,11 @@ void OGLDisplayPanel::wheelEvent(QWheelEvent * event) {
 				else if (newFreq < ctrf - s)
 					newFreq = ctrf - s;
 
-				set->setVFOFrequency(this, 0, m_currentReceiver, newFreq);
+                set->setVFOFrequency(this, 0, m_currentReceiver, newFreq);
 			}
-			else
-				set->setVFOFrequency(this, 1, m_currentReceiver, newFreq);
+            else
+                set->setVFOFrequency(this, 1, m_currentReceiver, newFreq);
 		}
-
-		//qDebug() << "set frequency for rx" << m_currentReceiver;
-			
-	//}
 	event->accept();
 	QOpenGLWidget::wheelEvent(event);
 }
@@ -2398,11 +2319,12 @@ void OGLDisplayPanel::closeEvent(QCloseEvent *event) {
 
 	Q_UNUSED(event)
 }
-
+/*
 void OGLDisplayPanel::showEvent(QShowEvent *event) {
 
 	Q_UNUSED(event)
 }
+*/
 
 void OGLDisplayPanel::timerEvent(QTimerEvent *event) {
 
@@ -2418,7 +2340,7 @@ void OGLDisplayPanel::setSyncStatus(int value) {
 
 	m_syncStatus = value;
 
-	//QTimer::singleShot(50, this, SLOT(updateSyncStatus()));
+    //QElapsedTimer::singleShot(50, this, SLOT(updateSyncStatus()));
 }
 
 void OGLDisplayPanel::updateSyncStatus() {
@@ -2434,7 +2356,7 @@ void OGLDisplayPanel::setADCStatus(int value) {
 
 	m_adcStatus = value;
 
-	QTimer::singleShot(500, this, SLOT(updateADCStatus()));
+    QTimer::singleShot(500, this, SLOT(updateADCStatus()));
 }
 
 void OGLDisplayPanel::updateADCStatus() {
@@ -2449,7 +2371,7 @@ void OGLDisplayPanel::updateADCStatus() {
 void OGLDisplayPanel::setPacketLossStatus(int value) {
 
 	m_packetLossStatus = value;
-	QTimer::singleShot(100, this, SLOT(updatePacketLossStatus()));
+    QTimer::singleShot(100, this, SLOT(updatePacketLossStatus()));
 }
 
 void OGLDisplayPanel::updatePacketLossStatus() {
@@ -2470,21 +2392,21 @@ void OGLDisplayPanel::setRecvAudioStatus(int value) {
 	m_recvAudioStatus = value;
 }
 
-void OGLDisplayPanel::setReceivers(QObject *sender, int value) {
+void OGLDisplayPanel::setReceivers(QObject*sender,int value) {
 
 	Q_UNUSED (sender)
 
 	m_receivers = value;
 }
 
-void OGLDisplayPanel::setSampleRate(QObject *sender, int value) {
+void OGLDisplayPanel::setSampleRate(QObject*sender,int value) {
 
 	Q_UNUSED (sender)
 
 	m_sample_rate = value / 1000;
 }
 
-void OGLDisplayPanel::setMercuryAttenuator(QObject *sender, HamBand band, int value) {
+void OGLDisplayPanel::setMercuryAttenuator(QObject*sender, HamBand band,int value) {
 
 	Q_UNUSED (sender)
 	Q_UNUSED (band)
@@ -2492,28 +2414,28 @@ void OGLDisplayPanel::setMercuryAttenuator(QObject *sender, HamBand band, int va
 	m_mercuryAttenuator = value;
 }
 
-void OGLDisplayPanel::setDither(QObject *sender, int value) {
+void OGLDisplayPanel::setDither(QObject*sender,int value) {
 
 	Q_UNUSED (sender)
 
 	m_dither = value;
 }
 
-void OGLDisplayPanel::setRandom(QObject *sender, int value) {
+void OGLDisplayPanel::setRandom(QObject*sender,int value) {
 
 	Q_UNUSED (sender)
 
 	m_random = value;
 }
 
-void OGLDisplayPanel::setCurrentReceiver(QObject *sender, int value) {
+void OGLDisplayPanel::setCurrentReceiver(QObject*sender,int value) {
 
 	Q_UNUSED(sender)
 
 	m_currentReceiver = value;
 }
 
-void OGLDisplayPanel::setFrequency(QObject *sender, int mode, int rx, long freq) {
+void OGLDisplayPanel::setFrequency(QObject*sender,int mode,int rx, long freq) {
 
 	Q_UNUSED (sender)
 	Q_UNUSED (mode)
@@ -2538,7 +2460,7 @@ void OGLDisplayPanel::setFrequency(QObject *sender, int mode, int rx, long freq)
 
 }
 
-void OGLDisplayPanel::set10mhzSource(QObject *sender, int value) {
+void OGLDisplayPanel::set10mhzSource(QObject*sender,int value) {
 
 	Q_UNUSED (sender)
 
@@ -2555,7 +2477,7 @@ void OGLDisplayPanel::set10mhzSource(QObject *sender, int value) {
 	}
 }
 
-void OGLDisplayPanel::set122_88mhzSource(QObject *sender, int value) {
+void OGLDisplayPanel::set122_88mhzSource(QObject*sender,int value) {
 
 	Q_UNUSED (sender)
 
@@ -2640,13 +2562,13 @@ void OGLDisplayPanel::setMetisVersion(int value) {
 
 		case QSDR::Hermes:
 		case QSDR::NoInterfaceMode:
-
+    default:
 			break;
 	}
 	
 }
 
-void OGLDisplayPanel::setExcaliburVersion(QObject *sender, int value) {
+void OGLDisplayPanel::setExcaliburVersion(QObject*sender,int value) {
 
 	Q_UNUSED (sender)
 
@@ -2656,7 +2578,7 @@ void OGLDisplayPanel::setExcaliburVersion(QObject *sender, int value) {
 	m_excaliburVersion.append(str.setNum(value%10));
 }
 
-void OGLDisplayPanel::setAlexVersion(QObject *sender, int value) {
+void OGLDisplayPanel::setAlexVersion(QObject*sender,int value) {
 
 	Q_UNUSED (sender)
 
@@ -2666,7 +2588,7 @@ void OGLDisplayPanel::setAlexVersion(QObject *sender, int value) {
 	m_alexVersion.append(str.setNum(value%10));
 }
 
-void OGLDisplayPanel::setMouseWheelFreqStep(QObject *sender, int rx, qreal value) {
+void OGLDisplayPanel::setMouseWheelFreqStep(QObject*sender,int rx, qreal value) {
 
 	Q_UNUSED (sender)
 
@@ -2676,7 +2598,7 @@ void OGLDisplayPanel::setMouseWheelFreqStep(QObject *sender, int rx, qreal value
 }
 
 void OGLDisplayPanel::systemStateChanged(
-	QObject *sender, 
+    QObject*sender,
 	QSDR::_Error err, 
 	QSDR::_HWInterfaceMode hwmode, 
 	QSDR::_ServerMode mode, 
@@ -2708,16 +2630,16 @@ void OGLDisplayPanel::systemStateChanged(
 		m_sMeterMaxTimer.restart();
 		m_sMeterMinTimer.restart();
 
-		QTimer::singleShot(50, this, SLOT(updateADCStatus()));
-		QTimer::singleShot(50, this, SLOT(updateSyncStatus()));
-		QTimer::singleShot(50, this, SLOT(updatePacketLossStatus()));
+        QTimer::singleShot(50, this, SLOT(updateADCStatus()));
+        QTimer::singleShot(50, this, SLOT(updateSyncStatus()));
+        QTimer::singleShot(50, this, SLOT(updatePacketLossStatus()));
 
 		//resizeGL(width(), height());
 	}
-//	else if (state == QSDR::DataEngineUp) {
-//
-//		resizeGL(width(), height());
-//	}
+    else if (state == QSDR::DataEngineUp) {
+
+        resizeGL(width(), height());
+    }
 
 	m_smeterUpdate = true;
 	m_smeterRenew = true;
@@ -2749,14 +2671,34 @@ void OGLDisplayPanel::restoreGLState() {
 	glPopAttrib();
 }
 
-void OGLDisplayPanel::renderText(int x, int y, QFont &font, QColor fontcolor, const QString &text) {
-		saveGLState();
-		painter->begin(this);
-		painter->setPen(fontcolor);
-		painter->setFont(font);
-		painter->setRenderHint(QPainter::TextAntialiasing ,true);
-		painter->drawText(int(x) , int(y), text);
-		painter->end();
-		restoreGLState();
-	}
+
+void OGLDisplayPanel::renderFreqText(QPainter &painter, GLint &x1, GLint &y1,QFont &font,QFontMetrics fontMetrics, QColor fontcolor, const QString freqstr,int digit,int digit_pos) {
+    int len = freqstr.length();
+    QColor freqdigitcolor;
+
+
+    for (int x = 0; x < len; x++) {
+
+        if (set->getRadioState() > RadioState::RX) {
+            freqdigitcolor = m_txdigitColor;
+        } else
+
+        if ((x + digit) == digit_pos)
+            freqdigitcolor = QColor(106, 236, 248);
+        else freqdigitcolor = fontcolor;
+
+        renderText(painter,x1, y1, font, freqdigitcolor, freqstr.at(x));
+        x1 += (fontMetrics.horizontalAdvance(freqstr.at(x)));
+    }
+}
+
+
+void OGLDisplayPanel::renderText(QPainter &painter, int x,int y, QFont &font, QColor fontcolor, const QString &text ) {
+        painter.save();
+        painter.setPen(fontcolor);
+        painter.setFont(font);
+        painter.setRenderHint(QPainter::Antialiasing);
+        painter.drawText(int(x) ,int(y), text);
+        painter.restore();
+        }
 

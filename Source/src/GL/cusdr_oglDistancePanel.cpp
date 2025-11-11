@@ -31,11 +31,10 @@
 //#include <QtGui>
 //#include <QDebug>
 ////#include <QFileInfo>
-//#include <QTimer>
+//#include <QElapsedTimerr>
 //#include <QImage>
 //#include <QString>
-//#include <QGLFramebufferObject>
-#include <qgl.h>
+//#include <QOpenGLFramebufferObject>
 
 
 #ifndef GL_MULTISAMPLE
@@ -59,7 +58,6 @@ QGLDistancePanel::QGLDistancePanel(QWidget *parent)
 	, m_showZerodBmLine(false)
 	, m_spectrumVertexColorUpdate(false)
 	, m_spectrumColorsChanged(true)
-	, m_showChirpFFT(false)
 	, m_spectrumAveraging(set->getSpectrumAveraging(0))
 	, m_spectrumAveragingOld(m_spectrumAveraging)
 	, m_crossHairCursor(false)
@@ -75,8 +73,6 @@ QGLDistancePanel::QGLDistancePanel(QWidget *parent)
 	, m_filterUpperFrequency(-150.0)
 	, m_snapMouse(3)
 	, m_sampleRate(set->getSampleRate())
-	, m_downRate(set->getChirpDownSampleRate())
-	, m_chirpBufferLength(set->getChirpBufferLength())
 {
 //	QGL::setPreferredPaintEngine(QPaintEngine::OpenGL);
 //	QOpenGLFunctions_X_Y_PROFILE::initializeOpenGLFunctions();
@@ -352,30 +348,7 @@ void QGLDistancePanel::initializeGL() {
 
 void QGLDistancePanel::paintGL() {
 
-	switch (m_serverMode) {
-
-		case QSDR::SDRMode:
-
-			drawGLRect(QRect(0, 0, width(), height()), QColor(0, 0, 0));
-			break;
-
-		case QSDR::ChirpWSPR:
-		case QSDR::ChirpWSPRFile:
-
-			//if (freqChangeTimer.elapsed() > 50)  m_spectrumAveraging = m_spectrumAveragingOld;
-
-			if (m_resizeTime.elapsed() > 100 || m_dataEngineState == QSDR::DataEngineDown) {
-
-				paintReceiverDisplay();
-				paintChirpWSPRDisplay();
-			}
-			
-			break;
-
-		default:
-			break;
-		
-	}
+		drawGLRect(QRect(0, 0, width(), height()), QColor(0, 0, 0));
 }
  
 //****************************************************
@@ -674,7 +647,7 @@ void QGLDistancePanel::drawPanVerticalScale() {
 				delete m_dBmScaleFBO;
 				m_dBmScaleFBO = 0;
 			}
-			m_dBmScaleFBO = new QGLFramebufferObject(width, height);
+            m_dBmScaleFBO = new QOpenGLFramebufferObject(width, height);
 		}
 
 		m_dBmScaleFBO->bind();
@@ -714,7 +687,7 @@ void QGLDistancePanel::drawPanHorizontalScale() {
 				m_frequencyScaleFBO = 0;
 			}
 
-			m_frequencyScaleFBO = new QGLFramebufferObject(width, height);
+            m_frequencyScaleFBO = new QOpenGLFramebufferObject(width, height);
 		}
 
 		glPushAttrib(GL_VIEWPORT_BIT);
@@ -765,7 +738,7 @@ void QGLDistancePanel::drawPanadapterGrid() {
 				m_panadapterGridFBO = 0;
 			}
 
-			m_panadapterGridFBO = new QGLFramebufferObject(width, height);
+            m_panadapterGridFBO = new QOpenGLFramebufferObject(width, height);
 		}
 
 		glPushAttrib(GL_VIEWPORT_BIT);
@@ -1136,7 +1109,7 @@ void QGLDistancePanel::drawDistHorizontalScale() {
 		
 			QString str = QString::number(m_distanceScale.mainPoints.at(i) / distScale, 'f', 0);
 
-			int textWidth = m_fonts.smallFontMetrics->width(str);
+            int textWidth = m_fonts.smallFontMetrics->horizontalAdvance(str);
 			QRect textRect(m_distanceScale.mainPointPositions.at(i) + offset_X - (textWidth / 2), textOffset_y, textWidth, rulerFontHeight);
 
 			QByteArray ba = str.toLatin1();
@@ -1293,7 +1266,7 @@ void QGLDistancePanel::renderPanVerticalScale() {
 
 	int spacing = 7;
 	int fontHeight = m_fonts.smallFontMetrics->tightBoundingRect(".0dBm").height() + spacing;
-	int fontMaxWidth = m_fonts.smallFontMetrics->boundingRect("-000.0").width();
+    int fontMaxWidth= m_fonts.smallFontMetrics->boundingRect("-000.0").width();
 
 	GLint width = m_dBmScalePanRect.width();
 	GLint height = m_dBmScalePanRect.height();
@@ -1304,7 +1277,7 @@ void QGLDistancePanel::renderPanVerticalScale() {
 
 	glClear(GL_COLOR_BUFFER_BIT);
 	
-	QRect textRect(0, 0, fontMaxWidth, fontHeight);
+    QRect textRect(0, 0, width, fontHeight);
 	textRect.moveLeft(3);
 	int yOld = -textRect.height();
 
@@ -1394,7 +1367,7 @@ void QGLDistancePanel::renderPanHorizontalScale() {
 	drawGLScaleBackground(QRect(0, 0, m_freqScalePanRect.width(), m_freqScalePanRect.height()), QColor(0, 0, 0, 255));
 	
 	QRect scaledTextRect(0, textOffset_y, 1, m_freqScalePanRect.height());
-	scaledTextRect.setWidth(m_fonts.smallFontMetrics->width(fstr));
+    scaledTextRect.setWidth(m_fonts.smallFontMetrics->horizontalAdvance(fstr));
 	scaledTextRect.moveLeft(m_freqScalePanRect.width() - scaledTextRect.width());
 
 	glColor3f(0.65f, 0.76f, 0.81f);
@@ -1425,7 +1398,7 @@ void QGLDistancePanel::renderPanHorizontalScale() {
 			}
 			if (str.endsWith('.')) str.remove(str.size() - 1, 1);
 
-			int text_width = m_fonts.smallFontMetrics->width(str);
+            int text_width = m_fonts.smallFontMetrics->horizontalAdvance(str);
 			QRect textRect(m_frequencyScale.mainPointPositions.at(i) + offset_X - (text_width / 2), textOffset_y, text_width, fontHeight);
 
 			if (textRect.left() < 0 || textRect.right() >= scaledTextRect.left()) continue;
@@ -1741,7 +1714,7 @@ void QGLDistancePanel::restoreGLState() {
 //********************************************************************
 // HMI control
  
-void QGLDistancePanel::enterEvent(QEvent *event) {
+void QGLDistancePanel::enterEvent(QEnterEvent *event) {
 
 	setFocus(Qt::MouseFocusReason);
 
@@ -1751,7 +1724,7 @@ void QGLDistancePanel::enterEvent(QEvent *event) {
 	QOpenGLWidget::enterEvent(event);
 }
 
-void QGLDistancePanel::leaveEvent(QEvent *event) {
+void QGLDistancePanel::leaveEvent(QEnterEvent *event) {
 
 	m_mousePos = QPoint(-1, -1);
 	m_mouseRegion = elsewhere;
@@ -1762,7 +1735,7 @@ void QGLDistancePanel::leaveEvent(QEvent *event) {
 void QGLDistancePanel::wheelEvent(QWheelEvent* event) {
 	
 	//GRAPHICS_DEBUG << "wheelEvent";
-	QPoint pos = event->pos();
+    QPoint pos = event->angleDelta();
 
 	if (event->buttons() == Qt::NoButton) getRegion(pos);
 
@@ -1773,9 +1746,9 @@ void QGLDistancePanel::wheelEvent(QWheelEvent* event) {
 		case panadapterRegion:
 
 			double delta = 0;
-			if (event->delta() < 0) delta = -freqStep;
+            if (event->angleDelta().rx() < 0) delta = -freqStep;
 			else
-			if (event->delta() > 0) delta =  freqStep;
+            if (event->angleDelta().rx() > 0) delta =  freqStep;
 
 			if (m_frequency + delta > MAXFREQUENCY)
 				m_frequency = MAXFREQUENCY;
@@ -2300,17 +2273,8 @@ void QGLDistancePanel::computeDisplayBins(const float *panBuffer) {
 	int lIdx = 0;
 	int rIdx = 0;
 	qreal localMax;
-
-	if (m_serverMode == QSDR::ChirpWSPRFile) {
-		
-		newSampleSize = (int)floor(2 * BUFFER_SIZE * m_freqScaleZoomFactor);
-		deltaSampleSize = 2 * BUFFER_SIZE - newSampleSize;
-	}
-	else {
-
-		newSampleSize = (int)floor(4 * BUFFER_SIZE * m_freqScaleZoomFactor);
-		deltaSampleSize = 4 * BUFFER_SIZE - newSampleSize;
-	}
+	newSampleSize = (int)floor(4 * BUFFER_SIZE * m_freqScaleZoomFactor);
+	deltaSampleSize = 4 * BUFFER_SIZE - newSampleSize;
 
 	/*if (deltaSampleSize%2 != 0) {
 		deltaSampleSize += 1;

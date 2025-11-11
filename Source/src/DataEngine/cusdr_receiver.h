@@ -1,14 +1,15 @@
 /**
 * @file cusdr_receiver.h
 * @brief cuSDR receiver header file
-* @author Hermann von Hasseln, DL3HVH
-* @version 0.1
-* @date 2010-11-12
+* @author Hermann von Hasseln, DL3HVH, Updated for WDSP by Simon Eatough ZL2BRG
+* @version 1.0
+* Updated 2018-04-10 for WDSP
+* Updated 2025-09-10 for qt6
 */
 
 /* Copyright (C)
 *
-* 2010 - Hermann von Hasseln, DL3HVH
+* 2010 - Hermann von Hasseln, DL3HVH, author of cuSDR updated by Simon Eatough ZL2BRG for WDSP
 *
 * This program is free software; you can redistribute it and/or
 * modify it under the terms of the GNU General Public License
@@ -35,6 +36,8 @@
 #include "cusdr_settings.h"
 #include "Util/cusdr_highResTimer.h"
 #include "QtWDSP/qtwdsp_dspEngine.h"
+#include "QtDSP/qtdsp_qComplex.h"
+#include "receiveraudiooutput.h"
 
 #ifdef LOG_RECEIVER
 #   define RECEIVER_DEBUG qDebug().nospace() << "Receiver::\t"
@@ -85,17 +88,19 @@ public:
 	qreal	getdBmPanScaleMin()		{ return m_dBmPanScaleMin; }
 	qreal	getdBmPanScaleMax()		{ return m_dBmPanScaleMax; }
 	bool	getConnectedStatus()	{ return m_connected; }
-	void 	setAudioBufferSize();
+    void 	setAudioBufferSize();
+    void    cpxToFloat(const CPX &in, float *out, int size);
 
     float	in[BUFFER_SIZE * 2];
     float	out[BUFFER_SIZE * 2];
 	float	temp[BUFFER_SIZE * 4];
 	float	spectrum[BUFFER_SIZE * 4];
-
+    RadioState m_state  = RadioState::RX;
 	QVector<float>	newSpectrum;
-
-	QWDSPEngine *qtwdsp;
-	HResTimer	*highResTimer;
+    QWDSPEngine*	qtwdsp = nullptr;
+ //   std::unique_ptr<QWDSPEngine> qtwdsp;
+    std::unique_ptr<HResTimer>	highResTimer;
+    ReceiverAudioOutput *m_audioOutput;
 
 	CPX			inBuf;
     CPX			outBuf;
@@ -115,7 +120,7 @@ public slots:
 	void	setBSPort(int value);
 	void	setConnectedStatus(bool value);
 	//void	setID(int value);
-	void	setSampleRate(int value);
+    void	setSampleRate(QObject* sender,int value);
 	void	setHamBand(QObject* sender, int rx, bool byBtn, HamBand band);
 	void	setDspMode(QObject* sender, int rx, DSPMode mode);
 	void	setADCMode(QObject* sender, int rx, ADCMode mode);
@@ -142,12 +147,11 @@ private slots:
 					QSDR::_ServerMode mode, 
 					QSDR::_DataEngineState state);
 
-	void	setSampleRate(QObject *sender, int value);
+
 	void 	setFramesPerSecond(QObject *sender, int rx, int value);
 
 	bool	initQtWDSPInterface();
 
-    void	deleteQtWDSP();
 
     
 	//void	setAGCMaximumGain_dBm(QObject* sender, int rx, int value);
@@ -162,6 +166,9 @@ private slots:
 	void 	setAGCHangTime(QObject* sender, int rx, qreal value);
 
 private:
+
+    QVector<float> convertToFloatInterleaved(const QVector<CPX>& in);
+    QVector<float> interleaveFromCPX(const CPX& in);
 	Settings*				set;
 	
 	QSDR::_DSPCore			m_dspCore;
@@ -184,7 +191,7 @@ private:
 	QList<DSPMode>		m_dspModeList;
 	QList<int>			m_mercuryAttenuators;
 
-	QTime				m_smeterTime;
+    QElapsedTimer				m_smeterTime;
 	QMutex				m_mutex;
 
 	volatile bool	m_stopped;
@@ -220,11 +227,12 @@ private:
 	qreal	m_filterHi;
 	qreal	m_dBmPanScaleMin;
 	qreal	m_dBmPanScaleMax;
-	int 	m_audiobuffersize;
-	int     m_refreshrate;
+    int 	m_audiobuffersize;
+    int     m_refreshrate;
 
 	bool	m_connected;
 	bool	m_hangEnabled;
+    QMutex  mutex;
 
 	//void	setupConnections();
 

@@ -55,18 +55,18 @@ ServerWidget::ServerWidget(QWidget *parent)
 	
 	QBoxLayout *mainLayout = new QBoxLayout(QBoxLayout::TopToBottom, this);
 	mainLayout->setSpacing(5);
-	mainLayout->setMargin(0);
+    mainLayout->setContentsMargins(0,0,0,0);
 	mainLayout->addSpacing(8);
 
 	QHBoxLayout *hbox1 = new QHBoxLayout();
 	hbox1->setSpacing(0);
-	hbox1->setMargin(0);
+    hbox1->setContentsMargins(0,0,0,0);
 	hbox1->addStretch();
 	hbox1->addWidget(serverNIGroupBox);
 
 	QHBoxLayout *hbox2 = new QHBoxLayout();
 	hbox2->setSpacing(0);
-	hbox2->setMargin(0);
+    hbox2->setContentsMargins(0,0,0,0);
 	hbox2->addStretch();
 	hbox2->addWidget(portAddressesGroup());
 

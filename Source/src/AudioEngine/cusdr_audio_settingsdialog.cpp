@@ -4,6 +4,7 @@
 * @author adaptation for cuSDR by Hermann von Hasseln, DL3HVH
 * @version 0.1
 * @date 2011-04-02
+* Updated 2025-06-10 for qt6
 */
 
 /****************************************************************************
@@ -62,17 +63,10 @@
 #define	btn_height		18
 #define	btn_width		74
 
-SettingsDialog::SettingsDialog(
-            const QList<QAudioDeviceInfo> &availableInputDevices,
-            const QList<QAudioDeviceInfo> &availableOutputDevices,
-            QWidget *parent)
+SettingsDialog::SettingsDialog(QWidget *parent)
     :   QDialog(parent)
 	,	set(Settings::instance())
-    ,   m_inputDeviceComboBox(new QComboBox(this))
-    ,   m_outputDeviceComboBox(new QComboBox(this))
-	//,   m_windowFunction(DefaultWindowFunction)
-    //,   m_windowFunctionComboBox(new QComboBox(this))
-{
+ {
 	if (parent)
 		setWindowFlags(Qt::Tool | Qt::FramelessWindowHint);
 	else
@@ -102,22 +96,14 @@ SettingsDialog::SettingsDialog(
 
     // Populate combo boxes
 
-    QAudioDeviceInfo device;
-    foreach (device, availableInputDevices)
-        m_inputDeviceComboBox->addItem(device.deviceName(),
-                                       qVariantFromValue(device));
-    foreach (device, availableOutputDevices)
-        m_outputDeviceComboBox->addItem(device.deviceName(),
-                                       qVariantFromValue(device));
-
     //m_windowFunctionComboBox->addItem(tr("None"), qVariantFromValue(int(NoWindow)));
     //m_windowFunctionComboBox->addItem("Hann", qVariantFromValue(int(HannWindow)));
     //m_windowFunctionComboBox->setCurrentIndex(m_windowFunction);
 
-	m_inputDeviceComboBox->setStyleSheet(set->getComboBoxStyle());
-	m_inputDeviceComboBox->setMinimumContentsLength(30);
-	m_outputDeviceComboBox->setStyleSheet(set->getComboBoxStyle());
-	m_outputDeviceComboBox->setMinimumContentsLength(30);
+    //m_inputDeviceComboBox->setStyleSheet(set->getComboBoxStyle());
+    m_inputDeviceComboBox.setMinimumContentsLength(30);
+    m_outputDeviceComboBox.setStyleSheet(set->getComboBoxStyle());
+    m_outputDeviceComboBox.setMinimumContentsLength(30);
 
     // Initialize default devices
     if (!availableInputDevices.empty())
@@ -139,7 +125,7 @@ SettingsDialog::SettingsDialog(
     QLabel *inputDeviceLabel = new QLabel(tr("Input device"), this);
 	inputDeviceLabel->setStyleSheet(set->getLabelStyle());
     inputDeviceLayout->addWidget(inputDeviceLabel);
-    inputDeviceLayout->addWidget(m_inputDeviceComboBox);
+    inputDeviceLayout->addWidget(&m_inputDeviceComboBox);
     dialogLayout->addLayout(inputDeviceLayout.data());
     inputDeviceLayout.take(); // ownership transferred to dialogLayout
 
@@ -147,7 +133,7 @@ SettingsDialog::SettingsDialog(
     QLabel *outputDeviceLabel = new QLabel(tr("Output device"), this);
 	outputDeviceLabel->setStyleSheet(set->getLabelStyle());
     outputDeviceLayout->addWidget(outputDeviceLabel);
-    outputDeviceLayout->addWidget(m_outputDeviceComboBox);
+    outputDeviceLayout->addWidget(&m_outputDeviceComboBox);
     dialogLayout->addLayout(outputDeviceLayout.data());
     outputDeviceLayout.take(); // ownership transferred to dialogLayout
 
@@ -160,13 +146,13 @@ SettingsDialog::SettingsDialog(
 
     // Connect
     CHECKED_CONNECT(
-		m_inputDeviceComboBox, 
+        &m_inputDeviceComboBox,
 		SIGNAL(activated(int)),
         this, 
 		SLOT(inputDeviceChanged(int)));
 
     CHECKED_CONNECT(
-		m_outputDeviceComboBox, 
+        &m_outputDeviceComboBox,
 		SIGNAL(activated(int)),
         this, 
 		SLOT(outputDeviceChanged(int)));
@@ -203,6 +189,7 @@ SettingsDialog::SettingsDialog(
 	dialogLayout->addLayout(hbox);
     
     setLayout(dialogLayout);
+    getAudioDevices();
 }
 
 SettingsDialog::~SettingsDialog() {
@@ -216,11 +203,32 @@ SettingsDialog::~SettingsDialog() {
 
 void SettingsDialog::inputDeviceChanged(int index) {
 
-    m_inputDevice = m_inputDeviceComboBox->itemData(index).value<QAudioDeviceInfo>();
+    m_inputDevice = m_inputDeviceComboBox.itemData(index).value<QAudioDevice>();
+    set->setMicInputDev(m_inputDeviceComboBox.currentIndex());
+
 }
 
 void SettingsDialog::outputDeviceChanged(int index) {
 
-    m_outputDevice = m_outputDeviceComboBox->itemData(index).value<QAudioDeviceInfo>();
+    m_outputDevice = m_outputDeviceComboBox.itemData(index).value<QAudioDevice>();
 }
+
+void SettingsDialog::getAudioDevices() {
+        m_inputDeviceComboBox.clear();
+        m_outputDeviceComboBox.clear();
+
+        QList<QAudioDevice> inputDevices = QMediaDevices::audioInputs();
+        qDebug() << "Audio Input Devices:";
+        for (const QAudioDevice &device : inputDevices) {
+            qDebug() << "Name:" << device.description() << "Id:" << device.id();
+            m_inputDeviceComboBox.addItem(device.description(), QVariant::fromValue(device));
+        }
+
+        QList<QAudioDevice> outputDevices = QMediaDevices::audioOutputs();
+        qDebug() << "Audio Output Devices:";
+        for (const QAudioDevice &device : outputDevices) {
+            qDebug() << "Name:" << device.description() << "Id:" << device.id();
+            m_outputDeviceComboBox.addItem(device.description(), QVariant::fromValue(device));
+        }
+    }
 

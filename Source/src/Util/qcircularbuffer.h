@@ -41,17 +41,16 @@
 
 #ifndef QCIRCULARBUFFER_H
 #define QCIRCULARBUFFER_H
-
 #include <QtCore/qlist.h>
 #include <QtCore/qpair.h>
 #include <QtCore/qshareddata.h>
 #include <QtCore/qvector.h>
 
-QT_BEGIN_HEADER
+//QT_BEGIN_HEADER
 
 QT_BEGIN_NAMESPACE
 
-QT_MODULE(Core)
+//QT_MODULE(Core)
 
 template <typename T>
 class CircularBufferData : public QSharedData
@@ -505,12 +504,10 @@ public:
     QCircularBuffer<T>& operator+=(const T &other) { append(other); return *this; }
     QCircularBuffer<T>& operator+=(const QCircularBuffer<T>& other);
     QCircularBuffer<T>& operator+=(const QVector<T>& other);
-    QCircularBuffer<T>& operator+=(const QList<T>& other);
 
     QCircularBuffer<T>& operator<<(const T &other) { append(other); return *this; }
     QCircularBuffer<T>& operator<<(const QCircularBuffer<T>& other) { *this += other; return *this; }
     QCircularBuffer<T>& operator<<(const QVector<T>& other) { *this += other; return *this; }
-    QCircularBuffer<T>& operator<<(const QList<T>& other) { *this += other; return *this; }
 
 private:
     QSharedDataPointer< CircularBufferData<T> > d;
@@ -537,7 +534,7 @@ QCircularBuffer<T>::QCircularBuffer(int capacity)
         while (i != b)
             new (--i) T;
     } else {
-        qMemSet(d->data, 0, capacity * sizeof(T));
+        memset(d->data, 0, capacity * sizeof(T));
     }
 }
 
@@ -1178,7 +1175,7 @@ void QCircularBuffer<T>::setCapacity(int capacity)
         }
 
         // Initialise any memory outside of the valid buffer (ie the unused items)
-        qMemSet(newData + newSize, 0, (capacity - newSize) * sizeof(T));
+        memset(newData + newSize, 0, (capacity - newSize) * sizeof(T));
     }
 
     // Release the raw memory for the old array
@@ -1244,27 +1241,6 @@ QCircularBuffer<T>& QCircularBuffer<T>::operator+=(const QVector<T>& other)
 }
 
 template <typename T>
-QCircularBuffer<T>& QCircularBuffer<T>::operator+=(const QList<T>& other)
-{
-    // How many items do we need to copy? No point in ever copying across a number
-    // greater than capacity
-    int numToCopy = qMin(other.size(), d->capacity);
-    int offset = other.size() - numToCopy;
-    for (int i = 0; i < numToCopy; ++i)
-        append(other.at(offset + i));
-    return *this;
-}
-
-template <typename T>
-QList<T> QCircularBuffer<T>::toList() const
-{
-    QList<T> list;
-    for (int i = 0; i < size(); ++i)
-        list.append(at(i));
-    return list;
-}
-
-template <typename T>
 QVector<T> QCircularBuffer<T>::toVector() const
 {
     QVector<T> vector;
@@ -1289,6 +1265,6 @@ Q_DECLARE_MUTABLE_SEQUENTIAL_ITERATOR(CircularBuffer)
 
 QT_END_NAMESPACE
 
-QT_END_HEADER
+//QT_END_HEADER
 
 #endif // QCIRCULARBUFFER_H

@@ -65,7 +65,6 @@ DisplayOptionsWidget::DisplayOptionsWidget(QWidget *parent)
 	//setMinimumWidth(m_minimumWidgetWidth);
 	setContentsMargins(4, 0, 4, 0);
 	setMouseTracking(true);
-
 	m_rxDataList = set->getReceiverDataList();
 	m_widebandOptions = set->getWidebandOptions();
 	m_panadapterMode = set->getPanadapterMode(m_currentReceiver);
@@ -87,42 +86,42 @@ DisplayOptionsWidget::DisplayOptionsWidget(QWidget *parent)
 
 	QBoxLayout *mainLayout = new QBoxLayout(QBoxLayout::TopToBottom, this);
 	mainLayout->setSpacing(5);
-	mainLayout->setMargin(0);
+    mainLayout->setContentsMargins(0,0,0,0);
 	mainLayout->addSpacing(8);
 
 	QHBoxLayout *hbox1 = new QHBoxLayout;
 	hbox1->setSpacing(0);
-	hbox1->setMargin(0);
+    hbox1->setContentsMargins(0,0,0,0);
 	hbox1->addStretch();
 	hbox1->addWidget(m_fpsGroupBox);
 
 	QHBoxLayout *hbox2 = new QHBoxLayout;
 	hbox2->setSpacing(0);
-	hbox2->setMargin(0);
+    hbox2->setContentsMargins(0,0,0,0);
 	hbox2->addStretch();
 	hbox2->addWidget(m_panSpectrumOptions);
 
 	QHBoxLayout *hbox3 = new QHBoxLayout;
 	hbox3->setSpacing(0);
-	hbox3->setMargin(0);
+    hbox3->setContentsMargins(0,0,0,0);
 	hbox3->addStretch();
 	hbox3->addWidget(m_widebandPanOptions);
 	
 	QHBoxLayout *hbox4 = new QHBoxLayout;
 	hbox4->setSpacing(0);
-	hbox4->setMargin(0);
+    hbox4->setContentsMargins(0,0,0,0);
 	hbox4->addStretch();
 	hbox4->addWidget(m_waterfallSpectrumOptions);
 
 	QHBoxLayout *hbox5 = new QHBoxLayout;
 	hbox5->setSpacing(0);
-	hbox5->setMargin(0);
+    hbox5->setContentsMargins(0,0,0,0);
 	hbox5->addStretch();
 	hbox5->addWidget(m_sMeterOptions);
 
 	QHBoxLayout *hbox6 = new QHBoxLayout;
 	hbox6->setSpacing(0);
-	hbox6->setMargin(0);
+    hbox6->setContentsMargins(0,0,0,0);
 	hbox6->addStretch();
 	hbox6->addWidget(m_callSignEditor);
 	hbox6->addStretch();
@@ -190,7 +189,7 @@ void DisplayOptionsWidget::setupConnections() {
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(currentReceiverChanged(QObject *, int)),
+        SIGNAL(currentReceiverChanged(QObject*,int)),
 		this, 
 		SLOT(setCurrentReceiver(QObject *, int)));
 
@@ -285,7 +284,7 @@ void DisplayOptionsWidget::graphicModeChanged(
 
 void DisplayOptionsWidget::createFPSGroupBox() {
 
-	int fontMaxWidth = m_fonts.smallFontMetrics->boundingRect(" 200 ").width();
+    int fontMaxWidth = m_fonts.smallFontMetrics->boundingRect(" 200 ").width();
 
 	m_fpsSlider = new QSlider(Qt::Horizontal, this);
 	m_fpsSlider->setTickPosition(QSlider::NoTicks);
@@ -307,7 +306,7 @@ void DisplayOptionsWidget::createFPSGroupBox() {
 
 	QHBoxLayout *hbox = new QHBoxLayout;
 	hbox->setSpacing(0);
-	hbox->setMargin(0);
+    hbox->setContentsMargins(0,0,0,0);
 	hbox->addStretch();
 	hbox->addWidget(m_fpsSlider);
 	hbox->addWidget(m_fpsLevelLabel);
@@ -320,8 +319,7 @@ void DisplayOptionsWidget::createFPSGroupBox() {
 	m_fpsGroupBox = new QGroupBox(tr("Frames per Second"), this);
 	m_fpsGroupBox->setMinimumWidth(m_minimumGroupBoxWidth);
 	m_fpsGroupBox->setLayout(vbox);
-	m_fpsGroupBox->setStyleSheet(set->getWidgetStyle());
-	m_fpsGroupBox->setFont(QFont("Arial", 8));
+    m_fpsGroupBox->setFont(QFont("Arial", 12));
 }
 
 void DisplayOptionsWidget::createPanSpectrumOptions() {
@@ -393,6 +391,8 @@ void DisplayOptionsWidget::createPanSpectrumOptions() {
 	m_fmSqlevel->setSingleStep(1);
 	m_fmSqlevel->setValue(80);
 	m_fmSqlevel->setRange(1, 100);
+    m_fmSqlevel->setStyleSheet(set->getVolSliderStyle());
+
 	CHECKED_CONNECT(m_fmSqlevel, SIGNAL(valueChanged(int)), this, SLOT(sqLevelChanged(int)));
 
 	m_avgSlider = new QSlider(Qt::Horizontal, this);
@@ -470,7 +470,7 @@ void DisplayOptionsWidget::createPanSpectrumOptions() {
 
 	QHBoxLayout *hbox2 = new QHBoxLayout;
 	hbox2->setSpacing(0);
-	hbox2->setMargin(0);
+    hbox2->setContentsMargins(0,0,0,0);
 	hbox2->addWidget(m_avgLabel);
 	hbox2->addStretch();
 	hbox2->addWidget(m_avgSlider);
@@ -478,25 +478,25 @@ void DisplayOptionsWidget::createPanSpectrumOptions() {
 
     QHBoxLayout* hbox3 = new QHBoxLayout;
     hbox3->setSpacing(0);
-    hbox3->setMargin(0);
+    hbox3->setContentsMargins(0,0,0,0);
     hbox3->addWidget(m_panAvgModeLabel);
     hbox3->addWidget(m_panAverageCombo);
 
     QHBoxLayout* hbox4 = new QHBoxLayout;
     hbox4->setSpacing(0);
-    hbox4->setMargin(0);
+    hbox4->setContentsMargins(0,0,0,0);
     hbox4->addWidget(m_panDetModeLabel);
     hbox4->addWidget(m_panDetectorCombo);
 
 	QHBoxLayout* hbox5 = new QHBoxLayout;
 	hbox5->setSpacing(0);
-	hbox5->setMargin(0);
+    hbox5->setContentsMargins(0,0,0,0);
 	hbox5->addWidget(m_fftLabel);
 	hbox5->addWidget(m_fftSizeCombo);
 
 	QHBoxLayout* hbox6 = new QHBoxLayout;
 	hbox6->setSpacing(0);
-	hbox6->setMargin(0);
+    hbox6->setContentsMargins(0,0,0,0);
 	hbox6->addWidget(m_sqlabel);
 	hbox6->addWidget(m_fmSqlevel);
 
@@ -516,7 +516,7 @@ void DisplayOptionsWidget::createPanSpectrumOptions() {
 	m_panSpectrumOptions->setMinimumWidth(m_minimumGroupBoxWidth);
 	m_panSpectrumOptions->setLayout(vbox);
 	m_panSpectrumOptions->setStyleSheet(set->getWidgetStyle());
-	m_panSpectrumOptions->setFont(QFont("Arial", 8));
+    m_panSpectrumOptions->setFont(QFont("Arial", 12));
 }
 
 void DisplayOptionsWidget::createWidebandPanOptions() {
@@ -613,7 +613,7 @@ void DisplayOptionsWidget::createWidebandPanOptions() {
 
 	QHBoxLayout* hbox2 = new QHBoxLayout;
 	hbox2->setSpacing(0);
-	hbox2->setMargin(0);
+    hbox2->setContentsMargins(0,0,0,0);
 	hbox2->addWidget(m_wbAvgLabel);
 	hbox2->addStretch();
 	hbox2->addWidget(m_wbAvgSlider);
@@ -629,7 +629,7 @@ void DisplayOptionsWidget::createWidebandPanOptions() {
 	m_widebandPanOptions->setMinimumWidth(m_minimumGroupBoxWidth);
 	m_widebandPanOptions->setLayout(vbox);
 	m_widebandPanOptions->setStyleSheet(set->getWidgetStyle());
-	m_widebandPanOptions->setFont(QFont("Arial", 8));
+    m_widebandPanOptions->setFont(QFont("Arial", 12));
 }
 
 void DisplayOptionsWidget::createWaterfallSpectrumOptions() {
@@ -671,7 +671,7 @@ void DisplayOptionsWidget::createWaterfallSpectrumOptions() {
 
 		case (WaterfallColorMode) Simple:
 			
-			m_waterfallSimpleBtn->setBtnState(AeroButton::ON);
+            m_waterfallSimpleBtn->setBtnState(AeroButton::ON);
 			m_waterfallEnhancedBtn->setBtnState(AeroButton::OFF);
 			//m_waterfallSpectranBtn->setBtnState(AeroButton::OFF);
 			break;
@@ -780,7 +780,7 @@ void DisplayOptionsWidget::createWaterfallSpectrumOptions() {
 	m_waterfallSpectrumOptions->setMinimumWidth(m_minimumGroupBoxWidth);
 	m_waterfallSpectrumOptions->setLayout(vbox);
 	m_waterfallSpectrumOptions->setStyleSheet(set->getWidgetStyle());
-	m_waterfallSpectrumOptions->setFont(QFont("Arial", 8));
+    m_waterfallSpectrumOptions->setFont(QFont("Arial", 12));
 }
 
 void DisplayOptionsWidget::createSMeterOptions() {
@@ -846,14 +846,12 @@ void DisplayOptionsWidget::createSMeterOptions() {
 	m_sMeterOptions = new QGroupBox(tr("S-Meter"), this);
 	m_sMeterOptions->setMinimumWidth(m_minimumGroupBoxWidth);
 	m_sMeterOptions->setLayout(vbox);
-	m_sMeterOptions->setStyleSheet(set->getWidgetStyle());
-	m_sMeterOptions->setFont(QFont("Arial", 8));
+    m_sMeterOptions->setFont(QFont("Arial", 12));
 }
 
 void DisplayOptionsWidget::createCallSignEditor() {
 
 	callSignLineEdit = new QLineEdit(this);
-	callSignLineEdit->setStyleSheet(set->getLineEditStyle());
 	callSignLineEdit->setText(set->getCallsign());
 
 	CHECKED_CONNECT(
@@ -888,8 +886,7 @@ void DisplayOptionsWidget::createCallSignEditor() {
 	m_callSignEditor = new QGroupBox(tr("Call Sign Editor"), this);
 	m_callSignEditor->setMinimumWidth(m_minimumGroupBoxWidth);
 	m_callSignEditor->setLayout(vbox);
-	m_callSignEditor->setStyleSheet(set->getWidgetStyle());
-	m_callSignEditor->setFont(QFont("Arial", 8));
+    m_callSignEditor->setFont(QFont("Arial", 12));
 }
 
 void DisplayOptionsWidget::panModeChanged() {

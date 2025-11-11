@@ -35,6 +35,7 @@
 
 #include <QtGlobal>
 #include <QOpenGLTexture>
+#include <QPainter>
 class QChar;
 class QFont;
 class QFontMetrics;
@@ -45,7 +46,7 @@ class OGLTextPrivate;
 class OGLText {
 
 public:
-    OGLText(const QFont &f);
+    OGLText(const QFont &f, qreal devicePixelRatio = 1.5);
     virtual ~OGLText();
 
     QFont font() const;

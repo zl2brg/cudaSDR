@@ -1,0 +1,9 @@
+/home/simon/Projects/cudaSDR/Source/build/Desktop_Qt_6_8_0-Debug/CMakeFiles/cudasdr.dir
+/home/simon/Projects/cudaSDR/Source/build/Desktop_Qt_6_8_0-Debug/CMakeFiles/edit_cache.dir
+/home/simon/Projects/cudaSDR/Source/build/Desktop_Qt_6_8_0-Debug/CMakeFiles/rebuild_cache.dir
+/home/simon/Projects/cudaSDR/Source/build/Desktop_Qt_6_8_0-Debug/CMakeFiles/list_install_components.dir
+/home/simon/Projects/cudaSDR/Source/build/Desktop_Qt_6_8_0-Debug/CMakeFiles/install.dir
+/home/simon/Projects/cudaSDR/Source/build/Desktop_Qt_6_8_0-Debug/CMakeFiles/install/local.dir
+/home/simon/Projects/cudaSDR/Source/build/Desktop_Qt_6_8_0-Debug/CMakeFiles/install/strip.dir
+/home/simon/Projects/cudaSDR/Source/build/Desktop_Qt_6_8_0-Debug/CMakeFiles/cudasdr_autogen_timestamp_deps.dir
+/home/simon/Projects/cudaSDR/Source/build/Desktop_Qt_6_8_0-Debug/CMakeFiles/cudasdr_autogen.dir

@@ -46,6 +46,7 @@ Settings::Settings(QObject *parent)
 
     qRegisterMetaType<QSDR::_Error>();
     qRegisterMetaType<QSDR::_DataEngineState>();
+    qRegisterMetaType<QSDR::_DataEngineState>();
     qRegisterMetaType<QSDR::_ServerMode>();
     qRegisterMetaType<QSDR::_HWInterfaceMode>();
     qRegisterMetaType<HamBand>();
@@ -66,12 +67,17 @@ Settings::Settings(QObject *parent)
     settings = new QSettings(QCoreApplication::applicationDirPath() + "/" + settingsFilename, QSettings::IniFormat);
     getConfigPath();
     m_titleString = "cudaSDR BETA";
+    QFile File(":/cusdr_stylesheet.qss");
+    int res =  File.open(QFile::ReadOnly);
+    qDebug() << "RES" << res;
+    appStyleSheet = QLatin1String(File.readAll());
+    File.close();
 
 #ifdef DEBUG
     m_titleString = "cudaSDR Debug BETA ";
 #endif
 
-    m_versionString = "v0.3.2.14 - ZL2BRG";
+    m_versionString = "v0.4.0.2 - ZL2BRG";
 
     qDebug() << qPrintable(m_titleString);
 
@@ -99,7 +105,8 @@ Settings::Settings(QObject *parent)
             m_receiverDataList[i].dBmPanScaleMaxList << 0.0;
             m_receiverDataList[i].dspModeList << (DSPMode) LSB;
         }
-    }
+
+      }
 
     // Alex parameter configurations
     m_alexConfig = 0;
@@ -152,7 +159,7 @@ Settings::Settings(QObject *parent)
 }
 
 Settings::~Settings()  {
-
+  //  delete settings;
     //m_clDevices.clear();
 }
 
@@ -165,19 +172,19 @@ int Settings::loadSettings() {
 
     // user's call sign
     str = settings->value("user/callSign", "Your Call sign").toString();
-    //while (str.startsWith('\"')) str = str.right(str.count() - 1).trimmed();
-    //while (str.endsWith('\"')) str = str.left(str.count() - 1).trimmed();
+    //while (str.startsWith('\"')) str = str.right(str.length() - 1).trimmed();
+    //while (str.endsWith('\"')) str = str.left(str.length() - 1).trimmed();
 
     m_callsignString = str;
 
     // Window settings
-    value = settings->value("window/minimumWidgetWidth", 235).toInt();
-    if (value < 235 || value > 300) m_minimumWidgetWidth = 235;
-    m_minimumWidgetWidth = value;
+    value = settings->value("window/minimumWidgetWidth", 300).toInt();
+    if (value < 235 || value > 350) m_minimumWidgetWidth = 300;
+    else m_minimumWidgetWidth = value;
 
-    value = settings->value("window/minimumGroupBoxWidth", 230).toInt();
-    if (value < 230 || value > 295 || value > m_minimumWidgetWidth - 5) m_minimumGroupBoxWidth = 230;
-    m_minimumGroupBoxWidth = value;
+    value = settings->value("window/minimumGroupBoxWidth", 250).toInt();
+    if (value < 230 || value > 295 || value > m_minimumWidgetWidth - 5) m_minimumGroupBoxWidth = 250;
+    else m_minimumGroupBoxWidth = value;
 
     value = settings->value("window/multiRxView", 0).toInt();
     if (value < 0 || value > 2) m_multiRxView = 0;
@@ -186,13 +193,13 @@ int Settings::loadSettings() {
 
     // network settings
     str = settings->value("network/server_ipAddress", "127.0.0.1").toString();
-    while (str.startsWith('\"')) str = str.right(str.count() - 1).trimmed();
-    while (str.endsWith('\"')) str = str.left(str.count() - 1).trimmed();
+    while (str.startsWith('\"')) str = str.right(str.length() - 1).trimmed();
+    while (str.endsWith('\"')) str = str.left(str.length() - 1).trimmed();
     m_serverAddress = str;
 
     str = settings->value("network/hpsdr_local_ipAddress", "127.0.0.1").toString();
-    while (str.startsWith('\"')) str = str.right(str.count() - 1).trimmed();
-    while (str.endsWith('\"')) str = str.left(str.count() - 1).trimmed();
+    while (str.startsWith('\"')) str = str.right(str.length() - 1).trimmed();
+    while (str.endsWith('\"')) str = str.left(str.length() - 1).trimmed();
     m_hpsdrDeviceLocalAddr = str;
 
     value = settings->value("network/server_port", 52685).toInt();
@@ -318,6 +325,44 @@ int Settings::loadSettings() {
     else
         m_micSource = 1;
 
+    m_micInputDev = settings->value("mic_InputDevice",0).toInt();
+    m_micGain = settings->value("micGain", 0).toDouble();
+    m_drivelevel = settings->value("driveLevel",0).toInt();
+
+    m_repeaterOffset =  settings->value("repeater_offset",0).toDouble();
+    m_fmPremphasize =  settings->value("fm_preemphesize",0).toInt();
+    m_amCarrierLevel = settings->value("am_carrierlevel",0.5).toDouble();
+    m_audioCompression = settings->value("audiocompression",0).toDouble();
+    m_fmDeveation = settings->value("fmdeveation",5000).toDouble();
+
+    str = settings->value("cw/internal", "off").toString();
+    qDebug() << "internal" << str;
+    if (str.toLower() == "on")
+        m_internal_cw=1;
+    else m_internal_cw = 0;
+
+    str = settings->value("cw/key_reversed", "off").toString();
+    if (str.toLower() == "on")
+        m_cw_key_reversed=1;
+    else m_cw_key_reversed = 0;
+    str = settings->value("cw/key_spacing", "off").toString();
+    if (str.toLower() == "on")
+        m_cw_keyer_spacing=1;
+    else m_cw_keyer_spacing = 0;
+
+    m_cw_keyer_speed = settings->value("cw/keyer_speed",12).toInt();
+    m_cw_keyer_mode = settings->value("cw/keyer_mode",0).toInt();
+    m_cw_sidetone_volume = settings->value("cw/sidetone_volume",64).toInt();
+    m_cw_sidetone_freq =  settings->value("cw/sidetone_freq",1000).toInt();
+    m_cw_ptt_delay = settings->value("cw/ptt_delay",32).toInt();
+    m_cw_hang_time  =settings->value("cw/hang_time",32).toInt();
+    m_cw_keyer_weight = settings->value("cw/keyer_weight",20).toInt();
+
+
+
+    m_spectrumSize = 0;
+
+
     str = settings->value("server/class", 0).toString();
     m_RxClass = (str.toLower() == "E");
     if (m_RxClass)
@@ -339,14 +384,7 @@ int Settings::loadSettings() {
 
         m_serverMode = QSDR::SDRMode;
         setSpectrumSize(this, 4096);
-    } else if (str == "chirpWSPR") {
 
-        m_serverMode = QSDR::ChirpWSPR;
-        setSpectrumSize(this, 4096);
-    } else if (str == "chirpWSPRFile") {
-
-        m_serverMode = QSDR::ChirpWSPRFile;
-        setSpectrumSize(this, 4096);
     } else {
 
         m_serverMode = QSDR::SDRMode;
@@ -1327,45 +1365,7 @@ int Settings::loadSettings() {
         }
     }
 
-    //******************************************************************
-    // Chirp WSPR settings
-    value = settings->value("ChirpWSPR/lowerChirpFrequency", 500).toInt();
-    if (value < 1 || value > 10000) value = 500;
-    m_lowerChirpFreq = value;
-
-    value = settings->value("ChirpWSPR/upperChirpFrequency", 2500).toInt();
-    if (value < 2 || value < m_lowerChirpFreq + 1 || value > 50000) value = 2500;
-    m_upperChirpFreq = value;
-
-    value = settings->value("ChirpWSPR/chirpAmplitude", 75).toInt();
-    if (value < 0 || value > 100) return -1;
-    m_chirpAmplitude = (value / 100.0);
-
-    value = settings->value("ChirpWSPR/chirpSamplingFrequency", 48000).toInt();
-    if ((value != 8000) & (value != 48000) & (value != 96000)) value = 48000;
-    m_chirpSamplingFreq = value;
-
-    value = settings->value("ChirpWSPR/chirpBufferDurationUs", 10000000).toInt();
-    if (value < 0 || value > 100000000) value = 10000000;
-    m_chirpBufferDurationUs = (qint64) value;
-
-    value = settings->value("ChirpWSPR/chirpChannels", 1).toInt();
-    if ((value != 1) & (value != 2)) value = 1;
-    m_chirpChannels = value;
-
-    value = settings->value("ChirpWSPR/chirpBufferLength", 4096).toInt();
-    if ((value != 4096) & (value != 16384)) value = 4096;
-    m_chirpBufferLength = (qint64) value;
-
-    value = settings->value("ChirpWSPR/chirpFilterLowerFrequency", 500).toInt();
-    if (value < 10000 || value > 10000) value = 500;
-    m_chirpFilterLowerFrequency = value;
-
-    value = settings->value("ChirpWSPR/chirpFilterUpperFrequency", 2500).toInt();
-    if (value < 10000 || value > 10000) value = 2500;
-    m_chirpFilterUpperFrequency = value;
-
-    //******************************************************************
+     //******************************************************************
     // graphics settings
 
     value = settings->value("graphics/dBmDistScaleMin", -20).toInt();
@@ -1604,8 +1604,41 @@ int Settings::saveSettings() {
     else if (m_micSource == 1)
         settings->setValue("server/mic_source", "penelope");
 
+    settings->setValue("mic_InputDevice",m_micInputDev);
+    qDebug() << "Write" << m_micInputDev;
+    settings->setValue("micGain", m_micGain);
+    settings->setValue("driveLevel",m_drivelevel);
+
+
     settings->setValue("server/class", m_RxClass);
     settings->setValue("server/timing", m_RxTiming);
+
+    settings->setValue("repeater_offset",m_repeaterOffset);
+    settings->setValue("fm_preemphesize",m_fmPremphasize);
+    settings->setValue("am_carrierlevel",m_amCarrierLevel);
+    settings->setValue("audiocompression",m_audioCompression);
+    settings->setValue("fmdeveation",m_fmDeveation);
+    if (m_internal_cw )
+        settings->setValue("cw/internal", "on");
+    else settings->setValue("cw/internal", "off");
+    if (m_cw_key_reversed )
+        settings->setValue("cw/key_reversed","on");
+    else settings->setValue("cw/key_reversed","off");
+    if (m_cw_keyer_spacing )
+        settings->setValue("cw/key_spacing","on");
+    else settings->setValue("cw/key_spacing","off");
+
+    settings->setValue("cw/keyer_speed", m_cw_keyer_speed);
+    settings->setValue("cw/keyer_mode", m_cw_keyer_mode);
+    settings->setValue("cw/sidetone_volume", m_cw_sidetone_volume);
+    settings->setValue("cw/sidetone_freq", m_cw_sidetone_freq);
+    settings->setValue("cw/hangime", m_cw_hang_time);
+    settings->setValue("cw/ptt_delay", m_cw_ptt_delay);
+    settings->setValue("cw/keyer_weight", m_cw_keyer_weight);
+
+
+
+
     //settings->setValue("server/mainVolume", (int)(m_mainVolume * 100));
 
     //if (m_serverMode == QSDR::SDRMode)
@@ -2147,19 +2180,6 @@ int Settings::saveSettings() {
 
 
     //******************************************************************
-    // Chirp WSPR settings
-    settings->setValue("ChirpWSPR/lowerChirpFrequency", m_lowerChirpFreq);
-    settings->setValue("ChirpWSPR/upperChirpFrequency", m_upperChirpFreq);
-    settings->setValue("ChirpWSPR/chirpAmplitude", int(m_chirpAmplitude * 100));
-    settings->setValue("ChirpWSPR/chirpSamplingFrequency", m_chirpSamplingFreq);
-    settings->setValue("ChirpWSPR/chirpBufferDurationUs", m_chirpBufferDurationUs);
-    settings->setValue("ChirpWSPR/chirpChannels", m_chirpChannels);
-    settings->setValue("ChirpWSPR/chirpBufferLength", m_chirpBufferLength);
-    settings->setValue("ChirpWSPR/chirpFilterLowerFrequency", m_chirpFilterLowerFrequency);
-    settings->setValue("ChirpWSPR/chirpFilterUpperFrequency", m_chirpFilterUpperFrequency);
-
-
-    //settings->setValue("ChirpWSPR/chirpDownSampleRate", m_chirpDownSampleRate);
 
 
     //******************************************************************
@@ -2390,129 +2410,128 @@ void Settings::debugSystemState() {
 }
 
 QString Settings::getSDRStyle() {
-
+    return "";
     return sdrStyle;
 }
 
 QString Settings::getWidgetStyle() {
-
+    return "";
     return widgetStyle;
 }
 
 QString Settings::getMainWindowStyle() {
-
+    return "";
     return mainWindowStyle;
 }
 
 QString Settings::getDockStyle() {
-
+    return "";
     return dockStyle;
 }
 
 QString Settings::getDisplayToolbarStyle() {
-
+    return "";
     return displayToolbarStyle;
 }
 
 QString Settings::getMainBtnToolbarStyle() {
-
+    return "";
     return mainBtnToolbarStyle;
 }
 
 QString Settings::getStatusbarStyle() {
-
+    return "";
     return statusbarStyle;
 }
 
 QString Settings::getMessageBoxStyle() {
-
+    return "";
     return messageBoxStyle;
 }
 
 QString Settings::getLineEditStyle() {
-
+    return "";
     return lineEditStyle;
 }
 
 QString Settings::getDialogStyle() {
-
+    return "";
     return dialogStyle;
 }
 
 QString Settings::getColorDialogStyle() {
-
+    return "";
     return colorDialogStyle;
 }
 
 QString Settings::getItemStyle() {
-
+    return "";
     return itemStyle;
 }
 
 QString Settings::getLabelStyle() {
-
     return labelStyle;
 }
 
 QString Settings::getSliderLabelStyle() {
-
+    return "";
     return sliderLabelStyle;
 }
 
 QString Settings::getTableStyle() {
-
+    return "";
     return tableStyle;
 }
 
 QString Settings::getComboBoxStyle() {
-
+    return "";
     return comboBoxStyle;
 }
 
 QString Settings::getSpinBoxStyle() {
-
+    return "";
     return spinBoxStyle;
 }
 
 QString Settings::getDoubleSpinBoxStyle() {
-
+    return "";
     return dSpinBoxStyle;
 }
 
 QString Settings::getMenuStyle() {
-
+    return "";
     return menuStyle;
 }
 
 QString Settings::getMenuBarStyle() {
-
-   // return menuBarStyle;
+    return "";
+    return "";
 }
 
 
-QString Settings::getMiniButtonStyle() {
-
+const QString Settings::getMiniButtonStyle() {
     return miniButtonStyle;
 }
 
-QString Settings::getVolSliderStyle() {
 
+
+QString Settings::getVolSliderStyle() {
+    return "";
     return volSliderStyle;
 }
 
 QString Settings::getSplitterStyle() {
-
+    return "";
     return splitterStyle;
 }
 
 QString Settings::getFrameStyle() {
-
+    return "";
     return frameStyle;
 }
 
 QString Settings::getTabWidgetStyle() {
-
-    return tabWidgetStyle;
+        return tabWidgetStyle;
 }
 
 //QString Settings::getNewSliderStyle() {
@@ -2521,7 +2540,7 @@ QString Settings::getTabWidgetStyle() {
 //}
 
 QString Settings::getCheckBoxStyle() {
-
+    return "";
     return checkboxStyle;
 }
 
@@ -2573,15 +2592,13 @@ void Settings::setSystemState(
 
         m_serverMode = mode;
 
-        if (m_serverMode == QSDR::ChirpWSPR)
-            setWidebandStatus(this, false);
     }
 
     if (m_dataEngineState != state)
         m_dataEngineState = state;
 
-    if (m_dataEngineState == QSDR::DataEngineDown)
-        setCurrentReceiver(this, 0);
+  //if (m_dataEngineState == QSDR::DataEngineDown)
+//      setCurrentReceiver(this, 0);
     //m_currentReceiver = 0;
 
     //locker.unlock();
@@ -2646,9 +2663,6 @@ QString Settings::getErrorString(QSDR::_Error err) {
             str = "audioThread error";
             break;
 
-        case QSDR::_Error::ChirpDataProcessThreadError:
-            str = "ChirpDataProcessThread error";
-            break;
 
         case QSDR::_Error::UnderrunError:
             str = "underrun error";
@@ -2694,17 +2708,6 @@ QString Settings::getServerModeString(QSDR::_ServerMode mode) {
             str = "SDR mode";
             break;
 
-        case QSDR::_ServerMode::ChirpWSPR :
-            str = "ChirpWSPR";
-            break;
-
-        case QSDR::_ServerMode::ChirpWSPRFile:
-            str = "ChirpWSPRFile";
-            break;
-
-        case QSDR::_ServerMode::DemoMode :
-            str = "demo";
-            break;
     }
     return str;
 }
@@ -3412,8 +3415,6 @@ void Settings::setCurrentReceiver(QObject *sender, int value) {
     emit vfoFrequencyChanged(sender, true, value, vfoF);
     emit ncoFrequencyChanged(m_currentReceiver, vfoF - ctrF);
     emit hamBandChanged(sender, m_currentReceiver, false, band);
-    getFilterGroup(m_currentReceiver);
-    getFilterMode(m_currentReceiver);
     emit dspModeChanged(sender, m_currentReceiver, mode);
 
     emit mouseWheelFreqStepChanged(sender, m_currentReceiver,
@@ -3432,28 +3433,24 @@ void Settings::setSampleRate(QObject *sender, int value) {
             m_sampleRate = value;
             m_mercurySpeed = 0;
             m_outputSampleIncrement = 1;
-            m_chirpDownSampleRate = 4;
             break;
 
         case 96000:
             m_sampleRate = value;
             m_mercurySpeed = 1;
             m_outputSampleIncrement = 2;
-            m_chirpDownSampleRate = 8;
             break;
 
         case 192000:
             m_sampleRate = value;
             m_mercurySpeed = 2;
             m_outputSampleIncrement = 4;
-            m_chirpDownSampleRate = 16;
             break;
 
         case 384000:
             m_sampleRate = value;
             m_mercurySpeed = 3;
             m_outputSampleIncrement = 8;
-            m_chirpDownSampleRate = 32;
             break;
 
         default:
@@ -3517,13 +3514,41 @@ void Settings::set122_88MhzSource(QObject *sender, int source) {
     emit src122_88MhzChanged(sender, source);
 }
 
-void Settings::setMicSource(QObject *sender, int source) {
+void Settings::setMicSource(int source) {
 
     QMutexLocker locker(&settingsMutex);
 
     m_micSource = source;
-    emit micSourceChanged(sender, source);
+    emit micSourceChanged(source);
 }
+
+void Settings::setMicInputDev(int index) {
+
+    QMutexLocker locker(&settingsMutex);
+
+    m_micInputDev = index;
+    emit micInputChanged(index);
+}
+
+void Settings::setMicInputLevel(QObject *sender, int level) {
+
+    QMutexLocker locker(&settingsMutex);
+
+    m_micGain = level;
+    emit micInputLevelChanged(sender, level);
+}
+
+void Settings::setDriveLevel(QObject *sender, int level) {
+
+    QMutexLocker locker(&settingsMutex);
+
+    m_drivelevel = level;
+    emit driveLevelChanged(sender, level);
+}
+
+
+
+
 
 void Settings::setClass(QObject *sender, int value) {
 
@@ -3610,6 +3635,7 @@ void Settings::setVfoFrequency(int rx, long frequency) {
 
     m_receiverDataList[rx].ncoFrequency = frequency - m_receiverDataList.at(rx).ctrFrequency;
  //   setDSPMode(this,rx,m_receiverDataList[rx].dspModeList[band]);
+    SETTINGS_DEBUG << "set vfo freq (Rx " << rx << ") " << m_receiverDataList[rx].ctrFrequency;
 }
 
 void Settings::setCtrFrequency(QObject *sender, int mode, int rx, long frequency) {
@@ -3632,7 +3658,7 @@ void Settings::setCtrFrequency(QObject *sender, int mode, int rx, long frequency
             break;
     }
 
-    //SETTINGS_DEBUG << "ctr freq (Rx " << rx << ") " << m_receiverDataList[rx].ctrFrequency;
+    SETTINGS_DEBUG << "ctr freq (Rx " << rx << ") " << m_receiverDataList[rx].ctrFrequency;
     emit ctrFrequencyChanged(sender, mode, rx, frequency);
 }
 
@@ -3647,7 +3673,11 @@ void Settings::setVFOFrequency(QObject *sender, int mode, int rx, long frequency
 
     if (m_receiverDataList.at(rx).vfoFrequency == frequency) return;
     m_receiverDataList[rx].vfoFrequency = frequency;
-    //SETTINGS_DEBUG << "vfo freq (Rx " << rx << ") " << m_receiverDataList[rx].vfoFrequency;
+    qDebug() << "vfo freq (Rx " << rx << ") " << m_receiverDataList[rx].vfoFrequency << frequency;
+    if (frequency > 60000000)
+    {
+        qDebug() << "Frequency Setting EROR" << frequency ;
+    }
 
     HamBand band = getBandFromFrequency(m_bandList, frequency);
     m_receiverDataList[rx].lastVfoFrequencyList[(int) band] = frequency;
@@ -3664,7 +3694,7 @@ void Settings::setVFOFrequency(QObject *sender, int mode, int rx, long frequency
         case 0: // change only VFO
 
             m_receiverDataList[rx].ncoFrequency = frequency - m_receiverDataList.at(rx).ctrFrequency;
-            //SETTINGS_DEBUG << "nco freq = " << m_receiverDataList[rx].ncoFrequency;
+            SETTINGS_DEBUG << "nco freq = " << m_receiverDataList[rx].ncoFrequency << "rx frequency = " << frequency << "Ctr Frequnecy =" << m_receiverDataList.at(rx).ctrFrequency;
             break;
 
         case 1: // change VFO and center freq; keep NCO frequency
@@ -3681,8 +3711,9 @@ void Settings::setVFOFrequency(QObject *sender, int mode, int rx, long frequency
 
     emit vfoFrequencyChanged(sender, mode, rx, frequency);
 
-    //SETTINGS_DEBUG << "nco freq (Rx " << rx << ") " << m_receiverDataList[rx].ncoFrequency;
+    SETTINGS_DEBUG << "nco freq (Rx " << rx << ")" << m_receiverDataList[rx].ncoFrequency ;
     emit ncoFrequencyChanged(rx, m_receiverDataList[rx].ncoFrequency);
+
 }
 
 long Settings::getVfoFrequency(int rx) {
@@ -3695,7 +3726,7 @@ void Settings::setNCOFrequency(QObject *sender, bool value, int rx, long frequen
     Q_UNUSED(sender)
     Q_UNUSED(value)
 
-    //SETTINGS_DEBUG << "nco freq (Rx " << rx << ") " << m_receiverDataList[rx].ncoFrequency << "(direct)";
+    SETTINGS_DEBUG << "nco freq (Rx " << rx << ") " << m_receiverDataList[rx].ncoFrequency << "(direct)";
     m_receiverDataList[rx].ncoFrequency = frequency;
 
     emit ncoFrequencyChanged(rx, frequency);
@@ -3712,8 +3743,8 @@ void Settings::setHamBand(QObject *sender, int rx, bool byButton, HamBand band) 
     m_receiverDataList[rx].lastHamBand = m_receiverDataList[rx].hamBand;
     m_receiverDataList[rx].hamBand = band;
 
-    //SETTINGS_DEBUG << "last Ham band:  " << m_receiverDataList[rx].lastHamBand;
-    //SETTINGS_DEBUG << "Ham band:  " << m_receiverDataList[rx].hamBand;
+    SETTINGS_DEBUG << "last Ham band:  " << m_receiverDataList[rx].lastHamBand;
+    SETTINGS_DEBUG << "Ham band:  " << m_receiverDataList[rx].hamBand;
 
     if (m_receiverDataList[rx].hamBand == (HamBand) gen)
         setTxAllowed(this, false);
@@ -3721,9 +3752,7 @@ void Settings::setHamBand(QObject *sender, int rx, bool byButton, HamBand band) 
         setTxAllowed(this, true);
 
     locker.unlock();
-    getFilterMode(rx);
-    getFilterGroup(rx);
-    setRxFilterByIndex(this,rx,m_receiverDataList[rx].rxFilter.m_Index);
+
     setMercuryAttenuator(this, m_receiverDataList[rx].mercuryAttenuators[band]);
 
     emit hamBandChanged(sender, rx, byButton, band);
@@ -3736,16 +3765,12 @@ HamBand Settings::getCurrentHamBand(int rx) {
 
 void Settings::setDSPMode(QObject *sender, int rx, DSPMode mode) {
 
-    //SETTINGS_DEBUG << "sender: " << sender;
+    SETTINGS_DEBUG << "DSP mode change " << mode << rx;
     HamBand band = m_receiverDataList[m_currentReceiver].hamBand;
     m_receiverDataList[rx].dspModeList[band] = mode;
 
 
-
     setRXFilter(this, rx, m_defaultFilterList.at((int) mode).filterLo, m_defaultFilterList.at((int) mode).filterHi);
-    getFilterMode(rx);
-    getFilterGroup(rx);
-    setRxFilterByIndex(this,rx,m_receiverDataList[rx].rxFilter.m_Index);
     emit dspModeChanged(sender, rx, mode);
 }
 
@@ -4017,7 +4042,7 @@ void Settings::setIQPort(QObject *sender, int rx, int port) {
     emit iqPortChanged(sender, rx, port);
 }
 
-void Settings::setSpectrumBuffer(int rx, const qVectorFloat &buffer) {
+void Settings::setSpectrumBuffer(int rx, const QList<float> &buffer) {
 
     emit spectrumBufferChanged(rx, buffer);
 }
@@ -4465,164 +4490,6 @@ void Settings::setWideBandRulerPosition(QObject *sender, float position) {
 }
 
 
-//**********************************************************************************
-// chirp signal settings
-
-void Settings::switchToChirpSignalMode(QObject *sender) {
-
-    emit chirpSignalModeChanged(sender);
-}
-
-void Settings::setLowerChirpFreq(int value) {
-
-    QMutexLocker locker(&settingsMutex);
-
-    if (m_lowerChirpFreq == value) return;
-    if (m_lowerChirpFreq >= m_upperChirpFreq)
-        m_lowerChirpFreq = m_upperChirpFreq;
-    else
-        m_lowerChirpFreq = value;
-
-    emit lowerChirpFreqChanged(this, m_lowerChirpFreq);
-}
-
-void Settings::setUpperChirpFreq(int value) {
-
-    QMutexLocker locker(&settingsMutex);
-
-    if (m_upperChirpFreq == value) return;
-    if (m_lowerChirpFreq >= m_upperChirpFreq)
-        m_upperChirpFreq = m_lowerChirpFreq;
-    else
-        m_upperChirpFreq = value;
-
-    emit upperChirpFreqChanged(this, m_upperChirpFreq);
-}
-
-void Settings::setChirpAmplitude(qreal value) {
-
-    QMutexLocker locker(&settingsMutex);
-
-    if (m_chirpAmplitude == value) return;
-    m_chirpAmplitude = value;
-
-    emit chirpAmplitudeChanged(this, m_chirpAmplitude);
-}
-
-void Settings::setChirpSamplingFreq(int value) {
-
-    QMutexLocker locker(&settingsMutex);
-
-    if (m_chirpSamplingFreq == value) return;
-    m_chirpSamplingFreq = value;
-
-    emit chirpSamplingFreqChanged(this, m_chirpSamplingFreq);
-}
-
-void Settings::setChirpBufferDurationUs(int value) {
-
-    QMutexLocker locker(&settingsMutex);
-
-    if (m_chirpBufferDurationUs == (qint64) value) return;
-    m_chirpBufferDurationUs = (qint64) (1000 * value);
-
-    emit chirpBufferDurationUsChanged(this, m_chirpBufferDurationUs);
-}
-
-void Settings::setChirpRepetitionTimes(int value) {
-
-    QMutexLocker locker(&settingsMutex);
-
-    if (m_chirpRepetitionTimes == value) return;
-    m_chirpRepetitionTimes = value;
-
-    emit chirpRepetitionTimesChanged(this, m_chirpRepetitionTimes);
-}
-
-void Settings::setChirpReceiver(bool value) {
-
-    QMutexLocker locker(&settingsMutex);
-
-    if (m_chirpReceiverOn == value) return;
-    m_chirpReceiverOn = value;
-
-    emit chirpReceiverChanged(this, m_chirpReceiverOn);
-}
-
-void Settings::setChirpAvgLength(int value) {
-
-    QMutexLocker locker(&settingsMutex);
-
-    if (m_chirpAvgLength == value) return;
-    m_chirpAvgLength = value;
-
-    emit chirpAvgLengthChanged(m_chirpAvgLength);
-}
-
-void Settings::setChirpFFTShow(bool value) {
-
-    QMutexLocker locker(&settingsMutex);
-
-    if (m_showChirpFFT == value) return;
-    m_showChirpFFT = value;
-
-    emit chirpFFTShowChanged(m_showChirpFFT);
-}
-
-void Settings::setChirpUSB(bool value) {
-
-    QMutexLocker locker(&settingsMutex);
-
-    if (m_chirpUSB == value) return;
-    m_chirpUSB = value;
-
-    emit chirpSidebandChanged(m_chirpUSB);
-}
-
-//void Settings::setChirpDownSampleRate(int value) {
-//
-//	if (m_chirpDownSampleRate == value) return;
-//	m_chirpDownSampleRate = value;
-//}
-
-void Settings::setChirpBuffer(qint64 length, const QList<qreal> &buffer) {
-
-    emit chirpBufferChanged(length, buffer);
-}
-
-void Settings::setChirpSpectrumBuffer(int sampleRate, qint64 length, const float *buffer) {
-
-    emit chirpSpectrumBufferChanged(sampleRate, length, buffer);
-}
-
-void Settings::setChirpSpectrum(qint64 position, qint64 length, const FrequencySpectrum &spectrum) {
-
-    emit chirpSpectrumChanged(position, length, spectrum);
-}
-
-void Settings::setChirpSpectrumList(const QList<FrequencySpectrum> &spectrumList) {
-
-    emit chirpSpectrumListChanged(spectrumList);
-}
-
-void Settings::setChirpFilterLowerFrequency(int value) {
-
-    if (m_chirpFilterLowerFrequency == value) return;
-    m_chirpFilterLowerFrequency = value;
-
-    emit chirpFilterLowerFrequencyChanged(m_chirpFilterLowerFrequency);
-}
-
-void Settings::setChirpFilterUpperFrequency(int value) {
-
-    if (m_chirpFilterUpperFrequency == value) return;
-    m_chirpFilterUpperFrequency = value;
-
-    emit chirpFilterUpperFrequencyChanged(m_chirpFilterUpperFrequency);
-}
-
-//********************************
-
 void Settings::setSpectrumSize(QObject *sender, int value) {
 
     if (m_spectrumSize == value) return;
@@ -5060,117 +4927,172 @@ void Settings::getConfigPath() {
 
 
 
-void Settings::setRxFilterByIndex(QObject *sender, int rx, int filterIndex ) {
 
-    qreal filter;
-    getFilterMode(rx);
-    getFilterGroup(rx);
-    RxFilter m_filter =  m_receiverDataList[rx].rxFilter;
-    m_filter.m_Index = filterIndex;
-
-    filter = m_filter.m_FilterPtr[filterIndex].filterWidth;
-    switch (m_filter.m_FilterMode) {
-        case M_DSB:
-            m_filter.m_filterHi = filter;
-            m_filter.m_filterLo = -filter;
-            break;
-        case M_LSB:
-            m_filter.m_filterLo =   -filter;
-            m_filter.m_filterHi = -150.0f;
-            break;
-        case M_USB:
-            m_filter.m_filterLo = 150.0f;
-            m_filter.m_filterHi = filter;
-            break;
-
-    }
-    QStringList *str =  &m_receiverDataList[rx].rxFilter.btnText;
-    str->clear();
-
-    for (int x = 0;x < 10; x++)
-    {
-        str->append(m_filter.m_FilterPtr[x].txt);
-    }
-
-    SETTINGS_DEBUG << "filter freq changed" << m_filter.m_filterLo << m_filter.m_filterHi;
-
-    emit filterFrequenciesChanged(sender, rx, m_filter.m_filterLo, m_filter.m_filterHi);
-}
-
-
-QStringList Settings::getFilterBtnText(int rx){
-    return m_receiverDataList[rx].rxFilter.btnText;
-}
 
 DSPMode Settings::getDSPMode(int rx){
-
+   if (rx > 0)
+   {
+    qDebug()  << "break";
+    rx = 0;
+   }
     HamBand band = m_receiverDataList[m_currentReceiver].hamBand;
+
     return m_receiverDataList[rx].dspModeList[band];
 }
 
-filterMode Settings::getFilterMode( int rx){
 
-DSPMode dspMode =  getDSPMode(rx);
 
-filterMode FilterMode;
-    switch (dspMode) {
 
-        case (DSPMode) DSB:
-        case (DSPMode) AM:
-        case (DSPMode) SAM:
-        case (DSPMode) FMN:
-        case (DSPMode) DRM:
-        case (DSPMode) SPEC:
+RadioState Settings::setRadioState(RadioState mode) {
 
-            FilterMode = M_DSB;
-            break;
-
-        case (DSPMode) LSB:
-        case (DSPMode) DIGL:
-        case (DSPMode) CWL:
-
-            FilterMode = M_LSB;
-        break;
-
-        default:
-            FilterMode = M_USB;
-
+    if (m_radioState != mode) {
+         m_radioState = mode;
+         qDebug() << " Radio state changed" << m_radioState;
+         emit radioStateChanged(m_radioState);
     }
-    m_receiverDataList[rx].rxFilter.m_FilterMode = FilterMode ;
+    return m_radioState;
+
+}
+
+void Settings::setRepeaterMode(bool mode){
+    m_repeaterMode = mode;
+
+   emit repeaterModeChanged(mode);
+}
+
+void Settings::setRepeaterOffset(int offset)
+{
+m_repeaterOffset = (double)offset;
+ emit repeaterOffsetchanged(offset);
+}
+
+void Settings::setFMPreEmphasize(int value)
+{
+
+    m_fmPremphasize=(double)value;
+    emit fmPremphasizechanged(value);
+
+}
+
+void Settings::setFmDeveation(int value)
+{
+    m_fmDeveation = (double)value;
+    emit fmdeveationchanged(value);
+}
+
+void Settings::setAMCarrierLevel(int level)
+{
+    qDebug() << "set Am carrier level" << level;
+    m_amCarrierLevel = (double) level;
+ emit amCarrierlevelchanged(level);
+}
+
+void Settings::setAudioCompression(int level){
+
+m_audioCompression = level;
+emit audioCompressionchanged(level);
+}
+
+bool Settings::isInternalCw() const {
+    return (m_internal_cw > 0);
+}
+
+void Settings::setInternalCw(int InternalCw) {
+     m_internal_cw = InternalCw;
+     emit(InternalCwChanged (InternalCw));
+}
+
+int Settings::getCwKeyerSpeed() const {
+    return m_cw_keyer_speed;
+
+}
+
+int Settings::getCwKeyerMode() const {
+    return m_cw_keyer_mode;
+}
+
+void Settings::setCwKeyerMode(int mCwKeyerMode) {
+    m_cw_keyer_mode = mCwKeyerMode;
+    emit(CwKeyerModeChanged(m_cw_keyer_mode));
+}
+
+int  Settings::isCwKeyReversed() const {
+      return m_cw_key_reversed;
+}
+
+void Settings::setCwKeyReversed(int mCwKeyReversed) {
+    m_cw_key_reversed = mCwKeyReversed;
+    emit(CwKeyReversedChanged(mCwKeyReversed));
 }
 
 
-filterGroup Settings::getFilterGroup(int rx){
-    DSPMode dspMode =  getDSPMode(rx);
+void Settings::setCwKeyerSpeed(int mCwKeyerSpeed) {
+    m_cw_keyer_speed = mCwKeyerSpeed;
+    emit(CwKeyerSpeedChanged(mCwKeyerSpeed));
+}
 
-    switch (dspMode) {
+int Settings::getCwSidetoneVolume() const {
+    return m_cw_sidetone_volume;
+}
 
-        case (DSPMode) USB:
-        case (DSPMode) LSB:
-        case (DSPMode) DIGL:
-        case (DSPMode) DIGU:
-            m_receiverDataList[rx].rxFilter.m_FilterPtr = Mid_FilterGroup;
-            m_receiverDataList[rx].rxFilter.m_FilterGroup = MID_FILTER;
-            break;
-
-        case (DSPMode) DSB:
-        case (DSPMode) AM:
-        case (DSPMode) SAM:
-        case (DSPMode) FMN:
-        case (DSPMode) DRM:
-        case (DSPMode) SPEC:
-            m_receiverDataList[rx].rxFilter.m_FilterPtr = Wide_FilterGroup;
-            m_receiverDataList[rx].rxFilter.m_FilterGroup = WIDEBAND_FILTER;
-            break;
-
-        default:
-            m_receiverDataList[rx].rxFilter.m_FilterPtr  = Narrow_FilterGroup;
-            m_receiverDataList[rx].rxFilter.m_FilterGroup = NARROW_FILTER;
-
-    }
+void Settings::setCwSidetoneVolume(int mCwSidetoneVolume) {
+    m_cw_sidetone_volume = mCwSidetoneVolume;
+    emit(CwSidetoneVolumeChanged(mCwSidetoneVolume));
 }
 
 
-int Settings::getFilterbtnIndex(int rx){
-    return m_receiverDataList[rx].rxFilter.m_Index;
+int Settings::getCwPttDelay() const {
+    return m_cw_ptt_delay;
+}
+
+void Settings::setCwPttDelay(int mCwPttDelay) {
+    m_cw_ptt_delay = mCwPttDelay;
+    emit(CwPttDelayChanged(mCwPttDelay));
+}
+
+int Settings::getCwHangTime() const {
+    return m_cw_hang_time;
+}
+
+void Settings::setCwHangTime(int mCwHangTime) {
+    m_cw_hang_time = mCwHangTime;
+    emit(CwHangTimeChanged(mCwHangTime));
+}
+
+
+int Settings::getCwSidetoneFreq() const {
+    return m_cw_sidetone_freq;
+}
+
+
+int Settings::getCwKeyerWeight() const {
+    return m_cw_keyer_weight;
+}
+
+
+int Settings::getCwKeyerSpacing() const {
+    return m_cw_keyer_spacing;
+}
+
+
+
+
+void Settings::setCwSidetoneFreq(int mCwSidetoneFreq) {
+    m_cw_sidetone_freq = mCwSidetoneFreq;
+    emit(CwSidetoneFreqChanged(mCwSidetoneFreq));
+}
+
+
+void Settings::setCwKeyerWeight(int val){
+    m_cw_keyer_weight= val;
+    qDebug() << "CW weight" << val;
+    emit(CwKeyerWeightChanged(val));
+
+}
+
+
+void Settings::setCwKeyerSpacing(int val) {
+    m_cw_keyer_spacing = val;
+    qDebug() << "CW spacing" << val;
+    emit(CwKeyerSpacingChanged(val));
 }

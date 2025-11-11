@@ -58,7 +58,8 @@ public:
 
 public slots:
 	void	initClient();
-	
+    void	displayAudioRcvrSocketError(QAbstractSocket::SocketError error);
+
 private:
 	Settings*		set;
 	QMutex			m_mutex;
@@ -72,7 +73,6 @@ private:
 	int				m_client;
 	
 private slots:
-	void	displayAudioRcvrSocketError(QAbstractSocket::SocketError error);
 	void	readPendingAudioRcvrData();
 
 signals:

@@ -26,7 +26,7 @@
  
 #ifndef CUSDR_SETTINGS_H
 #define CUSDR_SETTINGS_H
-
+#define USE_INTERNAL_AUDIO
 //#define DEBUG
 
 #include <QObject>
@@ -36,9 +36,13 @@
 #include <QString>
 #include <QAudioInput>
 #include <QAudioOutput>
+#include <QAudioFormat>
+#include <qaudiodevice.h>
 
 #include "cusdr_hamDatabase.h"
 #include "fftw3.h"
+#include "portaudio.h"
+
 // test for OpenCL
 //#include "CL/qclcontext.h"
 
@@ -78,15 +82,17 @@
 #define MINDISTDBM -150
 #define MAXDISTDBM 150
 #define MAX_FFTSIZE	262144
+#define TX_ID 1
 
 
 // **************************************
 // receiver settings
 
-#define MAX_RECEIVERS				20
+#define MAX_RECEIVERS				2
 #define MAX_BANDS					22
 #define BUFFER_SIZE					1024
 #define SAMPLE_BUFFER_SIZE			4096
+#define DSP_SAMPLE_SIZE             1024
 #define BANDSCOPE_BUFFER_SIZE		4096
 
 #define								SMALL_PACKETS
@@ -177,83 +183,6 @@
 
 
 
-
-typedef struct {
-    QString txt;
-    qreal filterWidth;
-
-}filterStruct;
-
-static filterStruct Narrow_FilterGroup[12]={
-
-    {"1k",1150.0f},
-    {"800",950.0f},
-    {"750",900.0f},
-    {"600",750.0f},
-    {"500",650.0f},
-    {"400",550.0f},
-    {"250",400.0f},
-    {"100",350.0f},
-    {"50",200.0f},
-    {"25",175.0f},
-    {"Var1",2000.0f},
-    {"Var2",2000.0f}
-};
-
-static filterStruct Mid_FilterGroup[12]={
-    {"5k",5150.0f},
-    {"4k4",4550.0f},
-    {"3k8",3950.0f},
-    {"3k3",3450.0f},
-    {"2k9",3050.0f},
-    {"2k7",2850.0f},
-    {"2k4",2550.0f},
-    {"2k1",2250.0f},
-    {"1k8",1950.0f},
-    {"1k",1150.0f},
-    {"Var1",10000.0f},
-    {"Var2",10000.0f}
-};
-
-static filterStruct Wide_FilterGroup[12]={
-    {"16k",8000.0f},
-    {"12k",6000.0f},
-    {"10k",5000.0f},
-    {"8k",4000.0f},
-    {"6k6",3300.0f},
-    {"5k2", 2600.0f},
-    {"4k",2000.0f},
-    {"3k3",3450.0f},
-    {"3k1",3250.0f},
-    {"2k9",3050.0f},
-    {"Var1",20000.0f},
-    {"Var2",20000.0f}
-};
-
-
-typedef enum _filterMode{
-    M_LSB,
-    M_USB,
-    M_DSB
-} filterMode;
-
-typedef enum _filterGroup{
-    NARROW_FILTER,
-    MID_FILTER,
-    WIDEBAND_FILTER
-} filterGroup;
-
-typedef struct _rxfilter{
-    int        m_Index = 0;
-    filterMode m_FilterMode;
-    filterGroup m_FilterGroup;
-    filterStruct* m_FilterPtr;
-    qreal m_filterHi;
-    qreal m_filterLo;
-    QStringList btnText = {" "," "," "," "," "," "," "," "," "," "};
-}RxFilter;
-
-
 // **************************************
 // Server modes
 
@@ -270,7 +199,6 @@ namespace QSDR {
 		DataProcessThreadError,
 		WideBandDataProcessThreadError,
 		AudioThreadError,
-		ChirpDataProcessThreadError,
 		UnderrunError, 
 		FirmwareError,
 		FatalError
@@ -293,16 +221,14 @@ namespace QSDR {
 
 		NoServerMode,
 		SDRMode,
-		ChirpWSPR,
-		ChirpWSPRFile,
-		DemoMode
 	};
 
 	enum _HWInterfaceMode { 
 		
 		NoInterfaceMode, 
 		Metis,
-		Hermes
+        Hermes,
+        SoapySDR
 	};
 }
 
@@ -365,13 +291,13 @@ typedef struct _hpsdrDevices {
 	bool	hermesPresence;
 	bool	metisPresence;
 
-	int 	mercuryFWVersion;
-	int 	penelopeFWVersion;
-	int 	pennylaneFWVersion;
-	int 	excaliburFWVersion;
-	int 	alexFWVersion;
-	int		hermesFWVersion;
-	int  	metisFWVersion;
+	unsigned char 	mercuryFWVersion;
+    unsigned char 	penelopeFWVersion;
+    unsigned char 	pennylaneFWVersion;
+    unsigned char 	excaliburFWVersion;
+    unsigned char 	alexFWVersion;
+    unsigned char	hermesFWVersion;
+    unsigned char  	metisFWVersion;
 
 } THPSDRDevices;
 
@@ -383,9 +309,11 @@ typedef struct _ccParameterRx {
 						// all values which are sent in sequence. 
 
 	bool	ptt;		// PTT  (1 = active, 0 = inactive), GPIO[23]= Ozy J8-8, Hermes J16-1
-	bool	dash;		// DASH (1 = active, 0 = inactive), GPIO[21]= Ozy J8-6, Hermes J6-2
-	bool	dot;		// DOT  (1 = active, 0 = inactive), GPIO[22]= Ozy J8-7, Hermes J6-3
-	bool	lt2208;		// LT2208 Overflow (1 = active, 0 = inactive)
+	int 	dash;		// DASH (1 = active, 0 = inactive), GPIO[21]= Ozy J8-6, Hermes J6-2
+	int 	dot;		// DOT  (1 = active, 0 = inactive), GPIO[22]= Ozy J8-7, Hermes J6-3
+    int     previous_dash;//
+    int     previous_dot;//
+    bool	lt2208;		// LT2208 Overflow (1 = active, 0 = inactive)
 	bool	hermesI01;	// Hermes I01 (0 = active, 1 = inactive)
 	bool	hermesI02;	// Hermes I02 (0 = active, 1 = inactive)
 	bool	hermesI03;	// Hermes I03 (0 = active, 1 = inactive)
@@ -433,6 +361,15 @@ typedef struct _ccParameterTx {
 	int		dither;
 	int		random;
 	int		currentAlexState;
+    uchar   drivelevel;
+    double  repeaterOffset;
+    bool    use_repeaterOffset;
+    int     fmPremphasize;
+    double  amCarrierLevel;
+    int     audioCompression;
+    double  fmDeveation;
+    double  txFrequency;
+    DSPMode mode;
 
 	HamBand		currentBand;
 
@@ -454,21 +391,17 @@ typedef struct _hpsdrParameter {
 	QByteArray	ccOut;
 
 	uchar	output_buffer[IO_BUFFER_SIZE];
-	//float	in_buffer[2*BUFFER_SIZE];
-	float	out_buffer[2*BUFFER_SIZE];
+
 
 	qVectorFloat	wbWindow;
 
-	//CPX		cpxIn;
-	//CPX		cpxOut;
-	//CPX		cpxTmp;
+
 
 	QByteArray				audioDatagram;
 	
 	QHQueue<QByteArray>		iq_queue;
 	QHQueue<QByteArray>		au_queue;
 	QHQueue<QByteArray>		wb_queue;
-	QHQueue<QList<qreal> >	chirp_queue;
 	QHQueue<QList<qreal> >	data_queue;
 
 	QList<qreal> inputBuffer;
@@ -514,8 +447,7 @@ typedef struct _hpsdrParameter {
 	int		tx_freq_change;
 	
 	float	mic_gain;
-	float	mic_left_buffer[BUFFER_SIZE];
-	float	mic_right_buffer[BUFFER_SIZE];
+
 
 	qreal	penelopeForwardVolts;
 	qreal	penelopeForwardPower;
@@ -532,16 +464,56 @@ typedef struct _hpsdrParameter {
 	bool	timeStamp;
 	bool	mute;
 
+
+
 	qint16		audiofileChannels;
 
 } THPSDRParameter;
 
 typedef struct _networkDeviceCard {
+    int             protocol;
+    int             device;
+    int             sw_version;
+    int             status;
+    int             max_receivers;
+    int             max_transmitters;
+    int             adcs;
+    int             dacs;
+    double          frequency_min;
+    double          frequency_max;
 
 	QHostAddress	ip_address;
 	char			mac_address[18];
 	int				boardID;
 	QString			boardName;
+#ifdef SOAPYSDR
+      struct soapy {
+        char version[128];
+        char hardware_key[64];
+        char driver_key[64];
+        int rtlsdr_count;
+        int sdrplay_count;
+        int sample_rate;
+        size_t rx_channels;
+        size_t rx_gains;
+        char **rx_gain;
+        SoapySDRRange *rx_range;
+        gboolean rx_has_automatic_gain;
+        gboolean rx_has_automatic_dc_offset_correction;
+        size_t rx_antennas;
+        char **rx_antenna;
+        size_t tx_channels;
+        size_t tx_gains;
+        char **tx_gain;
+        SoapySDRRange *tx_range;
+        size_t tx_antennas;
+        char **tx_antenna;
+    size_t sensors;
+        char **sensor;
+        gboolean has_temp;
+        char address[64];
+      } soapy;
+#endif
 
 } TNetworkDevicecard;
 
@@ -577,7 +549,12 @@ typedef enum _panDetectorMode {
 }PanDetectorMode;
 
 
-
+typedef enum _radioState {
+    RX,
+    MOX,
+    TUNE,
+    DUPLEX
+}RadioState;
 
 
 
@@ -627,7 +604,6 @@ typedef struct _receiver {
 	qreal	mouseWheelFreqStep;
 	qreal	filterLo;
 	qreal	filterHi;
-    RxFilter rxFilter;
 
 
     int     m_filterIndex;
@@ -656,9 +632,6 @@ typedef struct _receiver {
     bool     nr2_ae;
 	bool	anf;
 	bool	snb;
-
-
-
 } TReceiver;
 
 typedef struct _wideband {
@@ -821,6 +794,9 @@ signals:
 
 	void masterSwitchChanged(QObject *sender, bool power);
 
+	void radioStateChanged(RadioState state);
+
+
 	void systemStateChanged(
 				QObject *sender, 
 				QSDR::_Error err, 
@@ -834,6 +810,8 @@ signals:
 				PanGraphicsMode panMode,
 				WaterfallColorMode waterfallColorMode);
 
+	void moxStateChanged(QObject *sender, RadioState);
+	void tuneStateChanged(QObject *sender, RadioState);
 	void cpuLoadChanged(short load);
 	void txAllowedChanged(QObject* sender, bool value);
 	void multiRxViewChanged(int view);
@@ -842,8 +820,8 @@ signals:
 	void postSpectrumBufferChanged(int rx, const float* buffer);
 
 	void sampleSizeChanged(int rx, int size);
-	void rxListChanged(QList<Receiver *> rxList);
-	void clientConnectedChanged(QObject* sender, bool connect);
+    void rxListChanged(QList<Receiver *> rxList);
+    void clientConnectedChanged(QObject* sender, bool connect);
 	void clientNoConnectedChanged(QObject* sender, int client);
 	void audioRxChanged(QObject* sender, int rx);
 	void receiverChanged(int value);
@@ -904,7 +882,7 @@ signals:
 	//void alexParametersChanged(TAlexParameters p);
 	void alexStatesChanged(const QList<int> &states);
 	void alexStateChanged(HamBand band, const QList<int> &states);
-	void alexStateChanged(int pos, int value);
+//	void alexStateChanged(int pos, int value);
 	void alexManualStateChanged(QObject *sender, bool value);
 	void checkFirmwareVersionChanged(QObject *sender, bool value);
 	void pennyOCEnabledChanged(bool value);
@@ -925,7 +903,8 @@ signals:
 	void randomChanged(QObject *sender, int value);
 	void src10MhzChanged(QObject *sender, int source);
 	void src122_88MhzChanged(QObject *sender, int source);
-	void micSourceChanged(QObject *sender, int source);
+    void micSourceChanged(int source);
+    void micInputChanged(int source);
 	void classChanged(QObject *sender, int value);
 	void timingChanged(QObject *sender, int value);
 	void controlBytesOutChanged(QObject *sender, unsigned char *values);
@@ -987,23 +966,6 @@ signals:
 	void audioBufferChanged(QObject *sender, qint64 position, qint64 length, const QByteArray &buffer);
 	//void audioBufferChanged(QObject *sender, const QByteArray &buffer);
 
-	void chirpSignalModeChanged(QObject *sender);
-	void lowerChirpFreqChanged(QObject *sender, int value);
-	void upperChirpFreqChanged(QObject *sender, int value);
-	void chirpAmplitudeChanged(QObject *sender, qreal value);
-	void chirpSamplingFreqChanged(QObject *sender, int value);
-	void chirpBufferDurationUsChanged(QObject *sender, qint64 value);
-	void chirpRepetitionTimesChanged(QObject *sender, int value);
-	void chirpReceiverChanged(QObject *sender, int value);
-	void chirpBufferChanged(qint64 length, const QList<qreal> &buffer);
-	void chirpAvgLengthChanged(int length);
-	void chirpFFTShowChanged(bool value);
-	void chirpSidebandChanged(bool value);
-	void chirpFilterLowerFrequencyChanged(int value);
-	void chirpFilterUpperFrequencyChanged(int value);
-	void chirpSpectrumBufferChanged(int sampleRate, qint64 length, const float *buffer);
-	void chirpSpectrumChanged(qint64 position, qint64 length, const FrequencySpectrum &spectrum);
-	void chirpSpectrumListChanged(const QList<FrequencySpectrum> &spectrumList);
 
 	void displayWidgetHeightChanged(int value);
 	void spectrumSizeChanged(QObject *sender, int value);
@@ -1034,17 +996,36 @@ signals:
     void nr2AeChanged(int rx, bool value);
     void snbChanged(int rx, bool value);
     void anfChanged(int rx, bool value);
-
-
-
-
+    void micInputLevelChanged(QObject *sender, int level);
+    void driveLevelChanged(QObject *sender, int level);
+    void repeaterModeChanged(bool mode);
+    void repeaterOffsetchanged(double value);
+    void fmPremphasizechanged(double value);
+    void fmdeveationchanged(double value);
+    void amCarrierlevelchanged(double level);
+    void audioCompressionchanged(int level);
+    void micModeChanged(bool mode);
     void showRadioPopupChanged(bool value);
-
 	void receiverDataReady();
 
-public:
-	void	debugSystemState();
+    void CwHangTimeChanged(int CwHangTime);
+    void CwSidetoneFreqChanged(int CwSidetoneFreq);
+    void CwKeyReversedChanged(int CwKeyReversed);
+    void CwKeyerModeChanged(int CwKeyerMode);
+    void InternalCwChanged(int InternalCW);
+    void CwKeyerSpeedChanged(int CwKeyerSpeed);
+    void CwPttDelayChanged(int CwPttDelay);
+    void CwSidetoneVolumeChanged(int CwSidetoneVolume);
+    void CwKeyerWeightChanged(int CwKeyerWeight);
+    void CwKeyerSpacingChanged(int CwKeyerSpacing);
 
+
+public:
+
+    QAudioDevice m_inputDevice;
+    QAudioDevice m_outputDevice;
+
+    void	debugSystemState();
 	int 	loadSettings();
 	int 	saveSettings();
 	QSDR::_ServerMode			getCurrentServerMode();
@@ -1079,7 +1060,11 @@ public:
 	bool getConnected();
 	bool getClientConnected();
 	bool getTxAllowed();
+    QString appStyleSheet;
 
+    QString get_appStyleSheet(){
+        return appStyleSheet;
+    }
 	QString getTitleStr();
 	QString getVersionStr();
 	QString getSettingsFilename();
@@ -1097,7 +1082,7 @@ public:
 	QString getDialogStyle();
 	QString getColorDialogStyle();
 	QString getItemStyle();
-	QString getLabelStyle();
+	static QString getLabelStyle();
 	QString getSliderLabelStyle();
 	QString getTableStyle();
 	QString getComboBoxStyle();
@@ -1105,7 +1090,7 @@ public:
 	QString getDoubleSpinBoxStyle();
 	QString getMenuStyle();
     QString getMenuBarStyle();
-	QString getMiniButtonStyle();
+	const QString getMiniButtonStyle();
 	QString getVolSliderStyle();
 	QString getSplitterStyle();
 	QString getFrameStyle();
@@ -1136,7 +1121,9 @@ public:
 	QList<long>					getLPFHiFrequencies()		{ return m_LPFHiFrequencyList; }
 	QList<int>					getRxJ6Pins()				{ return m_rxJ6pinList; }
 	QList<int>					getTxJ6Pins()				{ return m_txJ6pinList; }
-	int							getFramesPerSecond(int rx);
+    int                         get_tx_drivelevel()         {return m_drivelevel;   }
+    bool                        get_repeaterMode()          {return m_repeaterMode; }
+    int							getFramesPerSecond(int rx);
 	QString						getDSPModeString(int mode);
     DSPMode                     getDSPMode(int rx);
 
@@ -1190,26 +1177,35 @@ public:
 	int		getSampleRate()				{ return m_sampleRate; }
 
 	//int getMercuryAttenuator()		{ return m_mercuryAttenuator; }
-	int getMercuryDither()			{ return m_mercuryDither; }
-	int getMercuryRandom()			{ return m_mercuryRandom; }
-	int get10MHzSource()			{ return m_10MHzSource; }
-	int get122_8MHzSource()			{ return m_122_8MHzSource; }
-	int getMicSource()				{ return m_micSource; }
-	int getRxClass()				{ return m_RxClass; }
-	int	getRxTiming()				{ return m_RxTiming; }
-	
+    int     getMercuryDither()			{ return m_mercuryDither; }
+    int     getMercuryRandom()			{ return m_mercuryRandom; }
+    int     get10MHzSource()			{ return m_10MHzSource; }
+    int     get122_8MHzSource()			{ return m_122_8MHzSource; }
+    int     getMicSource()				{ return m_micSource; }
+    int     getRxClass()				{ return m_RxClass; }
+    int     getRxTiming()				{ return m_RxTiming; }
+    int     getMicInputDev()            { return m_micInputDev;}
+    int     getMicInputLevel()          { return m_micGain;}
+    int     getDriveLevel()             { return m_drivelevel;}
+    bool    getRepeaterMode()           { return m_repeaterMode;}
+    double  getRepeaterOffset()         { return m_repeaterOffset;}
+    double  getFMpreemphesis()          { return m_fmPremphasize;}
+    double  getFMDeveation()            { return m_fmDeveation;}
+    double  getAMCarrierLevel()         { return m_amCarrierLevel;}
+    double  getAudioCompression()       { return m_audioCompression;}
+
 	qreal	getMainVolume(int rx);
 	qreal	getMouseWheelFreqStep(int rx);// { return m_mouseWheelFreqStep; }
 	ADCMode getADCMode(int rx);
 	AGCMode getAGCMode(int rx);
 	QString getADCModeString(int rx);
 	QString getAGCModeString(int rx);
-	qreal getAGCGain(int rx);
-	int getAGCMaximumGain_dB(int rx);
+    qreal   getAGCGain(int rx);
+    int     getAGCMaximumGain_dB(int rx);
 	qreal	getAGCFixedGain_dB(int rx);
 	int		getAGCHangThreshold(int rx);
 	int		getAGCHangLeveldB(int rx);
-    int getAGCSlope(int rx);
+    int     getAGCSlope(int rx);
     int 	getfftSize(int rx);
     int     getNrAGC(int rx);
     int     getNr2GainMethod(int rx);
@@ -1223,21 +1219,7 @@ public:
 
 
 
-    int		getLowerChirpFreq()				{ return m_lowerChirpFreq; }
-	int		getUpperChirpFreq()				{ return m_upperChirpFreq; }
-	qreal	getChirpAmplitude()				{ return m_chirpAmplitude; }
-	int		getChirpSamplingFreq()			{ return m_chirpSamplingFreq; }
-	qint64	getChirpBufferDurationUs()		{ return m_chirpBufferDurationUs; }
-	qint64	getChirpBufferLength()			{ return m_chirpBufferLength; }
-	int		getChirpChannels()				{ return m_chirpChannels; }
-	int		getChirpRepetitionTimes()		{ return m_chirpRepetitionTimes; }
-	int		getChirpDownSampleRate()		{ return m_chirpDownSampleRate; }
-	int		getChirpAvgLength()				{ return m_chirpAvgLength; }
-	int		getChirpFilterLowerFrequency()	{ return m_chirpFilterLowerFrequency; }
-	int		getChirpFilterUpperFrequency()	{ return m_chirpFilterUpperFrequency; }
-	bool	getChirpReceiver()				{ return m_chirpReceiverOn; }
-	bool	getChirpFFTShow()				{ return m_showChirpFFT; }
-	bool	getChirpSideband()				{ return m_chirpUSB; }
+
 	
 	int		getSpectrumSize()			{ return m_spectrumSize; }
 	
@@ -1253,7 +1235,7 @@ public:
 	QList<QNetworkInterface>		m_networkInterfaces;
 	
 	// audio
-	QAudio::Mode mode() const			{ return m_audioMode; }
+//	QAudio::Mode mode() const			{ return m_audioMode; }
     QAudio::State state() const			{ return m_audioState; }
 	QAudioFormat getAudioFormat() const { return m_format; }
 
@@ -1265,10 +1247,10 @@ public:
 	int getFFTMultiplicator(int rx);//			{ return m_fft; }
     QStringList getFilterBtnText(int rx);
 
-	QMutex 		debugMutex;
+    QMutex debugMutex;
 
-	void getConfigPath();
-    QString         cfg_dir;
+    void    getConfigPath();
+    QString cfg_dir;
 
 public slots:
 	void	setMainPower(QObject *sender, bool power);
@@ -1300,12 +1282,15 @@ public slots:
 				WaterfallColorMode waterfallColorMode);
 
 	void setTxAllowed(QObject* sender, bool value);
+
+    RadioState setRadioState(RadioState mode);
+	RadioState getRadioState() { return m_radioState;}
 	void setMultiRxView(int view);
 	void setSMeterValue(int rx, double value);
-	void setSpectrumBuffer(int rx, const qVectorFloat &buffer);
+    void setSpectrumBuffer(int rx, const QList<float> &buffer);
 	void setPostSpectrumBuffer(int rx, const float*);
 	void setSampleSize(QObject* sender, int rx, int size);
-	void setRxList(QList<Receiver *> rxList);
+    void setRxList (QList<Receiver*> list);
 	void setMetisCardList(QList<TNetworkDevicecard> list);
 	void searchHpsdrNetworkDevices();
 	void clearMetisCardList();
@@ -1382,7 +1367,10 @@ public slots:
 	void setRandom(QObject *sender, int value);
 	void set10MhzSource(QObject *sender, int source);
 	void set122_88MhzSource(QObject *sender, int source);
-	void setMicSource(QObject *sender, int source);
+    void setMicSource(int source);
+    void setMicInputDev(int index);
+    void setMicInputLevel(QObject *sender , int level);
+    void setDriveLevel(QObject *sender , int level);
 	void setClass(QObject *sender, int value);
 	void setTiming(QObject *sender, int value);
 	void setCtrFrequency(QObject *sender, int mode, int rx, long frequency);
@@ -1427,7 +1415,6 @@ public slots:
 	void setAGCDecayTime(QObject *sender, int rx, qreal value);
 	void setAGCHangTime(QObject *sender, int rx, qreal value);
 	void setRXFilter(QObject* sender, int rx, qreal low, qreal high);
-    void setRxFilterByIndex(QObject* sender, int rx, int filterIndex);
 
 	void setfftSize(int rx, int size);
 	void setfmsqLevel(int rx, int level);
@@ -1457,33 +1444,12 @@ public slots:
 	void setFreqRulerPosition(QObject* sender, int rx, float pos);
 	//void setRulerPosition(QObject *sender, float pos);
 
+
 	void setAudioFormat(QObject *sender, const QAudioFormat &format);
 	void setAudioPosition(QObject *sender, qint64 position);
 	void setAudioBuffer(QObject *sender, qint64 position, qint64 length, const QByteArray &buffer);
 	//void setAudioBuffer(QObject *sender, const QByteArray &buffer);
 
-	void switchToChirpSignalMode(QObject *sender);
-	void setLowerChirpFreq(int value);
-	void setUpperChirpFreq(int value);
-	void setChirpAmplitude(qreal value);
-	void setChirpSamplingFreq(int value);
-	void setChirpBufferDurationUs(int value);
-	void setChirpRepetitionTimes(int value);
-	void setChirpReceiver(bool value);
-	void setChirpAvgLength(int value);
-	void setChirpFFTShow(bool value);
-	void setChirpUSB(bool value);
-	void setChirpFilterLowerFrequency(int value);
-	void setChirpFilterUpperFrequency(int value);
-	//void setChirpDownSampleRate(int value);
-	//void setChirpBufferLength(qint64 length);
-	void setChirpBuffer(qint64 length, const QList<qreal> &buffer);
-	//void setChirpSpectrumBuffer(const QList<qreal> &buffer);
-	void setChirpSpectrumBuffer(int sampleRate, qint64 length, const float *buffer);
-
-	//void setSpectrumBuffer(const float *buffer);
-	void setChirpSpectrum(qint64 position, qint64 length, const FrequencySpectrum &spectrum);
-	void setChirpSpectrumList(const QList<FrequencySpectrum> &spectrumList);
 
 	void moveDisplayWidget(int value);
 
@@ -1497,12 +1463,13 @@ public slots:
 	void setSpectrumAveraging(QObject *sender, int rx, bool value);
 	void setSpectrumAveragingCnt(QObject *sender, int rx, int value);
 	
-
+/* Waterfall */
 	void setWaterfallTime(int rx, int value);
 	void setWaterfallOffesetLo(int rx, int value);
 	void setWaterfallOffesetHi(int rx, int value);
 	void setPanAveragingMode(int rx,PanAveragingMode mode);
     void setPanDetectorMode(int rx,PanDetectorMode mode);
+    /*Noiseblanker*/
     void setNoiseBlankerMode(int rx, int nb);
 	void setNoiseFilterMode(int rx, int nr);
 	void setNR2GainMethod(int rx, int value);
@@ -1511,7 +1478,23 @@ public slots:
     void setNR2Ae(int rx, bool value);
     void setAnf(int rx, bool value);
     void setSnb(int rx, bool value);
+    void setRepeaterMode(bool mode);
+    void setRepeaterOffset(int offset);
+    void setAudioCompression(int level);
+    void setAMCarrierLevel(int level);
+    void setFMPreEmphasize(int level);
+    void setFmDeveation(int level);
 
+    void setCwHangTime(int CwHangTime);
+    void setCwSidetoneFreq(int CwSidetoneFreq);
+    void setCwKeyReversed(int CwKeyReversed);
+    void setCwKeyerMode(int CwKeyerMode);
+    void setInternalCw(int InternalCW);
+    void setCwKeyerSpeed(int CwKeyerSpeed);
+    void setCwPttDelay(int CwPttDelay);
+    void setCwSidetoneVolume(int CwSidetoneVolume);
+    void setCwKeyerWeight(int CwKeyerWeight);
+    void setCwKeyerSpacing(int CwKeyerSpacing);
 
 
 
@@ -1526,10 +1509,26 @@ public slots:
 	QList<long> getVfoFrequencies();
 
 
-    filterMode getFilterMode( int rx );
-    filterGroup getFilterGroup(int rx);
-    int getFilterbtnIndex(int rx);
-	
+public:
+    bool isInternalCw() const;
+    int getCwKeyerSpeed() const;
+    int getCwKeyerMode() const;
+    int isCwKeyReversed() const;
+    int getCwSidetoneFreq() const;
+    int getCwSidetoneVolume() const;
+    int getCwPttDelay() const;
+    int getCwHangTime() const;
+    int getCwKeyerWeight() const;
+    int getCwKeyerSpacing() const;
+
+
+
+    bool is_transmitting(){
+        if (m_radioState > 0) return true;
+        else return false;
+    }
+
+
 private slots:
 
 private:
@@ -1538,7 +1537,7 @@ private:
 	QSDR::_HWInterfaceMode		m_hwInterface;
 	QSDR::_DataEngineState		m_dataEngineState;
 
-	QAudio::Mode	m_audioMode;
+//	QAudio::Mode	m_audioMode;
     QAudio::State	m_audioState;
 	QAudioFormat    m_format;
 
@@ -1551,6 +1550,7 @@ private:
 
 	QList<TNetworkDevicecard>	m_metisCards;
 	QList<TReceiver>			m_receiverDataList;
+	QList<TReceiver>			pam_receiverDataList;
 	QList<THamBandFrequencies>	m_bandList;
 	QList<THamBandText>			m_bandTextList;
 	QList<TDefaultFilter>		m_defaultFilterList;
@@ -1586,6 +1586,7 @@ private:
 	bool	setLoaded;
 
 	bool	m_mainPower;
+    RadioState m_radioState = RadioState::RX;
 	bool	m_defaultSkin;
 	bool	m_connected;
 	bool	m_clientConnected;
@@ -1613,7 +1614,7 @@ private:
 	int		m_minimumGroupBoxWidth;
 
 	int		m_mercuryReceivers;
-	int		m_currentReceiver;
+    int		m_currentReceiver = 0;
 	int		m_sampleRate;
 	int		m_mercurySpeed;
 
@@ -1625,6 +1626,9 @@ private:
 	int		m_10MHzSource;
 	int		m_122_8MHzSource;
 	int		m_micSource;
+    int     m_micInputDev;
+    double  m_micGain;
+    int     m_drivelevel;
 	int		m_RxClass;
 	int		m_RxTiming;
 
@@ -1632,8 +1636,9 @@ private:
 	int		m_multiRxView;
 
 	//int		m_wbBuffers;
-	int		m_spectrumSize;
+    int		m_spectrumSize;
 	int		m_sMeterHoldTime;
+    bool    m_repeaterMode;
 
 	long freq1;
 	
@@ -1648,24 +1653,24 @@ private:
 	qreal	m_filterFrequencyLow;
 	qreal	m_filterFrequencyHigh;
 
-	qreal	m_chirpAmplitude;
 
-	qint64	m_chirpBufferDurationUs;
-	qint64	m_chirpBufferLength;
+    double  m_repeaterOffset;
+    bool    m_use_repeaterOffset;
+    int     m_fmPremphasize;
+    double  m_amCarrierLevel;
+    int     m_audioCompression;
+    double  m_fmDeveation;
+    int     m_internal_cw;
+    int     m_cw_keyer_spacing;
+    int     m_cw_keyer_weight;
+    int     m_cw_key_reversed;
+    int     m_cw_keyer_speed;
+    int     m_cw_keyer_mode;
+    int     m_cw_sidetone_volume;
+    int     m_cw_ptt_delay;
+    int     m_cw_hang_time;
+    int     m_cw_sidetone_freq;
 
-	bool	m_chirpReceiverOn;
-	bool	m_showChirpFFT;
-	bool	m_chirpUSB;
-
-	int		m_lowerChirpFreq;
-	int		m_upperChirpFreq;
-	int		m_chirpSamplingFreq;
-	int		m_chirpChannels;
-	int		m_chirpRepetitionTimes;
-	int		m_chirpDownSampleRate;
-	int		m_chirpAvgLength;
-	int		m_chirpFilterLowerFrequency;
-	int		m_chirpFilterUpperFrequency;
 
 	//int		m_fft;
 

@@ -1,0 +1,151 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Configure CMake (Debug)",
+			"type": "shell",
+			"command": "cmake",
+			"args": [
+				"-S",
+				"Source",
+				"-B",
+				"build",
+				"-DCMAKE_BUILD_TYPE=Debug",
+				"-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
+			],
+			"group": "build",
+			"problemMatcher": [
+				"$gcc"
+			],
+			"isBackground": false,
+			"detail": "Configure CMake project in Debug mode"
+		},
+		{
+			"label": "Configure CMake (Release)",
+			"type": "shell",
+			"command": "cmake",
+			"args": [
+				"-S",
+				"Source",
+				"-B",
+				"build-release",
+				"-DCMAKE_BUILD_TYPE=Release",
+				"-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
+			],
+			"group": "build",
+			"problemMatcher": [
+				"$gcc"
+			],
+			"isBackground": false,
+			"detail": "Configure CMake project in Release mode"
+		},
+		{
+			"label": "Build Debug",
+			"type": "shell",
+			"command": "cmake",
+			"args": [
+				"--build",
+				"build",
+				"--config",
+				"Debug",
+				"-j4"
+			],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"problemMatcher": [
+				"$gcc"
+			],
+			"isBackground": false,
+			"dependsOn": "Configure CMake (Debug)",
+			"detail": "Build the project in Debug mode"
+		},
+		{
+			"label": "Build Release",
+			"type": "shell",
+			"command": "cmake",
+			"args": [
+				"--build",
+				"build-release",
+				"--config",
+				"Release",
+				"-j4"
+			],
+			"group": "build",
+			"problemMatcher": [
+				"$gcc"
+			],
+			"isBackground": false,
+			"dependsOn": "Configure CMake (Release)",
+			"detail": "Build the project in Release mode"
+		},
+		{
+			"label": "Clean Build",
+			"type": "shell",
+			"command": "cmake",
+			"args": [
+				"--build",
+				"build",
+				"--target",
+				"clean"
+			],
+			"group": "build",
+			"problemMatcher": [
+				"$gcc"
+			],
+			"isBackground": false,
+			"detail": "Clean the build directory"
+		},
+		{
+			"label": "Run cudasdr",
+			"type": "shell",
+			"command": "./build/Debug/cudasdr",
+			"group": "test",
+			"isBackground": false,
+			"dependsOn": "Build Debug",
+			"detail": "Run the cudasdr application",
+			"options": {
+				"env": {
+					"QT_QPA_PLATFORM": "xcb",
+					"QT_QPA_PLATFORM_PLUGIN_PATH": "/home/simon/Qt/5.15.2/gcc_64/plugins/platforms",
+					"LD_LIBRARY_PATH": "/home/simon/Qt/5.15.2/gcc_64/lib:${env:LD_LIBRARY_PATH}",
+					"QT_XCB_GL_INTEGRATION": "xcb_egl",
+					"WAYLAND_DISPLAY": ""
+				}
+			},
+			"presentation": {
+				"echo": true,
+				"reveal": "always",
+				"focus": false,
+				"panel": "new",
+				"showReuseMessage": true,
+				"clear": false
+			}
+		},
+		{
+			"label": "Full Rebuild Debug",
+			"type": "shell",
+			"command": "rm",
+			"args": [
+				"-rf",
+				"build"
+			],
+			"group": "build",
+			"isBackground": false,
+			"detail": "Clean and rebuild from scratch"
+		},
+		{
+			"label": "Check Dependencies",
+			"type": "shell",
+			"command": "ldd",
+			"args": [
+				"build/Debug/cudasdr"
+			],
+			"group": "test",
+			"isBackground": false,
+			"dependsOn": "Build Debug",
+			"detail": "Check shared library dependencies"
+		}
+	]
+}

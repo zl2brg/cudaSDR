@@ -29,13 +29,7 @@
 
 // use: COLOROPTIONS_DEBUG
 
-#include <QtGui>
-#include <QPen>
-#include <QDebug>
-#include <QDialog>
-#include <QColorDialog>
-#include <QBoxLayout>
-#include <QGroupBox>
+
 
 #include "cusdr_colorsWidget.h"
 
@@ -71,14 +65,14 @@ ColorOptionsWidget::ColorOptionsWidget(QWidget *parent)
 	
 	createColorChooserWidget();
 
-	QBoxLayout *mainLayout = new QBoxLayout(QBoxLayout::TopToBottom, this);
+    mainLayout = new QBoxLayout(QBoxLayout::TopToBottom, this);
 	mainLayout->setSpacing(5);
-	mainLayout->setMargin(0);
+    mainLayout->setContentsMargins(0,0,0,0);
 	mainLayout->addSpacing(8);
 
-	QHBoxLayout *hbox1 = new QHBoxLayout;
+    hbox1 = new QHBoxLayout;
 	hbox1->setSpacing(0);
-	hbox1->setMargin(0);
+    hbox1->setContentsMargins(0,0,0,0);
 	hbox1->addStretch();
 	hbox1->addWidget(m_colorChooserWidget);
 	hbox1->addStretch();
@@ -96,18 +90,18 @@ ColorOptionsWidget::ColorOptionsWidget(QWidget *parent)
 ColorOptionsWidget::~ColorOptionsWidget() {
 
 	// disconnect all signals
-	disconnect(set, 0, this, 0);
-	disconnect(this, 0, 0, 0);
+	disconnect(set, nullptr, this, nullptr);
+	disconnect(this, nullptr, nullptr, nullptr);
 }
 
 QSize ColorOptionsWidget::sizeHint() const {
 	
-	return QSize(m_minimumWidgetWidth, height());
+	return {m_minimumWidgetWidth, height()};
 }
 
 QSize ColorOptionsWidget::minimumSizeHint() const {
 
-	return QSize(m_minimumWidgetWidth, height());
+	return {m_minimumWidgetWidth, height()};
 }
 
 void ColorOptionsWidget::setupConnections() {
@@ -190,14 +184,6 @@ void ColorOptionsWidget::systemStateChanged(
 
 		m_dataEngineState = state;
 
-		if (m_dataEngineState == QSDR::DataEngineUp) {
-		
-			
-		}
-		else {
-
-			
-		}
 		change = true;
 	}
 	if (!change) return;
@@ -232,7 +218,6 @@ void ColorOptionsWidget::graphicModeChanged(
 
 	if (!change) return;
 
-	update();
 }
 
 void ColorOptionsWidget::createColorChooserWidget() {
@@ -486,7 +471,7 @@ void ColorOptionsWidget::createColorChooserWidget() {
 		SLOT(acceptColors()));
 
 	
-	QGridLayout *grid1 = new QGridLayout;
+	auto *grid1 = new QGridLayout;
 	grid1->setSpacing(1);
 	grid1->setHorizontalSpacing(1);
 	grid1->setContentsMargins(0, 0, 0, 0);
@@ -510,19 +495,19 @@ void ColorOptionsWidget::createColorChooserWidget() {
 	//grid1->addWidget(m_resetBtn, 7, 3);
 	//grid1->addWidget(m_okBtn, 7, 4);
 
-	QHBoxLayout *hbox1 = new QHBoxLayout;
+	auto *hbox1 = new QHBoxLayout;
 	hbox1->setSpacing(4);
 	hbox1->addStretch();
 	hbox1->addWidget(m_resetBtn);
 	hbox1->addWidget(m_okBtn);
 	
-	QVBoxLayout *vbox1 = new QVBoxLayout;
+	auto *vbox1 = new QVBoxLayout;
 	vbox1->setSpacing(4);
 	//vbox1->addStretch();
 	vbox1->addWidget(m_colorTriangle);
 	vbox1->addLayout(hbox1);
 	
-	QHBoxLayout *hbox = new QHBoxLayout;
+	auto *hbox = new QHBoxLayout;
 	hbox->setSpacing(4);
 	hbox->addSpacing(6);
 	hbox->addLayout(grid1);
@@ -531,13 +516,13 @@ void ColorOptionsWidget::createColorChooserWidget() {
 	m_colorChooserWidget = new QGroupBox(tr("Color Chooser"), this);
 	m_colorChooserWidget->setMinimumWidth(m_minimumGroupBoxWidth);
 	m_colorChooserWidget->setLayout(hbox);
-	m_colorChooserWidget->setStyleSheet(set->getWidgetStyle());
 	m_colorChooserWidget->setFont(QFont("Arial", 8));
+    delete vbox1;
 }
 
 void ColorOptionsWidget::colorChooserChanged() {
 
-	AeroButton *button = qobject_cast<AeroButton *>(sender());
+	auto *button = qobject_cast<AeroButton *>(sender());
 	m_btnChooserHit = m_changeColorBtnList.indexOf(button);
 
 	foreach(AeroButton *btn, m_changeColorBtnList) {

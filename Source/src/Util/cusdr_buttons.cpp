@@ -36,10 +36,10 @@ AeroButton::AeroButton(QWidget *parent)
 	,m_pressed(false)
 	,m_color(QColor(150, 150, 150))
 	,m_color_on(QColor(85, 210, 250))
-	//,m_color_on(QColor(105, 105, 250))
 	,m_highlight(QColor(0x91, 0xeb, 0xff))
 	,m_shadow(Qt::black)
 	,m_textcolor(QColor(255, 255, 255))
+	,m_onTextColor(QColor(255, 255, 255))
 	,m_opacity(1.0)
 	,m_glass(true)
 	,m_roundness(0){}
@@ -55,6 +55,7 @@ AeroButton::AeroButton(const QString &text, QWidget *parent)
 	,m_highlight(QColor(0x91, 0xeb, 0xff))
 	,m_shadow(Qt::black)
 	,m_textcolor(QColor(255, 255, 255))
+	,m_onTextColor(QColor(255, 255, 255))
 	,m_opacity(1.0)
 	,m_glass(true)
 	,m_roundness(0){}
@@ -70,6 +71,7 @@ AeroButton::AeroButton(const QIcon &icon, const QString &text, QWidget *parent)
 	,m_highlight(QColor(0x91, 0xeb, 0xff))
 	,m_shadow(Qt::black)
 	,m_textcolor(QColor(255, 255, 255))
+	,m_onTextColor(QColor(255, 255, 255))
 	,m_icon(icon)
 	,m_opacity(1.0)
 	,m_glass(true)
@@ -90,8 +92,8 @@ void AeroButton::paintEvent(QPaintEvent * pe)
 	if(this->isEnabled())
 	{
 		if (m_state == ON) {
-			
-			m_hovered ? button_color = m_highlight : button_color = m_color_on;
+			button_color = m_color_on;
+
 		}
 		else if (m_state == OFF) {
 
@@ -113,7 +115,7 @@ void AeroButton::paintEvent(QPaintEvent * pe)
 	//outline
 	painter.setPen(QPen(QBrush(Qt::black), 2.0));
 	QPainterPath outline;
-	outline.addRoundRect(0, 0, button_rect.width(), button_rect.height(), m_roundness, m_roundness);
+	outline.addRoundedRect(0, 0, button_rect.width(), button_rect.height(), m_roundness, m_roundness);
 	painter.setOpacity(m_opacity);
 	painter.drawPath(outline);
 
@@ -121,6 +123,7 @@ void AeroButton::paintEvent(QPaintEvent * pe)
 	QLinearGradient gradient(0, 0, 0, button_rect.height());
 	gradient.setSpread(QGradient::ReflectSpread);
 	gradient.setColorAt(0.0, button_color);
+
 	gradient.setColorAt(0.4, m_shadow);
 	gradient.setColorAt(0.6, m_shadow);
 	gradient.setColorAt(1.0, button_color);
@@ -131,16 +134,16 @@ void AeroButton::paintEvent(QPaintEvent * pe)
 
 	//main button
 	QPainterPath painter_path;
-	painter_path.addRoundRect(1, 1, button_rect.width() - 2, button_rect.height() - 2, m_roundness, m_roundness);
+	painter_path.addRoundedRect(1, 1, button_rect.width() - 2, button_rect.height() - 2, m_roundness, m_roundness);
 	painter.setClipPath(painter_path);
 
 	painter.setOpacity(m_opacity);
-	painter.drawRoundRect(1, 1, button_rect.width() - 2, button_rect.height() - 2, m_roundness, m_roundness);
+	painter.drawRoundedRect(1, 1, button_rect.width() - 2, button_rect.height() - 2, m_roundness, m_roundness);
 
 	//glass highlight
 	painter.setBrush(QBrush(Qt::white));
 	painter.setPen(QPen(QBrush(Qt::white), 0.01));
-	painter.setOpacity(0.30);
+	painter.setOpacity(0.20);
 	if (m_glass)
 		painter.drawRect(1, 1, button_rect.width() - 2, (button_rect.height() / 2) - 2);
 
@@ -151,7 +154,13 @@ void AeroButton::paintEvent(QPaintEvent * pe)
 		QFont font = this->font();
 		painter.setFont(font);
 		//painter.setPen(Qt::white);
-		painter.setPen(m_textcolor);
+		if (m_state == ON)
+		{
+		    painter.setPen(m_onTextColor);
+		}
+		else {
+		    painter.setPen(m_textcolor);
+		}
 		painter.setOpacity(1.0);
 		painter.drawText(0, 0, button_rect.width(), button_rect.height(), Qt::AlignCenter, text);
 	}
@@ -174,7 +183,7 @@ void AeroButton::paintEvent(QPaintEvent * pe)
 
 AeroButton::BtnState AeroButton::btnState() const { return m_state; }
 
-void AeroButton::enterEvent(QEvent * e)
+void AeroButton::enterEvent(QEnterEvent * e)
 {
 	m_hovered = true;
 	this->repaint();
@@ -221,3 +230,4 @@ QRect AeroButton::calculateIconPosition(QRect button_rect, QSize icon_size)
 
 	return icon_position;
 }
+
