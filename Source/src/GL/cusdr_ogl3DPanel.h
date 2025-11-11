@@ -109,6 +109,10 @@ private:
     QColor amplitudeToColor(float amplitude);
     QColor amplitudeToColorWithOffset(float amplitude, float offset);
     void qglColor(QColor color);
+    void cleanupOldSlices();
+    void addNewSliceMesh(const MeshGeneratorWorker::MeshData& meshData);
+    int calculateLODLevel() const;
+    bool isSliceVisible(int sliceIndex) const;
     void calculateVisibleRange(int& minTimeSlice, int& maxTimeSlice, int& minFreqBin, int& maxFreqBin);
 
 private slots:
@@ -124,11 +128,20 @@ private:
     long m_vfoFrequency;
     float m_sampleRate;
     
+    // Per-slice mesh structure for efficient rendering
+    struct TimeSliceMesh {
+        QOpenGLBuffer* vertexBuffer;
+        QOpenGLBuffer* indexBuffer;
+        QOpenGLVertexArrayObject* vao;
+        int vertexCount;
+        int indexCount;
+        int timeIndex;  // Position in history (0 = newest)
+        int lodLevel;   // 0=full, 1=half, 2=quarter detail
+    };
+    
     // 3D Rendering infrastructure
     QOpenGLShaderProgram* m_shaderProgram;
-    QOpenGLBuffer* m_vertexBuffer;
-    QOpenGLBuffer* m_indexBuffer;
-    QOpenGLVertexArrayObject* m_vao;
+    QVector<TimeSliceMesh> m_timeSliceMeshes;  // One mesh per time slice
     
     // Grid rendering
     QOpenGLBuffer* m_gridVertexBuffer;
@@ -154,21 +167,15 @@ private:
     Qt::MouseButton m_mouseButton;
     
     // Spectrum data management
-    static const int MAX_TIME_SLICES = 100;  // Reduced for better real-time performance (was 300)
+    static const int MAX_TIME_SLICES = 300;  // Reduced for better real-time performance (was 300)
     static const int MAX_FREQ_BINS = 8192;  // Increased to handle 4096+ samples
     QVector<QVector<float>> m_spectrumHistory;
     QVector<float> m_currentSpectrum;
-    QVector<QVector<float>> m_meshSpectrumSnapshot;  // Stable snapshot for mesh generation
-    float m_meshWaterfallOffset;  // Waterfall offset snapshot for consistent colors
     int m_spectrumWidth;
     int m_currentTimeSlice;
     
-    // Mesh data
-    QVector<float> m_vertices;
-    QVector<unsigned int> m_indices;
-    int m_vertexCount;
-    int m_indexCount;
-    bool m_meshNeedsUpdate;
+    // Mesh update flags
+    bool m_newSliceAvailable;  // Flag indicating new spectrum slice needs mesh generation
     
     // Performance optimization
     QTimer* m_updateTimer;

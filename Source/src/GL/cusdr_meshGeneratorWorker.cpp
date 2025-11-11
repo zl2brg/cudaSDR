@@ -17,8 +17,9 @@ MeshGeneratorWorker::MeshGeneratorWorker(QObject *parent)
     , m_stop(false)
     , m_newDataAvailable(false)
     , m_processing(false)
+    , m_timeIndex(0)
     , m_spectrumWidth(512)
-    , m_cameraDistance(300.0f)
+    , m_lodLevel(0)
     , m_heightScale(10.0f)
     , m_frequencyScale(1.0f)
     , m_timeScale(1.0f)
@@ -31,33 +32,27 @@ MeshGeneratorWorker::~MeshGeneratorWorker() {
     wait(); // Wait for thread to finish
 }
 
-void MeshGeneratorWorker::generateMesh(const QVector<QVector<float>>& spectrumHistory,
-                                       int spectrumWidth,
-                                       float cameraDistance,
-                                       float heightScale,
-                                       float frequencyScale,
-                                       float timeScale,
-                                       float waterfallOffset,
-                                       int minTimeSlice,
-                                       int maxTimeSlice,
-                                       int minFreqBin,
-                                       int maxFreqBin,
-                                       float dBmPanMin,
-                                       float dBmPanMax) {
+void MeshGeneratorWorker::generateSingleSliceMesh(const QVector<float>& spectrumData,
+                                                  int timeIndex,
+                                                  int spectrumWidth,
+                                                  int lodLevel,
+                                                  float heightScale,
+                                                  float frequencyScale,
+                                                  float timeScale,
+                                                  float waterfallOffset,
+                                                  float dBmPanMin,
+                                                  float dBmPanMax) {
     QMutexLocker locker(&m_mutex);
     
-    // Update parameters
-    m_spectrumHistory = spectrumHistory;  // Qt implicit sharing - efficient copy
+    // Update parameters for single slice
+    m_spectrumData = spectrumData;  // Qt implicit sharing - efficient copy
+    m_timeIndex = timeIndex;
     m_spectrumWidth = spectrumWidth;
-    m_cameraDistance = cameraDistance;
+    m_lodLevel = lodLevel;
     m_heightScale = heightScale;
     m_frequencyScale = frequencyScale;
     m_timeScale = timeScale;
     m_waterfallOffset = waterfallOffset;
-    m_minTimeSlice = minTimeSlice;
-    m_maxTimeSlice = maxTimeSlice;
-    m_minFreqBin = minFreqBin;
-    m_maxFreqBin = maxFreqBin;
     m_dBmPanMin = dBmPanMin;
     m_dBmPanMax = dBmPanMax;
     
@@ -90,156 +85,123 @@ void MeshGeneratorWorker::run() {
         }
         
         // Copy parameters locally
-        QVector<QVector<float>> spectrumHistory = m_spectrumHistory;
+        QVector<float> spectrumData = m_spectrumData;
         int spectrumWidth = m_spectrumWidth;
-        float cameraDistance = m_cameraDistance;
+        int lodLevel = m_lodLevel;
         float frequencyScale = m_frequencyScale;
-        float timeScale = m_timeScale;
         float waterfallOffset = m_waterfallOffset;
-        int minTimeSlice = m_minTimeSlice;
-        int maxTimeSlice = m_maxTimeSlice;
-        int minFreqBin = m_minFreqBin;
-        int maxFreqBin = m_maxFreqBin;
         float dBmPanMin = m_dBmPanMin;
         float dBmPanMax = m_dBmPanMax;
+        
+        // Unused parameters (kept for API consistency)
+        Q_UNUSED(m_timeIndex)
+        Q_UNUSED(m_timeScale)
         
         m_newDataAvailable = false;
         m_processing = true;
         m_mutex.unlock();
         
-        // Generate mesh (CPU-intensive part, no locks needed)
+        // Generate mesh for single slice (CPU-intensive part, no locks needed)
         MeshData meshData;
         
-        if (spectrumHistory.isEmpty()) {
+        if (spectrumData.isEmpty()) {
             continue;
         }
         
-        int timeSlices = qMin(spectrumHistory.size(), MAX_TIME_SLICES);
         int freqBins = spectrumWidth;
         
-        // Clamp visible range to valid bounds
-        minTimeSlice = qMax(0, minTimeSlice);
-        maxTimeSlice = qMin(timeSlices, maxTimeSlice);
-        minFreqBin = qMax(0, minFreqBin);
-        maxFreqBin = qMin(freqBins, maxFreqBin);
+        // Apply LOD factor for frequency downsampling
+        // LOD 0 = full detail, LOD 1 = half, LOD 2 = quarter
+        int lodFactor = 1 << lodLevel;  // 2^lodLevel
         
-        int visibleTimeSlices = maxTimeSlice - minTimeSlice;
-        int visibleFreqBins = maxFreqBin - minFreqBin;
-        
-        if (visibleTimeSlices <= 0 || visibleFreqBins <= 0) {
-            continue; // Nothing visible
+        // Downsample based on LOD
+        // For high bin counts, we downsample more aggressively
+        if (freqBins > 4000 && lodLevel == 0) {
+            lodFactor = 4;  // Force higher LOD for very high resolution
+        } else if (freqBins > 2000 && lodLevel == 0) {
+            lodFactor = 2;
         }
         
-        // Level of Detail (LOD) optimization based on camera distance AND frequency density
-        // Similar to computeDisplayBins() in 2D panadapter
+        int effectiveFreqBins = freqBins / lodFactor;
         
-        // Camera distance LOD
-        int distanceLodFactor = 1;
-        if (cameraDistance > 250.0f) {
-            distanceLodFactor = 4;  // Very far - skip 3 out of 4 points
-        } else if (cameraDistance > 150.0f) {
-            distanceLodFactor = 2;  // Medium distance - skip every other point
-        }
-        
-        // Frequency density LOD - downsample if we have way more bins than needed
-        // Target ~800-1000 frequency bins for display (similar to 2D panadapter)
-        int frequencyLodFactor = 1;
-        if (visibleFreqBins > 4000) {
-            frequencyLodFactor = 4;  // 4096 bins -> ~1024 display bins
-        } else if (visibleFreqBins > 2000) {
-            frequencyLodFactor = 2;  // 2048+ bins -> ~1024 display bins
-        }
-        
-        // Time LOD - similar logic for time slices
-        int timeLodFactor = 1;
-        if (visibleTimeSlices > 80) {
-            timeLodFactor = 2;  // Reduce if we have many time slices
-        }
-        
-        // Combine LOD factors (use max to avoid over-reduction)
-        int freqLodFactor = qMax(distanceLodFactor, frequencyLodFactor);
-        int timeLodFactorFinal = qMax(distanceLodFactor, timeLodFactor);
-        
-        int effectiveFreqBins = visibleFreqBins / freqLodFactor;
-        int effectiveTimeSlices = visibleTimeSlices / timeLodFactorFinal;
-        
-        // Pre-allocate memory for efficiency
-        int estimatedVertices = effectiveTimeSlices * effectiveFreqBins * 6; // 6 floats per vertex
-        int estimatedIndices = (effectiveTimeSlices - 1) * (effectiveFreqBins - 1) * 6; // 6 indices per quad
+        // Pre-allocate memory - single row of vertices
+        int estimatedVertices = effectiveFreqBins * 6; // 6 floats per vertex (pos + color)
         
         meshData.vertices.reserve(estimatedVertices);
-        meshData.indices.reserve(estimatedIndices);
+        // No indices needed - we'll connect slices at render time or use separate indices per slice
         
-        // Generate vertices with peak-preserving LOD (only for visible region)
-        for (int t = 0; t < effectiveTimeSlices; t++) {
-            for (int f = 0; f < effectiveFreqBins; f++) {
-                // Peak-preserving LOD: Take MAXIMUM across both time and frequency ranges
-                float amplitude = -200.0f;
-                
-                // Loop through time samples in this LOD bin (offset by minTimeSlice)
-                for (int timeSample = 0; timeSample < timeLodFactorFinal; timeSample++) {
-                    int actualTimeIndex = minTimeSlice + t * timeLodFactorFinal + timeSample;
-                    if (actualTimeIndex >= spectrumHistory.size()) break;
-                    
-                    const QVector<float>& spectrum = spectrumHistory[actualTimeIndex];
-                    
-                    // Loop through frequency samples in this LOD bin (offset by minFreqBin)
-                    for (int freqSample = 0; freqSample < freqLodFactor; freqSample++) {
-                        int actualFreqIndex = minFreqBin + f * freqLodFactor + freqSample;
-                        if (actualFreqIndex < spectrum.size()) {
-                            amplitude = qMax(amplitude, spectrum[actualFreqIndex]);
-                        }
-                    }
+        // Generate vertices for this single time slice
+        for (int f = 0; f < effectiveFreqBins; f++) {
+            // Peak-preserving LOD: Take MAXIMUM across frequency range
+            float amplitude = -200.0f;
+            
+            for (int freqSample = 0; freqSample < lodFactor; freqSample++) {
+                int actualFreqIndex = f * lodFactor + freqSample;
+                if (actualFreqIndex < spectrumData.size()) {
+                    amplitude = qMax(amplitude, spectrumData[actualFreqIndex]);
                 }
-                
-                // If no samples found, use default
-                if (amplitude < -199.0f) {
-                    amplitude = -120.0f;
-                }
-                
-                // Calculate global position (where this bin sits in the full spectrum)
-                float globalF = minFreqBin + f * freqLodFactor;
-                float globalT = minTimeSlice + t * timeLodFactorFinal;
-                
-                // Position (frequency, amplitude, time) with user-controllable scales
-                // Use global positions to maintain correct world coordinates
-                float x = (globalF / (float)freqBins) * 400.0f * frequencyScale - 200.0f * frequencyScale;
-                // Position mesh so dBmPanMin is at y=0 and dBmPanMax is at y=40
-                // When scale moves up/down, mesh moves with it
-                // When scale expands/compresses, signals scale to maintain accurate positioning
-                float y = (amplitude - dBmPanMin) / (dBmPanMax - dBmPanMin) * 40.0f;
-                float z = ((float)timeSlices - globalT) * 4.0f * timeScale - (float)timeSlices * 2.0f * timeScale;
-                
-                meshData.vertices.append(x);
-                meshData.vertices.append(y);
-                meshData.vertices.append(z);
-                
-                // Color based on amplitude with waterfall offset
-                QColor color = amplitudeToColorWithOffset(amplitude, waterfallOffset);
-                meshData.vertices.append(color.redF());
-                meshData.vertices.append(color.greenF());
-                meshData.vertices.append(color.blueF());
             }
+            
+            // If no samples found, use default
+            if (amplitude < -199.0f) {
+                amplitude = -120.0f;
+            }
+            
+            // Position (frequency, amplitude, time) with user-controllable scales
+            float x = (f * lodFactor / (float)freqBins) * 400.0f * frequencyScale - 200.0f * frequencyScale;
+            // Position mesh so dBmPanMin is at y=0 and dBmPanMax is at y=40
+            float y = (amplitude - dBmPanMin) / (dBmPanMax - dBmPanMin) * 40.0f;
+            // Z position is always 0 - offset applied at render time
+            float z = 0.0f;
+            
+            meshData.vertices.append(x);
+            meshData.vertices.append(y);
+            meshData.vertices.append(z);
+            
+            // Color based on amplitude with waterfall offset
+            QColor color = amplitudeToColorWithOffset(amplitude, waterfallOffset);
+            meshData.vertices.append(color.redF());
+            meshData.vertices.append(color.greenF());
+            meshData.vertices.append(color.blueF());
         }
         
-        // Generate indices for triangle strips
-        for (int t = 0; t < effectiveTimeSlices - 1; t++) {
-            for (int f = 0; f < effectiveFreqBins - 1; f++) {
-                int i0 = t * effectiveFreqBins + f;
-                int i1 = t * effectiveFreqBins + (f + 1);
-                int i2 = (t + 1) * effectiveFreqBins + f;
-                int i3 = (t + 1) * effectiveFreqBins + (f + 1);
-                
-                // First triangle
-                meshData.indices.append(i0);
-                meshData.indices.append(i1);
-                meshData.indices.append(i2);
-                
-                // Second triangle
-                meshData.indices.append(i1);
-                meshData.indices.append(i3);
-                meshData.indices.append(i2);
-            }
+        // Each slice needs TWO rows to make a surface
+        // Row 1 at Z=0 (front edge of this slice)
+        // Row 2 at Z=-4.0 (back edge, which will align with front of next slice)
+        // This eliminates gaps between slices
+        
+        int verticesPerRow = effectiveFreqBins;
+        
+        // Add second row of vertices at back edge (where next slice's front will be)
+        // This is 4.0 units back, matching the spacing in renderSpectrum3D
+        float zBackEdge = -4.0f;  // Back edge of slice (matches slice spacing)
+        for (int f = 0; f < effectiveFreqBins; f++) {
+            // Copy vertex data but with different Z
+            int srcIdx = f * 6;
+            meshData.vertices.append(meshData.vertices[srcIdx]);     // x
+            meshData.vertices.append(meshData.vertices[srcIdx + 1]); // y
+            meshData.vertices.append(zBackEdge);                      // z at back edge
+            meshData.vertices.append(meshData.vertices[srcIdx + 3]); // r
+            meshData.vertices.append(meshData.vertices[srcIdx + 4]); // g
+            meshData.vertices.append(meshData.vertices[srcIdx + 5]); // b
+        }
+        
+        // Now generate indices connecting the two rows
+        for (int f = 0; f < effectiveFreqBins - 1; f++) {
+            int i0 = f;
+            int i1 = f + 1;
+            int i2 = verticesPerRow + f;
+            int i3 = verticesPerRow + f + 1;
+            
+            // First triangle
+            meshData.indices.append(i0);
+            meshData.indices.append(i1);
+            meshData.indices.append(i2);
+            
+            // Second triangle
+            meshData.indices.append(i1);
+            meshData.indices.append(i3);
+            meshData.indices.append(i2);
         }
         
         meshData.vertexCount = meshData.vertices.size() / 6;

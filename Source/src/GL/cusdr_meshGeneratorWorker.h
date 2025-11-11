@@ -36,20 +36,17 @@ public:
     explicit MeshGeneratorWorker(QObject *parent = nullptr);
     ~MeshGeneratorWorker();
 
-    // Request mesh generation with current parameters
-    void generateMesh(const QVector<QVector<float>>& spectrumHistory,
-                     int spectrumWidth,
-                     float cameraDistance,
-                     float heightScale,
-                     float frequencyScale,
-                     float timeScale,
-                     float waterfallOffset,
-                     int minTimeSlice,
-                     int maxTimeSlice,
-                     int minFreqBin,
-                     int maxFreqBin,
-                     float dBmPanMin,
-                     float dBmPanMax);
+    // Generate mesh for a single spectrum slice
+    void generateSingleSliceMesh(const QVector<float>& spectrumData,
+                                 int timeIndex,
+                                 int spectrumWidth,
+                                 int lodLevel,
+                                 float heightScale,
+                                 float frequencyScale,
+                                 float timeScale,
+                                 float waterfallOffset,
+                                 float dBmPanMin,
+                                 float dBmPanMax);
 
     // Stop the worker thread
     void stop();
@@ -76,17 +73,14 @@ private:
     bool m_processing;  // True when actively generating mesh
 
     // Input parameters (protected by mutex)
-    QVector<QVector<float>> m_spectrumHistory;
+    QVector<float> m_spectrumData;  // Single slice data
+    int m_timeIndex;
     int m_spectrumWidth;
-    float m_cameraDistance;
+    int m_lodLevel;
     float m_heightScale;
     float m_frequencyScale;
     float m_timeScale;
     float m_waterfallOffset;
-    int m_minTimeSlice;
-    int m_maxTimeSlice;
-    int m_minFreqBin;
-    int m_maxFreqBin;
     float m_dBmPanMin;
     float m_dBmPanMax;
     

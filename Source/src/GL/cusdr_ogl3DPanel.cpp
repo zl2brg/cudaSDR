@@ -27,9 +27,6 @@ QGL3DPanel::QGL3DPanel(QWidget *parent, int rx)
     , m_vfoFrequency(set->getVfoFrequency(m_receiver))
     , m_sampleRate(set->getSampleRate())
     , m_shaderProgram(nullptr)
-    , m_vertexBuffer(nullptr)
-    , m_indexBuffer(nullptr)
-    , m_vao(nullptr)
     , m_gridVertexBuffer(nullptr)
     , m_gridVAO(nullptr)
     , m_gridVertexCount(0)
@@ -41,14 +38,11 @@ QGL3DPanel::QGL3DPanel(QWidget *parent, int rx)
     , m_mousePressed(false)
     , m_spectrumWidth(512)
     , m_currentTimeSlice(0)
-    , m_vertexCount(0)
-    , m_indexCount(0)
-    , m_meshNeedsUpdate(true)
+    , m_newSliceAvailable(false)
     , m_heightScale(10.0f)
     , m_frequencyScale(1.0f)
     , m_timeScale(1.0f)
     , m_waterfallOffset(0.0f)   // Default offset
-    , m_meshWaterfallOffset(0.0f)  // Initialize snapshot offset
     , m_backgroundColor(Qt::black)
     , m_gridColor(Qt::darkGray)
     , m_axesColor(Qt::white)
@@ -140,20 +134,22 @@ QGL3DPanel::~QGL3DPanel() {
     
     makeCurrent();
     
-    if (m_vao) {
-        m_vao->destroy();
-        delete m_vao;
+    // Clean up all time slice meshes
+    for (TimeSliceMesh& slice : m_timeSliceMeshes) {
+        if (slice.vao) {
+            slice.vao->destroy();
+            delete slice.vao;
+        }
+        if (slice.vertexBuffer) {
+            slice.vertexBuffer->destroy();
+            delete slice.vertexBuffer;
+        }
+        if (slice.indexBuffer) {
+            slice.indexBuffer->destroy();
+            delete slice.indexBuffer;
+        }
     }
-    
-    if (m_vertexBuffer) {
-        m_vertexBuffer->destroy();
-        delete m_vertexBuffer;
-    }
-    
-    if (m_indexBuffer) {
-        m_indexBuffer->destroy();
-        delete m_indexBuffer;
-    }
+    m_timeSliceMeshes.clear();
     
     // Clean up grid resources
     if (m_gridVAO) {
@@ -272,17 +268,8 @@ void QGL3DPanel::setupShaders() {
 }
 
 void QGL3DPanel::setupMesh() {
-    // Create vertex array object
-    m_vao = new QOpenGLVertexArrayObject();
-    m_vao->create();
-    
-    // Create vertex buffer
-    m_vertexBuffer = new QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
-    m_vertexBuffer->create();
-    
-    // Create index buffer
-    m_indexBuffer = new QOpenGLBuffer(QOpenGLBuffer::IndexBuffer);
-    m_indexBuffer->create();
+    // Per-slice rendering - meshes created dynamically as new spectra arrive
+    // No initial setup needed
 }
 
 void QGL3DPanel::setupGrid() {
@@ -357,78 +344,44 @@ void QGL3DPanel::setupGrid() {
 }
 
 void QGL3DPanel::updateMesh() {
-    if (m_spectrumHistory.isEmpty() || !m_meshWorker) return;
+    if (!m_newSliceAvailable || m_spectrumHistory.isEmpty() || !m_meshWorker) return;
     
     // Skip if worker is still busy processing previous mesh
-    // This prevents overwhelming the worker thread with requests
     if (m_meshWorker->isBusy()) {
         return;
     }
     
-    // Calculate visible range for frustum culling
-    int minTimeSlice, maxTimeSlice, minFreqBin, maxFreqBin;
-    calculateVisibleRange(minTimeSlice, maxTimeSlice, minFreqBin, maxFreqBin);
+    // Calculate LOD level based on camera distance
+    int lodLevel = calculateLODLevel();
     
-    // Debug: Print culling statistics
-    int totalTimeSlices = qMin(m_spectrumHistory.size(), MAX_TIME_SLICES);
-    int visibleTimeSlices = maxTimeSlice - minTimeSlice;
-    int visibleFreqBins = maxFreqBin - minFreqBin;
-    float cullPercentage = 100.0f * (1.0f - (float)(visibleTimeSlices * visibleFreqBins) / (float)(totalTimeSlices * m_spectrumWidth));
-    qDebug() << "Frustum culling:" << visibleTimeSlices << "/" << totalTimeSlices << "time slices," 
-             << visibleFreqBins << "/" << m_spectrumWidth << "freq bins," 
-             << QString::number(cullPercentage, 'f', 1) << "% culled";
+    // Get the newest spectrum slice (index 0 is newest)
+    const QVector<float>& newestSlice = m_spectrumHistory.first();
     
-    // Request mesh generation in worker thread
-    // This offloads CPU-intensive calculations from the main thread
-    m_meshWorker->generateMesh(m_spectrumHistory,
-                               m_spectrumWidth,
-                               m_cameraDistance,
-                               m_heightScale,
-                               m_frequencyScale,
-                               m_timeScale,
-                               m_waterfallOffset,
-                               minTimeSlice,
-                               maxTimeSlice,
-                               minFreqBin,
-                               maxFreqBin,
-                               m_dBmPanMin,
-                               m_dBmPanMax);
+    // Request mesh generation for just this one slice
+    m_meshWorker->generateSingleSliceMesh(newestSlice,
+                                          m_timeSliceMeshes.size(),  // Time index
+                                          m_spectrumWidth,
+                                          lodLevel,
+                                          m_heightScale,
+                                          m_frequencyScale,
+                                          m_timeScale,
+                                          m_waterfallOffset,
+                                          m_dBmPanMin,
+                                          m_dBmPanMax);
     
-    // Mesh will be uploaded to GPU when onMeshReady() slot is called
-    m_meshNeedsUpdate = false;
+    m_newSliceAvailable = false;
 }
 
 void QGL3DPanel::onMeshReady(const MeshGeneratorWorker::MeshData& meshData) {
     // This slot is called on the main thread when mesh generation is complete
-    // Now we can safely upload data to GPU
     
-    makeCurrent(); // Ensure we have OpenGL context
+    // Clean up old slices BEFORE adding new one if we're at capacity
+    if (m_timeSliceMeshes.size() >= MAX_TIME_SLICES) {
+        cleanupOldSlices();
+    }
     
-    // Copy mesh data
-    m_vertices = meshData.vertices;
-    m_indices = meshData.indices;
-    m_vertexCount = meshData.vertexCount;
-    m_indexCount = meshData.indexCount;
-    
-    // Upload to GPU buffers
-    m_vao->bind();
-    
-    m_vertexBuffer->bind();
-    m_vertexBuffer->allocate(m_vertices.constData(), m_vertices.size() * sizeof(float));
-    
-    m_indexBuffer->bind();
-    m_indexBuffer->allocate(m_indices.constData(), m_indices.size() * sizeof(unsigned int));
-    
-    // Setup vertex attributes
-    m_shaderProgram->enableAttributeArray(0);  // position
-    m_shaderProgram->setAttributeBuffer(0, GL_FLOAT, 0, 3, 6 * sizeof(float));
-    
-    m_shaderProgram->enableAttributeArray(1);  // color
-    m_shaderProgram->setAttributeBuffer(1, GL_FLOAT, 3 * sizeof(float), 3, 6 * sizeof(float));
-    
-    m_vao->release();
-    
-    doneCurrent();
+    // Add the new slice to our collection
+    addNewSliceMesh(meshData);
     
     // Trigger repaint with new mesh
     update();
@@ -444,10 +397,9 @@ void QGL3DPanel::paintGL() {
     // Update camera matrix (this should always work for mouse interaction)
     updateCamera();
     
-    // Update mesh when needed (throttled in setSpectrumData)
-    if (m_meshNeedsUpdate) {
+    // Update mesh when new slice available
+    if (m_newSliceAvailable) {
         updateMesh();
-        m_meshNeedsUpdate = false;
     }
     
     // Render 3D spectrum
@@ -462,39 +414,57 @@ void QGL3DPanel::paintGL() {
 }
 
 void QGL3DPanel::renderSpectrum3D() {
-    if (!m_shaderProgram || m_vertexCount == 0) return;
+    if (!m_shaderProgram || m_timeSliceMeshes.isEmpty()) return;
     
     // Bind shader program once
     m_shaderProgram->bind();
     
-    // Set uniforms only when they change
-    static QMatrix4x4 lastMvpMatrix;
-    QMatrix4x4 mvpMatrix = m_projectionMatrix * m_viewMatrix * m_modelMatrix;
-    if (mvpMatrix != lastMvpMatrix) {
-        m_shaderProgram->setUniformValue("mvpMatrix", mvpMatrix);
-        lastMvpMatrix = mvpMatrix;
-    }
-    
-    // Always set height scale for spectrum rendering (grid may have changed it)
+    // Set base uniforms
     m_shaderProgram->setUniformValue("heightScale", m_heightScale);
     
-    // Bind VAO once
-    m_vao->bind();
-    
-    // Set polygon mode only when it changes
-    static bool lastWireframe = false;
-    if (m_showWireframe != lastWireframe) {
-        if (m_showWireframe) {
-            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-        } else {
-            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-        }
-        lastWireframe = m_showWireframe;
+    // Set polygon mode
+    if (m_showWireframe) {
+        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    } else {
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     }
     
-    glDrawElements(GL_TRIANGLES, m_indexCount, GL_UNSIGNED_INT, 0);
+    // Render each time slice with individual translation
+    // Newer slices (index 0) are at front, older slices recede backward
+    // Center the entire waterfall display around Z=0
+    int numSlices = m_timeSliceMeshes.size();
+    float totalDepth = (numSlices - 1) * 4.0f * m_timeScale;
+    float centerOffset = totalDepth / 2.0f;  // Offset to center around Z=0
     
-    m_vao->release();
+    for (int i = 0; i < numSlices; i++) {
+        // Simple visibility culling - skip slices that are definitely off-screen
+        if (!isSliceVisible(i)) {
+            continue;
+        }
+        
+        const TimeSliceMesh& slice = m_timeSliceMeshes[i];
+        
+        // Create model matrix with Z offset for this slice
+        // Index 0 is newest (at centerOffset), higher indices recede backward
+        QMatrix4x4 sliceModel = m_modelMatrix;
+        float zOffset = centerOffset - (float)i * 4.0f * m_timeScale;
+        sliceModel.translate(0.0f, 0.0f, zOffset);
+        
+        // Set MVP for this slice
+        QMatrix4x4 mvpMatrix = m_projectionMatrix * m_viewMatrix * sliceModel;
+        m_shaderProgram->setUniformValue("mvpMatrix", mvpMatrix);
+        
+        // Bind this slice's VAO and render
+        slice.vao->bind();
+        glDrawElements(GL_TRIANGLES, slice.indexCount, GL_UNSIGNED_INT, 0);
+        slice.vao->release();
+    }
+    
+    // Reset polygon mode
+    if (m_showWireframe) {
+        glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    }
+    
     m_shaderProgram->release();
 }
 
@@ -997,29 +967,26 @@ void QGL3DPanel::resetCamera() {
 }
 
 void QGL3DPanel::setSpectrumData(const QVector<float>& spectrumData) {
-    // Always accept and store the data immediately - don't lose any spectrum updates
+    // Always accept and store the data immediately
     m_currentSpectrum = spectrumData;
     m_spectrumWidth = spectrumData.size();
     m_dataUpdateCount++;
     
     // Add incoming spectrum to history
-    // prepend() does implicit copy-on-write, no need for explicit deep copy
     m_spectrumHistory.prepend(spectrumData);
     if (m_spectrumHistory.size() > MAX_TIME_SLICES) {
         m_spectrumHistory.removeLast();
     }
     
-    // Throttle mesh regeneration to avoid overwhelming the worker thread
-    // But always call update() so paintGL() is called frequently (for smooth rendering)
+    // Throttle mesh generation for new slices
     qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
     if (currentTime - m_lastUpdateTime >= m_updateFrequencyMs) {
-        m_meshNeedsUpdate = true;
+        m_newSliceAvailable = true;
         m_lastUpdateTime = currentTime;
         m_meshUpdateCount++;
     }
     
-    // Update display immediately when data arrives (data-driven like 2D panel)
-    // paintGL() will be called frequently, but mesh regeneration is throttled above
+    // Update display immediately (rendering is fast now)
     if (m_isVisible) {
         update();
     }
@@ -1186,8 +1153,8 @@ void QGL3DPanel::qglColor(QColor color) {
 }
 
 void QGL3DPanel::onUpdateTimer() {
-    // Only trigger repaints when we have data to update and are visible
-    if (m_isVisible && m_meshNeedsUpdate) {
+    // With per-slice rendering, just trigger repaints for smooth animation
+    if (m_isVisible) {
         update();
     }
 }
@@ -1239,14 +1206,10 @@ void QGL3DPanel::updateDisplay() {
 
 // Performance optimization methods
 void QGL3DPanel::performUpdate() {
-    qint64 currentTime = QDateTime::currentMSecsSinceEpoch();
-    
-    // Only update if the panel is visible and enough time has passed
-    if (m_isVisible && (currentTime - m_lastUpdateTime >= m_updateFrequencyMs)) {
-        if (m_meshNeedsUpdate) {
-            updateMesh();
-            m_lastUpdateTime = currentTime;
-        }
+    // With per-slice rendering, updates happen automatically when new data arrives
+    // This timer just triggers redraws for smooth animation
+    if (m_isVisible) {
+        update();
     }
 }
 
@@ -1279,13 +1242,13 @@ void QGL3DPanel::setHeightScale(float scale) {
 
 void QGL3DPanel::setFrequencyScale(float scale) {
     m_frequencyScale = qBound(0.1f, scale, 10.0f); // Reasonable range
-    m_meshNeedsUpdate = true; // Need to regenerate mesh for scale changes
+    // Scales are applied in shader, no mesh regeneration needed
     update(); // Trigger redraw
 }
 
 void QGL3DPanel::setTimeScale(float scale) {
     m_timeScale = qBound(0.1f, scale, 10.0f); // Reasonable range
-    m_meshNeedsUpdate = true; // Need to regenerate mesh for scale changes
+    // Scales are applied in shader, no mesh regeneration needed
     update(); // Trigger redraw
 }
 
@@ -1316,4 +1279,107 @@ void QGL3DPanel::setWaterfallOffset(float offset) {
     m_waterfallOffset = qBound(-50.0f, offset, 50.0f);  // Reasonable offset range
     // Trigger a color update for the waterfall
     update();
+}
+
+int QGL3DPanel::calculateLODLevel() const {
+    // Calculate LOD based on camera distance
+    // LOD 0 = full detail, LOD 1 = half, LOD 2 = quarter
+    if (m_cameraDistance > 250.0f) {
+        return 2;  // Quarter resolution when far away
+    } else if (m_cameraDistance > 150.0f) {
+        return 1;  // Half resolution at medium distance
+    }
+    return 0;  // Full resolution when close
+}
+
+bool QGL3DPanel::isSliceVisible(int sliceIndex) const {
+    Q_UNUSED(sliceIndex)
+    
+    // Simple visibility check - could be enhanced with proper frustum culling
+    // For now, just check if slice is within reasonable bounds
+    
+    // Always render if we have few slices
+    if (m_timeSliceMeshes.size() < 20) {
+        return true;
+    }
+    
+    // When we have many slices, we could cull based on camera view
+    // For now, render all slices (this is still much faster than regenerating)
+    return true;
+}
+
+void QGL3DPanel::cleanupOldSlices() {
+    // Remove oldest slices when we exceed maximum
+    while (m_timeSliceMeshes.size() > MAX_TIME_SLICES) {
+        TimeSliceMesh& oldSlice = m_timeSliceMeshes.last();
+        
+        // Ensure we have OpenGL context
+        makeCurrent();
+        
+        // Destroy OpenGL resources
+        if (oldSlice.vao) {
+            oldSlice.vao->destroy();
+            delete oldSlice.vao;
+        }
+        if (oldSlice.vertexBuffer) {
+            oldSlice.vertexBuffer->destroy();
+            delete oldSlice.vertexBuffer;
+        }
+        if (oldSlice.indexBuffer) {
+            oldSlice.indexBuffer->destroy();
+            delete oldSlice.indexBuffer;
+        }
+        
+        doneCurrent();
+        
+        m_timeSliceMeshes.removeLast();
+    }
+}
+
+void QGL3DPanel::addNewSliceMesh(const MeshGeneratorWorker::MeshData& meshData) {
+    makeCurrent();  // Ensure we have OpenGL context
+    
+    TimeSliceMesh newSlice;
+    
+    // Create VAO
+    newSlice.vao = new QOpenGLVertexArrayObject();
+    newSlice.vao->create();
+    newSlice.vao->bind();
+    
+    // Create and fill vertex buffer
+    newSlice.vertexBuffer = new QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
+    newSlice.vertexBuffer->create();
+    newSlice.vertexBuffer->bind();
+    newSlice.vertexBuffer->allocate(meshData.vertices.constData(), 
+                                     meshData.vertices.size() * sizeof(float));
+    
+    // Create and fill index buffer
+    newSlice.indexBuffer = new QOpenGLBuffer(QOpenGLBuffer::IndexBuffer);
+    newSlice.indexBuffer->create();
+    newSlice.indexBuffer->bind();
+    newSlice.indexBuffer->allocate(meshData.indices.constData(), 
+                                    meshData.indices.size() * sizeof(unsigned int));
+    
+    // Setup vertex attributes (must match shader)
+    m_shaderProgram->bind();
+    m_shaderProgram->enableAttributeArray(0);  // position
+    m_shaderProgram->setAttributeBuffer(0, GL_FLOAT, 0, 3, 6 * sizeof(float));
+    
+    m_shaderProgram->enableAttributeArray(1);  // color
+    m_shaderProgram->setAttributeBuffer(1, GL_FLOAT, 3 * sizeof(float), 3, 6 * sizeof(float));
+    m_shaderProgram->release();
+    
+    newSlice.vao->release();
+    
+    // Store metadata
+    newSlice.vertexCount = meshData.vertexCount;
+    newSlice.indexCount = meshData.indexCount;
+    newSlice.timeIndex = 0;  // Always at front
+    newSlice.lodLevel = calculateLODLevel();
+    
+    // Add to FRONT of collection (index 0 = newest)
+    // This pushes all old slices backward in the array
+    m_timeSliceMeshes.prepend(newSlice);
+    
+    doneCurrent();
 }
