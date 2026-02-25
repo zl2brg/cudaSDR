@@ -53,7 +53,7 @@ using namespace std;
 
 
 DataIO::DataIO(THPSDRParameter *ioData)
-	: QObject()
+	: IHardwareIO(nullptr)
 	, set(Settings::instance())
 	, io(ioData)
 	, m_dataIOSocketOn(false)
@@ -123,6 +123,22 @@ DataIO::~DataIO() {
         m_pSoundCardOut->Stop();
         // Automatic deletion
     }
+}
+
+// ---------------------------------------------------------------------------
+// IHardwareIO bridge overrides
+// ---------------------------------------------------------------------------
+
+void DataIO::initIO() {
+    initDataReceiverSocket();
+}
+
+void DataIO::sendInitFrames(int rx) {
+    sendInitFramesToNetworkDevice(rx);
+}
+
+void DataIO::sendCommand(char cmd) {
+    networkDeviceStartStop(cmd);
 }
 
 void DataIO::stop() {
@@ -584,7 +600,7 @@ void DataIO::networkDeviceStartStop(char value) {
 //	DATAIO_DEBUG << "device start/stop: socket closed.";
 }
 
-void DataIO::sendAudio(u_char *buf) {
+void DataIO::sendAudio(unsigned char *buf) {
 	//RRK send audio bytes here
 	static TYPECPX cbuf[252];
 	int i, j;

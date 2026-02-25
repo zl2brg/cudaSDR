@@ -27,15 +27,7 @@
 #ifndef _CUSDR_DATAIO_H
 #define _CUSDR_DATAIO_H
 
-//#include <QObject>
-//#include <QMutex>
-//#include <QByteArray>
-//#include <QBuffer>
-//#include <QVector>
-//#include <QList>
-//#include <QWaitCondition>
-//#include <QThread>
-
+#include "IHardwareIO.h"
 #include "cusdr_settings.h"
 #include "soundout.h"
 
@@ -46,32 +38,38 @@
 #endif
 
 
-class DataIO : public QObject {
+class DataIO : public IHardwareIO {
 
     Q_OBJECT
 
 public:
-    DataIO(THPSDRParameter *ioData = 0);
-    void set_wbBuffers(int val);
-	~DataIO();
+    explicit DataIO(THPSDRParameter* ioData = nullptr);
+	~DataIO() override;
 
 public slots:
-	void	stop();
-	void	initDataReceiverSocket();
-	void	readData();
-	void 	writeData();
-	void 	sendAudio(u_char *buf);
-	void	sendInitFramesToNetworkDevice(int rx);
-	void	networkDeviceStartStop(char value);
-	//void	setWidebandBuffers(int value);
+	// IHardwareIO interface
+	void initIO()            override;   ///< Binds UDP socket; connected to thread started()
+	void stop()              override;
+	void writeData()         override;
+	void sendAudio(unsigned char* buf) override;
+	void sendInitFrames(int rx)  override;
+	void sendCommand(char cmd)   override;
+	void set_wbBuffers(int val)  override;
+
+	// Legacy / internal helpers (called by the overrides above)
+	void readData();   ///< Read from file-based input buffer (non-network mode)
 	
 private slots:
-	void setSampleRate(QObject *sender, int value);
-	void setManualSocketBufferSize(QObject *sender, bool value);
-	void setSocketBufferSize(QObject *sender, int value);
+	void setSampleRate(QObject* sender, int value);
+	void setManualSocketBufferSize(QObject* sender, bool value);
+	void setSocketBufferSize(QObject* sender, int value);
 	void displayDataReceiverSocketError(QAbstractSocket::SocketError error);
 	void readDeviceData();
 	void new_readDeviceData();
+	// Internal Protocol 1 helpers
+	void initDataReceiverSocket();       ///< Called by initIO()
+	void sendInitFramesToNetworkDevice(int rx); ///< Called by sendInitFrames()
+	void networkDeviceStartStop(char value);    ///< Called by sendCommand()
 
 private:
 	Settings*		set;
@@ -117,7 +115,7 @@ private:
 	volatile bool	m_stopped;
 
 signals:
-	void	messageEvent(QString message);
+	// readydata() and messageEvent() are inherited from IHardwareIO
 	void    readydata();
 };
 

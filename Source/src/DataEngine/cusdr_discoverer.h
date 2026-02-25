@@ -28,17 +28,7 @@
 #ifndef _CUSDR_DISCOVERER_H
 #define _CUSDR_DISCOVERER_H
 
-//#include <QObject>
-//#include <QComboBox>
-//#include <QDialogButtonBox>
-//#include <QLabel>
-//#include <QPushButton>
-//#include <QVBoxLayout>
-//#include <QCheckBox>
-//#include <QSlider>
-//#include <QSpinBox>
-//#include <QElapsedTimer>
-
+#include "IDeviceDiscoverer.h"
 #include "cusdr_settings.h"
 
 #ifdef LOG_DISCOVERER
@@ -48,20 +38,21 @@
 #endif
 
 
-class Discoverer : public QObject {
+class Discoverer : public IDeviceDiscoverer {
 
     Q_OBJECT
 
 public:
-    Discoverer(THPSDRParameter *ioData = 0);
-    ~Discoverer();
+    explicit Discoverer(THPSDRParameter* ioData = nullptr);
+    ~Discoverer() override;
 
-	int		findHPSDRDevices();
-	void	clear();
-	void	shutdownHPSDRDevice();
+	// IDeviceDiscoverer interface
+	int  findDevices() override;  ///< Replaces findHPSDRDevices()
+	void clear()      override;
+	void shutdown()   override;   ///< Replaces shutdownHPSDRDevice()
 
 public slots:
-	void	initHPSDRDevice();
+	void initDevice() override;   ///< Replaces initHPSDRDevice()
 	
 	
 private slots:

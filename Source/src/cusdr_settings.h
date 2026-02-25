@@ -223,12 +223,13 @@ namespace QSDR {
 		SDRMode,
 	};
 
-	enum _HWInterfaceMode { 
-		
-		NoInterfaceMode, 
+	enum _HWInterfaceMode {
+
+		NoInterfaceMode,
 		Metis,
-        Hermes,
-        SoapySDR
+		Hermes,
+		Protocol2,   ///< HPSDR Protocol 2 (TCP control + UDP EP6 IQ streams)
+		SoapySDR     ///< SoapySDR vendor-neutral driver abstraction
 	};
 }
 

@@ -44,6 +44,10 @@ extern double cwramp48[];		// see cwramp.c, for 48 kHz sample rate
  //use WIDEBAND_PROCESSOR_DEBUG
 #define RAMPLEN 250
 #include "cusdr_dataEngine.h"
+#include "cusdr_dataIO.h"             // DataIO concrete class (for factory new DataIO)
+#include "Protocol1FrameDecoder.h"   // concrete Protocol1 frame decoder
+#include "Protocol2Handler.h"        // stub: HPSDR Protocol 2
+#include "SoapySDRHandler.h"         // stub: SoapySDR abstraction
 
 
 /*!
@@ -63,9 +67,7 @@ extern double cwramp48[];		// see cwramp.c, for 48 kHz sample rate
 */
 
 #define FREQ_CONST ((2.0 * 3.14159) / 48000)
-static int firstTimeRxInit;
-static quint8  adc_rx1_4, adc_rx5_8, adc_rx9_16;
-static quint8  new_adc_rx1_4, new_adc_rx5_8, new_adc_rx9_16;
+// NOTE: firstTimeRxInit, adc_rx1_4 etc. moved to Protocol1FrameDecoder as instance members.
 
 DataEngine::DataEngine(QObject *parent)
 	: QObject(parent)
@@ -560,7 +562,7 @@ bool DataEngine::getFirmwareVersions() {
 
 	// init receivers
 	int rcvrs = set->getNumberOfReceivers();
-	firstTimeRxInit = rcvrs;
+	// NOTE: firstTimeRxInit set via setFirstTimeRxInit() after dataprocessor is created (below)
 
 	QString str = "Initializing %1 receiver(s)...please wait";
 	set->setSystemMessage(str.arg(set->getNumberOfReceivers()), rcvrs * 500);
@@ -569,6 +571,9 @@ bool DataEngine::getFirmwareVersions() {
 	if (!m_dataIO) createDataIO();
 		
 	if (!m_dataProcessor) createDataProcessor();
+
+	// Tell the Protocol 1 frame decoder how many RX freq frames to force on startup
+	if (m_dataProcessor) m_dataProcessor->setFirstTimeRxInit(rcvrs);
 
 	switch (m_serverMode) {
 
@@ -612,10 +617,10 @@ bool DataEngine::getFirmwareVersions() {
 
 	// pre-conditioning
 	for (int i = 0; i < io.receivers; i++)
-		m_dataIO->sendInitFramesToNetworkDevice(i);
+		m_dataIO->sendInitFrames(i);
 				
 	if (m_serverMode == QSDR::SDRMode)
-		m_dataIO->networkDeviceStartStop(0x01); // 0x01 for starting Metis without wide band data
+		m_dataIO->sendCommand(0x01); // 0x01 for starting Metis without wide band data
 		
 	m_networkDeviceRunning = true;
 	setSystemState(QSDR::NoError, m_hwInterface, m_serverMode, QSDR::DataEngineUp);
@@ -993,15 +998,15 @@ bool DataEngine::start() {
 
 		// pre-conditioning
 	for (int i = 0; i < io.receivers; i++) {
-			m_dataIO->sendInitFramesToNetworkDevice(i);
+			m_dataIO->sendInitFrames(i);
 		}
 
     if (m_serverMode == QSDR::SDRMode && set->getWidebandData()) {
-			m_dataIO->networkDeviceStartStop(0x03); // 0x03 for starting the device with wide band data
+			m_dataIO->sendCommand(0x03); // 0x03 for starting the device with wide band data
 			SleeperThread::msleep(100);
 	    }
     else {
-            m_dataIO->networkDeviceStartStop(0x01); // 0x01 for starting the device without wide band data
+            m_dataIO->sendCommand(0x01); // 0x01 for starting the device without wide band data
         }
 	m_networkDeviceRunning = true;
 	setSystemState(QSDR::NoError, m_hwInterface, m_serverMode, QSDR::DataEngineUp);
@@ -1025,7 +1030,7 @@ void DataEngine::stop() {
 				setTimeStamp(this, false);
 
 				// stop the device
-				m_dataIO->networkDeviceStartStop(0);
+				m_dataIO->sendCommand(0);
 				m_networkDeviceRunning = false;
 				DATA_ENGINE_DEBUG << "HPSDR device stopped";
 
@@ -1439,7 +1444,7 @@ void DataEngine::createDiscoverer() {
 	m_discoverer->connect(
 					m_discoveryThread,
 					SIGNAL(started()), 
-					SLOT(initHPSDRDevice()));
+					SLOT(initDevice()));
 }
 
 bool DataEngine::startDiscoverer(QThread::Priority prio) {
@@ -1485,7 +1490,20 @@ void DataEngine::stopDiscoverer() {
 
 void DataEngine::createDataIO() {
 
-	m_dataIO = new DataIO(&io);
+	// Factory: choose hardware transport based on interface mode
+	switch (m_hwInterface) {
+		case QSDR::Protocol2:
+			m_dataIO = new Protocol2Handler(&io);
+			break;
+		case QSDR::SoapySDR:
+			m_dataIO = new SoapySDRHandler(&io);
+			break;
+		case QSDR::Metis:
+		case QSDR::Hermes:
+		default:
+			m_dataIO = new DataIO(&io);
+			break;
+	}
 
 	switch (m_serverMode) {
 		
@@ -1529,15 +1547,15 @@ void DataEngine::createDataIO() {
 			
 		case QSDR::Metis:
 		case QSDR::Hermes:
+		case QSDR::Protocol2:
+		case QSDR::SoapySDR:
 
 			m_dataIO->connect(
 						m_dataIOThread,
-						SIGNAL(started()), 
-						SLOT(initDataReceiverSocket()));
+						SIGNAL(started()),
+						SLOT(initIO()));
 			break;
-        case QSDR::SoapySDR:
-            break;
-    }
+	}
 }
 
 bool DataEngine::startDataIO(QThread::Priority prio) {
@@ -2355,9 +2373,7 @@ DataProcessor::DataProcessor(
 	, m_bytes(0)
 	, m_offset(0)
 	, m_length(0)
-	, m_rxSamples(0)
     , m_idx(IO_HEADER_SIZE)
-    , m_sendState(0)
 	, m_stopped(false)
 {
 	m_IQSequence = 0L;
@@ -2365,10 +2381,11 @@ DataProcessor::DataProcessor(
 	
 	m_IQDatagram.resize(0);
 
-	m_SyncChangedTime.start();
-	m_ADCChangedTime.start();
+	// Protocol 1 frame decode/encode — delegated to Protocol1FrameDecoder
+	m_frameDecoder = new Protocol1FrameDecoder(de, hwMode, set);
+	connect(m_frameDecoder, &IFrameDecoder::keyerEvent, this, &DataProcessor::keyer_event);
 
-	m_fwCount = 0;
+	// NOTE: m_SyncChangedTime, m_ADCChangedTime, m_fwCount moved to Protocol1FrameDecoder
 
 	m_sendSequence = 0L;
 	m_oldSendSequence = 0L;
@@ -2389,11 +2406,18 @@ DataProcessor::DataProcessor(
 }
 
 DataProcessor::~DataProcessor() {
+    delete m_frameDecoder;
+    m_frameDecoder = nullptr;
     if (file) {
     file->close();
-        delete file;  // Add this
+        delete file;
         file = nullptr;
     }
+}
+
+void DataProcessor::setFirstTimeRxInit(int n) {
+    if (m_frameDecoder)
+        m_frameDecoder->setFirstTimeRxInit(n);
 }
 
 void DataProcessor::stop() {
@@ -2423,8 +2447,8 @@ void DataProcessor::processDeviceData() {
 		//de->processInputBuffer(buf.left(BUFFER_SIZE/2));
 		//de->processInputBuffer(buf.right(BUFFER_SIZE/2));
 
-		processInputBuffer(buf.left(BUFFER_SIZE));
-	//	processInputBuffer(buf.right(BUFFER_SIZE/2));
+		m_frameDecoder->decodeInputFrame(buf.left(BUFFER_SIZE));
+	//	m_frameDecoder->decodeInputFrame(buf.right(BUFFER_SIZE/2));
 
 		if (de->io.iq_queue.isFull()) {
 			DATA_PROCESSOR_DEBUG << "IQ queue full!";
@@ -2449,295 +2473,10 @@ void DataProcessor::processDeviceData() {
 }
 
 
-void DataProcessor::processInputBuffer(const QByteArray &buffer) {
-    int previous_dot;
-    int previous_dash;
+// processInputBuffer() — moved to Protocol1FrameDecoder; implementation removed.
 
 
-	//DATA_PROCESSOR_DEBUG << "processInputBuffer: " << this->thread();
-	int s = 0;
-
-	if (buffer.at(s++) == SYNC && buffer.at(s++) == SYNC && buffer.at(s++) == SYNC)
-	{
-		// extract C&C bytes
-        decodeCCBytes(buffer.mid(3, 5));
-        s += 5;
-
-        switch (de->io.receivers)
-		{
-            case 1: m_maxSamples = 512-0;  break;
-            case 2: m_maxSamples = 512-0;  break;
-            case 3: m_maxSamples = 512-4;  break;
-            case 4: m_maxSamples = 512-10; break;
-            case 5: m_maxSamples = 512-24; break;
-            case 6: m_maxSamples = 512-10; break;
-            case 7: m_maxSamples = 512-20; break;
-            case 8: m_maxSamples = 512-4;  break;
-            case 9: m_maxSamples = 512-0;  break;
-            case 10: m_maxSamples = 512-8;  break;
-            case 11: m_maxSamples = 512-28;  break;
-            case 12: m_maxSamples = 512-60;  break;
-            case 13: m_maxSamples = 512-24;  break;
-            case 14: m_maxSamples = 512-74;  break;
-            case 15: m_maxSamples = 512-44;  break;
-            case 16: m_maxSamples = 512-14;  break;
-            case 17: m_maxSamples = 512-88;  break;
-            case 18: m_maxSamples = 512-64;  break;
-            case 19: m_maxSamples = 512-40;  break;
-            case 20: m_maxSamples = 512-16;  break;
-        }
-
-        // extract the samples
-        while (s < m_maxSamples)
-		{
-            // extract each of the receivers
-            for (int r = 0; r < de->io.receivers; r++)
-			{
-                m_leftSample   = (int)((  signed char) buffer.at(s++)) << 16;
-                m_leftSample  += (int)((unsigned char) buffer.at(s++)) << 8;
-                m_leftSample  += (int)((unsigned char) buffer.at(s++));
-                m_rightSample  = (int)((  signed char) buffer.at(s++)) << 16;
-                m_rightSample += (int)((unsigned char) buffer.at(s++)) << 8;
-                m_rightSample += (int)((unsigned char) buffer.at(s++));
-
-				m_lsample = (double)(m_leftSample / 8388607.0f);
-				m_rsample = (double)(m_rightSample / 8388607.0f);
-
-
-				if (de->RX.at(r)->qtwdsp) {
-
-                de->RX[r]->inBuf[m_rxSamples].re = m_lsample; // 24 bit sample
-                de->RX[r]->inBuf[m_rxSamples].im = m_rsample; // 24 bit sample
-            }
-            }
-
-            m_micSample = (int)((signed char) buffer.at(s++)) << 8;
-
-			m_micSample += (int)((unsigned char) buffer.at(s++));
-    		m_micSample_float = (float) m_micSample / 32767.0f * de->io.mic_gain; // 16 bit sample
-
-            // add to buffer
-    //        de->io.mic_buffer[m_rxSamples * 2]  = 0.0f; m_micSample_float;
-    //        de->io.mic_buffer[(m_rxSamples * 2) + 1] = 0.0f;
-
-			m_rxSamples++;
-
-			// when we have enough rx samples we start the DSP processing.
-            int error = 0;
-            if (m_rxSamples == BUFFER_SIZE) {
-
-
-
-
-                for (int r = 0; r < de->io.receivers; r++) {
-
-					if (de->RX.at(r)->qtwdsp) {
-                    QMetaObject::invokeMethod(de->RX.at(r), "dspProcessing", Qt::DirectConnection);// Qt::QueuedConnection);
-				}
-				}
-				m_rxSamples = 0;
-            }
-        }
-    }
-	else {
-
-		if (m_SyncChangedTime.elapsed() > 10) {
-
-			set->setProtocolSync(2);
-			m_SyncChangedTime.restart();
-		}
-	}
-}
-
-void DataProcessor::decodeCCBytes(const QByteArray &buffer) {
-
-    de->io.ccRx.previous_dash = de->io.ccRx.dash;
-    de->io.ccRx.previous_dot = de->io.ccRx.dot;
-	de->io.ccRx.ptt    = (bool)((buffer.at(0) & 0x01) == 0x01);
-	de->io.ccRx.dash   = (bool)((buffer.at(0) & 0x02) == 0x02);
-	de->io.ccRx.dot    = (bool)((buffer.at(0) & 0x04) == 0x04);
-	de->io.ccRx.lt2208 = (bool)((buffer.at(1) & 0x01) == 0x01);
-
-    if (de->io.ccRx.dash != de->io.ccRx.previous_dash) emit keyer_event(0,de->io.ccRx.dash);
-    if (de->io.ccRx.dot != de->io.ccRx.previous_dot) emit keyer_event(1,de->io.ccRx.dot);
-
-	de->io.ccRx.roundRobin = (uchar)(buffer.at(0) >> 3);
-	
-    switch (de->io.ccRx.roundRobin) // cycle through C0
-	{
-		case 0:
-
-			if (de->io.ccRx.lt2208) // check ADC signal
-			{
-				if (m_ADCChangedTime.elapsed() > 50)
-				{
-					set->setADCOverflow(2);
-					m_ADCChangedTime.restart();
-				}
-			}
-
-			//qDebug() << "CC: " << io.ccRx.roundRobin;
-			if (m_hwInterface == QSDR::Hermes)
-			{
-				de->io.ccRx.hermesI01 = (bool)((buffer.at(1) & 0x02) == 0x02);
-				de->io.ccRx.hermesI02 = (bool)((buffer.at(1) & 0x04) == 0x04);
-				de->io.ccRx.hermesI03 = (bool)((buffer.at(1) & 0x08) == 0x08);
-				de->io.ccRx.hermesI04 = (bool)((buffer.at(1) & 0x10) == 0x10);
-				//qDebug()	<< "Hermes IO 1: " << io.ccRx.hermesI01 
-				//			<< "2: " << io.ccRx.hermesI02 
-				//			<< "3: " << io.ccRx.hermesI03 
-				//			<< "4: " << io.ccRx.hermesI04;
-			}
-
-			if (m_fwCount < 100)
-			{
-				if (m_hwInterface == QSDR::Metis)
-				{
-					if (de->io.ccRx.devices.mercuryFWVersion != buffer.at(2))
-					{
-                        de->io.ccRx.devices.mercuryFWVersion = buffer.at(2);
-						set->setMercuryVersion(de->io.ccRx.devices.mercuryFWVersion);
-						de->io.networkIOMutex.lock();
-						DATA_PROCESSOR_DEBUG << "Mercury firmware version: " << qPrintable(QString::number(buffer.at(2)));
-						de->io.networkIOMutex.unlock();
-					}
-
-					if (de->io.ccRx.devices.penelopeFWVersion != buffer.at(3))
-					{
-						de->io.ccRx.devices.penelopeFWVersion = buffer.at(3);
-						de->io.ccRx.devices.pennylaneFWVersion = buffer.at(3);
-						set->setPenelopeVersion(de->io.ccRx.devices.penelopeFWVersion);
-						set->setPennyLaneVersion(de->io.ccRx.devices.penelopeFWVersion);
-						de->io.networkIOMutex.lock();
-						DATA_PROCESSOR_DEBUG << "Penelope/Pennylane firmware version: " << qPrintable(QString::number(buffer.at(3)));
-						de->io.networkIOMutex.unlock();
-					}
-
-					if (de->io.ccRx.devices.metisFWVersion != buffer.at(4))
-					{
-						de->io.ccRx.devices.metisFWVersion = buffer.at(4);
-						set->setMetisVersion(de->io.ccRx.devices.metisFWVersion);
-						de->io.networkIOMutex.lock();
-						DATA_PROCESSOR_DEBUG << "Metis firmware version: " << qPrintable(QString::number(buffer.at(4)));
-						de->io.networkIOMutex.unlock();
-					}
-				}
-				else if (set->getHWInterface() == QSDR::Hermes) {
-
-					if (de->io.ccRx.devices.hermesFWVersion != buffer.at(4)) {
-
-						de->io.ccRx.devices.hermesFWVersion = buffer.at(4);
-						set->setHermesVersion(de->io.ccRx.devices.hermesFWVersion);
-						de->io.networkIOMutex.lock();
-						DATA_PROCESSOR_DEBUG << "Hermes firmware version: " << qPrintable(QString::number(buffer.at(4)));
-						de->io.networkIOMutex.unlock();
-					}
-				}
-				m_fwCount++;
-			}
-			break;
-
-		case 1:
-
-			//qDebug() << "CC: " << io.ccRx.roundRobin;
-			// forward power
-			if (set->getPenelopePresence() || (m_hwInterface == QSDR::Hermes)) { // || set->getPennyLanePresence()
-
-				de->io.ccRx.ain5 = (quint16)((quint16)(buffer.at(1) << 8) + (quint16)buffer.at(2));
-
-				de->io.penelopeForwardVolts = (qreal)(3.3 * (qreal)de->io.ccRx.ain5 / 4095.0);
-				de->io.penelopeForwardPower = (qreal)(de->io.penelopeForwardVolts * de->io.penelopeForwardVolts / 0.09);
-			}
-			//qDebug() << "penelopeForwardVolts: " << io.penelopeForwardVolts << "penelopeForwardPower" << io.penelopeForwardPower;
-
-			if (set->getAlexPresence()) { //|| set->getApolloPresence()) {
-
-				de->io.ccRx.ain1 = (quint16)((quint16)(buffer.at(3) << 8) + (quint16)buffer.at(4));
-
-				de->io.alexForwardVolts = (qreal)(3.3 * (qreal)de->io.ccRx.ain1 / 4095.0);
-				de->io.alexForwardPower = (qreal)(de->io.alexForwardVolts * de->io.alexForwardVolts / 0.09);
-			}
-			//qDebug() << "alexForwardVolts: " << io.alexForwardVolts << "alexForwardPower" << io.alexForwardPower;
-            break;
-
-		case 2:
-
-			//qDebug() << "CC: " << io.ccRx.roundRobin;
-			// reverse power
-			if (set->getAlexPresence()) { //|| set->getApolloPresence()) {
-
-				de->io.ccRx.ain2 = (quint16)((quint16)(buffer.at(1) << 8) + (quint16)buffer.at(2));
-
-				de->io.alexReverseVolts = (qreal)(3.3 * (qreal)de->io.ccRx.ain2 / 4095.0);
-				de->io.alexReversePower = (qreal)(de->io.alexReverseVolts * de->io.alexReverseVolts / 0.09);
-			}
-			//qDebug() << "alexReverseVolts: " << io.alexReverseVolts << "alexReversePower" << io.alexReversePower;
-
-			if (set->getPenelopePresence() || (m_hwInterface == QSDR::Hermes)) { // || set->getPennyLanePresence() {
-
-				de->io.ccRx.ain3 = (quint16)((quint16)(buffer.at(3) << 8) + (quint16)buffer.at(4));
-				de->io.ain3Volts = (qreal)(3.3 * (double)de->io.ccRx.ain3 / 4095.0);
-			}
-			//qDebug() << "ain3Volts: " << io.ain3Volts;
-			break;
-
-		case 3:
-
-			//qDebug() << "CC: " << io.ccRx.roundRobin;
-
-			if (set->getPenelopePresence() || (m_hwInterface == QSDR::Hermes)) { // || set->getPennyLanePresence() {
-
-				de->io.ccRx.ain4 = (quint16)((quint16)(buffer.at(1) << 8) + (quint16)buffer.at(2));
-				de->io.ccRx.ain6 = (quint16)((quint16)(buffer.at(3) << 8) + (quint16)buffer.at(4));
-
-				de->io.ain4Volts = (qreal)(3.3 * (qreal)de->io.ccRx.ain4 / 4095.0);
-
-				if (set->getHWInterface() == QSDR::Hermes) // read supply volts applied to board
-					de->io.supplyVolts = (qreal)((qreal)de->io.ccRx.ain6 / 186.0f);
-			}
-			//qDebug() << "ain4Volts: " << io.ain4Volts << "supplyVolts" << io.supplyVolts;
-			break;
-
-		//case 4:
-
-			// more than 1 Mercury module (currently not usable)
-			//qDebug() << "CC: " << io.ccRx.roundRobin;
-			//switch (io.receivers) {
-
-			//	case 1:
-			//		io.ccRx.mercury1_LT2208 = (bool)((buffer.at(1) & 0x02) == 0x02);
-			//		//qDebug() << "mercury1_LT2208: " << io.ccRx.mercury1_LT2208;
-			//		break;
-
-			//	case 2:
-			//		io.ccRx.mercury1_LT2208 = (bool)((buffer.at(1) & 0x02) == 0x02);
-			//		io.ccRx.mercury2_LT2208 = (bool)((buffer.at(2) & 0x02) == 0x02);
-			//		//qDebug() << "mercury1_LT2208: " << io.ccRx.mercury1_LT2208 << "mercury2_LT2208" << io.ccRx.mercury2_LT2208;
-			//		break;
-
-			//	case 3:
-			//		io.ccRx.mercury1_LT2208 = (bool)((buffer.at(1) & 0x02) == 0x02);
-			//		io.ccRx.mercury2_LT2208 = (bool)((buffer.at(2) & 0x02) == 0x02);
-			//		io.ccRx.mercury3_LT2208 = (bool)((buffer.at(3) & 0x02) == 0x02);
-			//		//qDebug() << "mercury1_LT2208: " << io.ccRx.mercury1_LT2208 << "mercury2_LT2208" << io.ccRx.mercury2_LT2208;
-			//		//qDebug() << "mercury3_LT2208: " << io.ccRx.mercury3_LT2208;tart
-
-
-
-			//		break;
-
-			//	case 4:
-			//		io.ccRx.mercury1_LT2208 = (bool)((buffer.at(1) & 0x02) == 0x02);
-			//		io.ccRx.mercury2_LT2208 = (bool)((buffer.at(2) & 0x02) == 0x02);
-			//		io.ccRx.mercury3_LT2208 = (bool)((buffer.at(3) & 0x02) == 0x02);
-			//		io.ccRx.mercury4_LT2208 = (bool)((buffer.at(4) & 0x02) == 0x02);
-			//		//qDebug() << "mercury1_LT2208: " << io.ccRx.mercury1_LT2208 << "mercury2_LT2208" << io.ccRx.mercury2_LT2208;
-			//		//qDebug() << "mercury3_LT2208: " << io.ccRx.mercury3_LT2208 << "mercury4_LT2208" << io.ccRx.mercury4_LT2208;
-			//		break;
-			//}
-			//break;
-	} // end switch cycle through C0
-}
+// decodeCCBytes() — moved to Protocol1FrameDecoder; implementation removed.
 
 void DataProcessor::setOutputBuffer(int rx, const CPX &buffer) {
 
@@ -2749,7 +2488,7 @@ void DataProcessor::setOutputBuffer(int rx, const CPX &buffer) {
 
 void DataProcessor::full_txBuffer(){
 
-    encodeCCBytes();
+    m_frameDecoder->encodeControlBytes();
     switch (m_hwInterface) {
 
         case QSDR::Metis:
@@ -3089,7 +2828,7 @@ void DataProcessor::setAudioBuffer(int rx, const CPX &buffer, int buffersize)
             //	de->m_audioBuffer.resize(0);
             //}
             // set the C&C bytes
-			encodeCCBytes();
+			m_frameDecoder->encodeControlBytes();
 
             switch (m_hwInterface) {
 
@@ -3166,7 +2905,7 @@ void DataProcessor::setAudioBuffer_old(int rx, const CPX &buffer, int buffersize
 
         //   qDebug() << "buffer " << de->io.output_buffer[IO_HEADER_SIZE ] << de->io.output_buffer[IO_BUFFER_SIZE - 1] ;
         if (m_idx == IO_BUFFER_SIZE) {
-            encodeCCBytes();
+            m_frameDecoder->encodeControlBytes();
             switch (m_hwInterface) {
 
                 case QSDR::Metis:
@@ -3248,7 +2987,7 @@ void DataProcessor::processOutputBuffer(const CPX &buffer) {
 			//	de->m_audioBuffer.resize(0);
 			//}
 			// set the C&C bytes
-			encodeCCBytes();
+			m_frameDecoder->encodeControlBytes();
 
 			switch (m_hwInterface) {
 
@@ -3274,396 +3013,8 @@ void DataProcessor::processOutputBuffer(const CPX &buffer) {
 	}
 }
 
-void DataProcessor::encodeCCBytes() {
+// encodeCCBytes() — moved to Protocol1FrameDecoder; implementation removed.
 
-    de->io.output_buffer[0] = SYNC;
-    de->io.output_buffer[1] = SYNC;
-    de->io.output_buffer[2] = SYNC;
-
-    de->io.mutex.lock();
- //   qDebug() << "sendstate" <<  m_sendState;
-    switch (m_sendState) {
-
-    	case 0:
-
-    		uchar rxAnt;
-    		uchar rxOut;
-    		uchar ant;
-
-            de->io.control_out[0] = 0x0; // C0
-    		de->io.control_out[1] = 0x0; // C1
-    		de->io.control_out[2] = 0x0; // C2
-    		de->io.control_out[3] = 0x0; // C3
-    		de->io.control_out[4] = 0x0; // C4
-
-    		// C0
-    		// 0 0 0 0 0 0 0 0
-    		//               |
-    		//               +------------ MOX (1 = active, 0 = inactive)
-
-    		// set C1
-    		//
-    		// 0 0 0 0 0 0 0 0
-    		// | | | | | | | |
-    		// | | | | | | + +------------ Speed (00 = 48kHz, 01 = 96kHz, 10 = 192kHz)
-    		// | | | | + +---------------- 10MHz Ref. (00 = Atlas/Excalibur, 01 = Penelope, 10 = Mercury)*
-    		// | | | +-------------------- 122.88MHz source (0 = Penelope, 1 = Mercury)*
-    		// | + +---------------------- Config (00 = nil, 01 = Penelope, 10 = Mercury, 11 = both)*
-    		// +-------------------------- Mic source (0 = Janus, 1 = Penelope)*
-
-    		de->io.control_out[1] |= de->io.speed; // sample rate
-
-    		de->io.control_out[1] &= 0x03; // 0 0 0 0 0 0 1 1
-    		de->io.control_out[1] |= de->io.ccTx.clockByte;
-
-    		// set C2
-    		//
-    		// 0 0 0 0 0 0 0 0
-    		// |           | |
-    		// |           | +------------ Mode (1 = Class E, 0 = All other modes)
-    		// +---------- +-------------- Open Collector Outputs on Penelope or Hermes (bit 6...bit 0)
-
-    		de->io.control_out[2] = de->io.rxClass;
-
-    		if (de->io.ccTx.pennyOCenabled) {
-
-    			de->io.control_out[2] &= 0x1; // 0 0 0 0 0 0 0 1
-
-    			if (de->io.ccTx.currentBand != (HamBand) gen) {
-
-    				if (de->io.ccTx.mox || de->io.ccTx.ptt)
-    					de->io.control_out[2] |= (de->io.ccTx.txJ6pinList.at(de->io.ccTx.currentBand) >> 1) << 1;
-    				else
-    					de->io.control_out[2] |= (de->io.ccTx.rxJ6pinList.at(de->io.ccTx.currentBand) >> 1) << 1;
-    			}
-    		}
-
-
-    		// set C3
-    		//
-    		// 0 0 0 0 0 0 0 0
-    		// | | | | | | | |
-    		// | | | | | | + +------------ Alex Attenuator (00 = 0dB, 01 = 10dB, 10 = 20dB, 11 = 30dB)
-    		// | | | | | +---------------- Preamp On/Off (0 = Off, 1 = On)
-    		// | | | | +------------------ LT2208 Dither (0 = Off, 1 = On)
-    		// | | | + ------------------- LT2208 Random (0= Off, 1 = On)
-    		// | + + --------------------- Alex Rx Antenna (00 = none, 01 = Rx1, 10 = Rx2, 11 = XV)
-    		// + ------------------------- Alex Rx out (0 = off, 1 = on). Set if Alex Rx Antenna > 00.
-
-    		rxAnt = 0x07 & (de->io.ccTx.alexStates.at(de->io.ccTx.currentBand) >> 2);
-    		rxOut = (rxAnt > 0) ? 1 : 0;
-
-    		de->io.control_out[3] = (de->io.ccTx.alexStates.at(de->io.ccTx.currentBand) >> 7);
-
-    		de->io.control_out[3] &= 0xFB; // 1 1 1 1 1 0 1 1
-    		de->io.control_out[3] |= (de->io.ccTx.mercuryAttenuator << 2);
-
-    		de->io.control_out[3] &= 0xF7; // 1 1 1 1 0 1 1 1
-    		de->io.control_out[3] |= (de->io.ccTx.dither << 3);
-
-    		de->io.control_out[3] &= 0xEF; // 1 1 1 0 1 1 1 1
-    		de->io.control_out[3] |= (de->io.ccTx.random << 4);
-
-    		de->io.control_out[3] &= 0x9F; // 1 0 0 1 1 1 1 1
-    		de->io.control_out[3] |= rxAnt << 5;
-
-    		de->io.control_out[3] &= 0x7F; // 0 1 1 1 1 1 1 1
-    		de->io.control_out[3] |= rxOut << 7;
-
-    		// set C4
-    		//
-    		// 0 0 0 0 0 0 0 0
-    		// | | | | | | | |
-    		// | | | | | | + + ----------- Alex Tx relay (00 = Tx1, 01= Tx2, 10 = Tx3)
-    		// | | | | | + --------------- Duplex (0 = off, 1 = on)
-    		// + + + + +------------------ Number of Receivers (000 = 1, 11111 = 32)
-
-                //RRK removed 4HL
-            // | +------------------------ Time stamp - 1PPS on LSB of Mic data (0 = off, 1 = on)
-    		// +-------------------------- Common Mercury Frequency (0 = independent frequencies to Mercury
-    		//			                   Boards, 1 = same frequency to all Mercury boards)
-
-
-
-            if (de->io.ccTx.mox || de->io.ccTx.ptt)
-    			ant = (de->io.ccTx.alexStates.at(de->io.ccTx.currentBand) >> 5);
-    		else
-    			ant = de->io.ccTx.alexStates.at(de->io.ccTx.currentBand);
-
-    		de->io.control_out[4] |= (ant != 0) ? ant-1 : ant;
-
-    		de->io.control_out[4] &= 0xFB; // 1 1 1 1 1 0 1 1
-    		de->io.control_out[4] |= de->io.ccTx.duplex << 2;
-
-    		de->io.control_out[4] &= 0x07; // 0 0 0 0 0 1 1 1
-    		de->io.control_out[4] |= (de->io.receivers - 1) << 3;
-
-    		//RRK removed 4HL
-    		//de->io.control_out[4] &= 0xBF; // 1 0 1 1 1 1 1 1
-    		//de->io.control_out[4] |= de->io.ccTx.timeStamp << 6;
-
-    		//de->io.control_out[4] &= 0x7F; // 0 1 1 1 1 1 1 1
-    		//de->io.control_out[4] |= de->io.ccTx.commonMercuryFrequencies << 7;
-
-    		// fill the out buffer with the C&C bytes
-    		m_sendState = 1;
-    		break;
-
-    	case 1:
-
-    		// C0
-    		// 0 0 0 0 0 0 1 x     C1, C2, C3, C4 NCO Frequency in Hz for Transmitter, Apollo ATU
-    		//                     (32 bit binary representation - MSB in C1)
-
-
-            de->io.control_out[0] = 0x2; // C0
-
-                long txfrequency;
-                if (de->io.ccTx.mode == DSPMode::CWL)
-                    txfrequency = de->io.ccTx.txFrequency;
-                else if (de->io.ccTx.mode == DSPMode::CWU)
-                     txfrequency = de->io.ccTx.txFrequency;
-
-                else txfrequency =   de->io.ccTx.txFrequency;
-
-                de->io.control_out[1] = (txfrequency >> 24);
-                de->io.control_out[2] = (txfrequency >> 16);
-                de->io.control_out[3] = (txfrequency >> 8);
-                de->io.control_out[4] = txfrequency;
-                de->io.tx_freq_change = -1;
-            m_sendState = 2;
-    		break;
-
-    	case 2:
-
-    		// C0 = 0 0 0 0 0 1 0 x     C1, C2, C3, C4   NCO Frequency in Hz for Receiver_1
-    		// C0 = 0 0 0 0 0 1 1 x     C1, C2, C3, C4   NCO Frequency in Hz for Receiver _2
-    		// C0 = 0 0 0 0 1 0 0 x     C1, C2, C3, C4   NCO Frequency in Hz for Receiver _3
-    		// C0 = 0 0 0 0 1 0 1 x     C1, C2, C3, C4   NCO Frequency in Hz for Receiver _4
-    		// C0 = 0 0 0 0 1 1 0 x     C1, C2, C3, C4   NCO Frequency in Hz for Receiver _5
-    		// C0 = 0 0 0 0 1 1 1 x     C1, C2, C3, C4   NCO Frequency in Hz for Receiver _6
-    		// C0 = 0 0 0 1 0 0 0 x     C1, C2, C3, C4   NCO Frequency in Hz for Receiver _7
-    		// C0 = 0 0 1 0 0 1 0 x     C1, C2, C3, C4   NCO Frequency in Hz for Receiver _8 // Was 0 0 0 1 0 0 1 x
-    		// C0 = 0 0 1 1 0 1 0 x     C1, C2, C3, C4   NCO Frequency in Hz for Receiver _16
-    		// C0 = 0 1 0 1 0 1 0 x     C1, C2, C3, C4   NCO Frequency in Hz for Receiver _32
-
-    		// RRK, workaround for gige timing bug, make sure all rx freq's are sent on init.
-    		if (firstTimeRxInit) {
-    			firstTimeRxInit -= 1;
-    			de->io.rx_freq_change = firstTimeRxInit;
-    		}
-
-            if (de->io.rx_freq_change >= 0) {
-                de->io.control_out[0] = (de->io.rx_freq_change + 2) << 1;
-                de->io.control_out[1] = de->RX.at(de->io.rx_freq_change)->getCtrFrequency() >> 24;
-                de->io.control_out[2] = de->RX.at(de->io.rx_freq_change)->getCtrFrequency() >> 16;
-                de->io.control_out[3] = de->RX.at(de->io.rx_freq_change)->getCtrFrequency() >> 8;
-                de->io.control_out[4] = de->RX.at(de->io.rx_freq_change)->getCtrFrequency();
-
-                de->io.rx_freq_change = -1;
-            }
-
-    		m_sendState = 3;
-    		break;
-
-    	case 3:
-
-    		de->io.control_out[0] = 0x12; // 0 0 0 1 0 0 1 0
-            de->io.control_out[1] = (uchar) de->io.ccTx.drivelevel; // C1
-    		de->io.control_out[2] = 0x10; // C2
-    		de->io.control_out[3] = 0x0; // C3
-            de->io.control_out[4] = 0x0; // C4
-
-    		// C1
-    		// 0 0 0 0 0 0 0 0
-    		// |             |
-    		// +-------------+------------ Hermes/PennyLane Drive Level (0-255) (ignored by Penelope)
-
-
-    		// C2
-    		// 0 0 0 0 0 0 0 0
-    		// | | | | | | | |
-    		// | | | | | | | +------------ Hermes/Metis Penelope Mic boost (0 = 0dB, 1 = 20dB)
-    		// | | | | | | +-------------- Metis/Penelope or PennyLane Mic/Line-in (0 = mic, 1 = Line-in)
-            // | | | | | +---------------- Hermes - Enable/disable Apollo filter (0 = disable, 1 = enable)
-            // | | | | +------------------ Hermes - Enable/disable Apollo tuner (0 = disable, 1 = enable)
-            // | | | +-------------------- Hermes - Apollo auto tune (0 = end, 1 = start)
-            // | | +---------------------- Hermes - select filter board (0 = Alex, 1 = Apollo)
-    		// | +------------------------ Alex   - manual HPF/LPF filter select (0 = disable, 1 = enable)
-    		// +-------------------------- VNA mode (0 = off, 1 = on)
-
-    		// Alex configuration:
-    		//
-    		// manual 		  0
-
-    		de->io.control_out[2] &= 0xBF; // 1 0 1 1 1 1 1 1
-//    		de->io.control_out[2] |= (de->io.ccTx.alexConfig & 0x01) << 6;
-
-    		// C3
-    		// 0 0 0 0 0 0 0 0
-    		//   | | | | | | |
-    		//   | | | | | | +------------ Alex   -	select 13MHz  HPF (0 = disable, 1 = enable)*
-    		//   | | | | | +-------------- Alex   -	select 20MHz  HPF (0 = disable, 1 = enable)*
-    		//   | | | | +---------------- Alex   -	select 9.5MHz HPF (0 = disable, 1 = enable)*
-    		//   | | | +------------------ Alex   -	select 6.5MHz HPF (0 = disable, 1 = enable)*
-    		//   | | +-------------------- Alex   -	select 1.5MHz HPF (0 = disable, 1 = enable)*
-    		//   | +---------------------- Alex   -	Bypass all HPFs   (0 = disable, 1 = enable)*
-    		//   +------------------------ Alex   -	6M low noise amplifier (0 = disable, 1 = enable)*
-    		//
-    		// *Only valid when Alex - manual HPF/LPF filter select is enabled
-
-    		de->io.control_out[3] &= 0xFE; // 1 1 1 1 1 1 1 0
-    		// HPF 13 MHz: 1 0 0 0 0 0 0
-    		de->io.control_out[3] |= (de->io.ccTx.alexConfig & 0x40) >> 6;
-
-    		de->io.control_out[3] &= 0xFD; // 1 1 1 1 1 1 0 1
-    		// HPF 20 MHz: 1 0 0 0 0 0 0 0
-    		de->io.control_out[3] |= (de->io.ccTx.alexConfig & 0x80) >> 6;
-
-    		de->io.control_out[3] &= 0xFB; // 1 1 1 1 1 0 1 1
-    		// HPF 9.5 MHz: 1 0 0 0 0 0
-    		de->io.control_out[3] |= (de->io.ccTx.alexConfig & 0x20) >> 3;
-
-    		de->io.control_out[3] &= 0xF7; // 1 1 1 1 0 1 1 1
-    		// HPF 6.5 MHz: 1 0 0 0 0gv
-    		de->io.control_out[3] |= (de->io.ccTx.alexConfig & 0x10) >> 1;
-
-    		de->io.control_out[3] &= 0xEF; // 1 1 1 0 1 1 1 1
-    		// HPF 1.5 MHz: 1 0 0 0
-    		de->io.control_out[3] |= (de->io.ccTx.alexConfig & 0x08) << 1;
-
-    		de->io.control_out[3] &= 0xDF; // 1 1 0 1 1 1 1 1
-    		// bypass all: 1 0
-    		de->io.control_out[3] |= (de->io.ccTx.alexConfig & 0x02) << 4;
-
-    		de->io.control_out[3] &= 0xBF; // 1 0 1 1 1 1 1 1
-    		// 6m BPF/LNA: 1 0 0
-    		de->io.control_out[3] |= (de->io.ccTx.alexConfig & 0x04) << 4;
-
-    		de->io.control_out[3] &= 0x7F; // 0 1 1 1 1 1 1 1
-    		de->io.control_out[3] |= ((int)de->io.ccTx.vnaMode) << 7;
-
-    		// C4
-    		// 0 0 0 0 0 0 0 0
-    		//   | | | | | | |
-    		//   | | | | | | +------------ Alex   - 	select 30/20m LPF (0 = disable, 1 = enable)*
-    		//   | | | | | +-------------- Alex   - 	select 60/40m LPF (0 = disable, 1 = enable)*
-    		//   | | | | +---------------- Alex   - 	select 80m    LPF (0 = disable, 1 = enable)*
-    		//   | | | +------------------ Alex   - 	select 160m   LPF (0 = disable, 1 = enable)*
-    		//   | | +-------------------- Alex   - 	select 6m     LPF (0 = disable, 1 = enable)*
-    		//   | +---------------------- Alex   - 	select 12/10m LPF (0 = disable, 1 = enable)*
-    		//   +------------------------ Alex   - 	select 17/15m LPF (0 = disable, 1 = enable)*
-    		//
-    		// *Only valid when Alex - manual HPF/LPF filter select is enabled
-
-            if (de->io.ccTx.mox || de->io.ccTx.ptt) {
-                double txFrequency = de->io.ccTx.txFrequency;
-       //         qDebug() << "Tx freq" << de->io.ccTx.txFrequency;
-                if (txFrequency > 35600000L) {        // > 10m so use 6m LPF
-                    de->io.control_out[4] = 0x10;
-                } else if (txFrequency > 24000000L) {    // > 15m so use 10/12m LPF
-                    de->io.control_out[4]= 0x20;
-                } else if (txFrequency > 16500000L) {        // > 20m so use 17/15m LPF
-                    de->io.control_out[4] = 0x40;
-                } else if (txFrequency > 8000000L) {        // > 40m so use 30/20m LPF
-                    de->io.control_out[4] = 0x01;
-                } else if (txFrequency > 5000000L) {        // > 80m so use 60/40m LPF
-                    de->io.control_out[4] = 0x02;
-                } else if (txFrequency > 2500000L) {        // > 160m so use 80m LPF
-                    de->io.control_out[4] = 0x04;
-                } else {                    // < 2.5 MHz use 160m LPF
-                    de->io.control_out[4] = 0x08;
-                }
-            } else de->io.control_out[4] = 0;
-
-		// check if we need to update ADC C&C's
-		new_adc_rx1_4 = new_adc_rx5_8 = new_adc_rx9_16 = 0;
-		for (int i = 0; i < set->getNumberOfReceivers(); i++) {
-			if (i < 4) new_adc_rx1_4 |= de->RX.at(i)->getADCMode() << (i * 2);
-			else if (i < 8) new_adc_rx5_8 |= de->RX.at(i)->getADCMode() << ((i-4) * 2);
-			else if (i < 16) new_adc_rx9_16 |= de->RX.at(i)->getADCMode() << (i-8);
-		}
-
-		if ((new_adc_rx1_4 != adc_rx1_4) || (new_adc_rx5_8 != adc_rx5_8) || (new_adc_rx9_16 != adc_rx9_16))
-    			m_sendState = 4;
-		else
-    			m_sendState = 5;
-    		break;
-
-    	case 4:
-		// setup data for ADC c&c's
-		adc_rx1_4 = new_adc_rx1_4;
-		adc_rx5_8 = new_adc_rx5_8;
-		adc_rx9_16 = new_adc_rx9_16;
-
-		de->io.control_out[0] = 0x1C; // 0 0 0 1 1 1 0 x
-    	de->io.control_out[1] = adc_rx1_4; // C1
-    	de->io.control_out[2] = adc_rx5_8; // C2
-    	de->io.control_out[3] = 0x0; // C3, ADC Input Attenuator Tx (0-31dB) [4:0]
-		de->io.control_out[4] = adc_rx9_16; // C4
-
-        m_sendState = 5;
-
-
-		//DATA_PROCESSOR_DEBUG << "rx_adc_change rcvr: " << hex << new_adc_rx1_4 << "," << hex << new_adc_rx5_8 << "," << hex << new_adc_rx9_16;
-
-
-    		break;
-
-        case 5:
-            de->io.control_out[0] = 0x1e; // 0 0 0 1 1 1 1 x
-            de->io.control_out[1] = 0x00;
-
-            if((de->io.ccTx.mode==DSPMode::CWU || de->io.ccTx.mode==DSPMode::CWL)  && (de->m_internal_cw) &&!(de->m_radioState == RadioState::MOX))
-            {
-                de->io.control_out[1]|=0x01;
-            }
-            de->io.control_out[2] = (de->m_cw_sidetone_volume & 0xff); //cw sidetone level
-            de->io.control_out[3] = (de->m_cw_ptt_delay & 0xff); // ptt delay
-            de->io.control_out[4] = 0x0;
-
-
-            m_sendState = 6;
-            break;
-
-        case 6:
-            de->io.control_out[0] = 0x20; // 0 0 0 1 1 1 1 x
-            de->io.control_out[1] = (de->m_cw_hang_time >> 2) & 0xff; // cw hang time bits 9:2
-            de->io.control_out[2] = (de->m_cw_hang_time & 0x03); //cw hang time 1:0
-            de->io.control_out[3] = (de->m_cw_sidetone_freq >> 4) & 0x3f; // cw sidetone frequnecy 11:4y
-            de->io.control_out[4] = (de->m_cw_sidetone_freq & 0x0f) ; // cw sidetone frequency 3:0;
-
-            m_sendState = 7;
-            break;
-
-        case 7:
-            de->io.control_out[0] = 0x16; // 0 0 0 1 1 1 1 x
-            de->io.control_out[1] = 0;
-            de->io.control_out[2] = (de->m_cw_key_reversed) << 6;
-            de->io.control_out[3] = (de->m_cw_keyer_speed & 0x3f);
-            de->io.control_out[3]  |= ((de->m_cw_keyer_mode  & 0x03) << 6);
-            de->io.control_out[4] = (de->m_cw_keyer_weight & 0x7f);
-            m_sendState = 0;
-            break;
-
-
-
-    }
-    if ((de->io.ccTx.mode==DSPMode::CWU || de->io.ccTx.mode==DSPMode::CWL) )
-    {
-         de->io.control_out[0] &= ~0x01;
-       }
-    else  if (de->io.ccTx.mox || de->io.ccTx.ptt) de->io.control_out[0] |= 0x01;
-    else de->io.control_out[0] &= ~0x01;
-
- //   if (de->io.ccTx.mox)  de->io.control_out[0] |= 0x01;
-    for (int i = 0; i < 5; i++) {
-        de->io.output_buffer[i + 3] = de->io.control_out[i];
-     //   de->io.control_out[i] = 0;
-    }
-
-    de->io.mutex.unlock();
-}
 
 
 void DataProcessor::writeData() {
@@ -3904,10 +3255,10 @@ void DataEngine::radioStateChange(RadioState state) {
 void DataProcessor::processReadData()
 {
     QByteArray buf;
-    while(!de->io.iq_queue.isEmpty()) {
-      buf = de->io.iq_queue.dequeue();
-      processInputBuffer(buf.left(BUFFER_SIZE / 2));
-      processInputBuffer(buf.right(BUFFER_SIZE / 2));
+    while (!de->io.iq_queue.isEmpty()) {
+        buf = de->io.iq_queue.dequeue();
+        m_frameDecoder->decodeInputFrame(buf.left(BUFFER_SIZE / 2));
+        m_frameDecoder->decodeInputFrame(buf.right(BUFFER_SIZE / 2));
     }
 }
 

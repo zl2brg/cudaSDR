@@ -52,7 +52,9 @@
 #include <net/if.h>
 #include <ifaddrs.h>
 #include "cusdr_settings.h"
-#include "cusdr_dataIO.h"
+#include "IHardwareIO.h"
+#include "IDeviceDiscoverer.h"
+#include "IFrameDecoder.h"
 #include "cusdr_receiver.h"
 #include "cusdr_audioReceiver.h"
 #include "cusdr_discoverer.h"
@@ -112,7 +114,7 @@ public:
     QList<Receiver*> 	RX;
 
 	QUdpSocket*			sendSocket{};
-	DataIO*				m_dataIO;
+	IHardwareIO*		m_dataIO;
     PAudioInput *       m_audioInput;
     iambic *            m_cwIO;
     bool                m_internal_cw;
@@ -255,7 +257,7 @@ private:
 	QWDSPEngine*			m_chirpDspEngine{};
 	AudioReceiver*			m_audioReceiver;
 	AudioOutProcessor*		m_audioOutProcessor;
-	Discoverer*				m_discoverer;
+	IDeviceDiscoverer*		m_discoverer;
 	
 	QThreadEx*				m_discoveryThread{};
 	QThreadEx*				m_dataIOThread{};
@@ -408,6 +410,7 @@ public:
     int tx_index =0;
     double get_cwsample();
     void add_rx_audio_sample();
+    void setFirstTimeRxInit(int n);
 
 	~DataProcessor() override;
 
@@ -422,10 +425,7 @@ public slots:
 
 private slots:
 	void	initDataProcessorSocket();
-	void	processInputBuffer(const QByteArray &buffer);
 	void	processOutputBuffer(const CPX &buffer);
-	void	decodeCCBytes(const QByteArray &buffer);
-	void	encodeCCBytes();
 	void	setOutputBuffer(int rx, const CPX &buffer);
 	void 	setAudioBuffer(int rx, const CPX &buffer, int buffersize);
     void    send_hpsdr_data(int rx, const CPX &buffer, int buffersize);
@@ -461,8 +461,8 @@ private:
     double          cw_shape_buffer[DSP_SAMPLE_SIZE * 2];
 
 
-    QElapsedTimer	m_SyncChangedTime;
-    QElapsedTimer	m_ADCChangedTime;
+    QElapsedTimer		m_SyncChangedTime;  // moved to Protocol1FrameDecoder
+    QElapsedTimer		m_ADCChangedTime;   // moved to Protocol1FrameDecoder
 
 	bool			m_socketConnected;
 	bool			m_setNetworkDeviceHeader;
@@ -470,16 +470,13 @@ private:
 	bool			m_chirpBit;
 	bool			m_chirpStart;
 
-	int				m_leftSample;
-	int				m_rightSample;
-	int				m_micSample;
 	int				m_bytes;
-	int				m_maxSamples;
-	int				m_rxSamples;
+	int				m_maxSamples;   // kept: used in processDeviceData
+	int				m_rxSamples;    // kept: used in processDeviceData
 	int				m_chirpSamples;
-	int				m_fwCount;
+	int				m_fwCount;      // kept: used in DataEngine::start()
 	int				m_idx;
-	int				m_sendState;
+	int				m_sendState;    // moved to Protocol1FrameDecoder (only kept for DataEngine::start reset)
 	int				m_chirpStartSample;
     CPX             m_iq_output_buffer;
     TYPECPX         rx_audio_buffer[BUFFER_SIZE];
@@ -489,9 +486,12 @@ private:
 
 
 
-	double			m_lsample;
-	double			m_rsample;
-	float			m_micSample_float;
+	double			m_lsample;    // moved to Protocol1FrameDecoder
+	double			m_rsample;    // moved to Protocol1FrameDecoder
+	float			m_micSample_float; // moved to Protocol1FrameDecoder
+
+	// Frame decoder — holds all protocol-specific IQ parse / CC encode logic
+	IFrameDecoder*	m_frameDecoder;
 
 	unsigned long	m_IQSequence;
 	unsigned long	m_sequenceHi;
