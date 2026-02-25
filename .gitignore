@@ -1,7 +1,16 @@
 Source/build/
+Source/build_*/
 .vscode/
 *.backup
 *.usr
+
+# IDE directories
+.idea/
+.kdev4/
+.qt/
+.qtcreator/
+*.kdev4
+*.iml
 
 # Performance profiling files
 perf.data*

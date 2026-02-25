@@ -9,7 +9,7 @@ set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-set(CMAKE_PREFIX_PATH "~/Qt/6.9.2/gcc_64")
+set(CMAKE_PREFIX_PATH "~/Qt/6.9.3/gcc_64")
 
 # --- Debug Configuration ---
 # Enable debug symbols and disable optimizations for Debug builds
@@ -70,6 +70,9 @@ set(SOURCES
     ${SRC_DIR}/DataEngine/soundout.cpp
     ${SRC_DIR}/DataEngine/fractresampler.cpp
     ${SRC_DIR}/DataEngine/cusdr_WidebandProcessor.cpp
+    ${SRC_DIR}/DataEngine/Protocol1FrameDecoder.cpp
+    ${SRC_DIR}/DataEngine/Protocol2Handler.cpp
+    ${SRC_DIR}/DataEngine/SoapySDRHandler.cpp
 
 
     # GL (OpenGL)
@@ -140,6 +143,12 @@ set(HEADERS
     ${SRC_DIR}/DataEngine/cusdr_receiver.h
     ${SRC_DIR}/DataEngine/cusdr_transmitter.h
     ${SRC_DIR}/DataEngine/soundout.h
+    ${SRC_DIR}/DataEngine/IHardwareIO.h
+    ${SRC_DIR}/DataEngine/IDeviceDiscoverer.h
+    ${SRC_DIR}/DataEngine/IFrameDecoder.h
+    ${SRC_DIR}/DataEngine/Protocol1FrameDecoder.h
+    ${SRC_DIR}/DataEngine/Protocol2Handler.h
+    ${SRC_DIR}/DataEngine/SoapySDRHandler.h
 
     #Widgets
     ${SRC_DIR}/cusdr_hpsdrTabWidget.h
