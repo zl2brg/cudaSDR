@@ -9,7 +9,7 @@ set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-set(CMAKE_PREFIX_PATH "~/Qt/6.9.2/gcc_64")
+set(CMAKE_PREFIX_PATH "~/Qt/6.9.3/gcc_64")
 
 # --- Debug Configuration ---
 # Enable debug symbols and disable optimizations for Debug builds
