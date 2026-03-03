@@ -65,7 +65,7 @@ DataIO::DataIO(THPSDRParameter *ioData)
 	, m_oldSequence(0xFFFFFFFF)
 	, m_sequenceWideBand(0)
 	, m_oldSequenceWideBand(0xFFFFFFFF)
-	, m_wbBuffers(set->getWidebandBuffers() - 1)
+	, m_wbBuffers(31)
 	, m_wbCount(0)
 	, m_socketBufferSize(set->getSocketBufferSize())
 	, m_sendEP4(false)
@@ -541,5 +541,9 @@ void DataIO::setSampleRate(QObject *sender, int value) {
 
 
 void DataIO::set_wbBuffers(int val) {
-    m_wbBuffers = val - 1;
+    if (io->protocol && io->protocol->getHeaderSize() == 8) { // Protocol 1
+        m_wbBuffers = 31; // 32 packets * 1024 bytes = 32768
+    } else {
+        m_wbBuffers = val - 1;
+    }
 }
