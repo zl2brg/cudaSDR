@@ -98,6 +98,7 @@ void Discoverer::initHPSDRDevice() {
 int Discoverer::findHPSDRDevices() {
 
 	int devicesFound = 0;
+    m_deviceCards.clear();
 
 	m_findDatagram.resize(63);
     m_findDatagram[0] = (char)0xEF;
@@ -207,6 +208,12 @@ int Discoverer::findHPSDRDevices() {
 				DISCOVERER_DEBUG << "Device found at " << qPrintable(mc.ip_address.toString()) << ":" << port << "; Mac addr: [" << mc.mac_address << "]";
 				DISCOVERER_DEBUG << "Device code version: " << qPrintable(QString::number(m_deviceDatagram.at(9), 16));
 				io->networkIOMutex.unlock();
+
+                if (m_deviceDatagram.size() >= 12) {
+                    mc.protocol = m_deviceDatagram.at(11);
+                } else {
+                    mc.protocol = 1;
+                }
 
 				int no = m_deviceDatagram.at(10);
 				QString str;

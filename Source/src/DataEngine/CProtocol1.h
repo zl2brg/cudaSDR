@@ -24,6 +24,7 @@ public:
 
     int getPayloadSize() override { return BUFFER_SIZE; }
     int getHeaderSize() override { return METIS_HEADER_SIZE; }
+    QList<quint16> getRequiredPorts() override { return { DEVICE_PORT }; }
 
 private:
     QByteArray m_metisGetDataSignature;

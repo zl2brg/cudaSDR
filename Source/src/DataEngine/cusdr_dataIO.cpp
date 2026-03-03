@@ -57,7 +57,9 @@ DataIO::DataIO(THPSDRParameter *ioData)
 	: QObject()
 	, set(Settings::instance())
 	, io(ioData)
+    , m_dataIOSocket(nullptr)
 	, m_dataIOSocketOn(false)
+	, m_networkDeviceRunning(false)
 	, m_setNetworkDeviceHeader(true)
 	, m_sequence(0)
 	, m_oldSequence(0xFFFFFFFF)
@@ -72,8 +74,6 @@ DataIO::DataIO(THPSDRParameter *ioData)
 	, m_firstFrame(true)
 	, m_stopped(false)
 {
-	m_dataIOSocket = 0;
-
 	m_datagram.resize(1032);
 	m_iqbuffer.resize(1024);
 	m_wbDatagram.resize(0);
@@ -104,14 +104,15 @@ DataIO::DataIO(THPSDRParameter *ioData)
 }
 
 DataIO::~DataIO() {
-
-	if (m_dataIOSocketOn) {
-		m_dataIOSocket->close();
-	}
-    if (m_pSoundCardOut) {
-        m_pSoundCardOut->Stop();
-        // Automatic deletion
+    stop();
+    for (auto socket : m_sockets) {
+        if (socket) {
+            socket->close();
+            delete socket;
+        }
     }
+    m_sockets.clear();
+    m_dataIOSocket = nullptr;
 }
 
 void DataIO::stop() {
@@ -128,108 +129,57 @@ void DataIO::stop() {
 
 void DataIO::initDataReceiverSocket() {
 
-	  m_dataIOSocket = std::make_unique<QUdpSocket>();
+    QList<quint16> ports = { DEVICE_PORT };
+    if (io->protocol) {
+        ports = io->protocol->getRequiredPorts();
+    }
 
-
-	int newBufferSize;
+    int newBufferSize = 16 * 1024;
 
 	if (m_manualBufferSize) {
-
-		newBufferSize = m_socketBufferSize * 1024;//m_socketBufferSize * 1032;
-		io->networkIOMutex.lock();
-		DATAIO_DEBUG << "initDataReceiverSocket socket buffer size set to " << m_socketBufferSize << " kB.";
-		io->networkIOMutex.unlock();
+		newBufferSize = m_socketBufferSize * 1024;
 	}
 	else {
-
-		if (io->samplerate == 384000) {
-
-			newBufferSize = 128*1024;//128 * 1032;
-			io->networkIOMutex.lock();
-			DATAIO_DEBUG << "socket buffer size set to 128 kB.";
-			io->networkIOMutex.unlock();
-		}
-		else if (io->samplerate == 192000) {
-
-			newBufferSize = 64*1024;//64 * 1032;
-			io->networkIOMutex.lock();
-			DATAIO_DEBUG << "socket buffer size set to 64 kB.";
-			io->networkIOMutex.unlock();
-		}
-		else if (io->samplerate == 96000) {
-
-			newBufferSize = 32*1024;//32 * 1032;
-			io->networkIOMutex.lock();
-			DATAIO_DEBUG << "socket buffer size set to 32 kB.";
-			io->networkIOMutex.unlock();
-		}
-		else if (io->samplerate == 48000) {
-
-			newBufferSize = 16*1024;//16 * 1032;
-			io->networkIOMutex.lock();
-			DATAIO_DEBUG << "socket buffer size set to 16 kB.";
-			io->networkIOMutex.unlock();
-		}
+		if (io->samplerate == 384000) newBufferSize = 128*1024;
+		else if (io->samplerate == 192000) newBufferSize = 64*1024;
+		else if (io->samplerate == 96000) newBufferSize = 32*1024;
+		else if (io->samplerate == 48000) newBufferSize = 16*1024;
 	}
-	if (m_dataIOSocket->bind(QHostAddress(set->getHPSDRDeviceLocalAddr()),
-							 set->getMetisPort(),
-							 QUdpSocket::DontShareAddress))
-							 //QUdpSocket::ReuseAddressHint | QUdpSocket::ShareAddress))
-	{
 
+    for (quint16 port : ports) {
+        if (m_sockets.contains(port)) continue;
+
+        QUdpSocket* socket = new QUdpSocket();
+        if (socket->bind(QHostAddress(set->getHPSDRDeviceLocalAddr()),
+                                 port,
+                                 QUdpSocket::DontShareAddress))
+        {
 #if defined(Q_OS_WIN32)
-		if (::setsockopt(m_dataIOSocket->socketDescriptor(), SOL_SOCKET,
-                     SO_RCVBUF, (char *)&newBufferSize, sizeof(newBufferSize)) == -1) {
-
-			io->networkIOMutex.lock();
-			DATAIO_DEBUG << "dataIOSocket error!";
-			io->networkIOMutex.unlock();
-		}
+            ::setsockopt(socket->socketDescriptor(), SOL_SOCKET, SO_RCVBUF, (char *)&newBufferSize, sizeof(newBufferSize));
 #endif
+            connect(socket, &QUdpSocket::errorOccurred, this, &DataIO::displayDataReceiverSocketError);
+            connect(socket, &QUdpSocket::readyRead, this, &DataIO::readDeviceData);
 
-		
-		//m_dataIOSocket->setSocketOption(QAbstractSocket::LowDelayOption, 1);
-		//m_dataIOSocket->setSocketOption(QAbstractSocket::KeepAliveOption, 1);
+            m_sockets[port] = socket;
+            if (port == ports.first()) m_dataIOSocket = socket;
 
-        connect(
-            m_dataIOSocket.get(),
-            &QUdpSocket::errorOccurred,
-            this,
-            &DataIO::displayDataReceiverSocketError
-            );
+            io->networkIOMutex.lock();
+            DATAIO_DEBUG << "data receiver socket bound successful to local port " << port;
+            io->networkIOMutex.unlock();
+        } else {
+            io->networkIOMutex.lock();
+            DATAIO_DEBUG << "data receiver socket binding failed for port " << port;
+            io->networkIOMutex.unlock();
+            delete socket;
+        }
+    }
 
-
-
-		/*CHECKED_CONNECT_OPT(
-			m_dataIOSocket,
-			SIGNAL(readyRead()), 
-			this, 
-			SLOT(readDeviceData()),
-			Qt::DirectConnection);*/
-
-        connect(
-            m_dataIOSocket.get(),
-            &QUdpSocket::readyRead,
-			this, 
-            &DataIO::readDeviceData
-            );
-
-
-		io->networkIOMutex.lock();
-		DATAIO_DEBUG << "data receiver socket bound successful to local port " << m_dataIOSocket->localPort();
-		io->networkIOMutex.unlock();
-
-		m_dataIOSocketOn = true;
-		set->setPacketLoss(1);
-	}
-	else {
-		
-		io->networkIOMutex.lock();
-		DATAIO_DEBUG << "data receiver socket binding failed.";
-		io->networkIOMutex.unlock();
-
-		m_dataIOSocketOn = false;
-	}
+    if (m_dataIOSocket) {
+        m_dataIOSocketOn = true;
+        set->setPacketLoss(1);
+    } else {
+        m_dataIOSocketOn = false;
+    }
 }
 
 
@@ -292,12 +242,13 @@ void DataIO::new_readDeviceData() {
     }
 }
 
-
 void DataIO::readDeviceData() {
+    QUdpSocket* socket = qobject_cast<QUdpSocket*>(sender());
+    if (!socket) return;
 
-	while (m_dataIOSocket->hasPendingDatagrams()) {
+	while (socket->hasPendingDatagrams()) {
 		QMutexLocker locker(&io->networkIOMutex);
-        qint64 size = m_dataIOSocket->readDatagram(m_datagram.data(), m_datagram.size());
+        qint64 size = socket->readDatagram(m_datagram.data(), m_datagram.size());
 		if (io->protocol && io->protocol->isPacketValid((const unsigned char*)m_datagram.data(), size)) {
             int type = io->protocol->getPacketType((const unsigned char*)m_datagram.data());
 			if (type == 0x06) {

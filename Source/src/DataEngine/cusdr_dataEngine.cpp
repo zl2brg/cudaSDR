@@ -45,6 +45,7 @@ extern double cwramp48[];		// see cwramp.c, for 48 kHz sample rate
 #define RAMPLEN 250
 #include "cusdr_dataEngine.h"
 #include "CProtocol1.h"
+#include "CProtocol2.h"
 
 
 /*!
@@ -113,7 +114,11 @@ DataEngine::DataEngine(QObject *parent)
 
 {
     if (m_hwInterface == QSDR::Metis || m_hwInterface == QSDR::Hermes) {
-        m_protocol = new CProtocol1();
+        if (set->getCurrentMetisCard().protocol == 2) {
+            m_protocol = new CProtocol2();
+        } else {
+            m_protocol = new CProtocol1();
+        }
     }
     io.protocol = m_protocol;
 	qRegisterMetaType<QAbstractSocket::SocketError>();

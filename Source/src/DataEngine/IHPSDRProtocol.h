@@ -30,6 +30,7 @@ public:
     // Hardware specific
     virtual int getPayloadSize() = 0;
     virtual int getHeaderSize() = 0;
+    virtual QList<quint16> getRequiredPorts() = 0;
 };
 
 #endif // IHPSDRPROTOCOL_H

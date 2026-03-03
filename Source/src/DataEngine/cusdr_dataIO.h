@@ -75,7 +75,8 @@ private slots:
 
 private:
 	Settings*		set;
-	std::unique_ptr<QUdpSocket>	m_dataIOSocket;
+	QUdpSocket*	    m_dataIOSocket;
+    QMap<quint16, QUdpSocket*> m_sockets;
 	//QMutex			m_mutex;
 	QByteArray		m_commandDatagram;
 	QByteArray		m_datagram;
