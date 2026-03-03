@@ -382,6 +382,8 @@ typedef struct _ccParameterTx {
 
 } TCCParameterTx;
 
+class IHPSDRProtocol;
+
 typedef struct _hpsdrParameter {
 
 	uchar	control_in[5];
@@ -467,6 +469,8 @@ typedef struct _hpsdrParameter {
 
 
 	qint16		audiofileChannels;
+
+    IHPSDRProtocol* protocol;
 
 } THPSDRParameter;
 

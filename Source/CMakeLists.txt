@@ -64,6 +64,7 @@ set(SOURCES
     ${SRC_DIR}/DataEngine/cusdr_dataEngine.cpp
     ${SRC_DIR}/DataEngine/cusdr_dataIO.cpp
     ${SRC_DIR}/DataEngine/cusdr_discoverer.cpp
+    ${SRC_DIR}/DataEngine/CProtocol1.cpp
     ${SRC_DIR}/DataEngine/cusdr_receiver.cpp
     ${SRC_DIR}/DataEngine/receiveraudiooutput.cpp
     ${SRC_DIR}/DataEngine/cusdr_transmitter.cpp

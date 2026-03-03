@@ -95,11 +95,11 @@ class WideBandDataProcessor;
 // data engine class
 
 
+class IHPSDRProtocol;
+
 class DataEngine : public QObject {
 
 	Q_OBJECT
-
-
 
 public:
 	explicit DataEngine(QObject* parent = nullptr);
@@ -115,6 +115,7 @@ public:
 	DataIO*				m_dataIO;
     PAudioInput *       m_audioInput;
     iambic *            m_cwIO;
+    IHPSDRProtocol*     m_protocol;
     bool                m_internal_cw;
     bool                m_cw_key_reversed;
     int                 m_cw_keyer_spacing;
@@ -454,7 +455,6 @@ private:
     QByteArray      m_tx_iqdata;
 	QByteArray		m_IQDatagram;
 	QByteArray		m_outDatagram;
-	QByteArray		m_deviceSendDataSignature;
     QByteArray      temp_audioIn;
 	QString			m_message;
     float           tx_mic_data[DSP_SAMPLE_SIZE];
@@ -470,14 +470,8 @@ private:
 	bool			m_chirpBit;
 	bool			m_chirpStart;
 
-	int				m_leftSample;
-	int				m_rightSample;
-	int				m_micSample;
 	int				m_bytes;
-	int				m_maxSamples;
-	int				m_rxSamples;
 	int				m_chirpSamples;
-	int				m_fwCount;
 	int				m_idx;
 	int				m_sendState;
 	int				m_chirpStartSample;
@@ -488,10 +482,6 @@ private:
     QFile   *file;
 
 
-
-	double			m_lsample;
-	double			m_rsample;
-	float			m_micSample_float;
 
 	unsigned long	m_IQSequence;
 	unsigned long	m_sequenceHi;

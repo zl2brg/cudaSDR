@@ -81,9 +81,7 @@ private:
 	QByteArray		m_datagram;
 	QByteArray		m_wbDatagram;
 	QByteArray		m_twoFramesDatagram;
-	QByteArray		m_metisGetDataSignature;
 	QByteArray		m_outDatagram;
-	QByteArray		m_deviceSendDataSignature;
 	QString			m_message;
 	unsigned char 	m_buffer[METIS_DATA_SIZE];
 	QByteArray  	m_iqbuffer;
@@ -97,12 +95,12 @@ private:
 	bool	m_networkDeviceRunning;
 	bool	m_setNetworkDeviceHeader;
 
-	long	m_sequence;
-	long	m_oldSequence;
-	long	m_sequenceWideBand;
-	long	m_oldSequenceWideBand;
-	long	m_sendSequence;
-	long	m_oldSendSequence;
+	uint32_t	m_sequence;
+	uint32_t	m_oldSequence;
+	uint32_t	m_sequenceWideBand;
+	uint32_t	m_oldSequenceWideBand;
+	uint32_t	m_sendSequence;
+	uint32_t	m_oldSendSequence;
 
     std::unique_ptr<CSoundOut> m_pSoundCardOut;
 	int		m_wbBuffers;
