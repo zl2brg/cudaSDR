@@ -75,6 +75,18 @@ ESC to switch to/from full screen mode.
 ***********************************************************************
 list of changes:
 
+v0.4.0.3 (Gemini/ZL2BRG changes):
+
+- Separated Protocol 1 into its own class (CProtocol1).
+- Added foundational support for HPSDR Protocol 2.
+- Refactored DataIO to support multiple UDP sockets for multi-port routing.
+- Fixed Protocol 1 restart issues and wideband display updates.
+
+v0.4.0.2:
+
+- Ported to Qt 6.
+- Initial cleanup and modern C++ refactoring.
+
 v0.3.2.13+ (N1GP changes):
 
 - Took VK5ABN's cudaSDR version based off v0.3.2.13 but modified to use cuda cores for DSP.
