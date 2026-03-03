@@ -113,14 +113,6 @@ DataEngine::DataEngine(QObject *parent)
 
 
 {
-    if (m_hwInterface == QSDR::Metis || m_hwInterface == QSDR::Hermes) {
-        if (set->getCurrentMetisCard().protocol == 2) {
-            m_protocol = new CProtocol2();
-        } else {
-            m_protocol = new CProtocol1();
-        }
-    }
-    io.protocol = m_protocol;
 	qRegisterMetaType<QAbstractSocket::SocketError>();
 
 	this->setObjectName(QString::fromUtf8("dataEngine"));
@@ -168,11 +160,6 @@ DataEngine::~DataEngine() {
         sendSocket = nullptr;
     }
 
-    // Add raw socket cleanup
-    if (data_socket >= 0) {
-        close(data_socket);
-        data_socket = -1;
-    }
    // file->close();
     if (m_audioInput)
         delete m_audioInput;
@@ -849,6 +836,20 @@ bool DataEngine::start() {
 	m_fwCount = 0;
 	m_sendState = 0;
 
+    if (m_protocol) {
+        delete m_protocol;
+        m_protocol = nullptr;
+    }
+
+    if (m_hwInterface == QSDR::Metis || m_hwInterface == QSDR::Hermes) {
+        if (set->getCurrentMetisCard().protocol == 2) {
+            m_protocol = new CProtocol2();
+        } else {
+            m_protocol = new CProtocol1();
+        }
+    }
+    io.protocol = m_protocol;
+
 	int rcvrs = set->getNumberOfReceivers();
     if (!m_audioInput) createAudioInputProcessor();
 
@@ -1049,6 +1050,12 @@ void DataEngine::stop() {
 				stopDataProcessor();
 				if (m_wbDataProcessor)
 					stopWideBandDataProcessor();
+
+                if (m_protocol) {
+                    delete m_protocol;
+                    m_protocol = nullptr;
+                    io.protocol = nullptr;
+                }
 				
 				// clear device list
 				SleeperThread::msleep(100);
@@ -1605,7 +1612,6 @@ void DataEngine::createDataProcessor() {
 
 	m_dataProcessor = new DataProcessor(this, m_serverMode, m_hwInterface);
 	sendSocket = new QUdpSocket();
-	Connect();
     connect(
 			sendSocket,
         &QAbstractSocket::errorOccurred,
@@ -3118,43 +3124,6 @@ AudioOutProcessor::~AudioOutProcessor() {
 void AudioOutProcessor::stop() {
 
 	m_stopped = true;
-}
-
-
-void DataEngine::Connect(){
-	qDebug() << "protocol1: Connect";
-	data_socket=socket(PF_INET,SOCK_DGRAM,IPPROTO_UDP);
-    if(data_socket< 0) {
-        qDebug() << "protocol1: create socket failed for data_socket";
-        return;
-    }
-
-    int optval = 1;
-    if(setsockopt(data_socket, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval))<0) {
-        perror("data_socket: SO_REUSEADDR");
-    }
-    if(setsockopt(data_socket, SOL_SOCKET, SO_REUSEPORT, &optval, sizeof(optval))<0) {
-        perror("data_socket: SO_REUSEPORT");
-    }
-
-	inet_pton(AF_INET, "192.168.1.11", &DataAddr.sin_addr);
- //   DataAddr.sin_addr.s_addr = io.hpsdrDeviceIPAddress.toIPv4Address();
-    DataAddr.sin_port = htons(1024);
-    DataAddr.sin_family = AF_INET;
-	int result = bind(data_socket,(struct sockaddr*)&DataAddr,16);
-	if (result < 0){
-		perror("error");
-		qDebug() << "protocol1: bind socket failed for data_socket " << result;
-	}
-	else qDebug() << "bind ok";
-}
-
-void DataEngine::senddata(char * buffer, int length) {
-
-    if(sendto(data_socket,&buffer,length,0,(struct sockaddr*)&DataAddr,sizeof(DataAddr))!=length) {
-        perror("sendto socket failed for metis_send_data\n");
-    }
-
 }
 
 

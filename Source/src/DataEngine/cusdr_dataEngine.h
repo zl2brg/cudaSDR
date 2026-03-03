@@ -129,12 +129,7 @@ public:
     int                 cw_key_down;
     RadioState          m_radioState;
 
-    struct sockaddr_in  DataAddr{};
-    int data_socket{};
-
-    void    Connect();
-    void    senddata(char * buffer, int length);
-     QFile           *file{};
+    QFile           *file{};
 
 public slots:
 
