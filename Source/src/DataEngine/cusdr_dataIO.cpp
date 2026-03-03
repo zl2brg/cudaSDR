@@ -296,19 +296,20 @@ void DataIO::readDeviceData() {
 				{						
 					m_sendEP4 = true;
 					m_wbCount = 0;
+                    m_wbDatagram.resize(0);
 				}
 
 				if (m_sendEP4)
 				{
 					m_wbDatagram.append(m_datagram.mid(io->protocol->getHeaderSize(), BUFFER_SIZE));
-				}
-				if (m_wbCount++ == m_wbBuffers)
-				{
-					// enqueue
-					m_sendEP4 = false;
-					io->wb_queue.enqueue(m_wbDatagram);
-					m_wbDatagram.resize(0);
-				}
+				    if (m_wbCount++ == m_wbBuffers)
+				    {
+					    // enqueue
+					    m_sendEP4 = false;
+					    io->wb_queue.enqueue(m_wbDatagram);
+					    m_wbDatagram.resize(0);
+				    }
+                }
 			}
 		}
 	}
