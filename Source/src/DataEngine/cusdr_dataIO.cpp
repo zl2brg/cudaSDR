@@ -184,10 +184,13 @@ void DataIO::initDataReceiverSocket() {
 
 
 void DataIO::new_readDeviceData() {
+    QUdpSocket* socket = qobject_cast<QUdpSocket*>(sender());
+    if (!socket) return;
+
     qint64  size = 0;
-    while (m_dataIOSocket->hasPendingDatagrams()) {
+    while (socket->hasPendingDatagrams()) {
         QMutexLocker locker(&io->networkIOMutex);
-        size = m_dataIOSocket->readDatagram((char *)m_buffer, sizeof(m_buffer));
+        size = socket->readDatagram((char *)m_buffer, sizeof(m_buffer));
         if (io->protocol && io->protocol->isPacketValid(m_buffer, size)) {
             int type = io->protocol->getPacketType(m_buffer);
             if (type == 0x06) {
@@ -223,7 +226,7 @@ void DataIO::new_readDeviceData() {
                 m_oldSequenceWideBand = m_sequenceWideBand;
 
                 // three 'if's from KISS Konsole
-                if ((m_wbBuffers & m_buffer[7]) == 0)
+                if ((m_wbBuffers & (m_sequenceWideBand & 0xFF)) == 0)
                 {
                     m_sendEP4 = true;
                     m_wbCount = 0;
@@ -289,7 +292,7 @@ void DataIO::readDeviceData() {
 				m_oldSequenceWideBand = m_sequenceWideBand;
 
 				// three 'if's from KISS Konsole
-				if ((m_wbBuffers & m_datagram[7]) == 0)
+				if ((m_wbBuffers & (m_sequenceWideBand & 0xFF)) == 0)
 				{						
 					m_sendEP4 = true;
 					m_wbCount = 0;
