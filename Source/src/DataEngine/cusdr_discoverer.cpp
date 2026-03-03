@@ -215,6 +215,17 @@ int Discoverer::findHPSDRDevices() {
                     mc.protocol = 1;
                 }
 
+                // Pre-populate versions in Settings to avoid "did not get firmware versions"
+                if (m_deviceDatagram.size() >= 10) {
+                    int version = (unsigned char)m_deviceDatagram.at(9);
+                    int boardId = (unsigned char)m_deviceDatagram.at(10);
+                    if (boardId == 1) { // Hermes
+                        set->setHermesVersion(version);
+                    } else if (boardId == 0) { // Metis
+                        set->setMetisVersion(version);
+                    }
+                }
+
 				int no = m_deviceDatagram.at(10);
 				QString str;
 				if (no == 0)

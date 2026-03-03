@@ -331,12 +331,9 @@ private:
 	int		m_sendState;
 
 
-	float	m_lsample{};
-	float	m_rsample{};
 	float	m_scale{};
 	float	m_sMeterValue{};
 	float	m_sMeterCalibrationOffset;
-	float	m_micSample_float{};
 	float	m_spectrumBuffer[SAMPLE_BUFFER_SIZE]{};
     double  cw_txBuffer[SAMPLE_BUFFER_SIZE * 4];
 
