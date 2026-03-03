@@ -46,7 +46,7 @@
 //#define	btn_width		74
 
 Discoverer::Discoverer(THPSDRParameter *ioData)
-    : IDeviceDiscoverer(nullptr)
+    : QObject()
 	, set(Settings::instance())
 	, io(ioData)
 {
@@ -58,14 +58,14 @@ Discoverer::~Discoverer() {
 
 TNetworkDevicecard mc;
 
-void Discoverer::initDevice() {
+void Discoverer::initHPSDRDevice() {
 
 	m_searchTime.start();
 
 	int deviceNo = 0;
 	while (deviceNo == 0) {
 
-		deviceNo = findDevices();
+		deviceNo = findHPSDRDevices();
 
 		if (deviceNo > 1) {
 			
@@ -95,7 +95,7 @@ void Discoverer::initDevice() {
 	io->networkIOMutex.unlock();
 }
 
-int Discoverer::findDevices() {
+int Discoverer::findHPSDRDevices() {
 
 	int devicesFound = 0;
 
@@ -257,7 +257,7 @@ int Discoverer::findDevices() {
 				DISCOVERER_DEBUG << "Device already sending data - trying to shut down...";
 				io->networkIOMutex.unlock();
 
-				shutdown();
+				shutdownHPSDRDevice();
 				clear();
 			}
 		}
@@ -290,7 +290,7 @@ void Discoverer::clear() {
 	m_deviceCards.clear();
 }
 
-void Discoverer::shutdown() {
+void Discoverer::shutdownHPSDRDevice() {
 
 	QByteArray arr;
 	arr.resize(64);
