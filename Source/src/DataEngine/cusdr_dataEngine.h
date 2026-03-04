@@ -112,6 +112,7 @@ public:
     QList<Receiver*> 	RX;
 
 	QUdpSocket*			sendSocket{};
+    QUdpSocket*         m_controlSocket{};
 	DataIO*				m_dataIO;
     PAudioInput *       m_audioInput;
     iambic *            m_cwIO;

@@ -15,10 +15,10 @@ public:
 
     void processInputBuffer(const QByteArray& buffer, DataEngine* de) override;
     void decodeCCBytes(const QByteArray& buffer, THPSDRParameter* io) override;
-    void encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& sendState) override;
+    void encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& sendState, quint16& port) override;
 
-    QByteArray formatStartStop(char value) override;
-    QByteArray formatInitFrame(int rx, THPSDRParameter* io) override;
+    QByteArray formatStartStop(char value, quint16& port) override;
+    QByteArray formatInitFrame(int rx, THPSDRParameter* io, quint16& port) override;
     QByteArray formatOutputPacket(const QByteArray& audioData, uint32_t& sequence) override;
 
     int getPayloadSize() override { return 1024; }
@@ -30,6 +30,7 @@ public:
 private:
     uint32_t m_lastSequence;
     int m_rxSamples;
+    QMap<quint16, uint32_t> m_sequences;
 };
 
 #endif // CPROTOCOL2_H

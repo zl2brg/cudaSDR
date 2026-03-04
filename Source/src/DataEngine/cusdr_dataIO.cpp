@@ -179,6 +179,9 @@ void DataIO::initDataReceiverSocket() {
         set->setPacketLoss(1);
     } else {
         m_dataIOSocketOn = false;
+        io->networkIOMutex.lock();
+        DATAIO_DEBUG << "Warning: No data receiver socket could be bound.";
+        io->networkIOMutex.unlock();
     }
 }
 
@@ -338,10 +341,11 @@ void DataIO::readData() {
 
 void DataIO::sendInitFramesToNetworkDevice(int rx) {
 
-	if (!io->protocol) return;
-    QByteArray initDatagram = io->protocol->formatInitFrame(rx, io);
+	if (!io->protocol || !m_dataIOSocket) return;
+    quint16 port = DEVICE_PORT;
+    QByteArray initDatagram = io->protocol->formatInitFrame(rx, io, port);
 
-	if (m_dataIOSocket->writeDatagram(initDatagram.data(), initDatagram.size(), io->hpsdrDeviceIPAddress, DEVICE_PORT) < 0) {
+	if (m_dataIOSocket->writeDatagram(initDatagram.data(), initDatagram.size(), io->hpsdrDeviceIPAddress, port) < 0) {
 
 		io->networkIOMutex.lock();
 		DATAIO_DEBUG << "error sending init data to device: " << qPrintable(m_dataIOSocket->errorString());
@@ -350,7 +354,7 @@ void DataIO::sendInitFramesToNetworkDevice(int rx) {
 	else {
 
 		io->networkIOMutex.lock();
-		DATAIO_DEBUG << "init frames sent to network device. " << rx;
+		DATAIO_DEBUG << "init frames sent to network device. " << rx << " port " << port;
 		io->networkIOMutex.unlock();
 	}
 }
@@ -360,21 +364,22 @@ void DataIO::networkDeviceStartStop(char value) {
 	TNetworkDevicecard metis = set->getCurrentMetisCard();
 
     if (io->protocol) {
-        m_commandDatagram = io->protocol->formatStartStop(value);
+        quint16 port = DEVICE_PORT;
+        m_commandDatagram = io->protocol->formatStartStop(value, port);
 
-		if (m_dataIOSocket->writeDatagram(m_commandDatagram, metis.ip_address, DEVICE_PORT) == 64) {
+		if (m_dataIOSocket->writeDatagram(m_commandDatagram, metis.ip_address, port) == m_commandDatagram.size()) {
 
 			if (value != 0) {
 
 				io->networkIOMutex.lock();
-				DATAIO_DEBUG << "sent start command to device at: "<< qPrintable(metis.ip_address.toString());
+				DATAIO_DEBUG << "sent start command to device at: "<< qPrintable(metis.ip_address.toString()) << " port " << port;
 				io->networkIOMutex.unlock();
 				m_networkDeviceRunning = true;
 			}
 			else {
 
 				io->networkIOMutex.lock();
-				DATAIO_DEBUG << "sent stop command to device at: "<< qPrintable(metis.ip_address.toString());
+				DATAIO_DEBUG << "sent stop command to device at: "<< qPrintable(metis.ip_address.toString()) << " port " << port;
 				io->networkIOMutex.unlock();
 				m_networkDeviceRunning = false;
 			}
@@ -405,7 +410,7 @@ void DataIO::sendAudio(u_char *buf) {
 
 void DataIO::writeData() {
 
-    if (!io->protocol) return;
+    if (!io->protocol || !m_dataIOSocket) return;
 
 	if (m_setNetworkDeviceHeader) {
 

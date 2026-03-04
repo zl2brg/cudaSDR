@@ -80,30 +80,140 @@ void CProtocol2::decodeCCBytes(const QByteArray& buffer, THPSDRParameter* io) {
     io->ccRx.dash = (buffer.at(4) & 0x04);
 }
 
-void CProtocol2::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& sendState) {
-    // Protocol 2 High Priority Data Packet (Port 1027)
-    // 0-3: Sequence (0)
-    // 4: Bits - run, PTT(n)
-    // Note: This 'buffer' was originally for the 1032-byte Protocol 1 packet.
-    // For Protocol 2, we should probably send multiple packet types.
-    // For now, let's just fill it with basic PTT state.
-    
+void CProtocol2::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& sendState, quint16& port) {
+    Settings* set = Settings::instance();
     io->mutex.lock();
-    memset(buffer, 0, 64); // Protocol 2 commands are typically 60-64 bytes
+    memset(buffer, 0, 64);
     
-    buffer[4] = 0x01; // Run bit
-    if (io->ccTx.mox || io->ccTx.ptt) {
-        buffer[4] |= 0x02; // PTT0
+    // Protocol 2 commands are 60 bytes.
+    // 0-3: Sequence number
+    // 4: Packet type or first data byte
+    
+    switch (sendState) {
+        case 0: // General Packet (Port 1024)
+            port = 1024;
+            {
+                uint32_t seq = qToBigEndian(m_sequences[1024]++);
+                memcpy(buffer, &seq, 4);
+                buffer[4] = 0x00; // Command - General Packet to SDR
+                
+                // Set Ports (Big Endian)
+                quint16 ddcSpecPort = qToBigEndian((quint16)1025);
+                memcpy(&buffer[5], &ddcSpecPort, 2);
+                
+                quint16 txSpecPort = qToBigEndian((quint16)1026);
+                memcpy(&buffer[7], &txSpecPort, 2);
+                
+                quint16 hpPCPort = qToBigEndian((quint16)1027);
+                memcpy(&buffer[9], &hpPCPort, 2);
+                
+                quint16 hpRadioPort = qToBigEndian((quint16)1027);
+                memcpy(&buffer[11], &hpRadioPort, 2);
+                
+                quint16 ddcAudioPort = qToBigEndian((quint16)1028);
+                memcpy(&buffer[13], &ddcAudioPort, 2);
+                
+                quint16 ducIQPort = qToBigEndian((quint16)1029);
+                memcpy(&buffer[15], &ducIQPort, 2);
+                
+                quint16 ddc0Port = qToBigEndian((quint16)1035);
+                memcpy(&buffer[17], &ddc0Port, 2);
+                
+                // Hardware counts
+                buffer[19] = (unsigned char)io->receivers; 
+                buffer[20] = 1; // Num ADCs (assume 1 for now)
+                buffer[21] = 1; // Num DUCs
+                buffer[22] = 1; // Num DACs
+                
+                // Other global settings (Byte 37+)
+                buffer[37] = 0x00; // Time stamping off, VNA off, etc.
+                buffer[38] = 0x00; // Hardware reset off
+                buffer[39] = 0x00; // Big Endian data format (Bit 0=0)
+            }
+            sendState = 1;
+            break;
+            
+        case 1: // DDC Specific Packet (Port 1025)
+            port = 1025;
+            {
+                uint32_t seq = qToBigEndian(m_sequences[1025]++);
+                memcpy(buffer, &seq, 4);
+                
+                // For now, configure DDC 0
+                buffer[4] = 1; // Number of ADCs
+                buffer[5] = 0x00; // Bit 0: Dither ADC0, Bit 1: Random ADC0
+                
+                // DDC 0 configuration (Starts at Byte 16)
+                buffer[16] = 0x00; // ADC selection for DDC 0 (ADC 0)
+                
+                // Sampling Rate (Bytes 18-19)
+                uint16_t rate = 0;
+                switch (io->samplerate) {
+                    case 48000: rate = 48; break;
+                    case 96000: rate = 96; break;
+                    case 192000: rate = 192; break;
+                    case 384000: rate = 384; break;
+                    default: rate = 48; break;
+                }
+                uint16_t rateBE = qToBigEndian(rate);
+                memcpy(&buffer[18], &rateBE, 2);
+                
+                buffer[22] = 24; // Sample Size (24 bits)
+            }
+            sendState = 2;
+            break;
+            
+        case 2: // Transmitter Specific Packet (Port 1026)
+            port = 1026;
+            {
+                uint32_t seq = qToBigEndian(m_sequences[1026]++);
+                memcpy(buffer, &seq, 4);
+                buffer[4] = 1; // Number of DACs
+                
+                // DUC 0 settings
+                buffer[5] = 0x00; 
+                if (set->isInternalCw()) buffer[5] |= 0x02; // CW bit
+                if (set->getCwKeyerMode() > 0) buffer[5] |= 0x08; // Iambic bit (rough mapping)
+                
+                buffer[6] = (unsigned char)set->getCwSidetoneVolume();
+                
+                uint16_t sideToneFreq = qToBigEndian((uint16_t)set->getCwSidetoneFreq());
+                memcpy(&buffer[7], &sideToneFreq, 2);
+                
+                buffer[9] = (unsigned char)set->getCwKeyerSpeed();
+                buffer[10] = (unsigned char)set->getCwKeyerWeight();
+                
+                uint16_t hangDelay = qToBigEndian((uint16_t)set->getCwHangTime());
+                memcpy(&buffer[11], &hangDelay, 2);
+            }
+            sendState = 3;
+            break;
+            
+        case 3: // High Priority Data Packet (Port 1027)
+        default:
+            port = 1027;
+            {
+                uint32_t seq = qToBigEndian(m_sequences[1027]++);
+                memcpy(buffer, &seq, 4);
+                buffer[4] = 0x01; // Run bit
+                if (io->ccTx.mox || io->ccTx.ptt) {
+                    buffer[4] |= 0x02; // PTT0
+                }
+                
+                // Frequency for DDC 0 (Byte 9-12)
+                uint32_t freq = qToBigEndian((uint32_t)set->getCtrFrequencies().at(0));
+                memcpy(&buffer[9], &freq, 4);
+            }
+            sendState = 0;
+            break;
     }
-    
-    // sendState logic for other packet types could go here (DDC Specific etc.)
-    sendState = (sendState + 1) % 8; 
     
     io->mutex.unlock();
 }
 
-QByteArray CProtocol2::formatStartStop(char value) {
+QByteArray CProtocol2::formatStartStop(char value, quint16& port) {
     // Protocol 2 High Priority Data Packet (Port 1027)
+    port = 1027;
     // 0-3: Sequence (0)
     // 4: Bits - run, PTT(n) -> Bit 0 is run
     QByteArray commandDatagram;
@@ -113,9 +223,10 @@ QByteArray CProtocol2::formatStartStop(char value) {
     return commandDatagram;
 }
 
-QByteArray CProtocol2::formatInitFrame(int rx, THPSDRParameter* io) {
+QByteArray CProtocol2::formatInitFrame(int rx, THPSDRParameter* io, quint16& port) {
     // Protocol 2 uses multiple specific packets.
     // For now, return a generic initialization or use "General Packet".
+    port = 1024;
     QByteArray initDatagram;
     initDatagram.resize(60);
     initDatagram.fill(0);

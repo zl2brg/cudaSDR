@@ -16,15 +16,15 @@ public:
 
     void processInputBuffer(const QByteArray& buffer, DataEngine* de) override;
     void decodeCCBytes(const QByteArray& buffer, THPSDRParameter* io) override;
-    void encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& sendState) override;
+    void encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& sendState, quint16& port) override;
 
-    QByteArray formatStartStop(char value) override;
-    QByteArray formatInitFrame(int rx, THPSDRParameter* io) override;
+    QByteArray formatStartStop(char value, quint16& port) override;
+    QByteArray formatInitFrame(int rx, THPSDRParameter* io, quint16& port) override;
     QByteArray formatOutputPacket(const QByteArray& audioData, uint32_t& sequence) override;
 
     int getPayloadSize() override { return BUFFER_SIZE; }
     int getHeaderSize() override { return METIS_HEADER_SIZE; }
-    QList<quint16> getRequiredPorts() override { return { DEVICE_PORT }; }
+    QList<quint16> getRequiredPorts() override;
 
 private:
     QByteArray m_metisGetDataSignature;

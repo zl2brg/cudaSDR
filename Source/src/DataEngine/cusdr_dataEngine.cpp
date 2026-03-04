@@ -159,6 +159,10 @@ DataEngine::~DataEngine() {
         delete sendSocket;
         sendSocket = nullptr;
     }
+    if (m_controlSocket) {
+        delete m_controlSocket;
+        m_controlSocket = nullptr;
+    }
 
    // file->close();
     if (m_audioInput)
@@ -1612,6 +1616,7 @@ void DataEngine::createDataProcessor() {
 
 	m_dataProcessor = new DataProcessor(this, m_serverMode, m_hwInterface);
 	sendSocket = new QUdpSocket();
+    m_controlSocket = new QUdpSocket();
     connect(
 			sendSocket,
         &QAbstractSocket::errorOccurred,
@@ -3008,7 +3013,15 @@ void DataProcessor::processOutputBuffer(const CPX &buffer) {
 
 void DataProcessor::encodeCCBytes() {
     if (de->m_protocol) {
-        de->m_protocol->encodeCCBytes(de->io.output_buffer, &de->io, m_sendState);
+        quint16 port = DEVICE_PORT;
+        de->m_protocol->encodeCCBytes(de->io.output_buffer, &de->io, m_sendState, port);
+
+        if (de->set->getCurrentMetisCard().protocol == 2) {
+            // Protocol 2 commands are sent to specific ports via m_controlSocket
+            if (de->m_controlSocket->writeDatagram((const char*)de->io.output_buffer, 60, m_deviceAddress, port) < 0) {
+                DATA_PROCESSOR_DEBUG << "error sending control data to device: " << de->m_controlSocket->errorString();
+            }
+        }
     }
 }
 
@@ -3023,7 +3036,9 @@ void DataProcessor::writeData() {
 	else {
 		m_outDatagram += de->io.audioDatagram;
 
-		if (de->sendSocket->writeDatagram(m_outDatagram, m_deviceAddress, DEVICE_PORT) < 0) {
+        quint16 dataPort = (de->set->getCurrentMetisCard().protocol == 2) ? 1029 : DEVICE_PORT;
+
+		if (de->sendSocket->writeDatagram(m_outDatagram, m_deviceAddress, dataPort) < 0) {
 			DATA_PROCESSOR_DEBUG << "error sending data to device: " << de->sendSocket->errorString();
 		}
 

@@ -44,6 +44,10 @@ int CProtocol1::getPacketType(const unsigned char* data) {
     return (int)data[3];
 }
 
+QList<quint16> CProtocol1::getRequiredPorts() {
+    return { (quint16)Settings::instance()->getMetisPort() };
+}
+
 void CProtocol1::processInputBuffer(const QByteArray& buffer, DataEngine* de) {
     int s = 0;
     int maxSamples;
@@ -218,7 +222,8 @@ void CProtocol1::decodeCCBytes(const QByteArray& buffer, THPSDRParameter* io) {
 	}
 }
 
-void CProtocol1::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& sendState) {
+void CProtocol1::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& sendState, quint16& port) {
+    port = DEVICE_PORT;
     Settings* set = Settings::instance();
     buffer[0] = SYNC;
     buffer[1] = SYNC;
@@ -415,7 +420,8 @@ void CProtocol1::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
     io->mutex.unlock();
 }
 
-QByteArray CProtocol1::formatStartStop(char value) {
+QByteArray CProtocol1::formatStartStop(char value, quint16& port) {
+    port = DEVICE_PORT;
     QByteArray commandDatagram;
     commandDatagram.resize(64);
     commandDatagram[0] = (char)0xEF;
@@ -426,7 +432,8 @@ QByteArray CProtocol1::formatStartStop(char value) {
     return commandDatagram;
 }
 
-QByteArray CProtocol1::formatInitFrame(int rx, THPSDRParameter* io) {
+QByteArray CProtocol1::formatInitFrame(int rx, THPSDRParameter* io, quint16& port) {
+    port = DEVICE_PORT;
     QByteArray initDatagram;
 	initDatagram.resize(1032);
 
