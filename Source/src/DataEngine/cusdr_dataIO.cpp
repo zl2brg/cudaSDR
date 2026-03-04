@@ -363,7 +363,7 @@ void DataIO::networkDeviceStartStop(char value) {
 
 	TNetworkDevicecard metis = set->getCurrentMetisCard();
 
-    if (io->protocol) {
+    if (io->protocol && m_dataIOSocket) {
         quint16 port = DEVICE_PORT;
         m_commandDatagram = io->protocol->formatStartStop(value, port);
 
@@ -433,12 +433,11 @@ void DataIO::writeData() {
     }
 }
 
-// Handles and logs errors that occur on the data IO socket during network operations.
 void DataIO::displayDataReceiverSocketError(QAbstractSocket::SocketError error) {
-
-	DATAIO_DEBUG << "data IO socket error: " << m_dataIOSocket->errorString();
+    QUdpSocket* socket = qobject_cast<QUdpSocket*>(sender());
+    QString errorStr = socket ? socket->errorString() : "Unknown socket error";
+	DATAIO_DEBUG << "data IO socket error: " << errorStr;
 	DATAIO_DEBUG << "data IO socket error: " << error;
-	io->networkIOMutex.unlock();
 }
 
 void DataIO::setManualSocketBufferSize(QObject *sender, bool value) {
@@ -446,38 +445,24 @@ void DataIO::setManualSocketBufferSize(QObject *sender, bool value) {
 	Q_UNUSED (sender)
 
 	m_manualBufferSize = value;
-	DATAIO_DEBUG << "m_manualBufferSize to change = " << m_manualBufferSize;
-	int socketBufferSize = 1032 * set->getSocketBufferSize();
+	int socketBufferSize = 1024 * set->getSocketBufferSize();
 
 	io->networkIOMutex.lock();
+    if (m_manualBufferSize) {
+        DATAIO_DEBUG << "set data IO socket BufferSize to " << m_socketBufferSize;
+    } else {
+        DATAIO_DEBUG << "set data IO socket BufferSize to 32 kB.";
+        socketBufferSize = 32 * 1024;
+    }
 
-		if (m_manualBufferSize) {
-
-			DATAIO_DEBUG << "set data IO socket BufferSize to " << m_socketBufferSize;
 #if defined(Q_OS_WIN32)
-			if (::setsockopt(m_dataIOSocket->socketDescriptor(), SOL_SOCKET,
-                     SO_RCVBUF, (char *)&socketBufferSize, sizeof(socketBufferSize)) == -1) {
-
-				io->networkIOMutex.lock();
-				DATAIO_DEBUG << "dataIOSocket error!";
-				io->networkIOMutex.unlock();
-			}
+    for (auto socket : m_sockets) {
+        if (socket && socket->isValid()) {
+            ::setsockopt(socket->socketDescriptor(), SOL_SOCKET,
+                         SO_RCVBUF, (char *)&socketBufferSize, sizeof(socketBufferSize));
+        }
+    }
 #endif
-		}
-		else {
-
-			DATAIO_DEBUG << "set data IO socket BufferSize to 32 kB.";
-			socketBufferSize = 1032 * 32;
-#if defined(Q_OS_WIN32)
-			if (::setsockopt(m_dataIOSocket->socketDescriptor(), SOL_SOCKET,
-                     SO_RCVBUF, (char *)&socketBufferSize, sizeof(socketBufferSize)) == -1) {
-
-				io->networkIOMutex.lock();
-				DATAIO_DEBUG << "dataIOSocket error!";
-				io->networkIOMutex.unlock();
-			}
-#endif
-		}
 	io->networkIOMutex.unlock();
 }
 
@@ -490,13 +475,12 @@ void DataIO::setSocketBufferSize(QObject *sender, int value) {
 
 	io->networkIOMutex.lock();
 #if defined(Q_OS_WIN32)
-		if (::setsockopt(m_dataIOSocket->socketDescriptor(), SOL_SOCKET,
-                     SO_RCVBUF, (char *)&socketBufferSize, sizeof(socketBufferSize)) == -1) {
-
-			io->networkIOMutex.lock();
-			DATAIO_DEBUG << "dataIOSocket error!";
-			io->networkIOMutex.unlock();
-		}
+    for (auto socket : m_sockets) {
+        if (socket && socket->isValid()) {
+            ::setsockopt(socket->socketDescriptor(), SOL_SOCKET,
+                         SO_RCVBUF, (char *)&socketBufferSize, sizeof(socketBufferSize));
+        }
+    }
 #endif
 	io->networkIOMutex.unlock();
 }
@@ -505,27 +489,27 @@ void DataIO::setSampleRate(QObject *sender, int value) {
 
 	Q_UNUSED(sender)
 
-	int bufferSize;
+	int bufferSize = 16 * 1024;
 	io->networkIOMutex.lock();
 	switch (value) {
 	
 		case 48000:
-			bufferSize = 16*1024;//128 * 1032
+			bufferSize = 16*1024;
 			DATAIO_DEBUG << "socket buffer size set to 16 kB.";
 			break;
 			
 		case 96000:
-			bufferSize = 32*1024;//128 * 1032
+			bufferSize = 32*1024;
 			DATAIO_DEBUG << "socket buffer size set to 32 kB.";
 			break;
 			
 		case 192000:
-			bufferSize = 64*1024;//128 * 1032
+			bufferSize = 64*1024;
 			DATAIO_DEBUG << "socket buffer size set to 64 kB.";
 			break;
 			
 		case 384000:
-			bufferSize = 128*1024;//128 * 1032
+			bufferSize = 128*1024;
 			DATAIO_DEBUG << "socket buffer size set to 128 kB.";
 			break;
 
@@ -535,11 +519,12 @@ void DataIO::setSampleRate(QObject *sender, int value) {
 	}
 
 #if defined(Q_OS_WIN32)
-		if (::setsockopt(m_dataIOSocket->socketDescriptor(), SOL_SOCKET,
-                     SO_RCVBUF, (char *)&bufferSize, sizeof(bufferSize)) == -1) {
-
-			DATAIO_DEBUG << "dataIOSocket error!";
-		}
+    for (auto socket : m_sockets) {
+        if (socket && socket->isValid()) {
+            ::setsockopt(socket->socketDescriptor(), SOL_SOCKET,
+                         SO_RCVBUF, (char *)&bufferSize, sizeof(bufferSize));
+        }
+    }
 #endif
 
 	io->networkIOMutex.unlock();
