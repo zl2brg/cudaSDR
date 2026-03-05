@@ -3216,8 +3216,11 @@ void DataProcessor::processReadData()
     QByteArray buf;
     while(!de->io.iq_queue.isEmpty()) {
       buf = de->io.iq_queue.dequeue();
-      processInputBuffer(buf.left(BUFFER_SIZE / 2));
-      processInputBuffer(buf.right(BUFFER_SIZE / 2));
+      // Protocol 1 IQ packet structure (1024 bytes payload after 8-byte Metis header):
+      // [8 bytes Header1] [504 bytes Data1] [8 bytes Header2] [504 bytes Data2]
+      // Each block is 512 bytes including its internal header.
+      processInputBuffer(buf.left(512));
+      processInputBuffer(buf.mid(512, 512));
     }
 }
 

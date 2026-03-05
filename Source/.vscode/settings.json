@@ -1,4 +1,10 @@
 {
+    "cmake.configureSettings": {
+        "CMAKE_PREFIX_PATH": "/home/sae/Qt/6.9.3/gcc_64"
+    },
+    "cmake.environment": {
+        "PATH": "/home/sae/Qt/6.9.3/gcc_64/bin:${env:PATH}"
+    },
     "files.associations": {
         "array": "cpp",
         "hash_map": "cpp",

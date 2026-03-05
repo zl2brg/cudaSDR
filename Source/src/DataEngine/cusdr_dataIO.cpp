@@ -45,6 +45,7 @@
 #include "cusdr_dataIO.h"
 #include "IHPSDRProtocol.h"
 #include "soundout.h"
+#include <QNetworkInterface>
 
 #if defined(Q_OS_WIN32)
 #include <winsock2.h>
@@ -146,13 +147,41 @@ void DataIO::initDataReceiverSocket() {
 		else if (io->samplerate == 48000) newBufferSize = 16*1024;
 	}
 
+    // If the simulator is running on the same Linux machine it will be
+    // discovered at the machine's own LAN IP (or 127.0.0.1).  In either case
+    // both the app and the simulator are bound to port 1024 with SO_REUSEADDR.
+    // When the app sends a unicast command to its own IP:1024, Linux delivers
+    // the datagram back to whichever socket wins the tie-break -- usually the
+    // app's own socket -- so the simulator never receives init frames or the
+    // start command (only the broadcast discovery reaches it, because broadcast
+    // goes to ALL matching sockets).
+    //
+    // Fix: for local devices bind to an ephemeral port (port 0).  The OS picks
+    // a free port and our outgoing packets have a different source port than
+    // 1024.  The simulator records the source (IP:ephemeral) of the start-stop
+    // command and streams IQ data back to that same ephemeral port, so we still
+    // receive everything -- with no port 1024 collision.
+    //
+    // For genuine remote devices keep the classic LAN-IP:1024 binding.
+    const bool deviceIsLocal =
+        io->hpsdrDeviceIPAddress.isLoopback() ||
+        QNetworkInterface::allAddresses().contains(io->hpsdrDeviceIPAddress);
+
+    const QHostAddress bindAddr = deviceIsLocal
+        ? QHostAddress(QHostAddress::AnyIPv4)
+        : QHostAddress(set->getHPSDRDeviceLocalAddr());
+
     for (quint16 port : ports) {
         if (m_sockets.contains(port)) continue;
 
+        // For local devices use ephemeral port 0 so our packets don't share
+        // port 1024 with the simulator socket (see comment above).
+        const quint16 bindPort = deviceIsLocal ? 0 : port;
+
         QUdpSocket* socket = new QUdpSocket();
-        if (socket->bind(QHostAddress(set->getHPSDRDeviceLocalAddr()),
-                                 port,
-                                 QUdpSocket::DontShareAddress))
+        if (socket->bind(bindAddr,
+                                 bindPort,
+                                 QUdpSocket::ReuseAddressHint | QUdpSocket::ShareAddress))
         {
 #if defined(Q_OS_WIN32)
             ::setsockopt(socket->socketDescriptor(), SOL_SOCKET, SO_RCVBUF, (char *)&newBufferSize, sizeof(newBufferSize));
@@ -164,7 +193,8 @@ void DataIO::initDataReceiverSocket() {
             if (port == ports.first()) m_dataIOSocket = socket;
 
             io->networkIOMutex.lock();
-            DATAIO_DEBUG << "data receiver socket bound successful to local port " << port;
+            DATAIO_DEBUG << "data receiver socket bound successful to local port "
+                         << socket->localPort() << " (logical port " << port << ")";
             io->networkIOMutex.unlock();
         } else {
             io->networkIOMutex.lock();
@@ -210,7 +240,7 @@ void DataIO::new_readDeviceData() {
                 m_oldSequence = m_sequence;
 
                 if (!io->iq_queue.isFull()) {
-                    io->iq_queue.enqueue(QByteArray::fromRawData((const char *)&m_buffer[io->protocol->getHeaderSize()], 1024));
+                    io->iq_queue.enqueue(QByteArray((const char *)&m_buffer[io->protocol->getHeaderSize()], 1024));
                     emit (readydata());
                 }
             }
@@ -237,7 +267,7 @@ void DataIO::new_readDeviceData() {
 
                 if (m_sendEP4)
                 {
-                    io->wb_queue.enqueue(QByteArray::fromRawData((const char *)&m_buffer[io->protocol->getHeaderSize()], 1024));
+                    io->wb_queue.enqueue(QByteArray((const char *)&m_buffer[io->protocol->getHeaderSize()], 1024));
                 }
                 if (m_wbCount++ == m_wbBuffers)
                 {
