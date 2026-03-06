@@ -407,6 +407,7 @@ public:
 
 public slots:
 	void	stop();
+    void    startControlTimer();
 	void	processReadData();
 	void	processDeviceData();
     void    processMicData();
@@ -486,6 +487,7 @@ private:
 	quint32			m_oldSendSequence;
 
 	volatile bool	m_stopped;
+    QTimer*         m_controlTimer;
     void            get_tx_iqData();
     void            buffer_tx_iq_sample(int i, int q);
     void    DumpBuffer(unsigned char *buffer,int length, const char *who);

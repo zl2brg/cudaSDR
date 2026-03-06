@@ -84,7 +84,7 @@ private:
 	QByteArray		m_twoFramesDatagram;
 	QByteArray		m_outDatagram;
 	QString			m_message;
-	unsigned char 	m_buffer[METIS_DATA_SIZE];
+	unsigned char 	m_buffer[1500];
 	QByteArray  	m_iqbuffer;
 
     QElapsedTimer	m_packetLossTime;

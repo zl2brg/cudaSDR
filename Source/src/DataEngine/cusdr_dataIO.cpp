@@ -238,6 +238,10 @@ void DataIO::new_readDeviceData() {
         if (io->protocol && io->protocol->isPacketValid(m_buffer, size)) {
             int type = io->protocol->getPacketType(m_buffer);
             if (type == 0x06) {
+                static int newIqCount = 0;
+                if (++newIqCount % 1000 == 0) {
+                    DATAIO_DEBUG << "P2: [new] Received 1000 IQ packets on port " << socket->localPort() << " size " << size;
+                }
 
                 m_sequence = io->protocol->getSequence(m_buffer);
 
@@ -251,9 +255,13 @@ void DataIO::new_readDeviceData() {
                 m_oldSequence = m_sequence;
 
                 if (!io->iq_queue.isFull()) {
-                    io->iq_queue.enqueue(QByteArray((const char *)&m_buffer[io->protocol->getHeaderSize()], 1024));
+                    io->iq_queue.enqueue(QByteArray((const char *)&m_buffer[io->protocol->getHeaderSize()], size - io->protocol->getHeaderSize()));
                     emit (readydata());
                 }
+            }
+            else if (type == 0x05) { // High Priority Status (Protocol 2)
+                DATAIO_DEBUG << "P2: [new] Received High Priority Status packet on port " << socket->localPort() << " size " << size;
+                io->protocol->decodeCCBytes(QByteArray((const char*)m_buffer, size), io);
             }
             else if (type == 0x04) { // wide band data
 
@@ -278,7 +286,7 @@ void DataIO::new_readDeviceData() {
 
                 if (m_sendEP4)
                 {
-                    io->wb_queue.enqueue(QByteArray((const char *)&m_buffer[io->protocol->getHeaderSize()], 1024));
+                    io->wb_queue.enqueue(QByteArray((const char *)&m_buffer[io->protocol->getHeaderSize()], size - io->protocol->getHeaderSize()));
                 }
                 if (m_wbCount++ == m_wbBuffers)
                 {
@@ -299,13 +307,15 @@ void DataIO::readDeviceData() {
 		if (io->protocol && io->protocol->isPacketValid((const unsigned char*)m_datagram.data(), size)) {
             int type = io->protocol->getPacketType((const unsigned char*)m_datagram.data());
 			if (type == 0x06) {
+                static int iqCount = 0;
+                if (++iqCount % 1000 == 0) {
+                    DATAIO_DEBUG << "P2: Received 1000 IQ packets on port " << socket->localPort() << " size " << size;
+                }
 
 				m_sequence = io->protocol->getSequence((const unsigned char*)m_datagram.data());
 
 				if (m_sequence != m_oldSequence + 1) {
-
 					if (m_packetLossTime.elapsed() > 100) {
-						
 						set->setPacketLoss(2);
 						m_packetLossTime.restart();
 					}
@@ -314,26 +324,23 @@ void DataIO::readDeviceData() {
 				m_oldSequence = m_sequence;
 
                 if (!io->iq_queue.isFull()) {
-					// Enqueue the full received payload from getHeaderSize() onwards so
-					// that processInputBuffer() receives all samples (not just BUFFER_SIZE
-					// bytes, which is a Protocol-1-specific constant).
-					const int hdrSize = io->protocol->getHeaderSize();
-					io->iq_queue.enqueue(m_datagram.mid(hdrSize, size - hdrSize));
-					emit (readydata());
-				}
-			}
-			else if (type == 0x04) { // wide band data
-
+                    const int hdrSize = io->protocol->getHeaderSize();
+                    io->iq_queue.enqueue(m_datagram.mid(hdrSize, size - hdrSize));
+                    emit (readydata());
+                }
+            }
+            else if (type == 0x05) { // High Priority Status (Protocol 2)
+                DATAIO_DEBUG << "P2: Received High Priority Status packet on port " << socket->localPort() << " size " << size;
+                io->protocol->decodeCCBytes(m_datagram.left(size), io);
+            }
+            else if (type == 0x04) { // wide band data
 				m_sequenceWideBand = io->protocol->getSequence((const unsigned char*)m_datagram.data());
 
 				if (m_sequenceWideBand != m_oldSequenceWideBand + 1) {
-
 					DATAIO_DEBUG << "wideband readData missed " << m_sequenceWideBand - m_oldSequenceWideBand << " packages.";
-
 					if (m_packetLossTime.elapsed() > 100) {
-						
-					 set->setPacketLoss(2);
-					 m_packetLossTime.restart();
+					    set->setPacketLoss(2);
+					    m_packetLossTime.restart();
 					}
 				}
 				
@@ -349,7 +356,7 @@ void DataIO::readDeviceData() {
 
 				if (m_sendEP4)
 				{
-					m_wbDatagram.append(m_datagram.mid(io->protocol->getHeaderSize(), BUFFER_SIZE));
+					m_wbDatagram.append(m_datagram.mid(io->protocol->getHeaderSize(), size - io->protocol->getHeaderSize()));
 				    if (m_wbCount++ == m_wbBuffers)
 				    {
 					    // enqueue

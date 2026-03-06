@@ -23,17 +23,15 @@ int CProtocol2::getPacketType(const unsigned char* data) {
     // Protocol 2 uses port numbers (not an in-band type field) to distinguish
     // packet purposes.  Since this method has no port context, we discriminate
     // by packet size (stored during the prior isPacketValid() call):
-    //   DDC IQ data packets  : sent on port 1035+ and are large (> 64 bytes)
+    //   DDC IQ data packets  : sent on port 1035+ and are large (typically 1444 bytes)
     //   High-Priority Status : sent on port 1025 and are 60 bytes
-    // Return 0x06 for IQ data (matches the readDeviceData() check) so the
-    // data is actually enqueued and processed.  Anything else is ignored.
     //
-    // TODO(P2-MULTI-RX): This size-based heuristic cannot distinguish between
-    // DDC0 IQ (port 1035) and DDC1 IQ (port 1036).  The correct approach is to
-    // pass the source port number from readDeviceData() / new_readDeviceData()
-    // into the protocol -- e.g. as a new IHPSDRProtocol::getPacketType(data, port)
-    // overload -- so each DDC port can be mapped to its RX index.
-    return (m_lastPacketLen > 64) ? 0x06 : 0xFF;
+    // Return 0x06 for IQ data (matches the readDeviceData() check).
+    // Return 0x05 for High Priority Status (PC <- SDR).
+    // Anything else is ignored.
+    if (m_lastPacketLen > 1000) return 0x06;
+    if (m_lastPacketLen == 60) return 0x05;
+    return 0xFF;
 }
 
 void CProtocol2::processInputBuffer(const QByteArray& buffer, DataEngine* de) {
@@ -89,45 +87,82 @@ void CProtocol2::processInputBuffer(const QByteArray& buffer, DataEngine* de) {
 void CProtocol2::decodeCCBytes(const QByteArray& buffer, THPSDRParameter* io) {
     // Protocol 2 High Priority Status Packet (default port 1025, hardware→host)
     // Per spec v4.3 p.45-48:
-    //   Bytes 0-3 : Sequence number
-    //   Byte  4   : [0]=PTT, [1]=Dot, [2]=Dash, [4]=PLL locked, [5]=FIFO empty, [6]=FIFO full
-    //   Byte  5   : ADC overload bitmask [0]=ADC0 … [7]=ADC7
-    //   Bytes 6-7 : Exciter power 0 (16-bit BE)
-    //   Bytes 14-15: Forward power Alex0 (16-bit BE)
-    //   Bytes 22-23: Reverse power Alex0 (16-bit BE)
-    //   Byte  30  : FIFO overflow
-    //   Bytes 34-35: Temperature (16-bit BE, degrees C × 100 or see Appendix A)
-    //   Bytes 36-37: Supply voltage (16-bit BE, millivolts)
-    //   Byte  59  : IO2,IO4,IO5,IO6,IO8 inputs (see spec byte 59)
-    if (buffer.size() < 5) return;
+    if (buffer.size() < 60) return;
+
+    Settings* set = Settings::instance();
 
     io->ccRx.previous_dash = io->ccRx.dash;
     io->ccRx.previous_dot  = io->ccRx.dot;
 
-    io->ccRx.ptt  = (buffer.at(4) & 0x01);
+    // Byte 4: [0]=PTT, [1]=Dot, [2]=Dash, [4]=PLL locked, [5]=FIFO empty, [6]=FIFO full
+    bool ptt = (buffer.at(4) & 0x01);
+    if (ptt != io->ccRx.ptt) {
+        io->ccRx.ptt = ptt;
+        set->setRadioState(ptt ? RadioState::MOX : RadioState::RX);
+    }
+
     io->ccRx.dot  = (buffer.at(4) & 0x02);
     io->ccRx.dash = (buffer.at(4) & 0x04);
+    
+    // Additional status in Byte 4
+    // bool pllLocked = (buffer.at(4) & 0x10);
+    // bool fifoEmpty = (buffer.at(4) & 0x20);
+    // bool fifoFull  = (buffer.at(4) & 0x40);
 
-    // TODO(P2-STATUS): Decode remaining HP status fields:
-    //   bool pllLocked  = (buffer.at(4) & 0x10);
-    //   bool fifoEmpty  = (buffer.at(4) & 0x20);
-    //   bool fifoFull   = (buffer.at(4) & 0x40);
-    //   uint8_t adcOvld = (uint8_t)buffer.at(5);
-    //   uint16_t fwdPwr = ((uint8_t)buffer.at(14) << 8) | (uint8_t)buffer.at(15);
-    //   uint16_t revPwr = ((uint8_t)buffer.at(22) << 8) | (uint8_t)buffer.at(23);
-    //   uint16_t temperature = ((uint8_t)buffer.at(34) << 8) | (uint8_t)buffer.at(35);
-    //   uint16_t supplyVolts = ((uint8_t)buffer.at(36) << 8) | (uint8_t)buffer.at(37);
-    // Feed these into THPSDRParameter / Settings signals so the UI can display them.
+    // Byte 5: ADC overload bitmask [0]=ADC0 … [7]=ADC7
+    uint8_t adcOvld = (uint8_t)buffer.at(5);
+    io->ccRx.mercury1_LT2208 = (adcOvld & 0x01);
+    io->ccRx.mercury2_LT2208 = (adcOvld & 0x02);
+    io->ccRx.mercury3_LT2208 = (adcOvld & 0x04);
+    io->ccRx.mercury4_LT2208 = (adcOvld & 0x08);
+
+    if (adcOvld != 0) {
+        set->setADCOverflow(2);
+    }
+
+    // Bytes 14-15: Forward power Alex0 (16-bit BE)
+    uint16_t fwdPwrRaw = qFromBigEndian<uint16_t>(reinterpret_cast<const uchar*>(buffer.constData() + 14));
+    io->ccRx.ain1 = fwdPwrRaw;
+    io->alexForwardVolts = (double)fwdPwrRaw * (3.3 / 4095.0); // Assume 12-bit ADC referenced to 3.3V
+
+    // Bytes 22-23: Reverse power Alex0 (16-bit BE)
+    uint16_t revPwrRaw = qFromBigEndian<uint16_t>(reinterpret_cast<const uchar*>(buffer.constData() + 22));
+    io->ccRx.ain2 = revPwrRaw;
+    io->alexReverseVolts = (double)revPwrRaw * (3.3 / 4095.0);
+
+    // Bytes 34-35: Temperature (16-bit BE, degrees C x 100)
+    uint16_t tempRaw = qFromBigEndian<uint16_t>(reinterpret_cast<const uchar*>(buffer.constData() + 34));
+
+    // Bytes 36-37: Supply voltage (16-bit BE, millivolts)
+    uint16_t supplyMV = qFromBigEndian<uint16_t>(reinterpret_cast<const uchar*>(buffer.constData() + 36));
+    io->supplyVolts = (double)supplyMV / 1000.0;
+    io->ccRx.ain6 = supplyMV;
+
+    // Byte 59: IO2,IO4,IO5,IO6,IO8 inputs
+    uint8_t inputs = (uint8_t)buffer.at(59);
+    io->ccRx.hermesI01 = !(inputs & 0x01); // Bit 0 is IO2 (active low)
+    io->ccRx.hermesI02 = !(inputs & 0x02); // Bit 1 is IO4
+    io->ccRx.hermesI03 = !(inputs & 0x04); // Bit 2 is IO5
+    io->ccRx.hermesI04 = !(inputs & 0x08); // Bit 3 is IO6
+}
 
 void CProtocol2::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& sendState, quint16& port) {
     Settings* set = Settings::instance();
     io->mutex.lock();
     memset(buffer, 0, 64);
-    
-    // Protocol 2 commands are 60 bytes.
-    // 0-3: Sequence number
-    // 4: Packet type or first data byte
-    
+
+    // State 0 (General Config) is sent once at startup by formatInitFrame() via
+    // sendInitFramesToNetworkDevice().  It must NOT be resent periodically because
+    // the hpsdrsim stores addr_new from the source of the last General Config:
+    // if that's m_controlSocket the IQ data goes there instead of m_dataIOSocket.
+    // Skip state 0 in the periodic cycle; advance straight to state 1.
+    if (sendState == 0) {
+        sendState = 1;
+        port = 0; // signal to caller: nothing to send
+        io->mutex.unlock();
+        return;
+    }
+
     switch (sendState) {
         case 0: // General Packet (Port 1024)
             port = 1024;
@@ -248,40 +283,19 @@ void CProtocol2::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
         default:
             port = 1027;
             {
-                // TODO(P2-BUFSIZE): memset only clears 64 bytes but the HP Data packet
-                // carries DUC0 frequency at bytes 329-332 and drive level at byte 345.
-                // Either increase the buffer size or send separate partial HP packets.
-                // For now only byte 4 (run/PTT), byte 5 (CWX), and DDC0 frequency
-                // (bytes 9-12) are set — sufficient for receive-only operation.
-
+                // ...existing case 3 body...
                 uint32_t seq = qToBigEndian(m_sequences[1027]++);
                 memcpy(buffer, &seq, 4);
 
-                // Byte 4: [0]=run, [1]=PTT0, [2]=PTT1, [3]=PTT2, [4]=PTT3
                 buffer[4] = 0x01; // Run bit
                 if (io->ccTx.mox || io->ccTx.ptt) {
                     buffer[4] |= 0x02; // PTT0
                 }
 
-                // Byte 5: CWX0 [0]=CWX, [1]=Dot, [2]=Dash
-                // TODO(P2-CW): Set CWX bits from io->ccTx when CW keying is implemented.
-
-                // Bytes 9-12: Frequency/phase word for DDC0 (Big Endian, in Hz)
-                // Spec: bytes 9-12 = DDC0, 13-16 = DDC1, ..., 329-332 = DDC79
-                //       bytes 333-336 = DUC0 TX frequency, byte 345 = DUC0 drive level
                 uint32_t freq = qToBigEndian((uint32_t)set->getCtrFrequencies().at(0));
                 memcpy(&buffer[9], &freq, 4);
-
-                // TODO(P2-MULTI-RX): Write DDC1..N frequencies at bytes 13, 17, 21 ...
-                //   for (int r = 1; r < io->receivers && r < 80; r++) {
-                //       uint32_t f = qToBigEndian((uint32_t)set->getCtrFrequencies().at(r));
-                //       memcpy(&buffer[9 + r*4], &f, 4);
-                //   }
-
-                // TODO(P2-TX-FREQ): Set DUC0 TX frequency (bytes 329-332) and
-                //   drive level (byte 345). Requires output_buffer to be ≥350 bytes.
             }
-            sendState = 0;
+            sendState = 1; // cycle back to DDC Specific; skip GP resend
             break;
     }
     
@@ -289,13 +303,12 @@ void CProtocol2::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
 }
 
 QByteArray CProtocol2::formatStartStop(char value, quint16& port) {
-    // Protocol 2 High Priority Data Packet (Port 1027)
+    // Protocol 2 High Priority Data Packet (PC → SDR, Port 1027)
+    // The spec and the hpsdrsim both require this packet to be exactly 1444 bytes.
+    // The hpsdrsim highprio_thread does `if (rc != 1444) { break; }` and exits
+    // if it gets anything shorter, so the run bit is never seen and RX never starts.
     port = 1027;
-    // 0-3: Sequence (0)
-    // 4: Bits - run, PTT(n) -> Bit 0 is run
-    QByteArray commandDatagram;
-    commandDatagram.resize(60); 
-    commandDatagram.fill(0);
+    QByteArray commandDatagram(1444, '\0');
     commandDatagram[4] = value ? 0x01 : 0x00;
     return commandDatagram;
 }

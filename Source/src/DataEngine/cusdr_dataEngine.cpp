@@ -1624,6 +1624,9 @@ void DataEngine::createDataProcessor() {
 	m_dataProcessor = new DataProcessor(this, m_serverMode, m_hwInterface);
 	sendSocket = new QUdpSocket();
     m_controlSocket = new QUdpSocket();
+    if (!m_controlSocket->bind(QHostAddress::AnyIPv4, 0)) {
+        DATA_ENGINE_DEBUG << "Warning: Could not bind m_controlSocket.";
+    }
     connect(
 			sendSocket,
         &QAbstractSocket::errorOccurred,
@@ -1655,6 +1658,11 @@ void DataEngine::createDataProcessor() {
 	m_dataProcThread = new QThreadEx();
 	m_dataProcessor->moveToThread(m_dataProcThread);
 	sendSocket->moveToThread(m_dataProcThread);
+    if (m_controlSocket) {
+        m_controlSocket->moveToThread(m_dataProcThread);
+    }
+
+    connect(m_dataProcThread, &QThread::started, m_dataProcessor, &DataProcessor::startControlTimer);
 
 	switch (m_hwInterface) {
 
@@ -2409,6 +2417,9 @@ DataProcessor::DataProcessor(
     //socket = new QUdpSocket();
 	m_deviceAddress = set->getCurrentMetisCard().ip_address;
 
+    m_controlTimer = new QTimer(this);
+    connect(m_controlTimer, &QTimer::timeout, this, &DataProcessor::encodeCCBytes);
+
     file = new QFile("data.txt");
     file->open(QIODevice::ReadWrite);
 
@@ -2427,6 +2438,12 @@ void DataProcessor::stop() {
 	m_stopped = true;
 }
 
+void DataProcessor::startControlTimer() {
+    if (de->set->getCurrentMetisCard().protocol == 2 && m_controlTimer) {
+        m_controlTimer->start(10);
+    }
+}
+
 void DataProcessor::initDataProcessorSocket() {
 
 }
@@ -2439,18 +2456,11 @@ void DataProcessor::displayDataProcessorSocketError(QAbstractSocket::SocketError
 
 void DataProcessor::processDeviceData() {
 
-
 	DATA_PROCESSOR_DEBUG << "Data Processor thread: " << this->thread();
 	forever {
 
-        //m_dataEngine->processInputBuffer(m_dataEngine->io.iq_queue.dequeue());
-
 		QByteArray buf = de->io.iq_queue.dequeue();
-		//de->processInputBuffer(buf.left(BUFFER_SIZE/2));
-		//de->processInputBuffer(buf.right(BUFFER_SIZE/2));
-
-		processInputBuffer(buf.left(BUFFER_SIZE));
-	//	processInputBuffer(buf.right(BUFFER_SIZE/2));
+		processInputBuffer(buf);
 
 		if (de->io.iq_queue.isFull()) {
 			DATA_PROCESSOR_DEBUG << "IQ queue full!";
@@ -2462,16 +2472,6 @@ void DataProcessor::processDeviceData() {
 			break;
 		}
 	}
-
-//	if (m_serverMode == QSDR::ExternalDSP) {
-//
-//		disconnect(this);
-//		m_dataProcessorSocket->close();
-//		delete m_dataProcessorSocket;
-//		m_dataProcessorSocket = NULL;
-//
-//		m_socketConnected = false;
-//	}
 }
 
 
@@ -3035,13 +3035,28 @@ void DataProcessor::processOutputBuffer(const CPX &buffer) {
 void DataProcessor::encodeCCBytes() {
     if (de->m_protocol) {
         quint16 port = DEVICE_PORT;
-        de->m_protocol->encodeCCBytes(de->io.output_buffer, &de->io, m_sendState, port);
 
         if (de->set->getCurrentMetisCard().protocol == 2) {
-            // Protocol 2 commands are sent to specific ports via m_controlSocket
-            if (de->m_controlSocket->writeDatagram((const char*)de->io.output_buffer, 60, m_deviceAddress, port) < 0) {
+            // Protocol 2 HP Data packet (port 1027) must be exactly 1444 bytes;
+            // the hpsdrsim highprio_thread breaks out of its receive loop on any
+            // other size, meaning run never becomes 1 and the RX threads never start.
+            // Use a separate 1444-byte buffer so output_buffer (512 bytes) is not
+            // overrun.  Packets for other P2 command ports (1024/1025/1026) are
+            // still 60 bytes.
+            static unsigned char p2CmdBuf[1444];
+            memset(p2CmdBuf, 0, sizeof(p2CmdBuf));
+            de->m_protocol->encodeCCBytes(p2CmdBuf, &de->io, m_sendState, port);
+            m_deviceAddress = de->io.hpsdrDeviceIPAddress;
+            // Per hpsdrsim packet-length checks:
+            //   port 1025 (DDC Specific) : 1444 bytes
+            //   port 1026 (DUC Specific) :   60 bytes
+            //   port 1027 (HP Data)      : 1444 bytes
+            const int sendSize = (port == 1025 || port == 1027) ? 1444 : 60;
+            if (de->m_controlSocket->writeDatagram((const char*)p2CmdBuf, sendSize, m_deviceAddress, port) < 0) {
                 DATA_PROCESSOR_DEBUG << "error sending control data to device: " << de->m_controlSocket->errorString();
             }
+        } else {
+            de->m_protocol->encodeCCBytes(de->io.output_buffer, &de->io, m_sendState, port);
         }
     }
 }

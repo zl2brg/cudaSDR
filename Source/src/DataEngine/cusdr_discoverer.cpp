@@ -213,6 +213,8 @@ int Discoverer::findHPSDRDevices() {
 	while (socket.hasPendingDatagrams()) {
 
 		quint16 port;
+        // Reset device card structure for each device found
+        mc = TNetworkDevicecard();
 			
 		m_deviceDatagram.resize(socket.pendingDatagramSize());
 		socket.readDatagram(m_deviceDatagram.data(), m_deviceDatagram.size(), &mc.ip_address, &port);
@@ -233,10 +235,12 @@ int Discoverer::findHPSDRDevices() {
 				io->networkIOMutex.unlock();
 
 				mc.protocol = 1; // Always Protocol 1 for EF FE responses
+                mc.status = 0x02;
 
 				if (m_deviceDatagram.size() >= 10) {
 					int version = (unsigned char)m_deviceDatagram.at(9);
 					int boardId = (unsigned char)m_deviceDatagram.at(10);
+                    mc.sw_version = version;
 					if (boardId == 1)
 						set->setHermesVersion(version);
 					else if (boardId == 0)
@@ -257,7 +261,7 @@ int Discoverer::findHPSDRDevices() {
 			}
 		}
 		// ---- Protocol 2 response: 00 00 00 00 02/03 + MAC + ... ----
-		// Bytes: [0-3]=seq(0), [4]=status, [5-10]=MAC, [11]=device, [13]=firmware
+		// Bytes: [0-3]=seq(0), [4]=status, [5-10]=MAC, [11]=device, [12]=res, [13]=firmware, [14]=receivers, [15]=transmitters
 		else if (m_deviceDatagram.size() >= 14 &&
 				 m_deviceDatagram[0] == 0x00 && m_deviceDatagram[1] == 0x00 &&
 				 m_deviceDatagram[2] == 0x00 && m_deviceDatagram[3] == 0x00)
@@ -271,10 +275,21 @@ int Discoverer::findHPSDRDevices() {
 
 				int no      = (unsigned char)m_deviceDatagram.at(11);
 				int version = (unsigned char)m_deviceDatagram.at(13);
+                int num_ddcs = (m_deviceDatagram.size() >= 15) ? (unsigned char)m_deviceDatagram.at(14) : 1;
+                int num_dacs = (m_deviceDatagram.size() >= 16) ? (unsigned char)m_deviceDatagram.at(15) : 1;
 
 				io->networkIOMutex.lock();
-				DISCOVERER_DEBUG << "[P2] Device found at " << qPrintable(mc.ip_address.toString()) << ":" << port << "; Mac: [" << mc.mac_address << "] board=" << no << " fw=" << version;
+				DISCOVERER_DEBUG << "[P2] Device found at " << qPrintable(mc.ip_address.toString()) << ":" << port 
+                                 << "; Mac: [" << mc.mac_address << "] board=" << no << " fw=" << version 
+                                 << " receivers=" << num_ddcs;
 				io->networkIOMutex.unlock();
+
+                mc.sw_version = version;
+                mc.status = status;
+                mc.max_receivers = num_ddcs;
+                mc.max_transmitters = num_dacs;
+                mc.adcs = num_ddcs;
+                mc.dacs = num_dacs;
 
 				set->setHermesVersion(version); // Most P2 devices are Hermes-class
 				devicesFound += addDevice(mc, no, 2);
@@ -318,11 +333,19 @@ int Discoverer::addDevice(TNetworkDevicecard &mc, int boardId, int protocol) {
 	mc.boardName = str;
 	mc.protocol = protocol;
 
-	if (boardId == 1) { // Hermes
-		mc.adcs = 1;
-		mc.dacs = 1;
-		mc.frequency_min = 0;
-	}
+    if (protocol == 1) {
+        if (boardId == 1) { // Hermes
+            mc.adcs = 1;
+            mc.dacs = 1;
+            mc.frequency_min = 0;
+        } else {
+            mc.adcs = 1;
+            mc.dacs = 1;
+        }
+        mc.max_receivers = mc.adcs;
+        mc.max_transmitters = mc.dacs;
+    }
+
 	mc.frequency_max = (boardId == 6) ? 30720000 : 61440000;
 
 	io->networkIOMutex.lock();
