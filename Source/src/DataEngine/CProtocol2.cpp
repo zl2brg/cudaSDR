@@ -380,7 +380,11 @@ QByteArray CProtocol2::formatInitFrame(int rx, THPSDRParameter* io, quint16& por
     // Use 0 so hardware uses its default.
     // pkt[21..22] already 0.
 
-    // Bytes 23-59: wideband config, endian mode, etc. — leave 0 for defaults.
+    // Byte 23: wide_enable = 1  → request wideband ADC data from device.
+    // Bytes 24-25: wide_len = 0 → device default (512 samples per packet).
+    // Byte 26: wide_size = 0    → device default (16 bits per sample).
+    // Bytes 27-59: wide_rate, ppf, endian, reserved — leave 0.
+    pkt[23] = 1;
 
     return pkt;
 }
