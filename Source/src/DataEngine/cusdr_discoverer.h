@@ -80,6 +80,8 @@ private:
 	TNetworkDevicecard			m_deviceCard;
 	QList<TNetworkDevicecard>	m_deviceCards;
 
+	int  addDevice(TNetworkDevicecard &mc, int boardId, int protocol);
+
 signals:
 
 };

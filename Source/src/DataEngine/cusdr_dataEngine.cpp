@@ -638,6 +638,13 @@ bool DataEngine::getFirmwareVersions() {
 }
 
 // credits go to George Byrkit, K9TRV: the older FW checkings are shamelessly taken from the KISS Konsole!
+// TODO(P2-FIRMWARE): All firmware checks below compare io.hpsdrDeviceName against
+// the strings "Metis" and "Hermes".  Protocol 2 hardware reports board type as a
+// numeric board ID in the discovery reply (byte 11), not a name string.  The name
+// assigned to io.hpsdrDeviceName at line 544 comes from MetisCard::boardName which
+// is populated during discovery and may not equal "Metis" or "Hermes" for newer P2
+// boards ("Orion", "Orion2", "Angelia", etc.).  Until the board-name mapping for
+// P2 boards is verified, these checks are likely silently skipped for P2 hardware.
 bool DataEngine::checkFirmwareVersions() {
 
 	if (io.metisFW != 0 &&  io.hpsdrDeviceName == "Hermes") {
@@ -2024,6 +2031,12 @@ void DataEngine::setFramesPerSecond(QObject *sender, int rx, int value) {
 	io.mutex.unlock();*/
 }
 
+// TODO(P2-SAMPLERATE): Changing the sample rate updates io.samplerate / io.speed
+// but does NOT send a new DDC Specific Packet (port 1025) to the hardware.
+// In Protocol 2 the hardware uses the rate field in the DDC Specific Packet;
+// until a new encodeCCBytes(case 1) is dispatched the hardware ignores the change.
+// Fix: after updating io.samplerate, schedule an encodeCCBytes(1) call (or signal
+// the DataProcessor to resend the DDC Specific packet on the next cycle).
 void DataEngine::setSampleRate(QObject *sender, int value) {
 
 	Q_UNUSED(sender)
@@ -2484,6 +2497,14 @@ void DataProcessor::setOutputBuffer(int rx, const CPX &buffer) {
 	}
 }
 
+// TODO(P2-TX): full_txBuffer() only handles QSDR::Metis and QSDR::Hermes hw interfaces.
+// Protocol 2 hardware (Hermes-Lite 2, Orion, etc.) must be mapped to one of these
+// enum values or a new QSDR::ProtocolV2 enum value must be added.  Until then:
+//   - encodeCCBytes() IS called (sends HP Data packet to port 1027) ✔
+//   - writeData() IS called (sends DUC IQ to port 1029) ✔
+//   - sendAudio() is called with the P1 output_buffer format -
+//     for P2 the audio path is handled by writeData() + formatOutputPacket();
+//     check whether the double-send produces garbage on the DUC port.
 void DataProcessor::full_txBuffer(){
 
     encodeCCBytes();
@@ -3216,11 +3237,16 @@ void DataProcessor::processReadData()
     QByteArray buf;
     while(!de->io.iq_queue.isEmpty()) {
       buf = de->io.iq_queue.dequeue();
-      // Protocol 1 IQ packet structure (1024 bytes payload after 8-byte Metis header):
-      // [8 bytes Header1] [504 bytes Data1] [8 bytes Header2] [504 bytes Data2]
-      // Each block is 512 bytes including its internal header.
-      processInputBuffer(buf.left(512));
-      processInputBuffer(buf.mid(512, 512));
+      if (de->io.protocol && de->io.protocol->getHeaderSize() == METIS_HEADER_SIZE) {
+          // Protocol 1: each UDP packet carries two 512-byte frames.
+          // The payload (1024 bytes) must be split and processed separately.
+          processInputBuffer(buf.left(512));
+          processInputBuffer(buf.mid(512, 512));
+      } else {
+          // Protocol 2: each DDC port sends one continuous IQ stream per
+          // packet.  Pass the entire payload as a single buffer.
+          processInputBuffer(buf);
+      }
     }
 }
 

@@ -100,12 +100,20 @@ int Discoverer::findHPSDRDevices() {
 	int devicesFound = 0;
     m_deviceCards.clear();
 
+    // Protocol 1 discovery packet: EF FE 02 00...00  (63 bytes)
+    // Protocol 2 discovery packet: 00 00 00 00 02 00...00  (60 bytes)
+    // Both are broadcast to port 1024.  We send them sequentially on the same
+    // socket and collect all responses before parsing.
+
 	m_findDatagram.resize(63);
     m_findDatagram[0] = (char)0xEF;
     m_findDatagram[1] = (char)0xFE;
     m_findDatagram[2] = (char)0x02;
 	for (int i = 3; i < 63; i++)
 		m_findDatagram[i] = (char)0x00;
+
+    QByteArray p2FindDatagram(60, 0x00);
+    p2FindDatagram[4] = (char)0x02; // Protocol 2 discovery command
 
 	QUdpSocket socket;
 
@@ -174,13 +182,26 @@ int Discoverer::findHPSDRDevices() {
 	if (socket.writeDatagram(m_findDatagram, QHostAddress::Broadcast, DEVICE_PORT) == 63) {
 
 		io->networkIOMutex.lock();
-		DISCOVERER_DEBUG << "discovery data sent.";
+		DISCOVERER_DEBUG << "Protocol 1 discovery data sent.";
 		io->networkIOMutex.unlock();
 	}
 	else {
 
 		io->networkIOMutex.lock();
-		DISCOVERER_DEBUG << "discovery data not sent.";
+		DISCOVERER_DEBUG << "Protocol 1 discovery data not sent.";
+		io->networkIOMutex.unlock();
+	}
+
+	if (socket.writeDatagram(p2FindDatagram, QHostAddress::Broadcast, DEVICE_PORT) == 60) {
+
+		io->networkIOMutex.lock();
+		DISCOVERER_DEBUG << "Protocol 2 discovery data sent.";
+		io->networkIOMutex.unlock();
+	}
+	else {
+
+		io->networkIOMutex.lock();
+		DISCOVERER_DEBUG << "Protocol 2 discovery data not sent.";
 		io->networkIOMutex.unlock();
 	}
 
@@ -192,94 +213,79 @@ int Discoverer::findHPSDRDevices() {
 	while (socket.hasPendingDatagrams()) {
 
 		quint16 port;
-				
+			
 		m_deviceDatagram.resize(socket.pendingDatagramSize());
 		socket.readDatagram(m_deviceDatagram.data(), m_deviceDatagram.size(), &mc.ip_address, &port);
 
-		if (m_deviceDatagram[0] == (char)0xEF && m_deviceDatagram[1] == (char)0xFE) {
-			
+		// ---- Protocol 1 response: EF FE 02/03 + MAC + firmware + boardID ----
+		if (m_deviceDatagram.size() >= 11 &&
+			m_deviceDatagram[0] == (char)0xEF && m_deviceDatagram[1] == (char)0xFE)
+		{
 			if (m_deviceDatagram[2] == (char)0x02) {
-				
+
 				sprintf(mc.mac_address, "%02X:%02X:%02X:%02X:%02X:%02X",
 					m_deviceDatagram[3] & 0xFF, m_deviceDatagram[4] & 0xFF, m_deviceDatagram[5] & 0xFF,
 					m_deviceDatagram[6] & 0xFF, m_deviceDatagram[7] & 0xFF, m_deviceDatagram[8] & 0xFF);
-				
+
 				io->networkIOMutex.lock();
-				DISCOVERER_DEBUG << "Device found at " << qPrintable(mc.ip_address.toString()) << ":" << port << "; Mac addr: [" << mc.mac_address << "]";
-				DISCOVERER_DEBUG << "Device code version: " << qPrintable(QString::number(m_deviceDatagram.at(9), 16));
+				DISCOVERER_DEBUG << "[P1] Device found at " << qPrintable(mc.ip_address.toString()) << ":" << port << "; Mac addr: [" << mc.mac_address << "]";
+				DISCOVERER_DEBUG << "[P1] Device code version: " << qPrintable(QString::number(m_deviceDatagram.at(9), 16));
 				io->networkIOMutex.unlock();
 
-                if (m_deviceDatagram.size() >= 12) {
-                    mc.protocol = m_deviceDatagram.at(11);
-                } else {
-                    mc.protocol = 1;
-                }
+				mc.protocol = 1; // Always Protocol 1 for EF FE responses
 
-                // Pre-populate versions in Settings to avoid "did not get firmware versions"
-                if (m_deviceDatagram.size() >= 10) {
-                    int version = (unsigned char)m_deviceDatagram.at(9);
-                    int boardId = (unsigned char)m_deviceDatagram.at(10);
-                    if (boardId == 1) { // Hermes
-                        set->setHermesVersion(version);
-                    } else if (boardId == 0) { // Metis
-                        set->setMetisVersion(version);
-                    }
-                }
-
-				int no = m_deviceDatagram.at(10);
-				QString str;
-				if (no == 0)
-					str = "Metis";
-				else if (no == 1)
-					str = "Hermes";
-				else if (no == 2)
-					str = "Griffin";
-				else if (no == 4)
-					str = "Angelia";
-				else if (no == 5)
-					str = "Orion";
-				else if (no == 6) {
-					str = "Hermes-Lite";
+				if (m_deviceDatagram.size() >= 10) {
+					int version = (unsigned char)m_deviceDatagram.at(9);
+					int boardId = (unsigned char)m_deviceDatagram.at(10);
+					if (boardId == 1)
+						set->setHermesVersion(version);
+					else if (boardId == 0)
+						set->setMetisVersion(version);
 				}
 
-				mc.boardID = no;
-				mc.boardName = str;
-                if (mc.boardID == 1) {
-                    mc.adcs = 1;
-                    mc.dacs = 1;
-                    mc.frequency_min = 0;
-                }
-                if (mc.boardID == 6) {
-                  mc.frequency_max = 30720000;
-                }
-                else mc.frequency_max = 61440000;
-
-				io->networkIOMutex.lock();
-
-				DISCOVERER_DEBUG << "Device board ID: " <<  no;
-				DISCOVERER_DEBUG << "Device is: " << qPrintable(str);
-				io->networkIOMutex.unlock();
-
-				m_deviceCards.append(mc);
-
-				str += " (";
-				str += mc.ip_address.toString();
-				str += ")";
-				
-				set->addNetworkIOComboBoxEntry(str);
-				devicesFound++;
+				int no = (unsigned char)m_deviceDatagram.at(10);
+				devicesFound += addDevice(mc, no, 1);
 			}
 			else if (m_deviceDatagram[2] == (char)0x03) {
 
 				io->networkIOMutex.lock();
-				DISCOVERER_DEBUG << "Device already sending data - trying to shut down...";
+				DISCOVERER_DEBUG << "[P1] Device already sending data - trying to shut down...";
 				io->networkIOMutex.unlock();
 
 				shutdownHPSDRDevice();
 				clear();
 			}
 		}
-		
+		// ---- Protocol 2 response: 00 00 00 00 02/03 + MAC + ... ----
+		// Bytes: [0-3]=seq(0), [4]=status, [5-10]=MAC, [11]=device, [13]=firmware
+		else if (m_deviceDatagram.size() >= 14 &&
+				 m_deviceDatagram[0] == 0x00 && m_deviceDatagram[1] == 0x00 &&
+				 m_deviceDatagram[2] == 0x00 && m_deviceDatagram[3] == 0x00)
+		{
+			int status = (unsigned char)m_deviceDatagram.at(4);
+			if (status == 0x02 || status == 0x03) {
+
+				sprintf(mc.mac_address, "%02X:%02X:%02X:%02X:%02X:%02X",
+					m_deviceDatagram[5] & 0xFF, m_deviceDatagram[6] & 0xFF, m_deviceDatagram[7] & 0xFF,
+					m_deviceDatagram[8] & 0xFF, m_deviceDatagram[9] & 0xFF, m_deviceDatagram[10] & 0xFF);
+
+				int no      = (unsigned char)m_deviceDatagram.at(11);
+				int version = (unsigned char)m_deviceDatagram.at(13);
+
+				io->networkIOMutex.lock();
+				DISCOVERER_DEBUG << "[P2] Device found at " << qPrintable(mc.ip_address.toString()) << ":" << port << "; Mac: [" << mc.mac_address << "] board=" << no << " fw=" << version;
+				io->networkIOMutex.unlock();
+
+				set->setHermesVersion(version); // Most P2 devices are Hermes-class
+				devicesFound += addDevice(mc, no, 2);
+
+				if (status == 0x03) {
+					io->networkIOMutex.lock();
+					DISCOVERER_DEBUG << "[P2] Device already running.";
+					io->networkIOMutex.unlock();
+				}
+			}
+		}
 	}
 	set->setMetisCardList(m_deviceCards);
 
@@ -293,6 +299,44 @@ int Discoverer::findHPSDRDevices() {
 
 	socket.close();
 	return devicesFound;
+}
+
+int Discoverer::addDevice(TNetworkDevicecard &mc, int boardId, int protocol) {
+
+	QString str;
+	switch (boardId) {
+		case 0: str = "Metis"; break;
+		case 1: str = "Hermes"; break;
+		case 2: str = "Griffin"; break;
+		case 4: str = "Angelia"; break;
+		case 5: str = "Orion"; break;
+		case 6: str = "Hermes-Lite"; break;
+		default: str = QString("Board-%1").arg(boardId); break;
+	}
+
+	mc.boardID = boardId;
+	mc.boardName = str;
+	mc.protocol = protocol;
+
+	if (boardId == 1) { // Hermes
+		mc.adcs = 1;
+		mc.dacs = 1;
+		mc.frequency_min = 0;
+	}
+	mc.frequency_max = (boardId == 6) ? 30720000 : 61440000;
+
+	io->networkIOMutex.lock();
+	DISCOVERER_DEBUG << "Board ID: " << boardId << " (" << qPrintable(str) << ") protocol=" << protocol;
+	io->networkIOMutex.unlock();
+
+	m_deviceCards.append(mc);
+
+	str += " (";
+	str += mc.ip_address.toString();
+	str += ")";
+	set->addNetworkIOComboBoxEntry(str);
+
+	return 1;
 }
 
 void Discoverer::displayDiscoverySocketError(QAbstractSocket::SocketError error) {

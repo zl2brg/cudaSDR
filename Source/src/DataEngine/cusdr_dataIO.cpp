@@ -75,7 +75,10 @@ DataIO::DataIO(THPSDRParameter *ioData)
 	, m_firstFrame(true)
 	, m_stopped(false)
 {
-	m_datagram.resize(1032);
+	// Size the datagram buffer to the largest possible packet:
+	// Protocol 1: 1032 bytes (METIS_DATA_SIZE)
+	// Protocol 2: up to 1444 bytes (DDC IQ data packet)
+	m_datagram.resize(1444);
 	m_iqbuffer.resize(1024);
 	m_wbDatagram.resize(0);
 	m_twoFramesDatagram.resize(0);
@@ -171,6 +174,14 @@ void DataIO::initDataReceiverSocket() {
         ? QHostAddress(QHostAddress::AnyIPv4)
         : QHostAddress(set->getHPSDRDeviceLocalAddr());
 
+    // TODO(P2-MULTI-RX): getRequiredPorts() currently returns a fixed list
+    // ending with port 1035 (DDC0 source port) regardless of the number of
+    // receivers.  For N receivers the hardware streams DDC0 from port 1035,
+    // DDC1 from port 1036, ..., DDC(N-1) from port 1034+N.  All these ports
+    // must be added to 'ports' after discovery reports num_DDCs, and a socket
+    // must be opened (and readDatagram /readDeviceData connected) for each.
+    // The CProtocol2::getRequiredPorts() method must be updated to return the
+    // dynamic port list once the device's DDC count is known.
     for (quint16 port : ports) {
         if (m_sockets.contains(port)) continue;
 
@@ -303,7 +314,11 @@ void DataIO::readDeviceData() {
 				m_oldSequence = m_sequence;
 
                 if (!io->iq_queue.isFull()) {
-					io->iq_queue.enqueue(m_datagram.mid(io->protocol->getHeaderSize(), BUFFER_SIZE));
+					// Enqueue the full received payload from getHeaderSize() onwards so
+					// that processInputBuffer() receives all samples (not just BUFFER_SIZE
+					// bytes, which is a Protocol-1-specific constant).
+					const int hdrSize = io->protocol->getHeaderSize();
+					io->iq_queue.enqueue(m_datagram.mid(hdrSize, size - hdrSize));
 					emit (readydata());
 				}
 			}
@@ -375,6 +390,9 @@ void DataIO::sendInitFramesToNetworkDevice(int rx) {
     quint16 port = DEVICE_PORT;
     QByteArray initDatagram = io->protocol->formatInitFrame(rx, io, port);
 
+    // Protocol 2 returns an empty datagram for rx > 0 (config only needed once).
+    if (initDatagram.isEmpty()) return;
+
 	if (m_dataIOSocket->writeDatagram(initDatagram.data(), initDatagram.size(), io->hpsdrDeviceIPAddress, port) < 0) {
 
 		io->networkIOMutex.lock();
@@ -420,7 +438,16 @@ void DataIO::networkDeviceStartStop(char value) {
 }
 
 void DataIO::sendAudio(u_char *buf) {
-	//RRK send audio bytes here
+	// TODO(P2-TX-AUDIO): This function decodes audio from the P1 Metis/Hermes
+	// output_buffer format: a 512-byte frame with an 8-byte Metis header followed
+	// by interleaved L/R/I/Q 16-bit samples at bytes 8, 16, 24 ...
+	// In Protocol 2, the equivalent function is full_txBuffer() in DataProcessor
+	// which calls formatOutputPacket() and sends a DUC IQ packet to port 1029.
+	// This DataIO::sendAudio path is called from full_txBuffer() only for
+	// QSDR::Metis / QSDR::Hermes interfaces.  For P2, no equivalent HW interface
+	// enum value routes here, so RX audio playback is silently skipped.
+	// Fix: either map P2 hardware to an existing enum, or add a QSDR::ProtocolV2
+	// enum case and handle it here or in full_txBuffer().
 	static TYPECPX cbuf[252];
 	int i, j;
 	short sample;
