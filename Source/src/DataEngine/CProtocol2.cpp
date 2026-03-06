@@ -28,7 +28,10 @@ int CProtocol2::getPacketType(const unsigned char* data) {
     //
     // Return 0x06 for IQ data (matches the readDeviceData() check).
     // Return 0x05 for High Priority Status (PC <- SDR).
+    // Return 0x04 for Wideband ADC data:
+    //   16-byte header (4 seq + 12 zeros) + 512 samples x 16-bit = 1040 bytes.
     // Anything else is ignored.
+    if (m_lastPacketLen == 1040) return 0x04;  // Wideband (16 hdr + 512*2 payload)
     if (m_lastPacketLen > 1000) return 0x06;
     if (m_lastPacketLen == 60) return 0x05;
     return 0xFF;
@@ -370,11 +373,14 @@ QByteArray CProtocol2::formatInitFrame(int rx, THPSDRParameter* io, quint16& por
     // Use 0 so hardware uses its default.
     // pkt[19..20] already 0.
 
-    // Bytes 21-22: Wideband ADC0 source port (default 1027)
-    // Use 0 so hardware uses its default.
+    // Bytes 21-22: Wideband ADC0 source port (0 = use default 1027).
     // pkt[21..22] already 0.
 
-    // Bytes 23-59: wideband config, endian mode, etc. — leave 0 for defaults.
+    // Byte 23: wide_enable = 1 → request wideband ADC data from device.
+    // Bytes 24-25: wide_len = 0 → device default (512 samples/packet).
+    // Byte 26: wide_size = 0 → device default (16 bits/sample).
+    // Bytes 27-59: wide_rate, ppf, endian, reserved — leave 0.
+    pkt[23] = 1;
 
     return pkt;
 }
