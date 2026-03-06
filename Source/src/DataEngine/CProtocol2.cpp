@@ -28,9 +28,7 @@ int CProtocol2::getPacketType(const unsigned char* data) {
     //
     // Return 0x06 for IQ data (matches the readDeviceData() check).
     // Return 0x05 for High Priority Status (PC <- SDR).
-    // Return 0x04 for wideband ADC data: 16-byte header + 1024-byte payload = 1040 bytes.
     // Anything else is ignored.
-    if (m_lastPacketLen == 1040) return 0x04;  // Wideband ADC data
     if (m_lastPacketLen > 1000) return 0x06;
     if (m_lastPacketLen == 60) return 0x05;
     return 0xFF;
@@ -198,11 +196,7 @@ void CProtocol2::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
                 
                 // Bytes 19-20: Mic samples source port  (0 = use default 1026)
                 // Bytes 21-22: Wideband ADC0 source port (0 = use default 1027)
-                // Byte 23: wide_enable = 1 → request wideband ADC data from device.
-                //   Bytes 24-25: wide_len = 0 → device uses default (512 samples/pkt).
-                //   Byte 26: wide_size = 0 → device uses default (16 bits/sample).
-                //   Bytes 27-59: wide_rate, wide_ppf, endian, reserved — leave 0.
-                buffer[23] = 1;  // Enable wideband ADC data
+                // Bytes 23-59: wideband config / endian / reserved — leave 0.
                 
                 // Other global settings
                 buffer[37] = 0x00; // Time stamping off, VNA off, etc.
