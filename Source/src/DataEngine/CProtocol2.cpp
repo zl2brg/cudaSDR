@@ -71,15 +71,14 @@ void CProtocol2::processInputBuffer(const QByteArray& buffer, DataEngine* de) {
         double lsample = (double)iSample / 8388607.0;
         double rsample = (double)qSample / 8388607.0;
 
-        // Feed to receiver 0 (data on port 1035 = DDC0).  When multi-receiver
-        // dispatch is added each DDC port will map to its own RX index.
+        // Feed to receiver 0 (data on port 1035 = DDC0).
         if (de->io.receivers > 0 && de->RX.at(0)->qtwdsp) {
             de->RX[0]->inBuf[m_rxSamples].re = lsample;
             de->RX[0]->inBuf[m_rxSamples].im = rsample;
         }
 
         m_rxSamples++;
-        if (m_rxSamples == BUFFER_SIZE) {
+        if (m_rxSamples >= BUFFER_SIZE) {
             if (de->RX.at(0)->qtwdsp)
                 QMetaObject::invokeMethod(de->RX.at(0), "dspProcessing", Qt::DirectConnection);
             m_rxSamples = 0;
@@ -156,19 +155,11 @@ void CProtocol2::decodeCCBytes(const QByteArray& buffer, THPSDRParameter* io) {
 void CProtocol2::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& sendState, quint16& port) {
     Settings* set = Settings::instance();
     io->mutex.lock();
-    memset(buffer, 0, 64);
+    // Protocol 2 High Priority and DDC packets must be 1444 bytes.
+    // The provided buffer is already 1444 bytes.
+    memset(buffer, 0, 1444);
 
-    // State 0 (General Config) is sent once at startup by formatInitFrame() via
-    // sendInitFramesToNetworkDevice().  It must NOT be resent periodically because
-    // the hpsdrsim stores addr_new from the source of the last General Config:
-    // if that's m_controlSocket the IQ data goes there instead of m_dataIOSocket.
-    // Skip state 0 in the periodic cycle; advance straight to state 1.
-    if (sendState == 0) {
-        sendState = 1;
-        port = 0; // signal to caller: nothing to send
-        io->mutex.unlock();
-        return;
-    }
+    if (sendState == 0) sendState = 1;
 
     switch (sendState) {
         case 0: // General Packet (Port 1024)
@@ -303,14 +294,14 @@ void CProtocol2::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
                 uint32_t freq = qToBigEndian((uint32_t)set->getCtrFrequencies().at(0));
                 memcpy(&buffer[9], &freq, 4);
 
-                // DUC0 TX frequency (buffer[329-332])
+                // DUC0 TX frequency (buffer[333-336])
                 uint32_t txfreq = qToBigEndian((uint32_t)set->getCtrFrequencies().at(0));
-                memcpy(&buffer[329], &txfreq, 4);
+                memcpy(&buffer[333], &txfreq, 4);
 
                 // DUC0 drive level (buffer[345], 0-255)
                 buffer[345] = (unsigned char)io->ccTx.drivelevel;
             }
-            sendState = 1; // cycle back to DDC Specific; skip GP resend
+            sendState = 1; // cycle back to DDC Specific
             break;
     }
     

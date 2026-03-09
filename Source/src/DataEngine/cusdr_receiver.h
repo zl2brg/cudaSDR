@@ -168,7 +168,7 @@ private slots:
 private:
 
     QVector<float> convertToFloatInterleaved(const QVector<CPX>& in);
-    QVector<float> interleaveFromCPX(const CPX& in);
+    QVector<float> interleaveFromCPX(const CPX& in, int size = -1);
 	Settings*				set;
 	
 	QSDR::_DSPCore			m_dspCore;

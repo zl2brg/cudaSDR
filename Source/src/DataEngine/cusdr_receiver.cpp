@@ -252,19 +252,20 @@ void Receiver::dspProcessing() {
             m_smeterTime.restart();
         }
 #ifdef USE_INTERNAL_AUDIO
-        m_audioOutput->writeAudio(interleaveFromCPX(audioOutputBuf));
+        m_audioOutput->writeAudio(interleaveFromCPX(audioOutputBuf, m_audiobuffersize));
 #endif
         emit audioBufferSignal(m_receiver, audioOutputBuf, m_audiobuffersize);
     }
 }
 
-QVector<float> Receiver::interleaveFromCPX(const CPX& in) {
+QVector<float> Receiver::interleaveFromCPX(const CPX& in, int size) {
     QVector<float> out;
+    int limit = (size < 0 || size > in.size()) ? in.size() : size;
 
-    out.reserve(in.size() * 2);
-    for (const cpx& val : in) {
-        out.append(val.re);
-        out.append(val.im);
+    out.reserve(limit * 2);
+    for (int i = 0; i < limit; i++) {
+        out.append((float)in.at(i).re);
+        out.append((float)in.at(i).im);
     }
     return out;
 }

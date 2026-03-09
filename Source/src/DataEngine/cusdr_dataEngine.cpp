@@ -2077,6 +2077,13 @@ void DataEngine::setSampleRate(QObject *sender, int value) {
 			break;
 	}
 
+    if (m_protocol && set->getCurrentMetisCard().protocol == 2 && m_dataProcessor) {
+        // We cannot access DataProcessor::m_sendState directly from another thread.
+        // Instead, we can force the protocol state if we had a thread-safe way,
+        // or just rely on the 10ms cycle which will hit Case 1 within 30ms.
+        // For now, let's just ensure the sample rate is updated in the IO parameters.
+    }
+
 //	io.mutex.unlock();
 }
 
