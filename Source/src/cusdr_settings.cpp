@@ -3340,6 +3340,16 @@ void Settings::setPacketLoss(int value) {
     emit packetLossChanged(value);
 }
 
+void Settings::setForwardPower(qreal watts) {
+
+    emit forwardPowerChanged(watts);
+}
+
+void Settings::setReversePower(qreal watts) {
+
+    emit reversePowerChanged(watts);
+}
+
 void Settings::setSendIQ(int value) {
 
     emit sendIQSignalChanged(value);

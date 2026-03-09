@@ -143,6 +143,7 @@ private:
 	QString		m_SYNCString;
 	QString		m_ADCString;
 	QString		m_PacketLossString;
+	QString		m_fwdPowerString;
 	QString		m_sendIQString;
 	QString		m_recvAudioString;
 	QString		m_AttnString;
@@ -233,6 +234,7 @@ private:
 	int		m_syncStatus;
 	int		m_adcStatus;
 	int		m_packetLossStatus;
+	qreal	m_fwdPowerWatts = 0.0;
 	int		m_sendIQStatus;
 	int		m_recvAudioStatus;
 	int		m_receivers;
@@ -254,6 +256,7 @@ private:
 	int		m_syncWidth;
 	int		m_adcWidth;
 	int		m_packetLossWidth;
+	int		m_fwdPowerWidth;
 	int		m_sendIQWidth;
 	int		m_recvAudioWidth;
 	int		m_metisStringWidth;
@@ -321,6 +324,7 @@ private slots:
 	void	setSyncStatus(int value);
 	void	setADCStatus(int value);
 	void	setPacketLossStatus(int value);
+	void	setForwardPower(qreal watts);
 	void	setSendIQStatus(int value);
 	void	setRecvAudioStatus(int value);
 	void	setCurrentReceiver(QObject *sender, int value);

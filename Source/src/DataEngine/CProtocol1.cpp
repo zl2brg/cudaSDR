@@ -195,6 +195,7 @@ void CProtocol1::decodeCCBytes(const QByteArray& buffer, THPSDRParameter* io) {
 				io->ccRx.ain1 = (quint16)((quint16)(buffer.at(3) << 8) + (quint16)buffer.at(4));
 				io->alexForwardVolts = (qreal)(3.3 * (qreal)io->ccRx.ain1 / 4095.0);
 				io->alexForwardPower = (qreal)(io->alexForwardVolts * io->alexForwardVolts / 0.09);
+				set->setForwardPower(io->alexForwardPower);
 			}
             break;
 
@@ -203,6 +204,7 @@ void CProtocol1::decodeCCBytes(const QByteArray& buffer, THPSDRParameter* io) {
 				io->ccRx.ain2 = (quint16)((quint16)(buffer.at(1) << 8) + (quint16)buffer.at(2));
 				io->alexReverseVolts = (qreal)(3.3 * (qreal)io->ccRx.ain2 / 4095.0);
 				io->alexReversePower = (qreal)(io->alexReverseVolts * io->alexReverseVolts / 0.09);
+				set->setReversePower(io->alexReversePower);
 			}
 			if (set->getPenelopePresence() || (set->getHWInterface() == QSDR::Hermes)) {
 				io->ccRx.ain3 = (quint16)((quint16)(buffer.at(3) << 8) + (quint16)buffer.at(4));

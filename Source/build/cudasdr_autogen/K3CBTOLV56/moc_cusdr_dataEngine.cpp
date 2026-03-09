@@ -1,7 +1,7 @@
 /****************************************************************************
 ** Meta object code from reading C++ file 'cusdr_dataEngine.h'
 **
-** Created by: The Qt Meta Object Compiler version 69 (Qt 6.9.2)
+** Created by: The Qt Meta Object Compiler version 69 (Qt 6.9.3)
 **
 ** WARNING! All changes made in this file will be lost!
 *****************************************************************************/
@@ -21,7 +21,7 @@
 #if !defined(Q_MOC_OUTPUT_REVISION)
 #error "The header file 'cusdr_dataEngine.h' doesn't include <QObject>."
 #elif Q_MOC_OUTPUT_REVISION != 69
-#error "This file was generated using the moc from 6.9.2. It"
+#error "This file was generated using the moc from 6.9.3. It"
 #error "cannot be used with the include files from this version of Qt."
 #error "(The moc has changed too much.)"
 #endif
@@ -787,6 +787,7 @@ template <> constexpr inline auto DataProcessor::qt_create_metaobjectdata<qt_met
         "val",
         "cw",
         "stop",
+        "startControlTimer",
         "processReadData",
         "processDeviceData",
         "processMicData",
@@ -837,58 +838,60 @@ template <> constexpr inline auto DataProcessor::qt_create_metaobjectdata<qt_met
         }}),
         // Slot 'stop'
         QtMocHelpers::SlotData<void()>(14, 2, QMC::AccessPublic, QMetaType::Void),
-        // Slot 'processReadData'
+        // Slot 'startControlTimer'
         QtMocHelpers::SlotData<void()>(15, 2, QMC::AccessPublic, QMetaType::Void),
-        // Slot 'processDeviceData'
+        // Slot 'processReadData'
         QtMocHelpers::SlotData<void()>(16, 2, QMC::AccessPublic, QMetaType::Void),
-        // Slot 'processMicData'
+        // Slot 'processDeviceData'
         QtMocHelpers::SlotData<void()>(17, 2, QMC::AccessPublic, QMetaType::Void),
+        // Slot 'processMicData'
+        QtMocHelpers::SlotData<void()>(18, 2, QMC::AccessPublic, QMetaType::Void),
         // Slot 'displayDataProcessorSocketError'
-        QtMocHelpers::SlotData<void(QAbstractSocket::SocketError)>(18, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { 0x80000000 | 19, 20 },
+        QtMocHelpers::SlotData<void(QAbstractSocket::SocketError)>(19, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { 0x80000000 | 20, 21 },
         }}),
         // Slot 'initDataProcessorSocket'
-        QtMocHelpers::SlotData<void()>(21, 2, QMC::AccessPrivate, QMetaType::Void),
+        QtMocHelpers::SlotData<void()>(22, 2, QMC::AccessPrivate, QMetaType::Void),
         // Slot 'processInputBuffer'
-        QtMocHelpers::SlotData<void(const QByteArray &)>(22, 2, QMC::AccessPrivate, QMetaType::Void, {{
-            { QMetaType::QByteArray, 23 },
+        QtMocHelpers::SlotData<void(const QByteArray &)>(23, 2, QMC::AccessPrivate, QMetaType::Void, {{
+            { QMetaType::QByteArray, 24 },
         }}),
         // Slot 'processOutputBuffer'
-        QtMocHelpers::SlotData<void(const CPX &)>(24, 2, QMC::AccessPrivate, QMetaType::Void, {{
-            { 0x80000000 | 25, 23 },
+        QtMocHelpers::SlotData<void(const CPX &)>(25, 2, QMC::AccessPrivate, QMetaType::Void, {{
+            { 0x80000000 | 26, 24 },
         }}),
         // Slot 'decodeCCBytes'
-        QtMocHelpers::SlotData<void(const QByteArray &)>(26, 2, QMC::AccessPrivate, QMetaType::Void, {{
-            { QMetaType::QByteArray, 23 },
+        QtMocHelpers::SlotData<void(const QByteArray &)>(27, 2, QMC::AccessPrivate, QMetaType::Void, {{
+            { QMetaType::QByteArray, 24 },
         }}),
         // Slot 'encodeCCBytes'
-        QtMocHelpers::SlotData<void()>(27, 2, QMC::AccessPrivate, QMetaType::Void),
+        QtMocHelpers::SlotData<void()>(28, 2, QMC::AccessPrivate, QMetaType::Void),
         // Slot 'setOutputBuffer'
-        QtMocHelpers::SlotData<void(int, const CPX &)>(28, 2, QMC::AccessPrivate, QMetaType::Void, {{
-            { QMetaType::Int, 29 }, { 0x80000000 | 25, 23 },
+        QtMocHelpers::SlotData<void(int, const CPX &)>(29, 2, QMC::AccessPrivate, QMetaType::Void, {{
+            { QMetaType::Int, 30 }, { 0x80000000 | 26, 24 },
         }}),
         // Slot 'setAudioBuffer'
-        QtMocHelpers::SlotData<void(int, const CPX &, int)>(30, 2, QMC::AccessPrivate, QMetaType::Void, {{
-            { QMetaType::Int, 29 }, { 0x80000000 | 25, 23 }, { QMetaType::Int, 31 },
+        QtMocHelpers::SlotData<void(int, const CPX &, int)>(31, 2, QMC::AccessPrivate, QMetaType::Void, {{
+            { QMetaType::Int, 30 }, { 0x80000000 | 26, 24 }, { QMetaType::Int, 32 },
         }}),
         // Slot 'send_hpsdr_data'
-        QtMocHelpers::SlotData<void(int, const CPX &, int)>(32, 2, QMC::AccessPrivate, QMetaType::Void, {{
-            { QMetaType::Int, 29 }, { 0x80000000 | 25, 23 }, { QMetaType::Int, 31 },
+        QtMocHelpers::SlotData<void(int, const CPX &, int)>(33, 2, QMC::AccessPrivate, QMetaType::Void, {{
+            { QMetaType::Int, 30 }, { 0x80000000 | 26, 24 }, { QMetaType::Int, 32 },
         }}),
         // Slot 'setAudioBuffer_old'
-        QtMocHelpers::SlotData<void(int, const CPX &, int)>(33, 2, QMC::AccessPrivate, QMetaType::Void, {{
-            { QMetaType::Int, 29 }, { 0x80000000 | 25, 23 }, { QMetaType::Int, 31 },
+        QtMocHelpers::SlotData<void(int, const CPX &, int)>(34, 2, QMC::AccessPrivate, QMetaType::Void, {{
+            { QMetaType::Int, 30 }, { 0x80000000 | 26, 24 }, { QMetaType::Int, 32 },
         }}),
         // Slot 'writeData'
-        QtMocHelpers::SlotData<void()>(34, 2, QMC::AccessPrivate, QMetaType::Void),
-        // Slot 'buffer_tx_data'
         QtMocHelpers::SlotData<void()>(35, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'buffer_tx_data'
+        QtMocHelpers::SlotData<void()>(36, 2, QMC::AccessPrivate, QMetaType::Void),
         // Slot 'key_down'
-        QtMocHelpers::SlotData<void(int)>(36, 2, QMC::AccessPrivate, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(int)>(37, 2, QMC::AccessPrivate, QMetaType::Void, {{
             { QMetaType::Int, 2 },
         }}),
         // Slot 'key_down_test'
-        QtMocHelpers::SlotData<void(int, int)>(37, 2, QMC::AccessPrivate, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(int, int)>(38, 2, QMC::AccessPrivate, QMetaType::Void, {{
             { QMetaType::Int, 2 }, { QMetaType::Int, 2 },
         }}),
     };
@@ -921,47 +924,41 @@ void DataProcessor::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _i
         case 4: _t->serverVersionEvent((*reinterpret_cast< std::add_pointer_t<QString>>(_a[1]))); break;
         case 5: _t->keyer_event((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
         case 6: _t->stop(); break;
-        case 7: _t->processReadData(); break;
-        case 8: _t->processDeviceData(); break;
-        case 9: _t->processMicData(); break;
-        case 10: _t->displayDataProcessorSocketError((*reinterpret_cast< std::add_pointer_t<QAbstractSocket::SocketError>>(_a[1]))); break;
-        case 11: _t->initDataProcessorSocket(); break;
-        case 12: _t->processInputBuffer((*reinterpret_cast< std::add_pointer_t<QByteArray>>(_a[1]))); break;
-        case 13: _t->processOutputBuffer((*reinterpret_cast< std::add_pointer_t<CPX>>(_a[1]))); break;
-        case 14: _t->decodeCCBytes((*reinterpret_cast< std::add_pointer_t<QByteArray>>(_a[1]))); break;
-        case 15: _t->encodeCCBytes(); break;
-        case 16: _t->setOutputBuffer((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<CPX>>(_a[2]))); break;
-        case 17: _t->setAudioBuffer((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<CPX>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[3]))); break;
-        case 18: _t->send_hpsdr_data((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<CPX>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[3]))); break;
-        case 19: _t->setAudioBuffer_old((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<CPX>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[3]))); break;
-        case 20: _t->writeData(); break;
-        case 21: _t->buffer_tx_data(); break;
-        case 22: _t->key_down((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 23: _t->key_down_test((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 7: _t->startControlTimer(); break;
+        case 8: _t->processReadData(); break;
+        case 9: _t->processDeviceData(); break;
+        case 10: _t->processMicData(); break;
+        case 11: _t->displayDataProcessorSocketError((*reinterpret_cast< std::add_pointer_t<QAbstractSocket::SocketError>>(_a[1]))); break;
+        case 12: _t->initDataProcessorSocket(); break;
+        case 13: _t->processInputBuffer((*reinterpret_cast< std::add_pointer_t<QByteArray>>(_a[1]))); break;
+        case 14: _t->processOutputBuffer((*reinterpret_cast< std::add_pointer_t<CPX>>(_a[1]))); break;
+        case 15: _t->decodeCCBytes((*reinterpret_cast< std::add_pointer_t<QByteArray>>(_a[1]))); break;
+        case 16: _t->encodeCCBytes(); break;
+        case 17: _t->setOutputBuffer((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<CPX>>(_a[2]))); break;
+        case 18: _t->setAudioBuffer((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<CPX>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[3]))); break;
+        case 19: _t->send_hpsdr_data((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<CPX>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[3]))); break;
+        case 20: _t->setAudioBuffer_old((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<CPX>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[3]))); break;
+        case 21: _t->writeData(); break;
+        case 22: _t->buffer_tx_data(); break;
+        case 23: _t->key_down((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 24: _t->key_down_test((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
         default: ;
         }
     }
     if (_c == QMetaObject::RegisterMethodArgumentMetaType) {
         switch (_id) {
         default: *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType(); break;
-        case 10:
+        case 11:
             switch (*reinterpret_cast<int*>(_a[1])) {
             default: *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType(); break;
             case 0:
                 *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType::fromType< QAbstractSocket::SocketError >(); break;
             }
             break;
-        case 13:
+        case 14:
             switch (*reinterpret_cast<int*>(_a[1])) {
             default: *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType(); break;
             case 0:
-                *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType::fromType< CPX >(); break;
-            }
-            break;
-        case 16:
-            switch (*reinterpret_cast<int*>(_a[1])) {
-            default: *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType(); break;
-            case 1:
                 *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType::fromType< CPX >(); break;
             }
             break;
@@ -980,6 +977,13 @@ void DataProcessor::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _i
             }
             break;
         case 19:
+            switch (*reinterpret_cast<int*>(_a[1])) {
+            default: *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType(); break;
+            case 1:
+                *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType::fromType< CPX >(); break;
+            }
+            break;
+        case 20:
             switch (*reinterpret_cast<int*>(_a[1])) {
             default: *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType(); break;
             case 1:
@@ -1023,14 +1027,14 @@ int DataProcessor::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
     if (_id < 0)
         return _id;
     if (_c == QMetaObject::InvokeMetaMethod) {
-        if (_id < 24)
+        if (_id < 25)
             qt_static_metacall(this, _c, _id, _a);
-        _id -= 24;
+        _id -= 25;
     }
     if (_c == QMetaObject::RegisterMethodArgumentMetaType) {
-        if (_id < 24)
+        if (_id < 25)
             qt_static_metacall(this, _c, _id, _a);
-        _id -= 24;
+        _id -= 25;
     }
     return _id;
 }

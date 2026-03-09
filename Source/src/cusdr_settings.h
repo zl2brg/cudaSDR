@@ -896,6 +896,8 @@ signals:
 	void protocolSyncChanged(int value);
 	void adcOverflowChanged(int value);
 	void packetLossChanged(int value);
+	void forwardPowerChanged(qreal watts);
+	void reversePowerChanged(qreal watts);
 	void sendIQSignalChanged(int value);
 	void rcveIQSignalChanged(int value);
 
@@ -1359,6 +1361,8 @@ public slots:
 	void setProtocolSync(int value);
 	void setADCOverflow(int value);
 	void setPacketLoss(int value);
+	void setForwardPower(qreal watts);
+	void setReversePower(qreal watts);
 	void setSendIQ(int value);
 	void setRcveIQ(int value);
 

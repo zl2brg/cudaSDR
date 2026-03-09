@@ -132,6 +132,10 @@ void CProtocol2::decodeCCBytes(const QByteArray& buffer, THPSDRParameter* io) {
     uint16_t revPwrRaw = qFromBigEndian<uint16_t>(reinterpret_cast<const uchar*>(buffer.constData() + 22));
     io->ccRx.ain2 = revPwrRaw;
     io->alexReverseVolts = (double)revPwrRaw * (3.3 / 4095.0);
+    io->alexForwardPower = io->alexForwardVolts * io->alexForwardVolts / 0.09;
+    io->alexReversePower = io->alexReverseVolts * io->alexReverseVolts / 0.09;
+    Settings::instance()->setForwardPower(io->alexForwardPower);
+    Settings::instance()->setReversePower(io->alexReversePower);
 
     // Bytes 34-35: Temperature (16-bit BE, degrees C x 100)
     uint16_t tempRaw = qFromBigEndian<uint16_t>(reinterpret_cast<const uchar*>(buffer.constData() + 34));

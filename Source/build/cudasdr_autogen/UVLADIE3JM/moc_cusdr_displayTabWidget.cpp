@@ -1,7 +1,7 @@
 /****************************************************************************
 ** Meta object code from reading C++ file 'cusdr_displayTabWidget.h'
 **
-** Created by: The Qt Meta Object Compiler version 69 (Qt 6.9.2)
+** Created by: The Qt Meta Object Compiler version 69 (Qt 6.9.3)
 **
 ** WARNING! All changes made in this file will be lost!
 *****************************************************************************/
@@ -22,7 +22,7 @@
 #if !defined(Q_MOC_OUTPUT_REVISION)
 #error "The header file 'cusdr_displayTabWidget.h' doesn't include <QObject>."
 #elif Q_MOC_OUTPUT_REVISION != 69
-#error "This file was generated using the moc from 6.9.2. It"
+#error "This file was generated using the moc from 6.9.3. It"
 #error "cannot be used with the include files from this version of Qt."
 #error "(The moc has changed too much.)"
 #endif
@@ -54,6 +54,9 @@ template <> constexpr inline auto DisplayTabWidget::qt_create_metaobjectdata<qt_
         "addNICChangedConnection",
         "show3DPanadapter",
         "enabled",
+        "create3DDockWidget",
+        "QWidget*",
+        "mainWindow",
         "systemStateChanged",
         "QSDR::_Error",
         "err",
@@ -91,18 +94,22 @@ template <> constexpr inline auto DisplayTabWidget::qt_create_metaobjectdata<qt_
         QtMocHelpers::SlotData<void(bool)>(10, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Bool, 11 },
         }}),
+        // Slot 'create3DDockWidget'
+        QtMocHelpers::SlotData<void(QWidget *)>(12, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { 0x80000000 | 13, 14 },
+        }}),
         // Slot 'systemStateChanged'
-        QtMocHelpers::SlotData<void(QObject *, QSDR::_Error, QSDR::_HWInterfaceMode, QSDR::_ServerMode, QSDR::_DataEngineState)>(12, 2, QMC::AccessPrivate, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 3 }, { 0x80000000 | 13, 14 }, { 0x80000000 | 15, 16 }, { 0x80000000 | 17, 18 },
-            { 0x80000000 | 19, 20 },
+        QtMocHelpers::SlotData<void(QObject *, QSDR::_Error, QSDR::_HWInterfaceMode, QSDR::_ServerMode, QSDR::_DataEngineState)>(15, 2, QMC::AccessPrivate, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 3 }, { 0x80000000 | 16, 17 }, { 0x80000000 | 18, 19 }, { 0x80000000 | 20, 21 },
+            { 0x80000000 | 22, 23 },
         }}),
         // Slot 'setAlexPresence'
-        QtMocHelpers::SlotData<void(bool)>(21, 2, QMC::AccessPrivate, QMetaType::Void, {{
-            { QMetaType::Bool, 22 },
+        QtMocHelpers::SlotData<void(bool)>(24, 2, QMC::AccessPrivate, QMetaType::Void, {{
+            { QMetaType::Bool, 25 },
         }}),
         // Slot 'setPennyPresence'
-        QtMocHelpers::SlotData<void(bool)>(23, 2, QMC::AccessPrivate, QMetaType::Void, {{
-            { QMetaType::Bool, 22 },
+        QtMocHelpers::SlotData<void(bool)>(26, 2, QMC::AccessPrivate, QMetaType::Void, {{
+            { QMetaType::Bool, 25 },
         }}),
     };
     QtMocHelpers::UintData qt_properties {
@@ -136,9 +143,10 @@ void DisplayTabWidget::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int
             if (_a[0]) *reinterpret_cast< QSize*>(_a[0]) = std::move(_r); }  break;
         case 5: _t->addNICChangedConnection(); break;
         case 6: _t->show3DPanadapter((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1]))); break;
-        case 7: _t->systemStateChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<QSDR::_Error>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<QSDR::_HWInterfaceMode>>(_a[3])),(*reinterpret_cast< std::add_pointer_t<QSDR::_ServerMode>>(_a[4])),(*reinterpret_cast< std::add_pointer_t<QSDR::_DataEngineState>>(_a[5]))); break;
-        case 8: _t->setAlexPresence((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1]))); break;
-        case 9: _t->setPennyPresence((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1]))); break;
+        case 7: _t->create3DDockWidget((*reinterpret_cast< std::add_pointer_t<QWidget*>>(_a[1]))); break;
+        case 8: _t->systemStateChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<QSDR::_Error>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<QSDR::_HWInterfaceMode>>(_a[3])),(*reinterpret_cast< std::add_pointer_t<QSDR::_ServerMode>>(_a[4])),(*reinterpret_cast< std::add_pointer_t<QSDR::_DataEngineState>>(_a[5]))); break;
+        case 9: _t->setAlexPresence((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1]))); break;
+        case 10: _t->setPennyPresence((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1]))); break;
         default: ;
         }
     }
@@ -146,6 +154,13 @@ void DisplayTabWidget::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int
         switch (_id) {
         default: *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType(); break;
         case 7:
+            switch (*reinterpret_cast<int*>(_a[1])) {
+            default: *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType(); break;
+            case 0:
+                *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType::fromType< QWidget* >(); break;
+            }
+            break;
+        case 8:
             switch (*reinterpret_cast<int*>(_a[1])) {
             default: *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType(); break;
             case 4:
@@ -189,14 +204,14 @@ int DisplayTabWidget::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
     if (_id < 0)
         return _id;
     if (_c == QMetaObject::InvokeMetaMethod) {
-        if (_id < 10)
+        if (_id < 11)
             qt_static_metacall(this, _c, _id, _a);
-        _id -= 10;
+        _id -= 11;
     }
     if (_c == QMetaObject::RegisterMethodArgumentMetaType) {
-        if (_id < 10)
+        if (_id < 11)
             qt_static_metacall(this, _c, _id, _a);
-        _id -= 10;
+        _id -= 11;
     }
     return _id;
 }

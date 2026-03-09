@@ -1,7 +1,7 @@
 /****************************************************************************
 ** Meta object code from reading C++ file 'cusdr_oglDisplayPanel.h'
 **
-** Created by: The Qt Meta Object Compiler version 69 (Qt 6.9.2)
+** Created by: The Qt Meta Object Compiler version 69 (Qt 6.9.3)
 **
 ** WARNING! All changes made in this file will be lost!
 *****************************************************************************/
@@ -20,7 +20,7 @@
 #if !defined(Q_MOC_OUTPUT_REVISION)
 #error "The header file 'cusdr_oglDisplayPanel.h' doesn't include <QObject>."
 #elif Q_MOC_OUTPUT_REVISION != 69
-#error "This file was generated using the moc from 6.9.2. It"
+#error "This file was generated using the moc from 6.9.3. It"
 #error "cannot be used with the include files from this version of Qt."
 #error "(The moc has changed too much.)"
 #endif
@@ -66,6 +66,8 @@ template <> constexpr inline auto OGLDisplayPanel::qt_create_metaobjectdata<qt_m
         "setSyncStatus",
         "setADCStatus",
         "setPacketLossStatus",
+        "setForwardPower",
+        "watts",
         "setSendIQStatus",
         "setRecvAudioStatus",
         "setCurrentReceiver",
@@ -139,108 +141,112 @@ template <> constexpr inline auto OGLDisplayPanel::qt_create_metaobjectdata<qt_m
         QtMocHelpers::SlotData<void(int)>(25, 2, QMC::AccessPrivate, QMetaType::Void, {{
             { QMetaType::Int, 8 },
         }}),
+        // Slot 'setForwardPower'
+        QtMocHelpers::SlotData<void(qreal)>(26, 2, QMC::AccessPrivate, QMetaType::Void, {{
+            { QMetaType::QReal, 27 },
+        }}),
         // Slot 'setSendIQStatus'
-        QtMocHelpers::SlotData<void(int)>(26, 2, QMC::AccessPrivate, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(int)>(28, 2, QMC::AccessPrivate, QMetaType::Void, {{
             { QMetaType::Int, 8 },
         }}),
         // Slot 'setRecvAudioStatus'
-        QtMocHelpers::SlotData<void(int)>(27, 2, QMC::AccessPrivate, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(int)>(29, 2, QMC::AccessPrivate, QMetaType::Void, {{
             { QMetaType::Int, 8 },
         }}),
         // Slot 'setCurrentReceiver'
-        QtMocHelpers::SlotData<void(QObject *, int)>(28, 2, QMC::AccessPrivate, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(QObject *, int)>(30, 2, QMC::AccessPrivate, QMetaType::Void, {{
             { QMetaType::QObjectStar, 3 }, { QMetaType::Int, 8 },
         }}),
         // Slot 'setMercuryAttenuator'
-        QtMocHelpers::SlotData<void(QObject *, HamBand, int)>(29, 2, QMC::AccessPrivate, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 3 }, { 0x80000000 | 30, 31 }, { QMetaType::Int, 8 },
+        QtMocHelpers::SlotData<void(QObject *, HamBand, int)>(31, 2, QMC::AccessPrivate, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 3 }, { 0x80000000 | 32, 33 }, { QMetaType::Int, 8 },
         }}),
         // Slot 'setReceivers'
-        QtMocHelpers::SlotData<void(QObject *, int)>(32, 2, QMC::AccessPrivate, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 3 }, { QMetaType::Int, 8 },
-        }}),
-        // Slot 'setDither'
-        QtMocHelpers::SlotData<void(QObject *, int)>(33, 2, QMC::AccessPrivate, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 3 }, { QMetaType::Int, 8 },
-        }}),
-        // Slot 'setRandom'
         QtMocHelpers::SlotData<void(QObject *, int)>(34, 2, QMC::AccessPrivate, QMetaType::Void, {{
             { QMetaType::QObjectStar, 3 }, { QMetaType::Int, 8 },
         }}),
-        // Slot 'set10mhzSource'
+        // Slot 'setDither'
         QtMocHelpers::SlotData<void(QObject *, int)>(35, 2, QMC::AccessPrivate, QMetaType::Void, {{
             { QMetaType::QObjectStar, 3 }, { QMetaType::Int, 8 },
         }}),
-        // Slot 'set122_88mhzSource'
+        // Slot 'setRandom'
         QtMocHelpers::SlotData<void(QObject *, int)>(36, 2, QMC::AccessPrivate, QMetaType::Void, {{
             { QMetaType::QObjectStar, 3 }, { QMetaType::Int, 8 },
         }}),
+        // Slot 'set10mhzSource'
+        QtMocHelpers::SlotData<void(QObject *, int)>(37, 2, QMC::AccessPrivate, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 3 }, { QMetaType::Int, 8 },
+        }}),
+        // Slot 'set122_88mhzSource'
+        QtMocHelpers::SlotData<void(QObject *, int)>(38, 2, QMC::AccessPrivate, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 3 }, { QMetaType::Int, 8 },
+        }}),
         // Slot 'setMercuryPresence'
-        QtMocHelpers::SlotData<void(bool)>(37, 2, QMC::AccessPrivate, QMetaType::Void, {{
-            { QMetaType::Bool, 8 },
-        }}),
-        // Slot 'setPenelopePresence'
-        QtMocHelpers::SlotData<void(bool)>(38, 2, QMC::AccessPrivate, QMetaType::Void, {{
-            { QMetaType::Bool, 8 },
-        }}),
-        // Slot 'setPennylanePresence'
         QtMocHelpers::SlotData<void(bool)>(39, 2, QMC::AccessPrivate, QMetaType::Void, {{
             { QMetaType::Bool, 8 },
         }}),
-        // Slot 'setAlexPresence'
+        // Slot 'setPenelopePresence'
         QtMocHelpers::SlotData<void(bool)>(40, 2, QMC::AccessPrivate, QMetaType::Void, {{
             { QMetaType::Bool, 8 },
         }}),
-        // Slot 'setExcaliburPresence'
+        // Slot 'setPennylanePresence'
         QtMocHelpers::SlotData<void(bool)>(41, 2, QMC::AccessPrivate, QMetaType::Void, {{
             { QMetaType::Bool, 8 },
         }}),
+        // Slot 'setAlexPresence'
+        QtMocHelpers::SlotData<void(bool)>(42, 2, QMC::AccessPrivate, QMetaType::Void, {{
+            { QMetaType::Bool, 8 },
+        }}),
+        // Slot 'setExcaliburPresence'
+        QtMocHelpers::SlotData<void(bool)>(43, 2, QMC::AccessPrivate, QMetaType::Void, {{
+            { QMetaType::Bool, 8 },
+        }}),
         // Slot 'setHermesVersion'
-        QtMocHelpers::SlotData<void(int)>(42, 2, QMC::AccessPrivate, QMetaType::Void, {{
-            { QMetaType::Int, 8 },
-        }}),
-        // Slot 'setMercuryVersion'
-        QtMocHelpers::SlotData<void(int)>(43, 2, QMC::AccessPrivate, QMetaType::Void, {{
-            { QMetaType::Int, 8 },
-        }}),
-        // Slot 'setPenelopeVersion'
         QtMocHelpers::SlotData<void(int)>(44, 2, QMC::AccessPrivate, QMetaType::Void, {{
             { QMetaType::Int, 8 },
         }}),
-        // Slot 'setPennylaneVersion'
+        // Slot 'setMercuryVersion'
         QtMocHelpers::SlotData<void(int)>(45, 2, QMC::AccessPrivate, QMetaType::Void, {{
             { QMetaType::Int, 8 },
         }}),
-        // Slot 'setMetisVersion'
+        // Slot 'setPenelopeVersion'
         QtMocHelpers::SlotData<void(int)>(46, 2, QMC::AccessPrivate, QMetaType::Void, {{
             { QMetaType::Int, 8 },
         }}),
+        // Slot 'setPennylaneVersion'
+        QtMocHelpers::SlotData<void(int)>(47, 2, QMC::AccessPrivate, QMetaType::Void, {{
+            { QMetaType::Int, 8 },
+        }}),
+        // Slot 'setMetisVersion'
+        QtMocHelpers::SlotData<void(int)>(48, 2, QMC::AccessPrivate, QMetaType::Void, {{
+            { QMetaType::Int, 8 },
+        }}),
         // Slot 'setExcaliburVersion'
-        QtMocHelpers::SlotData<void(QObject *, int)>(47, 2, QMC::AccessPrivate, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(QObject *, int)>(49, 2, QMC::AccessPrivate, QMetaType::Void, {{
             { QMetaType::QObjectStar, 3 }, { QMetaType::Int, 8 },
         }}),
         // Slot 'setAlexVersion'
-        QtMocHelpers::SlotData<void(QObject *, int)>(48, 2, QMC::AccessPrivate, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(QObject *, int)>(50, 2, QMC::AccessPrivate, QMetaType::Void, {{
             { QMetaType::QObjectStar, 3 }, { QMetaType::Int, 8 },
         }}),
         // Slot 'setMouseWheelFreqStep'
-        QtMocHelpers::SlotData<void(QObject *, int, qreal)>(49, 2, QMC::AccessPrivate, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(QObject *, int, qreal)>(51, 2, QMC::AccessPrivate, QMetaType::Void, {{
             { QMetaType::QObjectStar, 3 }, { QMetaType::Int, 11 }, { QMetaType::QReal, 8 },
         }}),
         // Slot 'setSMeterValue'
-        QtMocHelpers::SlotData<void(int, double)>(50, 2, QMC::AccessPrivate, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(int, double)>(52, 2, QMC::AccessPrivate, QMetaType::Void, {{
             { QMetaType::Int, 11 }, { QMetaType::Double, 8 },
         }}),
         // Slot 'setSMeterHoldTime'
-        QtMocHelpers::SlotData<void(int)>(51, 2, QMC::AccessPrivate, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(int)>(53, 2, QMC::AccessPrivate, QMetaType::Void, {{
             { QMetaType::Int, 8 },
         }}),
         // Slot 'updateSyncStatus'
-        QtMocHelpers::SlotData<void()>(52, 2, QMC::AccessPrivate, QMetaType::Void),
-        // Slot 'updateADCStatus'
-        QtMocHelpers::SlotData<void()>(53, 2, QMC::AccessPrivate, QMetaType::Void),
-        // Slot 'updatePacketLossStatus'
         QtMocHelpers::SlotData<void()>(54, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'updateADCStatus'
+        QtMocHelpers::SlotData<void()>(55, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'updatePacketLossStatus'
+        QtMocHelpers::SlotData<void()>(56, 2, QMC::AccessPrivate, QMetaType::Void),
     };
     QtMocHelpers::UintData qt_properties {
     };
@@ -274,33 +280,34 @@ void OGLDisplayPanel::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int 
         case 7: _t->setSyncStatus((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
         case 8: _t->setADCStatus((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
         case 9: _t->setPacketLossStatus((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 10: _t->setSendIQStatus((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 11: _t->setRecvAudioStatus((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 12: _t->setCurrentReceiver((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 13: _t->setMercuryAttenuator((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<HamBand>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[3]))); break;
-        case 14: _t->setReceivers((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 15: _t->setDither((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 16: _t->setRandom((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 17: _t->set10mhzSource((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 18: _t->set122_88mhzSource((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 19: _t->setMercuryPresence((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1]))); break;
-        case 20: _t->setPenelopePresence((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1]))); break;
-        case 21: _t->setPennylanePresence((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1]))); break;
-        case 22: _t->setAlexPresence((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1]))); break;
-        case 23: _t->setExcaliburPresence((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1]))); break;
-        case 24: _t->setHermesVersion((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 25: _t->setMercuryVersion((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 26: _t->setPenelopeVersion((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 27: _t->setPennylaneVersion((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 28: _t->setMetisVersion((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 29: _t->setExcaliburVersion((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 30: _t->setAlexVersion((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 31: _t->setMouseWheelFreqStep((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3]))); break;
-        case 32: _t->setSMeterValue((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<double>>(_a[2]))); break;
-        case 33: _t->setSMeterHoldTime((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 34: _t->updateSyncStatus(); break;
-        case 35: _t->updateADCStatus(); break;
-        case 36: _t->updatePacketLossStatus(); break;
+        case 10: _t->setForwardPower((*reinterpret_cast< std::add_pointer_t<qreal>>(_a[1]))); break;
+        case 11: _t->setSendIQStatus((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 12: _t->setRecvAudioStatus((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 13: _t->setCurrentReceiver((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 14: _t->setMercuryAttenuator((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<HamBand>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[3]))); break;
+        case 15: _t->setReceivers((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 16: _t->setDither((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 17: _t->setRandom((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 18: _t->set10mhzSource((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 19: _t->set122_88mhzSource((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 20: _t->setMercuryPresence((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1]))); break;
+        case 21: _t->setPenelopePresence((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1]))); break;
+        case 22: _t->setPennylanePresence((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1]))); break;
+        case 23: _t->setAlexPresence((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1]))); break;
+        case 24: _t->setExcaliburPresence((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1]))); break;
+        case 25: _t->setHermesVersion((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 26: _t->setMercuryVersion((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 27: _t->setPenelopeVersion((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 28: _t->setPennylaneVersion((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 29: _t->setMetisVersion((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 30: _t->setExcaliburVersion((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 31: _t->setAlexVersion((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 32: _t->setMouseWheelFreqStep((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3]))); break;
+        case 33: _t->setSMeterValue((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<double>>(_a[2]))); break;
+        case 34: _t->setSMeterHoldTime((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 35: _t->updateSyncStatus(); break;
+        case 36: _t->updateADCStatus(); break;
+        case 37: _t->updatePacketLossStatus(); break;
         default: ;
         }
     }
@@ -320,7 +327,7 @@ void OGLDisplayPanel::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int 
                 *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType::fromType< QSDR::_ServerMode >(); break;
             }
             break;
-        case 13:
+        case 14:
             switch (*reinterpret_cast<int*>(_a[1])) {
             default: *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType(); break;
             case 1:
@@ -360,14 +367,14 @@ int OGLDisplayPanel::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
     if (_id < 0)
         return _id;
     if (_c == QMetaObject::InvokeMetaMethod) {
-        if (_id < 37)
+        if (_id < 38)
             qt_static_metacall(this, _c, _id, _a);
-        _id -= 37;
+        _id -= 38;
     }
     if (_c == QMetaObject::RegisterMethodArgumentMetaType) {
-        if (_id < 37)
+        if (_id < 38)
             qt_static_metacall(this, _c, _id, _a);
-        _id -= 37;
+        _id -= 38;
     }
     return _id;
 }
