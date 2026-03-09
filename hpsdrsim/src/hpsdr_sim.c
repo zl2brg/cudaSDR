@@ -144,9 +144,11 @@ static int sock_udp;
 // These two variables monitor whether the TX thread is active
 static int enable_thread = 0;
 static int active_thread = 0;
+static int ep4_active_thread = 0;
 
 static void process_ep2(uint8_t *frame);
 static void* handler_ep6(void *arg);
+static void* handler_ep4(void *arg);
 
 static double last_i_sample = 0.0;
 static double last_q_sample = 0.0;
@@ -180,6 +182,7 @@ enum {
 int main(int argc, char *argv[]) {
     int c,i, j, size;
     pthread_t thread;
+    pthread_t ep4_thread;
 
     uint8_t reply[12] = { 0xef, 0xfe, 2, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0, 1, 1 };
 
@@ -700,6 +703,8 @@ while ((c = getopt_long_only(argc, argv, "dh", long_options, NULL)) != -1) {
             enable_thread = 0;
             while (active_thread)
                 usleep(1000);
+            while (ep4_active_thread)
+                usleep(1000);
 
             if (sock_TCP_Client > -1) {
                 close(sock_TCP_Client);
@@ -744,6 +749,13 @@ while ((c = getopt_long_only(argc, argv, "dh", long_options, NULL)) != -1) {
                 return EXIT_FAILURE;
             }
             pthread_detach(thread);
+            ep4_active_thread = 1;
+            if (pthread_create(&ep4_thread, NULL, handler_ep4, NULL) < 0) {
+                dbg_printf(1, "create ep4 wideband thread failed\n");
+                ep4_active_thread = 0;
+            } else {
+                pthread_detach(ep4_thread);
+            }
             break;
 
         default:
@@ -1398,5 +1410,61 @@ void* handler_ep6(void *arg) {
 
     }
     active_thread = 0;
+    return NULL;
+}
+
+// Protocol 1 EP4 wideband ADC sender.
+// Sends 32 x 1032-byte packets (~5 fps) carrying 16-bit ADC noise samples.
+// cudaSDR P1 receiver expects: 0xEF 0xFE 0x01 0x04 | 4-byte seq | 1024 bytes samples.
+// m_wbBuffers=31 → accumulate 32 packets (seq % 32 == 0 triggers new frame).
+void* handler_ep4(void *arg) {
+    int sock;
+    int i, j;
+    uint8_t buffer[1032];
+    uint32_t counter = 0;
+    unsigned int seed;
+    int16_t sample;
+
+    (void)arg;
+    seed = ((uintptr_t)&seed) & 0xFFFFFF;
+
+    sock = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sock < 0) {
+        dbg_printf(1, "**** ERROR: handler_ep4: socket\n");
+        ep4_active_thread = 0;
+        return NULL;
+    }
+
+    dbg_printf(1, "-- Start handler_ep4 (P1 wideband ADC)\n");
+
+    while (enable_thread) {
+        // Send 32 packets per wideband frame
+        for (i = 0; i < 32 && enable_thread; i++) {
+            buffer[0] = 0xEF;
+            buffer[1] = 0xFE;
+            buffer[2] = 0x01;
+            buffer[3] = 0x04;  // EP4 = wideband ADC
+            buffer[4] = (counter >> 24) & 0xFF;
+            buffer[5] = (counter >> 16) & 0xFF;
+            buffer[6] = (counter >>  8) & 0xFF;
+            buffer[7] = (counter      ) & 0xFF;
+            counter++;
+            // Fill with scaled noise (approx -90 dBFS)
+            for (j = 8; j < 1032; j += 2) {
+                sample = (int16_t)(rand_r(&seed) >> 6);
+                buffer[j]     = (uint8_t)((sample >> 8) & 0xFF);
+                buffer[j + 1] = (uint8_t)(sample & 0xFF);
+            }
+            if (sendto(sock, buffer, 1032, 0,
+                       (struct sockaddr*)&addr_old, sizeof(addr_old)) < 0) {
+                dbg_printf(1, "**** ERROR: handler_ep4 sendto\n");
+            }
+        }
+        usleep(200000);  // ~5 fps
+    }
+
+    close(sock);
+    dbg_printf(1, "-- handler_ep4 exit\n");
+    ep4_active_thread = 0;
     return NULL;
 }
