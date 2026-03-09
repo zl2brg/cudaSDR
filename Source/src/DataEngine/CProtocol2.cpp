@@ -299,8 +299,16 @@ void CProtocol2::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
                     buffer[4] |= 0x02; // PTT0
                 }
 
+                // DDC0 RX frequency (buffer[9-12])
                 uint32_t freq = qToBigEndian((uint32_t)set->getCtrFrequencies().at(0));
                 memcpy(&buffer[9], &freq, 4);
+
+                // DUC0 TX frequency (buffer[329-332])
+                uint32_t txfreq = qToBigEndian((uint32_t)set->getCtrFrequencies().at(0));
+                memcpy(&buffer[329], &txfreq, 4);
+
+                // DUC0 drive level (buffer[345], 0-255)
+                buffer[345] = (unsigned char)io->ccTx.drivelevel;
             }
             sendState = 1; // cycle back to DDC Specific; skip GP resend
             break;
