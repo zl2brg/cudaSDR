@@ -178,6 +178,8 @@ template <> constexpr inline auto Settings::qt_create_metaobjectdata<qt_meta_tag
         "src122_88MhzChanged",
         "micSourceChanged",
         "micInputChanged",
+        "digitalAudioInputChanged",
+        "index",
         "classChanged",
         "timingChanged",
         "controlBytesOutChanged",
@@ -336,7 +338,6 @@ template <> constexpr inline auto Settings::qt_create_metaobjectdata<qt_meta_tag
         "addHPSDRDeviceNIC",
         "setNumberOfNetworkInterfaces",
         "setServerNetworkInterface",
-        "index",
         "setHPSDRDeviceNIC",
         "setServerWidgetNIC",
         "setHPSDRWidgetNIC",
@@ -399,6 +400,7 @@ template <> constexpr inline auto Settings::qt_create_metaobjectdata<qt_meta_tag
         "set122_88MhzSource",
         "setMicSource",
         "setMicInputDev",
+        "setDigitalAudioInputDev",
         "setMicInputLevel",
         "setDriveLevel",
         "setClass",
@@ -845,1121 +847,1129 @@ template <> constexpr inline auto Settings::qt_create_metaobjectdata<qt_meta_tag
         QtMocHelpers::SignalData<void(int)>(136, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 133 },
         }}),
+        // Signal 'digitalAudioInputChanged'
+        QtMocHelpers::SignalData<void(int)>(137, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Int, 138 },
+        }}),
         // Signal 'classChanged'
-        QtMocHelpers::SignalData<void(QObject *, int)>(137, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SignalData<void(QObject *, int)>(139, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 29 },
         }}),
         // Signal 'timingChanged'
-        QtMocHelpers::SignalData<void(QObject *, int)>(138, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SignalData<void(QObject *, int)>(140, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 29 },
         }}),
         // Signal 'controlBytesOutChanged'
-        QtMocHelpers::SignalData<void(QObject *, unsigned char *)>(139, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 5 }, { 0x80000000 | 140, 141 },
+        QtMocHelpers::SignalData<void(QObject *, unsigned char *)>(141, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 5 }, { 0x80000000 | 142, 143 },
         }}),
         // Signal 'ctrFrequencyChanged'
-        QtMocHelpers::SignalData<void(QObject *, int, int, long)>(142, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 16 }, { QMetaType::Int, 19 }, { QMetaType::Long, 143 },
+        QtMocHelpers::SignalData<void(QObject *, int, int, long)>(144, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 16 }, { QMetaType::Int, 19 }, { QMetaType::Long, 145 },
         }}),
         // Signal 'vfoFrequencyChanged'
-        QtMocHelpers::SignalData<void(QObject *, int, int, long)>(144, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 16 }, { QMetaType::Int, 19 }, { QMetaType::Long, 143 },
+        QtMocHelpers::SignalData<void(QObject *, int, int, long)>(146, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 16 }, { QMetaType::Int, 19 }, { QMetaType::Long, 145 },
         }}),
         // Signal 'ncoFrequencyChanged'
-        QtMocHelpers::SignalData<void(int, long)>(145, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::Int, 19 }, { QMetaType::Long, 143 },
+        QtMocHelpers::SignalData<void(int, long)>(147, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Int, 19 }, { QMetaType::Long, 145 },
         }}),
         // Signal 'widebandSpectrumBufferChanged'
-        QtMocHelpers::SignalData<void(const qVectorFloat &)>(146, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SignalData<void(const qVectorFloat &)>(148, 2, QMC::AccessPublic, QMetaType::Void, {{
             { 0x80000000 | 34, 35 },
         }}),
         // Signal 'widebandOptionsChanged'
-        QtMocHelpers::SignalData<void(QObject *, TWideband)>(147, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 5 }, { 0x80000000 | 148, 149 },
+        QtMocHelpers::SignalData<void(QObject *, TWideband)>(149, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 5 }, { 0x80000000 | 150, 151 },
         }}),
         // Signal 'widebandSpectrumBufferReset'
-        QtMocHelpers::SignalData<void()>(150, 2, QMC::AccessPublic, QMetaType::Void),
+        QtMocHelpers::SignalData<void()>(152, 2, QMC::AccessPublic, QMetaType::Void),
         // Signal 'widebandStatusChanged'
-        QtMocHelpers::SignalData<void(QObject *, bool)>(151, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SignalData<void(QObject *, bool)>(153, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Bool, 29 },
         }}),
         // Signal 'widebandDataChanged'
-        QtMocHelpers::SignalData<void(QObject *, bool)>(152, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SignalData<void(QObject *, bool)>(154, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Bool, 29 },
         }}),
         // Signal 'widebanddBmScaleMinChanged'
-        QtMocHelpers::SignalData<void(QObject *, qreal)>(153, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SignalData<void(QObject *, qreal)>(155, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::QReal, 29 },
         }}),
         // Signal 'widebanddBmScaleMaxChanged'
-        QtMocHelpers::SignalData<void(QObject *, qreal)>(154, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SignalData<void(QObject *, qreal)>(156, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::QReal, 29 },
         }}),
         // Signal 'wideBandScalePositionChanged'
-        QtMocHelpers::SignalData<void(QObject *, float)>(155, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 5 }, { QMetaType::Float, 156 },
+        QtMocHelpers::SignalData<void(QObject *, float)>(157, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 5 }, { QMetaType::Float, 158 },
         }}),
         // Signal 'panAveragingModeChanged'
-        QtMocHelpers::SignalData<void(int, int)>(157, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SignalData<void(int, int)>(159, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 19 }, { QMetaType::Int, 16 },
         }}),
         // Signal 'panDetectorModeChanged'
-        QtMocHelpers::SignalData<void(int, int)>(158, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SignalData<void(int, int)>(160, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 19 }, { QMetaType::Int, 16 },
         }}),
         // Signal 'fftSizeChanged'
-        QtMocHelpers::SignalData<void(int, int)>(159, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SignalData<void(int, int)>(161, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 19 }, { QMetaType::Int, 39 },
         }}),
         // Signal 'fmsqLevelChanged'
-        QtMocHelpers::SignalData<void(int, int)>(160, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::Int, 19 }, { QMetaType::Int, 161 },
+        QtMocHelpers::SignalData<void(int, int)>(162, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Int, 19 }, { QMetaType::Int, 163 },
         }}),
         // Signal 'iqPortChanged'
-        QtMocHelpers::SignalData<void(QObject *, int, int)>(162, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SignalData<void(QObject *, int, int)>(164, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::Int, 85 },
         }}),
         // Signal 'hamBandChanged'
-        QtMocHelpers::SignalData<void(QObject *, int, bool, HamBand)>(163, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::Bool, 164 }, { 0x80000000 | 112, 113 },
+        QtMocHelpers::SignalData<void(QObject *, int, bool, HamBand)>(165, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::Bool, 166 }, { 0x80000000 | 112, 113 },
         }}),
         // Signal 'dspModeChanged'
-        QtMocHelpers::SignalData<void(QObject *, int, DSPMode)>(165, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { 0x80000000 | 166, 16 },
-        }}),
-        // Signal 'adcModeChanged'
-        QtMocHelpers::SignalData<void(QObject *, int, ADCMode)>(167, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SignalData<void(QObject *, int, DSPMode)>(167, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { 0x80000000 | 168, 16 },
         }}),
+        // Signal 'adcModeChanged'
+        QtMocHelpers::SignalData<void(QObject *, int, ADCMode)>(169, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { 0x80000000 | 170, 16 },
+        }}),
         // Signal 'agcModeChanged'
-        QtMocHelpers::SignalData<void(QObject *, int, AGCMode, bool)>(169, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { 0x80000000 | 170, 16 }, { QMetaType::Bool, 171 },
+        QtMocHelpers::SignalData<void(QObject *, int, AGCMode, bool)>(171, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { 0x80000000 | 172, 16 }, { QMetaType::Bool, 173 },
         }}),
         // Signal 'agcHangEnabledChanged'
-        QtMocHelpers::SignalData<void(QObject *, int, bool)>(172, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::Bool, 173 },
+        QtMocHelpers::SignalData<void(QObject *, int, bool)>(174, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::Bool, 175 },
         }}),
         // Signal 'agcGainChanged'
-        QtMocHelpers::SignalData<void(QObject *, int, int)>(174, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SignalData<void(QObject *, int, int)>(176, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::Int, 29 },
         }}),
         // Signal 'agcThresholdChanged_dB'
-        QtMocHelpers::SignalData<void(QObject *, int, qreal)>(175, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::QReal, 29 },
-        }}),
-        // Signal 'agcFixedGainChanged_dB'
-        QtMocHelpers::SignalData<void(QObject *, int, qreal)>(176, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::QReal, 29 },
-        }}),
-        // Signal 'agcMaximumGainChanged_dB'
         QtMocHelpers::SignalData<void(QObject *, int, qreal)>(177, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::QReal, 29 },
         }}),
-        // Signal 'agcHangThresholdChanged'
-        QtMocHelpers::SignalData<void(QObject *, int, int)>(178, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::Int, 29 },
+        // Signal 'agcFixedGainChanged_dB'
+        QtMocHelpers::SignalData<void(QObject *, int, qreal)>(178, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::QReal, 29 },
         }}),
-        // Signal 'agcHangThresholdSliderChanged'
+        // Signal 'agcMaximumGainChanged_dB'
         QtMocHelpers::SignalData<void(QObject *, int, qreal)>(179, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::QReal, 29 },
         }}),
+        // Signal 'agcHangThresholdChanged'
+        QtMocHelpers::SignalData<void(QObject *, int, int)>(180, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::Int, 29 },
+        }}),
+        // Signal 'agcHangThresholdSliderChanged'
+        QtMocHelpers::SignalData<void(QObject *, int, qreal)>(181, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::QReal, 29 },
+        }}),
         // Signal 'agcHangLevelChanged_dB'
-        QtMocHelpers::SignalData<void(QObject *, int, qreal)>(180, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SignalData<void(QObject *, int, qreal)>(182, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::QReal, 29 },
         }}),
         // Signal 'agcLineLevelsChanged'
-        QtMocHelpers::SignalData<void(QObject *, int, qreal, qreal)>(181, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::QReal, 182 }, { QMetaType::QReal, 173 },
+        QtMocHelpers::SignalData<void(QObject *, int, qreal, qreal)>(183, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::QReal, 184 }, { QMetaType::QReal, 175 },
         }}),
         // Signal 'agcVariableGainChanged_dB'
-        QtMocHelpers::SignalData<void(QObject *, int, qreal)>(183, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::QReal, 29 },
-        }}),
-        // Signal 'agcAttackTimeChanged'
-        QtMocHelpers::SignalData<void(QObject *, int, qreal)>(184, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::QReal, 29 },
-        }}),
-        // Signal 'agcDecayTimeChanged'
         QtMocHelpers::SignalData<void(QObject *, int, qreal)>(185, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::QReal, 29 },
         }}),
-        // Signal 'agcHangTimeChanged'
+        // Signal 'agcAttackTimeChanged'
         QtMocHelpers::SignalData<void(QObject *, int, qreal)>(186, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::QReal, 29 },
         }}),
+        // Signal 'agcDecayTimeChanged'
+        QtMocHelpers::SignalData<void(QObject *, int, qreal)>(187, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::QReal, 29 },
+        }}),
+        // Signal 'agcHangTimeChanged'
+        QtMocHelpers::SignalData<void(QObject *, int, qreal)>(188, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::QReal, 29 },
+        }}),
         // Signal 'filterFrequenciesChanged'
-        QtMocHelpers::SignalData<void(QObject *, int, qreal, qreal)>(187, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::QReal, 188 }, { QMetaType::QReal, 189 },
+        QtMocHelpers::SignalData<void(QObject *, int, qreal, qreal)>(189, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::QReal, 190 }, { QMetaType::QReal, 191 },
         }}),
         // Signal 'cudaDevicesChanged'
-        QtMocHelpers::SignalData<void(QObject *, int)>(190, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 29 },
-        }}),
-        // Signal 'cudaDriverChanged'
-        QtMocHelpers::SignalData<void(QObject *, int)>(191, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 29 },
-        }}),
-        // Signal 'cudaRuntimeChanged'
         QtMocHelpers::SignalData<void(QObject *, int)>(192, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 29 },
         }}),
-        // Signal 'cudaCurrentDeviceChanged'
+        // Signal 'cudaDriverChanged'
         QtMocHelpers::SignalData<void(QObject *, int)>(193, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 29 },
         }}),
-        // Signal 'cudaLastDeviceChanged'
+        // Signal 'cudaRuntimeChanged'
         QtMocHelpers::SignalData<void(QObject *, int)>(194, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 29 },
         }}),
+        // Signal 'cudaCurrentDeviceChanged'
+        QtMocHelpers::SignalData<void(QObject *, int)>(195, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 29 },
+        }}),
+        // Signal 'cudaLastDeviceChanged'
+        QtMocHelpers::SignalData<void(QObject *, int)>(196, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 29 },
+        }}),
         // Signal 'freqRulerPositionChanged'
-        QtMocHelpers::SignalData<void(QObject *, int, float)>(195, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::Float, 156 },
+        QtMocHelpers::SignalData<void(QObject *, int, float)>(197, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::Float, 158 },
         }}),
         // Signal 'audioFormatChanged'
-        QtMocHelpers::SignalData<void(QObject *, const QAudioFormat &)>(196, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 5 }, { 0x80000000 | 197, 198 },
+        QtMocHelpers::SignalData<void(QObject *, const QAudioFormat &)>(198, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 5 }, { 0x80000000 | 199, 200 },
         }}),
         // Signal 'audioPositionChanged'
-        QtMocHelpers::SignalData<void(QObject *, qint64)>(199, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 5 }, { QMetaType::LongLong, 156 },
+        QtMocHelpers::SignalData<void(QObject *, qint64)>(201, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 5 }, { QMetaType::LongLong, 158 },
         }}),
         // Signal 'audioBufferChanged'
-        QtMocHelpers::SignalData<void(QObject *, qint64, qint64, const QByteArray &)>(200, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 5 }, { QMetaType::LongLong, 156 }, { QMetaType::LongLong, 201 }, { QMetaType::QByteArray, 35 },
+        QtMocHelpers::SignalData<void(QObject *, qint64, qint64, const QByteArray &)>(202, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 5 }, { QMetaType::LongLong, 158 }, { QMetaType::LongLong, 203 }, { QMetaType::QByteArray, 35 },
         }}),
         // Signal 'displayWidgetHeightChanged'
-        QtMocHelpers::SignalData<void(int)>(202, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SignalData<void(int)>(204, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 29 },
         }}),
         // Signal 'spectrumSizeChanged'
-        QtMocHelpers::SignalData<void(QObject *, int)>(203, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SignalData<void(QObject *, int)>(205, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 29 },
         }}),
         // Signal 'panadapterColorChanged'
-        QtMocHelpers::SignalData<void()>(204, 2, QMC::AccessPublic, QMetaType::Void),
+        QtMocHelpers::SignalData<void()>(206, 2, QMC::AccessPublic, QMetaType::Void),
         // Signal 'panGridStatusChanged'
-        QtMocHelpers::SignalData<void(bool, int)>(205, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::Bool, 29 }, { QMetaType::Int, 19 },
-        }}),
-        // Signal 'peakHoldStatusChanged'
-        QtMocHelpers::SignalData<void(bool, int)>(206, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::Bool, 29 }, { QMetaType::Int, 19 },
-        }}),
-        // Signal 'panLockedStatusChanged'
         QtMocHelpers::SignalData<void(bool, int)>(207, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Bool, 29 }, { QMetaType::Int, 19 },
         }}),
-        // Signal 'clickVFOStatusChanged'
+        // Signal 'peakHoldStatusChanged'
         QtMocHelpers::SignalData<void(bool, int)>(208, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Bool, 29 }, { QMetaType::Int, 19 },
         }}),
-        // Signal 'hairCrossStatusChanged'
+        // Signal 'panLockedStatusChanged'
         QtMocHelpers::SignalData<void(bool, int)>(209, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Bool, 29 }, { QMetaType::Int, 19 },
         }}),
+        // Signal 'clickVFOStatusChanged'
+        QtMocHelpers::SignalData<void(bool, int)>(210, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Bool, 29 }, { QMetaType::Int, 19 },
+        }}),
+        // Signal 'hairCrossStatusChanged'
+        QtMocHelpers::SignalData<void(bool, int)>(211, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Bool, 29 }, { QMetaType::Int, 19 },
+        }}),
         // Signal 'showAGCLinesStatusChanged'
-        QtMocHelpers::SignalData<void(QObject *, bool, int)>(210, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SignalData<void(QObject *, bool, int)>(212, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Bool, 29 }, { QMetaType::Int, 19 },
         }}),
         // Signal 'spectrumAveragingChanged'
-        QtMocHelpers::SignalData<void(QObject *, int, bool)>(211, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SignalData<void(QObject *, int, bool)>(213, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::Bool, 29 },
         }}),
         // Signal 'spectrumAveragingCntChanged'
-        QtMocHelpers::SignalData<void(QObject *, int, int)>(212, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SignalData<void(QObject *, int, int)>(214, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::Int, 29 },
         }}),
         // Signal 'waterfallTimeChanged'
-        QtMocHelpers::SignalData<void(int, int)>(213, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::Int, 19 }, { QMetaType::Int, 29 },
-        }}),
-        // Signal 'waterfallOffesetLoChanged'
-        QtMocHelpers::SignalData<void(int, int)>(214, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::Int, 19 }, { QMetaType::Int, 29 },
-        }}),
-        // Signal 'waterfallOffesetHiChanged'
         QtMocHelpers::SignalData<void(int, int)>(215, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 19 }, { QMetaType::Int, 29 },
         }}),
+        // Signal 'waterfallOffesetLoChanged'
+        QtMocHelpers::SignalData<void(int, int)>(216, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Int, 19 }, { QMetaType::Int, 29 },
+        }}),
+        // Signal 'waterfallOffesetHiChanged'
+        QtMocHelpers::SignalData<void(int, int)>(217, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Int, 19 }, { QMetaType::Int, 29 },
+        }}),
         // Signal 'sMeterHoldTimeChanged'
-        QtMocHelpers::SignalData<void(int)>(216, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SignalData<void(int)>(218, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 29 },
         }}),
         // Signal 'dBmScaleMinChanged'
-        QtMocHelpers::SignalData<void(int, qreal)>(217, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SignalData<void(int, qreal)>(219, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 19 }, { QMetaType::QReal, 29 },
         }}),
         // Signal 'dBmScaleMaxChanged'
-        QtMocHelpers::SignalData<void(int, qreal)>(218, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SignalData<void(int, qreal)>(220, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 19 }, { QMetaType::QReal, 29 },
         }}),
         // Signal 'agcMaximumGainChanged'
-        QtMocHelpers::SignalData<void(QObject *, int, qreal)>(219, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SignalData<void(QObject *, int, qreal)>(221, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 2 }, { QMetaType::QReal, 29 },
         }}),
         // Signal 'noiseBlankerChanged'
-        QtMocHelpers::SignalData<void(int, int)>(220, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SignalData<void(int, int)>(222, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 19 }, { QMetaType::Int, 16 },
         }}),
         // Signal 'noiseFilterChanged'
-        QtMocHelpers::SignalData<void(int, int)>(221, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SignalData<void(int, int)>(223, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 19 }, { QMetaType::Int, 16 },
         }}),
         // Signal 'nr2GainMethodChanged'
-        QtMocHelpers::SignalData<void(int, int)>(222, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::Int, 19 }, { QMetaType::Int, 29 },
-        }}),
-        // Signal 'nr2NpeMethodChanged'
-        QtMocHelpers::SignalData<void(int, int)>(223, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::Int, 19 }, { QMetaType::Int, 29 },
-        }}),
-        // Signal 'nrAgcChanged'
         QtMocHelpers::SignalData<void(int, int)>(224, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 19 }, { QMetaType::Int, 29 },
         }}),
+        // Signal 'nr2NpeMethodChanged'
+        QtMocHelpers::SignalData<void(int, int)>(225, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Int, 19 }, { QMetaType::Int, 29 },
+        }}),
+        // Signal 'nrAgcChanged'
+        QtMocHelpers::SignalData<void(int, int)>(226, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Int, 19 }, { QMetaType::Int, 29 },
+        }}),
         // Signal 'nr2AeChanged'
-        QtMocHelpers::SignalData<void(int, bool)>(225, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::Int, 19 }, { QMetaType::Bool, 29 },
-        }}),
-        // Signal 'snbChanged'
-        QtMocHelpers::SignalData<void(int, bool)>(226, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::Int, 19 }, { QMetaType::Bool, 29 },
-        }}),
-        // Signal 'anfChanged'
         QtMocHelpers::SignalData<void(int, bool)>(227, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 19 }, { QMetaType::Bool, 29 },
         }}),
+        // Signal 'snbChanged'
+        QtMocHelpers::SignalData<void(int, bool)>(228, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Int, 19 }, { QMetaType::Bool, 29 },
+        }}),
+        // Signal 'anfChanged'
+        QtMocHelpers::SignalData<void(int, bool)>(229, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Int, 19 }, { QMetaType::Bool, 29 },
+        }}),
         // Signal 'micInputLevelChanged'
-        QtMocHelpers::SignalData<void(QObject *, int)>(228, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 161 },
+        QtMocHelpers::SignalData<void(QObject *, int)>(230, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 163 },
         }}),
         // Signal 'driveLevelChanged'
-        QtMocHelpers::SignalData<void(QObject *, int)>(229, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 161 },
+        QtMocHelpers::SignalData<void(QObject *, int)>(231, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 163 },
         }}),
         // Signal 'repeaterModeChanged'
-        QtMocHelpers::SignalData<void(bool)>(230, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SignalData<void(bool)>(232, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Bool, 16 },
         }}),
         // Signal 'repeaterOffsetchanged'
-        QtMocHelpers::SignalData<void(double)>(231, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::Double, 29 },
-        }}),
-        // Signal 'fmPremphasizechanged'
-        QtMocHelpers::SignalData<void(double)>(232, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::Double, 29 },
-        }}),
-        // Signal 'fmdeveationchanged'
         QtMocHelpers::SignalData<void(double)>(233, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Double, 29 },
         }}),
-        // Signal 'amCarrierlevelchanged'
+        // Signal 'fmPremphasizechanged'
         QtMocHelpers::SignalData<void(double)>(234, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::Double, 161 },
+            { QMetaType::Double, 29 },
+        }}),
+        // Signal 'fmdeveationchanged'
+        QtMocHelpers::SignalData<void(double)>(235, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Double, 29 },
+        }}),
+        // Signal 'amCarrierlevelchanged'
+        QtMocHelpers::SignalData<void(double)>(236, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Double, 163 },
         }}),
         // Signal 'audioCompressionchanged'
-        QtMocHelpers::SignalData<void(int)>(235, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::Int, 161 },
+        QtMocHelpers::SignalData<void(int)>(237, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Int, 163 },
         }}),
         // Signal 'micModeChanged'
-        QtMocHelpers::SignalData<void(bool)>(236, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SignalData<void(bool)>(238, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Bool, 16 },
         }}),
         // Signal 'showRadioPopupChanged'
-        QtMocHelpers::SignalData<void(bool)>(237, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SignalData<void(bool)>(239, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Bool, 29 },
         }}),
         // Signal 'receiverDataReady'
-        QtMocHelpers::SignalData<void()>(238, 2, QMC::AccessPublic, QMetaType::Void),
+        QtMocHelpers::SignalData<void()>(240, 2, QMC::AccessPublic, QMetaType::Void),
         // Signal 'CwHangTimeChanged'
-        QtMocHelpers::SignalData<void(int)>(239, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::Int, 240 },
-        }}),
-        // Signal 'CwSidetoneFreqChanged'
         QtMocHelpers::SignalData<void(int)>(241, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 242 },
         }}),
-        // Signal 'CwKeyReversedChanged'
+        // Signal 'CwSidetoneFreqChanged'
         QtMocHelpers::SignalData<void(int)>(243, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 244 },
         }}),
-        // Signal 'CwKeyerModeChanged'
+        // Signal 'CwKeyReversedChanged'
         QtMocHelpers::SignalData<void(int)>(245, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 246 },
         }}),
-        // Signal 'InternalCwChanged'
+        // Signal 'CwKeyerModeChanged'
         QtMocHelpers::SignalData<void(int)>(247, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 248 },
         }}),
-        // Signal 'CwKeyerSpeedChanged'
+        // Signal 'InternalCwChanged'
         QtMocHelpers::SignalData<void(int)>(249, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 250 },
         }}),
-        // Signal 'CwPttDelayChanged'
+        // Signal 'CwKeyerSpeedChanged'
         QtMocHelpers::SignalData<void(int)>(251, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 252 },
         }}),
-        // Signal 'CwSidetoneVolumeChanged'
+        // Signal 'CwPttDelayChanged'
         QtMocHelpers::SignalData<void(int)>(253, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 254 },
         }}),
-        // Signal 'CwKeyerWeightChanged'
+        // Signal 'CwSidetoneVolumeChanged'
         QtMocHelpers::SignalData<void(int)>(255, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 256 },
         }}),
-        // Signal 'CwKeyerSpacingChanged'
+        // Signal 'CwKeyerWeightChanged'
         QtMocHelpers::SignalData<void(int)>(257, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 258 },
         }}),
+        // Signal 'CwKeyerSpacingChanged'
+        QtMocHelpers::SignalData<void(int)>(259, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Int, 260 },
+        }}),
         // Slot 'setMainPower'
-        QtMocHelpers::SlotData<void(QObject *, bool)>(259, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(QObject *, bool)>(261, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Bool, 6 },
         }}),
         // Slot 'setDefaultSkin'
-        QtMocHelpers::SlotData<void(QObject *, bool)>(260, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(QObject *, bool)>(262, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Bool, 29 },
         }}),
         // Slot 'setSettingsFilename'
-        QtMocHelpers::SlotData<void(QString)>(261, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(QString)>(263, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QString, 56 },
         }}),
         // Slot 'setSystemMessage'
-        QtMocHelpers::SlotData<void(const QString &, int)>(262, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QString, 3 }, { QMetaType::Int, 263 },
+        QtMocHelpers::SlotData<void(const QString &, int)>(264, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QString, 3 }, { QMetaType::Int, 265 },
         }}),
         // Slot 'setSettingsLoaded'
-        QtMocHelpers::SlotData<void(bool)>(264, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(bool)>(266, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Bool, 58 },
         }}),
         // Slot 'setCPULoad'
-        QtMocHelpers::SlotData<void(short)>(265, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(short)>(267, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Short, 27 },
         }}),
         // Slot 'setCallsign'
-        QtMocHelpers::SlotData<void(const QString &)>(266, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QString, 267 },
+        QtMocHelpers::SlotData<void(const QString &)>(268, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QString, 269 },
         }}),
         // Slot 'setPBOPresence'
-        QtMocHelpers::SlotData<void(bool)>(268, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(bool)>(270, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Bool, 29 },
         }}),
         // Slot 'setFBOPresence'
-        QtMocHelpers::SlotData<void(bool)>(269, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(bool)>(271, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Bool, 29 },
         }}),
         // Slot 'setMainVolume'
-        QtMocHelpers::SlotData<void(QObject *, int, float)>(270, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(QObject *, int, float)>(272, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::Float, 94 },
         }}),
         // Slot 'setMainVolumeMute'
-        QtMocHelpers::SlotData<void(QObject *, int, bool)>(271, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(QObject *, int, bool)>(273, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::Bool, 29 },
         }}),
         // Slot 'setSystemState'
-        QtMocHelpers::SlotData<void(QObject *, QSDR::_Error, QSDR::_HWInterfaceMode, QSDR::_ServerMode, QSDR::_DataEngineState)>(272, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(QObject *, QSDR::_Error, QSDR::_HWInterfaceMode, QSDR::_ServerMode, QSDR::_DataEngineState)>(274, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { 0x80000000 | 11, 12 }, { 0x80000000 | 13, 14 }, { 0x80000000 | 15, 16 },
             { 0x80000000 | 17, 9 },
         }}),
         // Slot 'setGraphicsState'
-        QtMocHelpers::SlotData<void(QObject *, int, PanGraphicsMode, WaterfallColorMode)>(273, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(QObject *, int, PanGraphicsMode, WaterfallColorMode)>(275, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { 0x80000000 | 20, 21 }, { 0x80000000 | 22, 23 },
         }}),
         // Slot 'setTxAllowed'
-        QtMocHelpers::SlotData<void(QObject *, bool)>(274, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(QObject *, bool)>(276, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Bool, 29 },
         }}),
         // Slot 'setRadioState'
-        QtMocHelpers::SlotData<RadioState(RadioState)>(275, 2, QMC::AccessPublic, 0x80000000 | 8, {{
+        QtMocHelpers::SlotData<RadioState(RadioState)>(277, 2, QMC::AccessPublic, 0x80000000 | 8, {{
             { 0x80000000 | 8, 16 },
         }}),
         // Slot 'getRadioState'
-        QtMocHelpers::SlotData<RadioState()>(276, 2, QMC::AccessPublic, 0x80000000 | 8),
+        QtMocHelpers::SlotData<RadioState()>(278, 2, QMC::AccessPublic, 0x80000000 | 8),
         // Slot 'setMultiRxView'
-        QtMocHelpers::SlotData<void(int)>(277, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(int)>(279, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 31 },
         }}),
         // Slot 'setSMeterValue'
-        QtMocHelpers::SlotData<void(int, double)>(278, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(int, double)>(280, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 19 }, { QMetaType::Double, 29 },
         }}),
         // Slot 'setSpectrumBuffer'
-        QtMocHelpers::SlotData<void(int, const QList<float> &)>(279, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::Int, 19 }, { 0x80000000 | 280, 35 },
+        QtMocHelpers::SlotData<void(int, const QList<float> &)>(281, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Int, 19 }, { 0x80000000 | 282, 35 },
         }}),
         // Slot 'setPostSpectrumBuffer'
-        QtMocHelpers::SlotData<void(int, const float *)>(281, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(int, const float *)>(283, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 19 }, { 0x80000000 | 37, 2 },
         }}),
         // Slot 'setSampleSize'
-        QtMocHelpers::SlotData<void(QObject *, int, int)>(282, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(QObject *, int, int)>(284, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::Int, 39 },
         }}),
         // Slot 'setRxList'
-        QtMocHelpers::SlotData<void(QList<Receiver*>)>(283, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(QList<Receiver*>)>(285, 2, QMC::AccessPublic, QMetaType::Void, {{
             { 0x80000000 | 41, 69 },
         }}),
         // Slot 'setMetisCardList'
-        QtMocHelpers::SlotData<void(QList<TNetworkDevicecard>)>(284, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(QList<TNetworkDevicecard>)>(286, 2, QMC::AccessPublic, QMetaType::Void, {{
             { 0x80000000 | 68, 69 },
         }}),
         // Slot 'searchHpsdrNetworkDevices'
-        QtMocHelpers::SlotData<void()>(285, 2, QMC::AccessPublic, QMetaType::Void),
+        QtMocHelpers::SlotData<void()>(287, 2, QMC::AccessPublic, QMetaType::Void),
         // Slot 'clearMetisCardList'
-        QtMocHelpers::SlotData<void()>(286, 2, QMC::AccessPublic, QMetaType::Void),
+        QtMocHelpers::SlotData<void()>(288, 2, QMC::AccessPublic, QMetaType::Void),
         // Slot 'setHPSDRDeviceNumber'
-        QtMocHelpers::SlotData<void(int)>(287, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(int)>(289, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 29 },
         }}),
         // Slot 'setCurrentHPSDRDevice'
-        QtMocHelpers::SlotData<void(TNetworkDevicecard)>(288, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(TNetworkDevicecard)>(290, 2, QMC::AccessPublic, QMetaType::Void, {{
             { 0x80000000 | 74, 75 },
         }}),
         // Slot 'addNetworkIOComboBoxEntry'
-        QtMocHelpers::SlotData<void(QString)>(289, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(QString)>(291, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QString, 78 },
         }}),
         // Slot 'clearNetworkIOComboBoxEntry'
-        QtMocHelpers::SlotData<void()>(290, 2, QMC::AccessPublic, QMetaType::Void),
+        QtMocHelpers::SlotData<void()>(292, 2, QMC::AccessPublic, QMetaType::Void),
         // Slot 'addServerNetworkInterface'
-        QtMocHelpers::SlotData<void(QString, QString)>(291, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(QString, QString)>(293, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QString, 60 }, { QMetaType::QString, 61 },
         }}),
         // Slot 'addHPSDRDeviceNIC'
-        QtMocHelpers::SlotData<void(QString, QString)>(292, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(QString, QString)>(294, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QString, 60 }, { QMetaType::QString, 61 },
         }}),
         // Slot 'setNumberOfNetworkInterfaces'
-        QtMocHelpers::SlotData<void(int)>(293, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(int)>(295, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 29 },
         }}),
         // Slot 'setServerNetworkInterface'
-        QtMocHelpers::SlotData<void(int)>(294, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::Int, 295 },
+        QtMocHelpers::SlotData<void(int)>(296, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Int, 138 },
         }}),
         // Slot 'setHPSDRDeviceNIC'
-        QtMocHelpers::SlotData<void(int)>(296, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::Int, 295 },
+        QtMocHelpers::SlotData<void(int)>(297, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Int, 138 },
         }}),
         // Slot 'setServerWidgetNIC'
-        QtMocHelpers::SlotData<void(int)>(297, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::Int, 295 },
+        QtMocHelpers::SlotData<void(int)>(298, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Int, 138 },
         }}),
         // Slot 'setHPSDRWidgetNIC'
-        QtMocHelpers::SlotData<void(int)>(298, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::Int, 295 },
+        QtMocHelpers::SlotData<void(int)>(299, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Int, 138 },
         }}),
         // Slot 'setServerAddr'
-        QtMocHelpers::SlotData<void(QObject *, QString)>(299, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 5 }, { QMetaType::QString, 82 },
-        }}),
-        // Slot 'setHPSDRDeviceLocalAddr'
         QtMocHelpers::SlotData<void(QObject *, QString)>(300, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::QString, 82 },
         }}),
-        // Slot 'setServerPort'
-        QtMocHelpers::SlotData<void(QObject *, quint16)>(301, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 5 }, { QMetaType::UShort, 85 },
+        // Slot 'setHPSDRDeviceLocalAddr'
+        QtMocHelpers::SlotData<void(QObject *, QString)>(301, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 5 }, { QMetaType::QString, 82 },
         }}),
-        // Slot 'setListenPort'
+        // Slot 'setServerPort'
         QtMocHelpers::SlotData<void(QObject *, quint16)>(302, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::UShort, 85 },
         }}),
-        // Slot 'setAudioPort'
+        // Slot 'setListenPort'
         QtMocHelpers::SlotData<void(QObject *, quint16)>(303, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::UShort, 85 },
         }}),
-        // Slot 'setMetisPort'
+        // Slot 'setAudioPort'
         QtMocHelpers::SlotData<void(QObject *, quint16)>(304, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::UShort, 85 },
         }}),
+        // Slot 'setMetisPort'
+        QtMocHelpers::SlotData<void(QObject *, quint16)>(305, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 5 }, { QMetaType::UShort, 85 },
+        }}),
         // Slot 'setClientConnected'
-        QtMocHelpers::SlotData<void(QObject *, bool)>(305, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(QObject *, bool)>(306, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Bool, 29 },
         }}),
         // Slot 'setClientNoConnected'
-        QtMocHelpers::SlotData<void(QObject *, int)>(306, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(QObject *, int)>(307, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 46 },
         }}),
         // Slot 'setRxConnectedStatus'
-        QtMocHelpers::SlotData<void(QObject *, int, bool)>(307, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(QObject *, int, bool)>(308, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::Bool, 29 },
         }}),
         // Slot 'setAudioRx'
-        QtMocHelpers::SlotData<void(QObject *, int)>(308, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(QObject *, int)>(309, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 },
         }}),
         // Slot 'setConnected'
-        QtMocHelpers::SlotData<void(QObject *, bool)>(309, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 5 }, { QMetaType::Bool, 29 },
-        }}),
-        // Slot 'setCheckFirmwareVersion'
         QtMocHelpers::SlotData<void(QObject *, bool)>(310, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Bool, 29 },
         }}),
+        // Slot 'setCheckFirmwareVersion'
+        QtMocHelpers::SlotData<void(QObject *, bool)>(311, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 5 }, { QMetaType::Bool, 29 },
+        }}),
         // Slot 'setHPSDRDevices'
-        QtMocHelpers::SlotData<void(QObject *, THPSDRDevices)>(311, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(QObject *, THPSDRDevices)>(312, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { 0x80000000 | 71, 72 },
         }}),
         // Slot 'setHermesVersion'
-        QtMocHelpers::SlotData<void(int)>(312, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::Int, 29 },
-        }}),
-        // Slot 'setHPSDRHardware'
         QtMocHelpers::SlotData<void(int)>(313, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 29 },
         }}),
+        // Slot 'setHPSDRHardware'
+        QtMocHelpers::SlotData<void(int)>(314, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Int, 29 },
+        }}),
         // Slot 'setMercuryPresence'
-        QtMocHelpers::SlotData<void(bool)>(314, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(bool)>(315, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Bool, 29 },
         }}),
         // Slot 'setMercuryVersion'
-        QtMocHelpers::SlotData<void(int)>(315, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(int)>(316, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 29 },
         }}),
         // Slot 'setPenelopePresence'
-        QtMocHelpers::SlotData<void(bool)>(316, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(bool)>(317, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Bool, 29 },
         }}),
         // Slot 'setPenelopeVersion'
-        QtMocHelpers::SlotData<void(int)>(317, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(int)>(318, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 29 },
         }}),
         // Slot 'setPennyLanePresence'
-        QtMocHelpers::SlotData<void(bool)>(318, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(bool)>(319, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Bool, 29 },
         }}),
         // Slot 'setPennyLaneVersion'
-        QtMocHelpers::SlotData<void(int)>(319, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(int)>(320, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 29 },
         }}),
         // Slot 'setAlexPresence'
-        QtMocHelpers::SlotData<void(bool)>(320, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::Bool, 29 },
-        }}),
-        // Slot 'setExcaliburPresence'
         QtMocHelpers::SlotData<void(bool)>(321, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Bool, 29 },
         }}),
+        // Slot 'setExcaliburPresence'
+        QtMocHelpers::SlotData<void(bool)>(322, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Bool, 29 },
+        }}),
         // Slot 'setMetisVersion'
-        QtMocHelpers::SlotData<void(int)>(322, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(int)>(323, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 29 },
         }}),
         // Slot 'setAlexConfiguration'
-        QtMocHelpers::SlotData<void(QObject *, quint16)>(323, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 5 }, { QMetaType::UShort, 324 },
+        QtMocHelpers::SlotData<void(QObject *, quint16)>(324, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 5 }, { QMetaType::UShort, 325 },
         }}),
         // Slot 'setAlexHPFLoFrequencies'
-        QtMocHelpers::SlotData<void(int, long)>(325, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::Int, 326 }, { QMetaType::Long, 29 },
+        QtMocHelpers::SlotData<void(int, long)>(326, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Int, 327 }, { QMetaType::Long, 29 },
         }}),
         // Slot 'setAlexHPFHiFrequencies'
-        QtMocHelpers::SlotData<void(int, long)>(327, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::Int, 326 }, { QMetaType::Long, 29 },
+        QtMocHelpers::SlotData<void(int, long)>(328, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Int, 327 }, { QMetaType::Long, 29 },
         }}),
         // Slot 'setAlexLPFLoFrequencies'
-        QtMocHelpers::SlotData<void(int, long)>(328, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::Int, 326 }, { QMetaType::Long, 29 },
+        QtMocHelpers::SlotData<void(int, long)>(329, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Int, 327 }, { QMetaType::Long, 29 },
         }}),
         // Slot 'setAlexLPFHiFrequencies'
-        QtMocHelpers::SlotData<void(int, long)>(329, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::Int, 326 }, { QMetaType::Long, 29 },
+        QtMocHelpers::SlotData<void(int, long)>(330, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Int, 327 }, { QMetaType::Long, 29 },
         }}),
         // Slot 'setAlexStates'
-        QtMocHelpers::SlotData<void(QObject *, const QList<int> &)>(330, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(QObject *, const QList<int> &)>(331, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { 0x80000000 | 109, 110 },
         }}),
         // Slot 'setAlexState'
-        QtMocHelpers::SlotData<void(QObject *, int, int)>(331, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 332 }, { QMetaType::Int, 29 },
+        QtMocHelpers::SlotData<void(QObject *, int, int)>(332, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 333 }, { QMetaType::Int, 29 },
         }}),
         // Slot 'setAlexState'
-        QtMocHelpers::SlotData<void(QObject *, int)>(331, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(QObject *, int)>(332, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 29 },
         }}),
         // Slot 'setAlexToManual'
-        QtMocHelpers::SlotData<void(QObject *, bool)>(333, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(QObject *, bool)>(334, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Bool, 29 },
         }}),
         // Slot 'checkAlexState'
-        QtMocHelpers::SlotData<int(int)>(334, 2, QMC::AccessPublic, QMetaType::Int, {{
+        QtMocHelpers::SlotData<int(int)>(335, 2, QMC::AccessPublic, QMetaType::Int, {{
             { QMetaType::Int, 9 },
         }}),
         // Slot 'setPennyOCEnabled'
-        QtMocHelpers::SlotData<void(QObject *, bool)>(335, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(QObject *, bool)>(336, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Bool, 29 },
         }}),
         // Slot 'setRxJ6Pin'
-        QtMocHelpers::SlotData<void(QObject *, HamBand, int)>(336, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(QObject *, HamBand, int)>(337, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { 0x80000000 | 112, 113 }, { QMetaType::Int, 29 },
         }}),
         // Slot 'setRxJ6Pins'
-        QtMocHelpers::SlotData<void(QObject *, const QList<int> &)>(337, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(QObject *, const QList<int> &)>(338, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { 0x80000000 | 109, 110 },
         }}),
         // Slot 'setTxJ6Pin'
-        QtMocHelpers::SlotData<void(QObject *, HamBand, int)>(338, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(QObject *, HamBand, int)>(339, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { 0x80000000 | 112, 113 }, { QMetaType::Int, 29 },
         }}),
         // Slot 'setTxJ6Pins'
-        QtMocHelpers::SlotData<void(QObject *, const QList<int> &)>(339, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(QObject *, const QList<int> &)>(340, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { 0x80000000 | 109, 110 },
         }}),
         // Slot 'setIQPort'
-        QtMocHelpers::SlotData<void(QObject *, int, int)>(340, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(QObject *, int, int)>(341, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::Int, 85 },
         }}),
         // Slot 'setProtocolSync'
-        QtMocHelpers::SlotData<void(int)>(341, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::Int, 29 },
-        }}),
-        // Slot 'setADCOverflow'
         QtMocHelpers::SlotData<void(int)>(342, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 29 },
         }}),
-        // Slot 'setPacketLoss'
+        // Slot 'setADCOverflow'
         QtMocHelpers::SlotData<void(int)>(343, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 29 },
         }}),
-        // Slot 'setForwardPower'
-        QtMocHelpers::SlotData<void(qreal)>(344, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QReal, 123 },
+        // Slot 'setPacketLoss'
+        QtMocHelpers::SlotData<void(int)>(344, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Int, 29 },
         }}),
-        // Slot 'setReversePower'
+        // Slot 'setForwardPower'
         QtMocHelpers::SlotData<void(qreal)>(345, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QReal, 123 },
         }}),
-        // Slot 'setSendIQ'
-        QtMocHelpers::SlotData<void(int)>(346, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::Int, 29 },
+        // Slot 'setReversePower'
+        QtMocHelpers::SlotData<void(qreal)>(346, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QReal, 123 },
         }}),
-        // Slot 'setRcveIQ'
+        // Slot 'setSendIQ'
         QtMocHelpers::SlotData<void(int)>(347, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 29 },
         }}),
-        // Slot 'setReceivers'
-        QtMocHelpers::SlotData<void(QObject *, int)>(348, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 29 },
+        // Slot 'setRcveIQ'
+        QtMocHelpers::SlotData<void(int)>(348, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Int, 29 },
         }}),
-        // Slot 'setCurrentReceiver'
+        // Slot 'setReceivers'
         QtMocHelpers::SlotData<void(QObject *, int)>(349, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 29 },
         }}),
-        // Slot 'setSampleRate'
+        // Slot 'setCurrentReceiver'
         QtMocHelpers::SlotData<void(QObject *, int)>(350, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 29 },
         }}),
-        // Slot 'setMercuryAttenuator'
+        // Slot 'setSampleRate'
         QtMocHelpers::SlotData<void(QObject *, int)>(351, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 29 },
         }}),
-        // Slot 'setDither'
+        // Slot 'setMercuryAttenuator'
         QtMocHelpers::SlotData<void(QObject *, int)>(352, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 29 },
         }}),
-        // Slot 'setRandom'
+        // Slot 'setDither'
         QtMocHelpers::SlotData<void(QObject *, int)>(353, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 29 },
         }}),
-        // Slot 'set10MhzSource'
+        // Slot 'setRandom'
         QtMocHelpers::SlotData<void(QObject *, int)>(354, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 133 },
+            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 29 },
         }}),
-        // Slot 'set122_88MhzSource'
+        // Slot 'set10MhzSource'
         QtMocHelpers::SlotData<void(QObject *, int)>(355, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 133 },
         }}),
+        // Slot 'set122_88MhzSource'
+        QtMocHelpers::SlotData<void(QObject *, int)>(356, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 133 },
+        }}),
         // Slot 'setMicSource'
-        QtMocHelpers::SlotData<void(int)>(356, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(int)>(357, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 133 },
         }}),
         // Slot 'setMicInputDev'
-        QtMocHelpers::SlotData<void(int)>(357, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::Int, 295 },
+        QtMocHelpers::SlotData<void(int)>(358, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Int, 138 },
+        }}),
+        // Slot 'setDigitalAudioInputDev'
+        QtMocHelpers::SlotData<void(int)>(359, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Int, 138 },
         }}),
         // Slot 'setMicInputLevel'
-        QtMocHelpers::SlotData<void(QObject *, int)>(358, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 161 },
+        QtMocHelpers::SlotData<void(QObject *, int)>(360, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 163 },
         }}),
         // Slot 'setDriveLevel'
-        QtMocHelpers::SlotData<void(QObject *, int)>(359, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 161 },
+        QtMocHelpers::SlotData<void(QObject *, int)>(361, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 163 },
         }}),
         // Slot 'setClass'
-        QtMocHelpers::SlotData<void(QObject *, int)>(360, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(QObject *, int)>(362, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 29 },
         }}),
         // Slot 'setTiming'
-        QtMocHelpers::SlotData<void(QObject *, int)>(361, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(QObject *, int)>(363, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 29 },
         }}),
         // Slot 'setCtrFrequency'
-        QtMocHelpers::SlotData<void(QObject *, int, int, long)>(362, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 16 }, { QMetaType::Int, 19 }, { QMetaType::Long, 143 },
+        QtMocHelpers::SlotData<void(QObject *, int, int, long)>(364, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 16 }, { QMetaType::Int, 19 }, { QMetaType::Long, 145 },
         }}),
         // Slot 'setCtrFrequency'
-        QtMocHelpers::SlotData<void(int, long)>(362, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::Int, 19 }, { QMetaType::Long, 143 },
+        QtMocHelpers::SlotData<void(int, long)>(364, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Int, 19 }, { QMetaType::Long, 145 },
         }}),
         // Slot 'getCtrFrequency'
-        QtMocHelpers::SlotData<long(int)>(363, 2, QMC::AccessPublic, QMetaType::Long, {{
+        QtMocHelpers::SlotData<long(int)>(365, 2, QMC::AccessPublic, QMetaType::Long, {{
             { QMetaType::Int, 19 },
         }}),
         // Slot 'setVFOFrequency'
-        QtMocHelpers::SlotData<void(QObject *, int, int, long)>(364, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 16 }, { QMetaType::Int, 19 }, { QMetaType::Long, 143 },
+        QtMocHelpers::SlotData<void(QObject *, int, int, long)>(366, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 16 }, { QMetaType::Int, 19 }, { QMetaType::Long, 145 },
         }}),
         // Slot 'setVfoFrequency'
-        QtMocHelpers::SlotData<void(int, long)>(365, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::Int, 19 }, { QMetaType::Long, 143 },
+        QtMocHelpers::SlotData<void(int, long)>(367, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Int, 19 }, { QMetaType::Long, 145 },
         }}),
         // Slot 'getVfoFrequency'
-        QtMocHelpers::SlotData<long(int)>(366, 2, QMC::AccessPublic, QMetaType::Long, {{
+        QtMocHelpers::SlotData<long(int)>(368, 2, QMC::AccessPublic, QMetaType::Long, {{
             { QMetaType::Int, 19 },
         }}),
         // Slot 'setNCOFrequency'
-        QtMocHelpers::SlotData<void(QObject *, bool, int, long)>(367, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 5 }, { QMetaType::Bool, 29 }, { QMetaType::Int, 19 }, { QMetaType::Long, 143 },
+        QtMocHelpers::SlotData<void(QObject *, bool, int, long)>(369, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 5 }, { QMetaType::Bool, 29 }, { QMetaType::Int, 19 }, { QMetaType::Long, 145 },
         }}),
         // Slot 'clientDisconnected'
-        QtMocHelpers::SlotData<void(int)>(368, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(int)>(370, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 46 },
         }}),
         // Slot 'setFramesPerSecond'
-        QtMocHelpers::SlotData<void(QObject *, int, int)>(369, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(QObject *, int, int)>(371, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::Int, 29 },
         }}),
         // Slot 'setMouseWheelFreqStep'
-        QtMocHelpers::SlotData<void(QObject *, int, qreal)>(370, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(QObject *, int, qreal)>(372, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::QReal, 29 },
         }}),
         // Slot 'setSocketBufferSize'
-        QtMocHelpers::SlotData<void(QObject *, int)>(371, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(QObject *, int)>(373, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 29 },
         }}),
         // Slot 'setManualSocketBufferSize'
-        QtMocHelpers::SlotData<void(QObject *, bool)>(372, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(QObject *, bool)>(374, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Bool, 29 },
         }}),
         // Slot 'setReceiverDataReady'
-        QtMocHelpers::SlotData<void()>(373, 2, QMC::AccessPublic, QMetaType::Void),
+        QtMocHelpers::SlotData<void()>(375, 2, QMC::AccessPublic, QMetaType::Void),
         // Slot 'setSpectrumSize'
-        QtMocHelpers::SlotData<void(QObject *, int)>(374, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(QObject *, int)>(376, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 29 },
         }}),
         // Slot 'setdBmPanScaleMin'
-        QtMocHelpers::SlotData<void(int, qreal)>(375, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(int, qreal)>(377, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 19 }, { QMetaType::QReal, 29 },
         }}),
         // Slot 'setdBmPanScaleMax'
-        QtMocHelpers::SlotData<void(int, qreal)>(376, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(int, qreal)>(378, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 19 }, { QMetaType::QReal, 29 },
         }}),
         // Slot 'setdBmDistScaleMin'
-        QtMocHelpers::SlotData<void(qreal)>(377, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(qreal)>(379, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QReal, 29 },
         }}),
         // Slot 'setdBmDistScaleMax'
-        QtMocHelpers::SlotData<void(qreal)>(378, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(qreal)>(380, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QReal, 29 },
         }}),
         // Slot 'setHamBand'
-        QtMocHelpers::SlotData<void(QObject *, int, bool, HamBand)>(379, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::Bool, 164 }, { 0x80000000 | 112, 113 },
+        QtMocHelpers::SlotData<void(QObject *, int, bool, HamBand)>(381, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::Bool, 166 }, { 0x80000000 | 112, 113 },
         }}),
         // Slot 'setDSPMode'
-        QtMocHelpers::SlotData<void(QObject *, int, DSPMode)>(380, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { 0x80000000 | 166, 16 },
-        }}),
-        // Slot 'setADCMode'
-        QtMocHelpers::SlotData<void(QObject *, int, ADCMode)>(381, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(QObject *, int, DSPMode)>(382, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { 0x80000000 | 168, 16 },
         }}),
-        // Slot 'setAGCMode'
-        QtMocHelpers::SlotData<void(QObject *, int, AGCMode)>(382, 2, QMC::AccessPublic, QMetaType::Void, {{
+        // Slot 'setADCMode'
+        QtMocHelpers::SlotData<void(QObject *, int, ADCMode)>(383, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { 0x80000000 | 170, 16 },
         }}),
+        // Slot 'setAGCMode'
+        QtMocHelpers::SlotData<void(QObject *, int, AGCMode)>(384, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { 0x80000000 | 172, 16 },
+        }}),
         // Slot 'setAGCGain'
-        QtMocHelpers::SlotData<void(QObject *, int, int)>(383, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(QObject *, int, int)>(385, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::Int, 29 },
         }}),
         // Slot 'setAGCMaximumGain_dB'
-        QtMocHelpers::SlotData<void(QObject *, int, qreal)>(384, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::QReal, 29 },
-        }}),
-        // Slot 'setAGCFixedGain_dB'
-        QtMocHelpers::SlotData<void(QObject *, int, qreal)>(385, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::QReal, 29 },
-        }}),
-        // Slot 'setAGCThreshold_dB'
         QtMocHelpers::SlotData<void(QObject *, int, qreal)>(386, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::QReal, 29 },
         }}),
-        // Slot 'setAGCHangThresholdSlider'
+        // Slot 'setAGCFixedGain_dB'
         QtMocHelpers::SlotData<void(QObject *, int, qreal)>(387, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::QReal, 29 },
         }}),
-        // Slot 'setAGCHangThreshold'
-        QtMocHelpers::SlotData<void(QObject *, int, int)>(388, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::Int, 29 },
+        // Slot 'setAGCThreshold_dB'
+        QtMocHelpers::SlotData<void(QObject *, int, qreal)>(388, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::QReal, 29 },
         }}),
-        // Slot 'setAGCHangLevel_dB'
+        // Slot 'setAGCHangThresholdSlider'
         QtMocHelpers::SlotData<void(QObject *, int, qreal)>(389, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::QReal, 29 },
         }}),
+        // Slot 'setAGCHangThreshold'
+        QtMocHelpers::SlotData<void(QObject *, int, int)>(390, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::Int, 29 },
+        }}),
+        // Slot 'setAGCHangLevel_dB'
+        QtMocHelpers::SlotData<void(QObject *, int, qreal)>(391, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::QReal, 29 },
+        }}),
         // Slot 'setAGCLineLevels'
-        QtMocHelpers::SlotData<void(QObject *, int, qreal, qreal)>(390, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::QReal, 182 }, { QMetaType::QReal, 173 },
+        QtMocHelpers::SlotData<void(QObject *, int, qreal, qreal)>(392, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::QReal, 184 }, { QMetaType::QReal, 175 },
         }}),
         // Slot 'setAGCShowLines'
-        QtMocHelpers::SlotData<void(QObject *, int, bool)>(391, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(QObject *, int, bool)>(393, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::Bool, 29 },
         }}),
         // Slot 'setAGCVariableGain_dB'
-        QtMocHelpers::SlotData<void(QObject *, int, qreal)>(392, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::QReal, 29 },
-        }}),
-        // Slot 'setAGCAttackTime'
-        QtMocHelpers::SlotData<void(QObject *, int, qreal)>(393, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::QReal, 29 },
-        }}),
-        // Slot 'setAGCDecayTime'
         QtMocHelpers::SlotData<void(QObject *, int, qreal)>(394, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::QReal, 29 },
         }}),
-        // Slot 'setAGCHangTime'
+        // Slot 'setAGCAttackTime'
         QtMocHelpers::SlotData<void(QObject *, int, qreal)>(395, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::QReal, 29 },
         }}),
+        // Slot 'setAGCDecayTime'
+        QtMocHelpers::SlotData<void(QObject *, int, qreal)>(396, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::QReal, 29 },
+        }}),
+        // Slot 'setAGCHangTime'
+        QtMocHelpers::SlotData<void(QObject *, int, qreal)>(397, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::QReal, 29 },
+        }}),
         // Slot 'setRXFilter'
-        QtMocHelpers::SlotData<void(QObject *, int, qreal, qreal)>(396, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::QReal, 188 }, { QMetaType::QReal, 189 },
+        QtMocHelpers::SlotData<void(QObject *, int, qreal, qreal)>(398, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::QReal, 190 }, { QMetaType::QReal, 191 },
         }}),
         // Slot 'setfftSize'
-        QtMocHelpers::SlotData<void(int, int)>(397, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(int, int)>(399, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 19 }, { QMetaType::Int, 39 },
         }}),
         // Slot 'setfmsqLevel'
-        QtMocHelpers::SlotData<void(int, int)>(398, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::Int, 19 }, { QMetaType::Int, 161 },
+        QtMocHelpers::SlotData<void(int, int)>(400, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Int, 19 }, { QMetaType::Int, 163 },
         }}),
         // Slot 'setWidebandBuffers'
-        QtMocHelpers::SlotData<void(QObject *, int)>(399, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(QObject *, int)>(401, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 29 },
         }}),
         // Slot 'setWidebandSpectrumBuffer'
-        QtMocHelpers::SlotData<void(const qVectorFloat &)>(400, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(const qVectorFloat &)>(402, 2, QMC::AccessPublic, QMetaType::Void, {{
             { 0x80000000 | 34, 35 },
         }}),
         // Slot 'resetWidebandSpectrumBuffer'
-        QtMocHelpers::SlotData<void()>(401, 2, QMC::AccessPublic, QMetaType::Void),
+        QtMocHelpers::SlotData<void()>(403, 2, QMC::AccessPublic, QMetaType::Void),
         // Slot 'setWidebandOptions'
-        QtMocHelpers::SlotData<void(QObject *, TWideband)>(402, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 5 }, { 0x80000000 | 148, 149 },
+        QtMocHelpers::SlotData<void(QObject *, TWideband)>(404, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 5 }, { 0x80000000 | 150, 151 },
         }}),
         // Slot 'setWidebandStatus'
-        QtMocHelpers::SlotData<void(QObject *, bool)>(403, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(QObject *, bool)>(405, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Bool, 29 },
         }}),
         // Slot 'setWidebandData'
-        QtMocHelpers::SlotData<void(QObject *, bool)>(404, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(QObject *, bool)>(406, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Bool, 29 },
         }}),
         // Slot 'setWidebanddBmScaleMin'
-        QtMocHelpers::SlotData<void(QObject *, qreal)>(405, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(QObject *, qreal)>(407, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::QReal, 29 },
         }}),
         // Slot 'setWidebanddBmScaleMax'
-        QtMocHelpers::SlotData<void(QObject *, qreal)>(406, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(QObject *, qreal)>(408, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::QReal, 29 },
         }}),
         // Slot 'setWideBandRulerPosition'
-        QtMocHelpers::SlotData<void(QObject *, float)>(407, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 5 }, { QMetaType::Float, 332 },
+        QtMocHelpers::SlotData<void(QObject *, float)>(409, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 5 }, { QMetaType::Float, 333 },
         }}),
         // Slot 'setFreqRulerPosition'
-        QtMocHelpers::SlotData<void(QObject *, int, float)>(408, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::Float, 332 },
+        QtMocHelpers::SlotData<void(QObject *, int, float)>(410, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::Float, 333 },
         }}),
         // Slot 'setAudioFormat'
-        QtMocHelpers::SlotData<void(QObject *, const QAudioFormat &)>(409, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 5 }, { 0x80000000 | 197, 198 },
+        QtMocHelpers::SlotData<void(QObject *, const QAudioFormat &)>(411, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 5 }, { 0x80000000 | 199, 200 },
         }}),
         // Slot 'setAudioPosition'
-        QtMocHelpers::SlotData<void(QObject *, qint64)>(410, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 5 }, { QMetaType::LongLong, 156 },
+        QtMocHelpers::SlotData<void(QObject *, qint64)>(412, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 5 }, { QMetaType::LongLong, 158 },
         }}),
         // Slot 'setAudioBuffer'
-        QtMocHelpers::SlotData<void(QObject *, qint64, qint64, const QByteArray &)>(411, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::QObjectStar, 5 }, { QMetaType::LongLong, 156 }, { QMetaType::LongLong, 201 }, { QMetaType::QByteArray, 35 },
+        QtMocHelpers::SlotData<void(QObject *, qint64, qint64, const QByteArray &)>(413, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::QObjectStar, 5 }, { QMetaType::LongLong, 158 }, { QMetaType::LongLong, 203 }, { QMetaType::QByteArray, 35 },
         }}),
         // Slot 'moveDisplayWidget'
-        QtMocHelpers::SlotData<void(int)>(412, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(int)>(414, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 29 },
         }}),
         // Slot 'setPanadapterColors'
-        QtMocHelpers::SlotData<void(TPanadapterColors)>(413, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { 0x80000000 | 414, 415 },
+        QtMocHelpers::SlotData<void(TPanadapterColors)>(415, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { 0x80000000 | 416, 417 },
         }}),
         // Slot 'setPanGrid'
-        QtMocHelpers::SlotData<void(bool, int)>(416, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::Bool, 29 }, { QMetaType::Int, 19 },
-        }}),
-        // Slot 'setPeakHold'
-        QtMocHelpers::SlotData<void(bool, int)>(417, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::Bool, 29 }, { QMetaType::Int, 19 },
-        }}),
-        // Slot 'setPanLocked'
         QtMocHelpers::SlotData<void(bool, int)>(418, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Bool, 29 }, { QMetaType::Int, 19 },
         }}),
-        // Slot 'setClickVFO'
+        // Slot 'setPeakHold'
         QtMocHelpers::SlotData<void(bool, int)>(419, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Bool, 29 }, { QMetaType::Int, 19 },
         }}),
-        // Slot 'setHairCross'
+        // Slot 'setPanLocked'
         QtMocHelpers::SlotData<void(bool, int)>(420, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Bool, 29 }, { QMetaType::Int, 19 },
         }}),
+        // Slot 'setClickVFO'
+        QtMocHelpers::SlotData<void(bool, int)>(421, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Bool, 29 }, { QMetaType::Int, 19 },
+        }}),
+        // Slot 'setHairCross'
+        QtMocHelpers::SlotData<void(bool, int)>(422, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Bool, 29 }, { QMetaType::Int, 19 },
+        }}),
         // Slot 'setSpectrumAveraging'
-        QtMocHelpers::SlotData<void(QObject *, int, bool)>(421, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(QObject *, int, bool)>(423, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::Bool, 29 },
         }}),
         // Slot 'setSpectrumAveragingCnt'
-        QtMocHelpers::SlotData<void(QObject *, int, int)>(422, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(QObject *, int, int)>(424, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QObjectStar, 5 }, { QMetaType::Int, 19 }, { QMetaType::Int, 29 },
         }}),
         // Slot 'setWaterfallTime'
-        QtMocHelpers::SlotData<void(int, int)>(423, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::Int, 19 }, { QMetaType::Int, 29 },
-        }}),
-        // Slot 'setWaterfallOffesetLo'
-        QtMocHelpers::SlotData<void(int, int)>(424, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::Int, 19 }, { QMetaType::Int, 29 },
-        }}),
-        // Slot 'setWaterfallOffesetHi'
         QtMocHelpers::SlotData<void(int, int)>(425, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 19 }, { QMetaType::Int, 29 },
         }}),
-        // Slot 'setPanAveragingMode'
-        QtMocHelpers::SlotData<void(int, PanAveragingMode)>(426, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::Int, 19 }, { 0x80000000 | 427, 16 },
+        // Slot 'setWaterfallOffesetLo'
+        QtMocHelpers::SlotData<void(int, int)>(426, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Int, 19 }, { QMetaType::Int, 29 },
         }}),
-        // Slot 'setPanDetectorMode'
-        QtMocHelpers::SlotData<void(int, PanDetectorMode)>(428, 2, QMC::AccessPublic, QMetaType::Void, {{
+        // Slot 'setWaterfallOffesetHi'
+        QtMocHelpers::SlotData<void(int, int)>(427, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Int, 19 }, { QMetaType::Int, 29 },
+        }}),
+        // Slot 'setPanAveragingMode'
+        QtMocHelpers::SlotData<void(int, PanAveragingMode)>(428, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 19 }, { 0x80000000 | 429, 16 },
         }}),
-        // Slot 'setNoiseBlankerMode'
-        QtMocHelpers::SlotData<void(int, int)>(430, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::Int, 19 }, { QMetaType::Int, 431 },
+        // Slot 'setPanDetectorMode'
+        QtMocHelpers::SlotData<void(int, PanDetectorMode)>(430, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Int, 19 }, { 0x80000000 | 431, 16 },
         }}),
-        // Slot 'setNoiseFilterMode'
+        // Slot 'setNoiseBlankerMode'
         QtMocHelpers::SlotData<void(int, int)>(432, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 19 }, { QMetaType::Int, 433 },
         }}),
-        // Slot 'setNR2GainMethod'
+        // Slot 'setNoiseFilterMode'
         QtMocHelpers::SlotData<void(int, int)>(434, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::Int, 19 }, { QMetaType::Int, 29 },
+            { QMetaType::Int, 19 }, { QMetaType::Int, 435 },
         }}),
-        // Slot 'setNR2NpeMethod'
-        QtMocHelpers::SlotData<void(int, int)>(435, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::Int, 19 }, { QMetaType::Int, 29 },
-        }}),
-        // Slot 'setNRAgc'
+        // Slot 'setNR2GainMethod'
         QtMocHelpers::SlotData<void(int, int)>(436, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 19 }, { QMetaType::Int, 29 },
         }}),
+        // Slot 'setNR2NpeMethod'
+        QtMocHelpers::SlotData<void(int, int)>(437, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Int, 19 }, { QMetaType::Int, 29 },
+        }}),
+        // Slot 'setNRAgc'
+        QtMocHelpers::SlotData<void(int, int)>(438, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Int, 19 }, { QMetaType::Int, 29 },
+        }}),
         // Slot 'setNR2Ae'
-        QtMocHelpers::SlotData<void(int, bool)>(437, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::Int, 19 }, { QMetaType::Bool, 29 },
-        }}),
-        // Slot 'setAnf'
-        QtMocHelpers::SlotData<void(int, bool)>(438, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::Int, 19 }, { QMetaType::Bool, 29 },
-        }}),
-        // Slot 'setSnb'
         QtMocHelpers::SlotData<void(int, bool)>(439, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 19 }, { QMetaType::Bool, 29 },
         }}),
+        // Slot 'setAnf'
+        QtMocHelpers::SlotData<void(int, bool)>(440, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Int, 19 }, { QMetaType::Bool, 29 },
+        }}),
+        // Slot 'setSnb'
+        QtMocHelpers::SlotData<void(int, bool)>(441, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Int, 19 }, { QMetaType::Bool, 29 },
+        }}),
         // Slot 'setRepeaterMode'
-        QtMocHelpers::SlotData<void(bool)>(440, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(bool)>(442, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Bool, 16 },
         }}),
         // Slot 'setRepeaterOffset'
-        QtMocHelpers::SlotData<void(int)>(441, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::Int, 442 },
+        QtMocHelpers::SlotData<void(int)>(443, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Int, 444 },
         }}),
         // Slot 'setAudioCompression'
-        QtMocHelpers::SlotData<void(int)>(443, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::Int, 161 },
+        QtMocHelpers::SlotData<void(int)>(445, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Int, 163 },
         }}),
         // Slot 'setAMCarrierLevel'
-        QtMocHelpers::SlotData<void(int)>(444, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::Int, 161 },
+        QtMocHelpers::SlotData<void(int)>(446, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Int, 163 },
         }}),
         // Slot 'setFMPreEmphasize'
-        QtMocHelpers::SlotData<void(int)>(445, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::Int, 161 },
+        QtMocHelpers::SlotData<void(int)>(447, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Int, 163 },
         }}),
         // Slot 'setFmDeveation'
-        QtMocHelpers::SlotData<void(int)>(446, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::Int, 161 },
+        QtMocHelpers::SlotData<void(int)>(448, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Int, 163 },
         }}),
         // Slot 'setCwHangTime'
-        QtMocHelpers::SlotData<void(int)>(447, 2, QMC::AccessPublic, QMetaType::Void, {{
-            { QMetaType::Int, 240 },
-        }}),
-        // Slot 'setCwSidetoneFreq'
-        QtMocHelpers::SlotData<void(int)>(448, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(int)>(449, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 242 },
         }}),
-        // Slot 'setCwKeyReversed'
-        QtMocHelpers::SlotData<void(int)>(449, 2, QMC::AccessPublic, QMetaType::Void, {{
+        // Slot 'setCwSidetoneFreq'
+        QtMocHelpers::SlotData<void(int)>(450, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 244 },
         }}),
-        // Slot 'setCwKeyerMode'
-        QtMocHelpers::SlotData<void(int)>(450, 2, QMC::AccessPublic, QMetaType::Void, {{
+        // Slot 'setCwKeyReversed'
+        QtMocHelpers::SlotData<void(int)>(451, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 246 },
         }}),
-        // Slot 'setInternalCw'
-        QtMocHelpers::SlotData<void(int)>(451, 2, QMC::AccessPublic, QMetaType::Void, {{
+        // Slot 'setCwKeyerMode'
+        QtMocHelpers::SlotData<void(int)>(452, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 248 },
         }}),
-        // Slot 'setCwKeyerSpeed'
-        QtMocHelpers::SlotData<void(int)>(452, 2, QMC::AccessPublic, QMetaType::Void, {{
+        // Slot 'setInternalCw'
+        QtMocHelpers::SlotData<void(int)>(453, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 250 },
         }}),
-        // Slot 'setCwPttDelay'
-        QtMocHelpers::SlotData<void(int)>(453, 2, QMC::AccessPublic, QMetaType::Void, {{
+        // Slot 'setCwKeyerSpeed'
+        QtMocHelpers::SlotData<void(int)>(454, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 252 },
         }}),
-        // Slot 'setCwSidetoneVolume'
-        QtMocHelpers::SlotData<void(int)>(454, 2, QMC::AccessPublic, QMetaType::Void, {{
+        // Slot 'setCwPttDelay'
+        QtMocHelpers::SlotData<void(int)>(455, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 254 },
         }}),
-        // Slot 'setCwKeyerWeight'
-        QtMocHelpers::SlotData<void(int)>(455, 2, QMC::AccessPublic, QMetaType::Void, {{
+        // Slot 'setCwSidetoneVolume'
+        QtMocHelpers::SlotData<void(int)>(456, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 256 },
         }}),
-        // Slot 'setCwKeyerSpacing'
-        QtMocHelpers::SlotData<void(int)>(456, 2, QMC::AccessPublic, QMetaType::Void, {{
+        // Slot 'setCwKeyerWeight'
+        QtMocHelpers::SlotData<void(int)>(457, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 258 },
         }}),
+        // Slot 'setCwKeyerSpacing'
+        QtMocHelpers::SlotData<void(int)>(458, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Int, 260 },
+        }}),
         // Slot 'setSMeterHoldTime'
-        QtMocHelpers::SlotData<void(int)>(457, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(int)>(459, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::Int, 29 },
         }}),
         // Slot 'showNetworkIODialog'
-        QtMocHelpers::SlotData<void()>(458, 2, QMC::AccessPublic, QMetaType::Void),
+        QtMocHelpers::SlotData<void()>(460, 2, QMC::AccessPublic, QMetaType::Void),
         // Slot 'showWarningDialog'
-        QtMocHelpers::SlotData<void(const QString &)>(459, 2, QMC::AccessPublic, QMetaType::Void, {{
+        QtMocHelpers::SlotData<void(const QString &)>(461, 2, QMC::AccessPublic, QMetaType::Void, {{
             { QMetaType::QString, 3 },
         }}),
         // Slot 'showRadioPopupWidget'
-        QtMocHelpers::SlotData<void()>(460, 2, QMC::AccessPublic, QMetaType::Void),
+        QtMocHelpers::SlotData<void()>(462, 2, QMC::AccessPublic, QMetaType::Void),
         // Slot 'getCtrFrequencies'
-        QtMocHelpers::SlotData<QList<long>()>(461, 2, QMC::AccessPublic, 0x80000000 | 462),
+        QtMocHelpers::SlotData<QList<long>()>(463, 2, QMC::AccessPublic, 0x80000000 | 464),
         // Slot 'getVfoFrequencies'
-        QtMocHelpers::SlotData<QList<long>()>(463, 2, QMC::AccessPublic, 0x80000000 | 462),
+        QtMocHelpers::SlotData<QList<long>()>(465, 2, QMC::AccessPublic, 0x80000000 | 464),
     };
     QtMocHelpers::UintData qt_properties {
     };
@@ -2069,297 +2079,299 @@ void Settings::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, vo
         case 83: _t->src122_88MhzChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
         case 84: _t->micSourceChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
         case 85: _t->micInputChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 86: _t->classChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 87: _t->timingChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 88: _t->controlBytesOutChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<uchar*>>(_a[2]))); break;
-        case 89: _t->ctrFrequencyChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[3])),(*reinterpret_cast< std::add_pointer_t<long>>(_a[4]))); break;
-        case 90: _t->vfoFrequencyChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[3])),(*reinterpret_cast< std::add_pointer_t<long>>(_a[4]))); break;
-        case 91: _t->ncoFrequencyChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<long>>(_a[2]))); break;
-        case 92: _t->widebandSpectrumBufferChanged((*reinterpret_cast< std::add_pointer_t<qVectorFloat>>(_a[1]))); break;
-        case 93: _t->widebandOptionsChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<TWideband>>(_a[2]))); break;
-        case 94: _t->widebandSpectrumBufferReset(); break;
-        case 95: _t->widebandStatusChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[2]))); break;
-        case 96: _t->widebandDataChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[2]))); break;
-        case 97: _t->widebanddBmScaleMinChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[2]))); break;
-        case 98: _t->widebanddBmScaleMaxChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[2]))); break;
-        case 99: _t->wideBandScalePositionChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<float>>(_a[2]))); break;
-        case 100: _t->panAveragingModeChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 101: _t->panDetectorModeChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 102: _t->fftSizeChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 103: _t->fmsqLevelChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 104: _t->iqPortChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[3]))); break;
-        case 105: _t->hamBandChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[3])),(*reinterpret_cast< std::add_pointer_t<HamBand>>(_a[4]))); break;
-        case 106: _t->dspModeChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<DSPMode>>(_a[3]))); break;
-        case 107: _t->adcModeChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<ADCMode>>(_a[3]))); break;
-        case 108: _t->agcModeChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<AGCMode>>(_a[3])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[4]))); break;
-        case 109: _t->agcHangEnabledChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[3]))); break;
-        case 110: _t->agcGainChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[3]))); break;
-        case 111: _t->agcThresholdChanged_dB((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3]))); break;
-        case 112: _t->agcFixedGainChanged_dB((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3]))); break;
-        case 113: _t->agcMaximumGainChanged_dB((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3]))); break;
-        case 114: _t->agcHangThresholdChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[3]))); break;
-        case 115: _t->agcHangThresholdSliderChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3]))); break;
-        case 116: _t->agcHangLevelChanged_dB((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3]))); break;
-        case 117: _t->agcLineLevelsChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[4]))); break;
-        case 118: _t->agcVariableGainChanged_dB((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3]))); break;
-        case 119: _t->agcAttackTimeChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3]))); break;
-        case 120: _t->agcDecayTimeChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3]))); break;
-        case 121: _t->agcHangTimeChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3]))); break;
-        case 122: _t->filterFrequenciesChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[4]))); break;
-        case 123: _t->cudaDevicesChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 124: _t->cudaDriverChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 125: _t->cudaRuntimeChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 126: _t->cudaCurrentDeviceChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 127: _t->cudaLastDeviceChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 128: _t->freqRulerPositionChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<float>>(_a[3]))); break;
-        case 129: _t->audioFormatChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<QAudioFormat>>(_a[2]))); break;
-        case 130: _t->audioPositionChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<qint64>>(_a[2]))); break;
-        case 131: _t->audioBufferChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<qint64>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qint64>>(_a[3])),(*reinterpret_cast< std::add_pointer_t<QByteArray>>(_a[4]))); break;
-        case 132: _t->displayWidgetHeightChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 133: _t->spectrumSizeChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 134: _t->panadapterColorChanged(); break;
-        case 135: _t->panGridStatusChanged((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 136: _t->peakHoldStatusChanged((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 137: _t->panLockedStatusChanged((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 138: _t->clickVFOStatusChanged((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 139: _t->hairCrossStatusChanged((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 140: _t->showAGCLinesStatusChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[3]))); break;
-        case 141: _t->spectrumAveragingChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[3]))); break;
-        case 142: _t->spectrumAveragingCntChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[3]))); break;
-        case 143: _t->waterfallTimeChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 144: _t->waterfallOffesetLoChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 145: _t->waterfallOffesetHiChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 146: _t->sMeterHoldTimeChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 147: _t->dBmScaleMinChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[2]))); break;
-        case 148: _t->dBmScaleMaxChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[2]))); break;
-        case 149: _t->agcMaximumGainChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3]))); break;
-        case 150: _t->noiseBlankerChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 151: _t->noiseFilterChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 152: _t->nr2GainMethodChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 153: _t->nr2NpeMethodChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 154: _t->nrAgcChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 155: _t->nr2AeChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[2]))); break;
-        case 156: _t->snbChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[2]))); break;
-        case 157: _t->anfChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[2]))); break;
-        case 158: _t->micInputLevelChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 159: _t->driveLevelChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 160: _t->repeaterModeChanged((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1]))); break;
-        case 161: _t->repeaterOffsetchanged((*reinterpret_cast< std::add_pointer_t<double>>(_a[1]))); break;
-        case 162: _t->fmPremphasizechanged((*reinterpret_cast< std::add_pointer_t<double>>(_a[1]))); break;
-        case 163: _t->fmdeveationchanged((*reinterpret_cast< std::add_pointer_t<double>>(_a[1]))); break;
-        case 164: _t->amCarrierlevelchanged((*reinterpret_cast< std::add_pointer_t<double>>(_a[1]))); break;
-        case 165: _t->audioCompressionchanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 166: _t->micModeChanged((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1]))); break;
-        case 167: _t->showRadioPopupChanged((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1]))); break;
-        case 168: _t->receiverDataReady(); break;
-        case 169: _t->CwHangTimeChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 170: _t->CwSidetoneFreqChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 171: _t->CwKeyReversedChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 172: _t->CwKeyerModeChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 173: _t->InternalCwChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 174: _t->CwKeyerSpeedChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 175: _t->CwPttDelayChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 176: _t->CwSidetoneVolumeChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 177: _t->CwKeyerWeightChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 178: _t->CwKeyerSpacingChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 179: _t->setMainPower((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[2]))); break;
-        case 180: _t->setDefaultSkin((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[2]))); break;
-        case 181: _t->setSettingsFilename((*reinterpret_cast< std::add_pointer_t<QString>>(_a[1]))); break;
-        case 182: _t->setSystemMessage((*reinterpret_cast< std::add_pointer_t<QString>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 183: _t->setSettingsLoaded((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1]))); break;
-        case 184: _t->setCPULoad((*reinterpret_cast< std::add_pointer_t<short>>(_a[1]))); break;
-        case 185: _t->setCallsign((*reinterpret_cast< std::add_pointer_t<QString>>(_a[1]))); break;
-        case 186: _t->setPBOPresence((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1]))); break;
-        case 187: _t->setFBOPresence((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1]))); break;
-        case 188: _t->setMainVolume((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<float>>(_a[3]))); break;
-        case 189: _t->setMainVolumeMute((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[3]))); break;
-        case 190: _t->setSystemState((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<QSDR::_Error>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<QSDR::_HWInterfaceMode>>(_a[3])),(*reinterpret_cast< std::add_pointer_t<QSDR::_ServerMode>>(_a[4])),(*reinterpret_cast< std::add_pointer_t<QSDR::_DataEngineState>>(_a[5]))); break;
-        case 191: _t->setGraphicsState((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<PanGraphicsMode>>(_a[3])),(*reinterpret_cast< std::add_pointer_t<WaterfallColorMode>>(_a[4]))); break;
-        case 192: _t->setTxAllowed((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[2]))); break;
-        case 193: { RadioState _r = _t->setRadioState((*reinterpret_cast< std::add_pointer_t<RadioState>>(_a[1])));
+        case 86: _t->digitalAudioInputChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 87: _t->classChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 88: _t->timingChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 89: _t->controlBytesOutChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<uchar*>>(_a[2]))); break;
+        case 90: _t->ctrFrequencyChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[3])),(*reinterpret_cast< std::add_pointer_t<long>>(_a[4]))); break;
+        case 91: _t->vfoFrequencyChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[3])),(*reinterpret_cast< std::add_pointer_t<long>>(_a[4]))); break;
+        case 92: _t->ncoFrequencyChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<long>>(_a[2]))); break;
+        case 93: _t->widebandSpectrumBufferChanged((*reinterpret_cast< std::add_pointer_t<qVectorFloat>>(_a[1]))); break;
+        case 94: _t->widebandOptionsChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<TWideband>>(_a[2]))); break;
+        case 95: _t->widebandSpectrumBufferReset(); break;
+        case 96: _t->widebandStatusChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[2]))); break;
+        case 97: _t->widebandDataChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[2]))); break;
+        case 98: _t->widebanddBmScaleMinChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[2]))); break;
+        case 99: _t->widebanddBmScaleMaxChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[2]))); break;
+        case 100: _t->wideBandScalePositionChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<float>>(_a[2]))); break;
+        case 101: _t->panAveragingModeChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 102: _t->panDetectorModeChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 103: _t->fftSizeChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 104: _t->fmsqLevelChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 105: _t->iqPortChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[3]))); break;
+        case 106: _t->hamBandChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[3])),(*reinterpret_cast< std::add_pointer_t<HamBand>>(_a[4]))); break;
+        case 107: _t->dspModeChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<DSPMode>>(_a[3]))); break;
+        case 108: _t->adcModeChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<ADCMode>>(_a[3]))); break;
+        case 109: _t->agcModeChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<AGCMode>>(_a[3])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[4]))); break;
+        case 110: _t->agcHangEnabledChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[3]))); break;
+        case 111: _t->agcGainChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[3]))); break;
+        case 112: _t->agcThresholdChanged_dB((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3]))); break;
+        case 113: _t->agcFixedGainChanged_dB((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3]))); break;
+        case 114: _t->agcMaximumGainChanged_dB((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3]))); break;
+        case 115: _t->agcHangThresholdChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[3]))); break;
+        case 116: _t->agcHangThresholdSliderChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3]))); break;
+        case 117: _t->agcHangLevelChanged_dB((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3]))); break;
+        case 118: _t->agcLineLevelsChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[4]))); break;
+        case 119: _t->agcVariableGainChanged_dB((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3]))); break;
+        case 120: _t->agcAttackTimeChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3]))); break;
+        case 121: _t->agcDecayTimeChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3]))); break;
+        case 122: _t->agcHangTimeChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3]))); break;
+        case 123: _t->filterFrequenciesChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[4]))); break;
+        case 124: _t->cudaDevicesChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 125: _t->cudaDriverChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 126: _t->cudaRuntimeChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 127: _t->cudaCurrentDeviceChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 128: _t->cudaLastDeviceChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 129: _t->freqRulerPositionChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<float>>(_a[3]))); break;
+        case 130: _t->audioFormatChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<QAudioFormat>>(_a[2]))); break;
+        case 131: _t->audioPositionChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<qint64>>(_a[2]))); break;
+        case 132: _t->audioBufferChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<qint64>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qint64>>(_a[3])),(*reinterpret_cast< std::add_pointer_t<QByteArray>>(_a[4]))); break;
+        case 133: _t->displayWidgetHeightChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 134: _t->spectrumSizeChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 135: _t->panadapterColorChanged(); break;
+        case 136: _t->panGridStatusChanged((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 137: _t->peakHoldStatusChanged((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 138: _t->panLockedStatusChanged((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 139: _t->clickVFOStatusChanged((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 140: _t->hairCrossStatusChanged((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 141: _t->showAGCLinesStatusChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[3]))); break;
+        case 142: _t->spectrumAveragingChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[3]))); break;
+        case 143: _t->spectrumAveragingCntChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[3]))); break;
+        case 144: _t->waterfallTimeChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 145: _t->waterfallOffesetLoChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 146: _t->waterfallOffesetHiChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 147: _t->sMeterHoldTimeChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 148: _t->dBmScaleMinChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[2]))); break;
+        case 149: _t->dBmScaleMaxChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[2]))); break;
+        case 150: _t->agcMaximumGainChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3]))); break;
+        case 151: _t->noiseBlankerChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 152: _t->noiseFilterChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 153: _t->nr2GainMethodChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 154: _t->nr2NpeMethodChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 155: _t->nrAgcChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 156: _t->nr2AeChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[2]))); break;
+        case 157: _t->snbChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[2]))); break;
+        case 158: _t->anfChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[2]))); break;
+        case 159: _t->micInputLevelChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 160: _t->driveLevelChanged((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 161: _t->repeaterModeChanged((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1]))); break;
+        case 162: _t->repeaterOffsetchanged((*reinterpret_cast< std::add_pointer_t<double>>(_a[1]))); break;
+        case 163: _t->fmPremphasizechanged((*reinterpret_cast< std::add_pointer_t<double>>(_a[1]))); break;
+        case 164: _t->fmdeveationchanged((*reinterpret_cast< std::add_pointer_t<double>>(_a[1]))); break;
+        case 165: _t->amCarrierlevelchanged((*reinterpret_cast< std::add_pointer_t<double>>(_a[1]))); break;
+        case 166: _t->audioCompressionchanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 167: _t->micModeChanged((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1]))); break;
+        case 168: _t->showRadioPopupChanged((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1]))); break;
+        case 169: _t->receiverDataReady(); break;
+        case 170: _t->CwHangTimeChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 171: _t->CwSidetoneFreqChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 172: _t->CwKeyReversedChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 173: _t->CwKeyerModeChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 174: _t->InternalCwChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 175: _t->CwKeyerSpeedChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 176: _t->CwPttDelayChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 177: _t->CwSidetoneVolumeChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 178: _t->CwKeyerWeightChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 179: _t->CwKeyerSpacingChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 180: _t->setMainPower((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[2]))); break;
+        case 181: _t->setDefaultSkin((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[2]))); break;
+        case 182: _t->setSettingsFilename((*reinterpret_cast< std::add_pointer_t<QString>>(_a[1]))); break;
+        case 183: _t->setSystemMessage((*reinterpret_cast< std::add_pointer_t<QString>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 184: _t->setSettingsLoaded((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1]))); break;
+        case 185: _t->setCPULoad((*reinterpret_cast< std::add_pointer_t<short>>(_a[1]))); break;
+        case 186: _t->setCallsign((*reinterpret_cast< std::add_pointer_t<QString>>(_a[1]))); break;
+        case 187: _t->setPBOPresence((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1]))); break;
+        case 188: _t->setFBOPresence((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1]))); break;
+        case 189: _t->setMainVolume((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<float>>(_a[3]))); break;
+        case 190: _t->setMainVolumeMute((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[3]))); break;
+        case 191: _t->setSystemState((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<QSDR::_Error>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<QSDR::_HWInterfaceMode>>(_a[3])),(*reinterpret_cast< std::add_pointer_t<QSDR::_ServerMode>>(_a[4])),(*reinterpret_cast< std::add_pointer_t<QSDR::_DataEngineState>>(_a[5]))); break;
+        case 192: _t->setGraphicsState((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<PanGraphicsMode>>(_a[3])),(*reinterpret_cast< std::add_pointer_t<WaterfallColorMode>>(_a[4]))); break;
+        case 193: _t->setTxAllowed((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[2]))); break;
+        case 194: { RadioState _r = _t->setRadioState((*reinterpret_cast< std::add_pointer_t<RadioState>>(_a[1])));
             if (_a[0]) *reinterpret_cast< RadioState*>(_a[0]) = std::move(_r); }  break;
-        case 194: { RadioState _r = _t->getRadioState();
+        case 195: { RadioState _r = _t->getRadioState();
             if (_a[0]) *reinterpret_cast< RadioState*>(_a[0]) = std::move(_r); }  break;
-        case 195: _t->setMultiRxView((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 196: _t->setSMeterValue((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<double>>(_a[2]))); break;
-        case 197: _t->setSpectrumBuffer((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<QList<float>>>(_a[2]))); break;
-        case 198: _t->setPostSpectrumBuffer((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<const float*>>(_a[2]))); break;
-        case 199: _t->setSampleSize((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[3]))); break;
-        case 200: _t->setRxList((*reinterpret_cast< std::add_pointer_t<QList<Receiver*>>>(_a[1]))); break;
-        case 201: _t->setMetisCardList((*reinterpret_cast< std::add_pointer_t<QList<TNetworkDevicecard>>>(_a[1]))); break;
-        case 202: _t->searchHpsdrNetworkDevices(); break;
-        case 203: _t->clearMetisCardList(); break;
-        case 204: _t->setHPSDRDeviceNumber((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 205: _t->setCurrentHPSDRDevice((*reinterpret_cast< std::add_pointer_t<TNetworkDevicecard>>(_a[1]))); break;
-        case 206: _t->addNetworkIOComboBoxEntry((*reinterpret_cast< std::add_pointer_t<QString>>(_a[1]))); break;
-        case 207: _t->clearNetworkIOComboBoxEntry(); break;
-        case 208: _t->addServerNetworkInterface((*reinterpret_cast< std::add_pointer_t<QString>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<QString>>(_a[2]))); break;
-        case 209: _t->addHPSDRDeviceNIC((*reinterpret_cast< std::add_pointer_t<QString>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<QString>>(_a[2]))); break;
-        case 210: _t->setNumberOfNetworkInterfaces((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 211: _t->setServerNetworkInterface((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 212: _t->setHPSDRDeviceNIC((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 213: _t->setServerWidgetNIC((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 214: _t->setHPSDRWidgetNIC((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 215: _t->setServerAddr((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<QString>>(_a[2]))); break;
-        case 216: _t->setHPSDRDeviceLocalAddr((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<QString>>(_a[2]))); break;
-        case 217: _t->setServerPort((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<quint16>>(_a[2]))); break;
-        case 218: _t->setListenPort((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<quint16>>(_a[2]))); break;
-        case 219: _t->setAudioPort((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<quint16>>(_a[2]))); break;
-        case 220: _t->setMetisPort((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<quint16>>(_a[2]))); break;
-        case 221: _t->setClientConnected((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[2]))); break;
-        case 222: _t->setClientNoConnected((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 223: _t->setRxConnectedStatus((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[3]))); break;
-        case 224: _t->setAudioRx((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 225: _t->setConnected((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[2]))); break;
-        case 226: _t->setCheckFirmwareVersion((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[2]))); break;
-        case 227: _t->setHPSDRDevices((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<THPSDRDevices>>(_a[2]))); break;
-        case 228: _t->setHermesVersion((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 229: _t->setHPSDRHardware((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 230: _t->setMercuryPresence((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1]))); break;
-        case 231: _t->setMercuryVersion((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 232: _t->setPenelopePresence((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1]))); break;
-        case 233: _t->setPenelopeVersion((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 234: _t->setPennyLanePresence((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1]))); break;
-        case 235: _t->setPennyLaneVersion((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 236: _t->setAlexPresence((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1]))); break;
-        case 237: _t->setExcaliburPresence((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1]))); break;
-        case 238: _t->setMetisVersion((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 239: _t->setAlexConfiguration((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<quint16>>(_a[2]))); break;
-        case 240: _t->setAlexHPFLoFrequencies((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<long>>(_a[2]))); break;
-        case 241: _t->setAlexHPFHiFrequencies((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<long>>(_a[2]))); break;
-        case 242: _t->setAlexLPFLoFrequencies((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<long>>(_a[2]))); break;
-        case 243: _t->setAlexLPFHiFrequencies((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<long>>(_a[2]))); break;
-        case 244: _t->setAlexStates((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<QList<int>>>(_a[2]))); break;
-        case 245: _t->setAlexState((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[3]))); break;
-        case 246: _t->setAlexState((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 247: _t->setAlexToManual((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[2]))); break;
-        case 248: { int _r = _t->checkAlexState((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])));
+        case 196: _t->setMultiRxView((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 197: _t->setSMeterValue((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<double>>(_a[2]))); break;
+        case 198: _t->setSpectrumBuffer((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<QList<float>>>(_a[2]))); break;
+        case 199: _t->setPostSpectrumBuffer((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<const float*>>(_a[2]))); break;
+        case 200: _t->setSampleSize((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[3]))); break;
+        case 201: _t->setRxList((*reinterpret_cast< std::add_pointer_t<QList<Receiver*>>>(_a[1]))); break;
+        case 202: _t->setMetisCardList((*reinterpret_cast< std::add_pointer_t<QList<TNetworkDevicecard>>>(_a[1]))); break;
+        case 203: _t->searchHpsdrNetworkDevices(); break;
+        case 204: _t->clearMetisCardList(); break;
+        case 205: _t->setHPSDRDeviceNumber((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 206: _t->setCurrentHPSDRDevice((*reinterpret_cast< std::add_pointer_t<TNetworkDevicecard>>(_a[1]))); break;
+        case 207: _t->addNetworkIOComboBoxEntry((*reinterpret_cast< std::add_pointer_t<QString>>(_a[1]))); break;
+        case 208: _t->clearNetworkIOComboBoxEntry(); break;
+        case 209: _t->addServerNetworkInterface((*reinterpret_cast< std::add_pointer_t<QString>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<QString>>(_a[2]))); break;
+        case 210: _t->addHPSDRDeviceNIC((*reinterpret_cast< std::add_pointer_t<QString>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<QString>>(_a[2]))); break;
+        case 211: _t->setNumberOfNetworkInterfaces((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 212: _t->setServerNetworkInterface((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 213: _t->setHPSDRDeviceNIC((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 214: _t->setServerWidgetNIC((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 215: _t->setHPSDRWidgetNIC((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 216: _t->setServerAddr((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<QString>>(_a[2]))); break;
+        case 217: _t->setHPSDRDeviceLocalAddr((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<QString>>(_a[2]))); break;
+        case 218: _t->setServerPort((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<quint16>>(_a[2]))); break;
+        case 219: _t->setListenPort((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<quint16>>(_a[2]))); break;
+        case 220: _t->setAudioPort((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<quint16>>(_a[2]))); break;
+        case 221: _t->setMetisPort((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<quint16>>(_a[2]))); break;
+        case 222: _t->setClientConnected((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[2]))); break;
+        case 223: _t->setClientNoConnected((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 224: _t->setRxConnectedStatus((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[3]))); break;
+        case 225: _t->setAudioRx((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 226: _t->setConnected((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[2]))); break;
+        case 227: _t->setCheckFirmwareVersion((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[2]))); break;
+        case 228: _t->setHPSDRDevices((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<THPSDRDevices>>(_a[2]))); break;
+        case 229: _t->setHermesVersion((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 230: _t->setHPSDRHardware((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 231: _t->setMercuryPresence((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1]))); break;
+        case 232: _t->setMercuryVersion((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 233: _t->setPenelopePresence((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1]))); break;
+        case 234: _t->setPenelopeVersion((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 235: _t->setPennyLanePresence((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1]))); break;
+        case 236: _t->setPennyLaneVersion((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 237: _t->setAlexPresence((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1]))); break;
+        case 238: _t->setExcaliburPresence((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1]))); break;
+        case 239: _t->setMetisVersion((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 240: _t->setAlexConfiguration((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<quint16>>(_a[2]))); break;
+        case 241: _t->setAlexHPFLoFrequencies((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<long>>(_a[2]))); break;
+        case 242: _t->setAlexHPFHiFrequencies((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<long>>(_a[2]))); break;
+        case 243: _t->setAlexLPFLoFrequencies((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<long>>(_a[2]))); break;
+        case 244: _t->setAlexLPFHiFrequencies((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<long>>(_a[2]))); break;
+        case 245: _t->setAlexStates((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<QList<int>>>(_a[2]))); break;
+        case 246: _t->setAlexState((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[3]))); break;
+        case 247: _t->setAlexState((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 248: _t->setAlexToManual((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[2]))); break;
+        case 249: { int _r = _t->checkAlexState((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])));
             if (_a[0]) *reinterpret_cast< int*>(_a[0]) = std::move(_r); }  break;
-        case 249: _t->setPennyOCEnabled((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[2]))); break;
-        case 250: _t->setRxJ6Pin((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<HamBand>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[3]))); break;
-        case 251: _t->setRxJ6Pins((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<QList<int>>>(_a[2]))); break;
-        case 252: _t->setTxJ6Pin((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<HamBand>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[3]))); break;
-        case 253: _t->setTxJ6Pins((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<QList<int>>>(_a[2]))); break;
-        case 254: _t->setIQPort((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[3]))); break;
-        case 255: _t->setProtocolSync((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 256: _t->setADCOverflow((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 257: _t->setPacketLoss((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 258: _t->setForwardPower((*reinterpret_cast< std::add_pointer_t<qreal>>(_a[1]))); break;
-        case 259: _t->setReversePower((*reinterpret_cast< std::add_pointer_t<qreal>>(_a[1]))); break;
-        case 260: _t->setSendIQ((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 261: _t->setRcveIQ((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 262: _t->setReceivers((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 263: _t->setCurrentReceiver((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 264: _t->setSampleRate((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 265: _t->setMercuryAttenuator((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 266: _t->setDither((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 267: _t->setRandom((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 268: _t->set10MhzSource((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 269: _t->set122_88MhzSource((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 270: _t->setMicSource((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 271: _t->setMicInputDev((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 272: _t->setMicInputLevel((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 273: _t->setDriveLevel((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 274: _t->setClass((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 275: _t->setTiming((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 276: _t->setCtrFrequency((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[3])),(*reinterpret_cast< std::add_pointer_t<long>>(_a[4]))); break;
-        case 277: _t->setCtrFrequency((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<long>>(_a[2]))); break;
-        case 278: { long _r = _t->getCtrFrequency((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])));
+        case 250: _t->setPennyOCEnabled((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[2]))); break;
+        case 251: _t->setRxJ6Pin((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<HamBand>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[3]))); break;
+        case 252: _t->setRxJ6Pins((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<QList<int>>>(_a[2]))); break;
+        case 253: _t->setTxJ6Pin((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<HamBand>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[3]))); break;
+        case 254: _t->setTxJ6Pins((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<QList<int>>>(_a[2]))); break;
+        case 255: _t->setIQPort((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[3]))); break;
+        case 256: _t->setProtocolSync((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 257: _t->setADCOverflow((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 258: _t->setPacketLoss((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 259: _t->setForwardPower((*reinterpret_cast< std::add_pointer_t<qreal>>(_a[1]))); break;
+        case 260: _t->setReversePower((*reinterpret_cast< std::add_pointer_t<qreal>>(_a[1]))); break;
+        case 261: _t->setSendIQ((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 262: _t->setRcveIQ((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 263: _t->setReceivers((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 264: _t->setCurrentReceiver((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 265: _t->setSampleRate((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 266: _t->setMercuryAttenuator((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 267: _t->setDither((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 268: _t->setRandom((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 269: _t->set10MhzSource((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 270: _t->set122_88MhzSource((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 271: _t->setMicSource((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 272: _t->setMicInputDev((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 273: _t->setDigitalAudioInputDev((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 274: _t->setMicInputLevel((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 275: _t->setDriveLevel((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 276: _t->setClass((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 277: _t->setTiming((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 278: _t->setCtrFrequency((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[3])),(*reinterpret_cast< std::add_pointer_t<long>>(_a[4]))); break;
+        case 279: _t->setCtrFrequency((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<long>>(_a[2]))); break;
+        case 280: { long _r = _t->getCtrFrequency((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])));
             if (_a[0]) *reinterpret_cast< long*>(_a[0]) = std::move(_r); }  break;
-        case 279: _t->setVFOFrequency((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[3])),(*reinterpret_cast< std::add_pointer_t<long>>(_a[4]))); break;
-        case 280: _t->setVfoFrequency((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<long>>(_a[2]))); break;
-        case 281: { long _r = _t->getVfoFrequency((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])));
+        case 281: _t->setVFOFrequency((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[3])),(*reinterpret_cast< std::add_pointer_t<long>>(_a[4]))); break;
+        case 282: _t->setVfoFrequency((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<long>>(_a[2]))); break;
+        case 283: { long _r = _t->getVfoFrequency((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])));
             if (_a[0]) *reinterpret_cast< long*>(_a[0]) = std::move(_r); }  break;
-        case 282: _t->setNCOFrequency((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[3])),(*reinterpret_cast< std::add_pointer_t<long>>(_a[4]))); break;
-        case 283: _t->clientDisconnected((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 284: _t->setFramesPerSecond((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[3]))); break;
-        case 285: _t->setMouseWheelFreqStep((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3]))); break;
-        case 286: _t->setSocketBufferSize((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 287: _t->setManualSocketBufferSize((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[2]))); break;
-        case 288: _t->setReceiverDataReady(); break;
-        case 289: _t->setSpectrumSize((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 290: _t->setdBmPanScaleMin((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[2]))); break;
-        case 291: _t->setdBmPanScaleMax((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[2]))); break;
-        case 292: _t->setdBmDistScaleMin((*reinterpret_cast< std::add_pointer_t<qreal>>(_a[1]))); break;
-        case 293: _t->setdBmDistScaleMax((*reinterpret_cast< std::add_pointer_t<qreal>>(_a[1]))); break;
-        case 294: _t->setHamBand((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[3])),(*reinterpret_cast< std::add_pointer_t<HamBand>>(_a[4]))); break;
-        case 295: _t->setDSPMode((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<DSPMode>>(_a[3]))); break;
-        case 296: _t->setADCMode((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<ADCMode>>(_a[3]))); break;
-        case 297: _t->setAGCMode((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<AGCMode>>(_a[3]))); break;
-        case 298: _t->setAGCGain((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[3]))); break;
-        case 299: _t->setAGCMaximumGain_dB((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3]))); break;
-        case 300: _t->setAGCFixedGain_dB((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3]))); break;
-        case 301: _t->setAGCThreshold_dB((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3]))); break;
-        case 302: _t->setAGCHangThresholdSlider((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3]))); break;
-        case 303: _t->setAGCHangThreshold((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[3]))); break;
-        case 304: _t->setAGCHangLevel_dB((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3]))); break;
-        case 305: _t->setAGCLineLevels((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[4]))); break;
-        case 306: _t->setAGCShowLines((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[3]))); break;
-        case 307: _t->setAGCVariableGain_dB((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3]))); break;
-        case 308: _t->setAGCAttackTime((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3]))); break;
-        case 309: _t->setAGCDecayTime((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3]))); break;
-        case 310: _t->setAGCHangTime((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3]))); break;
-        case 311: _t->setRXFilter((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[4]))); break;
-        case 312: _t->setfftSize((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 313: _t->setfmsqLevel((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 314: _t->setWidebandBuffers((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 315: _t->setWidebandSpectrumBuffer((*reinterpret_cast< std::add_pointer_t<qVectorFloat>>(_a[1]))); break;
-        case 316: _t->resetWidebandSpectrumBuffer(); break;
-        case 317: _t->setWidebandOptions((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<TWideband>>(_a[2]))); break;
-        case 318: _t->setWidebandStatus((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[2]))); break;
-        case 319: _t->setWidebandData((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[2]))); break;
-        case 320: _t->setWidebanddBmScaleMin((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[2]))); break;
-        case 321: _t->setWidebanddBmScaleMax((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[2]))); break;
-        case 322: _t->setWideBandRulerPosition((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<float>>(_a[2]))); break;
-        case 323: _t->setFreqRulerPosition((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<float>>(_a[3]))); break;
-        case 324: _t->setAudioFormat((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<QAudioFormat>>(_a[2]))); break;
-        case 325: _t->setAudioPosition((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<qint64>>(_a[2]))); break;
-        case 326: _t->setAudioBuffer((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<qint64>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qint64>>(_a[3])),(*reinterpret_cast< std::add_pointer_t<QByteArray>>(_a[4]))); break;
-        case 327: _t->moveDisplayWidget((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 328: _t->setPanadapterColors((*reinterpret_cast< std::add_pointer_t<TPanadapterColors>>(_a[1]))); break;
-        case 329: _t->setPanGrid((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 330: _t->setPeakHold((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 331: _t->setPanLocked((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 332: _t->setClickVFO((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 333: _t->setHairCross((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 334: _t->setSpectrumAveraging((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[3]))); break;
-        case 335: _t->setSpectrumAveragingCnt((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[3]))); break;
-        case 336: _t->setWaterfallTime((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 337: _t->setWaterfallOffesetLo((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 338: _t->setWaterfallOffesetHi((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 339: _t->setPanAveragingMode((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<PanAveragingMode>>(_a[2]))); break;
-        case 340: _t->setPanDetectorMode((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<PanDetectorMode>>(_a[2]))); break;
-        case 341: _t->setNoiseBlankerMode((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 342: _t->setNoiseFilterMode((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 343: _t->setNR2GainMethod((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 344: _t->setNR2NpeMethod((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 345: _t->setNRAgc((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
-        case 346: _t->setNR2Ae((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[2]))); break;
-        case 347: _t->setAnf((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[2]))); break;
-        case 348: _t->setSnb((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[2]))); break;
-        case 349: _t->setRepeaterMode((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1]))); break;
-        case 350: _t->setRepeaterOffset((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 351: _t->setAudioCompression((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 352: _t->setAMCarrierLevel((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 353: _t->setFMPreEmphasize((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 354: _t->setFmDeveation((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 355: _t->setCwHangTime((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 356: _t->setCwSidetoneFreq((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 357: _t->setCwKeyReversed((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 358: _t->setCwKeyerMode((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 359: _t->setInternalCw((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 360: _t->setCwKeyerSpeed((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 361: _t->setCwPttDelay((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 362: _t->setCwSidetoneVolume((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 363: _t->setCwKeyerWeight((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 364: _t->setCwKeyerSpacing((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 365: _t->setSMeterHoldTime((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
-        case 366: _t->showNetworkIODialog(); break;
-        case 367: _t->showWarningDialog((*reinterpret_cast< std::add_pointer_t<QString>>(_a[1]))); break;
-        case 368: _t->showRadioPopupWidget(); break;
-        case 369: { QList<long> _r = _t->getCtrFrequencies();
+        case 284: _t->setNCOFrequency((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[3])),(*reinterpret_cast< std::add_pointer_t<long>>(_a[4]))); break;
+        case 285: _t->clientDisconnected((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 286: _t->setFramesPerSecond((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[3]))); break;
+        case 287: _t->setMouseWheelFreqStep((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3]))); break;
+        case 288: _t->setSocketBufferSize((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 289: _t->setManualSocketBufferSize((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[2]))); break;
+        case 290: _t->setReceiverDataReady(); break;
+        case 291: _t->setSpectrumSize((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 292: _t->setdBmPanScaleMin((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[2]))); break;
+        case 293: _t->setdBmPanScaleMax((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[2]))); break;
+        case 294: _t->setdBmDistScaleMin((*reinterpret_cast< std::add_pointer_t<qreal>>(_a[1]))); break;
+        case 295: _t->setdBmDistScaleMax((*reinterpret_cast< std::add_pointer_t<qreal>>(_a[1]))); break;
+        case 296: _t->setHamBand((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[3])),(*reinterpret_cast< std::add_pointer_t<HamBand>>(_a[4]))); break;
+        case 297: _t->setDSPMode((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<DSPMode>>(_a[3]))); break;
+        case 298: _t->setADCMode((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<ADCMode>>(_a[3]))); break;
+        case 299: _t->setAGCMode((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<AGCMode>>(_a[3]))); break;
+        case 300: _t->setAGCGain((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[3]))); break;
+        case 301: _t->setAGCMaximumGain_dB((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3]))); break;
+        case 302: _t->setAGCFixedGain_dB((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3]))); break;
+        case 303: _t->setAGCThreshold_dB((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3]))); break;
+        case 304: _t->setAGCHangThresholdSlider((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3]))); break;
+        case 305: _t->setAGCHangThreshold((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[3]))); break;
+        case 306: _t->setAGCHangLevel_dB((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3]))); break;
+        case 307: _t->setAGCLineLevels((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[4]))); break;
+        case 308: _t->setAGCShowLines((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[3]))); break;
+        case 309: _t->setAGCVariableGain_dB((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3]))); break;
+        case 310: _t->setAGCAttackTime((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3]))); break;
+        case 311: _t->setAGCDecayTime((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3]))); break;
+        case 312: _t->setAGCHangTime((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3]))); break;
+        case 313: _t->setRXFilter((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[3])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[4]))); break;
+        case 314: _t->setfftSize((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 315: _t->setfmsqLevel((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 316: _t->setWidebandBuffers((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 317: _t->setWidebandSpectrumBuffer((*reinterpret_cast< std::add_pointer_t<qVectorFloat>>(_a[1]))); break;
+        case 318: _t->resetWidebandSpectrumBuffer(); break;
+        case 319: _t->setWidebandOptions((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<TWideband>>(_a[2]))); break;
+        case 320: _t->setWidebandStatus((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[2]))); break;
+        case 321: _t->setWidebandData((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[2]))); break;
+        case 322: _t->setWidebanddBmScaleMin((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[2]))); break;
+        case 323: _t->setWidebanddBmScaleMax((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[2]))); break;
+        case 324: _t->setWideBandRulerPosition((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<float>>(_a[2]))); break;
+        case 325: _t->setFreqRulerPosition((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<float>>(_a[3]))); break;
+        case 326: _t->setAudioFormat((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<QAudioFormat>>(_a[2]))); break;
+        case 327: _t->setAudioPosition((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<qint64>>(_a[2]))); break;
+        case 328: _t->setAudioBuffer((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<qint64>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<qint64>>(_a[3])),(*reinterpret_cast< std::add_pointer_t<QByteArray>>(_a[4]))); break;
+        case 329: _t->moveDisplayWidget((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 330: _t->setPanadapterColors((*reinterpret_cast< std::add_pointer_t<TPanadapterColors>>(_a[1]))); break;
+        case 331: _t->setPanGrid((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 332: _t->setPeakHold((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 333: _t->setPanLocked((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 334: _t->setClickVFO((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 335: _t->setHairCross((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 336: _t->setSpectrumAveraging((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[3]))); break;
+        case 337: _t->setSpectrumAveragingCnt((*reinterpret_cast< std::add_pointer_t<QObject*>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[3]))); break;
+        case 338: _t->setWaterfallTime((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 339: _t->setWaterfallOffesetLo((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 340: _t->setWaterfallOffesetHi((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 341: _t->setPanAveragingMode((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<PanAveragingMode>>(_a[2]))); break;
+        case 342: _t->setPanDetectorMode((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<PanDetectorMode>>(_a[2]))); break;
+        case 343: _t->setNoiseBlankerMode((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 344: _t->setNoiseFilterMode((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 345: _t->setNR2GainMethod((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 346: _t->setNR2NpeMethod((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 347: _t->setNRAgc((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<int>>(_a[2]))); break;
+        case 348: _t->setNR2Ae((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[2]))); break;
+        case 349: _t->setAnf((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[2]))); break;
+        case 350: _t->setSnb((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<bool>>(_a[2]))); break;
+        case 351: _t->setRepeaterMode((*reinterpret_cast< std::add_pointer_t<bool>>(_a[1]))); break;
+        case 352: _t->setRepeaterOffset((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 353: _t->setAudioCompression((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 354: _t->setAMCarrierLevel((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 355: _t->setFMPreEmphasize((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 356: _t->setFmDeveation((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 357: _t->setCwHangTime((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 358: _t->setCwSidetoneFreq((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 359: _t->setCwKeyReversed((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 360: _t->setCwKeyerMode((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 361: _t->setInternalCw((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 362: _t->setCwKeyerSpeed((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 363: _t->setCwPttDelay((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 364: _t->setCwSidetoneVolume((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 365: _t->setCwKeyerWeight((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 366: _t->setCwKeyerSpacing((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 367: _t->setSMeterHoldTime((*reinterpret_cast< std::add_pointer_t<int>>(_a[1]))); break;
+        case 368: _t->showNetworkIODialog(); break;
+        case 369: _t->showWarningDialog((*reinterpret_cast< std::add_pointer_t<QString>>(_a[1]))); break;
+        case 370: _t->showRadioPopupWidget(); break;
+        case 371: { QList<long> _r = _t->getCtrFrequencies();
             if (_a[0]) *reinterpret_cast< QList<long>*>(_a[0]) = std::move(_r); }  break;
-        case 370: { QList<long> _r = _t->getVfoFrequencies();
+        case 372: { QList<long> _r = _t->getVfoFrequencies();
             if (_a[0]) *reinterpret_cast< QList<long>*>(_a[0]) = std::move(_r); }  break;
         default: ;
         }
@@ -2431,42 +2443,42 @@ void Settings::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, vo
                 *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType::fromType< HamBand >(); break;
             }
             break;
-        case 105:
+        case 106:
             switch (*reinterpret_cast<int*>(_a[1])) {
             default: *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType(); break;
             case 3:
                 *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType::fromType< HamBand >(); break;
             }
             break;
-        case 106:
+        case 107:
             switch (*reinterpret_cast<int*>(_a[1])) {
             default: *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType(); break;
             case 2:
                 *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType::fromType< DSPMode >(); break;
             }
             break;
-        case 107:
+        case 108:
             switch (*reinterpret_cast<int*>(_a[1])) {
             default: *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType(); break;
             case 2:
                 *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType::fromType< ADCMode >(); break;
             }
             break;
-        case 108:
+        case 109:
             switch (*reinterpret_cast<int*>(_a[1])) {
             default: *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType(); break;
             case 2:
                 *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType::fromType< AGCMode >(); break;
             }
             break;
-        case 129:
+        case 130:
             switch (*reinterpret_cast<int*>(_a[1])) {
             default: *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType(); break;
             case 1:
                 *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType::fromType< QAudioFormat >(); break;
             }
             break;
-        case 190:
+        case 191:
             switch (*reinterpret_cast<int*>(_a[1])) {
             default: *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType(); break;
             case 4:
@@ -2479,91 +2491,91 @@ void Settings::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, vo
                 *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType::fromType< QSDR::_ServerMode >(); break;
             }
             break;
-        case 197:
+        case 198:
             switch (*reinterpret_cast<int*>(_a[1])) {
             default: *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType(); break;
             case 1:
                 *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType::fromType< QList<float> >(); break;
             }
             break;
-        case 201:
+        case 202:
             switch (*reinterpret_cast<int*>(_a[1])) {
             default: *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType(); break;
             case 0:
                 *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType::fromType< QList<TNetworkDevicecard> >(); break;
             }
             break;
-        case 205:
+        case 206:
             switch (*reinterpret_cast<int*>(_a[1])) {
             default: *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType(); break;
             case 0:
                 *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType::fromType< TNetworkDevicecard >(); break;
             }
             break;
-        case 244:
+        case 245:
             switch (*reinterpret_cast<int*>(_a[1])) {
             default: *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType(); break;
             case 1:
                 *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType::fromType< QList<int> >(); break;
-            }
-            break;
-        case 250:
-            switch (*reinterpret_cast<int*>(_a[1])) {
-            default: *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType(); break;
-            case 1:
-                *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType::fromType< HamBand >(); break;
             }
             break;
         case 251:
             switch (*reinterpret_cast<int*>(_a[1])) {
             default: *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType(); break;
             case 1:
-                *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType::fromType< QList<int> >(); break;
+                *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType::fromType< HamBand >(); break;
             }
             break;
         case 252:
             switch (*reinterpret_cast<int*>(_a[1])) {
             default: *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType(); break;
             case 1:
-                *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType::fromType< HamBand >(); break;
+                *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType::fromType< QList<int> >(); break;
             }
             break;
         case 253:
             switch (*reinterpret_cast<int*>(_a[1])) {
             default: *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType(); break;
             case 1:
+                *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType::fromType< HamBand >(); break;
+            }
+            break;
+        case 254:
+            switch (*reinterpret_cast<int*>(_a[1])) {
+            default: *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType(); break;
+            case 1:
                 *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType::fromType< QList<int> >(); break;
             }
             break;
-        case 294:
+        case 296:
             switch (*reinterpret_cast<int*>(_a[1])) {
             default: *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType(); break;
             case 3:
                 *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType::fromType< HamBand >(); break;
             }
             break;
-        case 295:
+        case 297:
             switch (*reinterpret_cast<int*>(_a[1])) {
             default: *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType(); break;
             case 2:
                 *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType::fromType< DSPMode >(); break;
             }
             break;
-        case 296:
+        case 298:
             switch (*reinterpret_cast<int*>(_a[1])) {
             default: *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType(); break;
             case 2:
                 *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType::fromType< ADCMode >(); break;
             }
             break;
-        case 297:
+        case 299:
             switch (*reinterpret_cast<int*>(_a[1])) {
             default: *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType(); break;
             case 2:
                 *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType::fromType< AGCMode >(); break;
             }
             break;
-        case 324:
+        case 326:
             switch (*reinterpret_cast<int*>(_a[1])) {
             default: *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType(); break;
             case 1:
@@ -2745,191 +2757,193 @@ void Settings::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, vo
             return;
         if (QtMocHelpers::indexOfMethod<void (Settings::*)(int )>(_a, &Settings::micInputChanged, 85))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int )>(_a, &Settings::classChanged, 86))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int )>(_a, &Settings::digitalAudioInputChanged, 86))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int )>(_a, &Settings::timingChanged, 87))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int )>(_a, &Settings::classChanged, 87))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , unsigned char * )>(_a, &Settings::controlBytesOutChanged, 88))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int )>(_a, &Settings::timingChanged, 88))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int , int , long )>(_a, &Settings::ctrFrequencyChanged, 89))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , unsigned char * )>(_a, &Settings::controlBytesOutChanged, 89))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int , int , long )>(_a, &Settings::vfoFrequencyChanged, 90))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int , int , long )>(_a, &Settings::ctrFrequencyChanged, 90))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int , long )>(_a, &Settings::ncoFrequencyChanged, 91))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int , int , long )>(_a, &Settings::vfoFrequencyChanged, 91))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(const qVectorFloat & )>(_a, &Settings::widebandSpectrumBufferChanged, 92))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int , long )>(_a, &Settings::ncoFrequencyChanged, 92))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , TWideband )>(_a, &Settings::widebandOptionsChanged, 93))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(const qVectorFloat & )>(_a, &Settings::widebandSpectrumBufferChanged, 93))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)()>(_a, &Settings::widebandSpectrumBufferReset, 94))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , TWideband )>(_a, &Settings::widebandOptionsChanged, 94))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , bool )>(_a, &Settings::widebandStatusChanged, 95))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)()>(_a, &Settings::widebandSpectrumBufferReset, 95))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , bool )>(_a, &Settings::widebandDataChanged, 96))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , bool )>(_a, &Settings::widebandStatusChanged, 96))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , qreal )>(_a, &Settings::widebanddBmScaleMinChanged, 97))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , bool )>(_a, &Settings::widebandDataChanged, 97))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , qreal )>(_a, &Settings::widebanddBmScaleMaxChanged, 98))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , qreal )>(_a, &Settings::widebanddBmScaleMinChanged, 98))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , float )>(_a, &Settings::wideBandScalePositionChanged, 99))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , qreal )>(_a, &Settings::widebanddBmScaleMaxChanged, 99))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int , int )>(_a, &Settings::panAveragingModeChanged, 100))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , float )>(_a, &Settings::wideBandScalePositionChanged, 100))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int , int )>(_a, &Settings::panDetectorModeChanged, 101))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int , int )>(_a, &Settings::panAveragingModeChanged, 101))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int , int )>(_a, &Settings::fftSizeChanged, 102))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int , int )>(_a, &Settings::panDetectorModeChanged, 102))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int , int )>(_a, &Settings::fmsqLevelChanged, 103))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int , int )>(_a, &Settings::fftSizeChanged, 103))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int , int )>(_a, &Settings::iqPortChanged, 104))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int , int )>(_a, &Settings::fmsqLevelChanged, 104))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int , bool , HamBand )>(_a, &Settings::hamBandChanged, 105))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int , int )>(_a, &Settings::iqPortChanged, 105))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int , DSPMode )>(_a, &Settings::dspModeChanged, 106))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int , bool , HamBand )>(_a, &Settings::hamBandChanged, 106))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int , ADCMode )>(_a, &Settings::adcModeChanged, 107))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int , DSPMode )>(_a, &Settings::dspModeChanged, 107))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int , AGCMode , bool )>(_a, &Settings::agcModeChanged, 108))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int , ADCMode )>(_a, &Settings::adcModeChanged, 108))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int , bool )>(_a, &Settings::agcHangEnabledChanged, 109))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int , AGCMode , bool )>(_a, &Settings::agcModeChanged, 109))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int , int )>(_a, &Settings::agcGainChanged, 110))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int , bool )>(_a, &Settings::agcHangEnabledChanged, 110))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int , qreal )>(_a, &Settings::agcThresholdChanged_dB, 111))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int , int )>(_a, &Settings::agcGainChanged, 111))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int , qreal )>(_a, &Settings::agcFixedGainChanged_dB, 112))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int , qreal )>(_a, &Settings::agcThresholdChanged_dB, 112))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int , qreal )>(_a, &Settings::agcMaximumGainChanged_dB, 113))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int , qreal )>(_a, &Settings::agcFixedGainChanged_dB, 113))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int , int )>(_a, &Settings::agcHangThresholdChanged, 114))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int , qreal )>(_a, &Settings::agcMaximumGainChanged_dB, 114))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int , qreal )>(_a, &Settings::agcHangThresholdSliderChanged, 115))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int , int )>(_a, &Settings::agcHangThresholdChanged, 115))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int , qreal )>(_a, &Settings::agcHangLevelChanged_dB, 116))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int , qreal )>(_a, &Settings::agcHangThresholdSliderChanged, 116))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int , qreal , qreal )>(_a, &Settings::agcLineLevelsChanged, 117))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int , qreal )>(_a, &Settings::agcHangLevelChanged_dB, 117))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int , qreal )>(_a, &Settings::agcVariableGainChanged_dB, 118))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int , qreal , qreal )>(_a, &Settings::agcLineLevelsChanged, 118))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int , qreal )>(_a, &Settings::agcAttackTimeChanged, 119))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int , qreal )>(_a, &Settings::agcVariableGainChanged_dB, 119))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int , qreal )>(_a, &Settings::agcDecayTimeChanged, 120))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int , qreal )>(_a, &Settings::agcAttackTimeChanged, 120))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int , qreal )>(_a, &Settings::agcHangTimeChanged, 121))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int , qreal )>(_a, &Settings::agcDecayTimeChanged, 121))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int , qreal , qreal )>(_a, &Settings::filterFrequenciesChanged, 122))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int , qreal )>(_a, &Settings::agcHangTimeChanged, 122))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int )>(_a, &Settings::cudaDevicesChanged, 123))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int , qreal , qreal )>(_a, &Settings::filterFrequenciesChanged, 123))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int )>(_a, &Settings::cudaDriverChanged, 124))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int )>(_a, &Settings::cudaDevicesChanged, 124))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int )>(_a, &Settings::cudaRuntimeChanged, 125))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int )>(_a, &Settings::cudaDriverChanged, 125))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int )>(_a, &Settings::cudaCurrentDeviceChanged, 126))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int )>(_a, &Settings::cudaRuntimeChanged, 126))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int )>(_a, &Settings::cudaLastDeviceChanged, 127))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int )>(_a, &Settings::cudaCurrentDeviceChanged, 127))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int , float )>(_a, &Settings::freqRulerPositionChanged, 128))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int )>(_a, &Settings::cudaLastDeviceChanged, 128))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , const QAudioFormat & )>(_a, &Settings::audioFormatChanged, 129))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int , float )>(_a, &Settings::freqRulerPositionChanged, 129))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , qint64 )>(_a, &Settings::audioPositionChanged, 130))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , const QAudioFormat & )>(_a, &Settings::audioFormatChanged, 130))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , qint64 , qint64 , const QByteArray & )>(_a, &Settings::audioBufferChanged, 131))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , qint64 )>(_a, &Settings::audioPositionChanged, 131))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int )>(_a, &Settings::displayWidgetHeightChanged, 132))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , qint64 , qint64 , const QByteArray & )>(_a, &Settings::audioBufferChanged, 132))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int )>(_a, &Settings::spectrumSizeChanged, 133))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int )>(_a, &Settings::displayWidgetHeightChanged, 133))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)()>(_a, &Settings::panadapterColorChanged, 134))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int )>(_a, &Settings::spectrumSizeChanged, 134))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(bool , int )>(_a, &Settings::panGridStatusChanged, 135))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)()>(_a, &Settings::panadapterColorChanged, 135))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(bool , int )>(_a, &Settings::peakHoldStatusChanged, 136))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(bool , int )>(_a, &Settings::panGridStatusChanged, 136))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(bool , int )>(_a, &Settings::panLockedStatusChanged, 137))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(bool , int )>(_a, &Settings::peakHoldStatusChanged, 137))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(bool , int )>(_a, &Settings::clickVFOStatusChanged, 138))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(bool , int )>(_a, &Settings::panLockedStatusChanged, 138))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(bool , int )>(_a, &Settings::hairCrossStatusChanged, 139))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(bool , int )>(_a, &Settings::clickVFOStatusChanged, 139))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , bool , int )>(_a, &Settings::showAGCLinesStatusChanged, 140))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(bool , int )>(_a, &Settings::hairCrossStatusChanged, 140))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int , bool )>(_a, &Settings::spectrumAveragingChanged, 141))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , bool , int )>(_a, &Settings::showAGCLinesStatusChanged, 141))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int , int )>(_a, &Settings::spectrumAveragingCntChanged, 142))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int , bool )>(_a, &Settings::spectrumAveragingChanged, 142))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int , int )>(_a, &Settings::waterfallTimeChanged, 143))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int , int )>(_a, &Settings::spectrumAveragingCntChanged, 143))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int , int )>(_a, &Settings::waterfallOffesetLoChanged, 144))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int , int )>(_a, &Settings::waterfallTimeChanged, 144))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int , int )>(_a, &Settings::waterfallOffesetHiChanged, 145))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int , int )>(_a, &Settings::waterfallOffesetLoChanged, 145))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int )>(_a, &Settings::sMeterHoldTimeChanged, 146))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int , int )>(_a, &Settings::waterfallOffesetHiChanged, 146))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int , qreal )>(_a, &Settings::dBmScaleMinChanged, 147))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int )>(_a, &Settings::sMeterHoldTimeChanged, 147))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int , qreal )>(_a, &Settings::dBmScaleMaxChanged, 148))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int , qreal )>(_a, &Settings::dBmScaleMinChanged, 148))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int , qreal )>(_a, &Settings::agcMaximumGainChanged, 149))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int , qreal )>(_a, &Settings::dBmScaleMaxChanged, 149))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int , int )>(_a, &Settings::noiseBlankerChanged, 150))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int , qreal )>(_a, &Settings::agcMaximumGainChanged, 150))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int , int )>(_a, &Settings::noiseFilterChanged, 151))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int , int )>(_a, &Settings::noiseBlankerChanged, 151))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int , int )>(_a, &Settings::nr2GainMethodChanged, 152))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int , int )>(_a, &Settings::noiseFilterChanged, 152))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int , int )>(_a, &Settings::nr2NpeMethodChanged, 153))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int , int )>(_a, &Settings::nr2GainMethodChanged, 153))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int , int )>(_a, &Settings::nrAgcChanged, 154))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int , int )>(_a, &Settings::nr2NpeMethodChanged, 154))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int , bool )>(_a, &Settings::nr2AeChanged, 155))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int , int )>(_a, &Settings::nrAgcChanged, 155))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int , bool )>(_a, &Settings::snbChanged, 156))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int , bool )>(_a, &Settings::nr2AeChanged, 156))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int , bool )>(_a, &Settings::anfChanged, 157))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int , bool )>(_a, &Settings::snbChanged, 157))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int )>(_a, &Settings::micInputLevelChanged, 158))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int , bool )>(_a, &Settings::anfChanged, 158))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int )>(_a, &Settings::driveLevelChanged, 159))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int )>(_a, &Settings::micInputLevelChanged, 159))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(bool )>(_a, &Settings::repeaterModeChanged, 160))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(QObject * , int )>(_a, &Settings::driveLevelChanged, 160))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(double )>(_a, &Settings::repeaterOffsetchanged, 161))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(bool )>(_a, &Settings::repeaterModeChanged, 161))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(double )>(_a, &Settings::fmPremphasizechanged, 162))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(double )>(_a, &Settings::repeaterOffsetchanged, 162))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(double )>(_a, &Settings::fmdeveationchanged, 163))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(double )>(_a, &Settings::fmPremphasizechanged, 163))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(double )>(_a, &Settings::amCarrierlevelchanged, 164))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(double )>(_a, &Settings::fmdeveationchanged, 164))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int )>(_a, &Settings::audioCompressionchanged, 165))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(double )>(_a, &Settings::amCarrierlevelchanged, 165))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(bool )>(_a, &Settings::micModeChanged, 166))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int )>(_a, &Settings::audioCompressionchanged, 166))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(bool )>(_a, &Settings::showRadioPopupChanged, 167))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(bool )>(_a, &Settings::micModeChanged, 167))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)()>(_a, &Settings::receiverDataReady, 168))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(bool )>(_a, &Settings::showRadioPopupChanged, 168))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int )>(_a, &Settings::CwHangTimeChanged, 169))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)()>(_a, &Settings::receiverDataReady, 169))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int )>(_a, &Settings::CwSidetoneFreqChanged, 170))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int )>(_a, &Settings::CwHangTimeChanged, 170))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int )>(_a, &Settings::CwKeyReversedChanged, 171))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int )>(_a, &Settings::CwSidetoneFreqChanged, 171))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int )>(_a, &Settings::CwKeyerModeChanged, 172))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int )>(_a, &Settings::CwKeyReversedChanged, 172))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int )>(_a, &Settings::InternalCwChanged, 173))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int )>(_a, &Settings::CwKeyerModeChanged, 173))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int )>(_a, &Settings::CwKeyerSpeedChanged, 174))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int )>(_a, &Settings::InternalCwChanged, 174))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int )>(_a, &Settings::CwPttDelayChanged, 175))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int )>(_a, &Settings::CwKeyerSpeedChanged, 175))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int )>(_a, &Settings::CwSidetoneVolumeChanged, 176))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int )>(_a, &Settings::CwPttDelayChanged, 176))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int )>(_a, &Settings::CwKeyerWeightChanged, 177))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int )>(_a, &Settings::CwSidetoneVolumeChanged, 177))
             return;
-        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int )>(_a, &Settings::CwKeyerSpacingChanged, 178))
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int )>(_a, &Settings::CwKeyerWeightChanged, 178))
+            return;
+        if (QtMocHelpers::indexOfMethod<void (Settings::*)(int )>(_a, &Settings::CwKeyerSpacingChanged, 179))
             return;
     }
 }
@@ -2953,14 +2967,14 @@ int Settings::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
     if (_id < 0)
         return _id;
     if (_c == QMetaObject::InvokeMetaMethod) {
-        if (_id < 371)
+        if (_id < 373)
             qt_static_metacall(this, _c, _id, _a);
-        _id -= 371;
+        _id -= 373;
     }
     if (_c == QMetaObject::RegisterMethodArgumentMetaType) {
-        if (_id < 371)
+        if (_id < 373)
             qt_static_metacall(this, _c, _id, _a);
-        _id -= 371;
+        _id -= 373;
     }
     return _id;
 }
@@ -3482,560 +3496,566 @@ void Settings::micInputChanged(int _t1)
 }
 
 // SIGNAL 86
-void Settings::classChanged(QObject * _t1, int _t2)
+void Settings::digitalAudioInputChanged(int _t1)
 {
-    QMetaObject::activate<void>(this, &staticMetaObject, 86, nullptr, _t1, _t2);
+    QMetaObject::activate<void>(this, &staticMetaObject, 86, nullptr, _t1);
 }
 
 // SIGNAL 87
-void Settings::timingChanged(QObject * _t1, int _t2)
+void Settings::classChanged(QObject * _t1, int _t2)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 87, nullptr, _t1, _t2);
 }
 
 // SIGNAL 88
-void Settings::controlBytesOutChanged(QObject * _t1, unsigned char * _t2)
+void Settings::timingChanged(QObject * _t1, int _t2)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 88, nullptr, _t1, _t2);
 }
 
 // SIGNAL 89
-void Settings::ctrFrequencyChanged(QObject * _t1, int _t2, int _t3, long _t4)
+void Settings::controlBytesOutChanged(QObject * _t1, unsigned char * _t2)
 {
-    QMetaObject::activate<void>(this, &staticMetaObject, 89, nullptr, _t1, _t2, _t3, _t4);
+    QMetaObject::activate<void>(this, &staticMetaObject, 89, nullptr, _t1, _t2);
 }
 
 // SIGNAL 90
-void Settings::vfoFrequencyChanged(QObject * _t1, int _t2, int _t3, long _t4)
+void Settings::ctrFrequencyChanged(QObject * _t1, int _t2, int _t3, long _t4)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 90, nullptr, _t1, _t2, _t3, _t4);
 }
 
 // SIGNAL 91
-void Settings::ncoFrequencyChanged(int _t1, long _t2)
+void Settings::vfoFrequencyChanged(QObject * _t1, int _t2, int _t3, long _t4)
 {
-    QMetaObject::activate<void>(this, &staticMetaObject, 91, nullptr, _t1, _t2);
+    QMetaObject::activate<void>(this, &staticMetaObject, 91, nullptr, _t1, _t2, _t3, _t4);
 }
 
 // SIGNAL 92
-void Settings::widebandSpectrumBufferChanged(const qVectorFloat & _t1)
+void Settings::ncoFrequencyChanged(int _t1, long _t2)
 {
-    QMetaObject::activate<void>(this, &staticMetaObject, 92, nullptr, _t1);
+    QMetaObject::activate<void>(this, &staticMetaObject, 92, nullptr, _t1, _t2);
 }
 
 // SIGNAL 93
-void Settings::widebandOptionsChanged(QObject * _t1, TWideband _t2)
+void Settings::widebandSpectrumBufferChanged(const qVectorFloat & _t1)
 {
-    QMetaObject::activate<void>(this, &staticMetaObject, 93, nullptr, _t1, _t2);
+    QMetaObject::activate<void>(this, &staticMetaObject, 93, nullptr, _t1);
 }
 
 // SIGNAL 94
-void Settings::widebandSpectrumBufferReset()
+void Settings::widebandOptionsChanged(QObject * _t1, TWideband _t2)
 {
-    QMetaObject::activate(this, &staticMetaObject, 94, nullptr);
+    QMetaObject::activate<void>(this, &staticMetaObject, 94, nullptr, _t1, _t2);
 }
 
 // SIGNAL 95
-void Settings::widebandStatusChanged(QObject * _t1, bool _t2)
+void Settings::widebandSpectrumBufferReset()
 {
-    QMetaObject::activate<void>(this, &staticMetaObject, 95, nullptr, _t1, _t2);
+    QMetaObject::activate(this, &staticMetaObject, 95, nullptr);
 }
 
 // SIGNAL 96
-void Settings::widebandDataChanged(QObject * _t1, bool _t2)
+void Settings::widebandStatusChanged(QObject * _t1, bool _t2)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 96, nullptr, _t1, _t2);
 }
 
 // SIGNAL 97
-void Settings::widebanddBmScaleMinChanged(QObject * _t1, qreal _t2)
+void Settings::widebandDataChanged(QObject * _t1, bool _t2)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 97, nullptr, _t1, _t2);
 }
 
 // SIGNAL 98
-void Settings::widebanddBmScaleMaxChanged(QObject * _t1, qreal _t2)
+void Settings::widebanddBmScaleMinChanged(QObject * _t1, qreal _t2)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 98, nullptr, _t1, _t2);
 }
 
 // SIGNAL 99
-void Settings::wideBandScalePositionChanged(QObject * _t1, float _t2)
+void Settings::widebanddBmScaleMaxChanged(QObject * _t1, qreal _t2)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 99, nullptr, _t1, _t2);
 }
 
 // SIGNAL 100
-void Settings::panAveragingModeChanged(int _t1, int _t2)
+void Settings::wideBandScalePositionChanged(QObject * _t1, float _t2)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 100, nullptr, _t1, _t2);
 }
 
 // SIGNAL 101
-void Settings::panDetectorModeChanged(int _t1, int _t2)
+void Settings::panAveragingModeChanged(int _t1, int _t2)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 101, nullptr, _t1, _t2);
 }
 
 // SIGNAL 102
-void Settings::fftSizeChanged(int _t1, int _t2)
+void Settings::panDetectorModeChanged(int _t1, int _t2)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 102, nullptr, _t1, _t2);
 }
 
 // SIGNAL 103
-void Settings::fmsqLevelChanged(int _t1, int _t2)
+void Settings::fftSizeChanged(int _t1, int _t2)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 103, nullptr, _t1, _t2);
 }
 
 // SIGNAL 104
-void Settings::iqPortChanged(QObject * _t1, int _t2, int _t3)
+void Settings::fmsqLevelChanged(int _t1, int _t2)
 {
-    QMetaObject::activate<void>(this, &staticMetaObject, 104, nullptr, _t1, _t2, _t3);
+    QMetaObject::activate<void>(this, &staticMetaObject, 104, nullptr, _t1, _t2);
 }
 
 // SIGNAL 105
-void Settings::hamBandChanged(QObject * _t1, int _t2, bool _t3, HamBand _t4)
+void Settings::iqPortChanged(QObject * _t1, int _t2, int _t3)
 {
-    QMetaObject::activate<void>(this, &staticMetaObject, 105, nullptr, _t1, _t2, _t3, _t4);
+    QMetaObject::activate<void>(this, &staticMetaObject, 105, nullptr, _t1, _t2, _t3);
 }
 
 // SIGNAL 106
-void Settings::dspModeChanged(QObject * _t1, int _t2, DSPMode _t3)
+void Settings::hamBandChanged(QObject * _t1, int _t2, bool _t3, HamBand _t4)
 {
-    QMetaObject::activate<void>(this, &staticMetaObject, 106, nullptr, _t1, _t2, _t3);
+    QMetaObject::activate<void>(this, &staticMetaObject, 106, nullptr, _t1, _t2, _t3, _t4);
 }
 
 // SIGNAL 107
-void Settings::adcModeChanged(QObject * _t1, int _t2, ADCMode _t3)
+void Settings::dspModeChanged(QObject * _t1, int _t2, DSPMode _t3)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 107, nullptr, _t1, _t2, _t3);
 }
 
 // SIGNAL 108
-void Settings::agcModeChanged(QObject * _t1, int _t2, AGCMode _t3, bool _t4)
+void Settings::adcModeChanged(QObject * _t1, int _t2, ADCMode _t3)
 {
-    QMetaObject::activate<void>(this, &staticMetaObject, 108, nullptr, _t1, _t2, _t3, _t4);
+    QMetaObject::activate<void>(this, &staticMetaObject, 108, nullptr, _t1, _t2, _t3);
 }
 
 // SIGNAL 109
-void Settings::agcHangEnabledChanged(QObject * _t1, int _t2, bool _t3)
+void Settings::agcModeChanged(QObject * _t1, int _t2, AGCMode _t3, bool _t4)
 {
-    QMetaObject::activate<void>(this, &staticMetaObject, 109, nullptr, _t1, _t2, _t3);
+    QMetaObject::activate<void>(this, &staticMetaObject, 109, nullptr, _t1, _t2, _t3, _t4);
 }
 
 // SIGNAL 110
-void Settings::agcGainChanged(QObject * _t1, int _t2, int _t3)
+void Settings::agcHangEnabledChanged(QObject * _t1, int _t2, bool _t3)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 110, nullptr, _t1, _t2, _t3);
 }
 
 // SIGNAL 111
-void Settings::agcThresholdChanged_dB(QObject * _t1, int _t2, qreal _t3)
+void Settings::agcGainChanged(QObject * _t1, int _t2, int _t3)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 111, nullptr, _t1, _t2, _t3);
 }
 
 // SIGNAL 112
-void Settings::agcFixedGainChanged_dB(QObject * _t1, int _t2, qreal _t3)
+void Settings::agcThresholdChanged_dB(QObject * _t1, int _t2, qreal _t3)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 112, nullptr, _t1, _t2, _t3);
 }
 
 // SIGNAL 113
-void Settings::agcMaximumGainChanged_dB(QObject * _t1, int _t2, qreal _t3)
+void Settings::agcFixedGainChanged_dB(QObject * _t1, int _t2, qreal _t3)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 113, nullptr, _t1, _t2, _t3);
 }
 
 // SIGNAL 114
-void Settings::agcHangThresholdChanged(QObject * _t1, int _t2, int _t3)
+void Settings::agcMaximumGainChanged_dB(QObject * _t1, int _t2, qreal _t3)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 114, nullptr, _t1, _t2, _t3);
 }
 
 // SIGNAL 115
-void Settings::agcHangThresholdSliderChanged(QObject * _t1, int _t2, qreal _t3)
+void Settings::agcHangThresholdChanged(QObject * _t1, int _t2, int _t3)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 115, nullptr, _t1, _t2, _t3);
 }
 
 // SIGNAL 116
-void Settings::agcHangLevelChanged_dB(QObject * _t1, int _t2, qreal _t3)
+void Settings::agcHangThresholdSliderChanged(QObject * _t1, int _t2, qreal _t3)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 116, nullptr, _t1, _t2, _t3);
 }
 
 // SIGNAL 117
-void Settings::agcLineLevelsChanged(QObject * _t1, int _t2, qreal _t3, qreal _t4)
+void Settings::agcHangLevelChanged_dB(QObject * _t1, int _t2, qreal _t3)
 {
-    QMetaObject::activate<void>(this, &staticMetaObject, 117, nullptr, _t1, _t2, _t3, _t4);
+    QMetaObject::activate<void>(this, &staticMetaObject, 117, nullptr, _t1, _t2, _t3);
 }
 
 // SIGNAL 118
-void Settings::agcVariableGainChanged_dB(QObject * _t1, int _t2, qreal _t3)
+void Settings::agcLineLevelsChanged(QObject * _t1, int _t2, qreal _t3, qreal _t4)
 {
-    QMetaObject::activate<void>(this, &staticMetaObject, 118, nullptr, _t1, _t2, _t3);
+    QMetaObject::activate<void>(this, &staticMetaObject, 118, nullptr, _t1, _t2, _t3, _t4);
 }
 
 // SIGNAL 119
-void Settings::agcAttackTimeChanged(QObject * _t1, int _t2, qreal _t3)
+void Settings::agcVariableGainChanged_dB(QObject * _t1, int _t2, qreal _t3)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 119, nullptr, _t1, _t2, _t3);
 }
 
 // SIGNAL 120
-void Settings::agcDecayTimeChanged(QObject * _t1, int _t2, qreal _t3)
+void Settings::agcAttackTimeChanged(QObject * _t1, int _t2, qreal _t3)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 120, nullptr, _t1, _t2, _t3);
 }
 
 // SIGNAL 121
-void Settings::agcHangTimeChanged(QObject * _t1, int _t2, qreal _t3)
+void Settings::agcDecayTimeChanged(QObject * _t1, int _t2, qreal _t3)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 121, nullptr, _t1, _t2, _t3);
 }
 
 // SIGNAL 122
-void Settings::filterFrequenciesChanged(QObject * _t1, int _t2, qreal _t3, qreal _t4)
+void Settings::agcHangTimeChanged(QObject * _t1, int _t2, qreal _t3)
 {
-    QMetaObject::activate<void>(this, &staticMetaObject, 122, nullptr, _t1, _t2, _t3, _t4);
+    QMetaObject::activate<void>(this, &staticMetaObject, 122, nullptr, _t1, _t2, _t3);
 }
 
 // SIGNAL 123
-void Settings::cudaDevicesChanged(QObject * _t1, int _t2)
+void Settings::filterFrequenciesChanged(QObject * _t1, int _t2, qreal _t3, qreal _t4)
 {
-    QMetaObject::activate<void>(this, &staticMetaObject, 123, nullptr, _t1, _t2);
+    QMetaObject::activate<void>(this, &staticMetaObject, 123, nullptr, _t1, _t2, _t3, _t4);
 }
 
 // SIGNAL 124
-void Settings::cudaDriverChanged(QObject * _t1, int _t2)
+void Settings::cudaDevicesChanged(QObject * _t1, int _t2)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 124, nullptr, _t1, _t2);
 }
 
 // SIGNAL 125
-void Settings::cudaRuntimeChanged(QObject * _t1, int _t2)
+void Settings::cudaDriverChanged(QObject * _t1, int _t2)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 125, nullptr, _t1, _t2);
 }
 
 // SIGNAL 126
-void Settings::cudaCurrentDeviceChanged(QObject * _t1, int _t2)
+void Settings::cudaRuntimeChanged(QObject * _t1, int _t2)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 126, nullptr, _t1, _t2);
 }
 
 // SIGNAL 127
-void Settings::cudaLastDeviceChanged(QObject * _t1, int _t2)
+void Settings::cudaCurrentDeviceChanged(QObject * _t1, int _t2)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 127, nullptr, _t1, _t2);
 }
 
 // SIGNAL 128
-void Settings::freqRulerPositionChanged(QObject * _t1, int _t2, float _t3)
+void Settings::cudaLastDeviceChanged(QObject * _t1, int _t2)
 {
-    QMetaObject::activate<void>(this, &staticMetaObject, 128, nullptr, _t1, _t2, _t3);
+    QMetaObject::activate<void>(this, &staticMetaObject, 128, nullptr, _t1, _t2);
 }
 
 // SIGNAL 129
-void Settings::audioFormatChanged(QObject * _t1, const QAudioFormat & _t2)
+void Settings::freqRulerPositionChanged(QObject * _t1, int _t2, float _t3)
 {
-    QMetaObject::activate<void>(this, &staticMetaObject, 129, nullptr, _t1, _t2);
+    QMetaObject::activate<void>(this, &staticMetaObject, 129, nullptr, _t1, _t2, _t3);
 }
 
 // SIGNAL 130
-void Settings::audioPositionChanged(QObject * _t1, qint64 _t2)
+void Settings::audioFormatChanged(QObject * _t1, const QAudioFormat & _t2)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 130, nullptr, _t1, _t2);
 }
 
 // SIGNAL 131
-void Settings::audioBufferChanged(QObject * _t1, qint64 _t2, qint64 _t3, const QByteArray & _t4)
+void Settings::audioPositionChanged(QObject * _t1, qint64 _t2)
 {
-    QMetaObject::activate<void>(this, &staticMetaObject, 131, nullptr, _t1, _t2, _t3, _t4);
+    QMetaObject::activate<void>(this, &staticMetaObject, 131, nullptr, _t1, _t2);
 }
 
 // SIGNAL 132
-void Settings::displayWidgetHeightChanged(int _t1)
+void Settings::audioBufferChanged(QObject * _t1, qint64 _t2, qint64 _t3, const QByteArray & _t4)
 {
-    QMetaObject::activate<void>(this, &staticMetaObject, 132, nullptr, _t1);
+    QMetaObject::activate<void>(this, &staticMetaObject, 132, nullptr, _t1, _t2, _t3, _t4);
 }
 
 // SIGNAL 133
-void Settings::spectrumSizeChanged(QObject * _t1, int _t2)
+void Settings::displayWidgetHeightChanged(int _t1)
 {
-    QMetaObject::activate<void>(this, &staticMetaObject, 133, nullptr, _t1, _t2);
+    QMetaObject::activate<void>(this, &staticMetaObject, 133, nullptr, _t1);
 }
 
 // SIGNAL 134
-void Settings::panadapterColorChanged()
+void Settings::spectrumSizeChanged(QObject * _t1, int _t2)
 {
-    QMetaObject::activate(this, &staticMetaObject, 134, nullptr);
+    QMetaObject::activate<void>(this, &staticMetaObject, 134, nullptr, _t1, _t2);
 }
 
 // SIGNAL 135
-void Settings::panGridStatusChanged(bool _t1, int _t2)
+void Settings::panadapterColorChanged()
 {
-    QMetaObject::activate<void>(this, &staticMetaObject, 135, nullptr, _t1, _t2);
+    QMetaObject::activate(this, &staticMetaObject, 135, nullptr);
 }
 
 // SIGNAL 136
-void Settings::peakHoldStatusChanged(bool _t1, int _t2)
+void Settings::panGridStatusChanged(bool _t1, int _t2)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 136, nullptr, _t1, _t2);
 }
 
 // SIGNAL 137
-void Settings::panLockedStatusChanged(bool _t1, int _t2)
+void Settings::peakHoldStatusChanged(bool _t1, int _t2)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 137, nullptr, _t1, _t2);
 }
 
 // SIGNAL 138
-void Settings::clickVFOStatusChanged(bool _t1, int _t2)
+void Settings::panLockedStatusChanged(bool _t1, int _t2)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 138, nullptr, _t1, _t2);
 }
 
 // SIGNAL 139
-void Settings::hairCrossStatusChanged(bool _t1, int _t2)
+void Settings::clickVFOStatusChanged(bool _t1, int _t2)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 139, nullptr, _t1, _t2);
 }
 
 // SIGNAL 140
-void Settings::showAGCLinesStatusChanged(QObject * _t1, bool _t2, int _t3)
+void Settings::hairCrossStatusChanged(bool _t1, int _t2)
 {
-    QMetaObject::activate<void>(this, &staticMetaObject, 140, nullptr, _t1, _t2, _t3);
+    QMetaObject::activate<void>(this, &staticMetaObject, 140, nullptr, _t1, _t2);
 }
 
 // SIGNAL 141
-void Settings::spectrumAveragingChanged(QObject * _t1, int _t2, bool _t3)
+void Settings::showAGCLinesStatusChanged(QObject * _t1, bool _t2, int _t3)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 141, nullptr, _t1, _t2, _t3);
 }
 
 // SIGNAL 142
-void Settings::spectrumAveragingCntChanged(QObject * _t1, int _t2, int _t3)
+void Settings::spectrumAveragingChanged(QObject * _t1, int _t2, bool _t3)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 142, nullptr, _t1, _t2, _t3);
 }
 
 // SIGNAL 143
-void Settings::waterfallTimeChanged(int _t1, int _t2)
+void Settings::spectrumAveragingCntChanged(QObject * _t1, int _t2, int _t3)
 {
-    QMetaObject::activate<void>(this, &staticMetaObject, 143, nullptr, _t1, _t2);
+    QMetaObject::activate<void>(this, &staticMetaObject, 143, nullptr, _t1, _t2, _t3);
 }
 
 // SIGNAL 144
-void Settings::waterfallOffesetLoChanged(int _t1, int _t2)
+void Settings::waterfallTimeChanged(int _t1, int _t2)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 144, nullptr, _t1, _t2);
 }
 
 // SIGNAL 145
-void Settings::waterfallOffesetHiChanged(int _t1, int _t2)
+void Settings::waterfallOffesetLoChanged(int _t1, int _t2)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 145, nullptr, _t1, _t2);
 }
 
 // SIGNAL 146
-void Settings::sMeterHoldTimeChanged(int _t1)
+void Settings::waterfallOffesetHiChanged(int _t1, int _t2)
 {
-    QMetaObject::activate<void>(this, &staticMetaObject, 146, nullptr, _t1);
+    QMetaObject::activate<void>(this, &staticMetaObject, 146, nullptr, _t1, _t2);
 }
 
 // SIGNAL 147
-void Settings::dBmScaleMinChanged(int _t1, qreal _t2)
+void Settings::sMeterHoldTimeChanged(int _t1)
 {
-    QMetaObject::activate<void>(this, &staticMetaObject, 147, nullptr, _t1, _t2);
+    QMetaObject::activate<void>(this, &staticMetaObject, 147, nullptr, _t1);
 }
 
 // SIGNAL 148
-void Settings::dBmScaleMaxChanged(int _t1, qreal _t2)
+void Settings::dBmScaleMinChanged(int _t1, qreal _t2)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 148, nullptr, _t1, _t2);
 }
 
 // SIGNAL 149
-void Settings::agcMaximumGainChanged(QObject * _t1, int _t2, qreal _t3)
+void Settings::dBmScaleMaxChanged(int _t1, qreal _t2)
 {
-    QMetaObject::activate<void>(this, &staticMetaObject, 149, nullptr, _t1, _t2, _t3);
+    QMetaObject::activate<void>(this, &staticMetaObject, 149, nullptr, _t1, _t2);
 }
 
 // SIGNAL 150
-void Settings::noiseBlankerChanged(int _t1, int _t2)
+void Settings::agcMaximumGainChanged(QObject * _t1, int _t2, qreal _t3)
 {
-    QMetaObject::activate<void>(this, &staticMetaObject, 150, nullptr, _t1, _t2);
+    QMetaObject::activate<void>(this, &staticMetaObject, 150, nullptr, _t1, _t2, _t3);
 }
 
 // SIGNAL 151
-void Settings::noiseFilterChanged(int _t1, int _t2)
+void Settings::noiseBlankerChanged(int _t1, int _t2)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 151, nullptr, _t1, _t2);
 }
 
 // SIGNAL 152
-void Settings::nr2GainMethodChanged(int _t1, int _t2)
+void Settings::noiseFilterChanged(int _t1, int _t2)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 152, nullptr, _t1, _t2);
 }
 
 // SIGNAL 153
-void Settings::nr2NpeMethodChanged(int _t1, int _t2)
+void Settings::nr2GainMethodChanged(int _t1, int _t2)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 153, nullptr, _t1, _t2);
 }
 
 // SIGNAL 154
-void Settings::nrAgcChanged(int _t1, int _t2)
+void Settings::nr2NpeMethodChanged(int _t1, int _t2)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 154, nullptr, _t1, _t2);
 }
 
 // SIGNAL 155
-void Settings::nr2AeChanged(int _t1, bool _t2)
+void Settings::nrAgcChanged(int _t1, int _t2)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 155, nullptr, _t1, _t2);
 }
 
 // SIGNAL 156
-void Settings::snbChanged(int _t1, bool _t2)
+void Settings::nr2AeChanged(int _t1, bool _t2)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 156, nullptr, _t1, _t2);
 }
 
 // SIGNAL 157
-void Settings::anfChanged(int _t1, bool _t2)
+void Settings::snbChanged(int _t1, bool _t2)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 157, nullptr, _t1, _t2);
 }
 
 // SIGNAL 158
-void Settings::micInputLevelChanged(QObject * _t1, int _t2)
+void Settings::anfChanged(int _t1, bool _t2)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 158, nullptr, _t1, _t2);
 }
 
 // SIGNAL 159
-void Settings::driveLevelChanged(QObject * _t1, int _t2)
+void Settings::micInputLevelChanged(QObject * _t1, int _t2)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 159, nullptr, _t1, _t2);
 }
 
 // SIGNAL 160
-void Settings::repeaterModeChanged(bool _t1)
+void Settings::driveLevelChanged(QObject * _t1, int _t2)
 {
-    QMetaObject::activate<void>(this, &staticMetaObject, 160, nullptr, _t1);
+    QMetaObject::activate<void>(this, &staticMetaObject, 160, nullptr, _t1, _t2);
 }
 
 // SIGNAL 161
-void Settings::repeaterOffsetchanged(double _t1)
+void Settings::repeaterModeChanged(bool _t1)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 161, nullptr, _t1);
 }
 
 // SIGNAL 162
-void Settings::fmPremphasizechanged(double _t1)
+void Settings::repeaterOffsetchanged(double _t1)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 162, nullptr, _t1);
 }
 
 // SIGNAL 163
-void Settings::fmdeveationchanged(double _t1)
+void Settings::fmPremphasizechanged(double _t1)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 163, nullptr, _t1);
 }
 
 // SIGNAL 164
-void Settings::amCarrierlevelchanged(double _t1)
+void Settings::fmdeveationchanged(double _t1)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 164, nullptr, _t1);
 }
 
 // SIGNAL 165
-void Settings::audioCompressionchanged(int _t1)
+void Settings::amCarrierlevelchanged(double _t1)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 165, nullptr, _t1);
 }
 
 // SIGNAL 166
-void Settings::micModeChanged(bool _t1)
+void Settings::audioCompressionchanged(int _t1)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 166, nullptr, _t1);
 }
 
 // SIGNAL 167
-void Settings::showRadioPopupChanged(bool _t1)
+void Settings::micModeChanged(bool _t1)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 167, nullptr, _t1);
 }
 
 // SIGNAL 168
-void Settings::receiverDataReady()
+void Settings::showRadioPopupChanged(bool _t1)
 {
-    QMetaObject::activate(this, &staticMetaObject, 168, nullptr);
+    QMetaObject::activate<void>(this, &staticMetaObject, 168, nullptr, _t1);
 }
 
 // SIGNAL 169
-void Settings::CwHangTimeChanged(int _t1)
+void Settings::receiverDataReady()
 {
-    QMetaObject::activate<void>(this, &staticMetaObject, 169, nullptr, _t1);
+    QMetaObject::activate(this, &staticMetaObject, 169, nullptr);
 }
 
 // SIGNAL 170
-void Settings::CwSidetoneFreqChanged(int _t1)
+void Settings::CwHangTimeChanged(int _t1)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 170, nullptr, _t1);
 }
 
 // SIGNAL 171
-void Settings::CwKeyReversedChanged(int _t1)
+void Settings::CwSidetoneFreqChanged(int _t1)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 171, nullptr, _t1);
 }
 
 // SIGNAL 172
-void Settings::CwKeyerModeChanged(int _t1)
+void Settings::CwKeyReversedChanged(int _t1)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 172, nullptr, _t1);
 }
 
 // SIGNAL 173
-void Settings::InternalCwChanged(int _t1)
+void Settings::CwKeyerModeChanged(int _t1)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 173, nullptr, _t1);
 }
 
 // SIGNAL 174
-void Settings::CwKeyerSpeedChanged(int _t1)
+void Settings::InternalCwChanged(int _t1)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 174, nullptr, _t1);
 }
 
 // SIGNAL 175
-void Settings::CwPttDelayChanged(int _t1)
+void Settings::CwKeyerSpeedChanged(int _t1)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 175, nullptr, _t1);
 }
 
 // SIGNAL 176
-void Settings::CwSidetoneVolumeChanged(int _t1)
+void Settings::CwPttDelayChanged(int _t1)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 176, nullptr, _t1);
 }
 
 // SIGNAL 177
-void Settings::CwKeyerWeightChanged(int _t1)
+void Settings::CwSidetoneVolumeChanged(int _t1)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 177, nullptr, _t1);
 }
 
 // SIGNAL 178
-void Settings::CwKeyerSpacingChanged(int _t1)
+void Settings::CwKeyerWeightChanged(int _t1)
 {
     QMetaObject::activate<void>(this, &staticMetaObject, 178, nullptr, _t1);
+}
+
+// SIGNAL 179
+void Settings::CwKeyerSpacingChanged(int _t1)
+{
+    QMetaObject::activate<void>(this, &staticMetaObject, 179, nullptr, _t1);
 }
 QT_WARNING_POP

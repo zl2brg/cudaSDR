@@ -326,6 +326,7 @@ int Settings::loadSettings() {
         m_micSource = 1;
 
     m_micInputDev = settings->value("mic_InputDevice",0).toInt();
+    m_digitalAudioInputDev = settings->value("digital_audio_InputDevice",0).toInt();
     m_micGain = settings->value("micGain", 0).toDouble();
     m_drivelevel = settings->value("driveLevel",0).toInt();
 
@@ -1606,6 +1607,7 @@ int Settings::saveSettings() {
 
     settings->setValue("mic_InputDevice",m_micInputDev);
     qDebug() << "Write" << m_micInputDev;
+    settings->setValue("digital_audio_InputDevice", m_digitalAudioInputDev);
     settings->setValue("micGain", m_micGain);
     settings->setValue("driveLevel",m_drivelevel);
 
@@ -3538,6 +3540,14 @@ void Settings::setMicInputDev(int index) {
 
     m_micInputDev = index;
     emit micInputChanged(index);
+}
+
+void Settings::setDigitalAudioInputDev(int index) {
+
+    QMutexLocker locker(&settingsMutex);
+
+    m_digitalAudioInputDev = index;
+    emit digitalAudioInputChanged(index);
 }
 
 void Settings::setMicInputLevel(QObject *sender, int level) {

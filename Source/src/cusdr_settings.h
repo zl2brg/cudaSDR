@@ -911,6 +911,7 @@ signals:
 	void src122_88MhzChanged(QObject *sender, int source);
     void micSourceChanged(int source);
     void micInputChanged(int source);
+	void digitalAudioInputChanged(int index);
 	void classChanged(QObject *sender, int value);
 	void timingChanged(QObject *sender, int value);
 	void controlBytesOutChanged(QObject *sender, unsigned char *values);
@@ -1191,6 +1192,7 @@ public:
     int     getRxClass()				{ return m_RxClass; }
     int     getRxTiming()				{ return m_RxTiming; }
     int     getMicInputDev()            { return m_micInputDev;}
+    int     getDigitalAudioInputDev()   { return m_digitalAudioInputDev;}
     int     getMicInputLevel()          { return m_micGain;}
     int     getDriveLevel()             { return m_drivelevel;}
     bool    getRepeaterMode()           { return m_repeaterMode;}
@@ -1377,6 +1379,7 @@ public slots:
 	void set122_88MhzSource(QObject *sender, int source);
     void setMicSource(int source);
     void setMicInputDev(int index);
+	void setDigitalAudioInputDev(int index);
     void setMicInputLevel(QObject *sender , int level);
     void setDriveLevel(QObject *sender , int level);
 	void setClass(QObject *sender, int value);
@@ -1635,6 +1638,7 @@ private:
 	int		m_122_8MHzSource;
 	int		m_micSource;
     int     m_micInputDev;
+    int     m_digitalAudioInputDev;
     double  m_micGain;
     int     m_drivelevel;
 	int		m_RxClass;
