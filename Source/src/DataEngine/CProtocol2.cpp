@@ -386,19 +386,48 @@ QByteArray CProtocol2::formatInitFrame(int rx, THPSDRParameter* io, quint16& por
 }
 
 QByteArray CProtocol2::formatOutputPacket(const QByteArray& audioData, uint32_t& sequence) {
-    // TODO(P2-TX-AUDIO): P2 DUC IQ packet (port 1029) format:
-    //   Bytes 0-3 : Sequence number (Big Endian, increments per packet)
-    //   Bytes 4+  : 16-bit I/Q samples at 48 kHz (host audio rate)
-    // The current implementation prepends the sequence number but the P1
-    // `output_buffer` layout (Metis header + interleaved L/R/Mic/IQ) is not
-    // the same as the P2 DUC IQ packet.  Sending raw `audioData` here will
-    // produce garbled transmit audio until a proper P2 TX path is implemented.
-    QByteArray outDatagram;
-    uint32_t outseq = qFromBigEndian(sequence);
-    outDatagram.resize(0);
-    QByteArray seq(reinterpret_cast<const char*>(&outseq), sizeof(outseq));
-    outDatagram += seq;
-    outDatagram += audioData;
+    // Protocol 2 DUC IQ packet (PC → SDR, port 1029) — exactly 1444 bytes:
+    //   Bytes 0-3  : sequence number (big-endian uint32)
+    //   Bytes 4-1443: 240 × 6 bytes — I(3 bytes) Q(3 bytes), 24-bit signed big-endian
+    //
+    // Source: P1 output_buffer (512 bytes, IO_BUFFER_SIZE):
+    //   Bytes 0-7:     Metis/P1 header (8 bytes, not used here)
+    //   Bytes 8+n*8+0,+1 : L RX audio  (unused for TX)
+    //   Bytes 8+n*8+2,+3 : R RX audio  (unused for TX)
+    //   Bytes 8+n*8+4,+5 : TX I  (16-bit signed big-endian)
+    //   Bytes 8+n*8+6,+7 : TX Q  (16-bit signed big-endian)
+    //   63 samples total: (512 - 8) / 8 = 63
+    //
+    // 16→24-bit conversion: [hi, lo, 0x00] preserves sign and scales correctly.
+    // Samples 63-239 are zero-padded (silent) since we only have 63 per call.
+
+    const int NUM_P2_SAMPLES = 240;           // hpsdrsim tx_thread expects exactly this
+    const int P1_HEADER      = 8;             // IO_HEADER_SIZE
+    const int P1_SAMPLE_BYTES= 8;             // L(2)+R(2)+I(2)+Q(2)
+    const int P1_SAMPLES     = 63;            // (512 - 8) / 8
+
+    QByteArray pkt(4 + NUM_P2_SAMPLES * 6, '\0');
+    unsigned char* p = reinterpret_cast<unsigned char*>(pkt.data());
+
+    // Sequence (big-endian)
+    uint32_t seq = qToBigEndian(sequence);
+    memcpy(p, &seq, 4);
+    p += 4;
+
+    const unsigned char* src = reinterpret_cast<const unsigned char*>(audioData.constData());
+    const int nSamples = (audioData.size() >= P1_HEADER)
+                         ? qMin((audioData.size() - P1_HEADER) / P1_SAMPLE_BYTES, P1_SAMPLES)
+                         : 0;
+
+    for (int i = 0; i < nSamples; ++i) {
+        const unsigned char* s = src + P1_HEADER + i * P1_SAMPLE_BYTES;
+        // TX I at byte-offset +4,+5; TX Q at +6,+7
+        p[0] = s[4]; p[1] = s[5]; p[2] = 0x00;  // I: hi, lo, 0
+        p[3] = s[6]; p[4] = s[7]; p[5] = 0x00;  // Q: hi, lo, 0
+        p += 6;
+    }
+    // Bytes beyond nSamples*6 are already zero-initialised.
+
     sequence++;
-    return outDatagram;
+    return pkt;
 }

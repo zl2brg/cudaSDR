@@ -2497,14 +2497,9 @@ void DataProcessor::setOutputBuffer(int rx, const CPX &buffer) {
 	}
 }
 
-// TODO(P2-TX): full_txBuffer() only handles QSDR::Metis and QSDR::Hermes hw interfaces.
-// Protocol 2 hardware (Hermes-Lite 2, Orion, etc.) must be mapped to one of these
-// enum values or a new QSDR::ProtocolV2 enum value must be added.  Until then:
-//   - encodeCCBytes() IS called (sends HP Data packet to port 1027) ✔
-//   - writeData() IS called (sends DUC IQ to port 1029) ✔
-//   - sendAudio() is called with the P1 output_buffer format -
-//     for P2 the audio path is handled by writeData() + formatOutputPacket();
-//     check whether the double-send produces garbage on the DUC port.
+// full_txBuffer() fires for both P1 and P2 when the output_buffer is full (every 63 samples).
+// For P2, writeData() now sends a proper 1444-byte DUC IQ packet to port 1029.
+// sendAudio() handles RX audio → sound card (same for both protocols).
 void DataProcessor::full_txBuffer(){
 
     encodeCCBytes();

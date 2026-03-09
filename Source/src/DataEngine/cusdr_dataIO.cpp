@@ -476,6 +476,22 @@ void DataIO::writeData() {
 
     if (!io->protocol || !m_dataIOSocket) return;
 
+    // Protocol 2: formatOutputPacket returns the complete 1444-byte DUC IQ packet.
+    // Send it in a single call to port 1029; bypass the P1 two-call toggle.
+    if (io->protocol->getHeaderSize() != 8) {
+        QByteArray ducPkt = io->protocol->formatOutputPacket(io->audioDatagram, m_sendSequence);
+        static const quint16 DUC_PORT = 1029;
+        if (m_dataIOSocket->writeDatagram(ducPkt,
+                                          set->getCurrentMetisCard().ip_address,
+                                          DUC_PORT) < 0) {
+            DATAIO_DEBUG << "P2 TX: error sending DUC IQ: " << m_dataIOSocket->errorString();
+        }
+        m_oldSendSequence = m_sendSequence - 1; // keep tracking consistent
+        return;
+    }
+
+    // Protocol 1 two-call toggle: first call stores the Metis header,
+    // second call appends audio and sends the 1032-byte packet.
 	if (m_setNetworkDeviceHeader) {
 
 		m_outDatagram = io->protocol->formatOutputPacket(io->audioDatagram, m_sendSequence);
