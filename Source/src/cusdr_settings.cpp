@@ -222,6 +222,10 @@ int Settings::loadSettings() {
     if (value != 16 && value != 32 && value != 64 && value != 128 && value != 256) value = 32;
     m_socketBufferSize = value;
 
+    value = settings->value("hpsdr/receivers", 1).toInt();
+    if (value < 1 || value > MAX_RECEIVERS) value = 1;
+    m_mercuryReceivers = value;
+
 
     // HPSDR hardware
     value = settings->value("hpsdr/hardware", 0).toInt();
@@ -1471,6 +1475,7 @@ int Settings::saveSettings() {
     settings->setValue("network/audio_port", m_audioPort);
     settings->setValue("network/metis_port", m_metisPort);
     settings->setValue("network/socketBufferSize", m_socketBufferSize);
+    settings->setValue("hpsdr/receivers", m_mercuryReceivers);
 
 
     // HPSDR hardware

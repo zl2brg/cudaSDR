@@ -52,7 +52,7 @@ HPSDRWidget::HPSDRWidget(QWidget *parent)
 	, m_dataEngineState(QSDR::DataEngineDown)
 	, m_minimumWidgetWidth(set->getMinimumWidgetWidth())
 	, m_minimumGroupBoxWidth(0)
-	, m_numberOfReceivers(1)
+	, m_numberOfReceivers(set->getNumberOfReceivers())
 	, m_hpsdrHardware(set->getHPSDRHardware())
 {
 	setMinimumWidth(m_minimumWidgetWidth);
@@ -103,6 +103,11 @@ HPSDRWidget::HPSDRWidget(QWidget *parent)
 	mainLayout->addLayout(hbox5);
 	mainLayout->addStretch();
 	setLayout(mainLayout);
+
+	// Restore saved receiver count without triggering a redundant setReceivers() call
+	m_receiverComboBox->blockSignals(true);
+	m_receiverComboBox->setCurrentIndex(m_numberOfReceivers - 1);
+	m_receiverComboBox->blockSignals(false);
 
 	setupConnections();
 	setHPSDRHardware();
