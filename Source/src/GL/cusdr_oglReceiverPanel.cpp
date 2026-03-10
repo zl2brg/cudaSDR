@@ -3367,10 +3367,7 @@ void QGLReceiverPanel::setCtrFrequency(QObject *sender, int mode, int rx, long f
 	//if (sender == this) return;
 	if (m_receiver != rx) return;
 
-	for (int i = 0; i < set->getNumberOfReceivers(); i++) {
-
-		m_rxDataList[i].ctrFrequency = freq;
-	}
+	m_rxDataList[rx].ctrFrequency = freq;
 
 	//GRAPHICS_DEBUG << "set center F = " << freq;
 	m_centerFrequency = freq;
@@ -3387,10 +3384,7 @@ void QGLReceiverPanel::setVFOFrequency(QObject *sender, int mode, int rx, long f
 	//if (sender == this) return;
 	if (m_receiver != rx) return;
 
-	for (int i = 0; i < set->getNumberOfReceivers(); i++) {
-
-		m_rxDataList[i].vfoFrequency = freq;
-	}
+	m_rxDataList[rx].vfoFrequency = freq;
 
     //GRAPHICS_DEBUG << "set vfo F = " << freq;
 	m_vfoFrequency = freq;

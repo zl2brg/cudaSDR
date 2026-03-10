@@ -2379,9 +2379,6 @@ void DataEngine::setFrequency(QObject* sender, int mode, int rx, long frequency)
 	//RX[rx]->setFrequency(frequency);
 	RX[rx]->setCtrFrequency(frequency);
 	io.rx_freq_change = rx;
-	io.tx_freq_change = rx;
-    io.ccTx.txFrequency = frequency;
-
 
 }
 
