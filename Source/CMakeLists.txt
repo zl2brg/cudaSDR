@@ -9,7 +9,6 @@ set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-set(CMAKE_PREFIX_PATH "~/Qt/6.9.3/gcc_64")
 
 # --- Debug Configuration ---
 # Enable debug symbols and disable optimizations for Debug builds
@@ -28,8 +27,6 @@ set(SANITIZE_FLAGS "-fsanitize=address")
 
 # --- Find Dependencies ---
 find_package(Qt6 REQUIRED COMPONENTS Widgets Core Gui Multimedia Network OpenGL OpenGLWidgets)
-find_package(Qt6 REQUIRED COMPONENTS Core)
-find_package(Qt6 REQUIRED COMPONENTS Core)
 find_package(PkgConfig REQUIRED)
 
 # --- Project Configuration ---
@@ -240,7 +237,6 @@ target_link_libraries(cudasdr PRIVATE
     wdsp
 
 )
-target_link_libraries(cudasdr PRIVATE Qt6::Core)
 
 # --- Compiler Options ---
 target_compile_features(cudasdr PRIVATE cxx_std_17)

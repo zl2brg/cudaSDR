@@ -2734,10 +2734,16 @@ void DataProcessor::fetch_MicData(){
         temp_data = de->m_audioInput->m_faudioInQueue.dequeue();
 		qDebug() << "fetchmic data" << temp_data.size();
 
-        for (int s = 0; s < DSP_SAMPLE_SIZE;s++)
+        int numSamples = qMin((int)temp_data.size(), (int)DSP_SAMPLE_SIZE);
+        for (int s = 0; s < numSamples; s++)
         {
-            mic_buffer[(s * 2 )]  = temp_data[s] ;//4294967295.0f;
+            mic_buffer[(s * 2 )]  = temp_data[s] ;
             mic_buffer[(s * 2 ) + 1 ] = 0.0f;
+        }
+        // Zero-fill remaining if buffer was short
+        for (int s = numSamples; s < DSP_SAMPLE_SIZE; s++) {
+            mic_buffer[(s * 2)] = 0.0f;
+            mic_buffer[(s * 2) + 1] = 0.0f;
         }
     }
     else{

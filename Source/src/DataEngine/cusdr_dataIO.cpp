@@ -138,6 +138,16 @@ void DataIO::initDataReceiverSocket() {
         ports = io->protocol->getRequiredPorts();
     }
 
+    // Close and clear existing extra sockets
+    for (auto socket : m_sockets) {
+        if (socket) {
+            socket->close();
+            delete socket;
+        }
+    }
+    m_sockets.clear();
+    m_dataIOSocket = nullptr;
+
     int newBufferSize = 16 * 1024;
 
 	if (m_manualBufferSize) {
@@ -151,21 +161,7 @@ void DataIO::initDataReceiverSocket() {
 	}
 
     // If the simulator is running on the same Linux machine it will be
-    // discovered at the machine's own LAN IP (or 127.0.0.1).  In either case
-    // both the app and the simulator are bound to port 1024 with SO_REUSEADDR.
-    // When the app sends a unicast command to its own IP:1024, Linux delivers
-    // the datagram back to whichever socket wins the tie-break -- usually the
-    // app's own socket -- so the simulator never receives init frames or the
-    // start command (only the broadcast discovery reaches it, because broadcast
-    // goes to ALL matching sockets).
-    //
-    // Fix: for local devices bind to an ephemeral port (port 0).  The OS picks
-    // a free port and our outgoing packets have a different source port than
-    // 1024.  The simulator records the source (IP:ephemeral) of the start-stop
-    // command and streams IQ data back to that same ephemeral port, so we still
-    // receive everything -- with no port 1024 collision.
-    //
-    // For genuine remote devices keep the classic LAN-IP:1024 binding.
+    // discovered at the machine's own LAN IP (or 127.0.0.1).
     const bool deviceIsLocal =
         io->hpsdrDeviceIPAddress.isLoopback() ||
         QNetworkInterface::allAddresses().contains(io->hpsdrDeviceIPAddress);
@@ -174,56 +170,35 @@ void DataIO::initDataReceiverSocket() {
         ? QHostAddress(QHostAddress::AnyIPv4)
         : QHostAddress(set->getHPSDRDeviceLocalAddr());
 
-    // TODO(P2-MULTI-RX): getRequiredPorts() currently returns a fixed list
-    // ending with port 1035 (DDC0 source port) regardless of the number of
-    // receivers.  For N receivers the hardware streams DDC0 from port 1035,
-    // DDC1 from port 1036, ..., DDC(N-1) from port 1034+N.  All these ports
-    // must be added to 'ports' after discovery reports num_DDCs, and a socket
-    // must be opened (and readDatagram /readDeviceData connected) for each.
-    // The CProtocol2::getRequiredPorts() method must be updated to return the
-    // dynamic port list once the device's DDC count is known.
     for (quint16 port : ports) {
-        if (m_sockets.contains(port)) continue;
-
         // For local devices use ephemeral port 0 so our packets don't share
-        // port 1024 with the simulator socket (see comment above).
+        // port 1024 with the simulator socket.
         const quint16 bindPort = deviceIsLocal ? 0 : port;
 
-        QUdpSocket* socket = new QUdpSocket();
+        QUdpSocket* socket = new QUdpSocket(this);
         if (socket->bind(bindAddr,
-                                 bindPort,
-                                 QUdpSocket::ReuseAddressHint | QUdpSocket::ShareAddress))
+                         bindPort,
+                         QUdpSocket::ReuseAddressHint | QUdpSocket::ShareAddress))
         {
 #if defined(Q_OS_WIN32)
             ::setsockopt(socket->socketDescriptor(), SOL_SOCKET, SO_RCVBUF, (char *)&newBufferSize, sizeof(newBufferSize));
+#else
+            socket->setSocketOption(QAbstractSocket::ReceiveBufferSizeSocketOption, newBufferSize);
 #endif
             connect(socket, &QUdpSocket::errorOccurred, this, &DataIO::displayDataReceiverSocketError);
             connect(socket, &QUdpSocket::readyRead, this, &DataIO::readDeviceData);
 
             m_sockets[port] = socket;
             if (port == ports.first()) m_dataIOSocket = socket;
-
-            io->networkIOMutex.lock();
-            DATAIO_DEBUG << "data receiver socket bound successful to local port "
-                         << socket->localPort() << " (logical port " << port << ")";
-            io->networkIOMutex.unlock();
+            
+            DATAIO_DEBUG << "Bound receiver socket to port " << port << " (bindPort=" << bindPort << ") with buffer size " << newBufferSize;
         } else {
-            io->networkIOMutex.lock();
-            DATAIO_DEBUG << "data receiver socket binding failed for port " << port;
-            io->networkIOMutex.unlock();
+            DATAIO_DEBUG << "Failed to bind receiver socket to port " << port << ": " << socket->errorString();
             delete socket;
         }
     }
 
-    if (m_dataIOSocket) {
-        m_dataIOSocketOn = true;
-        set->setPacketLoss(1);
-    } else {
-        m_dataIOSocketOn = false;
-        io->networkIOMutex.lock();
-        DATAIO_DEBUG << "Warning: No data receiver socket could be bound.";
-        io->networkIOMutex.unlock();
-    }
+	m_dataIOSocketOn = true;
 }
 
 
@@ -260,7 +235,8 @@ void DataIO::new_readDeviceData() {
                     // P2 multi-RX: DDC0 sends from source port 1035, DDC1 from 1036, etc.
                     const int hdrSize = io->protocol->getHeaderSize();
                     if (hdrSize == 16) { // Protocol 2
-                        int ddcIdx = (senderPort >= 1035) ? (int)(senderPort - 1035) : 0;
+                        quint16 logicalPort = m_sockets.key(socket);
+                        int ddcIdx = (logicalPort >= 1035) ? (int)(logicalPort - 1035) : 0;
                         QByteArray payload(1, (char)(unsigned char)ddcIdx);
                         payload.append(QByteArray((const char *)&m_buffer[hdrSize], size - hdrSize));
                         io->iq_queue.enqueue(payload);
@@ -339,11 +315,11 @@ void DataIO::readDeviceData() {
                 if (!io->iq_queue.isFull()) {
                     // P2 multi-RX: prepend DDC receiver index so CProtocol2::processInputBuffer()
                     // can route to the correct RX.  Each DDC sends from a fixed source port:
-                    // DDC0 → 1035, DDC1 → 1036, etc.  This works for both local (simulator)
-                    // and remote hardware because the source port is always DDC-specific.
+                    // DDC0 → 1035, DDC1 → 1036, etc.
                     const int hdrSize = io->protocol->getHeaderSize();
                     if (hdrSize == 16) { // Protocol 2
-                        int ddcIdx = (senderPort >= 1035) ? (int)(senderPort - 1035) : 0;
+                        quint16 logicalPort = m_sockets.key(socket);
+                        int ddcIdx = (logicalPort >= 1035) ? (int)(logicalPort - 1035) : 0;
                         QByteArray payload(1, (char)(unsigned char)ddcIdx);
                         payload.append(m_datagram.mid(hdrSize, size - hdrSize));
                         io->iq_queue.enqueue(payload);
