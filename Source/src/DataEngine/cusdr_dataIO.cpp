@@ -445,8 +445,37 @@ void DataIO::networkDeviceStartStop(char value) {
     if (io->protocol && m_dataIOSocket) {
         quint16 port = DEVICE_PORT;
         m_commandDatagram = io->protocol->formatStartStop(value, port);
+        const bool p2Start = (value != 0) && (io->protocol->getHeaderSize() == 16);
+
+        if (p2Start) {
+            // Re-issue P2 init right before start so DDC/port config is fresh
+            // even if an earlier init was missed during thread/socket bring-up.
+            sendInitFramesToNetworkDevice(0);
+
+            // Also push one deterministic control burst immediately so DDC enable
+            // and RX frequency are applied before/with Run=1.
+            unsigned char p2CmdBuf[1444];
+            int startupState = 0;
+            for (int i = 0; i < 4; ++i) {
+                quint16 ctlPort = DEVICE_PORT;
+                memset(p2CmdBuf, 0, sizeof(p2CmdBuf));
+                io->protocol->encodeCCBytes(p2CmdBuf, io, startupState, ctlPort);
+                const int sendSize = (ctlPort == 1025 || ctlPort == 1027) ? 1444 : 60;
+                m_dataIOSocket->writeDatagram((const char*)p2CmdBuf, sendSize, metis.ip_address, ctlPort);
+                SleeperThread::msleep(2);
+            }
+
+            SleeperThread::msleep(15);
+        }
 
 		if (m_dataIOSocket->writeDatagram(m_commandDatagram, metis.ip_address, port) == m_commandDatagram.size()) {
+
+            // Some P2 devices/simulators intermittently miss the first run command
+            // during bring-up; a single delayed resend improves startup reliability.
+            if (p2Start) {
+                SleeperThread::msleep(20);
+                m_dataIOSocket->writeDatagram(m_commandDatagram, metis.ip_address, port);
+            }
 
 			if (value != 0) {
 
