@@ -3357,6 +3357,11 @@ void Settings::setReversePower(qreal watts) {
     emit reversePowerChanged(watts);
 }
 
+void Settings::setSWR(qreal swr) {
+
+    emit swrChanged(swr);
+}
+
 void Settings::setSendIQ(int value) {
 
     emit sendIQSignalChanged(value);

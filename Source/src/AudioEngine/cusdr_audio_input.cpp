@@ -92,6 +92,7 @@ void PAudioInput::Setup() {
     }
 
     // Create the audio source
+    AUDIO_INPUT_DEBUG << "Opening audio input device:" << inputDevice.description();
     m_audioSource = new QAudioSource(inputDevice, m_format, this);
     m_audioSource->setBufferSize(4 * m_bufferSize); // Larger buffer to prevent underruns
     
@@ -145,6 +146,11 @@ bool PAudioInput::Start() {
                     this, &PAudioInput::handleReadyRead);
             m_running = true;
             AUDIO_INPUT_DEBUG << "Audio input started";
+            
+            // Check if there is already data available
+            if (m_audioInputDevice->bytesAvailable() > 0) {
+                handleReadyRead();
+            }
         } else {
             AUDIO_INPUT_DEBUG << "Could not start audio input";
             m_mutex.unlock();
@@ -170,24 +176,33 @@ void PAudioInput::handleReadyRead()
 
 void PAudioInput::processAudioData(const QByteArray &data)
 {
-    // Process the incoming audio data
+    // Process the incoming audio data (assuming 16-bit signed PCM)
     const qint16 *ptr = reinterpret_cast<const qint16 *>(data.constData());
     int numSamples = data.size() / sizeof(qint16);
-    if (numSamples > 0)
-    {
-    // Resize buffer to hold all samples
-    audioinputBuffer.resize(numSamples);
-    qDebug() << "Processing" << numSamples << "audio samples";
-    // Convert all PCM samples to double in the range [-1.0, 1.0]
+    
     for (int i = 0; i < numSamples; ++i) {
-        audioinputBuffer[i] = static_cast<double>(ptr[i]) / 32768.0;
-    }
-
-    // Add entire buffer to the queue
-    m_faudioInQueue.enqueue(audioinputBuffer);
-
-    // Emit signal to notify that data is ready
-    emit tx_mic_data_ready();
+        m_residualBuffer.append(static_cast<float>(ptr[i]) / 32768.0f);
+        
+        if (m_residualBuffer.size() >= DSP_SAMPLE_SIZE) {
+            AUDIOBUF chunk;
+            chunk.resize(DSP_SAMPLE_SIZE);
+            double sumSq = 0;
+            for (int s = 0; s < DSP_SAMPLE_SIZE; s++) {
+                float val = m_residualBuffer.at(s);
+                chunk[s] = static_cast<double>(val);
+                sumSq += (val * val);
+            }
+            m_residualBuffer.remove(0, DSP_SAMPLE_SIZE);
+            
+            static int blockCount = 0;
+            if (++blockCount % 100 == 0) {
+                double rms = sqrt(sumSq / DSP_SAMPLE_SIZE);
+                AUDIO_INPUT_DEBUG << "Mic input: " << DSP_SAMPLE_SIZE << " samples, RMS=" << rms;
+            }
+            
+            m_faudioInQueue.enqueue(chunk);
+            emit tx_mic_data_ready();
+        }
     }
 }
 

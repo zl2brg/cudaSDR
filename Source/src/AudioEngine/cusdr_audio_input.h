@@ -67,6 +67,7 @@ private:
     QAudioFormat        m_format;
     QMutex              m_mutex;
     bool                m_running;
+    QVector<float>      m_residualBuffer;
     int                 m_sampleRate;
     int                 m_bufferSize;
     int                 m_deviceIndex;

@@ -137,6 +137,16 @@ void CProtocol2::decodeCCBytes(const QByteArray& buffer, THPSDRParameter* io) {
     Settings::instance()->setForwardPower(io->alexForwardPower);
     Settings::instance()->setReversePower(io->alexReversePower);
 
+    // Calculate SWR
+    if (io->alexForwardPower > 0.001) {
+        qreal rho = sqrt(io->alexReversePower / io->alexForwardPower);
+        if (rho > 0.999) rho = 0.999;
+        qreal swr = (1.0 + rho) / (1.0 - rho);
+        Settings::instance()->setSWR(swr);
+    } else {
+        Settings::instance()->setSWR(1.0);
+    }
+
     // Bytes 34-35: Temperature (16-bit BE, degrees C x 100)
     uint16_t tempRaw = qFromBigEndian<uint16_t>(reinterpret_cast<const uchar*>(buffer.constData() + 34));
 
@@ -300,8 +310,9 @@ void CProtocol2::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
                 uint32_t txfreq = qToBigEndian((uint32_t)set->getCtrFrequencies().at(0));
                 memcpy(&buffer[333], &txfreq, 4);
 
-                // DUC0 drive level (buffer[345], 0-255)
-                buffer[345] = (unsigned char)io->ccTx.drivelevel;
+                // DUC0 drive level (buffer[345], scale 0-100 to 0-255)
+                int drive = qBound(0, (int)io->ccTx.drivelevel, 100);
+                buffer[345] = (unsigned char)((drive * 255) / 100);
             }
             sendState = 1; // cycle back to DDC Specific
             break;

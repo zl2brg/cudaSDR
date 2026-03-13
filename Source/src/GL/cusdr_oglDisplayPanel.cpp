@@ -325,6 +325,12 @@ void OGLDisplayPanel::setupConnections() {
 		this,
 		SLOT(setForwardPower(qreal)));
 
+    CHECKED_CONNECT(
+        set,
+        SIGNAL(swrChanged(qreal)),
+        this,
+        SLOT(setSWR(qreal)));
+
 	CHECKED_CONNECT(
 		set,
 		SIGNAL(sendIQSignalChanged(int)),
@@ -603,14 +609,36 @@ void OGLDisplayPanel::paintUpperRegion() {
 		QString fwdStr = QString("FWD: %1 W").arg(m_fwdPowerWatts, 0, 'f', 1);
 		int fwdWidth = m_oglTextSmall->fontMetrics().horizontalAdvance(fwdStr);
 		rect = QRect(x1, y1, fwdWidth + 2*m_blankWidth, m_blankHeight);
-		if (m_fwdPowerWatts >= 1.0)
-			drawGLRect(rect, QColor(56, 242, 115), -2.0f);
-		else
-			drawGLRect(rect, QColor(68, 68, 68), -2.0f);
-		qglColor(QColor(0, 0, 0));
-		m_oglTextSmallItalic->renderText(x1 + m_blankWidth, y1, fwdStr);
-		x1 += fwdWidth + 15*m_blankWidth;
+		if (m_fwdPowerWatts >= 0.1) {
+            if (m_fwdPowerWatts >= 1.0)
+                drawGLRect(rect, QColor(56, 242, 115), -2.0f);
+            else
+                drawGLRect(rect, QColor(68, 68, 68), -2.0f);
+            qglColor(QColor(0, 0, 0));
+            m_oglTextSmallItalic->renderText(x1 + m_blankWidth, y1, fwdStr);
+            x1 += fwdWidth + 5*m_blankWidth;
+        }
 	}
+
+    // SWR status
+    {
+        QString swrStr = QString("SWR: %1").arg(m_swr, 0, 'f', 1);
+        int swrWidth = m_oglTextSmall->fontMetrics().horizontalAdvance(swrStr);
+        rect = QRect(x1, y1, swrWidth + 2*m_blankWidth, m_blankHeight);
+        
+        if (m_fwdPowerWatts >= 0.1) {
+            if (m_swr < 1.5)
+                drawGLRect(rect, QColor(56, 242, 115), -2.0f); // Green
+            else if (m_swr < 2.5)
+                drawGLRect(rect, QColor(255, 255, 50), -2.0f); // Yellow
+            else
+                drawGLRect(rect, QColor(242, 56, 109), -2.0f); // Red
+            
+            qglColor(QColor(0, 0, 0));
+            m_oglTextSmallItalic->renderText(x1 + m_blankWidth, y1, swrStr);
+            x1 += swrWidth + 5*m_blankWidth;
+        }
+    }
 
 	if (m_hwInterface == QSDR::Metis && m_dataEngineState == QSDR::DataEngineUp)
 		rect = QRect(x1, y1, m_metisStringWidth + m_versionStringWidth, m_blankHeight);
@@ -2404,6 +2432,12 @@ void OGLDisplayPanel::setForwardPower(qreal watts) {
 
 	m_fwdPowerWatts = watts;
 	update();
+}
+
+void OGLDisplayPanel::setSWR(qreal swr) {
+
+    m_swr = swr;
+    update();
 }
 
 void OGLDisplayPanel::setSendIQStatus(int value) {

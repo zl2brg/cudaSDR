@@ -82,7 +82,7 @@
 #define MINDISTDBM -150
 #define MAXDISTDBM 150
 #define MAX_FFTSIZE	262144
-#define TX_ID 1
+#define TX_ID 10
 
 
 // **************************************
@@ -898,6 +898,7 @@ signals:
 	void packetLossChanged(int value);
 	void forwardPowerChanged(qreal watts);
 	void reversePowerChanged(qreal watts);
+    void swrChanged(qreal swr);
 	void sendIQSignalChanged(int value);
 	void rcveIQSignalChanged(int value);
 
@@ -1365,6 +1366,7 @@ public slots:
 	void setPacketLoss(int value);
 	void setForwardPower(qreal watts);
 	void setReversePower(qreal watts);
+    void setSWR(qreal swr);
 	void setSendIQ(int value);
 	void setRcveIQ(int value);
 

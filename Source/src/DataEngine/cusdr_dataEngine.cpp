@@ -862,7 +862,10 @@ bool DataEngine::start() {
     io.protocol = m_protocol;
 
 	int rcvrs = set->getNumberOfReceivers();
-    if (!m_audioInput) createAudioInputProcessor();
+    if (!m_audioInput) {
+        createAudioInputProcessor();
+    }
+    m_audioInput->Setup();
 
 	if (!m_dataIO) createDataIO();
 
@@ -2732,7 +2735,6 @@ void DataProcessor::fetch_MicData(){
     if (de->m_audioInput->m_faudioInQueue.count() > 0)
     {
         temp_data = de->m_audioInput->m_faudioInQueue.dequeue();
-		qDebug() << "fetchmic data" << temp_data.size();
 
         int numSamples = qMin((int)temp_data.size(), (int)DSP_SAMPLE_SIZE);
         for (int s = 0; s < numSamples; s++)
@@ -2762,31 +2764,27 @@ void DataProcessor::get_tx_iqData(){
     double is,qs;
     double gain = 32767.0f;
    // double gain = 25 * 0.00392;
-    int i,q;
     fetch_MicData();
 
     if ( de->io.ccTx.mox ||  de->io.ccTx.ptt ) {
         fexchange0(TX_ID, mic_buffer, (double *) m_iq_output_buffer.data(), &error);
-     
+
 		Spectrum0(1, TX_ID, 0, 0, (double *) m_iq_output_buffer.data());
 
 
 /* Queue the tx data */
-        int tx_index = 0;
+        int idx = 0;
         for (int j = 0; j < DSP_SAMPLE_SIZE; j++) {
-            qs = m_iq_output_buffer.at(j).re;
-            is = m_iq_output_buffer.at(j).im;
-            rightTXSample = is >= 0.0 ? (long) floor(is * gain + 0.5) : (long) ceil(is * gain - 0.5);
-            leftTXSample = qs >= 0.0 ? (long) floor(qs * gain + 0.5) : (long) ceil(qs * gain - 0.5);
-            i = (int) leftTXSample;
-            q = (int) rightTXSample;
-            m_tx_iq_Buffer[tx_index++] = i >> 8;
-            m_tx_iq_Buffer[tx_index++] = i;
-            m_tx_iq_Buffer[tx_index++] = q >> 8;
-            m_tx_iq_Buffer[tx_index++] = q;
+            is = m_iq_output_buffer.at(j).re;
+            qs = m_iq_output_buffer.at(j).im;
+            leftTXSample = is >= 0.0 ? (long) floor(is * gain + 0.5) : (long) ceil(is * gain - 0.5);
+            rightTXSample =  qs >= 0.0 ? (long) floor(qs * gain + 0.5) : (long) ceil(qs * gain - 0.5);
+            m_tx_iq_Buffer[idx++] = (int)leftTXSample >> 8;
+            m_tx_iq_Buffer[idx++] = (int)leftTXSample;
+            m_tx_iq_Buffer[idx++] = (int)rightTXSample >> 8;
+            m_tx_iq_Buffer[idx++] = (int)rightTXSample;
         }
     }
-
 }
 
 /* copied from pihpsdr */

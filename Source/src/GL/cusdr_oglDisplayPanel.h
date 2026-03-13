@@ -235,6 +235,7 @@ private:
 	int		m_adcStatus;
 	int		m_packetLossStatus;
 	qreal	m_fwdPowerWatts = 0.0;
+    qreal   m_swr = 1.0;
 	int		m_sendIQStatus;
 	int		m_recvAudioStatus;
 	int		m_receivers;
@@ -325,6 +326,7 @@ private slots:
 	void	setADCStatus(int value);
 	void	setPacketLossStatus(int value);
 	void	setForwardPower(qreal watts);
+    void	setSWR(qreal swr);
 	void	setSendIQStatus(int value);
 	void	setRecvAudioStatus(int value);
 	void	setCurrentReceiver(QObject *sender, int value);

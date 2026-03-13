@@ -247,7 +247,10 @@ void DataIO::new_readDeviceData() {
                 }
             }
             else if (type == 0x05) { // High Priority Status (Protocol 2)
-                DATAIO_DEBUG << "P2: [new] Received High Priority Status packet on port " << socket->localPort() << " size " << size;
+                static int hpCountNew = 0;
+                if (++hpCountNew % 1000 == 0) {
+                    DATAIO_DEBUG << "P2: [new] Received 1000 High Priority Status packets on port " << socket->localPort();
+                }
                 io->protocol->decodeCCBytes(QByteArray((const char*)m_buffer, size), io);
             }
             else if (type == 0x04) { // wide band data
@@ -330,7 +333,10 @@ void DataIO::readDeviceData() {
                 }
             }
             else if (type == 0x05) { // High Priority Status (Protocol 2)
-                DATAIO_DEBUG << "P2: Received High Priority Status packet on port " << socket->localPort() << " size " << size;
+                static int hpCount = 0;
+                if (++hpCount % 1000 == 0) {
+                    DATAIO_DEBUG << "P2: Received 1000 High Priority Status packets on port " << socket->localPort();
+                }
                 io->protocol->decodeCCBytes(m_datagram.left(size), io);
             }
             else if (type == 0x04) { // wide band data
