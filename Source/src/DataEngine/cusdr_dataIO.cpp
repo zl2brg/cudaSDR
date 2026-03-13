@@ -209,11 +209,6 @@ void DataIO::new_readDeviceData() {
         if (io->protocol && io->protocol->isPacketValid(m_buffer, size)) {
             int type = io->protocol->getPacketType(m_buffer);
             if (type == 0x06 || type == 0x02) { // IQ data (P2=0x06, P1=0x02)
-                static int newIqCount = 0;
-                if (++newIqCount % 1000 == 0) {
-                    DATAIO_DEBUG << "P2: [new] Received 1000 IQ packets from " << senderAddress.toString() << ":" << senderPort;
-                }
-
                 m_sequence = io->protocol->getSequence(m_buffer);
 
                 if (m_sequence != m_oldSequence + 1) {
@@ -243,10 +238,6 @@ void DataIO::new_readDeviceData() {
                 }
             }
             else if (type == 0x05) { // High Priority Status (Protocol 2)
-                static int hpCountNew = 0;
-                if (++hpCountNew % 1000 == 0) {
-                    DATAIO_DEBUG << "P2: [new] Received 1000 High Priority Status packets on port " << socket->localPort();
-                }
                 io->protocol->decodeCCBytes(QByteArray((const char*)m_buffer, size), io);
             }
             else if (type == 0x04) { // wide band data
@@ -295,11 +286,6 @@ void DataIO::readDeviceData() {
 		if (io->protocol && io->protocol->isPacketValid((const unsigned char*)m_datagram.data(), size)) {
             int type = io->protocol->getPacketType((const unsigned char*)m_datagram.data());
 			if (type == 0x06 || type == 0x02) { // IQ data (P2=0x06, P1=0x02)
-                static int iqCount = 0;
-                if (++iqCount % 1000 == 0) {
-                    DATAIO_DEBUG << "P2: Received 1000 IQ packets from " << senderAddress.toString() << ":" << senderPort;
-                }
-
 				m_sequence = io->protocol->getSequence((const unsigned char*)m_datagram.data());
 
 				if (m_sequence != m_oldSequence + 1) {
@@ -332,10 +318,6 @@ void DataIO::readDeviceData() {
                 }
             }
             else if (type == 0x05) { // High Priority Status (Protocol 2)
-                static int hpCount = 0;
-                if (++hpCount % 1000 == 0) {
-                    DATAIO_DEBUG << "P2: Received 1000 High Priority Status packets on port " << socket->localPort();
-                }
                 io->protocol->decodeCCBytes(m_datagram.left(size), io);
             }
             else if (type == 0x04) { // wide band data

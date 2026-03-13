@@ -53,11 +53,6 @@ void CProtocol2::processInputBuffer(const QByteArray& buffer, DataEngine* de) {
 
     int rxIdx = (unsigned char)buffer.at(0);
     
-    static int rxLogCount[MAX_RECEIVERS] = {0};
-    if (++rxLogCount[rxIdx % MAX_RECEIVERS] % 1000 == 0) {
-        qDebug() << "P2 processInputBuffer: rxIdx=" << rxIdx << " bufSize=" << buffer.size() << " samples=" << (buffer.size()-1)/6;
-    }
-
     if (rxIdx < 0 || rxIdx >= de->io.receivers || rxIdx >= de->RX.size())
         return;
 
@@ -152,11 +147,13 @@ void CProtocol2::decodeCCBytes(const QByteArray& buffer, THPSDRParameter* io) {
 
     // Bytes 34-35: Temperature (16-bit BE, degrees C x 100)
     uint16_t tempRaw = qFromBigEndian<uint16_t>(reinterpret_cast<const uchar*>(buffer.constData() + 34));
+    Settings::instance()->setTemperature((double)tempRaw / 100.0);
 
     // Bytes 36-37: Supply voltage (16-bit BE, millivolts)
     uint16_t supplyMV = qFromBigEndian<uint16_t>(reinterpret_cast<const uchar*>(buffer.constData() + 36));
     io->supplyVolts = (double)supplyMV / 1000.0;
     io->ccRx.ain6 = supplyMV;
+    Settings::instance()->setSupplyVoltage(io->supplyVolts);
 
     // Byte 59: IO2,IO4,IO5,IO6,IO8 inputs
     uint8_t inputs = (uint8_t)buffer.at(59);
@@ -234,28 +231,28 @@ void CProtocol2::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
                 // DDC enable bitmask: one bit per DDC (bit 0 = DDC0, bit 1 = DDC1, ...)
                 buffer[7] = (uint8_t)((1 << io->receivers) - 1);
 
-                // Sampling rate for all DDCs
-                uint16_t rate = 0;
-                switch (io->samplerate) {
-                    case 48000:   rate = 48;   break;
-                    case 96000:   rate = 96;   break;
-                    case 192000:  rate = 192;  break;
-                    case 384000:  rate = 384;  break;
-                    case 768000:  rate = 768;  break;
-                    case 1536000: rate = 1536; break;
-                    default:      rate = 48;   break;
-                }
-                uint16_t rateBE = qToBigEndian(rate);
-
                 // Configure each DDC: 6 bytes starting at buffer[17 + 6*i]
                 //   [0] ADC selection  [1-2] sample rate (BE)  [3-4] sync map  [5] sample size
-                for (int ddc = 0; ddc < io->receivers; ddc++) {
+                const QList<TReceiver>& rxData = set->getReceiverDataList();
+                for (int ddc = 0; ddc < io->receivers && ddc < rxData.size(); ddc++) {
                     int base = 17 + 6 * ddc;
+                    uint16_t ddcRate = 48;
+                    switch (rxData.at(ddc).sampleRate) {
+                        case 48000:   ddcRate = 48;   break;
+                        case 96000:   ddcRate = 96;   break;
+                        case 192000:  ddcRate = 192;  break;
+                        case 384000:  ddcRate = 384;  break;
+                        case 768000:  ddcRate = 768;  break;
+                        case 1536000: ddcRate = 1536; break;
+                        default:      ddcRate = 48;   break;
+                    }
+                    uint16_t rateBE = qToBigEndian(ddcRate);
+                    
                     buffer[base]     = 0x00;       // ADC0 for all DDCs
                     memcpy(&buffer[base + 1], &rateBE, 2); // sample rate
-                    buffer[base + 2 + 1] = 0x00;   // sync map high byte (unused)
-                    buffer[base + 2 + 2] = 0x00;   // sync map low byte (unused)
-                    buffer[base + 5]     = 24;      // 24-bit samples
+                    buffer[base + 3] = 0x00;       // sync map high byte (unused)
+                    buffer[base + 4] = 0x00;       // sync map low byte (unused)
+                    buffer[base + 5] = 24;         // 24-bit samples
                 }
             }
             sendState = 2;

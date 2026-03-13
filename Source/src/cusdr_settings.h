@@ -899,6 +899,8 @@ signals:
 	void forwardPowerChanged(qreal watts);
 	void reversePowerChanged(qreal watts);
     void swrChanged(qreal swr);
+    void supplyVoltageChanged(qreal volts);
+    void temperatureChanged(qreal temp);
 	void sendIQSignalChanged(int value);
 	void rcveIQSignalChanged(int value);
 
@@ -1367,6 +1369,8 @@ public slots:
 	void setForwardPower(qreal watts);
 	void setReversePower(qreal watts);
     void setSWR(qreal swr);
+    void setSupplyVoltage(qreal volts);
+    void setTemperature(qreal temp);
 	void setSendIQ(int value);
 	void setRcveIQ(int value);
 

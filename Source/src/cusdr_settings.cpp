@@ -3362,6 +3362,16 @@ void Settings::setSWR(qreal swr) {
     emit swrChanged(swr);
 }
 
+void Settings::setSupplyVoltage(qreal volts) {
+
+    emit supplyVoltageChanged(volts);
+}
+
+void Settings::setTemperature(qreal temp) {
+
+    emit temperatureChanged(temp);
+}
+
 void Settings::setSendIQ(int value) {
 
     emit sendIQSignalChanged(value);

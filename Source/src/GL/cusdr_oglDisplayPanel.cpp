@@ -331,6 +331,18 @@ void OGLDisplayPanel::setupConnections() {
         this,
         SLOT(setSWR(qreal)));
 
+    CHECKED_CONNECT(
+        set,
+        SIGNAL(supplyVoltageChanged(qreal)),
+        this,
+        SLOT(setSupplyVoltage(qreal)));
+
+    CHECKED_CONNECT(
+        set,
+        SIGNAL(temperatureChanged(qreal)),
+        this,
+        SLOT(setTemperature(qreal)));
+
 	CHECKED_CONNECT(
 		set,
 		SIGNAL(sendIQSignalChanged(int)),
@@ -638,6 +650,28 @@ void OGLDisplayPanel::paintUpperRegion() {
             m_oglTextSmallItalic->renderText(x1 + m_blankWidth, y1, swrStr);
             x1 += swrWidth + 5*m_blankWidth;
         }
+    }
+
+    // Supply Voltage
+    if (m_supplyVolts > 0.1) {
+        QString voltStr = QString("%1V").arg(m_supplyVolts, 0, 'f', 1);
+        int voltWidth = m_oglTextSmall->fontMetrics().horizontalAdvance(voltStr);
+        rect = QRect(x1, y1, voltWidth + 2*m_blankWidth, m_blankHeight);
+        drawGLRect(rect, QColor(100, 120, 140), -2.0f); // Blue-grey
+        qglColor(QColor(206, 236, 248));
+        m_oglTextSmallItalic->renderText(x1 + m_blankWidth, y1, voltStr);
+        x1 += voltWidth + 5*m_blankWidth;
+    }
+
+    // Temperature
+    if (m_temperature > 0.1) {
+        QString tempStr = QString("%1°C").arg(m_temperature, 0, 'f', 1);
+        int tempWidth = m_oglTextSmall->fontMetrics().horizontalAdvance(tempStr);
+        rect = QRect(x1, y1, tempWidth + 2*m_blankWidth, m_blankHeight);
+        drawGLRect(rect, QColor(80, 80, 80), -2.0f); // Deep grey
+        qglColor(QColor(206, 236, 248));
+        m_oglTextSmallItalic->renderText(x1 + m_blankWidth, y1, tempStr);
+        x1 += tempWidth + 5*m_blankWidth;
     }
 
 	if (m_hwInterface == QSDR::Metis && m_dataEngineState == QSDR::DataEngineUp)
@@ -2437,6 +2471,22 @@ void OGLDisplayPanel::setForwardPower(qreal watts) {
 void OGLDisplayPanel::setSWR(qreal swr) {
 
     m_swr = swr;
+    update();
+}
+
+void OGLDisplayPanel::setSupplyVoltage(qreal volts) {
+    if (volts > 0.1) {
+        qDebug() << "OGLDisplayPanel: RX" << m_currentReceiver << "received voltage update:" << volts;
+    }
+    m_supplyVolts = volts;
+    update();
+}
+
+void OGLDisplayPanel::setTemperature(qreal temp) {
+    if (temp > 0.1) {
+        qDebug() << "OGLDisplayPanel: RX" << m_currentReceiver << "received temperature update:" << temp;
+    }
+    m_temperature = temp;
     update();
 }
 
