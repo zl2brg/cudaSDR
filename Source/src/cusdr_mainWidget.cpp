@@ -612,9 +612,10 @@ void MainWindow::setupLayout() {
 	}
 
 	// the outline of the receiver panels
-	for (int i = 0; i < (int)(MAX_RECEIVERS-1)/2; i++) {
-
-		centralwidget->splitDockWidget(rxDockWidgetList.at(i), rxDockWidgetList.at(i+3), Qt::Vertical);
+	for (int i = 0; i < (MAX_RECEIVERS-1)/2; i++) {
+        if (i + 4 < rxDockWidgetList.size()) {
+            centralwidget->splitDockWidget(rxDockWidgetList.at(i), rxDockWidgetList.at(i+4), Qt::Vertical);
+        }
 	}
 
 	// Create and add 3D Panadapter dock widget if display tab widget exists in setup widget
@@ -1390,6 +1391,7 @@ void MainWindow::systemStateChanged(
 	modeBtn->setEnabled(m_dataEngineState == QSDR::DataEngineDown);
 	moxBtn->setEnabled(m_hwInterface == QSDR::Hermes);
 	tunBtn->setEnabled(m_hwInterface == QSDR::Hermes);
+    plusRxBtn->setEnabled(m_dataEngineState == QSDR::DataEngineUp);
 
 
 	if (state == QSDR::DataEngineUp) {
@@ -1711,6 +1713,10 @@ void MainWindow::alexPresenceChanged(bool value) {
 }
 
 void MainWindow::addReceiver() {
+    int num = set->getNumberOfReceivers();
+    if (num < MAX_RECEIVERS) {
+        set->setReceivers(this, num + 1);
+    }
 }
 
 /*!

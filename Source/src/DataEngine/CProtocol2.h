@@ -40,8 +40,7 @@ private:
     // DDC index = port - 1035).  Separate counters are needed because DDC0 and
     // DDC1 packets arrive independently and must each fill their RX inBuf
     // without interfering with each other's fill state.
-    static constexpr int MAX_DDC = 8;
-    int m_rxSamplesPerDDC[MAX_DDC];
+    int m_rxSamplesPerDDC[MAX_RECEIVERS];
     QMap<quint16, uint32_t> m_sequences;
     // Stored by isPacketValid() and read by getPacketType() to discriminate
     // between DDC-data packets (large) and High-Priority-Status packets (small).

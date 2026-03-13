@@ -115,7 +115,8 @@ void CProtocol1::processInputBuffer(const QByteArray& buffer, DataEngine* de) {
             if (m_rxSamples == BUFFER_SIZE) {
                 for (int r = 0; r < de->io.receivers; r++) {
                     if (de->RX.at(r)->qtwdsp) {
-                        QMetaObject::invokeMethod(de->RX.at(r), "dspProcessing", Qt::DirectConnection);
+                        de->RX[r]->enqueueData();
+                        QMetaObject::invokeMethod(de->RX.at(r), "dspProcessing", Qt::BlockingQueuedConnection);
                     }
                 }
                 m_rxSamples = 0;

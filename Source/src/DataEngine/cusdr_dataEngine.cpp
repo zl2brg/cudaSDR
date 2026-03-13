@@ -2234,13 +2234,16 @@ void DataEngine::setNumberOfRx(QObject *sender, int value) {
 
 	if (io.receivers == value) return;
 
+    bool restart = (m_dataEngineState == QSDR::DataEngineUp);
+    if (restart) stop();
+
 	io.mutex.lock();
 	io.receivers = value;
 	io.mutex.unlock();
-	//io.control_out[4] &= 0xc7;
-	//io.control_out[4] |= (value - 1) << 3;
 
 	DATA_ENGINE_DEBUG << "number of receivers set to " << QString::number(value);
+
+    if (restart) start();
 }
 
 void DataEngine::setTimeStamp(QObject *sender, bool value) {

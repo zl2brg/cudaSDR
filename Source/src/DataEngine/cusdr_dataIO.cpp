@@ -146,6 +146,7 @@ void DataIO::initDataReceiverSocket() {
         }
     }
     m_sockets.clear();
+    m_logicalPorts.clear();
     m_dataIOSocket = nullptr;
 
     int newBufferSize = 16 * 1024;
@@ -160,20 +161,12 @@ void DataIO::initDataReceiverSocket() {
 		else if (io->samplerate == 48000) newBufferSize = 16*1024;
 	}
 
-    // If the simulator is running on the same Linux machine it will be
-    // discovered at the machine's own LAN IP (or 127.0.0.1).
-    const bool deviceIsLocal =
-        io->hpsdrDeviceIPAddress.isLoopback() ||
-        QNetworkInterface::allAddresses().contains(io->hpsdrDeviceIPAddress);
-
-    const QHostAddress bindAddr = deviceIsLocal
-        ? QHostAddress(QHostAddress::AnyIPv4)
-        : QHostAddress(set->getHPSDRDeviceLocalAddr());
+    const QHostAddress bindAddr(set->getHPSDRDeviceLocalAddr());
 
     for (quint16 port : ports) {
         // For local devices use ephemeral port 0 so our packets don't share
         // port 1024 with the simulator socket.
-        const quint16 bindPort = deviceIsLocal ? 0 : port;
+        const quint16 bindPort = (port == DEVICE_PORT) ? 0 : port;
 
         QUdpSocket* socket = new QUdpSocket(this);
         if (socket->bind(bindAddr,
@@ -188,10 +181,11 @@ void DataIO::initDataReceiverSocket() {
             connect(socket, &QUdpSocket::errorOccurred, this, &DataIO::displayDataReceiverSocketError);
             connect(socket, &QUdpSocket::readyRead, this, &DataIO::readDeviceData);
 
-            m_sockets[port] = socket;
+            m_sockets[socket->localPort()] = socket;
+            m_logicalPorts[socket->localPort()] = port;
             if (port == ports.first()) m_dataIOSocket = socket;
             
-            DATAIO_DEBUG << "Bound receiver socket to port " << port << " (bindPort=" << bindPort << ") with buffer size " << newBufferSize;
+            DATAIO_DEBUG << "Bound receiver socket to logical port " << port << " (localPort=" << socket->localPort() << ") with buffer size " << newBufferSize;
         } else {
             DATAIO_DEBUG << "Failed to bind receiver socket to port " << port << ": " << socket->errorString();
             delete socket;
@@ -214,10 +208,10 @@ void DataIO::new_readDeviceData() {
         size = socket->readDatagram((char *)m_buffer, sizeof(m_buffer), &senderAddress, &senderPort);
         if (io->protocol && io->protocol->isPacketValid(m_buffer, size)) {
             int type = io->protocol->getPacketType(m_buffer);
-            if (type == 0x06) {
+            if (type == 0x06 || type == 0x02) { // IQ data (P2=0x06, P1=0x02)
                 static int newIqCount = 0;
                 if (++newIqCount % 1000 == 0) {
-                    DATAIO_DEBUG << "P2: [new] Received 1000 IQ packets on port " << socket->localPort() << " size " << size;
+                    DATAIO_DEBUG << "P2: [new] Received 1000 IQ packets from " << senderAddress.toString() << ":" << senderPort;
                 }
 
                 m_sequence = io->protocol->getSequence(m_buffer);
@@ -232,15 +226,17 @@ void DataIO::new_readDeviceData() {
                 m_oldSequence = m_sequence;
 
                 if (!io->iq_queue.isFull()) {
-                    // P2 multi-RX: DDC0 sends from source port 1035, DDC1 from 1036, etc.
                     const int hdrSize = io->protocol->getHeaderSize();
                     if (hdrSize == 16) { // Protocol 2
-                        quint16 logicalPort = m_sockets.key(socket);
-                        int ddcIdx = (logicalPort >= 1035) ? (int)(logicalPort - 1035) : 0;
+                        // Use the sender's source port to identify the DDC
+                        int ddcIdx = (senderPort >= 1035) ? (int)(senderPort - 1035) : 0;
+                        if (ddcIdx < 0 || ddcIdx >= MAX_RECEIVERS) ddcIdx = 0;
+                        
                         QByteArray payload(1, (char)(unsigned char)ddcIdx);
                         payload.append(QByteArray((const char *)&m_buffer[hdrSize], size - hdrSize));
                         io->iq_queue.enqueue(payload);
                     } else {
+                        // Protocol 1: No prepended index
                         io->iq_queue.enqueue(QByteArray((const char *)&m_buffer[io->protocol->getHeaderSize()], size - io->protocol->getHeaderSize()));
                     }
                     emit (readydata());
@@ -298,10 +294,10 @@ void DataIO::readDeviceData() {
         qint64 size = socket->readDatagram(m_datagram.data(), m_datagram.size(), &senderAddress, &senderPort);
 		if (io->protocol && io->protocol->isPacketValid((const unsigned char*)m_datagram.data(), size)) {
             int type = io->protocol->getPacketType((const unsigned char*)m_datagram.data());
-			if (type == 0x06) {
+			if (type == 0x06 || type == 0x02) { // IQ data (P2=0x06, P1=0x02)
                 static int iqCount = 0;
                 if (++iqCount % 1000 == 0) {
-                    DATAIO_DEBUG << "P2: Received 1000 IQ packets on port " << socket->localPort() << " size " << size;
+                    DATAIO_DEBUG << "P2: Received 1000 IQ packets from " << senderAddress.toString() << ":" << senderPort;
                 }
 
 				m_sequence = io->protocol->getSequence((const unsigned char*)m_datagram.data());
@@ -321,13 +317,16 @@ void DataIO::readDeviceData() {
                     // DDC0 → 1035, DDC1 → 1036, etc.
                     const int hdrSize = io->protocol->getHeaderSize();
                     if (hdrSize == 16) { // Protocol 2
-                        quint16 logicalPort = m_sockets.key(socket);
-                        int ddcIdx = (logicalPort >= 1035) ? (int)(logicalPort - 1035) : 0;
+                        // Use the sender's source port to identify the DDC
+                        int ddcIdx = (senderPort >= 1035) ? (int)(senderPort - 1035) : 0;
+                        if (ddcIdx < 0 || ddcIdx >= MAX_RECEIVERS) ddcIdx = 0;
+                        
                         QByteArray payload(1, (char)(unsigned char)ddcIdx);
                         payload.append(m_datagram.mid(hdrSize, size - hdrSize));
                         io->iq_queue.enqueue(payload);
                     } else {
-                        io->iq_queue.enqueue(m_datagram.mid(io->protocol->getHeaderSize(), size - io->protocol->getHeaderSize()));
+                        // Protocol 1: No prepended index
+                        io->iq_queue.enqueue(m_datagram.mid(hdrSize, size - hdrSize));
                     }
                     emit (readydata());
                 }

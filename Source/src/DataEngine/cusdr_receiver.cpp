@@ -221,9 +221,13 @@ void Receiver::stop() {
 }
 
 void Receiver::dspProcessing() {
+    if (inQueue.isEmpty()) return;
+    
+    CPX localBuf = inQueue.dequeue();
     int spectrumDataReady;
+    
     mutex.lock();
-    qtwdsp->processDSP(inBuf, audioOutputBuf);
+    qtwdsp->processDSP(localBuf, audioOutputBuf);
     mutex.unlock();
 
       if (highResTimer->getElapsedTimeInMicroSec() >= getDisplayDelay()) {

@@ -49,15 +49,17 @@ int CProtocol2::getPacketType(const unsigned char* data) {
 }
 
 void CProtocol2::processInputBuffer(const QByteArray& buffer, DataEngine* de) {
-    // Protocol 2 DDC Packet: DataIO::readDeviceData() prepends one byte = DDC index
-    // (derived from socket logical port: DDC0→1035, DDC1→1036, ...) before
-    // enqueueing.  Read that tag, validate, then process the remaining bytes as
-    // 24-bit I/Q sample pairs (3 bytes I MSB-first + 3 bytes Q MSB-first, 6 bytes each).
     if (buffer.isEmpty()) return;
 
     int rxIdx = (unsigned char)buffer.at(0);
+    
+    static int rxLogCount[MAX_RECEIVERS] = {0};
+    if (++rxLogCount[rxIdx % MAX_RECEIVERS] % 1000 == 0) {
+        qDebug() << "P2 processInputBuffer: rxIdx=" << rxIdx << " bufSize=" << buffer.size() << " samples=" << (buffer.size()-1)/6;
+    }
+
     if (rxIdx < 0 || rxIdx >= de->io.receivers || rxIdx >= de->RX.size())
-        rxIdx = 0;
+        return;
 
     Receiver* rx = de->RX.at(rxIdx);
     if (!rx || !rx->qtwdsp) return;
@@ -80,8 +82,9 @@ void CProtocol2::processInputBuffer(const QByteArray& buffer, DataEngine* de) {
         rx->inBuf[rxSamples].im = (double)qSample / 8388607.0;
 
         rxSamples++;
-        if (rxSamples >= BUFFER_SIZE) {
-            QMetaObject::invokeMethod(rx, "dspProcessing", Qt::DirectConnection);
+        if (rxSamples == BUFFER_SIZE) {
+            rx->enqueueData();
+            QMetaObject::invokeMethod(rx, "dspProcessing", Qt::BlockingQueuedConnection);
             rxSamples = 0;
         }
     }
