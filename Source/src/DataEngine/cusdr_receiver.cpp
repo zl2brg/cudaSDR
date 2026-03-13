@@ -297,6 +297,14 @@ void Receiver::setSampleRate(QObject *sender, int value) {
 			m_samplerate = value;
 			break;
 
+        case 768000:
+            m_samplerate = value;
+            break;
+
+        case 1536000:
+            m_samplerate = value;
+            break;
+
 		default:
 			RECEIVER_DEBUG << "invalid sample rate (possible values are: 48, 96, 192, or 384 kHz)!\n";
 			break;

@@ -154,7 +154,11 @@ void AeroButton::paintEvent(QPaintEvent * pe)
 		QFont font = this->font();
 		painter.setFont(font);
 		//painter.setPen(Qt::white);
-		if (m_state == ON)
+        if (!this->isEnabled())
+        {
+            painter.setPen(QColor(100, 100, 100)); // Gray text for disabled
+        }
+		else if (m_state == ON)
 		{
 		    painter.setPen(m_onTextColor);
 		}

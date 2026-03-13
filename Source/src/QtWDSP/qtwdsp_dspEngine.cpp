@@ -371,13 +371,12 @@ void QWDSPEngine::setSampleRate(QObject *sender, int value) {
     if (m_samplerate == value) return;
 
     // Use modern validation
-    static const std::set<int> validRates{48000, 96000, 192000, 384000};
+    static const std::set<int> validRates{48000, 96000, 192000, 384000, 768000, 1536000};
     if (validRates.find(value) == validRates.end()) {
-        WDSP_ENGINE_DEBUG << "Invalid sample rate:" << value 
-                          << "Valid rates: 48, 96, 192, or 384 kHz";
+        WDSP_ENGINE_DEBUG << "Invalid sample rate:" << value
+                          << "Valid rates: 48, 96, 192, 384, 768 or 1536 kHz";
         return;
     }
-
     m_samplerate = value;
     
     // Add error checking for WDSP calls
