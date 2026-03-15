@@ -31,6 +31,39 @@
 #include "cusdr_settings.h"
 #include "Util/cusdr_styles.h"
 
+namespace {
+bool sampleRateToParams(int rate, int &speed, int &outputIncrement) {
+    switch (rate) {
+        case 48000:
+            speed = 0;
+            outputIncrement = 1;
+            return true;
+        case 96000:
+            speed = 1;
+            outputIncrement = 2;
+            return true;
+        case 192000:
+            speed = 2;
+            outputIncrement = 4;
+            return true;
+        case 384000:
+            speed = 3;
+            outputIncrement = 8;
+            return true;
+        case 768000:
+            speed = 4;
+            outputIncrement = 16;
+            return true;
+        case 1536000:
+            speed = 5;
+            outputIncrement = 32;
+            return true;
+        default:
+            return false;
+    }
+}
+}
+
 Settings *Settings::m_instance = nullptr;        /*!< set m_instance to NULL. */
 
 /*!
@@ -2735,6 +2768,10 @@ QString Settings::getHWInterfaceModeString(QSDR::_HWInterfaceMode mode) {
         case QSDR::_HWInterfaceMode::Hermes:
             str = "Hermes";
             break;
+
+        case QSDR::_HWInterfaceMode::SoapySDR:
+            str = "SoapySDR";
+            break;
     }
     return str;
 }
@@ -3459,41 +3496,21 @@ void Settings::setSampleRate(QObject *sender, int value) {
 
     QMutexLocker locker(&settingsMutex);
 
-    switch (value) {
-
-        case 48000:
-            m_sampleRate = value;
-            m_mercurySpeed = 0;
-            m_outputSampleIncrement = 1;
-            break;
-
-        case 96000:
-            m_sampleRate = value;
-            m_mercurySpeed = 1;
-            m_outputSampleIncrement = 2;
-            break;
-
-        case 192000:
-            m_sampleRate = value;
-            m_mercurySpeed = 2;
-            m_outputSampleIncrement = 4;
-            break;
-
-        case 384000:
-            m_sampleRate = value;
-            m_mercurySpeed = 3;
-            m_outputSampleIncrement = 8;
-            break;
-
-        default:
-            SETTINGS_DEBUG << "Invalid sample rate (must be 48, 96,192, or 384 kHz)!\n";
-            break;
+    int speed = 0;
+    int outputIncrement = 0;
+    if (!sampleRateToParams(value, speed, outputIncrement)) {
+        SETTINGS_DEBUG << "Invalid sample rate (must be 48, 96, 192, 384, 768 or 1536 kHz)!\n";
+        return;
     }
+
+    m_sampleRate = value;
+    m_mercurySpeed = speed;
+    m_outputSampleIncrement = outputIncrement;
 
     for (int i = 0; i < MAX_RECEIVERS; i++)
         m_receiverDataList[i].sampleRate = m_sampleRate;
 
-    emit sampleRateChanged(sender, value);
+    emit sampleRateChanged(sender, m_sampleRate);
 }
 
 void Settings::setMercuryAttenuator(QObject *sender, int value) {

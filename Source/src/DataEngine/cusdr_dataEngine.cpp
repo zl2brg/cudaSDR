@@ -1,7 +1,6 @@
+#if defined(__clang__)
 #pragma clang diagnostic push
-#pragma clang diagnostic push
-#pragma clang diagnostic push
-#pragma ide diagnostic ignored "EmptyDeclOrStmt"
+#endif
 /**
 * @file  cusdr_dataEngine.cpp
 * @brief cuSDR data engine class
@@ -2042,15 +2041,14 @@ void DataEngine::setFramesPerSecond(QObject *sender, int rx, int value) {
 	io.mutex.unlock();*/
 }
 
-// TODO(P2-SAMPLERATE): Changing the sample rate updates io.samplerate / io.speed
-// but does NOT send a new DDC Specific Packet (port 1025) to the hardware.
-// In Protocol 2 the hardware uses the rate field in the DDC Specific Packet;
-// until a new encodeCCBytes(case 1) is dispatched the hardware ignores the change.
-// Fix: after updating io.samplerate, schedule an encodeCCBytes(1) call (or signal
-// the DataProcessor to resend the DDC Specific packet on the next cycle).
 void DataEngine::setSampleRate(QObject *sender, int value) {
 
 	Q_UNUSED(sender)
+
+	if (set && set->getSampleRate() != value) {
+		DATA_ENGINE_DEBUG << "sample-rate propagation mismatch: signal=" << value
+		                  << "settings=" << set->getSampleRate();
+	}
 
 	switch (value) {
 	
@@ -2090,12 +2088,18 @@ void DataEngine::setSampleRate(QObject *sender, int value) {
 			break;
 	}
 
-    if (m_protocol && set->getCurrentMetisCard().protocol == 2 && m_dataProcessor) {
-        // We cannot access DataProcessor::m_sendState directly from another thread.
-        // Instead, we can force the protocol state if we had a thread-safe way,
-        // or just rely on the 10ms cycle which will hit Case 1 within 30ms.
-        // For now, let's just ensure the sample rate is updated in the IO parameters.
+		if (m_protocol && set->getCurrentMetisCard().protocol == 2 && m_dataProcessor) {
+			// On live rate changes while RX is running, force an immediate DDC-specific
+			// control packet so hardware DDC rate tracks io/settings right away.
+			QMetaObject::invokeMethod(m_dataProcessor,
+									  &DataProcessor::requestProtocol2DDCUpdate,
+									  Qt::QueuedConnection);
     }
+
+	if (io.samplerate != value) {
+		DATA_ENGINE_DEBUG << "samplerate apply mismatch: requested=" << value
+		                  << "applied=" << io.samplerate;
+	}
 
 //	io.mutex.unlock();
 }
@@ -2462,6 +2466,28 @@ void DataProcessor::startControlTimer() {
     if (de->set->getCurrentMetisCard().protocol == 2 && m_controlTimer) {
         m_controlTimer->start(10);
     }
+}
+
+void DataProcessor::requestProtocol2DDCUpdate() {
+	if (!de || !de->m_protocol || !de->m_controlSocket) return;
+	if (de->set->getCurrentMetisCard().protocol != 2) return;
+
+	unsigned char p2CmdBuf[1444];
+	quint16 port = DEVICE_PORT;
+	int oneShotState = 1; // DDC Specific packet
+
+	memset(p2CmdBuf, 0, sizeof(p2CmdBuf));
+	de->m_protocol->encodeCCBytes(p2CmdBuf, &de->io, oneShotState, port);
+
+	if (port != 1025) {
+		DATA_PROCESSOR_DEBUG << "P2 rate update produced unexpected control port" << port;
+		return;
+	}
+
+	m_deviceAddress = de->io.hpsdrDeviceIPAddress;
+	if (de->m_controlSocket->writeDatagram((const char*)p2CmdBuf, 1444, m_deviceAddress, port) < 0) {
+		DATA_PROCESSOR_DEBUG << "error sending P2 DDC rate update:" << de->m_controlSocket->errorString();
+	}
 }
 
 void DataProcessor::initDataProcessorSocket() {
@@ -3298,4 +3324,6 @@ void DataProcessor::key_down_test(int dummy,int state) {
         de->cw_key_down = 0;
     }
 }
+#if defined(__clang__)
 #pragma clang diagnostic pop
+#endif

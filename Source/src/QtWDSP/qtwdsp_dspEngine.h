@@ -161,6 +161,8 @@ private:
     int m_nr2_gain_method;
     int m_nbMode;
     int m_nrMode;
+    double m_filterLo;
+    double m_filterHi;
 
     void ProcessFrequencyShift(CPX &in, CPX &out);
     void setupConnections();

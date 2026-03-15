@@ -31,6 +31,10 @@
 
 #include "cusdr_receiver.h"
 
+namespace {
+constexpr int HIGH_RATE_TRANSITION_DROP_BUFFERS = 12;
+}
+
 Receiver::Receiver(int rx)
 	: QObject()
 	, set(Settings::instance())
@@ -39,6 +43,7 @@ Receiver::Receiver(int rx)
 	, m_receiver(rx)
 	, m_samplerate(set->getSampleRate())
 	, m_audioMode(1)
+	, m_rateTransitionDropBuffers(0)
 	//, m_calOffset(63.0)
 	//, m_calOffset(33.0)
 {
@@ -222,6 +227,15 @@ void Receiver::stop() {
 
 void Receiver::dspProcessing() {
     if (inQueue.isEmpty()) return;
+
+	{
+		QMutexLocker locker(&m_mutex);
+		if (m_rateTransitionDropBuffers > 0) {
+			inQueue.dequeue();
+			--m_rateTransitionDropBuffers;
+			return;
+		}
+	}
     
     CPX localBuf = inQueue.dequeue();
     int spectrumDataReady;
@@ -278,6 +292,7 @@ void Receiver::setSampleRate(QObject *sender, int value) {
 	Q_UNUSED(sender)
 
 	if (m_samplerate == value) return;
+    const int previousRate = m_samplerate;
 
 	switch (value) {
 
@@ -312,6 +327,15 @@ void Receiver::setSampleRate(QObject *sender, int value) {
 
 	if (qtwdsp) {
         m_mutex.lock();
+
+		const bool highRateTransition = (previousRate >= 768000 || m_samplerate >= 768000);
+		if (highRateTransition) {
+			while (!inQueue.isEmpty()) {
+				inQueue.dequeue();
+			}
+			m_rateTransitionDropBuffers = HIGH_RATE_TRANSITION_DROP_BUFFERS;
+		}
+
 		setAudioBufferSize();
         qtwdsp->setSampleRate(this, m_samplerate);
         m_mutex.unlock();

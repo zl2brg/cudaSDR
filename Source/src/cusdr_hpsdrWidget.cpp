@@ -715,6 +715,7 @@ void HPSDRWidget::setHPSDRHardware() {
 
     // Enable/disable extended sample rates based on protocol
     bool isP2 = (set->getCurrentMetisCard().protocol == 2);
+    HPSDR_WIDGET_DEBUG << "setHPSDRHardware: current protocol =" << set->getCurrentMetisCard().protocol << " isP2 =" << isP2;
     if (samplerate768Btn) samplerate768Btn->setEnabled(isP2);
     if (samplerate1536Btn) samplerate1536Btn->setEnabled(isP2);
 }

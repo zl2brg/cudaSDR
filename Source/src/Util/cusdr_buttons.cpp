@@ -107,7 +107,7 @@ void AeroButton::paintEvent(QPaintEvent * pe)
 	}
 	else
 	{
-		button_color = QColor(50, 50, 50);
+		button_color = QColor(50, 50, 50); // Dark grey for disabled
 	}
 
 	QRect button_rect = this->geometry();

@@ -107,6 +107,27 @@ DataIO::DataIO(THPSDRParameter *ioData)
 #endif
 }
 
+namespace {
+int rxSocketBufferSizeForRate(int sampleRate) {
+    switch (sampleRate) {
+        case 48000:
+            return 16 * 1024;
+        case 96000:
+            return 32 * 1024;
+        case 192000:
+            return 64 * 1024;
+        case 384000:
+            return 128 * 1024;
+        case 768000:
+            return 256 * 1024;
+        case 1536000:
+            return 512 * 1024;
+        default:
+            return 16 * 1024;
+    }
+}
+}
+
 DataIO::~DataIO() {
     stop();
     for (auto socket : m_sockets) {
@@ -154,12 +175,9 @@ void DataIO::initDataReceiverSocket() {
 	if (m_manualBufferSize) {
 		newBufferSize = m_socketBufferSize * 1024;
 	}
-	else {
-		if (io->samplerate == 384000) newBufferSize = 128*1024;
-		else if (io->samplerate == 192000) newBufferSize = 64*1024;
-		else if (io->samplerate == 96000) newBufferSize = 32*1024;
-		else if (io->samplerate == 48000) newBufferSize = 16*1024;
-	}
+    else {
+        newBufferSize = rxSocketBufferSizeForRate(io->samplerate);
+    }
 
     const QHostAddress bindAddr(set->getHPSDRDeviceLocalAddr());
 
@@ -558,6 +576,12 @@ void DataIO::setManualSocketBufferSize(QObject *sender, bool value) {
                          SO_RCVBUF, (char *)&socketBufferSize, sizeof(socketBufferSize));
         }
     }
+#else
+    for (auto socket : m_sockets) {
+        if (socket && socket->isValid()) {
+            socket->setSocketOption(QAbstractSocket::ReceiveBufferSizeSocketOption, socketBufferSize);
+        }
+    }
 #endif
 	io->networkIOMutex.unlock();
 }
@@ -577,6 +601,12 @@ void DataIO::setSocketBufferSize(QObject *sender, int value) {
                          SO_RCVBUF, (char *)&socketBufferSize, sizeof(socketBufferSize));
         }
     }
+#else
+    for (auto socket : m_sockets) {
+        if (socket && socket->isValid()) {
+            socket->setSocketOption(QAbstractSocket::ReceiveBufferSizeSocketOption, socketBufferSize);
+        }
+    }
 #endif
 	io->networkIOMutex.unlock();
 }
@@ -585,40 +615,21 @@ void DataIO::setSampleRate(QObject *sender, int value) {
 
 	Q_UNUSED(sender)
 
-	int bufferSize = 16 * 1024;
+    int bufferSize = rxSocketBufferSizeForRate(value);
 	io->networkIOMutex.lock();
-	switch (value) {
-	
-		case 48000:
-			bufferSize = 16*1024;
-			DATAIO_DEBUG << "socket buffer size set to 16 kB.";
-			break;
-			
-		case 96000:
-			bufferSize = 32*1024;
-			DATAIO_DEBUG << "socket buffer size set to 32 kB.";
-			break;
-			
-		case 192000:
-			bufferSize = 64*1024;
-			DATAIO_DEBUG << "socket buffer size set to 64 kB.";
-			break;
-			
-		case 384000:
-			bufferSize = 128*1024;
-			DATAIO_DEBUG << "socket buffer size set to 128 kB.";
-			break;
-
-		default:
-			DATAIO_DEBUG << "invalid sample rate !\n";
-			break;
-	}
+    DATAIO_DEBUG << "socket buffer size set to" << (bufferSize / 1024) << "kB for sample rate" << value;
 
 #if defined(Q_OS_WIN32)
     for (auto socket : m_sockets) {
         if (socket && socket->isValid()) {
             ::setsockopt(socket->socketDescriptor(), SOL_SOCKET,
                          SO_RCVBUF, (char *)&bufferSize, sizeof(bufferSize));
+        }
+    }
+#else
+    for (auto socket : m_sockets) {
+        if (socket && socket->isValid()) {
+            socket->setSocketOption(QAbstractSocket::ReceiveBufferSizeSocketOption, bufferSize);
         }
     }
 #endif
