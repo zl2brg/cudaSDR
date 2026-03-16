@@ -31,6 +31,7 @@
 //#include <QMainWindow>
 //#include <QAction>
 #include <QActionGroup>
+#include <QMessageBox>
 //#include <QStyleOptionToolBar>
 //#include <QWidget>
 //#include <QListWidget>
@@ -170,6 +171,7 @@ private:
 	QList<QDockWidget* >		rxDockWidgetList;
     QMenuBar*                   menuBar;
     QMenu *                     File;
+	QMenu *                     Help;
     QAction                     *test;
 	
 	QList<QHostAddress>			m_ipList;
@@ -281,6 +283,7 @@ private:
     QAction			*alexAttn_30dBAction;
     QAction         *setupAction;
     QAction         *setupAudioInput;
+	QAction         *aboutAction;
 
 
     QList<QAction *> mercuryAttnActionList;
@@ -363,6 +366,7 @@ private slots:
 
 	void widebandVisibilityChanged(bool value);
 	void showRadioPopup(bool value);
+	void showAboutDialog();
 
 protected:
 	//void getSelectedFrame(QPoint p);

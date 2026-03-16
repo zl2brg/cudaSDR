@@ -40,6 +40,8 @@
 #include "cusdr_audio_settingsdialog.h"
 #include "cusdr_mainWidget.h"
 
+extern "C" int GetWDSPVersion();
+
 #define window_height1		600
 #define window_height2		750
 #define window_width1		800
@@ -84,6 +86,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     menuBar = new QMenuBar();
     File = menuBar->addMenu(tr("File"));
+		Help = menuBar->addMenu(tr("Help"));
   //  menuBar->setStyleSheet(set->getMenuBarStyle());
 //    File->setStyleSheet(set->getMenuStyle());
     File->setTitle("File");
@@ -96,10 +99,15 @@ MainWindow::MainWindow(QWidget *parent)
     setupAction = new QAction(tr("&Setup"), this);
     setupAction->setStatusTip(tr("Setup Menu"));
     connect(setupAction, &QAction::triggered, this, &MainWindow::cusdr_setup);
+
+	aboutAction = new QAction(tr("&About"), this);
+	aboutAction->setStatusTip(tr("About cudaSDR"));
+	connect(aboutAction, &QAction::triggered, this, &MainWindow::showAboutDialog);
     //connect(test, &QAction::triggered, m_audioInput,&tx_settings_dialog::show);
 
     File->addAction(setupAction);
     File->addAction(test);
+	Help->addAction(aboutAction);
     this->layout()->setMenuBar(menuBar);
 	QPalette palette;
 	QColor color = Qt::black;
@@ -1512,6 +1520,27 @@ void MainWindow::showRadioPopup(bool value) {
 	Q_UNUSED (value)
 
 	//m_radioPopupWidget->showPopupWidget(this, QCursor::pos());
+}
+
+void MainWindow::showAboutDialog() {
+
+	const QString appName = QApplication::applicationName();
+	const QString appVersion = QApplication::applicationVersion();
+	const int wdspVersion = GetWDSPVersion();
+
+	const QString aboutText =
+		tr("<b>%1</b><br>"
+		   "Version: %2<br><br>"
+		   "Authors:<br>"
+		   "Hermann von Hasseln (DL3HVH)<br>"
+		   "Philip A. Covington (N8VB) - WDSP<br>"
+		   "Contributors: ZL2BRG and project contributors<br><br>"
+		   "WDSP Version: %3")
+			.arg(appName)
+			.arg(appVersion)
+			.arg(wdspVersion);
+
+	QMessageBox::about(this, tr("About %1").arg(appName), aboutText);
 }
 
 /*!
