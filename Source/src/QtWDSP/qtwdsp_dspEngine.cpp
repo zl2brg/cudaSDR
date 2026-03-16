@@ -383,55 +383,40 @@ void QWDSPEngine::setSampleRate(QObject *sender, int value) {
     }
     m_samplerate = value;
 
-    const bool touchesP2HighRate = (previousRate >= 768000 || m_samplerate >= 768000);
-    if (touchesP2HighRate) {
-        // High-rate P2 transitions can leave WDSP in a stale resampler state.
-        // Rebuild only for those transitions to avoid regressions at normal rates.
-        SetChannelState(m_rx, 0, 1);
-        DestroyAnalyzer(m_rx);
-        destroy_nobEXT(m_rx);
-        destroy_anbEXT(m_rx);
-        CloseChannel(m_rx);
+    Q_UNUSED(previousRate)
 
-        OpenChannel(m_rx, m_size, 2048, m_samplerate, 48000, 48000, 0, 0, 0.010, 0.025, 0.0, 0.010, 0);
-        create_anbEXT(m_rx, 1, m_size, m_samplerate, 0.0001, 0.0001, 0.0001, 0.05, 20);
-        create_nobEXT(m_rx, 1, 0, m_size, m_samplerate, 0.0001, 0.0001, 0.0001, 0.05, 20);
+    // Some sample-rate transitions leave WDSP internal resampler/filter state stale.
+    // Rebuilding the RX channel on every transition keeps audio state consistent.
+    SetChannelState(m_rx, 0, 1);
+    DestroyAnalyzer(m_rx);
+    destroy_nobEXT(m_rx);
+    destroy_anbEXT(m_rx);
+    CloseChannel(m_rx);
 
-        RXASetNC(m_rx, m_fftSize);
-        SetRXAMode(m_rx, m_dspmode);
-        setFilter(m_filterLo, m_filterHi);
-        setFilterMode(m_rx);
+    OpenChannel(m_rx, m_size, 2048, m_samplerate, 48000, 48000, 0, 0, 0.010, 0.025, 0.0, 0.010, 0);
+    create_anbEXT(m_rx, 1, m_size, m_samplerate, 0.0001, 0.0001, 0.0001, 0.05, 20);
+    create_nobEXT(m_rx, 1, 0, m_size, m_samplerate, 0.0001, 0.0001, 0.0001, 0.05, 20);
 
-        int analyzerResult;
-        XCreateAnalyzer(m_rx, &analyzerResult, 262144, 1, 1, const_cast<char*>(""));
-        if (analyzerResult != 0) {
-            qWarning() << "XCreateAnalyzer id=" << m_rx << "failed after samplerate change:" << analyzerResult;
-        }
+    RXASetNC(m_rx, m_fftSize);
+    SetRXAMode(m_rx, m_dspmode);
+    setFilter(m_filterLo, m_filterHi);
+    setFilterMode(m_rx);
 
-        init_analyzer(m_refreshrate);
-        calcDisplayAveraging();
-        SetDisplayAvBackmult(m_rx, 0, m_display_avb);
-        SetDisplayNumAverage(m_rx, 0, m_display_average);
-        SetDisplayDetectorMode(m_rx, 0, m_PanDetMode);
-        SetDisplayAverageMode(m_rx, 0, m_PanAvMode);
-        SetRXAFMSQRun(m_rx, 1);
-        SetRXAPanelGain1(m_rx, static_cast<double>(m_volume));
-        SetChannelState(m_rx, 1, 0);
-    } else {
-        if (SetChannelState(m_rx, 0, 1) != 0) {
-            qWarning() << "Failed to stop channel" << m_rx;
-        }
-
-        SetInputSamplerate(m_rx, m_samplerate);
-        init_analyzer(m_refreshrate);
-        SetEXTANBSamplerate(m_rx, m_samplerate);
-        SetEXTNOBSamplerate(m_rx, m_samplerate);
-        SetRXAPanelGain1(m_rx, static_cast<double>(m_volume));
-
-        if (SetChannelState(m_rx, 1, 0) != 0) {
-            qWarning() << "Failed to restart channel" << m_rx;
-        }
+    int analyzerResult;
+    XCreateAnalyzer(m_rx, &analyzerResult, 262144, 1, 1, const_cast<char*>(""));
+    if (analyzerResult != 0) {
+        qWarning() << "XCreateAnalyzer id=" << m_rx << "failed after samplerate change:" << analyzerResult;
     }
+
+    init_analyzer(m_refreshrate);
+    calcDisplayAveraging();
+    SetDisplayAvBackmult(m_rx, 0, m_display_avb);
+    SetDisplayNumAverage(m_rx, 0, m_display_average);
+    SetDisplayDetectorMode(m_rx, 0, m_PanDetMode);
+    SetDisplayAverageMode(m_rx, 0, m_PanAvMode);
+    SetRXAFMSQRun(m_rx, 1);
+    SetRXAPanelGain1(m_rx, static_cast<double>(m_volume));
+    SetChannelState(m_rx, 1, 0);
     
     WDSP_ENGINE_DEBUG << "Sample rate set to" << m_samplerate;
 }

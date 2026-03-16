@@ -2044,11 +2044,14 @@ void DataEngine::setFramesPerSecond(QObject *sender, int rx, int value) {
 void DataEngine::setSampleRate(QObject *sender, int value) {
 
 	Q_UNUSED(sender)
+	bool applyOk = true;
 
 	if (set && set->getSampleRate() != value) {
 		DATA_ENGINE_DEBUG << "sample-rate propagation mismatch: signal=" << value
 		                  << "settings=" << set->getSampleRate();
 	}
+
+	io.mutex.lock();
 
 	switch (value) {
 	
@@ -2084,24 +2087,32 @@ void DataEngine::setSampleRate(QObject *sender, int value) {
 
 		default:
 			DATA_ENGINE_DEBUG << "invalid sample rate !\n";
-			stop();
+			applyOk = false;
 			break;
 	}
 
-		if (m_protocol && set->getCurrentMetisCard().protocol == 2 && m_dataProcessor) {
-			// On live rate changes while RX is running, force an immediate DDC-specific
-			// control packet so hardware DDC rate tracks io/settings right away.
-			QMetaObject::invokeMethod(m_dataProcessor,
-									  &DataProcessor::requestProtocol2DDCUpdate,
-									  Qt::QueuedConnection);
-    }
+	const bool shouldRequestP2Update = applyOk && m_protocol && set->getCurrentMetisCard().protocol == 2 && m_dataProcessor;
 
 	if (io.samplerate != value) {
 		DATA_ENGINE_DEBUG << "samplerate apply mismatch: requested=" << value
 		                  << "applied=" << io.samplerate;
 	}
 
-//	io.mutex.unlock();
+	io.mutex.unlock();
+
+	if (!applyOk) {
+		stop();
+		return;
+	}
+
+	if (shouldRequestP2Update) {
+		// On live rate changes while RX is running, force an immediate DDC-specific
+		// control packet so hardware DDC rate tracks io/settings right away.
+		QMetaObject::invokeMethod(m_dataProcessor,
+								  &DataProcessor::requestProtocol2DDCUpdate,
+								  Qt::QueuedConnection);
+	}
+
 }
 
 void DataEngine::setMercuryAttenuator(QObject *sender, HamBand band, int value) {
