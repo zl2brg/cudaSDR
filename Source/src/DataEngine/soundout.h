@@ -26,6 +26,7 @@ public:
 
     bool Start(int OutDevIndx, bool StereoOut, double UsrDataRate, bool BlockingMode);
     void Stop();
+    void Reset();
     void ChangeUserDataRate(double UsrDataRate);
     void SetVolume(qint32 vol);
 

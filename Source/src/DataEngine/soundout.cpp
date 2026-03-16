@@ -235,6 +235,26 @@ void CSoundOut::Stop()
 /////////////////////////////////////////////////////////////////////
 // Sets/changes user data input rate
 /////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////
+// Resets the output queue and forces a clean startup.
+// Call this after a sample rate change to prevent stale queue data
+// causing choppy audio when the DSP resumes.
+/////////////////////////////////////////////////////////////////////
+void CSoundOut::Reset()
+{
+    QMutexLocker locker(&m_Mutex);
+    for (int i = 0; i < OUTQSIZE; i++) {
+        m_OutQueueMono[i] = 0;
+        m_OutQueueStereo[i].re = 0;
+        m_OutQueueStereo[i].im = 0;
+    }
+    m_OutQHead = 0;
+    m_OutQTail = 0;
+    m_OutQLevel = 0;
+    m_AveOutQLevel = OUTQSIZE / 2;
+    m_Startup = true;
+}
+
 void CSoundOut::ChangeUserDataRate(double UsrDataRate)
 {
     if (m_UserDataRate != UsrDataRate) {

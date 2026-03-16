@@ -100,7 +100,7 @@ public:
     QWDSPEngine*	qtwdsp = nullptr;
  //   std::unique_ptr<QWDSPEngine> qtwdsp;
     std::unique_ptr<HResTimer>	highResTimer;
-    ReceiverAudioOutput *m_audioOutput;
+	ReceiverAudioOutput *m_audioOutput = nullptr;
 
 	CPX			inBuf;
     CPX			outBuf;

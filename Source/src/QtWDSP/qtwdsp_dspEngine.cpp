@@ -51,6 +51,8 @@ namespace {
     constexpr int QWDSPEngine_BUFFER_SIZE = 1024;
 }
 
+QMutex QWDSPEngine::s_wdspMutex;
+
 double wmyLog(double x, double base) {
 
 	return log(x) / log(base);
@@ -139,16 +141,14 @@ QWDSPEngine::~QWDSPEngine() {
 
     if (SetChannelState(m_rx, 0, 0) != 0) {
         qWarning() << "Failed to stop RX channel" << m_rx;
+        // Don't return — still clean up so the channel can be safely reopened.
     }
-    if (SetChannelState(TX_ID, 0, 0) != 0) {
-        qWarning() << "Failed to stop TX channel" << TX_ID;
-    }
-  //  CloseChannel(m_rx);
-  //  CloseChannel(TX_ID);
+    // Receiver instances should not manipulate shared TX channel state.
     DestroyAnalyzer(m_rx);
     SetRXAFMSQRun(m_rx, 0);
     destroy_nobEXT(m_rx);
     destroy_anbEXT(m_rx);
+    CloseChannel(m_rx);
 }
 
 void QWDSPEngine::setupConnections() {
@@ -387,6 +387,10 @@ void QWDSPEngine::setSampleRate(QObject *sender, int value) {
 
     // Some sample-rate transitions leave WDSP internal resampler/filter state stale.
     // Rebuilding the RX channel on every transition keeps audio state consistent.
+    // s_wdspMutex serializes fftw_plan creation: fftw's planner is not thread-safe,
+    // and concurrent calls from multiple receiver instances corrupt the heap.
+    QMutexLocker wdspLocker(&s_wdspMutex);
+
     SetChannelState(m_rx, 0, 1);
     DestroyAnalyzer(m_rx);
     destroy_nobEXT(m_rx);

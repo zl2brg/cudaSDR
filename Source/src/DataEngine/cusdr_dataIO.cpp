@@ -635,6 +635,13 @@ void DataIO::setSampleRate(QObject *sender, int value) {
 #endif
 
 	io->networkIOMutex.unlock();
+
+#ifndef USE_INTERNAL_AUDIO
+    // Reset the sound card output queue so stale samples from the old rate
+    // don't cause choppy audio after the DSP channel is rebuilt.
+    if (m_pSoundCardOut)
+        m_pSoundCardOut->Reset();
+#endif
 }
 
 

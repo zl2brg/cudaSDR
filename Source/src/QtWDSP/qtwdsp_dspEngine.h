@@ -34,8 +34,8 @@
 // #include <QObject>
 // #include <QThread>
 // #include <QMetaType>
-// #include <QMutexLocker>
-// #include <QMutex>
+#include <QMutexLocker>
+#include <QMutex>
 // #include <QWaitCondition>
 // #include <QVariant>
 // #include <QElapsedTimer>
@@ -125,6 +125,7 @@ private:
     AGCMode m_agcMode;
 
     QMutex m_mutex;
+    static QMutex s_wdspMutex; // serializes fftw_plan calls across all instances
 
     bool m_qtdspOn;
 

@@ -934,14 +934,38 @@ bool DataEngine::start() {
 			return false;
 	}	// end switch (m_serverMode)
 
+	if (RX.count() != rcvrs || m_dspThreadList.count() != rcvrs) {
+		if (!m_dspThreadList.isEmpty()) {
+			foreach (QThread* thread, m_dspThreadList) {
+				thread->quit();
+				thread->wait();
+			}
+			qDeleteAll(m_dspThreadList.begin(), m_dspThreadList.end());
+			m_dspThreadList.clear();
+		}
+
+		if (!RX.isEmpty()) {
+			qDeleteAll(RX.begin(), RX.end());
+			RX.clear();
+		}
+
+		if (!initReceivers(rcvrs)) {
+			DATA_ENGINE_DEBUG << "failed to initialize receivers for count" << rcvrs;
+			return false;
+		}
+	}
+
 	set->setRxList(RX);
 	connectDSPSlots();
+	const QList<long> ctrFrequencies = set->getCtrFrequencies();
 
     for (int i = 0; i < rcvrs ; i++) {
 
 		RX.at(i)->setConnectedStatus(true);
         RX.at(i)->setAudioVolume(this, i, RX.at(i)->getAudioVolume());
-		setFrequency(this, true, i, set->getCtrFrequencies().at(i));
+		if (i < ctrFrequencies.count()) {
+			setFrequency(this, true, i, ctrFrequencies.at(i));
+		}
 
 
         //CHECKED_CONNECT(
@@ -1685,11 +1709,15 @@ void DataEngine::createDataProcessor() {
 						SLOT(processDeviceData()));
 */
 
-            CHECKED_CONNECT(
-                    m_dataIO,
-                    SIGNAL(readydata()),
-                    m_dataProcessor,
-                    SLOT(processReadData()));
+			if (m_dataIO) {
+				CHECKED_CONNECT(
+						m_dataIO,
+						SIGNAL(readydata()),
+						m_dataProcessor,
+						SLOT(processReadData()));
+			} else {
+				DATA_ENGINE_DEBUG << "createDataProcessor: m_dataIO is null, skipping readydata connection.";
+			}
 
             break;
         case QSDR::SoapySDR:
@@ -1722,8 +1750,14 @@ bool DataEngine::startDataProcessor(QThread::Priority prio) {
 void DataEngine::stopDataProcessor() {
 
 	if (m_dataProcThread->isRunning()) {
-					
-		m_dataProcessor->stop();
+		if (m_dataProcessor) {
+			QMetaObject::invokeMethod(m_dataProcessor,
+								  &DataProcessor::stopControlTimer,
+								  Qt::BlockingQueuedConnection);
+			QMetaObject::invokeMethod(m_dataProcessor,
+								  &DataProcessor::stop,
+								  Qt::BlockingQueuedConnection);
+		}
 		
 		if (m_serverMode == QSDR::SDRMode ) {
 			
@@ -2260,15 +2294,36 @@ void DataEngine::setNumberOfRx(QObject *sender, int value) {
 	if (io.receivers == value) return;
 
     bool restart = (m_dataEngineState == QSDR::DataEngineUp);
-    if (restart) stop();
+    if (restart) {
+		stop();
+		// Give hardware/network stack a short settle window before re-init.
+		SleeperThread::msleep(200);
+	}
 
 	io.mutex.lock();
 	io.receivers = value;
+	if (io.currentReceiver >= value) {
+		io.currentReceiver = 0;
+	}
 	io.mutex.unlock();
+
+	while (!io.iq_queue.isEmpty())
+		io.iq_queue.dequeue();
+	while (!io.wb_queue.isEmpty())
+		io.wb_queue.dequeue();
+
+	if (set->getCurrentReceiver() >= value) {
+		set->setCurrentReceiver(this, 0);
+	}
 
 	DATA_ENGINE_DEBUG << "number of receivers set to " << QString::number(value);
 
-    if (restart) start();
+    if (restart) {
+		SleeperThread::msleep(100);
+		if (!start()) {
+			DATA_ENGINE_DEBUG << "failed to restart data engine after receiver-count change.";
+		}
+	}
 }
 
 void DataEngine::setTimeStamp(QObject *sender, bool value) {
@@ -2479,6 +2534,12 @@ void DataProcessor::startControlTimer() {
     }
 }
 
+void DataProcessor::stopControlTimer() {
+	if (m_controlTimer && m_controlTimer->isActive()) {
+		m_controlTimer->stop();
+	}
+}
+
 void DataProcessor::requestProtocol2DDCUpdate() {
 	if (!de || !de->m_protocol || !de->m_controlSocket) return;
 	if (de->set->getCurrentMetisCard().protocol != 2) return;
@@ -2604,7 +2665,8 @@ void DataProcessor::add_rx_audio_sample() {
 /* Sends RX Audio and tx iq data back to hpsdr. Always at 48 KHz bandwidth */
 
 void DataProcessor::send_hpsdr_data(int rx, const CPX &buffer, int buffersize) {
-    Q_UNUSED(rx);
+    // Only send audio for the currently selected receiver.
+    if (rx != de->io.currentReceiver) return;
     rx_audio_ptr = 0;
 /* buffer rx audio */
     for (int j = 0; j < buffersize; j++)

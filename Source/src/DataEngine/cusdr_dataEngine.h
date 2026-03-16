@@ -408,6 +408,7 @@ public:
 public slots:
 	void	stop();
     void    startControlTimer();
+	void	stopControlTimer();
 	void	requestProtocol2DDCUpdate();
 	void	processReadData();
 	void	processDeviceData();

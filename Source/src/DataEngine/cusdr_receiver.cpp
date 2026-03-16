@@ -68,10 +68,13 @@ Receiver::~Receiver() {
     qDebug() << "Destroy Receiver " << m_receiver;
     inBuf.clear();
     outBuf.clear();
-    #ifdef USE_INTERNAL_AUDIO
-        m_audioOutput->stop();
-    #endif
-    delete m_audioOutput;
+	if (m_audioOutput) {
+#ifdef USE_INTERNAL_AUDIO
+		m_audioOutput->stop();
+#endif
+		delete m_audioOutput;
+		m_audioOutput = nullptr;
+	}
     m_stopped = false;
     delete qtwdsp;
 }
@@ -328,15 +331,18 @@ void Receiver::setSampleRate(QObject *sender, int value) {
 	if (qtwdsp) {
         m_mutex.lock();
 
+		// Queue flush and drop-counter are now handled unconditionally below.
 		const bool highRateTransition = (previousRate >= 768000 || m_samplerate >= 768000);
-		if (highRateTransition) {
-			while (!inQueue.isEmpty()) {
-				inQueue.dequeue();
-			}
-			m_rateTransitionDropBuffers = HIGH_RATE_TRANSITION_DROP_BUFFERS;
-		}
+		(void)highRateTransition;
 
 		setAudioBufferSize();
+
+		// Flush the queue and drop a few buffers after any rate transition so
+		// fexchange0 is not called on the channel while it is being rebuilt.
+		while (!inQueue.isEmpty())
+			inQueue.dequeue();
+		m_rateTransitionDropBuffers = HIGH_RATE_TRANSITION_DROP_BUFFERS;
+
         qtwdsp->setSampleRate(this, m_samplerate);
         m_mutex.unlock();
 
