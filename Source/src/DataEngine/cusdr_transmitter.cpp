@@ -32,6 +32,8 @@ Transmitter::Transmitter( int transmitter )
 : QObject()
 , set(Settings::instance())
 {
+    m_config = set->getTransmitterData();
+    m_pendingConfig = m_config;
     create_transmitter(TX_ID,DSP_SAMPLE_SIZE,4096,10,2048,100);
     setupConnections();
 
@@ -69,39 +71,66 @@ double Transmitter::getNextInternalSideToneSample() {
 
 
 void Transmitter::setupConnections() {
+    connect(set, &Settings::transmitterConfigChanged, this, &Transmitter::onConfigChanged);
+    connect(set, &Settings::radioStateChanged, this, &Transmitter::setRadioState);
+    
+    // Some signals might still be useful if they aren't in TTransmitter yet
+    // but we aim to move them there.
+}
 
-        CHECKED_CONNECT(
-                set,
-                SIGNAL(dspModeChanged(QObject *, int, DSPMode)),
-                this,
-                SLOT(setDSPMode(QObject *,int,  DSPMode)));
+void Transmitter::applyNewConfigIfDirty() {
+    if (m_configDirty.load()) {
+        applyNewConfig();
+        m_configDirty.store(false);
+    }
+}
 
-        CHECKED_CONNECT(
-                set,
-                SIGNAL(radioStateChanged(RadioState)),
-                this,
-                SLOT(setRadioState(RadioState)));
+void Transmitter::onConfigChanged() {
+    TTransmitter data = set->getTransmitterData();
+    QMutexLocker locker(&m_mutex);
+    m_pendingConfig = data;
+    m_configDirty.store(true);
+}
 
-        CHECKED_CONNECT(
-            set,
-            SIGNAL(fmdeveationchanged(double)),
-            this,
-            SLOT(set_fm_deviation(double)));
+void Transmitter::applyNewConfig() {
+    QMutexLocker locker(&m_mutex);
 
-        CHECKED_CONNECT(
-            set,
-            SIGNAL(amCarrierlevelchanged(double)),
-            this,
-            SLOT(transmitter_set_am_carrier_level(double)));
+    // 1. DSP Mode & Filter
+    if (m_config.dspMode != m_pendingConfig.dspMode) {
+        mode = m_pendingConfig.dspMode;
+        SetTXAMode(this->id, mode);
+        auto filter = getFilterFromDSPMode(set->getDefaultFilterList(), mode);
+        tx_set_filter(filter.filterLo, filter.filterHi);
+    }
 
+    // 2. Mic Gain / Panel Gain
+    if (m_config.micGain != m_pendingConfig.micGain) {
+        mic_gain = m_pendingConfig.micGain;
+        SetTXAPanelGain1(this->id, pow(10.0, mic_gain / 20.0));
+    }
 
-    CHECKED_CONNECT(
-            set,
-            SIGNAL(micInputLevelChanged(QObject *, int)),
-            this,
-            SLOT(transmitter_set_mic_level(QObject *, int)));
+    // 3. FM Deviation
+    if (m_config.fmDeviation != m_pendingConfig.fmDeviation) {
+        deviation = m_pendingConfig.fmDeviation;
+        SetTXAFMDeviation(this->id, deviation);
+    }
 
+    // 4. AM Carrier Level
+    if (m_config.amCarrierLevel != m_pendingConfig.amCarrierLevel) {
+        am_carrier_level = m_pendingConfig.amCarrierLevel;
+        SetTXAAMCarrierLevel(this->id, am_carrier_level);
+    }
 
+    // 5. Compressor
+    if (m_config.compressor != m_pendingConfig.compressor || 
+        m_config.compressorLevel != m_pendingConfig.compressorLevel) {
+        compressor = m_pendingConfig.compressor ? 1 : 0;
+        compressor_level = m_pendingConfig.compressorLevel;
+        SetTXACompressorRun(this->id, compressor);
+        SetTXACompressorGain(this->id, compressor_level);
+    }
+
+    m_config = m_pendingConfig;
 }
 
 
@@ -183,12 +212,12 @@ bool  Transmitter::create_transmitter(int id, int buffer_size, int fft_size, int
     this->freedv_samples=0;
 #endif
 
-    this->drive=set->get_tx_drivelevel();
+    this->drive = m_config.driveLevel;
     this->tune_percent= 10;
     this->tune_use_drive=0;
 
-    this->compressor=0;
-    this->compressor_level=set->getAudioCompression();
+    this->compressor = m_config.compressor ? 1 : 0;
+    this->compressor_level = m_config.compressorLevel;
 
     this->local_microphone=0;
 
@@ -273,11 +302,12 @@ bool  Transmitter::create_transmitter(int id, int buffer_size, int fft_size, int
     SetTXAPostGenToneFreq(this->id, 1000.0);
     SetTXAPostGenRun(this->id, 0);
 
+    this->mic_gain = m_config.micGain;
     SetTXAPanelGain1(this->id,pow(10.0, mic_gain/20.0));
     SetTXAPanelRun(this->id, 1);
 
-    SetTXAFMDeviation(this->id, set->getFMDeveation());
-    SetTXAAMCarrierLevel(this->id, 0.5);
+    SetTXAFMDeviation(this->id, m_config.fmDeviation);
+    SetTXAAMCarrierLevel(this->id, m_config.amCarrierLevel);
     SetTXACompressorGain(this->id, 0);
     SetTXACompressorRun(this->id, 0);
     XCreateAnalyzer(this->id, &rc, 262144, 1, 1, "");
@@ -293,25 +323,9 @@ void Transmitter::reconfigure_transmitter(int tx, int height) {
 
 }
 
-void Transmitter::setDSPMode(QObject *sender,int id, DSPMode dspMode) {
-Q_UNUSED(sender)
-mode = dspMode;
-    SetTXAMode(this->id, mode);
-    tx_set_filter(getFilterFromDSPMode(set->getDefaultFilterList(), mode).filterLo,getFilterFromDSPMode(set->getDefaultFilterList(), mode).filterHi);
-}
-
-
-
-
 void Transmitter::transmitter_set_ctcss(int tx, int, double)
 {
 
-
-}
-
-void Transmitter::set_fm_deviation(double level) {
-    SetTXAFMDeviation(this->id, level);
-    TRANSMITTER_DEBUG << "Set Tx FM deveation " << level;
 
 }
 
@@ -351,11 +365,6 @@ default:
          SetTXABandpassFreqs(this->id, filter_low,filter_high);
      }
 
-
-     void Transmitter::transmitter_set_am_carrier_level(double level ) {
-         TRANSMITTER_DEBUG << "Set Am Carrier Level " << level;
-         SetTXAAMCarrierLevel(this->id, level);
-     }
 
      void Transmitter::tx_set_pre_emphasize(int tx, int state) {
 
@@ -409,15 +418,6 @@ default:
         else return rx_frequency;
 
 }
-
-
-void Transmitter::transmitter_set_mic_level(QObject *object, int level){
-    TRANSMITTER_DEBUG << "Set Tx mic level" << level;
-    mic_gain = level * 1.0;
-    SetTXAPanelGain1(this->id,pow(10.0, mic_gain/20.0));
-
-}
-
 
 
      void Transmitter::init_analyser(int tx) {

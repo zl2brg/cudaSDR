@@ -44,6 +44,7 @@ public:
     ~Transmitter() override;
      double getNextInternalSideToneSample();
      double getNextSideToneSample();
+     void applyNewConfigIfDirty();
 
 
 private:
@@ -81,19 +82,23 @@ private:
 
 
 public slots:
-    void setDSPMode(QObject *sender, int id, DSPMode dspMode);
     void setRadioState(RadioState state);
 
 
 private slots:
-    void set_fm_deviation(double level);
-    void transmitter_set_am_carrier_level(double level);
+    void onConfigChanged();
+    void applyNewConfig();
+
     void tx_set_pre_emphasize(int tx,int state);
     void transmitter_set_ctcss(int tx,int run,double frequency);
-    void transmitter_set_mic_level(QObject *object, int level);
 
 private:
     Settings*				set;
+    TTransmitter            m_config;
+    TTransmitter            m_pendingConfig;
+    std::atomic<bool>       m_configDirty{false};
+    QMutex                  m_mutex;
+
     int id;
     int enable_tx_equalizer;
     int tx_equalizer[4];

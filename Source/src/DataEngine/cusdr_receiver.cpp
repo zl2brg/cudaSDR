@@ -34,7 +34,6 @@
 Receiver::Receiver(int rx)
 	: QObject()
 	, set(Settings::instance())
-	, m_filterMode(set->getCurrentFilterMode())
 	, m_stopped(false)
 	, m_receiver(rx)
 	, m_samplerate(set->getSampleRate())
@@ -84,26 +83,36 @@ void Receiver::setupConnections() {
     connect(set, &Settings::framesPerSecondChanged, this, &Receiver::setFramesPerSecond);
 
     // Group all config-related signals to one dirty flag
-    auto markDirty = [this](QObject*, int rx, ...) {
+    // Standard signature: (QObject* sender, int rx, ...)
+    auto markDirtyRxAt1 = [this](QObject*, int rx, ...) {
         if (rx == m_receiver) onConfigChanged();
     };
 
-    connect(set, &Settings::hamBandChanged, this, markDirty);
-    connect(set, &Settings::dspModeChanged, this, markDirty);
-    connect(set, &Settings::adcModeChanged, this, markDirty);
-    connect(set, &Settings::agcModeChanged, this, markDirty);
-    connect(set, &Settings::agcGainChanged, this, markDirty);
-    connect(set, &Settings::agcMaximumGainChanged, this, markDirty);
-    connect(set, &Settings::agcFixedGainChanged_dB, this, markDirty);
-    connect(set, &Settings::agcThresholdChanged_dB, this, markDirty);
-    connect(set, &Settings::agcHangThresholdChanged, this, markDirty);
-    connect(set, &Settings::agcHangLevelChanged_dB, this, markDirty);
-    connect(set, &Settings::agcVariableGainChanged_dB, this, markDirty);
-    connect(set, &Settings::agcAttackTimeChanged, this, markDirty);
-    connect(set, &Settings::agcDecayTimeChanged, this, markDirty);
-    connect(set, &Settings::agcHangTimeChanged, this, markDirty);
-    connect(set, &Settings::filterFrequenciesChanged, this, markDirty);
+    // Signature: (QObject* sender, int mode, int rx, ...)
+    auto markDirtyRxAt2 = [this](QObject*, int, int rx, ...) {
+        if (rx == m_receiver) onConfigChanged();
+    };
+
+    connect(set, &Settings::hamBandChanged, this, markDirtyRxAt1);
+    connect(set, &Settings::dspModeChanged, this, markDirtyRxAt1);
+    connect(set, &Settings::adcModeChanged, this, markDirtyRxAt1);
+    connect(set, &Settings::agcModeChanged, this, markDirtyRxAt1);
+    connect(set, &Settings::agcGainChanged, this, markDirtyRxAt1);
+    connect(set, &Settings::agcMaximumGainChanged, this, markDirtyRxAt1);
+    connect(set, &Settings::agcFixedGainChanged_dB, this, markDirtyRxAt1);
+    connect(set, &Settings::agcThresholdChanged_dB, this, markDirtyRxAt1);
+    connect(set, &Settings::agcHangThresholdChanged, this, markDirtyRxAt1);
+    connect(set, &Settings::agcHangLevelChanged_dB, this, markDirtyRxAt1);
+    connect(set, &Settings::agcVariableGainChanged_dB, this, markDirtyRxAt1);
+    connect(set, &Settings::agcAttackTimeChanged, this, markDirtyRxAt1);
+    connect(set, &Settings::agcDecayTimeChanged, this, markDirtyRxAt1);
+    connect(set, &Settings::agcHangTimeChanged, this, markDirtyRxAt1);
+    connect(set, &Settings::filterFrequenciesChanged, this, markDirtyRxAt1);
     
+    // Frequencies
+    connect(set, &Settings::ctrFrequencyChanged, this, markDirtyRxAt2);
+    connect(set, &Settings::vfoFrequencyChanged, this, markDirtyRxAt2);
+
     // Volume is special but we can include it in the batch
     connect(set, &Settings::mainVolumeChanged, this, [this](QObject*, int rx, float) {
         if (rx == m_receiver) onConfigChanged();
@@ -300,6 +309,7 @@ void Receiver::dspProcessing() {
 
 QVector<float> Receiver::interleaveFromCPX(const CPX& in, int size) {
     QVector<float> out;
+    if (in.isEmpty()) return out;
     int limit = (size < 0 || size > in.size()) ? in.size() : size;
 
     out.reserve(limit * 2);
@@ -410,4 +420,42 @@ void Receiver::setAudioMode(QObject* sender, int mode) {
 void Receiver::setConnectedStatus(bool value) {
 
 	m_connected = value;
+}
+
+void Receiver::setPeerAddress(QHostAddress addr) {
+
+	m_peerAddress = addr;
+}
+
+void Receiver::setSocketDescriptor(int value) {
+
+	m_socketDescriptor = value;
+}
+
+void Receiver::setReceiver(int value) {
+
+	m_receiver = value;
+}
+
+void Receiver::setClient(int value) {
+
+	m_client = value;
+}
+
+void Receiver::setIQPort(int value) {
+
+	m_iqPort = value;
+}
+
+void Receiver::setBSPort(int value) {
+
+	m_bsPort = value;
+}
+
+void Receiver::setFramesPerSecond(QObject *sender, int rx, int value) {
+
+	Q_UNUSED(sender)
+
+	if (m_receiver == rx)
+		m_displayTime = (int)(1000000.0/value);
 }

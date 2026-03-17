@@ -86,6 +86,7 @@ public slots:
     void setAGCMode(AGCMode mode);
     void setFilter(double low, double high);
     void setAGCMaximumGain(qreal);
+    void setAGCFixedGain(qreal);
     void setAGCHangThreshold(int rx, double);
     // void	setAGCHangLeveldBLine(qreal value);
     // void	setAGCThresholdLine(QObject *sender, int rx, qreal value);

@@ -938,7 +938,6 @@ bool DataEngine::start() {
     for (int i = 0; i < rcvrs ; i++) {
 
 		RX.at(i)->setConnectedStatus(true);
-        RX.at(i)->setAudioVolume(this, i, RX.at(i)->getAudioVolume());
 		setFrequency(this, true, i, set->getCtrFrequencies().at(i));
 
 
@@ -2377,7 +2376,6 @@ void DataEngine::setFrequency(QObject* sender, int mode, int rx, long frequency)
 	Q_UNUSED (mode)
 
 	//RX[rx]->setFrequency(frequency);
-	RX[rx]->setCtrFrequency(frequency);
 	io.rx_freq_change = rx;
 
 }
@@ -2750,6 +2748,7 @@ void DataProcessor::fetch_MicData(){
 
 /*  processes mic samples ready to transmit */
 void DataProcessor::get_tx_iqData(){
+    de->TX.applyNewConfigIfDirty();
     int error;
     long int   leftTXSample;
     long int rightTXSample;
@@ -3100,7 +3099,6 @@ void DataEngine::dspModeChanged(QObject* sender, int rx, DSPMode mode){
     Q_UNUSED(sender);
     Q_UNUSED(rx);
     io.ccTx.mode = mode;
-    TX.setDSPMode(sender,1,mode);
 }
 
 void DataEngine::CwHangTimeChanged(int CwHangTime)

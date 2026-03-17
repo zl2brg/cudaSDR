@@ -670,6 +670,15 @@ typedef struct _transmitter {
 
 	float	audioVolume;
 
+    int     driveLevel;
+    double  micGain;
+    int     micSource;
+    int     micInputDev;
+    double  fmDeviation;
+    double  amCarrierLevel;
+    bool    compressor;
+    double  compressorLevel;
+
 } TTransmitter;
 
 typedef struct t_panadapterColors {
@@ -902,6 +911,7 @@ signals:
 	void rcveIQSignalChanged(int value);
 
     void receiverConfigChanged(int rxIndex);
+    void transmitterConfigChanged();
 
 	void numberOfRXChanged(QObject *sender, int value);
 	void sampleRateChanged(QObject *sender, int value);
@@ -1119,6 +1129,7 @@ public:
 	QList<TNetworkDevicecard>	getMetisCardsList()			{ return m_metisCards; }
 	QList<TReceiver>			getReceiverDataList()		{ return m_receiverDataList; }
 	TReceiver					getReceiverData(int rx);
+    TTransmitter                getTransmitterData();
 	QList<THamBandFrequencies>	getBandFrequencyList()		{ return m_bandList; }
 	QList<THamBandText>			getHamBandTextList()		{ return m_bandTextList; }
 	QList<TDefaultFilter>		getDefaultFilterList()		{ return m_defaultFilterList; }

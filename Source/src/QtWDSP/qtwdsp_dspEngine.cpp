@@ -312,6 +312,11 @@ void QWDSPEngine::setAGCMaximumGain(qreal value) {
 	emit setAGCLineValues(m_rx);
 }
 
+void QWDSPEngine::setAGCFixedGain(qreal value) {
+    SetRXAAGCFixed(m_rx, (double)value);
+    WDSP_ENGINE_DEBUG << "Set AGC Fixed gain " << value;
+}
+
 void QWDSPEngine::setAGCHangThreshold(int rx, double value) {
     if (m_rx != rx) return;
 	m_agcHangLevel = value;

@@ -340,6 +340,15 @@ int Settings::loadSettings() {
     m_audioCompression = settings->value("audiocompression",0).toDouble();
     m_fmDeveation = settings->value("fmdeveation",5000).toDouble();
 
+    m_transmitter.driveLevel = m_drivelevel;
+    m_transmitter.micGain = m_micGain;
+    m_transmitter.micSource = m_micSource;
+    m_transmitter.micInputDev = m_micInputDev;
+    m_transmitter.fmDeviation = m_fmDeveation;
+    m_transmitter.amCarrierLevel = m_amCarrierLevel;
+    m_transmitter.compressorLevel = m_audioCompression;
+    m_transmitter.compressor = (m_audioCompression > 0);
+
     str = settings->value("cw/internal", "off").toString();
     qDebug() << "internal" << str;
     if (str.toLower() == "on")
@@ -2747,6 +2756,7 @@ void Settings::setTxAllowed(QObject *sender, bool value) {
         m_transmitter.txAllowed = false;
 
     emit txAllowedChanged(sender, m_transmitter.txAllowed);
+    emit transmitterConfigChanged();
 }
 
 bool Settings::getTxAllowed() {
@@ -3448,6 +3458,11 @@ TReceiver Settings::getReceiverData(int rx) {
     return TReceiver(); // Or handle error
 }
 
+TTransmitter Settings::getTransmitterData() {
+    QMutexLocker locker(&settingsMutex);
+    return m_transmitter;
+}
+
 void Settings::setSampleRate(QObject *sender, int value) {
 
     QMutexLocker locker(&settingsMutex);
@@ -3546,7 +3561,9 @@ void Settings::setMicSource(int source) {
     QMutexLocker locker(&settingsMutex);
 
     m_micSource = source;
+    m_transmitter.micSource = source;
     emit micSourceChanged(source);
+    emit transmitterConfigChanged();
 }
 
 void Settings::setMicInputDev(int index) {
@@ -3554,7 +3571,9 @@ void Settings::setMicInputDev(int index) {
     QMutexLocker locker(&settingsMutex);
 
     m_micInputDev = index;
+    m_transmitter.micInputDev = index;
     emit micInputChanged(index);
+    emit transmitterConfigChanged();
 }
 
 void Settings::setDigitalAudioInputDev(int index) {
@@ -3563,6 +3582,7 @@ void Settings::setDigitalAudioInputDev(int index) {
 
     m_digitalAudioInputDev = index;
     emit digitalAudioInputChanged(index);
+    emit transmitterConfigChanged();
 }
 
 void Settings::setMicInputLevel(QObject *sender, int level) {
@@ -3570,7 +3590,9 @@ void Settings::setMicInputLevel(QObject *sender, int level) {
     QMutexLocker locker(&settingsMutex);
 
     m_micGain = level;
+    m_transmitter.micGain = level;
     emit micInputLevelChanged(sender, level);
+    emit transmitterConfigChanged();
 }
 
 void Settings::setDriveLevel(QObject *sender, int level) {
@@ -3578,7 +3600,9 @@ void Settings::setDriveLevel(QObject *sender, int level) {
     QMutexLocker locker(&settingsMutex);
 
     m_drivelevel = level;
+    m_transmitter.driveLevel = level;
     emit driveLevelChanged(sender, level);
+    emit transmitterConfigChanged();
 }
 
 
@@ -3785,6 +3809,8 @@ void Settings::setHamBand(QObject *sender, int rx, bool byButton, HamBand band) 
     m_receiverDataList[rx].lastHamBand = m_receiverDataList[rx].hamBand;
     m_receiverDataList[rx].hamBand = band;
 
+    m_transmitter.hamBand = band;
+
     SETTINGS_DEBUG << "last Ham band:  " << m_receiverDataList[rx].lastHamBand;
     SETTINGS_DEBUG << "Ham band:  " << m_receiverDataList[rx].hamBand;
 
@@ -3798,6 +3824,7 @@ void Settings::setHamBand(QObject *sender, int rx, bool byButton, HamBand band) 
     setMercuryAttenuator(this, m_receiverDataList[rx].mercuryAttenuators[band]);
 
     emit receiverConfigChanged(rx);
+    emit transmitterConfigChanged();
     emit hamBandChanged(sender, rx, byButton, band);
 }
 
@@ -3812,9 +3839,11 @@ void Settings::setDSPMode(QObject *sender, int rx, DSPMode mode) {
     HamBand band = m_receiverDataList[m_currentReceiver].hamBand;
     m_receiverDataList[rx].dspModeList[band] = mode;
 
+    m_transmitter.dspMode = mode;
 
     setRXFilter(this, rx, m_defaultFilterList.at((int) mode).filterLo, m_defaultFilterList.at((int) mode).filterHi);
     emit receiverConfigChanged(rx);
+    emit transmitterConfigChanged();
     emit dspModeChanged(sender, rx, mode);
 }
 
@@ -5024,21 +5053,29 @@ void Settings::setFMPreEmphasize(int value)
 void Settings::setFmDeveation(int value)
 {
     m_fmDeveation = (double)value;
+    m_transmitter.fmDeviation = (double)value;
     emit fmdeveationchanged(value);
+    emit transmitterConfigChanged();
 }
 
 void Settings::setAMCarrierLevel(int level)
 {
     qDebug() << "set Am carrier level" << level;
     m_amCarrierLevel = (double) level;
- emit amCarrierlevelchanged(level);
+    m_transmitter.amCarrierLevel = (double) level;
+    emit amCarrierlevelchanged(level);
+    emit transmitterConfigChanged();
 }
 
 void Settings::setAudioCompression(int level){
 
 m_audioCompression = level;
-emit audioCompressionchanged(level);
+m_transmitter.compressorLevel = (double) level;
+m_transmitter.compressor = (level > 0);
+ emit audioCompressionchanged(level);
+ emit transmitterConfigChanged();
 }
+
 
 bool Settings::isInternalCw() const {
     return (m_internal_cw > 0);

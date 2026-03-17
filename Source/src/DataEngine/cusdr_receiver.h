@@ -65,8 +65,8 @@ public:
 	QSDR::_DSPCore		getDSPCoreMode() const;
 	QHostAddress		getPeerAddress()		{ return m_peerAddress; }
 	HamBand				getHamBand()			{ return m_hamBand; }
-	ADCMode				getADCMode()			{ return m_adcMode; }
-	AGCMode				getAGCMode()			{ return m_agcMode; }
+	ADCMode				getADCMode()			{ return m_config.adcMode; }
+	AGCMode				getAGCMode()			{ return m_config.agcMode; }
 	QList<int>			getMercuryAttenuators() { return m_mercuryAttenuators; }
 	QList<DSPMode>		getDSPModeList()		{ return m_dspModeList; }
 
@@ -79,14 +79,14 @@ public:
 	//int		getID()					{ return m_receiverID; }
 	int		getSampleRate()			{ return m_sampleRate; }
 	int		getDisplayDelay()		{ return m_displayTime; }
-	qreal	getAGCGain()			{ return m_agcGain; }
+	qreal	getAGCGain()			{ return m_config.acgGain; }
 	float	getAudioVolume()		{ return m_audioVolume; }
 	long	getCtrFrequency()		{ return m_ctrFrequency; }
 	long	getVfoFrequency()		{ return m_vfoFrequency; }
-	double	getFilterLo()			{ return m_filterLo; }
-	double	getFilterHi()			{ return m_filterHi; }
-	qreal	getdBmPanScaleMin()		{ return m_dBmPanScaleMin; }
-	qreal	getdBmPanScaleMax()		{ return m_dBmPanScaleMax; }
+	double	getFilterLo()			{ return m_config.filterLo; }
+	double	getFilterHi()			{ return m_config.filterHi; }
+	qreal	getdBmPanScaleMin()		{ return (m_config.dBmPanScaleMinList.size() > (int)m_hamBand) ? m_config.dBmPanScaleMinList.at((int)m_hamBand) : -120.0; }
+	qreal	getdBmPanScaleMax()		{ return (m_config.dBmPanScaleMaxList.size() > (int)m_hamBand) ? m_config.dBmPanScaleMaxList.at((int)m_hamBand) : 10.0; }
 	bool	getConnectedStatus()	{ return m_connected; }
     void 	setAudioBufferSize();
     void    cpxToFloat(const CPX &in, float *out, int size);
