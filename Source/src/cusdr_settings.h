@@ -899,6 +899,8 @@ signals:
 	void sendIQSignalChanged(int value);
 	void rcveIQSignalChanged(int value);
 
+    void receiverConfigChanged(int rxIndex);
+
 	void numberOfRXChanged(QObject *sender, int value);
 	void sampleRateChanged(QObject *sender, int value);
 	void mercuryAttenuatorChanged(QObject *sender, HamBand band, int value);
@@ -1113,6 +1115,7 @@ public:
 	TNetworkDevicecard			getCurrentMetisCard()		{ return m_currentHPSDRDevice; }
 	QList<TNetworkDevicecard>	getMetisCardsList()			{ return m_metisCards; }
 	QList<TReceiver>			getReceiverDataList()		{ return m_receiverDataList; }
+	TReceiver					getReceiverData(int rx);
 	QList<THamBandFrequencies>	getBandFrequencyList()		{ return m_bandList; }
 	QList<THamBandText>			getHamBandTextList()		{ return m_bandTextList; }
 	QList<TDefaultFilter>		getDefaultFilterList()		{ return m_defaultFilterList; }

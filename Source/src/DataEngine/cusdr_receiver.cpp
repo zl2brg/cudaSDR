@@ -78,87 +78,121 @@ void Receiver::setAudioBufferSize() {
     }
 
 void Receiver::setupConnections() {
-    connect(set, &Settings::systemStateChanged,
-            this, &Receiver::setSystemState);
+    // Basic state changes
+    connect(set, &Settings::systemStateChanged, this, &Receiver::setSystemState);
+    connect(set, &Settings::sampleRateChanged, this, &Receiver::setSampleRate);
+    connect(set, &Settings::framesPerSecondChanged, this, &Receiver::setFramesPerSecond);
+
+    // Group all config-related signals to one dirty flag
+    auto markDirty = [this](QObject*, int rx, ...) {
+        if (rx == m_receiver) onConfigChanged();
+    };
+
+    connect(set, &Settings::hamBandChanged, this, markDirty);
+    connect(set, &Settings::dspModeChanged, this, markDirty);
+    connect(set, &Settings::adcModeChanged, this, markDirty);
+    connect(set, &Settings::agcModeChanged, this, markDirty);
+    connect(set, &Settings::agcGainChanged, this, markDirty);
+    connect(set, &Settings::agcMaximumGainChanged, this, markDirty);
+    connect(set, &Settings::agcFixedGainChanged_dB, this, markDirty);
+    connect(set, &Settings::agcThresholdChanged_dB, this, markDirty);
+    connect(set, &Settings::agcHangThresholdChanged, this, markDirty);
+    connect(set, &Settings::agcHangLevelChanged_dB, this, markDirty);
+    connect(set, &Settings::agcVariableGainChanged_dB, this, markDirty);
+    connect(set, &Settings::agcAttackTimeChanged, this, markDirty);
+    connect(set, &Settings::agcDecayTimeChanged, this, markDirty);
+    connect(set, &Settings::agcHangTimeChanged, this, markDirty);
+    connect(set, &Settings::filterFrequenciesChanged, this, markDirty);
     
-    connect(set, &Settings::mainVolumeChanged,
-            this, &Receiver::setAudioVolume);
+    // Volume is special but we can include it in the batch
+    connect(set, &Settings::mainVolumeChanged, this, [this](QObject*, int rx, float) {
+        if (rx == m_receiver) onConfigChanged();
+    });
+
+    // Also listen for the new unified signal if available
+    connect(set, &Settings::receiverConfigChanged, this, [this](int rx) {
+        if (rx == m_receiver) onConfigChanged();
+    });
+}
+
+void Receiver::onConfigChanged() {
+    TReceiver data = set->getReceiverData(m_receiver);
+    QMutexLocker locker(&m_mutex);
+    m_pendingConfig = data;
+    m_configDirty.store(true);
+}
+
+void Receiver::applyNewConfig() {
+    QMutexLocker locker(&m_mutex);
     
-    connect(set, &Settings::sampleRateChanged,
-            this, &Receiver::setSampleRate);
+    // 1. DSP Mode & Filter
+    if (m_config.dspMode != m_pendingConfig.dspMode) {
+        qtwdsp->setDSPMode(m_pendingConfig.dspMode);
+    }
     
-    connect(set, &Settings::dspModeChanged,
-            this, &Receiver::setDspMode);
+    if (m_config.filterLo != m_pendingConfig.filterLo || m_config.filterHi != m_pendingConfig.filterHi) {
+        qtwdsp->setFilter(m_pendingConfig.filterLo, m_pendingConfig.filterHi);
+    }
     
-    connect(set, &Settings::hamBandChanged,
-            this, &Receiver::setHamBand);
+    // 2. AGC Settings
+    if (m_config.agcMode != m_pendingConfig.agcMode) {
+        qtwdsp->setAGCMode(m_pendingConfig.agcMode);
+    }
+
+    // Always check/update AGC parameters if any changed
+    if (m_config.acgGain != m_pendingConfig.acgGain)
+        qtwdsp->setAGCThreshold(m_pendingConfig.acgGain - AGCOFFSET);
+        
+    if (m_config.agcMaximumGain_dB != m_pendingConfig.agcMaximumGain_dB)
+        qtwdsp->setAGCMaximumGain(m_pendingConfig.agcMaximumGain_dB);
+        
+    if (m_config.agcFixedGain_dB != m_pendingConfig.agcFixedGain_dB)
+        qtwdsp->setAGCFixedGain(m_pendingConfig.agcFixedGain_dB);
+
+    if (m_config.agcHangThreshold != m_pendingConfig.agcHangThreshold)
+        qtwdsp->setAGCHangThreshold(m_receiver, m_pendingConfig.agcHangThreshold / 100.0);
+
+    if (m_config.agcHangLevel != m_pendingConfig.agcHangLevel)
+        qtwdsp->setAGCHangLevel(m_pendingConfig.agcHangLevel - AGCOFFSET);
+
+    if (m_config.agcSlope != m_pendingConfig.agcSlope)
+        qtwdsp->setAGCSlope(m_receiver, m_pendingConfig.agcSlope);
+
+    if (m_config.agcAttackTime != m_pendingConfig.agcAttackTime)
+        qtwdsp->setAGCAttackTime(m_receiver, m_pendingConfig.agcAttackTime);
+
+    if (m_config.agcDecayTime != m_pendingConfig.agcDecayTime)
+        qtwdsp->setAGCDecayTime(m_receiver, m_pendingConfig.agcDecayTime);
+
+    if (m_config.agcHangTime != m_pendingConfig.agcHangTime)
+        qtwdsp->setAGCHangTime(m_pendingConfig.agcHangTime);
+
+    // 3. Audio & UI State
+    if (m_config.audioVolume != m_pendingConfig.audioVolume)
+        qtwdsp->setVolume(m_pendingConfig.audioVolume);
     
-    connect(set, &Settings::adcModeChanged,
-            this, &Receiver::setADCMode);
-    
-    connect(set, &Settings::agcModeChanged,
-            this, &Receiver::setAGCMode);
-    
-    connect(set, &Settings::agcGainChanged,
-            this, &Receiver::setAGCGain);
-    
-    connect(set, &Settings::agcMaximumGainChanged,
-            this, &Receiver::setAGCMaximumGain_dB);
-    
-    connect(set, &Settings::agcFixedGainChanged_dB,
-            this, &Receiver::setAGCFixedGain_dB);
-    
-    connect(set, &Settings::agcThresholdChanged_dB,
-            this, &Receiver::setAGCThreshold_dB);
-    
-    connect(set, &Settings::agcHangThresholdChanged,
-            this, &Receiver::setAGCHangThreshold);
-    
-    connect(set, &Settings::agcHangLevelChanged_dB,
-            this, &Receiver::setAGCHangLevel_dB);
-    
-    connect(set, &Settings::agcVariableGainChanged_dB,
-            this, &Receiver::setAGCSlope_dB);
-    
-    connect(set, &Settings::agcAttackTimeChanged,
-            this, &Receiver::setAGCAttackTime);
-    
-    connect(set, &Settings::agcDecayTimeChanged,
-            this, &Receiver::setAGCDecayTime);
-    
-    connect(set, &Settings::agcHangTimeChanged,
-            this, &Receiver::setAGCHangTime);
-    
-    connect(set, &Settings::filterFrequenciesChanged,
-            this, &Receiver::setFilterFrequencies);
-    
-    connect(set, &Settings::framesPerSecondChanged,
-            this, &Receiver::setFramesPerSecond);
+    // Update local cached values used for getters
+    m_hamBand = m_pendingConfig.hamBand;
+    m_audioVolume = m_pendingConfig.audioVolume;
+    m_ctrFrequency = m_pendingConfig.ctrFrequency;
+    m_vfoFrequency = m_pendingConfig.vfoFrequency;
+
+    m_config = m_pendingConfig;
 }
 
 void Receiver::setReceiverData(TReceiver data) {
-
+    QMutexLocker locker(&m_mutex);
 	m_receiverData = data;
+    m_config = data;
+    m_pendingConfig = data;
 
-	//m_serverMode = m_receiverData.serverMode;
 	m_dspCore = m_receiverData.dspCore;
 	m_sampleRate = m_receiverData.sampleRate;
 	m_hamBand = m_receiverData.hamBand;
-	m_dspMode = m_receiverData.dspMode;
 	m_dspModeList = m_receiverData.dspModeList;
-	m_adcMode = m_receiverData.adcMode;
-	m_agcMode = m_receiverData.agcMode;
-	m_agcMode = m_receiverData.agcMode;
 	m_agcGain = m_receiverData.acgGain;
-	m_agcFixedGain_dB = m_receiverData.agcFixedGain_dB;
-	m_agcMaximumGain_dB = m_receiverData.agcMaximumGain_dB;
-	m_agcHangThreshold = m_receiverData.agcHangThreshold;
-	m_agcSlope = m_receiverData.agcSlope;
 
 	m_audioVolume = m_receiverData.audioVolume;
-
-	m_filterLo = m_receiverData.filterLo;
-	m_filterHi = m_receiverData.filterHi;
 
 	m_lastCtrFrequencyList = m_receiverData.lastCenterFrequencyList;
 	m_lastVfoFrequencyList = m_receiverData.lastVfoFrequencyList;
@@ -221,10 +255,16 @@ void Receiver::stop() {
 }
 
 void Receiver::dspProcessing() {
+    // 1. Check for batch config updates at a single sync point
+    if (m_configDirty.load()) {
+        applyNewConfig();
+        m_configDirty.store(false);
+    }
+
     int spectrumDataReady;
-    mutex.lock();
+    m_mutex.lock(); // Use consolidated m_mutex
     qtwdsp->processDSP(inBuf, audioOutputBuf);
-    mutex.unlock();
+    m_mutex.unlock();
 
       if (highResTimer->getElapsedTimeInMicroSec() >= getDisplayDelay()) {
 
@@ -365,323 +405,6 @@ void Receiver::setAudioMode(QObject* sender, int mode) {
 //	m_receiverID = value;
 //	RECEIVER_DEBUG << "This is receiver " << m_receiverID;
 //}
-
-void Receiver::setReceiver(int value) {
-
-	m_receiver = value;
-}
-
-
-void Receiver::setHamBand(QObject *sender, int rx, bool byBtn, HamBand band) {
-
-	Q_UNUSED(sender)
-	Q_UNUSED(byBtn)
-
-	if (m_receiver == rx) {
-
-		if (m_hamBand == band) return;
-		m_hamBand = band;
-	}
-}
-
-void Receiver::setDspMode(QObject *sender, int rx, DSPMode mode) {
-
-	Q_UNUSED(sender)
-
-	if (m_receiver != rx) return;
-	if (m_dspMode == mode) return;
-
-	m_dspMode = mode;
-
-	if (qtwdsp) {
-
-		qtwdsp->setDSPMode(mode);
-        qtwdsp->setFilter(getFilterFromDSPMode(set->getDefaultFilterList(), mode).filterLo,getFilterFromDSPMode(set->getDefaultFilterList(), mode).filterHi);
-	}
-
-	QString msg = "[receiver]: set mode for receiver %1 to %2";
-	emit messageEvent(msg.arg(rx).arg(set->getDSPModeString(m_dspMode)));
-}
-
-void Receiver::setADCMode(QObject *sender, int rx, ADCMode mode) {
-
-	Q_UNUSED(sender)
-
-	if (m_receiver != rx) return;
-	if (m_adcMode == mode) return;
-
-	m_adcMode = mode;
-
-	//RECEIVER_DEBUG << "RRK setADCMode = " << m_adcMode;
-}
-
-void Receiver::setAGCMode(QObject *sender, int rx, AGCMode mode, bool hang) {
-
-	Q_UNUSED(sender)
-	Q_UNUSED(hang)
-
-	if (m_receiver != rx) return;
-	if (m_agcMode == mode) return;
-
-	m_agcMode = mode;
-
-	if (qtwdsp) {
-
-		qtwdsp->setAGCMode(mode);
-	}
-}
-
-void Receiver::setAGCGain(QObject *sender, int rx, int value) {
-
-	Q_UNUSED(sender)
-
-	if (m_receiver != rx) return;
-	if (m_agcGain == value) return;
-
-	m_agcGain = value;
-
-	if (qtwdsp) {
-
-		RECEIVER_DEBUG << "AGCThreshDB (plus offset) = " << m_agcGain - AGCOFFSET;
-		qtwdsp->setAGCThreshold( m_agcGain - AGCOFFSET);
-	}
-}
-
-void Receiver::setAGCFixedGain_dB(QObject *sender, int rx, qreal value) {
-
-	Q_UNUSED(sender)
-
-	if (m_receiver != rx) return;
-	if (m_agcFixedGain_dB == value) return;
-
-	m_agcFixedGain_dB = value;
-
-}
-
-void Receiver::setAGCMaximumGain_dB(QObject *sender, int rx, qreal value) {
-
-	Q_UNUSED(sender)
-	if (m_receiver != rx) return;
-	if (m_agcMaximumGain_dB == value) return;
-
-	m_agcMaximumGain_dB = value;
-
-	if (qtwdsp) {
-		qtwdsp->setAGCMaximumGain(m_agcMaximumGain_dB);
-	}
-}
-
-void Receiver::setAGCThreshold_dB(QObject *sender, int rx, qreal value) {
-
-	Q_UNUSED(sender)
-
-	if (m_receiver != rx) return;
-	if (m_agcThreshold_dBm == value) return;
-
-	m_agcThreshold_dBm = value;
-
-	if (qtwdsp) {
-		qtwdsp->setAGCThreshold((double)value);
-	}
-}
-
-void Receiver::setAGCHangThreshold(QObject *sender, int rx, int value) {
-
-	Q_UNUSED(sender)
-
-	if (m_receiver != rx) return;
-	if (m_agcHangThreshold == value) return;
-
-	m_agcHangThreshold = value;
-	if (qtwdsp) {
-
-		RECEIVER_DEBUG << "m_agcHangThreshold =" << m_agcHangThreshold/100.0;
-		qtwdsp->setAGCHangThreshold(m_receiver, m_agcHangThreshold / 100.0);
-	}
-}
-
-void Receiver::setAGCHangLevel_dB(QObject *sender, int rx, qreal value) {
-
-        Q_UNUSED(sender)
-
-	if (m_receiver != rx) return;
-	if (m_agcHangLevel == value) return;
-
-	m_agcHangLevel = value;
-
-	if (qtwdsp) {
-
-		RECEIVER_DEBUG << "m_agcHangLevel = " << m_agcHangLevel - AGCOFFSET;
-		qtwdsp->setAGCHangLevel(m_agcHangLevel - AGCOFFSET);
-	}
-}
-
-void Receiver::setAGCSlope_dB(QObject *sender, int rx, qreal value) {
-
-        Q_UNUSED(sender)
-
-	if (m_receiver != rx) return;
-	if (m_agcSlope == value) return;
-
-	m_agcSlope = value;
-
-	if (qtwdsp) {
-
-		RECEIVER_DEBUG << "m_agcSlope = " << m_agcSlope;
-		qtwdsp->setAGCSlope(m_receiver, m_agcSlope);
-	}
-}
-
-void Receiver::setAGCAttackTime(QObject *sender, int rx, qreal value) {
-
-        Q_UNUSED(sender)
-
-	if (m_receiver != rx) return;
-	if (m_agcAttackTime == value) return;
-
-	m_agcAttackTime = value;
-	qtwdsp->setAGCAttackTime(m_receiver, value);
-	RECEIVER_DEBUG << "m_agcAttackTime = " << m_agcAttackTime;
-}
-
-
-void Receiver::setAGCDecayTime(QObject *sender, int rx, qreal value) {
-
-        Q_UNUSED(sender)
-
-	if (m_agcDecayTime == value) return;
-	m_agcDecayTime = value;
-	qtwdsp->setAGCDecayTime(m_receiver, value);
-	RECEIVER_DEBUG << "m_agcDecayTime = " << m_agcDecayTime;
-}
-
-
-void Receiver::setAGCHangTime(QObject *sender, int rx, qreal value) {
-
-        Q_UNUSED(sender)
-
-	if (m_receiver != rx) return;
-	if (m_agcHangTime == value) return;
-
-	m_agcHangTime = value;
-
-	if (qtwdsp) {
-
-		RECEIVER_DEBUG << "m_agcHangTime = " << m_agcHangTime;
-		qtwdsp->setAGCHangTime(m_agcHangTime);
-	}
-}
-
-void Receiver::setAudioVolume(QObject *sender, int rx, float value) {
-
-	Q_UNUSED(sender)
-
-	if (m_receiver != rx) return;
-	//if (m_audioVolume == value) return;
-
-	m_audioVolume = value;
-
-	if (qtwdsp) {
-
-		RECEIVER_DEBUG << "setAudioVolume =" << m_audioVolume;
-		qtwdsp->setVolume(value);
-	}
-}
-
-void Receiver::setFilterFrequencies(QObject *sender, int rx, double low, double high) {
-
-	Q_UNUSED(sender)
-
-	if (m_receiver == rx) {
-
-		if (m_filterLo == low && m_filterHi == high) return;
-		m_filterLo = low;
-		m_filterHi = high;
-
-		if (qtwdsp) {
-
-			qtwdsp->setFilter(low, high);
-		}
-	}
-}
-
-void Receiver::setCtrFrequency(long frequency) {
-
-	if (m_ctrFrequency == frequency) return;
-	m_ctrFrequency = frequency;
-
-	HamBand band = getBandFromFrequency(set->getBandFrequencyList(), frequency);
-	m_lastCtrFrequencyList[(int) band] = m_ctrFrequency;
-}
-
-void Receiver::setVfoFrequency(long frequency) {
-
-	if (m_vfoFrequency == frequency) return;
-	m_vfoFrequency = frequency;
-
-	HamBand band = getBandFromFrequency(set->getBandFrequencyList(), frequency);
-	m_lastVfoFrequencyList[(int) band] = m_vfoFrequency;
-}
-
-void Receiver::setLastCtrFrequencyList(const QList<long> &fList) {
-
-	m_lastCtrFrequencyList = fList;
-}
-
-void Receiver::setLastVfoFrequencyList(const QList<long> &fList) {
-
-	m_lastVfoFrequencyList = fList;
-}
-
-void Receiver::setdBmPanScaleMin(qreal value) {
-
-	if (m_dBmPanScaleMin == value) return;
-	m_dBmPanScaleMin = value;
-}
-
-void Receiver::setdBmPanScaleMax(qreal value) {
-
-	if (m_dBmPanScaleMax == value) return;
-	m_dBmPanScaleMax = value;
-}
-
-void Receiver::setMercuryAttenuators(const QList<int> &attenuators) {
-
-	m_mercuryAttenuators = attenuators;
-}
-
-void Receiver::setFramesPerSecond(QObject *sender, int rx, int value) {
-
-	Q_UNUSED(sender)
-
-	if (m_receiver == rx)
-		m_displayTime = (int)(1000000.0/value);
-}
-
-void Receiver::setPeerAddress(QHostAddress addr) {
-
-	m_peerAddress = addr;
-}
-
-void Receiver::setSocketDescriptor(int value) {
-
-	m_socketDescriptor = value;
-}
-
-void Receiver::setClient(int value) {
-
-	m_client = value;
-}
-
-void Receiver::setIQPort(int value) {
-
-	m_iqPort = value;
-}
-
-void Receiver::setBSPort(int value) {
-
-	m_bsPort = value;
-}
 
 void Receiver::setConnectedStatus(bool value) {
 

@@ -3423,6 +3423,14 @@ void Settings::setCurrentReceiver(QObject *sender, int value) {
 
 }
 
+TReceiver Settings::getReceiverData(int rx) {
+    QMutexLocker locker(&settingsMutex);
+    if (rx >= 0 && rx < m_receiverDataList.size()) {
+        return m_receiverDataList[rx];
+    }
+    return TReceiver(); // Or handle error
+}
+
 void Settings::setSampleRate(QObject *sender, int value) {
 
     QMutexLocker locker(&settingsMutex);
@@ -3458,8 +3466,10 @@ void Settings::setSampleRate(QObject *sender, int value) {
             break;
     }
 
-    for (int i = 0; i < MAX_RECEIVERS; i++)
+    for (int i = 0; i < MAX_RECEIVERS; i++) {
         m_receiverDataList[i].sampleRate = m_sampleRate;
+        emit receiverConfigChanged(i);
+    }
 
     emit sampleRateChanged(sender, value);
 }
@@ -3620,6 +3630,8 @@ void Settings::setCtrFrequency(int rx, long frequency) {
     //m_receiverDataList[rx].hamBand = band;
     //m_receiverDataList[rx].lastHamBand = band;
     m_receiverDataList[rx].lastCenterFrequencyList[(int) band] = frequency;
+
+    emit receiverConfigChanged(rx);
 }
 
 void Settings::setVfoFrequency(int rx, long frequency) {
@@ -3636,6 +3648,8 @@ void Settings::setVfoFrequency(int rx, long frequency) {
     m_receiverDataList[rx].ncoFrequency = frequency - m_receiverDataList.at(rx).ctrFrequency;
  //   setDSPMode(this,rx,m_receiverDataList[rx].dspModeList[band]);
     SETTINGS_DEBUG << "set vfo freq (Rx " << rx << ") " << m_receiverDataList[rx].ctrFrequency;
+
+    emit receiverConfigChanged(rx);
 }
 
 void Settings::setCtrFrequency(QObject *sender, int mode, int rx, long frequency) {
@@ -3659,6 +3673,7 @@ void Settings::setCtrFrequency(QObject *sender, int mode, int rx, long frequency
     }
 
     SETTINGS_DEBUG << "ctr freq (Rx " << rx << ") " << m_receiverDataList[rx].ctrFrequency;
+    emit receiverConfigChanged(rx);
     emit ctrFrequencyChanged(sender, mode, rx, frequency);
 }
 
@@ -3713,6 +3728,7 @@ void Settings::setVFOFrequency(QObject *sender, int mode, int rx, long frequency
 
     SETTINGS_DEBUG << "nco freq (Rx " << rx << ")" << m_receiverDataList[rx].ncoFrequency ;
     emit ncoFrequencyChanged(rx, m_receiverDataList[rx].ncoFrequency);
+    emit receiverConfigChanged(rx);
 
 }
 
@@ -3730,6 +3746,7 @@ void Settings::setNCOFrequency(QObject *sender, bool value, int rx, long frequen
     m_receiverDataList[rx].ncoFrequency = frequency;
 
     emit ncoFrequencyChanged(rx, frequency);
+    emit receiverConfigChanged(rx);
 }
 
 void Settings::setHamBand(QObject *sender, int rx, bool byButton, HamBand band) {
@@ -3755,6 +3772,7 @@ void Settings::setHamBand(QObject *sender, int rx, bool byButton, HamBand band) 
 
     setMercuryAttenuator(this, m_receiverDataList[rx].mercuryAttenuators[band]);
 
+    emit receiverConfigChanged(rx);
     emit hamBandChanged(sender, rx, byButton, band);
 }
 
@@ -3771,6 +3789,7 @@ void Settings::setDSPMode(QObject *sender, int rx, DSPMode mode) {
 
 
     setRXFilter(this, rx, m_defaultFilterList.at((int) mode).filterLo, m_defaultFilterList.at((int) mode).filterHi);
+    emit receiverConfigChanged(rx);
     emit dspModeChanged(sender, rx, mode);
 }
 
@@ -3836,6 +3855,7 @@ void Settings::setADCMode(QObject *sender, int rx, ADCMode mode) {
     if (m_receiverDataList[rx].adcMode == mode) return;
     m_receiverDataList[rx].adcMode = mode;
 
+    emit receiverConfigChanged(rx);
     emit adcModeChanged(sender, rx, mode);
 }
 
@@ -3845,6 +3865,8 @@ void Settings::setAGCMode(QObject *sender, int rx, AGCMode mode) {
 
     if (m_receiverDataList[rx].agcMode == mode) return;
     m_receiverDataList[rx].agcMode = mode;
+
+    emit receiverConfigChanged(rx);
 
     bool hang;
     if (mode == (AGCMode) agcOFF || mode == (AGCMode) agcMED || mode == (AGCMode) agcFAST) {

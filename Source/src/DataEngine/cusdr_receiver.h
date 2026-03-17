@@ -119,22 +119,8 @@ public slots:
 	void	setIQPort(int value);
 	void	setBSPort(int value);
 	void	setConnectedStatus(bool value);
-	//void	setID(int value);
+
     void	setSampleRate(QObject* sender,int value);
-	void	setHamBand(QObject* sender, int rx, bool byBtn, HamBand band);
-	void	setDspMode(QObject* sender, int rx, DSPMode mode);
-	void	setADCMode(QObject* sender, int rx, ADCMode mode);
-	void	setAGCMode(QObject* sender, int rx, AGCMode mode, bool hang);
-	void	setAGCGain(QObject* sender, int rx, int value);
-	void	setAudioVolume(QObject* sender, int rx, float value);
-	void	setCtrFrequency(long frequency);
-	void	setVfoFrequency(long frequency);
-	void	setFilterFrequencies(QObject* sender, int rx, qreal low, qreal high);
-	void	setLastCtrFrequencyList(const QList<long> &frequencies);
-	void	setLastVfoFrequencyList(const QList<long> &frequencies);
-	void	setdBmPanScaleMin(qreal value);
-	void	setdBmPanScaleMax(qreal value);
-	void	setMercuryAttenuators(const QList<int> &attenuators);
 
 	void	dspProcessing();
 	void	stop();
@@ -152,25 +138,16 @@ private slots:
 
 	bool	initQtWDSPInterface();
 
-
-    
-	//void	setAGCMaximumGain_dBm(QObject* sender, int rx, int value);
-	void	setAGCMaximumGain_dB(QObject* sender, int rx, qreal value);
-	void	setAGCFixedGain_dB(QObject* sender, int rx, qreal value);
-	void	setAGCThreshold_dB(QObject* sender, int rx, qreal value);
-	void 	setAGCHangLevel_dB(QObject* sender, int rx, qreal value);
-	void 	setAGCHangThreshold(QObject* sender, int rx, int value);
-	void	setAGCSlope_dB(QObject *sender, int rx, qreal value);
-	void	setAGCAttackTime(QObject* sender, int rx, qreal value);
-	void 	setAGCDecayTime(QObject* sender, int rx, qreal value);
-	void 	setAGCHangTime(QObject* sender, int rx, qreal value);
-
 private:
 
     QVector<float> convertToFloatInterleaved(const QVector<CPX>& in);
     QVector<float> interleaveFromCPX(const CPX& in);
 	Settings*				set;
 	
+    TReceiver               m_config;
+    TReceiver               m_pendingConfig;
+    std::atomic<bool>       m_configDirty{false};
+
 	QSDR::_DSPCore			m_dspCore;
 	QSDR::_ServerMode		m_serverMode;
 	QSDR::_HWInterfaceMode	m_hwInterface;
@@ -181,10 +158,6 @@ private:
 	quint16			m_peerPort;
 
 	HamBand				m_hamBand;
-	DSPMode				m_dspMode;
-	AGCMode				m_agcMode;
-	ADCMode				m_adcMode;
-	TDefaultFilterMode	m_filterMode;
 
 	QList<long>			m_lastCtrFrequencyList;
 	QList<long>			m_lastVfoFrequencyList;
@@ -213,28 +186,18 @@ private:
 	double	m_sMeterValue;
 
 	qreal	m_agcGain;
-	qreal	m_agcFixedGain_dB;
-	qreal	m_agcMaximumGain_dB;
-	qreal	m_agcThreshold_dBm;
-	qreal	m_agcHangThreshold;
-	qreal	m_agcHangLevel;
-	int		m_agcSlope;
-	int		m_agcAttackTime;
-	int		m_agcDecayTime;
-	int		m_agcHangTime;
 	//qreal	m_calOffset;
-	qreal	m_filterLo;
-	qreal	m_filterHi;
-	qreal	m_dBmPanScaleMin;
-	qreal	m_dBmPanScaleMax;
     int 	m_audiobuffersize;
     int     m_refreshrate;
 
 	bool	m_connected;
 	bool	m_hangEnabled;
-    QMutex  mutex;
 
 	//void	setupConnections();
+
+private slots:
+    void onConfigChanged();
+    void applyNewConfig();
 
 signals:
 	void	messageEvent(QString msg);
