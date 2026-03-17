@@ -2070,9 +2070,18 @@ void DataEngine::setSampleRate(QObject *sender, int value) {
 			io.speed = 3;
 			break;
 
+		case 768000:
+			io.samplerate = value;
+			io.speed = 4;
+			break;
+
+		case 1536000:
+			io.samplerate = value;
+			io.speed = 5;
+			break;
+
 		default:
 			DATA_ENGINE_DEBUG << "invalid sample rate !\n";
-			stop();
 			break;
 	}
 

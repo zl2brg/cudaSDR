@@ -40,7 +40,7 @@
  *   51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-#define LOG_DATAIO
+//#define LOG_DATAIO
 
 #include "cusdr_dataIO.h"
 #include "IHPSDRProtocol.h"
@@ -144,7 +144,9 @@ void DataIO::initDataReceiverSocket() {
 		newBufferSize = m_socketBufferSize * 1024;
 	}
 	else {
-		if (io->samplerate == 384000) newBufferSize = 128*1024;
+		if (io->samplerate == 1536000) newBufferSize = 512*1024;
+		else if (io->samplerate == 768000) newBufferSize = 256*1024;
+		else if (io->samplerate == 384000) newBufferSize = 128*1024;
 		else if (io->samplerate == 192000) newBufferSize = 64*1024;
 		else if (io->samplerate == 96000) newBufferSize = 32*1024;
 		else if (io->samplerate == 48000) newBufferSize = 16*1024;
@@ -196,6 +198,8 @@ void DataIO::initDataReceiverSocket() {
         {
 #if defined(Q_OS_WIN32)
             ::setsockopt(socket->socketDescriptor(), SOL_SOCKET, SO_RCVBUF, (char *)&newBufferSize, sizeof(newBufferSize));
+#else
+            socket->setSocketOption(QAbstractSocket::ReceiveBufferSizeSocketOption, newBufferSize);
 #endif
             connect(socket, &QUdpSocket::errorOccurred, this, &DataIO::displayDataReceiverSocketError);
             connect(socket, &QUdpSocket::readyRead, this, &DataIO::readDeviceData);
@@ -617,6 +621,16 @@ void DataIO::setSampleRate(QObject *sender, int value) {
 			DATAIO_DEBUG << "socket buffer size set to 128 kB.";
 			break;
 
+		case 768000:
+			bufferSize = 256*1024;
+			DATAIO_DEBUG << "socket buffer size set to 256 kB.";
+			break;
+
+		case 1536000:
+			bufferSize = 512*1024;
+			DATAIO_DEBUG << "socket buffer size set to 512 kB.";
+			break;
+
 		default:
 			DATAIO_DEBUG << "invalid sample rate !\n";
 			break;
@@ -629,9 +643,20 @@ void DataIO::setSampleRate(QObject *sender, int value) {
                          SO_RCVBUF, (char *)&bufferSize, sizeof(bufferSize));
         }
     }
+#else
+    for (auto socket : m_sockets) {
+        if (socket && socket->isValid()) {
+            socket->setSocketOption(QAbstractSocket::ReceiveBufferSizeSocketOption, bufferSize);
+        }
+    }
 #endif
 
 	io->networkIOMutex.unlock();
+
+#ifndef USE_INTERNAL_AUDIO
+    if (m_pSoundCardOut)
+        m_pSoundCardOut->Reset();
+#endif
 }
 
 

@@ -97,6 +97,8 @@ private:
 	AeroButton	*samplerate96Btn;
 	AeroButton	*samplerate192Btn;
 	AeroButton	*samplerate384Btn;
+    AeroButton	*samplerate768Btn;
+    AeroButton	*samplerate1536Btn;
 
 	QList<AeroButton *>	hardwareBtnList;
 	QList<AeroButton *>	source10MhzBtnList;

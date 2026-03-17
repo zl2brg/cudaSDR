@@ -34,8 +34,8 @@
 // #include <QObject>
 // #include <QThread>
 // #include <QMetaType>
-// #include <QMutexLocker>
-// #include <QMutex>
+#include <QMutexLocker>
+#include <QMutex>
 // #include <QWaitCondition>
 // #include <QVariant>
 // #include <QElapsedTimer>
@@ -126,6 +126,7 @@ private:
     AGCMode m_agcMode;
 
     QMutex m_mutex;
+    static QMutex s_wdspMutex; // serializes fftw_plan calls across all instances
 
     bool m_qtdspOn;
 
@@ -162,6 +163,8 @@ private:
     int m_nr2_gain_method;
     int m_nbMode;
     int m_nrMode;
+    double m_filterLo;
+    double m_filterHi;
 
     void ProcessFrequencyShift(CPX &in, CPX &out);
     void setupConnections();
