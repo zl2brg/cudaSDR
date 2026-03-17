@@ -1,7 +1,7 @@
 /****************************************************************************
 ** Meta object code from reading C++ file 'cusdr_ogl3DPanel.h'
 **
-** Created by: The Qt Meta Object Compiler version 69 (Qt 6.9.2)
+** Created by: The Qt Meta Object Compiler version 69 (Qt 6.9.3)
 **
 ** WARNING! All changes made in this file will be lost!
 *****************************************************************************/
@@ -21,7 +21,7 @@
 #if !defined(Q_MOC_OUTPUT_REVISION)
 #error "The header file 'cusdr_ogl3DPanel.h' doesn't include <QObject>."
 #elif Q_MOC_OUTPUT_REVISION != 69
-#error "This file was generated using the moc from 6.9.2. It"
+#error "This file was generated using the moc from 6.9.3. It"
 #error "cannot be used with the include files from this version of Qt."
 #error "(The moc has changed too much.)"
 #endif
@@ -75,7 +75,13 @@ template <> constexpr inline auto QGL3DPanel::qt_create_metaobjectdata<qt_meta_t
         "QList<float>",
         "data",
         "updateDisplay",
-        "onUpdateTimer"
+        "dBmScaleMaxChanged",
+        "val",
+        "dBmScaleMinChanged",
+        "onUpdateTimer",
+        "onMeshReady",
+        "MeshGeneratorWorker::MeshData",
+        "meshData"
     };
 
     QtMocHelpers::UintData qt_methods {
@@ -141,8 +147,20 @@ template <> constexpr inline auto QGL3DPanel::qt_create_metaobjectdata<qt_meta_t
         }}),
         // Slot 'updateDisplay'
         QtMocHelpers::SlotData<void()>(33, 2, QMC::AccessPublic, QMetaType::Void),
+        // Slot 'dBmScaleMaxChanged'
+        QtMocHelpers::SlotData<void(int, qreal)>(34, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Int, 7 }, { QMetaType::QReal, 35 },
+        }}),
+        // Slot 'dBmScaleMinChanged'
+        QtMocHelpers::SlotData<void(int, qreal)>(36, 2, QMC::AccessPublic, QMetaType::Void, {{
+            { QMetaType::Int, 7 }, { QMetaType::QReal, 35 },
+        }}),
         // Slot 'onUpdateTimer'
-        QtMocHelpers::SlotData<void()>(34, 2, QMC::AccessPrivate, QMetaType::Void),
+        QtMocHelpers::SlotData<void()>(37, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'onMeshReady'
+        QtMocHelpers::SlotData<void(const MeshGeneratorWorker::MeshData &)>(38, 2, QMC::AccessPrivate, QMetaType::Void, {{
+            { 0x80000000 | 39, 40 },
+        }}),
     };
     QtMocHelpers::UintData qt_properties {
     };
@@ -183,7 +201,10 @@ void QGL3DPanel::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, 
         case 14: _t->calculateFPS(); break;
         case 15: _t->spectrumDataChanged((*reinterpret_cast< std::add_pointer_t<QList<float>>>(_a[1]))); break;
         case 16: _t->updateDisplay(); break;
-        case 17: _t->onUpdateTimer(); break;
+        case 17: _t->dBmScaleMaxChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[2]))); break;
+        case 18: _t->dBmScaleMinChanged((*reinterpret_cast< std::add_pointer_t<int>>(_a[1])),(*reinterpret_cast< std::add_pointer_t<qreal>>(_a[2]))); break;
+        case 19: _t->onUpdateTimer(); break;
+        case 20: _t->onMeshReady((*reinterpret_cast< std::add_pointer_t<MeshGeneratorWorker::MeshData>>(_a[1]))); break;
         default: ;
         }
     }
@@ -228,14 +249,14 @@ int QGL3DPanel::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
     if (_id < 0)
         return _id;
     if (_c == QMetaObject::InvokeMetaMethod) {
-        if (_id < 18)
+        if (_id < 21)
             qt_static_metacall(this, _c, _id, _a);
-        _id -= 18;
+        _id -= 21;
     }
     if (_c == QMetaObject::RegisterMethodArgumentMetaType) {
-        if (_id < 18)
+        if (_id < 21)
             qt_static_metacall(this, _c, _id, _a);
-        _id -= 18;
+        _id -= 21;
     }
     return _id;
 }

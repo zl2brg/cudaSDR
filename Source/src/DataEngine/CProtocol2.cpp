@@ -1,9 +1,20 @@
 #include "CProtocol2.h"
 #include "cusdr_dataEngine.h"
+#include "cusdr_settings.h"
 
-CProtocol2::CProtocol2() : m_lastSequence(0), m_rxSamples(0), m_lastPacketLen(0) {}
+CProtocol2::CProtocol2() : m_lastSequence(0), m_lastPacketLen(0) {
+    memset(m_rxSamplesPerDDC, 0, sizeof(m_rxSamplesPerDDC));
+}
 
 CProtocol2::~CProtocol2() {}
+
+QList<quint16> CProtocol2::getRequiredPorts() {
+    QList<quint16> ports = { 1024, 1025, 1026, 1027, 1028, 1029 };
+    int nRx = Settings::instance()->getNumberOfReceivers();
+    for (int i = 0; i < nRx; i++)
+        ports.append((quint16)(1035 + i));
+    return ports;
+}
 
 bool CProtocol2::isPacketValid(const unsigned char* data, int len) {
     Q_UNUSED(data)
@@ -28,60 +39,50 @@ int CProtocol2::getPacketType(const unsigned char* data) {
     //
     // Return 0x06 for IQ data (matches the readDeviceData() check).
     // Return 0x05 for High Priority Status (PC <- SDR).
-    // Return 0x04 for wideband ADC data: 16-byte header + 1024-byte payload = 1040 bytes.
+    // Return 0x04 for Wideband ADC data:
+    //   16-byte header (4 seq + 12 zeros) + 512 samples x 16-bit = 1040 bytes.
     // Anything else is ignored.
-    if (m_lastPacketLen == 1040) return 0x04;  // Wideband ADC data
+    if (m_lastPacketLen == 1040) return 0x04;  // Wideband (16 hdr + 512*2 payload)
     if (m_lastPacketLen > 1000) return 0x06;
     if (m_lastPacketLen == 60) return 0x05;
     return 0xFF;
 }
 
 void CProtocol2::processInputBuffer(const QByteArray& buffer, DataEngine* de) {
-    // Protocol 2 DDC Packet payload (header already stripped by getHeaderSize=16):
-    //   Caller strips the 16-byte header (4 seq + 8 timestamp + 2 bits/sample +
-    //   2 samples/frame), so the buffer begins directly at the first 24-bit I/Q
-    //   sample pair.  Each pair is 6 bytes: 3 bytes I (MSB first) + 3 bytes Q.
-    //   For a single DDC port the samples all belong to receiver 0.  Multi-receiver
-    //   support requires port-based dispatch (DDC0→port 1035, DDC1→port 1036, ...).
-    //
-    // TODO(P2-MULTI-RX): All IQ is fed to RX[0].  For multiple receivers:
-    //   - Determine which RX index this buffer belongs to from the DDC port number
-    //     (requires port context to be threaded from readDeviceData() through to here).
-    //   - Synchronous DDCs pack interleaved (I0,Q0,I1,Q1,...) samples; demux needed.
-    //   - Open one extra receive socket per DDC (port 1036, 1037, ...) in DataIO.
-    //
-    // TODO(P2-SAMPLESIZE): spec DDC header bytes 12-13 carry `bits_per_sample`
-    //   (already stripped by header offset = 16).  The normalisation divisor
-    //   8388607.0 is valid for 24-bit; if hardware reports 16 or 32 bits this
-    //   must change.  Read bits_per_sample from the raw datagram before stripping.
+    // Protocol 2 DDC Packet: DataIO::readDeviceData() prepends one byte = DDC index
+    // (derived from socket logical port: DDC0→1035, DDC1→1036, ...) before
+    // enqueueing.  Read that tag, validate, then process the remaining bytes as
+    // 24-bit I/Q sample pairs (3 bytes I MSB-first + 3 bytes Q MSB-first, 6 bytes each).
+    if (buffer.isEmpty()) return;
 
-    int s = 0; // IQ data starts at the beginning of the buffer
-    int samplesInPacket = buffer.size() / 6;
-    
+    int rxIdx = (unsigned char)buffer.at(0);
+    if (rxIdx < 0 || rxIdx >= de->io.receivers || rxIdx >= de->RX.size())
+        rxIdx = 0;
+
+    Receiver* rx = de->RX.at(rxIdx);
+    if (!rx || !rx->qtwdsp) return;
+
+    int& rxSamples = m_rxSamplesPerDDC[rxIdx];
+
+    int s = 1; // IQ payload starts after the 1-byte receiver tag
+    int samplesInPacket = (buffer.size() - 1) / 6;
+
     for (int i = 0; i < samplesInPacket && s + 6 <= buffer.size(); i++) {
         int iSample = (int)((signed char)buffer.at(s++)) << 16;
         iSample |= (int)((unsigned char)buffer.at(s++)) << 8;
         iSample |= (int)((unsigned char)buffer.at(s++));
-        
+
         int qSample = (int)((signed char)buffer.at(s++)) << 16;
         qSample |= (int)((unsigned char)buffer.at(s++)) << 8;
         qSample |= (int)((unsigned char)buffer.at(s++));
-        
-        double lsample = (double)iSample / 8388607.0;
-        double rsample = (double)qSample / 8388607.0;
 
-        // Feed to receiver 0 (data on port 1035 = DDC0).  When multi-receiver
-        // dispatch is added each DDC port will map to its own RX index.
-        if (de->io.receivers > 0 && de->RX.at(0)->qtwdsp) {
-            de->RX[0]->inBuf[m_rxSamples].re = lsample;
-            de->RX[0]->inBuf[m_rxSamples].im = rsample;
-        }
+        rx->inBuf[rxSamples].re = (double)iSample / 8388607.0;
+        rx->inBuf[rxSamples].im = (double)qSample / 8388607.0;
 
-        m_rxSamples++;
-        if (m_rxSamples == BUFFER_SIZE) {
-            if (de->RX.at(0)->qtwdsp)
-                QMetaObject::invokeMethod(de->RX.at(0), "dspProcessing", Qt::DirectConnection);
-            m_rxSamples = 0;
+        rxSamples++;
+        if (rxSamples >= BUFFER_SIZE) {
+            QMetaObject::invokeMethod(rx, "dspProcessing", Qt::DirectConnection);
+            rxSamples = 0;
         }
     }
 }
@@ -131,6 +132,10 @@ void CProtocol2::decodeCCBytes(const QByteArray& buffer, THPSDRParameter* io) {
     uint16_t revPwrRaw = qFromBigEndian<uint16_t>(reinterpret_cast<const uchar*>(buffer.constData() + 22));
     io->ccRx.ain2 = revPwrRaw;
     io->alexReverseVolts = (double)revPwrRaw * (3.3 / 4095.0);
+    io->alexForwardPower = io->alexForwardVolts * io->alexForwardVolts / 0.09;
+    io->alexReversePower = io->alexReverseVolts * io->alexReverseVolts / 0.09;
+    Settings::instance()->setForwardPower(io->alexForwardPower);
+    Settings::instance()->setReversePower(io->alexReversePower);
 
     // Bytes 34-35: Temperature (16-bit BE, degrees C x 100)
     uint16_t tempRaw = qFromBigEndian<uint16_t>(reinterpret_cast<const uchar*>(buffer.constData() + 34));
@@ -151,19 +156,11 @@ void CProtocol2::decodeCCBytes(const QByteArray& buffer, THPSDRParameter* io) {
 void CProtocol2::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& sendState, quint16& port) {
     Settings* set = Settings::instance();
     io->mutex.lock();
-    memset(buffer, 0, 64);
+    // Protocol 2 High Priority and DDC packets must be 1444 bytes.
+    // The provided buffer is already 1444 bytes.
+    memset(buffer, 0, 1444);
 
-    // State 0 (General Config) is sent once at startup by formatInitFrame() via
-    // sendInitFramesToNetworkDevice().  It must NOT be resent periodically because
-    // the hpsdrsim stores addr_new from the source of the last General Config:
-    // if that's m_controlSocket the IQ data goes there instead of m_dataIOSocket.
-    // Skip state 0 in the periodic cycle; advance straight to state 1.
-    if (sendState == 0) {
-        sendState = 1;
-        port = 0; // signal to caller: nothing to send
-        io->mutex.unlock();
-        return;
-    }
+    if (sendState == 0) sendState = 1;
 
     switch (sendState) {
         case 0: // General Packet (Port 1024)
@@ -198,11 +195,7 @@ void CProtocol2::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
                 
                 // Bytes 19-20: Mic samples source port  (0 = use default 1026)
                 // Bytes 21-22: Wideband ADC0 source port (0 = use default 1027)
-                // Byte 23: wide_enable = 1 → request wideband ADC data from device.
-                //   Bytes 24-25: wide_len = 0 → device uses default (512 samples/pkt).
-                //   Byte 26: wide_size = 0 → device uses default (16 bits/sample).
-                //   Bytes 27-59: wide_rate, wide_ppf, endian, reserved — leave 0.
-                buffer[23] = 1;  // Enable wideband ADC data
+                // Bytes 23-59: wideband config / endian / reserved — leave 0.
                 
                 // Other global settings
                 buffer[37] = 0x00; // Time stamping off, VNA off, etc.
@@ -225,36 +218,32 @@ void CProtocol2::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
                 // Byte 6: Random enable per ADC
                 // buffer[6] = 0x00;
 
-                // TODO(P2-DDC-ENABLE): Set DDC enable bitmask. Without this the
-                // hardware enables no DDCs and never sends any IQ data!
-                //   buffer[7] = (uint8_t)((1 << io->receivers) - 1); // enable DDC0..N-1
-                // For now we just enable DDC 0:
-                buffer[7] = 0x01; // Enable DDC 0 only
+                // DDC enable bitmask: one bit per DDC (bit 0 = DDC0, bit 1 = DDC1, ...)
+                buffer[7] = (uint8_t)((1 << io->receivers) - 1);
 
-                // TODO(P2-MULTI-RX): Configure DDC1..N at bytes 23, 29, 35, ...
-                //   Each DDC uses 6 bytes: [ADC sel][rate H][rate L][CIC1][CIC2][sample size]
-                //   Starting offsets (from spec): DDC0=byte17, DDC1=byte23, DDC2=byte29 ...
-
-                // DDC 0 configuration (spec bytes 17-22)
-                // TODO(P2-BUG): buffer[16] should be buffer[17] — off-by-one vs spec.
-                //   Byte 17 = ADC DDC0 selection (0 = ADC0)
-                buffer[17] = 0x00; // ADC selection for DDC 0 (ADC 0)
-
-                // Sampling Rate DDC0 (spec bytes 18-19, Big Endian)
+                // Sampling rate for all DDCs
                 uint16_t rate = 0;
                 switch (io->samplerate) {
                     case 48000:   rate = 48;   break;
                     case 96000:   rate = 96;   break;
                     case 192000:  rate = 192;  break;
                     case 384000:  rate = 384;  break;
-                    // TODO(P2-SAMPLERATE): Add 768000 → 768, 1536000 → 1536
+                    case 768000:  rate = 768;  break;
+                    case 1536000: rate = 1536; break;
                     default:      rate = 48;   break;
                 }
                 uint16_t rateBE = qToBigEndian(rate);
-                memcpy(&buffer[18], &rateBE, 2);
 
-                // Byte 22: Sample Size (24 bits per spec default)
-                buffer[22] = 24;
+                // Configure each DDC: 6 bytes starting at buffer[17 + 6*i]
+                //   [0] ADC selection  [1-2] sample rate (BE)  [3-4] sync map  [5] sample size
+                for (int ddc = 0; ddc < io->receivers; ddc++) {
+                    int base = 17 + 6 * ddc;
+                    buffer[base]     = 0x00;       // ADC0 for all DDCs
+                    memcpy(&buffer[base + 1], &rateBE, 2); // sample rate
+                    buffer[base + 2 + 1] = 0x00;   // sync map high byte (unused)
+                    buffer[base + 2 + 2] = 0x00;   // sync map low byte (unused)
+                    buffer[base + 5]     = 24;      // 24-bit samples
+                }
             }
             sendState = 2;
             break;
@@ -298,10 +287,23 @@ void CProtocol2::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
                     buffer[4] |= 0x02; // PTT0
                 }
 
-                uint32_t freq = qToBigEndian((uint32_t)set->getCtrFrequencies().at(0));
-                memcpy(&buffer[9], &freq, 4);
+                // DDC RX frequencies: 4 bytes each starting at buffer[9 + 4*i]
+                {
+                    const QList<long>& freqs = set->getCtrFrequencies();
+                    for (int ddc = 0; ddc < io->receivers && ddc < freqs.size(); ddc++) {
+                        uint32_t freq = qToBigEndian((uint32_t)freqs.at(ddc));
+                        memcpy(&buffer[9 + 4 * ddc], &freq, 4);
+                    }
+                }
+
+                // DUC0 TX frequency (buffer[333-336])
+                uint32_t txfreq = qToBigEndian((uint32_t)set->getCtrFrequencies().at(0));
+                memcpy(&buffer[333], &txfreq, 4);
+
+                // DUC0 drive level (buffer[345], 0-255)
+                buffer[345] = (unsigned char)io->ccTx.drivelevel;
             }
-            sendState = 1; // cycle back to DDC Specific; skip GP resend
+            sendState = 1; // cycle back to DDC Specific
             break;
     }
     
@@ -376,29 +378,61 @@ QByteArray CProtocol2::formatInitFrame(int rx, THPSDRParameter* io, quint16& por
     // Use 0 so hardware uses its default.
     // pkt[19..20] already 0.
 
-    // Bytes 21-22: Wideband ADC0 source port (default 1027)
-    // Use 0 so hardware uses its default.
+    // Bytes 21-22: Wideband ADC0 source port (0 = use default 1027).
     // pkt[21..22] already 0.
 
-    // Bytes 23-59: wideband config, endian mode, etc. — leave 0 for defaults.
+    // Byte 23: wide_enable = 1 → request wideband ADC data from device.
+    // Bytes 24-25: wide_len = 0 → device default (512 samples/packet).
+    // Byte 26: wide_size = 0 → device default (16 bits/sample).
+    // Bytes 27-59: wide_rate, ppf, endian, reserved — leave 0.
+    pkt[23] = 1;
 
     return pkt;
 }
 
 QByteArray CProtocol2::formatOutputPacket(const QByteArray& audioData, uint32_t& sequence) {
-    // TODO(P2-TX-AUDIO): P2 DUC IQ packet (port 1029) format:
-    //   Bytes 0-3 : Sequence number (Big Endian, increments per packet)
-    //   Bytes 4+  : 16-bit I/Q samples at 48 kHz (host audio rate)
-    // The current implementation prepends the sequence number but the P1
-    // `output_buffer` layout (Metis header + interleaved L/R/Mic/IQ) is not
-    // the same as the P2 DUC IQ packet.  Sending raw `audioData` here will
-    // produce garbled transmit audio until a proper P2 TX path is implemented.
-    QByteArray outDatagram;
-    uint32_t outseq = qFromBigEndian(sequence);
-    outDatagram.resize(0);
-    QByteArray seq(reinterpret_cast<const char*>(&outseq), sizeof(outseq));
-    outDatagram += seq;
-    outDatagram += audioData;
+    // Protocol 2 DUC IQ packet (PC → SDR, port 1029) — exactly 1444 bytes:
+    //   Bytes 0-3  : sequence number (big-endian uint32)
+    //   Bytes 4-1443: 240 × 6 bytes — I(3 bytes) Q(3 bytes), 24-bit signed big-endian
+    //
+    // Source: P1 output_buffer (512 bytes, IO_BUFFER_SIZE):
+    //   Bytes 0-7:     Metis/P1 header (8 bytes, not used here)
+    //   Bytes 8+n*8+0,+1 : L RX audio  (unused for TX)
+    //   Bytes 8+n*8+2,+3 : R RX audio  (unused for TX)
+    //   Bytes 8+n*8+4,+5 : TX I  (16-bit signed big-endian)
+    //   Bytes 8+n*8+6,+7 : TX Q  (16-bit signed big-endian)
+    //   63 samples total: (512 - 8) / 8 = 63
+    //
+    // 16→24-bit conversion: [hi, lo, 0x00] preserves sign and scales correctly.
+    // Samples 63-239 are zero-padded (silent) since we only have 63 per call.
+
+    const int NUM_P2_SAMPLES = 240;           // hpsdrsim tx_thread expects exactly this
+    const int P1_HEADER      = 8;             // IO_HEADER_SIZE
+    const int P1_SAMPLE_BYTES= 8;             // L(2)+R(2)+I(2)+Q(2)
+    const int P1_SAMPLES     = 63;            // (512 - 8) / 8
+
+    QByteArray pkt(4 + NUM_P2_SAMPLES * 6, '\0');
+    unsigned char* p = reinterpret_cast<unsigned char*>(pkt.data());
+
+    // Sequence (big-endian)
+    uint32_t seq = qToBigEndian(sequence);
+    memcpy(p, &seq, 4);
+    p += 4;
+
+    const unsigned char* src = reinterpret_cast<const unsigned char*>(audioData.constData());
+    const int nSamples = (audioData.size() >= P1_HEADER)
+                         ? qMin((audioData.size() - P1_HEADER) / P1_SAMPLE_BYTES, P1_SAMPLES)
+                         : 0;
+
+    for (int i = 0; i < nSamples; ++i) {
+        const unsigned char* s = src + P1_HEADER + i * P1_SAMPLE_BYTES;
+        // TX I at byte-offset +4,+5; TX Q at +6,+7
+        p[0] = s[4]; p[1] = s[5]; p[2] = 0x00;  // I: hi, lo, 0
+        p[3] = s[6]; p[4] = s[7]; p[5] = 0x00;  // Q: hi, lo, 0
+        p += 6;
+    }
+    // Bytes beyond nSamples*6 are already zero-initialised.
+
     sequence++;
-    return outDatagram;
+    return pkt;
 }

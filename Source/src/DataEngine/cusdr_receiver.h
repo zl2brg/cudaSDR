@@ -141,7 +141,7 @@ private slots:
 private:
 
     QVector<float> convertToFloatInterleaved(const QVector<CPX>& in);
-    QVector<float> interleaveFromCPX(const CPX& in);
+    QVector<float> interleaveFromCPX(const CPX& in, int size = -1);
 	Settings*				set;
 	
     TReceiver               m_config;

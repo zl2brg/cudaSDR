@@ -234,7 +234,9 @@ void DataIO::new_readDeviceData() {
     qint64  size = 0;
     while (socket->hasPendingDatagrams()) {
         QMutexLocker locker(&io->networkIOMutex);
-        size = socket->readDatagram((char *)m_buffer, sizeof(m_buffer));
+        QHostAddress senderAddress;
+        quint16 senderPort = 0;
+        size = socket->readDatagram((char *)m_buffer, sizeof(m_buffer), &senderAddress, &senderPort);
         if (io->protocol && io->protocol->isPacketValid(m_buffer, size)) {
             int type = io->protocol->getPacketType(m_buffer);
             if (type == 0x06) {
@@ -255,7 +257,16 @@ void DataIO::new_readDeviceData() {
                 m_oldSequence = m_sequence;
 
                 if (!io->iq_queue.isFull()) {
-                    io->iq_queue.enqueue(QByteArray((const char *)&m_buffer[io->protocol->getHeaderSize()], size - io->protocol->getHeaderSize()));
+                    // P2 multi-RX: DDC0 sends from source port 1035, DDC1 from 1036, etc.
+                    const int hdrSize = io->protocol->getHeaderSize();
+                    if (hdrSize == 16) { // Protocol 2
+                        int ddcIdx = (senderPort >= 1035) ? (int)(senderPort - 1035) : 0;
+                        QByteArray payload(1, (char)(unsigned char)ddcIdx);
+                        payload.append(QByteArray((const char *)&m_buffer[hdrSize], size - hdrSize));
+                        io->iq_queue.enqueue(payload);
+                    } else {
+                        io->iq_queue.enqueue(QByteArray((const char *)&m_buffer[io->protocol->getHeaderSize()], size - io->protocol->getHeaderSize()));
+                    }
                     emit (readydata());
                 }
             }
@@ -303,7 +314,9 @@ void DataIO::readDeviceData() {
 
 	while (socket->hasPendingDatagrams()) {
 		QMutexLocker locker(&io->networkIOMutex);
-        qint64 size = socket->readDatagram(m_datagram.data(), m_datagram.size());
+        QHostAddress senderAddress;
+        quint16 senderPort = 0;
+        qint64 size = socket->readDatagram(m_datagram.data(), m_datagram.size(), &senderAddress, &senderPort);
 		if (io->protocol && io->protocol->isPacketValid((const unsigned char*)m_datagram.data(), size)) {
             int type = io->protocol->getPacketType((const unsigned char*)m_datagram.data());
 			if (type == 0x06) {
@@ -324,8 +337,19 @@ void DataIO::readDeviceData() {
 				m_oldSequence = m_sequence;
 
                 if (!io->iq_queue.isFull()) {
+                    // P2 multi-RX: prepend DDC receiver index so CProtocol2::processInputBuffer()
+                    // can route to the correct RX.  Each DDC sends from a fixed source port:
+                    // DDC0 → 1035, DDC1 → 1036, etc.  This works for both local (simulator)
+                    // and remote hardware because the source port is always DDC-specific.
                     const int hdrSize = io->protocol->getHeaderSize();
-                    io->iq_queue.enqueue(m_datagram.mid(hdrSize, size - hdrSize));
+                    if (hdrSize == 16) { // Protocol 2
+                        int ddcIdx = (senderPort >= 1035) ? (int)(senderPort - 1035) : 0;
+                        QByteArray payload(1, (char)(unsigned char)ddcIdx);
+                        payload.append(m_datagram.mid(hdrSize, size - hdrSize));
+                        io->iq_queue.enqueue(payload);
+                    } else {
+                        io->iq_queue.enqueue(m_datagram.mid(io->protocol->getHeaderSize(), size - io->protocol->getHeaderSize()));
+                    }
                     emit (readydata());
                 }
             }
@@ -476,6 +500,22 @@ void DataIO::writeData() {
 
     if (!io->protocol || !m_dataIOSocket) return;
 
+    // Protocol 2: formatOutputPacket returns the complete 1444-byte DUC IQ packet.
+    // Send it in a single call to port 1029; bypass the P1 two-call toggle.
+    if (io->protocol->getHeaderSize() != 8) {
+        QByteArray ducPkt = io->protocol->formatOutputPacket(io->audioDatagram, m_sendSequence);
+        static const quint16 DUC_PORT = 1029;
+        if (m_dataIOSocket->writeDatagram(ducPkt,
+                                          set->getCurrentMetisCard().ip_address,
+                                          DUC_PORT) < 0) {
+            DATAIO_DEBUG << "P2 TX: error sending DUC IQ: " << m_dataIOSocket->errorString();
+        }
+        m_oldSendSequence = m_sendSequence - 1; // keep tracking consistent
+        return;
+    }
+
+    // Protocol 1 two-call toggle: first call stores the Metis header,
+    // second call appends audio and sends the 1032-byte packet.
 	if (m_setNetworkDeviceHeader) {
 
 		m_outDatagram = io->protocol->formatOutputPacket(io->audioDatagram, m_sendSequence);

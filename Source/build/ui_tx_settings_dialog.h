@@ -1,7 +1,7 @@
 /********************************************************************************
 ** Form generated from reading UI file 'tx_settings_dialog.ui'
 **
-** Created by: Qt User Interface Compiler version 6.9.2
+** Created by: Qt User Interface Compiler version 6.9.3
 **
 ** WARNING! All changes made in this file will be lost when recompiling UI file!
 ********************************************************************************/
@@ -18,6 +18,7 @@
 #include <QtWidgets/QHBoxLayout>
 #include <QtWidgets/QLabel>
 #include <QtWidgets/QListView>
+#include <QtWidgets/QScrollArea>
 #include <QtWidgets/QSlider>
 #include <QtWidgets/QSpinBox>
 #include <QtWidgets/QVBoxLayout>
@@ -29,12 +30,19 @@ class Ui_tx_settings_dialog
 {
 public:
     QVBoxLayout *verticalLayout_5;
+    QScrollArea *scrollArea;
+    QWidget *scrollContents;
+    QVBoxLayout *verticalLayoutScroll;
     QGroupBox *groupBox;
     QVBoxLayout *verticalLayout_4;
     QComboBox *audiodevlist;
     QHBoxLayout *horizontalLayout_2;
     QLabel *label_2;
     QSlider *audioCompression;
+    QGroupBox *groupBoxDigitalAudio;
+    QVBoxLayout *verticalLayoutDigital;
+    QComboBox *digitalAudioDevList;
+    QLabel *labelDigitalInfo;
     QGroupBox *groupBox_3;
     QVBoxLayout *verticalLayout_3;
     QHBoxLayout *horizontalLayout;
@@ -77,19 +85,30 @@ public:
     {
         if (tx_settings_dialog->objectName().isEmpty())
             tx_settings_dialog->setObjectName("tx_settings_dialog");
-        tx_settings_dialog->resize(280, 702);
+        tx_settings_dialog->resize(280, 880);
         QSizePolicy sizePolicy(QSizePolicy::Policy::Preferred, QSizePolicy::Policy::Minimum);
         sizePolicy.setHorizontalStretch(0);
         sizePolicy.setVerticalStretch(0);
         sizePolicy.setHeightForWidth(tx_settings_dialog->sizePolicy().hasHeightForWidth());
         tx_settings_dialog->setSizePolicy(sizePolicy);
-        tx_settings_dialog->setMaximumSize(QSize(16777215, 747));
+        tx_settings_dialog->setMaximumSize(QSize(16777215, 16777215));
         QFont font;
         font.setPointSize(10);
         tx_settings_dialog->setFont(font);
         verticalLayout_5 = new QVBoxLayout(tx_settings_dialog);
+        verticalLayout_5->setContentsMargins(0, 0, 0, 0);
         verticalLayout_5->setObjectName("verticalLayout_5");
-        groupBox = new QGroupBox(tx_settings_dialog);
+        scrollArea = new QScrollArea(tx_settings_dialog);
+        scrollArea->setObjectName("scrollArea");
+        scrollArea->setFrameShape(QFrame::NoFrame);
+        scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+        scrollArea->setWidgetResizable(true);
+        scrollContents = new QWidget();
+        scrollContents->setObjectName("scrollContents");
+        scrollContents->setGeometry(QRect(0, 0, 278, 920));
+        verticalLayoutScroll = new QVBoxLayout(scrollContents);
+        verticalLayoutScroll->setObjectName("verticalLayoutScroll");
+        groupBox = new QGroupBox(scrollContents);
         groupBox->setObjectName("groupBox");
         QSizePolicy sizePolicy1(QSizePolicy::Policy::Preferred, QSizePolicy::Policy::Fixed);
         sizePolicy1.setHorizontalStretch(0);
@@ -131,9 +150,29 @@ public:
         verticalLayout_4->addLayout(horizontalLayout_2);
 
 
-        verticalLayout_5->addWidget(groupBox);
+        verticalLayoutScroll->addWidget(groupBox);
 
-        groupBox_3 = new QGroupBox(tx_settings_dialog);
+        groupBoxDigitalAudio = new QGroupBox(scrollContents);
+        groupBoxDigitalAudio->setObjectName("groupBoxDigitalAudio");
+        sizePolicy1.setHeightForWidth(groupBoxDigitalAudio->sizePolicy().hasHeightForWidth());
+        groupBoxDigitalAudio->setSizePolicy(sizePolicy1);
+        verticalLayoutDigital = new QVBoxLayout(groupBoxDigitalAudio);
+        verticalLayoutDigital->setObjectName("verticalLayoutDigital");
+        digitalAudioDevList = new QComboBox(groupBoxDigitalAudio);
+        digitalAudioDevList->setObjectName("digitalAudioDevList");
+
+        verticalLayoutDigital->addWidget(digitalAudioDevList);
+
+        labelDigitalInfo = new QLabel(groupBoxDigitalAudio);
+        labelDigitalInfo->setObjectName("labelDigitalInfo");
+        labelDigitalInfo->setWordWrap(true);
+
+        verticalLayoutDigital->addWidget(labelDigitalInfo);
+
+
+        verticalLayoutScroll->addWidget(groupBoxDigitalAudio);
+
+        groupBox_3 = new QGroupBox(scrollContents);
         groupBox_3->setObjectName("groupBox_3");
         sizePolicy.setHeightForWidth(groupBox_3->sizePolicy().hasHeightForWidth());
         groupBox_3->setSizePolicy(sizePolicy);
@@ -166,14 +205,15 @@ public:
         verticalLayout_3->addLayout(horizontalLayout);
 
 
-        verticalLayout_5->addWidget(groupBox_3);
+        verticalLayoutScroll->addWidget(groupBox_3);
 
-        groupBox_2 = new QGroupBox(tx_settings_dialog);
+        groupBox_2 = new QGroupBox(scrollContents);
         groupBox_2->setObjectName("groupBox_2");
         groupBox_2->setAutoFillBackground(true);
         groupBox_2->setFlat(false);
         gridLayout = new QGridLayout(groupBox_2);
         gridLayout->setObjectName("gridLayout");
+        gridLayout->setVerticalSpacing(6);
         verticalLayout = new QVBoxLayout();
         verticalLayout->setObjectName("verticalLayout");
         repeaterMode = new QCheckBox(groupBox_2);
@@ -232,9 +272,9 @@ public:
         gridLayout->addWidget(ctcss_tone, 3, 1, 1, 1);
 
 
-        verticalLayout_5->addWidget(groupBox_2);
+        verticalLayoutScroll->addWidget(groupBox_2);
 
-        groupBox_4 = new QGroupBox(tx_settings_dialog);
+        groupBox_4 = new QGroupBox(scrollContents);
         groupBox_4->setObjectName("groupBox_4");
         groupBox_4->setFlat(false);
         gridLayout_2 = new QGridLayout(groupBox_4);
@@ -364,7 +404,11 @@ public:
         gridLayout_2->addWidget(listView, 1, 1, 1, 1);
 
 
-        verticalLayout_5->addWidget(groupBox_4);
+        verticalLayoutScroll->addWidget(groupBox_4);
+
+        scrollArea->setWidget(scrollContents);
+
+        verticalLayout_5->addWidget(scrollArea);
 
 
         retranslateUi(tx_settings_dialog);
@@ -377,6 +421,8 @@ public:
         tx_settings_dialog->setWindowTitle(QCoreApplication::translate("tx_settings_dialog", "Dialog", nullptr));
         groupBox->setTitle(QCoreApplication::translate("tx_settings_dialog", "Mic Input", nullptr));
         label_2->setText(QCoreApplication::translate("tx_settings_dialog", "Compression (db)", nullptr));
+        groupBoxDigitalAudio->setTitle(QCoreApplication::translate("tx_settings_dialog", "Digital Audio Input (FT8 / Digi modes)", nullptr));
+        labelDigitalInfo->setText(QCoreApplication::translate("tx_settings_dialog", "Select the system audio device carrying the digital mode audio (e.g. WSJT-X virtual cable).", nullptr));
         groupBox_3->setTitle(QCoreApplication::translate("tx_settings_dialog", "AM", nullptr));
         label_3->setText(QCoreApplication::translate("tx_settings_dialog", "Carrier Level %", nullptr));
         groupBox_2->setTitle(QCoreApplication::translate("tx_settings_dialog", "FM", nullptr));

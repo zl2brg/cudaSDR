@@ -405,6 +405,10 @@ void MainWindow::setup() {
 	// setup the layout for the control widgets, the wideband panel and the receiver panels
     setupLayout();
 
+	// sync dock visibility to the persisted receiver count (no signal fires when count
+	// is restored from INI with blockSignals, so we do it explicitly here)
+	setNumberOfReceivers(this, set->getNumberOfReceivers());
+
 	// set the main window title
 	updateTitle();
 

@@ -321,6 +321,12 @@ void OGLDisplayPanel::setupConnections() {
 
 	CHECKED_CONNECT(
 		set,
+		SIGNAL(forwardPowerChanged(qreal)),
+		this,
+		SLOT(setForwardPower(qreal)));
+
+	CHECKED_CONNECT(
+		set,
 		SIGNAL(sendIQSignalChanged(int)),
 		this,
 		SLOT(setSendIQStatus(int)));
@@ -592,7 +598,19 @@ void OGLDisplayPanel::paintUpperRegion() {
 
 	// Metis status
 	str = m_metisString;
-    x1 += m_packetLossWidth + 15*m_blankWidth;
+    x1 += m_packetLossWidth + 2*m_blankWidth + 2;
+	{
+		QString fwdStr = QString("FWD: %1 W").arg(m_fwdPowerWatts, 0, 'f', 1);
+		int fwdWidth = m_oglTextSmall->fontMetrics().horizontalAdvance(fwdStr);
+		rect = QRect(x1, y1, fwdWidth + 2*m_blankWidth, m_blankHeight);
+		if (m_fwdPowerWatts >= 1.0)
+			drawGLRect(rect, QColor(56, 242, 115), -2.0f);
+		else
+			drawGLRect(rect, QColor(68, 68, 68), -2.0f);
+		qglColor(QColor(0, 0, 0));
+		m_oglTextSmallItalic->renderText(x1 + m_blankWidth, y1, fwdStr);
+		x1 += fwdWidth + 15*m_blankWidth;
+	}
 
 	if (m_hwInterface == QSDR::Metis && m_dataEngineState == QSDR::DataEngineUp)
 		rect = QRect(x1, y1, m_metisStringWidth + m_versionStringWidth, m_blankHeight);
@@ -2380,6 +2398,12 @@ void OGLDisplayPanel::updatePacketLossStatus() {
 		m_packetLossStatus = 1;
 	else
 		m_packetLossStatus = 0;
+}
+
+void OGLDisplayPanel::setForwardPower(qreal watts) {
+
+	m_fwdPowerWatts = watts;
+	update();
 }
 
 void OGLDisplayPanel::setSendIQStatus(int value) {

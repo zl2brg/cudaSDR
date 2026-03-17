@@ -40,6 +40,14 @@ tx_settings_dialog::tx_settings_dialog(QWidget *parent) :
     }
 
     ui->audiodevlist->setCurrentIndex(set->getMicInputDev());
+
+    // Populate digital audio input device list (for FT8 / digi modes)
+    ui->digitalAudioDevList->clear();
+    ui->digitalAudioDevList->addItem("None");
+    for (const QAudioDevice &deviceInfo : audioInputs) {
+        ui->digitalAudioDevList->addItem(deviceInfo.description());
+    }
+    ui->digitalAudioDevList->setCurrentIndex(set->getDigitalAudioInputDev());
     ui->sidetone_freq->setValue(set->getCwSidetoneFreq());
     ui->sidetone_volume->setValue(set->getCwSidetoneVolume());
     ui->cw_hangtime->setValue(set->getCwHangTime());
@@ -59,6 +67,11 @@ tx_settings_dialog::tx_settings_dialog(QWidget *parent) :
                  SIGNAL(currentIndexChanged(int)),
                  set,
                  SLOT(setMicInputDev(int)));
+
+ CHECKED_CONNECT(ui->digitalAudioDevList,
+                 SIGNAL(currentIndexChanged(int)),
+                 set,
+                 SLOT(setDigitalAudioInputDev(int)));
 
  CHECKED_CONNECT(ui->audioCompression,
                  SIGNAL(valueChanged(int)),

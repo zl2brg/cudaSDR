@@ -222,6 +222,10 @@ int Settings::loadSettings() {
     if (value != 16 && value != 32 && value != 64 && value != 128 && value != 256) value = 32;
     m_socketBufferSize = value;
 
+    value = settings->value("hpsdr/receivers", 1).toInt();
+    if (value < 1 || value > MAX_RECEIVERS) value = 1;
+    m_mercuryReceivers = value;
+
 
     // HPSDR hardware
     value = settings->value("hpsdr/hardware", 0).toInt();
@@ -326,6 +330,7 @@ int Settings::loadSettings() {
         m_micSource = 1;
 
     m_micInputDev = settings->value("mic_InputDevice",0).toInt();
+    m_digitalAudioInputDev = settings->value("digital_audio_InputDevice",0).toInt();
     m_micGain = settings->value("micGain", 0).toDouble();
     m_drivelevel = settings->value("driveLevel",0).toInt();
 
@@ -1470,6 +1475,7 @@ int Settings::saveSettings() {
     settings->setValue("network/audio_port", m_audioPort);
     settings->setValue("network/metis_port", m_metisPort);
     settings->setValue("network/socketBufferSize", m_socketBufferSize);
+    settings->setValue("hpsdr/receivers", m_mercuryReceivers);
 
 
     // HPSDR hardware
@@ -1606,6 +1612,7 @@ int Settings::saveSettings() {
 
     settings->setValue("mic_InputDevice",m_micInputDev);
     qDebug() << "Write" << m_micInputDev;
+    settings->setValue("digital_audio_InputDevice", m_digitalAudioInputDev);
     settings->setValue("micGain", m_micGain);
     settings->setValue("driveLevel",m_drivelevel);
 
@@ -3340,6 +3347,16 @@ void Settings::setPacketLoss(int value) {
     emit packetLossChanged(value);
 }
 
+void Settings::setForwardPower(qreal watts) {
+
+    emit forwardPowerChanged(watts);
+}
+
+void Settings::setReversePower(qreal watts) {
+
+    emit reversePowerChanged(watts);
+}
+
 void Settings::setSendIQ(int value) {
 
     emit sendIQSignalChanged(value);
@@ -3538,6 +3555,14 @@ void Settings::setMicInputDev(int index) {
 
     m_micInputDev = index;
     emit micInputChanged(index);
+}
+
+void Settings::setDigitalAudioInputDev(int index) {
+
+    QMutexLocker locker(&settingsMutex);
+
+    m_digitalAudioInputDev = index;
+    emit digitalAudioInputChanged(index);
 }
 
 void Settings::setMicInputLevel(QObject *sender, int level) {
