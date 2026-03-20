@@ -188,26 +188,28 @@ bool Receiver::initDSPInterface() {
 
 bool Receiver::initQtWDSPInterface() {
 
+    RECEIVER_DEBUG << "[RX-ADD] initQtWDSPInterface: rx=" << m_receiver << "BUFFER_SIZE=" << BUFFER_SIZE;
 //    qtwdsp = std::make_unique<QWDSPEngine>(this, m_receiver, BUFFER_SIZE);
     qtwdsp = new QWDSPEngine(this, m_receiver, BUFFER_SIZE);
 
     if (!qtwdsp || !qtwdsp->isValid()) {  // Add validity check
-        RECEIVER_DEBUG << "could not start QWtDSP for receiver: " << m_receiver;
+        RECEIVER_DEBUG << "[RX-ADD] ERROR: could not start QWtDSP for receiver: " << m_receiver;
         return false;
     }
+    RECEIVER_DEBUG << "[RX-ADD] QWDSPEngine constructed for rx=" << m_receiver << "(isValid=true)";
 
     qtwdsp->setQtDSPStatus(true);
     qtwdsp->setVolume(m_audioVolume);
 
     DSPMode mode = m_dspModeList.at(m_hamBand);
-    RECEIVER_DEBUG << "set DSP mode to: " << set->getDSPModeString(mode);
+    RECEIVER_DEBUG << "[RX-ADD] rx=" << m_receiver << "set DSP mode to:" << set->getDSPModeString(mode);
 
     qtwdsp->setDSPMode(mode);
     
     auto filter = getFilterFromDSPMode(set->getDefaultFilterList(), mode);
     qtwdsp->setFilter(filter.filterLo, filter.filterHi);
 
-    RECEIVER_DEBUG << "QtWDSP for receiver: " << m_receiver << " started.";
+    RECEIVER_DEBUG << "[RX-ADD] initQtWDSPInterface: rx=" << m_receiver << "complete (filter lo=" << filter.filterLo << "hi=" << filter.filterHi << ")";
     return true;
 }
 

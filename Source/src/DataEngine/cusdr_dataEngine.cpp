@@ -613,16 +613,26 @@ bool DataEngine::getFirmwareVersions() {
 	//setSampleRate(this, set->getSampleRate());
 	SleeperThread::msleep(100);
 
-	// pre-conditioning
-	for (int i = 0; i < io.receivers; i++)
-		m_dataIO->sendInitFramesToNetworkDevice(i);
-				
-	if (m_serverMode == QSDR::SDRMode)
-		m_dataIO->networkDeviceStartStop(0x01); // 0x01 for starting Metis without wide band data
+	// For Protocol 2: do NOT start the network device here.
+	// DSP threads have not been started yet; start() is called by initDataEngine()
+	// immediately after this returns and will launch DSP threads first, then
+	// send the General Packet and Run=1.  Starting IQ streaming before DSP
+	// threads are live causes a BlockingQueuedConnection deadlock in the
+	// DataProcessor, producing persistent fexchange0 -2 errors on first start.
+	// For Protocol 1: continue the existing flow (start device to collect FW
+	// version response packets).
+	if (set->getCurrentMetisCard().protocol != 2) {
+		// pre-conditioning
+		for (int i = 0; i < io.receivers; i++)
+			m_dataIO->sendInitFramesToNetworkDevice(i);
 		
-	m_networkDeviceRunning = true;
-	setSystemState(QSDR::NoError, m_hwInterface, m_serverMode, QSDR::DataEngineUp);
-	SleeperThread::msleep(300);
+		if (m_serverMode == QSDR::SDRMode)
+			m_dataIO->networkDeviceStartStop(0x01);
+		
+		m_networkDeviceRunning = true;
+		setSystemState(QSDR::NoError, m_hwInterface, m_serverMode, QSDR::DataEngineUp);
+		SleeperThread::msleep(300);
+	}
 
     io.metisFW = set->getMetisVersion();
     io.mercuryFW = set->getMercuryVersion();
@@ -1037,6 +1047,13 @@ bool DataEngine::start() {
 		return false;
 	}
 
+	// Give the DataIO thread time to run initDataReceiverSocket() and bind its
+	// UDP socket (m_dataIOSocket).  Without this delay, sendInitFramesToNetworkDevice()
+	// and networkDeviceStartStop() both check !m_dataIOSocket and silently return
+	// early, leaving the P1/P2 hardware without a start command.  This matches the
+	// same pattern used in getFirmwareVersions().
+	SleeperThread::msleep(100);
+
 	// start Sync,ADC and S-Meter timers
 	//m_SyncChangedTime.start();
 	//m_ADCChangedTime.start();
@@ -1052,6 +1069,9 @@ bool DataEngine::start() {
 			SleeperThread::msleep(100);
 	    }
     else {
+            DATA_ENGINE_DEBUG << "[START] calling networkDeviceStartStop(0x01) protocol="
+                              << (m_protocol ? "valid" : "NULL")
+                              << " hwInterface=" << m_hwInterface;
             m_dataIO->networkDeviceStartStop(0x01); // 0x01 for starting the device without wide band data
         }
 	m_networkDeviceRunning = true;
@@ -1114,6 +1134,20 @@ void DataEngine::stop() {
 
 		while (!io.au_queue.isEmpty())
 			io.au_queue.dequeue();
+
+		// Stop all WDSP channels BEFORE killing DSP threads.
+		// SetChannelState(wait=1) deadlocks if called after the DSP thread is
+		// dead (nobody calls fexchange0 to release the internal semaphore).
+		// Clearing run=0 here while threads are still alive lets any in-flight
+		// fexchange0 call observe the flag and exit, leaving the channel in a
+		// clean state for CloseChannel in the destructor.
+		for (const auto &rx : RX) {
+			if (rx->qtwdsp) {
+				DATA_ENGINE_DEBUG << "[RX-STOP] stopping WDSP channel for rx" << rx->getReceiverNo();
+				rx->qtwdsp->stopChannel();
+			}
+		}
+		SleeperThread::msleep(5); // let any in-flight fexchange0 observe run=0
 
 		// clear receiver thread list
 		foreach (QThread* thread, m_dspThreadList) {
@@ -1222,15 +1256,17 @@ bool DataEngine::initDataEngine() {
 
 bool DataEngine::initReceivers(int rcvrs) {
 
+	DATA_ENGINE_DEBUG << "[RX-ADD] initReceivers: allocating" << rcvrs << "receiver(s)";
+
 	for (int i = 0; i < rcvrs; i++) {
 
         auto rx =  new Receiver(i);
 		// init the DSP core
-		DATA_ENGINE_DEBUG << "trying to init a DSP core for rx " << i;
+		DATA_ENGINE_DEBUG << "[RX-ADD] initReceivers: init DSP core for rx " << i;
 
 		if (rx->initDSPInterface()) {
 
-			DATA_ENGINE_DEBUG << "init DSP core for rx " << i << " successful !";
+			DATA_ENGINE_DEBUG << "[RX-ADD] initReceivers: DSP core for rx" << i << " OK — QWDSPEngine constructed and WDSP channel open";
 
 			rx->setConnectedStatus(false);
 			rx->setServerMode(m_serverMode);
@@ -2291,22 +2327,32 @@ void DataEngine::setNumberOfRx(QObject *sender, int value) {
 
 	Q_UNUSED(sender)
 
-	if (io.receivers == value) return;
+	DATA_ENGINE_DEBUG << "[RX-ADD] setNumberOfRx: requested=" << value << "current=" << io.receivers;
+
+	if (io.receivers == value) {
+		DATA_ENGINE_DEBUG << "[RX-ADD] receiver count unchanged, no action.";
+		return;
+	}
 
     bool restart = (m_dataEngineState == QSDR::DataEngineUp);
+	DATA_ENGINE_DEBUG << "[RX-ADD] engineUp=" << restart << "-> will" << (restart ? "stop/restart" : "update counts only");
     if (restart) {
+		DATA_ENGINE_DEBUG << "[RX-ADD] stopping engine...";
 		stop();
 		// Give hardware/network stack a short settle window before re-init.
 		SleeperThread::msleep(200);
+		DATA_ENGINE_DEBUG << "[RX-ADD] engine stopped, settling 200ms done.";
 	}
 
 	io.mutex.lock();
 	io.receivers = value;
 	if (io.currentReceiver >= value) {
+		DATA_ENGINE_DEBUG << "[RX-ADD] currentReceiver" << io.currentReceiver << ">= new count, resetting to 0";
 		io.currentReceiver = 0;
 	}
 	io.mutex.unlock();
 
+	DATA_ENGINE_DEBUG << "[RX-ADD] flushing IQ queue (" << io.iq_queue.count() << " items) and WB queue (" << io.wb_queue.count() << " items)";
 	while (!io.iq_queue.isEmpty())
 		io.iq_queue.dequeue();
 	while (!io.wb_queue.isEmpty())
@@ -2316,12 +2362,24 @@ void DataEngine::setNumberOfRx(QObject *sender, int value) {
 		set->setCurrentReceiver(this, 0);
 	}
 
-	DATA_ENGINE_DEBUG << "number of receivers set to " << QString::number(value);
+	DATA_ENGINE_DEBUG << "[RX-ADD] io.receivers set to" << value;
 
     if (restart) {
+		DATA_ENGINE_DEBUG << "[RX-ADD] restarting engine with" << value << "receiver(s)...";
 		SleeperThread::msleep(100);
 		if (!start()) {
-			DATA_ENGINE_DEBUG << "failed to restart data engine after receiver-count change.";
+			DATA_ENGINE_DEBUG << "[RX-ADD] FAILED to restart data engine after receiver-count change.";
+		} else {
+			DATA_ENGINE_DEBUG << "[RX-ADD] engine restart successful.";
+			if (m_protocol && set->getCurrentMetisCard().protocol == 2 && m_dataProcessor) {
+				// For Protocol 2: after the engine restarts, push an explicit DDC Specific
+				// (port 1025) + HP Run=1 (port 1027) burst so the simulator immediately
+				// receives the updated DDC enable bitmask and re-asserts Run=1.
+				DATA_ENGINE_DEBUG << "[RX-ADD] P2: queuing DDC+HP Run=1 setup burst for\" << value << \"receiver(s)";
+				QMetaObject::invokeMethod(m_dataProcessor,
+				                          &DataProcessor::requestProtocol2ReceiverSetup,
+				                          Qt::QueuedConnection);
+			}
 		}
 	}
 }
@@ -2487,6 +2545,8 @@ DataProcessor::DataProcessor(
 	, m_hwInterface(hwMode)
 	, m_socketConnected(false)
 	, m_setNetworkDeviceHeader(true)
+	, m_sendSequence(0)
+	, m_oldSendSequence(0)
 	, m_bytes(0)
 	, m_offset(0)
 	, m_length(0)
@@ -2560,6 +2620,54 @@ void DataProcessor::requestProtocol2DDCUpdate() {
 	if (de->m_controlSocket->writeDatagram((const char*)p2CmdBuf, 1444, m_deviceAddress, port) < 0) {
 		DATA_PROCESSOR_DEBUG << "error sending P2 DDC rate update:" << de->m_controlSocket->errorString();
 	}
+}
+
+void DataProcessor::requestProtocol2ReceiverSetup() {
+    DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] entry: receivers=" << de->io.receivers
+                         << " device=" << qPrintable(de->io.hpsdrDeviceIPAddress.toString())
+                         << " protocol valid=" << (de->m_protocol != nullptr)
+                         << " controlSocket valid=" << (de->m_controlSocket != nullptr);
+    if (!de || !de->m_protocol || !de->m_controlSocket) return;
+    if (de->set->getCurrentMetisCard().protocol != 2) return;
+
+    unsigned char p2CmdBuf[1444];
+    quint16 port = DEVICE_PORT;
+
+    // 1. Send DDC Specific packet (port 1025) with updated receiver-count/bitmask.
+    int ddcState = 1;
+    memset(p2CmdBuf, 0, sizeof(p2CmdBuf));
+    de->m_protocol->encodeCCBytes(p2CmdBuf, &de->io, ddcState, port);
+    if (port != 1025) {
+        DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] unexpected DDC port" << port << "(expected 1025)";
+        return;
+    }
+    m_deviceAddress = de->io.hpsdrDeviceIPAddress;
+    DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] sending DDC Specific -> port 1025, ddcEnableMask=0x"
+                         << QByteArray(1, (char)p2CmdBuf[7]).toHex().constData();
+    qint64 ddcSent = de->m_controlSocket->writeDatagram((const char*)p2CmdBuf, 1444, m_deviceAddress, port);
+    if (ddcSent < 0)
+        DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] DDC Specific send FAILED:" << de->m_controlSocket->errorString();
+    else
+        DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] DDC Specific sent" << ddcSent << "bytes OK";
+
+    // 2. Send High Priority packet (port 1027) with Run=1 so the simulator
+    //    picks up the new DDC configuration immediately.
+    int hpState = 3;
+    memset(p2CmdBuf, 0, sizeof(p2CmdBuf));
+    de->m_protocol->encodeCCBytes(p2CmdBuf, &de->io, hpState, port);
+    if (port != 1027) {
+        DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] unexpected HP port" << port << "(expected 1027)";
+        return;
+    }
+    DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] sending HP Run=1 -> port 1027, runByte=0x"
+                         << QString::number((unsigned char)p2CmdBuf[4], 16);
+    qint64 hpSent = de->m_controlSocket->writeDatagram((const char*)p2CmdBuf, 1444, m_deviceAddress, port);
+    if (hpSent < 0)
+        DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] HP Run=1 send FAILED:" << de->m_controlSocket->errorString();
+    else
+        DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] HP Run=1 sent" << hpSent << "bytes OK";
+
+    DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] done";
 }
 
 void DataProcessor::initDataProcessorSocket() {
@@ -3179,6 +3287,17 @@ void DataProcessor::encodeCCBytes() {
 
 void DataProcessor::writeData() {
     if (!de->m_protocol) return;
+
+    // Protocol 2: formatOutputPacket returns the complete 1444-byte DUC IQ packet.
+    // Send it in a single call to port 1029; bypass the P1 two-call toggle.
+    if (de->set->getCurrentMetisCard().protocol == 2) {
+        QByteArray ducPkt = de->m_protocol->formatOutputPacket(de->io.audioDatagram, m_sendSequence);
+        if (de->sendSocket->writeDatagram(ducPkt, m_deviceAddress, 1029) < 0) {
+            DATA_PROCESSOR_DEBUG << "P2 TX: error sending DUC IQ:" << de->sendSocket->errorString();
+        }
+        m_oldSendSequence = m_sendSequence - 1; // keep tracking consistent
+        return;
+    }
 
 	if (m_setNetworkDeviceHeader) {
         m_outDatagram = de->m_protocol->formatOutputPacket(de->io.audioDatagram, m_sendSequence);

@@ -96,6 +96,7 @@ private:
 	bool	m_dataIOSocketOn;
 	bool	m_networkDeviceRunning;
 	bool	m_setNetworkDeviceHeader;
+	int		m_p2IqPacketCount;
 
 	uint32_t	m_sequence;
 	uint32_t	m_oldSequence;

@@ -77,6 +77,11 @@ public:
 public slots:
     bool getQtDSPStatus() const { return m_qtdspOn; }
 
+    // Stop the WDSP channel run flag without waiting.  Must be called while the
+    // DSP processing thread is still alive so any in-flight fexchange0 call
+    // can finish and observe run=0 cleanly before the thread is quit.
+    void stopChannel();
+
     void setNCOFrequency(int rx, long value);
     void setSampleRate(QObject *sender, int value);
     void setSampleSize(int rx, int size);
@@ -128,6 +133,7 @@ private:
     static QMutex s_wdspMutex; // serializes fftw_plan calls across all instances
 
     bool m_qtdspOn;
+    bool m_firstExchangeDone;
 
     int m_rx;
     int m_size;

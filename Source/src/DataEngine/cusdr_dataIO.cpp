@@ -62,6 +62,7 @@ DataIO::DataIO(THPSDRParameter *ioData)
 	, m_dataIOSocketOn(false)
 	, m_networkDeviceRunning(false)
 	, m_setNetworkDeviceHeader(true)
+	, m_p2IqPacketCount(0)
 	, m_sequence(0)
 	, m_oldSequence(0xFFFFFFFF)
 	, m_sequenceWideBand(0)
@@ -153,6 +154,8 @@ void DataIO::stop() {
 }
 
 void DataIO::initDataReceiverSocket() {
+
+    m_p2IqPacketCount = 0; // reset per-session IQ packet log counter
 
     QList<quint16> ports = { DEVICE_PORT };
     if (io->protocol) {
@@ -321,10 +324,17 @@ void DataIO::readDeviceData() {
                     // DDC0 → 1035, DDC1 → 1036, etc.
                     const int hdrSize = io->protocol->getHeaderSize();
                     if (hdrSize == 16) { // Protocol 2
-                        // Use the sender's source port to identify the DDC
+                        // DDC routing: the sim's rx_thread for DDC N binds its
+                        // socket to port (1035+N) and sends from there, so the
+                        // source port of each IQ packet IS 1035+N.  This is
+                        // identical to how deskhpsdr identifies DDCs.
                         int ddcIdx = (senderPort >= 1035) ? (int)(senderPort - 1035) : 0;
                         if (ddcIdx < 0 || ddcIdx >= MAX_RECEIVERS) ddcIdx = 0;
-                        
+                        if (++m_p2IqPacketCount <= 5)
+                            DATAIO_DEBUG << "[P2-IQ] packet" << m_p2IqPacketCount
+                                         << "senderPort=" << senderPort
+                                         << "ddcIdx=" << ddcIdx
+                                         << "size=" << size;
                         QByteArray payload(1, (char)(unsigned char)ddcIdx);
                         payload.append(m_datagram.mid(hdrSize, size - hdrSize));
                         io->iq_queue.enqueue(payload);
@@ -423,12 +433,18 @@ void DataIO::networkDeviceStartStop(char value) {
 
 	TNetworkDevicecard metis = set->getCurrentMetisCard();
 
+    DATAIO_DEBUG << "[NDS] called: value=" << (int)(unsigned char)value
+                 << " protocol=" << (io->protocol ? "valid" : "NULL")
+                 << " socket=" << (m_dataIOSocket ? "valid" : "NULL");
+
     if (io->protocol && m_dataIOSocket) {
         quint16 port = DEVICE_PORT;
         m_commandDatagram = io->protocol->formatStartStop(value, port);
         const bool p2Start = (value != 0) && (io->protocol->getHeaderSize() == 16);
 
         if (p2Start) {
+            DATAIO_DEBUG << "[P2-START] receivers=" << io->receivers
+                         << " device=" << qPrintable(metis.ip_address.toString());
             // Re-issue P2 init right before start so DDC/port config is fresh
             // even if an earlier init was missed during thread/socket bring-up.
             sendInitFramesToNetworkDevice(0);
@@ -441,8 +457,22 @@ void DataIO::networkDeviceStartStop(char value) {
                 quint16 ctlPort = DEVICE_PORT;
                 memset(p2CmdBuf, 0, sizeof(p2CmdBuf));
                 io->protocol->encodeCCBytes(p2CmdBuf, io, startupState, ctlPort);
-                const int sendSize = (ctlPort == 1025 || ctlPort == 1027) ? 1444 : 60;
-                m_dataIOSocket->writeDatagram((const char*)p2CmdBuf, sendSize, metis.ip_address, ctlPort);
+                // All P2 command packets to ports 1025-1029 are 1444 bytes per spec.
+                // (Only port 1024 general config is 60 bytes, but that is handled via
+                //  sendInitFramesToNetworkDevice, not here.)
+                const int sendSize = 1444;
+                qint64 sent = m_dataIOSocket->writeDatagram((const char*)p2CmdBuf, sendSize, metis.ip_address, ctlPort);
+                if (sent < 0)
+                    DATAIO_DEBUG << "[P2-START] preburst[" << i << "] port" << ctlPort << "FAILED:" << m_dataIOSocket->errorString();
+                else {
+                    // For DDC Specific (1025), also log the DDC enable bitmask (byte 7)
+                    if (ctlPort == 1025)
+                        DATAIO_DEBUG << "[P2-START] preburst[" << i
+                                     << "] DDC Specific -> port 1025, ddcEnableMask=0x"
+                                     << QByteArray(1, (char)p2CmdBuf[7]).toHex().constData();
+                    else
+                        DATAIO_DEBUG << "[P2-START] preburst[" << i << "] -> port" << ctlPort << "sent" << sent << "bytes";
+                }
                 SleeperThread::msleep(2);
             }
 
@@ -475,6 +505,8 @@ void DataIO::networkDeviceStartStop(char value) {
 		}
 		else
 			DATAIO_DEBUG << "device start/stop: sending command to device failed.";
+    } else {
+        DATAIO_DEBUG << "[NDS] SKIPPED: protocol or socket is null";
     }
 }
 

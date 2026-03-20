@@ -50,7 +50,6 @@ int CProtocol2::getPacketType(const unsigned char* data) {
 
 void CProtocol2::processInputBuffer(const QByteArray& buffer, DataEngine* de) {
     if (buffer.isEmpty()) return;
-
     int rxIdx = (unsigned char)buffer.at(0);
     
     if (rxIdx < 0 || rxIdx >= de->io.receivers || rxIdx >= de->RX.size())
@@ -171,7 +170,6 @@ void CProtocol2::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
     memset(buffer, 0, 1444);
 
     if (sendState == 0) sendState = 1;
-
     switch (sendState) {
         case 0: // General Packet (Port 1024)
             port = 1024;

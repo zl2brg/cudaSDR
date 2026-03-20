@@ -410,6 +410,7 @@ public slots:
     void    startControlTimer();
 	void	stopControlTimer();
 	void	requestProtocol2DDCUpdate();
+	void	requestProtocol2ReceiverSetup();
 	void	processReadData();
 	void	processDeviceData();
     void    processMicData();
