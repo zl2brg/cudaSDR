@@ -290,7 +290,9 @@ void CProtocol2::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
                 uint32_t seq = qToBigEndian(m_sequences[1027]++);
                 memcpy(buffer, &seq, 4);
 
-                buffer[4] = 0x01; // Run bit
+                // During startup staging, keep Run low until explicit final
+                // start command is sent by formatStartStop().
+                buffer[4] = io->rcveIQ_toggle ? 0x01 : 0x00;
                 if (io->ccTx.mox || io->ccTx.ptt) {
                     buffer[4] |= 0x02; // PTT0
                 }
@@ -326,6 +328,8 @@ QByteArray CProtocol2::formatStartStop(char value, quint16& port) {
     // if it gets anything shorter, so the run bit is never seen and RX never starts.
     port = 1027;
     QByteArray commandDatagram(1444, '\0');
+    uint32_t seq = qToBigEndian(m_sequences[1027]++);
+    memcpy(commandDatagram.data(), &seq, 4);
     commandDatagram[4] = value ? 0x01 : 0x00;
     return commandDatagram;
 }

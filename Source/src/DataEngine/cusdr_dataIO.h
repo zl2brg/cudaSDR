@@ -71,9 +71,11 @@ private slots:
 	void setSocketBufferSize(QObject *sender, int value);
 	void displayDataReceiverSocketError(QAbstractSocket::SocketError error);
 	void readDeviceData();
-	void new_readDeviceData();
 
 private:
+	void readDeviceDataP1(QUdpSocket* socket);
+	void readDeviceDataP2(QUdpSocket* socket);
+
 	Settings*		set;
 	QUdpSocket*	    m_dataIOSocket;
     QMap<quint16, QUdpSocket*> m_sockets;

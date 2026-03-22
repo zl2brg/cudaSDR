@@ -217,172 +217,135 @@ void DataIO::initDataReceiverSocket() {
 }
 
 
-void DataIO::new_readDeviceData() {
+void DataIO::readDeviceData() {
     QUdpSocket* socket = qobject_cast<QUdpSocket*>(sender());
-    if (!socket) return;
+    if (!socket || !io->protocol) return;
 
-    qint64  size = 0;
+    if (io->protocol->getHeaderSize() == 16) {
+        readDeviceDataP2(socket);
+    } else {
+        readDeviceDataP1(socket);
+    }
+}
+
+void DataIO::readDeviceDataP1(QUdpSocket* socket) {
     while (socket->hasPendingDatagrams()) {
         QMutexLocker locker(&io->networkIOMutex);
         QHostAddress senderAddress;
         quint16 senderPort = 0;
-        size = socket->readDatagram((char *)m_buffer, sizeof(m_buffer), &senderAddress, &senderPort);
-        if (io->protocol && io->protocol->isPacketValid(m_buffer, size)) {
-            int type = io->protocol->getPacketType(m_buffer);
-            if (type == 0x06 || type == 0x02) { // IQ data (P2=0x06, P1=0x02)
-                m_sequence = io->protocol->getSequence(m_buffer);
+        qint64 size = socket->readDatagram(m_datagram.data(), m_datagram.size(), &senderAddress, &senderPort);
+        if (!io->protocol || !io->protocol->isPacketValid((const unsigned char*)m_datagram.data(), size)) continue;
 
-                if (m_sequence != m_oldSequence + 1) {
-                    if (m_packetLossTime.elapsed() > 100) {
-                        set->setPacketLoss(2);
-                        m_packetLossTime.restart();
-                    }
-                }
-
-                m_oldSequence = m_sequence;
-
-                if (!io->iq_queue.isFull()) {
-                    const int hdrSize = io->protocol->getHeaderSize();
-                    if (hdrSize == 16) { // Protocol 2
-                        // Use the sender's source port to identify the DDC
-                        int ddcIdx = (senderPort >= 1035) ? (int)(senderPort - 1035) : 0;
-                        if (ddcIdx < 0 || ddcIdx >= MAX_RECEIVERS) ddcIdx = 0;
-                        
-                        QByteArray payload(1, (char)(unsigned char)ddcIdx);
-                        payload.append(QByteArray((const char *)&m_buffer[hdrSize], size - hdrSize));
-                        io->iq_queue.enqueue(payload);
-                    } else {
-                        // Protocol 1: No prepended index
-                        io->iq_queue.enqueue(QByteArray((const char *)&m_buffer[io->protocol->getHeaderSize()], size - io->protocol->getHeaderSize()));
-                    }
-                    emit (readydata());
+        int type = io->protocol->getPacketType((const unsigned char*)m_datagram.data());
+        if (type == 0x06 || type == 0x02) { // IQ data (P1 EP6 or EP2 loopback)
+            m_sequence = io->protocol->getSequence((const unsigned char*)m_datagram.data());
+            if (m_sequence != m_oldSequence + 1) {
+                if (m_packetLossTime.elapsed() > 100) {
+                    set->setPacketLoss(2);
+                    m_packetLossTime.restart();
                 }
             }
-            else if (type == 0x05) { // High Priority Status (Protocol 2)
-                io->protocol->decodeCCBytes(QByteArray((const char*)m_buffer, size), io);
+            m_oldSequence = m_sequence;
+
+            if (!io->iq_queue.isFull()) {
+                const int hdrSize = io->protocol->getHeaderSize();
+                io->iq_queue.enqueue(m_datagram.mid(hdrSize, size - hdrSize));
+                emit (readydata());
             }
-            else if (type == 0x04) { // wide band data
+        }
+        else if (type == 0x04) { // wide band data
+            m_sequenceWideBand = io->protocol->getSequence((const unsigned char*)m_datagram.data());
 
-                m_sequenceWideBand = io->protocol->getSequence(m_buffer);
-
-                if (m_sequenceWideBand != m_oldSequenceWideBand + 1) {
-                    DATAIO_DEBUG << "wideband readData missed " << m_sequenceWideBand - m_oldSequenceWideBand << " packages.";
-                    if (m_packetLossTime.elapsed() > 100) {
-                        set->setPacketLoss(2);
-                        m_packetLossTime.restart();
-                    }
+            if (m_sequenceWideBand != m_oldSequenceWideBand + 1) {
+                DATAIO_DEBUG << "wideband readData missed " << m_sequenceWideBand - m_oldSequenceWideBand << " packages.";
+                if (m_packetLossTime.elapsed() > 100) {
+                    set->setPacketLoss(2);
+                    m_packetLossTime.restart();
                 }
+            }
+            m_oldSequenceWideBand = m_sequenceWideBand;
 
-                m_oldSequenceWideBand = m_sequenceWideBand;
+            if ((m_wbBuffers & (m_sequenceWideBand & 0xFF)) == 0) {
+                m_sendEP4 = true;
+                m_wbCount = 0;
+                m_wbDatagram.resize(0);
+            }
 
-                // three 'if's from KISS Konsole
-                if ((m_wbBuffers & (m_sequenceWideBand & 0xFF)) == 0)
-                {
-                    m_sendEP4 = true;
-                    m_wbCount = 0;
-                }
-
-                if (m_sendEP4)
-                {
-                    io->wb_queue.enqueue(QByteArray((const char *)&m_buffer[io->protocol->getHeaderSize()], size - io->protocol->getHeaderSize()));
-                }
-                if (m_wbCount++ == m_wbBuffers)
-                {
+            if (m_sendEP4) {
+                m_wbDatagram.append(m_datagram.mid(io->protocol->getHeaderSize(), size - io->protocol->getHeaderSize()));
+                if (m_wbCount++ == m_wbBuffers) {
                     m_sendEP4 = false;
+                    io->wb_queue.enqueue(m_wbDatagram);
+                    m_wbDatagram.resize(0);
                 }
             }
         }
     }
 }
 
-void DataIO::readDeviceData() {
-    QUdpSocket* socket = qobject_cast<QUdpSocket*>(sender());
-    if (!socket) return;
-
-	while (socket->hasPendingDatagrams()) {
-		QMutexLocker locker(&io->networkIOMutex);
+void DataIO::readDeviceDataP2(QUdpSocket* socket) {
+    while (socket->hasPendingDatagrams()) {
+        QMutexLocker locker(&io->networkIOMutex);
         QHostAddress senderAddress;
         quint16 senderPort = 0;
         qint64 size = socket->readDatagram(m_datagram.data(), m_datagram.size(), &senderAddress, &senderPort);
-		if (io->protocol && io->protocol->isPacketValid((const unsigned char*)m_datagram.data(), size)) {
-            int type = io->protocol->getPacketType((const unsigned char*)m_datagram.data());
-			if (type == 0x06 || type == 0x02) { // IQ data (P2=0x06, P1=0x02)
-				m_sequence = io->protocol->getSequence((const unsigned char*)m_datagram.data());
+        if (!io->protocol || !io->protocol->isPacketValid((const unsigned char*)m_datagram.data(), size)) continue;
 
-				if (m_sequence != m_oldSequence + 1) {
-					if (m_packetLossTime.elapsed() > 100) {
-						set->setPacketLoss(2);
-						m_packetLossTime.restart();
-					}
-				}
+        int type = io->protocol->getPacketType((const unsigned char*)m_datagram.data());
+        if (type == 0x06) { // IQ data (P2)
+            m_sequence = io->protocol->getSequence((const unsigned char*)m_datagram.data());
 
-				m_oldSequence = m_sequence;
-
-                if (!io->iq_queue.isFull()) {
-                    // P2 multi-RX: prepend DDC receiver index so CProtocol2::processInputBuffer()
-                    // can route to the correct RX.  Each DDC sends from a fixed source port:
-                    // DDC0 → 1035, DDC1 → 1036, etc.
-                    const int hdrSize = io->protocol->getHeaderSize();
-                    if (hdrSize == 16) { // Protocol 2
-                        // DDC routing: the sim's rx_thread for DDC N binds its
-                        // socket to port (1035+N) and sends from there, so the
-                        // source port of each IQ packet IS 1035+N.  This is
-                        // identical to how deskhpsdr identifies DDCs.
-                        int ddcIdx = (senderPort >= 1035) ? (int)(senderPort - 1035) : 0;
-                        if (ddcIdx < 0 || ddcIdx >= MAX_RECEIVERS) ddcIdx = 0;
-                        if (++m_p2IqPacketCount <= 5)
-                            DATAIO_DEBUG << "[P2-IQ] packet" << m_p2IqPacketCount
-                                         << "senderPort=" << senderPort
-                                         << "ddcIdx=" << ddcIdx
-                                         << "size=" << size;
-                        QByteArray payload(1, (char)(unsigned char)ddcIdx);
-                        payload.append(m_datagram.mid(hdrSize, size - hdrSize));
-                        io->iq_queue.enqueue(payload);
-                    } else {
-                        // Protocol 1: No prepended index
-                        io->iq_queue.enqueue(m_datagram.mid(hdrSize, size - hdrSize));
-                    }
-                    emit (readydata());
+            if (m_sequence != m_oldSequence + 1) {
+                if (m_packetLossTime.elapsed() > 100) {
+                    set->setPacketLoss(2);
+                    m_packetLossTime.restart();
                 }
             }
-            else if (type == 0x05) { // High Priority Status (Protocol 2)
-                io->protocol->decodeCCBytes(m_datagram.left(size), io);
+            m_oldSequence = m_sequence;
+
+            if (!io->iq_queue.isFull()) {
+                const int hdrSize = io->protocol->getHeaderSize();
+                int ddcIdx = (senderPort >= 1035) ? (int)(senderPort - 1035) : 0;
+                if (ddcIdx < 0 || ddcIdx >= MAX_RECEIVERS) ddcIdx = 0;
+
+                QByteArray payload(1, (char)(unsigned char)ddcIdx);
+                payload.append(m_datagram.mid(hdrSize, size - hdrSize));
+                io->iq_queue.enqueue(payload);
+                emit (readydata());
             }
-            else if (type == 0x04) { // wide band data
-				m_sequenceWideBand = io->protocol->getSequence((const unsigned char*)m_datagram.data());
+        }
+        else if (type == 0x05) { // High Priority Status (P2)
+            io->protocol->decodeCCBytes(m_datagram.left(size), io);
+        }
+        else if (type == 0x04) { // wide band data
+            m_sequenceWideBand = io->protocol->getSequence((const unsigned char*)m_datagram.data());
 
-				if (m_sequenceWideBand != m_oldSequenceWideBand + 1) {
-					DATAIO_DEBUG << "wideband readData missed " << m_sequenceWideBand - m_oldSequenceWideBand << " packages.";
-					if (m_packetLossTime.elapsed() > 100) {
-					    set->setPacketLoss(2);
-					    m_packetLossTime.restart();
-					}
-				}
-				
-				m_oldSequenceWideBand = m_sequenceWideBand;
+            if (m_sequenceWideBand != m_oldSequenceWideBand + 1) {
+                DATAIO_DEBUG << "wideband readData missed " << m_sequenceWideBand - m_oldSequenceWideBand << " packages.";
+                if (m_packetLossTime.elapsed() > 100) {
+                    set->setPacketLoss(2);
+                    m_packetLossTime.restart();
+                }
+            }
 
-				// three 'if's from KISS Konsole
-				if ((m_wbBuffers & (m_sequenceWideBand & 0xFF)) == 0)
-				{						
-					m_sendEP4 = true;
-					m_wbCount = 0;
+            m_oldSequenceWideBand = m_sequenceWideBand;
+
+            if ((m_wbBuffers & (m_sequenceWideBand & 0xFF)) == 0) {
+                m_sendEP4 = true;
+                m_wbCount = 0;
+                m_wbDatagram.resize(0);
+            }
+
+            if (m_sendEP4) {
+                m_wbDatagram.append(m_datagram.mid(io->protocol->getHeaderSize(), size - io->protocol->getHeaderSize()));
+                if (m_wbCount++ == m_wbBuffers) {
+                    m_sendEP4 = false;
+                    io->wb_queue.enqueue(m_wbDatagram);
                     m_wbDatagram.resize(0);
-				}
-
-				if (m_sendEP4)
-				{
-					m_wbDatagram.append(m_datagram.mid(io->protocol->getHeaderSize(), size - io->protocol->getHeaderSize()));
-				    if (m_wbCount++ == m_wbBuffers)
-				    {
-					    // enqueue
-					    m_sendEP4 = false;
-					    io->wb_queue.enqueue(m_wbDatagram);
-					    m_wbDatagram.resize(0);
-				    }
                 }
-			}
-		}
-	}
+            }
+        }
+    }
 }
 
 void DataIO::readData() {
@@ -439,8 +402,16 @@ void DataIO::networkDeviceStartStop(char value) {
 
     if (io->protocol && m_dataIOSocket) {
         quint16 port = DEVICE_PORT;
-        m_commandDatagram = io->protocol->formatStartStop(value, port);
         const bool p2Start = (value != 0) && (io->protocol->getHeaderSize() == 16);
+
+        if (io->protocol->getHeaderSize() == 16) {
+            // Keep periodic HP packets from asserting Run until final start.
+            io->rcveIQ_toggle = false;
+            if (p2Start) {
+                io->ccTx.mox = false;
+                io->ccTx.ptt = false;
+            }
+        }
 
         if (p2Start) {
             DATAIO_DEBUG << "[P2-START] receivers=" << io->receivers
@@ -449,18 +420,14 @@ void DataIO::networkDeviceStartStop(char value) {
             // even if an earlier init was missed during thread/socket bring-up.
             sendInitFramesToNetworkDevice(0);
 
-            // Also push one deterministic control burst immediately so DDC enable
-            // and RX frequency are applied before/with Run=1.
+            // Push deterministic config first (General/DDC/TX), with Run still low.
             unsigned char p2CmdBuf[1444];
             int startupState = 0;
-            for (int i = 0; i < 4; ++i) {
+            for (int i = 0; i < 3; ++i) {
                 quint16 ctlPort = DEVICE_PORT;
                 memset(p2CmdBuf, 0, sizeof(p2CmdBuf));
                 io->protocol->encodeCCBytes(p2CmdBuf, io, startupState, ctlPort);
-                // All P2 command packets to ports 1025-1029 are 1444 bytes per spec.
-                // (Only port 1024 general config is 60 bytes, but that is handled via
-                //  sendInitFramesToNetworkDevice, not here.)
-                const int sendSize = 1444;
+                const int sendSize = (ctlPort == 1024) ? 60 : 1444;
                 qint64 sent = m_dataIOSocket->writeDatagram((const char*)p2CmdBuf, sendSize, metis.ip_address, ctlPort);
                 if (sent < 0)
                     DATAIO_DEBUG << "[P2-START] preburst[" << i << "] port" << ctlPort << "FAILED:" << m_dataIOSocket->errorString();
@@ -478,6 +445,15 @@ void DataIO::networkDeviceStartStop(char value) {
 
             SleeperThread::msleep(15);
         }
+
+        // Generate start/stop command after any P2 startup staging. For P2,
+        // Run is asserted only here at the final start datagram.
+        if (p2Start && io->protocol->getHeaderSize() == 16) {
+            io->rcveIQ_toggle = true;
+        } else if (io->protocol->getHeaderSize() == 16 && value == 0) {
+            io->rcveIQ_toggle = false;
+        }
+        m_commandDatagram = io->protocol->formatStartStop(value, port);
 
 		if (m_dataIOSocket->writeDatagram(m_commandDatagram, metis.ip_address, port) == m_commandDatagram.size()) {
 

@@ -1060,9 +1060,12 @@ bool DataEngine::start() {
 	//m_smeterTime.start();
 
 		// pre-conditioning
-	for (int i = 0; i < io.receivers; i++) {
+	const bool isP2Protocol = (m_protocol && m_protocol->getHeaderSize() == 16);
+	if (!isP2Protocol) {
+		for (int i = 0; i < io.receivers; i++) {
 			m_dataIO->sendInitFramesToNetworkDevice(i);
 		}
+	}
 
     if (m_serverMode == QSDR::SDRMode && set->getWidebandData()) {
 			m_dataIO->networkDeviceStartStop(0x03); // 0x03 for starting the device with wide band data
