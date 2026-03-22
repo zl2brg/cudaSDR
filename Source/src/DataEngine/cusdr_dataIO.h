@@ -60,9 +60,15 @@ public slots:
 	void	initDataReceiverSocket();
 	void	readData();
 	void 	writeData();
+    void    writeDataP1();
+    void    writeDataP2();
 	void 	sendAudio(u_char *buf);
 	void	sendInitFramesToNetworkDevice(int rx);
+    void    sendInitFramesToNetworkDeviceP1(int rx);
+    void    sendInitFramesToNetworkDeviceP2(int rx);
 	void	networkDeviceStartStop(char value);
+    void    networkDeviceStartStopP1(char value);
+    void    networkDeviceStartStopP2(char value);
 	//void	setWidebandBuffers(int value);
 	
 private slots:
@@ -71,10 +77,12 @@ private slots:
 	void setSocketBufferSize(QObject *sender, int value);
 	void displayDataReceiverSocketError(QAbstractSocket::SocketError error);
 	void readDeviceData();
-	void new_readDeviceData();
+    void readDeviceDataP1(QUdpSocket* socket);
+    void readDeviceDataP2(QUdpSocket* socket);
 
 private:
-	Settings*		set;
+    void flushNetworkStack();
+	Settings*               m_settings;
 	QUdpSocket*	    m_dataIOSocket;
     QMap<quint16, QUdpSocket*> m_sockets;
     QMap<quint16, quint16>     m_logicalPorts; // localPort -> logicalPort mapping
@@ -100,6 +108,7 @@ private:
 
 	uint32_t	m_sequence;
 	uint32_t	m_oldSequence;
+	QMap<quint16, uint32_t> m_oldP2IqSequenceByPort;
 	uint32_t	m_sequenceWideBand;
 	uint32_t	m_oldSequenceWideBand;
 	uint32_t	m_sendSequence;

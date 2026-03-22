@@ -2,6 +2,18 @@
 #include "cusdr_dataEngine.h"
 #include "cusdr_settings.h"
 
+namespace {
+// openHPSDR protocol v4.3 allows frequency or phase words; current FPGA builds
+// generally expect phase words when Byte 37 bit[3] is set.
+static quint32 hzToPhaseWord(quint32 frequencyHz) {
+    static const double kDspClockHz = 122880000.0;
+    const double scaled = (4294967296.0 * (double)frequencyHz) / kDspClockHz;
+    if (scaled <= 0.0) return 0;
+    if (scaled >= 4294967295.0) return 0xFFFFFFFFu;
+    return (quint32)scaled;
+}
+}
+
 CProtocol2::CProtocol2() : m_lastSequence(0), m_lastPacketLen(0) {
     memset(m_rxSamplesPerDDC, 0, sizeof(m_rxSamplesPerDDC));
 }
@@ -21,7 +33,12 @@ bool CProtocol2::isPacketValid(const unsigned char* data, int len) {
     // Store len so getPacketType() can use it to distinguish DDC data from
     // High-Priority-Status packets without needing an extra parameter.
     m_lastPacketLen = len;
-    return (len > 4);
+
+    // Protocol 2 packets have very specific fixed lengths:
+    //   60   : High Priority Status (Hardware -> Host)
+    //   1028 : Wideband ADC data
+    //   1444 : DDC IQ data
+    return (len == 60 || len == 1028 || len == 1444);
 }
 
 uint32_t CProtocol2::getSequence(const unsigned char* data) {
@@ -39,11 +56,9 @@ int CProtocol2::getPacketType(const unsigned char* data) {
     //
     // Return 0x06 for IQ data (matches the readDeviceData() check).
     // Return 0x05 for High Priority Status (PC <- SDR).
-    // Return 0x04 for Wideband ADC data:
-    //   16-byte header (4 seq + 12 zeros) + 512 samples x 16-bit = 1040 bytes.
-    // Anything else is ignored.
-    if (m_lastPacketLen == 1040) return 0x04;  // Wideband (16 hdr + 512*2 payload)
-    if (m_lastPacketLen > 1000) return 0x06;
+    // Return 0x04 for Wideband ADC data (default 1028 bytes).
+    if (m_lastPacketLen == 1028) return 0x04;
+    if (m_lastPacketLen > 1040) return 0x06;
     if (m_lastPacketLen == 60) return 0x05;
     return 0xFF;
 }
@@ -62,6 +77,14 @@ void CProtocol2::processInputBuffer(const QByteArray& buffer, DataEngine* de) {
 
     int s = 1; // IQ payload starts after the 1-byte receiver tag
     int samplesInPacket = (buffer.size() - 1) / 6;
+
+    // Instrumentation
+    static int p2AccCount = 0;
+    if (p2AccCount++ < 10) {
+        qDebug() << "[P2-TRACE] processInputBuffer: rx=" << rxIdx 
+                 << "samples=" << samplesInPacket 
+                 << "currentAcc=" << rxSamples;
+    }
 
     for (int i = 0; i < samplesInPacket && s + 6 <= buffer.size(); i++) {
         int iSample = (int)((signed char)buffer.at(s++)) << 16;
@@ -89,7 +112,7 @@ void CProtocol2::decodeCCBytes(const QByteArray& buffer, THPSDRParameter* io) {
     // Per spec v4.3 p.45-48:
     if (buffer.size() < 60) return;
 
-    Settings* set = Settings::instance();
+    Settings* s = Settings::instance();
 
     io->ccRx.previous_dash = io->ccRx.dash;
     io->ccRx.previous_dot  = io->ccRx.dot;
@@ -98,7 +121,7 @@ void CProtocol2::decodeCCBytes(const QByteArray& buffer, THPSDRParameter* io) {
     bool ptt = (buffer.at(4) & 0x01);
     if (ptt != io->ccRx.ptt) {
         io->ccRx.ptt = ptt;
-        set->setRadioState(ptt ? RadioState::MOX : RadioState::RX);
+        s->setRadioState(ptt ? RadioState::MOX : RadioState::RX);
     }
 
     io->ccRx.dot  = (buffer.at(4) & 0x02);
@@ -117,7 +140,7 @@ void CProtocol2::decodeCCBytes(const QByteArray& buffer, THPSDRParameter* io) {
     io->ccRx.mercury4_LT2208 = (adcOvld & 0x08);
 
     if (adcOvld != 0) {
-        set->setADCOverflow(2);
+        s->setADCOverflow(2);
     }
 
     // Bytes 14-15: Forward power Alex0 (16-bit BE)
@@ -144,37 +167,42 @@ void CProtocol2::decodeCCBytes(const QByteArray& buffer, THPSDRParameter* io) {
         Settings::instance()->setSWR(1.0);
     }
 
-    // Bytes 34-35: Temperature (16-bit BE, degrees C x 100)
-    uint16_t tempRaw = qFromBigEndian<uint16_t>(reinterpret_cast<const uchar*>(buffer.constData() + 34));
-    Settings::instance()->setTemperature((double)tempRaw / 100.0);
-
-    // Bytes 36-37: Supply voltage (16-bit BE, millivolts)
-    uint16_t supplyMV = qFromBigEndian<uint16_t>(reinterpret_cast<const uchar*>(buffer.constData() + 36));
+    // Bytes 49-50: Supply voltage (16-bit BE, millivolts)
+    uint16_t supplyMV = qFromBigEndian<uint16_t>(reinterpret_cast<const uchar*>(buffer.constData() + 49));
     io->supplyVolts = (double)supplyMV / 1000.0;
     io->ccRx.ain6 = supplyMV;
     Settings::instance()->setSupplyVoltage(io->supplyVolts);
 
     // Byte 59: IO2,IO4,IO5,IO6,IO8 inputs
     uint8_t inputs = (uint8_t)buffer.at(59);
-    io->ccRx.hermesI01 = !(inputs & 0x01); // Bit 0 is IO2 (active low)
-    io->ccRx.hermesI02 = !(inputs & 0x02); // Bit 1 is IO4
-    io->ccRx.hermesI03 = !(inputs & 0x04); // Bit 2 is IO5
-    io->ccRx.hermesI04 = !(inputs & 0x08); // Bit 3 is IO6
+    io->ccRx.hermesI01 = (inputs & 0x01) != 0; // IO2
+    io->ccRx.hermesI02 = (inputs & 0x02) != 0; // IO4
+    io->ccRx.hermesI03 = (inputs & 0x04) != 0; // IO5
+    io->ccRx.hermesI04 = (inputs & 0x08) != 0; // IO6
+}
+
+void CProtocol2::resetSequences() {
+    m_seqMutex.lock();
+    m_sequences.clear();
+    m_seqMutex.unlock();
 }
 
 void CProtocol2::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& sendState, quint16& port) {
-    Settings* set = Settings::instance();
+    Settings* s = Settings::instance();
     io->mutex.lock();
     // Protocol 2 High Priority and DDC packets must be 1444 bytes.
     // The provided buffer is already 1444 bytes.
     memset(buffer, 0, 1444);
 
-    if (sendState == 0) sendState = 1;
     switch (sendState) {
         case 0: // General Packet (Port 1024)
             port = 1024;
             {
-                uint32_t seq = qToBigEndian(m_sequences[1024]++);
+                uint32_t seq;
+                m_seqMutex.lock();
+                seq = qToBigEndian(m_sequences[1024]++);
+                m_seqMutex.unlock();
+
                 memcpy(buffer, &seq, 4);
                 buffer[4] = 0x00; // Command - General Packet to SDR
                 
@@ -206,17 +234,25 @@ void CProtocol2::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
                 // Bytes 23-59: wideband config / endian / reserved — leave 0.
                 
                 // Other global settings
-                buffer[37] = 0x00; // Time stamping off, VNA off, etc.
+                buffer[37] = 0x08; // Byte 37 bit[3]=1: send frequency fields as phase words
                 buffer[38] = 0x00; // Hardware reset off
                 buffer[39] = 0x00; // Big Endian data format (Bit 0=0)
+
+                // Byte 23: wide_enable
+                buffer[23] = s->getWidebandData() ? 0x01 : 0x00;
             }
             sendState = 1;
+                SleeperThread::msleep(10);
             break;
             
         case 1: // DDC Specific Packet (Port 1025)
             port = 1025;
             {
-                uint32_t seq = qToBigEndian(m_sequences[1025]++);
+                uint32_t seq;
+                m_seqMutex.lock();
+                seq = qToBigEndian(m_sequences[1025]++);
+                m_seqMutex.unlock();
+
                 memcpy(buffer, &seq, 4);
 
                 // Byte 4: Number of ADCs
@@ -226,12 +262,17 @@ void CProtocol2::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
                 // Byte 6: Random enable per ADC
                 // buffer[6] = 0x00;
 
-                // DDC enable bitmask: one bit per DDC (bit 0 = DDC0, bit 1 = DDC1, ...)
-                buffer[7] = (uint8_t)((1 << io->receivers) - 1);
+                // DDC enable bitmask across bytes 7..16 (DDC0..DDC79).
+                const int ddcCount = qBound(0, io->receivers, 80);
+                for (int ddc = 0; ddc < ddcCount; ++ddc) {
+                    const int byteIdx = 7 + (ddc / 8);
+                    const int bit = ddc % 8;
+                    buffer[byteIdx] |= (uint8_t)(1u << bit);
+                }
 
                 // Configure each DDC: 6 bytes starting at buffer[17 + 6*i]
                 //   [0] ADC selection  [1-2] sample rate (BE)  [3-4] sync map  [5] sample size
-                const QList<TReceiver>& rxData = set->getReceiverDataList();
+                const QList<TReceiver>& rxData = s->getReceiverDataList();
                 for (int ddc = 0; ddc < io->receivers && ddc < rxData.size(); ddc++) {
                     int base = 17 + 6 * ddc;
                     uint16_t ddcRate = 48;
@@ -259,25 +300,36 @@ void CProtocol2::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
         case 2: // Transmitter Specific Packet (Port 1026)
             port = 1026;
             {
-                uint32_t seq = qToBigEndian(m_sequences[1026]++);
+                uint32_t seq;
+                m_seqMutex.lock();
+                seq = qToBigEndian(m_sequences[1026]++);
+                m_seqMutex.unlock();
+
                 memcpy(buffer, &seq, 4);
                 buffer[4] = 1; // Number of DACs
                 
                 // DUC 0 settings
-                buffer[5] = 0x00; 
-                if (set->isInternalCw()) buffer[5] |= 0x02; // CW bit
-                if (set->getCwKeyerMode() > 0) buffer[5] |= 0x08; // Iambic bit (rough mapping)
+                buffer[5] = 0x00;
+                if (s->isInternalCw()) buffer[5] |= 0x02; // CW bit
+                if (s->getCwKeyerMode() > 0) buffer[5] |= 0x08; // Iambic bit (rough mapping)
                 
-                buffer[6] = (unsigned char)set->getCwSidetoneVolume();
+                // Byte 6 range per v4.3 is 0..127.
+                buffer[6] = (unsigned char)qBound(0, s->getCwSidetoneVolume(), 127);
                 
-                uint16_t sideToneFreq = qToBigEndian((uint16_t)set->getCwSidetoneFreq());
+                uint16_t sideToneFreq = qToBigEndian((uint16_t)s->getCwSidetoneFreq());
                 memcpy(&buffer[7], &sideToneFreq, 2);
                 
-                buffer[9] = (unsigned char)set->getCwKeyerSpeed();
-                buffer[10] = (unsigned char)set->getCwKeyerWeight();
+                buffer[9] = (unsigned char)s->getCwKeyerSpeed();
+                buffer[10] = (unsigned char)s->getCwKeyerWeight();
                 
-                uint16_t hangDelay = qToBigEndian((uint16_t)set->getCwHangTime());
+                uint16_t hangDelay = qToBigEndian((uint16_t)s->getCwHangTime());
                 memcpy(&buffer[11], &hangDelay, 2);
+
+                // v4.3 fields that should be explicitly populated.
+                uint16_t ducRate = qToBigEndian((uint16_t)192); // 192ksps fixed for current hardware
+                memcpy(&buffer[14], &ducRate, 2);
+                buffer[16] = 24; // 24-bit DUC IQ samples
+                buffer[17] = 0;  // CW ramp period (0 => firmware/app default)
             }
             sendState = 3;
             break;
@@ -286,33 +338,40 @@ void CProtocol2::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
         default:
             port = 1027;
             {
-                // ...existing case 3 body...
-                uint32_t seq = qToBigEndian(m_sequences[1027]++);
+                uint32_t seq;
+                m_seqMutex.lock();
+                seq = qToBigEndian(m_sequences[1027]++);
+                m_seqMutex.unlock();
+
                 memcpy(buffer, &seq, 4);
 
-                buffer[4] = 0x01; // Run bit
+                // Bit 0: Run, Bit 1: PTT0, Bit 2: Dash, Bit 3: CWX
+                buffer[4] = io->rcveIQ_toggle ? 0x01 : 0x00;
                 if (io->ccTx.mox || io->ccTx.ptt) {
                     buffer[4] |= 0x02; // PTT0
                 }
 
                 // DDC RX frequencies: 4 bytes each starting at buffer[9 + 4*i]
                 {
-                    const QList<long>& freqs = set->getCtrFrequencies();
+                    const QList<long>& freqs = s->getCtrFrequencies();
                     for (int ddc = 0; ddc < io->receivers && ddc < freqs.size(); ddc++) {
-                        uint32_t freq = qToBigEndian((uint32_t)freqs.at(ddc));
-                        memcpy(&buffer[9 + 4 * ddc], &freq, 4);
+                        uint32_t phaseWord = qToBigEndian(hzToPhaseWord((quint32)freqs.at(ddc)));
+                        memcpy(&buffer[9 + 4 * ddc], &phaseWord, 4);
                     }
                 }
 
-                // DUC0 TX frequency (buffer[333-336])
-                uint32_t txfreq = qToBigEndian((uint32_t)set->getCtrFrequencies().at(0));
-                memcpy(&buffer[333], &txfreq, 4);
+                // DUC0 TX frequency (buffer[329-332])
+                if (s->getCtrFrequencies().size() > 0) {
+                    uint32_t txPhaseWord = qToBigEndian(hzToPhaseWord((quint32)s->getCtrFrequencies().at(0)));
+                    memcpy(&buffer[329], &txPhaseWord, 4);
+                }
 
                 // DUC0 drive level (buffer[345], scale 0-100 to 0-255)
                 int drive = qBound(0, (int)io->ccTx.drivelevel, 100);
                 buffer[345] = (unsigned char)((drive * 255) / 100);
             }
             sendState = 1; // cycle back to DDC Specific
+                SleeperThread::msleep(10);
             break;
     }
     
@@ -322,15 +381,29 @@ void CProtocol2::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
 QByteArray CProtocol2::formatStartStop(char value, quint16& port) {
     // Protocol 2 High Priority Data Packet (PC → SDR, Port 1027)
     // The spec and the hpsdrsim both require this packet to be exactly 1444 bytes.
-    // The hpsdrsim highprio_thread does `if (rc != 1444) { break; }` and exits
-    // if it gets anything shorter, so the run bit is never seen and RX never starts.
     port = 1027;
     QByteArray commandDatagram(1444, '\0');
-    commandDatagram[4] = value ? 0x01 : 0x00;
+    unsigned char* buffer = reinterpret_cast<unsigned char*>(commandDatagram.data());
+
+    // Sequence (big-endian)
+    uint32_t seq;
+    m_seqMutex.lock();
+    seq = qToBigEndian(m_sequences[1027]++);
+    m_seqMutex.unlock();
+    memcpy(buffer, &seq, 4);
+    Settings* s = Settings::instance();
+    buffer[4] = value ? 0x01 : 0x00;
+    const QList<long>& freqs = s->getCtrFrequencies();
+    for (int ddc = 0; ddc < MAX_RECEIVERS && ddc < freqs.size(); ddc++) {
+        uint32_t phaseWord = qToBigEndian(hzToPhaseWord((quint32)freqs.at(ddc)));
+        memcpy(&buffer[9 + 4 * ddc], &phaseWord, 4);
+    }
+
     return commandDatagram;
 }
 
 QByteArray CProtocol2::formatInitFrame(int rx, THPSDRParameter* io, quint16& port) {
+    Q_UNUSED(io)
     // Protocol 2 General Configuration Packet (PC → SDR, port 1024, 60 bytes).
     // Must be sent before setting the Run bit so the device knows which ports
     // to use for each data stream.  sendInitFramesToNetworkDevice() calls us
@@ -348,7 +421,10 @@ QByteArray CProtocol2::formatInitFrame(int rx, THPSDRParameter* io, quint16& por
     QByteArray pkt(60, 0);
 
     // Bytes 0-3: sequence number (0 for first packet)
-    uint32_t seq = qToBigEndian(m_sequences[1024]++);
+    uint32_t seq;
+    m_seqMutex.lock();
+    seq = qToBigEndian(m_sequences[1024]++);
+    m_seqMutex.unlock();
     memcpy(pkt.data(), &seq, 4);
 
     // Byte 4: 0x00 = General Packet to SDR
@@ -389,59 +465,38 @@ QByteArray CProtocol2::formatInitFrame(int rx, THPSDRParameter* io, quint16& por
 
     // Bytes 21-22: Wideband ADC0 source port (0 = use default 1027).
     // pkt[21..22] already 0.
-
+    pkt[23] = Settings::instance()->getWidebandData() ? 0x01 : 0x00;
     // Byte 23: wide_enable = 1 → request wideband ADC data from device.
     // Bytes 24-25: wide_len = 0 → device default (512 samples/packet).
     // Byte 26: wide_size = 0 → device default (16 bits/sample).
     // Bytes 27-59: wide_rate, ppf, endian, reserved — leave 0.
-    pkt[23] = 1;
 
     return pkt;
 }
 
-QByteArray CProtocol2::formatOutputPacket(const QByteArray& audioData, uint32_t& sequence) {
+QByteArray CProtocol2::formatOutputPacket(const QByteArray& audioData, uint32_t& /*sequence*/) {
     // Protocol 2 DUC IQ packet (PC → SDR, port 1029) — exactly 1444 bytes:
     //   Bytes 0-3  : sequence number (big-endian uint32)
     //   Bytes 4-1443: 240 × 6 bytes — I(3 bytes) Q(3 bytes), 24-bit signed big-endian
     //
-    // Source: P1 output_buffer (512 bytes, IO_BUFFER_SIZE):
-    //   Bytes 0-7:     Metis/P1 header (8 bytes, not used here)
-    //   Bytes 8+n*8+0,+1 : L RX audio  (unused for TX)
-    //   Bytes 8+n*8+2,+3 : R RX audio  (unused for TX)
-    //   Bytes 8+n*8+4,+5 : TX I  (16-bit signed big-endian)
-    //   Bytes 8+n*8+6,+7 : TX Q  (16-bit signed big-endian)
-    //   63 samples total: (512 - 8) / 8 = 63
-    //
-    // 16→24-bit conversion: [hi, lo, 0x00] preserves sign and scales correctly.
-    // Samples 63-239 are zero-padded (silent) since we only have 63 per call.
+    // The provided audioData is already framed correctly by DataProcessor::setAudioBufferP2
+    // as exactly 1440 bytes of 24-bit IQ samples.
 
-    const int NUM_P2_SAMPLES = 240;           // hpsdrsim tx_thread expects exactly this
-    const int P1_HEADER      = 8;             // IO_HEADER_SIZE
-    const int P1_SAMPLE_BYTES= 8;             // L(2)+R(2)+I(2)+Q(2)
-    const int P1_SAMPLES     = 63;            // (512 - 8) / 8
-
-    QByteArray pkt(4 + NUM_P2_SAMPLES * 6, '\0');
+    QByteArray pkt(1444, '\0');
     unsigned char* p = reinterpret_cast<unsigned char*>(pkt.data());
 
     // Sequence (big-endian)
-    uint32_t seq = qToBigEndian(sequence);
+    uint32_t seq;
+    m_seqMutex.lock();
+    seq = qToBigEndian(m_sequences[1029]++);
+    m_seqMutex.unlock();
     memcpy(p, &seq, 4);
-    p += 4;
 
-    const unsigned char* src = reinterpret_cast<const unsigned char*>(audioData.constData());
-    const int nSamples = (audioData.size() >= P1_HEADER)
-                         ? qMin((audioData.size() - P1_HEADER) / P1_SAMPLE_BYTES, P1_SAMPLES)
-                         : 0;
-
-    for (int i = 0; i < nSamples; ++i) {
-        const unsigned char* s = src + P1_HEADER + i * P1_SAMPLE_BYTES;
-        // TX I at byte-offset +4,+5; TX Q at +6,+7
-        p[0] = s[4]; p[1] = s[5]; p[2] = 0x00;  // I: hi, lo, 0
-        p[3] = s[6]; p[4] = s[7]; p[5] = 0x00;  // Q: hi, lo, 0
-        p += 6;
+    // Copy the 1440-byte DUC payload
+    int copySize = qMin(audioData.size(), 1440);
+    if (copySize > 0) {
+        memcpy(p + 4, audioData.constData(), copySize);
     }
-    // Bytes beyond nSamples*6 are already zero-initialised.
 
-    sequence++;
     return pkt;
 }
