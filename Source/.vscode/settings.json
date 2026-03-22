@@ -31,6 +31,10 @@
         "/^git restore src/DataEngine/CProtocol2\\.cpp src/DataEngine/cusdr_dataEngine\\.cpp src/DataEngine/cusdr_dataEngine\\.h$/": {
             "approve": true,
             "matchCommandLine": true
+        },
+        "/^\\(command -v pdftotext >/dev/null && pdftotext -layout src/P2_Protocol_V4\\.3\\.pdf - \\| sed -n '1,260p'\\) \\|\\| \\(echo 'pdftotext not found'; strings src/P2_Protocol_V4\\.3\\.pdf \\| sed -n '1,260p'\\)$/": {
+            "approve": true,
+            "matchCommandLine": true
         }
     }
 }

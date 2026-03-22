@@ -136,6 +136,7 @@ public slots:
 
 	bool	initDataEngine();
 	void	stop();
+    bool    isNetworkDeviceRunning() const { return m_networkDeviceRunning; }
 	void 	setWbSpectrumAveraging(QObject*, int rx, int value);
 
 
@@ -424,16 +425,24 @@ private slots:
 	void	processOutputBuffer(const CPX &buffer);
 	void	decodeCCBytes(const QByteArray &buffer);
 	void	encodeCCBytes();
+	void    encodeCCBytesP1();
+	void    encodeCCBytesP2();
 	void	setOutputBuffer(int rx, const CPX &buffer);
 	void 	setAudioBuffer(int rx, const CPX &buffer, int buffersize);
-    void    send_hpsdr_data(int rx, const CPX &buffer, int buffersize);
-    void 	setAudioBuffer_old(int rx, const CPX &buffer, int buffersize);
+	void    setAudioBufferP1(int rx, const CPX &buffer, int buffersize);
+	void    setAudioBufferP2(int rx, const CPX &buffer, int buffersize);
+	void    send_hpsdr_data(int rx, const CPX &buffer, int buffersize);
+	void 	setAudioBuffer_old(int rx, const CPX &buffer, int buffersize);
 	void	writeData();
-    void    buffer_tx_data();
-    void    key_down(int);
-    void    key_down_test(int,int);
+	void    writeDataP1();
+	void    writeDataP2();
+	void    buffer_tx_data();
+	void    key_down(int);
+	void    key_down_test(int,int);
 
-	
+	void full_txBuffer();
+	void full_txBufferP1();
+	void full_txBufferP2();
 private:
 	DataEngine*		de;
 	Settings*		set;
@@ -443,7 +452,6 @@ private:
 	QSDR::_HWInterfaceMode	m_hwInterface;
 	QSDR::_DataEngineState	m_dataEngineState;
 
-	QHostAddress	m_deviceAddress;
 	QMutex			m_mutex;
 	QMutex			m_spectrumMutex;
     uchar           m_tx_iq_Buffer[DSP_SAMPLE_SIZE * 4];
@@ -470,6 +478,7 @@ private:
 	int				m_bytes;
 	int				m_chirpSamples;
 	int				m_idx;
+    int             m_p2Idx;
 	int				m_sendState;
 	int				m_chirpStartSample;
     CPX             m_iq_output_buffer;
@@ -497,8 +506,6 @@ private:
     void    add_mic_sample();
     void    add_audio_sample(qint16 leftAudioSample, qint16 rightAudioSample);
     void    add_tx_iq_sample(double i, double q);
-
-    void full_txBuffer();
 
     void fetch_MicData();
 

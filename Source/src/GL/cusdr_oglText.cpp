@@ -90,7 +90,7 @@ void OGLTextPrivate::allocateTexture() {
 
     QImage image(TEXTURE_SIZE, TEXTURE_SIZE, QImage::Format_ARGB32);
     image.fill(Qt::transparent);
-    image.convertToFormat(QImage::Format_RGBA8888).flipped();
+    image = image.convertToFormat(QImage::Format_RGBA8888).flipped();
     glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
     //glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, TEXTURE_SIZE, TEXTURE_SIZE, 0, GL_RGBA, GL_UNSIGNED_BYTE, image.bits());
     glTexImage2D(GL_TEXTURE_2D, 0, GL_ALPHA, TEXTURE_SIZE, TEXTURE_SIZE, 0, GL_RGBA, GL_UNSIGNED_BYTE, image.bits());

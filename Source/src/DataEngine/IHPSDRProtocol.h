@@ -27,6 +27,8 @@ public:
     virtual QByteArray formatInitFrame(int rx, THPSDRParameter* io, quint16& port) = 0;
     virtual QByteArray formatOutputPacket(const QByteArray& audioData, uint32_t& sequence) = 0;
 
+    virtual void resetSequences() = 0;
+
     // Hardware specific
     virtual int getPayloadSize() = 0;
     virtual int getHeaderSize() = 0;

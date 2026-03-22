@@ -125,6 +125,11 @@ void CProtocol1::processInputBuffer(const QByteArray& buffer, DataEngine* de) {
     }
 }
 
+void CProtocol1::resetSequences() {
+    m_rxSamples = 0;
+    m_fwCount = 0;
+}
+
 void CProtocol1::decodeCCBytes(const QByteArray& buffer, THPSDRParameter* io) {
     Settings* set = Settings::instance();
     io->ccRx.previous_dash = io->ccRx.dash;
@@ -479,7 +484,7 @@ QByteArray CProtocol1::formatInitFrame(int rx, THPSDRParameter* io, quint16& por
 
 QByteArray CProtocol1::formatOutputPacket(const QByteArray& audioData, uint32_t& sequence) {
     QByteArray outDatagram;
-    uint32_t outseq = qFromBigEndian(sequence);
+    uint32_t outseq = qToBigEndian(sequence);
     outDatagram.resize(0);
     outDatagram += m_deviceSendDataSignature;
     QByteArray seq(reinterpret_cast<const char*>(&outseq), sizeof(outseq));

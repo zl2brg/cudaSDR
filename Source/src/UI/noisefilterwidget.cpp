@@ -19,11 +19,10 @@ NoiseFilterWidget::NoiseFilterWidget(QWidget *parent)
         //, m_waterColorScheme(set->getWaterfallColorScheme())
     , m_minimumWidgetWidth(set->getMinimumWidgetWidth())
     , m_minimumGroupBoxWidth(set->getMinimumGroupBoxWidth())
-
-    , m_btnSpacing(5)
     , m_rx(set->getCurrentReceiver())
-    , m_mouseOver(false)
+    , m_btnSpacing(5)
     , ui(new Ui::NoiseFilterWidget)
+    , m_mouseOver(false)
 
 {
     setContentsMargins(4, 0, 4, 0);

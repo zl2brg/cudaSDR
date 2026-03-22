@@ -22,6 +22,8 @@ public:
     QByteArray formatInitFrame(int rx, THPSDRParameter* io, quint16& port) override;
     QByteArray formatOutputPacket(const QByteArray& audioData, uint32_t& sequence) override;
 
+    void resetSequences() override;
+
     int getPayloadSize() override { return BUFFER_SIZE; }
     int getHeaderSize() override { return METIS_HEADER_SIZE; }
     QList<quint16> getRequiredPorts() override;

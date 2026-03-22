@@ -4,6 +4,8 @@
 #include "IHPSDRProtocol.h"
 #include <QtEndian>
 
+#include <QMutex>
+
 class CProtocol2 : public IHPSDRProtocol {
 public:
     CProtocol2();
@@ -20,6 +22,8 @@ public:
     QByteArray formatStartStop(char value, quint16& port) override;
     QByteArray formatInitFrame(int rx, THPSDRParameter* io, quint16& port) override;
     QByteArray formatOutputPacket(const QByteArray& audioData, uint32_t& sequence) override;
+
+    void resetSequences() override;
 
     int getPayloadSize() override { return 1428; } // 1444-byte DDC packet minus 16-byte header
     // Protocol 2 DDC data packet header (per spec v4.3 p.51):
@@ -42,6 +46,7 @@ private:
     // without interfering with each other's fill state.
     int m_rxSamplesPerDDC[MAX_RECEIVERS];
     QMap<quint16, uint32_t> m_sequences;
+    mutable QMutex m_seqMutex;
     // Stored by isPacketValid() and read by getPacketType() to discriminate
     // between DDC-data packets (large) and High-Priority-Status packets (small).
     mutable int m_lastPacketLen;

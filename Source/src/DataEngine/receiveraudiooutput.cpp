@@ -59,6 +59,6 @@ void ReceiverAudioOutput::writeAudio(const QVector<float>& audioBuffer)
 
     qint64 written = m_device->write(pcm);
     if (written != pcm.size()) {
-        qWarning() << "Audio output underrun: tried to write" << pcm.size() << "bytes, wrote" << written;
+        // qWarning() << "Audio output underrun: tried to write" << pcm.size() << "bytes, wrote" << written;
     }
 }

@@ -233,6 +233,13 @@ void Receiver::stop() {
 void Receiver::dspProcessing() {
     if (inQueue.isEmpty()) return;
 
+    // Instrumentation
+    static int rxDspCount = 0;
+    if (rxDspCount++ < 10) {
+        RECEIVER_DEBUG << "[RX-TRACE] dspProcessing: rx=" << m_receiver 
+                       << "queueCount=" << inQueue.count();
+    }
+
 	{
 		QMutexLocker locker(&m_mutex);
 		if (m_rateTransitionDropBuffers > 0) {

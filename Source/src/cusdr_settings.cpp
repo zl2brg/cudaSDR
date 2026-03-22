@@ -1644,7 +1644,6 @@ int Settings::saveSettings() {
         settings->setValue("server/mic_source", "penelope");
 
     settings->setValue("mic_InputDevice",m_micInputDev);
-    qDebug() << "Write" << m_micInputDev;
     settings->setValue("digital_audio_InputDevice", m_digitalAudioInputDev);
     settings->setValue("micGain", m_micGain);
     settings->setValue("driveLevel",m_drivelevel);

@@ -6,6 +6,7 @@
 
 #include "cusdr_dataEngine.h"
 #include "cusdr_WidebandProcessor.h"
+#include "IHPSDRProtocol.h"
 
 void AudioOutProcessor::processDeviceData() {
 
@@ -133,30 +134,32 @@ void WideBandDataProcessor::processWideBandData() {
 }
 
 void WideBandDataProcessor::processWideBandInputBuffer(const QByteArray &buffer) {
-	int size;
-	short sample;
-	double sampledouble;
-	//if (m_mercuryFW > 32 || m_hermesFW > 16)
-	if (io->mercuryFW > 32 || io->hermesFW > 11)
-		size = 2 * BIGWIDEBANDSIZE;
-	else
-		size = 2 * SMALLWIDEBANDSIZE;
+        int size;
+        short sample;
+        double sampledouble;
 
-	qint64 length = buffer.length();
-	if (buffer.length() != size) {
+    const bool isP2 = (io->protocol && io->protocol->getHeaderSize() == 16);
 
-		WIDEBAND_PROCESSOR_DEBUG << "wrong wide band buffer length: " << length << "size " << size <<  "ver " << io->hermesFW ;
-		return;
-	}
-	for (int i = 0; i < length; i += 2) {
-		sample = (short) ((buffer.at(i + 1) << 8)  + (short)(buffer.at(i) & 0xFF));
-		sampledouble=(double)sample/32767.0;
-		cpxWBIn[i/2].re = sampledouble;
-		cpxWBIn[i/2].im = 0.0;
-	}
-	getSpectrumData();
+        // Protocol 2 or high-version P1 firmware
+        if (isP2 || io->mercuryFW > 32 || io->hermesFW > 11)
+                size = 2 * BIGWIDEBANDSIZE;
+        else
+                size = 2 * SMALLWIDEBANDSIZE;
+
+        qint64 length = buffer.length();
+        if (buffer.length() != size) {
+
+                WIDEBAND_PROCESSOR_DEBUG << "wrong wide band buffer length: " << length << "size " << size <<  "ver " << io->hermesFW ;
+                return;
+        }
+        for (int i = 0; i < length; i += 2) {
+                sample = (short) ((buffer.at(i + 1) << 8) | (buffer.at(i) & 0xFF));
+                sampledouble=(double)sample/32767.0;
+                cpxWBIn[i/2].re = sampledouble;
+                cpxWBIn[i/2].im = 0.0;
+        }
+        getSpectrumData();
 }
-
 void WideBandDataProcessor::getSpectrumData(){
 	int spectrumDataReady;
 
