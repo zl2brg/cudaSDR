@@ -116,6 +116,7 @@ private:
 	
 	QVector<qreal>					m_panadapterBins;
 	QVarLengthArray<TGL_ubyteRGBA>	m_waterfallPixel;
+	QVarLengthArray<TGL_ubyteRGBA>	m_waterfallFramePixel;
 
 	QQueue<QVector<float> >			specAv_queue;
 
@@ -223,6 +224,7 @@ private:
 	GLfloat		m_blueGrid;
 	
 	unsigned int timer;
+	GLuint		m_waterfallTextureId;
 
 	int			m_bigHeight;
 	int			m_bigWidth;

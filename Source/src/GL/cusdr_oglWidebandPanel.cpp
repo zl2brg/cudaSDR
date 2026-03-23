@@ -32,6 +32,7 @@
 
 
 #include <QDebug>
+#include <QGuiApplication>
 #include <QScreen>
 #include <QWindow>
 
@@ -72,7 +73,8 @@ QGLWidebandPanel::QGLWidebandPanel(QWidget *parent)
 	setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
     setAutoFillBackground(false);
-    setUpdateBehavior(QOpenGLWidget::PartialUpdate);
+	const bool isWayland = QGuiApplication::platformName().contains("wayland", Qt::CaseInsensitive);
+	setUpdateBehavior(isWayland ? QOpenGLWidget::NoPartialUpdate : QOpenGLWidget::PartialUpdate);
 	
 	setMouseTracking(true);
 	//setFocusPolicy(Qt::StrongFocus);

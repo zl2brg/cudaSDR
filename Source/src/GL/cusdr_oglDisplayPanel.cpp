@@ -28,6 +28,8 @@
 
 #include "cusdr_oglDisplayPanel.h"
 
+#include <QGuiApplication>
+
 //#include <QtGui>
 //#include <QDebug>
 //#include <QFileInfo>
@@ -90,7 +92,8 @@ OGLDisplayPanel::OGLDisplayPanel(QWidget *parent)
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     setAutoFillBackground(false);
     setMouseTracking(true);
-    setUpdateBehavior(QOpenGLWidget::PartialUpdate);
+	const bool isWayland = QGuiApplication::platformName().contains("wayland", Qt::CaseInsensitive);
+	setUpdateBehavior(isWayland ? QOpenGLWidget::NoPartialUpdate : QOpenGLWidget::PartialUpdate);
         m_freqStringLeftPos = 20;
         setupDisplayRegions(size());
         dpr = devicePixelRatioF();

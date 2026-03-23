@@ -31,6 +31,9 @@
 
 #include "cusdr_oglReceiverPanel.h"
 
+#include <QGuiApplication>
+#include <cstring>
+
 //#include <QtGui>
 //#include <QDebug>
 //#include <QFileInfo>
@@ -99,7 +102,8 @@ QGLReceiverPanel::QGLReceiverPanel(QWidget *parent, int rx)
 	//, m_freqRulerPosition(0.5)
 {
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    setUpdateBehavior(QOpenGLWidget::PartialUpdate);
+	const bool isWayland = QGuiApplication::platformName().contains("wayland", Qt::CaseInsensitive);
+	setUpdateBehavior(isWayland ? QOpenGLWidget::NoPartialUpdate : QOpenGLWidget::PartialUpdate);
 	//setAutoBufferSwap(true);
 	setAutoFillBackground(false);
 
@@ -188,6 +192,7 @@ QGLReceiverPanel::QGLReceiverPanel(QWidget *parent, int rx)
 	m_oglTextHuge = new OGLText(m_fonts.hugeFont, dpr);
 
 	timer = 0;
+	m_waterfallTextureId = 0;
 
 	setupConnections();
 
@@ -299,6 +304,14 @@ QGLReceiverPanel::~QGLReceiverPanel() {
 
 		delete m_secScaleWaterfallFBO;
         m_secScaleWaterfallFBO = nullptr;
+	}
+
+	if (m_waterfallTextureId != 0) {
+
+		makeCurrent();
+		glDeleteTextures(1, &m_waterfallTextureId);
+		m_waterfallTextureId = 0;
+		doneCurrent();
 	}
 
     while (!specAv_queue.isEmpty())
@@ -1355,6 +1368,77 @@ void QGLReceiverPanel::drawWaterfall() {
 
 	// check for framebuffer objects
 	if (set->getFBOPresence()) {
+		const bool useDirectWaylandPath = QGuiApplication::platformName().contains("wayland", Qt::CaseInsensitive);
+
+		if (useDirectWaylandPath) {
+
+			if (m_dataEngineState == QSDR::DataEngineUp) {
+
+				const int frameSize = width * height;
+				if (width > 0 && height > 0 && (m_waterfallUpdate || m_waterfallFramePixel.size() != frameSize)) {
+
+					m_waterfallFramePixel.clear();
+					m_waterfallFramePixel.resize(frameSize);
+
+					TGL_ubyteRGBA black;
+					black.red = 0; black.green = 0; black.blue = 0; black.alpha = 255;
+
+					for (int i = 0; i < frameSize; ++i)
+						m_waterfallFramePixel[i] = black;
+
+					m_waterfallLineCnt = 0;
+					m_waterfallUpdate = false;
+				}
+
+				if (frameSize > 0 && m_waterfallFramePixel.size() == frameSize) {
+
+					if (height > 1) {
+						std::memmove(
+							m_waterfallFramePixel.data() + width,
+							m_waterfallFramePixel.data(),
+							sizeof(TGL_ubyteRGBA) * width * (height - 1));
+					}
+
+					std::memcpy(
+						m_waterfallFramePixel.data(),
+						m_waterfallPixel.data(),
+						sizeof(TGL_ubyteRGBA) * width);
+
+					if (m_waterfallTextureId == 0)
+						glGenTextures(1, &m_waterfallTextureId);
+
+					GLint oldTex;
+					glGetIntegerv(GL_TEXTURE_BINDING_2D, &oldTex);
+
+					glBindTexture(GL_TEXTURE_2D, m_waterfallTextureId);
+					glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+					glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+					glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+					glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+					glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, m_waterfallFramePixel.data());
+
+					glEnable(GL_TEXTURE_2D);
+					glBegin(GL_QUADS);
+						glTexCoord2f(0, 0); glVertex2i(left,         top);
+						glTexCoord2f(1, 0); glVertex2i(left + width, top);
+						glTexCoord2f(1, 1); glVertex2i(left + width, top + height);
+						glTexCoord2f(0, 1); glVertex2i(left,         top + height);
+					glEnd();
+					glDisable(GL_TEXTURE_2D);
+
+					glBindTexture(GL_TEXTURE_2D, oldTex);
+
+					m_waterfallLineCnt++;
+					if (m_waterfallLineCnt > height) m_waterfallLineCnt = height;
+				}
+			}
+			else {
+
+				drawGLRect(m_waterfallRect, Qt::black);
+			}
+
+			return;
+		}
 	
 		// create the FBOs if not exist
 		if (!m_textureFBO || !m_waterfallLineFBO || !m_waterfallFBO || m_waterfallUpdate) {
@@ -1395,6 +1479,26 @@ void QGLReceiverPanel::drawWaterfall() {
 				//if (m_textureFBO)
 				//GRAPHICS_DEBUG << "m_textureFBO generated.";
 				
+				// Avoid linear filtering shimmer when shifting by single-pixel rows.
+				glBindTexture(GL_TEXTURE_2D, m_waterfallLineFBO->texture());
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+				glBindTexture(GL_TEXTURE_2D, m_waterfallFBO->texture());
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+				glBindTexture(GL_TEXTURE_2D, m_textureFBO->texture());
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+				glBindTexture(GL_TEXTURE_2D, 0);
+
 			}	
 			else {
 			
@@ -1425,7 +1529,9 @@ void QGLReceiverPanel::drawWaterfall() {
 			glGetIntegerv(GL_TEXTURE_BINDING_2D, &oldTex);
 
 			m_waterfallLineFBO->bind();
-			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, m_waterfallPixel.data());
+			glBindTexture(GL_TEXTURE_2D, m_waterfallLineFBO->texture());
+			glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, 1, GL_RGBA, GL_UNSIGNED_BYTE, m_waterfallPixel.data());
+			glBindTexture(GL_TEXTURE_2D, oldTex);
 			m_waterfallLineFBO->release();
 
 			m_waterfallLineCnt++;
@@ -1476,8 +1582,9 @@ void QGLReceiverPanel::drawWaterfall() {
 
 			glDisable(GL_TEXTURE_2D);
 			glPopAttrib();
-            glViewport(0, 0, size().width(), size().height());
-            setProjectionOrthographic(size().width(), size().height());
+			const qreal dprNow = devicePixelRatioF();
+			glViewport(0, 0, (GLsizei)(size().width() * dprNow), (GLsizei)(size().height() * dprNow));
+			setProjectionOrthographic(size().width(), size().height());
 
 			if (m_waterfallLineCnt < height) {
 
@@ -1486,9 +1593,9 @@ void QGLReceiverPanel::drawWaterfall() {
 			}
             m_waterfallFBO->release();
 
-			// copy the next waterfall image to the waterfall FBO
-        QRect copyRect(0, 0, width, height);
-        QOpenGLFramebufferObject::blitFramebuffer(m_waterfallFBO, copyRect, m_textureFBO, copyRect);
+			// Avoid an extra blit/copy pass: the newly rendered frame is already in
+			// m_textureFBO, so swap roles for the next draw/update cycle.
+			qSwap(m_waterfallFBO, m_textureFBO);
 
 
 		}

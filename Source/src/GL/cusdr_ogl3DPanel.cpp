@@ -7,6 +7,8 @@
 */
 
 #include "cusdr_ogl3DPanel.h"
+
+#include <QGuiApplication>
 #include <QDebug>
 #include <QtMath>
 #include <QDateTime>
@@ -105,7 +107,8 @@ QGL3DPanel::QGL3DPanel(QWidget *parent, int rx)
     
     // Match the 2D receiver panel settings exactly
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    setUpdateBehavior(QOpenGLWidget::PartialUpdate);
+    const bool isWayland = QGuiApplication::platformName().contains("wayland", Qt::CaseInsensitive);
+    setUpdateBehavior(isWayland ? QOpenGLWidget::NoPartialUpdate : QOpenGLWidget::PartialUpdate);
     setAutoFillBackground(false);
 
     // Don't use a timer - make it fully data-driven like the 2D receiver panel
