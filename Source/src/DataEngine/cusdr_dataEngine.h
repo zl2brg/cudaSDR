@@ -420,7 +420,7 @@ public slots:
 
 private slots:
 	void	initDataProcessorSocket();
-	void	processInputBuffer(const QByteArray &buffer);
+	void	processInputBuffer(const QByteArray &buffer, quint16 sourcePort);
 	void	processOutputBuffer(const CPX &buffer);
 	void	decodeCCBytes(const QByteArray &buffer);
 	void	encodeCCBytes();

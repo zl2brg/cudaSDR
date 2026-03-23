@@ -1838,7 +1838,7 @@ void DataEngine::stopDataProcessor() {
 		if (m_serverMode == QSDR::SDRMode ) {
 			
 			if (io.iq_queue.isEmpty()) {
-				io.iq_queue.enqueue(QByteArray(BUFFER_SIZE, 0x0));
+				io.iq_queue.enqueue(TIQPacket(QByteArray(BUFFER_SIZE, 0x0), 0));
 			}
 		}
 
@@ -2813,8 +2813,8 @@ void DataProcessor::processDeviceData() {
 	DATA_PROCESSOR_DEBUG << "Data Processor thread: " << this->thread();
 	forever {
 
-		QByteArray buf = de->io.iq_queue.dequeue();
-		processInputBuffer(buf);
+		TIQPacket packet = de->io.iq_queue.dequeue();
+		processInputBuffer(packet.payload, packet.sourcePort);
 
 		if (de->io.iq_queue.isFull()) {
 			DATA_PROCESSOR_DEBUG << "IQ queue full!";
@@ -2829,9 +2829,9 @@ void DataProcessor::processDeviceData() {
 }
 
 
-void DataProcessor::processInputBuffer(const QByteArray &buffer) {
+void DataProcessor::processInputBuffer(const QByteArray &buffer, quint16 sourcePort) {
     if (de->m_protocol) {
-        de->m_protocol->processInputBuffer(buffer, de);
+		de->m_protocol->processInputBuffer(buffer, de, sourcePort);
         if (de->io.ccRx.dash != de->io.ccRx.previous_dash) emit keyer_event(0, de->io.ccRx.dash);
         if (de->io.ccRx.dot != de->io.ccRx.previous_dot) emit keyer_event(1, de->io.ccRx.dot);
     }
@@ -3627,14 +3627,15 @@ void DataEngine::radioStateChange(RadioState state) {
 void DataProcessor::processReadData()
 {
 	static quint64 p2ReadDataPackets = 0;
-    QByteArray buf;
+	TIQPacket packet;
     while(!de->io.iq_queue.isEmpty()) {
-      buf = de->io.iq_queue.dequeue();
+	  packet = de->io.iq_queue.dequeue();
+	  const QByteArray &buf = packet.payload;
       if (de->io.protocol && de->io.protocol->getHeaderSize() == METIS_HEADER_SIZE) {
           // Protocol 1: each UDP packet carries two 512-byte frames.
           // The payload (1024 bytes) must be split and processed separately.
-          processInputBuffer(buf.left(512));
-          processInputBuffer(buf.mid(512, 512));
+		  processInputBuffer(buf.left(512), 0);
+		  processInputBuffer(buf.mid(512, 512), 0);
       } else {
           // Protocol 2: each DDC port sends one continuous IQ stream per
           // packet.  Pass the entire payload as a single buffer.
@@ -3642,9 +3643,10 @@ void DataProcessor::processReadData()
 		  if ((p2ReadDataPackets % 500) == 1) {
 			  DATA_PROCESSOR_DEBUG << "P2 processReadData packet=" << p2ReadDataPackets
 								   << " size=" << buf.size()
+								   << " sourcePort=" << packet.sourcePort
 								   << " iqQueueRemaining=" << de->io.iq_queue.count();
 		  }
-          processInputBuffer(buf);
+		  processInputBuffer(buf, packet.sourcePort);
       }
     }
 }

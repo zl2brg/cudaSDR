@@ -13,7 +13,7 @@ public:
     uint32_t getSequence(const unsigned char* data) override;
     int getPacketType(const unsigned char* data) override;
 
-    void processInputBuffer(const QByteArray& buffer, DataEngine* de) override;
+    void processInputBuffer(const QByteArray& buffer, DataEngine* de, quint16 sourcePort) override;
     void decodeCCBytes(const QByteArray& buffer, THPSDRParameter* io) override;
     void encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& sendState, quint16& port) override;
 

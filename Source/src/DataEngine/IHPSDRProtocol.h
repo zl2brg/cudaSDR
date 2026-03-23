@@ -18,7 +18,7 @@ public:
     virtual int getPacketType(const unsigned char* data) = 0;
 
     // Data processing
-    virtual void processInputBuffer(const QByteArray& buffer, DataEngine* de) = 0;
+    virtual void processInputBuffer(const QByteArray& buffer, DataEngine* de, quint16 sourcePort) = 0;
     virtual void decodeCCBytes(const QByteArray& buffer, THPSDRParameter* io) = 0;
     virtual void encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& sendState, quint16& port) = 0;
 

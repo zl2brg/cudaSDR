@@ -384,6 +384,21 @@ typedef struct _ccParameterTx {
 
 class IHPSDRProtocol;
 
+typedef struct _iqPacket {
+	QByteArray	payload;
+	quint16		sourcePort;
+
+	_iqPacket()
+		: sourcePort(0)
+	{}
+
+	_iqPacket(const QByteArray &data, quint16 port)
+		: payload(data)
+		, sourcePort(port)
+	{}
+
+} TIQPacket;
+
 typedef struct _hpsdrParameter {
 
 	uchar	control_in[5];
@@ -401,7 +416,7 @@ typedef struct _hpsdrParameter {
 
 	QByteArray				audioDatagram;
 	
-	QHQueue<QByteArray>		iq_queue;
+	QHQueue<TIQPacket>		iq_queue;
 	QHQueue<QByteArray>		au_queue;
 	QHQueue<QByteArray>		wb_queue;
 	QHQueue<QList<qreal> >	data_queue;

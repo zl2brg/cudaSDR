@@ -244,6 +244,7 @@ void DataIO::initDataReceiverSocket() {
             connect(socket, &QUdpSocket::readyRead, this, &DataIO::readDeviceData);
 
             m_sockets[socket->localPort()] = socket;
+            m_socketLogicalPorts[socket] = port;
             if (port == ports.first()) m_dataIOSocket = socket;
             
             DATAIO_DEBUG << "Bound receiver socket to logical port " << port << " (localPort=" << socket->localPort() << ") with buffer size " << newBufferSize;
@@ -289,7 +290,7 @@ void DataIO::readDeviceDataP1(QUdpSocket* socket) {
 
             if (!io->iq_queue.isFull()) {
                 const int hdrSize = io->protocol->getHeaderSize();
-                io->iq_queue.enqueue(m_datagram.mid(hdrSize, size - hdrSize));
+                io->iq_queue.enqueue(TIQPacket(m_datagram.mid(hdrSize, size - hdrSize), 0));
                 emit (readydata());
             }
         }
@@ -348,11 +349,16 @@ void DataIO::readDeviceDataP2(QUdpSocket* socket) {
 
             if (!io->iq_queue.isFull()) {
                 const int hdrSize = io->protocol->getHeaderSize();
-                io->iq_queue.enqueue(m_datagram.mid(hdrSize, size - hdrSize));
+                quint16 effectiveSourcePort = senderPort;
+                if (effectiveSourcePort < 1035 || effectiveSourcePort >= (1035 + MAX_RECEIVERS)) {
+                    effectiveSourcePort = m_socketLogicalPorts.value(socket, socket->localPort());
+                }
+                io->iq_queue.enqueue(TIQPacket(m_datagram.mid(hdrSize, size - hdrSize), effectiveSourcePort));
 
                 if ((p2IqPacketsSeen % 500) == 1) {
                     P2_NET_DEBUG << "P2 IQ enqueue: localPort=" << socket->localPort()
                                  << " senderPort=" << senderPort
+                                 << " effectiveSourcePort=" << effectiveSourcePort
                                  << " size=" << size
                                  << " hdr=" << hdrSize
                                  << " payload=" << (size - hdrSize)

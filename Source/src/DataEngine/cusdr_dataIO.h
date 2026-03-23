@@ -81,6 +81,7 @@ private:
 	Settings*		set;
 	QUdpSocket*	    m_dataIOSocket;
     QMap<quint16, QUdpSocket*> m_sockets;
+	QMap<QUdpSocket*, quint16> m_socketLogicalPorts;
 	//QMutex			m_mutex;
 	QByteArray		m_commandDatagram;
 	QByteArray		m_datagram;

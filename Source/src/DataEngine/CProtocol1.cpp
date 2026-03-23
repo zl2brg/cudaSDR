@@ -48,7 +48,8 @@ QList<quint16> CProtocol1::getRequiredPorts() {
     return { (quint16)Settings::instance()->getMetisPort() };
 }
 
-void CProtocol1::processInputBuffer(const QByteArray& buffer, DataEngine* de) {
+void CProtocol1::processInputBuffer(const QByteArray& buffer, DataEngine* de, quint16 sourcePort) {
+    Q_UNUSED(sourcePort)
     int s = 0;
     int maxSamples;
 
