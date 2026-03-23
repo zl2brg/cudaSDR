@@ -61,6 +61,7 @@ public slots:
 	void	readData();
 	void 	writeData();
 	void 	sendAudio(u_char *buf);
+	qint64	sendProtocol2ControlDatagram(const QByteArray &datagram, const QHostAddress &address, quint16 port);
 	void	sendInitFramesToNetworkDevice(int rx);
 	void	networkDeviceStartStop(char value);
 	//void	setWidebandBuffers(int value);
@@ -75,11 +76,11 @@ private slots:
 private:
 	void readDeviceDataP1(QUdpSocket* socket);
 	void readDeviceDataP2(QUdpSocket* socket);
+	void processWidebandPacket(qint64 size);
 
 	Settings*		set;
 	QUdpSocket*	    m_dataIOSocket;
     QMap<quint16, QUdpSocket*> m_sockets;
-    QMap<quint16, quint16>     m_logicalPorts; // localPort -> logicalPort mapping
 	//QMutex			m_mutex;
 	QByteArray		m_commandDatagram;
 	QByteArray		m_datagram;
@@ -98,7 +99,6 @@ private:
 	bool	m_dataIOSocketOn;
 	bool	m_networkDeviceRunning;
 	bool	m_setNetworkDeviceHeader;
-	int		m_p2IqPacketCount;
 
 	uint32_t	m_sequence;
 	uint32_t	m_oldSequence;

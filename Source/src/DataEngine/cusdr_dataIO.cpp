@@ -53,6 +53,12 @@
 #include <iostream>
 using namespace std;
 
+#ifdef LOG_P2_NETWORK
+#define P2_NET_DEBUG DATAIO_DEBUG
+#else
+#define P2_NET_DEBUG nullDebug()
+#endif
+
 
 DataIO::DataIO(THPSDRParameter *ioData)
 	: QObject()
@@ -62,7 +68,6 @@ DataIO::DataIO(THPSDRParameter *ioData)
 	, m_dataIOSocketOn(false)
 	, m_networkDeviceRunning(false)
 	, m_setNetworkDeviceHeader(true)
-	, m_p2IqPacketCount(0)
 	, m_sequence(0)
 	, m_oldSequence(0xFFFFFFFF)
 	, m_sequenceWideBand(0)
@@ -109,6 +114,13 @@ DataIO::DataIO(THPSDRParameter *ioData)
 }
 
 namespace {
+constexpr int kProtocol1HeaderSize = 8;
+constexpr int kProtocol2HeaderSize = 16;
+constexpr int kPacketTypeP1IqPrimary = 0x06;
+constexpr int kPacketTypeP1IqLoopback = 0x02;
+constexpr int kPacketTypeWideband = 0x04;
+constexpr int kPacketTypeP2HighPriorityStatus = 0x05;
+
 int rxSocketBufferSizeForRate(int sampleRate) {
     switch (sampleRate) {
         case 48000:
@@ -126,6 +138,29 @@ int rxSocketBufferSizeForRate(int sampleRate) {
         default:
             return 16 * 1024;
     }
+}
+
+bool isProtocol2(IHPSDRProtocol* protocol) {
+    return protocol && protocol->getHeaderSize() == kProtocol2HeaderSize;
+}
+
+bool isProtocol1(IHPSDRProtocol* protocol) {
+    return protocol && protocol->getHeaderSize() == kProtocol1HeaderSize;
+}
+
+bool isLocalAddress(const QHostAddress& address) {
+    if (address.isNull() || address.isLoopback()) {
+        return true;
+    }
+
+    const QList<QHostAddress> localAddresses = QNetworkInterface::allAddresses();
+    for (const QHostAddress& localAddress : localAddresses) {
+        if (localAddress == address) {
+            return true;
+        }
+    }
+
+    return false;
 }
 }
 
@@ -155,8 +190,6 @@ void DataIO::stop() {
 
 void DataIO::initDataReceiverSocket() {
 
-    m_p2IqPacketCount = 0; // reset per-session IQ packet log counter
-
     QList<quint16> ports = { DEVICE_PORT };
     if (io->protocol) {
         ports = io->protocol->getRequiredPorts();
@@ -170,7 +203,6 @@ void DataIO::initDataReceiverSocket() {
         }
     }
     m_sockets.clear();
-    m_logicalPorts.clear();
     m_dataIOSocket = nullptr;
 
     int newBufferSize = 16 * 1024;
@@ -182,13 +214,22 @@ void DataIO::initDataReceiverSocket() {
         newBufferSize = rxSocketBufferSizeForRate(io->samplerate);
     }
 
-    const QHostAddress bindAddr(set->getHPSDRDeviceLocalAddr());
+    const bool sameHostProtocol2 = isProtocol2(io->protocol) && isLocalAddress(io->hpsdrDeviceIPAddress);
+    const QHostAddress bindAddr = sameHostProtocol2
+        ? QHostAddress(QHostAddress::AnyIPv4)
+        : QHostAddress(set->getHPSDRDeviceLocalAddr());
+
+    if (sameHostProtocol2) {
+        // On the same host, the simulator binds 1024/1025/1027/1035+ itself.
+        // For P2 it sends all traffic back to the source port of the General
+        // Packet, so we must avoid binding 1024 locally and use one ephemeral
+        // socket for both control and receive.
+        ports = { DEVICE_PORT };
+        DATAIO_DEBUG << "initDataReceiverSocket: same-host Protocol 2 detected; using one ephemeral socket";
+    }
 
     for (quint16 port : ports) {
-        // For local devices use ephemeral port 0 so our packets don't share
-        // port 1024 with the simulator socket.
-        const quint16 bindPort = (port == DEVICE_PORT) ? 0 : port;
-
+        const quint16 bindPort = sameHostProtocol2 ? 0 : port;
         QUdpSocket* socket = new QUdpSocket(this);
         if (socket->bind(bindAddr,
                          bindPort,
@@ -203,12 +244,11 @@ void DataIO::initDataReceiverSocket() {
             connect(socket, &QUdpSocket::readyRead, this, &DataIO::readDeviceData);
 
             m_sockets[socket->localPort()] = socket;
-            m_logicalPorts[socket->localPort()] = port;
             if (port == ports.first()) m_dataIOSocket = socket;
             
             DATAIO_DEBUG << "Bound receiver socket to logical port " << port << " (localPort=" << socket->localPort() << ") with buffer size " << newBufferSize;
         } else {
-            DATAIO_DEBUG << "Failed to bind receiver socket to port " << port << ": " << socket->errorString();
+            DATAIO_DEBUG << "Failed to bind receiver socket to port " << bindPort << " for logical port " << port << ": " << socket->errorString();
             delete socket;
         }
     }
@@ -221,7 +261,7 @@ void DataIO::readDeviceData() {
     QUdpSocket* socket = qobject_cast<QUdpSocket*>(sender());
     if (!socket || !io->protocol) return;
 
-    if (io->protocol->getHeaderSize() == 16) {
+    if (isProtocol2(io->protocol)) {
         readDeviceDataP2(socket);
     } else {
         readDeviceDataP1(socket);
@@ -237,7 +277,7 @@ void DataIO::readDeviceDataP1(QUdpSocket* socket) {
         if (!io->protocol || !io->protocol->isPacketValid((const unsigned char*)m_datagram.data(), size)) continue;
 
         int type = io->protocol->getPacketType((const unsigned char*)m_datagram.data());
-        if (type == 0x06 || type == 0x02) { // IQ data (P1 EP6 or EP2 loopback)
+        if (type == kPacketTypeP1IqPrimary || type == kPacketTypeP1IqLoopback) { // IQ data (P1 EP6 or EP2 loopback)
             m_sequence = io->protocol->getSequence((const unsigned char*)m_datagram.data());
             if (m_sequence != m_oldSequence + 1) {
                 if (m_packetLossTime.elapsed() > 100) {
@@ -253,46 +293,49 @@ void DataIO::readDeviceDataP1(QUdpSocket* socket) {
                 emit (readydata());
             }
         }
-        else if (type == 0x04) { // wide band data
-            m_sequenceWideBand = io->protocol->getSequence((const unsigned char*)m_datagram.data());
-
-            if (m_sequenceWideBand != m_oldSequenceWideBand + 1) {
-                DATAIO_DEBUG << "wideband readData missed " << m_sequenceWideBand - m_oldSequenceWideBand << " packages.";
-                if (m_packetLossTime.elapsed() > 100) {
-                    set->setPacketLoss(2);
-                    m_packetLossTime.restart();
-                }
-            }
-            m_oldSequenceWideBand = m_sequenceWideBand;
-
-            if ((m_wbBuffers & (m_sequenceWideBand & 0xFF)) == 0) {
-                m_sendEP4 = true;
-                m_wbCount = 0;
-                m_wbDatagram.resize(0);
-            }
-
-            if (m_sendEP4) {
-                m_wbDatagram.append(m_datagram.mid(io->protocol->getHeaderSize(), size - io->protocol->getHeaderSize()));
-                if (m_wbCount++ == m_wbBuffers) {
-                    m_sendEP4 = false;
-                    io->wb_queue.enqueue(m_wbDatagram);
-                    m_wbDatagram.resize(0);
-                }
-            }
+        else if (type == kPacketTypeWideband) {
+            processWidebandPacket(size);
         }
     }
 }
 
 void DataIO::readDeviceDataP2(QUdpSocket* socket) {
+    static quint64 p2DatagramsSeen = 0;
+    static quint64 p2IqPacketsSeen = 0;
+    static quint64 p2HpPacketsSeen = 0;
+    static quint64 p2WidePacketsSeen = 0;
+
     while (socket->hasPendingDatagrams()) {
         QMutexLocker locker(&io->networkIOMutex);
         QHostAddress senderAddress;
         quint16 senderPort = 0;
         qint64 size = socket->readDatagram(m_datagram.data(), m_datagram.size(), &senderAddress, &senderPort);
+        ++p2DatagramsSeen;
+
+        if ((p2DatagramsSeen % 500) == 1) {
+            P2_NET_DEBUG << "P2 RX datagram: localPort=" << socket->localPort()
+                         << " sender=" << senderAddress.toString()
+                         << " senderPort=" << senderPort
+                         << " size=" << size
+                         << " total=" << p2DatagramsSeen;
+        }
+
         if (!io->protocol || !io->protocol->isPacketValid((const unsigned char*)m_datagram.data(), size)) continue;
 
-        int type = io->protocol->getPacketType((const unsigned char*)m_datagram.data());
-        if (type == 0x06) { // IQ data (P2)
+        // Protocol 2 simulator may source wideband packets from an ephemeral
+        // UDP source port. Classify by packet size first, then by port.
+        if (size == 1040) { // Wideband ADC packet: 16-byte header + 1024 payload
+            ++p2WidePacketsSeen;
+            if ((p2WidePacketsSeen % 100) == 1) {
+                P2_NET_DEBUG << "P2 wideband: localPort=" << socket->localPort()
+                             << " sender=" << senderAddress.toString()
+                             << " senderPort=" << senderPort
+                             << " wideTotal=" << p2WidePacketsSeen;
+            }
+            processWidebandPacket(size);
+        }
+        else if (size >= 1444) { // DDC IQ packet (typically 1444 bytes)
+            ++p2IqPacketsSeen;
             m_sequence = io->protocol->getSequence((const unsigned char*)m_datagram.data());
 
             if (m_sequence != m_oldSequence + 1) {
@@ -305,45 +348,72 @@ void DataIO::readDeviceDataP2(QUdpSocket* socket) {
 
             if (!io->iq_queue.isFull()) {
                 const int hdrSize = io->protocol->getHeaderSize();
-                int ddcIdx = (senderPort >= 1035) ? (int)(senderPort - 1035) : 0;
-                if (ddcIdx < 0 || ddcIdx >= MAX_RECEIVERS) ddcIdx = 0;
+                io->iq_queue.enqueue(m_datagram.mid(hdrSize, size - hdrSize));
 
-                QByteArray payload(1, (char)(unsigned char)ddcIdx);
-                payload.append(m_datagram.mid(hdrSize, size - hdrSize));
-                io->iq_queue.enqueue(payload);
+                if ((p2IqPacketsSeen % 500) == 1) {
+                    P2_NET_DEBUG << "P2 IQ enqueue: localPort=" << socket->localPort()
+                                 << " senderPort=" << senderPort
+                                 << " size=" << size
+                                 << " hdr=" << hdrSize
+                                 << " payload=" << (size - hdrSize)
+                                 << " queueCount=" << io->iq_queue.count()
+                                 << " iqTotal=" << p2IqPacketsSeen;
+                }
                 emit (readydata());
+            } else {
+                P2_NET_DEBUG << "P2 IQ queue FULL: localPort=" << socket->localPort()
+                             << " senderPort=" << senderPort
+                             << " size=" << size
+                             << " iqTotal=" << p2IqPacketsSeen;
             }
         }
-        else if (type == 0x05) { // High Priority Status (P2)
+        else if (size == 60) { // High Priority Status (P2)
+            ++p2HpPacketsSeen;
+            if ((p2HpPacketsSeen % 100) == 1) {
+                P2_NET_DEBUG << "P2 HP status: localPort=" << socket->localPort()
+                             << " sender=" << senderAddress.toString()
+                             << " senderPort=" << senderPort
+                             << " hpTotal=" << p2HpPacketsSeen;
+            }
             io->protocol->decodeCCBytes(m_datagram.left(size), io);
         }
-        else if (type == 0x04) { // wide band data
-            m_sequenceWideBand = io->protocol->getSequence((const unsigned char*)m_datagram.data());
-
-            if (m_sequenceWideBand != m_oldSequenceWideBand + 1) {
-                DATAIO_DEBUG << "wideband readData missed " << m_sequenceWideBand - m_oldSequenceWideBand << " packages.";
-                if (m_packetLossTime.elapsed() > 100) {
-                    set->setPacketLoss(2);
-                    m_packetLossTime.restart();
-                }
+        else {
+            if ((p2DatagramsSeen % 500) == 1) {
+                P2_NET_DEBUG << "P2 unclassified datagram: localPort=" << socket->localPort()
+                             << " sender=" << senderAddress.toString()
+                             << " senderPort=" << senderPort
+                             << " size=" << size;
             }
+        }
+    }
+}
 
-            m_oldSequenceWideBand = m_sequenceWideBand;
+void DataIO::processWidebandPacket(qint64 size) {
+    if (!io->protocol) return;
+    m_sequenceWideBand = io->protocol->getSequence((const unsigned char*)m_datagram.data());
 
-            if ((m_wbBuffers & (m_sequenceWideBand & 0xFF)) == 0) {
-                m_sendEP4 = true;
-                m_wbCount = 0;
-                m_wbDatagram.resize(0);
-            }
+    if (m_sequenceWideBand != m_oldSequenceWideBand + 1) {
+        DATAIO_DEBUG << "wideband readData missed " << m_sequenceWideBand - m_oldSequenceWideBand << " packages.";
+        if (m_packetLossTime.elapsed() > 100) {
+            set->setPacketLoss(2);
+            m_packetLossTime.restart();
+        }
+    }
+    m_oldSequenceWideBand = m_sequenceWideBand;
 
-            if (m_sendEP4) {
-                m_wbDatagram.append(m_datagram.mid(io->protocol->getHeaderSize(), size - io->protocol->getHeaderSize()));
-                if (m_wbCount++ == m_wbBuffers) {
-                    m_sendEP4 = false;
-                    io->wb_queue.enqueue(m_wbDatagram);
-                    m_wbDatagram.resize(0);
-                }
-            }
+    if ((m_wbBuffers & (m_sequenceWideBand & 0xFF)) == 0) {
+        m_sendEP4 = true;
+        m_wbCount = 0;
+        m_wbDatagram.resize(0);
+    }
+
+    if (m_sendEP4) {
+        const int hdrSize = io->protocol->getHeaderSize();
+        m_wbDatagram.append(m_datagram.mid(hdrSize, size - hdrSize));
+        if (m_wbCount++ == m_wbBuffers) {
+            m_sendEP4 = false;
+            io->wb_queue.enqueue(m_wbDatagram);
+            m_wbDatagram.resize(0);
         }
     }
 }
@@ -396,73 +466,10 @@ void DataIO::networkDeviceStartStop(char value) {
 
 	TNetworkDevicecard metis = set->getCurrentMetisCard();
 
-    DATAIO_DEBUG << "[NDS] called: value=" << (int)(unsigned char)value
-                 << " protocol=" << (io->protocol ? "valid" : "NULL")
-                 << " socket=" << (m_dataIOSocket ? "valid" : "NULL");
-
     if (io->protocol && m_dataIOSocket) {
         quint16 port = DEVICE_PORT;
-        const bool p2Start = (value != 0) && (io->protocol->getHeaderSize() == 16);
-
-        if (io->protocol->getHeaderSize() == 16) {
-            // Keep periodic HP packets from asserting Run until final start.
-            io->rcveIQ_toggle = false;
-            if (p2Start) {
-                io->ccTx.mox = false;
-                io->ccTx.ptt = false;
-            }
-        }
-
-        if (p2Start) {
-            DATAIO_DEBUG << "[P2-START] receivers=" << io->receivers
-                         << " device=" << qPrintable(metis.ip_address.toString());
-            // Re-issue P2 init right before start so DDC/port config is fresh
-            // even if an earlier init was missed during thread/socket bring-up.
-            sendInitFramesToNetworkDevice(0);
-
-            // Push deterministic config first (General/DDC/TX), with Run still low.
-            unsigned char p2CmdBuf[1444];
-            int startupState = 0;
-            for (int i = 0; i < 3; ++i) {
-                quint16 ctlPort = DEVICE_PORT;
-                memset(p2CmdBuf, 0, sizeof(p2CmdBuf));
-                io->protocol->encodeCCBytes(p2CmdBuf, io, startupState, ctlPort);
-                const int sendSize = (ctlPort == 1024) ? 60 : 1444;
-                qint64 sent = m_dataIOSocket->writeDatagram((const char*)p2CmdBuf, sendSize, metis.ip_address, ctlPort);
-                if (sent < 0)
-                    DATAIO_DEBUG << "[P2-START] preburst[" << i << "] port" << ctlPort << "FAILED:" << m_dataIOSocket->errorString();
-                else {
-                    // For DDC Specific (1025), also log the DDC enable bitmask (byte 7)
-                    if (ctlPort == 1025)
-                        DATAIO_DEBUG << "[P2-START] preburst[" << i
-                                     << "] DDC Specific -> port 1025, ddcEnableMask=0x"
-                                     << QByteArray(1, (char)p2CmdBuf[7]).toHex().constData();
-                    else
-                        DATAIO_DEBUG << "[P2-START] preburst[" << i << "] -> port" << ctlPort << "sent" << sent << "bytes";
-                }
-                SleeperThread::msleep(2);
-            }
-
-            SleeperThread::msleep(15);
-        }
-
-        // Generate start/stop command after any P2 startup staging. For P2,
-        // Run is asserted only here at the final start datagram.
-        if (p2Start && io->protocol->getHeaderSize() == 16) {
-            io->rcveIQ_toggle = true;
-        } else if (io->protocol->getHeaderSize() == 16 && value == 0) {
-            io->rcveIQ_toggle = false;
-        }
-        m_commandDatagram = io->protocol->formatStartStop(value, port);
-
+		m_commandDatagram = io->protocol->formatStartStop(value, port);
 		if (m_dataIOSocket->writeDatagram(m_commandDatagram, metis.ip_address, port) == m_commandDatagram.size()) {
-
-            // Some P2 devices/simulators intermittently miss the first run command
-            // during bring-up; a single delayed resend improves startup reliability.
-            if (p2Start) {
-                SleeperThread::msleep(20);
-                m_dataIOSocket->writeDatagram(m_commandDatagram, metis.ip_address, port);
-            }
 
 			if (value != 0) {
 
@@ -481,8 +488,6 @@ void DataIO::networkDeviceStartStop(char value) {
 		}
 		else
 			DATAIO_DEBUG << "device start/stop: sending command to device failed.";
-    } else {
-        DATAIO_DEBUG << "[NDS] SKIPPED: protocol or socket is null";
     }
 }
 
@@ -520,7 +525,7 @@ void DataIO::writeData() {
 
     // Protocol 2: formatOutputPacket returns the complete 1444-byte DUC IQ packet.
     // Send it in a single call to port 1029; bypass the P1 two-call toggle.
-    if (io->protocol->getHeaderSize() != 8) {
+    if (isProtocol2(io->protocol)) {
         QByteArray ducPkt = io->protocol->formatOutputPacket(io->audioDatagram, m_sendSequence);
         static const quint16 DUC_PORT = 1029;
         if (m_dataIOSocket->writeDatagram(ducPkt,
@@ -553,6 +558,17 @@ void DataIO::writeData() {
 		m_oldSendSequence = m_sendSequence;
 		m_setNetworkDeviceHeader = true;
     }
+}
+
+qint64 DataIO::sendProtocol2ControlDatagram(const QByteArray &datagram, const QHostAddress &address, quint16 port) {
+    if (!m_dataIOSocket) {
+        DATAIO_DEBUG << "P2 control send skipped: m_dataIOSocket is null";
+        return -1;
+    }
+    if (datagram.isEmpty()) {
+        return 0;
+    }
+    return m_dataIOSocket->writeDatagram(datagram, address, port);
 }
 
 void DataIO::displayDataReceiverSocketError(QAbstractSocket::SocketError error) {
@@ -654,7 +670,7 @@ void DataIO::setSampleRate(QObject *sender, int value) {
 
 
 void DataIO::set_wbBuffers(int val) {
-    if (io->protocol && io->protocol->getHeaderSize() == 8) { // Protocol 1
+    if (isProtocol1(io->protocol)) { // Protocol 1
         m_wbBuffers = 31; // 32 packets * 1024 bytes = 32768
     } else {
         m_wbBuffers = val - 1;

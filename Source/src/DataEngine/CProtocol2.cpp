@@ -49,19 +49,36 @@ int CProtocol2::getPacketType(const unsigned char* data) {
 }
 
 void CProtocol2::processInputBuffer(const QByteArray& buffer, DataEngine* de) {
+    static quint64 p2ProcessCalls = 0;
+    static quint64 p2DspKickCount = 0;
+    static quint64 p2NoQtWdspCount = 0;
+    static quint64 p2DspInvokeFailCount = 0;
+
     if (buffer.isEmpty()) return;
-    int rxIdx = (unsigned char)buffer.at(0);
-    
-    if (rxIdx < 0 || rxIdx >= de->io.receivers || rxIdx >= de->RX.size())
+    ++p2ProcessCalls;
+    if ((p2ProcessCalls % 500) == 1) {
+        qDebug() << "P2 processInputBuffer call=" << p2ProcessCalls
+                 << " size=" << buffer.size()
+                 << " receivers=" << de->io.receivers
+                 << " rxCount=" << de->RX.count();
+    }
+
+    if (de->io.receivers <= 0 || de->RX.isEmpty()) {
+        if ((p2ProcessCalls % 100) == 1) {
+            qDebug() << "P2 processInputBuffer early-return receivers/rx list";
+        }
         return;
+    }
 
-    Receiver* rx = de->RX.at(rxIdx);
-    if (!rx || !rx->qtwdsp) return;
+    int& rxSamples = m_rxSamplesPerDDC[0];
+    int s = 0; // IQ payload starts at the beginning of the buffer
+    int samplesInPacket = buffer.size() / 6;
 
-    int& rxSamples = m_rxSamplesPerDDC[rxIdx];
-
-    int s = 1; // IQ payload starts after the 1-byte receiver tag
-    int samplesInPacket = (buffer.size() - 1) / 6;
+    if ((p2ProcessCalls % 500) == 1) {
+        qDebug() << "P2 sample accounting: samplesInPacket=" << samplesInPacket
+                 << " rxSamples(before)=" << rxSamples
+                 << " BUFFER_SIZE=" << BUFFER_SIZE;
+    }
 
     for (int i = 0; i < samplesInPacket && s + 6 <= buffer.size(); i++) {
         int iSample = (int)((signed char)buffer.at(s++)) << 16;
@@ -72,13 +89,32 @@ void CProtocol2::processInputBuffer(const QByteArray& buffer, DataEngine* de) {
         qSample |= (int)((unsigned char)buffer.at(s++)) << 8;
         qSample |= (int)((unsigned char)buffer.at(s++));
 
-        rx->inBuf[rxSamples].re = (double)iSample / 8388607.0;
-        rx->inBuf[rxSamples].im = (double)qSample / 8388607.0;
+        if (de->RX.at(0)->qtwdsp) {
+            de->RX[0]->inBuf[rxSamples].re = (double)iSample / 8388607.0;
+            de->RX[0]->inBuf[rxSamples].im = (double)qSample / 8388607.0;
+        } else {
+            ++p2NoQtWdspCount;
+            if ((p2NoQtWdspCount % 1000) == 1) {
+                qDebug() << "P2 RX0 qtwdsp not ready count=" << p2NoQtWdspCount;
+            }
+        }
 
         rxSamples++;
         if (rxSamples == BUFFER_SIZE) {
-            rx->enqueueData();
-            QMetaObject::invokeMethod(rx, "dspProcessing", Qt::BlockingQueuedConnection);
+            if (de->RX.at(0)->qtwdsp) {
+                de->RX[0]->enqueueData();
+                bool invoked = QMetaObject::invokeMethod(de->RX.at(0), "dspProcessing", Qt::BlockingQueuedConnection);
+                ++p2DspKickCount;
+                if ((p2DspKickCount % 100) == 1) {
+                    qDebug() << "P2 DSP kick rx0 count=" << p2DspKickCount << " invoked=" << invoked;
+                }
+                if (!invoked) {
+                    ++p2DspInvokeFailCount;
+                    if ((p2DspInvokeFailCount % 10) == 1) {
+                        qDebug() << "P2 DSP invoke failed count=" << p2DspInvokeFailCount;
+                    }
+                }
+            }
             rxSamples = 0;
         }
     }
@@ -371,7 +407,7 @@ QByteArray CProtocol2::formatInitFrame(int rx, THPSDRParameter* io, quint16& por
     memcpy(pkt.data() + 9, &hpPCPort, 2);
 
     // Bytes 11-12: High Priority to PC port — hardware sends HP status FROM this port (default 1025)
-    // Use 0 to keep the hardware default (port 1025 on the hardware side).
+    // Use 0 to keep the hardware default.
     // pkt[11..12] already 0.
 
     // Bytes 13-14: DDC Audio port — hardware sends audio FROM this port (default 1028)

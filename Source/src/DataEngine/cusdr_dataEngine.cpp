@@ -561,6 +561,21 @@ bool DataEngine::getFirmwareVersions() {
 
 	m_fwCount = 0;
 
+	// Create the protocol object now, before DataIO starts, so that
+	// initDataReceiverSocket() binds the correct ports and readDeviceData()
+	// doesn't drop packets with a null protocol check.
+	if (m_protocol) {
+		delete m_protocol;
+		m_protocol = nullptr;
+	}
+	if (m_hwInterface == QSDR::Metis || m_hwInterface == QSDR::Hermes) {
+		if (set->getCurrentMetisCard().protocol == 2)
+			m_protocol = new CProtocol2();
+		else
+			m_protocol = new CProtocol1();
+	}
+	io.protocol = m_protocol;
+
 	// init receivers
 	int rcvrs = set->getNumberOfReceivers();
 	firstTimeRxInit = rcvrs;
@@ -856,19 +871,23 @@ bool DataEngine::start() {
 	m_fwCount = 0;
 	m_sendState = 0;
 
-    if (m_protocol) {
-        delete m_protocol;
-        m_protocol = nullptr;
-    }
-
-    if (m_hwInterface == QSDR::Metis || m_hwInterface == QSDR::Hermes) {
-        if (set->getCurrentMetisCard().protocol == 2) {
-            m_protocol = new CProtocol2();
-        } else {
-            m_protocol = new CProtocol1();
-        }
-    }
-    io.protocol = m_protocol;
+	// Only (re)create the protocol object if DataIO is not already running.
+	// When getFirmwareVersions() precedes start(), it already created the correct
+	// protocol and set io.protocol.  Deleting it here races with the DataIO
+	// thread which may be actively calling methods on io->protocol.
+	if (!m_dataIO) {
+		if (m_protocol) {
+			delete m_protocol;
+			m_protocol = nullptr;
+		}
+		if (m_hwInterface == QSDR::Metis || m_hwInterface == QSDR::Hermes) {
+			if (set->getCurrentMetisCard().protocol == 2)
+				m_protocol = new CProtocol2();
+			else
+				m_protocol = new CProtocol1();
+		}
+		io.protocol = m_protocol;
+	}
 
 	int rcvrs = set->getNumberOfReceivers();
     if (!m_audioInput) {
@@ -1060,11 +1079,8 @@ bool DataEngine::start() {
 	//m_smeterTime.start();
 
 		// pre-conditioning
-	const bool isP2Protocol = (m_protocol && m_protocol->getHeaderSize() == 16);
-	if (!isP2Protocol) {
-		for (int i = 0; i < io.receivers; i++) {
-			m_dataIO->sendInitFramesToNetworkDevice(i);
-		}
+	for (int i = 0; i < io.receivers; i++) {
+		m_dataIO->sendInitFramesToNetworkDevice(i);
 	}
 
     if (m_serverMode == QSDR::SDRMode && set->getWidebandData()) {
@@ -1077,6 +1093,18 @@ bool DataEngine::start() {
                               << " hwInterface=" << m_hwInterface;
             m_dataIO->networkDeviceStartStop(0x01); // 0x01 for starting the device without wide band data
         }
+
+	// For Protocol 2, keep startup simple and rely on the periodic control timer
+	// to cycle DDC/TX/HP packets continuously, matching the known-good behavior.
+	if (set->getCurrentMetisCard().protocol == 2 && m_dataProcessor) {
+		io.rcveIQ_toggle = true;
+		QMetaObject::invokeMethod(
+			m_dataProcessor,
+			&DataProcessor::startControlTimer,
+			Qt::BlockingQueuedConnection);
+		DATA_ENGINE_DEBUG << "[P2-START] control timer started";
+	}
+
 	m_networkDeviceRunning = true;
 	setSystemState(QSDR::NoError, m_hwInterface, m_serverMode, QSDR::DataEngineUp);
 	set->setSystemMessage("System running", 4000);
@@ -1097,6 +1125,17 @@ void DataEngine::stop() {
 				
 				// turn time stamping off
 				setTimeStamp(this, false);
+
+				// For Protocol 2, stop periodic control traffic before issuing the
+				// final stop command so the simulator does not see interleaved HP
+				// packets with sequence jumps during shutdown.
+				if (set->getCurrentMetisCard().protocol == 2 &&
+					m_dataProcessor && m_dataProcThread && m_dataProcThread->isRunning()) {
+					QMetaObject::invokeMethod(
+						m_dataProcessor,
+						&DataProcessor::stopControlTimer,
+						Qt::BlockingQueuedConnection);
+				}
 
 				// stop the device
 				m_dataIO->networkDeviceStartStop(0);
@@ -1726,8 +1765,6 @@ void DataEngine::createDataProcessor() {
     if (m_controlSocket) {
         m_controlSocket->moveToThread(m_dataProcThread);
     }
-
-    connect(m_dataProcThread, &QThread::started, m_dataProcessor, &DataProcessor::startControlTimer);
 
 	switch (m_hwInterface) {
 
@@ -2449,7 +2486,11 @@ void DataEngine::setClientConnected(QObject* sender, int rx) {
 	else {
 
 		io.sendIQ_toggle = true;
-		io.rcveIQ_toggle = false;
+		// For Protocol 2, clearing rcveIQ_toggle here can immediately drop
+		// the Run bit after startup and prevent RX from ever starting.
+		if (set->getCurrentMetisCard().protocol != 2) {
+			io.rcveIQ_toggle = false;
+		}
 		m_AudioRcvrThread->start();
 	}
 }
@@ -2626,18 +2667,41 @@ void DataProcessor::requestProtocol2DDCUpdate() {
 }
 
 void DataProcessor::requestProtocol2ReceiverSetup() {
-    DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] entry: receivers=" << de->io.receivers
-                         << " device=" << qPrintable(de->io.hpsdrDeviceIPAddress.toString())
-                         << " protocol valid=" << (de->m_protocol != nullptr)
-                         << " controlSocket valid=" << (de->m_controlSocket != nullptr);
     if (!de || !de->m_protocol || !de->m_controlSocket) return;
     if (de->set->getCurrentMetisCard().protocol != 2) return;
+
+	DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] enter: controlSocketLocalPort="
+	                    << de->m_controlSocket->localPort()
+	                    << " device=" << de->io.hpsdrDeviceIPAddress;
+
+	// Keep Run low during setup staging to avoid early HP assertions from
+	// concurrent control paths; raise it only for the explicit start HP packet.
+	de->io.rcveIQ_toggle = false;
 
     unsigned char p2CmdBuf[1444];
     quint16 port = DEVICE_PORT;
 
+	auto sendP2Control = [&](const char *data, int len, quint16 dstPort) -> qint64 {
+		if (de->m_dataIO) {
+			QByteArray dg(data, len);
+			qint64 sent = -1;
+			QMetaObject::invokeMethod(
+				de->m_dataIO,
+				"sendProtocol2ControlDatagram",
+				Qt::BlockingQueuedConnection,
+				Q_RETURN_ARG(qint64, sent),
+				Q_ARG(QByteArray, dg),
+				Q_ARG(QHostAddress, m_deviceAddress),
+				Q_ARG(quint16, dstPort));
+			if (sent >= 0) {
+				return sent;
+			}
+		}
+		return de->m_controlSocket->writeDatagram(data, len, m_deviceAddress, dstPort);
+	};
+
     // 1. Send DDC Specific packet (port 1025) with updated receiver-count/bitmask.
-    int ddcState = 1;
+	int ddcState = 1;
     memset(p2CmdBuf, 0, sizeof(p2CmdBuf));
     de->m_protocol->encodeCCBytes(p2CmdBuf, &de->io, ddcState, port);
     if (port != 1025) {
@@ -2645,32 +2709,93 @@ void DataProcessor::requestProtocol2ReceiverSetup() {
         return;
     }
     m_deviceAddress = de->io.hpsdrDeviceIPAddress;
-    DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] sending DDC Specific -> port 1025, ddcEnableMask=0x"
-                         << QByteArray(1, (char)p2CmdBuf[7]).toHex().constData();
-    qint64 ddcSent = de->m_controlSocket->writeDatagram((const char*)p2CmdBuf, 1444, m_deviceAddress, port);
-    if (ddcSent < 0)
+	qint64 ddcSent = sendP2Control((const char*)p2CmdBuf, 1444, port);
+	if (ddcSent < 0) {
         DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] DDC Specific send FAILED:" << de->m_controlSocket->errorString();
-    else
-        DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] DDC Specific sent" << ddcSent << "bytes OK";
+	} else {
+		DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] DDC Specific sent: bytes=" << ddcSent << " port=" << port;
+	}
 
-    // 2. Send High Priority packet (port 1027) with Run=1 so the simulator
-    //    picks up the new DDC configuration immediately.
-    int hpState = 3;
-    memset(p2CmdBuf, 0, sizeof(p2CmdBuf));
-    de->m_protocol->encodeCCBytes(p2CmdBuf, &de->io, hpState, port);
-    if (port != 1027) {
-        DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] unexpected HP port" << port << "(expected 1027)";
-        return;
-    }
-    DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] sending HP Run=1 -> port 1027, runByte=0x"
-                         << QString::number((unsigned char)p2CmdBuf[4], 16);
-    qint64 hpSent = de->m_controlSocket->writeDatagram((const char*)p2CmdBuf, 1444, m_deviceAddress, port);
-    if (hpSent < 0)
-        DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] HP Run=1 send FAILED:" << de->m_controlSocket->errorString();
-    else
-        DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] HP Run=1 sent" << hpSent << "bytes OK";
+	// 2. Send TX Specific packet (port 1026). Some simulator/device builds
+	// expect the full DDC+TX+HP setup sequence before honoring Run.
+	int txState = 2;
+	memset(p2CmdBuf, 0, sizeof(p2CmdBuf));
+	de->m_protocol->encodeCCBytes(p2CmdBuf, &de->io, txState, port);
+	if (port != 1026) {
+		DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] unexpected TX port" << port << "(expected 1026)";
+		return;
+	}
+	qint64 txSent = sendP2Control((const char*)p2CmdBuf, 60, port);
+	if (txSent < 0) {
+		DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] TX Specific send FAILED:" << de->m_controlSocket->errorString();
+	} else {
+		DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] TX Specific sent: bytes=" << txSent << " port=" << port;
+	}
 
-    DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] done";
+	// 3. Send High Priority packet with Run=0 first so DDC frequencies are
+	// latched before Run is asserted.
+	int hpState = 3;
+	de->io.rcveIQ_toggle = false;
+	memset(p2CmdBuf, 0, sizeof(p2CmdBuf));
+	de->m_protocol->encodeCCBytes(p2CmdBuf, &de->io, hpState, port);
+	if (port != 1027) {
+		DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] unexpected HP port" << port << "(expected 1027)";
+		return;
+	}
+	qint64 hpSentRun0 = sendP2Control((const char*)p2CmdBuf, 1444, port);
+	if (hpSentRun0 < 0) {
+		DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] HP Run=0 send FAILED:" << de->m_controlSocket->errorString();
+	} else {
+		DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] HP Run=0 sent: bytes=" << hpSentRun0 << " port=" << port;
+	}
+
+	// 4. Assert Run=1 as the final startup packet.
+	SleeperThread::msleep(5);
+	de->io.rcveIQ_toggle = true;
+	quint16 runPort = DEVICE_PORT;
+	QByteArray runDatagram = de->m_protocol->formatStartStop(1, runPort);
+	qint64 runSent = sendP2Control(runDatagram.constData(), runDatagram.size(), runPort);
+	if (runSent < 0) {
+		DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] final Run=1 send FAILED on port" << runPort << ":" << de->m_controlSocket->errorString();
+		return;
+	} else {
+		DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] final Run=1 sent: bytes=" << runSent << " port=" << runPort;
+	}
+
+	// The simulator starts DDC/TX receiver threads only after Run=1 is seen.
+	// Re-send DDC/TX setup in a short burst so newly spawned threads reliably
+	// receive and latch enable/rate config.
+	for (int attempt = 0; attempt < 20; ++attempt) {
+		SleeperThread::msleep(50);
+
+		int ddcResendState = 1;
+		port = DEVICE_PORT;
+		memset(p2CmdBuf, 0, sizeof(p2CmdBuf));
+		de->m_protocol->encodeCCBytes(p2CmdBuf, &de->io, ddcResendState, port);
+		if (port == 1025) {
+			qint64 ddcSent2 = sendP2Control((const char*)p2CmdBuf, 1444, port);
+			if (ddcSent2 < 0) {
+				DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] post-run DDC send FAILED (attempt" << (attempt + 1) << "):" << de->m_controlSocket->errorString();
+			} else {
+				DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] post-run DDC sent: bytes=" << ddcSent2 << " port=" << port << " attempt=" << (attempt + 1);
+			}
+		}
+
+		int txResendState = 2;
+		port = DEVICE_PORT;
+		memset(p2CmdBuf, 0, sizeof(p2CmdBuf));
+		de->m_protocol->encodeCCBytes(p2CmdBuf, &de->io, txResendState, port);
+		if (port == 1026) {
+			qint64 txSent2 = sendP2Control((const char*)p2CmdBuf, 60, port);
+			if (txSent2 < 0) {
+				DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] post-run TX send FAILED (attempt" << (attempt + 1) << "):" << de->m_controlSocket->errorString();
+			} else {
+				DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] post-run TX sent: bytes=" << txSent2 << " port=" << port << " attempt=" << (attempt + 1);
+			}
+		}
+	}
+
+	DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] complete";
 }
 
 void DataProcessor::initDataProcessorSocket() {
@@ -3278,8 +3403,23 @@ void DataProcessor::encodeCCBytes() {
             //   port 1026 (DUC Specific) :   60 bytes
             //   port 1027 (HP Data)      : 1444 bytes
             const int sendSize = (port == 1025 || port == 1027) ? 1444 : 60;
-            if (de->m_controlSocket->writeDatagram((const char*)p2CmdBuf, sendSize, m_deviceAddress, port) < 0) {
-                DATA_PROCESSOR_DEBUG << "error sending control data to device: " << de->m_controlSocket->errorString();
+			qint64 sent = -1;
+			if (de->m_dataIO) {
+				QByteArray dg((const char*)p2CmdBuf, sendSize);
+				QMetaObject::invokeMethod(
+					de->m_dataIO,
+					"sendProtocol2ControlDatagram",
+					Qt::BlockingQueuedConnection,
+					Q_RETURN_ARG(qint64, sent),
+					Q_ARG(QByteArray, dg),
+					Q_ARG(QHostAddress, m_deviceAddress),
+					Q_ARG(quint16, port));
+			}
+			if (sent < 0 && de->m_controlSocket) {
+				sent = de->m_controlSocket->writeDatagram((const char*)p2CmdBuf, sendSize, m_deviceAddress, port);
+			}
+			if (sent < 0) {
+				DATA_PROCESSOR_DEBUG << "error sending control data to device";
             }
         } else {
             de->m_protocol->encodeCCBytes(de->io.output_buffer, &de->io, m_sendState, port);
@@ -3486,6 +3626,7 @@ void DataEngine::radioStateChange(RadioState state) {
 
 void DataProcessor::processReadData()
 {
+	static quint64 p2ReadDataPackets = 0;
     QByteArray buf;
     while(!de->io.iq_queue.isEmpty()) {
       buf = de->io.iq_queue.dequeue();
@@ -3497,6 +3638,12 @@ void DataProcessor::processReadData()
       } else {
           // Protocol 2: each DDC port sends one continuous IQ stream per
           // packet.  Pass the entire payload as a single buffer.
+		  ++p2ReadDataPackets;
+		  if ((p2ReadDataPackets % 500) == 1) {
+			  DATA_PROCESSOR_DEBUG << "P2 processReadData packet=" << p2ReadDataPackets
+								   << " size=" << buf.size()
+								   << " iqQueueRemaining=" << de->io.iq_queue.count();
+		  }
           processInputBuffer(buf);
       }
     }

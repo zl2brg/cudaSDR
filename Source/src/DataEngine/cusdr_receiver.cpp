@@ -231,7 +231,24 @@ void Receiver::stop() {
 }
 
 void Receiver::dspProcessing() {
-    if (inQueue.isEmpty()) return;
+	static quint64 dspEntryCount = 0;
+	static quint64 dspEmptyQueueCount = 0;
+
+	++dspEntryCount;
+	if ((dspEntryCount % 100) == 1) {
+		RECEIVER_DEBUG << "dspProcessing entry rx=" << m_receiver
+					   << " count=" << dspEntryCount
+					   << " inQueue=" << inQueue.count();
+	}
+
+	if (inQueue.isEmpty()) {
+		++dspEmptyQueueCount;
+		if ((dspEmptyQueueCount % 100) == 1) {
+			RECEIVER_DEBUG << "dspProcessing empty inQueue rx=" << m_receiver
+						   << " emptyCount=" << dspEmptyQueueCount;
+		}
+		return;
+	}
 
 	{
 		QMutexLocker locker(&m_mutex);

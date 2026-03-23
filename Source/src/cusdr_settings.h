@@ -470,7 +470,7 @@ typedef struct _hpsdrParameter {
 
 	qint16		audiofileChannels;
 
-    IHPSDRProtocol* protocol;
+    IHPSDRProtocol* protocol = NULL;
 
 } THPSDRParameter;
 
