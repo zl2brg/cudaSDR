@@ -198,6 +198,9 @@ void CProtocol1::decodeCCBytes(const QByteArray& buffer, THPSDRParameter* io) {
 				io->alexForwardVolts = (qreal)(3.3 * (qreal)io->ccRx.ain1 / 4095.0);
 				io->alexForwardPower = (qreal)(io->alexForwardVolts * io->alexForwardVolts / 0.09);
 				set->setForwardPower(io->alexForwardPower);
+			} else if (set->getPenelopePresence() || (set->getHWInterface() == QSDR::Hermes)) {
+				// No Alex: report Penelope/Hermes PA forward power from AIN5
+				set->setForwardPower(io->penelopeForwardPower);
 			}
             break;
 
@@ -264,7 +267,8 @@ void CProtocol1::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
     		rxOut = (rxAnt > 0) ? 1 : 0;
     		io->control_out[3] = (io->ccTx.alexStates.at(io->ccTx.currentBand) >> 7);
     		io->control_out[3] &= 0xFB; // 1 1 1 1 1 0 1 1
-    		io->control_out[3] |= (io->ccTx.mercuryAttenuator << 2);
+    		// mercuryAttenuator: 0=0dB (preamp on), >0=attenuated (preamp off). C3 bit2=1 = preamp on.
+    		io->control_out[3] |= ((io->ccTx.mercuryAttenuator == 0) ? 1 : 0) << 2;
     		io->control_out[3] &= 0xF7; // 1 1 1 1 0 1 1 1
     		io->control_out[3] |= (io->ccTx.dither << 3);
     		io->control_out[3] &= 0xEF; // 1 1 1 0 1 1 1 1

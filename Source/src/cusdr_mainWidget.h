@@ -276,7 +276,9 @@ private:
     QActionGroup	*mercuryAttnActionGroup;
     QActionGroup	*alexAttnActionGroup;
     QAction			*mercuryAttn_0dBAction;
+    QAction			*mercuryAttn_10dBAction;
     QAction			*mercuryAttn_20dBAction;
+    QAction			*mercuryAttn_30dBAction;
     QAction			*alexAttn_0dBAction;
     QAction			*alexAttn_10dBAction;
     QAction			*alexAttn_20dBAction;

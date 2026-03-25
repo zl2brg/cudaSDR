@@ -1255,13 +1255,22 @@ void MainWindow::createAttenuatorMenu() {
 //	attenuatorMenu->setStyleSheet(set->getMenuStyle());
 	attenuatorBtn->setMenu(attenuatorMenu);
 
-	mercuryAttn_0dBAction = attenuatorMenu->addAction(tr("Mercury Attn 0 dB"));
+	// Step attenuator options (0=0dB, 1=10dB, 2=20dB, 3=30dB)
+	mercuryAttn_0dBAction = attenuatorMenu->addAction(tr("Step Att 0 dB"));
 	mercuryAttn_0dBAction->setCheckable(true);
 	mercuryAttnActionList.append(mercuryAttn_0dBAction);
 
-	mercuryAttn_20dBAction = attenuatorMenu->addAction(tr("Mercury Attn -20 dB"));
+	mercuryAttn_10dBAction = attenuatorMenu->addAction(tr("Step Att -10 dB"));
+	mercuryAttn_10dBAction->setCheckable(true);
+	mercuryAttnActionList.append(mercuryAttn_10dBAction);
+
+	mercuryAttn_20dBAction = attenuatorMenu->addAction(tr("Step Att -20 dB"));
 	mercuryAttn_20dBAction->setCheckable(true);
 	mercuryAttnActionList.append(mercuryAttn_20dBAction);
+
+	mercuryAttn_30dBAction = attenuatorMenu->addAction(tr("Step Att -30 dB"));
+	mercuryAttn_30dBAction->setCheckable(true);
+	mercuryAttnActionList.append(mercuryAttn_30dBAction);
 
 	attenuatorMenu->addSeparator();
 	alexAttn_0dBAction = attenuatorMenu->addAction(tr("Alex Attn 0 dB"));
@@ -1281,21 +1290,16 @@ void MainWindow::createAttenuatorMenu() {
 	alexAttnActionList.append(alexAttn_30dBAction);
 
     if (mercuryAttn_0dBAction->isCheckable()) {
-
-		CHECKED_CONNECT(
-			mercuryAttn_0dBAction,
-			SIGNAL(triggered(bool)),
-			this,
-			SLOT(setAttenuator()));
+		CHECKED_CONNECT(mercuryAttn_0dBAction, SIGNAL(triggered(bool)), this, SLOT(setAttenuator()));
 	}
-
-    if (mercuryAttn_20dBAction->isCheckable()) {
-
-		CHECKED_CONNECT(
-			mercuryAttn_20dBAction,
-			SIGNAL(triggered(bool)),
-			this,
-			SLOT(setAttenuator()));
+	if (mercuryAttn_10dBAction->isCheckable()) {
+		CHECKED_CONNECT(mercuryAttn_10dBAction, SIGNAL(triggered(bool)), this, SLOT(setAttenuator()));
+	}
+	if (mercuryAttn_20dBAction->isCheckable()) {
+		CHECKED_CONNECT(mercuryAttn_20dBAction, SIGNAL(triggered(bool)), this, SLOT(setAttenuator()));
+	}
+	if (mercuryAttn_30dBAction->isCheckable()) {
+		CHECKED_CONNECT(mercuryAttn_30dBAction, SIGNAL(triggered(bool)), this, SLOT(setAttenuator()));
 	}
 
     if (alexAttn_0dBAction->isCheckable()) {
@@ -1988,88 +1992,42 @@ void MainWindow::setAttenuator() {
 
 	if (mercuryPos > -1) {
 
-		foreach(QAction *act, mercuryAttnActionList) {
-
+		foreach(QAction *act, mercuryAttnActionList)
 			act->setChecked(false);
-		}
 		mercuryAttnActionList.at(mercuryPos)->setChecked(true);
-
-		switch (mercuryPos) {
-
-			case 0:
-
-				//attenuatorBtn->setText(tr("Attn 0 dB"));
-				//attenuatorBtn->setBtnState(AeroButton::OFF);
-
-				set->setMercuryAttenuator(this, 1);
-				break;
-
-			case 1:
-
-				//attenuatorBtn->setText(tr("Attn -20 dB"));
-				//attenuatorBtn->setBtnState(AeroButton::ON);
-
-				set->setMercuryAttenuator(this, 0);
-				break;
-		}
+		// Direct mapping: list index == step-attenuator value (0=0dB, 1=10dB, 2=20dB, 3=30dB)
+		set->setMercuryAttenuator(this, mercuryPos);
 	}
 
 	if (alexPos > -1) {
 
-		foreach(QAction *act, alexAttnActionList) {
+		foreach(QAction *act, alexAttnActionList)
 			act->setChecked(false);
-		}
 		alexAttnActionList.at(alexPos)->setChecked(true);
 
 		int state = 0;
-		state &= 0x7F; // 0 0 1 1 1 1 1 1 1
+		state &= 0x7F;
 		state |= alexPos << 7;
 
 		set->setAlexState(this, state);
 	}
 
-	if (mercuryAttnActionList.at(0)->isChecked()) {
-
-		if (alexAttnActionList.at(0)->isChecked()) {
-
+	// Compute total attenuation (step att + Alex att) for button label
+	{
+		int stepDb = 0;
+		for (int i = 0; i < mercuryAttnActionList.size(); i++)
+			if (mercuryAttnActionList.at(i)->isChecked()) { stepDb = i * 10; break; }
+		int alexDb = 0;
+		for (int i = 0; i < alexAttnActionList.size(); i++)
+			if (alexAttnActionList.at(i)->isChecked()) { alexDb = i * 10; break; }
+		int totalDb = stepDb + alexDb;
+		if (totalDb == 0) {
 			attenuatorBtn->setText(tr("Attn 0 dB"));
 			attenuatorBtn->setBtnState(AeroButton::OFF);
-		}
-		else if (alexAttnActionList.at(1)->isChecked()) {
-
-			attenuatorBtn->setText(tr("Attn -10 dB"));
+		} else {
+			attenuatorBtn->setText(tr("Attn -%1 dB").arg(totalDb));
 			attenuatorBtn->setBtnState(AeroButton::ON);
 		}
-		else if (alexAttnActionList.at(2)->isChecked()) {
-
-			attenuatorBtn->setText(tr("Attn -20 dB"));
-			attenuatorBtn->setBtnState(AeroButton::ON);
-		}
-		else if (alexAttnActionList.at(3)->isChecked()) {
-
-			attenuatorBtn->setText(tr("Attn -30 dB"));
-			attenuatorBtn->setBtnState(AeroButton::ON);
-		}
-	}
-	else if (mercuryAttnActionList.at(1)->isChecked()) {
-
-		if (alexAttnActionList.at(0)->isChecked()) {
-
-			attenuatorBtn->setText(tr("Attn -20 dB"));
-		}
-		else if (alexAttnActionList.at(1)->isChecked()) {
-
-			attenuatorBtn->setText(tr("Attn -30 dB"));
-		}
-		else if (alexAttnActionList.at(2)->isChecked()) {
-
-			attenuatorBtn->setText(tr("Attn -40 dB"));
-		}
-		else if (alexAttnActionList.at(3)->isChecked()) {
-
-			attenuatorBtn->setText(tr("Attn -50 dB"));
-		}
-		attenuatorBtn->setBtnState(AeroButton::ON);
 	}
 }
 
@@ -2078,67 +2036,24 @@ void MainWindow::setAttenuatorButton() {
 	foreach(QAction *act, mercuryAttnActionList) act->setChecked(false);
 	foreach(QAction *act, alexAttnActionList) act->setChecked(false);
 
-	if (m_mercuryAttnState == 1) {
+	// m_mercuryAttnState: 0=0dB, 1=10dB, 2=20dB, 3=30dB  (direct step-att value)
+	int stepDb = qBound(0, m_mercuryAttnState, 3) * 10;
+	int alexDb  = qBound(0, m_alexAttnState,   3) * 10;
+	int totalDb = stepDb + alexDb;
 
-		mercuryAttnActionList.at(0)->setChecked(true);
+	if (m_mercuryAttnState >= 0 && m_mercuryAttnState < mercuryAttnActionList.size())
+		mercuryAttnActionList.at(m_mercuryAttnState)->setChecked(true);
 
-		switch (m_alexAttnState) {
+	if (m_alexAttnState >= 0 && m_alexAttnState < alexAttnActionList.size())
+		alexAttnActionList.at(m_alexAttnState)->setChecked(true);
 
-			case 0:
-
-				attenuatorBtn->setText(tr("Attn 0 dB"));
-				attenuatorBtn->setBtnState(AeroButton::OFF);
-				break;
-
-			case 1:
-
-				attenuatorBtn->setText(tr("Attn -10 dB"));
-				attenuatorBtn->setBtnState(AeroButton::ON);
-				break;
-
-			case 2:
-
-				attenuatorBtn->setText(tr("Attn -20 dB"));
-				attenuatorBtn->setBtnState(AeroButton::ON);
-				break;
-
-			case 3:
-
-				attenuatorBtn->setText(tr("Attn -30 dB"));
-				attenuatorBtn->setBtnState(AeroButton::ON);
-				break;
-		}
-	}
-	else if (m_mercuryAttnState == 0) {
-
-		mercuryAttnActionList.at(1)->setChecked(true);
-		switch (m_alexAttnState) {
-
-			case 0:
-
-				attenuatorBtn->setText(tr("Attn -20 dB"));
-				break;
-
-			case 1:
-
-				attenuatorBtn->setText(tr("Attn -30 dB"));
-				break;
-
-			case 2:
-
-				attenuatorBtn->setText(tr("Attn -40 dB"));
-				break;
-
-			case 3:
-
-				attenuatorBtn->setText(tr("Attn -50 dB"));
-				break;
-		}
+	if (totalDb == 0) {
+		attenuatorBtn->setText(tr("Attn 0 dB"));
+		attenuatorBtn->setBtnState(AeroButton::OFF);
+	} else {
+		attenuatorBtn->setText(tr("Attn -%1 dB").arg(totalDb));
 		attenuatorBtn->setBtnState(AeroButton::ON);
 	}
-
-	if (m_alexAttnState > -1)
-		alexAttnActionList.at(m_alexAttnState)->setChecked(true);
 }
 
 void MainWindow::mercuryAttenuatorChanged(QObject *sender, HamBand band, int value) {

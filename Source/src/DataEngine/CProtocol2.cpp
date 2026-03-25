@@ -203,13 +203,13 @@ void CProtocol2::decodeCCBytes(const QByteArray& buffer, THPSDRParameter* io) {
         set->setADCOverflow(2);
     }
 
-    // Bytes 14-15: Forward power Alex0 (16-bit BE)
-    uint16_t fwdPwrRaw = qFromBigEndian<uint16_t>(reinterpret_cast<const uchar*>(buffer.constData() + 14));
+    // Bytes 6-7: AIN1 — Forward power ADC (Alex0 fwd / Hermes PA fwd, 12-bit, 16-bit BE)
+    uint16_t fwdPwrRaw = qFromBigEndian<uint16_t>(reinterpret_cast<const uchar*>(buffer.constData() + 6));
     io->ccRx.ain1 = fwdPwrRaw;
-    io->alexForwardVolts = (double)fwdPwrRaw * (3.3 / 4095.0); // Assume 12-bit ADC referenced to 3.3V
+    io->alexForwardVolts = (double)fwdPwrRaw * (3.3 / 4095.0);
 
-    // Bytes 22-23: Reverse power Alex0 (16-bit BE)
-    uint16_t revPwrRaw = qFromBigEndian<uint16_t>(reinterpret_cast<const uchar*>(buffer.constData() + 22));
+    // Bytes 8-9: AIN2 — Reverse power ADC (Alex0 rev / Hermes PA rev, 12-bit, 16-bit BE)
+    uint16_t revPwrRaw = qFromBigEndian<uint16_t>(reinterpret_cast<const uchar*>(buffer.constData() + 8));
     io->ccRx.ain2 = revPwrRaw;
     io->alexReverseVolts = (double)revPwrRaw * (3.3 / 4095.0);
     io->alexForwardPower = io->alexForwardVolts * io->alexForwardVolts / 0.09;
