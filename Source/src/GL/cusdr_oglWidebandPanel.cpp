@@ -803,28 +803,22 @@ void QGLWidebandPanel::drawVerticalScale() {
                 m_dBmScaleFBO = nullptr;
 			}
 
-            m_dBmScaleFBO = new QOpenGLFramebufferObject(width * dpr,  height * dpr);
+            m_dBmScaleFBO = new QOpenGLFramebufferObject(width, height);
 		}
 
-		// Save & set viewport manually (no glPushAttrib)
-		GLint savedViewport[4];
-		glGetIntegerv(GL_VIEWPORT, savedViewport);
-
-        glViewport(0, 0, width * dpr , height * dpr);
         setProjectionOrthographic(width, height);
 
 		m_dBmScaleFBO->bind();
 			renderVerticalScale();
 		m_dBmScaleFBO->release();
 
-		// Restore viewport
-		glViewport(savedViewport[0], savedViewport[1], savedViewport[2], savedViewport[3]);
         setProjectionOrthographic(size().width(), size().height());
-		
+
 		m_dBmScaleUpdate = false;
 		m_dBmScaleRenew = false;
 	}
 
+	glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
 	renderTexture(m_dBmScaleRect, m_dBmScaleFBO->texture(), 0.0f);
 }
 
@@ -870,6 +864,7 @@ void QGLWidebandPanel::drawHorizontalScale() {
 		m_freqScaleRenew = false;
 	}
 	
+	glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
 	renderTexture(m_freqScaleRect, m_frequencyScaleFBO->texture(), 0.0f);
 }
 
@@ -959,29 +954,21 @@ void QGLWidebandPanel::drawHamBand(
 void QGLWidebandPanel::renderVerticalScale() {
 
 	QString str;
-    if (!m_dBmScaleFBO->bind()) {
-        qWarning() << "Failed to bind FBO!";
-        return;
-
-    }
-
-   QOpenGLPaintDevice paintDevice(m_dBmScaleFBO->size());
+    QOpenGLPaintDevice paintDevice(m_dBmScaleFBO->size());
 
     painter.begin(&paintDevice);
 
-    painter.beginNativePainting();
 	//QFontMetrics d_fm(m_smallFont);
 	int spacing = 6;
 	int fontHeight = m_fonts.smallFontMetrics->tightBoundingRect(".0dBm").height() + spacing;
 	int fontMaxWidth = m_fonts.smallFontMetrics->boundingRect("-000.0").width();
 
-    GLint width = m_dBmScaleRect.width();
-    GLint height = m_dBmScaleRect.height();
+    int width = m_dBmScaleRect.width();
+    int height = m_dBmScaleRect.height();
 
 	qreal unit = (qreal)(m_dBmScaleRect.height() / qAbs(m_dBmPanMax - m_dBmPanMin));
 
 	m_dBmScale = getYRuler2(m_dBmScaleRect, fontHeight, unit, m_dBmPanMin, m_dBmPanMax);
-	glClear(GL_COLOR_BUFFER_BIT);
 	
 	QRect textRect(0, 0, fontMaxWidth, fontHeight);
 	textRect.moveLeft(3);
@@ -991,12 +978,10 @@ void QGLWidebandPanel::renderVerticalScale() {
 	int sublen	= m_dBmScale.subPointPositions.length();
 	
 	// draw the scale background
-	drawGLScaleBackground(QRect(0, 0, width, height), QColor(30, 30, 30, 180));
-    painter.endNativePainting();
+	painter.fillRect(0, 0, width, height, QColor(30, 30, 30, 180));
 
     painter.setRenderHint(QPainter::Antialiasing);
     painter.setPen(QPen(QColor(165,193,206),1, Qt::SolidLine, Qt::FlatCap));
-    painter.scale(dpr,dpr);
 	if (len > 0) {
 		for (int i = 0; i < len; i++) {
             painter.drawLine(0, m_dBmScale.mainPointPositions.at(i),4,m_dBmScale.mainPointPositions.at(i));
@@ -1042,7 +1027,6 @@ void QGLWidebandPanel::renderHorizontalScale() {
     QColor textColor = QColor(140, 180, 200);
     QOpenGLPaintDevice paintDevice(m_frequencyScaleFBO->size());
     painter.begin(&paintDevice);
-    painter.beginNativePainting();
     //QFontMetrics d_fm(m_smallFont);
 	int fontHeight = m_fonts.smallFontMetrics->tightBoundingRect(".0kMGHz").height();
 	int fontMaxWidth = m_fonts.smallFontMetrics->boundingRect("000.000").width();
@@ -1062,11 +1046,10 @@ void QGLWidebandPanel::renderHorizontalScale() {
 	if (m_upperFrequency >= 1e3) { freqScale = 1e3; fstr = QString("  kHz "); }
 
 	// draw the wide band scale background
-    drawGLScaleBackground(QRect(0, 0, m_freqScaleRect.width(), m_freqScaleRect.height()), QColor(0, 0, 0, 255));
+    painter.fillRect(0, 0, m_freqScaleRect.width(), m_freqScaleRect.height(), QColor(0, 0, 0, 255));
 	QRect scaledTextRect(0, textOffset_y, 1, fontHeight);
     scaledTextRect.setWidth(m_fonts.smallFontMetrics->horizontalAdvance(fstr));
-    scaledTextRect.moveLeft(m_freqScaleRect.width() - scaledTextRect.width());// - menu_pull_right_rect.width());
-    painter.endNativePainting();
+    scaledTextRect.moveLeft(m_freqScaleRect.width() - scaledTextRect.width());
     painter.setRenderHint(QPainter::Antialiasing);
     painter.setPen(QPen(textColor,3, Qt::SolidLine, Qt::FlatCap));
     int len = m_frequencyScale.mainPointPositions.length();
