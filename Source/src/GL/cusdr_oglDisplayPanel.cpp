@@ -336,6 +336,12 @@ void OGLDisplayPanel::setupConnections() {
 
     CHECKED_CONNECT(
         set,
+        SIGNAL(radioStateChanged(RadioState)),
+        this,
+        SLOT(setRadioState(RadioState)));
+
+    CHECKED_CONNECT(
+        set,
         SIGNAL(supplyVoltageChanged(qreal)),
         this,
         SLOT(setSupplyVoltage(qreal)));
@@ -624,15 +630,15 @@ void OGLDisplayPanel::paintUpperRegion() {
 		QString fwdStr = QString("FWD: %1 W").arg(m_fwdPowerWatts, 0, 'f', 1);
 		int fwdWidth = m_oglTextSmall->fontMetrics().horizontalAdvance(fwdStr);
 		rect = QRect(x1, y1, fwdWidth + 2*m_blankWidth, m_blankHeight);
-		if (m_fwdPowerWatts >= 0.1) {
-            if (m_fwdPowerWatts >= 1.0)
-                drawGLRect(rect, QColor(56, 242, 115), -2.0f);
-            else
-                drawGLRect(rect, QColor(68, 68, 68), -2.0f);
+		if (m_txActive) {
+            drawGLRect(rect, QColor(56, 242, 115), -2.0f);
             qglColor(QColor(0, 0, 0));
-            m_oglTextSmallItalic->renderText(x1 + m_blankWidth, y1, fwdStr);
-            x1 += fwdWidth + 5*m_blankWidth;
+        } else {
+            drawGLRect(rect, QColor(50, 50, 50), -2.0f);
+            qglColor(QColor(100, 100, 100));
         }
+        m_oglTextSmallItalic->renderText(x1 + m_blankWidth, y1, fwdStr);
+        x1 += fwdWidth + 5*m_blankWidth;
 	}
 
     // SWR status
@@ -640,19 +646,23 @@ void OGLDisplayPanel::paintUpperRegion() {
         QString swrStr = QString("SWR: %1").arg(m_swr, 0, 'f', 1);
         int swrWidth = m_oglTextSmall->fontMetrics().horizontalAdvance(swrStr);
         rect = QRect(x1, y1, swrWidth + 2*m_blankWidth, m_blankHeight);
-        
-        if (m_fwdPowerWatts >= 0.1) {
+
+        if (m_txActive) {
+            // Transmitting: show live colour-coded SWR
             if (m_swr < 1.5)
                 drawGLRect(rect, QColor(56, 242, 115), -2.0f); // Green
             else if (m_swr < 2.5)
                 drawGLRect(rect, QColor(255, 255, 50), -2.0f); // Yellow
             else
                 drawGLRect(rect, QColor(242, 56, 109), -2.0f); // Red
-            
             qglColor(QColor(0, 0, 0));
-            m_oglTextSmallItalic->renderText(x1 + m_blankWidth, y1, swrStr);
-            x1 += swrWidth + 5*m_blankWidth;
+        } else {
+            // Receiving: dim grey background
+            drawGLRect(rect, QColor(50, 50, 50), -2.0f);
+            qglColor(QColor(100, 100, 100));
         }
+        m_oglTextSmallItalic->renderText(x1 + m_blankWidth, y1, swrStr);
+        x1 += swrWidth + 5*m_blankWidth;
     }
 
     // Supply Voltage
@@ -2474,6 +2484,12 @@ void OGLDisplayPanel::setForwardPower(qreal watts) {
 void OGLDisplayPanel::setSWR(qreal swr) {
 
     m_swr = swr;
+    update();
+}
+
+void OGLDisplayPanel::setRadioState(RadioState state) {
+
+    m_txActive = (state == RadioState::MOX || state == RadioState::TUNE);
     update();
 }
 

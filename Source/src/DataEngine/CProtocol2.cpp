@@ -316,11 +316,12 @@ void CProtocol2::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
                 // Byte 6: Random enable per ADC (bit 0 = ADC0)
                 buffer[6] = (uint8_t)(io->ccTx.random & 0x01);
 
-                // DDC enable bitmask: one bit per DDC (bit 0 = DDC0, bit 1 = DDC1, ...)
+                // DDC enable bitmask (byte 7): one bit per DDC (bit 0 = DDC0, bit 1 = DDC1, ...)
                 buffer[7] = (uint8_t)((1 << io->receivers) - 1);
 
                 // Configure each DDC: 6 bytes starting at buffer[17 + 6*i]
                 //   [0] ADC selection  [1-2] sample rate (BE)  [3-4] sync map  [5] sample size
+                // DDC 7 config starts at buffer[59] (= 17 + 6*7).
                 const QList<TReceiver>& rxData = set->getReceiverDataList();
                 for (int ddc = 0; ddc < io->receivers && ddc < rxData.size(); ddc++) {
                     int base = 17 + 6 * ddc;
@@ -500,7 +501,9 @@ void CProtocol2::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
 #endif
                 }
                 // Step attenuator 0 (byte 1443): 0-31 dB
-                buffer[1443] = (uint8_t)qBound(0, io->ccTx.mercuryAttenuator * 10, 31);
+                // During TX force -30 dB to protect the RX front-end.
+                bool txActive = io->ccTx.mox || io->ccTx.ptt;
+                buffer[1443] = txActive ? 30 : (uint8_t)qBound(0, io->ccTx.mercuryAttenuator * 10, 31);
             }
             
             sendState = 1; // cycle back to DDC Specific

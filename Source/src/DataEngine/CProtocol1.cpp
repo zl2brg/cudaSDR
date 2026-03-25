@@ -239,6 +239,7 @@ void CProtocol1::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
     io->mutex.lock();
     switch (sendState) {
     	case 0:
+    	    {
     		uchar rxAnt;
     		uchar rxOut;
     		uchar ant;
@@ -267,8 +268,10 @@ void CProtocol1::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
     		rxOut = (rxAnt > 0) ? 1 : 0;
     		io->control_out[3] = (io->ccTx.alexStates.at(io->ccTx.currentBand) >> 7);
     		io->control_out[3] &= 0xFB; // 1 1 1 1 1 0 1 1
-    		// mercuryAttenuator: 0=0dB (preamp on), >0=attenuated (preamp off). C3 bit2=1 = preamp on.
-    		io->control_out[3] |= ((io->ccTx.mercuryAttenuator == 0) ? 1 : 0) << 2;
+    		// During TX force preamp off (-20 dB) to protect the RX front-end.
+    		// C3 bit2=1 = preamp on (0 dB), bit2=0 = preamp off (-20 dB).
+    		bool txActive = io->ccTx.mox || io->ccTx.ptt;
+    		io->control_out[3] |= ((!txActive && io->ccTx.mercuryAttenuator == 0) ? 1 : 0) << 2;
     		io->control_out[3] &= 0xF7; // 1 1 1 1 0 1 1 1
     		io->control_out[3] |= (io->ccTx.dither << 3);
     		io->control_out[3] &= 0xEF; // 1 1 1 0 1 1 1 1
@@ -291,6 +294,7 @@ void CProtocol1::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
 
     		sendState = 1;
     		break;
+    	    }
 
     	case 1:
             {
@@ -378,7 +382,11 @@ void CProtocol1::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
 		io->control_out[0] = 0x1C; // 0 0 0 1 1 1 0 x
     	io->control_out[1] = m_adc_rx1_4; // C1
     	io->control_out[2] = m_adc_rx5_8; // C2
-    	io->control_out[3] = 0x0; // C3, ADC Input Attenuator Tx (0-31dB) [4:0]
+    	// C3 bits [4:0]: DDC/ADC input step attenuator (0-31 dB).
+    	// During TX force 30 dB to protect the RX front-end.
+    	io->control_out[3] = (io->ccTx.mox || io->ccTx.ptt)
+    	    ? 30
+    	    : (uchar)qBound(0, io->ccTx.mercuryAttenuator * 10, 31);
 		io->control_out[4] = m_adc_rx9_16; // C4
         sendState = 5;
     		break;

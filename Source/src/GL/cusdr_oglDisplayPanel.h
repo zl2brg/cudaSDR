@@ -235,6 +235,7 @@ private:
 	int		m_adcStatus;
 	int		m_packetLossStatus;
 	qreal	m_fwdPowerWatts = 0.0;
+    bool    m_txActive = false;
     qreal   m_swr = 1.0;
     qreal   m_supplyVolts = 0.0;
     qreal   m_temperature = 0.0;
@@ -330,6 +331,7 @@ private slots:
 	void	setForwardPower(qreal watts);
     void	setSWR(qreal swr);
     void	setSupplyVoltage(qreal volts);
+    void	setRadioState(RadioState state);
     void	setTemperature(qreal temp);
 	void	setSendIQStatus(int value);
 	void	setRecvAudioStatus(int value);
