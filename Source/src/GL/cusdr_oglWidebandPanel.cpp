@@ -219,19 +219,66 @@ void QGLWidebandPanel::initializeGL() {
 	if (!isValid()) return;
 	initializeOpenGLFunctions();
 
-	glShadeModel(GL_SMOOTH);
 	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-	glPixelStorei(GL_UNPACK_ALIGNMENT, 4); // 4-byte pixel alignment
+	glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
 	glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
-    glHint(GL_POLYGON_SMOOTH_HINT, GL_NICEST);
-
+	glHint(GL_POLYGON_SMOOTH_HINT, GL_NICEST);
 	glDepthFunc(GL_LESS);
-    glEnable(GL_DEPTH_TEST);
+	glEnable(GL_DEPTH_TEST);
 	glDisable(GL_CULL_FACE);
 
 	m_cnt = 0;
 
-	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+	// ── Core-profile shader program ──────────────────────────────────────────
+	static const char *vertSrc = R"(
+		#version 130
+		in vec3 a_pos;
+		in vec3 a_color;
+		uniform mat4 u_mvp;
+		out vec3 v_color;
+		void main() {
+			gl_Position = u_mvp * vec4(a_pos, 1.0);
+			v_color = a_color;
+		}
+	)";
+
+	static const char *fragSrc = R"(
+		#version 130
+		in vec3 v_color;
+		out vec4 fragColor;
+		void main() {
+			fragColor = vec4(v_color, 1.0);
+		}
+	)";
+
+	m_program = new QOpenGLShaderProgram(this);
+	if (!m_program->addShaderFromSourceCode(QOpenGLShader::Vertex, vertSrc))
+		qWarning() << "WB vertex shader:" << m_program->log();
+	if (!m_program->addShaderFromSourceCode(QOpenGLShader::Fragment, fragSrc))
+		qWarning() << "WB fragment shader:" << m_program->log();
+	if (!m_program->link())
+		qWarning() << "WB shader link:" << m_program->log();
+
+	m_attrPos    = m_program->attributeLocation("a_pos");
+	m_attrColor  = m_program->attributeLocation("a_color");
+	m_uniformMvp = m_program->uniformLocation("u_mvp");
+
+	// ── Persistent VAO + VBO (streaming, updated each draw) ─────────────────
+	m_vao.create();
+	m_vbo.create();
+	m_vbo.setUsagePattern(QOpenGLBuffer::StreamDraw);
+
+	m_vao.bind();
+	m_vbo.bind();
+	// stride = 6 floats (xyz + rgb), pointers set once in the VAO
+	glVertexAttribPointer(m_attrPos,   3, GL_FLOAT, GL_FALSE,
+	                      6 * sizeof(float), reinterpret_cast<void*>(0));
+	glVertexAttribPointer(m_attrColor, 3, GL_FLOAT, GL_FALSE,
+	                      6 * sizeof(float), reinterpret_cast<void*>(3 * sizeof(float)));
+	glEnableVertexAttribArray(m_attrPos);
+	glEnableVertexAttribArray(m_attrColor);
+	m_vbo.release();
+	m_vao.release();
 }
 
 void QGLWidebandPanel::paintGL() {
@@ -281,6 +328,29 @@ void QGLWidebandPanel::paintGL() {
 	}
 }
  
+//************************************************************************
+// Core-profile helpers
+
+void QGLWidebandPanel::setMvpOrtho(int w, int h)
+{
+	QMatrix4x4 mvp;
+	mvp.setToIdentity();
+	mvp.ortho(0.0f, (float)w, (float)h, 0.0f, -5.0f, 5.0f);
+	m_program->setUniformValue(m_uniformMvp, mvp);
+}
+
+// Draws N vertices from interleaved float data [x,y,z, r,g,b] × N.
+void QGLWidebandPanel::drawVertexColorArray(GLenum mode, const QVector<float> &data, int vertexCount)
+{
+	if (vertexCount <= 0 || data.size() < vertexCount * 6) return;
+	m_vao.bind();
+	m_vbo.bind();
+	m_vbo.allocate(data.constData(), data.size() * (int)sizeof(float));
+	glDrawArrays(mode, 0, vertexCount);
+	m_vbo.release();
+	m_vao.release();
+}
+
 //************************************************************************
 void QGLWidebandPanel::drawSpectrum() {
 
@@ -351,18 +421,20 @@ void QGLWidebandPanel::drawSpectrum() {
 	// draw background
 	if (m_dataEngineState == QSDR::DataEngineUp) {
 
-//		glBegin(GL_TRIANGLE_STRIP);
-//			glColor3f(0.2f * m_bkgRed, 0.2f * m_bkgGreen, 0.2f * m_bkgBlue); glVertex3f(x1, y1, -4.0); // top left corner
-//			glColor3f(0.2f * m_bkgRed, 0.2f * m_bkgGreen, 0.2f * m_bkgBlue); glVertex3f(x2, y1, -4.0); // top right corner
-//			glColor3f(0.8f * m_bkgRed, 0.8f * m_bkgGreen, 0.8f * m_bkgBlue); glVertex3f(x1, y2, -4.0); // bottom left corner
-//			glColor3f(       m_bkgRed,        m_bkgGreen,        m_bkgBlue); glVertex3f(x2, y2, -4.0); // bottom right corner
-//		glEnd();
-		glBegin(GL_TRIANGLE_STRIP);
-			glColor3f(0.8f * m_bkgRed, 0.8f * m_bkgGreen, 0.8f * m_bkgBlue); glVertex3f(x1, y1, -4.0); // top left corner
-			glColor3f(0.6f * m_bkgRed, 0.6f * m_bkgGreen, 0.6f * m_bkgBlue); glVertex3f(x2, y1, -4.0); // top right corner
-			glColor3f(0.4f * m_bkgRed, 0.4f * m_bkgGreen, 0.4f * m_bkgBlue); glVertex3f(x1, y2, -4.0); // bottom left corner
-			glColor3f(0.2f * m_bkgRed, 0.2f * m_bkgGreen, 0.2f * m_bkgBlue); glVertex3f(x2, y2, -4.0); // bottom right corner
-		glEnd();
+		// Gradient background via shader (top→bottom, bright→dark)
+		if (m_program && m_program->isLinked()) {
+			m_program->bind();
+			setMvpOrtho(size().width(), size().height());
+			// interleaved: [x, y, z,  r, g, b] × 4  (GL_TRIANGLE_STRIP order TL TR BL BR)
+			QVector<float> bg = {
+				(float)x1,(float)y1,-4.0f, 0.8f*m_bkgRed,0.8f*m_bkgGreen,0.8f*m_bkgBlue,
+				(float)x2,(float)y1,-4.0f, 0.6f*m_bkgRed,0.6f*m_bkgGreen,0.6f*m_bkgBlue,
+				(float)x1,(float)y2,-4.0f, 0.4f*m_bkgRed,0.4f*m_bkgGreen,0.4f*m_bkgBlue,
+				(float)x2,(float)y2,-4.0f, 0.2f*m_bkgRed,0.2f*m_bkgGreen,0.2f*m_bkgBlue,
+			};
+			drawVertexColorArray(GL_TRIANGLE_STRIP, bg, 4);
+			m_program->release();
+		}
 	}
 	else {
 
@@ -386,7 +458,7 @@ void QGLWidebandPanel::drawSpectrum() {
 
 	switch (m_panMode) {
 
-		case (PanGraphicsMode) FilledLine:
+		case (PanGraphicsMode) FilledLine: {
 			
 			for (int i = 0; i < vertexArrayLength; i++) {
 
@@ -444,19 +516,42 @@ void QGLWidebandPanel::drawSpectrum() {
 				mutex.unlock();
 			}
 	
-			glEnableClientState(GL_VERTEX_ARRAY);
-			glEnableClientState(GL_COLOR_ARRAY);
-				
-			glVertexPointer(3, GL_FLOAT, 0, vertexArrayBg);
-			glColorPointer(3, GL_FLOAT, 0, vertexColorArrayBg);
-			glDrawArrays(GL_QUAD_STRIP, 0, 2*vertexArrayLength);
+			// Build interleaved [x,y,z,r,g,b] arrays and draw via shader
+		QVector<float> bgData(2 * vertexArrayLength * 6);
+		QVector<float> lineData(vertexArrayLength * 6);
 
-			glVertexPointer(3, GL_FLOAT, 0, vertexArray);
-			glColorPointer(3, GL_FLOAT, 0, vertexColorArray);
-			glDrawArrays(GL_LINE_STRIP, 0, vertexArrayLength);
+		for (int i = 0; i < vertexArrayLength; i++) {
+			// background fill strip (two vertices per column: top of spectrum → bottom)
+			bgData[12*i+0]  = vertexArrayBg[2*i].x;
+			bgData[12*i+1]  = vertexArrayBg[2*i].y;
+			bgData[12*i+2]  = vertexArrayBg[2*i].z;
+			bgData[12*i+3]  = vertexColorArrayBg[2*i].x;
+			bgData[12*i+4]  = vertexColorArrayBg[2*i].y;
+			bgData[12*i+5]  = vertexColorArrayBg[2*i].z;
 
-			glDisableClientState(GL_VERTEX_ARRAY);
-			glDisableClientState(GL_COLOR_ARRAY);
+			bgData[12*i+6]  = vertexArrayBg[2*i+1].x;
+			bgData[12*i+7]  = vertexArrayBg[2*i+1].y;
+			bgData[12*i+8]  = vertexArrayBg[2*i+1].z;
+			bgData[12*i+9]  = vertexColorArrayBg[2*i+1].x;
+			bgData[12*i+10] = vertexColorArrayBg[2*i+1].y;
+			bgData[12*i+11] = vertexColorArrayBg[2*i+1].z;
+
+			// spectrum line
+			lineData[6*i+0] = vertexArray[i].x;
+			lineData[6*i+1] = vertexArray[i].y;
+			lineData[6*i+2] = vertexArray[i].z;
+			lineData[6*i+3] = vertexColorArray[i].x;
+			lineData[6*i+4] = vertexColorArray[i].y;
+			lineData[6*i+5] = vertexColorArray[i].z;
+		}
+
+		if (m_program && m_program->isLinked()) {
+			m_program->bind();
+			setMvpOrtho(size().width(), size().height());
+			drawVertexColorArray(GL_QUAD_STRIP, bgData,   2 * vertexArrayLength);
+			drawVertexColorArray(GL_LINE_STRIP,  lineData, vertexArrayLength);
+			m_program->release();
+		}
 
 			delete[] vertexArray;
 			delete[] vertexColorArray;
@@ -464,8 +559,9 @@ void QGLWidebandPanel::drawSpectrum() {
 			delete[] vertexColorArrayBg;
 
 			break;
+		} // case FilledLine
 
-		case (PanGraphicsMode) Line:
+		case (PanGraphicsMode) Line: {
 
 			for (int i = 0; i < vertexArrayLength; i++) {
 
@@ -510,15 +606,22 @@ void QGLWidebandPanel::drawSpectrum() {
 				mutex.unlock();
 			}
 		
-			glEnableClientState(GL_VERTEX_ARRAY);
-			glEnableClientState(GL_COLOR_ARRAY);
-				
-			glVertexPointer(3, GL_FLOAT, 0, vertexArray);
-			glColorPointer(3, GL_FLOAT, 0, vertexColorArray);
-			glDrawArrays(GL_LINE_STRIP, 0, vertexArrayLength);
-			
-			glDisableClientState(GL_VERTEX_ARRAY);
-			glDisableClientState(GL_COLOR_ARRAY);
+			// Build interleaved line data and draw via shader
+		QVector<float> lineData(vertexArrayLength * 6);
+		for (int i = 0; i < vertexArrayLength; i++) {
+			lineData[6*i+0] = vertexArray[i].x;
+			lineData[6*i+1] = vertexArray[i].y;
+			lineData[6*i+2] = vertexArray[i].z;
+			lineData[6*i+3] = vertexColorArray[i].x;
+			lineData[6*i+4] = vertexColorArray[i].y;
+			lineData[6*i+5] = vertexColorArray[i].z;
+		}
+		if (m_program && m_program->isLinked()) {
+			m_program->bind();
+			setMvpOrtho(size().width(), size().height());
+			drawVertexColorArray(GL_LINE_STRIP, lineData, vertexArrayLength);
+			m_program->release();
+		}
 
 			delete[] vertexArray;
 			delete[] vertexColorArray;
@@ -526,9 +629,10 @@ void QGLWidebandPanel::drawSpectrum() {
 			delete[] vertexColorArrayBg;
 			
 			break;
+		} // case Line
 
 
-		case (PanGraphicsMode) Solid:
+		case (PanGraphicsMode) Solid: {
 
 			glDisable(GL_MULTISAMPLE);
 			glDisable(GL_LINE_SMOOTH);
@@ -589,15 +693,29 @@ void QGLWidebandPanel::drawSpectrum() {
 			}
 			mutex.unlock();
 
-			glEnableClientState(GL_VERTEX_ARRAY);
-			glEnableClientState(GL_COLOR_ARRAY);
-				
-			glVertexPointer(3, GL_FLOAT, 0, vertexArrayBg);
-			glColorPointer(3, GL_FLOAT, 0, vertexColorArrayBg);
-			glDrawArrays(GL_LINES, 0, 2*vertexArrayLength);
+			// Build interleaved solid-fill strip data and draw via shader
+		QVector<float> bgData(2 * vertexArrayLength * 6);
+		for (int i = 0; i < vertexArrayLength; i++) {
+			bgData[12*i+0]  = vertexArrayBg[2*i].x;
+			bgData[12*i+1]  = vertexArrayBg[2*i].y;
+			bgData[12*i+2]  = vertexArrayBg[2*i].z;
+			bgData[12*i+3]  = vertexColorArrayBg[2*i].x;
+			bgData[12*i+4]  = vertexColorArrayBg[2*i].y;
+			bgData[12*i+5]  = vertexColorArrayBg[2*i].z;
 
-			glDisableClientState(GL_VERTEX_ARRAY);
-			glDisableClientState(GL_COLOR_ARRAY);
+			bgData[12*i+6]  = vertexArrayBg[2*i+1].x;
+			bgData[12*i+7]  = vertexArrayBg[2*i+1].y;
+			bgData[12*i+8]  = vertexArrayBg[2*i+1].z;
+			bgData[12*i+9]  = vertexColorArrayBg[2*i+1].x;
+			bgData[12*i+10] = vertexColorArrayBg[2*i+1].y;
+			bgData[12*i+11] = vertexColorArrayBg[2*i+1].z;
+		}
+		if (m_program && m_program->isLinked()) {
+			m_program->bind();
+			setMvpOrtho(size().width(), size().height());
+			drawVertexColorArray(GL_LINES, bgData, 2 * vertexArrayLength);
+			m_program->release();
+		}
 
 			delete[] vertexArray;
 			delete[] vertexColorArray;
@@ -605,6 +723,7 @@ void QGLWidebandPanel::drawSpectrum() {
 			delete[] vertexColorArrayBg;
 
 			break;
+		} // case Solid
 	}
 	glDisable(GL_SCISSOR_TEST);
 
@@ -671,8 +790,6 @@ void QGLWidebandPanel::drawVerticalScale() {
     int width = m_dBmScaleRect.width();
     int height = m_dBmScaleRect.height();
 
-	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
-
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glEnable(GL_BLEND);
 
@@ -686,11 +803,12 @@ void QGLWidebandPanel::drawVerticalScale() {
                 m_dBmScaleFBO = nullptr;
 			}
 
-            m_dBmScaleFBO = new QOpenGLFramebufferObject(width * dpr,  height * dpr);//, format);
-			//WBGRAPHICS_DEBUG << "dBmScaleFBO generated.";
+            m_dBmScaleFBO = new QOpenGLFramebufferObject(width * dpr,  height * dpr);
 		}
 
-		glPushAttrib(GL_VIEWPORT_BIT);
+		// Save & set viewport manually (no glPushAttrib)
+		GLint savedViewport[4];
+		glGetIntegerv(GL_VIEWPORT, savedViewport);
 
         glViewport(0, 0, width * dpr , height * dpr);
         setProjectionOrthographic(width, height);
@@ -699,11 +817,10 @@ void QGLWidebandPanel::drawVerticalScale() {
 			renderVerticalScale();
 		m_dBmScaleFBO->release();
 
-		glPopAttrib();
-        glViewport(0, 0, size().width() * dpr, size().height()* dpr);
-		setProjectionOrthographic(size().width(), size().height());
+		// Restore viewport
+		glViewport(savedViewport[0], savedViewport[1], savedViewport[2], savedViewport[3]);
+        setProjectionOrthographic(size().width(), size().height());
 		
-		//WBGRAPHICS_DEBUG << "dBm scale updated.";
 		m_dBmScaleUpdate = false;
 		m_dBmScaleRenew = false;
 	}
@@ -715,11 +832,9 @@ void QGLWidebandPanel::drawHorizontalScale() {
 
 	if (!m_freqScaleRect.isValid()) return;
 
-    int width = m_freqScaleRect.width() ;
+    int width = m_freqScaleRect.width();
     int height = m_freqScaleRect.height();
-	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
-	glColor3f(0.65f, 0.76f, 0.81f);
-	
+
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glEnable(GL_BLEND);
 
@@ -736,46 +851,31 @@ void QGLWidebandPanel::drawHorizontalScale() {
 
         }
 
-        glPushAttrib(GL_VIEWPORT_BIT | GL_TEXTURE_BIT);
-    //    glViewport(0, 0, width, height);
+		// Save & set viewport manually (no glPushAttrib)
+		GLint savedViewport[4];
+		glGetIntegerv(GL_VIEWPORT, savedViewport);
+
         setProjectionOrthographic(width, height);
         qDebug() << "horizontal scale";
 
 		m_frequencyScaleFBO->bind();
         renderHorizontalScale();
         m_frequencyScaleFBO->release();
-        glPopAttrib();
 
-    //    glViewport(0, 0, size().width(), size().height());
+		// Restore viewport
+		glViewport(savedViewport[0], savedViewport[1], savedViewport[2], savedViewport[3]);
         setProjectionOrthographic(size().width(), size().height());
 
-		
-		//WBGRAPHICS_DEBUG << "frequency scale updated.";
 		m_freqScaleUpdate = false;
 		m_freqScaleRenew = false;
 	}
 	
 	renderTexture(m_freqScaleRect, m_frequencyScaleFBO->texture(), 0.0f);
-	
-	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-	glColor3f(0.65f, 0.76f, 0.81f);
 }
 
 void QGLWidebandPanel::drawGrid() {
     if (!m_panRect.isValid()) return;
-	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
-	glColor4f(m_redGrid, m_greenGrid, m_blueGrid, 1.0);
-
-	glDisable(GL_MULTISAMPLE);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	glEnable(GL_BLEND);
-	
-	// Render grid directly to the main framebuffer
 	renderGrid();
-
-	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-	glColor3f(0.65f, 0.76f, 0.81f);
-	glEnable(GL_MULTISAMPLE);
 }
 
 void QGLWidebandPanel::drawCrossHair() {
@@ -1005,49 +1105,36 @@ void QGLWidebandPanel::renderHorizontalScale() {
 }
 
 void QGLWidebandPanel::renderGrid() {
-    // Direct OpenGL grid rendering (no FBO/QPainter)
-    glDisable(GL_MULTISAMPLE);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    
-    glEnable(GL_LINE_STIPPLE);
-    glLineStipple(1, 0x5555);  // Dotted pattern
-    glLineWidth(2.0f);  // Normal line width
-    
-    // Vertical lines (frequency grid)
-    int len = m_frequencyScale.mainPointPositions.length();
-    if (len > 0) {
-        GLint y1 = 0;
-        GLint y2 = m_panRect.height() - 1;
-        
-        glBegin(GL_LINES);
-        for (int i = 0; i < len; i++) {
-            GLint x = m_frequencyScale.mainPointPositions.at(i);
-            glVertex2i(x, y1);
-            glVertex2i(x, y2);
-        }
-        glEnd();
-    }
-    
-    // Horizontal lines (dBm grid) 
-    len = m_dBmScale.mainPointPositions.length();
-    if (len > 0) {
-        GLint x1 = 0;
-        GLint x2 = m_panRect.width() - 1;
-        
-        glBegin(GL_LINES);
-        for (int i = 0; i < len; i++) {
-            GLint y = m_dBmScale.mainPointPositions.at(i);
-            glVertex2i(x1, y);
-            glVertex2i(x2, y);
-        }
-        glEnd();
-    }
-    
-    // Restore OpenGL state
-    glDisable(GL_LINE_STIPPLE);
-    glDisable(GL_BLEND);
-    glEnable(GL_MULTISAMPLE);
+	// Draw grid lines using QPainter (avoids deprecated glLineStipple / glBegin)
+	QPen dotPen(m_gridColor, 1, Qt::DotLine, Qt::FlatCap);
+
+	painter.begin(this);
+	painter.setRenderHint(QPainter::Antialiasing, false);
+	painter.setPen(dotPen);
+
+	// Vertical lines (frequency grid)
+	int len = m_frequencyScale.mainPointPositions.length();
+	if (len > 0) {
+		int y1 = m_panRect.top();
+		int y2 = m_panRect.bottom();
+		for (int i = 0; i < len; i++) {
+			int x = m_frequencyScale.mainPointPositions.at(i);
+			painter.drawLine(x, y1, x, y2);
+		}
+	}
+
+	// Horizontal lines (dBm grid)
+	len = m_dBmScale.mainPointPositions.length();
+	if (len > 0) {
+		int x1 = m_panRect.left();
+		int x2 = m_panRect.right();
+		for (int i = 0; i < len; i++) {
+			int y = m_dBmScale.mainPointPositions.at(i);
+			painter.drawLine(x1, y, x2, y);
+		}
+	}
+
+	painter.end();
 }
  
 //********************************************************************

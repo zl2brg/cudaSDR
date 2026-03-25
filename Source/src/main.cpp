@@ -109,7 +109,7 @@ int main(int argc, char *argv[]) {
     format.setDepthBufferSize(24);
     format.setStencilBufferSize(8);
     format.setVersion(2, 0);
-    format.setProfile(QSurfaceFormat::CoreProfile);
+    format.setProfile(QSurfaceFormat::CompatibilityProfile);
     format.setSwapInterval(0);  // Disable VSync to allow independent update rates
     QSurfaceFormat::setDefaultFormat(format);
 

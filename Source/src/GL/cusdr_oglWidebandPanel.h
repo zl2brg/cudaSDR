@@ -44,6 +44,9 @@
 #include <QOpenGLWidget>
 #include <QOpenGLFunctions>
 #include <QOpenGLPaintDevice>
+#include <QOpenGLShaderProgram>
+#include <QOpenGLBuffer>
+#include <QOpenGLVertexArrayObject>
 
 #ifdef LOG_WBGRAPHICS
 #   define WBGRAPHICS_DEBUG qDebug().nospace() << "WB-Graphics::\t"
@@ -101,6 +104,14 @@ private:
     QOpenGLFramebufferObject*		m_frequencyScaleFBO = nullptr;
     QOpenGLFramebufferObject*		m_dBmScaleFBO = nullptr;
     QOpenGLFramebufferObject*		m_gridFBO = nullptr;
+
+    // Core-profile shader pipeline
+    QOpenGLShaderProgram*		m_program = nullptr;
+    QOpenGLVertexArrayObject	m_vao;
+    QOpenGLBuffer				m_vbo{QOpenGLBuffer::VertexBuffer};
+    int							m_attrPos   = -1;
+    int							m_attrColor = -1;
+    int							m_uniformMvp = -1;
     CFonts		*fonts;
 	TFonts		m_fonts;
 
@@ -250,6 +261,10 @@ private:
 	void renderHorizontalScale();
 	void renderGrid();
 	void qglColor(QColor color);
+	// Modern GL helper: draw N vertices from interleaved [x,y,z,r,g,b] data
+	void drawVertexColorArray(GLenum mode, const QVector<float> &data, int vertexCount);
+	// Build MVP uniform for current widget size
+	void setMvpOrtho(int w, int h);
 
 private slots:
 	void	systemStateChanged(
