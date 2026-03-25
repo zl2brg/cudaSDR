@@ -37,6 +37,7 @@
 //#include <QVBoxLayout>
 //#include <QtNetwork>
 //#include <QElapsedTimerr>
+#include <QScrollArea>
 #include "cusdr_audio_settingsdialog.h"
 #include "cusdr_mainWidget.h"
 
@@ -152,13 +153,18 @@ MainWindow::MainWindow(QWidget *parent)
 	// control widgets
     m_serverWidget = new ServerWidget(this);
     m_hpsdrTabWidget = new cusdr_SetupWidget(this);
-    test_widget = new  cusdr_SetupWidget(setupWidget);
-    test_widget->setSizePolicy(QSizePolicy::Expanding,QSizePolicy::Expanding);
-    QVBoxLayout *layout = new QVBoxLayout;
-    layout->addWidget(test_widget);
-    setupWidget->setLayout(layout);
+    test_widget = new cusdr_SetupWidget();
+    test_widget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
-    test_widget->setMaximumSize(800,600);
+    QScrollArea *scrollArea = new QScrollArea(setupWidget);
+    scrollArea->setWidget(test_widget);
+    scrollArea->setWidgetResizable(true);
+    scrollArea->setFrameShape(QFrame::NoFrame);
+
+    QVBoxLayout *layout = new QVBoxLayout;
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->addWidget(scrollArea);
+    setupWidget->setLayout(layout);
 
     m_radioTabWidget = new RadioTabWidget(this);
 

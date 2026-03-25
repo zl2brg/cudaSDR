@@ -2314,6 +2314,12 @@ void DataEngine::setAlexConfiguration(quint16 conf) {
 	io.ccTx.alexConfig = conf;
 	DATA_ENGINE_DEBUG << "Alex Configuration = " << io.ccTx.alexConfig;
 	io.mutex.unlock();
+
+	if (set->getCurrentMetisCard().protocol == 2 && m_dataProcessor) {
+		QMetaObject::invokeMethod(m_dataProcessor,
+			&DataProcessor::requestProtocol2HPUpdate,
+			Qt::QueuedConnection);
+	}
 }
 
 void DataEngine::setAlexStates(HamBand band, const QList<int> &states) {
@@ -2321,9 +2327,16 @@ void DataEngine::setAlexStates(HamBand band, const QList<int> &states) {
 	Q_UNUSED (band)
 
 	io.mutex.lock();
+	qDebug() << "setAlexStates: band=" << band << "states=" << states;
 	io.ccTx.alexStates = states;
 	DATA_ENGINE_DEBUG << "Alex States = " << io.ccTx.alexStates;
 	io.mutex.unlock();
+
+	if (set->getCurrentMetisCard().protocol == 2 && m_dataProcessor) {
+		QMetaObject::invokeMethod(m_dataProcessor,
+			&DataProcessor::requestProtocol2HPUpdate,
+			Qt::QueuedConnection);
+	}
 }
 
 void DataEngine::setPennyOCEnabled(bool value) {
@@ -2557,6 +2570,12 @@ void DataEngine::setHamBand(QObject *sender, int rx, bool byBtn, HamBand band) {
 	io.mutex.lock();
 	io.ccTx.currentBand = band;
 	io.mutex.unlock();
+
+	if (set->getCurrentMetisCard().protocol == 2 && m_dataProcessor) {
+		QMetaObject::invokeMethod(m_dataProcessor,
+			&DataProcessor::requestProtocol2HPUpdate,
+			Qt::QueuedConnection);
+	}
 }
 
 void DataEngine::setFrequency(QObject* sender, int mode, int rx, long frequency) {
@@ -2595,7 +2614,7 @@ DataProcessor::DataProcessor(
 	, m_offset(0)
 	, m_length(0)
     , m_idx(IO_HEADER_SIZE)
-    , m_sendState(0)
+    , m_sendState(1) // start at DDC Specific; state 0 (GP) is sent explicitly at startup
 	, m_stopped(false)
 {
 	m_IQSequence = 0L;
@@ -2641,6 +2660,39 @@ void DataProcessor::startControlTimer() {
 void DataProcessor::stopControlTimer() {
 	if (m_controlTimer && m_controlTimer->isActive()) {
 		m_controlTimer->stop();
+	}
+}
+
+void DataProcessor::requestProtocol2HPUpdate() {
+	if (!de || !de->m_protocol || !de->m_controlSocket) return;
+	if (de->set->getCurrentMetisCard().protocol != 2) return;
+
+	if (!de->io.rcveIQ_toggle) return; // don't send HP mid-setup (Run not yet asserted)
+
+	unsigned char p2CmdBuf[1444];
+	quint16 port = DEVICE_PORT;
+	int hpState = 3; // High Priority Data Packet
+
+	memset(p2CmdBuf, 0, sizeof(p2CmdBuf));
+	de->m_protocol->encodeCCBytes(p2CmdBuf, &de->io, hpState, port);
+
+	if (port != 1027) return;
+
+	m_deviceAddress = de->io.hpsdrDeviceIPAddress;
+	qint64 sent = -1;
+	if (de->m_dataIO) {
+		QByteArray dg((const char*)p2CmdBuf, 1444);
+		QMetaObject::invokeMethod(
+			de->m_dataIO,
+			"sendProtocol2ControlDatagram",
+			Qt::BlockingQueuedConnection,
+			Q_RETURN_ARG(qint64, sent),
+			Q_ARG(QByteArray, dg),
+			Q_ARG(QHostAddress, m_deviceAddress),
+			Q_ARG(quint16, port));
+	}
+	if (sent < 0 && de->m_controlSocket) {
+		de->m_controlSocket->writeDatagram((const char*)p2CmdBuf, 1444, m_deviceAddress, port);
 	}
 }
 
@@ -2699,6 +2751,14 @@ void DataProcessor::requestProtocol2ReceiverSetup() {
 		}
 		return de->m_controlSocket->writeDatagram(data, len, m_deviceAddress, dstPort);
 	};
+
+    // 0. Send General packet (port 1024) — must arrive before HP packets so
+    //    newhpsdrsim sets alex0_enable=1 (byte 59 bit 0) and processes alex0 bits.
+    int genState = 0;
+    memset(p2CmdBuf, 0, sizeof(p2CmdBuf));
+    de->m_protocol->encodeCCBytes(p2CmdBuf, &de->io, genState, port);
+    m_deviceAddress = de->io.hpsdrDeviceIPAddress;
+    sendP2Control((const char*)p2CmdBuf, 60, port); // General packet is 60 bytes
 
     // 1. Send DDC Specific packet (port 1025) with updated receiver-count/bitmask.
 	int ddcState = 1;

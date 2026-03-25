@@ -31,6 +31,18 @@
         "/^git restore src/DataEngine/CProtocol2\\.cpp src/DataEngine/cusdr_dataEngine\\.cpp src/DataEngine/cusdr_dataEngine\\.h$/": {
             "approve": true,
             "matchCommandLine": true
+        },
+        "/^cmake --build /home/sae/Projects/Personal/test/cudaSDR/Source/build --parallel \\$\\(nproc\\) 2>&1 \\| tail -3$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^cmake --build /home/sae/Projects/Personal/test/cudaSDR/Source/build --parallel \\$\\(nproc\\) 2>&1 \\| tail -5$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^cmake --build /home/sae/Projects/Personal/test/cudaSDR/Source/build --parallel \\$\\(nproc\\) 2>&1 \\| grep -E \"error:\\|CProtocol2\" \\| head -10$/": {
+            "approve": true,
+            "matchCommandLine": true
         }
     }
 }

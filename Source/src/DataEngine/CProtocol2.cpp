@@ -8,6 +8,9 @@
 #define P2_ROUTE_DEBUG nullDebug()
 #endif
 
+// Uncomment to log the Alex0 32-bit word on every HP packet encode
+//#define LOG_P2_HP_ALEX
+
 CProtocol2::CProtocol2() : m_lastSequence(0), m_lastPacketLen(0) {
     memset(m_rxSamplesPerDDC, 0, sizeof(m_rxSamplesPerDDC));
 }
@@ -249,9 +252,8 @@ void CProtocol2::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
     // The provided buffer is already 1444 bytes.
     memset(buffer, 0, 1444);
 
-    if (sendState == 0) sendState = 1;
     switch (sendState) {
-        case 0: // General Packet (Port 1024)
+        case 0: // General Packet (Port 1024) — sent once at startup
             port = 1024;
             {
                 uint32_t seq = qToBigEndian(m_sequences[1024]++);
@@ -283,12 +285,20 @@ void CProtocol2::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
                 
                 // Bytes 19-20: Mic samples source port  (0 = use default 1026)
                 // Bytes 21-22: Wideband ADC0 source port (0 = use default 1027)
-                // Bytes 23-59: wideband config / endian / reserved — leave 0.
+                // Bytes 23-58: wideband config / endian / reserved — leave 0.
                 
                 // Other global settings
                 buffer[37] = 0x00; // Time stamping off, VNA off, etc.
                 buffer[38] = 0x00; // Hardware reset off
                 buffer[39] = 0x00; // Big Endian data format (Bit 0=0)
+
+                // Byte 23: Wideband enable flag — request wideband ADC data from device.
+                buffer[23] = 1;
+
+                // Byte 59: Alex board enables.
+                // Bit 0 = Alex0 enable. Without this newhpsdrsim ignores all
+                // alex0 bits in subsequent HP packets (alex0_enable guard).
+                buffer[59] = 0x01; // enable Alex0
             }
             sendState = 1;
             break;
@@ -302,9 +312,9 @@ void CProtocol2::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
                 // Byte 4: Number of ADCs
                 buffer[4] = 1;
                 // Byte 5: Dither enable per ADC (bit 0 = ADC0)
-                buffer[5] = 0x00;
-                // Byte 6: Random enable per ADC
-                // buffer[6] = 0x00;
+                buffer[5] = (uint8_t)(io->ccTx.dither & 0x01);
+                // Byte 6: Random enable per ADC (bit 0 = ADC0)
+                buffer[6] = (uint8_t)(io->ccTx.random & 0x01);
 
                 // DDC enable bitmask: one bit per DDC (bit 0 = DDC0, bit 1 = DDC1, ...)
                 buffer[7] = (uint8_t)((1 << io->receivers) - 1);
@@ -366,6 +376,7 @@ void CProtocol2::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
         default:
             port = 1027;
             {
+                
                 // ...existing case 3 body...
                 uint32_t seq = qToBigEndian(m_sequences[1027]++);
                 memcpy(buffer, &seq, 4);
@@ -393,7 +404,105 @@ void CProtocol2::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
                 // DUC0 drive level (buffer[345], scale 0-100 to 0-255)
                 int drive = qBound(0, (int)io->ccTx.drivelevel, 100);
                 buffer[345] = (unsigned char)((drive * 255) / 100);
+
+                // Alex0 32-bit word (bytes 1432-1435, big-endian)
+                // Bit layout per openHPSDR Ethernet Protocol v4.3 Appendix D (Atlas-based):
+                //   bit  1: 13 MHz HPF       bit 20: 30/20m LPF
+                //   bit  2: 20 MHz HPF       bit 21: 60/40m LPF
+                //   bit  3: 6M Preamp/LNA    bit 22: 80m LPF
+                //   bit  4: 9.5 MHz HPF      bit 23: 160m LPF
+                //   bit  5: 6.5 MHz HPF      bit 27: T/R relay
+                //   bit  6: 1.5 MHz HPF      bit 29: 6m/bypass LPF
+                //   bit 12: HF Bypass        bit 30: 12/10m LPF
+                //   bit 13: 20 dB atten.     bit 31: 17/15m LPF
+                //   bit 14: 10 dB atten.
+                {
+                    uint32_t alex0 = 0;
+                    quint16 ac = io->ccTx.alexConfig;
+                    // HPF bits (alexConfig bits 1-7)
+                    if (ac & 0x0002) alex0 |= (1u << 12);  // bypass all HPFs
+                    if (ac & 0x0004) alex0 |= (1u <<  3);  // 6M LNA/preamp
+                    if (ac & 0x0008) alex0 |= (1u <<  6);  // 1.5 MHz HPF
+                    if (ac & 0x0010) alex0 |= (1u <<  5);  // 6.5 MHz HPF
+                    if (ac & 0x0020) alex0 |= (1u <<  4);  // 9.5 MHz HPF
+                    if (ac & 0x0040) alex0 |= (1u <<  1);  // 13 MHz HPF
+                    if (ac & 0x0080) alex0 |= (1u <<  2);  // 20 MHz HPF
+                    // LPF bits (alexConfig bits 8-14)
+                    if (ac & 0x0100) alex0 |= (1u << 23);  // 160m LPF
+                    if (ac & 0x0200) alex0 |= (1u << 22);  // 80m LPF
+                    if (ac & 0x0400) alex0 |= (1u << 21);  // 60/40m LPF
+                    if (ac & 0x0800) alex0 |= (1u << 20);  // 30/20m LPF
+                    if (ac & 0x1000) alex0 |= (1u << 31);  // 17/15m LPF
+                    if (ac & 0x2000) alex0 |= (1u << 30);  // 12/10m LPF
+                    if (ac & 0x4000) alex0 |= (1u << 29);  // 6m/bypass LPF
+                    // Attenuators: mercuryAttenuator 0=0dB, 1=10dB, 2=20dB, 3=30dB
+                    int att = io->ccTx.mercuryAttenuator & 0x03;
+                    if (att & 1) alex0 |= (1u << 14);  // 10 dB
+                    if (att & 2) alex0 |= (1u << 13);  // 20 dB
+                    // T/R relay
+                    bool xmit = io->ccTx.mox || io->ccTx.ptt;
+                    if (xmit) alex0 |= (1u << 27);
+                    // Antenna relay (bits 24/25/26) and RX aux input (bits 8-11)
+                    // alexStates (per-band): bits[1:0]=RX ANT (1=ANT1,2=ANT2,3=ANT3)
+                    //                        bits[4:2]=RX aux (1=Ext1,2=Ext2,3=XVTR)
+                    //                        bits[6:5]=TX ANT (1=ANT1,2=ANT2,3=ANT3)
+                    // When RXing: bits 24/25/26 reflect the selected RX antenna.
+                    // When TXing: bits 24/25/26 reflect the selected TX antenna.
+                    if (io->ccTx.currentBand >= 0 && io->ccTx.currentBand < io->ccTx.alexStates.size()) {
+                        int state = io->ccTx.alexStates.at(io->ccTx.currentBand);
+                        int rxAnt = (state     ) & 0x03;   // bits[1:0]: RX ANT 1=ANT1, 2=ANT2, 3=ANT3
+                        int rxAux = (state >> 2) & 0x07;   // bits[4:2]: RX aux 1=Ext1, 2=Ext2, 3=XVTR
+                        int txAnt = (state >> 5) & 0x03;   // bits[6:5]: TX ANT 1=ANT1, 2=ANT2, 3=ANT3
+                        int ant   = xmit ? txAnt : rxAnt;  // use TX ant when MOX, RX ant otherwise
+                        switch (ant) {
+                            case 2:  alex0 |= (1u << 25); break; // ANT 2
+                            case 3:  alex0 |= (1u << 26); break; // ANT 3
+                            default: alex0 |= (1u << 24); break; // ANT 1 (default)
+                        }
+                        switch (rxAux) {
+                            case 1: alex0 |= (1u << 10) | (1u << 11); break; // Ext1 / DDC1 In
+                            case 2: alex0 |= (1u <<  9) | (1u << 11); break; // Ext2 / DDC2 In
+                            case 3: alex0 |= (1u <<  8) | (1u << 11); break; // XVTR DDC In
+                        }
+                    } else {
+                        alex0 |= (1u << 24); // default ANT1
+                    }
+                    buffer[1432] = (alex0 >> 24) & 0xFF;
+                    buffer[1433] = (alex0 >> 16) & 0xFF;
+                    buffer[1434] = (alex0 >>  8) & 0xFF;
+                    buffer[1435] = (alex0      ) & 0xFF;
+
+#ifdef LOG_P2_HP_ALEX
+                    qDebug("P2 HP Alex0: 0x%08X  "
+                           "HPF=%s%s%s%s%s%s  LPF=%s%s%s%s%s%s%s  "
+                           "T/R=%d  ANT=%s  att=%ddB  alexConfig=0x%04X  alexState[%d]=0x%02X",
+                           alex0,
+                           (alex0 & (1u<<12)) ? "BYP "  : "",
+                           (alex0 & (1u<< 6)) ? "1.5 "  : "",
+                           (alex0 & (1u<< 5)) ? "6.5 "  : "",
+                           (alex0 & (1u<< 4)) ? "9.5 "  : "",
+                           (alex0 & (1u<< 1)) ? "13M "  : "",
+                           (alex0 & (1u<< 2)) ? "20M "  : "",
+                           (alex0 & (1u<<23)) ? "160m " : "",
+                           (alex0 & (1u<<22)) ? "80m "  : "",
+                           (alex0 & (1u<<21)) ? "60/40m ": "",
+                           (alex0 & (1u<<20)) ? "30/20m ": "",
+                           (alex0 & (1u<<31)) ? "17/15m ": "",
+                           (alex0 & (1u<<30)) ? "12/10m ": "",
+                           (alex0 & (1u<<29)) ? "6m "   : "",
+                           (alex0 & (1u<<27)) ? 1 : 0,
+                           (alex0 & (1u<<26)) ? "ANT3" : (alex0 & (1u<<25)) ? "ANT2" : "ANT1",
+                           (io->ccTx.mercuryAttenuator & 2 ? 20 : 0) + (io->ccTx.mercuryAttenuator & 1 ? 10 : 0),
+                           (int)io->ccTx.alexConfig,
+                           (int)io->ccTx.currentBand,
+                           (io->ccTx.currentBand >= 0 && io->ccTx.currentBand < io->ccTx.alexStates.size())
+                               ? (int)io->ccTx.alexStates.at(io->ccTx.currentBand) : -1);
+#endif
+                }
+                // Step attenuator 0 (byte 1443): 0-31 dB
+                buffer[1443] = (uint8_t)qBound(0, io->ccTx.mercuryAttenuator * 10, 31);
             }
+            
             sendState = 1; // cycle back to DDC Specific
             break;
     }

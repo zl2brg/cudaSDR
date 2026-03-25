@@ -752,60 +752,10 @@ void QWDSPEngine::setsnb(int rx, bool value) {
 	SetRXASNBARun(rx, m_snb);
 }
 
-#define POSTGEN
-
+// TX WDSP channel state is managed by Transmitter::setRadioState().
+// This function handles only the RX channel side of TX/RX switching.
 void QWDSPEngine::set_txrx(RadioState state) {
-    bool tone = true;
-    qDebug() << "txMode " << state;
-    switch (state){
-        case RadioState::RX:
-        if (tone)
-        {
-#ifdef POSTGEN
-            SetTXAPostGenRun(TX_ID,0);
-#else
-         SetTXAPreGenRun(TX_ID,0);
-#endif
-        }
-            SetChannelState(TX_ID,0,1);
-            SetChannelState(0,1,1);
-            qDebug() << "RX";
-        break;
-        case RadioState::TUNE:
-        case RadioState::MOX:
-
-            if (tone)
-            {
-#ifdef POSTGEN
-              SetTXAPostGenToneFreq(TX_ID,1000);
-              SetTXAPostGenToneMag(TX_ID,0.5);
-              SetTXAPostGenMode(TX_ID,0);
-
-//            SetChannelState(0,0,1);
-
-              SetTXAPostGenRun(TX_ID,1);
-#else
-            SetTXAPreGenToneFreq(TX_ID,1000);
-            SetTXAPreGenToneMag(TX_ID,1);
-            SetTXAPreGenMode(TX_ID,0);
-
-//            SetChannelState(0,0,1);
-
-            SetTXAPreGenRun(TX_ID,1);
-
-#endif
-            }
-            SetTXAMode(TX_ID,0);
-
-//            SetTXABandpassFreqs(TX_ID, 100,1000);
-            SetTXAPanelGain1(TX_ID,pow(1.0, 10));
-            SetTXAPanelRun(TX_ID, 1);
-            SetTXABandpassFreqs(TX_ID,1000,1);
-            SetTXABandpassWindow(TX_ID,1);
-            SetTXABandpassRun(TX_ID,1);
-            SetChannelState(TX_ID,1,0);
-        case RadioState::DUPLEX:
-        default:
-         break;
+    if (state == RadioState::RX) {
+        SetChannelState(m_rx, 1, 1);
     }
 }

@@ -3486,6 +3486,13 @@ void Settings::setCurrentReceiver(QObject *sender, int value) {
     emit hamBandChanged(sender, m_currentReceiver, false, band);
     emit dspModeChanged(sender, m_currentReceiver, mode);
 
+    // Sync the panadapter filter lines to the saved filter for this receiver.
+    // Without this, setDSPMode only updates the mode label; the filter shading
+    // stays at whatever filterLo/Hi the panel read at construction time.
+    emit filterFrequenciesChanged(sender, m_currentReceiver,
+        m_receiverDataList.at(m_currentReceiver).filterLo,
+        m_receiverDataList.at(m_currentReceiver).filterHi);
+
     emit mouseWheelFreqStepChanged(sender, m_currentReceiver,
     m_receiverDataList.at(m_currentReceiver).mouseWheelFreqStep);
 
@@ -4083,13 +4090,16 @@ void Settings::setRXFilter(QObject *sender, int rx, qreal low, qreal high) {
 
     QMutexLocker locker(&settingsMutex);
 
-    if (m_filterFrequencyLow == low && m_filterFrequencyHigh == high) return;
+    // Guard per-receiver: only suppress if THIS receiver's values haven't changed.
+    // The old global m_filterFrequencyLow/High guard incorrectly suppressed updates
+    // for rx1 when rx0 had already set the same filter values.
+    if (m_receiverDataList[rx].filterLo == low && m_receiverDataList[rx].filterHi == high) return;
 
-    m_receiverDataList[rx].filterLo = m_filterFrequencyLow =  low;
+    m_receiverDataList[rx].filterLo = m_filterFrequencyLow = low;
     m_receiverDataList[rx].filterHi = m_filterFrequencyHigh = high;
 
     SETTINGS_DEBUG << "filter freq changed" << low << high;
-    emit filterFrequenciesChanged(sender, rx, m_filterFrequencyLow, m_filterFrequencyHigh);
+    emit filterFrequenciesChanged(sender, rx, low, high);
 }
 
 

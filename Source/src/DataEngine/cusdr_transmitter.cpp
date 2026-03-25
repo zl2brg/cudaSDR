@@ -317,33 +317,43 @@ void Transmitter::set_fm_deviation(double level) {
 
 void Transmitter::setRadioState(RadioState state)
 {
+    switch(state) {
 
-    switch(state){
+    case RadioState::MOX:
+        SetTXAPostGenRun(this->id, 0);
+        SetTXAMode(this->id, mode);
+        SetTXAPanelGain1(this->id, pow(10.0, mic_gain / 20.0));
+        SetTXAPanelRun(this->id, 1);
+        SetTXABandpassWindow(this->id, 1);
+        SetTXABandpassRun(this->id, 1);
+        SetChannelState(TX_ID, 1, 1);
+        TRANSMITTER_DEBUG << "MOX: TX channel started";
+        break;
 
-case RadioState::MOX:
-     SetChannelState(TX_ID,1,1);
-     //SetChannelState(0,0,1);
-     SetTXAPostGenRun(this->id, 0);
+    case RadioState::TUNE:
+        // Tone generator for TUNE
+        SetTXAPostGenToneFreq(this->id, 1000);
+        SetTXAPostGenToneMag(this->id, 0.5);
+        SetTXAPostGenMode(this->id, 0);
+        SetTXAPostGenRun(this->id, 1);
+        SetTXAMode(this->id, mode);
+        SetTXAPanelGain1(this->id, pow(10.0, mic_gain / 20.0));
+        SetTXAPanelRun(this->id, 1);
+        SetTXABandpassWindow(this->id, 1);
+        SetTXABandpassRun(this->id, 1);
+        SetChannelState(TX_ID, 1, 1);
+        TRANSMITTER_DEBUG << "TUNE: TX channel started with tone";
+        break;
 
-    break;
-case RadioState::TUNE:
-    SetChannelState(TX_ID,1,1);
-   // SetChannelState(0,0,1);
-    SetTXAPostGenRun(this->id, 1);
-    
-    break;
-
-case RadioState::RX:
-default:
-     SetChannelState(TX_ID,0,1);
-     SetChannelState(0,1,1);
-     SetTXAPostGenRun(this->id, 0);
-
-    break;
-
-
+    case RadioState::RX:
+    default:
+        SetTXAPostGenRun(this->id, 0);
+        SetChannelState(TX_ID, 0, 1);
+        SetChannelState(0, 1, 1);
+        TRANSMITTER_DEBUG << "RX: TX channel stopped";
+        break;
     }
-    }
+}
 
 
      void Transmitter::tx_set_filter(double filter_low,double filter_high){
