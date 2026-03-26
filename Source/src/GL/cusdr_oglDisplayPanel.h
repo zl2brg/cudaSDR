@@ -310,8 +310,6 @@ private:
 	
 	void	paintSMeter();
 	void	renderSMeterScale();
-	void	renderSMeterA();
-	void	renderSMeterB();
 	
 	void	getSelectedDigit(QPoint p);
 	

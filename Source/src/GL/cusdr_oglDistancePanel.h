@@ -37,6 +37,8 @@
 //#include <QImage>
 //#include <QFontMetrics>
 #include <QWheelEvent>
+#include <QPainter>
+#include <QOpenGLPaintDevice>
 //#include <QQueue>
 //#include <QDebug>
 
@@ -119,6 +121,8 @@ private:
 	OGLText*	m_oglTextTiny;
 	OGLText*	m_oglTextSmall;
 	OGLText*	m_oglTextNormal;
+
+	QPainter	painter;
 
 	QPoint		m_mousePos;
 	QPoint		m_oldMousePos;

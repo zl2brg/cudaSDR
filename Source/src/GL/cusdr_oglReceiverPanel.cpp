@@ -637,7 +637,8 @@ void QGLReceiverPanel::paintGL() {
 
 		case QSDR::NoServerMode:
 
-			drawGLRect(QRect(0, 0, width(), height()), QColor(0, 0, 0));
+			glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 			break;
 
 		case QSDR::SDRMode:
@@ -742,46 +743,53 @@ void QGLReceiverPanel::drawPanadapter() {
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glEnable(GL_BLEND);
 
-    // draw background using drawGLRect (top-to-bottom gradient or solid)
-    if (m_dataEngineState == QSDR::DataEngineUp) {
-        if (m_receiver == m_currentReceiver) {
-            QColor topColor(
-                (int)(0.7f * m_bkgRed   * 255),
-                (int)(0.7f * m_bkgGreen * 255),
-                (int)(0.7f * m_bkgBlue  * 255));
-            QColor botColor(
-                (int)(0.3f * m_bkgRed   * 255),
-                (int)(0.3f * m_bkgGreen * 255),
-                (int)(0.3f * m_bkgBlue  * 255));
-            drawGLRect(m_panRect, topColor, botColor, -4.0f, false);
+    // Set up shader + VBO early (used for both background and spectrum)
+    QMatrix4x4 mvp;
+    mvp.setToIdentity();
+    mvp.ortho(0.0f, (float)size().width(), (float)size().height(), 0.0f, -5.0f, 5.0f);
+    m_panProgram->bind();
+    m_panProgram->setUniformValue(m_uniformMvp, mvp);
+    m_panVao.bind();
+    m_panVbo.bind();
+
+    // Draw background as a triangle strip with per-vertex colours [x,y,z,r,g,b]
+    {
+        float rT, gT, bT, rB, gB, bB;
+        if (m_dataEngineState == QSDR::DataEngineUp) {
+            if (m_receiver == m_currentReceiver) {
+                rT = 0.7f * m_bkgRed;  gT = 0.7f * m_bkgGreen;  bT = 0.7f * m_bkgBlue;
+                rB = 0.3f * m_bkgRed;  gB = 0.3f * m_bkgGreen;  bB = 0.3f * m_bkgBlue;
+            } else {
+                rT = rB = 0.4f * m_bkgRed;  gT = gB = 0.4f * m_bkgGreen;  bT = bB = 0.4f * m_bkgBlue;
+            }
         } else {
-            QColor flatColor(
-                (int)(0.4f * m_bkgRed   * 255),
-                (int)(0.4f * m_bkgGreen * 255),
-                (int)(0.4f * m_bkgBlue  * 255));
-            drawGLRect(m_panRect, flatColor, -4.0f);
+            // pre-multiply QColor(30,30,50,155) onto cleared-black background
+            rT = rB = (30.0f * 155.0f) / (255.0f * 255.0f);
+            gT = gB = (30.0f * 155.0f) / (255.0f * 255.0f);
+            bT = bB = (50.0f * 155.0f) / (255.0f * 255.0f);
         }
-    } else {
-        drawGLRect(m_panRect, QColor(30, 30, 50, 155), -4.0f);
+        const float bg[4*6] = {
+            (float)x1, (float)y1, -4.0f,  rT, gT, bT,
+            (float)x2, (float)y1, -4.0f,  rT, gT, bT,
+            (float)x1, (float)y2, -4.0f,  rB, gB, bB,
+            (float)x2, (float)y2, -4.0f,  rB, gB, bB,
+        };
+        m_panVbo.allocate(bg, sizeof(bg));
+        glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     }
 
-    if (vertexArrayLength < 2) return;
+    if (vertexArrayLength < 2) {
+        m_panVbo.release();
+        m_panVao.release();
+        m_panProgram->release();
+        return;
+    }
 
     // Set a DPR-aware scissor box
     glScissor(x1, (int)(size().height() * dpr - y2 * dpr), (int)((x2 - x1) * dpr), (int)(height * dpr));
     glEnable(GL_SCISSOR_TEST);
 
     spectrumBufferMutex.lock();
-
-    // Set up MVP matrix for shader (matches setProjectionOrthographic convention)
-    QMatrix4x4 mvp;
-    mvp.setToIdentity();
-    mvp.ortho(0.0f, (float)size().width(), (float)size().height(), 0.0f, -5.0f, 5.0f);
-
-    m_panProgram->bind();
-    m_panProgram->setUniformValue(m_uniformMvp, mvp);
-    m_panVao.bind();
-    m_panVbo.bind();
 
     switch (m_panMode) {
 
@@ -897,7 +905,6 @@ void QGLReceiverPanel::drawPanVerticalScale() {
             m_dBmScaleFBO = new QOpenGLFramebufferObject(width, height);
         }
         glPushAttrib(GL_VIEWPORT_BIT | GL_TEXTURE_BIT);
-
         glViewport(0, 0, width, height);
         setProjectionOrthographic(width, height);
 
@@ -908,11 +915,10 @@ void QGLReceiverPanel::drawPanVerticalScale() {
 
         m_dBmScalePanadapterUpdate = false;
         m_dBmScalePanadapterRenew = false;
-        glPopAttrib(); // This restores the viewport and texture state
+        glPopAttrib();
         setProjectionOrthographic(size().width(), size().height());
     }
 
-    glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
     renderTexture(m_dBmScalePanRect, m_dBmScaleFBO->texture(), 0.0f);
 }
 
@@ -1016,21 +1022,20 @@ void QGLReceiverPanel::drawPanHorizontalScale() {
             //	GRAPHICS_DEBUG << "m_frequencyScaleFBO generated.";
         }
 
-		glPushAttrib(GL_VIEWPORT_BIT | GL_TEXTURE_BIT);
-        glViewport(0, 0, width, height);  // Use logical coordinates
+        glPushAttrib(GL_VIEWPORT_BIT | GL_TEXTURE_BIT);
+        glViewport(0, 0, width, height);
         setProjectionOrthographic(width, height);
-		
+
         m_frequencyScaleFBO->bind();
             renderPanHorizontalScale();
         m_frequencyScaleFBO->release();
 
-		glPopAttrib(); // This restores the viewport and texture state
+        glPopAttrib();
         setProjectionOrthographic(size().width(), size().height());
 		m_freqScalePanadapterUpdate = false;
 		m_freqScalePanadapterRenew = false;
 	}
 
-	glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
 	renderTexture(m_freqScalePanRect, m_frequencyScaleFBO->texture(), 0.0f);
 }
 
@@ -1172,7 +1177,6 @@ void QGLReceiverPanel::drawWaterfall() {
 	//int height = this->size().height();
 
 
-    glColor4f(1.0, 1.0, 1.0, 1.0);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glEnable(GL_BLEND);
 
@@ -1227,14 +1231,7 @@ void QGLReceiverPanel::drawWaterfall() {
 					glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 					glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, m_waterfallFramePixel.data());
 
-					glEnable(GL_TEXTURE_2D);
-					glBegin(GL_QUADS);
-						glTexCoord2f(0, 0); glVertex2i(left,         top);
-						glTexCoord2f(1, 0); glVertex2i(left + width, top);
-						glTexCoord2f(1, 1); glVertex2i(left + width, top + height);
-						glTexCoord2f(0, 1); glVertex2i(left,         top + height);
-					glEnd();
-					glDisable(GL_TEXTURE_2D);
+					renderTexture(QRect(left, top, width, height), m_waterfallTextureId, 0.0f);
 
 					glBindTexture(GL_TEXTURE_2D, oldTex);
 
@@ -1244,7 +1241,11 @@ void QGLReceiverPanel::drawWaterfall() {
 			}
 			else {
 
-				drawGLRect(m_waterfallRect, Qt::black);
+				glScissor(left, size().height() - (top + height), width, height);
+				glEnable(GL_SCISSOR_TEST);
+				glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+				glClear(GL_COLOR_BUFFER_BIT);
+				glDisable(GL_SCISSOR_TEST);
 			}
 
 			return;
@@ -1316,7 +1317,11 @@ void QGLReceiverPanel::drawWaterfall() {
 			}
 
 			m_waterfallUpdate = false;
-            drawGLRect(m_waterfallRect, Qt::black);
+
+			// Clear the FBOs to black
+			for (auto *fbo : {m_waterfallFBO, m_textureFBO, m_waterfallLineFBO}) {
+				if (fbo) { fbo->bind(); glClearColor(0,0,0,1); glClear(GL_COLOR_BUFFER_BIT); fbo->release(); }
+			}
 
 			m_waterfallLineCnt = 0;
 						
@@ -1347,71 +1352,47 @@ void QGLReceiverPanel::drawWaterfall() {
 			m_waterfallLineCnt++;
 			if (m_waterfallLineCnt > height) m_waterfallLineCnt = height;
 
-			// draw the waterfall
-			glEnable(GL_TEXTURE_2D);
-			glBindTexture(GL_TEXTURE_2D, m_waterfallFBO->texture());
-	
-			glBegin(GL_QUADS);
-				glTexCoord2f(0, 1); glVertex2i(left,			top);			// top left corner
-				glTexCoord2f(1, 1); glVertex2i(left + width,	top);			// top right corner
-				glTexCoord2f(1, 0); glVertex2i(left + width,	top + height);	// bottom right corner
-				glTexCoord2f(0, 0); glVertex2i(left,			top + height);	// bottom left corner
-			glEnd();
+			// Scroll: shift old content DOWN toward screen bottom.
+			// blitFramebuffer uses GL coords (y=0 at bottom, y=height-1 at top/screen-top).
+			// Copy GL rows 1..height-1 → rows 0..height-2 (shift down by 1).
+			QOpenGLFramebufferObject::blitFramebuffer(
+				m_textureFBO, QRect(0, 0, width, height - 1),
+				m_waterfallFBO, QRect(0, 1, width, height - 1),
+				GL_COLOR_BUFFER_BIT, GL_NEAREST);
+
+			// Place new line at GL row height-1 (FBO top = screen top).
+			QOpenGLFramebufferObject::blitFramebuffer(
+				m_textureFBO, QRect(0, height - 1, width, 1),
+				m_waterfallLineFBO, QRect(0, 0, width, 1),
+				GL_COLOR_BUFFER_BIT, GL_NEAREST);
+
+			// Draw the completed waterfall texture to screen
 			glBindTexture(GL_TEXTURE_2D, oldTex);
-			glDisable(GL_TEXTURE_2D);
+			renderTexture(QRect(left, top, width, height), m_textureFBO->texture(), 0.0f);
 
-			glPushAttrib(GL_VIEWPORT_BIT);
-            glViewport(0, 0, width, height);
-			setProjectionOrthographic(width, height);
-
-			// render to the next waterfall texture
-			m_textureFBO->bind();
-
-			glEnable(GL_TEXTURE_2D);
-			glBindTexture(GL_TEXTURE_2D, m_waterfallFBO->texture());
-
-			// the waterfall FBO
-			glBegin(GL_QUADS);
-				glTexCoord2f(0, 1); glVertex2i(0,	  1);			// top left corner
-				glTexCoord2f(1, 1); glVertex2i(width, 1);			// top right corner
-				glTexCoord2f(1, 0); glVertex2i(width, 1 + height);	// bottom right corner
-				glTexCoord2f(0, 0); glVertex2i(0,	  1 + height);	// bottom left corner
-			glEnd();
-
-			// the new waterfall line
-			glBindTexture(GL_TEXTURE_2D, m_waterfallLineFBO->texture());
-			
-			glBegin(GL_QUADS);
-				glTexCoord2f(0, 1); glVertex2i(0,		0);	// top left corner
-				glTexCoord2f(1, 1); glVertex2i(width,	0);	// top right corner
-				glTexCoord2f(1, 0); glVertex2i(width,	1);	// bottom right corner
-				glTexCoord2f(0, 0); glVertex2i(0,		1);	// bottom left corner
-			glEnd();
-			
-			m_textureFBO->release();
-
-			glDisable(GL_TEXTURE_2D);
-			glPopAttrib();
-			const qreal dprNow = devicePixelRatioF();
-			glViewport(0, 0, (GLsizei)(size().width() * dprNow), (GLsizei)(size().height() * dprNow));
-			setProjectionOrthographic(size().width(), size().height());
-
+			// Paint black over any not-yet-filled rows at the bottom
 			if (m_waterfallLineCnt < height) {
-
-				QRect rect(0, top + m_waterfallLineCnt, width, height - m_waterfallLineCnt);
-				drawGLRect(rect, QColor(0, 0, 0, 255), 3.0f);
+				int unfilledTop = top + m_waterfallLineCnt;
+				int unfilledH   = height - m_waterfallLineCnt;
+				glScissor(left, size().height() - (unfilledTop + unfilledH), width, unfilledH);
+				glEnable(GL_SCISSOR_TEST);
+				glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+				glClear(GL_COLOR_BUFFER_BIT);
+				glDisable(GL_SCISSOR_TEST);
 			}
-            m_waterfallFBO->release();
 
-			// Avoid an extra blit/copy pass: the newly rendered frame is already in
-			// m_textureFBO, so swap roles for the next draw/update cycle.
+			// Swap so m_waterfallFBO holds the completed frame for next cycle
 			qSwap(m_waterfallFBO, m_textureFBO);
 
 
 		}
 		else {
 
-			drawGLRect(m_waterfallRect, Qt::black);
+			glScissor(left, size().height() - (top + height), width, height);
+			glEnable(GL_SCISSOR_TEST);
+			glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+			glClear(GL_COLOR_BUFFER_BIT);
+			glDisable(GL_SCISSOR_TEST);
 		}
 	}
 	else {
@@ -1453,20 +1434,20 @@ void QGLReceiverPanel::drawWaterfallVerticalScale() {
 			//	GRAPHICS_DEBUG << "m_secScaleWaterfallFBO generated.";
 		}
 
-		glPushAttrib(GL_VIEWPORT_BIT | GL_TEXTURE_BIT);
-		glViewport(0, 0, width, height);
-		setProjectionOrthographic(width, height);
-				m_secScaleWaterfallFBO->bind();
-			renderWaterfallVerticalScale();
-		m_secScaleWaterfallFBO->release();
+        glPushAttrib(GL_VIEWPORT_BIT | GL_TEXTURE_BIT);
+        glViewport(0, 0, width, height);
+        setProjectionOrthographic(width, height);
 
-		glPopAttrib(); // This restores the viewport and texture state
+				m_secScaleWaterfallFBO->bind();
+				renderWaterfallVerticalScale();
+			m_secScaleWaterfallFBO->release();
+
+        glPopAttrib();
 
 		m_secScaleWaterfallUpdate = false;
 		m_secScaleWaterfallRenew = false;
 	}
 
-	glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
 	renderTexture(m_secScaleWaterfallRect, m_secScaleWaterfallFBO->texture(), 4.0f);
     glViewport(0, 0, size().width(), size().height());
     setProjectionOrthographic(size().width(), size().height());
@@ -1653,7 +1634,7 @@ void QGLReceiverPanel::drawVFOControl() {
 		int y = 25;
 
         QRect rect = QRect(x, y, m_fonts.smallFontMetrics->horizontalAdvance(str) + 4, m_fonts.fontHeightSmallFont + 2);
-		drawGLRect(rect, col, 2.0f);
+		painter.fillRect(rect, col);
 		painter.setPen(Qt::white);
 		painter.drawText(x+1, y + m_fonts.fontHeightSmallFont - 2, str);
 	}
@@ -1668,7 +1649,7 @@ void QGLReceiverPanel::drawVFOControl() {
 		int y = 25;
 
         QRect rect = QRect(x, y, m_fonts.smallFontMetrics->horizontalAdvance(str) + 4, m_fonts.fontHeightSmallFont + 2);
-		drawGLRect(rect, col, 2.0f);
+		painter.fillRect(rect, col);
 		painter.setPen(Qt::white);
 		painter.drawText(x+1, y + m_fonts.fontHeightSmallFont - 2, str);
 	}
@@ -2019,59 +2000,8 @@ void QGLReceiverPanel::renderPanHorizontalScale() {
 }
 
 void QGLReceiverPanel::renderPanadapterGrid() {
-
-
-    // Clear to transparent so only grid lines are visible
-    glClearColor(0.0f, 0.0f, 0.0f, 0.0f);  // Transparent black
-    glClear(GL_COLOR_BUFFER_BIT);
-
-    // Set up OpenGL state for efficient line rendering
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glDisable(GL_LINE_STIPPLE);  // Try solid lines first for visibility
-    // glEnable(GL_LINE_STIPPLE);
-    // glLineStipple(1, 0x5555);  // Dotted pattern (equivalent to Qt::DotLine)
-    glLineWidth(2.0f);  // Make lines thicker for visibility
-    
-    // Draw all lines in one batch for maximum performance
-    glBegin(GL_LINES);
-
-    // Vertical lines (frequency grid)
-    int len = m_frequencyScale.mainPointPositions.length();
-    if (len > 0) {
-        GLint y1 = 0;
-        GLint y2 = m_panRect.height() - 1;  // Use relative height, not absolute bottom
-
-        for (int i = 0; i < len; i++) {
-            GLint x = m_frequencyScale.mainPointPositions.at(i) - m_panRect.left();  // Convert to relative coordinates
-            if (x >= 0 && x < m_panRect.width()) {  // Only draw if within bounds
-                glVertex2i(x, y1);
-                glVertex2i(x, y2);
-            }
-        }
-    }
-
-    // Horizontal lines (dBm grid)
-    len = m_dBmScale.mainPointPositions.length();
-    if (len > 0) {
-        GLint x1 = 0;
-        GLint x2 = m_panRect.width() - 1;  // Use relative width, not absolute right
-
-        for (int i = 0; i < len; i++) {
-            GLint y = m_dBmScale.mainPointPositions.at(i) - m_panRect.top();  // Convert to relative coordinates
-            if (y >= 0 && y < m_panRect.height()) {  // Only draw if within bounds
-                glVertex2i(x1, y);
-                glVertex2i(x2, y);
-            }
-        }
-    }
-
-    glEnd();
-    
-    // Restore OpenGL state
-    glDisable(GL_LINE_STIPPLE);
-    glDisable(GL_BLEND);
-   }
+    // Superseded by drawPanadapterGrid() which uses QPainter directly.
+}
  
 void QGLReceiverPanel::renderWaterfallVerticalScale() {
 
@@ -2112,16 +2042,11 @@ void QGLReceiverPanel::renderWaterfallVerticalScale() {
 	int len		= m_secScale.mainPointPositions.length();
 	int sublen	= m_secScale.subPointPositions.length();
 
-	glViewport(0, 0, width, height);
-	setProjectionOrthographic(width, height);
-
-	// draw the scale background (legacy GL utility - separate session)
-	drawGLScaleBackground(QRect(0, 0, width, height), QColor(40, 40, 40, 180));
-
 	// draw tick marks and labels with QPainter
 	QOpenGLPaintDevice paintDevice(QSize(width, height));
 	QPainter painter(&paintDevice);
 	painter.setRenderHint(QPainter::Antialiasing, false);
+	painter.fillRect(0, 0, width, height, QColor(40, 40, 40, 180));
 
 	if (len > 0) {
 

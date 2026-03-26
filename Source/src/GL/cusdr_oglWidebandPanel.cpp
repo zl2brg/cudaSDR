@@ -290,7 +290,8 @@ void QGLWidebandPanel::paintGL() {
 
 		case QSDR::NoServerMode:
 
-            drawGLRect(QRect(0, 0, width()* dpr, height() * dpr), QColor(65, 54, 54));
+			glClearColor(65.0f/255, 54.0f/255, 54.0f/255, 1.0f);
+			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 			break;
 
 		case QSDR::SDRMode:
@@ -438,7 +439,21 @@ void QGLWidebandPanel::drawSpectrum() {
 	}
 	else {
 
-		drawGLRect(m_panRect, QColor(30, 30, 50, 155), -4.0f);
+		if (m_program && m_program->isLinked()) {
+			m_program->bind();
+			setMvpOrtho(size().width(), size().height());
+			const float r = (30.0f * 155.0f) / (255.0f * 255.0f);
+			const float g = (30.0f * 155.0f) / (255.0f * 255.0f);
+			const float b = (50.0f * 155.0f) / (255.0f * 255.0f);
+			QVector<float> bg = {
+				(float)x1,(float)y1,-4.0f, r,g,b,
+				(float)x2,(float)y1,-4.0f, r,g,b,
+				(float)x1,(float)y2,-4.0f, r,g,b,
+				(float)x2,(float)y2,-4.0f, r,g,b,
+			};
+			drawVertexColorArray(GL_TRIANGLE_STRIP, bg, 4);
+			m_program->release();
+		}
 	}
 
 	// set a scissor box
@@ -548,7 +563,7 @@ void QGLWidebandPanel::drawSpectrum() {
 		if (m_program && m_program->isLinked()) {
 			m_program->bind();
 			setMvpOrtho(size().width(), size().height());
-			drawVertexColorArray(GL_QUAD_STRIP, bgData,   2 * vertexArrayLength);
+		drawVertexColorArray(GL_TRIANGLE_STRIP, bgData,   2 * vertexArrayLength);
 			drawVertexColorArray(GL_LINE_STRIP,  lineData, vertexArrayLength);
 			m_program->release();
 		}
@@ -766,7 +781,21 @@ void QGLWidebandPanel::drawSpectrum() {
 //		}
 	
 		QRect rect = QRect(x1, y1, x2-x1, y2);
-		drawGLRect(rect, QColor(160, 235, 255, 80), 0.0f);
+		if (m_program && m_program->isLinked()) {
+			m_program->bind();
+			setMvpOrtho(size().width(), size().height());
+			const float rC = 160.0f/255, gC = 235.0f/255, bC = 255.0f/255, aC = 80.0f/255;
+			const float rx1f = (float)rect.left(), ry1f = (float)rect.top();
+			const float rx2f = (float)rect.right(), ry2f = (float)rect.bottom();
+			QVector<float> bov = {
+				rx1f, ry1f, 0.0f,  rC*aC, gC*aC, bC*aC,
+				rx2f, ry1f, 0.0f,  rC*aC, gC*aC, bC*aC,
+				rx1f, ry2f, 0.0f,  rC*aC, gC*aC, bC*aC,
+				rx2f, ry2f, 0.0f,  rC*aC, gC*aC, bC*aC,
+			};
+			drawVertexColorArray(GL_TRIANGLE_STRIP, bov, 4);
+			m_program->release();
+		}
 
 		// small vertical line
 //		glColor4f(QColor(255, 0, 0, 255));
@@ -818,7 +847,6 @@ void QGLWidebandPanel::drawVerticalScale() {
 		m_dBmScaleRenew = false;
 	}
 
-	glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
 	renderTexture(m_dBmScaleRect, m_dBmScaleFBO->texture(), 0.0f);
 }
 
@@ -864,7 +892,6 @@ void QGLWidebandPanel::drawHorizontalScale() {
 		m_freqScaleRenew = false;
 	}
 	
-	glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
 	renderTexture(m_freqScaleRect, m_frequencyScaleFBO->texture(), 0.0f);
 }
 

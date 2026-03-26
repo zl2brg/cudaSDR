@@ -500,14 +500,11 @@ void QGL3DPanel::renderGrid() {
 void QGL3DPanel::renderAxes() {
     if (!m_shaderProgram) return;
 
-    // 6 vertices: position (x,y,z) + color (r,g,b)
+    // 4 vertices: position (x,y,z) + color (r,g,b)
     const float axesVertices[] = {
         // X axis (frequency) - Red
         -250.0f,  0.0f,   0.0f,  1.0f, 0.0f, 0.0f,
          250.0f,  0.0f,   0.0f,  1.0f, 0.0f, 0.0f,
-        // Y axis (amplitude) - Green
-           0.0f,  0.0f,   0.0f,  0.0f, 1.0f, 0.0f,
-           0.0f, 60.0f,   0.0f,  0.0f, 1.0f, 0.0f,
         // Z axis (time) - Blue
            0.0f,  0.0f, -60.0f,  0.0f, 0.0f, 1.0f,
            0.0f,  0.0f,  60.0f,  0.0f, 0.0f, 1.0f,
@@ -533,7 +530,7 @@ void QGL3DPanel::renderAxes() {
 
     glDisable(GL_DEPTH_TEST);
     glLineWidth(2.0f);
-    glDrawArrays(GL_LINES, 0, 6);
+    glDrawArrays(GL_LINES, 0, 4);
     glLineWidth(1.0f);
     glEnable(GL_DEPTH_TEST);
 

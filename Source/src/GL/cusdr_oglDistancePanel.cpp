@@ -348,7 +348,8 @@ void QGLDistancePanel::initializeGL() {
 
 void QGLDistancePanel::paintGL() {
 
-		drawGLRect(QRect(0, 0, width(), height()), QColor(0, 0, 0));
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 }
  
 //****************************************************
@@ -444,26 +445,57 @@ void QGLDistancePanel::drawPanadapter() {
 
 		if (m_panGrid) {
 
-			glBegin(GL_TRIANGLE_STRIP);
-				glColor3f(0.15f, 0.15f, 0.3f);	glVertex3f(x1, y1, -3.0); // top left corner
-				glColor3f(0.15f, 0.15f, 0.3f);	glVertex3f(x2, y1, -3.0); // top right corner
-				glColor3f(0.15f, 0.15f, 0.51f);	glVertex3f(x1, y2, -3.0); // bottom left corner
-				glColor3f(0.15f, 0.15f, 0.61f);	glVertex3f(x2, y2, -3.0); // bottom right corner
-			glEnd();
+			TGL3float bgV[4] = {
+				{(GLfloat)x1,(GLfloat)y1,-3.f},{(GLfloat)x2,(GLfloat)y1,-3.f},
+				{(GLfloat)x1,(GLfloat)y2,-3.f},{(GLfloat)x2,(GLfloat)y2,-3.f}
+			};
+			TGL3float bgC[4] = {
+				{0.15f,0.15f,0.30f},{0.15f,0.15f,0.30f},
+				{0.15f,0.15f,0.51f},{0.15f,0.15f,0.61f}
+			};
+			glEnableClientState(GL_VERTEX_ARRAY);
+			glEnableClientState(GL_COLOR_ARRAY);
+			glVertexPointer(3, GL_FLOAT, 0, bgV);
+			glColorPointer(3, GL_FLOAT, 0, bgC);
+			glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+			glDisableClientState(GL_COLOR_ARRAY);
+			glDisableClientState(GL_VERTEX_ARRAY);
 		}
 		else {
 
-			glBegin(GL_TRIANGLE_STRIP);
-				glColor3f(0.05f, 0.05f, 0.2f);	glVertex3f(x1, y1, -3.0); // top left corner
-				glColor3f(0.05f, 0.05f, 0.2f);	glVertex3f(x2, y1, -3.0); // top right corner
-				glColor3f(0.05f, 0.05f, 0.31f);	glVertex3f(x1, y2, -3.0); // bottom left corner
-				glColor3f(0.05f, 0.05f, 0.41f);	glVertex3f(x2, y2, -3.0); // bottom right corner
-			glEnd();
+			TGL3float bgV[4] = {
+				{(GLfloat)x1,(GLfloat)y1,-3.f},{(GLfloat)x2,(GLfloat)y1,-3.f},
+				{(GLfloat)x1,(GLfloat)y2,-3.f},{(GLfloat)x2,(GLfloat)y2,-3.f}
+			};
+			TGL3float bgC[4] = {
+				{0.05f,0.05f,0.20f},{0.05f,0.05f,0.20f},
+				{0.05f,0.05f,0.31f},{0.05f,0.05f,0.41f}
+			};
+			glEnableClientState(GL_VERTEX_ARRAY);
+			glEnableClientState(GL_COLOR_ARRAY);
+			glVertexPointer(3, GL_FLOAT, 0, bgV);
+			glColorPointer(3, GL_FLOAT, 0, bgC);
+			glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+			glDisableClientState(GL_COLOR_ARRAY);
+			glDisableClientState(GL_VERTEX_ARRAY);
 		}
 	}
 	else {
 
-		drawGLRect(m_panRect, QColor(30, 30, 50, 155), -3.0f);
+		// DataEngineDown: solid dark background
+		TGL3float bgV[4] = {
+			{(GLfloat)x1,(GLfloat)y1,-3.f},{(GLfloat)x2,(GLfloat)y1,-3.f},
+			{(GLfloat)x1,(GLfloat)y2,-3.f},{(GLfloat)x2,(GLfloat)y2,-3.f}
+		};
+		const float iv = 30.f/255.f, bv = 50.f*155.f/(255.f*255.f);
+		TGL3float bgC[4] = {{iv,iv,bv},{iv,iv,bv},{iv,iv,bv},{iv,iv,bv}};
+		glEnableClientState(GL_VERTEX_ARRAY);
+		glEnableClientState(GL_COLOR_ARRAY);
+		glVertexPointer(3, GL_FLOAT, 0, bgV);
+		glColorPointer(3, GL_FLOAT, 0, bgC);
+		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+		glDisableClientState(GL_COLOR_ARRAY);
+		glDisableClientState(GL_VERTEX_ARRAY);
 	}
 
 	//glBegin(GL_TRIANGLE_STRIP);
@@ -521,7 +553,7 @@ void QGLDistancePanel::drawPanadapter() {
 				
 			glVertexPointer(3, GL_FLOAT, 0, vertexArrayBg);
 			glColorPointer(3, GL_FLOAT, 0, vertexColorArrayBg);
-			glDrawArrays(GL_QUAD_STRIP, 0, 2*vertexArrayLength);
+			glDrawArrays(GL_TRIANGLE_STRIP, 0, 2*vertexArrayLength);
 
 			glVertexPointer(3, GL_FLOAT, 0, vertexArray);
 			glColorPointer(3, GL_FLOAT, 0, vertexColorArray);
@@ -690,17 +722,9 @@ void QGLDistancePanel::drawPanHorizontalScale() {
             m_frequencyScaleFBO = new QOpenGLFramebufferObject(width, height);
 		}
 
-		glPushAttrib(GL_VIEWPORT_BIT);
-		glViewport(0, 0, width, height);
-		setProjectionOrthographic(width, height);
-		
 		m_frequencyScaleFBO->bind();
 			renderPanHorizontalScale();
 		m_frequencyScaleFBO->release();
-
-		glPopAttrib();
-		glViewport(0, 0, size().width(), size().height());
-		setProjectionOrthographic(size().width(), size().height());
 		
 		m_freqScalePanadapterUpdate = false;
 		m_freqScalePanadapterRenew = false;
@@ -720,10 +744,6 @@ void QGLDistancePanel::drawPanadapterGrid() {
 	int height = m_panRect.height();
 
 	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
-    //glColor4f(0.35, 0.46, 0.51, 0.7);
-    //glColor4f(0.45, 0.56, 0.61, 1.0);
-    glColor4f(0.45f, 0.56f, 0.61f, 0.8f);
-	
 	glDisable(GL_MULTISAMPLE);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glEnable(GL_BLEND);
@@ -744,7 +764,7 @@ void QGLDistancePanel::drawPanadapterGrid() {
 		glPushAttrib(GL_VIEWPORT_BIT);
 		glViewport(0, 0, width, height);
 		setProjectionOrthographic(width, height);
-		
+
 		m_panadapterGridFBO->bind();
 			renderPanadapterGrid();
 		m_panadapterGridFBO->release();
@@ -752,7 +772,7 @@ void QGLDistancePanel::drawPanadapterGrid() {
 		glPopAttrib();
 		glViewport(0, 0, size().width(), size().height());
 		setProjectionOrthographic(size().width(), size().height());
-		
+
 		m_panGridUpdate = false;
 		m_panGridRenew = false;
 	}
@@ -787,8 +807,21 @@ void QGLDistancePanel::drawPanFilter() {
 		(x2 >= m_panRect.left() && x2 <= m_panRect.right()) ||
 		(x1 < m_panRect.left() && x2 > m_panRect.right()))
 	{
-		if (filterRect.height() > 5) 
-			drawGLRect(filterRect, color, 3.0);
+		if (filterRect.height() > 5) {
+			float fx1 = filterRect.left(), fy1 = filterRect.top();
+			float fx2 = filterRect.right()+1, fy2 = filterRect.bottom()+1;
+			TGL3float fv[4] = {{fx1,fy1,3.f},{fx2,fy1,3.f},{fx1,fy2,3.f},{fx2,fy2,3.f}};
+			GLfloat fc[4] = {color.redF(), color.greenF(), color.blueF(), color.alphaF()};
+			GLfloat fcs[4][4] = {{fc[0],fc[1],fc[2],fc[3]},{fc[0],fc[1],fc[2],fc[3]},
+			                    {fc[0],fc[1],fc[2],fc[3]},{fc[0],fc[1],fc[2],fc[3]}};
+			glEnableClientState(GL_VERTEX_ARRAY);
+			glEnableClientState(GL_COLOR_ARRAY);
+			glVertexPointer(3, GL_FLOAT, 0, fv);
+			glColorPointer(4, GL_FLOAT, 0, fcs);
+			glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+			glDisableClientState(GL_COLOR_ARRAY);
+			glDisableClientState(GL_VERTEX_ARRAY);
+		}
 	}
 
 	// draw a line for the display center
@@ -804,13 +837,20 @@ void QGLDistancePanel::drawPanFilter() {
 		//glDisable(GL_LINE_SMOOTH);
 		glDisable(GL_MULTISAMPLE);
 		glLineWidth(1);
-		glColor4ub(color.red(), color.green(), color.blue(), color.alpha());
-		glBegin(GL_LINES);
-			/*glVertex2i(x, y1);
-			glVertex2i(x, y2);*/
-			glVertex3f(x, y1, 4.0f);
-			glVertex3f(x, y2, 4.0f);
-		glEnd();
+		{
+		TGL3float lv[2] = {{(GLfloat)x,(GLfloat)y1,4.f},{(GLfloat)x,(GLfloat)y2,4.f}};
+			GLfloat lc[2][4] = {
+				{color.redF(),color.greenF(),color.blueF(),color.alphaF()},
+				{color.redF(),color.greenF(),color.blueF(),color.alphaF()}
+			};
+			glEnableClientState(GL_VERTEX_ARRAY);
+			glEnableClientState(GL_COLOR_ARRAY);
+			glVertexPointer(3, GL_FLOAT, 0, lv);
+			glColorPointer(4, GL_FLOAT, 0, lc);
+			glDrawArrays(GL_LINES, 0, 2);
+			glDisableClientState(GL_COLOR_ARRAY);
+			glDisableClientState(GL_VERTEX_ARRAY);
+		}
 		glEnable(GL_MULTISAMPLE);
 	}
 }
@@ -822,77 +862,44 @@ void QGLDistancePanel::drawCrossHair() {
 	int x = m_mousePos.x();
 	int y = m_mousePos.y();
 
-	glDisable(GL_MULTISAMPLE);
-	glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	QPainter painter(this);
+	painter.setRenderHint(QPainter::Antialiasing, false);
+	painter.setClipRect(rect);
 
-	glDisable(GL_LINE_SMOOTH);
-	glLineWidth(1.0f);
+	// thin crosshair lines (semi-transparent white)
+	painter.setPen(QPen(QColor(255, 255, 255, 80), 1));
+	painter.drawLine(m_dBmScalePanRect.right() - 2, y, rect.right() - 1, y);
+	painter.drawLine(x, rect.top() + 1, x, rect.bottom() - 1);
 
-    glColor4f(255, 255, 255, 80);
+	// cross-hair target mark
+	painter.setPen(QPen(QColor(255, 255, 255, 180), 1));
+	painter.drawLine(x, y - 20, x, y + 20);
+	painter.drawLine(x - 20, y, x + 20, y);
 
-	// set a scissor box
-	glScissor(rect.left(), rect.top(), rect.width() - 1, rect.height());
-	glEnable(GL_SCISSOR_TEST);
+	// frequency / dBm text
+	painter.setPen(Qt::white);
+	painter.setFont(m_fonts.smallFont);
 
-	// horizontal line
-	glBegin(GL_LINES);
-		glVertex3f(m_dBmScalePanRect.right() - 2, y, 4.0f);
-		glVertex3f(rect.right() - 1, y, 4.0f);
-	glEnd();
-
-	// vertical line
-	glBegin(GL_LINES);
-		glVertex3f(x, rect.top() + 1, 4.0f);
-		glVertex3f(x, rect.bottom() - 1, 4.0f);
-	glEnd();
-
-	// cross hair
-    glColor4f(255,255,255,180);
-	glBegin(GL_LINES);
-		glVertex3f(x     , y - 20, 5.0f);
-		glVertex3f(x     , y + 20, 5.0f);
-		glVertex3f(x - 20, y, 5.0f);
-		glVertex3f(x + 20, y, 5.0f);
-	glEnd();
-
-	// text only on panadapter
-	//if (m_mouseRegion == panadapterRegion) {
-		
 	QString str;
-    glColor4f(255, 255, 255, 255);
-
 	int dx = m_panRect.width()/2 - x;
 	qreal unit = (qreal)((m_sampleRate * m_freqScaleZoomFactor) / m_panRect.width());
 	qreal df = unit * dx;
 	qreal frequency = m_frequency - df;
-	
+
+	int textX = (x > m_panRect.width() - 85) ? x - 90 : x + 4;
 	str = frequencyString(-df, true);
-	if (x > m_panRect.width() - 85)
-		m_oglTextSmall->renderText(x -90, y - 30, 5.0f, str);
-	else
-		m_oglTextSmall->renderText(x + 4, y - 30, 5.0f, str);
+	painter.drawText(textX, y - 30, str);
 
 	str = frequencyString(frequency);
-	if (x > m_panRect.width() - 85)
-		m_oglTextSmall->renderText(x - 90, y - 18, 5.0f, str);
-	else
-		m_oglTextSmall->renderText(x + 4, y - 18, 5.0f, str);
+	painter.drawText(textX, y - 18, str);
 
 	if (m_mouseRegion == panadapterRegion) {
-
 		qreal dBm = m_dBmPanMax - ((m_dBmPanMax - m_dBmPanMin) * ((qreal)(y - m_panRect.top()) / m_panRect.height()));
 		str = QString::number(dBm, 'f', 1) + " dBm";
-		if (x > m_panRect.width() - 85)
-			m_oglTextSmall->renderText(x - 90, y + 6, 5.0f, str);
-		else
-			m_oglTextSmall->renderText(x + 4, y + 6, 5.0f, str);
+		painter.drawText(textX, y + 6, str);
 	}
 
-	// disable scissor box
-	glDisable(GL_SCISSOR_TEST);
-
-	glEnable(GL_MULTISAMPLE);
+	painter.end();
 }
 
 //************
@@ -914,7 +921,8 @@ void QGLDistancePanel::drawDistanceSpectrum() {
 	
 	if (distScale < 0)	{
 
-		drawGLRect(m_distanceSpectrumRect, Qt::black);
+		// clear distance spectrum area
+		glClearColor(0.f, 0.f, 0.f, 1.f);
 		//GRAPHICS_DEBUG << "drawDistanceSpectrum bad distance scale:" << distScale;
 		return;
 	}
@@ -1067,73 +1075,55 @@ void QGLDistancePanel::drawDistHorizontalScale() {
 	m_distanceScale = getXRuler(m_freqScaleDistancePanRect, rulerFontMaxWidth, unit, lowerDist, upperDist);
 
 	// draw the scale background
-	drawGLScaleBackground(m_freqScaleDistancePanRect, Qt::black);
+	{
+		QPainter p(this);
+		p.fillRect(m_freqScaleDistancePanRect, Qt::black);
+	}
 
 	// draw the distance scale
 	int		offset_X		= -1;
 	int		textOffset_y	= 17;
 	double	distScale		= 1;
 
-//	char *str;
-//	if (m_showChirpFFT)
-//		str = "  Hz ";
-//	else
-//		str = "  km ";
-	
 	QRect scaledTextRect(0, textOffset_y, 1, rulerFontHeight);
-	//scaledTextRect.setWidth(d_fm.width(str));
-	scaledTextRect.moveLeft(m_freqScaleDistancePanRect.width() - scaledTextRect.width());// - menu_pull_right_rect.width());
-	
-	glColor3f(0.94f, 0.22f, 0.43f);
-	glRasterPos3f(m_freqScaleDistancePanRect.width() - 30, m_freqScaleDistancePanRect.top() + textOffset_y, 0.0);
-	//writeBitmapString(GLUT_BITMAP_HELVETICA_10, str);
+	scaledTextRect.moveLeft(m_freqScaleDistancePanRect.width() - scaledTextRect.width());
 
-	if (m_mouseRegion == freqScaleDistancePanRegion)
-		glColor3f(0.8f, 0.92f, 0.97f);
-	else
-		glColor3f(0.65f, 0.76f, 0.81f);
+	QColor tickColor = (m_mouseRegion == freqScaleDistancePanRegion)
+	                   ? QColor(204, 235, 247) : QColor(166, 194, 207);
 
 	int len = m_distanceScale.mainPointPositions.length();
 	if (len > 0) {
 
-		glLineWidth(3);
-		glBegin(GL_LINES);
+		QPainter painter(this);
+		painter.setFont(m_fonts.smallFont);
+		painter.setPen(QPen(tickColor, 3));
 		for (int i = 0; i < len; i++) {
-
-			glVertex3f(m_distanceScale.mainPointPositions.at(i), m_freqScaleDistancePanRect.top() + 1, 0.0f); // origin of the line
-			glVertex3f(m_distanceScale.mainPointPositions.at(i), m_freqScaleDistancePanRect.top() + 4, 0.0f); // ending point of the line
+			int xp = m_distanceScale.mainPointPositions.at(i);
+			painter.drawLine(xp, m_freqScaleDistancePanRect.top() + 1,
+			                 xp, m_freqScaleDistancePanRect.top() + 4);
 		}
-		glEnd();
 
+		painter.setPen(tickColor);
 		for (int i = 0; i < len; i++) {
-		
+
 			QString str = QString::number(m_distanceScale.mainPoints.at(i) / distScale, 'f', 0);
-
-            int textWidth = m_fonts.smallFontMetrics->horizontalAdvance(str);
-			QRect textRect(m_distanceScale.mainPointPositions.at(i) + offset_X - (textWidth / 2), textOffset_y, textWidth, rulerFontHeight);
-
-			QByteArray ba = str.toLatin1();
-			char *cstr = ba.data();
+			int textWidth = m_fonts.smallFontMetrics->horizontalAdvance(str);
+			QRect textRect(m_distanceScale.mainPointPositions.at(i) + offset_X - (textWidth / 2),
+			              textOffset_y, textWidth, rulerFontHeight);
 
 			if (textRect.left() < 0 || textRect.right() >= scaledTextRect.left()) continue;
-
-			glRasterPos3f(m_distanceScale.mainPointPositions.at(i) + offset_X - (textWidth / 2), m_freqScaleDistancePanRect.top() + textOffset_y, 0.0);
-			m_oglTextSmall->renderText(textRect.x(), textRect.y(), cstr);
-			//writeBitmapString(GLUT_BITMAP_HELVETICA_10, cstr);
+			painter.drawText(textRect.x(), textRect.y() + m_fonts.smallFontMetrics->height(), str);
 		}
-	}
 
-	len = m_distanceScale.subPointPositions.length();
-	if (len > 0) {
-
-		glLineWidth(1);
-		glBegin(GL_LINES);
-		for (int i = 0; i < len; i++) {
-
-			glVertex3f(m_distanceScale.subPointPositions.at(i), m_freqScaleDistancePanRect.top() + 1, 0.0f); // origin of the line
-			glVertex3f(m_distanceScale.subPointPositions.at(i), m_freqScaleDistancePanRect.top() + 3, 0.0f); // ending point of the line
+		len = m_distanceScale.subPointPositions.length();
+		if (len > 0) {
+			painter.setPen(QPen(tickColor, 1));
+			for (int i = 0; i < len; i++) {
+				int xp = m_distanceScale.subPointPositions.at(i);
+				painter.drawLine(xp, m_freqScaleDistancePanRect.top() + 1,
+				                 xp, m_freqScaleDistancePanRect.top() + 3);
+			}
 		}
-		glEnd();
 	}
 }
 
@@ -1158,100 +1148,66 @@ void QGLDistancePanel::drawDistVerticalScale() {
 	qreal unit = (float)(m_dBmScaleDistancePanRect.height() / dBmRange);
 
 	m_dBmScale = getYRuler(m_dBmScaleDistancePanRect, fontHeight, unit, m_dBmDistScaleMin, m_dBmDistScaleMax);
-	
-	// draw the scale background
-	drawGLScaleBackground(m_dBmScaleDistancePanRect, QColor(60, 60, 60, 80));
+
+	QColor tickColor = (m_mouseRegion == dBmScaleDistancePanRegion)
+	                   ? QColor(204, 235, 247) : QColor(166, 194, 207);
+	QColor subTickColor = (m_mouseRegion == dBmScaleDistancePanRegion)
+	                      ? QColor(128, 158, 171) : QColor(89, 117, 130);
+
+	QPainter painter(this);
+	painter.fillRect(m_dBmScaleDistancePanRect, QColor(60, 60, 60, 80));
+	painter.setFont(m_fonts.smallFont);
 
 	QRect textRect(0, 0, fontMaxWidth, fontHeight);
 	textRect.moveRight(14);
 	int yOld = -textRect.height();
-	
-	if (m_mouseRegion == dBmScaleDistancePanRegion)
-		glColor3f(0.8f, 0.92f, 0.97f);
-	else
-		glColor3f(0.65f, 0.76f, 0.81f);
 
-
-	glLineWidth(1);
 	int len = m_dBmScale.mainPointPositions.length();
-	
 	if (len > 0) {
 
-		glBegin(GL_LINES);
+		painter.setPen(QPen(tickColor, 1));
 		for (int i = 0; i < len; i++) {
-
-			glVertex3f(m_dBmScaleDistancePanRect.left(),     m_dBmScale.mainPointPositions.at(i), 0.0f);	// origin of the line
-			glVertex3f(m_dBmScaleDistancePanRect.left() + 4, m_dBmScale.mainPointPositions.at(i), 0.0f);	// ending point of the line
+			int yp = (int)m_dBmScale.mainPointPositions.at(i);
+			painter.drawLine(m_dBmScaleDistancePanRect.left(), yp,
+			                 m_dBmScaleDistancePanRect.left() + 4, yp);
 		}
-		glEnd();
 
 		for (int i = 0; i < len; i++) {
 
 			textRect.moveTop(m_dBmScale.mainPointPositions.at(i) + textRect.height()/3);
 
-			QString str;
-			if (textRect.y() >= yOld && 
-				textRect.bottom() <= (m_dBmScaleDistancePanRect.top() + m_dBmScaleDistancePanRect.height() - textRect.height()) &&
-				m_dBmScale.mainPointPositions.at(i) > 10 + m_dBmScaleDistancePanRect.top())
+			if (textRect.y() >= yOld &&
+			    textRect.bottom() <= (m_dBmScaleDistancePanRect.top() + m_dBmScaleDistancePanRect.height() - textRect.height()) &&
+			    m_dBmScale.mainPointPositions.at(i) > 10 + m_dBmScaleDistancePanRect.top())
 			{
-				str = QString::number(m_dBmScale.mainPoints.at(i), 'f', 1);
-				QByteArray ba = str.toLatin1();
-				//char *cstr = ba.data();
-				glRasterPos3f(textRect.right() + m_dBmScaleDistancePanRect.left(), textRect.y(), 0.0);
-				//writeBitmapString(GLUT_BITMAP_TIMES_ROMAN_10, cstr);
+				QString str = QString::number(m_dBmScale.mainPoints.at(i), 'f', 1);
+				painter.setPen(tickColor);
+				painter.drawText(textRect.right() + m_dBmScaleDistancePanRect.left(),
+				                 textRect.y() + fontHeight, str);
 				yOld = textRect.bottom();
 			}
-		
+
 			if (qRound(m_dBmScale.mainPoints.at(i)) == 0 && m_showZerodBmLine) {
-		
+
 				int zerodBmLine = m_dBmScale.mainPointPositions.at(i);
 				if (zerodBmLine > m_dBmScaleDistancePanRect.top() && zerodBmLine < m_dBmScaleDistancePanRect.bottom()) {
-		
-					glColor3f(0.2f, 0.87f, 0.87f);
-					glBegin(GL_LINES);
-					glVertex3f(m_distanceSpectrumRect.left(), zerodBmLine, 0.0f);						// origin of the line
-					glVertex3f(m_distanceSpectrumRect.width() - m_dBmScaleDistancePanRect.width() + 4, zerodBmLine, 0.0f);	// ending point of the line
-					glEnd();
 
-					if (m_mouseRegion == dBmScaleDistancePanRegion)
-						glColor3f(0.8f, 0.92f, 0.97f);
-					else
-						glColor3f(0.65f, 0.76f, 0.81f);
+					painter.setPen(QPen(QColor(51, 222, 222), 1));
+					painter.drawLine(m_distanceSpectrumRect.left(), zerodBmLine,
+					                 m_distanceSpectrumRect.width() - m_dBmScaleDistancePanRect.width() + 4, zerodBmLine);
 				}
 			}
 		}
 	}
 
-	if (m_mouseRegion == dBmScaleDistancePanRegion)
-		glColor3f(0.5f, 0.62f, 0.67f);
-	else
-		glColor3f(0.35f, 0.46f, 0.51f);
-
 	if (m_dBmScale.subPointPositions.length() > 0) {
-
-		glBegin(GL_LINES);
+		painter.setPen(QPen(subTickColor, 1));
 		for (int i = 0; i < m_dBmScale.subPointPositions.length(); i++) {
-
-			glVertex3f(m_dBmScaleDistancePanRect.left(),     m_dBmScale.subPointPositions.at(i), 0.0f);	// origin of the line
-			glVertex3f(m_dBmScaleDistancePanRect.left() + 2, m_dBmScale.subPointPositions.at(i), 0.0f);	// ending point of the line
+			int yp = (int)m_dBmScale.subPointPositions.at(i);
+			painter.drawLine(m_dBmScaleDistancePanRect.left(), yp,
+			                 m_dBmScaleDistancePanRect.left() + 2, yp);
 		}
-		glEnd();
 	}
-
-	//char* s = "dBm";
-	textRect.moveTop(m_dBmScaleDistancePanRect.top() + m_dBmScaleDistancePanRect.height() - textRect.height());
-	glColor3f(0.94f, 0.22f, 0.43f);
-	//glRasterPos3f(textRect.left(), textRect.center().y(), 0.0);
-	//glRasterPos3f(textRect.right() + right, textRect.center().y(), 0.0);
-	glRasterPos3f(textRect.right() + m_dBmScaleDistancePanRect.left(), textRect.center().y(), 0.0);
-	//writeBitmapString(GLUT_BITMAP_HELVETICA_10, s);
-	
-	//glPushMatrix();
-	//	glTranslatef(0.0, 0.0, 0.0);
-	//	//glRotatef(45.0, 0.0, 0.0, 1.0);
-	//	glScalef(0.25, 0.25, 0.25);
-	//	writeStrokeString(GLUT_STROKE_ROMAN, s);
-	//glPopMatrix();
 }
 
 //**********************************************************************************************
@@ -1261,88 +1217,72 @@ void QGLDistancePanel::drawDistVerticalScale() {
 void QGLDistancePanel::renderPanVerticalScale() {
 
 	QString str;
-	//QFontMetrics d_fm(m_smallFont);
-	//QFontMetrics d_fm(m_normalFont);
 
 	int spacing = 7;
 	int fontHeight = m_fonts.smallFontMetrics->tightBoundingRect(".0dBm").height() + spacing;
-    int fontMaxWidth= m_fonts.smallFontMetrics->boundingRect("-000.0").width();
+    int fontMaxWidth = m_fonts.smallFontMetrics->boundingRect("-000.0").width();
 
-	GLint width = m_dBmScalePanRect.width();
-	GLint height = m_dBmScalePanRect.height();
+	int width  = m_dBmScalePanRect.width();
+	int height = m_dBmScalePanRect.height();
 
-	qreal unit = (qreal)(m_dBmScalePanRect.height() / qAbs(m_dBmPanMax - m_dBmPanMin));
+	qreal unit = (qreal)(height / qAbs(m_dBmPanMax - m_dBmPanMin));
 
 	m_dBmScale = getYRuler2(m_dBmScalePanRect, fontHeight, unit, m_dBmPanMin, m_dBmPanMax);
 
-	glClear(GL_COLOR_BUFFER_BIT);
-	
+    QOpenGLPaintDevice paintDevice(m_dBmScaleFBO->size());
+    painter.begin(&paintDevice);
+
     QRect textRect(0, 0, width, fontHeight);
 	textRect.moveLeft(3);
 	int yOld = -textRect.height();
 
-	int len		= m_dBmScale.mainPointPositions.length();
-	int sublen	= m_dBmScale.subPointPositions.length();
-	
-	glViewport(0, 0, width, height);
-	setProjectionOrthographic(width, height);
+	int len    = m_dBmScale.mainPointPositions.length();
+	int sublen = m_dBmScale.subPointPositions.length();
 
 	// draw the scale background
-	drawGLScaleBackground(QRect(0, 0, width, height), QColor(30, 30, 30, 180));
-	
+    painter.fillRect(0, 0, width, height, QColor(30, 30, 30, 180));
+
 	if (len > 0) {
 
-		glColor3f(0.65f, 0.76f, 0.81f);
-		glLineWidth(1);
-
-		glBegin(GL_LINES);
+        painter.setPen(QPen(QColor(166, 194, 207), 1));
 		for (int i = 0; i < len; i++) {
-
-			glVertex3f(width,     m_dBmScale.mainPointPositions.at(i), 0.0f);	// origin of the line
-			glVertex3f(width - 4, m_dBmScale.mainPointPositions.at(i), 0.0f);	// ending point of the line
+            int y = (int)m_dBmScale.mainPointPositions.at(i);
+            painter.drawLine(width - 4, y, width, y);
 		}
-		glEnd();
-		
-		glColor3f(0.45f, 0.56f, 0.61f);
+
 		if (sublen > 0) {
-
-			glBegin(GL_LINES);
+            painter.setPen(QPen(QColor(115, 143, 156), 1));
 			for (int i = 0; i < sublen; i++) {
-
-				glVertex3f(width,     m_dBmScale.subPointPositions.at(i), 0.0f);	// origin of the line
-				glVertex3f(width - 2, m_dBmScale.subPointPositions.at(i), 0.0f);	// ending point of the line
+                int y = (int)m_dBmScale.subPointPositions.at(i);
+                painter.drawLine(width - 2, y, width, y);
 			}
-			glEnd();
 		}
 
-		glColor3f(0.75f, 0.86f, 0.91f);
+        painter.setPen(QPen(QColor(191, 219, 232)));
+        painter.setFont(m_fonts.smallFont);
 		for (int i = 0; i < len; i++) {
 
 			textRect.moveBottom(m_dBmScale.mainPointPositions.at(i) + textRect.height()/2);
-			
-			if (textRect.y() >= yOld && textRect.bottom() <= (m_dBmScalePanRect.height() - textRect.height())) {
-			
+
+			if (textRect.y() >= yOld && textRect.bottom() <= (height - textRect.height())) {
+
 				str = QString::number(m_dBmScale.mainPoints.at(i), 'f', 1);
-				m_oglTextSmall->renderText(textRect.x() + fontMaxWidth - m_fonts.smallFontMetrics->tightBoundingRect(str).width(), textRect.y(), str);
+                painter.drawText(textRect.x() + fontMaxWidth - m_fonts.smallFontMetrics->tightBoundingRect(str).width(),
+                                 textRect.y() + fontHeight, str);
 				yOld = textRect.bottom();
 			}
 		}
 	}
 
-	textRect.moveTop(m_dBmScalePanRect.height() - textRect.height());
-	glColor3f(0.94f, 0.22f, 0.43f);
-	
+	textRect.moveTop(height - textRect.height());
+    painter.setPen(QPen(QColor(239, 56, 109)));
 	str = QString("dBm");
-	m_oglTextSmall->renderText(textRect.x(), textRect.y(), str);
-
-	glViewport(0, 0, size().width(), size().height());
-	setProjectionOrthographic(size().width(), size().height());
+    painter.drawText(textRect.x(), textRect.y() + fontHeight, str);
+    painter.end();
 }
 
 void QGLDistancePanel::renderPanHorizontalScale() {
 
-	//GRAPHICS_DEBUG << "render frequency scale";
-	//QFontMetrics d_fm(m_smallFont);
 	int fontHeight = m_fonts.smallFontMetrics->tightBoundingRect(".0kMGHz").height();
 	int fontMaxWidth = m_fonts.smallFontMetrics->boundingRect("000.000.0").width();
 
@@ -1363,30 +1303,31 @@ void QGLDistancePanel::renderPanHorizontalScale() {
 	else
 	if (upperFreq >= 1e3) { freqScale = 1e3; fstr = QString("  kHz "); }
 
+    QOpenGLPaintDevice paintDevice(m_frequencyScaleFBO->size());
+    painter.begin(&paintDevice);
+
 	// draw the scale background
-	drawGLScaleBackground(QRect(0, 0, m_freqScalePanRect.width(), m_freqScalePanRect.height()), QColor(0, 0, 0, 255));
-	
+    painter.fillRect(0, 0, m_freqScalePanRect.width(), m_freqScalePanRect.height(), QColor(0, 0, 0, 255));
+
 	QRect scaledTextRect(0, textOffset_y, 1, m_freqScalePanRect.height());
     scaledTextRect.setWidth(m_fonts.smallFontMetrics->horizontalAdvance(fstr));
 	scaledTextRect.moveLeft(m_freqScalePanRect.width() - scaledTextRect.width());
 
-	glColor3f(0.65f, 0.76f, 0.81f);
+    painter.setFont(m_fonts.smallFont);
+    painter.setPen(QPen(QColor(166, 194, 207), 3, Qt::SolidLine, Qt::FlatCap));
 	int len = m_frequencyScale.mainPointPositions.length();
 	if (len > 0) {
 
-		glLineWidth(3);
-		glBegin(GL_LINES);
+		for (int i = 0; i < len; i++) {
+            painter.drawLine(m_frequencyScale.mainPointPositions.at(i), 1,
+                             m_frequencyScale.mainPointPositions.at(i), 4);
+		}
+
+		painter.setPen(QPen(QColor(166, 194, 207)));
 		for (int i = 0; i < len; i++) {
 
-			glVertex3f(m_frequencyScale.mainPointPositions.at(i), 1.0f, 0.0f);
-			glVertex3f(m_frequencyScale.mainPointPositions.at(i), 4.0f, 0.0f);
-		}
-		glEnd();
-		
-		for (int i = 0; i < len; i++) {
-		
 			QString str = QString::number(m_frequencyScale.mainPoints.at(i) / freqScale, 'f', 3);
-			
+
 			if (i > 0) {
 
 				double delta = m_frequencyScale.mainPoints.at(i) - m_frequencyScale.mainPoints.at(i-1);
@@ -1399,107 +1340,76 @@ void QGLDistancePanel::renderPanHorizontalScale() {
 			if (str.endsWith('.')) str.remove(str.size() - 1, 1);
 
             int text_width = m_fonts.smallFontMetrics->horizontalAdvance(str);
-			QRect textRect(m_frequencyScale.mainPointPositions.at(i) + offset_X - (text_width / 2), textOffset_y, text_width, fontHeight);
+			QRect textRect(m_frequencyScale.mainPointPositions.at(i) + offset_X - (text_width / 2),
+			              textOffset_y, text_width, fontHeight);
 
 			if (textRect.left() < 0 || textRect.right() >= scaledTextRect.left()) continue;
-			
-			m_oglTextSmall->renderText(textRect.x(), textRect.y(), str);
+
+            painter.drawText(textRect.x(), textRect.y() + m_fonts.smallFontMetrics->height(), str);
 		}
 	}
 
 	if (m_frequencyScale.subPointPositions.length() > 0) {
 
-		glLineWidth(1);
-		glBegin(GL_LINES);
+        painter.setPen(QPen(QColor(115, 143, 156), 1));
 		for (int i = 0; i < m_frequencyScale.subPointPositions.length(); i++) {
-
-			glVertex3f(m_frequencyScale.subPointPositions.at(i), 1.0f, 0.0f);
-			glVertex3f(m_frequencyScale.subPointPositions.at(i), 3.0f, 0.0f);
+            painter.drawLine(m_frequencyScale.subPointPositions.at(i), 1,
+                             m_frequencyScale.subPointPositions.at(i), 3);
 		}
-		glEnd();
 	}
 
-	glColor3f(0.94f, 0.22f, 0.43f);
-	m_oglTextSmall->renderText(m_freqScalePanRect.width() - 30, textOffset_y, fstr);
+    painter.setPen(QPen(QColor(239, 56, 109)));
+    painter.drawText(m_freqScalePanRect.width() - 30, textOffset_y + 10, fstr);
+    painter.end();
 }
 
 void QGLDistancePanel::renderPanadapterGrid() {
 
-	//GRAPHICS_DEBUG << "render panadapter grid";
-	//glLineStipple(1, 0xCCCC);
-	glClear(GL_COLOR_BUFFER_BIT);
-	glLineStipple(1, 0x9999);
-	glEnable(GL_LINE_STIPPLE);
-	glLineWidth(1.0f);
+	int width  = m_panadapterGridFBO->width();
+	int height = m_panadapterGridFBO->height();
+
+	QOpenGLPaintDevice paintDevice(m_panadapterGridFBO->size());
+	painter.begin(&paintDevice);
+	painter.setRenderHint(QPainter::Antialiasing, false);
+	painter.fillRect(0, 0, width, height, Qt::transparent);
+
+	QColor gridColor(166, 194, 207, 60);
+	QPen dashPen(gridColor, 1, Qt::CustomDashLine);
+	dashPen.setDashPattern({2, 2});
+	painter.setPen(dashPen);
 
 	// vertical lines
 	int len = m_frequencyScale.mainPointPositions.length();
 	if (len > 0) {
 
-		GLint x1 = m_panRect.left();
-		GLint x2 = 1;
-		if (m_dBmScalePanRect.isValid()) x2 += m_dBmScalePanRect.width();
+		GLint x1  = m_panRect.left();
+		int   xOff = 1;
+		if (m_dBmScalePanRect.isValid()) xOff += m_dBmScalePanRect.width();
+		int y1 = 1;
+		int y2 = m_panRect.bottom() - 1;
 
-		//GLint y1 = rect.top() + 1;
-		GLint y1 = 1;
-		GLint y2 = m_panRect.bottom() - 1;
-
-		TGL2int *vertexArray = new TGL2int[len * 2];
-		int vertexArrayLen = 0;
-
-		TGL2int point1, point2;
-		point1.y = y1;
-		point2.y = y2;
 		for (int i = 0; i < len; i++) {
-
-			GLint x = m_frequencyScale.mainPointPositions.at(i);
-			if (x < x2) continue;
+			int x = m_frequencyScale.mainPointPositions.at(i);
+			if (x < xOff) continue;
 			x += x1;
-			point1.x = x;
-			point2.x = x;
-			vertexArray[vertexArrayLen++] = point1;
-			vertexArray[vertexArrayLen++] = point2;
+			painter.drawLine(x, y1, x, y2);
 		}
-
-		glEnableClientState(GL_VERTEX_ARRAY);
-		glVertexPointer(2, GL_INT, 0, vertexArray);
-		glDrawArrays(GL_LINES, 0, vertexArrayLen);
-		glDisableClientState(GL_VERTEX_ARRAY);
-
-		delete[] vertexArray;
 	}
 
 	// horizontal lines
 	len = m_dBmScale.mainPointPositions.length();
 	if (len > 0) {
 
-		TGL2float *vertexArray = new TGL2float[len * 2];
-		int vertexArrayLen = 0;
+		int xLeft  = m_panRect.left() + m_dBmScalePanRect.width();
+		int xRight = m_panRect.right();
 
-		TGL2float point1, point2;
-		point1.x = m_panRect.left() + m_dBmScalePanRect.width();
-		point2.x = m_panRect.right();
-		
 		for (int i = 0; i < len; i++) {
-
-			GLfloat y = m_dBmScale.mainPointPositions.at(i);
-			
-			point1.y = y;
-			point2.y = y;
-			
-			vertexArray[vertexArrayLen++] = point1;
-			vertexArray[vertexArrayLen++] = point2;
+			int y = (int)m_dBmScale.mainPointPositions.at(i);
+			painter.drawLine(xLeft, y, xRight, y);
 		}
-
-		glEnableClientState(GL_VERTEX_ARRAY);
-		glVertexPointer(2, GL_FLOAT, 0, vertexArray);
-		glDrawArrays(GL_LINES, 0, vertexArrayLen);
-		glDisableClientState(GL_VERTEX_ARRAY);
-
-		delete[] vertexArray;
-
 	}
-	glDisable(GL_LINE_STIPPLE);
+
+	painter.end();
 }
  
 
