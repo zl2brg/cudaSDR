@@ -12,6 +12,7 @@
 #include <QDebug>
 #include <QtMath>
 #include <QDateTime>
+#include <QPainter>
 
 #ifndef M_PI_2
 #define M_PI_2 (M_PI / 2.0)
@@ -49,7 +50,6 @@ QGL3DPanel::QGL3DPanel(QWidget *parent, int rx)
     , m_gridColor(Qt::darkGray)
     , m_axesColor(Qt::white)
     , m_updateInterval(50)  // 20 FPS
-    , m_oglTextSmall(nullptr)
     , m_showGrid(true)
     , m_showAxes(true)
     , m_showWireframe(false)
@@ -166,7 +166,6 @@ QGL3DPanel::~QGL3DPanel() {
     }
     
     delete m_shaderProgram;
-    delete m_oglTextSmall;
     
     doneCurrent();
 }
@@ -206,11 +205,6 @@ void QGL3DPanel::initializeGL() {
     
     // Setup grid rendering
     setupGrid();
-    
-    // Initialize text rendering
-    QFont smallFont = QFont("Arial", 8);
-    qreal dpr = devicePixelRatio();
-    m_oglTextSmall = new OGLText(smallFont, dpr);
     
     // Initialize camera view matrix with our spherical coordinates
     updateCamera();
@@ -504,34 +498,51 @@ void QGL3DPanel::renderGrid() {
 }
 
 void QGL3DPanel::renderAxes() {
+    if (!m_shaderProgram) return;
+
+    // 6 vertices: position (x,y,z) + color (r,g,b)
+    const float axesVertices[] = {
+        // X axis (frequency) - Red
+        -250.0f,  0.0f,   0.0f,  1.0f, 0.0f, 0.0f,
+         250.0f,  0.0f,   0.0f,  1.0f, 0.0f, 0.0f,
+        // Y axis (amplitude) - Green
+           0.0f,  0.0f,   0.0f,  0.0f, 1.0f, 0.0f,
+           0.0f, 60.0f,   0.0f,  0.0f, 1.0f, 0.0f,
+        // Z axis (time) - Blue
+           0.0f,  0.0f, -60.0f,  0.0f, 0.0f, 1.0f,
+           0.0f,  0.0f,  60.0f,  0.0f, 0.0f, 1.0f,
+    };
+
+    m_shaderProgram->bind();
+    m_shaderProgram->setUniformValue("mvpMatrix", m_projectionMatrix * m_viewMatrix * m_modelMatrix);
+    m_shaderProgram->setUniformValue("heightScale", 1.0f);
+
+    QOpenGLVertexArrayObject axesVAO;
+    axesVAO.create();
+    axesVAO.bind();
+
+    QOpenGLBuffer axesVBO(QOpenGLBuffer::VertexBuffer);
+    axesVBO.create();
+    axesVBO.bind();
+    axesVBO.allocate(axesVertices, sizeof(axesVertices));
+
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), nullptr);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), (void*)(3 * sizeof(float)));
+
     glDisable(GL_DEPTH_TEST);
     glLineWidth(2.0f);
-    
-    glBegin(GL_LINES);
-    
-    // X axis (frequency) - Red
-    glColor3f(1.0f, 0.0f, 0.0f);
-    glVertex3f(-250, 0, 0);
-    glVertex3f(250, 0, 0);
-    
-    // Y axis (amplitude) - Green
-    glColor3f(0.0f, 1.0f, 0.0f);
-    glVertex3f(0, 0, 0);
-    glVertex3f(0, 60, 0);
-    
-    // Z axis (time) - Blue
-    glColor3f(0.0f, 0.0f, 1.0f);
-    glVertex3f(0, 0, -60);
-    glVertex3f(0, 0, 60);
-    
-    glEnd();
-    
+    glDrawArrays(GL_LINES, 0, 6);
     glLineWidth(1.0f);
     glEnable(GL_DEPTH_TEST);
+
+    axesVBO.release();
+    axesVAO.release();
+    m_shaderProgram->release();
 }
 
 void QGL3DPanel::renderVerticalScale() {
-    if (!m_oglTextSmall) return;
     
     // Create scale lines using VAO/VBO like the grid does
     // Position the scale at the front left of the 3D scene
@@ -612,65 +623,38 @@ void QGL3DPanel::renderVerticalScale() {
         m_shaderProgram->release();
     }
     
-    // Render text labels using 2D overlay (this part is working)
-    glMatrixMode(GL_PROJECTION);
-    glPushMatrix();
-    glLoadIdentity();
-    glOrtho(0, width(), height(), 0, -1, 1);
-    
-    glMatrixMode(GL_MODELVIEW);
-    glPushMatrix();
-    glLoadIdentity();
-    
-    // Calculate MVP matrix for 3D to screen conversion
+    // Draw dBm scale labels as QPainter 2D overlay
     QMatrix4x4 mvpMatrix = m_projectionMatrix * m_viewMatrix * m_modelMatrix;
-    
-    // Render labels for major ticks only
-    // Note: m_dBmPanMax (e.g., -40) is GREATER than m_dBmPanMin (e.g., -140)
-    // So we need to iterate from max down to min (stepping by -20)
+
+    QPainter painter(this);
+    painter.setPen(Qt::white);
+    painter.setFont(QFont("Arial", 8));
+
     for (int db = (int)m_dBmPanMax; db >= (int)m_dBmPanMin; db -= 20) {
         float normalizedPos = (float)(db - minDb) / dbRange;
         float yPos = normalizedPos * scaleHeight;
-        
-        // 3D position of label - now scales with frequency scale
+
         QVector3D worldPos(scaleX - 25.0f * m_frequencyScale, yPos, scaleZ);
-        
-        // Convert to screen coordinates
         QVector4D clipPos = mvpMatrix * QVector4D(worldPos, 1.0f);
         if (clipPos.w() > 0.001f) {
             QVector3D ndcPos = clipPos.toVector3D() / clipPos.w();
-            
             float screenX = (ndcPos.x() + 1.0f) * 0.5f * width();
             float screenY = (1.0f - ndcPos.y()) * 0.5f * height();
-            
-            // Only render if on screen
-            if (screenX >= -100 && screenX < width() + 100 && screenY >= -100 && screenY < height() + 100) {
-                QString label = QString("%1").arg(db);
-                glColor3f(1.0f, 1.0f, 1.0f);
-                m_oglTextSmall->renderText(screenX, screenY, 1.0f, label);
-            }
+            if (screenX >= -100 && screenX < width() + 100 && screenY >= -100 && screenY < height() + 100)
+                painter.drawText(QPointF(screenX, screenY), QString::number(db));
         }
     }
-    
-    // Add "dBm" label at the top - now scales with frequency scale
+
+    // "dBm" label above the scale
     QVector3D topWorldPos(scaleX - 20.0f * m_frequencyScale, scaleHeight + 10.0f * m_heightScale, scaleZ);
     QVector4D topClipPos = mvpMatrix * QVector4D(topWorldPos, 1.0f);
     if (topClipPos.w() > 0.001f) {
         QVector3D topNdcPos = topClipPos.toVector3D() / topClipPos.w();
         float topScreenX = (topNdcPos.x() + 1.0f) * 0.5f * width();
         float topScreenY = (1.0f - topNdcPos.y()) * 0.5f * height();
-        
-        if (topScreenX >= -100 && topScreenX < width() + 100 && topScreenY >= -100 && topScreenY < height() + 100) {
-            glColor3f(1.0f, 1.0f, 1.0f);
-            m_oglTextSmall->renderText(topScreenX, topScreenY, 1.0f, "dBm");
-        }
+        if (topScreenX >= -100 && topScreenX < width() + 100 && topScreenY >= -100 && topScreenY < height() + 100)
+            painter.drawText(QPointF(topScreenX, topScreenY), "dBm");
     }
-    
-    // Restore matrices
-    glMatrixMode(GL_PROJECTION);
-    glPopMatrix();
-    glMatrixMode(GL_MODELVIEW);
-    glPopMatrix();
 }
 
 void QGL3DPanel::resizeGL(int width, int height) {
@@ -1149,10 +1133,6 @@ QColor QGL3DPanel::amplitudeToColorWithOffset(float amplitude, float offset) {
     }
     
     return color;
-}
-
-void QGL3DPanel::qglColor(QColor color) {
-    glColor4f(color.redF(), color.greenF(), color.blueF(), color.alphaF());
 }
 
 void QGL3DPanel::onUpdateTimer() {

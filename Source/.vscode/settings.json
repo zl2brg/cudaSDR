@@ -43,6 +43,10 @@
         "/^cmake --build /home/sae/Projects/Personal/test/cudaSDR/Source/build --parallel \\$\\(nproc\\) 2>&1 \\| grep -E \"error:\\|CProtocol2\" \\| head -10$/": {
             "approve": true,
             "matchCommandLine": true
+        },
+        "/^grep -h \"QOpenGLWidget\\\\\\|QGLWidget\\\\\\|QOpenGLFunctions\\\\\\|glBegin\\\\\\|glEnd\\\\\\|glVertex\\\\\\|glColor\\\\\\|glOrtho\\\\\\|glMatrixMode\\\\\\|glLoadIdentity\\\\\\|glTranslate\\\\\\|glScale\\\\\\|glPush\\\\\\|glPop\\\\\\|qglColor\\\\\\|renderText\\\\\\|QGLContext\\\\\\|GL_LINES\\\\\\|GL_QUADS\\\\\\|GL_TRIANGLES\\\\\\|glGenTextures\\\\\\|glBindTexture\\\\\\|glTexImage\\\\\\|glDrawArrays\\\\\\|glVertexPointer\\\\\\|VBO\\\\\\|VAO\\\\\\|glGenBuffers\\\\\\|glBindBuffer\\\\\\|glShaderSource\\\\\\|QOpenGLShader\" /home/sae/Projects/Personal/test/cudaSDR/Source/src/GL/\\*\\.cpp /home/sae/Projects/Personal/test/cudaSDR/Source/src/GL/\\*\\.h 2>/dev/null \\| grep -oP \"\\(QOpenGLWidget\\|QGLWidget\\|QOpenGLFunctions\\|glBegin\\|glEnd\\|glVertex\\|glColor\\|glOrtho\\|glMatrixMode\\|glLoadIdentity\\|glTranslate\\|glPushMatrix\\|glPopMatrix\\|qglColor\\|renderText\\|QGLContext\\|GL_LINES\\|GL_QUADS\\|GL_TRIANGLES\\|glGenTextures\\|glBindTexture\\|glTexImage\\|glDrawArrays\\|glVertexPointer\\|glGenBuffers\\|glBindBuffer\\|glShaderSource\\|QOpenGLShader\\)\" \\| sort \\| uniq -c \\| sort -rn \\| head -30$/": {
+            "approve": true,
+            "matchCommandLine": true
         }
     }
 }

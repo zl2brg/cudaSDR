@@ -32,13 +32,16 @@
 #include "cusdr_settings.h"
 #include "cusdr_fonts.h"
 #include "Util/cusdr_buttons.h"
-#include "cusdr_oglText.h"
 #include "cusdr_radioPopupWidget.h"
 
 #include <QWheelEvent>
 #include <QOpenGLWidget>
 #include <QOpenGLFunctions>
 #include <QOpenGLPaintDevice>
+#include <QOpenGLShaderProgram>
+#include <QOpenGLBuffer>
+#include <QOpenGLVertexArrayObject>
+#include <QPainter>
 
 
 #ifdef LOG_GRAPHICS
@@ -79,7 +82,6 @@ protected:
 	void mouseMoveEvent(QMouseEvent *event);
 	void wheelEvent(QWheelEvent * event );
 	void keyPressEvent(QKeyEvent* event);
-	void qglColor(QColor color);
 
 private:
 	Settings*					set;
@@ -139,14 +141,13 @@ private:
 	QRect						m_midToVfoButtonRect;
 	QRect						m_clickVFOButtonRect;
 	
-	OGLText*					m_oglTextTiny;
-	OGLText*					m_oglTextSmall;
-	OGLText*					m_oglTextNormal;
-	OGLText*					m_oglTextFreq1;
-	OGLText*					m_oglTextFreq2;
-	OGLText*					m_oglTextBig1;
-	OGLText*					m_oglTextBig2;
-	OGLText*					m_oglTextHuge;
+	// Shader program for spectrum rendering
+	QOpenGLShaderProgram*		m_panProgram;
+	QOpenGLVertexArrayObject	m_panVao;
+	QOpenGLBuffer				m_panVbo;
+	int							m_attrPos;
+	int							m_attrColor;
+	int							m_uniformMvp;
 
 	QPoint						m_mousePos;
 	QPoint						m_oldMousePos;
@@ -342,9 +343,6 @@ private:
 
 	QColor	getWaterfallColorAtPixel(qreal value);
 
-	void	saveGLState();
-	void	restoreGLState();
-
 	// drawing
 	void	paintReceiverDisplay();
 	void	paint3DPanadapterMode();
@@ -370,7 +368,6 @@ private:
 	//void	computeDisplayBins(const QVector<float>& panBuffer, const float* waterfallBuffer);
 	//void	computeDisplayBins(QVector<float> &buffer);
 	void	computeDisplayBins(QVector<float>& panBuffer, QVector<float>& waterfallBuffer);
-	void 	showText(float x, float y, float z, const QString &text, bool smallText);
 	void	showRadioPopup(bool value);
 
 private slots:

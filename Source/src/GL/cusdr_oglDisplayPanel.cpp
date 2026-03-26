@@ -1143,14 +1143,11 @@ void OGLDisplayPanel::paintRxRegion() {
         GLint width = m_smeterRect.width();
         GLint height = m_smeterRect.height();
         GLint x1 = m_smeterRect.left();
-        GLint x2 = x1 + width;
         GLint y1 = m_smeterRect.top();
-        GLint y2 = y1 + height;
 
         glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         glEnable(GL_BLEND);
-        glEnable(GL_LINE_SMOOTH);
 
         // Only recreate FBO if needed
         if (!m_smeterFBO || m_smeterRenew) {
@@ -1158,60 +1155,69 @@ void OGLDisplayPanel::paintRxRegion() {
                 delete m_smeterFBO;
                 m_smeterFBO = nullptr;
             }
-            m_smeterFBO = new QOpenGLFramebufferObject(m_sMeterWidth *dpr, height * dpr);
-            m_smeterUpdate = true; // Need to re-render after FBO recreation
+            m_smeterFBO = new QOpenGLFramebufferObject(m_sMeterWidth, height);
+            m_smeterUpdate = true;
             m_smeterRenew = false;
         }
 
         // Only re-render scale if needed
         if (m_smeterUpdate) {
+            glPushAttrib(GL_VIEWPORT_BIT);
+            glViewport(0, 0, m_sMeterWidth, height);
             m_smeterFBO->bind();
             renderSMeterScale();
             m_smeterFBO->release();
+            glPopAttrib();
+            setProjectionOrthographic(size().width(), size().height());
             m_smeterUpdate = false;
         }
 
         QRect rect(m_rxRect.right() + m_sMeterOffset, 0, m_sMeterWidth, height);
         renderTexture(rect, m_smeterFBO->texture(), -2.0f);
 
-        // Correct glScissor usage: width, not x2
-        glScissor(x1, size().height() - y2, width, height);
-        glEnable(GL_SCISSOR_TEST);
+        glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 
         if (m_dataEngineState == QSDR::DataEngineUp) {
 
-            glLineWidth(1);
             int min = (int)(m_sMeterMinValueB * m_unit);
             int max = (int)(m_sMeterMaxValueB * m_unit);
             min += min % 2;
             max += max % 2;
 
-            QRect bar(x1 + min, m_sMeterPosY + 4, max - min, 5);
-            if (min > 0)
-                drawGLRect(bar, QColor(255, 50, 50), QColor(255, 255, 50), true);
+            QPainter painter(this);
+            painter.setClipRect(QRect(x1, y1, width, height));
+            painter.setRenderHint(QPainter::Antialiasing);
 
-            // S-Meter needle
-            glLineWidth(2);
-            qglColor(QColor(255, 255, 255));
-            if (m_sMeterValue > 0) {
-                glBegin(GL_LINES);
-                glVertex3f(x1 + (int)(m_sMeterValue * m_unit), m_sMeterPosY - 15, 1.0f);
-                glVertex3f(x1 + (int)(m_sMeterValue * m_unit), m_sMeterPosY + 28, 1.0f);
-                glEnd();
+            // Hold bar: left-to-right gradient red → yellow
+            if (min > 0) {
+                QRect bar(x1 + min, m_sMeterPosY + 4, max - min, 5);
+                QLinearGradient gradient(bar.left(), 0, bar.right(), 0);
+                gradient.setColorAt(0, QColor(255, 50, 50));
+                gradient.setColorAt(1, QColor(255, 255, 50));
+                painter.fillRect(bar, gradient);
             }
 
-            // Actual S-Meter value
-            qglColor(m_activeTextColor);
-            m_sMeterNumValueString = QString::number(m_sMeterOrgValue, 'f', 1);
-            m_oglTextBig->renderText(x1 + m_sMeterWidth - 85, 2, 3.0, m_sMeterNumValueString);
-            m_oglTextNormal->renderText(x1 + m_sMeterWidth - 28, 9, 3.0, "dBm");
-        }
+            // S-Meter needle
+            if (m_sMeterValue > 0) {
+                int nx = x1 + (int)(m_sMeterValue * m_unit);
+                painter.setPen(QPen(Qt::white, 2));
+                painter.drawLine(nx, m_sMeterPosY - 15, nx, m_sMeterPosY + 28);
+            }
 
-        glDisable(GL_SCISSOR_TEST);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        glEnable(GL_BLEND);
-        glDisable(GL_LINE_SMOOTH);
-        glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+            // Numeric dBm value
+            m_sMeterNumValueString = QString::number(m_sMeterOrgValue, 'f', 1);
+            painter.setPen(m_activeTextColor);
+            painter.setFont(m_fonts.bigFont);
+            painter.drawText(x1 + m_sMeterWidth - 85,
+                             m_fonts.bigFontMetrics->ascent() + 2,
+                             m_sMeterNumValueString);
+
+            // "dBm" label
+            painter.setFont(m_fonts.normalFont);
+            painter.drawText(x1 + m_sMeterWidth - 28,
+                             m_fonts.normalFontMetrics->ascent() + 9,
+                             "dBm");
+        }
     }
 
 void OGLDisplayPanel::renderSMeterA() {
@@ -1465,205 +1471,135 @@ void OGLDisplayPanel::renderSMeterA() {
 }
 
 void OGLDisplayPanel::renderSMeterScale() {
-	GLint width = m_sMeterWidth;
-	GLint height = m_smeterRect.height();
 
-	GLint x1 = m_smeterRect.left();
-	GLint y1 = m_smeterRect.top();
-	GLint x2 = x1 + width;
-	GLint y2 = y1 + height;
-
-	QFontMetrics fm = m_oglTextNormal->fontMetrics();
-
-	//int fontHeight = fm.tightBoundingRect("S9").height();
-    //int fontMaxWidth = fm.boundingRect("-000").horizontalAdvance();
+	int width  = m_sMeterWidth;
+	int height = m_smeterRect.height();
 
 	qreal dBmRange = qAbs(m_dBmPanMax - m_dBmPanMin);
 	m_unit = (qreal)(m_sMeterWidth / dBmRange);
-	QRect rect = QRect(0, 0, x2-x1, y2-y1);
 
-	// draw background
-    if (m_dataEngineState == QSDR::DataEngineUp)
-        drawGLRect(rect, Qt::black, m_bkgColor2, -3.0f, false);
-    else drawGLRect(rect, Qt::black);
+	QOpenGLPaintDevice paintDevice(QSize(width, height));
+	QPainter painter;
+	painter.begin(&paintDevice);
+	painter.setRenderHint(QPainter::Antialiasing, false);
 
-	glDisable(GL_MULTISAMPLE);
-	glDisable(GL_LINE_SMOOTH);
-	glLineWidth(1.0f);
-
-	// draw horizontal lines
-	if (m_dataEngineState == QSDR::DataEngineUp)
-        qglColor(m_activeTextColor);
-	else
-        qglColor(m_activeTextColor);
-
-	glBegin(GL_LINES);
-		glVertex3f(0,		m_sMeterPosY, 0.0);
-		glVertex3f(width-1,	m_sMeterPosY, 0.0);
-		glVertex3f(0,		m_sMeterPosY + 12, 0.0);
-		glVertex3f(width-1,	m_sMeterPosY + 12, 0.0);
-	glEnd();
-
-	// draw integer step scale
-	if (m_dataEngineState == QSDR::DataEngineUp)
-        qglColor(QColor(126, 156, 168));
-	else
-        qglColor(m_activeTextColor);
-
-	int vertexArrayLength = m_sMeterWidth;
-	vertexArrayLength += vertexArrayLength%2;
-	TGL3float *vertexArray = new TGL3float[2*vertexArrayLength];
-
-	for (int i = 0; i < vertexArrayLength; i++) {
-
-		vertexArray[2*i].x = (GLfloat)(2.0f * i);
-		vertexArray[2*i].y = (GLfloat)(m_sMeterPosY + 4);
-		vertexArray[2*i].z = 0.0;
-
-		vertexArray[2*i+1].x = (GLfloat)(2.0f * i);
-		vertexArray[2*i+1].y = (GLfloat)(m_sMeterPosY + 9);
-		vertexArray[2*i+1].z = 0.0;
+	// Background
+	if (m_dataEngineState == QSDR::DataEngineUp) {
+		QLinearGradient bkg(0, 0, 0, height);
+		bkg.setColorAt(0, Qt::black);
+		bkg.setColorAt(1, m_bkgColor2);
+		painter.fillRect(0, 0, width, height, bkg);
+	} else {
+		painter.fillRect(0, 0, width, height, Qt::black);
 	}
 
-	glEnableClientState(GL_VERTEX_ARRAY);
-				
-	glVertexPointer(3, GL_FLOAT, 0, vertexArray);
-	glDrawArrays(GL_LINES, 0, width);
-	glDisableClientState(GL_VERTEX_ARRAY);
+	// Horizontal bar lines
+	QColor lineColor = (m_dataEngineState == QSDR::DataEngineUp) ? m_activeTextColor : m_activeTextColor;
+	painter.setPen(QPen(lineColor, 1));
+	painter.drawLine(0, m_sMeterPosY,      width - 1, m_sMeterPosY);
+	painter.drawLine(0, m_sMeterPosY + 12, width - 1, m_sMeterPosY + 12);
 
-	delete[] vertexArray;
+	// Integer step ticks: one vertical line every 2px across the width
+	QColor tickColor = (m_dataEngineState == QSDR::DataEngineUp) ? QColor(126, 156, 168) : m_activeTextColor;
+	painter.setPen(QPen(tickColor, 1));
+	for (int i = 0, n = m_sMeterWidth / 2; i < n; ++i) {
+		int tx = 2 * i;
+		painter.drawLine(tx, m_sMeterPosY + 4, tx, m_sMeterPosY + 9);
+	}
 
-	// Draw the dbm items
+	// dBm ticks and labels
+	QColor dBmColor = (m_dataEngineState == QSDR::DataEngineUp) ? QColor(255, 255, 255) : m_inactiveTextColor;
+	painter.setPen(QPen(dBmColor, 1));
+	painter.setFont(m_fonts.normalFont);
+	QFontMetrics fm(m_fonts.normalFont);
+	int fontAscent = fm.ascent();
 	QString marker;
 
-	if (m_dataEngineState == QSDR::DataEngineUp)
-      //      qglColor(m_activeTextColor);
-        glColor4f(255,255,255,255);
-		else
-            qglColor(m_inactiveTextColor);
-
 	for (int i = 1, z = -120; z < 10; i++, z += 10) {
-		
-		// big ticks
-		glBegin(GL_LINES);
-			glVertex3f(10*i*m_unit, m_sMeterPosY - 4, 0.0);
-			glVertex3f(10*i*m_unit, m_sMeterPosY, 0.0);
-		glEnd();
+		int bx = qRound(10 * i * m_unit);
+		int sx = qRound((10*i - 5) * m_unit);
 
-		// small ticks
-		glBegin(GL_LINES);
-			glVertex3f((10*i - 5)*m_unit, m_sMeterPosY - 2, 0.0);
-			glVertex3f((10*i - 5)*m_unit, m_sMeterPosY, 0.0);
-		glEnd();
-		
+		painter.drawLine(bx, m_sMeterPosY - 4, bx, m_sMeterPosY);     // big tick
+		painter.drawLine(sx, m_sMeterPosY - 2, sx, m_sMeterPosY);     // small tick
+
 		marker = QString::number(z, 'f', 0);
-        int d = fm.horizontalAdvance(marker);
+		int d = fm.horizontalAdvance(marker);
 
-		if (z == -120 || z == -100 || z == -80 || z == -60 || z == -40 || z == -20) 
-			m_oglTextNormal->renderText(10*i*m_unit-d/2-2, m_sMeterPosY - 18, marker);
+		if (z == -120 || z == -100 || z == -80 || z == -60 || z == -40 || z == -20)
+			painter.drawText(bx - d/2 - 2, m_sMeterPosY - 18 + fontAscent, marker);
 
-		if (m_sMeterWidth > 500) {
-
+		if (m_sMeterWidth > 500)
 			if (z == -110 || z == -90 || z == -70 || z == -50 || z == -30 || z == -10)
-				m_oglTextNormal->renderText(10*i*m_unit-d/2-2, m_sMeterPosY - 18, marker);
-		}
+				painter.drawText(bx - d/2 - 2, m_sMeterPosY - 18 + fontAscent, marker);
 
 		if (m_sMeterWidth > 400)
-			if (z == 0) m_oglTextNormal->renderText(10*i*m_unit-d/2, m_sMeterPosY - 18, marker);
+			if (z == 0)
+				painter.drawText(bx - d/2, m_sMeterPosY - 18 + fontAscent, marker);
 	}
 
-	m_oglTextSmallItalic->renderText(m_sMeterWidth - 25, m_sMeterPosY - 16, "dBm");
+	// "dBm" small label top-right
+	painter.setFont(m_fonts.smallFont);
+	QFontMetrics sfm(m_fonts.smallFont);
+	painter.drawText(m_sMeterWidth - 25, m_sMeterPosY - 16 + sfm.ascent(), "dBm");
+	painter.setFont(m_fonts.normalFont);
 
-	// Draw the S1..S9 value items
+	// S1..S9 and S+ ticks and labels
 	for (int i = 0; i < 17; i++) {
 
 		if (i < 10) {
-		
-			glBegin(GL_LINES);
-				glVertex3f((6*i + 3)*m_unit, m_sMeterPosY + 12, 0.0f);
-				glVertex3f((6*i + 3)*m_unit, m_sMeterPosY + 17, 0.0f);
-			glEnd();
+
+			painter.setPen(QPen(dBmColor, 1));
+			int bx = qRound((6*i + 3) * m_unit);
+			painter.drawLine(bx, m_sMeterPosY + 12, bx, m_sMeterPosY + 17);
 
 			marker = "S1";
-            int d = fm.horizontalAdvance(marker);
+			int d = fm.horizontalAdvance(marker);
 
-			if (i == 1) {	
-			
-				m_oglTextNormal->renderText((6*(i+1) - d/2 + 1)*m_unit, m_sMeterPosY + 18, marker);
-			}
-			else if (i == 3) {
-			
+			if (i == 1) {
+				painter.drawText(qRound((6*(i+1) - d/2 + 1) * m_unit), m_sMeterPosY + 18 + fontAscent, marker);
+			} else if (i == 3) {
 				marker = "S3";
-				m_oglTextNormal->renderText((6*(i+1) - d/2 + 1)*m_unit, m_sMeterPosY + 18, marker);
-			}
-			else if (i == 5) {
-			
+				painter.drawText(qRound((6*(i+1) - d/2 + 1) * m_unit), m_sMeterPosY + 18 + fontAscent, marker);
+			} else if (i == 5) {
 				marker = "S5";
-				m_oglTextNormal->renderText((6*(i+1) - d/2 + 1)*m_unit, m_sMeterPosY + 18, marker);
-			}
-			else if (i == 7) {
-			
+				painter.drawText(qRound((6*(i+1) - d/2 + 1) * m_unit), m_sMeterPosY + 18 + fontAscent, marker);
+			} else if (i == 7) {
 				marker = "S7";
-				m_oglTextNormal->renderText((6*(i+1) - d/2 + 1)*m_unit, m_sMeterPosY + 18, marker);
-			}
-			else if (i == 9) {
-			
+				painter.drawText(qRound((6*(i+1) - d/2 + 1) * m_unit), m_sMeterPosY + 18 + fontAscent, marker);
+			} else if (i == 9) {
 				marker = "S9";
-				m_oglTextNormal->renderText((6*(i+1) - d/2 + 1)*m_unit, m_sMeterPosY + 18, marker);
+				painter.drawText(qRound((6*(i+1) - d/2 + 1) * m_unit), m_sMeterPosY + 18 + fontAscent, marker);
 			}
-		}
-		else {
 
-			if (m_dataEngineState == QSDR::DataEngineUp)
-				qglColor(QColor(255, 80, 80));
-				//qglColor(QColor(55, 180, 220));
-			else
-				qglColor(m_inactiveTextColor);
+		} else {
 
-			int idx = (10*i - 33)*m_unit;
-			glBegin(GL_LINES);
-				glVertex3f(idx, m_sMeterPosY + 12, 0.0);
-				glVertex3f(idx, m_sMeterPosY + 17, 0.0);
-			glEnd();
+			QColor splusColor = (m_dataEngineState == QSDR::DataEngineUp) ? QColor(255, 80, 80) : m_inactiveTextColor;
+			painter.setPen(QPen(splusColor, 1));
+
+			int idx = qRound((10*i - 33) * m_unit);
+			painter.drawLine(idx, m_sMeterPosY + 12, idx, m_sMeterPosY + 17);
 
 			marker = "+20";
-            int d = fm.horizontalAdvance(marker);
+			int d = fm.horizontalAdvance(marker);
 
 			if (i == 11) {
-				m_oglTextNormal->renderText(idx - d/2 - 2, m_sMeterPosY + 18, marker);
-			}
-			else if (i == 13) {
-				
+				painter.drawText(idx - d/2 - 2, m_sMeterPosY + 18 + fontAscent, marker);
+			} else if (i == 13) {
 				marker = "+40";
-				m_oglTextNormal->renderText(idx - d/2 - 2, m_sMeterPosY + 18, marker);
-			}
-			else if (i == 15) {
-				
+				painter.drawText(idx - d/2 - 2, m_sMeterPosY + 18 + fontAscent, marker);
+			} else if (i == 15) {
 				marker = "+60";
-				m_oglTextNormal->renderText(idx - d/2 - 2, m_sMeterPosY + 18, marker);
+				painter.drawText(idx - d/2 - 2, m_sMeterPosY + 18 + fontAscent, marker);
 			}
-			/*else if (i == 17) {
-				
-				marker = "+80";
-				m_oglTextNormal->renderFreqText(idx - d/2 - 2, m_sMeterPosY + 18, marker);
-			}*/
 		}
 	}
 
-	glBegin(GL_LINES);
-		glVertex3f(57*m_unit+1, m_sMeterPosY+12, 0.0);
-		glVertex3f(width-1,	  m_sMeterPosY+12, 0.0);
-	glEnd();
+	// Horizontal rule from S9 boundary to right edge
+	QColor ruleColor = (m_dataEngineState == QSDR::DataEngineUp) ? QColor(255, 80, 80) : m_inactiveTextColor;
+	painter.setPen(QPen(ruleColor, 1));
+	painter.drawLine(qRound(57 * m_unit) + 1, m_sMeterPosY + 12, width - 1, m_sMeterPosY + 12);
 
-    /*
-    if (m_dataEngineState == QSDR::DataEngineUp)
-		qglColor(m_activeTextColor);
-	else
-        qglColor(m_inactiveTextColor);
-        */
-	glEnable(GL_LINE_SMOOTH);
-	glEnable(GL_MULTISAMPLE);
-
+	painter.end();
 }
 
 void OGLDisplayPanel::renderSMeterB() {

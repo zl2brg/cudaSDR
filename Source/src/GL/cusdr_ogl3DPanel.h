@@ -31,7 +31,6 @@
 #include "cusdr_oglUtils.h"
 #include "cusdr_settings.h"
 #include "cusdr_fonts.h"
-#include "cusdr_oglText.h"
 #include "cusdr_meshGeneratorWorker.h"
 
 #include <QOpenGLWidget>
@@ -108,7 +107,6 @@ private:
     QVector3D spectrumToWorld(int freqBin, float amplitude, int timeSlice);
     QColor amplitudeToColor(float amplitude);
     QColor amplitudeToColorWithOffset(float amplitude, float offset);
-    void qglColor(QColor color);
     void cleanupOldSlices();
     void addNewSliceMesh(const MeshGeneratorWorker::MeshData& meshData);
     int calculateLODLevel() const;
@@ -203,9 +201,8 @@ private:
     // Legacy performance (keep for compatibility)
     int m_updateInterval;  // ms
     
-    // Fonts and text
+    // Fonts
     TFonts m_fonts;
-    OGLText* m_oglTextSmall;
     
     // Display state
     bool m_showGrid;
