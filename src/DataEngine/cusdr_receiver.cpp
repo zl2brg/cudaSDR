@@ -213,14 +213,27 @@ bool Receiver::initQtWDSPInterface() {
     return true;
 }
 
+void Receiver::enqueueRawData() {
+    QVector<int32_t> rawBlock;
+    rawBlock.reserve(BUFFER_SIZE * 2);
+    for (int i = 0; i < BUFFER_SIZE * 2; ++i) {
+        rawBlock.append(m_rawIQ[i]);
+    }
+
+    if (m_iqQueue.isFull()) {
+        RECEIVER_DEBUG << "iqQueue full! dropping oldest packet";
+        m_iqQueue.dequeue();
+    }
+    m_iqQueue.enqueue(rawBlock);
+}
+
 void Receiver::enqueueData() {
-
-	inQueue.enqueue(inBuf);
-
-	if (inQueue.isFull()) {
-		RECEIVER_DEBUG << "inQueue full!";
-	}
-
+    // Legacy support or internal use
+    if (m_iqQueue.isFull()) {
+        RECEIVER_DEBUG << "iqQueue full! dropping oldest packet";
+        m_iqQueue.dequeue();
+    }
+    // Convert CPX to raw int for now if this is ever called, or just do nothing
 }
 
 void Receiver::stop() {
@@ -238,13 +251,13 @@ void Receiver::dspProcessing() {
 	if ((dspEntryCount % 100) == 1) {
 		RECEIVER_DEBUG << "dspProcessing entry rx=" << m_receiver
 					   << " count=" << dspEntryCount
-					   << " inQueue=" << inQueue.count();
+					   << " iqQueue=" << m_iqQueue.count();
 	}
 
-	if (inQueue.isEmpty()) {
+	if (m_iqQueue.isEmpty()) {
 		++dspEmptyQueueCount;
 		if ((dspEmptyQueueCount % 100) == 1) {
-			RECEIVER_DEBUG << "dspProcessing empty inQueue rx=" << m_receiver
+			RECEIVER_DEBUG << "dspProcessing empty iqQueue rx=" << m_receiver
 						   << " emptyCount=" << dspEmptyQueueCount;
 		}
 		return;
@@ -253,17 +266,28 @@ void Receiver::dspProcessing() {
 	{
 		QMutexLocker locker(&m_mutex);
 		if (m_rateTransitionDropBuffers > 0) {
-			inQueue.dequeue();
+			m_iqQueue.dequeue();
 			--m_rateTransitionDropBuffers;
 			return;
 		}
 	}
     
-    CPX localBuf = inQueue.dequeue();
+    QVector<int32_t> rawIQ = m_iqQueue.dequeue();
+    
+    // Perform 24-bit integer to double conversion in this thread
+    // This offloads work from the bottleneck DataProcessor thread.
+    const double scale = 1.0 / 8388607.0;
+    cpx* inPtr = inBuf.data(); // Trigger detach once
+    const int32_t* rawPtr = rawIQ.constData();
+    for (int i = 0; i < BUFFER_SIZE; ++i) {
+        inPtr[i].re = (double)rawPtr[2*i] * scale;
+        inPtr[i].im = (double)rawPtr[2*i+1] * scale;
+    }
+
     int spectrumDataReady;
     
     mutex.lock();
-    qtwdsp->processDSP(localBuf, audioOutputBuf);
+    qtwdsp->processDSP(inBuf, audioOutputBuf);
     mutex.unlock();
 
       if (highResTimer->getElapsedTimeInMicroSec() >= getDisplayDelay()) {
@@ -299,13 +323,14 @@ void Receiver::dspProcessing() {
 }
 
 QVector<float> Receiver::interleaveFromCPX(const CPX& in, int size) {
-    QVector<float> out;
     int limit = (size < 0 || size > in.size()) ? in.size() : size;
+    QVector<float> out(limit * 2); 
+    float* outData = out.data();
+    const cpx* inData = in.constData();
 
-    out.reserve(limit * 2);
     for (int i = 0; i < limit; i++) {
-        out.append((float)in.at(i).re);
-        out.append((float)in.at(i).im);
+        *outData++ = (float)inData[i].re;
+        *outData++ = (float)inData[i].im;
     }
     return out;
 }
@@ -358,8 +383,8 @@ void Receiver::setSampleRate(QObject *sender, int value) {
 
 		// Flush the queue and drop a few buffers after any rate transition so
 		// fexchange0 is not called on the channel while it is being rebuilt.
-		while (!inQueue.isEmpty())
-			inQueue.dequeue();
+		while (!m_iqQueue.isEmpty())
+			m_iqQueue.dequeue();
 		m_rateTransitionDropBuffers = HIGH_RATE_TRANSITION_DROP_BUFFERS;
 
         qtwdsp->setSampleRate(this, m_samplerate);

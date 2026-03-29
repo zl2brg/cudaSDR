@@ -134,25 +134,27 @@ void WideBandDataProcessor::processWideBandData() {
 
 void WideBandDataProcessor::processWideBandInputBuffer(const QByteArray &buffer) {
 	int size;
-	short sample;
-	double sampledouble;
-	//if (m_mercuryFW > 32 || m_hermesFW > 16)
 	if (io->mercuryFW > 32 || io->hermesFW > 11)
 		size = 2 * BIGWIDEBANDSIZE;
 	else
 		size = 2 * SMALLWIDEBANDSIZE;
 
 	qint64 length = buffer.length();
-	if (buffer.length() != size) {
-
+	if (length != size) {
 		WIDEBAND_PROCESSOR_DEBUG << "wrong wide band buffer length: " << length << "size " << size <<  "ver " << io->hermesFW ;
 		return;
 	}
-	for (int i = 0; i < length; i += 2) {
-		sample = (short) ((buffer.at(i + 1) << 8)  + (short)(buffer.at(i) & 0xFF));
-		sampledouble=(double)sample/32767.0;
-		cpxWBIn[i/2].re = sampledouble;
-		cpxWBIn[i/2].im = 0.0;
+
+    const int numSamples = length / 2;
+    const int8_t* rawData = reinterpret_cast<const int8_t*>(buffer.constData());
+    const double scale = 1.0 / 32767.0;
+    cpx* outPtr = cpxWBIn.data();
+
+	for (int i = 0; i < numSamples; ++i) {
+        // HPSDR Wideband data is 16-bit Little Endian
+        int16_t sample = (int16_t)((uint16_t)(rawData[2*i] & 0xFF) | ((uint16_t)rawData[2*i+1] << 8));
+		outPtr[i].re = (double)sample * scale;
+		outPtr[i].im = 0.0;
 	}
 	getSpectrumData();
 }

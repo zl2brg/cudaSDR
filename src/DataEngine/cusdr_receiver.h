@@ -106,9 +106,11 @@ public:
     CPX			outBuf;
     CPX			audioOutputBuf;
 
-	QHQueue<CPX>	inQueue;
+    QHQueue<QVector<int32_t>> m_iqQueue;
+    int32_t     m_rawIQ[BUFFER_SIZE * 2];
 
 public slots:
+    void    enqueueRawData();
 	void	setReceiverData(TReceiver data);
 	void	setAudioMode(QObject* sender, int mode);
 	void	setServerMode(QSDR::_ServerMode mode);

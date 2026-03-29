@@ -97,12 +97,9 @@ void CProtocol1::processInputBuffer(const QByteArray& buffer, DataEngine* de, qu
                 m_rightSample += (int)((unsigned char) buffer.at(s++)) << 8;
                 m_rightSample += (int)((unsigned char) buffer.at(s++));
 
-                m_lsample = (double)(m_leftSample / 8388607.0f);
-                m_rsample = (double)(m_rightSample / 8388607.0f);
-
                 if (de->RX.at(r)->qtwdsp) {
-                    de->RX[r]->inBuf[m_rxSamples].re = m_lsample; // 24 bit sample
-                    de->RX[r]->inBuf[m_rxSamples].im = m_rsample; // 24 bit sample
+                    de->RX[r]->m_rawIQ[m_rxSamples * 2] = m_leftSample;
+                    de->RX[r]->m_rawIQ[m_rxSamples * 2 + 1] = m_rightSample;
                 }
             }
 
@@ -116,8 +113,8 @@ void CProtocol1::processInputBuffer(const QByteArray& buffer, DataEngine* de, qu
             if (m_rxSamples == BUFFER_SIZE) {
                 for (int r = 0; r < de->io.receivers; r++) {
                     if (de->RX.at(r)->qtwdsp) {
-                        de->RX[r]->enqueueData();
-                        QMetaObject::invokeMethod(de->RX.at(r), "dspProcessing", Qt::BlockingQueuedConnection);
+                        de->RX[r]->enqueueRawData();
+                        QMetaObject::invokeMethod(de->RX.at(r), "dspProcessing", Qt::QueuedConnection);
                     }
                 }
                 m_rxSamples = 0;

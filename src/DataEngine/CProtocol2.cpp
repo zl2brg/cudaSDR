@@ -134,8 +134,8 @@ void CProtocol2::processInputBuffer(const QByteArray& buffer, DataEngine* de, qu
         qSample |= (int)((unsigned char)buffer.at(s++));
 
         if (rx->qtwdsp) {
-            rx->inBuf[rxSamples].re = (double)iSample / 8388607.0;
-            rx->inBuf[rxSamples].im = (double)qSample / 8388607.0;
+            rx->m_rawIQ[rxSamples*2] = iSample;
+            rx->m_rawIQ[rxSamples*2+1] = qSample;
         } else {
             ++p2NoQtWdspCount;
             if ((p2NoQtWdspCount % 1000) == 1) {
@@ -146,8 +146,8 @@ void CProtocol2::processInputBuffer(const QByteArray& buffer, DataEngine* de, qu
         rxSamples++;
         if (rxSamples == BUFFER_SIZE) {
             if (rx->qtwdsp) {
-                rx->enqueueData();
-                bool invoked = QMetaObject::invokeMethod(rx, "dspProcessing", Qt::BlockingQueuedConnection);
+                rx->enqueueRawData();
+                bool invoked = QMetaObject::invokeMethod(rx, "dspProcessing", Qt::QueuedConnection);
                 ++p2DspKickCount;
                 if ((p2DspKickCount % 100) == 1) {
                     P2_ROUTE_DEBUG << "dspKick rx=" << ddcIndex
