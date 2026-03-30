@@ -31,7 +31,8 @@ find_package(PkgConfig REQUIRED)
 
 # --- Project Configuration ---
 set(SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
-SET(WDSP_DIR "/usr/local/include")
+set(WDSP_DIR  ${CMAKE_CURRENT_SOURCE_DIR}/wdsp-1.29)
+set(WDSP_LIBS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/wdsp-libs)
 
 # --- Define Source Files ---
 set(SOURCES
@@ -217,7 +218,8 @@ target_include_directories(cudasdr PRIVATE
     ${SRC_DIR}/QtWDSP
     ${SRC_DIR}/Util
     ${SRC_DIR}/UI
-    "/usr/local/include" # WDSP_DIR
+    ${WDSP_DIR}
+    ${WDSP_LIBS_DIR}/include
 )
 
 # --- Link Libraries ---
@@ -234,8 +236,11 @@ target_link_libraries(cudasdr PRIVATE
     -lstdc++
     GL
     asound
-    wdsp
-
+    ${WDSP_DIR}/libwdsp.a
+    ${WDSP_LIBS_DIR}/lib/librnnoise.a
+    ${WDSP_LIBS_DIR}/lib/libspecbleach.a
+    fftw3f
+    fftw3
 )
 
 # --- Compiler Options ---

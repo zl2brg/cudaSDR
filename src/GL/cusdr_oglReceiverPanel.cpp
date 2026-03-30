@@ -3750,7 +3750,10 @@ void QGLReceiverPanel::computeDisplayBins(QVector<float>& buffer, QVector<float>
 	}
 
 	m_waterfallDisplayUpdate = true;
-	update();
+	if (m_displayTime.elapsed() >= (1000 / m_fps)) {
+		m_displayTime.restart();
+		update();
+	}
 }
 
 // get waterfall colors - taken from PowerSDR/KISS Konsole

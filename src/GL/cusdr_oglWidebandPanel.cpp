@@ -1746,7 +1746,10 @@ void QGLWidebandPanel::setWidebandSpectrumBuffer(const qVectorFloat &buffer) {
 //	else if (frequencyScale < 1.0)
 //		scaleMult = 0.5;
 
-	update();
+	if (m_panTimer.elapsed() >= 33) {  // cap at ~30 FPS to reduce Wayland compositor overhead
+		m_panTimer.restart();
+		update();
+	}
 }
 
 void QGLWidebandPanel::resetWidebandSpectrumBuffer() {

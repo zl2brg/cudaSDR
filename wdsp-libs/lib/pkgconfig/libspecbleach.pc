@@ -1,0 +1,10 @@
+prefix=/home/sae/Projects/Personal/test/cudaSDR/wdsp-libs
+includedir=${prefix}/include
+libdir=${prefix}/lib
+
+Name: libspecbleach
+Description: C library for audio noise reduction and other spectral effects
+Version: 0.2.0
+Requires: fftw3f
+Libs: -L${libdir} -lspecbleach -lm
+Cflags: -I${includedir}
