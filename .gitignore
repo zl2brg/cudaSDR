@@ -3,6 +3,9 @@ Source/build/
 *.backup
 *.usr
 
+# Build artifacts
+*.o
+
 # Performance profiling files
 perf.data*
 gmon.out
@@ -28,3 +31,4 @@ windowsSettings.ini
 # BFG report directory
 ..bfg-report/
 
+Source/
