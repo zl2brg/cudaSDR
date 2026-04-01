@@ -231,8 +231,30 @@ void Receiver::dspProcessing() {
     int spectrumDataReady;
     
     m_dspMutex.lock();
+    m_dspCallTimer.start();
     qtwdsp->processDSP(inBuf, audioOutputBuf);
+    double dspUs = m_dspCallTimer.nsecsElapsed() / 1000.0;
     m_dspMutex.unlock();
+
+    ++m_dspCallCount;
+    if (dspUs < m_dspTimeMin) m_dspTimeMin = dspUs;
+    if (dspUs > m_dspTimeMax) m_dspTimeMax = dspUs;
+    m_dspTimeAccum += dspUs;
+
+    static constexpr quint64 DSP_REPORT_INTERVAL = 500;
+    if ((m_dspCallCount % DSP_REPORT_INTERVAL) == 0) {
+        double mean = m_dspTimeAccum / DSP_REPORT_INTERVAL;
+        RECEIVER_DEBUG << "DSP perf rx=" << m_receiver
+                       << " calls=" << m_dspCallCount
+                       << " mean=" << QString::number(mean, 'f', 1) << "µs"
+                       << " min="  << QString::number(m_dspTimeMin, 'f', 1) << "µs"
+                       << " max="  << QString::number(m_dspTimeMax, 'f', 1) << "µs"
+                       << " budget=" << QString::number(getDisplayDelay(), 'f', 0) << "µs"
+                       << " iqQ=" << m_iqQueue.count();
+        m_dspTimeAccum = 0.0;
+        m_dspTimeMin = 1e9;
+        m_dspTimeMax = 0.0;
+    }
 
       if (highResTimer->getElapsedTimeInMicroSec() >= getDisplayDelay()) {
 

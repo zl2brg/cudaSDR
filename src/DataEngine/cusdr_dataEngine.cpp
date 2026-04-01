@@ -447,14 +447,14 @@ bool DataEngine::startDataEngineWithoutConnection() {
 
 
 		// data receiver thread
-		if (!startDataIO(QThread::NormalPriority)) {
+		if (!startDataIO(QThread::HighPriority)) {
 
 			setSystemState(QSDR::DataReceiverThreadError, m_hwInterface, m_serverMode, QSDR::DataEngineDown);
 			return false;
 		}
 
 				// IQ data processing thread
-		if (!startDataProcessor(QThread::NormalPriority)) {
+		if (!startDataProcessor(QThread::HighPriority)) {
 
 			setSystemState(QSDR::DataProcessThreadError, m_hwInterface, m_serverMode, QSDR::DataEngineDown);
 			return false;
@@ -587,14 +587,14 @@ bool DataEngine::getFirmwareVersions() {
 //		RX.at(i)->setAudioVolume(this, i, set->getMainVolume());
 
 	// IQ data processing thread
-	if (!startDataProcessor(QThread::NormalPriority)) {
+	if (!startDataProcessor(QThread::HighPriority)) {
 
 		DATA_ENGINE_DEBUG << "data processor thread could not be started.";
 		return false;
 	}
 
 	// data IO thread
-	if (!startDataIO(QThread::NormalPriority)) {//  ::NormalPriority)) {
+	if (!startDataIO(QThread::HighPriority)) {//  ::NormalPriority)) {
 
 		DATA_ENGINE_DEBUG << "data IO thread could not be started.";
 		return false;
@@ -988,7 +988,7 @@ bool DataEngine::start() {
     ///     setAudioBuffer(int, const CPX &,int)));
 
 
-		m_dspThreadList.at(i)->start(QThread::NormalPriority);//QThread::TimeCriticalPriority);
+		m_dspThreadList.at(i)->start(QThread::HighPriority);
 
 		if (m_dspThreadList.at(i)->isRunning()) {
 
@@ -1028,14 +1028,14 @@ bool DataEngine::start() {
 //	}
 
 	// IQ data processing thread
-	if (!startDataProcessor(QThread::NormalPriority)) {
+	if (!startDataProcessor(QThread::HighPriority)) {
 
 		DATA_ENGINE_DEBUG << "data processor thread could not be started.";
 		return false;
 	}
 
 	// data IO thread
-	if (!startDataIO(QThread::NormalPriority)) {//  ::NormalPriority::HighPriority)) {
+	if (!startDataIO(QThread::HighPriority)) {//  ::NormalPriority::HighPriority)) {
 
 		DATA_ENGINE_DEBUG << "data IO thread could not be started.";
 		return false;

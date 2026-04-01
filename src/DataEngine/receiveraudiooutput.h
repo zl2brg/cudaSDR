@@ -8,6 +8,7 @@
 #include <QIODevice>
 #include <QMutex>
 #include <QVector>
+#include <QByteArray>
 
 class ReceiverAudioOutput : public QObject
 {
@@ -28,4 +29,5 @@ private:
     QAudioFormat m_format;
     int m_sampleRate = 48000;
     QMutex m_mutex;
+    QByteArray m_pending;  // carry-forward for partial writes
 };

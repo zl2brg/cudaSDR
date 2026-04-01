@@ -78,6 +78,11 @@ private:
 	QByteArray		m_outDatagram;
 
     QElapsedTimer	m_packetLossTime;
+    QElapsedTimer   m_iqArrivalTimer;     // measures inter-packet gap
+    quint64         m_iqPacketCount = 0;  // total IQ packets received
+    quint64         m_iqDropCount   = 0;  // IQ packets dropped (queue full)
+    double          m_iqGapMax      = 0;  // max inter-packet gap (µs) in current window
+    double          m_iqGapAccum    = 0;  // accumulated gap for mean calculation
 
 	THPSDRParameter*	io;
 

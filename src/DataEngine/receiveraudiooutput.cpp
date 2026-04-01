@@ -33,7 +33,11 @@ void ReceiverAudioOutput::setSampleRate(int rate)
 void ReceiverAudioOutput::start()
 {
     if (!m_audioSink) setSampleRate(m_sampleRate);
+    // Pre-allocate a larger internal buffer (8 DSP buffers = ~170ms at 48kHz)
+    // to reduce partial-write frequency before the first call
+    m_audioSink->setBufferSize(8 * 8192);
     m_device = m_audioSink->start();
+    m_pending.clear();
 }
 
 void ReceiverAudioOutput::stop()
@@ -51,13 +55,20 @@ void ReceiverAudioOutput::writeAudio(const QVector<float>& audioBuffer)
     QMutexLocker locker(&m_mutex);
     if (!m_device) return;
 
-    // Convert QVector<float> to QByteArray for QIODevice
-    QByteArray pcm;
-    pcm.resize(audioBuffer.size() * sizeof(float));
-    memcpy(pcm.data(), audioBuffer.data(), pcm.size());
+    // Append new samples to any unwritten bytes from the previous call
+    const char* src = reinterpret_cast<const char*>(audioBuffer.constData());
+    m_pending.append(src, audioBuffer.size() * (int)sizeof(float));
 
-    qint64 written = m_device->write(pcm);
-    if (written != pcm.size()) {
-        qWarning() << "Audio output underrun: tried to write" << pcm.size() << "bytes, wrote" << written;
+    qint64 written = m_device->write(m_pending);
+    if (written > 0)
+        m_pending.remove(0, (int)written);
+
+    // Safety cap: if the sink is stalled, drop oldest data rather than
+    // growing unbounded (4 DSP buffers ≈ 85ms)
+    constexpr int MAX_PENDING = 4 * 8192;
+    if (m_pending.size() > MAX_PENDING) {
+        qWarning() << "Audio: pending overflow, dropping"
+                   << (m_pending.size() - MAX_PENDING) << "bytes";
+        m_pending.remove(0, m_pending.size() - MAX_PENDING);
     }
 }

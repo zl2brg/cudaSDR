@@ -171,6 +171,11 @@ private:
 	QMutex				m_mutex;
 
 	QElapsedTimer		m_smeterTime;
+	QElapsedTimer		m_dspCallTimer;   // measures wall time of each processDSP call
+	double				m_dspTimeMin = 1e9;
+	double				m_dspTimeMax = 0.0;
+	double				m_dspTimeAccum = 0.0;
+	quint64				m_dspCallCount = 0;
 	double				m_sMeterValue;
 
 	volatile bool	m_stopped;
