@@ -27,6 +27,7 @@
 #define LOG_DISPLAYPANEL
 
 #include "cusdr_oglDisplayPanel.h"
+#include "Util/cusdr_rigctlserver.h"
 
 #include <QGuiApplication>
 #include <QOpenGLPaintDevice>
@@ -201,6 +202,10 @@ void OGLDisplayPanel::setupConnections() {
 	connect(set, &Settings::mouseWheelFreqStepChanged,this, &OGLDisplayPanel::setMouseWheelFreqStep);
 	connect(set, &Settings::sMeterValueChanged,       this, &OGLDisplayPanel::setSMeterValue);
 	connect(set, &Settings::sMeterHoldTimeChanged,    this, &OGLDisplayPanel::setSMeterHoldTime);
+
+	RigCtlServer *rcs = set->rigCtlServer();
+	if (rcs)
+		connect(rcs, &RigCtlServer::remoteControlChanged, this, &OGLDisplayPanel::setRigCtlStatus);
 }
 
 void OGLDisplayPanel::setupTextstrings() {
@@ -270,6 +275,9 @@ void OGLDisplayPanel::setupTextstrings() {
 	m_alexString = QString("Alex ");
     m_alexStringWidth = m_oglTextSmall->fontMetrics().horizontalAdvance(m_alexString);
 
+	m_rigCtlString = QString("RigCtl");
+	m_rigCtlStringWidth = m_oglTextSmall->fontMetrics().horizontalAdvance(m_rigCtlString);
+
 	m_hermesString = QString("Hermes ");
     m_hermesStringWidth = m_oglTextSmall->fontMetrics().horizontalAdvance(m_hermesString);
 
@@ -337,6 +345,7 @@ void OGLDisplayPanel::paintUpperRegion() {
 		case 0:
 			drawGLRect(rect, QColor(68, 68, 68), -2.0f);
 			break;
+
 
 		case 1:
 			drawGLRect(rect, QColor(56, 242, 115), -2.0f);
@@ -673,6 +682,18 @@ void OGLDisplayPanel::paintUpperRegion() {
 	}
 	//m_oglTextSmallItalic->renderFreqText(x1 + m_blankWidth, y1, 1.0f, str);
     m_oglTextSmallItalic->renderText(x1, y1, 1.0f, str);
+
+	// RigCtl status
+	x1 += m_alexStringWidth + m_blankWidth;
+	rect = QRect(x1, y1, m_rigCtlStringWidth + 2*m_blankWidth, m_blankHeight);
+	if (m_rigCtlConnected) {
+		drawGLRect(rect, QColor(56, 242, 115), -2.0f);
+		qglColor(QColor(0, 0, 0));
+	} else {
+		drawGLRect(rect, QColor(68, 68, 68), -2.0f);
+		qglColor(QColor(0, 0, 0));
+	}
+	m_oglTextSmallItalic->renderText(x1 + m_blankWidth, y1, m_rigCtlString);
 }
 
 void OGLDisplayPanel::paintLowerRegion() {
@@ -1839,6 +1860,11 @@ void OGLDisplayPanel::setSupplyVoltage(qreal volts) {
 
 void OGLDisplayPanel::setTemperature(qreal temp) {
     m_temperature = temp;
+    update();
+}
+
+void OGLDisplayPanel::setRigCtlStatus(bool active) {
+    m_rigCtlConnected = active;
     update();
 }
 

@@ -135,6 +135,7 @@ private:
 	QString		m_SYNCString;
 	QString		m_ADCString;
 	QString		m_PacketLossString;
+	QString		m_rigCtlString;
 	QString		m_fwdPowerString;
 	QString		m_sendIQString;
 	QString		m_recvAudioString;
@@ -221,6 +222,7 @@ private:
 	int		m_packetLossStatus;
 	qreal	m_fwdPowerWatts = 0.0;
     bool    m_txActive = false;
+    bool    m_rigCtlConnected = false;
     qreal   m_swr = 1.0;
     qreal   m_supplyVolts = 0.0;
     qreal   m_temperature = 0.0;
@@ -256,6 +258,7 @@ private:
 	int		m_hermesStepAttnStringWidth;
 	int		m_alexStringWidth;
 	int		m_excaliburStringWidth;
+	int		m_rigCtlStringWidth;
 	int		m_AttnWidth;
 	int		m_ditherWidth;
 	int		m_randomWidth;
@@ -328,6 +331,7 @@ private slots:
 	void	set122_88mhzSource(QObject *sender, int value);
 
 	void	setHermesVersion(int value);
+	void	setRigCtlStatus(bool active);
 	void	setMercuryVersion(int value);
 	void	setPenelopeVersion(int value);
 	void 	setPennylaneVersion(int value);

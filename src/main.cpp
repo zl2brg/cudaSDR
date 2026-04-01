@@ -24,6 +24,7 @@
  */
 
 #include "Util/cusdr_splash.h"
+#include "Util/cusdr_rigctlserver.h"
 #include "cusdr_settings.h"
 #include "fftw3.h"
 #include "cusdr_mainWidget.h"
@@ -233,6 +234,11 @@ int main(int argc, char *argv[]) {
             Settings::instance()->getVersionStr() +
             QObject::tr(":    setting up main window .."),
         Qt::AlignTop | Qt::AlignLeft, Qt::yellow);
+
+    // Start rigctld server before mainWindow so ServerWidget can connect to it
+    RigCtlServer rigCtlServer;
+    rigCtlServer.startListening(4532);
+    Settings::instance()->setRigCtlServer(&rigCtlServer);
 
     qDebug() << "Init::\tmain window setup ...";
     MainWindow mainWindow;

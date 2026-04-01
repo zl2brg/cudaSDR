@@ -97,6 +97,7 @@ set(SOURCES
     ${SRC_DIR}/Util/cusdr_splash.cpp
     ${SRC_DIR}/Util/cusdr_highResTimer.cpp
     ${SRC_DIR}/Util/cusdr_painter.cpp
+    ${SRC_DIR}/Util/cusdr_rigctlserver.cpp
 
     # Main Widget Classes
     ${SRC_DIR}/cusdr_alexAntennaWidget.cpp
@@ -172,6 +173,7 @@ set(HEADERS
     ${SRC_DIR}/Util/cusdr_image.h
     ${SRC_DIR}/Util/cusdr_imageblur.h
     ${SRC_DIR}/Util/cusdr_painter.h
+    ${SRC_DIR}/Util/cusdr_rigctlserver.h
 
     # Main Headers
     ${SRC_DIR}/cusdr_settings.h

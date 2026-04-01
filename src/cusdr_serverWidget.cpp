@@ -110,6 +110,7 @@ void ServerWidget::setupConnections() {
 		SIGNAL(serverNICChanged(int)), 
 		this, 
 		SLOT(setServerNIC(int)));
+
 }
 
 void ServerWidget::addNICChangedConnection() {
@@ -316,4 +317,5 @@ void ServerWidget::portChanged(const QString &text) {
 	if (!ok || port < 0 || port >= 65536) return;
 	//Settings::instance()->setServerPort(port_le, port);
 }
+
 

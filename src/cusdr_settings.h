@@ -383,6 +383,7 @@ typedef struct _ccParameterTx {
 } TCCParameterTx;
 
 class IHPSDRProtocol;
+class RigCtlServer;
 
 typedef struct _iqPacket {
 	QByteArray	payload;
@@ -1285,6 +1286,9 @@ public slots:
 
     RadioState setRadioState(RadioState mode);
 	RadioState getRadioState() { return m_radioState;}
+
+    void        setRigCtlServer(RigCtlServer *server) { m_rigCtlServer = server; }
+    RigCtlServer *rigCtlServer() const { return m_rigCtlServer; }
 	void setMultiRxView(int view);
 	void setSMeterValue(int rx, double value);
     void setSpectrumBuffer(int rx, const QList<float> &buffer);
@@ -1593,6 +1597,7 @@ private:
 
 	bool	m_mainPower;
     RadioState m_radioState = RadioState::RX;
+    RigCtlServer *m_rigCtlServer = nullptr;
 	bool	m_defaultSkin;
 	bool	m_connected;
 	bool	m_clientConnected;
