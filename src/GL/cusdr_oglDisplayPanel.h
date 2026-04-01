@@ -33,14 +33,7 @@
 #include "cusdr_fonts.h"
 #include "cusdr_oglText.h"
 
-//#include <QPixmap>
-//#include <QImage>
-//#include <QFontMetrics>
 #include <QWheelEvent>
-//#include <QQueue>
-//#include <QDebug>
-//#include <QMutex>
-//#include <QtOpenGL/QOpenGLWidget>
 #include <QOpenGLWidget>
 #include <QtOpenGL/QOpenGLFramebufferObject>
 #include <QOpenGLFunctions>
@@ -85,7 +78,6 @@ protected:
 	void wheelEvent(QWheelEvent * event );
 	void keyPressEvent(QKeyEvent* event);
 	void closeEvent(QCloseEvent *event);
-//	void showEvent(QShowEvent *event);
     void timerEvent(QTimerEvent *);
     void qglColor(QColor color);
     void saveGLState();
@@ -210,15 +202,8 @@ private:
     };
 
 	GLuint	m_sMeterTex;
-    bool	m_mercury;
-	bool	m_penelope;
-	bool	m_pennylane;
-	bool	m_excalibur;
-	bool	m_metis;
-	bool	m_alex;
 	bool	m_smeterUpdate;
 	bool	m_smeterRenew;
-	bool	m_SMeterA;
 	bool	m_sMeterAvg;
 
 
@@ -310,7 +295,6 @@ private:
 	
 	void	paintSMeter();
 	void	renderSMeterScale();
-	void	renderSMeterA();
 	void	renderSMeterB();
 	
 	void	getSelectedDigit(QPoint p);
@@ -343,11 +327,6 @@ private slots:
 	void	set10mhzSource(QObject *sender, int value);
 	void	set122_88mhzSource(QObject *sender, int value);
 
-	void	setMercuryPresence(bool value);
-	void	setPenelopePresence(bool value);
-	void	setPennylanePresence(bool value);
-	void	setAlexPresence(bool value);
-	void	setExcaliburPresence(bool value);
 	void	setHermesVersion(int value);
 	void	setMercuryVersion(int value);
 	void	setPenelopeVersion(int value);
@@ -363,8 +342,6 @@ private slots:
 	void	updateSyncStatus();
 	void	updateADCStatus();
 	void	updatePacketLossStatus();
-    //void    drawFrequency(GLint x1, GLiny y1,QString str,QFontMetrics font,QColor fontcolor, int xpos, int len, int highlight pos);
-
 
 signals:
 	void showEvent(QObject *sender);

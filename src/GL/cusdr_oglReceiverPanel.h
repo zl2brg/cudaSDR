@@ -223,7 +223,6 @@ private:
 	GLfloat		m_greenGrid;
 	GLfloat		m_blueGrid;
 	
-	unsigned int timer;
 	GLuint		m_waterfallTextureId;
 
 	int			m_bigHeight;
@@ -235,7 +234,6 @@ private:
 	int			m_oldSampleSize;
 	int			m_oldWidth;
 	int			m_oldPanRectHeight;
-	int			m_cnt;
 	int			m_specAveragingCnt;
 	int			m_currentReceiver;
 	int			m_waterfallAlpha;
@@ -284,8 +282,6 @@ private:
 	bool		m_panGridUpdate;
 	bool		m_waterfallUpdate;
 	bool		m_waterfallDisplayUpdate;
-	bool		m_distRulerUpdate;
-	bool		m_newWidebandPanFreqRuler;
 	bool		m_spectrumColorsChanged;
 	bool		m_spectrumAveraging;
 	//bool		m_spectrumAveragingOld;
@@ -333,8 +329,6 @@ private:
 	float		m_scale;
 	float		m_cameraDistance;
 	float		m_freqRulerPosition;
-	
-	QVector<float>	m_tmp;
 	
 
 	//******************************************************************
@@ -422,7 +416,7 @@ private slots:
 	void 	setAGCLineLevels(QObject* sender, int rx, qreal thresh, qreal hang);
 	void	setAGCLineFixedLevel(QObject* sender, int rx, qreal value);
 	void	setAGCLinesStatus(QObject* sender, bool value, int rx);
-	//void	setAGCHangEnabled(QObject *sender, int rx, bool hangEnabled);
+
 
 signals:
 	void	showEvent(QObject *sender);

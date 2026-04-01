@@ -50,28 +50,8 @@ private:
     void	setupConnections();
     bool create_transmitter(int id, int buffer_size, int fft_size, int fps, int width, int height);
     void init_analyser(int id);
-    void reconfigure_transmitter(int id,int height);
-    void set_mode(int  tx, int m);
-    void tx_set_filter(double low,double high);
-
-
-    void add_freedv_mic_sample(int tx,short mic_sample);
-
-    void transmitter_save_state(int tx);
-    void transmitter_set_out_of_band(int tx);
-
-    void tx_set_mode(DSPMode mode);
-    void tx_set_ps(int tx,int state);
-    void tx_set_twotone(int tx,int state);
-
-    void transmitter_set_compressor_level(int tx,double level);
-    void transmitter_set_compressor(int tx,int state);
-
-    void tx_set_ps_sample_rate(int tx,int rate);
-    void add_ps_iq_samples(int tx, double i_sample_0,double q_sample_0, double i_sample_1, double q_sample_1);
-
-    void cw_hold_key(int state);
-    long get_CtrFrequency(long rx_frequency,long repeater_offset, bool repeater_mode);
+    void tx_set_filter(double low, double high);
+    long get_CtrFrequency(long rx_frequency, long repeater_offset, bool repeater_mode);
 
     double cw_shape_buffer48[BUFFER_SIZE];
     double cw_shape_buffer192[BUFFER_SIZE];
@@ -88,19 +68,16 @@ public slots:
 private slots:
     void set_fm_deviation(double level);
     void transmitter_set_am_carrier_level(double level);
-    void tx_set_pre_emphasize(int tx,int state);
-    void transmitter_set_ctcss(int tx,int run,double frequency);
     void transmitter_set_mic_level(QObject *object, int level);
 
 private:
-    Settings*				set;
+    Settings*   set;
     int id;
     int enable_tx_equalizer;
     int tx_equalizer[4];
-
-    int enable_rx_equalizer;
-    int rx_equalizer[4];
     int mic_sample_rate;
+    long m_asteps;
+    long m_bsteps;
     int mic_dsp_rate;
     int iq_output_rate;
     int buffer_size;

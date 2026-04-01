@@ -24,9 +24,6 @@
  *   51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
-#define LOG_GRAPHICS
-//#define GRAPHICS_DEBUG
-
 // use: GRAPHICS_DEBUG
 
 #include "cusdr_oglReceiverPanel.h"
@@ -34,22 +31,11 @@
 #include <QGuiApplication>
 #include <cstring>
 
-//#include <QtGui>
-//#include <QDebug>
-//#include <QFileInfo>
-//#include <QElapsedTimerr>
-//#include <QImage>
-//#include <QString>
-//#include <QOpenGLFrameBufferObject>
-
 #ifndef GL_MULTISAMPLE
 #define GL_MULTISAMPLE  0x809D
 #endif
 
-#define	btn_height		14
-#define	btn_width		60
-#define	btn_widthb		70
-#define	btn_widths		34
+
 
 QGLReceiverPanel::QGLReceiverPanel(QWidget *parent, int rx)
 	: QOpenGLWidget(parent)
@@ -191,7 +177,6 @@ QGLReceiverPanel::QGLReceiverPanel(QWidget *parent, int rx)
 	m_oglTextBig2 = new OGLText(m_fonts.bigFont2, dpr);
 	m_oglTextHuge = new OGLText(m_fonts.hugeFont, dpr);
 
-	timer = 0;
 	m_waterfallTextureId = 0;
 
 	setupConnections();
@@ -344,245 +329,38 @@ QSize QGLReceiverPanel::sizeHint() const {
 
 void QGLReceiverPanel::setupConnections() {
 
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(systemStateChanged(
-					QObject *,
-					QSDR::_Error,
-					QSDR::_HWInterfaceMode,
-					QSDR::_ServerMode,
-					QSDR::_DataEngineState)),
-		this,
-		SLOT(systemStateChanged(
-					QObject *,
-					QSDR::_Error,
-					QSDR::_HWInterfaceMode,
-					QSDR::_ServerMode,
-					QSDR::_DataEngineState)));
+	connect(set, &Settings::systemStateChanged,          this, &QGLReceiverPanel::systemStateChanged);
+	connect(set, &Settings::graphicModeChanged,          this, &QGLReceiverPanel::graphicModeChanged);
+	connect(set, &Settings::freqRulerPositionChanged,    this, &QGLReceiverPanel::freqRulerPositionChanged);
+	connect(set, &Settings::ctrFrequencyChanged,         this, &QGLReceiverPanel::setCtrFrequency);
+	connect(set, &Settings::vfoFrequencyChanged,         this, &QGLReceiverPanel::setVFOFrequency);
+	connect(set, &Settings::hamBandChanged,              this, &QGLReceiverPanel::setHamBand);
+	connect(set, &Settings::currentReceiverChanged,      this, &QGLReceiverPanel::setCurrentReceiver);
+	connect(set, &Settings::sampleRateChanged,           this, &QGLReceiverPanel::sampleRateChanged);
+	connect(set, &Settings::filterFrequenciesChanged,    this, &QGLReceiverPanel::setFilterFrequencies);
+	connect(set, &Settings::waterfallOffesetLoChanged,   this, &QGLReceiverPanel::setWaterfallOffesetLo);
+	connect(set, &Settings::waterfallOffesetHiChanged,   this, &QGLReceiverPanel::setWaterfallOffesetHi);
+	connect(set, &Settings::spectrumAveragingChanged,    this, &QGLReceiverPanel::setSpectrumAveraging);
+	connect(set, &Settings::spectrumBufferChanged,       this, &QGLReceiverPanel::setSpectrumBuffer);
+	connect(set, &Settings::panGridStatusChanged,        this, &QGLReceiverPanel::setPanGridStatus);
+	connect(set, &Settings::peakHoldStatusChanged,       this, &QGLReceiverPanel::setPeakHoldStatus);
+	connect(set, &Settings::panLockedStatusChanged,      this, &QGLReceiverPanel::setPanLockedStatus);
+	connect(set, &Settings::clickVFOStatusChanged,       this, &QGLReceiverPanel::setClickVFOStatus);
+	connect(set, &Settings::hairCrossStatusChanged,      this, &QGLReceiverPanel::setHairCrossStatus);
+	connect(set, &Settings::panadapterColorChanged,      this, &QGLReceiverPanel::setPanadapterColors);
+	connect(set, &Settings::mercuryAttenuatorChanged,    this, &QGLReceiverPanel::setMercuryAttenuator);
+	connect(set, &Settings::adcOverflowChanged,          this, &QGLReceiverPanel::setADCStatus);
+	connect(set, &Settings::framesPerSecondChanged,      this, &QGLReceiverPanel::setFramesPerSecond);
+	connect(set, &Settings::agcFixedGainChanged_dB,      this, &QGLReceiverPanel::setAGCLineFixedLevel);
+	connect(set, &Settings::agcLineLevelsChanged,        this, &QGLReceiverPanel::setAGCLineLevels);
+	connect(set, &Settings::agcModeChanged,              this, &QGLReceiverPanel::setAGCMode);
+	connect(set, &Settings::showAGCLinesStatusChanged,   this, &QGLReceiverPanel::setAGCLinesStatus);
+	connect(set, &Settings::adcModeChanged,              this, &QGLReceiverPanel::setADCMode);
+	connect(set, &Settings::dspModeChanged,              this, &QGLReceiverPanel::setDSPMode);
+	connect(set, &Settings::mouseWheelFreqStepChanged,   this, &QGLReceiverPanel::setMouseWheelFreqStep);
 
-	CHECKED_CONNECT(
-		set, 
-		SIGNAL(graphicModeChanged(
-					QObject *,
-					int,
-					PanGraphicsMode,
-					WaterfallColorMode)),
-		this, 
-		SLOT(graphicModeChanged(
-					QObject *,
-					int,
-					PanGraphicsMode,
-					WaterfallColorMode)));
-
-//	CHECKED_CONNECT(
-//		set,
-//		SIGNAL(spectrumSizeChanged(QObject *, int)),
-//		this,
-//		SLOT(setSpectrumSize(QObject *, int)));
-
-	CHECKED_CONNECT(
-		set, 
-		SIGNAL(freqRulerPositionChanged(QObject *, int, float)), 
-		this, 
-		SLOT(freqRulerPositionChanged(QObject *, int, float)));
-
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(ctrFrequencyChanged(QObject *, int, int, long)),
-		this,
-		SLOT(setCtrFrequency(QObject *, int, int, long)));
-
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(vfoFrequencyChanged(QObject *, int, int, long)),
-		this,
-		SLOT(setVFOFrequency(QObject *, int, int, long)));
-
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(hamBandChanged(QObject *, int, bool, HamBand)),
-		this,
-		SLOT(setHamBand(QObject *, int, bool, HamBand)));
-
-	CHECKED_CONNECT(
-		set, 
-		SIGNAL(currentReceiverChanged(QObject *, int)),
-		this, 
-		SLOT(setCurrentReceiver(QObject *, int)));
-
-	CHECKED_CONNECT(
-		set, 
-		SIGNAL(sampleRateChanged(QObject *, int)), 
-		this, 
-		SLOT(sampleRateChanged(QObject *, int)));
-
-	CHECKED_CONNECT(
-		set, 
-		SIGNAL(filterFrequenciesChanged(QObject *, int, qreal, qreal)), 
-		this, 
-		SLOT(setFilterFrequencies(QObject *, int, qreal, qreal)));
-
-//	CHECKED_CONNECT(
-//		set,
-//		SIGNAL(waterfallTimeChanged(int, int)),
-//		this,
-//		SLOT(setWaterfallTime(int, int)));
-
-	CHECKED_CONNECT(
-		set, 
-		SIGNAL(waterfallOffesetLoChanged(int, int)),
-		this,
-		SLOT(setWaterfallOffesetLo(int, int)));
-
-	CHECKED_CONNECT(
-		set, 
-		SIGNAL(waterfallOffesetHiChanged(int, int)),
-		this,
-		SLOT(setWaterfallOffesetHi(int, int)));
-
-	CHECKED_CONNECT(
-		set, 
-		SIGNAL(spectrumAveragingChanged(QObject *, int, bool)), 
-		this, 
-		SLOT(setSpectrumAveraging(QObject *, int, bool)));
-
-	/*CHECKED_CONNECT(
-		set, 
-		SIGNAL(spectrumAveragingCntChanged(int)), 
-		this, 
-		SLOT(setSpectrumAveragingCnt(int)));*/
-
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(spectrumBufferChanged(int, const qVectorFloat&)),
-		this,
-		SLOT(setSpectrumBuffer(int, const qVectorFloat&)));
-
-	CHECKED_CONNECT(
-		set, 
-		SIGNAL(panGridStatusChanged(bool, int)),
-		this,
-		SLOT(setPanGridStatus(bool, int)));
-
-	CHECKED_CONNECT(
-		set, 
-		SIGNAL(peakHoldStatusChanged(bool, int)),
-		this,
-		SLOT(setPeakHoldStatus(bool, int)));
-
-	CHECKED_CONNECT(
-		set, 
-		SIGNAL(panLockedStatusChanged(bool, int)),
-		this,
-		SLOT(setPanLockedStatus(bool, int)));
-
-	CHECKED_CONNECT(
-		set, 
-		SIGNAL(clickVFOStatusChanged(bool, int)),
-		this,
-		SLOT(setClickVFOStatus(bool, int)));
-
-	CHECKED_CONNECT(
-		set, 
-		SIGNAL(hairCrossStatusChanged(bool, int)),
-		this,
-		SLOT(setHairCrossStatus(bool, int)));
-
-	/*CHECKED_CONNECT(
-		set, 
-		SIGNAL(panadapterColorChanged()),
-		this,
-		SLOT(setSimpleWaterfallColor()));*/
-
-	CHECKED_CONNECT(
-		set, 
-		SIGNAL(panadapterColorChanged()),
-		this,
-		SLOT(setPanadapterColors()));
-
-	CHECKED_CONNECT(
-		set, 
-		SIGNAL(mercuryAttenuatorChanged(QObject *, HamBand, int)),
-		this, 
-		SLOT(setMercuryAttenuator(QObject *, HamBand, int)));
-
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(adcOverflowChanged(int)),
-		this,
-		SLOT(setADCStatus(int)));
-
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(framesPerSecondChanged(QObject*, int, int)),
-		this,
-		SLOT(setFramesPerSecond(QObject*, int, int)));
-
-//	CHECKED_CONNECT(
-//		set,
-//		SIGNAL(agcThresholdLine_dBmChanged(QObject *, int, qreal)),
-//		this,
-//		SLOT(setAGCThresholdLine_dBm(QObject *, int, qreal)));
-
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(agcFixedGainChanged_dB(QObject *, int, qreal)),
-		this,
-		SLOT(setAGCLineFixedLevel(QObject *, int, qreal)));
-
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(agcLineLevelsChanged(QObject *, int, qreal, qreal)),
-		this,
-		SLOT(setAGCLineLevels(QObject *, int, qreal, qreal)));
-
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(agcModeChanged(QObject *, int, AGCMode, bool)),
-		this,
-		SLOT(setAGCMode(QObject *, int, AGCMode, bool)));
-
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(showAGCLinesStatusChanged(QObject *, bool, int)),
-		this,
-		SLOT(setAGCLinesStatus(QObject *, bool, int)));
-
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(adcModeChanged(QObject *, int, ADCMode)),
-		this,
-		SLOT(setADCMode(QObject *, int, ADCMode)));
-
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(dspModeChanged(QObject *, int, DSPMode)),
-		this,
-		SLOT(setDSPMode(QObject *, int, DSPMode)));
-
-//	CHECKED_CONNECT(
-//		set,
-//		SIGNAL(agcHangEnabledChanged(QObject *, int, bool)),
-//		this,
-//		SLOT(setAGCHangEnabled(QObject *, int, bool)));
-
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(mouseWheelFreqStepChanged(QObject *, int, qreal)),
-		this,
-		SLOT(setMouseWheelFreqStep(QObject *, int, qreal)));
-
-	CHECKED_CONNECT(
-		radioPopup,
-		SIGNAL(vfoToMidBtnEvent()),
-		this,
-		SLOT(setVfoToMidFrequency()));
-
-	CHECKED_CONNECT(
-		radioPopup,
-		SIGNAL(midToVfoBtnEvent()),
-		this,
-		SLOT(setMidToVfoFrequency()));
+	connect(radioPopup, &RadioPopupWidget::vfoToMidBtnEvent, this, &QGLReceiverPanel::setVfoToMidFrequency);
+	connect(radioPopup, &RadioPopupWidget::midToVfoBtnEvent, this, &QGLReceiverPanel::setMidToVfoFrequency);
 }
 
 void QGLReceiverPanel::initializeGL() {
@@ -604,8 +382,6 @@ void QGLReceiverPanel::initializeGL() {
     glEnable(GL_DEPTH_TEST);
 	glDisable(GL_CULL_FACE);
     
-	m_cnt = 0;
-
 	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 }
 
@@ -3952,53 +3728,35 @@ void QGLReceiverPanel::graphicModeChanged(
 		m_waterfallMode = waterfallColorMode;
 }
 
- void QGLReceiverPanel::setSpectrumAveraging(QObject* sender, int rx, bool value) {
+void QGLReceiverPanel::setSpectrumAveraging(QObject* sender, int rx, bool value) {
 
-	 Q_UNUSED (sender)
+	Q_UNUSED(sender)
 
-	 if (m_receiver != rx) return;
+	if (m_receiver != rx) return;
 
-	 spectrumBufferMutex.lock();
-
-	 if (m_spectrumAveraging == value) 
-		 return;
-	 else
-		 m_spectrumAveraging = value;
-
-	 spectrumBufferMutex.unlock();
- }
+	QMutexLocker locker(&spectrumBufferMutex);
+	if (m_spectrumAveraging != value)
+		m_spectrumAveraging = value;
+}
 
 void QGLReceiverPanel::setSpectrumAveragingCnt(int value) {
 
-	spectrumBufferMutex.lock();
+	QMutexLocker locker(&spectrumBufferMutex);
 
-		//m_tmp.clear();
+	while (!specAv_queue.isEmpty())
+		specAv_queue.dequeue();
 
-		while (!specAv_queue.isEmpty())
-			specAv_queue.dequeue();
-
-		m_specAveragingCnt = value;
-
-		if (m_specAveragingCnt > 0)
-			m_scale = 1.0f / m_specAveragingCnt;
-		else
-			m_scale = 1.0f;
-
-	spectrumBufferMutex.unlock();
+	m_specAveragingCnt = value;
+	m_scale = (m_specAveragingCnt > 0) ? 1.0f / m_specAveragingCnt : 1.0f;
 }
 
 void QGLReceiverPanel::setPanGridStatus(bool value, int rx) {
 
 	if (m_receiver != rx) return;
 
-	spectrumBufferMutex.lock();
-
-	 if (m_panGrid == value) 
-		 return;
-	 else
-		 m_panGrid = value;
-
-	 spectrumBufferMutex.unlock();
+	QMutexLocker locker(&spectrumBufferMutex);
+	if (m_panGrid != value)
+		m_panGrid = value;
 }
 
 void QGLReceiverPanel::setPeakHoldStatus(bool value, int rx) {
@@ -4241,19 +3999,6 @@ void QGLReceiverPanel::showRadioPopup(bool value) {
 
 	radioPopup->showPopupWidget(this, QCursor::pos());
 }
-
-//void QGLReceiverPanel::setAGCHangEnabled(QObject *sender, int rx, bool hangEnabled) {
-//
-//	Q_UNUSED(sender)
-//
-//	if (m_receiver != rx) return;
-//
-//	if (m_agcHangEnabled == hangEnabled) return;
-//	m_agcHangEnabled = hangEnabled;
-//	GRAPHICS_DEBUG << "m_agcHangEnabled = " << m_agcHangEnabled;
-//
-//	update();
-//}
 
 void QGLReceiverPanel::qglColor(QColor color)
 {

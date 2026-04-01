@@ -2,39 +2,8 @@
 // *********************************************************************
 // Wide band data processor
 
-
-
 #include "cusdr_dataEngine.h"
 #include "cusdr_WidebandProcessor.h"
-
-void AudioOutProcessor::processDeviceData() {
-
-	forever {
-		m_mutex.lock();
-		if (m_stopped) {
-			m_stopped = false;
-			m_mutex.unlock();
-			break;
-		}
-		m_mutex.unlock();
-	}
-}
-
-void AudioOutProcessor::processData() {
-
-	forever {
-
-		//m_dataEngine->processFileBuffer(m_dataEngine->io.data_queue.dequeue());
-
-		m_mutex.lock();
-		if (m_stopped) {
-			m_stopped = false;
-			m_mutex.unlock();
-			break;
-		}
-		m_mutex.unlock();
-	}
-}
 
 WideBandDataProcessor::WideBandDataProcessor(THPSDRParameter *ioData, QSDR::_ServerMode serverMode, int size)
 	: QObject()
@@ -68,7 +37,7 @@ void  WideBandDataProcessor::initWidebandAnalyzer() {
 		int fft_size = 8192;
 		int window_type = 4;
 		double kaiser_pi = 14.0;
-		int overlap = 0; //1024; //4096;
+		int overlap = 0;
 		int clip = 0;
 		int span_clip_l = 0;
 		int span_clip_h = 0;
@@ -176,11 +145,11 @@ void WideBandDataProcessor::setWbSpectrumAveraging(QObject* sender, int rx, int 
 	if (rx != -1) return;
 	m_mutex.lock();
 	m_wbSpectrumAveraging = value;
-	double t=0.001*m_wbSpectrumAveraging;
-	double  m_display_avb = exp(-1.0 / ((double)10 * t));
-	int  m_display_average = max(2, (int)min(60, (double)10 * t));
-	SetDisplayAvBackmult(WIDEBAND_DISPLAY_NUMBER, 0, m_display_avb);
-	SetDisplayNumAverage(WIDEBAND_DISPLAY_NUMBER, 0, m_display_average);
+	double t = 0.001 * m_wbSpectrumAveraging;
+	double avBackmult = exp(-1.0 / ((double)10 * t));
+	int    numAverage = max(2, (int)min(60, (double)10 * t));
+	SetDisplayAvBackmult(WIDEBAND_DISPLAY_NUMBER, 0, avBackmult);
+	SetDisplayNumAverage(WIDEBAND_DISPLAY_NUMBER, 0, numAverage);
 	m_mutex.unlock();
 }
 

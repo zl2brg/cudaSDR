@@ -1,6 +1,5 @@
 #include "receiveraudiooutput.h"
 #include <QDebug>
-#include <QtEndian>
 
 ReceiverAudioOutput::ReceiverAudioOutput(QObject *parent)
     : QObject(parent)
@@ -17,7 +16,7 @@ void ReceiverAudioOutput::setSampleRate(int rate)
 {
     m_sampleRate = rate;
     m_format.setSampleRate(m_sampleRate);
-    m_format.setChannelCount(2); // Mono
+    m_format.setChannelCount(2); // Stereo
     m_format.setSampleFormat(QAudioFormat::Float); // Use Float for SDR output
 
     QAudioDevice outputDevice = QMediaDevices::defaultAudioOutput();

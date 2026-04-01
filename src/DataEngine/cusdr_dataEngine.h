@@ -233,7 +233,6 @@ private:
     __attribute__((unused)) static void	startAudioOutProcessor(QThread::Priority prio);
 
     bool	startWideBandDataProcessor(QThread::Priority prio);
-	bool    start_TxProcessor();
 
 
 	void	stopDiscoverer();
@@ -241,7 +240,6 @@ private:
 	void	stopDataProcessor();
 	void	stopAudioOutProcessor();
 	void	stopWideBandDataProcessor();
-	void    stop_TxProcessor();
 
 	void	setHPSDRConfig();
 	void    setWideBandBufferCount();

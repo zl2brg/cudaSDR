@@ -63,9 +63,6 @@ extern double cwramp48[];		// see cwramp.c, for 48 kHz sample rate
 	- implements the audio processor thread.
 */
 
-#define FREQ_CONST ((2.0 * 3.14159) / 48000)
-static int firstTimeRxInit;
-
 DataEngine::DataEngine(QObject *parent)
 	: QObject(parent)
 	, set(Settings::instance())
@@ -371,17 +368,7 @@ void DataEngine::setupConnections() {
             SLOT(setRepeaterMode(bool)));
 
 
-    CHECKED_CONNECT(
-            set,
-            SIGNAL(dspModeChanged(QObject *, int, DSPMode)),
-            this,
-            SLOT(dspModeChanged(QObject *, int, DSPMode)));
-
-     CHECKED_CONNECT(
-            set,
-            SIGNAL(dspModeChanged(QObject *, int, DSPMode)),
-            this,
-            SLOT(dspModeChanged(QObject *, int, DSPMode)));
+    connect(set, &Settings::dspModeChanged, this, &DataEngine::dspModeChanged);
 
 
     CHECKED_CONNECT(
@@ -397,17 +384,7 @@ void DataEngine::setupConnections() {
             SLOT(CwSidetoneFreqChanged(int)));
 
 
-    CHECKED_CONNECT(
-            set,
-            SIGNAL(CwKeyReversedChanged(int)),
-            this,
-            SLOT(CwKeyReversedChanged(int)));
-
-    CHECKED_CONNECT(
-            set,
-            SIGNAL(CwKeyReversedChanged(int)),
-            this,
-            SLOT(CwKeyReversedChanged(int)));
+    connect(set, &Settings::CwKeyReversedChanged, this, &DataEngine::CwKeyReversedChanged);
 
     CHECKED_CONNECT(
             set,
@@ -578,8 +555,6 @@ bool DataEngine::getFirmwareVersions() {
 
 	// init receivers
 	int rcvrs = set->getNumberOfReceivers();
-	firstTimeRxInit = rcvrs;
-
 	QString str = "Initializing %1 receiver(s)...please wait";
 	set->setSystemMessage(str.arg(set->getNumberOfReceivers()), rcvrs * 500);
 	if (!initReceivers(rcvrs)) return false;
@@ -1541,21 +1516,11 @@ void DataEngine::setHPSDRConfig() {
 }
 
 void DataEngine::connectDSPSlots() {
-
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(ctrFrequencyChanged(QObject *, int, int, long)),
-		this,
-		SLOT(setFrequency(QObject *, int, int, long)));
+    connect(set, &Settings::ctrFrequencyChanged, this, &DataEngine::setFrequency);
 }
 
 void DataEngine::disconnectDSPSlots() {
-
-	disconnect(
-		set,
-		SIGNAL(ctrFrequencyChanged(QObject *, int, int, long)),
-		this,
-		SLOT(setFrequency(QObject *, int, int, long)));
+    disconnect(set, &Settings::ctrFrequencyChanged, this, &DataEngine::setFrequency);
 }
 
 
@@ -1896,19 +1861,11 @@ void DataEngine::createWideBandDataProcessor() {
 	
 	m_wbDataProcessor = new WideBandDataProcessor(&io, m_serverMode, size);
 
-	CHECKED_CONNECT(
-			set,
-			SIGNAL(spectrumAveragingCntChanged(QObject*, int, int)),
-			this,
-			SLOT(setWbSpectrumAveraging(QObject*, int, int)));
+	connect(set, &Settings::spectrumAveragingCntChanged,
+			this, &DataEngine::setWbSpectrumAveraging);
 
-
-
-	CHECKED_CONNECT(
-			m_wbDataProcessor,
-			SIGNAL(wbSpectrumBufferChanged(const qVectorFloat&)),
-			set,
-			SLOT(setWidebandSpectrumBuffer(const qVectorFloat&)));
+	connect(m_wbDataProcessor, &WideBandDataProcessor::wbSpectrumBufferChanged,
+			set, &Settings::setWidebandSpectrumBuffer);
 
 
 	m_wbDataProcThread = new QThreadEx();
@@ -1981,17 +1938,11 @@ void DataEngine::createAudioReceiver() {
 
 	m_audioReceiver = new AudioReceiver(&io);
 
-	CHECKED_CONNECT(
-		m_audioReceiver, 
-		SIGNAL(rcveIQEvent(QObject *, int)), 
-		this, 
-		SLOT(setRcveIQSignal(QObject *, int)));
+	connect(m_audioReceiver, &AudioReceiver::rcveIQEvent,
+			this, &DataEngine::setRcveIQSignal);
 
-	CHECKED_CONNECT(
-		m_audioReceiver, 
-		SIGNAL(clientConnectedEvent(bool)), 
-		this, 
-		SLOT(setClientConnected(bool)));
+	connect(m_audioReceiver, &AudioReceiver::clientConnectedEvent,
+			this, qOverload<bool>(&DataEngine::setClientConnected));
 
 	
 	m_AudioRcvrThread = new QThreadEx();
@@ -3590,7 +3541,7 @@ void DataEngine::CwKeyerWeightChanged(int CwKeyerWeight)
 
 void DataEngine::CwKeyerSpacingChanged(int CwKeyerSpacing)
 {
-    m_cw_keyer_weight = CwKeyerSpacing;
+    m_cw_keyer_spacing = CwKeyerSpacing;
 }
 
 
@@ -3614,6 +3565,30 @@ void AudioOutProcessor::stop() {
 	m_stopped = true;
 }
 
+void AudioOutProcessor::processDeviceData() {
+	forever {
+		m_mutex.lock();
+		if (m_stopped) {
+			m_stopped = false;
+			m_mutex.unlock();
+			break;
+		}
+		m_mutex.unlock();
+	}
+}
+
+void AudioOutProcessor::processData() {
+	forever {
+		m_mutex.lock();
+		if (m_stopped) {
+			m_stopped = false;
+			m_mutex.unlock();
+			break;
+		}
+		m_mutex.unlock();
+	}
+}
+
 
 void DataEngine::createAudioInputProcessor() {
 
@@ -3628,15 +3603,8 @@ void DataEngine::createAudioInputProcessor() {
 
     m_cwIO = new iambic(this);
 
-    CHECKED_CONNECT_OPT(
-            m_dataProcessor,
-            SIGNAL(keyer_event(
-                    int,
-                    int)),
-            m_cwIO,
-            SLOT(keyer_event(
-                    int,
-                    int)),Qt::DirectConnection);
+    connect(m_dataProcessor, &DataProcessor::keyer_event,
+            m_cwIO, &iambic::keyer_event, Qt::DirectConnection);
 
 /*
     CHECKED_CONNECT_OPT(
@@ -3649,15 +3617,6 @@ void DataEngine::createAudioInputProcessor() {
 
 */
    //         m_cwIO->Start();
-
-}
-
-bool DataEngine::start_TxProcessor() {
-    return false;
-}
-
-
-void DataEngine::stop_TxProcessor() {
 
 }
 

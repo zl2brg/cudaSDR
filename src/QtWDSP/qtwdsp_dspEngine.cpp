@@ -102,7 +102,7 @@ QWDSPEngine::QWDSPEngine(QObject *parent, int rx, int size)
     m_anf = set->getAnf(m_rx);
     m_snb = set->getSnb(m_rx);
 
-    setNCOFrequency(m_rx, m_rxData.vfoFrequency - m_rxData.ctrFrequency);
+    setNCOFrequency(m_rx, 0);
     WDSP_ENGINE_DEBUG << "init DSPEngine with size: " << m_size;
     SleeperThread::msleep(100);
 
@@ -220,6 +220,63 @@ void QWDSPEngine::setupConnections() {
 
     connect(set, &Settings::snbChanged,
             this, &QWDSPEngine::setsnb);
+
+    // Signals routed directly here instead of relaying through Receiver
+    connect(set, &Settings::mainVolumeChanged,
+            this, [this](QObject*, int rx, float value) {
+        if (rx == m_rx) setVolume(value);
+    });
+    connect(set, &Settings::dspModeChanged,
+            this, [this](QObject*, int rx, DSPMode mode) {
+        if (rx != m_rx) return;
+        setDSPMode(mode);
+        auto filter = getFilterFromDSPMode(set->getDefaultFilterList(), mode);
+        setFilter(filter.filterLo, filter.filterHi);
+    });
+    connect(set, &Settings::agcModeChanged,
+            this, [this](QObject*, int rx, AGCMode mode, bool) {
+        if (rx == m_rx) setAGCMode(mode);
+    });
+    connect(set, &Settings::agcGainChanged,
+            this, [this](QObject*, int rx, int value) {
+        if (rx == m_rx) setAGCThreshold(value - AGCOFFSET);
+    });
+    connect(set, &Settings::agcMaximumGainChanged,
+            this, [this](QObject*, int rx, qreal value) {
+        if (rx == m_rx) setAGCMaximumGain(value);
+    });
+    connect(set, &Settings::agcThresholdChanged_dB,
+            this, [this](QObject*, int rx, qreal value) {
+        if (rx == m_rx) setAGCThreshold((double)value);
+    });
+    connect(set, &Settings::agcHangThresholdChanged,
+            this, [this](QObject*, int rx, int value) {
+        if (rx == m_rx) setAGCHangThreshold(rx, value / 100.0);
+    });
+    connect(set, &Settings::agcHangLevelChanged_dB,
+            this, [this](QObject*, int rx, qreal value) {
+        if (rx == m_rx) setAGCHangLevel(value - AGCOFFSET);
+    });
+    connect(set, &Settings::agcVariableGainChanged_dB,
+            this, [this](QObject*, int rx, qreal value) {
+        if (rx == m_rx) setAGCSlope(rx, (int)value);
+    });
+    connect(set, &Settings::agcAttackTimeChanged,
+            this, [this](QObject*, int rx, qreal value) {
+        if (rx == m_rx) setAGCAttackTime(rx, (int)value);
+    });
+    connect(set, &Settings::agcDecayTimeChanged,
+            this, [this](QObject*, int rx, qreal value) {
+        if (rx == m_rx) setAGCDecayTime(rx, (int)value);
+    });
+    connect(set, &Settings::agcHangTimeChanged,
+            this, [this](QObject*, int rx, qreal value) {
+        if (rx == m_rx) setAGCHangTime((int)value);
+    });
+    connect(set, &Settings::filterFrequenciesChanged,
+            this, [this](QObject*, int rx, qreal low, qreal high) {
+        if (rx == m_rx) setFilter(low, high);
+    });
 }
 
 

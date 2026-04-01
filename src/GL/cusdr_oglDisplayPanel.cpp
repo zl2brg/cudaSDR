@@ -29,14 +29,6 @@
 #include "cusdr_oglDisplayPanel.h"
 
 #include <QGuiApplication>
-
-//#include <QtGui>
-//#include <QDebug>
-//#include <QFileInfo>
-//#include <QElapsedTimer>SetRXAAGCHangLevel
-//#include <QImage>
-//#include <QString>
-//#include <QOpenGLFramebufferObject>
 #include <QOpenGLPaintDevice>
 
 #ifndef GL_MULTISAMPLE
@@ -153,9 +145,6 @@ OGLDisplayPanel::OGLDisplayPanel(QWidget *parent)
 	m_sMeterMaxTimer.start();
 	m_sMeterMinTimer.start();
 	m_sMeterDisplayTime.start();
-	
-	m_SMeterA = false;
-//	m_SMeterA = true;
 }
 
 OGLDisplayPanel::~OGLDisplayPanel() {
@@ -184,203 +173,34 @@ QSize OGLDisplayPanel::sizeHint() const {
 
 void OGLDisplayPanel::setupConnections() {
 
-	CHECKED_CONNECT(
-		set,
-        SIGNAL(systemStateChanged(QObject*,QSDR::_Error,QSDR::_HWInterfaceMode,QSDR::_ServerMode,QSDR::_DataEngineState)),
-		this,
-        SLOT(systemStateChanged(QObject*,QSDR::_Error,QSDR::_HWInterfaceMode,QSDR::_ServerMode,QSDR::_DataEngineState)));
-		
-	CHECKED_CONNECT(
-		set,
-        SIGNAL(vfoFrequencyChanged(QObject*,int,int,long)),
-		this,
-        SLOT(setFrequency(QObject*,int,int,long)));
-
-	CHECKED_CONNECT(
-		set, 
-        SIGNAL(numberOfRXChanged(QObject*,int)),
-		this, 
-        SLOT(setReceivers(QObject*,int)));
-
-	CHECKED_CONNECT(
-		set, 
-        SIGNAL(currentReceiverChanged(QObject*,int)),
-		this, 
-        SLOT(setCurrentReceiver(QObject*,int)));
-
-	CHECKED_CONNECT(
-		set, 
-        SIGNAL(mercuryAttenuatorChanged(QObject*,HamBand,int)),
-		this, 
-        SLOT(setMercuryAttenuator(QObject*,HamBand,int)));
-
-	CHECKED_CONNECT(
-		set, 
-        SIGNAL(ditherChanged(QObject*,int)),
-		this, 
-        SLOT(setDither(QObject*,int)));
-
-	CHECKED_CONNECT(
-		set, 
-        SIGNAL(randomChanged(QObject*,int)),
-		this, 
-        SLOT(setRandom(QObject*,int)));
-
-	CHECKED_CONNECT(
-		set, 
-        SIGNAL(sampleRateChanged(QObject*,int)),
-		this, 
-        SLOT(setSampleRate(QObject*,int)));
-
-	CHECKED_CONNECT(
-		set, 
-		SIGNAL(mercuryPresenceChanged(bool)), 
-		this, 
-		SLOT(setMercuryPresence(bool)));
-
-	CHECKED_CONNECT(
-		set, 
-		SIGNAL(mercuryVersionChanged(int)), 
-		this, 
-		SLOT(setMercuryVersion(int)));
-
-	CHECKED_CONNECT(
-		set, 
-		SIGNAL(penelopePresenceChanged(bool)), 
-		this, 
-		SLOT(setPenelopePresence(bool)));
-
-	CHECKED_CONNECT(
-		set, 
-		SIGNAL(pennyLanePresenceChanged(bool)),
-		this,
-		SLOT(setPennylanePresence(bool)));
-
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(metisVersionChanged(int)), 
-		this, 
-		SLOT(setMetisVersion(int)));
-
-	CHECKED_CONNECT(
-		set, 
-		SIGNAL(penelopeVersionChanged(int)), 
-		this, 
-		SLOT(setPenelopeVersion(int)));
-
-	CHECKED_CONNECT(
-		set, 
-		SIGNAL(penelopeVersionChanged(int)),
-		this,
-		SLOT(setPennylaneVersion(int)));
-
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(hermesVersionChanged(int)), 
-		this, 
-		SLOT(setHermesVersion(int)));
-
-	CHECKED_CONNECT(
-		set, 
-		SIGNAL(alexPresenceChanged(bool)), 
-		this, 
-		SLOT(setAlexPresence(bool)));
-
-	CHECKED_CONNECT(
-		set, 
-		SIGNAL(excaliburPresenceChanged(bool)), 
-		this, 
-		SLOT(setExcaliburPresence(bool)));
-
-	CHECKED_CONNECT(
-		set, 
-        SIGNAL(src10MhzChanged(QObject*,int)),
-		this, 
-        SLOT(set10mhzSource(QObject*,int)));
-
-	CHECKED_CONNECT(
-		set, 
-        SIGNAL(src122_88MhzChanged(QObject*,int)),
-		this, 
-        SLOT(set122_88mhzSource(QObject*,int)));
-
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(protocolSyncChanged(int)),
-		this,
-		SLOT(setSyncStatus(int)));
-
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(adcOverflowChanged(int)),
-		this,
-		SLOT(setADCStatus(int)));
-
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(packetLossChanged(int)),
-		this,
-		SLOT(setPacketLossStatus(int)));
-
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(forwardPowerChanged(qreal)),
-		this,
-		SLOT(setForwardPower(qreal)));
-
-    CHECKED_CONNECT(
-        set,
-        SIGNAL(swrChanged(qreal)),
-        this,
-        SLOT(setSWR(qreal)));
-
-    CHECKED_CONNECT(
-        set,
-        SIGNAL(radioStateChanged(RadioState)),
-        this,
-        SLOT(setRadioState(RadioState)));
-
-    CHECKED_CONNECT(
-        set,
-        SIGNAL(supplyVoltageChanged(qreal)),
-        this,
-        SLOT(setSupplyVoltage(qreal)));
-
-    CHECKED_CONNECT(
-        set,
-        SIGNAL(temperatureChanged(qreal)),
-        this,
-        SLOT(setTemperature(qreal)));
-
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(sendIQSignalChanged(int)),
-		this,
-		SLOT(setSendIQStatus(int)));
-
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(rcveIQSignalChanged(int)),
-		this,
-		SLOT(setRecvAudioStatus(int)));
-
-	CHECKED_CONNECT(
-		set, 
-        SIGNAL(mouseWheelFreqStepChanged(QObject*,int,qreal)),
-		this, 
-        SLOT(setMouseWheelFreqStep(QObject*,int,qreal)));
-
-	CHECKED_CONNECT(
-		set,
-        SIGNAL(sMeterValueChanged(int,double)),
-		this,
-        SLOT(setSMeterValue(int,double)));
-
-	CHECKED_CONNECT(
-		set, 
-		SIGNAL(sMeterHoldTimeChanged(int)), 
-		this, 
-		SLOT(setSMeterHoldTime(int)));
+	connect(set, &Settings::systemStateChanged,       this, &OGLDisplayPanel::systemStateChanged);
+	connect(set, &Settings::vfoFrequencyChanged,      this, &OGLDisplayPanel::setFrequency);
+	connect(set, &Settings::numberOfRXChanged,        this, &OGLDisplayPanel::setReceivers);
+	connect(set, &Settings::currentReceiverChanged,   this, &OGLDisplayPanel::setCurrentReceiver);
+	connect(set, &Settings::mercuryAttenuatorChanged, this, &OGLDisplayPanel::setMercuryAttenuator);
+	connect(set, &Settings::ditherChanged,            this, &OGLDisplayPanel::setDither);
+	connect(set, &Settings::randomChanged,            this, &OGLDisplayPanel::setRandom);
+	connect(set, &Settings::sampleRateChanged,        this, &OGLDisplayPanel::setSampleRate);
+	connect(set, &Settings::mercuryVersionChanged,    this, &OGLDisplayPanel::setMercuryVersion);
+	connect(set, &Settings::metisVersionChanged,      this, &OGLDisplayPanel::setMetisVersion);
+	connect(set, &Settings::penelopeVersionChanged,   this, &OGLDisplayPanel::setPenelopeVersion);
+	connect(set, &Settings::penelopeVersionChanged,   this, &OGLDisplayPanel::setPennylaneVersion);
+	connect(set, &Settings::hermesVersionChanged,     this, &OGLDisplayPanel::setHermesVersion);
+	connect(set, &Settings::src10MhzChanged,          this, &OGLDisplayPanel::set10mhzSource);
+	connect(set, &Settings::src122_88MhzChanged,      this, &OGLDisplayPanel::set122_88mhzSource);
+	connect(set, &Settings::protocolSyncChanged,      this, &OGLDisplayPanel::setSyncStatus);
+	connect(set, &Settings::adcOverflowChanged,       this, &OGLDisplayPanel::setADCStatus);
+	connect(set, &Settings::packetLossChanged,        this, &OGLDisplayPanel::setPacketLossStatus);
+	connect(set, &Settings::forwardPowerChanged,      this, &OGLDisplayPanel::setForwardPower);
+	connect(set, &Settings::swrChanged,               this, &OGLDisplayPanel::setSWR);
+	connect(set, &Settings::radioStateChanged,        this, &OGLDisplayPanel::setRadioState);
+	connect(set, &Settings::supplyVoltageChanged,     this, &OGLDisplayPanel::setSupplyVoltage);
+	connect(set, &Settings::temperatureChanged,       this, &OGLDisplayPanel::setTemperature);
+	connect(set, &Settings::sendIQSignalChanged,      this, &OGLDisplayPanel::setSendIQStatus);
+	connect(set, &Settings::rcveIQSignalChanged,      this, &OGLDisplayPanel::setRecvAudioStatus);
+	connect(set, &Settings::mouseWheelFreqStepChanged,this, &OGLDisplayPanel::setMouseWheelFreqStep);
+	connect(set, &Settings::sMeterValueChanged,       this, &OGLDisplayPanel::setSMeterValue);
+	connect(set, &Settings::sMeterHoldTimeChanged,    this, &OGLDisplayPanel::setSMeterHoldTime);
 }
 
 void OGLDisplayPanel::setupTextstrings() {
@@ -467,7 +287,6 @@ void OGLDisplayPanel::initializeGL() {
 	glClearColor(0.0f, 0.0f, 0.0f, 0.5f);
 	glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
     glHint(GL_POLYGON_SMOOTH_HINT, GL_NICEST);
-    glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
 	glDisable(GL_POINT_SMOOTH);
     glHint(GL_POINT_SMOOTH_HINT, GL_NICEST);
 
@@ -573,55 +392,6 @@ void OGLDisplayPanel::paintUpperRegion() {
 	}
 	qglColor(QColor(0, 0, 0));
 	m_oglTextSmallItalic->renderText(x1 + m_blankWidth, y1, m_PacketLossString);
-
-//	// send IQ data status
-//	str = QString(m_sendIQString);
-//	rect = QRect(x1+63, y1 + m_upperRectY, d_fm.tightBoundingRect(str).horizontalAdvance() + 6, fontHeight + 4);
-//
-//	switch (m_sendIQStatus) {
-//
-//		case 0:
-//			drawGLRect(rect, QColor(68, 68, 68), -2.0f);
-//			//qglColor(QColor(100, 100, 100));
-//			break;
-//
-//		case 1:
-//			drawGLRect(rect, QColor(56, 242, 115), -2.0f);
-//			//qglColor(QColor(56, 242, 115));
-//			break;
-//
-//		case 2:
-//			drawGLRect(rect, QColor(242, 56, 109), -2.0f);
-//			//qglColor(QColor(242, 56, 109));
-//			break;
-//	}
-//	qglColor(QColor(0, 0, 0));
-//	m_oglTextSmallItalic->renderFreqText(m_syncWidth + m_adcWidth + 19, y1 + m_upperRectY, m_sendIQString);
-
-//	// receiver Audio status
-//	str = QString(m_recvAudioString);
-//	rect = QRect(x1+108, y1 + m_upperRectY, d_fm.tightBoundingRect(str).horizontalAdvance() + 8, fontHeight + 4);
-//
-//	switch (m_recvAudioStatus) {
-//
-//		case 0:
-//			drawGLRect(rect, QColor(68, 68, 68), -2.0f);
-//			//qglColor(QColor(100, 100, 100));
-//			break;
-//
-//		case 1:
-//			drawGLRect(rect, QColor(56, 242, 115), -2.0f);
-//			//qglColor(QColor(56, 242, 115));
-//			break;
-//
-//		case 2:
-//			drawGLRect(rect, QColor(242, 56, 109), -2.0f);
-//			//qglColor(QColor(242, 56, 109));
-//			break;
-//	}
-//	qglColor(QColor(0, 0, 0));
-//	m_oglTextSmallItalic->renderFreqText(m_syncWidth + m_adcWidth + m_sendIQWidth + 29, y1 + m_upperRectY, m_recvAudioString);
-
 
 	// Metis status
 	str = m_metisString;
@@ -1136,8 +906,6 @@ void OGLDisplayPanel::paintRxRegion() {
 
     }
 
-//void OGLDisplayPanel::paintRXFrequency(GLint &x1, GLint &y1 )
-
     void OGLDisplayPanel::paintSMeter() {
 
         GLint width = m_smeterRect.width();
@@ -1213,256 +981,6 @@ void OGLDisplayPanel::paintRxRegion() {
         glDisable(GL_LINE_SMOOTH);
         glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
     }
-
-void OGLDisplayPanel::renderSMeterA() {
-
-	GLint width = m_smeterRect.width();
-	GLint height = m_smeterRect.height();
-
-	GLint x1 = m_smeterRect.left();
-	GLint y1 = m_smeterRect.top();
-	GLint x2 = x1 + width;
-	GLint y2 = y1 + height;
-
-	float X = (x2-x1)/2.0;
-	float Y = 370;//355.0;
-
-	GLint mid = m_smeterRect.width()/2;
-
-	// draw background
-	if (m_dataEngineState == QSDR::DataEngineUp)
-		//drawGLRect(QRect(0, 0, x2-x1, y2-y1), QColor(0, 0, 0, 255), QColor(0, 0, 90, 255), false);
-		drawGLRect(QRect(0, 0, x2-x1, y2-y1), Qt::black, m_bkgColor2, false);
-		//drawGLRect(QRect(0, 0, x2-x1, y2-y1), QColor(0, 0, 0, 255), QColor(15, 55, 75, 255), false);
-	else
-		drawGLRect(QRect(0, 0, x2-x1, y2-y1), Qt::black);
-	
-	glDisable(GL_MULTISAMPLE);
-	
-	//***********************************************************
-	// center of S-Meter circles
-
-	// circle 0, first half
-	float t = (float)(-156*ONEPI/256.0f);
-	float R0 = 320.0;
-
-	if (m_dataEngineState == QSDR::DataEngineUp)
-		//qglColor(QColor(106, 136, 148));
-		qglColor(QColor(180, 180, 180));
-	else
-		qglColor(QColor(68, 68, 68));
-	
-	glLineWidth(2);
-	glBegin(GL_LINE_STRIP);
-	for (int i = 0; i < m_smeterVertices; ++i) {
-		
-		glVertex3f(X + R0 * qCos(t), Y + R0 * qSin(t), 0.0);
-		t += TWOPI / m_smeterVertices;
-		if ( t > -128*ONEPI/256.0f) break;
-	}
-	glEnd();
-
-	// circle 0, second half
-	R0 = 321.0;
-	t = (float)(-126*ONEPI/256.0);
-	if (m_dataEngineState == QSDR::DataEngineUp)
-		qglColor(QColor(105, 110, 250));
-	else
-		qglColor(QColor(68, 68, 68));
-	
-	glLineWidth(3);
-	glBegin(GL_LINE_STRIP);
-	for (int i = 0; i < m_smeterVertices; ++i) {
-		
-		glVertex3f(X + R0 * qCos(t), Y + R0 * qSin(t), 0.0);
-		t += TWOPI / m_smeterVertices;
-		if ( t > -99*ONEPI/256.0f) break;
-	}
-	glEnd();
-
-	// circle 1
-	if (m_dataEngineState == QSDR::DataEngineUp)
-		//qglColor(QColor(106, 136, 148));
-		qglColor(QColor(180, 180, 180));
-	else
-		qglColor(QColor(68, 68, 68));
-	
-	glLineWidth(2);
-	float R1 = 312.0;
-	t = (float)(-156*ONEPI/256.0f);
-	glBegin(GL_LINE_STRIP);
-	for (int i = 0; i < m_smeterVertices; ++i) {
-		
-		glVertex3f(X + R1 * qCos(t), Y + R1 * qSin(t), 0.0);
-		t += TWOPI / m_smeterVertices;
-		if ( t > -99*ONEPI/256.0f) break;
-	}
-	glEnd();
-
-
-	// circle 2
-    /*if (m_dataEngineState == QSDR::DataEngineUp)
-		qglColor(QColor(106, 136, 148));
-	else
-		qglColor(QColor(68, 68, 68));
-	
-	glLineWidth(2);
-	float R2 = 290.0;
-	t = -156*ONEPI/256.0f;
-	glBegin(GL_LINE_STRIP);
-	for (int i = 0; i < numVertices; ++i) {
-		
-		glVertex3f(X + R2 * qCos(t), Y + R2 * qSin(t), 0.0);
-		t += TWOPI / numVertices;
-		if ( t > -99*ONEPI/256.0f) break;
-	}
-    glEnd();*/
-
-
-	// circle 3
-	/*if (m_dataEngineState == QSDR::DataEngineUp)
-		qglColor(QColor(106, 136, 148));
-	else
-		qglColor(QColor(68, 68, 68));
-	
-	glLineWidth(2);
-	float R3 = 270.0;
-	t = -156*ONEPI/256.0f;
-	glBegin(GL_LINE_STRIP);
-	for (int i = 0; i < numVertices; ++i) {
-		
-		glVertex3f(X + R3 * qCos(t), Y + R3 * qSin(t), 0.0);
-		t += TWOPI / numVertices;
-		if ( t > -99*ONEPI/256.0f) break;
-	}
-	glEnd();*/
-
-		
-	// S-Meter ticks
-	if (m_dataEngineState == QSDR::DataEngineUp)
-		//qglColor(QColor(106, 136, 148));
-		qglColor(QColor(180, 180, 180));
-	else
-		qglColor(QColor(68, 68, 68));
-
-	QFontMetrics fm = m_oglTextNormal->fontMetrics();
-
-	m_oglTextBigItalic->renderText(X - mid + 30, Y - R0, "S");
-
-	t = (float)(-152*ONEPI/256.0f);
-	glBegin(GL_LINES);
-	glVertex3f(X + R0 * qCos(t), Y + R0 * qSin(t), 0.0);
-	glVertex3f(X + (R0+11) * qCos(t), Y + (R0+11) * qSin(t), 0.0);
-	glEnd();
-
-    int d = fm.horizontalAdvance("1");
-	m_oglTextNormal->renderText(X + (R0+28) * qCos(t) - d/2, Y + (R0+28) * qSin(t), "1");
-
-	t = (float)(-149*ONEPI/256.0f);
-	glBegin(GL_LINES);
-	glVertex3f(X + R0 * qCos(t), Y + R0 * qSin(t), 0.0);
-	glVertex3f(X + (R0+7) * qCos(t), Y + (R0+7) * qSin(t), 0.0);
-	glEnd();
-
-	t = (float)(-146*ONEPI/256.0f);
-	glBegin(GL_LINES);
-	glVertex3f(X + R0 * qCos(t), Y + R0 * qSin(t), 0.0);
-	glVertex3f(X + (R0+11) * qCos(t), Y + (R0+11) * qSin(t), 0.0);
-	glEnd();
-
-    d = fm.horizontalAdvance("3");
-	m_oglTextNormal->renderText(X + (R0+28) * qCos(t) - d/2, Y + (R0+28) * qSin(t), "3");
-
-	t = (float)(-143*ONEPI/256.0f);
-	glBegin(GL_LINES);
-	glVertex3f(X + R0 * qCos(t), Y + R0 * qSin(t), 0.0);
-	glVertex3f(X + (R0+7) * qCos(t), Y + (R0+7) * qSin(t), 0.0);
-	glEnd();
-
-	t = (float)(-140*ONEPI/256.0f);
-	glBegin(GL_LINES);
-	glVertex3f(X + R0 * qCos(t), Y + R0 * qSin(t), 0.0);
-	glVertex3f(X + (R0+11) * qCos(t), Y + (R0+11) * qSin(t), 0.0);
-	glEnd();
-
-    d = fm.horizontalAdvance("5");
-	m_oglTextNormal->renderText(X + (R0+28) * qCos(t) - d/2, Y + (R0+28) * qSin(t), "5");
-
-	t = (float)(-137*ONEPI/256.0f);
-	glBegin(GL_LINES);
-	glVertex3f(X + R0 * qCos(t), Y + R0 * qSin(t), 0.0);
-	glVertex3f(X + (R0+7) * qCos(t), Y + (R0+7) * qSin(t), 0.0);
-	glEnd();
-
-	t = (float)(-134*ONEPI/256.0f);
-	glBegin(GL_LINES);
-	glVertex3f(X + R0 * qCos(t), Y + R0 * qSin(t), 0.0);
-	glVertex3f(X + (R0+11) * qCos(t), Y + (R0+11) * qSin(t), 0.0);
-	glEnd();
-
-    d = fm.horizontalAdvance("7");
-	m_oglTextNormal->renderText(X + (R0+28) * qCos(t) - d/2, Y + (R0+28) * qSin(t), "7");
-
-	t = (float)(-131*ONEPI/256.0f);
-	glBegin(GL_LINES);
-	glVertex3f(X + R0 * qCos(t), Y + R0 * qSin(t), 0.0);
-	glVertex3f(X + (R0+7) * qCos(t), Y + (R0+7) * qSin(t), 0.0);
-	glEnd();
-
-	t = (float)(-ONEPI/2.0f);
-	glBegin(GL_LINES);
-	glVertex3f(X + (R0-1) * qCos(t), Y + (R0-1) * qSin(t), 0.0);
-	glVertex3f(X + (R0+11) * qCos(t), Y + (R0+11) * qSin(t), 0.0);
-	glEnd();
-
-    d = fm.horizontalAdvance("9");
-	m_oglTextNormal->renderText(X + (R0+28) * qCos(t) - d/2, Y + (R0+28) * qSin(t), "9");
-
-	if (m_dataEngineState == QSDR::DataEngineUp)
-		qglColor(QColor(85, 90, 250));
-	else
-		qglColor(QColor(68, 68, 68));
-
-	t = (float)(-123*ONEPI/256.0f);
-	glBegin(GL_LINES);
-	glVertex3f(X + R0 * qCos(t), Y + R0 * qSin(t), 0.0);
-	glVertex3f(X + (R0+7) * qCos(t), Y + (R0+7) * qSin(t), 0.0);
-	glEnd();
-
-	t = (float)(-118*ONEPI/256.0f);
-	glBegin(GL_LINES);
-	glVertex3f(X + R0 * qCos(t), Y + R0 * qSin(t), 0.0);
-	glVertex3f(X + (R0+11) * qCos(t), Y + (R0+11) * qSin(t), 0.0);
-	glEnd();
-
-    d = fm.horizontalAdvance("+20");
-	m_oglTextNormal->renderText(X + (R0+28) * qCos(t) - d/2, Y + (R0+28) * qSin(t), "+20");
-
-	t = (float)(-113*ONEPI/256.0f);
-	glBegin(GL_LINES);
-	glVertex3f(X + R0 * qCos(t), Y + R0 * qSin(t), 0.0);
-	glVertex3f(X + (R0+7) * qCos(t), Y + (R0+7) * qSin(t), 0.0);
-	glEnd();
-
-	t = (float)(-108*ONEPI/256.0f);
-	glBegin(GL_LINES);
-	glVertex3f(X + R0 * qCos(t), Y + R0 * qSin(t), 0.0);
-	glVertex3f(X + (R0+11) * qCos(t), Y + (R0+11) * qSin(t), 0.0);
-	glEnd();
-
-    d = fm.horizontalAdvance("+40");
-	m_oglTextNormal->renderText(X + (R0+28) * qCos(t) - d/2, Y + (R0+28) * qSin(t), "+40");
-
-	t = (float)(-103*ONEPI/256.0f);
-	glBegin(GL_LINES);
-	glVertex3f(X + R0 * qCos(t), Y + R0 * qSin(t), 0.0);
-	glVertex3f(X + (R0+7) * qCos(t), Y + (R0+7) * qSin(t), 0.0);
-	glEnd();
-
-	m_oglTextBigItalic->renderText(X + mid - 35, Y - R0, "dB");
-
-	glEnable(GL_MULTISAMPLE);
-}
 
 void OGLDisplayPanel::renderSMeterScale() {
 	GLint width = m_sMeterWidth;
@@ -1655,14 +1173,6 @@ void OGLDisplayPanel::renderSMeterScale() {
 		glVertex3f(width-1,	  m_sMeterPosY+12, 0.0);
 	glEnd();
 
-    /*
-    if (m_dataEngineState == QSDR::DataEngineUp)
-		qglColor(m_activeTextColor);
-	else
-        qglColor(m_inactiveTextColor);
-        */
-	glEnable(GL_LINE_SMOOTH);
-	glEnable(GL_MULTISAMPLE);
 
 }
 
@@ -1839,177 +1349,6 @@ void OGLDisplayPanel::renderSMeterB() {
 	glEnable(GL_MULTISAMPLE);
 }
 
-//void OGLDisplayPanel::renderSMeterB() {
-//
-//	//GLint width = m_smeterRect.width();
-//	GLint width = m_sMeterWidth;
-//	GLint height = m_smeterRect.height();
-//
-//	GLint x1 = m_smeterRect.left();
-//	GLint y1 = m_smeterRect.top();
-//	GLint x2 = x1 + width;
-//	GLint y2 = y1 + height;
-//
-//	QFontMetrics fm = m_oglTextNormal->fontMetrics();
-//
-//	int vertexArrayLength = width/2;
-//
-//	// draw background
-//	if (m_dataEngineState == QSDR::DataEngineUp)
-//		drawGLRect(QRect(0, 0, x2-x1, y2-y1), Qt::black, m_bkgColor2, -3.0f, false);
-//	else
-//		drawGLRect(QRect(0, 0, x2-x1, y2-y1), Qt::black);
-//
-//	glDisable(GL_MULTISAMPLE);
-//	glDisable(GL_LINE_SMOOTH);
-//	glLineWidth(1.0f);
-//
-//	// Draw horizontal lines
-//	if (m_dataEngineState == QSDR::DataEngineUp)
-//		qglColor(m_activeTextColor);
-//	else
-//		qglColor(QColor(68, 68, 68));
-//
-//	glBegin(GL_LINES);
-//		glVertex3f(0,		m_sMeterPosY, 0.0);
-//		glVertex3f(width-1,	m_sMeterPosY, 0.0);
-//		glVertex3f(0,		m_sMeterPosY + 12, 0.0);
-//		glVertex3f(width-1,	m_sMeterPosY + 12, 0.0);
-//	glEnd();
-//
-//	if (m_dataEngineState == QSDR::DataEngineUp)
-//		qglColor(QColor(100, 100, 100));
-//	else
-//		qglColor(QColor(68, 68, 68));
-//
-//	TGL3float *vertexArray = new TGL3float[width];
-//
-//	for (int i = 0; i < vertexArrayLength; i++) {
-//
-//		vertexArray[2*i].x = (GLfloat)(2.0f * i);
-//		vertexArray[2*i].y = (GLfloat)(m_sMeterPosY + 3);
-//		vertexArray[2*i].z = 0.0;
-//
-//		vertexArray[2*i+1].x = (GLfloat)(2.0f * i);
-//		vertexArray[2*i+1].y = (GLfloat)(m_sMeterPosY + 10);
-//		vertexArray[2*i+1].z = 0.0;
-//	}
-//
-//	glEnableClientState(GL_VERTEX_ARRAY);
-//				
-//	glVertexPointer(3, GL_FLOAT, 0, vertexArray);
-//	glDrawArrays(GL_LINES, 0, width);
-//	glDisableClientState(GL_VERTEX_ARRAY);
-//
-//	delete[] vertexArray;
-//
-//	// Draw the S1..S9 value items
-//	int d;
-//    //int markerSpacing = 24; // spacing for the S value items
-//	int markerSpacing = m_sMeterWidth/12.5f; // spacing for the S value items
-//	QString marker;
-//
-//	if (m_dataEngineState == QSDR::DataEngineUp)
-//		qglColor(m_activeTextColor);
-//	else
-//		qglColor(QColor(68, 68, 68));
-//
-//	for (int x = 21, y = 9, z = 0; z < 5; x += markerSpacing, y += markerSpacing, z++) {
-//		
-//		if (z == 0) marker = "S1";
-//		else if (z == 1) marker = "S3";
-//		else if (z == 2) marker = "S5";
-//		else if (z == 3) marker = "S7";
-//		else if (z == 4) marker = "S9";
-//		
-//		// big ticks
-//		glBegin(GL_LINES);
-//			glVertex3f(x, m_sMeterPosY + 12, 0.0);
-//			glVertex3f(x, m_sMeterPosY + 16, 0.0);
-//		glEnd();
-//		
-//		// small ticks
-//		glBegin(GL_LINES);
-//			glVertex3f(y, m_sMeterPosY + 12, 0.0);
-//			glVertex3f(y, m_sMeterPosY + 15, 0.0);
-//		glEnd();
-//
-//		// S strings
-//		//d = fm.width(marker);
-//		m_oglTextNormal->renderFreqText(x-7, m_sMeterPosY + 18, marker);
-//	}
-//
-//	// Draw the S+ value items
-//	//markerSpacing = 20;
-//	markerSpacing = m_sMeterWidth/15;
-//
-//	for (int x = 118 + markerSpacing, y = 128 + markerSpacing, z = 0; z < 8; x += markerSpacing, y += 2 * markerSpacing, z++) {
-//		
-//		if (m_dataEngineState == QSDR::DataEngineUp)
-//			qglColor(m_activeTextColor);
-//		else
-//			qglColor(QColor(68, 68, 68));
-//
-//		if (z == 0) marker = "+20";
-//		else if (z == 1) marker = "+40";
-//		else if (z == 2) marker = "+60";
-//		else if (z == 3) marker = "+80";
-//		
-//		// big ticks
-//		glBegin(GL_LINES);
-//			glVertex3f(x, m_sMeterPosY + 12, 0.0);
-//			glVertex3f(x, m_sMeterPosY + 16, 0.0);
-//		glEnd();
-//		
-//		// small ticks
-//		/*glBegin(GL_LINES);
-//			glVertex3f(y, 42, 0.0);
-//			glVertex3f(y, 45, 0.0);
-//		glEnd();*/
-//
-//		if (m_dataEngineState == QSDR::DataEngineUp)
-//			qglColor(QColor(255, 80, 80));
-//		else
-//			qglColor(QColor(68, 68, 68));
-//
-//		m_oglTextNormal->renderFreqText(y, m_sMeterPosY + 18, marker);
-//	}
-//
-//	// Draw the dbm items
-//	for (int x = 4, y = 14, z = -130; z < 10; x += markerSpacing, y += markerSpacing, z += 10)	{
-//		
-//		if (m_dataEngineState == QSDR::DataEngineUp)
-//			qglColor(m_activeTextColor);
-//		else
-//			qglColor(QColor(68, 68, 68));
-//
-//		marker = QString::number(z, 'f', 0);
-//		int d = fm.width(marker);
-//		
-//		// big ticks
-//		glBegin(GL_LINES);
-//			glVertex3f(x, m_sMeterPosY - 4, 0.0);
-//			glVertex3f(x, m_sMeterPosY, 0.0);
-//		glEnd();
-//
-//		// small ticks
-//		glBegin(GL_LINES);
-//			glVertex3f(y, m_sMeterPosY - 2, 0.0);
-//			glVertex3f(y, m_sMeterPosY, 0.0);
-//		glEnd();
-//		
-//		if (z == -120 || z == -100 || z == -80 || z == -60 || z == -40 || z == -20) 
-//			m_oglTextNormal->renderFreqText(x-d/2-2, m_sMeterPosY - 18, marker);
-//
-//		if (z == 0) m_oglTextNormal->renderFreqText(x-d/2-1, m_sMeterPosY - 18, marker);
-//	}
-//
-//	m_oglTextSmallItalic->renderFreqText(width - 25, m_sMeterPosY - 16, "dBm");
-//
-//	glEnable(GL_MULTISAMPLE);
-//}
-
-//***********************************************
 void OGLDisplayPanel::setSMeterValue(int rx, double value) {
 
 	Q_UNUSED(rx)
@@ -2494,17 +1833,11 @@ void OGLDisplayPanel::setRadioState(RadioState state) {
 }
 
 void OGLDisplayPanel::setSupplyVoltage(qreal volts) {
-    if (volts > 0.1) {
-        qDebug() << "OGLDisplayPanel: RX" << m_currentReceiver << "received voltage update:" << volts;
-    }
     m_supplyVolts = volts;
     update();
 }
 
 void OGLDisplayPanel::setTemperature(qreal temp) {
-    if (temp > 0.1) {
-        qDebug() << "OGLDisplayPanel: RX" << m_currentReceiver << "received temperature update:" << temp;
-    }
     m_temperature = temp;
     update();
 }
@@ -2616,31 +1949,6 @@ void OGLDisplayPanel::set122_88mhzSource(QObject*sender,int value) {
 			m_src122_88mhz = "Mercury";
 			break;
 	}
-}
-
-void OGLDisplayPanel::setMercuryPresence(bool value) {
-
-	m_mercury = value;
-}
-
-void OGLDisplayPanel::setPenelopePresence(bool value) {
-
-	m_penelope = value;
-}
-
-void OGLDisplayPanel::setPennylanePresence(bool value) {
-
-	m_pennylane = value;
-}
-
-void OGLDisplayPanel::setAlexPresence(bool value) {
-
-	m_alex = value;
-}
-
-void OGLDisplayPanel::setExcaliburPresence(bool value) {
-
-	m_excalibur = value;
 }
 
 void OGLDisplayPanel::setMercuryVersion(int value) {

@@ -27,15 +27,6 @@
 #ifndef _CUSDR_DATAIO_H
 #define _CUSDR_DATAIO_H
 
-//#include <QObject>
-//#include <QMutex>
-//#include <QByteArray>
-//#include <QBuffer>
-//#include <QVector>
-//#include <QList>
-//#include <QWaitCondition>
-//#include <QThread>
-
 #include "cusdr_settings.h"
 #include "soundout.h"
 
@@ -64,7 +55,6 @@ public slots:
 	qint64	sendProtocol2ControlDatagram(const QByteArray &datagram, const QHostAddress &address, quint16 port);
 	void	sendInitFramesToNetworkDevice(int rx);
 	void	networkDeviceStartStop(char value);
-	//void	setWidebandBuffers(int value);
 	
 private slots:
 	void setSampleRate(QObject *sender, int value);
@@ -82,20 +72,14 @@ private:
 	QUdpSocket*	    m_dataIOSocket;
     QMap<quint16, QUdpSocket*> m_sockets;
 	QMap<QUdpSocket*, quint16> m_socketLogicalPorts;
-	//QMutex			m_mutex;
 	QByteArray		m_commandDatagram;
 	QByteArray		m_datagram;
 	QByteArray		m_wbDatagram;
-	QByteArray		m_twoFramesDatagram;
 	QByteArray		m_outDatagram;
-	QString			m_message;
-	unsigned char 	m_buffer[1500];
-	QByteArray  	m_iqbuffer;
 
     QElapsedTimer	m_packetLossTime;
 
 	THPSDRParameter*	io;
-	//TNetworkDevicecard 	netDevice;
 
 	bool	m_dataIOSocketOn;
 	bool	m_networkDeviceRunning;
@@ -115,8 +99,6 @@ private:
 
 	bool	m_sendEP4;
 	bool	m_manualBufferSize;
-	bool	m_packetsToggle;
-	bool	m_firstFrame;
 	
 	volatile bool	m_stopped;
 

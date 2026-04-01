@@ -50,9 +50,6 @@
 #if defined(Q_OS_WIN32)
 #include <winsock2.h>
 #endif
-#include <iostream>
-using namespace std;
-
 #ifdef LOG_P2_NETWORK
 #define P2_NET_DEBUG DATAIO_DEBUG
 #else
@@ -77,17 +74,13 @@ DataIO::DataIO(THPSDRParameter *ioData)
 	, m_socketBufferSize(set->getSocketBufferSize())
 	, m_sendEP4(false)
 	, m_manualBufferSize(set->getManualSocketBufferSize())
-	, m_packetsToggle(true)
-	, m_firstFrame(true)
 	, m_stopped(false)
 {
 	// Size the datagram buffer to the largest possible packet:
 	// Protocol 1: 1032 bytes (METIS_DATA_SIZE)
 	// Protocol 2: up to 1444 bytes (DDC IQ data packet)
 	m_datagram.resize(1444);
-	m_iqbuffer.resize(1024);
 	m_wbDatagram.resize(0);
-	m_twoFramesDatagram.resize(0);
 
 	m_sendSequence = 0L;
 	m_oldSendSequence = 0L;
@@ -103,7 +96,6 @@ DataIO::DataIO(THPSDRParameter *ioData)
     connect(set, &Settings::socketBufferSizeChanged, 
             this, &DataIO::setSocketBufferSize);
 
-	m_message = "m_sendSequence = %1, bytes sent: %2";
 #ifndef USE_INTERNAL_AUDIO
      m_pSoundCardOut = std::make_unique<CSoundOut>(this);
 
@@ -428,16 +420,11 @@ void DataIO::readData() {
 
 	qint64 length = io->inputBuffer.length();
 	
-	//int buffers = qRound(length/(2*BUFFER_SIZE));
 	int buffers = qRound((float) length/128);
 
 	DATAIO_DEBUG << "input buffer length " << length << " buffers " << buffers;
-   // qDebug() << "input buffer length " << length << " buffers " << buffers;
 	while (!m_stopped) {
-	
 		for (int i = 0; i < buffers; i++) {
-
-			//io->data_queue.enqueue(io->inputBuffer.mid(i*2*BUFFER_SIZE, 2*BUFFER_SIZE));
 			io->data_queue.enqueue(io->inputBuffer.mid(i*128, 128));
 			if (m_stopped) break;
 		}

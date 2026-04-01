@@ -28,13 +28,15 @@
 
 #include "cusdr_transmitter.h"
 
-Transmitter::Transmitter( int transmitter )
-: QObject()
-, set(Settings::instance())
+Transmitter::Transmitter(int transmitter)
+    : QObject()
+    , set(Settings::instance())
+    , m_asteps(0)
+    , m_bsteps(0)
 {
-    create_transmitter(TX_ID,DSP_SAMPLE_SIZE,4096,10,2048,100);
+    Q_UNUSED(transmitter)
+    create_transmitter(TX_ID, DSP_SAMPLE_SIZE, 4096, 10, 2048, 100);
     setupConnections();
-
 }
 
 Transmitter::~Transmitter() {
@@ -48,60 +50,37 @@ Transmitter::~Transmitter() {
 // for generating side tones simultaneously on the
 // HPSDR board and local audio.
 
-#define TWOPIOVERSAMPLERATE 0.0001308996938995747;  // 2 Pi / 48000
-
-static long asteps = 0;
-static long bsteps = 0;
+constexpr double TWOPIOVERSAMPLERATE = 0.0001308996938995747;  // 2 Pi / 48000
 
 double Transmitter::getNextSideToneSample() {
-    double angle = (asteps*cw_keyer_sidetone_frequency)*TWOPIOVERSAMPLERATE;
-    if (++asteps == 48000) asteps = 0;
+    double angle = (m_asteps * cw_keyer_sidetone_frequency) * TWOPIOVERSAMPLERATE;
+    if (++m_asteps == 48000) m_asteps = 0;
     return sin(angle);
 }
 
 double Transmitter::getNextInternalSideToneSample() {
-
-    double angle = (bsteps*cw_keyer_sidetone_frequency)*TWOPIOVERSAMPLERATE;
-    if (++bsteps == 48000) bsteps = 0;
+    double angle = (m_bsteps * cw_keyer_sidetone_frequency) * TWOPIOVERSAMPLERATE;
+    if (++m_bsteps == 48000) m_bsteps = 0;
     return sin(angle);
 }
 
 
 
 void Transmitter::setupConnections() {
+    connect(set, &Settings::dspModeChanged,
+            this, &Transmitter::setDSPMode);
 
-        CHECKED_CONNECT(
-                set,
-                SIGNAL(dspModeChanged(QObject *, int, DSPMode)),
-                this,
-                SLOT(setDSPMode(QObject *,int,  DSPMode)));
+    connect(set, &Settings::radioStateChanged,
+            this, &Transmitter::setRadioState);
 
-        CHECKED_CONNECT(
-                set,
-                SIGNAL(radioStateChanged(RadioState)),
-                this,
-                SLOT(setRadioState(RadioState)));
+    connect(set, &Settings::fmdeveationchanged,
+            this, &Transmitter::set_fm_deviation);
 
-        CHECKED_CONNECT(
-            set,
-            SIGNAL(fmdeveationchanged(double)),
-            this,
-            SLOT(set_fm_deviation(double)));
+    connect(set, &Settings::amCarrierlevelchanged,
+            this, &Transmitter::transmitter_set_am_carrier_level);
 
-        CHECKED_CONNECT(
-            set,
-            SIGNAL(amCarrierlevelchanged(double)),
-            this,
-            SLOT(transmitter_set_am_carrier_level(double)));
-
-
-    CHECKED_CONNECT(
-            set,
-            SIGNAL(micInputLevelChanged(QObject *, int)),
-            this,
-            SLOT(transmitter_set_mic_level(QObject *, int)));
-
-
+    connect(set, &Settings::micInputLevelChanged,
+            this, &Transmitter::transmitter_set_mic_level);
 }
 
 
@@ -155,7 +134,7 @@ bool  Transmitter::create_transmitter(int id, int buffer_size, int fft_size, int
 
     this->alex_antenna=0;
 
-    fprintf(stderr,"create_transmitter: id=%d buffer_size=%d mic_sample_rate=%d mic_dsp_rate=%d iq_output_rate=%d output_samples=%d fps=%d\n",this->id, this->buffer_size, this->mic_sample_rate, this->mic_dsp_rate, this->iq_output_rate, this->output_samples,this->fps);
+    TRANSMITTER_DEBUG << "create_transmitter: id=" << id << " buffer_size=" << buffer_size << " mic_sample_rate=" << mic_sample_rate << " mic_dsp_rate=" << mic_dsp_rate << " iq_output_rate=" << iq_output_rate << " output_samples=" << output_samples << " fps=" << fps;
 
     this->filter_low=0;
     this->filter_high=2500;
@@ -207,15 +186,9 @@ bool  Transmitter::create_transmitter(int id, int buffer_size, int fft_size, int
         // We need this buffer for the new protocol only, where it is only
         // used to shape the TX envelope
     }
-    fprintf(stderr,"transmitter: allocate buffers: mic_input_buffer=%p iq_output_buffer=%p pixels=%p\n",this->mic_input_buffer,this->iq_output_buffer,this->pixel_samples);
+    TRANSMITTER_DEBUG << "transmitter: buffers allocated";
 
-    fprintf(stderr,"create_transmitter: OpenChannel id=%d buffer_size=%d fft_size=%d sample_rate=%d dspRate=%d outputRate=%d\n",
-            this->id,
-            this->buffer_size,
-            2048, // this->fft_size,
-            this->mic_sample_rate,
-            this->mic_dsp_rate,
-            this->iq_output_rate);
+    TRANSMITTER_DEBUG << "create_transmitter: OpenChannel id=" << id << " buffer_size=" << buffer_size << " fft_size=2048 sample_rate=" << mic_sample_rate << " dspRate=" << mic_dsp_rate << " outputRate=" << iq_output_rate;
 
     OpenChannel(this->id,
                 this->buffer_size,
@@ -289,25 +262,17 @@ bool  Transmitter::create_transmitter(int id, int buffer_size, int fft_size, int
     return true;
 }
 
-void Transmitter::reconfigure_transmitter(int tx, int height) {
-
-}
-
-void Transmitter::setDSPMode(QObject *sender,int id, DSPMode dspMode) {
-Q_UNUSED(sender)
-mode = dspMode;
+void Transmitter::setDSPMode(QObject *sender, int id, DSPMode dspMode) {
+    Q_UNUSED(sender)
+    Q_UNUSED(id)
+    mode = dspMode;
     SetTXAMode(this->id, mode);
-    tx_set_filter(getFilterFromDSPMode(set->getDefaultFilterList(), mode).filterLo,getFilterFromDSPMode(set->getDefaultFilterList(), mode).filterHi);
+    auto filter = getFilterFromDSPMode(set->getDefaultFilterList(), mode);
+    tx_set_filter(filter.filterLo, filter.filterHi);
 }
 
 
 
-
-void Transmitter::transmitter_set_ctcss(int tx, int, double)
-{
-
-
-}
 
 void Transmitter::set_fm_deviation(double level) {
     SetTXAFMDeviation(this->id, level);
@@ -367,51 +332,6 @@ void Transmitter::setRadioState(RadioState state)
          SetTXAAMCarrierLevel(this->id, level);
      }
 
-     void Transmitter::tx_set_pre_emphasize(int tx, int state) {
-
-     }
-
-     void Transmitter::add_freedv_mic_sample(int tx, short mic_sample) {
-
-     }
-
-     void Transmitter::transmitter_save_state(int tx) {
-
-     }
-
-     void Transmitter::transmitter_set_out_of_band(int tx) {
-
-     }
-
-    void Transmitter::tx_set_ps(int tx, int state) {
-
-     }
-
-     void Transmitter::tx_set_twotone(int tx, int state) {
-
-     }
-
-     void Transmitter::transmitter_set_compressor_level(int tx, double level) {
-
-     }
-
-     void Transmitter::transmitter_set_compressor(int tx, int state) {
-
-     }
-
-     void Transmitter::tx_set_ps_sample_rate(int tx, int rate) {
-
-     }
-
-     void Transmitter::add_ps_iq_samples(int tx, double i_sample_0, double q_sample_0, double i_sample_1,
-                                         double q_sample_1) {
-
-     }
-
-     void Transmitter::cw_hold_key(int state) {
-
-     }
-
      long Transmitter::get_CtrFrequency(long rx_frequency, long repeater_offset, bool repeater_mode) {
         if (repeater_mode) {
             return rx_frequency + repeater_offset;
@@ -455,7 +375,7 @@ void Transmitter::transmitter_set_mic_level(QObject *object, int level){
 
          overlap = (int)max(0.0, ceil(fft_size - (double)this->mic_sample_rate / (double)this->fps));
 
-         fprintf(stderr,"SetAnalyzer id=%d buffer_size=%d overlap=%d\n",this->id,this->output_samples,overlap);
+         TRANSMITTER_DEBUG << "SetAnalyzer id=" << this->id << " buffer_size=" << output_samples << " overlap=" << overlap;
 
 
          SetAnalyzer(this->id,

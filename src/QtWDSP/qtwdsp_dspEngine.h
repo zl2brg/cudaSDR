@@ -126,7 +126,6 @@ public slots:
 
 private:
     Settings *set;
-    TReceiver m_rxData;
     AGCMode m_agcMode;
 
     QMutex m_mutex;
