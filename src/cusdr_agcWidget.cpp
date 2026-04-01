@@ -186,42 +186,36 @@ void AGCOptionsWidget::createAgcModeBtnGroup() {
 	agcOFF = new AeroButton("Off", this);
 	agcOFF->setRoundness(0);
 	agcOFF->setFixedSize(btn_widths, btn_height);
-	agcOFF->setStyleSheet(set->getMiniButtonStyle());
 	agcModeBtnList.append(agcOFF);
 	CHECKED_CONNECT(agcOFF, SIGNAL(clicked()), this, SLOT(agcModeChangedByBtn()));
 
 	agcLONG = new AeroButton("Long", this);
 	agcLONG->setRoundness(0);
 	agcLONG->setFixedSize(btn_widths, btn_height);
-	agcLONG->setStyleSheet(set->getMiniButtonStyle());
 	agcModeBtnList.append(agcLONG);
 	CHECKED_CONNECT(agcLONG, SIGNAL(clicked()), this, SLOT(agcModeChangedByBtn()));
 
 	agcSLOW = new AeroButton("Slow", this);
 	agcSLOW->setRoundness(0);
 	agcSLOW->setFixedSize(btn_widths, btn_height);
-	agcSLOW->setStyleSheet(set->getMiniButtonStyle());
 	agcModeBtnList.append(agcSLOW);
 	CHECKED_CONNECT(agcSLOW, SIGNAL(clicked()), this, SLOT(agcModeChangedByBtn()));
 
 	agcMED = new AeroButton("Med", this);
 	agcMED->setRoundness(0);
 	agcMED->setFixedSize(btn_widths, btn_height);
-	agcMED->setStyleSheet(set->getMiniButtonStyle());
 	agcModeBtnList.append(agcMED);
 	CHECKED_CONNECT(agcMED, SIGNAL(clicked()), this, SLOT(agcModeChangedByBtn()));
 
 	agcFAST = new AeroButton("Fast", this);
 	agcFAST->setRoundness(0);
 	agcFAST->setFixedSize(btn_widths, btn_height);
-	agcFAST->setStyleSheet(set->getMiniButtonStyle());
 	agcModeBtnList.append(agcFAST);
 	CHECKED_CONNECT(agcFAST, SIGNAL(clicked()), this, SLOT(agcModeChangedByBtn()));
 
 	agcUSER = new AeroButton("User", this);
 	agcUSER->setRoundness(0);
 	agcUSER->setFixedSize(btn_widths, btn_height);
-	agcUSER->setStyleSheet(set->getMiniButtonStyle());
 	agcModeBtnList.append(agcUSER);
 	CHECKED_CONNECT(agcUSER, SIGNAL(clicked()), this, SLOT(agcModeChangedByBtn()));
 

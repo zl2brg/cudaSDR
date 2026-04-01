@@ -77,7 +77,6 @@ void Options3DWidget::setupConnections() {
 void Options3DWidget::createGeneralGroup() {
     m_generalGroup = new QGroupBox("3D Display", this);
     m_generalGroup->setMinimumWidth(m_minimumGroupBoxWidth);
-    m_generalGroup->setStyleSheet(set->getWidgetStyle());
     m_generalGroup->setFont(QFont("Arial", 8));
 
     m_enable3DCheckBox = new QCheckBox("Enable 3D Panadapter", this);
@@ -95,7 +94,6 @@ void Options3DWidget::createGeneralGroup() {
 void Options3DWidget::createRenderingGroup() {
     m_renderingGroup = new QGroupBox("Rendering Options", this);
     m_renderingGroup->setMinimumWidth(m_minimumGroupBoxWidth);
-    m_renderingGroup->setStyleSheet(set->getWidgetStyle());
     m_renderingGroup->setFont(QFont("Arial", 8));
 
     // Height scale
@@ -177,7 +175,6 @@ void Options3DWidget::createRenderingGroup() {
 void Options3DWidget::createPerformanceGroup() {
     m_performanceGroup = new QGroupBox("Performance", this);
     m_performanceGroup->setMinimumWidth(m_minimumGroupBoxWidth);
-    m_performanceGroup->setStyleSheet(set->getWidgetStyle());
     m_performanceGroup->setFont(QFont("Arial", 8));
 
     // Update interval

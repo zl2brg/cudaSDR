@@ -48,7 +48,6 @@ DisplayTabWidget::DisplayTabWidget(QWidget *parent)
 	, m_3DDockWidget(nullptr)
 	, m_3DPanel(nullptr)
 {
-	setStyleSheet(set->getTabWidgetStyle());
 	setContentsMargins(4, 4, 4, 0);
 	setMouseTracking(true);
 	

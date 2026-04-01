@@ -227,7 +227,6 @@ void ColorOptionsWidget::createColorChooserWidget() {
 	m_setPanBackground = new AeroButton("Background", this);
 	m_setPanBackground->setRoundness(0);
 	m_setPanBackground->setFixedSize (btn_width3, btn_height);
-	m_setPanBackground->setStyleSheet(set->getMiniButtonStyle());
 	m_setPanBackground->setColorOn(col);
 	m_changeColorBtnList.append(m_setPanBackground);
 
@@ -242,7 +241,6 @@ void ColorOptionsWidget::createColorChooserWidget() {
 	m_setWaterfall = new AeroButton("Waterfall", this);
 	m_setWaterfall->setRoundness(0);
 	m_setWaterfall->setFixedSize (btn_width3, btn_height);
-	m_setWaterfall->setStyleSheet(set->getMiniButtonStyle());
 	m_setWaterfall->setColorOn(col);
 	m_changeColorBtnList.append(m_setWaterfall);
 
@@ -257,7 +255,6 @@ void ColorOptionsWidget::createColorChooserWidget() {
 	m_setPanLine = new AeroButton("Pan Line", this);
 	m_setPanLine->setRoundness(0);
 	m_setPanLine->setFixedSize (btn_width3, btn_height);
-	m_setPanLine->setStyleSheet(set->getMiniButtonStyle());
 	m_setPanLine->setColorOn(col);
 	m_changeColorBtnList.append(m_setPanLine);
 
@@ -272,7 +269,6 @@ void ColorOptionsWidget::createColorChooserWidget() {
 	m_setPanLineFilling = new AeroButton("Pan Filling", this);
 	m_setPanLineFilling->setRoundness(0);
 	m_setPanLineFilling->setFixedSize (btn_width3, btn_height);
-	m_setPanLineFilling->setStyleSheet(set->getMiniButtonStyle());
 	m_setPanLineFilling->setColorOn(col);
 	m_changeColorBtnList.append(m_setPanLineFilling);
 
@@ -287,7 +283,6 @@ void ColorOptionsWidget::createColorChooserWidget() {
 	m_setPanSolidTop = new AeroButton("Solid T", this);
 	m_setPanSolidTop->setRoundness(0);
 	m_setPanSolidTop->setFixedSize (btn_width3, btn_height);
-	m_setPanSolidTop->setStyleSheet(set->getMiniButtonStyle());
 	m_setPanSolidTop->setColorOn(col);
 	m_changeColorBtnList.append(m_setPanSolidTop);
 
@@ -302,7 +297,6 @@ void ColorOptionsWidget::createColorChooserWidget() {
 	m_setPanSolidBottom = new AeroButton("Solid B", this);
 	m_setPanSolidBottom->setRoundness(0);
 	m_setPanSolidBottom->setFixedSize (btn_width3, btn_height);
-	m_setPanSolidBottom->setStyleSheet(set->getMiniButtonStyle());
 	m_setPanSolidBottom->setColorOn(col);
 	m_changeColorBtnList.append(m_setPanSolidBottom);
 
@@ -317,7 +311,6 @@ void ColorOptionsWidget::createColorChooserWidget() {
 	m_setWideBandLine = new AeroButton("Wideband", this);
 	m_setWideBandLine->setRoundness(0);
 	m_setWideBandLine->setFixedSize (btn_width3, btn_height);
-	m_setWideBandLine->setStyleSheet(set->getMiniButtonStyle());
 	m_setWideBandLine->setColorOn(col);
 	m_changeColorBtnList.append(m_setWideBandLine);
 
@@ -332,7 +325,6 @@ void ColorOptionsWidget::createColorChooserWidget() {
 	m_setWideBandFilling = new AeroButton("WB Filling", this);
 	m_setWideBandFilling->setRoundness(0);
 	m_setWideBandFilling->setFixedSize (btn_width3, btn_height);
-	m_setWideBandFilling->setStyleSheet(set->getMiniButtonStyle());
 	m_setWideBandFilling->setColorOn(col);
 	m_changeColorBtnList.append(m_setWideBandFilling);
 
@@ -347,7 +339,6 @@ void ColorOptionsWidget::createColorChooserWidget() {
 	m_setWideBandSolidTop = new AeroButton("WB Solid T", this);
 	m_setWideBandSolidTop->setRoundness(0);
 	m_setWideBandSolidTop->setFixedSize (btn_width3, btn_height);
-	m_setWideBandSolidTop->setStyleSheet(set->getMiniButtonStyle());
 	m_setWideBandSolidTop->setColorOn(col);
 	m_changeColorBtnList.append(m_setWideBandSolidTop);
 
@@ -362,7 +353,6 @@ void ColorOptionsWidget::createColorChooserWidget() {
 	m_setWideBandSolidBottom = new AeroButton("WB Solid B", this);
 	m_setWideBandSolidBottom->setRoundness(0);
 	m_setWideBandSolidBottom->setFixedSize (btn_width3, btn_height);
-	m_setWideBandSolidBottom->setStyleSheet(set->getMiniButtonStyle());
 	m_setWideBandSolidBottom->setColorOn(col);
 	m_changeColorBtnList.append(m_setWideBandSolidBottom);
 
@@ -377,7 +367,6 @@ void ColorOptionsWidget::createColorChooserWidget() {
 	m_setDistanceLine = new AeroButton("Dist. Line", this);
 	m_setDistanceLine->setRoundness(0);
 	m_setDistanceLine->setFixedSize (btn_width3, btn_height);
-	m_setDistanceLine->setStyleSheet(set->getMiniButtonStyle());
 	m_setDistanceLine->setColorOn(col);
 	m_changeColorBtnList.append(m_setDistanceLine);
 
@@ -392,7 +381,6 @@ void ColorOptionsWidget::createColorChooserWidget() {
 	m_setDistanceLineFilling = new AeroButton("Dist. Filling", this);
 	m_setDistanceLineFilling->setRoundness(0);
 	m_setDistanceLineFilling->setFixedSize (btn_width3, btn_height);
-	m_setDistanceLineFilling->setStyleSheet(set->getMiniButtonStyle());
 	m_setDistanceLineFilling->setColorOn(col);
 	m_changeColorBtnList.append(m_setDistanceLineFilling);
 
@@ -407,7 +395,6 @@ void ColorOptionsWidget::createColorChooserWidget() {
 	m_setPanCenterLine = new AeroButton("Center", this);
 	m_setPanCenterLine->setRoundness(0);
 	m_setPanCenterLine->setFixedSize (btn_width3, btn_height);
-	m_setPanCenterLine->setStyleSheet(set->getMiniButtonStyle());
 	m_setPanCenterLine->setColorOn(col);
 	m_changeColorBtnList.append(m_setPanCenterLine);
 
@@ -422,7 +409,6 @@ void ColorOptionsWidget::createColorChooserWidget() {
 	m_setGridLine = new AeroButton("Grid", this);
 	m_setGridLine->setRoundness(0);
 	m_setGridLine->setFixedSize (btn_width3, btn_height);
-	m_setGridLine->setStyleSheet(set->getMiniButtonStyle());
 	m_setGridLine->setColorOn(col);
 	m_changeColorBtnList.append(m_setGridLine);
 

@@ -129,7 +129,6 @@ void TransmitPAWidget::createGainGroup() {
 
 //	QLabel *dBmLabel = new QLabel("dBm", this);
 //	dBmLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-//	dBmLabel->setStyleSheet(set->getLabelStyle());
 
 	// band label
 	QStringList bandNames;
@@ -141,7 +140,6 @@ void TransmitPAWidget::createGainGroup() {
 
 		QLabel *label = new QLabel(bandNames.at(i), this);
 		label->setFrameStyle(QFrame::Box | QFrame::Raised);
-		label->setStyleSheet(set->getLabelStyle());
 
 		bandLabelList << label;
 	}
@@ -150,11 +148,9 @@ void TransmitPAWidget::createGainGroup() {
 	for (int i = 0; i < MAX_BANDS-1; i++) {
 
 		QDoubleSpinBox *spinBox = new QDoubleSpinBox();
-		spinBox->setStyleSheet(set->getComboBoxStyle());
 		spinBox->setMinimum(38.8);
 		spinBox->setMaximum(100.0);
 		spinBox->setSingleStep(0.1);
-		spinBox->setStyleSheet(set->getDoubleSpinBoxStyle());
 
 
 		//CHECKED_CONNECT(comboBox, SIGNAL(currentIndexChanged(int)), this, SLOT(setAttenuatorValue(int)));
@@ -181,7 +177,6 @@ void TransmitPAWidget::createGainGroup() {
 	gainGroup = new QGroupBox(tr("Gain by Band (dB)"), this);
 	gainGroup->setMinimumWidth(m_minimumGroupBoxWidth);
 	gainGroup->setLayout(grid);
-	gainGroup->setStyleSheet(set->getWidgetStyle());
 	gainGroup->setFont(QFont("Arial", 8));
 }
 

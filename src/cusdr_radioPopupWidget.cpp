@@ -545,7 +545,6 @@ void RadioPopupWidget::createBandBtnGroup() {
         btn->setRoundness(0);
         btn->setFixedHeight(btn_height);
         QColor col = QColor(0, 255, 0);
-        btn->setStyleSheet(set->getMiniButtonStyle());
         btn->setTextOnColor(col);
         btn->update();
     }
@@ -608,7 +607,6 @@ void RadioPopupWidget::createAdcBtnGroup() {
     for (AeroButton *btn : adcModeBtnList) {
         btn->setRoundness(0);
         btn->setFixedHeight(btn_height);
-        btn->setStyleSheet(set->getMiniButtonStyle());
         btn->update();
     }
 
@@ -675,7 +673,6 @@ void RadioPopupWidget::createModeBtnGroup() {
     for (AeroButton *btn : dspModeBtnList) {
         btn->setRoundness(0);
         btn->setFixedHeight(btn_height);
-        btn->setStyleSheet(set->getMiniButtonStyle());
         btn->update();
     }
 
@@ -709,49 +706,42 @@ void RadioPopupWidget::createAgcBtnGroup() {
     agcOFF = new AeroButton("Off", this);
     agcOFF->setRoundness(0);
     agcOFF->setFixedSize(btn_widths, btn_height);
-    agcOFF->setStyleSheet(set->getMiniButtonStyle());
     agcModeBtnList.append(agcOFF);
     connect(agcOFF, &AeroButton::clicked, this, &RadioPopupWidget::agcModeChangedByBtn);
 
     agcLONG = new AeroButton("Long", this);
     agcLONG->setRoundness(0);
     agcLONG->setFixedSize(btn_widths, btn_height);
-    agcLONG->setStyleSheet(set->getMiniButtonStyle());
     agcModeBtnList.append(agcLONG);
     connect(agcLONG, &AeroButton::clicked, this, &RadioPopupWidget::agcModeChangedByBtn);
 
     agcSLOW = new AeroButton("Slow", this);
     agcSLOW->setRoundness(0);
     agcSLOW->setFixedSize(btn_widths, btn_height);
-    agcSLOW->setStyleSheet(set->getMiniButtonStyle());
     agcModeBtnList.append(agcSLOW);
     connect(agcSLOW, &AeroButton::clicked, this, &RadioPopupWidget::agcModeChangedByBtn);
 
     agcMED = new AeroButton("Med", this);
     agcMED->setRoundness(0);
     agcMED->setFixedSize(btn_widths, btn_height);
-    agcMED->setStyleSheet(set->getMiniButtonStyle());
     agcModeBtnList.append(agcMED);
     connect(agcMED, &AeroButton::clicked, this, &RadioPopupWidget::agcModeChangedByBtn);
 
     agcFAST = new AeroButton("Fast", this);
     agcFAST->setRoundness(0);
     agcFAST->setFixedSize(btn_widths, btn_height);
-    agcFAST->setStyleSheet(set->getMiniButtonStyle());
     agcModeBtnList.append(agcFAST);
     connect(agcFAST, &AeroButton::clicked, this, &RadioPopupWidget::agcModeChangedByBtn);
 
     agcUSER = new AeroButton("User", this);
     agcUSER->setRoundness(0);
     agcUSER->setFixedSize(btn_widths, btn_height);
-    agcUSER->setStyleSheet(set->getMiniButtonStyle());
     agcModeBtnList.append(agcUSER);
     connect(agcUSER, &AeroButton::clicked, this, &RadioPopupWidget::agcModeChangedByBtn);
 
     showAGCLines = new AeroButton("Show Lines", this);
     showAGCLines->setRoundness(0);
     showAGCLines->setFixedSize(btn_widthb, btn_height);
-    showAGCLines->setStyleSheet(set->getMiniButtonStyle());
     connect(showAGCLines, &AeroButton::clicked, this, &RadioPopupWidget::agcShowLinesChanged);
 
     if (m_receiverDataList.at(m_receiver).agcLines)
@@ -854,7 +844,6 @@ void RadioPopupWidget::createFilterBtnWidgetA() {
     for(AeroButton *btn : filterBtnListA) {
         btn->setRoundness(0);
         btn->setFixedHeight(btn_height);
-        btn->setStyleSheet(set->getMiniButtonStyle());
         btn->setBtnState(AeroButton::OFF);
         btn->update();
     }
@@ -942,7 +931,6 @@ void RadioPopupWidget::createFilterBtnWidgetB() {
     for(AeroButton *btn : filterBtnListB) {
         btn->setRoundness(0);
         btn->setFixedHeight(btn_height);
-        btn->setStyleSheet(set->getMiniButtonStyle());
         btn->setBtnState(AeroButton::OFF);
         btn->update();
     }
@@ -1030,7 +1018,6 @@ void RadioPopupWidget::createFilterBtnWidgetC() {
     for(AeroButton *btn : filterBtnListC) {
         btn->setRoundness(0);
         btn->setFixedHeight(btn_height);
-        btn->setStyleSheet(set->getMiniButtonStyle());
         btn->setBtnState(AeroButton::OFF);
         btn->update();
     }

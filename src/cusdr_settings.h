@@ -1095,32 +1095,6 @@ public:
 	QString getSettingsFilename();
 	QString getCallsign();
 
-	QString getSDRStyle();
-	QString getWidgetStyle();
-	QString getMainWindowStyle();
-	QString getDockStyle();
-	QString getDisplayToolbarStyle();
-	QString getMainBtnToolbarStyle();
-	QString getStatusbarStyle();
-	QString getMessageBoxStyle();
-	QString getLineEditStyle();
-	QString getDialogStyle();
-	QString getColorDialogStyle();
-	QString getItemStyle();
-	static QString getLabelStyle();
-	QString getSliderLabelStyle();
-	QString getTableStyle();
-	QString getComboBoxStyle();
-	QString getSpinBoxStyle();
-	QString getDoubleSpinBoxStyle();
-	QString getMenuStyle();
-    QString getMenuBarStyle();
-	const QString getMiniButtonStyle();
-	QString getVolSliderStyle();
-	QString getSplitterStyle();
-	QString getFrameStyle();
-	QString getTabWidgetStyle();
-    QString getCheckBoxStyle();
 
 
 	QString getServerAddr();

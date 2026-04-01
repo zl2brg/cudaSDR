@@ -45,7 +45,6 @@ AlexTabWidget::AlexTabWidget(QWidget *parent)
 	, m_minimumWidgetWidth(set->getMinimumWidgetWidth())
 	, m_minimumGroupBoxWidth(set->getMinimumGroupBoxWidth())
 {
-	setStyleSheet(set->getTabWidgetStyle());
 	//setMinimumWidth(m_minimumWidgetWidth);
 	//setMaximumWidth (247);
 	setContentsMargins(4, 4, 4, 0);

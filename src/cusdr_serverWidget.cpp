@@ -125,7 +125,6 @@ void ServerWidget::createServerNIGroup() {
 
 	serverNetworkInterfaces = new QComboBox();
 
-	serverNetworkInterfaces->setStyleSheet(Settings::instance()->getComboBoxStyle());
 	serverNetworkInterfaces->setMinimumContentsLength(22);
 
 	QHBoxLayout *hbox1 = new QHBoxLayout;
@@ -142,7 +141,6 @@ void ServerWidget::createServerNIGroup() {
 	serverNIGroupBox = new QGroupBox(tr("Server network interface"));
 	serverNIGroupBox->setMinimumWidth(m_minimumGroupBoxWidth);
 	serverNIGroupBox->setLayout(vbox);
-	serverNIGroupBox->setStyleSheet(Settings::instance()->getWidgetStyle());
 	serverNIGroupBox->setFont(QFont("Arial", 8));
 }
 
@@ -164,32 +162,26 @@ QGroupBox *ServerWidget::portAddressesGroup() {
 
 	labelServerPortLabel = new QLabel("Command Server Port:");
     labelServerPortLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-	labelServerPortLabel->setStyleSheet(Settings::instance()->getLabelStyle());
 	portGridBox->addWidget(labelServerPortLabel, 0, 0);
 
 	labelServerPortText = new QLabel("");
     labelServerPortText->setFrameStyle(QFrame::Box | QFrame::Raised);
-	labelServerPortText->setStyleSheet(Settings::instance()->getLabelStyle());
 	portGridBox->addWidget(labelServerPortText, 0, 1);
 
 	labelListenerPortLabel = new QLabel("Listener Port:");
     labelListenerPortLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-	labelListenerPortLabel->setStyleSheet(Settings::instance()->getLabelStyle());
 	portGridBox->addWidget(labelListenerPortLabel, 1, 0);
 
 	labelListenerPortText = new QLabel("");
     labelListenerPortText->setFrameStyle(QFrame::Box | QFrame::Raised);
-	labelListenerPortText->setStyleSheet(Settings::instance()->getLabelStyle());
 	portGridBox->addWidget(labelListenerPortText, 1, 1);
 
 	labelAudioPortLabel = new QLabel("Audio Port:");
     labelAudioPortLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-	labelAudioPortLabel->setStyleSheet(Settings::instance()->getLabelStyle());
 	portGridBox->addWidget(labelAudioPortLabel, 2, 0);
 
 	labelAudioPortText = new QLabel("");
     labelAudioPortText->setFrameStyle(QFrame::Box | QFrame::Raised);
-	labelAudioPortText->setStyleSheet(Settings::instance()->getLabelStyle());
 	portGridBox->addWidget(labelAudioPortText, 2, 1);
 
 	/*le_server_port = new QLineEdit(QString::number(Settings::instance()->serverPort()), this);
@@ -211,7 +203,6 @@ QGroupBox *ServerWidget::portAddressesGroup() {
 	QGroupBox *groupBox = new QGroupBox(tr("Port Addresses"));
 	groupBox->setMinimumWidth(m_minimumGroupBoxWidth);
 	groupBox->setLayout(vbox);
-	groupBox->setStyleSheet(Settings::instance()->getWidgetStyle());
 	groupBox->setFont(QFont("Arial", 8));
 
 	return groupBox;
@@ -224,7 +215,6 @@ QGroupBox *ServerWidget::serverPortAddressGroup() {
 	le_server_port->setFixedSize(50, QFontMetrics(le_server_port->font()).height() + 4);
 	le_server_port->setInputMask("00000;");
 	le_server_port->setMaxLength(7);
-	le_server_port->setStyleSheet(lineedit_style);
 	
 	QHBoxLayout *hbox1 = new QHBoxLayout;
 	hbox1->setSpacing(1);
@@ -237,7 +227,6 @@ QGroupBox *ServerWidget::serverPortAddressGroup() {
 
 	QGroupBox *groupBox = new QGroupBox(tr("Command Server port"));
 	groupBox->setLayout(vbox);
-	groupBox->setStyleSheet(Settings::instance()->getWidgetStyle());
 	groupBox->setFont(QFont("Arial", 8));
 
 	return groupBox;
@@ -250,7 +239,6 @@ QGroupBox *ServerWidget::listenerPortAddressGroup() {
 	le_listener_port->setFixedSize(50, le_server_port->height());
 	le_listener_port->setInputMask("00000;");
 	le_listener_port->setMaxLength(7);
-	le_listener_port->setStyleSheet(lineedit_style);
 	
 	QHBoxLayout *hbox1 = new QHBoxLayout;
 	hbox1->setSpacing(1);
@@ -263,7 +251,6 @@ QGroupBox *ServerWidget::listenerPortAddressGroup() {
 
 	QGroupBox *groupBox = new QGroupBox(tr("Listener port"));
 	groupBox->setLayout(vbox);
-	groupBox->setStyleSheet(Settings::instance()->getWidgetStyle());
 	groupBox->setFont(QFont("Arial", 8));
 
 	return groupBox;
@@ -276,7 +263,6 @@ QGroupBox *ServerWidget::audioPortAddressGroup() {
 	le_audio_port->setFixedSize(50, le_server_port->height());
 	le_audio_port->setInputMask("00000;");
 	le_audio_port->setMaxLength(7);
-	le_audio_port->setStyleSheet(lineedit_style);
 	
 	QHBoxLayout *hbox1 = new QHBoxLayout;
 	hbox1->setSpacing(1);
@@ -289,7 +275,6 @@ QGroupBox *ServerWidget::audioPortAddressGroup() {
 
 	QGroupBox *groupBox = new QGroupBox(tr("Audio port"));
 	groupBox->setLayout(vbox);
-	groupBox->setStyleSheet(Settings::instance()->getWidgetStyle());
 	groupBox->setFont(QFont("Arial", 8));
 
 	return groupBox;

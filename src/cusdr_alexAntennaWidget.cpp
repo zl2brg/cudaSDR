@@ -127,27 +127,21 @@ void AlexAntennaWidget::createAntennasGroup() {
 
 	QLabel *emptyLabel1 = new QLabel("  ", this);
     emptyLabel1->setFrameStyle(QFrame::Box | QFrame::Raised);
-//	emptyLabel1->setStyleSheet(set->getLabelStyle());
 
 	QLabel *emptyLabel2 = new QLabel(" ", this);
     emptyLabel2->setFrameStyle(QFrame::Box | QFrame::Raised);
-//	emptyLabel2->setStyleSheet(set->getLabelStyle());
 
 	QLabel *emptyLabel3 = new QLabel(" ", this);
 	emptyLabel3->setFrameStyle(QFrame::Box | QFrame::Raised);
-//	emptyLabel3->setStyleSheet(set->getLabelStyle());
 
 	QLabel *antRxLabel = new QLabel("Rx Ant", this);
 	antRxLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-//	antRxLabel->setStyleSheet(set->getLabelStyle());
 
 	QLabel *rxAuxLabel = new QLabel("Rx Aux", this);
     rxAuxLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-//	rxAuxLabel->setStyleSheet(set->getLabelStyle());
 
 	QLabel *antTxLabel = new QLabel("Tx Ant", this);
 	antTxLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-//	antTxLabel->setStyleSheet(set->getLabelStyle());
 
 	// band label
 	QStringList bandNames;
@@ -159,7 +153,6 @@ void AlexAntennaWidget::createAntennasGroup() {
 
 		QLabel *label = new QLabel(bandNames.at(i), this);
 		label->setFrameStyle(QFrame::Box | QFrame::Raised);
-//		label->setStyleSheet(set->getLabelStyle());
 
 		bandLabelList << label;
 	}
@@ -171,7 +164,6 @@ void AlexAntennaWidget::createAntennasGroup() {
 		AeroButton *btn = new AeroButton("1", this);
 		btn->setRoundness(0);
 		btn->setFixedSize (btn_width, btn_height);
-//		btn->setStyleSheet(set->getMiniButtonStyle());
 
 		antenna1BtnList << btn;
 
@@ -180,7 +172,6 @@ void AlexAntennaWidget::createAntennasGroup() {
 		btn = new AeroButton("2", this);
 		btn->setRoundness(0);
 		btn->setFixedSize (btn_width, btn_height);
-//		btn->setStyleSheet(set->getMiniButtonStyle());
 
 		antenna2BtnList << btn;
 
@@ -189,7 +180,6 @@ void AlexAntennaWidget::createAntennasGroup() {
 		btn = new AeroButton("3", this);
 		btn->setRoundness(0);
 		btn->setFixedSize (btn_width, btn_height);
-//		btn->setStyleSheet(set->getMiniButtonStyle());
 
 		antenna3BtnList << btn;
 
@@ -210,7 +200,6 @@ void AlexAntennaWidget::createAntennasGroup() {
 		AeroButton *btn = new AeroButton("1", this);
 		btn->setRoundness(0);
 		btn->setFixedSize (btn_width, btn_height);
-//		btn->setStyleSheet(set->getMiniButtonStyle());
 
 		rx1BtnList << btn;
 
@@ -219,7 +208,6 @@ void AlexAntennaWidget::createAntennasGroup() {
 		btn = new AeroButton("2", this);
 		btn->setRoundness(0);
 		btn->setFixedSize (btn_width, btn_height);
-//		btn->setStyleSheet(set->getMiniButtonStyle());
 
 		rx2BtnList << btn;
 
@@ -228,7 +216,6 @@ void AlexAntennaWidget::createAntennasGroup() {
 		btn = new AeroButton("XV", this);
 		btn->setRoundness(0);
 		btn->setFixedSize (btn_width, btn_height);
-//		btn->setStyleSheet(set->getMiniButtonStyle());
 
 		xvBtnList << btn;
 
@@ -249,7 +236,6 @@ void AlexAntennaWidget::createAntennasGroup() {
 		AeroButton *btn = new AeroButton("1", this);
 		btn->setRoundness(0);
 		btn->setFixedSize (btn_width, btn_height);
-//		btn->setStyleSheet(set->getMiniButtonStyle());
 
 		tx1BtnList << btn;
 
@@ -258,7 +244,6 @@ void AlexAntennaWidget::createAntennasGroup() {
 		btn = new AeroButton("2", this);
 		btn->setRoundness(0);
 		btn->setFixedSize (btn_width, btn_height);
-//		btn->setStyleSheet(set->getMiniButtonStyle());
 
 		tx2BtnList << btn;
 
@@ -267,7 +252,6 @@ void AlexAntennaWidget::createAntennasGroup() {
 		btn = new AeroButton("3", this);
 		btn->setRoundness(0);
 		btn->setFixedSize (btn_width, btn_height);
-//		btn->setStyleSheet(set->getMiniButtonStyle());
 
 		tx3BtnList << btn;
 
@@ -314,7 +298,6 @@ void AlexAntennaWidget::createAntennasGroup() {
 	antennaGroup = new QGroupBox(tr(""), this);
 	antennaGroup->setMinimumWidth(m_minimumGroupBoxWidth);
 	antennaGroup->setLayout(grid);
-//	antennaGroup->setStyleSheet(set->getWidgetStyle());
     antennaGroup->setFont(QFont("Arial", 8));
 }
 

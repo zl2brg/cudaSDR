@@ -167,53 +167,42 @@ void AlexFilterWidget::createHPFGroup() {
 
 	QLabel *byPassLabel = new QLabel("byPass", this);
 	byPassLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-	byPassLabel->setStyleSheet(set->getLabelStyle());
 
 	QLabel *emptyLabel = new QLabel(" ", this);
 	emptyLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-	emptyLabel->setStyleSheet(set->getLabelStyle());
 
 	QLabel *hpfLabel = new QLabel("HPF (kHz)", this);
 	hpfLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-	hpfLabel->setStyleSheet(set->getLabelStyle());
 
 	QLabel *mHz1_5Label = new QLabel("1.5 MHz", this);
 	mHz1_5Label->setFrameStyle(QFrame::Box | QFrame::Raised);
-	mHz1_5Label->setStyleSheet(set->getLabelStyle());
 	m_HPFLabelList.append(mHz1_5Label);
 
 	QLabel *mHz6_5Label = new QLabel("6.5 MHz", this);
 	mHz6_5Label->setFrameStyle(QFrame::Box | QFrame::Raised);
-	mHz6_5Label->setStyleSheet(set->getLabelStyle());
 	m_HPFLabelList.append(mHz6_5Label);
 
 	QLabel *mHz9_5Label = new QLabel("9.5 MHz", this);
 	mHz9_5Label->setFrameStyle(QFrame::Box | QFrame::Raised);
-	mHz9_5Label->setStyleSheet(set->getLabelStyle());
 	m_HPFLabelList.append(mHz9_5Label);
 
 	QLabel *mHz13Label = new QLabel("13 MHz", this);
 	mHz13Label->setFrameStyle(QFrame::Box | QFrame::Raised);
-	mHz13Label->setStyleSheet(set->getLabelStyle());
 	m_HPFLabelList.append(mHz13Label);
 
 	QLabel *mHz20Label = new QLabel("20 MHz", this);
 	mHz20Label->setFrameStyle(QFrame::Box | QFrame::Raised);
-	mHz20Label->setStyleSheet(set->getLabelStyle());
 	m_HPFLabelList.append(mHz20Label);
 
 	QLabel *m6BPF_LNALabel = new QLabel("6m LNA", this);
 	m6BPF_LNALabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-	m6BPF_LNALabel->setStyleSheet(set->getLabelStyle());
 	m_HPFLabelList.append(m6BPF_LNALabel);
 
 	QLabel *byPassAllLabel = new QLabel("Bypass", this);
 	byPassAllLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-	byPassAllLabel->setStyleSheet(set->getLabelStyle());
 
 	mhz55HPFLabel = new QLabel("      55 MHz HPF     ", this);
 	mhz55HPFLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-	mhz55HPFLabel->setStyleSheet(set->getLabelStyle());
 
 	int fontMaxWidth = m_fonts.smallFontMetrics->boundingRect("000000.0").width() + 30;
 
@@ -223,7 +212,6 @@ void AlexFilterWidget::createHPFGroup() {
 	for (int i = 0; i < m_hpfFilters; i++) {
 
 		QDoubleSpinBox *spinBox = new QDoubleSpinBox();
-		spinBox->setStyleSheet(set->getDoubleSpinBoxStyle());
 		spinBox->setDecimals(1);
 		spinBox->setWrapping(true);
 		spinBox->setMinimumWidth(fontMaxWidth);
@@ -242,7 +230,6 @@ void AlexFilterWidget::createHPFGroup() {
 	for (int i = 0; i < m_hpfFilters; i++) {
 
 		QDoubleSpinBox *spinBox = new QDoubleSpinBox();
-		spinBox->setStyleSheet(set->getDoubleSpinBoxStyle());
 		spinBox->setDecimals(1);
 		spinBox->setWrapping(true);
 		spinBox->setMinimumWidth(fontMaxWidth);
@@ -269,7 +256,6 @@ void AlexFilterWidget::createHPFGroup() {
 	hpf1_5MHzBtn = new AeroButton("Off", this);
 	hpf1_5MHzBtn->setRoundness(0);
 	hpf1_5MHzBtn->setFixedSize(btn_width, btn_height);
-	hpf1_5MHzBtn->setStyleSheet(set->getMiniButtonStyle());
 	hpf1_5MHzBtn->setBtnState(AeroButton::OFF);
 	m_HPFBtnList.append(hpf1_5MHzBtn);
 
@@ -278,7 +264,6 @@ void AlexFilterWidget::createHPFGroup() {
 	hpf6_5MHzBtn = new AeroButton("Off", this);
 	hpf6_5MHzBtn->setRoundness(0);
 	hpf6_5MHzBtn->setFixedSize(btn_width, btn_height);
-	hpf6_5MHzBtn->setStyleSheet(set->getMiniButtonStyle());
 	hpf6_5MHzBtn->setBtnState(AeroButton::OFF);
 	m_HPFBtnList.append(hpf6_5MHzBtn);
 
@@ -287,7 +272,6 @@ void AlexFilterWidget::createHPFGroup() {
 	hpf9_5MHzBtn = new AeroButton("Off", this);
 	hpf9_5MHzBtn->setRoundness(0);
 	hpf9_5MHzBtn->setFixedSize(btn_width, btn_height);
-	hpf9_5MHzBtn->setStyleSheet(set->getMiniButtonStyle());
 	hpf9_5MHzBtn->setBtnState(AeroButton::OFF);
 	m_HPFBtnList.append(hpf9_5MHzBtn);
 
@@ -296,7 +280,6 @@ void AlexFilterWidget::createHPFGroup() {
 	hpf13MHzBtn = new AeroButton("Off", this);
 	hpf13MHzBtn->setRoundness(0);
 	hpf13MHzBtn->setFixedSize(btn_width, btn_height);
-	hpf13MHzBtn->setStyleSheet(set->getMiniButtonStyle());
 	hpf13MHzBtn->setBtnState(AeroButton::OFF);
 	m_HPFBtnList.append(hpf13MHzBtn);
 
@@ -305,7 +288,6 @@ void AlexFilterWidget::createHPFGroup() {
 	hpf20MHzBtn = new AeroButton("Off", this);
 	hpf20MHzBtn->setRoundness(0);
 	hpf20MHzBtn->setFixedSize(btn_width, btn_height);
-	hpf20MHzBtn->setStyleSheet(set->getMiniButtonStyle());
 	hpf20MHzBtn->setBtnState(AeroButton::OFF);
 	m_HPFBtnList.append(hpf20MHzBtn);
 
@@ -314,7 +296,6 @@ void AlexFilterWidget::createHPFGroup() {
 	lowNoise6mAmpBtn = new AeroButton("Off", this);
 	lowNoise6mAmpBtn->setRoundness(0);
 	lowNoise6mAmpBtn->setFixedSize(btn_width, btn_height);
-	lowNoise6mAmpBtn->setStyleSheet(set->getMiniButtonStyle());
 	lowNoise6mAmpBtn->setBtnState(AeroButton::OFF);
 	m_HPFBtnList.append(lowNoise6mAmpBtn);
 
@@ -323,7 +304,6 @@ void AlexFilterWidget::createHPFGroup() {
 	bypassAllHPFBtn = new AeroButton("Off", this);
 	bypassAllHPFBtn->setRoundness(0);
 	bypassAllHPFBtn->setFixedSize (btn_width, btn_height);
-	bypassAllHPFBtn->setStyleSheet(set->getMiniButtonStyle());
 	bypassAllHPFBtn->setBtnState(AeroButton::OFF);
 
 	CHECKED_CONNECT(bypassAllHPFBtn, SIGNAL(clicked()), this, SLOT(bypassAllHPFBtnClicked()));
@@ -367,37 +347,30 @@ void AlexFilterWidget::createLPFGroup() {
 
 	QLabel *m160Label = new QLabel("160m", this);
 	m160Label->setFrameStyle(QFrame::Box | QFrame::Raised);
-	m160Label->setStyleSheet(set->getLabelStyle());
 	m_LPFLabelList.append(m160Label);
 
 	QLabel *m80Label = new QLabel("80m", this);
 	m80Label->setFrameStyle(QFrame::Box | QFrame::Raised);
-	m80Label->setStyleSheet(set->getLabelStyle());
 	m_LPFLabelList.append(m80Label);
 
 	QLabel *m60_40Label = new QLabel("60/40m", this);
 	m60_40Label->setFrameStyle(QFrame::Box | QFrame::Raised);
-	m60_40Label->setStyleSheet(set->getLabelStyle());
 	m_LPFLabelList.append(m60_40Label);
 
 	QLabel *m30_20Label = new QLabel("30/20m", this);
 	m30_20Label->setFrameStyle(QFrame::Box | QFrame::Raised);
-	m30_20Label->setStyleSheet(set->getLabelStyle());
 	m_LPFLabelList.append(m30_20Label);
 
 	QLabel *m17_15Label = new QLabel("17/15m", this);
 	m17_15Label->setFrameStyle(QFrame::Box | QFrame::Raised);
-	m17_15Label->setStyleSheet(set->getLabelStyle());
 	m_LPFLabelList.append(m17_15Label);
 
 	QLabel *m12_10Label = new QLabel("12/10m", this);
 	m12_10Label->setFrameStyle(QFrame::Box | QFrame::Raised);
-	m12_10Label->setStyleSheet(set->getLabelStyle());
 	m_LPFLabelList.append(m12_10Label);
 
 	QLabel *m6Label = new QLabel("6m", this);
 	m6Label->setFrameStyle(QFrame::Box | QFrame::Raised);
-	m6Label->setStyleSheet(set->getLabelStyle());
 	m_LPFLabelList.append(m6Label);
 
 	int fontMaxWidth = m_fonts.smallFontMetrics->boundingRect("000000.0").width() + 30;
@@ -408,7 +381,6 @@ void AlexFilterWidget::createLPFGroup() {
 	for (int i = 0; i < m_lpfFilters; i++) {
 
 		QDoubleSpinBox *spinBox = new QDoubleSpinBox();
-		spinBox->setStyleSheet(set->getDoubleSpinBoxStyle());
 		spinBox->setDecimals(1);
 		spinBox->setWrapping(true);
 		spinBox->setMinimumWidth(fontMaxWidth);
@@ -427,7 +399,6 @@ void AlexFilterWidget::createLPFGroup() {
 	for (int i = 0; i < m_lpfFilters; i++) {
 
 		QDoubleSpinBox *spinBox = new QDoubleSpinBox();
-		spinBox->setStyleSheet(set->getDoubleSpinBoxStyle());
 		spinBox->setDecimals(1);
 		spinBox->setWrapping(true);
 		spinBox->setMinimumWidth(fontMaxWidth);

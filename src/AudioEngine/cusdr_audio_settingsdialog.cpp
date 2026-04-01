@@ -74,7 +74,6 @@ SettingsDialog::SettingsDialog(QWidget *parent)
 
 	setWindowModality(Qt::NonModal);
 	setWindowOpacity(0.9);
-	setStyleSheet(set->getDialogStyle());
 
 	setMouseTracking(true);
 
@@ -100,9 +99,7 @@ SettingsDialog::SettingsDialog(QWidget *parent)
     //m_windowFunctionComboBox->addItem("Hann", qVariantFromValue(int(HannWindow)));
     //m_windowFunctionComboBox->setCurrentIndex(m_windowFunction);
 
-    //m_inputDeviceComboBox->setStyleSheet(set->getComboBoxStyle());
     m_inputDeviceComboBox.setMinimumContentsLength(30);
-    m_outputDeviceComboBox.setStyleSheet(set->getComboBoxStyle());
     m_outputDeviceComboBox.setMinimumContentsLength(30);
 
     // Initialize default devices
@@ -116,14 +113,12 @@ SettingsDialog::SettingsDialog(QWidget *parent)
 	QScopedPointer<QHBoxLayout> titleLayout(new QHBoxLayout);
 	QLabel *titleLabel = new QLabel(tr("Audio Settings:"), this);
 	titleLabel->setFont(m_titleFont);
-	titleLabel->setStyleSheet(set->getLabelStyle());
     titleLayout->addWidget(titleLabel);
     dialogLayout->addLayout(titleLayout.data());
     titleLayout.take(); // ownership transferred to dialogLayout
 
     QScopedPointer<QHBoxLayout> inputDeviceLayout(new QHBoxLayout);
     QLabel *inputDeviceLabel = new QLabel(tr("Input device"), this);
-	inputDeviceLabel->setStyleSheet(set->getLabelStyle());
     inputDeviceLayout->addWidget(inputDeviceLabel);
     inputDeviceLayout->addWidget(&m_inputDeviceComboBox);
     dialogLayout->addLayout(inputDeviceLayout.data());
@@ -131,7 +126,6 @@ SettingsDialog::SettingsDialog(QWidget *parent)
 
     QScopedPointer<QHBoxLayout> outputDeviceLayout(new QHBoxLayout);
     QLabel *outputDeviceLabel = new QLabel(tr("Output device"), this);
-	outputDeviceLabel->setStyleSheet(set->getLabelStyle());
     outputDeviceLayout->addWidget(outputDeviceLabel);
     outputDeviceLayout->addWidget(&m_outputDeviceComboBox);
     dialogLayout->addLayout(outputDeviceLayout.data());

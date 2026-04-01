@@ -19,9 +19,6 @@ tx_settings_dialog::tx_settings_dialog(QWidget *parent) :
     setContentsMargins(4, 0, 4, 0);
     ui->setupUi(this);
     this->setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
-    this->setStyleSheet(set->getTabWidgetStyle());
-    this->ui->amCarrierLevel->setStyleSheet(set->getVolSliderStyle());
-    this->ui->audioCompression->setStyleSheet(set->getVolSliderStyle());
 
     int temp = m_amCarrierLevel * 100;
     ui->amCarrierLevel->setSliderPosition(0.5);

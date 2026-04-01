@@ -109,18 +109,15 @@ void NoiseFilterWidget::createNoiseBlankerGroup() {
 
     m_nbModelabel = new QLabel("Noise Blanker Mode:", this);
     m_nbModelabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-    m_nbModelabel->setStyleSheet(set->getLabelStyle());
     nbModeCombo = new QComboBox(this);
     nbModeCombo->addItems(QStringList() << "Off" << "NB1" <<  "NB2");
     nbModeCombo->setFont(m_fonts.normalFont);
     nbModeCombo->setCurrentIndex(set->getnbMode(m_currentReceiver));
-    nbModeCombo->setStyleSheet(set->getComboBoxStyle());
     nbModeCombo->setCurrentIndex(set->getnbMode(m_currentReceiver));
 
     snbCheckBox = new QCheckBox(this);
     snbCheckBox->setText("SNB");
     snbCheckBox->setFont(QFont("Arial", 8));
-    snbCheckBox->setStyleSheet(set->getLabelStyle());
     snbCheckBox->setLayoutDirection(Qt::LayoutDirection::RightToLeft);
     snbCheckBox->setChecked(set->getSnb(m_currentReceiver));
 
@@ -128,7 +125,6 @@ void NoiseFilterWidget::createNoiseBlankerGroup() {
     anfCheckBox->setText("ANF");
     anfCheckBox->setLayoutDirection(Qt::LayoutDirection::RightToLeft);
     anfCheckBox->setFont(QFont("Arial", 8));
-    anfCheckBox->setStyleSheet(set->getLabelStyle());
     anfCheckBox->setChecked(set->getAnf(m_currentReceiver));
 
     QHBoxLayout *hbox1 = new QHBoxLayout();
@@ -157,7 +153,6 @@ void NoiseFilterWidget::createNoiseBlankerGroup() {
     noiseBlankerModeGroupBox = new QGroupBox(tr("Noise Blanker Mode"), this);
     noiseBlankerModeGroupBox->setMinimumWidth(m_minimumGroupBoxWidth);
     noiseBlankerModeGroupBox->setLayout(vbox);
-    noiseBlankerModeGroupBox->setStyleSheet(set->getWidgetStyle());
     noiseBlankerModeGroupBox->setFont(QFont("Arial", 8));
 }
 
@@ -166,12 +161,10 @@ void NoiseFilterWidget::createNoiseFilterGroup() {
 
     m_nbFilterlabel = new QLabel("Noise Blanker:", this);
     m_nbFilterlabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-    m_nbFilterlabel->setStyleSheet(set->getLabelStyle());
     nbFilterModeCombo= new QComboBox(this);
     nbFilterModeCombo->addItems(QStringList() << "Off" << "NB1" <<  "NB2");
     nbFilterModeCombo->setFont(m_fonts.normalFont);
     nbFilterModeCombo->setCurrentIndex(0);
-    nbFilterModeCombo->setStyleSheet(set->getComboBoxStyle());
     nbFilterModeCombo->setCurrentIndex(set->getnbMode(m_currentReceiver));
 
 
@@ -191,7 +184,6 @@ void NoiseFilterWidget::createNoiseFilterGroup() {
     noiseFilterModeGroupBox = new QGroupBox(tr("Noise Reduction"), this);
     noiseFilterModeGroupBox->setMinimumWidth(m_minimumGroupBoxWidth);
     noiseFilterModeGroupBox->setLayout(vbox);
-    noiseFilterModeGroupBox->setStyleSheet(set->getWidgetStyle());
     noiseFilterModeGroupBox->setFont(QFont("Arial", 8));
 
 }
@@ -200,21 +192,17 @@ void NoiseFilterWidget::createDspGroup(){
 
     nrGainMethodlabel = new QLabel("NR2 Gain Method:", this);
     nrGainMethodlabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-    nrGainMethodlabel->setStyleSheet(set->getLabelStyle());
 
     nr2NPElabel = new QLabel("NR2 NPE:", this);
     nr2NPElabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-    nr2NPElabel->setStyleSheet(set->getLabelStyle());
 
     nrprepostlabel = new QLabel("Process:", this);
     nrprepostlabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-    nrprepostlabel->setStyleSheet(set->getLabelStyle());
 
     nr2GainMethodCombo= new QComboBox(this);
     nr2GainMethodCombo->addItems(QStringList() << "Linear" << "Log" <<  "Gamma");
     nr2GainMethodCombo->setFont(m_fonts.normalFont);
     nr2GainMethodCombo->setCurrentIndex(0);
-    nr2GainMethodCombo->setStyleSheet(set->getComboBoxStyle());
     nr2GainMethodCombo->setCurrentIndex(set->getNr2GainMethod(m_currentReceiver));
 
 
@@ -223,31 +211,26 @@ void NoiseFilterWidget::createDspGroup(){
     nrPreAGC->setText("Pre AGC");
     nrPreAGC->setLayoutDirection(Qt::LayoutDirection::RightToLeft);
     nrPreAGC->setFont(QFont("Arial", 8));
-    nrPreAGC->setStyleSheet(set->getLabelStyle());
 
     nrPostAGC = new QRadioButton(this);
     nrPostAGC->setText("Pre AGC");
     nrPostAGC->setLayoutDirection(Qt::LayoutDirection::RightToLeft);
     nrPostAGC->setFont(QFont("Arial", 8));
-    nrPostAGC->setStyleSheet(set->getLabelStyle());
 
     nrMMSE = new QRadioButton(this);
     nrMMSE->setText("MMSE");
     nrMMSE->setLayoutDirection(Qt::LayoutDirection::RightToLeft);
     nrMMSE->setFont(QFont("Arial", 8));
-    nrMMSE->setStyleSheet(set->getLabelStyle());
 
     nrOSMS = new QRadioButton(this);
     nrOSMS->setText("OSMS");
     nrOSMS->setLayoutDirection(Qt::LayoutDirection::RightToLeft);
     nrOSMS->setFont(QFont("Arial", 8));
-    nrOSMS->setStyleSheet(set->getLabelStyle());
 
     nr2AE = new QCheckBox(this);
     nr2AE->setText("NR2AE");
     nr2AE->setLayoutDirection(Qt::LayoutDirection::RightToLeft);
     nr2AE->setFont(QFont("Arial", 8));
-    nr2AE->setStyleSheet(set->getLabelStyle());
     nr2AE->setChecked(set->getNr2ae(m_currentReceiver));
 
 
@@ -299,7 +282,6 @@ void NoiseFilterWidget::createDspGroup(){
     dspCombo = new QGroupBox(tr("DSP"), this);
     dspCombo->setMinimumWidth(m_minimumGroupBoxWidth);
     dspCombo->setLayout(vbox);
-    dspCombo->setStyleSheet(set->getWidgetStyle());
     dspCombo->setFont(QFont("Arial", 8));
 }
 

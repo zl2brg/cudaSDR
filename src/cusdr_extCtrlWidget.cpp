@@ -134,7 +134,6 @@ void ExtCtrlWidget::createReceivePinsGroup() {
 
 	QLabel* emptyLabel = new QLabel(" ", this);
     emptyLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-	emptyLabel->setStyleSheet(set->getLabelStyle());
 
 	// band label
 	QStringList bandNames;
@@ -146,7 +145,6 @@ void ExtCtrlWidget::createReceivePinsGroup() {
 
 		QLabel *label = new QLabel(bandNames.at(i), this);
 		label->setFrameStyle(QFrame::Box | QFrame::Raised);
-		label->setStyleSheet(set->getLabelStyle());
 
 		bandLabelList << label;
 	}
@@ -162,7 +160,6 @@ void ExtCtrlWidget::createReceivePinsGroup() {
 			AeroButton* btn = new AeroButton(str.arg(j+1), this);
 			btn->setRoundness(0);
 			btn->setFixedSize (btn_width, btn_height);
-			btn->setStyleSheet(set->getMiniButtonStyle());
 			//receivePinsBtnList.append(btn);
 			btnList.append(btn);
 

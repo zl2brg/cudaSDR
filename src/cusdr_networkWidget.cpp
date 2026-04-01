@@ -296,7 +296,6 @@ void NetworkWidget::createDeviceSearchGroup() {
 
 	networkDeviceIPAdresses = new QComboBox();
 
-	networkDeviceIPAdresses->setStyleSheet(set->getComboBoxStyle());
 	networkDeviceIPAdresses->setMinimumContentsLength(22);
 	
 	QHBoxLayout *hbox1 = new QHBoxLayout();

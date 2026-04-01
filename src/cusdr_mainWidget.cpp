@@ -88,8 +88,6 @@ MainWindow::MainWindow(QWidget *parent)
     menuBar = new QMenuBar();
     File = menuBar->addMenu(tr("File"));
 		Help = menuBar->addMenu(tr("Help"));
-  //  menuBar->setStyleSheet(set->getMenuBarStyle());
-//    File->setStyleSheet(set->getMenuStyle());
     File->setTitle("File");
     test->setText("Test");
     test->setMenu(File);
@@ -132,7 +130,6 @@ MainWindow::MainWindow(QWidget *parent)
 	// Dock windows options
 	setDockOptions(QMainWindow::AnimatedDocks | QMainWindow::AllowNestedDocks);
 	setMinimumSize(QSize(window_width1, window_height1));
-    setStyleSheet(set->get_appStyleSheet() );
 
 	m_oldSampleRate = set->getSampleRate();
 	m_numberOfReceivers = set->getNumberOfReceivers();
@@ -520,7 +517,6 @@ void MainWindow::setupLayout() {
 	centralwidget = new QMainWindow(this);
 	centralwidget->setWindowFlags(Qt::Widget);
 	centralwidget->setDockOptions(QMainWindow::AnimatedDocks | QMainWindow::AllowNestedDocks);
-//	centralwidget->setStyleSheet(set->getMainWindowStyle());
 	centralwidget->setContextMenuPolicy(Qt::NoContextMenu);  //setStyleSheet(set->getMenuStyle());
     
 
@@ -530,7 +526,6 @@ void MainWindow::setupLayout() {
     dock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
     dock->setFeatures(QDockWidget::NoDockWidgetFeatures);
     dock->setFeatures(QDockWidget::DockWidgetFloatable);
-//	dock->setStyleSheet(set->getDockStyle());
     dock->setMaximumWidth(245);
     dock->setMinimumWidth(245);
     dock->setWidget(m_radioTabWidget);
@@ -545,7 +540,6 @@ void MainWindow::setupLayout() {
 	dock->setObjectName("ServerCtrl");
     dock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
     dock->setFeatures(QDockWidget::DockWidgetFloatable);
-//	dock->setStyleSheet(set->getDockStyle());
     dock->setMaximumWidth(DOCK_WIDTH);
     dock->setMinimumWidth(DOCK_WIDTH);
     dock->setWidget(m_serverWidget);
@@ -560,7 +554,6 @@ void MainWindow::setupLayout() {
 	dock->setObjectName("HPSDRCtrl");
     dock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
     dock->setFeatures(QDockWidget::DockWidgetClosable | QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetMovable);
-//	dock->setStyleSheet(set->getDockStyle());
     dock->setMaximumWidth(DOCK_WIDTH);
     dock->setMinimumWidth(DOCK_WIDTH);
 	dock->setWidget(m_hpsdrTabWidget);
@@ -574,7 +567,6 @@ void MainWindow::setupLayout() {
     rxDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
 //	dock->setFeatures(QDockWidget::NoDockWidgetFeatures);
     rxDock->setFeatures(QDockWidget::DockWidgetClosable | QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetMovable);
-//    rxDock->setStyleSheet(set->getDockStyle());
     rxDock->setMaximumWidth(DOCK_WIDTH);
     rxDock->setMinimumWidth(DOCK_WIDTH);
 //    rxDock->setWidget(filterwidget);
@@ -594,7 +586,6 @@ void MainWindow::setupLayout() {
 	widebandDock->setObjectName("Wideband");
 	widebandDock->setAllowedAreas(Qt::TopDockWidgetArea | Qt::BottomDockWidgetArea);
     widebandDock->setFeatures(QDockWidget::DockWidgetClosable | QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetMovable);
-//	widebandDock->setStyleSheet(set->getDockStyle());
     widebandDock->setWidget(m_wbDisplay);
 	
     centralwidget->addDockWidget(Qt::TopDockWidgetArea, widebandDock);
@@ -614,7 +605,6 @@ void MainWindow::setupLayout() {
 		str.append(num);
 		dock = new QDockWidget(str, this);
 		widebandDock->setObjectName(str);
-//		dock->setStyleSheet(set->getDockStyle());
 		dock->setWidget(rxWidgetList.at(i));
 		rxDockWidgetList.append(dock);
 
@@ -677,12 +667,9 @@ void MainWindow::createStatusToolBar() {
 
 	m_cpuLoadString = "CPU load:     ";
 	m_cpuLoadLabel = new QLabel(m_cpuLoadString, this);
-//	m_cpuLoadLabel->setStyleSheet(set->getLabelStyle());
 
 	m_dateTimeLabel = new QLabel(m_dateTimeString, this);
-	m_dateTimeLabel->setStyleSheet(set->getLabelStyle());
 
-	statusBar()->setStyleSheet(set->getStatusbarStyle());
 	statusBar()->addPermanentWidget(m_cpuLoadLabel);
 	statusBar()->insertPermanentWidget(1, m_dateTimeLabel, 0);
 }
@@ -713,7 +700,6 @@ void MainWindow::createDisplayPanelToolBar() {
 	displayPanelToolBar->setObjectName("DisplayPanel");
 	displayPanelToolBar->setAllowedAreas(Qt::TopToolBarArea);
 	displayPanelToolBar->setMovable(false);
-	displayPanelToolBar->setStyleSheet(set->getDisplayToolbarStyle());
 
 	// The display panel has the displayPanelToolBar as parent.
 	m_oglDisplayPanel = new OGLDisplayPanel(displayPanelToolBar);
@@ -734,7 +720,6 @@ void MainWindow::createMainBtnToolBar() {
 	mainBtnToolBar->setObjectName("MainButtons");
 	mainBtnToolBar->setAllowedAreas(Qt::TopToolBarArea);
 	mainBtnToolBar->setMovable(false);
-	//mainBtnToolBar->setStyleSheet(set->getMainBtnToolbarStyle());
 //	mainBtnToolBar->show();
 	
 	m_buttonWidget = new QWidget(this);
@@ -957,7 +942,6 @@ void MainWindow::createMainBtnToolBar() {
     m_micGainSlider->setSingleStep(1);
     m_micGainSlider->setRange(0, 128);
     m_micGainSlider->setValue(vol);
-    //m_micGainSlider->setStyleSheet(set->getVolSliderStyle());
     CHECKED_CONNECT(
             m_micGainSlider,
             SIGNAL(valueChanged(int)),
@@ -971,7 +955,6 @@ void MainWindow::createMainBtnToolBar() {
     m_drivelevelSlider->setSingleStep(1);
     m_drivelevelSlider->setRange(0, 128);
     m_drivelevelSlider->setValue(set->getDriveLevel());
-//    m_drivelevelSlider->setStyleSheet(set->getVolSliderStyle());
 
     CHECKED_CONNECT(
             m_drivelevelSlider,
@@ -985,7 +968,6 @@ void MainWindow::createMainBtnToolBar() {
 	m_volumeSlider->setSingleStep(1);
 	m_volumeSlider->setRange(0, 100);
 	m_volumeSlider->setValue(vol);
-//	m_volumeSlider->setStyleSheet(set->getVolSliderStyle());
 
 	CHECKED_CONNECT(
 		m_volumeSlider, 
@@ -995,23 +977,19 @@ void MainWindow::createMainBtnToolBar() {
 
     m_micGainLabel = new QLabel("Mic:", this);
     m_micGainLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-//    m_micGainLabel->setStyleSheet(set->getLabelStyle());
 
     m_drivelevellLabel = new QLabel("Drive:", this);
     m_drivelevellLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-   // m_drivelevellLabel->setStyleSheet(set->getLabelStyle());
 
 
     m_volumeLabel = new QLabel("Vol:", this);
     m_volumeLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-//	m_volumeLabel->setStyleSheet(set->getLabelStyle());
 
 	QString str = "%1 %";
 	m_volLevelLabel = new QLabel(str.arg(vol, 2, 10, QLatin1Char(' ')), this);
 	m_volLevelLabel->setFont(m_fonts.smallFont);
 	m_volLevelLabel->setFixedSize(fontMaxWidth, 14);
     m_volLevelLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-//	m_volLevelLabel->setStyleSheet(set->getSliderLabelStyle());
 
 	
 	int agcMaxGain = (int) set->getAGCMaximumGain_dB(0);
@@ -1022,7 +1000,6 @@ void MainWindow::createMainBtnToolBar() {
 	m_agcGainSlider->setSingleStep(1);
 	m_agcGainSlider->setRange(-20, 120);
 	m_agcGainSlider->setValue(agcMaxGain);
-	//m_agcGainSlider->setStyleSheet(set->getVolSliderStyle());
 	
 	CHECKED_CONNECT(
 		m_agcGainSlider, 
@@ -1032,7 +1009,6 @@ void MainWindow::createMainBtnToolBar() {
 
 	m_agcGainLabel = new QLabel("", this);
     m_agcGainLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-//	m_agcGainLabel->setStyleSheet(set->getLabelStyle());
 	if(m_agcMode == (AGCMode) agcOFF)
 		m_agcGainLabel->setText("AGC-F:");
 	else
@@ -1044,7 +1020,6 @@ void MainWindow::createMainBtnToolBar() {
 	m_agcGainLevelLabel->setFont(m_fonts.smallFont);
 	m_agcGainLevelLabel->setFixedSize(fontMaxWidth, 14);
     m_agcGainLevelLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-//	m_agcGainLevelLabel->setStyleSheet(set->getSliderLabelStyle());
 	
 
 	moxBtn = new AeroButton("MOX", this);
@@ -1208,7 +1183,6 @@ void MainWindow::createMainBtnToolBar() {
 void MainWindow::createModeMenu() {
 
 	modeMenu = new QMenu(this);
-//	modeMenu->setStyleSheet(set->getMenuStyle());
     modeBtn->setMenu(modeMenu);
 
 	modeActionGroup = new QActionGroup(this);
@@ -1242,7 +1216,6 @@ void MainWindow::createModeMenu() {
 */
 void MainWindow::createViewMenu() {
     viewMenu = new QMenu(this);
-	viewMenu->setStyleSheet(set->getMenuStyle());
 	viewBtn->setMenu(viewMenu);
 }
 
@@ -1252,7 +1225,6 @@ void MainWindow::createViewMenu() {
 void MainWindow::createAttenuatorMenu() {
 
 	attenuatorMenu = new QMenu(this);
-//	attenuatorMenu->setStyleSheet(set->getMenuStyle());
 	attenuatorBtn->setMenu(attenuatorMenu);
 
 	// Step attenuator options (0=0dB, 1=10dB, 2=20dB, 3=30dB)
@@ -2550,20 +2522,17 @@ NetworkIODialog::NetworkIODialog(QWidget *parent)
 	QVBoxLayout *dialogLayout = new QVBoxLayout(this);
 
 	m_deviceComboBox = new QComboBox(this);
-//	m_deviceComboBox->setStyleSheet(set->getComboBoxStyle());
 	m_deviceComboBox->setMinimumContentsLength(30);
 	
 	QScopedPointer<QHBoxLayout> titleLayout(new QHBoxLayout);
 	QLabel *titleLabel = new QLabel(tr("found more than one device:"), this);
 	titleLabel->setFont(m_titleFont);
-//	titleLabel->setStyleSheet(set->getLabelStyle());
 	titleLayout->addWidget(titleLabel);
 	dialogLayout->addLayout(titleLayout.data());
 	titleLayout.take(); // ownership transferred to dialogLayout
 
 	QScopedPointer<QHBoxLayout> metisDeviceLayout(new QHBoxLayout);
 	QLabel *ipAddressLabel = new QLabel(tr("Device (IP Addr):"), this);
-//	ipAddressLabel->setStyleSheet(set->getLabelStyle());
 	metisDeviceLayout->addWidget(ipAddressLabel);
 	metisDeviceLayout->addWidget(m_deviceComboBox);
 	dialogLayout->addLayout(metisDeviceLayout.data());

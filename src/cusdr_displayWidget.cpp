@@ -292,7 +292,6 @@ void DisplayOptionsWidget::createFPSGroupBox() {
 	m_fpsSlider->setSingleStep(1);
 	m_fpsSlider->setRange(1, 80);
 	m_fpsSlider->setValue(m_framesPerSecond);
-	m_fpsSlider->setStyleSheet(set->getVolSliderStyle());
 
 
 	CHECKED_CONNECT(m_fpsSlider, SIGNAL(valueChanged(int)), this, SLOT(fpsValueChanged(int)));
@@ -302,7 +301,6 @@ void DisplayOptionsWidget::createFPSGroupBox() {
 	m_fpsLevelLabel->setFont(m_fonts.smallFont);
 	m_fpsLevelLabel->setFixedSize(fontMaxWidth, 12);
 	m_fpsLevelLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-	m_fpsLevelLabel->setStyleSheet(set->getSliderLabelStyle());
 
 	QHBoxLayout *hbox = new QHBoxLayout;
 	hbox->setSpacing(0);
@@ -391,7 +389,6 @@ void DisplayOptionsWidget::createPanSpectrumOptions() {
 	m_fmSqlevel->setSingleStep(1);
 	m_fmSqlevel->setValue(80);
 	m_fmSqlevel->setRange(1, 100);
-    m_fmSqlevel->setStyleSheet(set->getVolSliderStyle());
 
 	CHECKED_CONNECT(m_fmSqlevel, SIGNAL(valueChanged(int)), this, SLOT(sqLevelChanged(int)));
 
@@ -401,7 +398,6 @@ void DisplayOptionsWidget::createPanSpectrumOptions() {
 	m_avgSlider->setSingleStep(1);
 	m_avgSlider->setRange(1, 1000);
 	m_avgSlider->setValue(m_avgValue);
-	m_avgSlider->setStyleSheet(set->getVolSliderStyle());
 
 	CHECKED_CONNECT(m_avgSlider, SIGNAL(valueChanged(int)), this, SLOT(averagingFilterCntChanged(int)));
 
@@ -411,34 +407,27 @@ void DisplayOptionsWidget::createPanSpectrumOptions() {
 	m_avgLevelLabel->setFont(m_fonts.smallFont);
 	m_avgLevelLabel->setFixedSize(fontMaxWidth, 12);
 	m_avgLevelLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-	m_avgLevelLabel->setStyleSheet(set->getSliderLabelStyle());
 
 	m_sqlabel = new QLabel("FM Thresh:", this);
 	m_sqlabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-	m_sqlabel->setStyleSheet(set->getLabelStyle());
 
 	m_avgLabel = new QLabel("Avg Filter:", this);
 	m_avgLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-	m_avgLabel->setStyleSheet(set->getLabelStyle());
 
     m_panAvgModeLabel = new QLabel("Avg Mode:", this);
     m_panAvgModeLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-    m_panAvgModeLabel->setStyleSheet(set->getLabelStyle());
 
 
     m_panDetModeLabel = new QLabel("Avg Det:", this);
     m_panDetModeLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-    m_panDetModeLabel->setStyleSheet(set->getLabelStyle());
 
 	m_fftLabel = new QLabel("FFT Size:", this);
 	m_fftLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-	m_fftLabel->setStyleSheet(set->getLabelStyle());
 
 	m_fftSizeCombo = new QComboBox(this);
 	m_fftSizeCombo->addItems(QStringList() << "2k" << "4k" <<  "8k" <<"16k" << "32k");
 	m_fftSizeCombo->setFont(m_fonts.normalFont);
 	m_fftSizeCombo->setCurrentIndex(m_fftSize);
-	m_fftSizeCombo->setStyleSheet(set->getComboBoxStyle());
 	CHECKED_CONNECT(m_fftSizeCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(fftSizeChanged(int)));
 
 
@@ -446,7 +435,6 @@ void DisplayOptionsWidget::createPanSpectrumOptions() {
     m_panAverageCombo->addItems(QStringList() << "None" << "Recursive" <<  "TimeWindow" <<"LogRecursive");
     m_panAverageCombo->setFont(m_fonts.normalFont);
     m_panAverageCombo->setCurrentIndex(m_panAvMode);
-    m_panAverageCombo->setStyleSheet(set->getComboBoxStyle());
 
     CHECKED_CONNECT(m_panAverageCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(panAverageModeChanged(int)));
 
@@ -455,7 +443,6 @@ void DisplayOptionsWidget::createPanSpectrumOptions() {
     m_panDetectorCombo->addItems(QStringList() << "Peak" << "Rosenfall" <<  "Average" <<"Sample");
     m_panDetectorCombo->setFont(m_fonts.normalFont);
     m_panDetectorCombo->setCurrentIndex(m_panDetMode);
-    m_panDetectorCombo->setStyleSheet(set->getComboBoxStyle());
 
     CHECKED_CONNECT(m_panDetectorCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(panDetectorModeChanged(int)));
 
@@ -515,7 +502,6 @@ void DisplayOptionsWidget::createPanSpectrumOptions() {
 	m_panSpectrumOptions = new QGroupBox(tr("Panadapter Spectrum"), this);
 	m_panSpectrumOptions->setMinimumWidth(m_minimumGroupBoxWidth);
 	m_panSpectrumOptions->setLayout(vbox);
-	m_panSpectrumOptions->setStyleSheet(set->getWidgetStyle());
     m_panSpectrumOptions->setFont(QFont("Arial", 12));
 }
 
@@ -588,7 +574,6 @@ void DisplayOptionsWidget::createWidebandPanOptions() {
 	m_wbAvgSlider->setSingleStep(1);
 	m_wbAvgSlider->setRange(1, 1000);
 	m_wbAvgSlider->setValue(m_wbAvgValue);
-	m_wbAvgSlider->setStyleSheet(set->getVolSliderStyle());
 
 	CHECKED_CONNECT(m_wbAvgSlider, SIGNAL(valueChanged(int)), this, SLOT(setWidebandAveragingCnt(int)));
 
@@ -597,11 +582,9 @@ void DisplayOptionsWidget::createWidebandPanOptions() {
 	m_wbAvgLevelLabel->setFont(m_fonts.smallFont);
 	m_wbAvgLevelLabel->setFixedSize(fontMaxWidth, 12);
 	m_wbAvgLevelLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-	m_wbAvgLevelLabel->setStyleSheet(set->getSliderLabelStyle());
 
 	m_wbAvgLabel = new QLabel("Avg Filter:", this);
 	m_wbAvgLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-	m_wbAvgLabel->setStyleSheet(set->getLabelStyle());
 
 
     QHBoxLayout* hbox1 = new QHBoxLayout;
@@ -628,7 +611,6 @@ void DisplayOptionsWidget::createWidebandPanOptions() {
 	m_widebandPanOptions = new QGroupBox(tr("Wideband Panadapter Spectrum"), this);
 	m_widebandPanOptions->setMinimumWidth(m_minimumGroupBoxWidth);
 	m_widebandPanOptions->setLayout(vbox);
-	m_widebandPanOptions->setStyleSheet(set->getWidgetStyle());
     m_widebandPanOptions->setFont(QFont("Arial", 12));
 }
 
@@ -703,7 +685,6 @@ void DisplayOptionsWidget::createWaterfallSpectrumOptions() {
 	m_waterfallTimeSpinBox->setMinimum(5);
 	m_waterfallTimeSpinBox->setMaximum(250);
 	m_waterfallTimeSpinBox->setSingleStep(5);
-	m_waterfallTimeSpinBox->setStyleSheet(set->getSpinBoxStyle());
 	m_waterfallTimeSpinBox->setValue(m_rxDataList.at(m_currentReceiver).waterfallTime);
 
 	CHECKED_CONNECT(
@@ -716,7 +697,6 @@ void DisplayOptionsWidget::createWaterfallSpectrumOptions() {
 	m_waterfallLoOffsetSpinBox->setMinimum(-200);
 	m_waterfallLoOffsetSpinBox->setMaximum(200);
 	m_waterfallLoOffsetSpinBox->setSingleStep(1);
-	m_waterfallLoOffsetSpinBox->setStyleSheet(set->getSpinBoxStyle());
 	m_waterfallLoOffsetSpinBox->setValue(m_rxDataList.at(m_currentReceiver).waterfallOffsetLo);
 
 	CHECKED_CONNECT(
@@ -729,7 +709,6 @@ void DisplayOptionsWidget::createWaterfallSpectrumOptions() {
 	m_waterfallHiOffsetSpinBox->setMinimum(-200);
 	m_waterfallHiOffsetSpinBox->setMaximum(200);
 	m_waterfallHiOffsetSpinBox->setSingleStep(1);
-	m_waterfallHiOffsetSpinBox->setStyleSheet(set->getSpinBoxStyle());
 	m_waterfallHiOffsetSpinBox->setValue(m_rxDataList.at(m_currentReceiver).waterfallOffsetHi);
 
 	CHECKED_CONNECT(
@@ -740,15 +719,12 @@ void DisplayOptionsWidget::createWaterfallSpectrumOptions() {
 
 	//m_waterfallTimeLabel = new QLabel("Timing (ms):", this);
     //m_waterfallTimeLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-	//m_waterfallTimeLabel->setStyleSheet(set->getLabelStyle());
 
 	m_waterfallLoOffsetLabel = new QLabel("Offset Low (dBm):", this);
     m_waterfallLoOffsetLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-	m_waterfallLoOffsetLabel->setStyleSheet(set->getLabelStyle());
 
 	m_waterfallHiOffsetLabel = new QLabel("Offset High (dBm):", this);
     m_waterfallHiOffsetLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-	m_waterfallHiOffsetLabel->setStyleSheet(set->getLabelStyle());
 
 	/*QHBoxLayout *hbox2 = new QHBoxLayout;
 	hbox2->setSpacing(4);
@@ -779,7 +755,6 @@ void DisplayOptionsWidget::createWaterfallSpectrumOptions() {
 	m_waterfallSpectrumOptions = new QGroupBox(tr("Waterfall Spectrum"), this);
 	m_waterfallSpectrumOptions->setMinimumWidth(m_minimumGroupBoxWidth);
 	m_waterfallSpectrumOptions->setLayout(vbox);
-	m_waterfallSpectrumOptions->setStyleSheet(set->getWidgetStyle());
     m_waterfallSpectrumOptions->setFont(QFont("Arial", 12));
 }
 
@@ -809,7 +784,6 @@ void DisplayOptionsWidget::createSMeterOptions() {
 	m_sMeterHoldTimeSpinBox->setMinimum(500);
 	m_sMeterHoldTimeSpinBox->setMaximum(10000);
 	m_sMeterHoldTimeSpinBox->setSingleStep(500);
-	m_sMeterHoldTimeSpinBox->setStyleSheet(set->getSpinBoxStyle());
 	m_sMeterHoldTimeSpinBox->setValue(m_sMeterHoldTime);
 
 	CHECKED_CONNECT(
@@ -820,7 +794,6 @@ void DisplayOptionsWidget::createSMeterOptions() {
 
 	m_sMeterHoldTimeLabel = new QLabel("Hold Time (ms):", this);
     m_sMeterHoldTimeLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-	m_sMeterHoldTimeLabel->setStyleSheet(set->getLabelStyle());
 
 	/*QHBoxLayout *hbox1 = new QHBoxLayout;
 	hbox1->setSpacing(4);

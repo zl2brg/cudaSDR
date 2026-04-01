@@ -29,7 +29,6 @@
 
 #include <QStandardPaths>
 #include "cusdr_settings.h"
-#include "Util/cusdr_styles.h"
 
 namespace {
 bool sampleRateToParams(int rate, int &speed, int &outputIncrement) {
@@ -2445,122 +2444,6 @@ void Settings::debugSystemState() {
     SETTINGS_DEBUG << "DataEngine State:\t" << qPrintable(getHDataEngineStateString(m_dataEngineState));
     qDebug() << " ";
 }
-
-QString Settings::getSDRStyle() {
-    return sdrStyle;
-}
-
-QString Settings::getWidgetStyle() {
-    return widgetStyle;
-}
-
-QString Settings::getMainWindowStyle() {
-    return mainWindowStyle;
-}
-
-QString Settings::getDockStyle() {
-    return dockStyle;
-}
-
-QString Settings::getDisplayToolbarStyle() {
-    return displayToolbarStyle;
-}
-
-QString Settings::getMainBtnToolbarStyle() {
-    return mainBtnToolbarStyle;
-}
-
-QString Settings::getStatusbarStyle() {
-    return statusbarStyle;
-}
-
-QString Settings::getMessageBoxStyle() {
-    return messageBoxStyle;
-}
-
-QString Settings::getLineEditStyle() {
-    return lineEditStyle;
-}
-
-QString Settings::getDialogStyle() {
-    return dialogStyle;
-}
-
-QString Settings::getColorDialogStyle() {
-    return colorDialogStyle;
-}
-
-QString Settings::getItemStyle() {
-    return itemStyle;
-}
-
-QString Settings::getLabelStyle() {
-    return labelStyle;
-}
-
-QString Settings::getSliderLabelStyle() {
-    return sliderLabelStyle;
-}
-
-QString Settings::getTableStyle() {
-    return tableStyle;
-}
-
-QString Settings::getComboBoxStyle() {
-    return comboBoxStyle;
-}
-
-QString Settings::getSpinBoxStyle() {
-    return spinBoxStyle;
-}
-
-QString Settings::getDoubleSpinBoxStyle() {
-    return dSpinBoxStyle;
-}
-
-QString Settings::getMenuStyle() {
-    return menuStyle;
-}
-
-QString Settings::getMenuBarStyle() {
-    return "";
-}
-
-
-const QString Settings::getMiniButtonStyle() {
-    return miniButtonStyle;
-}
-
-
-
-QString Settings::getVolSliderStyle() {
-    return volSliderStyle;
-}
-
-QString Settings::getSplitterStyle() {
-    return splitterStyle;
-}
-
-QString Settings::getFrameStyle() {
-    return frameStyle;
-}
-
-QString Settings::getTabWidgetStyle() {
-        return tabWidgetStyle;
-}
-
-//QString Settings::getNewSliderStyle() {
-//
-//	return m_newSliderStyle;
-//}
-
-QString Settings::getCheckBoxStyle() {
-    return checkboxStyle;
-}
-
-
-
-//*******************************************************
 
 void Settings::setMainPower(QObject *sender, bool power) {
 

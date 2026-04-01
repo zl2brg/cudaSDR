@@ -242,7 +242,6 @@ QGroupBox* HPSDRWidget::hpsdrHardwareBtnGroup() {
 
 	m_fwCheckLabel = new QLabel("Firmware Check:", this);
 	m_fwCheckLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-	m_fwCheckLabel->setStyleSheet(set->getLabelStyle());
 
 	QHBoxLayout *hbox0 = new QHBoxLayout();
 	hbox0->setSpacing(4);
@@ -436,28 +435,24 @@ QGroupBox *HPSDRWidget::sampleRateExclusiveGroup() {
 	samplerate48Btn = new AeroButton("48 kHz", this);
 	samplerate48Btn->setRoundness(0);
 	samplerate48Btn->setFixedSize (50, btn_height);
-	samplerate48Btn->setStyleSheet(set->getMiniButtonStyle());
 	samplerateBtnList.append(samplerate48Btn);
 	CHECKED_CONNECT(samplerate48Btn, SIGNAL(released()), this, SLOT(sampleRateChanged()));
 
 	samplerate96Btn = new AeroButton("96 kHz", this);
 	samplerate96Btn->setRoundness(0);
 	samplerate96Btn->setFixedSize (50, btn_height);
-	samplerate96Btn->setStyleSheet(set->getMiniButtonStyle());
 	samplerateBtnList.append(samplerate96Btn);
 	CHECKED_CONNECT(samplerate96Btn, SIGNAL(released()), this, SLOT(sampleRateChanged()));
 
 	samplerate192Btn = new AeroButton("192 kHz", this);
 	samplerate192Btn->setRoundness(0);
 	samplerate192Btn->setFixedSize (50, btn_height);
-	samplerate192Btn->setStyleSheet(set->getMiniButtonStyle());
 	samplerateBtnList.append(samplerate192Btn);
 	CHECKED_CONNECT(samplerate192Btn, SIGNAL(released()), this, SLOT(sampleRateChanged()));
 
 	samplerate384Btn = new AeroButton("384 kHz", this);
 	samplerate384Btn->setRoundness(0);
 	samplerate384Btn->setFixedSize (50, btn_height);
-	samplerate384Btn->setStyleSheet(set->getMiniButtonStyle());
 	//samplerate384Btn->setEnabled(false);
 	samplerateBtnList.append(samplerate384Btn);
 	CHECKED_CONNECT(samplerate384Btn, SIGNAL(released()), this, SLOT(sampleRateChanged()));
@@ -465,14 +460,12 @@ QGroupBox *HPSDRWidget::sampleRateExclusiveGroup() {
     samplerate768Btn = new AeroButton("768 kHz", this);
     samplerate768Btn->setRoundness(0);
     samplerate768Btn->setFixedSize (50, btn_height);
-    samplerate768Btn->setStyleSheet(set->getMiniButtonStyle());
     samplerateBtnList.append(samplerate768Btn);
     CHECKED_CONNECT(samplerate768Btn, SIGNAL(released()), this, SLOT(sampleRateChanged()));
 
     samplerate1536Btn = new AeroButton("1.536 MHz", this);
     samplerate1536Btn->setRoundness(0);
     samplerate1536Btn->setFixedSize (65, btn_height);
-    samplerate1536Btn->setStyleSheet(set->getMiniButtonStyle());
     samplerateBtnList.append(samplerate1536Btn);
     CHECKED_CONNECT(samplerate1536Btn, SIGNAL(released()), this, SLOT(sampleRateChanged()));
 
@@ -551,7 +544,6 @@ QGroupBox *HPSDRWidget::sampleRateExclusiveGroup() {
 	QGroupBox *groupBox = new QGroupBox(tr("Sample Rate"), this);
 	groupBox->setMinimumWidth(m_minimumGroupBoxWidth);
 	groupBox->setLayout(vbox);
-	groupBox->setStyleSheet(set->getWidgetStyle());
 	groupBox->setFont(QFont("Arial", 8));
 
 	return groupBox;
@@ -560,7 +552,6 @@ QGroupBox *HPSDRWidget::sampleRateExclusiveGroup() {
 QGroupBox *HPSDRWidget::numberOfReceiversGroup() {
 
 	m_receiverComboBox = new QComboBox(this);
-	m_receiverComboBox->setStyleSheet(set->getComboBoxStyle());
 	m_receiverComboBox->setMinimumContentsLength(4);
 
 	QString str = "%1";

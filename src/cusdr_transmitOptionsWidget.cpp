@@ -139,15 +139,11 @@ void TransmitOptionsWidget::createAMSettingsGroup(){
     QLabel* amCompressionLabel = new QLabel("Compression (db):", this);
     QLabel* amCarrierLevelLabel = new QLabel("Carrier Level:", this);
     amCompressionLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-    amCarrierLevelLabel->setStyleSheet(set->getLabelStyle());
     amCarrierLevelLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-    amCompressionLabel->setStyleSheet(set->getLabelStyle());
     amCarrierLevelSlider = new QSlider(Qt::Horizontal,this);
-    amCarrierLevelSlider->setStyleSheet(set->getVolSliderStyle());
     amCarrierLevelSlider->setFixedSize(80, 10);
     amCarrierLevelSlider->setRange(1, 100);
     amCompressionSlider = new QSlider(Qt::Horizontal,this);
-    amCompressionSlider->setStyleSheet(set->getVolSliderStyle());
     amCompressionSlider->setFixedSize(80, 10);
     amCompressionSlider->setRange(1, 100);
 
@@ -179,9 +175,7 @@ void TransmitOptionsWidget::createSourceGroup() {
 
 	QLabel* sourceLabel = new QLabel("Source:", this);
     sourceLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-	sourceLabel->setStyleSheet(set->getLabelStyle());
     micInputComboBox = new QComboBox(this);
-    micInputComboBox->setStyleSheet(set->getComboBoxStyle());
 /*
 	micInputBtn = new AeroButton("Mic Input", this);
 	micInputBtn->setRoundness(0);
@@ -208,27 +202,22 @@ void TransmitOptionsWidget::createSourceGroup() {
 
 	QLabel* maxLabel = new QLabel("Max Gain (dB):", this);
     maxLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-	maxLabel->setStyleSheet(set->getLabelStyle());
 
 	QLabel* minLabel = new QLabel("Min Gain (dB):", this);
     minLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-	minLabel->setStyleSheet(set->getLabelStyle());
 
 	micGainMaxSpinBox = new QSpinBox(this);
 	micGainMaxSpinBox->setMinimum(1);
 	micGainMaxSpinBox->setMaximum(70);
-	micGainMaxSpinBox->setStyleSheet(set->getSpinBoxStyle());
 	micGainMaxSpinBox->setValue(10);
 
 	micGainMinSpinBox = new QSpinBox(this);
 	micGainMinSpinBox->setMinimum(-96);
 	micGainMinSpinBox->setMaximum(0);
-	micGainMinSpinBox->setStyleSheet(set->getSpinBoxStyle());
 	micGainMinSpinBox->setValue(-40);
 
 	QLabel* boostLabel = new QLabel("20 dB Mic Boost:", this);
     boostLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-	boostLabel->setStyleSheet(set->getLabelStyle());
 
 	micBoostBtn = new AeroButton(" Off ", this);
 	micBoostBtn->setRoundness(0);
@@ -287,7 +276,6 @@ void TransmitOptionsWidget::createSourceGroup() {
 	sourceGroup = new QGroupBox(tr("Mic / Line Options"), this);
 	sourceGroup->setMinimumWidth(m_minimumGroupBoxWidth);
 	sourceGroup->setLayout(vbox);
-    sourceGroup->setStyleSheet(set->getWidgetStyle());
     sourceGroup->setFont(QFont("Arial", 10));
 
   //SettingsDialog::      micInputComboBox->addItem(QString(deviceInfo->name));
@@ -301,22 +289,18 @@ void TransmitOptionsWidget::createTransmitFilterGroup() {
 
 	QLabel* highLabel = new QLabel("High (Hz):", this);
     highLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-	highLabel->setStyleSheet(set->getLabelStyle());
 
 	QLabel* lowLabel = new QLabel("Low (Hz):", this);
     lowLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-	lowLabel->setStyleSheet(set->getLabelStyle());
 
 	highFilterSpinBox = new QSpinBox(this);
 	highFilterSpinBox->setMinimum(1000);
 	highFilterSpinBox->setMaximum(5000);
-	highFilterSpinBox->setStyleSheet(set->getSpinBoxStyle());
 	highFilterSpinBox->setValue(3100);
 
 	lowFilterSpinBox = new QSpinBox(this);
 	lowFilterSpinBox->setMinimum(0);
 	lowFilterSpinBox->setMaximum(1000);
-	lowFilterSpinBox->setStyleSheet(set->getSpinBoxStyle());
 	lowFilterSpinBox->setValue(200);
 
 	QHBoxLayout *hbox1 = new QHBoxLayout();
@@ -340,7 +324,6 @@ void TransmitOptionsWidget::createTransmitFilterGroup() {
 	transmitFilterGroup = new QGroupBox(tr("Transmit Filter"), this);
 	transmitFilterGroup->setMinimumWidth(m_minimumGroupBoxWidth);
 	transmitFilterGroup->setLayout(vbox);
-	transmitFilterGroup->setStyleSheet(set->getWidgetStyle());
 	transmitFilterGroup->setFont(QFont("Arial", 8));
 }
 
@@ -360,7 +343,6 @@ void TransmitOptionsWidget::createPTTOptionsGroup() {
 	pttOptionsGroup = new QGroupBox(tr("PTT Options"), this);
 	pttOptionsGroup->setMinimumWidth(m_minimumGroupBoxWidth);
 	pttOptionsGroup->setLayout(vbox);
-	pttOptionsGroup->setStyleSheet(set->getWidgetStyle());
 	pttOptionsGroup->setFont(QFont("Arial", 8));
 }
 

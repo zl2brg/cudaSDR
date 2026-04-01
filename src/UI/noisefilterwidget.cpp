@@ -28,52 +28,37 @@ NoiseFilterWidget::NoiseFilterWidget(QWidget *parent)
 {
     setContentsMargins(4, 0, 4, 0);
     ui->setupUi(this);
-    ui->snbCheckBox->setStyleSheet(set->getCheckBoxStyle());
-    ui->anfCheckBox->setStyleSheet(set->getCheckBoxStyle());
     ui->anfCheckBox->setFont(QFont("Arial", 8));
 
     ui->label->setFrameStyle(QFrame::Box | QFrame::Raised);
-    ui->label->setStyleSheet(set->getLabelStyle());
     ui->label->setFont(QFont("Arial", 8));
 
     ui->label_2->setFrameStyle(QFrame::Box | QFrame::Raised);
-    ui->label_2->setStyleSheet(set->getLabelStyle());
     ui->label_2->setFont(QFont("Arial", 8));
 
     ui->label_3->setFrameStyle(QFrame::Box | QFrame::Raised);
-    ui->label_3->setStyleSheet(set->getLabelStyle());
     ui->label_3->setFont(QFont("Arial", 8));
 
     ui->label_4->setFrameStyle(QFrame::Box | QFrame::Raised);
-    ui->label_4->setStyleSheet(set->getLabelStyle());
     ui->label_4->setFont(QFont("Arial", 8));
 
     ui->label_5->setFrameStyle(QFrame::Box | QFrame::Raised);
-    ui->label_5->setStyleSheet(set->getLabelStyle());
     ui->label_5->setFont(QFont("Arial", 8));
 
     ui->nbModeComboBox->setFont(QFont("Arial", 8));
-    ui->nbModeComboBox->setStyleSheet(set->getComboBoxStyle());
     ui->nrModeComboBox->setFont(QFont("Arial", 8));
-    ui->nrModeComboBox->setStyleSheet(set->getComboBoxStyle());
 
     ui->nr2GainComboBox->setFont(QFont("Arial", 8));
-    ui->nr2GainComboBox->setStyleSheet(set->getComboBoxStyle());
 
     ui->mmseCheckBox->setFont(QFont("Arial", 8));
-    ui->mmseCheckBox->setStyleSheet(set->getCheckBoxStyle());
 
     ui->omsCheckBox->setFont(QFont("Arial", 8));
-    ui->omsCheckBox->setStyleSheet(set->getCheckBoxStyle());
 
     ui->postAGCCheckBox->setFont(QFont("Arial", 8));
-    ui->postAGCCheckBox->setStyleSheet(set->getCheckBoxStyle());
 
     ui->preAGCCheckBox->setFont(QFont("Arial", 8));
-    ui->preAGCCheckBox->setStyleSheet(set->getCheckBoxStyle());
 
     ui->nr2aeCheckBox->setFont(QFont("Arial", 8));
-    ui->nr2aeCheckBox->setStyleSheet(set->getCheckBoxStyle());
     setupConnections();
     getSettings();
     setMouseTracking(true);

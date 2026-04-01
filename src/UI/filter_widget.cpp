@@ -28,14 +28,10 @@ FilterWidget::FilterWidget(QWidget *parent)
 
     setContentsMargins(4, 0, 4, 0);
     m_FilterData = Mid_FilterGroup;
-    this->setStyleSheet(set->getSDRStyle());
     //this->setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
     ui->setupUi(this);
     CHECKED_CONNECT(this->ui->Var1_Slider, SIGNAL(valueChanged(int)), this, SLOT(slider_changed(int)));
     CHECKED_CONNECT(this->ui->Var2_Slider, SIGNAL(valueChanged(int)), this, SLOT(slider_changed(int)));
-    this->setStyleSheet(set->getWidgetStyle());
-    ui->Var1_Slider->setStyleSheet(set->getVolSliderStyle());
-    ui->Var2_Slider->setStyleSheet(set->getVolSliderStyle());
 
     setupModeBtn(ui->filter_1);
     setupModeBtn(ui->filter_2);

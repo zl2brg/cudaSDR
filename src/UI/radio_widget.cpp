@@ -25,13 +25,9 @@ RadioCtrl::RadioCtrl(QWidget *parent, int rx)
     ui->setupUi(this);
 
     setContentsMargins(4, 0, 4, 0);
-    this->setStyleSheet(set->getSDRStyle());
     setFilterWidget();
     setBandWidget();
     setModeWidget();
-    ui->groupBox->setStyleSheet(set->getWidgetStyle());
-    ui->groupBox_2->setStyleSheet(set->getWidgetStyle());
-    ui->groupBox_4->setStyleSheet(set->getWidgetStyle());
     CHECKED_CONNECT(
         set,
         SIGNAL(systemStateChanged(
@@ -86,8 +82,6 @@ dspModeChanged(this, 0, m_dspModeList.at(m_hamBand));
 
 void RadioCtrl::setFilterWidget(){
 
-    ui->Var1_Slider->setStyleSheet(set->getVolSliderStyle());
-    ui->Var2_Slider->setStyleSheet(set->getVolSliderStyle());
     setupFilterBtn(ui->filter_1);
     setupFilterBtn(ui->filter_2);
     setupFilterBtn(ui->filter_3);
