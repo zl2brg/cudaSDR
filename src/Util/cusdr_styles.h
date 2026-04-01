@@ -85,7 +85,6 @@ QString	messageBoxStyle = QString::fromUtf8(
 
 QString	lineEditStyle = QString::fromUtf8(
 		"border: 1px solid rgba(60, 60, 60, 255); "
-		//"border-right-width: 0px; "
 		"color: rgb(166, 196, 208); "
 		"background-color: rgba(0, 0, 0, 255); ");
 
@@ -96,26 +95,21 @@ QString displayToolbarStyle = QString::fromUtf8(
 		"	background-color: rgba(0, 0, 0, 255); "
 		"}"
 		"QToolBar::handle {"
-		//"	background-color: rgba(0, 0, 0, 255); "
 		"}"
 		);
 
 QString mainBtnToolbarStyle = QString::fromUtf8(
 		"QToolBar {"
 		"	border: 2px solid rgba(0, 0, 0, 255); "
-		//"border-right-width: 0px; "
 		"	color: rgb(166, 196, 208); "
 		"	background-color: rgba(0, 0, 0, 255); "
 		"}"
 		"QToolBar::handle {"
-		//"	background-color: rgba(0, 0, 0, 255); "
 		"}"
 		);
 
 QString statusbarStyle = QString::fromUtf8(
 		"QStatusBar {"
-		//"border: 0px solid rgba(60, 60, 60, 255); "
-		//"border-right-width: 0px; "
 		"	color: rgb(166, 196, 208); "
 		"	background-color: rgba(0, 0, 0, 255); "
 		"}"
@@ -127,16 +121,11 @@ QString statusbarStyle = QString::fromUtf8(
 
 QString	dockStyle = QString::fromUtf8(
 		"QDockWidget {"
-  //      "	color: rgba(255, 196, 208, 255);"
 		"	border: 1px solid rgba(60, 60, 60, 255);"
 		"}"
-		//"background-color: rgba(0, 0, 0, 255); "
 		"QDockWidget::title {"
 		"	text-align: left;"
-		//"	background: rgba(60, 60, 60, 255);"
 		"	background: qlineargradient(y1:0, y2:1, stop: 0 #a0a0a0, stop: 0.5 #202020, stop: 1 #404040); "
-		//"	border: 1px solid rgba(60, 60, 60, 255);"
-		//"	border-radius: 2px;"
 		"	padding-left: 5px;"
 		"}"
 		"QDockWidget::close-button, QDockWidget::float-button {"
@@ -148,7 +137,7 @@ QString	dockStyle = QString::fromUtf8(
 QString	comboBoxStyle = QString::fromUtf8(
 		"QComboBox { "
 		"	color: rgba(166, 196, 208, 255); "
-		//"	border: 1px solid rgba(45, 122, 148, 150); "
+		"	background-color: rgba(32, 32, 32, 255); "
 		"	border: 1px solid rgba(255, 255, 255, 50); "
 		"	border-radius: 2px; } "
 		"QComboBox::drop-down:!editable { "
@@ -182,7 +171,6 @@ QString	comboBoxStyle = QString::fromUtf8(
 		"	left: 1px; }"
 		"QComboBox QAbstractItemView { "
 		"	color: rgba(166, 196, 208, 255); "
-		//"	border: 1px solid rgba(45, 122, 148, 150); "
 		"	border: 1px solid rgba(255, 255, 255, 80); "
 		"	selection-background-color: rgba(38, 38, 38, 255); }");
 
@@ -209,20 +197,15 @@ QString	spinBoxStyle = QString::fromUtf8(
 		"	height: 8px; } "
 		"QSpinBox::up-arrow:off { "
 		"	image: url(:/img/up_arrow_off.png); }"
-		//"	top: 1px; "
-		//"	left: 1px; } "
 		"QSpinBox::down-arrow:off { "
 		"	image: url(:/img/down_arrow_off.png); }"
 		"QSpinBox::up-arrow:disabled { "
 		"	image: url(:/img/up_arrow_off.png); }"
-		//"	top: 1px; "
-		//"	left: 1px; } "
 		"QSpinBox::down-arrow:disabled { "
 		"	image: url(:/img/down_arrow_off.png); }"
-		//"	top: 1px; "
-		//"	left: 1px; } "
 		"QSpinBox { "
 		"	color: rgba(166, 196, 208, 255); "
+		"	background-color: rgba(32, 32, 32, 255); "
 		"	border: 1px solid rgba(255, 255, 255, 80); } "
 
 	);
@@ -256,7 +239,7 @@ QString	dSpinBoxStyle = QString::fromUtf8(
 		"	left: 0px; } "
 		"QDoubleSpinBox { "
 		"	color: rgba(166, 196, 208, 255); "
-		//"	border: 1px solid rgba(45, 122, 148, 150); } "
+		"	background-color: rgba(32, 32, 32, 255); "
 		"	border: 1px solid rgba(255, 255, 255, 80); } "
 	);
 
@@ -269,12 +252,6 @@ QString	menuStyle = QString::fromUtf8(
 		"	background-color: transparent; } "
 		"QMenu::item:selected {  "
 		"	background: rgba(45, 122, 148, 200); } "
-			/*border: 1px inset rgba(45, 122, 148, 200); \
-			position: absolute; \
-			top: 1px; \
-			right: 1px; \
-			bottom: 1px; \
-			left: 8px; }"*/
 	);
 
 const QString	miniButtonStyle = QString::fromUtf8(
@@ -330,41 +307,13 @@ QString	splitterStyle = QString::fromUtf8(
 		"QSplitter::handle:vertical { "
 		"	height: 4px; "
 		"	background: rgba(255, 255, 255, 0); } "
-		/*"	background: qlineargradient(spread:pad, x1:0, y1:0, x2:1, y2:0, "
-		"						stop:0 rgba(255, 255, 255, 0), "
-		"						stop:0.3 rgba(85, 210, 250, 105), "
-		"						stop:0.7 rgba(85, 210, 250, 105), "
-		"						stop:1 rgba(255, 255, 255, 0)); } "*/
-		
 		"QSplitter::handle:horizontal { "
 		"	width: 4px; "
 		"	background: rgba(255, 255, 255, 0); } "
-		/*"	background: qlineargradient(x1:0, y1:0, x2:1, y2:1, "
-		"						stop:0 rgba(255, 255, 255, 0), "
-		"						stop:0.3 rgba(85, 210, 250, 105), "
-		"						stop:0.7 rgba(85, 210, 250, 105), "
-		"						stop:1 rgba(255, 255, 255, 0)); } "*/
 		"	border: 0px solid rgba(255, 0, 0, 255); "
-		//"	width: 8px; "
-		//"	margin-top: 1px; "
-		//"	margin-bottom: 1px; "
-		//"	border-radius: 1px; "
-		//"	width: 3px; } "
-
-		////"QSplitter::handle { "
-		////"	image: url(:/img/left.png); } "
-		//"QSplitter { "
-		//"	padding: 0px; "
-		////"	border: 1px solid rgba(60, 60, 60, 255); "
-		////"	border-radius: 2px; } "
-		//"QSplitter::handle:horizontal { "
-		//"	width: 2px; } "
-		//"QSplitter::handle:vertical { "
-		//"    height: 2px; } ");
 	);
 
 QString	frameStyle = QString::fromUtf8(
-		//"border: 1px solid rgba(45, 122, 148, 150); "
 		"border: 1px solid rgba(255, 255, 255, 80); "
 		"border-radius: 2px; margin-top: 2ex; "
 	);
@@ -373,13 +322,9 @@ QString	tabWidgetStyle = QString::fromUtf8(
         "font-size: 8pt;"
 		"QTabWidget::pane {"
         "font-size: 5pt;"
-       // "	color: rgba(255, 196, 208, 235);"
 		"	margin-top: 4px;"
 		"	margin-left: 4px;"
-		//"	margin-right: 4px;"
 		"	margin-bottom: 2px;"
-		//"	border: 0px"
-        //"	border: 1px solid rgba(255, 255, 255, 80); "
         "	border: 1px solid #565656; "
 		"	border-radius: 2px;"
 		"}"
@@ -390,13 +335,11 @@ QString	tabWidgetStyle = QString::fromUtf8(
 
 		"}"
 		"QTabBar::tab {"
-		//"	color: #000000;"
         "	color: rgba(166, 196, 208, 235);"
 		"	background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,"
 		"									stop: 0 #868686, stop: 0.3 #565656,"
 		"									stop: 0.4 #000000, stop: 1.0 #000000);"
 		"	border: 1px solid #565656;"
-		//"	border-bottom-color: #91EBFF;"
 		"	border-bottom-color: #565656;"
 		"	border-left-color: #606060;"
 		"	border-right-color: #000000;"
@@ -412,35 +355,18 @@ QString	tabWidgetStyle = QString::fromUtf8(
 		"}"
 
 		"QTabBar::tab:selected {"
-		/*"	background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,"
-		"								stop: 0 #55D2FA, stop: 0.3 #505050,"
-		"								stop: 0.4 #101010, stop: 1.0 #000000);"
-		"}"*/
-		"	color: rgba(166, 196, 208, 255);"
+		"	color: rgba(85, 210, 250, 255);"
 		"	background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,"
 		"								stop: 0 #969696, stop: 0.3 #505050,"
 		"								stop: 0.4 #101010, stop: 1.0 #000000);"
+		"	border-color: #91EBFF;"
+		"	border-right-color: #000000;"
+		"	border-bottom-color: #000000;"
 		"}"
 		"QTabBar::tab:hover {"
-		/*"	background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,"
-		"								stop: 0 #91EBFF, stop: 0.4 #000000,"
-		"								stop: 0.8 #000000, stop: 1.0 #91EBFF);"*/
 		"	background: qlineargradient(x1: 0, y1: 0, x2: 0, y2: 1,"
 		"								stop: 0 #C6C6C6, stop: 0.3 #505050,"
 		"								stop: 0.4 #202020, stop: 1.0 #000000);"
-		//"	border-top-color: #91EBFF;"
-		//"	border-left-color: #61CBDF;"
-		//"	border-right-color: #91EBFF;"
-		//"	border-color: #91EBFF;"
-		//"	border-color: #969696;"
-		//"	border-bottom-color: #000000;"
-		"}"
-		"QTabBar::tab:selected {"
-        "	border-color: #91EBFF;"
-        //"	border-color: #565656;"
-		"	border-right-color: #000000;"
-		"	border-bottom-color: #000000;"
-        "color: rgba(85, 210, 250, 255);"
 		"}"
 		"QTabBar::tab:!selected {"
         "	margin-top: 5x;"

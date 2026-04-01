@@ -1797,12 +1797,6 @@ inline NullDebug nullDebug() { return NullDebug(); }
 #   define SETTINGS_DEBUG nullDebug()
 #endif
 
-#ifdef LOG_SETTINGS
-#   define SETTINGS_DEBUG qDebug().nospace() << "Settings::\t"
-#else
-#   define SETTINGS_DEBUG nullDebug()
-#endif
-
 
 //******************************************************
 // sleeper function

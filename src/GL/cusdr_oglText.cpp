@@ -90,9 +90,7 @@ void OGLTextPrivate::allocateTexture() {
 
     QImage image(TEXTURE_SIZE, TEXTURE_SIZE, QImage::Format_ARGB32);
     image.fill(Qt::transparent);
-    image.convertToFormat(QImage::Format_RGBA8888).flipped();
     glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
-    //glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, TEXTURE_SIZE, TEXTURE_SIZE, 0, GL_RGBA, GL_UNSIGNED_BYTE, image.bits());
     glTexImage2D(GL_TEXTURE_2D, 0, GL_ALPHA, TEXTURE_SIZE, TEXTURE_SIZE, 0, GL_RGBA, GL_UNSIGNED_BYTE, image.bits());
 
     textures += texture;
@@ -120,18 +118,10 @@ CharData &OGLTextPrivate::createCharacter(QChar c) {
         QPixmap pixmap(width, height);
         pixmap.fill(Qt::transparent);
 
-        /*QImage image(width, height, QImage::Format_ARGB32_Premultiplied);
-        if (!image.isNull()) {
-            image.fill(Qt::transparent);
-            QPainter p(&image);
-            if (&font) p.setFont(this->font);
-        }*/
-
         QPainter painter;
         painter.begin(&pixmap);
         painter.setRenderHints(QPainter::Antialiasing  ,  true);
         painter.setFont(font);
-//        painter.scale(dpr,dpr);
         painter.setPen(Qt::white);
 
         painter.drawText(pixmap.rect(),Qt::TextSingleLine | Qt::TextDontClip | Qt::AlignCenter, c);
@@ -197,9 +187,7 @@ QFontMetrics OGLText::fontMetrics() const {
 //! Renders text at given x, y.
 void OGLText::renderText(float x, float y, const QString &text) {
 
-    const bool GL_TEXTURE_2D_wasEnabled = glIsEnabled(GL_TEXTURE_2D);
-	GLint prev_texture; glGetIntegerv(GL_TEXTURE_BINDING_2D, &prev_texture);
-	GLint prev_shade_model; glGetIntegerv(GL_SHADE_MODEL, &prev_shade_model);
+    GLint prev_shade_model; glGetIntegerv(GL_SHADE_MODEL, &prev_shade_model);
 
     glPushAttrib(GL_CURRENT_BIT | GL_ENABLE_BIT | GL_TEXTURE_BIT);
     glPushMatrix();
@@ -207,16 +195,12 @@ void OGLText::renderText(float x, float y, const QString &text) {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-	if (prev_shade_model != GL_FLAT) glShadeModel(GL_FLAT);
-	if (!GL_TEXTURE_2D_wasEnabled) glEnable(GL_TEXTURE_2D);
+    if (prev_shade_model != GL_FLAT) glShadeModel(GL_FLAT);
 
     GLuint texture = 0;
     glTranslatef(x, y, 0);
 
     for (int i = 0; i < text.length(); ++i) {
-
-    	//if (text.length() > 80)
-    	//	qDebug() << "*********************  OK";
 
         CharData &c = d->createCharacter(text.at(i));
         if (texture != c.textureId) {
@@ -235,19 +219,14 @@ void OGLText::renderText(float x, float y, const QString &text) {
         glTranslatef(c.width, 0, 0);
     }
 
-	glShadeModel(prev_shade_model);
-	glBindTexture(GL_TEXTURE_2D, prev_texture);
-	if (!GL_TEXTURE_2D_wasEnabled) glDisable(GL_TEXTURE_2D);
-
+    glShadeModel(prev_shade_model);
     glPopMatrix();
     glPopAttrib();
 }
 
 void OGLText::renderText(float x, float y, float z, const QString &text) {
 
-    const bool GL_TEXTURE_2D_wasEnabled = glIsEnabled(GL_TEXTURE_2D);
-	GLint prev_texture; glGetIntegerv(GL_TEXTURE_BINDING_2D, &prev_texture);
-	GLint prev_shade_model; glGetIntegerv(GL_SHADE_MODEL, &prev_shade_model);
+    GLint prev_shade_model; glGetIntegerv(GL_SHADE_MODEL, &prev_shade_model);
 
     glPushAttrib(GL_CURRENT_BIT | GL_ENABLE_BIT | GL_TEXTURE_BIT);
     glPushMatrix();
@@ -255,8 +234,7 @@ void OGLText::renderText(float x, float y, float z, const QString &text) {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-	if (prev_shade_model != GL_FLAT) glShadeModel(GL_FLAT);
-	if (!GL_TEXTURE_2D_wasEnabled) glEnable(GL_TEXTURE_2D);
+    if (prev_shade_model != GL_FLAT) glShadeModel(GL_FLAT);
 
     GLuint texture = 0;
     glTranslatef(x, y, 0);
@@ -269,13 +247,7 @@ void OGLText::renderText(float x, float y, float z, const QString &text) {
             glBindTexture(GL_TEXTURE_2D, texture);
         }
 
-        /*glBegin(GL_QUADS);
-			glTexCoord2f(c.s[0], c.t[0]); glVertex2f(0, c.height);
-			glTexCoord2f(c.s[1], c.t[0]); glVertex2f(c.width, c.height);
-			glTexCoord2f(c.s[1], c.t[1]); glVertex2f(c.width, 0);
-			glTexCoord2f(c.s[0], c.t[1]); glVertex2f(0, 0);
-        glEnd();*/
-		glBegin(GL_QUADS);
+        glBegin(GL_QUADS);
 			glTexCoord2f(c.s[0], c.t[0]); glVertex3f(0, c.height, z);
 			glTexCoord2f(c.s[1], c.t[0]); glVertex3f(c.width, c.height, z);
 			glTexCoord2f(c.s[1], c.t[1]); glVertex3f(c.width, 0, z);
@@ -285,10 +257,7 @@ void OGLText::renderText(float x, float y, float z, const QString &text) {
         glTranslatef(c.width, 0, 0);
     }
 
-	glShadeModel(prev_shade_model);
-	glBindTexture(GL_TEXTURE_2D, prev_texture);
-	if (!GL_TEXTURE_2D_wasEnabled) glDisable(GL_TEXTURE_2D);
-
+    glShadeModel(prev_shade_model);
     glPopMatrix();
     glPopAttrib();
 }

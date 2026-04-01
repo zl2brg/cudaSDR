@@ -79,7 +79,6 @@ Settings::Settings(QObject *parent)
 
     qRegisterMetaType<QSDR::_Error>();
     qRegisterMetaType<QSDR::_DataEngineState>();
-    qRegisterMetaType<QSDR::_DataEngineState>();
     qRegisterMetaType<QSDR::_ServerMode>();
     qRegisterMetaType<QSDR::_HWInterfaceMode>();
     qRegisterMetaType<HamBand>();
@@ -93,7 +92,6 @@ Settings::Settings(QObject *parent)
 
     startTime = QDateTime::currentDateTime();
 
-    qDebug() << "************************************************************************";
     SETTINGS_DEBUG << "start at: " << qPrintable(startTime.toString());
 
     settingsFilename = "settings.ini";
@@ -101,8 +99,7 @@ Settings::Settings(QObject *parent)
     getConfigPath();
     m_titleString = "cudaSDR BETA";
     QFile File(":/cusdr_stylesheet.qss");
-    int res =  File.open(QFile::ReadOnly);
-    qDebug() << "RES" << res;
+    File.open(QFile::ReadOnly);
     appStyleSheet = QLatin1String(File.readAll());
     File.close();
 
@@ -2450,62 +2447,50 @@ void Settings::debugSystemState() {
 }
 
 QString Settings::getSDRStyle() {
-    return "";
     return sdrStyle;
 }
 
 QString Settings::getWidgetStyle() {
-    return "";
     return widgetStyle;
 }
 
 QString Settings::getMainWindowStyle() {
-    return "";
     return mainWindowStyle;
 }
 
 QString Settings::getDockStyle() {
-    return "";
     return dockStyle;
 }
 
 QString Settings::getDisplayToolbarStyle() {
-    return "";
     return displayToolbarStyle;
 }
 
 QString Settings::getMainBtnToolbarStyle() {
-    return "";
     return mainBtnToolbarStyle;
 }
 
 QString Settings::getStatusbarStyle() {
-    return "";
     return statusbarStyle;
 }
 
 QString Settings::getMessageBoxStyle() {
-    return "";
     return messageBoxStyle;
 }
 
 QString Settings::getLineEditStyle() {
-    return "";
     return lineEditStyle;
 }
 
 QString Settings::getDialogStyle() {
-    return "";
     return dialogStyle;
 }
 
 QString Settings::getColorDialogStyle() {
-    return "";
     return colorDialogStyle;
 }
 
 QString Settings::getItemStyle() {
-    return "";
     return itemStyle;
 }
 
@@ -2514,37 +2499,30 @@ QString Settings::getLabelStyle() {
 }
 
 QString Settings::getSliderLabelStyle() {
-    return "";
     return sliderLabelStyle;
 }
 
 QString Settings::getTableStyle() {
-    return "";
     return tableStyle;
 }
 
 QString Settings::getComboBoxStyle() {
-    return "";
     return comboBoxStyle;
 }
 
 QString Settings::getSpinBoxStyle() {
-    return "";
     return spinBoxStyle;
 }
 
 QString Settings::getDoubleSpinBoxStyle() {
-    return "";
     return dSpinBoxStyle;
 }
 
 QString Settings::getMenuStyle() {
-    return "";
     return menuStyle;
 }
 
 QString Settings::getMenuBarStyle() {
-    return "";
     return "";
 }
 
@@ -2556,17 +2534,14 @@ const QString Settings::getMiniButtonStyle() {
 
 
 QString Settings::getVolSliderStyle() {
-    return "";
     return volSliderStyle;
 }
 
 QString Settings::getSplitterStyle() {
-    return "";
     return splitterStyle;
 }
 
 QString Settings::getFrameStyle() {
-    return "";
     return frameStyle;
 }
 
@@ -2580,7 +2555,6 @@ QString Settings::getTabWidgetStyle() {
 //}
 
 QString Settings::getCheckBoxStyle() {
-    return "";
     return checkboxStyle;
 }
 
@@ -3737,11 +3711,9 @@ void Settings::setVFOFrequency(QObject *sender, int mode, int rx, long frequency
 
     if (m_receiverDataList.at(rx).vfoFrequency == frequency) return;
     m_receiverDataList[rx].vfoFrequency = frequency;
-    qDebug() << "vfo freq (Rx " << rx << ") " << m_receiverDataList[rx].vfoFrequency << frequency;
+    SETTINGS_DEBUG << "vfo freq (Rx " << rx << ") " << m_receiverDataList[rx].vfoFrequency;
     if (frequency > 60000000)
-    {
-        qDebug() << "Frequency Setting EROR" << frequency ;
-    }
+        SETTINGS_DEBUG << "frequency out of expected range: " << frequency;
 
     HamBand band = getBandFromFrequency(m_bandList, frequency);
     m_receiverDataList[rx].lastVfoFrequencyList[(int) band] = frequency;
@@ -4381,61 +4353,6 @@ void Settings::setPennyOCEnabled(QObject *sender, bool value) {
 //	m_clDevices = devices;
 //}
 
-//void Settings::setCudaPresence(bool value) {
-//
-//	m_cudaPresence = value;
-//}
-//
-//void Settings::setCudaDevices(int value) {
-//
-//	QMutexLocker locker(&mutex);
-//		if (m_cuda_devices == value) return;
-//		m_cuda_devices = value;
-//	locker.unlock();
-//
-//	emit cudaDevicesChanged(this, value);
-//}
-//
-//void Settings::setCudaDriver(QObject *sender, int value) {
-//
-//	QMutexLocker locker(&mutex);
-//		if (m_cuda_driver_version == value) return;
-//		m_cuda_driver_version = value;
-//	locker.unlock();
-//
-//	emit cudaDriverChanged(sender, value);
-//}
-//
-//void Settings::setCudaRuntime(QObject *sender, int value) {
-//
-//	QMutexLocker locker(&mutex);
-//		if (m_cuda_runtime_version == value) return;
-//		m_cuda_runtime_version = value;
-//	locker.unlock();
-//
-//	emit cudaRuntimeChanged(sender, value);
-//}
-//
-//void Settings::setCurrentCudaDevice(QObject *sender, int value) {
-//
-//	QMutexLocker locker(&mutex);
-//		if (m_current_cuda_device == value) return;
-//		m_current_cuda_device = value;
-//	locker.unlock();
-//
-//	emit cudaCurrentDeviceChanged(sender, value);
-//}
-//
-//void Settings::setCudaLastDevice(QObject *sender, int value) {
-//
-//	QMutexLocker locker(&mutex);
-//		if (m_cudaLastDevice == value) return;
-//		m_cudaLastDevice = value;
-//	locker.unlock();
-//
-//	emit cudaLastDeviceChanged(sender, value);
-//}
-
 void Settings::setFreqRulerPosition(QObject *sender, int rx, float position) {
 
     Q_UNUSED (sender)
@@ -4600,7 +4517,7 @@ void Settings::setPanadapterColors(TPanadapterColors type) {
     if (type.wideBandFilledColor != m_panadapterColors.wideBandFilledColor)
         m_panadapterColors.wideBandFilledColor = type.wideBandFilledColor;
 
-    if (type.wideBandSolidBottomColor != m_panadapterColors.wideBandSolidTopColor)
+    if (type.wideBandSolidTopColor != m_panadapterColors.wideBandSolidTopColor)
         m_panadapterColors.wideBandSolidTopColor = type.wideBandSolidTopColor;
 
     if (type.wideBandSolidBottomColor != m_panadapterColors.wideBandSolidBottomColor)
@@ -4761,13 +4678,6 @@ void Settings::setWaterfallTime(int rx, int value) {
 
     Q_UNUSED(rx)
     Q_UNUSED(value)
-
-    QMutexLocker locker(&settingsMutex);
-
-    //if (m_receiverDataList[rx].waterfallTime == value) return;
-    //m_receiverDataList[rx].waterfallTime = value;
-
-    //emit waterfallTimeChanged(rx, value);
 }
 
 void Settings::setWaterfallOffesetLo(int rx, int value) {
