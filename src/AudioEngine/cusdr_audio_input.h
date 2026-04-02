@@ -55,9 +55,12 @@ signals:
 private:
     void setupAudioSource();
     void processAudioData(const QByteArray &data);
+    void stopHardware(); // stop device without clearing m_txActive
     
 private slots:
     void MicInputChanged(int source);
+    void DigitalAudioInputChanged(int index);
+    void dspModeChanged(QObject *sender, int rx, DSPMode mode);
     void handleReadyRead();
 
 private:
@@ -71,6 +74,8 @@ private:
     int                 m_sampleRate;
     int                 m_bufferSize;
     int                 m_deviceIndex;
+    int                 m_digitalDeviceIndex;
+    bool                m_isDigitalMode;
 };
 
 #endif //CUDASDR_CUSDR_AUDIO_INPUT_H

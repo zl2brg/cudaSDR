@@ -89,7 +89,7 @@ QGLWidebandPanel::QGLWidebandPanel(QWidget *parent)
 	m_frequency = m_rxDataList.at(0).vfoFrequency;
 
 	m_lowerFrequency = 0.0;
-	m_upperFrequency = (qreal) MAXHPFREQUENCY;
+	m_upperFrequency = (qreal) set->getMaxFrequency();
 
 	m_dBmPanMin = set->getWidebanddBmScaleMin();
 	m_dBmPanMax = set->getWidebanddBmScaleMax();
@@ -373,7 +373,7 @@ void QGLWidebandPanel::drawSpectrum() {
 	qreal scaleMult = 1.0;
 
 	m_scaledBufferSize = qFloor(m_wbSpectrumBufferLength * m_freqScaleZoomFactor);
-	deltaIdx = qFloor((qreal)(m_wbSpectrumBufferLength * (m_lowerFrequency / MAXHPFREQUENCY)));
+	deltaIdx = qFloor((qreal)(m_wbSpectrumBufferLength * (m_lowerFrequency / set->getMaxFrequency())));
 	
 	qreal frequencyScale = (qreal)(1.0f * m_scaledBufferSize / width);
 	
@@ -898,7 +898,7 @@ void QGLWidebandPanel::drawCrossHair() {
 		
 		QString str;
 
-		qreal unit = (qreal)((MAXHPFREQUENCY * m_freqScaleZoomFactor) / m_panRect.width());
+		qreal unit = (qreal)((set->getMaxFrequency() * m_freqScaleZoomFactor) / m_panRect.width());
 		qreal frequency = (unit * x) + m_lowerFrequency;
 
 		str = frequencyString(frequency);
@@ -1031,7 +1031,7 @@ void QGLWidebandPanel::renderHorizontalScale() {
 	int fontHeight = m_fonts.smallFontMetrics->tightBoundingRect(".0kMGHz").height();
 	int fontMaxWidth = m_fonts.smallFontMetrics->boundingRect("000.000").width();
 
-	m_frequencySpan = MAXHPFREQUENCY * m_freqScaleZoomFactor;
+	m_frequencySpan = set->getMaxFrequency() * m_freqScaleZoomFactor;
 	m_frequencyUnit = (qreal)(m_freqScaleRect.width() / m_frequencySpan);
 	m_frequencyScale = getXRuler(m_freqScaleRect, fontMaxWidth, m_frequencyUnit, m_lowerFrequency, m_upperFrequency);
 	
@@ -1266,8 +1266,8 @@ void QGLWidebandPanel::wheelEvent(QWheelEvent* event) {
 	//		else
 	//		if (event->delta() > 0) delta =  freqStep;
 
-	//		if (m_frequency + delta > MAXHPFREQUENCY)
-	//			m_frequency = MAXHPFREQUENCY;
+	//		if (m_frequency + delta > set->getMaxFrequency())
+	//			m_frequency = set->getMaxFrequency();
 	//		else
 	//		if (m_frequency + delta < 0)
 	//			m_frequency = 0;
@@ -1346,7 +1346,7 @@ void QGLWidebandPanel::mousePressEvent(QMouseEvent* event) {
 		}
 		else if (event->buttons() == Qt::LeftButton) {
 			
-			float unit = (float)(m_panRect.width() / (MAXHPFREQUENCY * m_freqScaleZoomFactor));
+			float unit = (float)(m_panRect.width() / (set->getMaxFrequency() * m_freqScaleZoomFactor));
 
 			
 			m_frequency = (long)(1000 * (int)(qRound(m_mousePos.x()/unit + m_lowerFrequency)/1000));
@@ -1487,18 +1487,18 @@ void QGLWidebandPanel::mouseMoveEvent(QMouseEvent* event) {
 
 					QPoint dPos = m_mouseDownPos - pos;
 
-					m_frequencySpan = MAXHPFREQUENCY * m_freqScaleZoomFactor;
+					m_frequencySpan = set->getMaxFrequency() * m_freqScaleZoomFactor;
 
-					qreal unit = (qreal)((MAXHPFREQUENCY * m_freqScaleZoomFactor) / m_freqScaleRect.width());
+					qreal unit = (qreal)((set->getMaxFrequency() * m_freqScaleZoomFactor) / m_freqScaleRect.width());
 
 					m_lowerFrequency += unit * dPos.x();
 					m_upperFrequency = m_lowerFrequency + m_frequencySpan;
 
 					if (m_lowerFrequency < 0.0) m_lowerFrequency = 0.0;
-					if (m_upperFrequency > (qreal) MAXHPFREQUENCY) {
+					if (m_upperFrequency > (qreal) set->getMaxFrequency()) {
 
-						m_upperFrequency = (qreal)MAXHPFREQUENCY;
-						m_lowerFrequency = (qreal)(MAXHPFREQUENCY - m_frequencySpan);
+						m_upperFrequency = (qreal)set->getMaxFrequency();
+						m_lowerFrequency = (qreal)(set->getMaxFrequency() - m_frequencySpan);
 					}
 
 					m_mouseDownPos = pos;
@@ -1509,7 +1509,7 @@ void QGLWidebandPanel::mouseMoveEvent(QMouseEvent* event) {
 				else {
 
 					m_lowerFrequency = 0.0;
-					m_upperFrequency = (qreal) MAXHPFREQUENCY;
+					m_upperFrequency = (qreal) set->getMaxFrequency();
 				}
 			}
 			else if (event->buttons() == Qt::RightButton) {
@@ -1527,15 +1527,15 @@ void QGLWidebandPanel::mouseMoveEvent(QMouseEvent* event) {
 				//if (m_freqScaleZoomFactor < 0.24) m_freqScaleZoomFactor = 0.24f;
 				if (m_freqScaleZoomFactor < 0.15) m_freqScaleZoomFactor = 0.15f;
 
-				qreal unit = (qreal)((MAXHPFREQUENCY * m_freqScaleZoomFactor) / m_freqScaleRect.width());
+				qreal unit = (qreal)((set->getMaxFrequency() * m_freqScaleZoomFactor) / m_freqScaleRect.width());
 				m_lowerFrequency -= unit * dPos.x();
 				m_upperFrequency = m_lowerFrequency + m_frequencySpan;
 
 				if (m_lowerFrequency < 0.0) m_lowerFrequency = 0.0;
-				if (m_upperFrequency > (qreal) MAXHPFREQUENCY) {
+				if (m_upperFrequency > (qreal) set->getMaxFrequency()) {
 
-					m_upperFrequency = (qreal)MAXHPFREQUENCY;
-					m_lowerFrequency = (qreal)(MAXHPFREQUENCY - m_frequencySpan);
+					m_upperFrequency = (qreal)set->getMaxFrequency();
+					m_lowerFrequency = (qreal)(set->getMaxFrequency() - m_frequencySpan);
 				}
 
 				m_mouseDownPos = pos;
@@ -1734,7 +1734,7 @@ void QGLWidebandPanel::setWidebandSpectrumBuffer(const qVectorFloat &buffer) {
 	//m_scaledBufferSize = qFloor(m_wbSpectrumBufferLength * m_freqScaleZoomFactor);
 	mutex.unlock();
 
-//	deltaIdx = qFloor((qreal)(m_wbSpectrumBufferLength * (m_lowerFrequency / MAXHPFREQUENCY)));
+//	deltaIdx = qFloor((qreal)(m_wbSpectrumBufferLength * (m_lowerFrequency / set->getMaxFrequency())));
 //	frequencyScale = (qreal)(1.0f * m_scaledBufferSize / width);
 //
 //	if (frequencyScale < 0.125)

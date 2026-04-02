@@ -2500,8 +2500,8 @@ void QGLReceiverPanel::wheelEvent(QWheelEvent* event) {
 
 			if (!m_panLocked) {
 			
-				if (m_centerFrequency + delta > MAXFREQUENCY)
-					m_centerFrequency = MAXFREQUENCY;
+				if (m_centerFrequency + delta > set->getMaxFrequency())
+					m_centerFrequency = set->getMaxFrequency();
 				else if (m_centerFrequency + delta < 0)
 					m_centerFrequency = 0;
 				else
@@ -2774,8 +2774,8 @@ void QGLReceiverPanel::mouseMoveEvent(QMouseEvent* event) {
 				qreal deltaFreq = unit * dPos.x();
 				
 				long newFrequency = m_centerFrequency + deltaFreq;
-				if (newFrequency > MAXFREQUENCY)
-					newFrequency = MAXFREQUENCY;
+				if (newFrequency > set->getMaxFrequency())
+					newFrequency = set->getMaxFrequency();
 				else
 				if (newFrequency + deltaFreq < 0)
 					newFrequency = 0;
@@ -2993,8 +2993,8 @@ void QGLReceiverPanel::mouseMoveEvent(QMouseEvent* event) {
 				else {*/
 
 					long newFrequency = m_centerFrequency + deltaFreq;
-					if (newFrequency > MAXFREQUENCY)
-						newFrequency = MAXFREQUENCY;
+					if (newFrequency > set->getMaxFrequency())
+						newFrequency = set->getMaxFrequency();
 					else
 					if (newFrequency + deltaFreq < 0)
 						newFrequency = 0;

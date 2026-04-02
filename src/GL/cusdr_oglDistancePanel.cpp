@@ -1750,8 +1750,8 @@ void QGLDistancePanel::wheelEvent(QWheelEvent* event) {
 			else
             if (event->angleDelta().rx() > 0) delta =  freqStep;
 
-			if (m_frequency + delta > MAXFREQUENCY)
-				m_frequency = MAXFREQUENCY;
+			if (m_frequency + delta > set->getMaxFrequency())
+				m_frequency = set->getMaxFrequency();
 			else
 			if (m_frequency + delta < 0)
 				m_frequency = 0;
@@ -1898,8 +1898,8 @@ void QGLDistancePanel::mouseMoveEvent(QMouseEvent* event) {
 				qreal deltaFreq = unit * dPos.x();
 				
 				long newFrequency = m_frequency + deltaFreq;
-				if (newFrequency > MAXFREQUENCY)
-					newFrequency = MAXFREQUENCY;
+				if (newFrequency > set->getMaxFrequency())
+					newFrequency = set->getMaxFrequency();
 				else
 				if (newFrequency + deltaFreq < 0)
 					newFrequency = 0;

@@ -1743,7 +1743,7 @@ void OGLDisplayPanel::wheelEvent(QWheelEvent * event) {
 			//newFreq = frequency1 * 1000 + frequency2 + numSteps * deltaF;
 			newFreq = f1 * 1000 + f2 + numSteps * deltaF;
 
-		if (newFreq < MAXFREQUENCY && newFreq >= 0) {
+		if (newFreq < set->getMaxFrequency() && newFreq >= 0) {
 
 			if (set->getPanLockedStatus(m_currentReceiver)) {
 

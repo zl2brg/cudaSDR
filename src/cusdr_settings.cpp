@@ -73,7 +73,8 @@ Settings *Settings::m_instance = nullptr;        /*!< set m_instance to NULL. */
 Settings::Settings(QObject *parent)
         : QObject(parent), m_dataEngineState(QSDR::DataEngineDown), setLoaded(false), m_mainPower(false),
           m_manualSocketBufferSize(false), m_peakHold(false), m_packetsToggle(true), m_radioPopupVisible(false),
-          m_hpsdrNetworkDevices(0), m_mercuryReceivers(1), m_currentReceiver(0) {
+          m_hpsdrNetworkDevices(0), m_mercuryReceivers(1), m_currentReceiver(0),
+          m_maxFrequency(MAXFREQUENCY), m_minFrequency(0) {
     m_devices.mercuryFWVersion = 0;
 
     qRegisterMetaType<QSDR::_Error>();
@@ -2805,6 +2806,12 @@ void Settings::clearMetisCardList() {
 void Settings::setCurrentHPSDRDevice(TNetworkDevicecard card) {
 
     m_currentHPSDRDevice = card;
+
+    if (card.frequency_max > 0) {
+        m_maxFrequency = static_cast<long>(card.frequency_max);
+        m_minFrequency = static_cast<long>(card.frequency_min);
+        emit maxFrequencyChanged(m_maxFrequency);
+    }
 
     emit hpsdrNetworkDeviceChanged(m_currentHPSDRDevice);
 }

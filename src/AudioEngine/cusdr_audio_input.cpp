@@ -24,13 +24,24 @@ PAudioInput::PAudioInput(QObject *parent)
     , m_sampleRate(48000)
     , m_bufferSize(AUDIO_FRAMESIZE)
     , m_deviceIndex(0)
+    , m_digitalDeviceIndex(0)
+    , m_isDigitalMode(false)
 {
     CHECKED_CONNECT(set,
                     SIGNAL(micInputChanged(int)),
                     this,
                     SLOT(MicInputChanged(int)));
 
+    CHECKED_CONNECT(set,
+                    SIGNAL(digitalAudioInputChanged(int)),
+                    this,
+                    SLOT(DigitalAudioInputChanged(int)));
+
+    connect(set, &Settings::dspModeChanged,
+            this, &PAudioInput::dspModeChanged);
+
     m_deviceIndex = set->getMicInputDev();
+    m_digitalDeviceIndex = set->getDigitalAudioInputDev();
     
     audioinputBuffer.resize(AUDIO_FRAMESIZE);
     audioinputBuffer.fill(0.0);
@@ -68,13 +79,31 @@ void PAudioInput::Setup() {
 
     // Get audio input device
     QAudioDevice inputDevice;
-    if (m_deviceIndex == 0) {
+    QList<QAudioDevice> devices = QMediaDevices::audioInputs();
+
+    if (m_isDigitalMode) {
+        // m_digitalDeviceIndex: 0 = None (no audio), >0 = device (1-based offset)
+        if (m_digitalDeviceIndex > 0) {
+            int actualIndex = m_digitalDeviceIndex - 1;
+            if (actualIndex >= 0 && actualIndex < devices.size()) {
+                inputDevice = devices[actualIndex];
+                AUDIO_INPUT_DEBUG << "Digital mode: using audio input:" << inputDevice.description();
+            } else {
+                AUDIO_INPUT_DEBUG << "Digital mode: device index out of range, no audio source";
+                m_mutex.unlock();
+                return; // No valid device — leave m_audioSource null
+            }
+        } else {
+            AUDIO_INPUT_DEBUG << "Digital mode: no digital audio device configured";
+            m_mutex.unlock();
+            return; // "None" selected — no audio source needed
+        }
+    } else if (m_deviceIndex == 0) {
         // Index 0 is HPSDR local mic input - use default device
         inputDevice = QMediaDevices::defaultAudioInput();
         AUDIO_INPUT_DEBUG << "Using default audio input device for HPSDR";
     } else {
         // Use specific device (adjust index since 0 is HPSDR)
-        QList<QAudioDevice> devices = QMediaDevices::audioInputs();
         int actualIndex = m_deviceIndex - 1;
         if (actualIndex >= 0 && actualIndex < devices.size()) {
             inputDevice = devices[actualIndex];
@@ -104,21 +133,52 @@ void PAudioInput::Setup() {
 void PAudioInput::MicInputChanged(int value) {
     /* Index 0 is HPSDR local mic input */
     AUDIO_INPUT_DEBUG << "Mic Input Changed to:" << value;
-    
+
     m_deviceIndex = value;
-    
-    Stop();
-    Setup();
-    
-    if (m_deviceIndex > 0) {
-        Start();
-        AUDIO_INPUT_DEBUG << "External mic mode started";
-    } else {
-        AUDIO_INPUT_DEBUG << "Local HPSDR Mic Mode Selected";
+
+    if (!m_isDigitalMode) {
+        stopHardware();
+        Setup();
+        // Mirror original behaviour: always capture from an external device
+        if (m_deviceIndex > 0)
+            Start();
+        else
+            AUDIO_INPUT_DEBUG << "Local HPSDR Mic Mode selected";
     }
 }
 
-void PAudioInput::Stop() {
+void PAudioInput::DigitalAudioInputChanged(int index) {
+    AUDIO_INPUT_DEBUG << "Digital audio input changed to:" << index;
+    m_digitalDeviceIndex = index;
+
+    if (m_isDigitalMode) {
+        stopHardware();
+        Setup();
+        if (m_digitalDeviceIndex > 0)
+            Start();
+    }
+}
+
+void PAudioInput::dspModeChanged(QObject *sender, int rx, DSPMode mode) {
+    Q_UNUSED(sender)
+    Q_UNUSED(rx)
+
+    bool digital = (mode == DIGL || mode == DIGU);
+    if (digital == m_isDigitalMode)
+        return;
+
+    m_isDigitalMode = digital;
+    AUDIO_INPUT_DEBUG << "DSP mode changed; digital mode:" << m_isDigitalMode;
+
+    stopHardware();
+    Setup();
+    // Start if the active mode has a valid device
+    bool shouldStart = m_isDigitalMode ? (m_digitalDeviceIndex > 0) : (m_deviceIndex > 0);
+    if (shouldStart)
+        Start();
+}
+
+void PAudioInput::stopHardware() {
     m_mutex.lock();
     if (m_running && m_audioSource) {
         if (m_audioInputDevice) {
@@ -128,9 +188,14 @@ void PAudioInput::Stop() {
         m_audioSource->stop();
         m_audioInputDevice = nullptr;
         m_running = false;
-        AUDIO_INPUT_DEBUG << "Audio input stopped";
+        AUDIO_INPUT_DEBUG << "Audio input hardware stopped (internal)";
     }
     m_mutex.unlock();
+}
+
+void PAudioInput::Stop() {
+    stopHardware();
+    AUDIO_INPUT_DEBUG << "Audio input stopped";
 }
 
 bool PAudioInput::Start() {

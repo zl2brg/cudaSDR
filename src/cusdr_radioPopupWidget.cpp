@@ -34,12 +34,13 @@
 #include <QStackedWidget>
 #include <QCheckBox>
 #include <QPainter>
+#include <QSizeGrip>
 
 #define LOG_RADIOPOPUP
 // use: RADIOPOPUP_DEBUG
 
-#define	btn_height		20
-#define	btn_height1		16
+#define	btn_height		14
+#define	btn_height1		14
 #define	btn_width		50
 #define	btn_widthb		66
 #define	btn_widths		34
@@ -51,7 +52,7 @@ RadioPopupWidget::RadioPopupWidget(QWidget *parent, int rx)
     , m_sticky(false)
     , m_receiver(rx)
     , m_currentRx(set->getCurrentReceiver())
-    , m_minimumWidgetWidth(210)
+    , m_minimumWidgetWidth(110)
     , m_minimumGroupBoxWidth(set->getMinimumGroupBoxWidth())
 {
     setWindowFlags(Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
@@ -62,18 +63,14 @@ RadioPopupWidget::RadioPopupWidget(QWidget *parent, int rx)
 
     setFocusPolicy(Qt::StrongFocus);
 
-    QString	style = QString::fromUtf8(
-        "font-size: 10pt;"
-        "border: 0px solid rgba(166, 196, 208, 255);"
-        "border: 1px solid;"
-        "border-left-color: rgba(220, 120, 120, 255);"
-        "border-top-color: rgba(220, 120, 120, 255);"
-        "border-right-color: rgba(0, 0, 0, 255);"
-        "border-bottom-color: rgba(0, 0, 0, 255);"
-        "color: rgb(166, 196, 208); "
-        "background-color: rgba(25, 25, 25, 255); ");
-
-    setStyleSheet(style);
+    setStyleSheet(
+        "RadioPopupWidget {"
+        "  border: 1px solid;"
+        "  border-left-color: rgba(220, 120, 120, 255);"
+        "  border-top-color: rgba(220, 120, 120, 255);"
+        "  border-right-color: rgba(0, 0, 0, 255);"
+        "  border-bottom-color: rgba(0, 0, 0, 255);"
+        "}");
 
     fonts = new CFonts(this);
     m_fonts = fonts->getFonts();
@@ -115,7 +112,6 @@ RadioPopupWidget::RadioPopupWidget(QWidget *parent, int rx)
     connect(stickyBtn, &AeroButton::clicked, this, &RadioPopupWidget::setSticky);
 
     createOptionsBtnGroup();
-    createFFTOptionsGroup();
     createBandBtnGroup();
     createAdcBtnGroup();
     createModeBtnGroup();
@@ -123,6 +119,8 @@ RadioPopupWidget::RadioPopupWidget(QWidget *parent, int rx)
     createFilterBtnWidgetA();
     createFilterBtnWidgetB();
     createFilterBtnWidgetC();
+
+    m_noiseFilterWidget = new NoiseFilterWidget(this);
 
     m_filterStackedWidget = new QStackedWidget(this);
     m_filterStackedWidget->setContentsMargins(0, 0, 0, 0);
@@ -143,27 +141,45 @@ RadioPopupWidget::RadioPopupWidget(QWidget *parent, int rx)
     title->addStretch();
     title->addWidget(stickyBtn);
 
+    // "Radio" tab — existing controls
+    QWidget *radioTabPage = new QWidget(this);
+    QVBoxLayout *radioLayout = new QVBoxLayout(radioTabPage);
+    radioLayout->setSpacing(0);
+    radioLayout->setContentsMargins(4, 4, 4, 4);
+    radioLayout->setSizeConstraint(QLayout::SetNoConstraint);
+    radioLayout->addLayout(optionsVBox);
+    radioLayout->addSpacing(16);
+    radioLayout->addLayout(bandVBox);
+    radioLayout->addSpacing(8);
+    radioLayout->addLayout(adcVBox);
+    radioLayout->addSpacing(8);
+    radioLayout->addLayout(modeVBox);
+    radioLayout->addSpacing(8);
+    radioLayout->addWidget(m_filterStackedWidget);
+    radioLayout->addSpacing(32);
+    radioLayout->addLayout(agcVBox);
+    radioLayout->addStretch();
+
+    m_popupTabWidget = new QTabWidget(this);
+    m_popupTabWidget->addTab(radioTabPage, " Radio ");
+    m_popupTabWidget->addTab(m_noiseFilterWidget, " Noise Filter ");
+
+    QSizeGrip *sizeGrip = new QSizeGrip(this);
+    QHBoxLayout *gripRow = new QHBoxLayout();
+    gripRow->setContentsMargins(0, 0, 0, 0);
+    gripRow->addStretch();
+    gripRow->addWidget(sizeGrip);
+
     QVBoxLayout *mainLayout = new QVBoxLayout;
     mainLayout->setSpacing(0);
     mainLayout->setContentsMargins(0,0,0,0);
     mainLayout->addLayout(title);
-    mainLayout->addSpacing(16);
-    mainLayout->addLayout(optionsVBox);
-    mainLayout->addSpacing(8);
-    mainLayout->addLayout(fftOptionsVBox);
-    mainLayout->addSpacing(16);
-    mainLayout->addLayout(bandVBox);
-    mainLayout->addSpacing(8);
-    mainLayout->addLayout(adcVBox);
-    mainLayout->addSpacing(8);
-    mainLayout->addLayout(modeVBox);
-    mainLayout->addSpacing(8);
-    mainLayout->addWidget(m_filterStackedWidget);
-    mainLayout->addSpacing(32);
-    mainLayout->addLayout(agcVBox);
-    mainLayout->addStretch();
+    mainLayout->addSpacing(4);
+    mainLayout->addWidget(m_popupTabWidget);
+    mainLayout->addLayout(gripRow);
 
     setLayout(mainLayout);
+    setMinimumWidth(m_minimumWidgetWidth);
 
     // setup values from settings.ini
     bandBtnList.at(m_hamBand)->setBtnState(AeroButton::ON);
@@ -218,6 +234,8 @@ void RadioPopupWidget::createOptionsBtnGroup() {
     avgBtn = new AeroButton("Pan Avg", this);
     avgBtn->setRoundness(10);
     avgBtn->setFont(m_fonts.smallFont);
+    avgBtn->setFixedHeight(btn_height);
+    avgBtn->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 
     if (m_spectrumAveraging)
         avgBtn->setBtnState(AeroButton::ON);
@@ -229,6 +247,8 @@ void RadioPopupWidget::createOptionsBtnGroup() {
     gridBtn = new AeroButton("Pan Grid", this);
     gridBtn->setRoundness(10);
     gridBtn->setFont(m_fonts.smallFont);
+    gridBtn->setFixedHeight(btn_height);
+    gridBtn->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 
     if (m_panGrid)
         gridBtn->setBtnState(AeroButton::ON);
@@ -240,6 +260,8 @@ void RadioPopupWidget::createOptionsBtnGroup() {
     peakHoldBtn = new AeroButton("Peak Hold", this);
     peakHoldBtn->setRoundness(10);
     peakHoldBtn->setFont(m_fonts.smallFont);
+    peakHoldBtn->setFixedHeight(btn_height);
+    peakHoldBtn->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     peakHoldBtn->setBtnState(AeroButton::OFF);
 
     connect(peakHoldBtn, &AeroButton::clicked, this, &RadioPopupWidget::peakHoldBtnClicked);
@@ -247,6 +269,8 @@ void RadioPopupWidget::createOptionsBtnGroup() {
     lockPanBtn = new AeroButton("Lock Pan", this);
     lockPanBtn->setRoundness(10);
     lockPanBtn->setFont(m_fonts.smallFont);
+    lockPanBtn->setFixedHeight(btn_height);
+    lockPanBtn->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 
     if (m_panLocked)
         lockPanBtn->setBtnState(AeroButton::ON);
@@ -258,6 +282,8 @@ void RadioPopupWidget::createOptionsBtnGroup() {
     clickVfoBtn = new AeroButton("Click VFO", this);
     clickVfoBtn->setRoundness(10);
     clickVfoBtn->setFont(m_fonts.smallFont);
+    clickVfoBtn->setFixedHeight(btn_height);
+    clickVfoBtn->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 
     if (m_clickVFO)
         clickVfoBtn->setBtnState(AeroButton::ON);
@@ -269,6 +295,8 @@ void RadioPopupWidget::createOptionsBtnGroup() {
     showCrossBtn = new AeroButton("Hair Cross", this);
     showCrossBtn->setRoundness(10);
     showCrossBtn->setFont(m_fonts.smallFont);
+    showCrossBtn->setFixedHeight(btn_height);
+    showCrossBtn->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 
     if (m_showCross)
         showCrossBtn->setBtnState(AeroButton::ON);
@@ -280,18 +308,24 @@ void RadioPopupWidget::createOptionsBtnGroup() {
     midToVfoBtn = new AeroButton("Mid = VFO", this);
     midToVfoBtn->setRoundness(10);
     midToVfoBtn->setFont(m_fonts.smallFont);
+    midToVfoBtn->setFixedHeight(btn_height);
+    midToVfoBtn->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 
     connect(midToVfoBtn, &AeroButton::clicked, this, &RadioPopupWidget::midToVfoBtnClicked);
 
     vfoToMidBtn = new AeroButton("VFO = Mid", this);
     vfoToMidBtn->setRoundness(10);
     vfoToMidBtn->setFont(m_fonts.smallFont);
+    vfoToMidBtn->setFixedHeight(btn_height);
+    vfoToMidBtn->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 
     connect(vfoToMidBtn, &AeroButton::clicked, this, &RadioPopupWidget::vfoToMidBtnClicked);
 
     m_PanLineBtn = new AeroButton("Line", this);
     m_PanLineBtn->setRoundness(10);
     m_PanLineBtn->setFont(m_fonts.smallFont);
+    m_PanLineBtn->setFixedHeight(btn_height);
+    m_PanLineBtn->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     panadapterBtnList.append(m_PanLineBtn);
 
     connect(m_PanLineBtn, &AeroButton::clicked, this, &RadioPopupWidget::panModeChanged);
@@ -299,6 +333,8 @@ void RadioPopupWidget::createOptionsBtnGroup() {
     m_PanFilledLineBtn = new AeroButton("Filled Line", this);
     m_PanFilledLineBtn->setRoundness(10);
     m_PanFilledLineBtn->setFont(m_fonts.smallFont);
+    m_PanFilledLineBtn->setFixedHeight(btn_height);
+    m_PanFilledLineBtn->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     panadapterBtnList.append(m_PanFilledLineBtn);
 
     connect(m_PanFilledLineBtn, &AeroButton::clicked, this, &RadioPopupWidget::panModeChanged);
@@ -306,6 +342,8 @@ void RadioPopupWidget::createOptionsBtnGroup() {
     m_PanSolidBtn = new AeroButton("Solid", this);
     m_PanSolidBtn->setRoundness(10);
     m_PanSolidBtn->setFont(m_fonts.smallFont);
+    m_PanSolidBtn->setFixedHeight(btn_height);
+    m_PanSolidBtn->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     panadapterBtnList.append(m_PanSolidBtn);
 
     connect(m_PanSolidBtn, &AeroButton::clicked, this, &RadioPopupWidget::panModeChanged);
@@ -332,6 +370,8 @@ void RadioPopupWidget::createOptionsBtnGroup() {
     m_WaterfallSimpleBtn = new AeroButton("Simple", this);
     m_WaterfallSimpleBtn->setRoundness(10);
     m_WaterfallSimpleBtn->setFont(m_fonts.smallFont);
+    m_WaterfallSimpleBtn->setFixedHeight(btn_height);
+    m_WaterfallSimpleBtn->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     waterfallBtnList.append(m_WaterfallSimpleBtn);
 
     connect(m_WaterfallSimpleBtn, &AeroButton::clicked, this, &RadioPopupWidget::waterfallModeChanged);
@@ -339,6 +379,8 @@ void RadioPopupWidget::createOptionsBtnGroup() {
     m_WaterfallEnhancedBtn = new AeroButton("Enhanced", this);
     m_WaterfallEnhancedBtn->setRoundness(10);
     m_WaterfallEnhancedBtn->setFont(m_fonts.smallFont);
+    m_WaterfallEnhancedBtn->setFixedHeight(btn_height);
+    m_WaterfallEnhancedBtn->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     waterfallBtnList.append(m_WaterfallEnhancedBtn);
 
     connect(m_WaterfallEnhancedBtn, &AeroButton::clicked, this, &RadioPopupWidget::waterfallModeChanged);
@@ -395,61 +437,6 @@ void RadioPopupWidget::createOptionsBtnGroup() {
     optionsVBox->addSpacing(4);
     optionsVBox->addLayout(hbox4);
     optionsVBox->addLayout(hbox5);
-}
-
-void RadioPopupWidget::createFFTOptionsGroup() {
-    m_FFTAutoBtn = new AeroButton("Auto", this);
-    m_FFTAutoBtn->setRoundness(10);
-    m_FFTAutoBtn->setFont(m_fonts.smallFont);
-
-    m_4kFFTBtn = new AeroButton("FFT 4k", this);
-    m_4kFFTBtn->setRoundness(10);
-    m_4kFFTBtn->setFont(m_fonts.smallFont);
-
-    m_8kFFTBtn = new AeroButton("FFT 8k", this);
-    m_8kFFTBtn->setRoundness(10);
-    m_8kFFTBtn->setFont(m_fonts.smallFont);
-
-    m_16kFFTBtn = new AeroButton("FFT 16k", this);
-    m_16kFFTBtn->setRoundness(10);
-    m_16kFFTBtn->setFont(m_fonts.smallFont);
-
-    m_32kFFTBtn = new AeroButton("FFT 32k", this);
-    m_32kFFTBtn->setRoundness(10);
-    m_32kFFTBtn->setFont(m_fonts.smallFont);
-
-    m_64kFFTBtn = new AeroButton("FFT 64k", this);
-    m_64kFFTBtn->setRoundness(10);
-    m_64kFFTBtn->setFont(m_fonts.smallFont);
-
-    m_128kFFTBtn = new AeroButton("FFT 128k", this);
-    m_128kFFTBtn->setRoundness(10);
-    m_128kFFTBtn->setFont(m_fonts.smallFont);
-
-    m_256kFFTBtn = new AeroButton("FFT 256k", this);
-    m_256kFFTBtn->setRoundness(10);
-    m_256kFFTBtn->setFont(m_fonts.smallFont);
-
-    QHBoxLayout* hbox1 = new QHBoxLayout();
-    hbox1->setContentsMargins(0, 0, 0, 0);
-    hbox1->setSpacing(0);
-    hbox1->addWidget(m_FFTAutoBtn);
-    hbox1->addWidget(m_4kFFTBtn);
-    hbox1->addWidget(m_8kFFTBtn);
-    hbox1->addWidget(m_16kFFTBtn);
-
-    QHBoxLayout* hbox2 = new QHBoxLayout();
-    hbox2->setContentsMargins(0, 0, 0, 0);
-    hbox2->setSpacing(0);
-    hbox2->addWidget(m_32kFFTBtn);
-    hbox2->addWidget(m_64kFFTBtn);
-    hbox2->addWidget(m_128kFFTBtn);
-    hbox2->addWidget(m_256kFFTBtn);
-
-    fftOptionsVBox = new QVBoxLayout;
-    fftOptionsVBox->setSpacing(1);
-    fftOptionsVBox->addLayout(hbox1);
-    fftOptionsVBox->addLayout(hbox2);
 }
 
 void RadioPopupWidget::createBandBtnGroup() {
@@ -544,6 +531,7 @@ void RadioPopupWidget::createBandBtnGroup() {
     for (AeroButton *btn : bandBtnList) {
         btn->setRoundness(0);
         btn->setFixedHeight(btn_height);
+        btn->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
         QColor col = QColor(0, 255, 0);
         btn->setTextOnColor(col);
         btn->update();
@@ -607,6 +595,7 @@ void RadioPopupWidget::createAdcBtnGroup() {
     for (AeroButton *btn : adcModeBtnList) {
         btn->setRoundness(0);
         btn->setFixedHeight(btn_height);
+        btn->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
         btn->update();
     }
 
@@ -673,6 +662,7 @@ void RadioPopupWidget::createModeBtnGroup() {
     for (AeroButton *btn : dspModeBtnList) {
         btn->setRoundness(0);
         btn->setFixedHeight(btn_height);
+        btn->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
         btn->update();
     }
 
@@ -705,43 +695,50 @@ void RadioPopupWidget::createModeBtnGroup() {
 void RadioPopupWidget::createAgcBtnGroup() {
     agcOFF = new AeroButton("Off", this);
     agcOFF->setRoundness(0);
-    agcOFF->setFixedSize(btn_widths, btn_height);
+    agcOFF->setFixedHeight(btn_height);
+    agcOFF->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     agcModeBtnList.append(agcOFF);
     connect(agcOFF, &AeroButton::clicked, this, &RadioPopupWidget::agcModeChangedByBtn);
 
     agcLONG = new AeroButton("Long", this);
     agcLONG->setRoundness(0);
-    agcLONG->setFixedSize(btn_widths, btn_height);
+    agcLONG->setFixedHeight(btn_height);
+    agcLONG->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     agcModeBtnList.append(agcLONG);
     connect(agcLONG, &AeroButton::clicked, this, &RadioPopupWidget::agcModeChangedByBtn);
 
     agcSLOW = new AeroButton("Slow", this);
     agcSLOW->setRoundness(0);
-    agcSLOW->setFixedSize(btn_widths, btn_height);
+    agcSLOW->setFixedHeight(btn_height);
+    agcSLOW->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     agcModeBtnList.append(agcSLOW);
     connect(agcSLOW, &AeroButton::clicked, this, &RadioPopupWidget::agcModeChangedByBtn);
 
     agcMED = new AeroButton("Med", this);
     agcMED->setRoundness(0);
-    agcMED->setFixedSize(btn_widths, btn_height);
+    agcMED->setFixedHeight(btn_height);
+    agcMED->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     agcModeBtnList.append(agcMED);
     connect(agcMED, &AeroButton::clicked, this, &RadioPopupWidget::agcModeChangedByBtn);
 
     agcFAST = new AeroButton("Fast", this);
     agcFAST->setRoundness(0);
-    agcFAST->setFixedSize(btn_widths, btn_height);
+    agcFAST->setFixedHeight(btn_height);
+    agcFAST->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     agcModeBtnList.append(agcFAST);
     connect(agcFAST, &AeroButton::clicked, this, &RadioPopupWidget::agcModeChangedByBtn);
 
     agcUSER = new AeroButton("User", this);
     agcUSER->setRoundness(0);
-    agcUSER->setFixedSize(btn_widths, btn_height);
+    agcUSER->setFixedHeight(btn_height);
+    agcUSER->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     agcModeBtnList.append(agcUSER);
     connect(agcUSER, &AeroButton::clicked, this, &RadioPopupWidget::agcModeChangedByBtn);
 
     showAGCLines = new AeroButton("Show Lines", this);
     showAGCLines->setRoundness(0);
-    showAGCLines->setFixedSize(btn_widthb, btn_height);
+    showAGCLines->setFixedHeight(btn_height);
+    showAGCLines->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     connect(showAGCLines, &AeroButton::clicked, this, &RadioPopupWidget::agcShowLinesChanged);
 
     if (m_receiverDataList.at(m_receiver).agcLines)
@@ -763,7 +760,6 @@ void RadioPopupWidget::createAgcBtnGroup() {
     hbox2->setContentsMargins(0, 0, 0, 0);
     hbox2->setSpacing(0);
     hbox2->addWidget(showAGCLines);
-    hbox2->addStretch();
 
     QHBoxLayout* hbox3 = new QHBoxLayout();
     hbox3->setContentsMargins(0, 0, 0, 0);
@@ -771,7 +767,6 @@ void RadioPopupWidget::createAgcBtnGroup() {
     QCheckBox* anf = new QCheckBox();
     anf->setText("ANF");
     hbox3->addWidget(anf);
-    hbox2->addStretch();
 
     agcVBox = new QVBoxLayout;
     agcVBox->setSpacing(1);
@@ -844,6 +839,7 @@ void RadioPopupWidget::createFilterBtnWidgetA() {
     for(AeroButton *btn : filterBtnListA) {
         btn->setRoundness(0);
         btn->setFixedHeight(btn_height);
+        btn->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
         btn->setBtnState(AeroButton::OFF);
         btn->update();
     }
@@ -931,6 +927,7 @@ void RadioPopupWidget::createFilterBtnWidgetB() {
     for(AeroButton *btn : filterBtnListB) {
         btn->setRoundness(0);
         btn->setFixedHeight(btn_height);
+        btn->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
         btn->setBtnState(AeroButton::OFF);
         btn->update();
     }
@@ -1018,6 +1015,7 @@ void RadioPopupWidget::createFilterBtnWidgetC() {
     for(AeroButton *btn : filterBtnListC) {
         btn->setRoundness(0);
         btn->setFixedHeight(btn_height);
+        btn->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
         btn->setBtnState(AeroButton::OFF);
         btn->update();
     }

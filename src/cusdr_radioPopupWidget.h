@@ -35,6 +35,7 @@
 #endif
 
 #include <QtWidgets>
+#include <QTabWidget>
 //#include <QGroupBox>
 //#include <QLineEdit>
 #include <QLabel>
@@ -42,6 +43,7 @@
 #include "Util/cusdr_buttons.h"
 #include "cusdr_settings.h"
 #include "cusdr_fonts.h"
+#include "noisefilterwidget.h"
 
 class RadioPopupWidget : public QWidget {
 
@@ -92,7 +94,6 @@ private:
 	WaterfallColorMode		m_waterfallColorMode;
 
 	QVBoxLayout*	optionsVBox;
-	QVBoxLayout*	fftOptionsVBox;
 	QVBoxLayout*	bandVBox;
 	QVBoxLayout*	adcVBox;
 	QVBoxLayout*	modeVBox;
@@ -131,14 +132,6 @@ private:
 	AeroButton*		m_WaterfallSimpleBtn;
 	AeroButton*		m_WaterfallEnhancedBtn;
 
-	AeroButton*		m_FFTAutoBtn;
-	AeroButton*		m_4kFFTBtn;
-	AeroButton*		m_8kFFTBtn;
-	AeroButton*		m_16kFFTBtn;
-	AeroButton*		m_32kFFTBtn;
-	AeroButton*		m_64kFFTBtn;
-	AeroButton*		m_128kFFTBtn;
-	AeroButton*		m_256kFFTBtn;
 
     AeroButton*		band2200mBtn;
     AeroButton*		band630mBtn;
@@ -237,6 +230,9 @@ private:
 	
 	QLabel*			m_rxLabel;
 
+	NoiseFilterWidget*	m_noiseFilterWidget;
+	QTabWidget*			m_popupTabWidget;
+
 	//QIcon	agc_left;
 	//QIcon	agc_right;
 
@@ -290,7 +286,6 @@ private slots:
 
 	void setSticky();
 	void createOptionsBtnGroup();
-	void createFFTOptionsGroup();
 	void createBandBtnGroup();
 	void createAdcBtnGroup();
 	void createModeBtnGroup();

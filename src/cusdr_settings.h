@@ -71,7 +71,7 @@
 #define TWOPI 6.28318530717958647692528676656
 //#define AGCOFFSET 33.0
 
-#define MAXFREQUENCY 961440000
+#define MAXFREQUENCY 61440000
 #ifdef HL
 #define MAXHPFREQUENCY 30720000
 #else
@@ -867,6 +867,7 @@ signals:
 	void hpsdrDevicesChanged(QObject *sender, THPSDRDevices devices);
 	void hpsdrNetworkDeviceChanged(TNetworkDevicecard card);
 	void networkDeviceNumberChanged(int value);
+	void maxFrequencyChanged(long value);
 	void networkIOComboBoxEntryAdded(QString str);
 	void clearNetworkIOComboBoxEntrySignal();
 	void searchMetisSignal();
@@ -1108,6 +1109,8 @@ public:
 
 	TNetworkDevicecard			getCurrentMetisCard()		{ return m_currentHPSDRDevice; }
 	QList<TNetworkDevicecard>	getMetisCardsList()			{ return m_metisCards; }
+	long						getMaxFrequency()			{ return m_maxFrequency; }
+	long						getMinFrequency()			{ return m_minFrequency; }
 	QList<TReceiver>			getReceiverDataList()		{ return m_receiverDataList; }
 	QList<THamBandFrequencies>	getBandFrequencyList()		{ return m_bandList; }
 	QList<THamBandText>			getHamBandTextList()		{ return m_bandTextList; }
@@ -1615,6 +1618,9 @@ private:
 
 	bool	m_frequencyRx1onRx2;
 	bool	m_radioPopupVisible;
+
+	long	m_maxFrequency;
+	long	m_minFrequency;
 
 	int		m_hpsdrHardware;
 	int		m_hpsdrNetworkDevices;
