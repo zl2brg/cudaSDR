@@ -1,0 +1,8 @@
+# Hashes of file build rules.
+cf06355f8193b45f8e63ae9670e388b1 CMakeFiles/cudasdr_autogen
+61338a8dc1aeaf50c6cedd79277ac99d cudasdr_autogen/PNK5WDWK6L/qrc_cusdr.cpp
+17e3a803c07ae0dcedb7a56698f89a77 cudasdr_autogen/timestamp
+a7b73272cbb716017c9c5b8181d8c1cd ui_cusdr_display.h
+0e5995d82245f4907ff55c02d9710e06 ui_noisefilterwidget.h
+a6f1a07a5e9d6066198c61e475277ed3 ui_setupwidget.h
+12550ba47dc0a3a59ddd7dd7504aee66 ui_tx_settings_dialog.h

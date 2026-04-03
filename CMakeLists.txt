@@ -29,6 +29,18 @@ set(SANITIZE_FLAGS "-fsanitize=address")
 find_package(Qt6 REQUIRED COMPONENTS Widgets Core Gui Multimedia Network OpenGL OpenGLWidgets)
 find_package(PkgConfig REQUIRED)
 
+# --- Find Codec2 ---
+find_library(CODEC2_LIBRARY codec2)
+find_path(CODEC2_INCLUDE_DIR codec2/codec2.h)
+
+if(CODEC2_LIBRARY AND CODEC2_INCLUDE_DIR)
+    message(STATUS "Codec2 found: lib=${CODEC2_LIBRARY}, include=${CODEC2_INCLUDE_DIR}")
+    set(CODEC2_FOUND TRUE)
+else()
+    message(WARNING "Codec2 not found - FreeDV integration will be disabled")
+    set(CODEC2_FOUND FALSE)
+endif()
+
 # --- Project Configuration ---
 set(SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
 set(WDSP_DIR  ${CMAKE_CURRENT_SOURCE_DIR}/wdsp-1.29)
@@ -47,6 +59,7 @@ set(SOURCES
     ${SRC_DIR}/AudioEngine/cusdr_iambic.cpp
     ${SRC_DIR}/AudioEngine/cusdr_audio_input.cpp
     ${SRC_DIR}/AudioEngine/audiooutputmanager.cpp
+    ${SRC_DIR}/AudioEngine/cusdr_codec2processor.cpp
 
 #    ${SRC_DIR}/AudioEngine/cusdr_audio_utils.cpp
 #    ${SRC_DIR}/AudioEngine/cusdr_audio_waveform.cpp
@@ -134,6 +147,7 @@ set(HEADERS
     ${SRC_DIR}/AudioEngine/cusdr_iambic.h
     ${SRC_DIR}/AudioEngine/cusdr_audio_input.h
     ${SRC_DIR}/AudioEngine/audiooutputmanager.h
+    ${SRC_DIR}/AudioEngine/cusdr_codec2processor.h
 
     # Data Engine
     ${SRC_DIR}/DataEngine/cusdr_dataIO.h
@@ -222,6 +236,10 @@ target_include_directories(cudasdr PRIVATE
     ${WDSP_LIBS_DIR}/include
 )
 
+if(CODEC2_FOUND)
+    target_include_directories(cudasdr PRIVATE ${CODEC2_INCLUDE_DIR})
+endif()
+
 # --- Link Libraries ---
 target_link_libraries(cudasdr PRIVATE
     Qt6::Widgets
@@ -242,6 +260,11 @@ target_link_libraries(cudasdr PRIVATE
     fftw3f
     fftw3
 )
+
+if(CODEC2_FOUND)
+    target_link_libraries(cudasdr PRIVATE ${CODEC2_LIBRARY})
+    target_compile_definitions(cudasdr PRIVATE HAVE_CODEC2)
+endif()
 
 # --- Compiler Options ---
 target_compile_features(cudasdr PRIVATE cxx_std_17)
