@@ -43,6 +43,7 @@
 #include "Util/cusdr_buttons.h"
 #include "cusdr_settings.h"
 #include "cusdr_fonts.h"
+#include "cusdr_agcWidget.h"
 #include "noisefilterwidget.h"
 
 class RadioPopupWidget : public QWidget {
@@ -230,6 +231,7 @@ private:
 	
 	QLabel*			m_rxLabel;
 
+	AGCOptionsWidget*	m_popupAgcWidget;
 	NoiseFilterWidget*	m_noiseFilterWidget;
 	QTabWidget*			m_popupTabWidget;
 
@@ -270,12 +272,14 @@ private:
 	int		m_currentRx;
 	int		current_band;
 	int		current_dsp_mode;
+	bool		m_singleAdcDevice;
 	int		m_minimumWidgetWidth;
 	int		m_minimumGroupBoxWidth;
     QTimer* m_closeTimer;
 
 	void setupConnections();
 	void createBackground(QSize size);
+	void updateAdcAvailability();
 
 private slots:
 	void	graphicModeChanged(

@@ -47,7 +47,6 @@
 #include "DataEngine/cusdr_dataEngine.h"
 //#include "cusdr_hpsdrTabWidget.h
 #include "UI/cusdr_setupwidget.h"
-#include "cusdr_radioTabWidget.h"
 #include "cusdr_displayTabWidget.h"
 #include "cusdr_serverWidget.h"
 //#include "cusdr_alexTabWidget.h"
@@ -225,7 +224,6 @@ private:
 	RadioPopupWidget*	m_radioPopupWidget;
 	ServerWidget*		m_serverWidget;
     QTabWidget*  m_hpsdrTabWidget;
-	RadioTabWidget*		m_radioTabWidget;
 	DisplayTabWidget*	m_displayTabWidget = NULL;
 	OGLDisplayPanel*	m_oglDisplayPanel;
 	//CudaInfoWidget*	m_cudaInfoWidget;
@@ -247,7 +245,6 @@ private:
 	AeroButton*			viewBtn;
 	AeroButton*			chirpBtn;
 	AeroButton*			openclBtn;
-	AeroButton*			rxCtrlBtn;
 	AeroButton*			wideBandBtn;
 	AeroButton*			ctrlDisplayBtn;
 	AeroButton*			displayBtn;

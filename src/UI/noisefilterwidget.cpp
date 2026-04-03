@@ -1,5 +1,6 @@
 #include "noisefilterwidget.h"
 #include "ui_noisefilterwidget.h"
+#include <QSignalBlocker>
 
 #define	btn_height		15
 #define	btn_width		70
@@ -9,21 +10,22 @@
 
 
 
-NoiseFilterWidget::NoiseFilterWidget(QWidget *parent)
+NoiseFilterWidget::NoiseFilterWidget(QWidget *parent, int rx)
     : QWidget(parent)
+    , ui(new Ui::NoiseFilterWidget)
     , set(Settings::instance())
     , m_serverMode(set->getCurrentServerMode())
     , m_hwInterface(set->getHWInterface())
     , m_dataEngineState(set->getDataEngineState())
-        //, m_panadapterMode(set->getPanadapterMode())
-        //, m_waterColorScheme(set->getWaterfallColorScheme())
-    , m_minimumWidgetWidth(set->getMinimumWidgetWidth())
+    //, m_panadapterMode(set->getPanadapterMode())
+    //, m_waterColorScheme(set->getWaterfallColorScheme())
+    , m_rx(rx >= 0 ? rx : set->getCurrentReceiver())
     , m_minimumGroupBoxWidth(set->getMinimumGroupBoxWidth())
-
     , m_btnSpacing(5)
-    , m_rx(set->getCurrentReceiver())
+    , m_fontHeight(0)
+    , m_maxFontWidth(0)
+    , m_currentReceiver(m_rx)
     , m_mouseOver(false)
-    , ui(new Ui::NoiseFilterWidget)
 
 {
     setContentsMargins(4, 0, 4, 0);
@@ -73,23 +75,41 @@ NoiseFilterWidget::~NoiseFilterWidget()
     delete ui;
 }
 
-QSize NoiseFilterWidget::sizeHint() const {
-
-    return QSize(m_minimumWidgetWidth, height());
-}
-
-QSize NoiseFilterWidget::minimumSizeHint() const {
-
-    return QSize(m_minimumWidgetWidth, height());
-}
-
 
 
 void NoiseFilterWidget::setCurrentReceiver(QObject *sender, int rx) {
-
+    Q_UNUSED(sender)
+    if (m_rx == rx) return;
+    m_rx = rx;
+    getSettings();
 }
 
 void NoiseFilterWidget::setupConnections() {
+    connect(set, &Settings::noiseFilterChanged, this, [this](int rx, int) {
+        if (rx == m_rx) getSettings();
+    });
+    connect(set, &Settings::noiseBlankerChanged, this, [this](int rx, int) {
+        if (rx == m_rx) getSettings();
+    });
+    connect(set, &Settings::nr2GainMethodChanged, this, [this](int rx, int) {
+        if (rx == m_rx) getSettings();
+    });
+    connect(set, &Settings::nr2NpeMethodChanged, this, [this](int rx, int) {
+        if (rx == m_rx) getSettings();
+    });
+    connect(set, &Settings::nrAgcChanged, this, [this](int rx, int) {
+        if (rx == m_rx) getSettings();
+    });
+    connect(set, &Settings::nr2AeChanged, this, [this](int rx, bool) {
+        if (rx == m_rx) getSettings();
+    });
+    connect(set, &Settings::snbChanged, this, [this](int rx, bool) {
+        if (rx == m_rx) getSettings();
+    });
+    connect(set, &Settings::anfChanged, this, [this](int rx, bool) {
+        if (rx == m_rx) getSettings();
+    });
+
     CHECKED_CONNECT(
             ui->nrModeComboBox ,
             SIGNAL(currentIndexChanged(int)),
@@ -179,17 +199,28 @@ void NoiseFilterWidget::systemStateChanged(
 }
 
 void NoiseFilterWidget::getSettings() {
+    const QSignalBlocker blockNrMode(ui->nrModeComboBox);
+    const QSignalBlocker blockNbMode(ui->nbModeComboBox);
+    const QSignalBlocker blockNr2Gain(ui->nr2GainComboBox);
+    const QSignalBlocker blockSnb(ui->snbCheckBox);
+    const QSignalBlocker blockAnf(ui->anfCheckBox);
+    const QSignalBlocker blockOms(ui->omsCheckBox);
+    const QSignalBlocker blockMmse(ui->mmseCheckBox);
+    const QSignalBlocker blockPreAgc(ui->preAGCCheckBox);
+    const QSignalBlocker blockPostAgc(ui->postAGCCheckBox);
+    const QSignalBlocker blockNr2Ae(ui->nr2aeCheckBox);
+
     ui->nrModeComboBox->setCurrentIndex(set->getnrMode(m_rx));
     ui->nbModeComboBox->setCurrentIndex(set->getnbMode(m_rx));
     ui->nr2GainComboBox->setCurrentIndex(set->getNr2GainMethod(m_rx));
     ui->snbCheckBox->setChecked(set->getSnb(m_rx));
     ui->anfCheckBox->setChecked(set->getAnf(m_rx));
     int nr2Npe = set->getNr2NpeMethod(m_rx);
-    if (nr2Npe == 0) ui->omsCheckBox->setChecked(1);
-    else ui->mmseCheckBox->setChecked(1);
+    ui->omsCheckBox->setChecked(nr2Npe == 0);
+    ui->mmseCheckBox->setChecked(nr2Npe != 0);
     int agcMode = set->getNrAGC(m_rx);
-    if (agcMode == 0) ui->preAGCCheckBox->setChecked(1);
-    else ui->postAGCCheckBox->setChecked(1);
+    ui->preAGCCheckBox->setChecked(agcMode == 0);
+    ui->postAGCCheckBox->setChecked(agcMode != 0);
     ui->nr2aeCheckBox->setChecked(set->getNr2ae(m_rx));
 //    ui->mmseCheckBox->setChecked();
 }
@@ -228,22 +259,51 @@ void NoiseFilterWidget::nr2aeChanged(bool value) {
 }
 
 void NoiseFilterWidget::omsChanged(bool value) {
- if (value)
-    set->setNR2NpeMethod(m_rx,0);
- else
-    set->setNR2NpeMethod(m_rx,1);
+    if (!value) return;
+
+    {
+        const QSignalBlocker blockOms(ui->omsCheckBox);
+        const QSignalBlocker blockMmse(ui->mmseCheckBox);
+        ui->omsCheckBox->setChecked(true);
+        ui->mmseCheckBox->setChecked(false);
+    }
+    set->setNR2NpeMethod(m_rx, 0);
 }
 
 void NoiseFilterWidget::mmseChanged(bool value) {
-    set->setNR2NpeMethod(m_rx,value);
+    if (!value) return;
+
+    {
+        const QSignalBlocker blockOms(ui->omsCheckBox);
+        const QSignalBlocker blockMmse(ui->mmseCheckBox);
+        ui->omsCheckBox->setChecked(false);
+        ui->mmseCheckBox->setChecked(true);
+    }
+    set->setNR2NpeMethod(m_rx, 1);
 }
 
 
 void NoiseFilterWidget::preAgcChanged(bool value) {
-    set->setNRAgc(m_rx,!value);
+    if (!value) return;
+
+    {
+        const QSignalBlocker blockPreAgc(ui->preAGCCheckBox);
+        const QSignalBlocker blockPostAgc(ui->postAGCCheckBox);
+        ui->preAGCCheckBox->setChecked(true);
+        ui->postAGCCheckBox->setChecked(false);
+    }
+    set->setNRAgc(m_rx, 0);
 }
 
 
 void NoiseFilterWidget::postAgcChanged(bool value) {
-    set->setNRAgc(m_rx,value);
+    if (!value) return;
+
+    {
+        const QSignalBlocker blockPreAgc(ui->preAGCCheckBox);
+        const QSignalBlocker blockPostAgc(ui->postAGCCheckBox);
+        ui->preAGCCheckBox->setChecked(false);
+        ui->postAGCCheckBox->setChecked(true);
+    }
+    set->setNRAgc(m_rx, 1);
 }

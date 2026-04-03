@@ -110,6 +110,7 @@ QMenu::item:selected {
 /* ===== QPushButton (mini) ===== */
 QPushButton {
     font-size: 10pt;
+    border-radius: 0px;
 }
 
 /* ===== QComboBox ===== */
@@ -244,6 +245,16 @@ QCheckBox::indicator:unchecked {
     border: 1px solid #ffffff;
     width: 10px;
     height: 10px;
+}
+QCheckBox::indicator:checked {
+    background-color: rgba(72, 168, 198, 235);
+    border: 1px solid rgba(186, 216, 228, 250);
+    width: 10px;
+    height: 10px;
+}
+QCheckBox::indicator:disabled {
+    background-color: rgba(38, 38, 38, 255);
+    border: 1px solid rgba(166, 196, 208, 90);
 }
 
 /* ===== QSlider ===== */

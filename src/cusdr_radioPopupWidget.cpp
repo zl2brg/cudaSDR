@@ -28,6 +28,7 @@
 #include <QGuiApplication>
 #include <QScreen>
 #include <QEnterEvent>
+#include <QApplication>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -35,6 +36,8 @@
 #include <QCheckBox>
 #include <QPainter>
 #include <QSizeGrip>
+#include <QCoreApplication>
+#include <QSettings>
 
 #define LOG_RADIOPOPUP
 // use: RADIOPOPUP_DEBUG
@@ -45,6 +48,22 @@
 #define	btn_widthb		66
 #define	btn_widths		34
 
+namespace {
+    int s_lastRadioPopupWidth = -1;
+
+    static const char *kRadioPopupWidthKey = "window/radioPopupWidth";
+
+    int loadSavedPopupWidth() {
+        QSettings popupSettings(QCoreApplication::applicationDirPath() + "/settings.ini", QSettings::IniFormat);
+        return popupSettings.value(kRadioPopupWidthKey, -1).toInt();
+    }
+
+    void savePopupWidth(int width) {
+        QSettings popupSettings(QCoreApplication::applicationDirPath() + "/settings.ini", QSettings::IniFormat);
+        popupSettings.setValue(kRadioPopupWidthKey, width);
+    }
+}
+
 
 RadioPopupWidget::RadioPopupWidget(QWidget *parent, int rx)
     : QWidget(parent)
@@ -52,7 +71,8 @@ RadioPopupWidget::RadioPopupWidget(QWidget *parent, int rx)
     , m_sticky(false)
     , m_receiver(rx)
     , m_currentRx(set->getCurrentReceiver())
-    , m_minimumWidgetWidth(110)
+    , m_singleAdcDevice(false)
+    , m_minimumWidgetWidth(250)
     , m_minimumGroupBoxWidth(set->getMinimumGroupBoxWidth())
 {
     setWindowFlags(Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
@@ -114,13 +134,15 @@ RadioPopupWidget::RadioPopupWidget(QWidget *parent, int rx)
     createOptionsBtnGroup();
     createBandBtnGroup();
     createAdcBtnGroup();
+    updateAdcAvailability();
     createModeBtnGroup();
     createAgcBtnGroup();
     createFilterBtnWidgetA();
     createFilterBtnWidgetB();
     createFilterBtnWidgetC();
 
-    m_noiseFilterWidget = new NoiseFilterWidget(this);
+    m_popupAgcWidget = new AGCOptionsWidget(this);
+    m_noiseFilterWidget = new NoiseFilterWidget(this, m_receiver);
 
     m_filterStackedWidget = new QStackedWidget(this);
     m_filterStackedWidget->setContentsMargins(0, 0, 0, 0);
@@ -163,8 +185,22 @@ RadioPopupWidget::RadioPopupWidget(QWidget *parent, int rx)
     m_popupTabWidget = new QTabWidget(this);
     m_popupTabWidget->addTab(radioTabPage, " Radio ");
     m_popupTabWidget->addTab(m_noiseFilterWidget, " Noise Filter ");
+    m_popupTabWidget->addTab(m_popupAgcWidget, " AGC ");
 
     QSizeGrip *sizeGrip = new QSizeGrip(this);
+    sizeGrip->setFixedSize(18, 18);
+    sizeGrip->setToolTip("Resize popup");
+    sizeGrip->setStyleSheet("QSizeGrip { background: transparent; border: none; }");
+
+    QWidget *gripIndicator = new QWidget(sizeGrip);
+    gripIndicator->setFixedSize(9, 9);
+    gripIndicator->move(9, 9);
+    gripIndicator->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+    gripIndicator->setStyleSheet(
+        "background-color: rgba(45, 122, 148, 150);"
+        "border: 1px solid rgba(166, 196, 208, 210);"
+        "border-radius: 2px;");
+
     QHBoxLayout *gripRow = new QHBoxLayout();
     gripRow->setContentsMargins(0, 0, 0, 0);
     gripRow->addStretch();
@@ -204,8 +240,15 @@ RadioPopupWidget::RadioPopupWidget(QWidget *parent, int rx)
     setupConnections();
     m_closeTimer = new QTimer(this);
     m_closeTimer->setSingleShot(true);
-    m_closeTimer->setInterval(5000); // 5 second delay before closing
-    connect(m_closeTimer, &QTimer::timeout, this, &QWidget::close);
+    m_closeTimer->setInterval(35000); // 5 second delay before closing
+    connect(m_closeTimer, &QTimer::timeout, this, [this]() {
+        if (m_sticky) return;
+
+        QWidget *hovered = QApplication::widgetAt(QCursor::pos());
+        if (hovered == this || (hovered && isAncestorOf(hovered))) return;
+
+        close();
+    });
 }
 
 RadioPopupWidget::~RadioPopupWidget() {
@@ -608,6 +651,18 @@ void RadioPopupWidget::createAdcBtnGroup() {
     adcVBox = new QVBoxLayout;
     adcVBox->setSpacing(1);
     adcVBox->addLayout(hbox1);
+}
+
+void RadioPopupWidget::updateAdcAvailability() {
+    m_singleAdcDevice = (set->getHWInterface() == QSDR::Hermes) || (set->getHPSDRHardware() == 1);
+
+    if (adc2Btn) {
+        adc2Btn->setEnabled(!m_singleAdcDevice);
+        if (m_singleAdcDevice && m_adcMode == adc2) {
+            m_adcMode = adc1;
+            set->setADCMode(this, m_receiver, adc1);
+        }
+    }
 }
 
 void RadioPopupWidget::createModeBtnGroup() {
@@ -1848,7 +1903,24 @@ void RadioPopupWidget::waterfallModeChanged() {
 // **********************
 bool RadioPopupWidget::showPopupWidget(QObject *sender, QPoint position) {
     Q_UNUSED(sender)
+
+    if (s_lastRadioPopupWidth < 0)
+        s_lastRadioPopupWidth = loadSavedPopupWidth();
+
+    const bool hasStoredWidth = (s_lastRadioPopupWidth > 0);
     show();
+
+    if (hasStoredWidth) {
+        int targetWidth = s_lastRadioPopupWidth;
+        if (targetWidth < m_minimumWidgetWidth) targetWidth = m_minimumWidgetWidth;
+        resize(targetWidth, height());
+    }
+    else {
+        const int side = qMax(height(), m_minimumWidgetWidth);
+        resize(side, side);
+        s_lastRadioPopupWidth = side;
+    }
+
     // NOTE: Using QGuiApplication::primaryScreen() instead of obsolete QDesktopWidget
     QRect desktopRect = QGuiApplication::primaryScreen()->availableGeometry();
 
@@ -1879,6 +1951,8 @@ void RadioPopupWidget::systemStateChanged(
     Q_UNUSED(hwmode)
     Q_UNUSED(mode)
     Q_UNUSED(state)
+
+    updateAdcAvailability();
 }
 
 void RadioPopupWidget::graphicModeChanged(
@@ -1922,6 +1996,8 @@ void RadioPopupWidget::paintEvent(QPaintEvent *event) {
 }
 
 void RadioPopupWidget::resizeEvent(QResizeEvent *event) {
+    s_lastRadioPopupWidth = width();
+    savePopupWidth(s_lastRadioPopupWidth);
     createBackground(event->size());
     QWidget::resizeEvent(event);
 }

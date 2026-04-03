@@ -64,7 +64,9 @@ public:
 	void setOpacity(qreal opacity)			{ m_opacity = opacity; }
 
 	//Range: 0 [rectangle] - 99 [oval]
-	void setRoundness(int roundness)		{ m_roundness = roundness; }
+	void setRoundness(int roundness);
+	static void setGlobalRoundness(int roundness);
+	static int globalRoundness();
 	void setIcon(QIcon icon)				{ m_icon = icon; }
 
 protected:
@@ -97,6 +99,7 @@ private:
 
 	bool m_glass;
 	int m_roundness;
+	static int s_globalRoundness;
 };
 
 #endif // CUSDR_BUTTON

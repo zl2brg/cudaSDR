@@ -16,7 +16,7 @@ class NoiseFilterWidget : public QWidget
     Q_OBJECT
 
 public:
-    NoiseFilterWidget(QWidget *parent = 0);
+    NoiseFilterWidget(QWidget *parent = 0, int rx = -1);
     ~NoiseFilterWidget();
 
 private:
@@ -32,7 +32,6 @@ private:
     TFonts		m_fonts;
 
     int     m_rx;
-    int		m_minimumWidgetWidth;
     int		m_minimumGroupBoxWidth;
     int		m_btnSpacing;
     int		m_fontHeight;
@@ -62,18 +61,8 @@ private slots:
     void    omsChanged(bool value);
     void    mmseChanged(bool value);
     void    preAgcChanged(bool value);
-    void    postAgcChanged(bool nalue);
+    void    postAgcChanged(bool value);
     void    npeModeChanged(int value);
-
-
-
-
-
-
-public slots:
-    QSize	sizeHint() const;
-    QSize	minimumSizeHint() const;
-
 
 
 };

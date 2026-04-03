@@ -29,6 +29,8 @@
 
 #include "cusdr_buttons.h"
 
+int AeroButton::s_globalRoundness = 0;
+
 AeroButton::AeroButton(QWidget *parent) 
 	: QPushButton(parent)
 	,m_state(OFF)
@@ -42,7 +44,7 @@ AeroButton::AeroButton(QWidget *parent)
 	,m_onTextColor(QColor(255, 255, 255))
 	,m_opacity(1.0)
 	,m_glass(true)
-	,m_roundness(0){}
+	,m_roundness(s_globalRoundness){}
 
 AeroButton::AeroButton(const QString &text, QWidget *parent) 
 	: QPushButton(text, parent)
@@ -58,7 +60,7 @@ AeroButton::AeroButton(const QString &text, QWidget *parent)
 	,m_onTextColor(QColor(255, 255, 255))
 	,m_opacity(1.0)
 	,m_glass(true)
-	,m_roundness(0){}
+	,m_roundness(s_globalRoundness){}
 
 AeroButton::AeroButton(const QIcon &icon, const QString &text, QWidget *parent) 
 	: QPushButton(icon, text, parent)
@@ -75,10 +77,29 @@ AeroButton::AeroButton(const QIcon &icon, const QString &text, QWidget *parent)
 	,m_icon(icon)
 	,m_opacity(1.0)
 	,m_glass(true)
-	,m_roundness(0){}
+	,m_roundness(s_globalRoundness){}
 
 
 AeroButton::~AeroButton(){}
+
+void AeroButton::setRoundness(int roundness)
+{
+	Q_UNUSED(roundness)
+	m_roundness = s_globalRoundness;
+	update();
+}
+
+void AeroButton::setGlobalRoundness(int roundness)
+{
+	if (roundness < 0) roundness = 0;
+	if (roundness > 99) roundness = 99;
+	s_globalRoundness = roundness;
+}
+
+int AeroButton::globalRoundness()
+{
+	return s_globalRoundness;
+}
 
 void AeroButton::paintEvent(QPaintEvent * pe)
 {
@@ -111,11 +132,12 @@ void AeroButton::paintEvent(QPaintEvent * pe)
 	}
 
 	QRect button_rect = this->geometry();
+	const int radius = s_globalRoundness;
 
 	//outline
 	painter.setPen(QPen(QBrush(Qt::black), 2.0));
 	QPainterPath outline;
-	outline.addRoundedRect(0, 0, button_rect.width(), button_rect.height(), m_roundness, m_roundness);
+	outline.addRoundedRect(0, 0, button_rect.width(), button_rect.height(), radius, radius);
 	painter.setOpacity(m_opacity);
 	painter.drawPath(outline);
 
@@ -134,11 +156,11 @@ void AeroButton::paintEvent(QPaintEvent * pe)
 
 	//main button
 	QPainterPath painter_path;
-	painter_path.addRoundedRect(1, 1, button_rect.width() - 2, button_rect.height() - 2, m_roundness, m_roundness);
+	painter_path.addRoundedRect(1, 1, button_rect.width() - 2, button_rect.height() - 2, radius, radius);
 	painter.setClipPath(painter_path);
 
 	painter.setOpacity(m_opacity);
-	painter.drawRoundedRect(1, 1, button_rect.width() - 2, button_rect.height() - 2, m_roundness, m_roundness);
+	painter.drawRoundedRect(1, 1, button_rect.width() - 2, button_rect.height() - 2, radius, radius);
 
 	//glass highlight
 	painter.setBrush(QBrush(Qt::white));

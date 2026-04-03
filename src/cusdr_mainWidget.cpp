@@ -163,13 +163,10 @@ MainWindow::MainWindow(QWidget *parent)
     layout->addWidget(scrollArea);
     setupWidget->setLayout(layout);
 
-    m_radioTabWidget = new RadioTabWidget(this);
-
 	m_wbDisplay = 0;
 
     m_serverWidget->hide();
     m_hpsdrTabWidget->hide();
-    m_radioTabWidget->hide();
 	MAIN_DEBUG << "main window init done";
 }
 
@@ -186,7 +183,6 @@ MainWindow::~MainWindow() {
     // control widgets
     delete m_serverWidget;
     delete m_hpsdrTabWidget;
-    delete m_radioTabWidget;
     delete setupAction;
     delete File;
     delete menuBar;
@@ -520,23 +516,8 @@ void MainWindow::setupLayout() {
 	centralwidget->setContextMenuPolicy(Qt::NoContextMenu);  //setStyleSheet(set->getMenuStyle());
     
 
-	// radio control widget
-	QDockWidget *dock = new QDockWidget(tr("Setup"), this);
-	dock->setObjectName("Setup");
-    dock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
-    dock->setFeatures(QDockWidget::NoDockWidgetFeatures);
-    dock->setFeatures(QDockWidget::DockWidgetFloatable);
-    dock->setMaximumWidth(245);
-    dock->setMinimumWidth(245);
-    dock->setWidget(m_radioTabWidget);
-	dockWidgetList.append(dock);
-
-
-    addDockWidget( Qt::LeftDockWidgetArea , dock);
-	dock->hide();
-
 	// server control widget
-	dock = new QDockWidget(tr("Server Ctrl"), this);
+	QDockWidget *dock = new QDockWidget(tr("Server Ctrl"), this);
 	dock->setObjectName("ServerCtrl");
     dock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
     dock->setFeatures(QDockWidget::DockWidgetFloatable);
@@ -752,22 +733,6 @@ void MainWindow::createMainBtnToolBar() {
 		SIGNAL(clicked()), 
 		this, 
 		SLOT(ctrlDisplayBtnClickedEvent()));*/
-
-	rxCtrlBtn = new AeroButton("Radio Ctrl", this);
-	rxCtrlBtn->setRoundness(10);
-    rxCtrlBtn->setFont(m_fonts.normalFont);
-    rxCtrlBtn->setTextColor(btnCol);
-	rxCtrlBtn->setFixedSize(btn_width1, btn_height1);
-	mainBtnList.append(rxCtrlBtn);
-
-	//if (m_serverMode == QSDR::ExternalDSP)
-	//	rxCtrlBtn->setEnabled(false);
-
-	CHECKED_CONNECT(
-		rxCtrlBtn, 
-		SIGNAL(clicked()), 
-		this, 
-		SLOT(widgetBtnClickedEvent()));
 
 	serverBtn = new AeroButton("Server", this);
 	serverBtn->setRoundness(10);
@@ -1114,7 +1079,6 @@ void MainWindow::createMainBtnToolBar() {
 
 	firstBtnLayout->addWidget(startBtn);
 	//firstBtnLayout->addWidget(serverLogBtn);
-	firstBtnLayout->addWidget(rxCtrlBtn);
 	firstBtnLayout->addWidget(serverBtn);
     firstBtnLayout->addWidget(setupBtn);
 	firstBtnLayout->addWidget(wideBandBtn);
@@ -2378,13 +2342,6 @@ void MainWindow::closeEvent(
         disconnect(m_oglDisplayPanel, 0, 0, 0);
         delete m_oglDisplayPanel;
 		m_oglDisplayPanel = NULL;
-	}
-
-	if (m_radioTabWidget) {
-		
-		disconnect(m_radioTabWidget, 0, 0, 0);
-		delete m_radioTabWidget;
-		m_radioTabWidget = NULL;
 	}
 
 	/*if (m_hpsdrWidget) {
