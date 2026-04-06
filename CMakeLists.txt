@@ -25,8 +25,18 @@ set(SANITIZE_FLAGS "-fsanitize=address")
 # Optional: Enable profiling with gprof (uncomment to use)
 #set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -pg")
 
+# Prefer a local Qt 6.11.0 install when available.
+# This avoids accidentally resolving to distro Qt (e.g. 6.10.x).
+set(_CUDASDR_QT611_PREFIX "$ENV{HOME}/Qt/6.11.0/gcc_64")
+if(EXISTS "${_CUDASDR_QT611_PREFIX}/lib/cmake/Qt6/Qt6Config.cmake")
+    list(PREPEND CMAKE_PREFIX_PATH "${_CUDASDR_QT611_PREFIX}")
+    if(NOT DEFINED Qt6_DIR)
+        set(Qt6_DIR "${_CUDASDR_QT611_PREFIX}/lib/cmake/Qt6" CACHE PATH "Qt6 config directory")
+    endif()
+endif()
+
 # --- Find Dependencies ---
-find_package(Qt6 REQUIRED COMPONENTS Widgets Core Gui Multimedia Network OpenGL OpenGLWidgets)
+find_package(Qt6 6.11 REQUIRED COMPONENTS Widgets Core Gui Multimedia Network OpenGL OpenGLWidgets)
 find_package(PkgConfig REQUIRED)
 
 # --- Find Codec2 ---
@@ -60,6 +70,7 @@ set(SOURCES
     ${SRC_DIR}/AudioEngine/cusdr_audio_input.cpp
     ${SRC_DIR}/AudioEngine/audiooutputmanager.cpp
     ${SRC_DIR}/AudioEngine/cusdr_codec2processor.cpp
+    ${SRC_DIR}/AudioEngine/cusdr_freedvprocessor.cpp
 
 #    ${SRC_DIR}/AudioEngine/cusdr_audio_utils.cpp
 #    ${SRC_DIR}/AudioEngine/cusdr_audio_waveform.cpp
@@ -148,6 +159,7 @@ set(HEADERS
     ${SRC_DIR}/AudioEngine/cusdr_audio_input.h
     ${SRC_DIR}/AudioEngine/audiooutputmanager.h
     ${SRC_DIR}/AudioEngine/cusdr_codec2processor.h
+    ${SRC_DIR}/AudioEngine/cusdr_freedvprocessor.h
 
     # Data Engine
     ${SRC_DIR}/DataEngine/cusdr_dataIO.h
