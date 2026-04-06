@@ -266,10 +266,16 @@ void Transmitter::setDSPMode(QObject *sender, int id, DSPMode dspMode) {
     Q_UNUSED(sender)
     Q_UNUSED(id)
     mode = dspMode;
-    SetTXAMode(this->id, mode);
-    auto filter = getFilterFromDSPMode(set->getDefaultFilterList(), mode);
+    // FreeDV/DRM (mode 11) is not a native WDSP TX mode; map to USB/LSB by frequency convention.
+    const DSPMode wdspMode = (mode == DRM)
+        ? (set->getCtrFrequency(set->getCurrentReceiver()) < 10000000L ? LSB : USB)
+        : mode;
+    TRANSMITTER_DEBUG << "[TX] DSP mode set to" << dspMode << "(WDSP:" << wdspMode << ")";
+    SetTXAMode(this->id, wdspMode);
+    auto filter = getFilterFromDSPMode(set->getDefaultFilterList(), wdspMode);
     tx_set_filter(filter.filterLo, filter.filterHi);
 }
+
 
 
 
@@ -284,9 +290,14 @@ void Transmitter::setRadioState(RadioState state)
 {
     switch(state) {
 
-    case RadioState::MOX:
+    case RadioState::MOX: {
+        const DSPMode wdspMode = (mode == DRM)
+            ? (set->getCtrFrequency(set->getCurrentReceiver()) < 10000000L ? LSB : USB)
+            : mode;
+        auto filter = getFilterFromDSPMode(set->getDefaultFilterList(), wdspMode);
+        tx_set_filter(filter.filterLo, filter.filterHi);
         SetTXAPostGenRun(this->id, 0);
-        SetTXAMode(this->id, mode);
+        SetTXAMode(this->id, wdspMode);
         SetTXAPanelGain1(this->id, pow(10.0, mic_gain / 20.0));
         SetTXAPanelRun(this->id, 1);
         SetTXABandpassWindow(this->id, 1);
@@ -294,14 +305,20 @@ void Transmitter::setRadioState(RadioState state)
         SetChannelState(TX_ID, 1, 1);
         TRANSMITTER_DEBUG << "MOX: TX channel started";
         break;
+    }
 
-    case RadioState::TUNE:
+    case RadioState::TUNE: {
         // Tone generator for TUNE
+        const DSPMode wdspModeTune = (mode == DRM)
+            ? (set->getCtrFrequency(set->getCurrentReceiver()) < 10000000L ? LSB : USB)
+            : mode;
+        auto filter = getFilterFromDSPMode(set->getDefaultFilterList(), wdspModeTune);
+        tx_set_filter(filter.filterLo, filter.filterHi);
         SetTXAPostGenToneFreq(this->id, 1000);
         SetTXAPostGenToneMag(this->id, 0.5);
         SetTXAPostGenMode(this->id, 0);
         SetTXAPostGenRun(this->id, 1);
-        SetTXAMode(this->id, mode);
+        SetTXAMode(this->id, wdspModeTune);
         SetTXAPanelGain1(this->id, pow(10.0, mic_gain / 20.0));
         SetTXAPanelRun(this->id, 1);
         SetTXABandpassWindow(this->id, 1);
@@ -309,6 +326,7 @@ void Transmitter::setRadioState(RadioState state)
         SetChannelState(TX_ID, 1, 1);
         TRANSMITTER_DEBUG << "TUNE: TX channel started with tone";
         break;
+    }
 
     case RadioState::RX:
     default:

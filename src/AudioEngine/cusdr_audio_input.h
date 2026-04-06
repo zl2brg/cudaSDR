@@ -34,14 +34,16 @@ typedef QVector<double> AUDIOBUF;
 
 Q_DECLARE_METATYPE (AUDIOBUF)
 
-class PAudioInput : public QObject {
+class TransmitAudioInput : public QObject {
 Q_OBJECT
 public:
-    PAudioInput(QObject *parent = nullptr);
-    ~PAudioInput();
+    TransmitAudioInput(QObject *parent = nullptr);
+    ~TransmitAudioInput();
+    static QList<QAudioDevice> availableAudioInputDevices();
     void Setup();
     void Stop();
     bool Start();
+    QList<QAudioDevice> getAudioInputDevices() const;
     
 public:
     QStringList paDeviceList;

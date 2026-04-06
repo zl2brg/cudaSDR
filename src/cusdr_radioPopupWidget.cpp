@@ -268,6 +268,8 @@ void RadioPopupWidget::setupConnections() {
     connect(set, &Settings::vfoFrequencyChanged, this, &RadioPopupWidget::vfoFrequencyChanged);
     connect(set, &Settings::hamBandChanged, this, &RadioPopupWidget::bandChanged);
     connect(set, &Settings::dspModeChanged, this, &RadioPopupWidget::dspModeChanged);
+    connect(set, &Settings::freeDVModeChanged, this, &RadioPopupWidget::freeDVModeChanged);
+    connect(set, &Settings::freeDVStatusChanged, this, &RadioPopupWidget::freeDVStatusChanged);
     connect(set, &Settings::adcModeChanged, this, &RadioPopupWidget::adcModeChanged);
     connect(set, &Settings::agcModeChanged, this, &RadioPopupWidget::agcModeChanged);
     connect(set, &Settings::filterFrequenciesChanged, this, &RadioPopupWidget::filterChanged);
@@ -710,7 +712,7 @@ void RadioPopupWidget::createModeBtnGroup() {
     dspModeBtnList.append(samBtn);
     connect(samBtn, &AeroButton::clicked, this, &RadioPopupWidget::dspModeChangedByBtn);
 
-    drmBtn = new AeroButton("DRM", this);
+    drmBtn = new AeroButton("FreeDV", this);
     dspModeBtnList.append(drmBtn);
     connect(drmBtn, &AeroButton::clicked, this, &RadioPopupWidget::dspModeChangedByBtn);
 
@@ -741,10 +743,23 @@ void RadioPopupWidget::createModeBtnGroup() {
     hbox2->addWidget(samBtn);
     hbox2->addWidget(drmBtn);
 
+    m_freeDVModeCombo = new QComboBox(this);
+    m_freeDVModeCombo->addItem("FreeDV 1600", 0);
+    m_freeDVModeCombo->addItem("FreeDV 700C", 6);
+    m_freeDVModeCombo->setCurrentIndex(qMax(0, m_freeDVModeCombo->findData(set->getFreeDVMode(m_receiver))));
+    connect(m_freeDVModeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &RadioPopupWidget::freeDVModeSelectionChanged);
+
+    m_freeDVStatusLabel = new QLabel("FreeDV: inactive (select DRM)", this);
+    m_freeDVStatusLabel->setMinimumWidth(200);
+
     modeVBox = new QVBoxLayout;
     modeVBox->setSpacing(1);
     modeVBox->addLayout(hbox1);
     modeVBox->addLayout(hbox2);
+    modeVBox->addWidget(m_freeDVModeCombo);
+    modeVBox->addWidget(m_freeDVStatusLabel);
+
+    updateFreeDVControls();
 }
 
 void RadioPopupWidget::createAgcBtnGroup() {
@@ -1189,6 +1204,58 @@ void RadioPopupWidget::bandChanged(QObject *sender, int rx, bool byButton, HamBa
 
     bandBtnList.at(band)->setBtnState(AeroButton::ON);
     bandBtnList.at(band)->update();
+
+    updateFreeDVControls();
+}
+
+void RadioPopupWidget::freeDVModeSelectionChanged(int index) {
+    if (index < 0 || !m_freeDVModeCombo) return;
+
+    const int mode = m_freeDVModeCombo->itemData(index).toInt();
+    set->setFreeDVMode(this, m_receiver, mode);
+}
+
+void RadioPopupWidget::freeDVModeChanged(QObject *sender, int rx, int mode) {
+    Q_UNUSED(sender)
+
+    if (m_receiver != rx || !m_freeDVModeCombo) return;
+
+    const int idx = m_freeDVModeCombo->findData(mode);
+    if (idx >= 0 && idx != m_freeDVModeCombo->currentIndex()) {
+        m_freeDVModeCombo->setCurrentIndex(idx);
+    }
+    updateFreeDVControls();
+}
+
+void RadioPopupWidget::freeDVStatusChanged(int rx, bool sync, float snr, quint64 rxFrames, quint64 txFrames) {
+    if (m_receiver != rx || !m_freeDVStatusLabel || !m_freeDVModeCombo) return;
+
+    const QString syncStr = sync ? "sync" : "search";
+    const QString txt = QString("FreeDV %1: %2  SNR %3 dB  RXf %4  TXf %5")
+                            .arg(m_freeDVModeCombo->currentText())
+                            .arg(syncStr)
+                            .arg(QString::number(snr, 'f', 1))
+                            .arg(rxFrames)
+                            .arg(txFrames);
+    m_freeDVStatusLabel->setText(txt);
+}
+
+void RadioPopupWidget::updateFreeDVControls() {
+    if (!m_freeDVModeCombo || !m_freeDVStatusLabel || m_dspModeList.isEmpty()) return;
+
+    const DSPMode mode = m_dspModeList.at(m_hamBand);
+    const bool isDrm = (mode == (DSPMode) DRM);
+
+    m_freeDVModeCombo->setVisible(isDrm);
+    m_freeDVStatusLabel->setVisible(true);
+
+    if (!isDrm) {
+        m_freeDVStatusLabel->setText("FreeDV: inactive (select DRM)");
+        m_freeDVStatusLabel->setStyleSheet("color: rgb(150, 150, 150);");
+    }
+    else {
+        m_freeDVStatusLabel->setStyleSheet("");
+    }
 }
 
 void RadioPopupWidget::dspModeChangedByBtn() {
@@ -1208,6 +1275,8 @@ void RadioPopupWidget::dspModeChangedByBtn() {
 
     button->setBtnState(AeroButton::ON);
     button->update();
+
+    updateFreeDVControls();
 }
 
 void RadioPopupWidget::dspModeChanged(QObject *sender, int rx, DSPMode mode) {
@@ -1223,6 +1292,8 @@ void RadioPopupWidget::dspModeChanged(QObject *sender, int rx, DSPMode mode) {
 
     dspModeBtnList.at(mode)->setBtnState(AeroButton::ON);
     dspModeBtnList.at(mode)->update();
+
+    updateFreeDVControls();
 }
 
 void RadioPopupWidget::filterGroupChanged(DSPMode mode) {
@@ -1846,6 +1917,14 @@ void RadioPopupWidget::setCurrentReceiver(QObject *sender, int value) {
         m_filterHi = rxData.filterHi;
         filterChanged(this, m_receiver, m_filterLo, m_filterHi);
     }
+
+    if (m_freeDVModeCombo) {
+        const int idx = m_freeDVModeCombo->findData(set->getFreeDVMode(m_receiver));
+        if (idx >= 0 && idx != m_freeDVModeCombo->currentIndex()) {
+            m_freeDVModeCombo->setCurrentIndex(idx);
+        }
+    }
+    updateFreeDVControls();
 }
 
 void RadioPopupWidget::setSticky() {

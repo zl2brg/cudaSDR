@@ -14,8 +14,19 @@
 
 #include "cusdr_audio_input.h"
 
+namespace {
+int findAudioInputByDescription(const QList<QAudioDevice> &devices, const QString &name)
+{
+    for (int i = 0; i < devices.size(); ++i) {
+        if (devices.at(i).description() == name)
+            return i;
+    }
+    return -1;
+}
+}
 
-PAudioInput::PAudioInput(QObject *parent) 
+
+TransmitAudioInput::TransmitAudioInput(QObject *parent) 
     : QObject(parent)
     , set(Settings::instance())
     , m_audioSource(nullptr)
@@ -38,10 +49,40 @@ PAudioInput::PAudioInput(QObject *parent)
                     SLOT(DigitalAudioInputChanged(int)));
 
     connect(set, &Settings::dspModeChanged,
-            this, &PAudioInput::dspModeChanged);
+            this, &TransmitAudioInput::dspModeChanged);
 
     m_deviceIndex = set->getMicInputDev();
     m_digitalDeviceIndex = set->getDigitalAudioInputDev();
+
+    // Resolve persisted source names against currently available devices.
+    // If the saved device no longer exists, fall back to the Qt default device.
+    const QList<QAudioDevice> devices = availableAudioInputDevices();
+    const QAudioDevice defaultDevice = QMediaDevices::defaultAudioInput();
+    const QString defaultName = defaultDevice.description();
+
+    const QString savedMicName = set->getMicInputSourceName();
+    if (savedMicName == "hpsdr-local") {
+        m_deviceIndex = 0;
+    } else {
+        int micPos = findAudioInputByDescription(devices, savedMicName);
+        if (micPos < 0 && !defaultName.isEmpty())
+            micPos = findAudioInputByDescription(devices, defaultName);
+        if (micPos >= 0)
+            m_deviceIndex = micPos + 1;
+    }
+
+    const QString savedDigitalName = set->getDigitalInputSourceName();
+    if (savedDigitalName == "none") {
+        m_digitalDeviceIndex = 0;
+    } else {
+        int digPos = findAudioInputByDescription(devices, savedDigitalName);
+        if (digPos < 0 && !defaultName.isEmpty())
+            digPos = findAudioInputByDescription(devices, defaultName);
+        if (digPos >= 0)
+            m_digitalDeviceIndex = digPos + 1;
+        else
+            m_digitalDeviceIndex = 0;
+    }
     
     audioinputBuffer.resize(AUDIO_FRAMESIZE);
     audioinputBuffer.fill(0.0);
@@ -51,7 +92,7 @@ PAudioInput::PAudioInput(QObject *parent)
     AUDIO_INPUT_DEBUG << "Audio Buffer Size: " << audioinputBuffer.size();
 }
 
-PAudioInput::~PAudioInput()
+TransmitAudioInput::~TransmitAudioInput()
 {
     Stop();
     if (m_audioSource) {
@@ -60,8 +101,22 @@ PAudioInput::~PAudioInput()
     }
 }
 
-void PAudioInput::Setup() {
+QList<QAudioDevice> TransmitAudioInput::availableAudioInputDevices()
+{
+    return QMediaDevices::audioInputs();
+}
+
+QList<QAudioDevice> TransmitAudioInput::getAudioInputDevices() const
+{
+    return availableAudioInputDevices();
+}
+
+void TransmitAudioInput::Setup() {
     m_mutex.lock();
+
+    AUDIO_INPUT_DEBUG << "Setup: mode=" << (m_isDigitalMode ? "digital" : "analog")
+                      << " micIndex=" << m_deviceIndex
+                      << " digitalIndex=" << m_digitalDeviceIndex;
     
     // Clean up existing audio source
     if (m_audioSource) {
@@ -79,7 +134,7 @@ void PAudioInput::Setup() {
 
     // Get audio input device
     QAudioDevice inputDevice;
-    QList<QAudioDevice> devices = QMediaDevices::audioInputs();
+    QList<QAudioDevice> devices = getAudioInputDevices();
 
     if (m_isDigitalMode) {
         // m_digitalDeviceIndex: 0 = None (no audio), >0 = device (1-based offset)
@@ -89,9 +144,8 @@ void PAudioInput::Setup() {
                 inputDevice = devices[actualIndex];
                 AUDIO_INPUT_DEBUG << "Digital mode: using audio input:" << inputDevice.description();
             } else {
-                AUDIO_INPUT_DEBUG << "Digital mode: device index out of range, no audio source";
-                m_mutex.unlock();
-                return; // No valid device — leave m_audioSource null
+                inputDevice = QMediaDevices::defaultAudioInput();
+                AUDIO_INPUT_DEBUG << "Digital mode: device index out of range, using default:" << inputDevice.description();
             }
         } else {
             AUDIO_INPUT_DEBUG << "Digital mode: no digital audio device configured";
@@ -99,9 +153,10 @@ void PAudioInput::Setup() {
             return; // "None" selected — no audio source needed
         }
     } else if (m_deviceIndex == 0) {
-        // Index 0 is HPSDR local mic input - use default device
-        inputDevice = QMediaDevices::defaultAudioInput();
-        AUDIO_INPUT_DEBUG << "Using default audio input device for HPSDR";
+        // Index 0 is HPSDR/local mic path. Do not open a host Qt audio input.
+        AUDIO_INPUT_DEBUG << "Current TX audio input device: HPSDR local mic (no host Qt input device)";
+        m_mutex.unlock();
+        return;
     } else {
         // Use specific device (adjust index since 0 is HPSDR)
         int actualIndex = m_deviceIndex - 1;
@@ -113,6 +168,8 @@ void PAudioInput::Setup() {
             AUDIO_INPUT_DEBUG << "Device index out of range, using default";
         }
     }
+
+    AUDIO_INPUT_DEBUG << "Current TX audio input device:" << inputDevice.description();
     
     // Check if format is supported
     if (!inputDevice.isFormatSupported(m_format)) {
@@ -130,7 +187,7 @@ void PAudioInput::Setup() {
     m_mutex.unlock();
 }
 
-void PAudioInput::MicInputChanged(int value) {
+void TransmitAudioInput::MicInputChanged(int value) {
     /* Index 0 is HPSDR local mic input */
     AUDIO_INPUT_DEBUG << "Mic Input Changed to:" << value;
 
@@ -147,7 +204,7 @@ void PAudioInput::MicInputChanged(int value) {
     }
 }
 
-void PAudioInput::DigitalAudioInputChanged(int index) {
+void TransmitAudioInput::DigitalAudioInputChanged(int index) {
     AUDIO_INPUT_DEBUG << "Digital audio input changed to:" << index;
     m_digitalDeviceIndex = index;
 
@@ -159,7 +216,7 @@ void PAudioInput::DigitalAudioInputChanged(int index) {
     }
 }
 
-void PAudioInput::dspModeChanged(QObject *sender, int rx, DSPMode mode) {
+void TransmitAudioInput::dspModeChanged(QObject *sender, int rx, DSPMode mode) {
     Q_UNUSED(sender)
     Q_UNUSED(rx)
 
@@ -178,12 +235,12 @@ void PAudioInput::dspModeChanged(QObject *sender, int rx, DSPMode mode) {
         Start();
 }
 
-void PAudioInput::stopHardware() {
+void TransmitAudioInput::stopHardware() {
     m_mutex.lock();
     if (m_running && m_audioSource) {
         if (m_audioInputDevice) {
             disconnect(m_audioInputDevice, &QIODevice::readyRead,
-                      this, &PAudioInput::handleReadyRead);
+                      this, &TransmitAudioInput::handleReadyRead);
         }
         m_audioSource->stop();
         m_audioInputDevice = nullptr;
@@ -193,12 +250,12 @@ void PAudioInput::stopHardware() {
     m_mutex.unlock();
 }
 
-void PAudioInput::Stop() {
+void TransmitAudioInput::Stop() {
     stopHardware();
     AUDIO_INPUT_DEBUG << "Audio input stopped";
 }
 
-bool PAudioInput::Start() {
+bool TransmitAudioInput::Start() {
     if (m_running)
         return true;
 
@@ -208,7 +265,7 @@ bool PAudioInput::Start() {
         m_audioInputDevice = m_audioSource->start();
         if (m_audioInputDevice) {
             connect(m_audioInputDevice, &QIODevice::readyRead,
-                    this, &PAudioInput::handleReadyRead);
+                    this, &TransmitAudioInput::handleReadyRead);
             m_running = true;
             AUDIO_INPUT_DEBUG << "Audio input started";
             
@@ -226,7 +283,7 @@ bool PAudioInput::Start() {
     return true;
 }
 
-void PAudioInput::handleReadyRead()
+void TransmitAudioInput::handleReadyRead()
 {
     m_mutex.lock();
     if (m_running && m_audioInputDevice) {
@@ -239,7 +296,7 @@ void PAudioInput::handleReadyRead()
     m_mutex.unlock();
 }
 
-void PAudioInput::processAudioData(const QByteArray &data)
+void TransmitAudioInput::processAudioData(const QByteArray &data)
 {
     // Process the incoming audio data (assuming 16-bit signed PCM)
     const qint16 *ptr = reinterpret_cast<const qint16 *>(data.constData());
@@ -262,7 +319,19 @@ void PAudioInput::processAudioData(const QByteArray &data)
             static int blockCount = 0;
             if (++blockCount % 100 == 0) {
                 double rms = sqrt(sumSq / DSP_SAMPLE_SIZE);
-                AUDIO_INPUT_DEBUG << "Mic input: " << DSP_SAMPLE_SIZE << " samples, RMS=" << rms;
+                float peak = 0.0f;
+                for (int s = 0; s < DSP_SAMPLE_SIZE; ++s) {
+                    float a = std::fabs(static_cast<float>(chunk[s]));
+                    if (a > peak)
+                        peak = a;
+                }
+                double rmsDb = 20.0 * std::log10(std::max(rms, 1.0e-9));
+                double peakDb = 20.0 * std::log10(std::max(static_cast<double>(peak), 1.0e-9));
+                double headroomDb = -peakDb;
+                AUDIO_INPUT_DEBUG << "Mic input: " << DSP_SAMPLE_SIZE
+                                  << " samples, RMS=" << rms
+                                  << " (" << rmsDb << " dBFS), peak=" << peak
+                                  << " (" << peakDb << " dBFS), headroom=" << headroomDb << " dB";
             }
             
             m_faudioInQueue.enqueue(chunk);

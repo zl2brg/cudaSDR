@@ -31,6 +31,7 @@
 #include <QGroupBox>
 #include <QLineEdit>
 #include <QLabel>
+#include <QComboBox>
 
 #include "Util/cusdr_buttons.h"
 #include "cusdr_settings.h"
@@ -111,6 +112,8 @@ private:
 	AeroButton	*diglBtn;
 	AeroButton	*samBtn;
 	AeroButton	*drmBtn;
+	QComboBox	*m_freeDVModeCombo;
+	QLabel		*m_freeDVStatusLabel;
 
 	QList<AeroButton *>	adcModeBtnList;
 	AeroButton	*adc1Btn;
@@ -204,6 +207,9 @@ private slots:
 	void bandChanged(QObject *sender, int rx, bool byButton, HamBand band);
 	void dspModeChangedByBtn();
 	void dspModeChanged(QObject *sender, int rx, DSPMode mode);
+	void freeDVModeChanged(QObject *sender, int rx, int mode);
+	void freeDVStatusChanged(int rx, bool sync, float snr, quint64 rxFrames, quint64 txFrames);
+	void freeDVModeSelectionChanged(int index);
 	void filterChangedByBtn();
 	void filterChanged(QObject *sender, int rx, qreal low, qreal high);
 	void filterGroupChanged(DSPMode mode);
@@ -212,6 +218,7 @@ private slots:
 	void setMercuryAttenuator(QObject *sender, HamBand band, int value);
 	void ditherChanged();
 	void randomChanged();
+	void updateFreeDVControls();
 	
 signals:
 	void showEvent(QObject *sender);

@@ -74,6 +74,7 @@ DataIO::DataIO(THPSDRParameter *ioData)
 	, m_socketBufferSize(set->getSocketBufferSize())
 	, m_sendEP4(false)
 	, m_manualBufferSize(set->getManualSocketBufferSize())
+	, m_widebandMissedAccum(0)
 	, m_stopped(false)
 {
 	// Size the datagram buffer to the largest possible packet:
@@ -390,8 +391,23 @@ void DataIO::processWidebandPacket(qint64 size) {
     if (!io->protocol) return;
     m_sequenceWideBand = io->protocol->getSequence((const unsigned char*)m_datagram.data());
 
-    if (m_sequenceWideBand != m_oldSequenceWideBand + 1) {
-        DATAIO_DEBUG << "wideband readData missed " << m_sequenceWideBand - m_oldSequenceWideBand << " packages.";
+    // Check for missed packets (skip first packet and ignore wraparound artifacts)
+    uint32_t missed = m_sequenceWideBand - m_oldSequenceWideBand;
+    if (m_oldSequenceWideBand != 0xFFFFFFFF && missed > 1 && missed < 1000) {
+        m_widebandMissedAccum += (missed - 1);  // accumulated lost packets
+        
+        // Log consolidated result once every 10 seconds
+        if (!m_widebandLogTimer.isValid()) {
+            m_widebandLogTimer.start();
+        }
+        if (m_widebandLogTimer.elapsed() > 10000) {
+            if (m_widebandMissedAccum > 0) {
+                DATAIO_DEBUG << "wideband readData: total missed " << m_widebandMissedAccum << " packages in 10 seconds.";
+            }
+            m_widebandMissedAccum = 0;
+            m_widebandLogTimer.restart();
+        }
+        
         if (m_packetLossTime.elapsed() > 100) {
             set->setPacketLoss(2);
             m_packetLossTime.restart();

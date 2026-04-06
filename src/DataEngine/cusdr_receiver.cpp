@@ -58,6 +58,10 @@ Receiver::Receiver(int rx)
     m_audioOutput = new ReceiverAudioOutput(this);
     m_audioOutput->start();
 #endif
+#ifdef HAVE_CODEC2
+	m_freeDVMode = set->getFreeDVMode(m_receiver);
+	m_freeDVProcessor = new FreeDVProcessor(m_freeDVMode);
+#endif
 	setupConnections();
     m_displayTime = (int)(1000000.0/set->getFramesPerSecond(m_receiver));
 	m_smeterTime.start();
@@ -76,6 +80,10 @@ Receiver::~Receiver() {
 	}
     m_stopped = false;
     delete qtwdsp;
+#ifdef HAVE_CODEC2
+	delete m_freeDVProcessor;
+	m_freeDVProcessor = nullptr;
+#endif
 }
 
 void Receiver::setAudioBufferSize() {
@@ -111,6 +119,11 @@ void Receiver::setupConnections() {
     
     connect(set, &Settings::framesPerSecondChanged,
             this, &Receiver::setFramesPerSecond);
+
+#ifdef HAVE_CODEC2
+	connect(set, &Settings::freeDVModeChanged,
+			this, &Receiver::setFreeDVMode);
+#endif
 }
 
 void Receiver::setReceiverData(TReceiver data) {
@@ -282,10 +295,69 @@ void Receiver::dspProcessing() {
             m_smeterTime.restart();
         }
 #ifdef USE_INTERNAL_AUDIO
-        m_audioOutput->writeAudio(interleaveFromCPX(audioOutputBuf, m_audiobuffersize));
-#endif
+		if (set->getDSPMode(m_receiver) != DSPMode::DRM) {
+			// Normal analogue modes: pass WDSP audio output straight to soundcard.
+			m_audioOutput->writeAudio(interleaveFromCPX(audioOutputBuf, m_audiobuffersize));
+		}
+#ifdef HAVE_CODEC2
+		else if (m_freeDVProcessor) {
+			// DRM/FreeDV mode: extract mono audio from WDSP USB output (real
+			// channel, nominally 48 kHz), run it through the FreeDV decoder,
+			// and write the decoded speech to the soundcard.
+			QVector<float> mono(m_audiobuffersize);
+			const cpx* src = audioOutputBuf.constData();
+			for (int i = 0; i < m_audiobuffersize; ++i)
+				mono[i] = static_cast<float>(src[i].re);
+
+			QVector<float> speech =
+				m_freeDVProcessor->processSamples(mono.constData(), m_audiobuffersize);
+
+			if (!speech.isEmpty()) {
+				m_audioOutput->writeAudio(speech);
+				m_freeDVRxFrames += 1;
+			}
+
+			if ((m_dspCallCount % 50) == 1) {
+				set->setFreeDVStatus(
+					m_receiver,
+					m_freeDVProcessor->isSync(),
+					m_freeDVProcessor->getSNR(),
+					m_freeDVRxFrames);
+			}
+
+			if ((m_dspCallCount % 500) == 1) {
+				RECEIVER_DEBUG << "FreeDV rx=" << m_receiver
+							   << " sync=" << m_freeDVProcessor->isSync()
+							   << " snr=" << m_freeDVProcessor->getSNR();
+			}
+		}
+#endif // HAVE_CODEC2
+#endif // USE_INTERNAL_AUDIO
         emit audioBufferSignal(m_receiver, audioOutputBuf, m_audiobuffersize);
     }
+}
+
+void Receiver::setFreeDVMode(QObject* sender, int rx, int mode) {
+	Q_UNUSED(sender)
+
+#ifdef HAVE_CODEC2
+	if (rx != m_receiver) return;
+	if (m_freeDVMode == mode) return;
+
+	m_freeDVMode = mode;
+	m_freeDVRxFrames = 0;
+
+	if (m_freeDVProcessor) {
+		delete m_freeDVProcessor;
+		m_freeDVProcessor = nullptr;
+	}
+
+	m_freeDVProcessor = new FreeDVProcessor(m_freeDVMode);
+	set->setFreeDVStatus(m_receiver, false, 0.0f, 0);
+#else
+	Q_UNUSED(rx)
+	Q_UNUSED(mode)
+#endif
 }
 
 QVector<float> Receiver::interleaveFromCPX(const CPX& in, int size) {
@@ -428,6 +500,7 @@ void Receiver::setDspMode(QObject *sender, int rx, DSPMode mode) {
 	if (m_receiverData.dspMode == mode) return;
 
 	m_receiverData.dspMode = mode;
+	RECEIVER_DEBUG << "[RX" << rx << "] DSP mode changed to" << set->getDSPModeString(mode) << "(" << mode << ")";
 
 	QString msg = "[receiver]: set mode for receiver %1 to %2";
 	emit messageEvent(msg.arg(rx).arg(set->getDSPModeString(m_receiverData.dspMode)));

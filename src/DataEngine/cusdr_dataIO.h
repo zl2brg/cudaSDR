@@ -105,6 +105,9 @@ private:
 	bool	m_sendEP4;
 	bool	m_manualBufferSize;
 	
+	QElapsedTimer	m_widebandLogTimer;
+	uint32_t		m_widebandMissedAccum;
+	
 	volatile bool	m_stopped;
 
 signals:

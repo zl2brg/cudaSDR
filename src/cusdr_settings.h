@@ -836,6 +836,8 @@ signals:
 	void txAllowedChanged(QObject* sender, bool value);
 	void multiRxViewChanged(int view);
 	void sMeterValueChanged(int rx, double value);
+	void freeDVStatusChanged(int rx, bool sync, float snr, quint64 rxFrames, quint64 txFrames);
+	void freeDVModeChanged(QObject *sender, int rx, int mode);
 	void spectrumBufferChanged(int rx, const qVectorFloat& buffer);
 	void postSpectrumBufferChanged(int rx, const float* buffer);
 
@@ -1129,6 +1131,9 @@ public:
     int							getFramesPerSecond(int rx);
 	QString						getDSPModeString(int mode);
     DSPMode                     getDSPMode(int rx);
+	int                         getFreeDVMode(int rx);
+	QString                     getCodec2ModeString(int mode);
+	QList<int>                  availableCodec2Modes();
 
 	HamBand						getCurrentHamBand(int rx);
 	QList<int>					getMercuryAttenuators(int rx);
@@ -1189,6 +1194,8 @@ public:
     int     getRxTiming()				{ return m_RxTiming; }
     int     getMicInputDev()            { return m_micInputDev;}
     int     getDigitalAudioInputDev()   { return m_digitalAudioInputDev;}
+	QString getMicInputSourceName()     { return m_micInputSourceName; }
+	QString getDigitalInputSourceName() { return m_digitalInputSourceName; }
     int     getMicInputLevel()          { return m_micGain;}
     int     getDriveLevel()             { return m_drivelevel;}
     bool    getRepeaterMode()           { return m_repeaterMode;}
@@ -1294,6 +1301,9 @@ public slots:
     RigCtlServer *rigCtlServer() const { return m_rigCtlServer; }
 	void setMultiRxView(int view);
 	void setSMeterValue(int rx, double value);
+	void setFreeDVStatus(int rx, bool sync, float snr, quint64 rxFrames);
+	void addFreeDVTxFrames(int rx, quint64 txFrames);
+	void setFreeDVMode(QObject *sender, int rx, int mode);
     void setSpectrumBuffer(int rx, const QList<float> &buffer);
 	void setPostSpectrumBuffer(int rx, const float*);
 	void setSampleSize(QObject* sender, int rx, int size);
@@ -1381,7 +1391,9 @@ public slots:
 	void set122_88MhzSource(QObject *sender, int source);
     void setMicSource(int source);
     void setMicInputDev(int index);
+	void setMicInputSourceName(const QString &name);
 	void setDigitalAudioInputDev(int index);
+	void setDigitalInputSourceName(const QString &name);
     void setMicInputLevel(QObject *sender , int level);
     void setDriveLevel(QObject *sender , int level);
 	void setClass(QObject *sender, int value);
@@ -1645,6 +1657,8 @@ private:
 	int		m_micSource;
     int     m_micInputDev;
     int     m_digitalAudioInputDev;
+	QString m_micInputSourceName;
+	QString m_digitalInputSourceName;
     double  m_micGain;
     int     m_drivelevel;
 	int		m_RxClass;
@@ -1652,6 +1666,12 @@ private:
 
 	int		m_framesPerSecond;
 	int		m_multiRxView;
+
+	QList<int>				m_freeDVModeList;
+	QList<bool>			m_freeDVSyncList;
+	QList<float>		m_freeDVSnrList;
+	QList<quint64>		m_freeDVRxFramesList;
+	QList<quint64>		m_freeDVTxFramesList;
 
 	//int		m_wbBuffers;
     int		m_spectrumSize;

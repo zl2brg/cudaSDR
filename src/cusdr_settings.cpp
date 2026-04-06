@@ -136,6 +136,14 @@ Settings::Settings(QObject *parent)
             m_receiverDataList[i].dspModeList << (DSPMode) LSB;
         }
 
+                // Initialize FreeDV/Codec2 mode list with default mode 0 (FREEDV_MODE_1600, 1600 bps)
+                // Available modes: 0=1600bps, 1=1400bps, 2=1300bps, 3=700C bps, 4=2400bps, 5=3200bps
+                m_freeDVModeList << 0; // FREEDV_MODE_1600
+                m_freeDVSyncList << false;
+                m_freeDVSnrList << 0.0f;
+                m_freeDVRxFramesList << 0;
+                m_freeDVTxFramesList << 0;
+
       }
 
     // Alex parameter configurations
@@ -361,6 +369,20 @@ int Settings::loadSettings() {
 
     m_micInputDev = settings->value("mic_InputDevice",0).toInt();
     m_digitalAudioInputDev = settings->value("digital_audio_InputDevice",0).toInt();
+    m_micInputSourceName = settings->value("mic_input_source",
+                                           (m_micInputDev > 0) ? QString("default") : QString()).toString();
+    m_digitalInputSourceName = settings->value("digital_input_source",
+                                               (m_digitalAudioInputDev > 0) ? QString("default") : QString("none")).toString();
+
+    if (m_micInputSourceName.isEmpty()) {
+        // Legacy configs only stored an index; prefer a working host mic path.
+        m_micInputSourceName = "default";
+        m_micInputDev = 1;
+    }
+
+    if (m_digitalInputSourceName.isEmpty()) {
+        m_digitalInputSourceName = (m_digitalAudioInputDev > 0) ? QString("default") : QString("none");
+    }
     m_micGain = settings->value("micGain", 0).toDouble();
     m_drivelevel = settings->value("driveLevel",0).toInt();
 
@@ -1342,7 +1364,7 @@ int Settings::loadSettings() {
                     m_receiverDataList[i].dspModeList[j] = DIGL;
                 else if (str == "SAM")
                     m_receiverDataList[i].dspModeList[j] = SAM;
-                else if (str == "DRM")
+                else if (str == "DRM" || str == "FreeDV")
                     m_receiverDataList[i].dspModeList[j] = DRM;
                 else
                     m_receiverDataList[i].dspModeList[j] = LSB;
@@ -1641,8 +1663,10 @@ int Settings::saveSettings() {
         settings->setValue("server/mic_source", "penelope");
 
     settings->setValue("mic_InputDevice",m_micInputDev);
+    settings->setValue("mic_input_source", m_micInputSourceName);
     qDebug() << "Write" << m_micInputDev;
     settings->setValue("digital_audio_InputDevice", m_digitalAudioInputDev);
+    settings->setValue("digital_input_source", m_digitalInputSourceName);
     settings->setValue("micGain", m_micGain);
     settings->setValue("driveLevel",m_drivelevel);
 
@@ -2179,7 +2203,7 @@ int Settings::saveSettings() {
             else if (mode == SAM)
                 settings->setValue(str, "SAM");
             else if (mode == DRM)
-                settings->setValue(str, "DRM");
+                settings->setValue(str, "FreeDV");
         }
 
         for (int j = 0; j < MAX_BANDS; j++) {
@@ -2334,7 +2358,7 @@ QString Settings::getDSPModeString(int mode) {
             return QString("SAM");
 
         case 11:
-            return QString("DRM");
+            return QString("FreeDV");
 
         default:
             return QString("unknown mode");
@@ -3450,6 +3474,18 @@ void Settings::setMicInputDev(int index) {
     emit micInputChanged(index);
 }
 
+void Settings::setMicInputSourceName(const QString &name) {
+
+	QMutexLocker locker(&settingsMutex);
+	m_micInputSourceName = name;
+}
+
+void Settings::setDigitalInputSourceName(const QString &name) {
+
+    QMutexLocker locker(&settingsMutex);
+    m_digitalInputSourceName = name;
+}
+
 void Settings::setDigitalAudioInputDev(int index) {
 
     QMutexLocker locker(&settingsMutex);
@@ -3692,12 +3728,40 @@ HamBand Settings::getCurrentHamBand(int rx) {
 void Settings::setDSPMode(QObject *sender, int rx, DSPMode mode) {
 
     SETTINGS_DEBUG << "DSP mode change " << mode << rx;
-    HamBand band = m_receiverDataList[m_currentReceiver].hamBand;
+    if (rx < 0 || rx >= m_receiverDataList.size())
+        return;
+
+    HamBand band = m_receiverDataList[rx].hamBand;
     m_receiverDataList[rx].dspModeList[band] = mode;
 
 
     setRXFilter(this, rx, m_defaultFilterList.at((int) mode).filterLo, m_defaultFilterList.at((int) mode).filterHi);
     emit dspModeChanged(sender, rx, mode);
+}
+
+int Settings::getFreeDVMode(int rx) {
+
+	if (rx < 0 || rx >= m_freeDVModeList.size()) return 0;
+	return m_freeDVModeList.at(rx);
+}
+
+QString Settings::getCodec2ModeString(int mode) {
+	// Return Codec2/FreeDV mode name and bitrate
+	switch(mode) {
+		case 0: return "1600 bps (FREEDV_MODE_1600)";
+		case 1: return "1400 bps (FREEDV_MODE_1400)";
+		case 2: return "1300 bps (FREEDV_MODE_1300)";
+		case 3: return "700C bps (FREEDV_MODE_700C)";
+		case 4: return "2400 bps (FREEDV_MODE_2400)";
+		case 5: return "3200 bps (FREEDV_MODE_3200)";
+		case 6: return "700D bps (FREEDV_MODE_700D)";
+		default: return "1600 bps (FREEDV_MODE_1600)";
+	}
+}
+
+QList<int> Settings::availableCodec2Modes() {
+	// Return list of available Codec2 modes
+	return {0, 1, 2, 3, 4, 5, 6};
 }
 
 AGCMode Settings::getAGCMode(int rx) {
@@ -3984,6 +4048,51 @@ void Settings::setPostSpectrumBuffer(int rx, const float *buffer) {
 void Settings::setSMeterValue(int rx, double value) {
 
     emit sMeterValueChanged(rx, value);
+}
+
+void Settings::setFreeDVStatus(int rx, bool sync, float snr, quint64 rxFrames) {
+
+    if (rx < 0 || rx >= m_freeDVSyncList.size()) return;
+
+    m_freeDVSyncList[rx] = sync;
+    m_freeDVSnrList[rx] = snr;
+    m_freeDVRxFramesList[rx] = rxFrames;
+
+    emit freeDVStatusChanged(
+        rx,
+        m_freeDVSyncList[rx],
+        m_freeDVSnrList[rx],
+        m_freeDVRxFramesList[rx],
+        m_freeDVTxFramesList[rx]);
+}
+
+void Settings::addFreeDVTxFrames(int rx, quint64 txFrames) {
+
+    if (rx < 0 || rx >= m_freeDVTxFramesList.size()) return;
+
+    m_freeDVTxFramesList[rx] += txFrames;
+
+    emit freeDVStatusChanged(
+        rx,
+        m_freeDVSyncList[rx],
+        m_freeDVSnrList[rx],
+        m_freeDVRxFramesList[rx],
+        m_freeDVTxFramesList[rx]);
+}
+
+void Settings::setFreeDVMode(QObject *sender, int rx, int mode) {
+
+    if (rx < 0 || rx >= m_freeDVModeList.size()) return;
+    if (m_freeDVModeList[rx] == mode) return;
+
+    m_freeDVModeList[rx] = mode;
+    m_freeDVSyncList[rx] = false;
+    m_freeDVSnrList[rx] = 0.0f;
+    m_freeDVRxFramesList[rx] = 0;
+    m_freeDVTxFramesList[rx] = 0;
+
+    emit freeDVModeChanged(sender, rx, mode);
+    emit freeDVStatusChanged(rx, false, 0.0f, 0, 0);
 }
 
 void Settings::setReceiverDataReady() {
@@ -4797,12 +4906,10 @@ void Settings::getConfigPath() {
 
 
 DSPMode Settings::getDSPMode(int rx){
-   if (rx > 0)
-   {
-    qDebug()  << "break";
-    rx = 0;
-   }
-    HamBand band = m_receiverDataList[m_currentReceiver].hamBand;
+    if (rx < 0 || rx >= m_receiverDataList.size())
+        return LSB;
+
+    HamBand band = m_receiverDataList[rx].hamBand;
 
     return m_receiverDataList[rx].dspModeList[band];
 }

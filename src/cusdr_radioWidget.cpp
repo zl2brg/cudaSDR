@@ -204,6 +204,16 @@ void RadioWidget::setupConnections() {
 		SIGNAL(dspModeChanged(QObject *, int, DSPMode)), 
 		this, 
 		SLOT(dspModeChanged(QObject *, int, DSPMode)));
+	CHECKED_CONNECT(
+		set,
+		SIGNAL(freeDVModeChanged(QObject *, int, int)),
+		this,
+		SLOT(freeDVModeChanged(QObject *, int, int)));
+	CHECKED_CONNECT(
+		set,
+		SIGNAL(freeDVStatusChanged(int, bool, float, quint64, quint64)),
+		this,
+		SLOT(freeDVStatusChanged(int, bool, float, quint64, quint64)));
 
 //	CHECKED_CONNECT(
 //		set,
@@ -533,7 +543,7 @@ void RadioWidget::createModeBtnGroup() {
 	dspModeBtnList.append(samBtn);
 	CHECKED_CONNECT(samBtn, SIGNAL(clicked()), this, SLOT(dspModeChangedByBtn()));
 
-	drmBtn = new AeroButton("DRM", this);
+	drmBtn = new AeroButton("FreeDV", this);
 	drmBtn->setRoundness(0);
 	//drmBtn->setGlass(false);
 	drmBtn->setFixedSize(btn_widths, btn_height);
@@ -574,12 +584,24 @@ void RadioWidget::createModeBtnGroup() {
 	QVBoxLayout *vbox = new QVBoxLayout;
 	vbox->setSpacing(1);
 	vbox->addLayout(hbox1);
+	m_freeDVModeCombo = new QComboBox(this);
+	m_freeDVModeCombo->addItem("FreeDV 1600", 0);
+	m_freeDVModeCombo->addItem("FreeDV 700C", 6);
+	m_freeDVModeCombo->setCurrentIndex(qMax(0, m_freeDVModeCombo->findData(set->getFreeDVMode(m_currentRx))));
+	CHECKED_CONNECT(m_freeDVModeCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(freeDVModeSelectionChanged(int)));
+
+	m_freeDVStatusLabel = new QLabel("FreeDV: no sync", this);
+	m_freeDVStatusLabel->setMinimumWidth(200);
+
+	vbox->addWidget(m_freeDVModeCombo);
+	vbox->addWidget(m_freeDVStatusLabel);
 
 	modeGroupBox = new QGroupBox(tr("Mode"), this);
 	modeGroupBox->setMinimumWidth(m_minimumGroupBoxWidth);
 	modeGroupBox->setLayout(vbox);
 	//modeGroupBox->setMinimumWidth(100);
 	modeGroupBox->setFont(QFont("Arial", 8));
+	updateFreeDVControls();
 }
 
 void RadioWidget::createFilterBtnGroupA() {
@@ -729,6 +751,50 @@ void RadioWidget::createFilterBtnGroupA() {
 	filterGroupABox->setMinimumWidth(m_minimumGroupBoxWidth);
 	filterGroupABox->setLayout(vbox);
 	filterGroupABox->setFont(QFont("Arial", 8));
+	updateFreeDVControls();
+}
+
+void RadioWidget::freeDVModeChanged(QObject *sender, int rx, int mode) {
+	Q_UNUSED(sender)
+
+	if (m_currentRx != rx) return;
+
+	const int idx = m_freeDVModeCombo->findData(mode);
+	if (idx >= 0 && idx != m_freeDVModeCombo->currentIndex())
+		m_freeDVModeCombo->setCurrentIndex(idx);
+
+	updateFreeDVControls();
+}
+
+void RadioWidget::freeDVStatusChanged(int rx, bool sync, float snr, quint64 rxFrames, quint64 txFrames) {
+	if (m_currentRx != rx) return;
+
+	QString syncStr = sync ? "sync" : "search";
+	QString txt = QString("FreeDV %1: %2  SNR %3 dB  RXf %4  TXf %5")
+		.arg(m_freeDVModeCombo->currentText())
+		.arg(syncStr)
+		.arg(QString::number(snr, 'f', 1))
+		.arg(rxFrames)
+		.arg(txFrames);
+	m_freeDVStatusLabel->setText(txt);
+}
+
+void RadioWidget::freeDVModeSelectionChanged(int index) {
+	if (index < 0) return;
+	const int mode = m_freeDVModeCombo->itemData(index).toInt();
+	set->setFreeDVMode(this, m_currentRx, mode);
+	updateFreeDVControls();
+}
+
+void RadioWidget::updateFreeDVControls() {
+	const DSPMode mode = m_dspModeList.at(m_hamBand);
+	const bool isDrm = (mode == (DSPMode) DRM);
+
+	m_freeDVModeCombo->setVisible(isDrm);
+	m_freeDVStatusLabel->setVisible(isDrm);
+
+	if (!isDrm)
+		m_freeDVStatusLabel->setText("FreeDV: inactive (select DRM)");
 }
 
 void RadioWidget::createFilterBtnGroupB() {
@@ -1208,6 +1274,7 @@ void RadioWidget::dspModeChangedByBtn() {
 
 	button->setBtnState(AeroButton::ON);
 	button->update();
+	updateFreeDVControls();
 }
 
 void RadioWidget::dspModeChanged(QObject *sender, int rx, DSPMode mode) {
@@ -1225,6 +1292,7 @@ void RadioWidget::dspModeChanged(QObject *sender, int rx, DSPMode mode) {
 
 	dspModeBtnList.at(mode)->setBtnState(AeroButton::ON);
 	dspModeBtnList.at(mode)->update();
+	updateFreeDVControls();
 }
 
 void RadioWidget::filterGroupChanged(DSPMode mode) {
@@ -2224,6 +2292,12 @@ void RadioWidget::setCurrentReceiver(QObject *sender, int value) {
 		button->update();
 		
 	}
+
+	const int modeIdx = m_freeDVModeCombo->findData(set->getFreeDVMode(m_currentRx));
+	if (modeIdx >= 0)
+		m_freeDVModeCombo->setCurrentIndex(modeIdx);
+
+	updateFreeDVControls();
 
 //	DSPMode mode = m_dspModeList.at(m_hamBand);
 //	if (mode != rxData.dspModeList.at(m_hamBand)) {

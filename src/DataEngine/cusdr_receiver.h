@@ -39,6 +39,10 @@
 #include "QtDSP/qtdsp_qComplex.h"
 #include "receiveraudiooutput.h"
 
+#ifdef HAVE_CODEC2
+#include "AudioEngine/cusdr_freedvprocessor.h"
+#endif
+
 #ifdef LOG_RECEIVER
 #   define RECEIVER_DEBUG qDebug().nospace() << "Receiver::\t"
 #else
@@ -125,6 +129,7 @@ public slots:
 	void	setDspMode(QObject* sender, int rx, DSPMode mode);
 	void	setADCMode(QObject* sender, int rx, ADCMode mode);
 	void	setAudioVolume(QObject* sender, int rx, float value);
+	void	setFreeDVMode(QObject* sender, int rx, int mode);
 	void	setCtrFrequency(long frequency);
 	void	setVfoFrequency(long frequency);
 	void	setFilterFrequencies(QObject* sender, int rx, qreal low, qreal high);
@@ -197,6 +202,12 @@ private:
 	bool	m_connected;
     int     m_rateTransitionDropBuffers;
     QMutex  m_dspMutex;
+
+#ifdef HAVE_CODEC2
+	FreeDVProcessor* m_freeDVProcessor = nullptr;
+	int m_freeDVMode = 0;
+	quint64 m_freeDVRxFrames = 0;
+#endif
 
 signals:
 	void	messageEvent(QString msg);

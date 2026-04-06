@@ -172,6 +172,8 @@ private:
 	AeroButton*		diglBtn;
 	AeroButton*		samBtn;
 	AeroButton*		drmBtn;
+	QComboBox*		m_freeDVModeCombo;
+	QLabel*			m_freeDVStatusLabel;
 
 	QList<AeroButton *>	dspModeBtnList;
 
@@ -316,6 +318,9 @@ private slots:
 	void vfoFrequencyChanged(QObject* sender, int mode, int rx, long frequency);
 	void bandChangedByBtn();
 	void bandChanged(QObject *sender, int rx, bool byButton, HamBand band);
+	void freeDVModeSelectionChanged(int index);
+	void freeDVModeChanged(QObject *sender, int rx, int mode);
+	void freeDVStatusChanged(int rx, bool sync, float snr, quint64 rxFrames, quint64 txFrames);
 	void dspModeChangedByBtn();
 	void dspModeChanged(QObject *sender, int rx, DSPMode mode);
 	void adcModeChangedByBtn();
@@ -326,6 +331,7 @@ private slots:
 	void filterChangedByBtn();
 	void filterChanged(QObject *sender, int rx, qreal low, qreal high);
 	void filterGroupChanged(DSPMode mode);
+	void updateFreeDVControls();
 	
 signals:
 	void showEvent(QObject *sender);
