@@ -62,6 +62,14 @@
 #include "cusdr_transmitter.h"
 #include "AudioEngine/cusdr_audio_input.h"
 #include "AudioEngine/cusdr_iambic.h"
+#ifdef HAVE_CODEC2
+#include "AudioEngine/cusdr_codec2processor.h"
+#include <vector>
+#endif
+
+#ifdef HAVE_CODEC2
+struct freedv;
+#endif
 
 #define LOG_DATA_PROCESSOR
 
@@ -114,7 +122,7 @@ public:
 	QUdpSocket*			sendSocket{};
     QUdpSocket*         m_controlSocket{};
 	DataIO*				m_dataIO;
-    PAudioInput *       m_audioInput;
+    TransmitAudioInput *       m_audioInput;
     iambic *            m_cwIO;
     IHPSDRProtocol*     m_protocol;
     bool                m_internal_cw;
@@ -490,6 +498,24 @@ private:
 
 	volatile bool	m_stopped;
     QTimer*         m_controlTimer;
+#ifdef HAVE_CODEC2
+	struct freedv* m_freeDVTx = nullptr;
+	int m_freeDVTxMode = -1;
+	int m_freeDVSpeechRate = 8000;
+	int m_freeDVModemRate = 8000;
+	int m_freeDVTxDecim = 6;
+	int m_freeDVTxInterp = 6;
+	int m_freeDVTxNSpeech = 0;
+	int m_freeDVTxNModem = 0;
+	int m_freeDVTxHoldCount = 0;
+	int16_t m_freeDVTxHeldSample = 0;
+	std::vector<int16_t> m_freeDVSpeechFrame;
+	std::vector<int16_t> m_freeDVModemFrame;
+	std::vector<int16_t> m_freeDVSpeechAccum;
+	std::vector<int16_t> m_freeDVModemQueue;
+	size_t m_freeDVModemReadPos = 0;
+	void applyCodec2ToMicBuffer(int sampleCount);
+#endif
     void            get_tx_iqData();
     void            buffer_tx_iq_sample(int i, int q);
     void    DumpBuffer(unsigned char *buffer,int length, const char *who);

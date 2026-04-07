@@ -4,6 +4,7 @@
 #include <QDialog>
 #include <QAudioDevice>
 #include <QMediaDevices>
+#include <QComboBox>
 #include "cusdr_settings.h"
 
 namespace Ui {
@@ -26,6 +27,7 @@ private:
     double      m_amCarrierLevel;
     double      m_audioCompressionLevel;
     QFont			m_titleFont;
+    QComboBox*      m_codec2ModeCombo;  // Codec2 bitrate selector
     //WindowFunction   m_windowFunction;
 
 signals:

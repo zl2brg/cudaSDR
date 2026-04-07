@@ -1,11 +1,24 @@
 #include "tx_settings_dialog.h"
 #include "ui_tx_settings_dialog.h"
 #include "QtWDSP/qtwdsp_dspEngine.h"
+#include "AudioEngine/cusdr_audio_input.h"
+
+namespace {
+int findDeviceComboIndex(const QList<QAudioDevice> &devices, const QString &name, int offset)
+{
+    for (int i = 0; i < devices.size(); ++i) {
+        if (devices.at(i).description() == name)
+            return i + offset;
+    }
+    return -1;
+}
+}
 
 tx_settings_dialog::tx_settings_dialog(QWidget *parent) :
     QWidget(parent),
     ui(new Ui::tx_settings_dialog),
-    set(Settings::instance())
+    set(Settings::instance()),
+    m_codec2ModeCombo(nullptr)
 
 {
 
@@ -25,26 +38,83 @@ tx_settings_dialog::tx_settings_dialog(QWidget *parent) :
     ui->audioCompression->setSliderPosition(m_audioCompressionLevel);
     ui->fm_deviation->setValue(int(set->getFMDeveation() / 1000.0));
 
-    // Populate audio input device list using Qt6 API
+    // Populate audio input device list from the shared TX audio input helper
     ui->audiodevlist->clear();
     ui->audiodevlist->addItem("HPSDR Mic Input");
     
-    // Get available audio input devices
-    QList<QAudioDevice> audioInputs = QMediaDevices::audioInputs();
-    for (const QAudioDevice &deviceInfo : audioInputs) {
+    const QList<QAudioDevice> micInputs = TransmitAudioInput::availableAudioInputDevices();
+    for (const QAudioDevice &deviceInfo : micInputs) {
         ui->audiodevlist->addItem(deviceInfo.description());
         qDebug() << "Audio input device:" << deviceInfo.description();
     }
 
-    ui->audiodevlist->setCurrentIndex(set->getMicInputDev());
+    {
+        int micIndex = -1;
+        const QString savedMicName = set->getMicInputSourceName();
+        if (savedMicName == "hpsdr-local") {
+            micIndex = 0;
+        } else {
+            micIndex = findDeviceComboIndex(micInputs, savedMicName, 1);
+            if (micIndex < 0) {
+                const QString defaultName = QMediaDevices::defaultAudioInput().description();
+                micIndex = findDeviceComboIndex(micInputs, defaultName, 1);
+            }
+            if (micIndex < 0)
+                micIndex = 0;
+        }
+        ui->audiodevlist->setCurrentIndex(micIndex);
+        set->setMicInputDev(micIndex);
+        if (micIndex == 0)
+            set->setMicInputSourceName("hpsdr-local");
+        else
+            set->setMicInputSourceName(ui->audiodevlist->currentText());
+    }
 
     // Populate digital audio input device list (for FT8 / digi modes)
     ui->digitalAudioDevList->clear();
     ui->digitalAudioDevList->addItem("None");
-    for (const QAudioDevice &deviceInfo : audioInputs) {
+    const QList<QAudioDevice> digitalInputs = TransmitAudioInput::availableAudioInputDevices();
+    for (const QAudioDevice &deviceInfo : digitalInputs) {
         ui->digitalAudioDevList->addItem(deviceInfo.description());
     }
-    ui->digitalAudioDevList->setCurrentIndex(set->getDigitalAudioInputDev());
+    {
+        int digitalIndex = -1;
+        const QString savedDigitalName = set->getDigitalInputSourceName();
+        if (savedDigitalName == "none") {
+            digitalIndex = 0;
+        } else {
+            digitalIndex = findDeviceComboIndex(digitalInputs, savedDigitalName, 1);
+            if (digitalIndex < 0) {
+                const QString defaultName = QMediaDevices::defaultAudioInput().description();
+                digitalIndex = findDeviceComboIndex(digitalInputs, defaultName, 1);
+            }
+            if (digitalIndex < 0)
+                digitalIndex = 0;
+        }
+        ui->digitalAudioDevList->setCurrentIndex(digitalIndex);
+        set->setDigitalAudioInputDev(digitalIndex);
+        if (digitalIndex == 0)
+            set->setDigitalInputSourceName("none");
+        else
+            set->setDigitalInputSourceName(ui->digitalAudioDevList->currentText());
+    }
+    
+    // Populate Codec2/FreeDV mode selector
+    m_codec2ModeCombo = new QComboBox(this);
+    m_codec2ModeCombo->setObjectName("codec2ModeCombo");
+    QList<int> availableModes = set->availableCodec2Modes();
+    for (int mode : availableModes) {
+        m_codec2ModeCombo->addItem(set->getCodec2ModeString(mode), mode);
+    }
+    // Set current mode
+    int currentMode = set->getFreeDVMode(0); // Use receiver 0 for now
+    int modeIndex = m_codec2ModeCombo->findData(currentMode);
+    if (modeIndex >= 0) {
+        m_codec2ModeCombo->setCurrentIndex(modeIndex);
+    } else {
+        m_codec2ModeCombo->setCurrentIndex(0); // Default to mode 0
+    }
+    
     ui->sidetone_freq->setValue(set->getCwSidetoneFreq());
     ui->sidetone_volume->setValue(set->getCwSidetoneVolume());
     ui->cw_hangtime->setValue(set->getCwHangTime());
@@ -65,10 +135,33 @@ tx_settings_dialog::tx_settings_dialog(QWidget *parent) :
                  set,
                  SLOT(setMicInputDev(int)));
 
+ connect(ui->audiodevlist, &QComboBox::currentIndexChanged, this, [this](int index) {
+     if (index == 0)
+         set->setMicInputSourceName("hpsdr-local");
+     else
+         set->setMicInputSourceName(ui->audiodevlist->itemText(index));
+ });
+
  CHECKED_CONNECT(ui->digitalAudioDevList,
                  SIGNAL(currentIndexChanged(int)),
                  set,
                  SLOT(setDigitalAudioInputDev(int)));
+
+ connect(ui->digitalAudioDevList, &QComboBox::currentIndexChanged, this, [this](int index) {
+     if (index == 0)
+         set->setDigitalInputSourceName("none");
+     else
+         set->setDigitalInputSourceName(ui->digitalAudioDevList->itemText(index));
+ });
+
+ // Codec2 mode selector
+ connect(m_codec2ModeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int index) {
+     if (index >= 0) {
+         int mode = m_codec2ModeCombo->itemData(index).toInt();
+         set->setFreeDVMode(this, 0, mode); // Set mode for receiver 0
+         qDebug() << "Codec2 mode changed to:" << mode << set->getCodec2ModeString(mode);
+     }
+ });
 
  CHECKED_CONNECT(ui->audioCompression,
                  SIGNAL(valueChanged(int)),
@@ -148,3 +241,4 @@ tx_settings_dialog::~tx_settings_dialog()
     disconnect(set, 0, this, 0);
     disconnect(this, 0, 0, 0);
 }
+

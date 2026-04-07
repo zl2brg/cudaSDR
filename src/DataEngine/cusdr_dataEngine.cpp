@@ -45,6 +45,13 @@ extern double cwramp48[];		// see cwramp.c, for 48 kHz sample rate
 #include "cusdr_dataEngine.h"
 #include "CProtocol1.h"
 #include "CProtocol2.h"
+#ifdef HAVE_CODEC2
+extern "C" {
+#define COMP FREEDV_COMP
+#include <codec2/freedv_api.h>
+#undef COMP
+}
+#endif
 
 
 /*!
@@ -2587,15 +2594,145 @@ DataProcessor::DataProcessor(
     file = new QFile("data.txt");
     file->open(QIODevice::ReadWrite);
 
+#ifdef HAVE_CODEC2
+	m_freeDVTxMode = 0;
+	m_freeDVTx = freedv_open(m_freeDVTxMode);
+	if (!m_freeDVTx) {
+		DATA_PROCESSOR_DEBUG << "FreeDV TX disabled: failed to open mode" << m_freeDVTxMode;
+	} else {
+		m_freeDVSpeechRate = freedv_get_speech_sample_rate(m_freeDVTx);
+		m_freeDVModemRate = freedv_get_modem_sample_rate(m_freeDVTx);
+		m_freeDVTxNSpeech = freedv_get_n_speech_samples(m_freeDVTx);
+		m_freeDVTxNModem = freedv_get_n_nom_modem_samples(m_freeDVTx);
+		m_freeDVTxDecim = qMax(1, 48000 / qMax(1, m_freeDVSpeechRate));
+		m_freeDVTxInterp = qMax(1, 48000 / qMax(1, m_freeDVModemRate));
+		m_freeDVSpeechFrame.resize(m_freeDVTxNSpeech);
+		m_freeDVModemFrame.resize(m_freeDVTxNModem);
+		DATA_PROCESSOR_DEBUG << "FreeDV TX enabled: mode=" << m_freeDVTxMode
+			<< " speechRate=" << m_freeDVSpeechRate
+			<< " modemRate=" << m_freeDVModemRate
+			<< " nSpeech=" << m_freeDVTxNSpeech
+			<< " nModem=" << m_freeDVTxNModem;
+	}
+#endif
+
 }
 
 DataProcessor::~DataProcessor() {
+#ifdef HAVE_CODEC2
+	if (m_freeDVTx) {
+		freedv_close(m_freeDVTx);
+		m_freeDVTx = nullptr;
+	}
+#endif
     if (file) {
     file->close();
         delete file;  // Add this
         file = nullptr;
     }
 }
+
+#ifdef HAVE_CODEC2
+void DataProcessor::applyCodec2ToMicBuffer(int sampleCount)
+{
+	if (sampleCount <= 0) return;
+
+	// Use the selected Codec2 mode directly (0=1600, 1=1400, 2=1300, 3=700C, 4=2400, 5=3200, 6=700D)
+	const int wantedMode = set->getFreeDVMode(de->io.currentReceiver);
+	if (!m_freeDVTx || m_freeDVTxMode != wantedMode) {
+		if (m_freeDVTx) {
+			freedv_close(m_freeDVTx);
+			m_freeDVTx = nullptr;
+		}
+
+		m_freeDVTx = freedv_open(wantedMode);
+		m_freeDVTxMode = wantedMode;
+		m_freeDVSpeechAccum.clear();
+		m_freeDVModemQueue.clear();
+		m_freeDVModemReadPos = 0;
+		m_freeDVTxHoldCount = 0;
+		m_freeDVTxHeldSample = 0;
+
+		if (!m_freeDVTx) {
+			DATA_PROCESSOR_DEBUG << "FreeDV TX reopen failed for mode" << wantedMode;
+			return;
+		}
+
+		m_freeDVSpeechRate = freedv_get_speech_sample_rate(m_freeDVTx);
+		m_freeDVModemRate = freedv_get_modem_sample_rate(m_freeDVTx);
+		m_freeDVTxNSpeech = freedv_get_n_speech_samples(m_freeDVTx);
+		m_freeDVTxNModem = freedv_get_n_nom_modem_samples(m_freeDVTx);
+		m_freeDVTxDecim = qMax(1, 48000 / qMax(1, m_freeDVSpeechRate));
+		m_freeDVTxInterp = qMax(1, 48000 / qMax(1, m_freeDVModemRate));
+		m_freeDVSpeechFrame.assign(m_freeDVTxNSpeech, 0);
+		m_freeDVModemFrame.assign(m_freeDVTxNModem, 0);
+	}
+
+	if (!m_freeDVTx || m_freeDVTxNSpeech <= 0 || m_freeDVTxNModem <= 0) return;
+
+	for (int i = 0; i + m_freeDVTxDecim <= sampleCount; i += m_freeDVTxDecim) {
+		double sum = 0.0;
+		for (int k = 0; k < m_freeDVTxDecim; ++k) {
+			sum += mic_buffer[(i + k) * 2];
+		}
+		double s = sum / static_cast<double>(m_freeDVTxDecim);
+		if (s > 1.0) s = 1.0;
+		if (s < -1.0) s = -1.0;
+		m_freeDVSpeechAccum.push_back(static_cast<int16_t>(s * 32767.0));
+	}
+
+	quint64 txFramesThisBlock = 0;
+	static quint64 txSpeechLevelLogCounter = 0;
+	while (static_cast<int>(m_freeDVSpeechAccum.size()) >= m_freeDVTxNSpeech) {
+		double sumSq = 0.0;
+		double peak = 0.0;
+		for (int i = 0; i < m_freeDVTxNSpeech; ++i) {
+			m_freeDVSpeechFrame[i] = m_freeDVSpeechAccum[i];
+			double norm = static_cast<double>(m_freeDVSpeechFrame[i]) / 32768.0;
+			sumSq += norm * norm;
+			double absNorm = std::abs(norm);
+			if (absNorm > peak)
+				peak = absNorm;
+		}
+		m_freeDVSpeechAccum.erase(m_freeDVSpeechAccum.begin(), m_freeDVSpeechAccum.begin() + m_freeDVTxNSpeech);
+
+		if ((++txSpeechLevelLogCounter % 50) == 0) {
+			double rms = std::sqrt(sumSq / static_cast<double>(m_freeDVTxNSpeech));
+			DATA_PROCESSOR_DEBUG << "FreeDV TX speech level: rms=" << rms
+			                     << " peak=" << peak
+			                     << " mode=" << m_freeDVTxMode;
+		}
+
+		freedv_tx(m_freeDVTx, m_freeDVModemFrame.data(), m_freeDVSpeechFrame.data());
+		m_freeDVModemQueue.insert(m_freeDVModemQueue.end(), m_freeDVModemFrame.begin(), m_freeDVModemFrame.end());
+		txFramesThisBlock += 1;
+	}
+
+	for (int i = 0; i < sampleCount; ++i) {
+		if (m_freeDVTxHoldCount <= 0) {
+			if (m_freeDVModemReadPos < m_freeDVModemQueue.size()) {
+				m_freeDVTxHeldSample = m_freeDVModemQueue[m_freeDVModemReadPos++];
+			} else {
+				m_freeDVTxHeldSample = 0;
+			}
+			m_freeDVTxHoldCount = m_freeDVTxInterp;
+		}
+
+		mic_buffer[i * 2] = static_cast<double>(m_freeDVTxHeldSample) / 32768.0;
+		mic_buffer[i * 2 + 1] = 0.0;
+		m_freeDVTxHoldCount -= 1;
+	}
+
+	if (txFramesThisBlock > 0) {
+		set->addFreeDVTxFrames(de->io.currentReceiver, txFramesThisBlock);
+	}
+
+	if (m_freeDVModemReadPos > 0 && m_freeDVModemReadPos * 2 >= m_freeDVModemQueue.size()) {
+		m_freeDVModemQueue.erase(m_freeDVModemQueue.begin(), m_freeDVModemQueue.begin() + m_freeDVModemReadPos);
+		m_freeDVModemReadPos = 0;
+	}
+}
+#endif
 
 void DataProcessor::stop() {
 
@@ -2900,8 +3037,14 @@ void DataProcessor::buffer_tx_data()
 void DataProcessor::add_rx_audio_sample() {
         qint16 leftRXSample;
         qint16 rightRXSample;
-        leftRXSample = (qint16) (rx_audio_buffer[rx_audio_ptr].re * 32767.0f);
-        rightRXSample = (qint16) (rx_audio_buffer[rx_audio_ptr].im * 32767.0f);
+		const DSPMode rxMode = set->getDSPMode(de->io.currentReceiver);
+		if (rxMode == DRM) {
+			leftRXSample = 0;
+			rightRXSample = 0;
+		} else {
+			leftRXSample = (qint16) (rx_audio_buffer[rx_audio_ptr].re * 32767.0f);
+			rightRXSample = (qint16) (rx_audio_buffer[rx_audio_ptr].im * 32767.0f);
+		}
         de->io.output_buffer[m_idx++] = leftRXSample >> 8;
         de->io.output_buffer[m_idx++] = leftRXSample;
         de->io.output_buffer[m_idx++] = rightRXSample >> 8;
@@ -3090,12 +3233,13 @@ void DataProcessor::send_mic_data() {
 
 
 void DataProcessor::fetch_MicData(){
+	int numSamples = 0;
     AUDIOBUF temp_data;
     if (de->m_audioInput->m_faudioInQueue.count() > 0)
     {
         temp_data = de->m_audioInput->m_faudioInQueue.dequeue();
 
-        int numSamples = qMin((int)temp_data.size(), (int)DSP_SAMPLE_SIZE);
+		numSamples = qMin((int)temp_data.size(), (int)DSP_SAMPLE_SIZE);
         for (int s = 0; s < numSamples; s++)
         {
             mic_buffer[(s * 2 )]  = temp_data[s] ;
@@ -3111,6 +3255,16 @@ void DataProcessor::fetch_MicData(){
         temp_data.clear();
         memset(&mic_buffer,0x0,sizeof(mic_buffer));
     }
+
+#ifdef HAVE_CODEC2
+	// Keep WSJT-X digital-input handling (DIGU/DIGL) separate.
+	// Codec2 routing is only active for the FreeDV mode button (mapped to DRM).
+	const DSPMode txMode = set->getDSPMode(de->io.currentReceiver);
+	if (txMode == DRM) {
+		applyCodec2ToMicBuffer(numSamples);
+	}
+#endif
+
     mic_buffer_index = 0;
 
 }
@@ -3182,12 +3336,19 @@ void DataProcessor::setAudioBuffer(int rx, const CPX &buffer, int buffersize)
     qint16 leftTXSample;
     qint16 rightTXSample;
 
-    // process the output
+	// process the output
+	const DSPMode rxMode = set->getDSPMode(de->io.currentReceiver);
+	const bool muteAnalogRxForCodec2 = (rxMode == DRM);
     if (tx_index == 0)  get_tx_iqData();
         for (int j = 0; j < buffersize; j++) {
 
-            leftRXSample  = (qint16)(buffer.at(j).re * 32767.0f);
-            rightRXSample = (qint16)(buffer.at(j).im * 32767.0f);
+			if (muteAnalogRxForCodec2) {
+				leftRXSample = 0;
+				rightRXSample = 0;
+			} else {
+				leftRXSample  = (qint16)(buffer.at(j).re * 32767.0f);
+				rightRXSample = (qint16)(buffer.at(j).im * 32767.0f);
+			}
 
             de->io.output_buffer[m_idx++] = leftRXSample  >> 8;
             de->io.output_buffer[m_idx++] = leftRXSample;
@@ -3263,12 +3424,19 @@ void DataProcessor::setAudioBuffer_old(int rx, const CPX &buffer, int buffersize
     qint16 leftRXSample;
     qint16 rightRXSample;
     char *ptr;
-    // process the output
+	// process the output
+	const DSPMode rxMode = set->getDSPMode(de->io.currentReceiver);
+	const bool muteAnalogRxForCodec2 = (rxMode == DRM);
     if (tx_index == 0)  get_tx_iqData();
     for (int j = 0; j < buffersize; j++) {
 
-        leftRXSample  = (qint16)(buffer.at(j).re * 32767.0f);
-        rightRXSample = (qint16)(buffer.at(j).im * 32767.0f);
+		if (muteAnalogRxForCodec2) {
+			leftRXSample = 0;
+			rightRXSample = 0;
+		} else {
+			leftRXSample  = (qint16)(buffer.at(j).re * 32767.0f);
+			rightRXSample = (qint16)(buffer.at(j).im * 32767.0f);
+		}
         de->io.output_buffer[m_idx++] = leftRXSample  >> 8;
         de->io.output_buffer[m_idx++] = leftRXSample;
         de->io.output_buffer[m_idx++] = rightRXSample >> 8;
@@ -3592,7 +3760,7 @@ void AudioOutProcessor::processData() {
 
 void DataEngine::createAudioInputProcessor() {
 
-    m_audioInput = new PAudioInput();
+    m_audioInput = new TransmitAudioInput();
 /*
     CHECKED_CONNECT(
             m_audioInput,
@@ -3640,7 +3808,14 @@ void DataEngine::radioStateChange(RadioState state) {
         io.ccTx.mox = false;
         m_audioInput->Stop();
     }
-    RX.at(0)->m_state = state;
+
+	// Keep all receiver display pipelines in sync with TX/RX state.
+	// Receiver::dspProcessing uses m_state to choose RX or TX spectrum source.
+	for (int i = 0; i < RX.size(); ++i) {
+		if (RX.at(i)) {
+			RX.at(i)->m_state = state;
+		}
+	}
 }
 
 void DataProcessor::processReadData()

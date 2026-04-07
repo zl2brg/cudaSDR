@@ -3,10 +3,10 @@ set -euo pipefail
 
 # ---------------------------------------------------------------------------
 # Build script for cudaSDR
-# Detects Qt 6.9.3 and runs CMake
+# Detects Qt 6.11.0 and runs CMake
 # ---------------------------------------------------------------------------
 
-REQUIRED_QT_VERSION="6.9.3"
+REQUIRED_QT_VERSION="6.11.0"
 BUILD_DIR="${BUILD_DIR:-build}"
 BUILD_TYPE="${BUILD_TYPE:-Release}"
 JOBS="${JOBS:-$(nproc)}"
