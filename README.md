@@ -6,11 +6,10 @@ Now uses wdsp
 Updating to Qt6.x
 Added WDSP related functionality.
 Added P2 support - still debugging
+HamLib and Codec2 (freedv) implemented.
 Very much work in progress. 
 
 Todo :-
-HamLib
-Freedv
 Soapy
 CW
 
