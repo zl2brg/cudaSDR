@@ -162,8 +162,9 @@ bool Receiver::initQtWDSPInterface() {
     RECEIVER_DEBUG << "[RX-ADD] rx=" << m_receiver << "set DSP mode to:" << set->getDSPModeString(mode);
 
     qtwdsp->setDSPMode(mode);
-    
-    auto filter = getFilterFromDSPMode(set->getDefaultFilterList(), mode);
+
+    auto filter = getFilterFromDSPMode(set->getDefaultFilterList(),
+                                       resolveWDSPMode(mode, set->getCtrFrequency(m_receiver)));
     qtwdsp->setFilter(filter.filterLo, filter.filterHi);
 
     RECEIVER_DEBUG << "[RX-ADD] initQtWDSPInterface: rx=" << m_receiver << "complete (filter lo=" << filter.filterLo << "hi=" << filter.filterHi << ")";
@@ -295,13 +296,13 @@ void Receiver::dspProcessing() {
             m_smeterTime.restart();
         }
 #ifdef USE_INTERNAL_AUDIO
-		if (set->getDSPMode(m_receiver) != DSPMode::DRM) {
+		if (set->getDSPMode(m_receiver) != DSPMode::FDV) {
 			// Normal analogue modes: pass WDSP audio output straight to soundcard.
 			m_audioOutput->writeAudio(interleaveFromCPX(audioOutputBuf, m_audiobuffersize));
 		}
 #ifdef HAVE_CODEC2
 		else if (m_freeDVProcessor) {
-			// DRM/FreeDV mode: extract mono audio from WDSP USB output (real
+			// FDV/FreeDV mode: extract mono audio from WDSP USB output (real
 			// channel, nominally 48 kHz), run it through the FreeDV decoder,
 			// and write the decoded speech to the soundcard.
 			QVector<float> mono(m_audiobuffersize);

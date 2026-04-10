@@ -81,10 +81,18 @@ typedef enum _dspMode {
   SPEC,			//  8
   DIGL,			//  9
   SAM,			// 10
-  DRM			// 11
+  FDV			// 11
   //FREEDV        // 12
 
 } DSPMode;
+
+// Resolve the logical app mode to the actual WDSP mode.
+// FDV (FreeDV) uses LSB below 10 MHz and USB above; all other modes pass through unchanged.
+inline DSPMode resolveWDSPMode(DSPMode appMode, long frequency) {
+    return (appMode == FDV)
+        ? (frequency < 10000000L ? LSB : USB)
+        : appMode;
+}
 
 typedef enum _adcMode {
 
@@ -117,7 +125,7 @@ typedef enum _defaultFilterMode {
 	filterSPEC,
 	filterDIGL,
 	filterSAM,
-	filterDRM,
+	filterFDV,
 	filterFREEDV
 	
 } TDefaultFilterMode;
@@ -1295,8 +1303,8 @@ inline QList<TDefaultFilter> getDefaultFilterFrequencies() {
 
 	defaultFilters << defaultFilter;
 
-	defaultFilter.dspMode = (DSPMode) DRM;
-	defaultFilter.defaultFilterMode = filterDRM;
+	defaultFilter.dspMode = (DSPMode) FDV;
+	defaultFilter.defaultFilterMode = filterFDV;
 	defaultFilter.filterLo = -6000.0f;
 	defaultFilter.filterHi = 6000.0f;
 

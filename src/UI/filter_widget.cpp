@@ -92,10 +92,8 @@ filterMode FilterWidget::setFilterMode(DSPMode mode){
     case (DSPMode) AM:
     case (DSPMode) SAM:
     case (DSPMode) FMN:
-    case (DSPMode) DRM:
+    case (DSPMode) FDV:
     case (DSPMode) SPEC:
-
-        return (filterMode) M_DSB;
         break;
 
     case (DSPMode) LSB:
@@ -127,7 +125,7 @@ filterGroup FilterWidget::setFilterGroup(DSPMode mode){
     case (DSPMode) AM:
     case (DSPMode) SAM:
     case (DSPMode) FMN:
-    case (DSPMode) DRM:
+    case (DSPMode) FDV:
     case (DSPMode) SPEC:
         m_FilterData = Wide_FilterGroup;
 

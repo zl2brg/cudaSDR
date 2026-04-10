@@ -788,13 +788,13 @@ void RadioWidget::freeDVModeSelectionChanged(int index) {
 
 void RadioWidget::updateFreeDVControls() {
 	const DSPMode mode = m_dspModeList.at(m_hamBand);
-	const bool isDrm = (mode == (DSPMode) DRM);
+	const bool isDrm = (mode == (DSPMode) FDV);
 
 	m_freeDVModeCombo->setVisible(isDrm);
 	m_freeDVStatusLabel->setVisible(isDrm);
 
 	if (!isDrm)
-		m_freeDVStatusLabel->setText("FreeDV: inactive (select DRM)");
+		m_freeDVStatusLabel->setText("FreeDV: inactive (select FDV)");
 }
 
 void RadioWidget::createFilterBtnGroupB() {

@@ -587,7 +587,6 @@ bool DataEngine::getFirmwareVersions() {
 			return false;
 	}
 
-	set->setRxList(RX);
 	connectDSPSlots();
 
 //	for (int i = 0; i < set->getNumberOfReceivers(); i++)
@@ -966,7 +965,6 @@ bool DataEngine::start() {
 		}
 	}
 
-	set->setRxList(RX);
 	connectDSPSlots();
 	const QList<long> ctrFrequencies = set->getCtrFrequencies();
 
@@ -2416,20 +2414,17 @@ void DataEngine::setTimeStamp(QObject *sender, bool value) {
 void DataEngine::setRxSocketState(int rx, const char* prop, QString str) {
 
 	RX[rx]->setProperty(prop, str);
-	set->setRxList(RX);
 }
 
 void DataEngine::setRxPeerAddress(int rx, QHostAddress address) {
 
 	RX[rx]->setPeerAddress(address);
-	set->setRxList(RX);
 }
 
 void DataEngine::setRx(int rx) {
 
 	io.mutex.lock();
 	RX[rx]->setReceiver(rx);
-	set->setRxList(RX);
 	io.mutex.unlock();
 }
 
@@ -2437,7 +2432,6 @@ void DataEngine::setRxClient(int rx, int client) {
 
 	io.mutex.lock();
 	RX[rx]->setClient(client);
-	set->setRxList(RX);
 	io.mutex.unlock();
 }
 
@@ -2505,7 +2499,6 @@ void DataEngine::setIQPort(int rx, int port) {
 
 	io.mutex.lock();
 	RX[rx]->setIQPort(port);
-	set->setRxList(RX);
 	io.mutex.unlock();
 }
 
@@ -2515,7 +2508,6 @@ void DataEngine::setRxConnectedStatus(QObject* sender, int rx, bool value) {
 
 	io.mutex.lock();
 	RX[rx]->setConnectedStatus(value);
-	set->setRxList(RX);
 	io.mutex.unlock();
 }
 
@@ -3038,7 +3030,7 @@ void DataProcessor::add_rx_audio_sample() {
         qint16 leftRXSample;
         qint16 rightRXSample;
 		const DSPMode rxMode = set->getDSPMode(de->io.currentReceiver);
-		if (rxMode == DRM) {
+		if (rxMode == FDV) {
 			leftRXSample = 0;
 			rightRXSample = 0;
 		} else {
@@ -3258,9 +3250,9 @@ void DataProcessor::fetch_MicData(){
 
 #ifdef HAVE_CODEC2
 	// Keep WSJT-X digital-input handling (DIGU/DIGL) separate.
-	// Codec2 routing is only active for the FreeDV mode button (mapped to DRM).
+	// Codec2 routing is only active for the FreeDV mode button (mapped to FDV).
 	const DSPMode txMode = set->getDSPMode(de->io.currentReceiver);
-	if (txMode == DRM) {
+	if (txMode == FDV) {
 		applyCodec2ToMicBuffer(numSamples);
 	}
 #endif
@@ -3338,7 +3330,7 @@ void DataProcessor::setAudioBuffer(int rx, const CPX &buffer, int buffersize)
 
 	// process the output
 	const DSPMode rxMode = set->getDSPMode(de->io.currentReceiver);
-	const bool muteAnalogRxForCodec2 = (rxMode == DRM);
+	const bool muteAnalogRxForCodec2 = (rxMode == FDV);
     if (tx_index == 0)  get_tx_iqData();
         for (int j = 0; j < buffersize; j++) {
 
@@ -3426,7 +3418,7 @@ void DataProcessor::setAudioBuffer_old(int rx, const CPX &buffer, int buffersize
     char *ptr;
 	// process the output
 	const DSPMode rxMode = set->getDSPMode(de->io.currentReceiver);
-	const bool muteAnalogRxForCodec2 = (rxMode == DRM);
+	const bool muteAnalogRxForCodec2 = (rxMode == FDV);
     if (tx_index == 0)  get_tx_iqData();
     for (int j = 0; j < buffersize; j++) {
 

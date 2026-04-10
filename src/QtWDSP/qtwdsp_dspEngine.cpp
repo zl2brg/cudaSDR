@@ -230,18 +230,16 @@ void QWDSPEngine::setupConnections() {
             this, [this](QObject*, int rx, DSPMode mode) {
         if (rx != m_rx) return;
         setDSPMode(mode);
-        const DSPMode effectiveMode = (mode == DRM)
-            ? (set->getCtrFrequency(m_rx) < 10000000L ? LSB : USB)
-            : mode;
-        auto filter = getFilterFromDSPMode(set->getDefaultFilterList(), effectiveMode);
+        auto filter = getFilterFromDSPMode(set->getDefaultFilterList(),
+                                           resolveWDSPMode(mode, set->getCtrFrequency(m_rx)));
         setFilter(filter.filterLo, filter.filterHi);
     });
     connect(set, &Settings::ctrFrequencyChanged,
             this, [this](QObject*, int /*mode*/, int rx, long frequency) {
         if (rx != m_rx) return;
-        if (set->getDSPMode(m_rx) != DRM) return;
-        // Reselect USB/LSB when frequency crosses the 10 MHz boundary in DRM/FreeDV mode.
-        DSPMode wdspMode = (frequency < 10000000L) ? LSB : USB;
+        if (set->getDSPMode(m_rx) != FDV) return;
+        // Reselect USB/LSB when frequency crosses the 10 MHz boundary in FDV/FreeDV mode.
+        DSPMode wdspMode = resolveWDSPMode(FDV, frequency);
         if (m_dspmode == wdspMode) return;
         m_dspmode = wdspMode;
         WDSP_ENGINE_DEBUG << "FreeDV sideband updated to" << wdspMode << "for freq" << frequency;
@@ -342,11 +340,7 @@ void QWDSPEngine::setQtDSPStatus(bool value) {
 
 void QWDSPEngine::setDSPMode(DSPMode mode) {
 
-	// Codec2/FreeDV (DRM mode) uses LSB below 10 MHz and USB above, per HF convention.
-	// Pass the appropriate sideband mode to WDSP rather than the raw DRM enum value.
-	DSPMode wdspMode = (mode == DRM)
-		? (set->getCtrFrequency(m_rx) < 10000000L ? LSB : USB)
-		: mode;
+	DSPMode wdspMode = resolveWDSPMode(mode, set->getCtrFrequency(m_rx));
 	m_dspmode = wdspMode;
 	WDSP_ENGINE_DEBUG << "[RX" << m_rx << "] DSP mode set to" << mode << "(WDSP:" << wdspMode << ")";
 	SetRXAMode(m_rx, wdspMode);

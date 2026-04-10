@@ -1244,13 +1244,13 @@ void RadioPopupWidget::updateFreeDVControls() {
     if (!m_freeDVModeCombo || !m_freeDVStatusLabel || m_dspModeList.isEmpty()) return;
 
     const DSPMode mode = m_dspModeList.at(m_hamBand);
-    const bool isDrm = (mode == (DSPMode) DRM);
+    const bool isDrm = (mode == (DSPMode) FDV);
 
     m_freeDVModeCombo->setVisible(isDrm);
     m_freeDVStatusLabel->setVisible(true);
 
     if (!isDrm) {
-        m_freeDVStatusLabel->setText("FreeDV: inactive (select DRM)");
+        m_freeDVStatusLabel->setText("FreeDV: inactive (select FDV)");
         m_freeDVStatusLabel->setStyleSheet("color: rgb(150, 150, 150);");
     }
     else {

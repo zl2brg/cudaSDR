@@ -266,10 +266,7 @@ void Transmitter::setDSPMode(QObject *sender, int id, DSPMode dspMode) {
     Q_UNUSED(sender)
     Q_UNUSED(id)
     mode = dspMode;
-    // FreeDV/DRM (mode 11) is not a native WDSP TX mode; map to USB/LSB by frequency convention.
-    const DSPMode wdspMode = (mode == DRM)
-        ? (set->getCtrFrequency(set->getCurrentReceiver()) < 10000000L ? LSB : USB)
-        : mode;
+    const DSPMode wdspMode = resolveWDSPMode(mode, set->getCtrFrequency(set->getCurrentReceiver()));
     TRANSMITTER_DEBUG << "[TX] DSP mode set to" << dspMode << "(WDSP:" << wdspMode << ")";
     SetTXAMode(this->id, wdspMode);
     auto filter = getFilterFromDSPMode(set->getDefaultFilterList(), wdspMode);
@@ -291,9 +288,7 @@ void Transmitter::setRadioState(RadioState state)
     switch(state) {
 
     case RadioState::MOX: {
-        const DSPMode wdspMode = (mode == DRM)
-            ? (set->getCtrFrequency(set->getCurrentReceiver()) < 10000000L ? LSB : USB)
-            : mode;
+        const DSPMode wdspMode = resolveWDSPMode(mode, set->getCtrFrequency(set->getCurrentReceiver()));
         auto filter = getFilterFromDSPMode(set->getDefaultFilterList(), wdspMode);
         tx_set_filter(filter.filterLo, filter.filterHi);
         SetTXAPostGenRun(this->id, 0);
@@ -309,9 +304,7 @@ void Transmitter::setRadioState(RadioState state)
 
     case RadioState::TUNE: {
         // Tone generator for TUNE
-        const DSPMode wdspModeTune = (mode == DRM)
-            ? (set->getCtrFrequency(set->getCurrentReceiver()) < 10000000L ? LSB : USB)
-            : mode;
+        const DSPMode wdspModeTune = resolveWDSPMode(mode, set->getCtrFrequency(set->getCurrentReceiver()));
         auto filter = getFilterFromDSPMode(set->getDefaultFilterList(), wdspModeTune);
         tx_set_filter(filter.filterLo, filter.filterHi);
         SetTXAPostGenToneFreq(this->id, 1000);

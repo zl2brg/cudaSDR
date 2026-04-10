@@ -107,7 +107,7 @@ Settings::Settings(QObject *parent)
     m_titleString = "cudaSDR Debug BETA ";
 #endif
 
-    m_versionString = "v0.4.0.3 - ZL2BRG";
+    m_versionString = "v6.0.1 - ZL2BRG";
 
     qDebug() << qPrintable(m_titleString);
 
@@ -1364,8 +1364,8 @@ int Settings::loadSettings() {
                     m_receiverDataList[i].dspModeList[j] = DIGL;
                 else if (str == "SAM")
                     m_receiverDataList[i].dspModeList[j] = SAM;
-                else if (str == "DRM" || str == "FreeDV")
-                    m_receiverDataList[i].dspModeList[j] = DRM;
+                else if (str == "FDV" || str == "DRM" || str == "FreeDV")
+                    m_receiverDataList[i].dspModeList[j] = FDV;
                 else
                     m_receiverDataList[i].dspModeList[j] = LSB;
 
@@ -2202,8 +2202,8 @@ int Settings::saveSettings() {
                 settings->setValue(str, "DIGL");
             else if (mode == SAM)
                 settings->setValue(str, "SAM");
-            else if (mode == DRM)
-                settings->setValue(str, "FreeDV");
+            else if (mode == FDV)
+                settings->setValue(str, "FDV");
         }
 
         for (int j = 0; j < MAX_BANDS; j++) {
@@ -3623,6 +3623,15 @@ void Settings::setCtrFrequency(QObject *sender, int mode, int rx, long frequency
     }
 
     SETTINGS_DEBUG << "ctr freq (Rx " << rx << ") " << m_receiverDataList[rx].ctrFrequency;
+
+    const DSPMode currentMode = m_receiverDataList.at(rx).dspModeList.at(m_receiverDataList.at(rx).hamBand);
+    if (currentMode == FDV) {
+        const DSPMode sideband = resolveWDSPMode(FDV, frequency);
+        setRXFilter(this, rx,
+            m_defaultFilterList.at((int) sideband).filterLo,
+            m_defaultFilterList.at((int) sideband).filterHi);
+    }
+
     emit ctrFrequencyChanged(sender, mode, rx, frequency);
 }
 
@@ -3735,7 +3744,8 @@ void Settings::setDSPMode(QObject *sender, int rx, DSPMode mode) {
     m_receiverDataList[rx].dspModeList[band] = mode;
 
 
-    setRXFilter(this, rx, m_defaultFilterList.at((int) mode).filterLo, m_defaultFilterList.at((int) mode).filterHi);
+    const DSPMode wdspMode = resolveWDSPMode(mode, m_receiverDataList[rx].ctrFrequency);
+    setRXFilter(this, rx, m_defaultFilterList.at((int) wdspMode).filterLo, m_defaultFilterList.at((int) wdspMode).filterHi);
     emit dspModeChanged(sender, rx, mode);
 }
 
