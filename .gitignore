@@ -1,4 +1,6 @@
 src/build/
+build/
+build-*/
 .vscode/
 *.backup
 *.usr
