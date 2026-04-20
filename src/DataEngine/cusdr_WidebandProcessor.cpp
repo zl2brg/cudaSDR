@@ -24,7 +24,7 @@ WideBandDataProcessor::WideBandDataProcessor(THPSDRParameter *ioData, QSDR::_Ser
 	} else {
 		initWidebandAnalyzer();
 	}
-	setWbSpectrumAveraging(this, -1,m_wbSpectrumAveraging);
+	setWbSpectrumAveraging(-1,m_wbSpectrumAveraging);
 }
 
 void  WideBandDataProcessor::initWidebandAnalyzer() {
@@ -139,9 +139,8 @@ void WideBandDataProcessor::getSpectrumData(){
 	m_mutex.unlock();
 }
 
-void WideBandDataProcessor::setWbSpectrumAveraging(QObject* sender, int rx, int value) {
+void WideBandDataProcessor::setWbSpectrumAveraging(int rx, int value) {
 
-	Q_UNUSED (sender)
 	if (rx != -1) return;
 	m_mutex.lock();
 	m_wbSpectrumAveraging = value;

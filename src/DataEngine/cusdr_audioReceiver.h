@@ -77,7 +77,7 @@ private slots:
 
 signals:
 	void 	messageEvent(QString message);
-	void	rcveIQEvent(QObject *sender, int value);
+	void	rcveIQEvent(int value);
 	void	outputBufferEvent(unsigned char* outbuffer);
 	void	clientConnectedEvent(bool value);
 	void	newData();

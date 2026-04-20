@@ -72,7 +72,7 @@ TransmitTabWidget::TransmitTabWidget(QWidget *parent)
 TransmitTabWidget::~TransmitTabWidget() {
 
 	disconnect(set, 0, this, 0);
-	disconnect(this, 0, 0, 0);
+	disconnect(0, 0, 0);
 }
 
 QSize TransmitTabWidget::sizeHint() const {
@@ -125,13 +125,13 @@ void TransmitTabWidget::addNICChangedConnection() {
 
 void TransmitTabWidget::closeEvent(QCloseEvent *event) {
 
-	emit closeEvent(this);
+	emit closeEvent();
 	QWidget::closeEvent(event);
 }
 
 void TransmitTabWidget::showEvent(QShowEvent *event) {
 
-	emit showEvent(this);
+	emit showEvent();
 	QWidget::showEvent(event);
 }
 

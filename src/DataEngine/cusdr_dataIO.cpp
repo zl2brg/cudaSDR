@@ -170,9 +170,10 @@ DataIO::~DataIO() {
 }
 
 void DataIO::stop() {
-    io->networkIOMutex.lock();
+    {
+        QMutexLocker locker(&io->networkIOMutex);
         m_stopped = true;
-    io->networkIOMutex.unlock();
+    }
 
     if (m_pSoundCardOut) {
         SleeperThread::msleep(100);
@@ -265,9 +266,9 @@ void DataIO::readDeviceData() {
 void DataIO::readDeviceDataP1(QUdpSocket* socket) {
     while (socket->hasPendingDatagrams()) {
         QMutexLocker locker(&io->networkIOMutex);
-        QHostAddress senderAddress;
-        quint16 senderPort = 0;
-        qint64 size = socket->readDatagram(m_datagram.data(), m_datagram.size(), &senderAddress, &senderPort);
+        QHostAddress Address;
+        quint16 Port = 0;
+        qint64 size = socket->readDatagram(m_datagram.data(), m_datagram.size(), &Address, &Port);
         if (!io->protocol || !io->protocol->isPacketValid((const unsigned char*)m_datagram.data(), size)) continue;
 
         int type = io->protocol->getPacketType((const unsigned char*)m_datagram.data());
@@ -301,15 +302,15 @@ void DataIO::readDeviceDataP2(QUdpSocket* socket) {
 
     while (socket->hasPendingDatagrams()) {
         QMutexLocker locker(&io->networkIOMutex);
-        QHostAddress senderAddress;
-        quint16 senderPort = 0;
-        qint64 size = socket->readDatagram(m_datagram.data(), m_datagram.size(), &senderAddress, &senderPort);
+        QHostAddress Address;
+        quint16 Port = 0;
+        qint64 size = socket->readDatagram(m_datagram.data(), m_datagram.size(), &Address, &Port);
         ++p2DatagramsSeen;
 
         if ((p2DatagramsSeen % 500) == 1) {
             P2_NET_DEBUG << "P2 RX datagram: localPort=" << socket->localPort()
-                         << " sender=" << senderAddress.toString()
-                         << " senderPort=" << senderPort
+                         << " =" << Address.toString()
+                         << " Port=" << Port
                          << " size=" << size
                          << " total=" << p2DatagramsSeen;
         }
@@ -322,8 +323,8 @@ void DataIO::readDeviceDataP2(QUdpSocket* socket) {
             ++p2WidePacketsSeen;
             if ((p2WidePacketsSeen % 100) == 1) {
                 P2_NET_DEBUG << "P2 wideband: localPort=" << socket->localPort()
-                             << " sender=" << senderAddress.toString()
-                             << " senderPort=" << senderPort
+                             << " =" << Address.toString()
+                             << " Port=" << Port
                              << " wideTotal=" << p2WidePacketsSeen;
             }
             processWidebandPacket(size);
@@ -342,7 +343,7 @@ void DataIO::readDeviceDataP2(QUdpSocket* socket) {
 
             if (!io->iq_queue.isFull()) {
                 const int hdrSize = io->protocol->getHeaderSize();
-                quint16 effectiveSourcePort = senderPort;
+                quint16 effectiveSourcePort = Port;
                 if (effectiveSourcePort < 1035 || effectiveSourcePort >= (1035 + MAX_RECEIVERS)) {
                     effectiveSourcePort = m_socketLogicalPorts.value(socket, socket->localPort());
                 }
@@ -350,7 +351,7 @@ void DataIO::readDeviceDataP2(QUdpSocket* socket) {
 
                 if ((p2IqPacketsSeen % 500) == 1) {
                     P2_NET_DEBUG << "P2 IQ enqueue: localPort=" << socket->localPort()
-                                 << " senderPort=" << senderPort
+                                 << " Port=" << Port
                                  << " effectiveSourcePort=" << effectiveSourcePort
                                  << " size=" << size
                                  << " hdr=" << hdrSize
@@ -361,7 +362,7 @@ void DataIO::readDeviceDataP2(QUdpSocket* socket) {
                 emit (readydata());
             } else {
                 P2_NET_DEBUG << "P2 IQ queue FULL: localPort=" << socket->localPort()
-                             << " senderPort=" << senderPort
+                             << " Port=" << Port
                              << " size=" << size
                              << " iqTotal=" << p2IqPacketsSeen;
             }
@@ -370,8 +371,8 @@ void DataIO::readDeviceDataP2(QUdpSocket* socket) {
             ++p2HpPacketsSeen;
             if ((p2HpPacketsSeen % 100) == 1) {
                 P2_NET_DEBUG << "P2 HP status: localPort=" << socket->localPort()
-                             << " sender=" << senderAddress.toString()
-                             << " senderPort=" << senderPort
+                             << " =" << Address.toString()
+                             << " Port=" << Port
                              << " hpTotal=" << p2HpPacketsSeen;
             }
             io->protocol->decodeCCBytes(m_datagram.left(size), io);
@@ -379,8 +380,8 @@ void DataIO::readDeviceDataP2(QUdpSocket* socket) {
         else {
             if ((p2DatagramsSeen % 500) == 1) {
                 P2_NET_DEBUG << "P2 unclassified datagram: localPort=" << socket->localPort()
-                             << " sender=" << senderAddress.toString()
-                             << " senderPort=" << senderPort
+                             << " =" << Address.toString()
+                             << " Port=" << Port
                              << " size=" << size;
             }
         }
@@ -459,15 +460,11 @@ void DataIO::sendInitFramesToNetworkDevice(int rx) {
 
 	if (m_dataIOSocket->writeDatagram(initDatagram.data(), initDatagram.size(), io->hpsdrDeviceIPAddress, port) < 0) {
 
-		io->networkIOMutex.lock();
-		DATAIO_DEBUG << "error sending init data to device: " << qPrintable(m_dataIOSocket->errorString());
-		io->networkIOMutex.unlock();
+		{ QMutexLocker l(&io->networkIOMutex); DATAIO_DEBUG << "error sending init data to device: " << qPrintable(m_dataIOSocket->errorString()); }
 	}
 	else {
 
-		io->networkIOMutex.lock();
-		DATAIO_DEBUG << "init frames sent to network device. " << rx << " port " << port;
-		io->networkIOMutex.unlock();
+		{ QMutexLocker l(&io->networkIOMutex); DATAIO_DEBUG << "init frames sent to network device. " << rx << " port " << port; }
 	}
 }
 
@@ -482,16 +479,12 @@ void DataIO::networkDeviceStartStop(char value) {
 
 			if (value != 0) {
 
-				io->networkIOMutex.lock();
-				DATAIO_DEBUG << "sent start command to device at: "<< qPrintable(metis.ip_address.toString()) << " port " << port;
-				io->networkIOMutex.unlock();
+				{ QMutexLocker l(&io->networkIOMutex); DATAIO_DEBUG << "sent start command to device at: "<< qPrintable(metis.ip_address.toString()) << " port " << port; }
 				m_networkDeviceRunning = true;
 			}
 			else {
 
-				io->networkIOMutex.lock();
-				DATAIO_DEBUG << "sent stop command to device at: "<< qPrintable(metis.ip_address.toString()) << " port " << port;
-				io->networkIOMutex.unlock();
+				{ QMutexLocker l(&io->networkIOMutex); DATAIO_DEBUG << "sent stop command to device at: "<< qPrintable(metis.ip_address.toString()) << " port " << port; }
 				m_networkDeviceRunning = false;
 			}
 		}
@@ -587,14 +580,12 @@ void DataIO::displayDataReceiverSocketError(QAbstractSocket::SocketError error) 
 	DATAIO_DEBUG << "data IO socket error: " << error;
 }
 
-void DataIO::setManualSocketBufferSize(QObject *sender, bool value) {
-
-	Q_UNUSED (sender)
+void DataIO::setManualSocketBufferSize(bool value) {
 
 	m_manualBufferSize = value;
 	int socketBufferSize = 1024 * set->getSocketBufferSize();
 
-	io->networkIOMutex.lock();
+	QMutexLocker locker(&io->networkIOMutex);
     if (m_manualBufferSize) {
         DATAIO_DEBUG << "set data IO socket BufferSize to " << m_socketBufferSize;
     } else {
@@ -616,17 +607,14 @@ void DataIO::setManualSocketBufferSize(QObject *sender, bool value) {
         }
     }
 #endif
-	io->networkIOMutex.unlock();
 }
 
-void DataIO::setSocketBufferSize(QObject *sender, int value) {
-
-	Q_UNUSED (sender)
+void DataIO::setSocketBufferSize(int value) {
 
 	int socketBufferSize = value * 1024;
 	DATAIO_DEBUG << "m_socketBufferSize = " << value;
 
-	io->networkIOMutex.lock();
+	QMutexLocker locker(&io->networkIOMutex);
 #if defined(Q_OS_WIN32)
     for (auto socket : m_sockets) {
         if (socket && socket->isValid()) {
@@ -641,15 +629,13 @@ void DataIO::setSocketBufferSize(QObject *sender, int value) {
         }
     }
 #endif
-	io->networkIOMutex.unlock();
 }
 
-void DataIO::setSampleRate(QObject *sender, int value) {
+void DataIO::setSampleRate(int value) {
 
-	Q_UNUSED(sender)
-
-    int bufferSize = rxSocketBufferSizeForRate(value);
-	io->networkIOMutex.lock();
+	int bufferSize = rxSocketBufferSizeForRate(value);
+	{
+	QMutexLocker locker(&io->networkIOMutex);
     DATAIO_DEBUG << "socket buffer size set to" << (bufferSize / 1024) << "kB for sample rate" << value;
 
 #if defined(Q_OS_WIN32)
@@ -666,8 +652,7 @@ void DataIO::setSampleRate(QObject *sender, int value) {
         }
     }
 #endif
-
-	io->networkIOMutex.unlock();
+	} // QMutexLocker released here
 
 #ifndef USE_INTERNAL_AUDIO
     // Reset the sound card output queue so stale samples from the old rate

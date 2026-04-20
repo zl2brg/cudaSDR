@@ -99,8 +99,8 @@ public:
     void setAutoUpdatePosition(bool enabled);
 
 public slots:
-    void bufferChanged(QObject *sender, qint64 position, qint64 length, const QByteArray &buffer);
-    void audioPositionChanged(QObject *sender, qint64 position);
+    void bufferChanged(qint64 position, qint64 length, const QByteArray &buffer);
+    void audioPositionChanged(qint64 position);
 
 	QImage*		createWaveformImage(const QRect &rect);
 

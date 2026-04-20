@@ -58,7 +58,7 @@ Options3DWidget::Options3DWidget(QWidget *parent)
 }
 
 Options3DWidget::~Options3DWidget() {
-    disconnect(this, 0, 0, 0);
+    disconnect(0, 0, 0);
     disconnect(set, 0, this, 0);
 }
 

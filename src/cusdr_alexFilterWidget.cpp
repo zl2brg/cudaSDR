@@ -133,34 +133,34 @@ AlexFilterWidget::~AlexFilterWidget() {
 
 	// disconnect all signals
 	disconnect(set, 0, this, 0);
-	disconnect(this, 0, 0, 0);
+	disconnect(0, 0, 0);
 }
 
 void AlexFilterWidget::setupConnections() {
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(alexManualStateChanged(QObject *, bool)),
+		SIGNAL(alexManualStateChanged(bool)),
 		this,
-		SLOT(alexManualStateChanged(QObject *, bool)));
+		SLOT(alexManualStateChanged(bool)));
 
 //	CHECKED_CONNECT(
 //		set,
-//		SIGNAL(currentReceiverChanged(QObject *,int)),
+//		SIGNAL(currentReceiverChanged(int)),
 //		this,
-//		SLOT(setCurrentReceiver(QObject *, int)));
+//		SLOT(setCurrentReceiver(int)));
 
 	/*CHECKED_CONNECT(
 		set,
-		SIGNAL(vfoFrequencyChanged(QObject *, bool, int, long)),
+		SIGNAL(vfoFrequencyChanged(bool, int, long)),
 		this,
-		SLOT(setFrequency(QObject *, bool, int, long)));*/
+		SLOT(setFrequency(bool, int, long)));*/
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(vfoFrequencyChanged(QObject *, int, int, long)),
+		SIGNAL(vfoFrequencyChanged(int, int, long)),
 		this,
-		SLOT(setFrequency(QObject *, int, int, long)));
+		SLOT(setFrequency(int, int, long)));
 }
 
 void AlexFilterWidget::createHPFGroup() {
@@ -595,7 +595,7 @@ void AlexFilterWidget::manualFilterBtnClicked() {
 	}
 	manualFilterBtn->update();
 
-	set->setAlexConfiguration(this, m_alexConfig);
+	set->setAlexConfiguration(m_alexConfig);
 }
 
 void AlexFilterWidget::defaultValuesBtnClicked() {
@@ -629,7 +629,7 @@ void AlexFilterWidget::bypassAllHPFBtnClicked() {
 	}
 	bypassAllHPFBtn->update();
 
-	setFrequency(this, 0, m_receiver, set->getVfoFrequencies().at(m_receiver));
+	setFrequency(0, m_receiver, set->getVfoFrequencies().at(m_receiver));
 }
 
 void AlexFilterWidget::lowNoise6mAmpBtnClicked() {
@@ -648,7 +648,7 @@ void AlexFilterWidget::lowNoise6mAmpBtnClicked() {
 	}
 	lowNoise6mAmpBtn->update();
 
-	setFrequency(this, 0, m_receiver, set->getVfoFrequencies().at(m_receiver));
+	setFrequency(0, m_receiver, set->getVfoFrequencies().at(m_receiver));
 }
 
 void AlexFilterWidget::hpf1_5MHzBtnClicked() {
@@ -667,7 +667,7 @@ void AlexFilterWidget::hpf1_5MHzBtnClicked() {
 	}
 	hpf1_5MHzBtn->update();
 
-	setFrequency(this, 0, m_receiver, set->getVfoFrequencies().at(m_receiver));
+	setFrequency(0, m_receiver, set->getVfoFrequencies().at(m_receiver));
 }
 
 void AlexFilterWidget::hpf6_5MHzBtnClicked() {
@@ -686,7 +686,7 @@ void AlexFilterWidget::hpf6_5MHzBtnClicked() {
 	}
 	hpf6_5MHzBtn->update();
 
-	setFrequency(this, 0, m_receiver, set->getVfoFrequencies().at(m_receiver));
+	setFrequency(0, m_receiver, set->getVfoFrequencies().at(m_receiver));
 }
 
 void AlexFilterWidget::hpf9_5MHzBtnClicked() {
@@ -705,7 +705,7 @@ void AlexFilterWidget::hpf9_5MHzBtnClicked() {
 	}
 	hpf9_5MHzBtn->update();
 
-	setFrequency(this, 0, m_receiver, set->getVfoFrequencies().at(m_receiver));
+	setFrequency(0, m_receiver, set->getVfoFrequencies().at(m_receiver));
 }
 
 void AlexFilterWidget::hpf13MHzBtnClicked() {
@@ -724,7 +724,7 @@ void AlexFilterWidget::hpf13MHzBtnClicked() {
 	}
 	hpf13MHzBtn->update();
 
-	setFrequency(this, 0, m_receiver, set->getVfoFrequencies().at(m_receiver));
+	setFrequency(0, m_receiver, set->getVfoFrequencies().at(m_receiver));
 }
 
 void AlexFilterWidget::hpf20MHzBtnClicked() {
@@ -743,12 +743,11 @@ void AlexFilterWidget::hpf20MHzBtnClicked() {
 	}
 	hpf20MHzBtn->update();
 
-	setFrequency(this, 0, m_receiver, set->getVfoFrequencies().at(m_receiver));
+	setFrequency(0, m_receiver, set->getVfoFrequencies().at(m_receiver));
 }
 
-void AlexFilterWidget::setFrequency(QObject * sender, int mode, int rx, long frequency) {
+void AlexFilterWidget::setFrequency(int mode, int rx, long frequency) {
 
-	Q_UNUSED(sender)
 	Q_UNUSED(mode)
 
 	m_receiver = rx;
@@ -758,7 +757,7 @@ void AlexFilterWidget::setFrequency(QObject * sender, int mode, int rx, long fre
 
 	setAlexConfiguration((double)(frequency/1000.0));
 
-	set->setAlexConfiguration(this, m_alexConfig);
+	set->setAlexConfiguration(m_alexConfig);
 }
 
 void AlexFilterWidget::setAlexConfiguration(double freq) {
@@ -932,9 +931,7 @@ void AlexFilterWidget::setAlexConfiguration(double freq) {
 	}
 }
 
-void AlexFilterWidget::setCurrentReceiver(QObject *sender, int rx) {
-
-	Q_UNUSED(sender)
+void AlexFilterWidget::setCurrentReceiver(int rx) {
 
 	m_receiver = rx;
 }
@@ -980,15 +977,13 @@ void AlexFilterWidget::initAlexValues() {
 	manualFilterBtn->update();
 }
 
-void AlexFilterWidget::alexManualStateChanged(QObject *sender, bool value) {
-
-	Q_UNUSED(sender)
+void AlexFilterWidget::alexManualStateChanged(bool value) {
 
 	if (value) {
 
 		m_alexConfig |= 0x01;
 		m_receiver = set->getCurrentReceiver();
-		setFrequency(this, true, m_receiver, set->getVfoFrequencies().at(m_receiver));
+		setFrequency(true, m_receiver, set->getVfoFrequencies().at(m_receiver));
 
 		manualFilterBtn->setText("Manual");
 		manualFilterBtn->setBtnState(AeroButton::ON);
@@ -1005,7 +1000,7 @@ void AlexFilterWidget::alexManualStateChanged(QObject *sender, bool value) {
 		manualFilterBtn->setText("Auto");
 		manualFilterBtn->setBtnState(AeroButton::OFF);
 
-		set->setAlexConfiguration(this, m_alexConfig);
+		set->setAlexConfiguration(m_alexConfig);
 	}
 	manualFilterBtn->update();
 }

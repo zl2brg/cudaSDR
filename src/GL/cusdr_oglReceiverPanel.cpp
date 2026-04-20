@@ -2525,8 +2525,8 @@ void QGLReceiverPanel::wheelEvent(QWheelEvent* event) {
 				//GRAPHICS_DEBUG << "m_deltaFrequency: " << m_deltaFrequency;
 			}
 			
-			set->setCtrFrequency(this, 0, m_receiver, m_centerFrequency);
-			set->setVFOFrequency(this, 0, m_receiver, m_vfoFrequency);
+			set->setCtrFrequency(0, m_receiver, m_centerFrequency);
+			set->setVFOFrequency(0, m_receiver, m_vfoFrequency);
 			break;
 	}
 
@@ -2548,12 +2548,12 @@ void QGLReceiverPanel::mousePressEvent(QMouseEvent* event) {
 			if (m_showAGCLines) {
 
 				m_showAGCLines = false;
-				set->setAGCShowLines(this, m_receiver, false);
+				set->setAGCShowLines(m_receiver, false);
 			}
 			else {
 
 				m_showAGCLines = true;
-				set->setAGCShowLines(this, m_receiver, true);
+				set->setAGCShowLines(m_receiver, true);
 			}
 		}
 	}
@@ -2561,7 +2561,7 @@ void QGLReceiverPanel::mousePressEvent(QMouseEvent* event) {
 
 		if (event->buttons() == Qt::LeftButton && m_receiver != set->getCurrentReceiver()) {
 
-			set->setCurrentReceiver(this, m_receiver);
+			set->setCurrentReceiver(m_receiver);
 		}
 		else if (event->buttons() == Qt::LeftButton && m_clickVFO) {
 
@@ -2574,7 +2574,7 @@ void QGLReceiverPanel::mousePressEvent(QMouseEvent* event) {
             int dx = m_panRect.width()/2 - m_mousePos.x();
 			qreal unit = (qreal)((m_sampleRate * m_freqScaleZoomFactor) / m_panRect.width());
             m_vfoFrequency = (long)(qRound((m_centerFrequency - (unit * dx))));
-			set->setVFOFrequency(this, 0, m_receiver, m_vfoFrequency);		
+			set->setVFOFrequency(0, m_receiver, m_vfoFrequency);		
 		}
 		else if (event->buttons() == Qt::LeftButton) {
 
@@ -2693,8 +2693,8 @@ void QGLReceiverPanel::mouseMoveEvent(QMouseEvent* event) {
 				if (m_agcThresholdNew < m_dBmPanMin+2)
 					m_agcThresholdNew = m_dBmPanMin+2;
 
-				set->setAGCThreshold_dB(this, m_receiver, m_agcThresholdNew);
-		//		set->setAGCMaximumGain_dB(this, m_receiver, m_agcThresholdNew);
+				set->setAGCThreshold_dB(m_receiver, m_agcThresholdNew);
+		//		set->setAGCMaximumGain_dB(m_receiver, m_agcThresholdNew);
 			}
 			break;
 
@@ -2721,7 +2721,7 @@ void QGLReceiverPanel::mouseMoveEvent(QMouseEvent* event) {
 
 				if (m_agcHangLevelNew < m_dBmPanMin+2)
 					m_agcHangLevelNew = m_dBmPanMin+2;
-				set->setAGCHangThreshold(this, m_receiver, m_agcHangLevelNew);
+				set->setAGCHangThreshold(m_receiver, m_agcHangLevelNew);
 			}
 			break;
 
@@ -2749,7 +2749,7 @@ void QGLReceiverPanel::mouseMoveEvent(QMouseEvent* event) {
 				if (agcFixedGain < m_dBmPanMin+2)
 					agcFixedGain = m_dBmPanMin+2;
 
-				set->setAGCFixedGain_dB(this, m_receiver, -agcFixedGain);
+				set->setAGCFixedGain_dB(m_receiver, -agcFixedGain);
 			}
 			break;
 
@@ -2796,7 +2796,7 @@ void QGLReceiverPanel::mouseMoveEvent(QMouseEvent* event) {
 
 				if (m_panLocked) {
 				
-					set->setVFOFrequency(this, 0, m_receiver, m_vfoFrequency);
+					set->setVFOFrequency(0, m_receiver, m_vfoFrequency);
 
 					m_deltaFrequency = m_centerFrequency - m_vfoFrequency;
 					m_deltaF = (qreal)(1.0*m_deltaFrequency/m_sampleRate);
@@ -2805,8 +2805,8 @@ void QGLReceiverPanel::mouseMoveEvent(QMouseEvent* event) {
 
 					m_vfoFrequency = m_centerFrequency - m_deltaFrequency;
                     GRAPHICS_DEBUG << "vfo freq " << m_vfoFrequency << m_centerFrequency;
-					set->setVFOFrequency(this, 0, m_receiver, m_vfoFrequency);
-					set->setCtrFrequency(this, 0, m_receiver, m_centerFrequency);
+					set->setVFOFrequency(0, m_receiver, m_vfoFrequency);
+					set->setCtrFrequency(0, m_receiver, m_centerFrequency);
 				}
 
                 m_mouseDownPos = m_mousePos;
@@ -2972,7 +2972,7 @@ void QGLReceiverPanel::mouseMoveEvent(QMouseEvent* event) {
 					new_y = bottom_y;
 				
 				m_freqRulerPosition = (float)(new_y - m_panRect.top()) / (bottom_y - m_panRect.top());
-				set->setFreqRulerPosition(this, m_receiver, m_freqRulerPosition);
+				set->setFreqRulerPosition(m_receiver, m_freqRulerPosition);
 
 //				if (m_displayTime.elapsed() >= 50) {
 //
@@ -3006,12 +3006,12 @@ void QGLReceiverPanel::mouseMoveEvent(QMouseEvent* event) {
 					if (!m_panLocked) {
 
 						m_vfoFrequency = m_centerFrequency - m_deltaFrequency;
-						set->setVFOFrequency(this, 0, m_receiver, m_vfoFrequency);
-						set->setCtrFrequency(this, 0, m_receiver, m_centerFrequency);
+						set->setVFOFrequency(0, m_receiver, m_vfoFrequency);
+						set->setCtrFrequency(0, m_receiver, m_centerFrequency);
 					}
 
-					//set->setVFOFrequency(this, 0, m_receiver, m_vfoFrequency);
-					//set->setCtrFrequency(this, 0, m_receiver, m_centerFrequency);
+					//set->setVFOFrequency(0, m_receiver, m_vfoFrequency);
+					//set->setCtrFrequency(0, m_receiver, m_centerFrequency);
 
 					else {
 
@@ -3019,13 +3019,13 @@ void QGLReceiverPanel::mouseMoveEvent(QMouseEvent* event) {
 						m_deltaF = (qreal)(1.0*m_deltaFrequency/m_sampleRate);
 
 						qreal vol = set->getMainVolume(m_receiver);
-						set->setMainVolume(this, m_receiver, 0.0f);
-						set->setCtrFrequency(this, 0, m_receiver, m_centerFrequency);
-						set->setNCOFrequency(this, true, m_receiver, -m_deltaFrequency);
-						set->setMainVolume(this, m_receiver, vol);
+						set->setMainVolume(m_receiver, 0.0f);
+						set->setCtrFrequency(0, m_receiver, m_centerFrequency);
+						set->setNCOFrequency(true, m_receiver, -m_deltaFrequency);
+						set->setMainVolume(m_receiver, vol);
 					}
 
-					//set->setCtrFrequency(this, 0, m_receiver, m_centerFrequency);
+					//set->setCtrFrequency(0, m_receiver, m_centerFrequency);
 				//}
                 m_mouseDownPos = m_mousePos;
 
@@ -3076,7 +3076,7 @@ void QGLReceiverPanel::mouseMoveEvent(QMouseEvent* event) {
 				qreal dFreq = (qreal)(dPos.x() * m_sampleRate * m_freqScaleZoomFactor) / m_panRect.width();
 
 				m_filterLowerFrequency = qRound(m_mouseDownFilterFrequencyLo - dFreq);
-				set->setRXFilter(this, m_receiver, m_filterLowerFrequency, m_filterUpperFrequency);
+				set->setRXFilter(m_receiver, m_filterLowerFrequency, m_filterUpperFrequency);
 
 //				if (m_displayTime.elapsed() >= 50) {
 //
@@ -3098,7 +3098,7 @@ void QGLReceiverPanel::mouseMoveEvent(QMouseEvent* event) {
 				qreal dFreq = (qreal)(dPos.x() * m_sampleRate * m_freqScaleZoomFactor) / m_panRect.width();
 
 				m_filterUpperFrequency = qRound(m_mouseDownFilterFrequencyHi - dFreq);
-				set->setRXFilter(this, m_receiver, m_filterLowerFrequency, m_filterUpperFrequency);
+				set->setRXFilter(m_receiver, m_filterLowerFrequency, m_filterUpperFrequency);
 
 //				if (m_displayTime.elapsed() >= 50) {
 //
@@ -3123,7 +3123,7 @@ void QGLReceiverPanel::mouseMoveEvent(QMouseEvent* event) {
 
 				m_filterUpperFrequency = qRound(m_mouseDownFilterFrequencyHi - dFreq);
 				m_filterLowerFrequency = qRound(m_mouseDownFilterFrequencyLo - dFreq);
-				set->setRXFilter(this, m_receiver, m_filterLowerFrequency, m_filterUpperFrequency);
+				set->setRXFilter(m_receiver, m_filterLowerFrequency, m_filterUpperFrequency);
 
 //				if (m_displayTime.elapsed() >= 50) {
 //
@@ -3193,9 +3193,7 @@ void QGLReceiverPanel::keyPressEvent(QKeyEvent* event) {
  
 //********************************************************************
 
-void QGLReceiverPanel::setSpectrumSize(QObject *sender, int value) {
-
-	Q_UNUSED(sender)
+void QGLReceiverPanel::setSpectrumSize(int value) {
 
 	if (m_dataEngineState == QSDR::DataEngineDown) {
 
@@ -3205,13 +3203,11 @@ void QGLReceiverPanel::setSpectrumSize(QObject *sender, int value) {
 	}
 }
 
-void QGLReceiverPanel::setCtrFrequency(QObject *sender, int mode, int rx, long freq) {
+void QGLReceiverPanel::setCtrFrequency(int mode, int rx, long freq) {
 
-	Q_UNUSED(sender)
 	Q_UNUSED(mode)
 	
-	//if (sender == this) return;
-	if (m_receiver != rx) return;
+	//	if (m_receiver != rx) return;
 
 	m_rxDataList[rx].ctrFrequency = freq;
 
@@ -3222,13 +3218,11 @@ void QGLReceiverPanel::setCtrFrequency(QObject *sender, int mode, int rx, long f
 //	update();
 }
 
-void QGLReceiverPanel::setVFOFrequency(QObject *sender, int mode, int rx, long freq) {
+void QGLReceiverPanel::setVFOFrequency(int mode, int rx, long freq) {
 
-	Q_UNUSED(sender)
 	Q_UNUSED(mode)
 	
-	//if (sender == this) return;
-	if (m_receiver != rx) return;
+	//	if (m_receiver != rx) return;
 
 	m_rxDataList[rx].vfoFrequency = freq;
 
@@ -3255,8 +3249,8 @@ void QGLReceiverPanel::setVfoToMidFrequency() {
 	m_deltaFrequency = 0;
 	m_deltaF = 0;
 
-	set->setVFOFrequency(this, 0, m_receiver, m_vfoFrequency);
-	set->setNCOFrequency(this, false, m_receiver, 0);
+	set->setVFOFrequency(0, m_receiver, m_vfoFrequency);
+	set->setNCOFrequency(false, m_receiver, 0);
 }
 
 void QGLReceiverPanel::setMidToVfoFrequency() {
@@ -3265,14 +3259,12 @@ void QGLReceiverPanel::setMidToVfoFrequency() {
 	m_deltaFrequency = 0;
 	m_deltaF = 0;
 
-	set->setCtrFrequency(this, 0, m_receiver, m_centerFrequency);
-	set->setNCOFrequency(this, false, m_receiver, 0);
+	set->setCtrFrequency(0, m_receiver, m_centerFrequency);
+	set->setNCOFrequency(false, m_receiver, 0);
 	update();
 }
 
-void QGLReceiverPanel::setFilterFrequencies(QObject *sender, int rx, qreal lo, qreal hi) {
-
-	Q_UNUSED(sender)
+void QGLReceiverPanel::setFilterFrequencies(int rx, qreal lo, qreal hi) {
 
 	if (m_receiver != rx) return;
 		
@@ -3282,18 +3274,14 @@ void QGLReceiverPanel::setFilterFrequencies(QObject *sender, int rx, qreal lo, q
 	update();
 }
 
-void QGLReceiverPanel::setCurrentReceiver(QObject *sender, int value) {
-
-	Q_UNUSED(sender)
+void QGLReceiverPanel::setCurrentReceiver(int value) {
 
 	m_currentReceiver = value;
 	m_panGridUpdate = true;
 	update();
 }
 
-void QGLReceiverPanel::freqRulerPositionChanged(QObject *sender, int rx, float pos) {
-
-	Q_UNUSED (sender)
+void QGLReceiverPanel::freqRulerPositionChanged(int rx, float pos) {
 
 	if (rx == m_receiver) {
 		
@@ -3350,7 +3338,7 @@ void QGLReceiverPanel::computeDisplayBins(QVector<float>& buffer, QVector<float>
 			if (m_fftMult == 1) {
 
 				GRAPHICS_DEBUG << "set sample size to 8192";
-				set->setSampleSize(this, m_receiver, 8192);
+				set->setSampleSize(m_receiver, 8192);
 				//m_dBmPanLogGain += 3.0103;
 				m_dBmPanLogGain += 6;
 				m_fftMult = 2;
@@ -3360,7 +3348,7 @@ void QGLReceiverPanel::computeDisplayBins(QVector<float>& buffer, QVector<float>
 			else if (m_fftMult == 2) {
 
 				GRAPHICS_DEBUG << "set sample size to 16384";
-				set->setSampleSize(this, m_receiver, 16384);
+				set->setSampleSize(m_receiver, 16384);
 				//m_dBmPanLogGain += 3.0103;
 				m_dBmPanLogGain += 6;
 				m_fftMult = 4;
@@ -3370,7 +3358,7 @@ void QGLReceiverPanel::computeDisplayBins(QVector<float>& buffer, QVector<float>
 			else if (m_fftMult == 4) {
 
 				GRAPHICS_DEBUG << "set sample size to 32768";
-				set->setSampleSize(this, m_receiver, 32768);
+				set->setSampleSize(m_receiver, 32768);
 				//m_dBmPanLogGain += 3.0103;
 				m_dBmPanLogGain += 6;
 				m_fftMult = 8;
@@ -3380,7 +3368,7 @@ void QGLReceiverPanel::computeDisplayBins(QVector<float>& buffer, QVector<float>
 			else if (m_fftMult == 8) {
 
 				GRAPHICS_DEBUG << "set sample size to 65536";
-				set->setSampleSize(this, m_receiver, 65536);
+				set->setSampleSize(m_receiver, 65536);
 				//m_dBmPanLogGain += 3.0103;
 				m_dBmPanLogGain += 6;
 				m_fftMult = 16;
@@ -3393,7 +3381,7 @@ void QGLReceiverPanel::computeDisplayBins(QVector<float>& buffer, QVector<float>
 			if (m_fftMult == 2) {
 
 				GRAPHICS_DEBUG << "set sample size to 4096";
-				set->setSampleSize(this, m_receiver, 4096);
+				set->setSampleSize(m_receiver, 4096);
 				//m_dBmPanLogGain -= 3.0103;
 				m_dBmPanLogGain -= 6;
 				m_fftMult = 1;
@@ -3403,7 +3391,7 @@ void QGLReceiverPanel::computeDisplayBins(QVector<float>& buffer, QVector<float>
 			else if (m_fftMult == 4) {
 
 				GRAPHICS_DEBUG << "set sample size to 8192";
-				set->setSampleSize(this, m_receiver, 8192);
+				set->setSampleSize(m_receiver, 8192);
 				//m_dBmPanLogGain -= 3.0103;
 				m_dBmPanLogGain -= 6;
 				m_fftMult = 2;
@@ -3413,7 +3401,7 @@ void QGLReceiverPanel::computeDisplayBins(QVector<float>& buffer, QVector<float>
 			else if (m_fftMult == 8) {
 
 				GRAPHICS_DEBUG << "set sample size to 16384";
-				set->setSampleSize(this, m_receiver, 16384);
+				set->setSampleSize(m_receiver, 16384);
 				//m_dBmPanLogGain -= 3.0103;
 				m_dBmPanLogGain -= 6;
 				m_fftMult = 4;
@@ -3423,7 +3411,7 @@ void QGLReceiverPanel::computeDisplayBins(QVector<float>& buffer, QVector<float>
 			else if (m_fftMult == 16) {
 
 				GRAPHICS_DEBUG << "set sample size to 32768";
-				set->setSampleSize(this, m_receiver, 32768);
+				set->setSampleSize(m_receiver, 32768);
 				//m_dBmPanLogGain -= 3.0103;
 				m_dBmPanLogGain -= 6;
 				m_fftMult = 8;
@@ -3664,9 +3652,7 @@ QColor QGLReceiverPanel::getWaterfallColorAtPixel(qreal value) {
 	return color;
 }
 
-void QGLReceiverPanel::setFramesPerSecond(QObject* sender, int rx, int value) {
-
-	Q_UNUSED(sender)
+void QGLReceiverPanel::setFramesPerSecond(int rx, int value) {
 
 	if (m_receiver != rx) return;
 
@@ -3678,13 +3664,11 @@ void QGLReceiverPanel::setFramesPerSecond(QObject* sender, int rx, int value) {
 }
 
 void QGLReceiverPanel::systemStateChanged(
-	QObject *sender, 
 	QSDR::_Error err, 
 	QSDR::_HWInterfaceMode hwmode, 
 	QSDR::_ServerMode mode, 
 	QSDR::_DataEngineState state)
 {
-	Q_UNUSED (sender)
 	Q_UNUSED (err)
 	Q_UNUSED (hwmode)
 	Q_UNUSED (state)
@@ -3711,13 +3695,10 @@ void QGLReceiverPanel::systemStateChanged(
 }
 
 void QGLReceiverPanel::graphicModeChanged(
-	QObject *sender,
 	int rx,
 	PanGraphicsMode panMode,
 	WaterfallColorMode waterfallColorMode)
 {
-	Q_UNUSED (sender)
-
 	if (m_receiver != rx) return;
 	
 	
@@ -3728,9 +3709,7 @@ void QGLReceiverPanel::graphicModeChanged(
 		m_waterfallMode = waterfallColorMode;
 }
 
-void QGLReceiverPanel::setSpectrumAveraging(QObject* sender, int rx, bool value) {
-
-	Q_UNUSED(sender)
+void QGLReceiverPanel::setSpectrumAveraging(int rx, bool value) {
 
 	if (m_receiver != rx) return;
 
@@ -3790,10 +3769,8 @@ void QGLReceiverPanel::setHairCrossStatus(bool value, int rx) {
     m_crossHair = value;
 }
 
-void QGLReceiverPanel::sampleRateChanged(QObject *sender, int value) {
+void QGLReceiverPanel::sampleRateChanged(int value) {
 
-	Q_UNUSED(sender)
-	
 	m_sampleRate = value;
 	m_deltaF = (qreal)(1.0*m_deltaFrequency/m_sampleRate);
 
@@ -3802,9 +3779,8 @@ void QGLReceiverPanel::sampleRateChanged(QObject *sender, int value) {
 	m_filterChanged = true;
 }
 
-void QGLReceiverPanel::setMercuryAttenuator(QObject* sender, HamBand band, int value) {
+void QGLReceiverPanel::setMercuryAttenuator(HamBand band, int value) {
 
-	Q_UNUSED(sender)
 	Q_UNUSED(band)
 
 	m_mercuryAttenuator = value;
@@ -3885,17 +3861,13 @@ void QGLReceiverPanel::setdBmScaleMax(int rx, qreal value) {
 	m_panGridUpdate = true;
 }
 
-void QGLReceiverPanel::setMouseWheelFreqStep(QObject *sender, int rx, qreal step) {
-
-	Q_UNUSED(sender)
+void QGLReceiverPanel::setMouseWheelFreqStep(int rx, qreal step) {
 
 	if (m_receiver != rx) return;
 	m_mouseWheelFreqStep = step;
 }
 
-void QGLReceiverPanel::setHamBand(QObject *sender, int rx, bool byButton, HamBand band) {
-
-	Q_UNUSED(sender)
+void QGLReceiverPanel::setHamBand(int rx, bool byButton, HamBand band) {
 
 	if (m_receiver != rx || !byButton) return;
 	// we change the dBm-scale only, if the frequency is changed by changing the band by button.
@@ -3929,9 +3901,7 @@ void QGLReceiverPanel::updateADCStatus() {
 		m_adcStatus = 0;
 }
 
-void QGLReceiverPanel::setAGCLineLevels(QObject *sender, int rx, qreal thresh, qreal hang) {
-
-	Q_UNUSED(sender)
+void QGLReceiverPanel::setAGCLineLevels(int rx, qreal thresh, qreal hang) {
 
 	if (m_receiver != rx) return;
 	if (m_agcThresholdOld == thresh && m_agcHangLevelOld == hang) return;
@@ -3940,9 +3910,7 @@ void QGLReceiverPanel::setAGCLineLevels(QObject *sender, int rx, qreal thresh, q
 	m_agcHangLevelOld = hang;
 }
 
-void QGLReceiverPanel::setAGCLineFixedLevel(QObject *sender, int rx, qreal value) {
-
-	Q_UNUSED(sender)
+void QGLReceiverPanel::setAGCLineFixedLevel(int rx, qreal value) {
 
 	if (m_receiver != rx) return;
 	if (m_agcFixedGain == value) return;
@@ -3950,9 +3918,7 @@ void QGLReceiverPanel::setAGCLineFixedLevel(QObject *sender, int rx, qreal value
 	m_agcFixedGain = value;
 }
 
-void QGLReceiverPanel::setADCMode(QObject *sender, int rx, ADCMode mode) {
-
-	Q_UNUSED(sender)
+void QGLReceiverPanel::setADCMode(int rx, ADCMode mode) {
 
 	if (m_receiver != rx) return;
 
@@ -3960,9 +3926,7 @@ void QGLReceiverPanel::setADCMode(QObject *sender, int rx, ADCMode mode) {
 	m_adcModeString = set->getADCModeString(m_receiver);
 }
 
-void QGLReceiverPanel::setAGCMode(QObject *sender, int rx, AGCMode mode, bool hangEnabled) {
-
-	Q_UNUSED(sender)
+void QGLReceiverPanel::setAGCMode(int rx, AGCMode mode, bool hangEnabled) {
 
 	if (m_receiver != rx) return;
 
@@ -3974,18 +3938,14 @@ void QGLReceiverPanel::setAGCMode(QObject *sender, int rx, AGCMode mode, bool ha
 	GRAPHICS_DEBUG << "m_agcHangEnabled = " << m_agcHangEnabled;
 }
 
-void QGLReceiverPanel::setAGCLinesStatus(QObject* sender, bool value, int rx) {
-
-	Q_UNUSED (sender)
+void QGLReceiverPanel::setAGCLinesStatus(bool value, int rx) {
 
 	if (m_receiver != rx) return;
 
 	m_showAGCLines = value;
 }
 
-void QGLReceiverPanel::setDSPMode(QObject* sender, int rx, DSPMode mode) {
-
-	Q_UNUSED(sender)
+void QGLReceiverPanel::setDSPMode(int rx, DSPMode mode) {
 
 	if (m_receiver != rx) return;
 
@@ -3997,7 +3957,7 @@ void QGLReceiverPanel::showRadioPopup(bool value) {
 
 	Q_UNUSED (value)
 
-	radioPopup->showPopupWidget(this, QCursor::pos());
+	radioPopup->showPopupWidget(QCursor::pos());
 }
 
 void QGLReceiverPanel::qglColor(QColor color)

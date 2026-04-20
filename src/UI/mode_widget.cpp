@@ -139,13 +139,11 @@ void ModeWidget::setupConnections() {
 
 
 void ModeWidget::systemStateChanged(
-        QObject *sender,
         QSDR::_Error err,
         QSDR::_HWInterfaceMode hwmode,
         QSDR::_ServerMode mode,
         QSDR::_DataEngineState state)
 {
-    Q_UNUSED (sender)
     Q_UNUSED (err)
 
     if (m_hwInterface != hwmode)

@@ -45,13 +45,12 @@ private:
 
 private slots:
     void	systemStateChanged(
-            QObject *sender,
             QSDR::_Error err,
             QSDR::_HWInterfaceMode hwmode,
             QSDR::_ServerMode mode,
             QSDR::_DataEngineState state);
 /*
-    void	setCurrentReceiver(QObject *sender, int rx);
+    void	setCurrentReceiver(int rx);
     void    nfModeChanged(int value);
     void    nbModeChanged(int value);
     void    nr2GainChanged(int value);

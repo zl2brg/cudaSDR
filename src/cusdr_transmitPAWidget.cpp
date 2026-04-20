@@ -118,7 +118,7 @@ TransmitPAWidget::TransmitPAWidget(QWidget *parent)
 TransmitPAWidget::~TransmitPAWidget() {
 
 	disconnect(set, 0, this, 0);
-	disconnect(this, 0, 0, 0);
+	disconnect(0, 0, 0);
 }
 
 void TransmitPAWidget::setupConnections() {
@@ -185,13 +185,13 @@ void TransmitPAWidget::createGainGroup() {
 
 void TransmitPAWidget::closeEvent(QCloseEvent *event) {
 
-	emit closeEvent(this);
+	emit closeEvent();
 	QWidget::closeEvent(event);
 }
 
 void TransmitPAWidget::showEvent(QShowEvent *event) {
 
-	emit showEvent(this);
+	emit showEvent();
 	QWidget::showEvent(event);
 }
 

@@ -83,7 +83,7 @@ public slots:
     void stopChannel();
 
     void setNCOFrequency(int rx, long value);
-    void setSampleRate(QObject *sender, int value);
+    void setSampleRate(int value);
     void setSampleSize(int rx, int size);
     void setQtDSPStatus(bool value);
     void setVolume(float value);
@@ -93,7 +93,7 @@ public slots:
     void setAGCMaximumGain(qreal);
     void setAGCHangThreshold(int rx, double);
     // void	setAGCHangLeveldBLine(qreal value);
-    // void	setAGCThresholdLine(QObject *sender, int rx, qreal value);
+    // void	setAGCThresholdLine(int rx, qreal value);
     void setAGCLineValues(int rx);
     void setAGCThreshold(double threshold);
     void setAGCHangTime(int hang);
@@ -101,10 +101,10 @@ public slots:
     void setAGCAttackTime(int rx, int value);
     void setAGCDecayTime(int rx, int value);
     void setAGCSlope(int rx, int value);
-    void setFramesPerSecond(QObject *sender, int rx, int value);
+    void setFramesPerSecond(int rx, int value);
     void setPanAdaptorAveragingMode(int rx, int value);
     void setPanAdaptorDetectorMode(int rx, int value);
-    void setPanAdaptorAveragingCnt(QObject *, int rx, int value);
+    void setPanAdaptorAveragingCnt(int rx, int value);
     void setfftSize(int rx, int value);
     void setfmsqLevel(int rx, int value);
     void setFilterMode(int rx);

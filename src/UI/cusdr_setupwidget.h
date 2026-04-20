@@ -86,7 +86,6 @@ private:
 
 private slots:
             void systemStateChanged(
-                    QObject *sender,
                     QSDR::_Error err,
     QSDR::_HWInterfaceMode hwmode,
             QSDR::_ServerMode mode,
@@ -96,8 +95,8 @@ private slots:
     void setPennyPresence(bool value);
 
     signals:
-            void	showEvent(QObject *sender);
-    void	closeEvent(QObject *sender);
+            void	showEvent();
+    void	closeEvent();
     void	messageEvent(QString message);
 
 };

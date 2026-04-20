@@ -95,7 +95,7 @@ public:
 
 public slots:
 	void	update();
-	void	masterSwitchChanged(QObject *sender, bool power);
+	void	masterSwitchChanged(bool power);
 	void	startButtonClickedEvent();
 	void	widgetBtnClickedEvent();
 	void	wideBandBtnClickedEvent();
@@ -109,10 +109,10 @@ public slots:
 	void    moxBtnClickedEvent();
 	void    tunBtnClickedEvent();
 	
-	void	showWidgetEvent(QObject *sender);
-	void	closeWidgetEvent(QObject *sender);
+	void	showWidgetEvent();
+	void	closeWidgetEvent();
 
-	void	suspendSignal(QObject *sender);
+	void	suspendSignal();
 	void	showWarningDialog(const QString &msg);
 
 private:
@@ -312,7 +312,6 @@ private:
 
 private slots:
 	void systemStateChanged(
-			QObject *sender, 
 			QSDR::_Error err, 
 			QSDR::_HWInterfaceMode hwmode, 
 			QSDR::_ServerMode mode, 
@@ -330,9 +329,9 @@ private slots:
 
 	void setServerMode(QSDR::_ServerMode mode);
 	//void setReceiver();
-	void setTxAllowed(QObject *sender, bool value);
-	void setCurrentReceiver(QObject *sender, int rx);
-	void setNumberOfReceivers(QObject *sender, int value);
+	void setTxAllowed(bool value);
+	void setCurrentReceiver(int rx);
+	void setNumberOfReceivers(int value);
 	//void setInternalDSPMode(bool value);
 	void setSDRMode(bool);
 
@@ -341,12 +340,12 @@ private slots:
     void setMicLevel(int value);
     void setDriveLevel(int value);
 
-    //void setHamBand(QObject *sender, int rx, bool byButton, HamBand band);
-    void setADCMode(QObject *sender, int rx, ADCMode mode);
-	void setAGCMode(QObject *sender, int rx, AGCMode mode, bool hang);
+    //void setHamBand(int rx, bool byButton, HamBand band);
+    void setADCMode(int rx, ADCMode mode);
+	void setAGCMode(int rx, AGCMode mode, bool hang);
 	void setAGCGain(int value);
-	//void setAGCGain(QObject *sender, int rx, int value);
-	void setAGCGain(QObject *sender, int rx, qreal value);
+	//void setAGCGain(int rx, int value);
+	void setAGCGain(int rx, qreal value);
 	void getLastFrequency();
 	void addReceiver();
 
@@ -354,7 +353,7 @@ private slots:
 	void alexConfigurationChanged(quint16 conf);
 	void alexStateChanged(HamBand band, const QList<int> &states);
 	void setAttenuator();
-	void mercuryAttenuatorChanged(QObject *sender, HamBand band, int value);
+	void mercuryAttenuatorChanged(HamBand band, int value);
 
 	void showStatusBarMessage(const QString &msg, int time);
 	void clearStatusBarMessage();

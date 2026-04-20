@@ -260,10 +260,10 @@ void Receiver::dspProcessing() {
         double mean = m_dspTimeAccum / DSP_REPORT_INTERVAL;
         RECEIVER_DEBUG << "DSP perf rx=" << m_receiver
                        << " calls=" << m_dspCallCount
-                       << " mean=" << QString::number(mean, 'f', 1) << "µs"
-                       << " min="  << QString::number(m_dspTimeMin, 'f', 1) << "µs"
-                       << " max="  << QString::number(m_dspTimeMax, 'f', 1) << "µs"
-                       << " budget=" << QString::number(getDisplayDelay(), 'f', 0) << "µs"
+                       << " mean=" << QString::number(mean, 'f', 1) << "Âµs"
+                       << " min="  << QString::number(m_dspTimeMin, 'f', 1) << "Âµs"
+                       << " max="  << QString::number(m_dspTimeMax, 'f', 1) << "Âµs"
+                       << " budget=" << QString::number(getDisplayDelay(), 'f', 0) << "Âµs"
                        << " iqQ=" << m_iqQueue.count();
         m_dspTimeAccum = 0.0;
         m_dspTimeMin = 1e9;
@@ -338,10 +338,8 @@ void Receiver::dspProcessing() {
     }
 }
 
-void Receiver::setFreeDVMode(QObject* sender, int rx, int mode) {
-	Q_UNUSED(sender)
-
-#ifdef HAVE_CODEC2
+void Receiver::setFreeDVMode(int rx, int mode) {
+	#ifdef HAVE_CODEC2
 	if (rx != m_receiver) return;
 	if (m_freeDVMode == mode) return;
 
@@ -374,9 +372,7 @@ QVector<float> Receiver::interleaveFromCPX(const CPX& in, int size) {
     return out;
 }
 
-void Receiver::setSampleRate(QObject *sender, int value) {
-	Q_UNUSED(sender)
-
+void Receiver::setSampleRate(int value) {
 	if (m_samplerate == value) return;
     const int previousRate = m_samplerate;
 
@@ -409,7 +405,7 @@ void Receiver::setSampleRate(QObject *sender, int value) {
 			m_iqQueue.dequeue();
 		m_rateTransitionDropBuffers = HIGH_RATE_TRANSITION_DROP_BUFFERS;
 
-        qtwdsp->setSampleRate(this, m_samplerate);
+        qtwdsp->setSampleRate(m_samplerate);
         m_mutex.unlock();
 
     }
@@ -443,13 +439,11 @@ QSDR::_DSPCore Receiver::getDSPCoreMode() const {
 //}
 
 void Receiver::setSystemState(
-	QObject *sender,
 	QSDR::_Error err,
 	QSDR::_HWInterfaceMode hwmode,
 	QSDR::_ServerMode mode,
 	QSDR::_DataEngineState state)
 {
-	Q_UNUSED (sender)
 	Q_UNUSED (err)
 
 	if (m_hwInterface != hwmode)
@@ -462,9 +456,9 @@ void Receiver::setSystemState(
 		m_dataEngineState = state;
 }
 
-void Receiver::setAudioMode(QObject* sender, int mode) {
+void Receiver::setAudioMode(int mode) {
 
-	if (sender != this && m_audioMode == mode) return;
+	if (m_audioMode == mode) return;
 
 	m_audioMode = mode;
 }
@@ -481,9 +475,8 @@ void Receiver::setReceiver(int value) {
 }
 
 
-void Receiver::setHamBand(QObject *sender, int rx, bool byBtn, HamBand band) {
+void Receiver::setHamBand(int rx, bool byBtn, HamBand band) {
 
-	Q_UNUSED(sender)
 	Q_UNUSED(byBtn)
 
 	if (m_receiver == rx) {
@@ -493,9 +486,7 @@ void Receiver::setHamBand(QObject *sender, int rx, bool byBtn, HamBand band) {
 	}
 }
 
-void Receiver::setDspMode(QObject *sender, int rx, DSPMode mode) {
-
-	Q_UNUSED(sender)
+void Receiver::setDspMode(int rx, DSPMode mode) {
 
 	if (m_receiver != rx) return;
 	if (m_receiverData.dspMode == mode) return;
@@ -507,9 +498,7 @@ void Receiver::setDspMode(QObject *sender, int rx, DSPMode mode) {
 	emit messageEvent(msg.arg(rx).arg(set->getDSPModeString(m_receiverData.dspMode)));
 }
 
-void Receiver::setADCMode(QObject *sender, int rx, ADCMode mode) {
-
-	Q_UNUSED(sender)
+void Receiver::setADCMode(int rx, ADCMode mode) {
 
 	if (m_receiver != rx) return;
 	if (m_receiverData.adcMode == mode) return;
@@ -519,9 +508,7 @@ void Receiver::setADCMode(QObject *sender, int rx, ADCMode mode) {
 	//RECEIVER_DEBUG << "RRK setADCMode = " << m_receiverData.adcMode;
 }
 
-void Receiver::setAGCFixedGain_dB(QObject *sender, int rx, qreal value) {
-
-	Q_UNUSED(sender)
+void Receiver::setAGCFixedGain_dB(int rx, qreal value) {
 
 	if (m_receiver != rx) return;
 	if (m_receiverData.agcFixedGain_dB == value) return;
@@ -530,18 +517,14 @@ void Receiver::setAGCFixedGain_dB(QObject *sender, int rx, qreal value) {
 
 }
 
-void Receiver::setAudioVolume(QObject *sender, int rx, float value) {
-
-	Q_UNUSED(sender)
+void Receiver::setAudioVolume(int rx, float value) {
 
 	if (m_receiver != rx) return;
 
 	m_receiverData.audioVolume = value;
 }
 
-void Receiver::setFilterFrequencies(QObject *sender, int rx, double low, double high) {
-
-	Q_UNUSED(sender)
+void Receiver::setFilterFrequencies(int rx, double low, double high) {
 
 	if (m_receiver == rx) {
 
@@ -596,9 +579,7 @@ void Receiver::setMercuryAttenuators(const QList<int> &attenuators) {
 	m_receiverData.mercuryAttenuators = attenuators;
 }
 
-void Receiver::setFramesPerSecond(QObject *sender, int rx, int value) {
-
-	Q_UNUSED(sender)
+void Receiver::setFramesPerSecond(int rx, int value) {
 
 	if (m_receiver == rx)
 		m_displayTime = (int)(1000000.0/value);

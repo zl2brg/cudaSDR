@@ -84,7 +84,7 @@ ServerWidget::~ServerWidget() {
 
 	// disconnect all signals
 	disconnect(Settings::instance(), 0, this, 0);
-	disconnect(this, 0, 0, 0);
+	disconnect(0, 0, 0);
 }
 
 QSize ServerWidget::sizeHint() const {
@@ -299,13 +299,13 @@ void ServerWidget::setPorts() {
 
 void ServerWidget::closeEvent(QCloseEvent *event) {
 
-	emit closeEvent(this);
+	emit closeEvent();
 	QWidget::closeEvent(event);
 }
 
 void ServerWidget::showEvent(QShowEvent *event) {
 
-	//emit showEvent(this);
+	//emit showEvent();
 	
 	QWidget::showEvent(event);
 }

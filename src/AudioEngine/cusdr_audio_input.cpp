@@ -216,8 +216,7 @@ void TransmitAudioInput::DigitalAudioInputChanged(int index) {
     }
 }
 
-void TransmitAudioInput::dspModeChanged(QObject *sender, int rx, DSPMode mode) {
-    Q_UNUSED(sender)
+void TransmitAudioInput::dspModeChanged(int rx, DSPMode mode) {
     Q_UNUSED(rx)
 
     bool digital = (mode == DIGL || mode == DIGU);

@@ -247,7 +247,7 @@ void CProtocol2::decodeCCBytes(const QByteArray& buffer, THPSDRParameter* io) {
 
 void CProtocol2::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& sendState, quint16& port) {
     Settings* set = Settings::instance();
-    io->mutex.lock();
+    QMutexLocker locker(&io->mutex);
     // Protocol 2 High Priority and DDC packets must be 1444 bytes.
     // The provided buffer is already 1444 bytes.
     memset(buffer, 0, 1444);
@@ -510,7 +510,6 @@ void CProtocol2::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
             break;
     }
     
-    io->mutex.unlock();
 }
 
 QByteArray CProtocol2::formatStartStop(char value, quint16& port) {

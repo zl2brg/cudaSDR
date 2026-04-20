@@ -109,7 +109,7 @@ AlexAntennaWidget::~AlexAntennaWidget() {
 
 	// disconnect all signals
 	disconnect(set, 0, this, 0);
-	disconnect(this, 0, 0, 0);
+	disconnect(0, 0, 0);
 }
 
 void AlexAntennaWidget::setupConnections() {
@@ -344,7 +344,7 @@ void AlexAntennaWidget::rxAntBtnClicked() {
 	m_alexStates[btnHit] &= 0x1FC; // 1 1 1 1 1 1 1 0 0
 	m_alexStates[btnHit] |= antenna;
 
-	set->setAlexState(this, btnHit, m_alexStates[btnHit]);
+	set->setAlexState(btnHit, m_alexStates[btnHit]);
 }
 
 void AlexAntennaWidget::rxAuxBtnClicked() {
@@ -397,7 +397,7 @@ void AlexAntennaWidget::rxAuxBtnClicked() {
 		m_alexStates[btnHit] &= 0x1E3; // 1 1 1 1 0 0 0 1 1
 		m_alexStates[btnHit] |= aux << 2;
 	}
-	set->setAlexState(this, btnHit, m_alexStates[btnHit]);
+	set->setAlexState(btnHit, m_alexStates[btnHit]);
 }
 
 void AlexAntennaWidget::txAntBtnClicked() {
@@ -442,7 +442,7 @@ void AlexAntennaWidget::txAntBtnClicked() {
 	m_alexStates[btnHit] &= 0x19F; // 1 1 0 0 1 1 1 1 1
 	m_alexStates[btnHit] |= antenna << 5;
 
-	set->setAlexState(this, btnHit, m_alexStates[btnHit]);
+	set->setAlexState(btnHit, m_alexStates[btnHit]);
 }
 
 void AlexAntennaWidget::setAlexValues() {

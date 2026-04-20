@@ -233,7 +233,7 @@ void CProtocol1::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
     buffer[1] = SYNC;
     buffer[2] = SYNC;
 
-    io->mutex.lock();
+    QMutexLocker locker(&io->mutex);
     switch (sendState) {
     	case 0:
     	    {
@@ -245,10 +245,32 @@ void CProtocol1::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
     		io->control_out[2] = 0x0; // C2
     		io->control_out[3] = 0x0; // C3
     		io->control_out[4] = 0x0; // C4
+			// C0
+    		// 0 0 0 0 0 0 0 0
+    		//               |
+    		//               +------------ MOX (1 = active, 0 = inactive)
 
+    		// set C1
+    		//
+    		// 0 0 0 0 0 0 0 0
+    		// | | | | | | | |
+    		// | | | | | | + +------------ Speed (00 = 48kHz, 01 = 96kHz, 10 = 192kHz)
+    		// | | | | + +---------------- 10MHz Ref. (00 = Atlas/Excalibur, 01 = Penelope, 10 = Mercury)*
+    		// | | | +-------------------- 122.88MHz source (0 = Penelope, 1 = Mercury)*
+    		// | + +---------------------- Config (00 = nil, 01 = Penelope, 10 = Mercury, 11 = both)*
+    		// +-------------------------- Mic source (0 = Janus, 1 = Penelope)*
+    		//
+   			// * Ignored by Hermes
     		io->control_out[1] |= io->speed; // sample rate
     		io->control_out[1] &= 0x03; // 0 0 0 0 0 0 1 1
     		io->control_out[1] |= io->ccTx.clockByte;
+
+			   		// set C2
+    		//
+    		// 0 0 0 0 0 0 0 0
+    		// |           | |
+    		// |           | +------------ Mode (1 = Class E, 0 = All other modes)
+    		// +---------- +-------------- Open Collector Outputs on Penelope or Hermes (bit 6...bit 0)
 
     		io->control_out[2] = io->rxClass;
     		if (io->ccTx.pennyOCenabled) {
@@ -260,7 +282,16 @@ void CProtocol1::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
     					io->control_out[2] |= (io->ccTx.rxJ6pinList.at(io->ccTx.currentBand) >> 1) << 1;
     			}
     		}
-
+			// set C3
+    		//
+    		// 0 0 0 0 0 0 0 0
+    		// | | | | | | | |
+    		// | | | | | | + +------------ Alex Attenuator (00 = 0dB, 01 = 10dB, 10 = 20dB, 11 = 30dB)
+    		// | | | | | +---------------- Preamp On/Off (0 = Off, 1 = On)
+    		// | | | | +------------------ LT2208 Dither (0 = Off, 1 = On)
+    		// | | | + ------------------- LT2208 Random (0= Off, 1 = On)
+    		// | + + --------------------- Alex Rx Antenna (00 = none, 01 = Rx1, 10 = Rx2, 11 = XV)
+    		// + ------------------------- Alex Rx out (0 = off, 1 = on). Set if Alex Rx Antenna > 00.
     		rxAnt = 0x07 & (io->ccTx.alexStates.at(io->ccTx.currentBand) >> 2);
     		rxOut = (rxAnt > 0) ? 1 : 0;
     		io->control_out[3] = (io->ccTx.alexStates.at(io->ccTx.currentBand) >> 7);
@@ -283,6 +314,19 @@ void CProtocol1::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
     		else
     			ant = io->ccTx.alexStates.at(io->ccTx.currentBand);
 
+				// set C4
+    		//
+    		// 0 0 0 0 0 0 0 0
+    		// | | | | | | | |
+    		// | | | | | | + + ----------- Alex Tx relay (00 = Tx1, 01= Tx2, 10 = Tx3)
+    		// | | | | | + --------------- Duplex (0 = off, 1 = on)
+    		// + + + + +------------------ Number of Receivers (000 = 1, 11111 = 32)
+
+                //RRK removed 4HL
+            // | +------------------------ Time stamp - 1PPS on LSB of Mic data (0 = off, 1 = on)
+    		// +-------------------------- Common Mercury Frequency (0 = independent frequencies to Mercury
+    		//			                   Boards, 1 = same frequency to all Mercury boards)
+
     		io->control_out[4] |= (ant != 0) ? ant-1 : ant;
     		io->control_out[4] &= 0xFB; // 1 1 1 1 1 0 1 1
     		io->control_out[4] |= io->ccTx.duplex << 2;
@@ -295,6 +339,9 @@ void CProtocol1::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
 
     	case 1:
             {
+			// C0
+    		// 0 0 0 0 0 0 1 x     C1, C2, C3, C4 NCO Frequency in Hz for Transmitter, Apollo ATU
+    		//                     (32 bit binary representation - MSB in C1)
                 io->control_out[0] = 0x2; // C0
                 long txfrequency = io->ccTx.txFrequency;
                 io->control_out[1] = (txfrequency >> 24);
@@ -307,6 +354,18 @@ void CProtocol1::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
     		break;
 
     	case 2:
+
+			// C0 = 0 0 0 0 0 1 0 x     C1, C2, C3, C4   NCO Frequency in Hz for Receiver_1
+    		// C0 = 0 0 0 0 0 1 1 x     C1, C2, C3, C4   NCO Frequency in Hz for Receiver _2
+    		// C0 = 0 0 0 0 1 0 0 x     C1, C2, C3, C4   NCO Frequency in Hz for Receiver _3
+    		// C0 = 0 0 0 0 1 0 1 x     C1, C2, C3, C4   NCO Frequency in Hz for Receiver _4
+    		// C0 = 0 0 0 0 1 1 0 x     C1, C2, C3, C4   NCO Frequency in Hz for Receiver _5
+    		// C0 = 0 0 0 0 1 1 1 x     C1, C2, C3, C4   NCO Frequency in Hz for Receiver _6
+    		// C0 = 0 0 0 1 0 0 0 x     C1, C2, C3, C4   NCO Frequency in Hz for Receiver _7
+    		// C0 = 0 0 1 0 0 1 0 x     C1, C2, C3, C4   NCO Frequency in Hz for Receiver _8 // Was 0 0 0 1 0 0 1 x
+    		// C0 = 0 0 1 1 0 1 0 x     C1, C2, C3, C4   NCO Frequency in Hz for Receiver _16
+    		// C0 = 0 1 0 1 0 1 0 x     C1, C2, C3, C4   NCO Frequency in Hz for Receiver _32
+
     		if (m_firstTimeRxInit) {
     			m_firstTimeRxInit -= 1;
     			io->rx_freq_change = m_firstTimeRxInit;
@@ -323,6 +382,28 @@ void CProtocol1::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
     		break;
 
     	case 3:
+	// C1
+    		// 0 0 0 0 0 0 0 0
+    		// |             |
+    		// +-------------+------------ Hermes/PennyLane Drive Level (0-255) (ignored by Penelope)
+
+
+    		// C2
+    		// 0 0 0 0 0 0 0 0
+    		// | | | | | | | |
+    		// | | | | | | | +------------ Hermes/Metis Penelope Mic boost (0 = 0dB, 1 = 20dB)
+    		// | | | | | | +-------------- Metis/Penelope or PennyLane Mic/Line-in (0 = mic, 1 = Line-in)
+            // | | | | | +---------------- Hermes - Enable/disable Apollo filter (0 = disable, 1 = enable)
+            // | | | | +------------------ Hermes - Enable/disable Apollo tuner (0 = disable, 1 = enable)
+            // | | | +-------------------- Hermes - Apollo auto tune (0 = end, 1 = start)
+            // | | +---------------------- Hermes - select filter board (0 = Alex, 1 = Apollo)
+    		// | +------------------------ Alex   - manual HPF/LPF filter select (0 = disable, 1 = enable)
+    		// +-------------------------- VNA mode (0 = off, 1 = on)
+
+    		// Alex configuration:
+    		//
+    		// manual 		  0
+
     		io->control_out[0] = 0x12; // 0 0 0 1 0 0 1 0
             io->control_out[1] = (uchar) io->ccTx.drivelevel; // C1
     		io->control_out[2] = 0x10; // C2
@@ -330,6 +411,21 @@ void CProtocol1::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
             io->control_out[4] = 0x0; // C4
 
     		io->control_out[2] &= 0xBF; // 1 0 1 1 1 1 1 1
+
+
+			// C3
+    		// 0 0 0 0 0 0 0 0
+    		//   | | | | | | |
+    		//   | | | | | | +------------ Alex   -	select 13MHz  HPF (0 = disable, 1 = enable)*
+    		//   | | | | | +-------------- Alex   -	select 20MHz  HPF (0 = disable, 1 = enable)*
+    		//   | | | | +---------------- Alex   -	select 9.5MHz HPF (0 = disable, 1 = enable)*
+    		//   | | | +------------------ Alex   -	select 6.5MHz HPF (0 = disable, 1 = enable)*
+    		//   | | +-------------------- Alex   -	select 1.5MHz HPF (0 = disable, 1 = enable)*
+    		//   | +---------------------- Alex   -	Bypass all HPFs   (0 = disable, 1 = enable)*
+    		//   +------------------------ Alex   -	6M low noise amplifier (0 = disable, 1 = enable)*
+    		//
+    		// *Only valid when Alex - manual HPF/LPF filter select is enabled
+
 
     		io->control_out[3] &= 0xFE; // 1 1 1 1 1 1 1 0
     		io->control_out[3] |= (io->ccTx.alexConfig & 0x40) >> 6;
@@ -349,14 +445,14 @@ void CProtocol1::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
     		io->control_out[3] |= ((int)io->ccTx.vnaMode) << 7;
 
             if (io->ccTx.mox || io->ccTx.ptt) {
-                double txFrequency = io->ccTx.txFrequency;
-                if (txFrequency > 35600000L) { io->control_out[4] = 0x10; }
-                else if (txFrequency > 24000000L) { io->control_out[4]= 0x20; }
-                else if (txFrequency > 16500000L) { io->control_out[4] = 0x40; }
-                else if (txFrequency > 8000000L) { io->control_out[4] = 0x01; }
-                else if (txFrequency > 5000000L) { io->control_out[4] = 0x02; }
-                else if (txFrequency > 2500000L) { io->control_out[4] = 0x04; }
-                else { io->control_out[4] = 0x08; }
+                long txFrequency = io->ccTx.txFrequency;
+                if      (txFrequency > ALEX_LPF_6M_MIN_HZ)    { io->control_out[4] = 0x10; }
+                else if (txFrequency > ALEX_LPF_12_10M_MIN_HZ) { io->control_out[4] = 0x20; }
+                else if (txFrequency > ALEX_LPF_17_15M_MIN_HZ) { io->control_out[4] = 0x40; }
+                else if (txFrequency > ALEX_LPF_30_20M_MIN_HZ) { io->control_out[4] = 0x01; }
+                else if (txFrequency > ALEX_LPF_60_40M_MIN_HZ) { io->control_out[4] = 0x02; }
+                else if (txFrequency > ALEX_LPF_80M_MIN_HZ)    { io->control_out[4] = 0x04; }
+                else                                            { io->control_out[4] = 0x08; }
             } else io->control_out[4] = 0;
 
 		m_new_adc_rx1_4 = m_new_adc_rx5_8 = m_new_adc_rx9_16 = 0;
@@ -373,6 +469,20 @@ void CProtocol1::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
     		break;
 
     	case 4:
+
+			// C4
+    		// 0 0 0 0 0 0 0 0
+    		//   | | | | | | |
+    		//   | | | | | | +------------ Alex   - 	select 30/20m LPF (0 = disable, 1 = enable)*
+    		//   | | | | | +-------------- Alex   - 	select 60/40m LPF (0 = disable, 1 = enable)*
+    		//   | | | | +---------------- Alex   - 	select 80m    LPF (0 = disable, 1 = enable)*
+    		//   | | | +------------------ Alex   - 	select 160m   LPF (0 = disable, 1 = enable)*
+    		//   | | +-------------------- Alex   - 	select 6m     LPF (0 = disable, 1 = enable)*
+    		//   | +---------------------- Alex   - 	select 12/10m LPF (0 = disable, 1 = enable)*
+    		//   +------------------------ Alex   - 	select 17/15m LPF (0 = disable, 1 = enable)*
+    		//
+    		// *Only valid when Alex - manual HPF/LPF filter select is enabled
+
 		m_adc_rx1_4 = m_new_adc_rx1_4;
 		m_adc_rx5_8 = m_new_adc_rx5_8;
 		m_adc_rx9_16 = m_new_adc_rx9_16;
@@ -430,7 +540,6 @@ void CProtocol1::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
     for (int i = 0; i < 5; i++) {
         io->output_buffer[i + 3] = io->control_out[i];
     }
-    io->mutex.unlock();
 }
 
 QByteArray CProtocol1::formatStartStop(char value, quint16& port) {

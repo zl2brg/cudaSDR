@@ -140,10 +140,8 @@ int Discoverer::findHPSDRDevices() {
 				QUdpSocket::ReuseAddressHint | QUdpSocket::ShareAddress))
 				//QUdpSocket::ReuseAddressHint))
 	{
-		set->setMetisPort(this, socket.localPort());
-		io->networkIOMutex.lock();
-		DISCOVERER_DEBUG << "discovery_socket bound successfully to port " << socket.localPort();
-		io->networkIOMutex.unlock();
+		set->setMetisPort(socket.localPort());
+		{ QMutexLocker l(&io->networkIOMutex); DISCOVERER_DEBUG << "discovery_socket bound successfully to port " << socket.localPort(); }
 	}
 	else {
 
@@ -163,10 +161,8 @@ int Discoverer::findHPSDRDevices() {
         connect(&socket, &QAbstractSocket::errorOccurred,
                 this, &Discoverer::displayDiscoverySocketError);;
 
-		set->setMetisPort(this, socket.localPort());
-		io->networkIOMutex.lock();
-		DISCOVERER_DEBUG << "discovery_socket bound successfully to port " << socket.localPort();
-		io->networkIOMutex.unlock();
+		set->setMetisPort(socket.localPort());
+		{ QMutexLocker l(&io->networkIOMutex); DISCOVERER_DEBUG << "discovery_socket bound successfully to port " << socket.localPort(); }
 	}
 	else {
 		

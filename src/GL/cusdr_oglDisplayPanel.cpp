@@ -112,8 +112,8 @@ OGLDisplayPanel::OGLDisplayPanel(QWidget *parent)
 	setupConnections();
 	setupTextstrings();
 
-	set10mhzSource(this, set->get10MHzSource());
-	set122_88mhzSource(this, set->get122_8MHzSource());
+	set10mhzSource(set->get10MHzSource());
+	set122_88mhzSource(set->get122_8MHzSource());
 
 	QList<long> fList = set->getVfoFrequencies();
 	
@@ -1550,65 +1550,65 @@ void OGLDisplayPanel::mousePressEvent(QMouseEvent *event) {
 			case Freq1:
 				if (event->buttons() == Qt::LeftButton) {
 					if (set->getMouseWheelFreqStep(m_currentReceiver) == 1.0)
-						set->setMouseWheelFreqStep(this, m_currentReceiver, 5.0);
+						set->setMouseWheelFreqStep(m_currentReceiver, 5.0);
 					else
-						set->setMouseWheelFreqStep(this, m_currentReceiver, 1.0);
+						set->setMouseWheelFreqStep(m_currentReceiver, 1.0);
 				}
 				break;
 
 			case Freq10:
 				if (event->buttons() == Qt::LeftButton) {
 					if (set->getMouseWheelFreqStep(m_currentReceiver) == 10.0)
-						set->setMouseWheelFreqStep(this, m_currentReceiver, 50.0);
+						set->setMouseWheelFreqStep(m_currentReceiver, 50.0);
 					else
-						set->setMouseWheelFreqStep(this, m_currentReceiver, 10.0);
+						set->setMouseWheelFreqStep(m_currentReceiver, 10.0);
 				}
 				break;
 
 			case Freq100:
 				if (event->buttons() == Qt::LeftButton) {
 					if (set->getMouseWheelFreqStep(m_currentReceiver) == 100.0)
-						set->setMouseWheelFreqStep(this, m_currentReceiver, 500.0);
+						set->setMouseWheelFreqStep(m_currentReceiver, 500.0);
 					else
-						set->setMouseWheelFreqStep(this, m_currentReceiver, 100.0);
+						set->setMouseWheelFreqStep(m_currentReceiver, 100.0);
 				}
 				break;
 	
 			case Freq1000:
 				if (event->buttons() == Qt::LeftButton) {
 					if (set->getMouseWheelFreqStep(m_currentReceiver) == 1000.0)
-                        set->setMouseWheelFreqStep(this, m_currentReceiver, 5000.0);
+                        set->setMouseWheelFreqStep(m_currentReceiver, 5000.0);
                     else if (set->getMouseWheelFreqStep(m_currentReceiver) == 5000.0)
-                        set->setMouseWheelFreqStep(this, m_currentReceiver, 9000.0);
+                        set->setMouseWheelFreqStep(m_currentReceiver, 9000.0);
                     else
-						set->setMouseWheelFreqStep(this, m_currentReceiver, 1000.0);
+						set->setMouseWheelFreqStep(m_currentReceiver, 1000.0);
 				}
 				break;
 
 			case Freq10000:
 				if (event->buttons() == Qt::LeftButton) {
 					if (set->getMouseWheelFreqStep(m_currentReceiver) == 10000.0)
-						set->setMouseWheelFreqStep(this, m_currentReceiver, 50000.0);
+						set->setMouseWheelFreqStep(m_currentReceiver, 50000.0);
 					else
-						set->setMouseWheelFreqStep(this, m_currentReceiver, 10000.0);
+						set->setMouseWheelFreqStep(m_currentReceiver, 10000.0);
 				}
 				break;
 	
 			case Freq100000:
 				if (event->buttons() == Qt::LeftButton) {
 					if (set->getMouseWheelFreqStep(m_currentReceiver) == 100000.0)
-						set->setMouseWheelFreqStep(this, m_currentReceiver, 500000.0);
+						set->setMouseWheelFreqStep(m_currentReceiver, 500000.0);
 					else
-						set->setMouseWheelFreqStep(this, m_currentReceiver, 100000.0);
+						set->setMouseWheelFreqStep(m_currentReceiver, 100000.0);
 				}
 				break;
 
 			case Freq1000000:
 				if (event->buttons() == Qt::LeftButton) {
 					if (set->getMouseWheelFreqStep(m_currentReceiver) == 1000000.0)
-						set->setMouseWheelFreqStep(this, m_currentReceiver, 5000000.0);
+						set->setMouseWheelFreqStep(m_currentReceiver, 5000000.0);
 					else
-						set->setMouseWheelFreqStep(this, m_currentReceiver, 1000000.0);
+						set->setMouseWheelFreqStep(m_currentReceiver, 1000000.0);
 				}
 				break;
 
@@ -1754,10 +1754,10 @@ void OGLDisplayPanel::wheelEvent(QWheelEvent * event) {
 				else if (newFreq < ctrf - s)
 					newFreq = ctrf - s;
 
-                set->setVFOFrequency(this, 0, m_currentReceiver, newFreq);
+                set->setVFOFrequency(0, m_currentReceiver, newFreq);
 			}
             else
-                set->setVFOFrequency(this, 1, m_currentReceiver, newFreq);
+                set->setVFOFrequency(1, m_currentReceiver, newFreq);
 		}
 	event->accept();
 	QOpenGLWidget::wheelEvent(event);
@@ -1878,52 +1878,40 @@ void OGLDisplayPanel::setRecvAudioStatus(int value) {
 	m_recvAudioStatus = value;
 }
 
-void OGLDisplayPanel::setReceivers(QObject*sender,int value) {
-
-	Q_UNUSED (sender)
+void OGLDisplayPanel::setReceivers(int value) {
 
 	m_receivers = value;
 }
 
-void OGLDisplayPanel::setSampleRate(QObject*sender,int value) {
-
-	Q_UNUSED (sender)
+void OGLDisplayPanel::setSampleRate(int value) {
 
 	m_sample_rate = value / 1000;
 }
 
-void OGLDisplayPanel::setMercuryAttenuator(QObject*sender, HamBand band,int value) {
+void OGLDisplayPanel::setMercuryAttenuator(HamBand band,int value) {
 
-	Q_UNUSED (sender)
 	Q_UNUSED (band)
 
 	m_mercuryAttenuator = value;
 }
 
-void OGLDisplayPanel::setDither(QObject*sender,int value) {
-
-	Q_UNUSED (sender)
+void OGLDisplayPanel::setDither(int value) {
 
 	m_dither = value;
 }
 
-void OGLDisplayPanel::setRandom(QObject*sender,int value) {
-
-	Q_UNUSED (sender)
+void OGLDisplayPanel::setRandom(int value) {
 
 	m_random = value;
 }
 
-void OGLDisplayPanel::setCurrentReceiver(QObject*sender,int value) {
-
-	Q_UNUSED(sender)
+void OGLDisplayPanel::setCurrentReceiver(int value) {
 
 	m_currentReceiver = value;
 }
 
-void OGLDisplayPanel::setFrequency(QObject*sender,int mode,int rx, long freq) {
+void OGLDisplayPanel::setFrequency(int mode,int rx, long freq) {
 
-	Q_UNUSED (sender)
 	Q_UNUSED (mode)
 	//Q_UNUSED (rx)
 
@@ -1946,9 +1934,7 @@ void OGLDisplayPanel::setFrequency(QObject*sender,int mode,int rx, long freq) {
 
 }
 
-void OGLDisplayPanel::set10mhzSource(QObject*sender,int value) {
-
-	Q_UNUSED (sender)
+void OGLDisplayPanel::set10mhzSource(int value) {
 
 	switch (value) {
 		case 0:
@@ -1963,9 +1949,7 @@ void OGLDisplayPanel::set10mhzSource(QObject*sender,int value) {
 	}
 }
 
-void OGLDisplayPanel::set122_88mhzSource(QObject*sender,int value) {
-
-	Q_UNUSED (sender)
+void OGLDisplayPanel::set122_88mhzSource(int value) {
 
 	switch (value) {
 		case 0:
@@ -2029,9 +2013,7 @@ void OGLDisplayPanel::setMetisVersion(int value) {
 	
 }
 
-void OGLDisplayPanel::setExcaliburVersion(QObject*sender,int value) {
-
-	Q_UNUSED (sender)
+void OGLDisplayPanel::setExcaliburVersion(int value) {
 
 	m_excaliburVersion.setNum(value/10);
 	m_excaliburVersion.append(".");
@@ -2039,9 +2021,7 @@ void OGLDisplayPanel::setExcaliburVersion(QObject*sender,int value) {
 	m_excaliburVersion.append(str.setNum(value%10));
 }
 
-void OGLDisplayPanel::setAlexVersion(QObject*sender,int value) {
-
-	Q_UNUSED (sender)
+void OGLDisplayPanel::setAlexVersion(int value) {
 
 	m_alexVersion.setNum(value/10);
 	m_alexVersion.append(".");
@@ -2049,9 +2029,7 @@ void OGLDisplayPanel::setAlexVersion(QObject*sender,int value) {
 	m_alexVersion.append(str.setNum(value%10));
 }
 
-void OGLDisplayPanel::setMouseWheelFreqStep(QObject*sender,int rx, qreal value) {
-
-	Q_UNUSED (sender)
+void OGLDisplayPanel::setMouseWheelFreqStep(int rx, qreal value) {
 
 	if (rx == m_currentReceiver)
 		m_mouseWheelFreqStep = value;
@@ -2059,13 +2037,11 @@ void OGLDisplayPanel::setMouseWheelFreqStep(QObject*sender,int rx, qreal value) 
 }
 
 void OGLDisplayPanel::systemStateChanged(
-    QObject*sender,
-	QSDR::_Error err, 
+    QSDR::_Error err, 
 	QSDR::_HWInterfaceMode hwmode, 
 	QSDR::_ServerMode mode, 
 	QSDR::_DataEngineState state)
 {
-	Q_UNUSED (sender)
 	Q_UNUSED (err)
 
 	//m_mutex.lock();

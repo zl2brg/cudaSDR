@@ -31,14 +31,12 @@ RadioCtrl::RadioCtrl(QWidget *parent, int rx)
     CHECKED_CONNECT(
         set,
         SIGNAL(systemStateChanged(
-                    QObject *,
                     QSDR::_Error,
                     QSDR::_HWInterfaceMode,
                     QSDR::_ServerMode,
                     QSDR::_DataEngineState)),
         this,
         SLOT(systemStateChanged(
-                    QObject *,
                     QSDR::_Error,
                     QSDR::_HWInterfaceMode,
                     QSDR::_ServerMode,
@@ -48,33 +46,31 @@ RadioCtrl::RadioCtrl(QWidget *parent, int rx)
      CHECKED_CONNECT(
      set,
      SIGNAL(dspModeChanged(
-                QObject *,
                 int,
                 DSPMode)),
     this,
     SLOT(dspModeChanged(
-             QObject*,
              int,
              DSPMode)));
 
      CHECKED_CONNECT(
          set,
-         SIGNAL(vfoFrequencyChanged(QObject *, int, int, long)),
+         SIGNAL(vfoFrequencyChanged(int, int, long)),
          this,
-         SLOT(vfoFrequencyChanged(QObject *, int, int, long)));
+         SLOT(vfoFrequencyChanged(int, int, long)));
 
      CHECKED_CONNECT(
          set,
-         SIGNAL(hamBandChanged(QObject *, int, bool, HamBand)),
+         SIGNAL(hamBandChanged(int, bool, HamBand)),
          this,
-         SLOT(bandChanged(QObject *, int, bool, HamBand)));
+         SLOT(bandChanged(int, bool, HamBand)));
 
 qDebug() << "RX" << m_receiver;
 
 setFilterWidget();
 setModeWidget();
 setBandWidget();
-dspModeChanged(this, 0, m_dspModeList.at(m_hamBand));
+dspModeChanged(0, m_dspModeList.at(m_hamBand));
 
 
 
@@ -169,9 +165,8 @@ qreal RadioCtrl::SetVarSlider(QAbstractSlider *slider)
 }
 
 
-void RadioCtrl::ctrFrequencyChanged(QObject* sender, int mode, int rx, long frequency) {
+void RadioCtrl::ctrFrequencyChanged(int mode, int rx, long frequency) {
 
-    Q_UNUSED (sender)
     Q_UNUSED (mode)
 
     if (m_receiver != rx) return;
@@ -181,9 +176,8 @@ void RadioCtrl::ctrFrequencyChanged(QObject* sender, int mode, int rx, long freq
     m_lastCtrFrequencyList[(int) band] = m_ctrFrequency;
 }
 
-void RadioCtrl::vfoFrequencyChanged(QObject* sender, int mode, int rx, long frequency) {
+void RadioCtrl::vfoFrequencyChanged(int mode, int rx, long frequency) {
 
-    Q_UNUSED (sender)
     Q_UNUSED (mode)
 
     if (m_receiver != rx) return;
@@ -194,13 +188,11 @@ void RadioCtrl::vfoFrequencyChanged(QObject* sender, int mode, int rx, long freq
 }
 
 
-void RadioCtrl::bandChanged(QObject *sender, int rx, bool byButton, HamBand band) {
+void RadioCtrl::bandChanged(int rx, bool byButton, HamBand band) {
 
     Q_UNUSED (byButton)
 
-    if (sender == this) return;
-
-    if (m_receiver != rx) return;
+        if (m_receiver != rx) return;
     m_hamBand = band;
 
     foreach(AeroButton *btn, m_band_btnList) {
@@ -227,53 +219,53 @@ void RadioCtrl::BandbtnCallback() {
     button->setBtnState(AeroButton::ON);
     button->update();
     qDebug() << "size" << m_band_btnList.size();
-    set->setHamBand(this, m_receiver, true, (HamBand) btn);
+    set->setHamBand(m_receiver, true, (HamBand) btn);
 
     QString str = button->text();
     if (str == "2200 m")
-        set->setVFOFrequency(this, 2, m_receiver, m_lastVfoFrequencyList.at(m2200));
+        set->setVFOFrequency(2, m_receiver, m_lastVfoFrequencyList.at(m2200));
     else
     if (str == "630 m")
-        set->setVFOFrequency(this, 2, m_receiver, m_lastVfoFrequencyList.at(m630));
+        set->setVFOFrequency(2, m_receiver, m_lastVfoFrequencyList.at(m630));
     else
     if (str == "160 m")
-        set->setVFOFrequency(this, 2, m_receiver, m_lastVfoFrequencyList.at(m160));
+        set->setVFOFrequency(2, m_receiver, m_lastVfoFrequencyList.at(m160));
     else
     if (str == "80 m")
-        set->setVFOFrequency(this, 2, m_receiver, m_lastVfoFrequencyList.at(m80));
+        set->setVFOFrequency(2, m_receiver, m_lastVfoFrequencyList.at(m80));
     else
     if (str == "60 m")
-        set->setVFOFrequency(this, 2, m_receiver, m_lastVfoFrequencyList.at(m60));
+        set->setVFOFrequency(2, m_receiver, m_lastVfoFrequencyList.at(m60));
     else
     if (str == "40 m")
-        set->setVFOFrequency(this, 2, m_receiver, m_lastVfoFrequencyList.at(m40));
+        set->setVFOFrequency(2, m_receiver, m_lastVfoFrequencyList.at(m40));
     else
     if (str == "30 m")
-        set->setVFOFrequency(this, 2, m_receiver, m_lastVfoFrequencyList.at(m30));
+        set->setVFOFrequency(2, m_receiver, m_lastVfoFrequencyList.at(m30));
     else
     if (str == "20 m")
-        set->setVFOFrequency(this, 2, m_receiver, m_lastVfoFrequencyList.at(m20));
+        set->setVFOFrequency(2, m_receiver, m_lastVfoFrequencyList.at(m20));
     else
     if (str == "17 m")
-        set->setVFOFrequency(this, 2, m_receiver, m_lastVfoFrequencyList.at(m17));
+        set->setVFOFrequency(2, m_receiver, m_lastVfoFrequencyList.at(m17));
     else
     if (str == "15 m")
-        set->setVFOFrequency(this, 2, m_receiver, m_lastVfoFrequencyList.at(m15));
+        set->setVFOFrequency(2, m_receiver, m_lastVfoFrequencyList.at(m15));
     else
     if (str == "12 m")
-        set->setVFOFrequency(this, 2, m_receiver, m_lastVfoFrequencyList.at(m12));
+        set->setVFOFrequency(2, m_receiver, m_lastVfoFrequencyList.at(m12));
     else
     if (str == "10 m")
-        set->setVFOFrequency(this, 2, m_receiver, m_lastVfoFrequencyList.at(m10));
+        set->setVFOFrequency(2, m_receiver, m_lastVfoFrequencyList.at(m10));
     else
     if (str == "6 m")
-        set->setVFOFrequency(this, 2, m_receiver, m_lastVfoFrequencyList.at(m6));
+        set->setVFOFrequency(2, m_receiver, m_lastVfoFrequencyList.at(m6));
     else
     if (str == "2 m")
-        set->setVFOFrequency(this, 2, m_receiver, m_lastVfoFrequencyList.at(m2));
+        set->setVFOFrequency(2, m_receiver, m_lastVfoFrequencyList.at(m2));
 
     else
-        set->setVFOFrequency(this, 2, m_receiver, m_lastVfoFrequencyList.at(gen));
+        set->setVFOFrequency(2, m_receiver, m_lastVfoFrequencyList.at(gen));
 }
 
 
@@ -288,9 +280,9 @@ void RadioCtrl::ModebtnCallback(){
             btn->update();
         }
 
-    set->setDSPMode(this, m_receiver, (DSPMode) btn);
+    set->setDSPMode(m_receiver, (DSPMode) btn);
     //m_dspModeList[m_hamBand] = (DSPMode) btn;
-    //filterChanged(this, m_receiver, m_filterLo, m_filterHi);
+    //filterChanged(m_receiver, m_filterLo, m_filterHi);
     //filterGroupChanged((DSPMode) btn);
 
     button->setBtnState(AeroButton::ON);
@@ -347,28 +339,25 @@ void RadioCtrl::filterChangedByBtn()	 {
 
     m_dspMode = m_dspModeList.at(m_hamBand);
 
-    set->setRXFilter(this, m_receiver, m_filterLo, m_filterHi);
+    set->setRXFilter(m_receiver, m_filterLo, m_filterHi);
 }
 
 
 
 
 
-void RadioCtrl::filterChanged(QObject *sender, int rx, qreal low, qreal high) {
+void RadioCtrl::filterChanged(int rx, qreal low, qreal high) {
 
-    Q_UNUSED(sender)
     if (m_receiver != rx) return;
     m_filterLo = low;
     m_filterHi = high;
 }
 
 
-void RadioCtrl::dspModeChanged(QObject *sender,int rx, DSPMode mode)
+void RadioCtrl::dspModeChanged(int rx, DSPMode mode)
 {
     m_dspMode = mode;
     updateFilterWidget();
-    Q_UNUSED(sender)
-
     if (m_receiver != rx) return;
     m_dspModeList[m_hamBand] = mode;
 
@@ -391,7 +380,7 @@ RadioCtrl::~RadioCtrl()
 {
     delete ui;
     disconnect(set, 0, this, 0);
-    disconnect(this, 0, 0, 0);
+    disconnect(0, 0, 0);
 }
 
 QSize RadioCtrl::sizeHint() const {
@@ -413,14 +402,12 @@ void RadioCtrl::setupConnections() {
 
 
 void RadioCtrl::systemStateChanged(
-        QObject *sender,
         QSDR::_Error err,
         QSDR::_HWInterfaceMode hwmode,
         QSDR::_ServerMode mode,
         QSDR::_DataEngineState state)
 {
 
-    Q_UNUSED (sender)
     Q_UNUSED (err)
 
     m_receiverDataList = set->getReceiverDataList();

@@ -62,7 +62,7 @@ AlexTabWidget::AlexTabWidget(QWidget *parent)
 AlexTabWidget::~AlexTabWidget() {
 
 	disconnect(set, 0, this, 0);
-	disconnect(this, 0, 0, 0);
+	disconnect(0, 0, 0);
 }
 
 QSize AlexTabWidget::sizeHint() const {

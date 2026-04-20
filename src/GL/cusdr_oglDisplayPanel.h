@@ -62,8 +62,8 @@ public:
 	QSize sizeHint() const;
 
 public slots:
-	void setSampleRate(QObject *sender, int value);
-	void setFrequency(QObject *sender, int mode, int rx, long freq);
+	void setSampleRate(int value);
+	void setFrequency(int mode, int rx, long freq);
 
 protected:
     void initializeGL();
@@ -304,7 +304,6 @@ private:
 	
 private slots:
 	void	systemStateChanged(
-				QObject *sender, 
 				QSDR::_Error err, 
 				QSDR::_HWInterfaceMode hwmode, 
 				QSDR::_ServerMode mode, 
@@ -322,13 +321,13 @@ private slots:
     void	setTemperature(qreal temp);
 	void	setSendIQStatus(int value);
 	void	setRecvAudioStatus(int value);
-	void	setCurrentReceiver(QObject *sender, int value);
-	void	setMercuryAttenuator(QObject* sender, HamBand band, int value);
-	void	setReceivers(QObject *sender, int value);
-	void	setDither(QObject *sender, int value);
-	void	setRandom(QObject *sender, int value);
-	void	set10mhzSource(QObject *sender, int value);
-	void	set122_88mhzSource(QObject *sender, int value);
+	void	setCurrentReceiver(int value);
+	void	setMercuryAttenuator(HamBand band, int value);
+	void	setReceivers(int value);
+	void	setDither(int value);
+	void	setRandom(int value);
+	void	set10mhzSource(int value);
+	void	set122_88mhzSource(int value);
 
 	void	setHermesVersion(int value);
 	void	setRigCtlStatus(bool active);
@@ -336,10 +335,10 @@ private slots:
 	void	setPenelopeVersion(int value);
 	void 	setPennylaneVersion(int value);
 	void	setMetisVersion(int value);
-	void	setExcaliburVersion(QObject *sender, int value);
-	void	setAlexVersion(QObject *sender, int value);
+	void	setExcaliburVersion(int value);
+	void	setAlexVersion(int value);
 
-	void	setMouseWheelFreqStep(QObject *sender, int rx, qreal value);
+	void	setMouseWheelFreqStep(int rx, qreal value);
 
 	void	setSMeterValue(int rx, double value);
 	void	setSMeterHoldTime(int value);
@@ -348,8 +347,8 @@ private slots:
 	void	updatePacketLossStatus();
 
 signals:
-	void showEvent(QObject *sender);
-	void closeEvent(QObject *sender);
+	void showEvent();
+	void closeEvent();
 	void messageEvent(QString msg);
 };
 

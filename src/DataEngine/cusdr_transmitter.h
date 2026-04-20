@@ -61,14 +61,14 @@ private:
 
 
 public slots:
-    void setDSPMode(QObject *sender, int id, DSPMode dspMode);
+    void setDSPMode(int id, DSPMode dspMode);
     void setRadioState(RadioState state);
 
 
 private slots:
     void set_fm_deviation(double level);
     void transmitter_set_am_carrier_level(double level);
-    void transmitter_set_mic_level(QObject *object, int level);
+    void transmitter_set_mic_level(int level);
 
 private:
     Settings*   set;

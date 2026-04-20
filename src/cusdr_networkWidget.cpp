@@ -100,13 +100,13 @@ NetworkWidget::NetworkWidget(QWidget *parent)
 
 	setupConnections();
     addNICChangedConnection();
-	setSocketBufSize(this, set->getSocketBufferSize());
+	setSocketBufSize(set->getSocketBufferSize());
 }
 
 NetworkWidget::~NetworkWidget() {
 
 	disconnect(set, 0, this, 0);
-	disconnect(this, 0, 0, 0);
+	disconnect(0, 0, 0);
 }
 
 void NetworkWidget::setupConnections() {
@@ -114,14 +114,12 @@ void NetworkWidget::setupConnections() {
 	CHECKED_CONNECT(
 		set,
 		SIGNAL(systemStateChanged(
-					QObject *,
 					QSDR::_Error,
 					QSDR::_HWInterfaceMode,
 					QSDR::_ServerMode,
 					QSDR::_DataEngineState)),
 		this,
 		SLOT(systemStateChanged(
-					QObject *,
 					QSDR::_Error,
 					QSDR::_HWInterfaceMode,
 					QSDR::_ServerMode,
@@ -153,9 +151,9 @@ void NetworkWidget::setupConnections() {
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(socketBufferSizeChanged(QObject*, int)), 
+		SIGNAL(socketBufferSizeChanged(int)), 
 		this, 
-		SLOT(setSocketBufSize(QObject*, int)));
+		SLOT(setSocketBufSize(int)));
 }
 
 void NetworkWidget::addNICChangedConnection() {
@@ -331,13 +329,11 @@ void NetworkWidget::addDeviceNICEntry(QString niName, QString ipAddress) {
 }
 
 void NetworkWidget::systemStateChanged(
-	QObject *sender, 
 	QSDR::_Error err, 
 	QSDR::_HWInterfaceMode hwmode, 
 	QSDR::_ServerMode mode, 
 	QSDR::_DataEngineState state)
 {
-	Q_UNUSED (sender)
 	Q_UNUSED (err)
 
 	if (m_hwInterface != hwmode) {
@@ -435,7 +431,6 @@ void NetworkWidget::interfaceBtnClicked() {
 
 	qDebug() << "HPSDRWidget::  setSystemState.";
 	set->setSystemState(
-					this,
 					QSDR::NoError,
 					m_hwInterface,
 					m_serverMode,
@@ -453,17 +448,17 @@ void NetworkWidget::socketBufSizeBtnClicked() {
 
 		socketBufferSizes->setEnabled(true);
 		socketBufferSizes->blockSignals(true);
-		setSocketBufSize(this, set->getSocketBufferSize());
+		setSocketBufSize(set->getSocketBufferSize());
 		socketBufferSizes->blockSignals(false);
 		//NETWORK_WIDGET_DEBUG << "getSocketBufferSize() :" << set->getSocketBufferSize();
-		set->setManualSocketBufferSize(this, true);
+		set->setManualSocketBufferSize(true);
 		socketBufSizeBtn->setText("Disable");
 		socketBufSizeBtn->setBtnState(AeroButton::ON);
 	}
 	else {
 
 		socketBufferSizes->setEnabled(false);
-		set->setManualSocketBufferSize(this, false);
+		set->setManualSocketBufferSize(false);
 		socketBufSizeBtn->setText("Enable");
 		socketBufSizeBtn->setBtnState(AeroButton::OFF);
 	}
@@ -511,12 +506,9 @@ void NetworkWidget::setCurrentNetworkDevice(TNetworkDevicecard card) {
 	}	
 }
 
-void NetworkWidget::setSocketBufSize(QObject *sender, int size) {
+void NetworkWidget::setSocketBufSize(int size) {
 
-	Q_UNUSED (sender)
-	//if (sender == this) return;
-
-	m_socketBufferSize = size;
+	//	m_socketBufferSize = size;
 
 	switch (m_socketBufferSize) {
 
@@ -560,35 +552,35 @@ void NetworkWidget::setSocketBufferSize(int value) {
 	switch (value) {
 
 		case 0:
-			set->setSocketBufferSize(this, 1);
+			set->setSocketBufferSize(1);
 			break;
 
 		case 1:
-			set->setSocketBufferSize(this, 8);
+			set->setSocketBufferSize(8);
 			break;
 
 		case 2:
-			set->setSocketBufferSize(this, 16);
+			set->setSocketBufferSize(16);
 			break;
 
 		case 3:
-			set->setSocketBufferSize(this, 32);
+			set->setSocketBufferSize(32);
 			break;
 
 		case 4:
-			set->setSocketBufferSize(this, 64);
+			set->setSocketBufferSize(64);
 			break;
 
 		case 5:
-			set->setSocketBufferSize(this, 128);
+			set->setSocketBufferSize(128);
 			break;
 
 		case 6:
-			set->setSocketBufferSize(this, 256);
+			set->setSocketBufferSize(256);
 			break;
 
 		case 7:
-			set->setSocketBufferSize(this, 512);
+			set->setSocketBufferSize(512);
 			break;
 	}
 }

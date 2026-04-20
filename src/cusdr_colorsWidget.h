@@ -118,24 +118,22 @@ private:
 
 private slots:
 	void	systemStateChanged(
-					QObject *sender, 
 					QSDR::_Error err, 
 					QSDR::_HWInterfaceMode hwmode, 
 					QSDR::_ServerMode mode, 
 					QSDR::_DataEngineState state);
 
 	static void	graphicModeChanged(
-					QObject *sender,
 					int rx,
 					PanGraphicsMode panMode,
 					WaterfallColorMode waterfallColorMode);
 
-	void	setCurrentReceiver(QObject *sender, int rx);
+	void	setCurrentReceiver(int rx);
 	void	colorChooserChanged();
 	void	resetColors();
 	void	acceptColors();
 	void	triangleColorChanged(QColor color);
-	void	sampleRateChanged(QObject *sender, int value);
+	void	sampleRateChanged(int value);
 	
 signals:
 	void	colorChanged(const QColor &color);

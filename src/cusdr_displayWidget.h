@@ -174,20 +174,18 @@ private:
 
 private slots:
 	void	systemStateChanged(
-					QObject *sender, 
 					QSDR::_Error err, 
 					QSDR::_HWInterfaceMode hwmode, 
 					QSDR::_ServerMode mode, 
 					QSDR::_DataEngineState state);
 
 	void	graphicModeChanged(
-					QObject *sender,
 					int rx,
 					PanGraphicsMode panMode,
 					WaterfallColorMode waterfallColorMode);
 
-	void	setCurrentReceiver(QObject *sender, int rx);
-	void	setFramesPerSecond(QObject *sender, int rx, int value);
+	void	setCurrentReceiver(int rx);
+	void	setFramesPerSecond(int rx, int value);
 	void	panModeChanged();
 	void	wbPanModeChanged();
 	void	waterfallColorChanged();
@@ -199,7 +197,7 @@ private slots:
 	void 	fpsValueChanged(int value);
 	void	averagingFilterCntChanged(int value);
 	void	setWidebandAveragingCnt(int value);
-	void	sampleRateChanged(QObject *sender, int value);
+	void	sampleRateChanged(int value);
 	void	callSignTextChanged(const QString &text);
 	void	callSignChanged();
 	void    panAverageModeChanged(int value);
@@ -210,8 +208,8 @@ private slots:
 
 signals:
 	void	averagingModeChanged(bool value);
-	//void	showEvent(QObject *sender);
-	//void	closeEvent(QObject *sender);
+	//void	showEvent();
+	//void	closeEvent();
 };
 
 #endif // _CUSDR_DISPLAY_OPTIONS_WIDGET_H

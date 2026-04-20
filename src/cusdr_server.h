@@ -96,13 +96,12 @@ private:
 
 private slots:
 	void	setSystemState(
-					QObject *sender, 
 					QSDR::_Error err, 
 					QSDR::_HWInterfaceMode hwmode, 
 					QSDR::_ServerMode mode, 
 					QSDR::_DataEngineState state);
 
-	void 	masterSwitchChanged(QObject *sender, bool power);
+	void 	masterSwitchChanged(bool power);
 	void	rxListChanged(QList<Receiver *> rxList);
 	void	setupConnections();
 	void 	handleNewConnection();

@@ -5,6 +5,15 @@
 #include "cusdr_settings.h"
 #include <QtEndian>
 
+// Alex TX LPF auto-select thresholds (Hz) — Protocol 1, C4 byte
+static constexpr long ALEX_LPF_6M_MIN_HZ    = 35600000L; // > this → 6m LPF (0x10)
+static constexpr long ALEX_LPF_12_10M_MIN_HZ = 24000000L; // > this → 12/10m LPF (0x20)
+static constexpr long ALEX_LPF_17_15M_MIN_HZ = 16500000L; // > this → 17/15m LPF (0x40)
+static constexpr long ALEX_LPF_30_20M_MIN_HZ =  8000000L; // > this → 30/20m LPF (0x01)
+static constexpr long ALEX_LPF_60_40M_MIN_HZ =  5000000L; // > this → 60/40m LPF (0x02)
+static constexpr long ALEX_LPF_80M_MIN_HZ    =  2500000L; // > this → 80m LPF (0x04)
+                                                           // else      → 160m LPF (0x08)
+
 class CProtocol1 : public IHPSDRProtocol {
 public:
     CProtocol1();

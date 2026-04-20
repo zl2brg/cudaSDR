@@ -49,7 +49,6 @@ public slots:
 	QSize	sizeHint() const;
 	QSize	minimumSizeHint() const;
 	void systemStateChanged(
-			QObject *sender, 
 			QSDR::_Error err, 
 			QSDR::_HWInterfaceMode hwmode, 
 			QSDR::_ServerMode mode, 
@@ -200,29 +199,29 @@ private slots:
 
 	QLabel *createLabel(const QString &text);
 
-	void setCurrentReceiver(QObject *sender, int value);
-	void ctrFrequencyChanged(QObject* sender, int mode, int rx, long frequency);
-	void vfoFrequencyChanged(QObject* sender, int mode, int rx, long frequency);
+	void setCurrentReceiver(int value);
+	void ctrFrequencyChanged(int mode, int rx, long frequency);
+	void vfoFrequencyChanged(int mode, int rx, long frequency);
 	void bandChangedByBtn();
-	void bandChanged(QObject *sender, int rx, bool byButton, HamBand band);
+	void bandChanged(int rx, bool byButton, HamBand band);
 	void dspModeChangedByBtn();
-	void dspModeChanged(QObject *sender, int rx, DSPMode mode);
-	void freeDVModeChanged(QObject *sender, int rx, int mode);
+	void dspModeChanged(int rx, DSPMode mode);
+	void freeDVModeChanged(int rx, int mode);
 	void freeDVStatusChanged(int rx, bool sync, float snr, quint64 rxFrames, quint64 txFrames);
 	void freeDVModeSelectionChanged(int index);
 	void filterChangedByBtn();
-	void filterChanged(QObject *sender, int rx, qreal low, qreal high);
+	void filterChanged(int rx, qreal low, qreal high);
 	void filterGroupChanged(DSPMode mode);
 
 	void attenuatorChanged();
-	void setMercuryAttenuator(QObject *sender, HamBand band, int value);
+	void setMercuryAttenuator(HamBand band, int value);
 	void ditherChanged();
 	void randomChanged();
 	void updateFreeDVControls();
 	
 signals:
-	void showEvent(QObject *sender);
-	void closeEvent(QObject *sender);
+	void showEvent();
+	void closeEvent();
 	void newMessage(QString msg);
 };
 

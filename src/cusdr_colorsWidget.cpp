@@ -91,7 +91,7 @@ ColorOptionsWidget::~ColorOptionsWidget() {
 
 	// disconnect all signals
 	disconnect(set, nullptr, this, nullptr);
-	disconnect(this, nullptr, nullptr, nullptr);
+	disconnect(nullptr, nullptr, nullptr);
 }
 
 QSize ColorOptionsWidget::sizeHint() const {
@@ -109,14 +109,12 @@ void ColorOptionsWidget::setupConnections() {
 	CHECKED_CONNECT(
 		set,
 		SIGNAL(systemStateChanged(
-					QObject *,
 					QSDR::_Error,
 					QSDR::_HWInterfaceMode,
 					QSDR::_ServerMode,
 					QSDR::_DataEngineState)),
 		this,
 		SLOT(systemStateChanged(
-					QObject *,
 					QSDR::_Error,
 					QSDR::_HWInterfaceMode,
 					QSDR::_ServerMode,
@@ -125,28 +123,26 @@ void ColorOptionsWidget::setupConnections() {
 	CHECKED_CONNECT(
 		set, 
 		SIGNAL(graphicModeChanged(
-					QObject *,
 					int,
 					PanGraphicsMode,
 					WaterfallColorMode)),
 		this, 
 		SLOT(graphicModeChanged(
-					QObject *,
 					int,
 					PanGraphicsMode,
 					WaterfallColorMode)));
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(currentReceiverChanged(QObject *, int)),
+		SIGNAL(currentReceiverChanged(int)),
 		this, 
-		SLOT(setCurrentReceiver(QObject *, int)));
+		SLOT(setCurrentReceiver(int)));
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(sampleRateChanged(QObject *, int)), 
+		SIGNAL(sampleRateChanged(int)), 
 		this, 
-		SLOT(sampleRateChanged(QObject *, int)));
+		SLOT(sampleRateChanged(int)));
 
 	CHECKED_CONNECT(
 		m_colorTriangle, 
@@ -156,13 +152,11 @@ void ColorOptionsWidget::setupConnections() {
 }
 
 void ColorOptionsWidget::systemStateChanged(
-	QObject *sender, 
 	QSDR::_Error err, 
 	QSDR::_HWInterfaceMode hwmode, 
 	QSDR::_ServerMode mode, 
 	QSDR::_DataEngineState state)
 {
-	Q_UNUSED (sender)
 	Q_UNUSED (err)
 
 	bool change = false;
@@ -192,12 +186,10 @@ void ColorOptionsWidget::systemStateChanged(
 }
 
 void ColorOptionsWidget::graphicModeChanged(
-		QObject *sender,
 		int rx,
 		PanGraphicsMode panMode,
 		WaterfallColorMode waterfallColorMode)
 {
-	Q_UNUSED (sender)
 	Q_UNUSED (rx)
 	Q_UNUSED (panMode)
 	Q_UNUSED (waterfallColorMode)
@@ -666,16 +658,12 @@ void ColorOptionsWidget::triangleColorChanged(QColor color) {
 	set->setPanadapterColors(m_panadapterColors);
 }
 
-void ColorOptionsWidget::sampleRateChanged(QObject *sender, int value) {
-
-	Q_UNUSED(sender)
+void ColorOptionsWidget::sampleRateChanged(int value) {
 
 	m_sampleRate = value;
 }
 
-void ColorOptionsWidget::setCurrentReceiver(QObject *sender, int rx) {
-
-	Q_UNUSED(sender)
+void ColorOptionsWidget::setCurrentReceiver(int rx) {
 
 	if (m_currentReceiver == rx) return;
 	m_currentReceiver = rx;

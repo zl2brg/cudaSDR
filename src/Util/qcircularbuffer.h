@@ -319,23 +319,23 @@ public:
     };
     friend class const_iterator;
 
-    iterator begin() { return iterator(this, 0); }
-    const_iterator begin() const { return const_iterator(this, 0); }
-    const_iterator constBegin() const { return const_iterator(this, 0); }
-    iterator end() { return iterator(this, d->size); }
-    const_iterator end() const { return const_iterator(this, d->size); }
-    const_iterator constEnd() const { return const_iterator(this, d->size); }
+    iterator begin() { return iterator(0); }
+    const_iterator begin() const { return const_iterator(0); }
+    const_iterator constBegin() const { return const_iterator(0); }
+    iterator end() { return iterator(d->size); }
+    const_iterator end() const { return const_iterator(d->size); }
+    const_iterator constEnd() const { return const_iterator(d->size); }
     iterator insert(iterator before, int count, const T &value)
     {
         insert(before.index, count, value);
-        return iterator(this, before.index);
+        return iterator(before.index);
     }
     iterator insert(iterator before, const T &value) { return insert(before, 1, value); }
     iterator erase(iterator begin, iterator end)
     {
         int count = end - begin;
         remove(begin.index, count);
-        return iterator(this, end.index - count);
+        return iterator(end.index - count);
     }
     iterator erase(iterator pos) { return erase(pos, pos + 1); }
 

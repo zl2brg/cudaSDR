@@ -58,7 +58,7 @@ public:
 public slots:
 	void	addDeviceNICEntry(QString niName, QString ipAddress);
 	void	addNICChangedConnection();
-	void	setSocketBufSize(QObject *sender, int size);
+	void	setSocketBufSize(int size);
 	void	hwInterfaceChanged();
 
 private:
@@ -106,7 +106,6 @@ private:
 
 private slots:
 	void	systemStateChanged(
-					QObject *sender, 
 					QSDR::_Error err, 
 					QSDR::_HWInterfaceMode hwmode, 
 					QSDR::_ServerMode mode, 

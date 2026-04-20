@@ -30,6 +30,8 @@
 #ifndef _CUSDR_DATA_ENGINE_H
 #define _CUSDR_DATA_ENGINE_H
 
+#include <memory>
+
 //#include <QObject>
 //#include <QThread>
 //#include <QMetaType>
@@ -124,7 +126,7 @@ public:
 	DataIO*				m_dataIO;
     TransmitAudioInput *       m_audioInput;
     iambic *            m_cwIO;
-    IHPSDRProtocol*     m_protocol;
+    std::unique_ptr<IHPSDRProtocol> m_protocol;
     bool                m_internal_cw;
     bool                m_cw_key_reversed;
     int                 m_cw_keyer_spacing;
@@ -144,7 +146,7 @@ public slots:
 
 	bool	initDataEngine();
 	void	stop();
-	void 	setWbSpectrumAveraging(QObject*, int rx, int value);
+	void 	setWbSpectrumAveraging(int rx, int value);
 
 
 	// set Server parameter
@@ -153,37 +155,37 @@ public slots:
 	void	setRx(int rx);
 	void	setRxSocketState(int rx, const char* prop, QString);
 	
-	//void	setSendIQSignal(QObject *sender, int value);
-	void	setRcveIQSignal(QObject *sender, int value);
-	void	setAudioReceiver(QObject *sender, int rx);
+	//void	setSendIQSignal(int value);
+	void	setRcveIQSignal(int value);
+	void	setAudioReceiver(int rx);
 	//void	setAudioInProcessorRunning(bool value);
 	void	setIQPort(int rx, int port);
-	void	setRxConnectedStatus(QObject* sender, int rx, bool value);
-	void	setClientConnected(QObject* sender, int rx);
+	void	setRxConnectedStatus(int rx, bool value);
+	void	setClientConnected(int rx);
 	void	setClientConnected(bool value);
 	void	setClientDisconnected(int client);
-	void	setFramesPerSecond(QObject *sender, int rx, int value);
+	void	setFramesPerSecond(int rx, int value);
 
     // DSP processing
 	void	processFileBuffer(const QList<qreal> data);
 	
 	// change HPSDR hardware settings
-	void	setPenelopeVersion(QObject *sender, int version);
-	void	setHwIOVersion(QObject *sender, int version);
-	void	setNumberOfRx(QObject *sender, int value);
-	void	setSampleRate(QObject *sender, int value);
-	void	setMercuryAttenuator(QObject *sender, HamBand band, int value);
-	void	setDither(QObject *sender, int value);
-	void	setRandom(QObject *sender, int value);
-	void	setTimeStamp(QObject *sender, bool value);
-	void	set10MhzSource(QObject *sender, int source);
-	void	set122_88MhzSource(QObject *sender, int source);
+	void	setPenelopeVersion(int version);
+	void	setHwIOVersion(int version);
+	void	setNumberOfRx(int value);
+	void	setSampleRate(int value);
+	void	setMercuryAttenuator(HamBand band, int value);
+	void	setDither(int value);
+	void	setRandom(int value);
+	void	setTimeStamp(bool value);
+	void	set10MhzSource(int source);
+	void	set122_88MhzSource(int source);
     void	setMicSource(int source);
-	void	setMercuryClass(QObject *sender, int value);
-	void	setMercuryTiming(QObject* sender, int value);
-	void	setHamBand(QObject *sender, int rx, bool byBtn, HamBand band);
-	void	setFrequency(QObject* sender, int mode, int rx, long frequency);
-    void    set_tx_drivelevel(QObject* sender,int value);
+	void	setMercuryClass(int value);
+	void	setMercuryTiming(int value);
+	void	setHamBand(int rx, bool byBtn, HamBand band);
+	void	setFrequency(int mode, int rx, long frequency);
+    void    set_tx_drivelevel(int value);
     void    setRepeaterMode(bool);
 
 	void	suspend();
@@ -348,7 +350,6 @@ private:
 
 private slots:
 	void	systemStateChanged(
-					QObject *sender, 
 					QSDR::_Error err, 
 					QSDR::_HWInterfaceMode hwmode, 
 					QSDR::_ServerMode mode, 
@@ -358,27 +359,27 @@ private slots:
 	void	setHPSDRDeviceNumber(int value);
 	void	rxListChanged(QList<Receiver *> rxList);
 	void	searchHpsdrNetworkDevices();
-	void	setCurrentReceiver(QObject* sender, int rx);
+	void	setCurrentReceiver(int rx);
 	
-	void	setMercuryAttenuators(QObject *sender, QList<int> attn);
+	void	setMercuryAttenuators(QList<int> attn);
 	void 	setAlexConfiguration(quint16 conf);
 	void 	setAlexStates(HamBand band, const QList<int> &states);
 	void	setPennyOCEnabled(bool value);
 	void	setRxJ6Pins(const QList<int> &list);
 	void	setTxJ6Pins(const QList<int> &list);
     void    radioStateChange(RadioState state);
-    void    dspModeChanged(QObject *, int, DSPMode);
+    void    dspModeChanged(int, DSPMode);
 
 
 
 signals:
 	void	error(QUdpSocket::SocketError error);
-	void	masterSwitchEvent(QObject *sender, bool power);
+	void	masterSwitchEvent(bool power);
 	//void	messageEvent(QString message);
-	void	penelopeVersionInfoEvent(QObject *sender, int version);
-	void	hwIOVersionInfoEvent(QObject *sender, int version);
-	void	sendIQEvent(QObject *sender, int sendIQ);
-	void	rcveIQEvent(QObject *sender, int value);
+	void	penelopeVersionInfoEvent(int version);
+	void	hwIOVersionInfoEvent(int version);
+	void	sendIQEvent(int sendIQ);
+	void	rcveIQEvent(int value);
 	//void	iqDataReady(int rx);
 	void	chirpDataReady(int samples);
 	void	audioDataReady();
@@ -581,7 +582,7 @@ signals:
 	//void	connectedEvent(QString addr, quint16 port);
 	//void	disconnectedEvent();
 	//void	serverVersionEvent(QString version);
-	////void	metisVersionEvent(QObject *sender, int version);
+	////void	metisVersionEvent(int version);
 	//void	newData();
 	//void	newIQData(int rx);
 	//void	newAudioDataEvent(float *lBuf, float *rBuf);

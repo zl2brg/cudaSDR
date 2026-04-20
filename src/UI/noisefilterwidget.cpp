@@ -77,8 +77,7 @@ NoiseFilterWidget::~NoiseFilterWidget()
 
 
 
-void NoiseFilterWidget::setCurrentReceiver(QObject *sender, int rx) {
-    Q_UNUSED(sender)
+void NoiseFilterWidget::setCurrentReceiver(int rx) {
     if (m_rx == rx) return;
     m_rx = rx;
     getSettings();
@@ -176,13 +175,11 @@ void NoiseFilterWidget::setupConnections() {
 
 
 void NoiseFilterWidget::systemStateChanged(
-        QObject *sender,
         QSDR::_Error err,
         QSDR::_HWInterfaceMode hwmode,
         QSDR::_ServerMode mode,
         QSDR::_DataEngineState state)
 {
-    Q_UNUSED (sender)
     Q_UNUSED (err)
 
     if (m_hwInterface != hwmode)

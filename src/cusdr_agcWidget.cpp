@@ -92,7 +92,7 @@ AGCOptionsWidget::AGCOptionsWidget(QWidget *parent)
 	mainLayout->addStretch();
 	setLayout(mainLayout);
 
-	agcModeChanged(this, 0, m_agcMode, false);
+	agcModeChanged(0, m_agcMode, false);
 
 	setupConnections();
 }
@@ -101,7 +101,7 @@ AGCOptionsWidget::~AGCOptionsWidget() {
 
 	// disconnect all signals
 	disconnect(set, 0, this, 0);
-	disconnect(this, 0, 0, 0);
+	disconnect(0, 0, 0);
 }
 
 QSize AGCOptionsWidget::sizeHint() const {
@@ -119,14 +119,12 @@ void AGCOptionsWidget::setupConnections() {
 	CHECKED_CONNECT(
 		set,
 		SIGNAL(systemStateChanged(
-					QObject *,
 					QSDR::_Error,
 					QSDR::_HWInterfaceMode,
 					QSDR::_ServerMode,
 					QSDR::_DataEngineState)),
 		this,
 		SLOT(systemStateChanged(
-					QObject *,
 					QSDR::_Error,
 					QSDR::_HWInterfaceMode,
 					QSDR::_ServerMode,
@@ -135,50 +133,48 @@ void AGCOptionsWidget::setupConnections() {
 //	CHECKED_CONNECT(
 //		set,
 //		SIGNAL(graphicModeChanged(
-//					QObject *,
-//					QSDRGraphics::_Panadapter,
+//					//					QSDRGraphics::_Panadapter,
 //					QSDRGraphics::_WaterfallColorScheme)),
 //		this,
 //		SLOT(graphicModeChanged(
-//					QObject *,
-//					QSDRGraphics::_Panadapter,
+//					//					QSDRGraphics::_Panadapter,
 //					QSDRGraphics::_WaterfallColorScheme)));
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(currentReceiverChanged(QObject *, int)),
+		SIGNAL(currentReceiverChanged(int)),
 		this, 
-		SLOT(setCurrentReceiver(QObject *, int)));
+		SLOT(setCurrentReceiver(int)));
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(sampleRateChanged(QObject *, int)), 
+		SIGNAL(sampleRateChanged(int)), 
 		this, 
-		SLOT(sampleRateChanged(QObject *, int)));
+		SLOT(sampleRateChanged(int)));
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(agcModeChanged(QObject *, int, AGCMode, bool)),
+		SIGNAL(agcModeChanged(int, AGCMode, bool)),
 		this,
-		SLOT(agcModeChanged(QObject *, int, AGCMode, bool)));
+		SLOT(agcModeChanged(int, AGCMode, bool)));
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(agcHangThresholdSliderChanged(QObject *, int, qreal)),
+		SIGNAL(agcHangThresholdSliderChanged(int, qreal)),
 		this,
-		SLOT(setAGCHangThresholdSlider(QObject *, int, qreal)));
+		SLOT(setAGCHangThresholdSlider(int, qreal)));
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(agcMaximumGainChanged_dB(QObject *, int, qreal)),
+		SIGNAL(agcMaximumGainChanged_dB(int, qreal)),
 		this,
-		SLOT(setAGCMaximumGain_dB(QObject *, int, qreal)));
+		SLOT(setAGCMaximumGain_dB(int, qreal)));
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(agcFixedGainChanged_dB(QObject *, int, qreal)),
+		SIGNAL(agcFixedGainChanged_dB(int, qreal)),
 		this,
-		SLOT(setAGCFixedGain_dB(QObject *, int, qreal)));
+		SLOT(setAGCFixedGain_dB(int, qreal)));
 }
 
 void AGCOptionsWidget::createAgcModeBtnGroup() {
@@ -446,13 +442,11 @@ void AGCOptionsWidget::createAgcOptionsGroup() {
 }
 
 void AGCOptionsWidget::systemStateChanged(
-	QObject *sender, 
 	QSDR::_Error err, 
 	QSDR::_HWInterfaceMode hwmode, 
 	QSDR::_ServerMode mode, 
 	QSDR::_DataEngineState state)
 {
-	Q_UNUSED (sender)
 	Q_UNUSED (err)
 
 	if (m_hwInterface != hwmode)
@@ -479,16 +473,15 @@ void AGCOptionsWidget::agcModeChangedByBtn() {
 		btn->update();
 	}
 
-	set->setAGCMode(this, m_currentReceiver, (AGCMode) btn);
+	set->setAGCMode(m_currentReceiver, (AGCMode) btn);
 	m_agcMode = (AGCMode) btn;
 
 	button->setBtnState(AeroButton::ON);
 	button->update();
 }
 
-void AGCOptionsWidget::agcModeChanged(QObject *sender, int rx, AGCMode mode, bool hang) {
+void AGCOptionsWidget::agcModeChanged(int rx, AGCMode mode, bool hang) {
 
-	Q_UNUSED(sender)
 	Q_UNUSED(hang)
 
 	if (m_currentReceiver != rx) return;
@@ -519,18 +512,17 @@ void AGCOptionsWidget::agcModeChanged(QObject *sender, int rx, AGCMode mode, boo
 
 void AGCOptionsWidget::slopeChanged(int value) {
 
-	set->setAGCVariableGain_dB(this, set->getCurrentReceiver(), (qreal)value);
+	set->setAGCVariableGain_dB(set->getCurrentReceiver(), (qreal)value);
 }
 
 void AGCOptionsWidget::maxGainChanged(int value) {
 
 	int rx = set->getCurrentReceiver();
-	set->setAGCMaximumGain_dB(this, rx, (qreal) value);
+	set->setAGCMaximumGain_dB(rx, (qreal) value);
 }
 
-void AGCOptionsWidget::setAGCMaximumGain_dB(QObject *sender, int rx, qreal value) {
+void AGCOptionsWidget::setAGCMaximumGain_dB(int rx, qreal value) {
 
-	Q_UNUSED(sender)
 	Q_UNUSED(rx)
 
 	m_maxGainSpinBox->blockSignals(true);
@@ -541,12 +533,11 @@ void AGCOptionsWidget::setAGCMaximumGain_dB(QObject *sender, int rx, qreal value
 void AGCOptionsWidget::fixedGainChanged(int value) {
 
 	int rx = set->getCurrentReceiver();
-	set->setAGCFixedGain_dB(this, rx, (qreal) value);
+	set->setAGCFixedGain_dB(rx, (qreal) value);
 }
 
-void AGCOptionsWidget::setAGCFixedGain_dB(QObject *sender, int rx, qreal value) {
+void AGCOptionsWidget::setAGCFixedGain_dB(int rx, qreal value) {
 
-	Q_UNUSED(sender)
 	Q_UNUSED(rx)
 
 	m_fixedGainSpinBox->blockSignals(true);
@@ -556,17 +547,17 @@ void AGCOptionsWidget::setAGCFixedGain_dB(QObject *sender, int rx, qreal value) 
 
 void AGCOptionsWidget::attackTimeChanged(int value) {
 
-	set->setAGCAttackTime(this, set->getCurrentReceiver(), value/1000.0);
+	set->setAGCAttackTime(set->getCurrentReceiver(), value/1000.0);
 }
 
 void AGCOptionsWidget::decayTimeChanged(int value) {
 
-	set->setAGCDecayTime(this, set->getCurrentReceiver(), value/1000.0);
+	set->setAGCDecayTime(set->getCurrentReceiver(), value/1000.0);
 }
 
 void AGCOptionsWidget::hangTimeChanged(int value) {
 
-	set->setAGCHangTime(this, set->getCurrentReceiver(), value/1000.0);
+	set->setAGCHangTime(set->getCurrentReceiver(), value/1000.0);
 }
 
 void AGCOptionsWidget::hangThresholdValueChanged(int value) {
@@ -574,12 +565,11 @@ void AGCOptionsWidget::hangThresholdValueChanged(int value) {
 	QString str = " %1 ";
 	m_hangThresholdValueLabel->setText(str.arg(value, 2, 10, QLatin1Char(' ')));
 
-	set->setAGCHangThreshold(this, set->getCurrentReceiver(), value);
+	set->setAGCHangThreshold(set->getCurrentReceiver(), value);
 }
 
-void AGCOptionsWidget::setAGCHangThresholdSlider(QObject *sender, int rx, qreal value) {
+void AGCOptionsWidget::setAGCHangThresholdSlider(int rx, qreal value) {
 
-	Q_UNUSED(sender)
 	Q_UNUSED(rx)
 
 	m_hangThresholdSlider->blockSignals(true);
@@ -590,9 +580,7 @@ void AGCOptionsWidget::setAGCHangThresholdSlider(QObject *sender, int rx, qreal 
 	m_hangThresholdValueLabel->setText(str.arg((int)value, 2, 10, QLatin1Char(' ')));
 }
 
-void AGCOptionsWidget::sampleRateChanged(QObject *sender, int value) {
-
-	Q_UNUSED(sender)
+void AGCOptionsWidget::sampleRateChanged(int value) {
 
 	m_sampleRate = value;
 	//int currentValue = m_framesPerSecondSpinBox->value();
@@ -606,9 +594,7 @@ void AGCOptionsWidget::sampleRateChanged(QObject *sender, int value) {
 	//}
 }
 
-void AGCOptionsWidget::setCurrentReceiver(QObject *sender, int rx) {
-
-	Q_UNUSED(sender)
+void AGCOptionsWidget::setCurrentReceiver(int rx) {
 
 	if (m_currentReceiver == rx) return;
 	m_currentReceiver = rx;

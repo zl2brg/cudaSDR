@@ -124,7 +124,7 @@ ExtCtrlWidget::~ExtCtrlWidget() {
 
 	// disconnect all signals
 	disconnect(set, 0, this, 0);
-	disconnect(this, 0, 0, 0);
+	disconnect(0, 0, 0);
 }
 
 void ExtCtrlWidget::setupConnections() {
@@ -317,7 +317,7 @@ void ExtCtrlWidget::enable() {
 		}
 		m_pennyOCEnabled = false;
 	}
-	set->setPennyOCEnabled(this, m_pennyOCEnabled);
+	set->setPennyOCEnabled(m_pennyOCEnabled);
 }
 
 void ExtCtrlWidget::receivePinsBtnClicked() {
@@ -358,7 +358,7 @@ void ExtCtrlWidget::receivePinsBtnClicked() {
 		}
 	}
 
-	set->setRxJ6Pins(this, m_rxPins);
+	set->setRxJ6Pins(m_rxPins);
 }
 
 void ExtCtrlWidget::transmitPinsBtnClicked() {
@@ -399,7 +399,7 @@ void ExtCtrlWidget::transmitPinsBtnClicked() {
 		}
 	}
 	
-	set->setTxJ6Pins(this, m_txPins);
+	set->setTxJ6Pins(m_txPins);
 }
 
 void ExtCtrlWidget::setValues() {

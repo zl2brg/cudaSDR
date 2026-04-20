@@ -77,7 +77,7 @@ DisplayTabWidget::~DisplayTabWidget() {
         m_3DPanel = nullptr; // Panel is deleted with dock widget since it's a child
     }
 
-    disconnect(this, 0, 0, 0);
+    disconnect(0, 0, 0);
     disconnect(set, 0, this, 0);
     
     delete m_displayWidget;
@@ -100,14 +100,12 @@ void DisplayTabWidget::setupConnections() {
 	CHECKED_CONNECT(
 		set,
 		SIGNAL(systemStateChanged(
-					QObject *,
 					QSDR::_Error,
 					QSDR::_HWInterfaceMode,
 					QSDR::_ServerMode,
 					QSDR::_DataEngineState)),
 		this,
 		SLOT(systemStateChanged(
-					QObject *,
 					QSDR::_Error,
 					QSDR::_HWInterfaceMode,
 					QSDR::_ServerMode,
@@ -140,18 +138,15 @@ void DisplayTabWidget::setupConnections() {
 }
 
 void DisplayTabWidget::systemStateChanged(
-	QObject *sender,					/*!<[in] the sender of the signal. */
+	/*!<[in] the of the signal. */
 	QSDR::_Error err,					/*!<[in] error state. */
 	QSDR::_HWInterfaceMode hwmode,		/*!<[in] HPSDR interface (Metis, Hermes, none). */
 	QSDR::_ServerMode mode,				/*!<[in] server mode. */
 	QSDR::_DataEngineState state		/*!<[in] data engine state. */
 ) {
-	Q_UNUSED (sender)
 	Q_UNUSED (err)
 
-	//if (sender == this) return;
-
-	if (m_hwInterface != hwmode)
+	//	if (m_hwInterface != hwmode)
 		m_hwInterface = hwmode;
 
 	if (m_hwInterface == QSDR::Hermes)
@@ -209,15 +204,15 @@ void DisplayTabWidget::create3DDockWidget(QWidget *mainWindow) {
 		// Connect to frequency changes
 		CHECKED_CONNECT(
 			set,
-			SIGNAL(ctrFrequencyChanged(QObject*, int, int, long)),
+			SIGNAL(ctrFrequencyChanged(int, int, long)),
 			m_3DPanel,
-			SLOT(setCtrFrequency(QObject*, int, int, long)));
+			SLOT(setCtrFrequency(int, int, long)));
 			
 		CHECKED_CONNECT(
 			set,
-			SIGNAL(vfoFrequencyChanged(QObject*, int, int, long)),
+			SIGNAL(vfoFrequencyChanged(int, int, long)),
 			m_3DPanel,
-			SLOT(setVFOFrequency(QObject*, int, int, long)));
+			SLOT(setVFOFrequency(int, int, long)));
 		
 		// Connect 3D options widget controls to 3D panel
 		CHECKED_CONNECT(
@@ -290,13 +285,13 @@ void DisplayTabWidget::show3DPanadapter(bool enabled) {
 
 void DisplayTabWidget::closeEvent(QCloseEvent *event) {
 
-	emit closeEvent(this);
+	emit closeEvent();
 	QWidget::closeEvent(event);
 }
 
 void DisplayTabWidget::showEvent(QShowEvent *event) {
 
-	emit showEvent(this);
+	emit showEvent();
 	QWidget::showEvent(event);
 }
 

@@ -176,7 +176,7 @@ MainWindow::MainWindow(QWidget *parent)
 MainWindow::~MainWindow() {
     qDebug() <<  "MainWindow delete";
     disconnect(set, 0, this, 0);
-    disconnect(this, 0, 0, 0);
+    disconnect(0, 0, 0);
     delete fonts;
     // the SDR data engine
     delete  m_dataEngine;
@@ -229,15 +229,15 @@ void MainWindow::setupConnections() {
 	
 		CHECKED_CONNECT(
 			m_cudaInfoWidget, 
-			SIGNAL(showEvent(QObject *)), 
-			this, 
-			SLOT(showWidgetEvent(QObject *)));
+SIGNAL(showEvent()), 
+			this,
+			SLOT(showWidgetEvent()));
 
 		CHECKED_CONNECT(
 			m_cudaInfoWidget, 
-			SIGNAL(closeEvent(QObject *)), 
-			this, 
-			SLOT(closeWidgetEvent(QObject *)));
+			SIGNAL(closeEvent()), 
+			this,
+			SLOT(closeWidgetEvent()));
 	}*/
 	
 	CHECKED_CONNECT(
@@ -248,27 +248,25 @@ void MainWindow::setupConnections() {
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(masterSwitchChanged(QObject *, bool)), 
+		SIGNAL(masterSwitchChanged(bool)), 
 		this, 
-		SLOT(masterSwitchChanged(QObject *, bool)));
+		SLOT(masterSwitchChanged(bool)));
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(numberOfRXChanged(QObject *, int)), 
+		SIGNAL(numberOfRXChanged(int)), 
 		this, 
-		SLOT(setNumberOfReceivers(QObject *, int)));
+		SLOT(setNumberOfReceivers(int)));
 
 	CHECKED_CONNECT(
 		set,
 		SIGNAL(systemStateChanged(
-					QObject *,
 					QSDR::_Error,
 					QSDR::_HWInterfaceMode,
 					QSDR::_ServerMode,
 					QSDR::_DataEngineState)),
 		this,
 		SLOT(systemStateChanged(
-					QObject *,
 					QSDR::_Error,
 					QSDR::_HWInterfaceMode,
 					QSDR::_ServerMode,
@@ -276,9 +274,9 @@ void MainWindow::setupConnections() {
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(currentReceiverChanged(QObject *, int)),
+		SIGNAL(currentReceiverChanged(int)),
 		this,
-		SLOT(setCurrentReceiver(QObject *, int)));
+		SLOT(setCurrentReceiver(int)));
 
 	CHECKED_CONNECT(
 		set,
@@ -318,39 +316,39 @@ void MainWindow::setupConnections() {
 
 	CHECKED_CONNECT(
 		set,
-        SIGNAL(txAllowedChanged(QObject*, bool)),
+        SIGNAL(txAllowedChanged(bool)),
 		this,
-        SLOT(setTxAllowed(QObject*, bool)));
+        SLOT(setTxAllowed(bool)));
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(adcModeChanged(QObject *, int, ADCMode)),
+		SIGNAL(adcModeChanged(int, ADCMode)),
 		this,
-		SLOT(setADCMode(QObject *, int, ADCMode)));
+		SLOT(setADCMode(int, ADCMode)));
 
 	CHECKED_CONNECT(
 		set,
-        SIGNAL(agcModeChanged(QObject*, int, AGCMode, bool)),
+        SIGNAL(agcModeChanged(int, AGCMode, bool)),
 		this,
-		SLOT(setAGCMode(QObject *, int, AGCMode, bool)));
+		SLOT(setAGCMode(int, AGCMode, bool)));
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(agcMaximumGainChanged_dB(QObject *, int, qreal)),
+		SIGNAL(agcMaximumGainChanged_dB(int, qreal)),
 		this,
-		SLOT(setAGCGain(QObject *, int, qreal)));
+		SLOT(setAGCGain(int, qreal)));
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(agcFixedGainChanged_dB(QObject *, int, qreal)),
+		SIGNAL(agcFixedGainChanged_dB(int, qreal)),
 		this,
-		SLOT(setAGCGain(QObject *, int, qreal)));
+		SLOT(setAGCGain(int, qreal)));
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(mercuryAttenuatorChanged(QObject *, HamBand, int)),
+		SIGNAL(mercuryAttenuatorChanged(HamBand, int)),
 		this,
-		SLOT(mercuryAttenuatorChanged(QObject *, HamBand, int)));
+		SLOT(mercuryAttenuatorChanged(HamBand, int)));
 
 	CHECKED_CONNECT(
 		set,
@@ -414,7 +412,7 @@ void MainWindow::setup() {
 
 	// sync dock visibility to the persisted receiver count (no signal fires when count
 	// is restored from INI with blockSignals, so we do it explicitly here)
-	setNumberOfReceivers(this, set->getNumberOfReceivers());
+	setNumberOfReceivers(set->getNumberOfReceivers());
 
 	// set the main window title
 	updateTitle();
@@ -1283,11 +1281,9 @@ void MainWindow::createAttenuatorMenu() {
 	- starts/stops the server if in \a QSDR::ExternalDSP mode.
 */
 void MainWindow::masterSwitchChanged(
-		QObject *sender,				/*!<[in] the sender of the signal. */
+		/*!<[in] the of the signal. */
 		bool power						/*!<[in] power on or off*/
 ) {
-	Q_UNUSED(sender)
-	
 	if (power) {
 
 		if (m_dataEngine->initDataEngine()) { // start data engine
@@ -1298,7 +1294,7 @@ void MainWindow::masterSwitchChanged(
 		}
 		else {
 
-			set->setMainPower(this, false);
+			set->setMainPower(false);
 			startButtonClickedEvent();
 			return;
 		}
@@ -1309,7 +1305,7 @@ void MainWindow::masterSwitchChanged(
 
 		//if (m_serverMode == QSDR::ExternalDSP)
 		//	m_hpsdrServer->stopServer();
-		set->setMainPower(this, false);
+		set->setMainPower(false);
 	}
 }
 
@@ -1320,18 +1316,15 @@ void MainWindow::masterSwitchChanged(
 	- \a QSDR::_DataEngineState.
 */
 void MainWindow::systemStateChanged(
-	QObject *sender,					/*!<[in] the sender of the signal. */
+	/*!<[in] the of the signal. */
 	QSDR::_Error err,					/*!<[in] error state. */
 	QSDR::_HWInterfaceMode hwmode,		/*!<[in] HPSDR interface (Metis, Hermes, none). */
 	QSDR::_ServerMode mode,				/*!<[in] server mode. */
 	QSDR::_DataEngineState state		/*!<[in] data engine state. */
 ) {
-	Q_UNUSED (sender)
 	Q_UNUSED (err)
 
-	//if (sender == this) return;
-
-	if (m_hwInterface != hwmode)
+	//	if (m_hwInterface != hwmode)
 		m_hwInterface = hwmode;
 
 	if (m_serverMode != mode)
@@ -1370,7 +1363,7 @@ void MainWindow::setSystemState(
 			QSDR::_DataEngineState state)
 {
 	m_dataEngine->io.networkIOMutex.lock();
-	set->setSystemState(this, err, hwmode, mode, state);
+	set->setSystemState(err, hwmode, mode, state);
 	m_dataEngine->io.networkIOMutex.unlock();
 }
 
@@ -1465,7 +1458,7 @@ void MainWindow::showRadioPopup(bool value) {
 
 	Q_UNUSED (value)
 
-	//m_radioPopupWidget->showPopupWidget(this, QCursor::pos());
+	//m_radioPopupWidget->showPopupWidget(QCursor::pos());
 }
 
 void MainWindow::showAboutDialog() {
@@ -1557,7 +1550,7 @@ void MainWindow::startButtonClickedEvent() {
 		col = QColor(250, 0, 0);
 		startBtn->setHighlight(col);
 		startBtn->setText("Stop");
-    		set->setMainPower(this, true);
+    		set->setMainPower(true);
 	}
 	else if (startBtn->btnState() == AeroButton::ON) {
 
@@ -1567,7 +1560,7 @@ void MainWindow::startButtonClickedEvent() {
 		startBtn->setHighlight(col);
 		startBtn->setText("Start");
 		set->saveSettings();
-		set->setMainPower(this, false);
+		set->setMainPower(false);
 
 		if (muteBtn->btnState() == AeroButton::ON) {
 
@@ -1576,7 +1569,7 @@ void MainWindow::startButtonClickedEvent() {
 
 			m_volumeSlider->setEnabled(true);
 			for (int i = 0; i < set->getNumberOfReceivers(); i++)
-				set->setMainVolume(this, i, rxVolumeList.at(i));
+				set->setMainVolume(i, rxVolumeList.at(i));
 		}
 	}
 }
@@ -1589,14 +1582,14 @@ void MainWindow::wideBandBtnClickedEvent() {
 	if (wideBandBtn->btnState() == AeroButton::OFF) {
 
 		wideBandBtn->setBtnState(AeroButton::ON);
-		set->setWidebandStatus(this, true);
+		set->setWidebandStatus(true);
 		widebandDock->show();
 		//showMessage("[server]: wide band data on.");
 	}
 	else if (wideBandBtn->btnState() == AeroButton::ON) {
 
 		wideBandBtn->setBtnState(AeroButton::OFF);
-		set->setWidebandStatus(this, false);
+		set->setWidebandStatus(false);
 		widebandDock->hide();
 		//showMessage("[server]: wide band data off.");
 	}
@@ -1622,7 +1615,7 @@ void MainWindow::alexBtnClickedEvent() {
 		//m_alexConfiguration[0].value = false;
 		m_alexConfig &= 0xFFFE;
 
-		set->setAlexToManual(this, false);
+		set->setAlexToManual(false);
 	}
 	else if (alexBtn->btnState() == AeroButton::ON) {
 
@@ -1632,9 +1625,9 @@ void MainWindow::alexBtnClickedEvent() {
 		//m_alexConfiguration[0].value = true;
 		m_alexConfig |= 0x01;
 
-		set->setAlexToManual(this, true);
+		set->setAlexToManual(true);
 	}
-	//set->setAlexConfiguration(this, m_alexConfiguration);
+	//set->setAlexConfiguration(m_alexConfiguration);
 }
 
 void MainWindow::alexStateChanged(HamBand band, const QList<int> &states) {
@@ -1690,7 +1683,7 @@ void MainWindow::alexPresenceChanged(bool value) {
 void MainWindow::addReceiver() {
     int num = set->getNumberOfReceivers();
     if (num < MAX_RECEIVERS) {
-        set->setReceivers(this, num + 1);
+        set->setReceivers(num + 1);
     }
 }
 
@@ -1715,27 +1708,23 @@ void MainWindow::updateTitle() {
 	\brief show widget event.
 */
 void MainWindow::showWidgetEvent(
-		QObject *sender				/*!<[in] the sender of the event. */
+		/*!<[in] the of the event. */
 ) {
-	if (!sender) return;
 }
 
 /*!
 	\brief hide widget event.
 */
 void MainWindow::closeWidgetEvent(
-		QObject *sender				/*!<[in] the sender of the event. */
+		/*!<[in] the of the event. */
 )
 {
-	if (!sender) return;
 }
- 
-void MainWindow::setCurrentReceiver(QObject *sender, int rx) {
 
-	Q_UNUSED(sender)
+void MainWindow::setCurrentReceiver(int rx) {
 
 	MAIN_DEBUG << "setCurrentReceiver: " << rx;
-	//set->setCurrentReceiver(this, rx);
+	//set->setCurrentReceiver(rx);
 	//m_dataEngine->io.currentReceiver = rx;
 	m_volumeSlider->setValue((int)(set->getMainVolume(rx) * 100));
 	m_agcGainSlider->setValue(set->getAGCMaximumGain_dB(rx));
@@ -1745,11 +1734,9 @@ void MainWindow::setCurrentReceiver(QObject *sender, int rx) {
 	\brief enable the receiver buttons according to the actual number of available receivers.
 */
 void MainWindow::setNumberOfReceivers(
-		QObject *sender,			/*!<[in] the sender of the event. */
+		/*!<[in] the of the event. */
 		int value					/*!<[in] the number of receivers. */
 ) {
-	Q_UNUSED(sender)
-
 	viewMenu->clear();
 	for (int i = 0; i < value-1; i++) {
 		
@@ -1772,7 +1759,7 @@ void MainWindow::setMicLevel(int value)
     if (value > 100 ) value = 100;
     if (value < 0 ) value = 0;
     if (value > 100 ) value = 100;
-    set->setMicInputLevel(this, value);
+    set->setMicInputLevel(value);
 
 }
 
@@ -1781,7 +1768,7 @@ void MainWindow::setDriveLevel(int value)
 {
     if (value < 0 ) value = 0;
     if (value > 100 ) value = 100;
-    set->setDriveLevel(this, value);
+    set->setDriveLevel(value);
 }
 
 /*!
@@ -1795,7 +1782,7 @@ void MainWindow::setMainVolume(int value) {
 	QString str = "%1 %";
 	m_volLevelLabel->setText(str.arg(value, 2, 10, QLatin1Char(' ')));
 
-	set->setMainVolume(this, set->getCurrentReceiver(), value / 100.0f);
+	set->setMainVolume(set->getCurrentReceiver(), value / 100.0f);
 }
 
 /*!
@@ -1812,7 +1799,7 @@ void MainWindow::muteBtnClickedEvent() {
 		for (int i = 0; i < rcvr; i++) {
 
 			rxVolumeList[i] = set->getMainVolume(i);
-			set->setMainVolume(this, i, 0.0f);
+			set->setMainVolume(i, 0.0f);
 		}
 	}
 	else if (muteBtn->btnState() == AeroButton::ON) {
@@ -1822,14 +1809,12 @@ void MainWindow::muteBtnClickedEvent() {
 
 		for (int i = 0; i < rcvr; i++) {
 
-			set->setMainVolume(this, i, rxVolumeList.at(i));
+			set->setMainVolume(i, rxVolumeList.at(i));
 		}
 	}
 }
 
-void MainWindow::setTxAllowed(QObject *sender, bool value) {
-
-	Q_UNUSED(sender)
+void MainWindow::setTxAllowed(bool value) {
 
 	if (!value) {
 
@@ -1843,17 +1828,15 @@ void MainWindow::setTxAllowed(QObject *sender, bool value) {
 	}
 }
 
-void MainWindow::setADCMode(QObject *sender, int rx, ADCMode mode) {
+void MainWindow::setADCMode(int rx, ADCMode mode) {
 
-	Q_UNUSED(sender)
 	Q_UNUSED(rx)
 
 	m_adcMode = mode;
 }
 
-void MainWindow::setAGCMode(QObject *sender, int rx, AGCMode mode, bool hang) {
+void MainWindow::setAGCMode(int rx, AGCMode mode, bool hang) {
 
-	Q_UNUSED(sender)
 	Q_UNUSED(hang)
 
 	m_agcMode = mode;
@@ -1889,14 +1872,13 @@ void MainWindow::setAGCGain(int value) {
 
 	int rx = set->getCurrentReceiver();
 	if (m_agcMode == (AGCMode) agcOFF)
-		set->setAGCFixedGain_dB(this, rx, (qreal) value);
+		set->setAGCFixedGain_dB(rx, (qreal) value);
 	else
-		set->setAGCMaximumGain_dB(this, rx, (qreal) value);
+		set->setAGCMaximumGain_dB(rx, (qreal) value);
 }
 
-void MainWindow::setAGCGain(QObject *sender, int rx, qreal value) {
+void MainWindow::setAGCGain(int rx, qreal value) {
 
-	Q_UNUSED(sender)
 	Q_UNUSED(rx)
 
 	m_agcGainSlider->blockSignals(true);
@@ -1914,7 +1896,7 @@ void MainWindow::setSDRMode(bool) {
 	setServerMode(QSDR::SDRMode);
 
 	//if (m_oldSampleRate == 48000 || m_oldSampleRate == 96000 || m_oldSampleRate == 192000)
-	//	set->setSampleRate(this, m_oldSampleRate);
+	//	set->setSampleRate(m_oldSampleRate);
 	
 	//showMessage("[server]: switched to SDR mode.");
 }
@@ -1932,7 +1914,7 @@ void MainWindow::setAttenuator() {
 			act->setChecked(false);
 		mercuryAttnActionList.at(mercuryPos)->setChecked(true);
 		// Direct mapping: list index == step-attenuator value (0=0dB, 1=10dB, 2=20dB, 3=30dB)
-		set->setMercuryAttenuator(this, mercuryPos);
+		set->setMercuryAttenuator(mercuryPos);
 	}
 
 	if (alexPos > -1) {
@@ -1945,7 +1927,7 @@ void MainWindow::setAttenuator() {
 		state &= 0x7F;
 		state |= alexPos << 7;
 
-		set->setAlexState(this, state);
+		set->setAlexState(state);
 	}
 
 	// Compute total attenuation (step att + Alex att) for button label
@@ -1992,10 +1974,9 @@ void MainWindow::setAttenuatorButton() {
 	}
 }
 
-void MainWindow::mercuryAttenuatorChanged(QObject *sender, HamBand band, int value) {
+void MainWindow::mercuryAttenuatorChanged(HamBand band, int value) {
 
-	Q_UNUSED(sender)
-    Q_UNUSED(value)
+	Q_UNUSED(value)
     Q_UNUSED(band)
 
 	m_currentHamBand = set->getCurrentHamBand(0);
@@ -2107,8 +2088,8 @@ void MainWindow::getNetworkInterfaces() {
 	if (ipAddresses.isEmpty()) {
 
 		// if we did not find one, use IPv4 localhost
-		set->setServerAddr(this, localIP);
-		set->setHPSDRDeviceLocalAddr(this, localIP);
+		set->setServerAddr(localIP);
+		set->setHPSDRDeviceLocalAddr(localIP);
 	}
 	else {
 
@@ -2138,7 +2119,7 @@ void MainWindow::getNetworkInterfaces() {
 				
 			if (serverIdx < 0) {
 				set->setServerWidgetNIC(i);
-				set->setServerAddr(this, ipAddresses.at(i).toString());
+				set->setServerAddr(ipAddresses.at(i).toString());
 			}
 			else {
 
@@ -2152,7 +2133,7 @@ void MainWindow::getNetworkInterfaces() {
 			if (metisIdx < 0) {
 
 				set->setHPSDRWidgetNIC(i);
-				set->setHPSDRDeviceLocalAddr(this, ipAddresses.at(i).toString());
+				set->setHPSDRDeviceLocalAddr(ipAddresses.at(i).toString());
 
 				MAIN_DEBUG 	<< "HPSDR network device interface set to: "
 							<< nics.at(i).humanReadableName()
@@ -2198,10 +2179,8 @@ void MainWindow::getNetworkInterfaces() {
 	\brief suspend playing wav-file.
 */
 void MainWindow::suspendSignal(
-		QObject *sender					/*!<[in] the sender of the event. */
+		/*!<[in] the of the event. */
 ) {
-	Q_UNUSED(sender)
-
 	m_dataEngine->suspend();
 }
 

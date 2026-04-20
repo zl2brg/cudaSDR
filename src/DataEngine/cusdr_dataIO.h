@@ -57,9 +57,9 @@ public slots:
 	void	networkDeviceStartStop(char value);
 	
 private slots:
-	void setSampleRate(QObject *sender, int value);
-	void setManualSocketBufferSize(QObject *sender, bool value);
-	void setSocketBufferSize(QObject *sender, int value);
+	void setSampleRate(int value);
+	void setManualSocketBufferSize(bool value);
+	void setSocketBufferSize(int value);
 	void displayDataReceiverSocketError(QAbstractSocket::SocketError error);
 	void readDeviceData();
 

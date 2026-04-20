@@ -21,9 +21,9 @@ FilterWidget::FilterWidget(QWidget *parent)
 {
     CHECKED_CONNECT(
         set,
-        SIGNAL(dspModeChanged(QObject *, int, DSPMode)),
+        SIGNAL(dspModeChanged(int, DSPMode)),
         this,
-        SLOT(dspModeChanged(QObject *, int, DSPMode)));
+        SLOT(dspModeChanged(int, DSPMode)));
 
 
     setContentsMargins(4, 0, 4, 0);
@@ -149,13 +149,11 @@ void FilterWidget::setupConnections() {
 
 
 void FilterWidget::systemStateChanged(
-        QObject *sender,
         QSDR::_Error err,
         QSDR::_HWInterfaceMode hwmode,
         QSDR::_ServerMode mode,
         QSDR::_DataEngineState state)
 {
-    Q_UNUSED (sender)
     Q_UNUSED (err)
 
     m_receiverDataList = set->getReceiverDataList();
@@ -315,16 +313,14 @@ void FilterWidget::filterChangedByBtn()	 {
 
     m_dspMode = m_dspModeList.at(m_hamBand);
 
-    set->setRXFilter(this, m_receiver, m_filterLo, m_filterHi);
+    set->setRXFilter(m_receiver, m_filterLo, m_filterHi);
 }
 
 
 
 
 
-void FilterWidget::filterChanged(QObject *sender, int rx, qreal low, qreal high) {
-
-    Q_UNUSED(sender)
+void FilterWidget::filterChanged(int rx, qreal low, qreal high) {
 
     if (m_receiver != rx) return;
     m_filterLo = low;
@@ -335,7 +331,7 @@ void FilterWidget::filterChanged(QObject *sender, int rx, qreal low, qreal high)
 }
 
 
-void FilterWidget::dspModeChanged(QObject *sender,int rx, DSPMode mode)
+void FilterWidget::dspModeChanged(int rx, DSPMode mode)
 {
     m_dspMode = mode;
     updateFilterWidget();
@@ -374,7 +370,7 @@ void FilterWidget::slider_changed(int value){
     break;
     }
 
-    set->setRXFilter(this, m_receiver, m_filterLo, m_filterHi);
+    set->setRXFilter(m_receiver, m_filterLo, m_filterHi);
 
 
 };

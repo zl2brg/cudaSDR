@@ -262,8 +262,7 @@ bool  Transmitter::create_transmitter(int id, int buffer_size, int fft_size, int
     return true;
 }
 
-void Transmitter::setDSPMode(QObject *sender, int id, DSPMode dspMode) {
-    Q_UNUSED(sender)
+void Transmitter::setDSPMode(int id, DSPMode dspMode) {
     Q_UNUSED(id)
     mode = dspMode;
     const DSPMode wdspMode = resolveWDSPMode(mode, set->getCtrFrequency(set->getCurrentReceiver()));
@@ -352,7 +351,7 @@ void Transmitter::setRadioState(RadioState state)
 }
 
 
-void Transmitter::transmitter_set_mic_level(QObject *object, int level){
+void Transmitter::transmitter_set_mic_level(int level){
     TRANSMITTER_DEBUG << "Set Tx mic level" << level;
     mic_gain = level * 1.0;
     SetTXAPanelGain1(this->id,pow(10.0, mic_gain/20.0));

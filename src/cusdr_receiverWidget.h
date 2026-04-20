@@ -47,7 +47,7 @@ public:
 
 public slots:
 	//void dspServerChanged();
-	//void setClientConnected(QObject *sender, bool value);
+	//void setClientConnected(bool value);
 
 protected:
 	void closeEvent(QCloseEvent *event);
@@ -67,8 +67,8 @@ private:
 	//QHButton	*launchDSPBtn;
 
 signals:
-	void showEvent(QObject *sender);
-	void closeEvent(QObject *sender);
+	void showEvent();
+	void closeEvent();
 };
 
 
@@ -82,7 +82,7 @@ public:
 
 public slots:
 	//void dspServerChanged();
-	//void setClientConnected(QObject *sender, bool value);
+	//void setClientConnected(bool value);
 
 protected:
 	void closeEvent(QCloseEvent *event);
@@ -91,8 +91,8 @@ protected:
 private:
 	
 signals:
-	void showEvent(QObject *sender);
-	void closeEvent(QObject *sender);
+	void showEvent();
+	void closeEvent();
 };
 
 #endif  // CUSDR_RECEIVER_WIDGET_H

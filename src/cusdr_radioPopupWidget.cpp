@@ -221,10 +221,10 @@ RadioPopupWidget::RadioPopupWidget(QWidget *parent, int rx)
     bandBtnList.at(m_hamBand)->setBtnState(AeroButton::ON);
     bandBtnList.at(m_hamBand)->update();
 
-    dspModeChanged(this, 0, m_dspModeList.at(m_hamBand));
-    adcModeChanged(this, m_receiver, m_adcMode);
-    agcModeChanged(this, 0, m_agcMode, false);
-    filterChanged(this, 0, m_filterLo, m_filterHi);
+    dspModeChanged(0, m_dspModeList.at(m_hamBand));
+    adcModeChanged(m_receiver, m_adcMode);
+    agcModeChanged(0, m_agcMode, false);
+    filterChanged(0, m_filterLo, m_filterHi);
 
     DSPMode dspMode = m_dspModeList.at(m_hamBand);
     if (dspMode == LSB || dspMode == USB || dspMode == DIGU || dspMode == DIGL) {
@@ -253,7 +253,7 @@ RadioPopupWidget::RadioPopupWidget(QWidget *parent, int rx)
 
 RadioPopupWidget::~RadioPopupWidget() {
     disconnect(set, nullptr, this, nullptr);
-    disconnect(this, nullptr, nullptr, nullptr);
+    disconnect(nullptr, nullptr, nullptr);
     delete m_closeTimer;
 }
 
@@ -662,7 +662,7 @@ void RadioPopupWidget::updateAdcAvailability() {
         adc2Btn->setEnabled(!m_singleAdcDevice);
         if (m_singleAdcDevice && m_adcMode == adc2) {
             m_adcMode = adc1;
-            set->setADCMode(this, m_receiver, adc1);
+            set->setADCMode(m_receiver, adc1);
         }
     }
 }
@@ -1121,8 +1121,7 @@ void RadioPopupWidget::createFilterBtnWidgetC() {
     filterCWidget->setLayout(vbox);
 }
 
-void RadioPopupWidget::ctrFrequencyChanged(QObject* sender, int mode, int rx, long frequency) {
-    Q_UNUSED (sender)
+void RadioPopupWidget::ctrFrequencyChanged(int mode, int rx, long frequency) {
     Q_UNUSED (mode)
 
     if (m_receiver != rx) return;
@@ -1132,8 +1131,7 @@ void RadioPopupWidget::ctrFrequencyChanged(QObject* sender, int mode, int rx, lo
     m_lastCtrFrequencyList[static_cast<int>(band)] = m_ctrFrequency;
 }
 
-void RadioPopupWidget::vfoFrequencyChanged(QObject* sender, int mode, int rx, long frequency) {
-    Q_UNUSED (sender)
+void RadioPopupWidget::vfoFrequencyChanged(int mode, int rx, long frequency) {
     Q_UNUSED (mode)
 
     if (m_receiver != rx) return;
@@ -1155,45 +1153,44 @@ void RadioPopupWidget::bandChangedByBtn() {
     button->setBtnState(AeroButton::ON);
     button->update();
 
-    set->setHamBand(this, m_receiver, true, static_cast<HamBand>(btn));
+    set->setHamBand(m_receiver, true, static_cast<HamBand>(btn));
 
     QString str = button->text();
     if (str == "2200m")
-        set->setVFOFrequency(this, 2, m_receiver, m_lastVfoFrequencyList.at(m2200));
+        set->setVFOFrequency(2, m_receiver, m_lastVfoFrequencyList.at(m2200));
     else if (str == "630 m")
-        set->setVFOFrequency(this, 2, m_receiver, m_lastVfoFrequencyList.at(m630));
+        set->setVFOFrequency(2, m_receiver, m_lastVfoFrequencyList.at(m630));
     else if (str == "160 m")
-        set->setVFOFrequency(this, 2, m_receiver, m_lastVfoFrequencyList.at(m160));
+        set->setVFOFrequency(2, m_receiver, m_lastVfoFrequencyList.at(m160));
     else if (str == "80 m")
-        set->setVFOFrequency(this, 2, m_receiver, m_lastVfoFrequencyList.at(m80));
+        set->setVFOFrequency(2, m_receiver, m_lastVfoFrequencyList.at(m80));
     else if (str == "60 m")
-        set->setVFOFrequency(this, 2, m_receiver, m_lastVfoFrequencyList.at(m60));
+        set->setVFOFrequency(2, m_receiver, m_lastVfoFrequencyList.at(m60));
     else if (str == "40 m")
-        set->setVFOFrequency(this, 2, m_receiver, m_lastVfoFrequencyList.at(m40));
+        set->setVFOFrequency(2, m_receiver, m_lastVfoFrequencyList.at(m40));
     else if (str == "30 m")
-        set->setVFOFrequency(this, 2, m_receiver, m_lastVfoFrequencyList.at(m30));
+        set->setVFOFrequency(2, m_receiver, m_lastVfoFrequencyList.at(m30));
     else if (str == "20 m")
-        set->setVFOFrequency(this, 2, m_receiver, m_lastVfoFrequencyList.at(m20));
+        set->setVFOFrequency(2, m_receiver, m_lastVfoFrequencyList.at(m20));
     else if (str == "17 m")
-        set->setVFOFrequency(this, 2, m_receiver, m_lastVfoFrequencyList.at(m17));
+        set->setVFOFrequency(2, m_receiver, m_lastVfoFrequencyList.at(m17));
     else if (str == "15 m")
-        set->setVFOFrequency(this, 2, m_receiver, m_lastVfoFrequencyList.at(m15));
+        set->setVFOFrequency(2, m_receiver, m_lastVfoFrequencyList.at(m15));
     else if (str == "12 m")
-        set->setVFOFrequency(this, 2, m_receiver, m_lastVfoFrequencyList.at(m12));
+        set->setVFOFrequency(2, m_receiver, m_lastVfoFrequencyList.at(m12));
     else if (str == "10 m")
-        set->setVFOFrequency(this, 2, m_receiver, m_lastVfoFrequencyList.at(m10));
+        set->setVFOFrequency(2, m_receiver, m_lastVfoFrequencyList.at(m10));
     else if (str == "6 m")
-        set->setVFOFrequency(this, 2, m_receiver, m_lastVfoFrequencyList.at(m6));
+        set->setVFOFrequency(2, m_receiver, m_lastVfoFrequencyList.at(m6));
     else if (str == "2 m")
-        set->setVFOFrequency(this, 2, m_receiver, m_lastVfoFrequencyList.at(m2));
+        set->setVFOFrequency(2, m_receiver, m_lastVfoFrequencyList.at(m2));
     else if (str == "Gen")
-        set->setVFOFrequency(this, 2, m_receiver, m_lastVfoFrequencyList.at(gen));
+        set->setVFOFrequency(2, m_receiver, m_lastVfoFrequencyList.at(gen));
 }
 
-void RadioPopupWidget::bandChanged(QObject *sender, int rx, bool byButton, HamBand band) {
+void RadioPopupWidget::bandChanged(int rx, bool byButton, HamBand band) {
     Q_UNUSED (byButton)
 
-    if (sender == this) return;
     if (m_receiver != rx) return;
     m_hamBand = band;
 
@@ -1212,12 +1209,10 @@ void RadioPopupWidget::freeDVModeSelectionChanged(int index) {
     if (index < 0 || !m_freeDVModeCombo) return;
 
     const int mode = m_freeDVModeCombo->itemData(index).toInt();
-    set->setFreeDVMode(this, m_receiver, mode);
+    set->setFreeDVMode(m_receiver, mode);
 }
 
-void RadioPopupWidget::freeDVModeChanged(QObject *sender, int rx, int mode) {
-    Q_UNUSED(sender)
-
+void RadioPopupWidget::freeDVModeChanged(int rx, int mode) {
     if (m_receiver != rx || !m_freeDVModeCombo) return;
 
     const int idx = m_freeDVModeCombo->findData(mode);
@@ -1268,9 +1263,9 @@ void RadioPopupWidget::dspModeChangedByBtn() {
     }
 
     DSPMode newMode = static_cast<DSPMode>(btn);
-    set->setDSPMode(this, m_receiver, newMode);
+    set->setDSPMode(m_receiver, newMode);
     m_dspModeList[m_hamBand] = newMode;
-    filterChanged(this, m_receiver, m_filterLo, m_filterHi);
+    filterChanged(m_receiver, m_filterLo, m_filterHi);
     filterGroupChanged(newMode);
 
     button->setBtnState(AeroButton::ON);
@@ -1279,9 +1274,7 @@ void RadioPopupWidget::dspModeChangedByBtn() {
     updateFreeDVControls();
 }
 
-void RadioPopupWidget::dspModeChanged(QObject *sender, int rx, DSPMode mode) {
-    Q_UNUSED(sender)
-
+void RadioPopupWidget::dspModeChanged(int rx, DSPMode mode) {
     if (m_receiver != rx) return;
     m_dspModeList[m_hamBand] = mode;
 
@@ -1557,12 +1550,10 @@ void RadioPopupWidget::filterChangedByBtn()	 {
         }
         break;
     }
-    set->setRXFilter(this, m_receiver, m_filterLo, m_filterHi);
+    set->setRXFilter(m_receiver, m_filterLo, m_filterHi);
 }
 
-void RadioPopupWidget::filterChanged(QObject *sender, int rx, qreal low, qreal high) {
-    Q_UNUSED(sender)
-
+void RadioPopupWidget::filterChanged(int rx, qreal low, qreal high) {
     if (m_receiver != rx) return;
     m_filterLo = low;
     m_filterHi = high;
@@ -1721,15 +1712,14 @@ void RadioPopupWidget::adcModeChangedByBtn() {
     }
 
     ADCMode newMode = static_cast<ADCMode>(btn);
-    set->setADCMode(this, m_receiver, newMode);
+    set->setADCMode(m_receiver, newMode);
     m_adcMode = newMode;
 
     button->setBtnState(AeroButton::ON);
     button->update();
 }
 
-void RadioPopupWidget::adcModeChanged(QObject *sender, int rx, ADCMode mode) {
-    Q_UNUSED(sender)
+void RadioPopupWidget::adcModeChanged(int rx, ADCMode mode) {
     if (m_receiver != rx) return;
     m_adcMode = mode;
 
@@ -1752,15 +1742,14 @@ void RadioPopupWidget::agcModeChangedByBtn() {
     }
 
     AGCMode newMode = static_cast<AGCMode>(btn);
-    set->setAGCMode(this, m_receiver, newMode);
+    set->setAGCMode(m_receiver, newMode);
     m_agcMode = newMode;
 
     button->setBtnState(AeroButton::ON);
     button->update();
 }
 
-void RadioPopupWidget::agcModeChanged(QObject *sender, int rx, AGCMode mode, bool hang) {
-    Q_UNUSED(sender)
+void RadioPopupWidget::agcModeChanged(int rx, AGCMode mode, bool hang) {
     Q_UNUSED(hang)
 
     if (m_receiver != rx) return;
@@ -1778,11 +1767,11 @@ void RadioPopupWidget::agcModeChanged(QObject *sender, int rx, AGCMode mode, boo
 void RadioPopupWidget::agcShowLinesChanged() {
     if (showAGCLines->btnState() == AeroButton::OFF) {
         showAGCLines->setBtnState(AeroButton::ON);
-        set->setAGCShowLines(this, m_receiver, true);
+        set->setAGCShowLines(m_receiver, true);
     }
     else {
         showAGCLines->setBtnState(AeroButton::OFF);
-        set->setAGCShowLines(this, m_receiver, false);
+        set->setAGCShowLines(m_receiver, false);
     }
 }
 
@@ -1790,12 +1779,12 @@ void RadioPopupWidget::avgBtnClicked() {
     if (avgBtn->btnState() == AeroButton::OFF) {
         avgBtn->setBtnState(AeroButton::ON);
         m_spectrumAveraging = true;
-        set->setSpectrumAveraging(this, m_receiver, true);
+        set->setSpectrumAveraging(m_receiver, true);
     }
     else {
         avgBtn->setBtnState(AeroButton::OFF);
         m_spectrumAveraging = false;
-        set->setSpectrumAveraging(this, m_receiver, false);
+        set->setSpectrumAveraging(m_receiver, false);
     }
 }
 
@@ -1872,9 +1861,7 @@ void RadioPopupWidget::vfoToMidBtnClicked() {
     emit vfoToMidBtnEvent();
 }
 
-void RadioPopupWidget::setCurrentReceiver(QObject *sender, int value) {
-    Q_UNUSED(sender)
-
+void RadioPopupWidget::setCurrentReceiver(int value) {
     if (m_receiver == value) return;
     m_receiver = value;
 
@@ -1905,7 +1892,7 @@ void RadioPopupWidget::setCurrentReceiver(QObject *sender, int value) {
         button->update();
 
         filterGroupChanged(dspMode);
-        filterChanged(this, m_receiver, m_filterLo, m_filterHi);
+        filterChanged(m_receiver, m_filterLo, m_filterHi);
     }
 
     if (m_agcMode != rxData.agcMode) {
@@ -1915,7 +1902,7 @@ void RadioPopupWidget::setCurrentReceiver(QObject *sender, int value) {
     if (m_filterLo != rxData.filterLo || m_filterHi != rxData.filterHi) {
         m_filterLo = rxData.filterLo;
         m_filterHi = rxData.filterHi;
-        filterChanged(this, m_receiver, m_filterLo, m_filterHi);
+        filterChanged(m_receiver, m_filterLo, m_filterHi);
     }
 
     if (m_freeDVModeCombo) {
@@ -1957,7 +1944,7 @@ void RadioPopupWidget::panModeChanged() {
     case 1: m_panadapterMode = PanGraphicsMode::FilledLine; break;
     case 2: m_panadapterMode = PanGraphicsMode::Solid; break;
     }
-    set->setGraphicsState(this, m_receiver, m_panadapterMode, m_waterfallColorMode);
+    set->setGraphicsState(m_receiver, m_panadapterMode, m_waterfallColorMode);
 }
 
 void RadioPopupWidget::waterfallModeChanged() {
@@ -1976,13 +1963,11 @@ void RadioPopupWidget::waterfallModeChanged() {
     case 0: m_waterfallColorMode = WaterfallColorMode::Simple; break;
     case 1: m_waterfallColorMode = WaterfallColorMode::Enhanced; break;
     }
-    set->setGraphicsState(this, m_receiver, m_panadapterMode, m_waterfallColorMode);
+    set->setGraphicsState(m_receiver, m_panadapterMode, m_waterfallColorMode);
 }
 
 // **********************
-bool RadioPopupWidget::showPopupWidget(QObject *sender, QPoint position) {
-    Q_UNUSED(sender)
-
+bool RadioPopupWidget::showPopupWidget(QPoint position) {
     if (s_lastRadioPopupWidth < 0)
         s_lastRadioPopupWidth = loadSavedPopupWidth();
 
@@ -2019,13 +2004,11 @@ bool RadioPopupWidget::showPopupWidget(QObject *sender, QPoint position) {
 }
 
 void RadioPopupWidget::systemStateChanged(
-    QObject *sender,
     QSDR::_Error err,
     QSDR::_HWInterfaceMode hwmode,
     QSDR::_ServerMode mode,
     QSDR::_DataEngineState state
     ) {
-    Q_UNUSED(sender)
     Q_UNUSED(err)
     Q_UNUSED(hwmode)
     Q_UNUSED(mode)
@@ -2035,12 +2018,10 @@ void RadioPopupWidget::systemStateChanged(
 }
 
 void RadioPopupWidget::graphicModeChanged(
-    QObject *sender,
     int rx,
     PanGraphicsMode panMode,
     WaterfallColorMode waterfallMode)
 {
-    Q_UNUSED (sender)
     Q_UNUSED (rx)
 
     bool change = false;
@@ -2057,7 +2038,7 @@ void RadioPopupWidget::graphicModeChanged(
 }
 
 void RadioPopupWidget::closeEvent(QCloseEvent *event) {
-    emit closeEvent(this);
+    emit closeEvent();
     QWidget::closeEvent(event);
 }
 

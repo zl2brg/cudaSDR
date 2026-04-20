@@ -125,7 +125,6 @@ private:
 
 private slots:
 	void	systemStateChanged(
-					QObject *sender, 
 					QSDR::_Error err, 
 					QSDR::_HWInterfaceMode hwmode, 
 					QSDR::_ServerMode mode, 

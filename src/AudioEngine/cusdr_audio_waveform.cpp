@@ -228,11 +228,9 @@ void Waveform::reset()
     m_windowLength = 0;
 }
 
-void Waveform::bufferChanged(QObject *sender, qint64 position, qint64 length, const QByteArray &buffer) {
+void Waveform::bufferChanged(qint64 position, qint64 length, const QByteArray &buffer) {
 
-	Q_UNUSED (sender)
-
-    WAVEFORM_DEBUG << "bufferChanged"
+	WAVEFORM_DEBUG << "bufferChanged"
 				   << "audioPosition" << m_audioPosition
 				   << "bufferPosition" << position
 				   << "bufferLength" << length;
@@ -242,11 +240,9 @@ void Waveform::bufferChanged(QObject *sender, qint64 position, qint64 length, co
     paintTiles();
 }
 
-void Waveform::audioPositionChanged(QObject *sender, qint64 position)
+void Waveform::audioPositionChanged(qint64 position)
 {
-	Q_UNUSED (sender)
-
-    WAVEFORM_DEBUG << "audioPositionChanged"
+	WAVEFORM_DEBUG << "audioPositionChanged"
                    << "audioPosition" << position
                    << "bufferPosition" << m_bufferPosition
                    << "bufferLength" << m_bufferLength;

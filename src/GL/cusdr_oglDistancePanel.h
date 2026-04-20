@@ -56,7 +56,7 @@ public slots:
 
 	void setSpectrumBuffer(const float *buffer);
 	void distanceSpectrumBufferChanged(int sampleRate, qint64 length, const float *buffer);
-	void setFrequency(QObject *sender, bool value, long freq);
+	void setFrequency(bool value, long freq);
 
 protected:
     void initializeGL();
@@ -282,20 +282,18 @@ private:
 private slots:
 
 	void	systemStateChanged(
-					QObject* sender, 
 					QSDR::_Error err, 
 					QSDR::_HWInterfaceMode hwmode, 
 					QSDR::_ServerMode mode, 
 					QSDR::_DataEngineState state);
 
 	void	graphicModeChanged(
-					QObject* sender,
 					int rx,
 					PanGraphicsMode panMode,
 					WaterfallColorMode waterfallColorMode);
 
 	void	setupConnections();
-	void	setFilterFrequencies(QObject *sender, int rx, qreal lo, qreal hi);
+	void	setFilterFrequencies(int rx, qreal lo, qreal hi);
 	void	setupDisplayRegions(QSize size);
 	
 	void	setDistanceSpectrumBuffer(int sampleRate, qint64 length, const float *buffer);
@@ -305,12 +303,12 @@ private slots:
 	void	setPanadapterColors();
 	void	getRegion(QPoint p);
 	void	freqRulerPositionChanged(float pos, int rx);
-	void	sampleRateChanged(QObject *sender, int value);
+	void	sampleRateChanged(int value);
 	void	setChirpFFTShow(bool value);
 
 signals:
-	void showEvent(QObject* sender);
-	void closeEvent(QObject* sender);
+	void showEvent();
+	void closeEvent();
 	void messageEvent(QString msg);
 	void coordChanged(int x,int y);
 };

@@ -200,7 +200,7 @@ QString RigCtlServer::processCommand(const QString &cmd)
             return "RPRT -1";
         }
         long prev = m_settings->getVfoFrequency(0);
-        m_settings->setVFOFrequency(this, 0, 0, freq);
+        m_settings->setVFOFrequency(0, 0, freq);
         RIGCTL_DEBUG << "set_freq: changed" << prev << "->" << freq << "Hz";
         return "RPRT 0";
     }
@@ -219,7 +219,7 @@ QString RigCtlServer::processCommand(const QString &cmd)
         int dspMode = rigctlModeToDsp(parts.at(1));
         if (dspMode < 0)
             return "RPRT -1";
-        m_settings->setDSPMode(nullptr, 0, static_cast<DSPMode>(dspMode));
+        m_settings->setDSPMode(0, static_cast<DSPMode>(dspMode));
         return "RPRT 0";
     }
 

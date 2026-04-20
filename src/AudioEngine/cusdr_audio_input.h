@@ -62,7 +62,7 @@ private:
 private slots:
     void MicInputChanged(int source);
     void DigitalAudioInputChanged(int index);
-    void dspModeChanged(QObject *sender, int rx, DSPMode mode);
+    void dspModeChanged(int rx, DSPMode mode);
     void handleReadyRead();
 
 private:

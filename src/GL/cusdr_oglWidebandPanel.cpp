@@ -1275,7 +1275,7 @@ void QGLWidebandPanel::wheelEvent(QWheelEvent* event) {
 	//			// snap to the frequency step
 	//			m_frequency = (long)(qRound((m_frequency + delta) / qAbs(freqStep)) * qAbs(freqStep));
 
-	//		set->setFrequency(this, true, m_currentReceiver, m_frequency);
+	//		set->setFrequency(true, m_currentReceiver, m_frequency);
 	//		break;
 	//}
 
@@ -1350,7 +1350,7 @@ void QGLWidebandPanel::mousePressEvent(QMouseEvent* event) {
 
 			
 			m_frequency = (long)(1000 * (int)(qRound(m_mousePos.x()/unit + m_lowerFrequency)/1000));
-			set->setVFOFrequency(this, 1, m_currentReceiver, m_frequency);
+			set->setVFOFrequency(1, m_currentReceiver, m_frequency);
 		}
         update();
 
@@ -1419,8 +1419,8 @@ void QGLWidebandPanel::mouseMoveEvent(QMouseEvent* event) {
 					m_dBmPanMin = newMin;
 					m_dBmPanMax = newMax;
 
-					//set->setWidebanddBmScaleMin(this, m_dBmPanMin);
-					//set->setWidebanddBmScaleMax(this, m_dBmPanMax);
+					//set->setWidebanddBmScaleMin(m_dBmPanMin);
+					//set->setWidebanddBmScaleMax(m_dBmPanMax);
 				}
 
 				m_mouseDownPos = pos;
@@ -1440,8 +1440,8 @@ void QGLWidebandPanel::mouseMoveEvent(QMouseEvent* event) {
 					m_dBmPanMin = newMin;
 					m_dBmPanMax = newMax;
 
-					set->setWidebanddBmScaleMin(this, m_dBmPanMin);
-					set->setWidebanddBmScaleMax(this, m_dBmPanMax);
+					set->setWidebanddBmScaleMin(m_dBmPanMin);
+					set->setWidebanddBmScaleMax(m_dBmPanMax);
 				}
 				
 				m_mouseDownPos = pos;
@@ -1467,8 +1467,8 @@ void QGLWidebandPanel::mouseMoveEvent(QMouseEvent* event) {
 				if (m_dBmPanMin < MINDBM) m_dBmPanMin = MINDBM;
 				if (m_dBmPanMax > MAXDBM) m_dBmPanMax = MAXDBM;
 
-				set->setWidebanddBmScaleMin(this, m_dBmPanMin);
-				set->setWidebanddBmScaleMax(this, m_dBmPanMax);
+				set->setWidebanddBmScaleMin(m_dBmPanMin);
+				set->setWidebanddBmScaleMax(m_dBmPanMax);
 
 				m_mouseDownPos = pos;
 				m_dBmScaleUpdate = true;
@@ -1634,9 +1634,8 @@ void QGLWidebandPanel::timerEvent(QTimerEvent *event) {
  
 //********************************************************************
  
-void QGLWidebandPanel::setFrequency(QObject *sender, int mode, int rx, long freq) {
+void QGLWidebandPanel::setFrequency(int mode, int rx, long freq) {
 
-	Q_UNUSED (sender)
 	Q_UNUSED (mode)
 	Q_UNUSED (rx)
 	
@@ -1648,9 +1647,7 @@ void QGLWidebandPanel::setFrequency(QObject *sender, int mode, int rx, long freq
     update();
 }
 
-void QGLWidebandPanel::setCurrentReceiver(QObject *sender, int value) {
-
-	Q_UNUSED(sender)
+void QGLWidebandPanel::setCurrentReceiver(int value) {
 
 	m_currentReceiver = value;
 	update();
@@ -1759,13 +1756,11 @@ void QGLWidebandPanel::resetWidebandSpectrumBuffer() {
 }
 
 void QGLWidebandPanel::systemStateChanged(
-	QObject *sender, 
 	QSDR::_Error err, 
 	QSDR::_HWInterfaceMode hwmode, 
 	QSDR::_ServerMode mode, 
 	QSDR::_DataEngineState state)
 {
-	Q_UNUSED (sender)
 	Q_UNUSED (err)
 	Q_UNUSED (hwmode)
 	Q_UNUSED (state)
@@ -1797,12 +1792,10 @@ void QGLWidebandPanel::systemStateChanged(
 }
 
 void QGLWidebandPanel::graphicModeChanged(
-	QObject *sender,
 	int rx,
 	PanGraphicsMode panMode,
 	WaterfallColorMode colorScheme)
 {
-	Q_UNUSED (sender)
 	//Q_UNUSED (rx)
 
 	if (rx != -1) return;
@@ -1846,9 +1839,8 @@ void QGLWidebandPanel::graphicModeChanged(
 //	mutex.unlock();
 //}
 
-void QGLWidebandPanel::setMercuryAttenuator(QObject* sender, HamBand band, int value) {
+void QGLWidebandPanel::setMercuryAttenuator(HamBand band, int value) {
 
-	Q_UNUSED(sender)
 	Q_UNUSED(band)
 	
 		m_mercuryAttenuator = value;
@@ -1909,10 +1901,8 @@ void QGLWidebandPanel::setPanGridStatus(bool value, int rx) {
 	 update();
 }
 
-void QGLWidebandPanel::sampleRateChanged(QObject *sender, int value) {
+void QGLWidebandPanel::sampleRateChanged(int value) {
 
-	Q_UNUSED(sender)
-	
 	m_sampleRate = value;
 	update();
 }
@@ -1920,13 +1910,13 @@ void QGLWidebandPanel::sampleRateChanged(QObject *sender, int value) {
 
 void QGLWidebandPanel::closeEvent(QCloseEvent *event) {
 
-	emit closeEvent(this);
-	QWidget::closeEvent(event);
+        emit closeEvent();
+        QWidget::closeEvent(event);
 }
 
 void QGLWidebandPanel::showEvent(QShowEvent *event) {
-	emit showEvent(this);
-	QWidget::showEvent(event);
+        emit showEvent();
+        QWidget::showEvent(event);
 }
 
 void QGLWidebandPanel::qglColor(QColor color)

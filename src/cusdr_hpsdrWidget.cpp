@@ -116,7 +116,7 @@ HPSDRWidget::HPSDRWidget(QWidget *parent)
 HPSDRWidget::~HPSDRWidget() {
 
 	disconnect(set, 0, this, 0);
-	disconnect(this, 0, 0, 0);
+	disconnect(0, 0, 0);
 }
 
 void HPSDRWidget::setupConnections() {
@@ -124,14 +124,12 @@ void HPSDRWidget::setupConnections() {
 	CHECKED_CONNECT(
 		set,
 		SIGNAL(systemStateChanged(
-					QObject *,
 					QSDR::_Error,
 					QSDR::_HWInterfaceMode,
 					QSDR::_ServerMode,
 					QSDR::_DataEngineState)),
 		this,
 		SLOT(systemStateChanged(
-					QObject *,
 					QSDR::_Error,
 					QSDR::_HWInterfaceMode,
 					QSDR::_ServerMode,
@@ -627,7 +625,7 @@ void HPSDRWidget::setHPSDRHardware() {
 			excaliburPresenceBtn->setEnabled(true);
 			if (set->getExcaliburPresence()) {
 
-				set->set10MhzSource(this, 3); // none
+				set->set10MhzSource(3); // none
 				mercuryBtn->setBtnState(AeroButton::OFF);
 				atlasBtn->setBtnState(AeroButton::OFF);
 				penelopeBtn->setBtnState(AeroButton::OFF);
@@ -689,7 +687,7 @@ void HPSDRWidget::setHPSDRHardware() {
 			excaliburPresenceBtn->setBtnState(AeroButton::OFF);
 			excaliburPresenceBtn->setEnabled(false);
 
-			set->set10MhzSource(this, 2); // none
+			set->set10MhzSource(2); // none
 			source10MhzExclusiveGroup->hide();
 			source122_88MhzExclusiveGroup->hide();
 
@@ -712,13 +710,11 @@ void HPSDRWidget::setHPSDRHardware() {
 }
 
 void HPSDRWidget::systemStateChanged(
-	QObject *sender, 
 	QSDR::_Error err, 
 	QSDR::_HWInterfaceMode hwmode, 
 	QSDR::_ServerMode mode, 
 	QSDR::_DataEngineState state)
 {
-	Q_UNUSED (sender)
 	Q_UNUSED (err)
 
 	if (m_hwInterface != hwmode)
@@ -793,7 +789,6 @@ void HPSDRWidget::hpsdrHardwareChanged() {
 	}
 
 	set->setSystemState(
-					this,
 					QSDR::NoError,
 					m_hwInterface,
 					m_serverMode,
@@ -886,7 +881,7 @@ void HPSDRWidget::excaliburPresenceChanged() {
 
 	if (excaliburPresenceBtn->btnState() == AeroButton::OFF) {
 		
-		set->set10MhzSource(this, 3); // None
+		set->set10MhzSource(3); // None
 		
 		mercuryBtn->setBtnState(AeroButton::OFF);
 		atlasBtn->setBtnState(AeroButton::OFF);
@@ -902,7 +897,7 @@ void HPSDRWidget::excaliburPresenceChanged() {
 
 	} else {
 
-		set->set10MhzSource(this, 2); // Mercury
+		set->set10MhzSource(2); // Mercury
 		
 		mercuryBtn->setEnabled(true);
 		penelopeBtn->setEnabled(true);
@@ -923,13 +918,13 @@ void HPSDRWidget::firmwareCheckChanged() {
 
 	if (firmwareCheckBtn->btnState() == AeroButton::OFF) {
 
-		set->setCheckFirmwareVersion(this, true);
+		set->setCheckFirmwareVersion(true);
 		firmwareCheckBtn->setBtnState(AeroButton::ON);
 		firmwareCheckBtn->setText("On");
 
 	} else {
 
-		set->setCheckFirmwareVersion(this, false);
+		set->setCheckFirmwareVersion(false);
 		firmwareCheckBtn->setBtnState(AeroButton::OFF);
 		firmwareCheckBtn->setText("Off");
 	}
@@ -946,7 +941,7 @@ void HPSDRWidget::source10MhzChanged() {
 		btn->update();
 	}
 
-	set->set10MhzSource(this, btn);
+	set->set10MhzSource(btn);
 	button->setBtnState(AeroButton::ON);
 	button->update();
 
@@ -963,7 +958,7 @@ void HPSDRWidget::source122_88MhzChanged() {
 			penelope2Btn->setBtnState(AeroButton::OFF);
 			penelope2Btn->update();
 
-			set->set122_88MhzSource(this, 1);
+			set->set122_88MhzSource(1);
 			emit messageEvent("[hpsdr]: 122.88 MHz source changed to Mercury.");
 			mercury2Btn->setBtnState(AeroButton::ON);
 			break;
@@ -972,7 +967,7 @@ void HPSDRWidget::source122_88MhzChanged() {
 			mercury2Btn->setBtnState(AeroButton::OFF);
 			mercury2Btn->update();
 
-			set->set122_88MhzSource(this, 0);
+			set->set122_88MhzSource(0);
 			emit messageEvent("[hpsdr]: 122.88 MHz source changed to Penelope.");
 			penelope2Btn->setBtnState(AeroButton::ON);
 			break;
@@ -996,32 +991,32 @@ void HPSDRWidget::sampleRateChanged() {
 	switch (btnHit) {
 
 		case 0:
-			set->setSampleRate(this, 48000);
+			set->setSampleRate(48000);
 			HPSDR_WIDGET_DEBUG << "set sample rate to 48 kHz.";
 			break;
 			
 		case 1:
-			set->setSampleRate(this, 96000);
+			set->setSampleRate(96000);
 			HPSDR_WIDGET_DEBUG << "set sample rate to 96 kHz.";
 			break;
 
 		case 2:
-			set->setSampleRate(this, 192000);
+			set->setSampleRate(192000);
 			HPSDR_WIDGET_DEBUG << "set sample rate to 192 kHz.";
 			break;
 
 		case 3:
-			set->setSampleRate(this, 384000);
+			set->setSampleRate(384000);
 			HPSDR_WIDGET_DEBUG << "set sample rate to 384 kHz.";
 			break;
 
         case 4:
-            set->setSampleRate(this, 768000);
+            set->setSampleRate(768000);
             HPSDR_WIDGET_DEBUG << "set sample rate to 768 kHz.";
             break;
 
         case 5:
-            set->setSampleRate(this, 1536000);
+            set->setSampleRate(1536000);
             HPSDR_WIDGET_DEBUG << "set sample rate to 1.536 MHz.";
             break;
 	}
@@ -1030,7 +1025,7 @@ void HPSDRWidget::sampleRateChanged() {
 void HPSDRWidget::setNumberOfReceivers(int receivers) {
 
 	m_numberOfReceivers = receivers+1;
-	set->setReceivers(this, m_numberOfReceivers);
+	set->setReceivers(m_numberOfReceivers);
 }
 
 void HPSDRWidget::disableButtons() {

@@ -142,7 +142,7 @@ DisplayOptionsWidget::~DisplayOptionsWidget() {
 
 	// disconnect all signals
 	disconnect(set, 0, this, 0);
-	disconnect(this, 0, 0, 0);
+	disconnect(0, 0, 0);
 }
 
 QSize DisplayOptionsWidget::sizeHint() const {
@@ -160,14 +160,12 @@ void DisplayOptionsWidget::setupConnections() {
 	CHECKED_CONNECT(
 		set,
 		SIGNAL(systemStateChanged(
-					QObject *,
 					QSDR::_Error,
 					QSDR::_HWInterfaceMode,
 					QSDR::_ServerMode,
 					QSDR::_DataEngineState)),
 		this,
 		SLOT(systemStateChanged(
-					QObject *,
 					QSDR::_Error,
 					QSDR::_HWInterfaceMode,
 					QSDR::_ServerMode,
@@ -176,44 +174,40 @@ void DisplayOptionsWidget::setupConnections() {
 	CHECKED_CONNECT(
 		set, 
 		SIGNAL(graphicModeChanged(
-					QObject *,
 					int,
 					PanGraphicsMode,
 					WaterfallColorMode)),
 		this, 
 		SLOT(graphicModeChanged(
-					QObject *,
 					int,
 					PanGraphicsMode,
 					WaterfallColorMode)));
 
 	CHECKED_CONNECT(
 		set, 
-        SIGNAL(currentReceiverChanged(QObject*,int)),
-		this, 
-		SLOT(setCurrentReceiver(QObject *, int)));
+SIGNAL(currentReceiverChanged(int)),
+		   this,
+		   SLOT(setCurrentReceiver(int)));
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(sampleRateChanged(QObject *, int)), 
-		this, 
-		SLOT(sampleRateChanged(QObject *, int)));
+SIGNAL(sampleRateChanged(int)), 
+		   this,
+		   SLOT(sampleRateChanged(int)));
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(framesPerSecondChanged(QObject*, int, int)),
+		SIGNAL(framesPerSecondChanged(int, int)),
 		this,
-		SLOT(setFramesPerSecond(QObject*, int, int)));
+		SLOT(setFramesPerSecond(int, int)));
 }
 
 void DisplayOptionsWidget::systemStateChanged(
-	QObject *sender, 
 	QSDR::_Error err, 
 	QSDR::_HWInterfaceMode hwmode, 
 	QSDR::_ServerMode mode, 
 	QSDR::_DataEngineState state)
 {
-	Q_UNUSED (sender)
 	Q_UNUSED (err)
 
 	bool change = false;
@@ -251,13 +245,10 @@ void DisplayOptionsWidget::systemStateChanged(
 }
 
 void DisplayOptionsWidget::graphicModeChanged(
-	QObject *sender,
 	int rx,
 	PanGraphicsMode panMode,
 	WaterfallColorMode waterMode)
 {
-	Q_UNUSED (sender)
-	
 	bool change = false;
 
 	if (m_panadapterMode != panMode) {
@@ -894,7 +885,7 @@ void DisplayOptionsWidget::panModeChanged() {
 			break;
 	}
 
-	set->setGraphicsState(this, m_currentReceiver, m_panadapterMode, m_waterColorMode);
+	set->setGraphicsState(m_currentReceiver, m_panadapterMode, m_waterColorMode);
 }
 
 void DisplayOptionsWidget::wbPanModeChanged() {
@@ -929,7 +920,7 @@ void DisplayOptionsWidget::wbPanModeChanged() {
 			break;
 	}
 
-	set->setGraphicsState(this, -1, m_wbPanadapterMode, m_waterColorMode);
+	set->setGraphicsState(-1, m_wbPanadapterMode, m_waterColorMode);
 }
 
 void DisplayOptionsWidget::sMeterChanged() {
@@ -967,7 +958,7 @@ void DisplayOptionsWidget::waterfallColorChanged() {
 		//	break;
 	}
 
-	set->setGraphicsState(this, m_currentReceiver, m_panadapterMode, m_waterColorMode);
+	set->setGraphicsState(m_currentReceiver, m_panadapterMode, m_waterColorMode);
 }
 
 void DisplayOptionsWidget::fpsValueChanged(int value) {
@@ -976,12 +967,11 @@ void DisplayOptionsWidget::fpsValueChanged(int value) {
 
 	QString str = "%1 ";
 	m_fpsLevelLabel->setText(str.arg(m_framesPerSecond, 2, 10, QLatin1Char(' ')));
-	set->setFramesPerSecond(this, m_currentReceiver, value);
+	set->setFramesPerSecond(m_currentReceiver, value);
 }
 
-void DisplayOptionsWidget::setFramesPerSecond(QObject *sender, int rx, int value) {
+void DisplayOptionsWidget::setFramesPerSecond(int rx, int value) {
 
-	Q_UNUSED(sender)
 	Q_UNUSED(rx)
 
 	disconnect(m_fpsSlider, SIGNAL(valueChanged(int)), this, SLOT(fpsValueChanged(int)));
@@ -1000,7 +990,7 @@ void DisplayOptionsWidget::averagingFilterCntChanged(int value) {
 	QString str = "%1 ";
 	m_avgLevelLabel->setText(str.arg(m_avgValue, 2, 10, QLatin1Char(' ')));
 
-	set->setSpectrumAveragingCnt(this, m_currentReceiver, value);
+	set->setSpectrumAveragingCnt(m_currentReceiver, value);
 }
 
 void DisplayOptionsWidget::setWidebandAveragingCnt(int value) {
@@ -1010,12 +1000,10 @@ void DisplayOptionsWidget::setWidebandAveragingCnt(int value) {
 	QString str = "%1 ";
 	m_wbAvgLevelLabel->setText(str.arg(m_wbAvgValue, 2, 10, QLatin1Char(' ')));
 
-	set->setSpectrumAveragingCnt(this, -1, value);
+	set->setSpectrumAveragingCnt(-1, value);
 }
 
-void DisplayOptionsWidget::sampleRateChanged(QObject *sender, int value) {
-
-	Q_UNUSED(sender)
+void DisplayOptionsWidget::sampleRateChanged(int value) {
 
 	m_sampleRate = value;
 	//int currentValue = m_framesPerSecondSpinBox->value();
@@ -1049,9 +1037,7 @@ void DisplayOptionsWidget::sMeterHoldTimeChanged(int value) {
 	set->setSMeterHoldTime(value);
 }
 
-void DisplayOptionsWidget::setCurrentReceiver(QObject *sender, int rx) {
-
-	Q_UNUSED (sender)
+void DisplayOptionsWidget::setCurrentReceiver(int rx) {
 
 	if (m_currentReceiver == rx) return;
 	m_currentReceiver = rx;

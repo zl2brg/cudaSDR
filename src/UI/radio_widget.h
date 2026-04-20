@@ -63,23 +63,22 @@ public slots:
     void ModebtnCallback();
     void BandbtnCallback();
     void FilterbtnCallback();
-    void vfoFrequencyChanged(QObject* sender, int mode, int rx, long frequency);
-    void ctrFrequencyChanged(QObject* sender, int mode, int rx, long frequency);
-    void filterChanged(QObject *sender, int rx, qreal low, qreal high);
+    void vfoFrequencyChanged(int mode, int rx, long frequency);
+    void ctrFrequencyChanged(int mode, int rx, long frequency);
+    void filterChanged(int rx, qreal low, qreal high);
     void filterChangedByBtn();
-    void dspModeChanged(QObject *sender,int rx, DSPMode mode);
+    void dspModeChanged(int rx, DSPMode mode);
     void slider_changed(int value);
-    void bandChanged(QObject *sender, int rx, bool byButton, HamBand band);
+    void bandChanged(int rx, bool byButton, HamBand band);
 
 private slots:
     void	systemStateChanged(
-            QObject *sender,
             QSDR::_Error err,
             QSDR::_HWInterfaceMode hwmode,
             QSDR::_ServerMode mode,
             QSDR::_DataEngineState state);
 /*
-    void	setCurrentReceiver(QObject *sender, int rx);
+    void	setCurrentReceiver(int rx);
     void    nfModeChanged(int value);
     void    nbModeChanged(int value);
     void    nr2GainChanged(int value);

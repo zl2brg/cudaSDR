@@ -812,48 +812,46 @@ private:
 signals:
 	void systemMessageEvent(const QString &msg, int);
 
-	void masterSwitchChanged(QObject *sender, bool power);
+	void masterSwitchChanged(bool power);
 
 	void radioStateChanged(RadioState state);
 
 
 	void systemStateChanged(
-				QObject *sender, 
 				QSDR::_Error err, 
 				QSDR::_HWInterfaceMode hwmode, 
 				QSDR::_ServerMode mode, 
 				QSDR::_DataEngineState state);
 
 	void graphicModeChanged(
-				QObject *sender,
 				int rx,
 				PanGraphicsMode panMode,
 				WaterfallColorMode waterfallColorMode);
 
-	void moxStateChanged(QObject *sender, RadioState);
-	void tuneStateChanged(QObject *sender, RadioState);
+	void moxStateChanged(RadioState);
+	void tuneStateChanged(RadioState);
 	void cpuLoadChanged(short load);
-	void txAllowedChanged(QObject* sender, bool value);
+	void txAllowedChanged(bool value);
 	void multiRxViewChanged(int view);
 	void sMeterValueChanged(int rx, double value);
 	void freeDVStatusChanged(int rx, bool sync, float snr, quint64 rxFrames, quint64 txFrames);
-	void freeDVModeChanged(QObject *sender, int rx, int mode);
+	void freeDVModeChanged(int rx, int mode);
 	void spectrumBufferChanged(int rx, const qVectorFloat& buffer);
 	void postSpectrumBufferChanged(int rx, const float* buffer);
 
 	void sampleSizeChanged(int rx, int size);
     void rxListChanged(QList<Receiver *> rxList);
-    void clientConnectedChanged(QObject* sender, bool connect);
-	void clientNoConnectedChanged(QObject* sender, int client);
-	void audioRxChanged(QObject* sender, int rx);
+    void clientConnectedChanged(bool connect);
+	void clientNoConnectedChanged(int client);
+	void audioRxChanged(int rx);
 	void receiverChanged(int value);
-	void currentReceiverChanged(QObject *sender, int rx);
-	void connectedChanged(QObject *sender, bool connect);
+	void currentReceiverChanged(int rx);
+	void connectedChanged(bool connect);
 
 	void clientConnectedEvent(int client);
 	void clientDisconnectedEvent(int client);
-	void rxConnectedStatusChanged(QObject* sender, int rx, bool value);
-	void framesPerSecondChanged(QObject* sender, int rx, int value);
+	void rxConnectedStatusChanged(int rx, bool value);
+	void framesPerSecondChanged(int rx, int value);
 	
 	void settingsFilenameChanged(QString filename);
 	void settingsLoadedChanged(bool loaded);
@@ -862,31 +860,31 @@ signals:
 	void newHPSDRDeviceNIC(QString nicName, QString ipAddress);
 	void serverNICChanged(int);
 	void hpsdrDeviceNICChanged(int);
-	void socketBufferSizeChanged(QObject* sender, int value);
-	void manualSocketBufferChanged(QObject* sender, bool value);
+	void socketBufferSizeChanged(int value);
+	void manualSocketBufferChanged(bool value);
 	//void metisCardListChanged(QList<TMetiscard> list);
 	void metisCardListChanged(const QList<TNetworkDevicecard> &list);
-	void hpsdrDevicesChanged(QObject *sender, THPSDRDevices devices);
+	void hpsdrDevicesChanged(THPSDRDevices devices);
 	void hpsdrNetworkDeviceChanged(TNetworkDevicecard card);
 	void networkDeviceNumberChanged(int value);
 	void maxFrequencyChanged(long value);
 	void networkIOComboBoxEntryAdded(QString str);
 	void clearNetworkIOComboBoxEntrySignal();
 	void searchMetisSignal();
-	void serverAddrChanged(QObject *sender, QString addr);
-	void hpsdrDeviceLocalAddrChanged(QObject *sender, QString addr);
-	void serverPortChanged(QObject *sender, quint16 port);
-	void listenPortChanged(QObject *sender, quint16 port);
-	void audioPortChanged(QObject *sender, quint16 port);
-	void metisPortChanged(QObject *sender, quint16 port);
+	void serverAddrChanged(QString addr);
+	void hpsdrDeviceLocalAddrChanged(QString addr);
+	void serverPortChanged(quint16 port);
+	void listenPortChanged(quint16 port);
+	void audioPortChanged(quint16 port);
+	void metisPortChanged(quint16 port);
 	
 	void showNetworkIO();
 	void showWarning(const QString &msg);
 
 	void callsignChanged();
 
-	void mouseWheelFreqStepChanged(QObject *sender, int rx, qreal value);
-	void mainVolumeChanged(QObject *sender, int rx, float volume );
+	void mouseWheelFreqStepChanged(int rx, qreal value);
+	void mainVolumeChanged(int rx, float volume );
 
 	//void hermesPresenceChanged(bool value);
 	void hpsdrHardwareChanged(int value);
@@ -906,8 +904,8 @@ signals:
 	void alexStatesChanged(const QList<int> &states);
 	void alexStateChanged(HamBand band, const QList<int> &states);
 //	void alexStateChanged(int pos, int value);
-	void alexManualStateChanged(QObject *sender, bool value);
-	void checkFirmwareVersionChanged(QObject *sender, bool value);
+	void alexManualStateChanged(bool value);
+	void checkFirmwareVersionChanged(bool value);
 	void pennyOCEnabledChanged(bool value);
 	void rxJ6PinsChanged(const QList<int> &states);
 	void txJ6PinsChanged(const QList<int> &states);
@@ -923,91 +921,91 @@ signals:
 	void sendIQSignalChanged(int value);
 	void rcveIQSignalChanged(int value);
 
-	void numberOfRXChanged(QObject *sender, int value);
-	void sampleRateChanged(QObject *sender, int value);
-	void mercuryAttenuatorChanged(QObject *sender, HamBand band, int value);
-	//void mercuryAttenuatorsChanged(QObject *sender, const QList<int> &values);
-	void ditherChanged(QObject *sender, int value);
-	void randomChanged(QObject *sender, int value);
-	void src10MhzChanged(QObject *sender, int source);
-	void src122_88MhzChanged(QObject *sender, int source);
+	void numberOfRXChanged(int value);
+	void sampleRateChanged(int value);
+	void mercuryAttenuatorChanged(HamBand band, int value);
+	//void mercuryAttenuatorsChanged(const QList<int> &values);
+	void ditherChanged(int value);
+	void randomChanged(int value);
+	void src10MhzChanged(int source);
+	void src122_88MhzChanged(int source);
     void micSourceChanged(int source);
     void micInputChanged(int source);
 	void digitalAudioInputChanged(int index);
-	void classChanged(QObject *sender, int value);
-	void timingChanged(QObject *sender, int value);
-	void controlBytesOutChanged(QObject *sender, unsigned char *values);
-	//void ctrFrequencyChanged(QObject* sender, bool value, int rx, long frequency);
-	void ctrFrequencyChanged(QObject* sender, int mode, int rx, long frequency);
-	//void vfoFrequencyChanged(QObject* sender, bool value, int rx, long frequency);
-	void vfoFrequencyChanged(QObject* sender, int mode, int rx, long frequency);
+	void classChanged(int value);
+	void timingChanged(int value);
+	void controlBytesOutChanged(unsigned char *values);
+	//void ctrFrequencyChanged(bool value, int rx, long frequency);
+	void ctrFrequencyChanged(int mode, int rx, long frequency);
+	//void vfoFrequencyChanged(bool value, int rx, long frequency);
+	void vfoFrequencyChanged(int mode, int rx, long frequency);
 	void ncoFrequencyChanged(int rx, long frequency);
 
 	// wideband data
 	void widebandSpectrumBufferChanged(const qVectorFloat& buffer);
-	void widebandOptionsChanged(QObject* sender, TWideband options);
+	void widebandOptionsChanged(TWideband options);
 	void widebandSpectrumBufferReset();
-	void widebandStatusChanged(QObject* sender, bool value);
-	void widebandDataChanged(QObject* sender, bool value);
-	void widebanddBmScaleMinChanged(QObject *sender, qreal value);
-	void widebanddBmScaleMaxChanged(QObject *sender, qreal value);
-	void wideBandScalePositionChanged(QObject *sender, float position);
-	//void widebandAveragingChanged(QObject *sender, bool value);
-	//void widebandAveragingCntChanged(QObject *sender, int value);
+	void widebandStatusChanged(bool value);
+	void widebandDataChanged(bool value);
+	void widebanddBmScaleMinChanged(qreal value);
+	void widebanddBmScaleMaxChanged(qreal value);
+	void wideBandScalePositionChanged(float position);
+	//void widebandAveragingChanged(bool value);
+	//void widebandAveragingCntChanged(int value);
     void panAveragingModeChanged(int rx, int mode);
     void panDetectorModeChanged(int rx, int mode);
     void fftSizeChanged(int rx, int size);
     void fmsqLevelChanged(int rx, int level);
 
 
-	void iqPortChanged(QObject* sender, int rx, int port);
+	void iqPortChanged(int rx, int port);
 
-	void hamBandChanged(QObject *sender, int rx, bool byButton, HamBand band);
-	void dspModeChanged(QObject *sender, int rx, DSPMode mode);
-	void adcModeChanged(QObject *sender, int rx, ADCMode mode);
-	void agcModeChanged(QObject *sender, int rx, AGCMode mode, bool hangEnabled);
-	void agcHangEnabledChanged(QObject *sender, int rx, bool hang);
-	void agcGainChanged(QObject *sender, int rx, int value);
-	void agcThresholdChanged_dB(QObject *sender, int rx, qreal value);
-	void agcFixedGainChanged_dB(QObject *sender, int rx, qreal value);
-	void agcMaximumGainChanged_dB(QObject *sender, int rx,  qreal value);
-	void agcHangThresholdChanged(QObject *sender, int rx, int value);
-	void agcHangThresholdSliderChanged(QObject *sender, int rx, qreal value);
-	void agcHangLevelChanged_dB(QObject *sender, int rx, qreal value);
-	void agcLineLevelsChanged(QObject *sender, int rx, qreal thresh, qreal hang);
-	void agcVariableGainChanged_dB(QObject *sender, int rx, qreal value);
-	void agcAttackTimeChanged(QObject *sender, int rx, qreal value);
-	void agcDecayTimeChanged(QObject *sender, int rx, qreal value);
-	void agcHangTimeChanged(QObject *sender, int rx, qreal value);
-	void filterFrequenciesChanged(QObject *sender, int rx, qreal low, qreal high);
+	void hamBandChanged(int rx, bool byButton, HamBand band);
+	void dspModeChanged(int rx, DSPMode mode);
+	void adcModeChanged(int rx, ADCMode mode);
+	void agcModeChanged(int rx, AGCMode mode, bool hangEnabled);
+	void agcHangEnabledChanged(int rx, bool hang);
+	void agcGainChanged(int rx, int value);
+	void agcThresholdChanged_dB(int rx, qreal value);
+	void agcFixedGainChanged_dB(int rx, qreal value);
+	void agcMaximumGainChanged_dB(int rx,  qreal value);
+	void agcHangThresholdChanged(int rx, int value);
+	void agcHangThresholdSliderChanged(int rx, qreal value);
+	void agcHangLevelChanged_dB(int rx, qreal value);
+	void agcLineLevelsChanged(int rx, qreal thresh, qreal hang);
+	void agcVariableGainChanged_dB(int rx, qreal value);
+	void agcAttackTimeChanged(int rx, qreal value);
+	void agcDecayTimeChanged(int rx, qreal value);
+	void agcHangTimeChanged(int rx, qreal value);
+	void filterFrequenciesChanged(int rx, qreal low, qreal high);
 	
-	void cudaDevicesChanged(QObject *sender, int value);
-	void cudaDriverChanged(QObject *sender, int value);
-	void cudaRuntimeChanged(QObject *sender, int value);
-	void cudaCurrentDeviceChanged(QObject *sender, int value);
-	void cudaLastDeviceChanged(QObject* sender, int value);
+	void cudaDevicesChanged(int value);
+	void cudaDriverChanged(int value);
+	void cudaRuntimeChanged(int value);
+	void cudaCurrentDeviceChanged(int value);
+	void cudaLastDeviceChanged(int value);
 
-	void freqRulerPositionChanged(QObject *sender, int rx, float position);
+	void freqRulerPositionChanged(int rx, float position);
 	
 
-	void audioFormatChanged(QObject *sender, const QAudioFormat &format);
-	void audioPositionChanged(QObject *sender, qint64 position);
-	void audioBufferChanged(QObject *sender, qint64 position, qint64 length, const QByteArray &buffer);
-	//void audioBufferChanged(QObject *sender, const QByteArray &buffer);
+	void audioFormatChanged(const QAudioFormat &format);
+	void audioPositionChanged(qint64 position);
+	void audioBufferChanged(qint64 position, qint64 length, const QByteArray &buffer);
+	//void audioBufferChanged(const QByteArray &buffer);
 
 
 	void displayWidgetHeightChanged(int value);
-	void spectrumSizeChanged(QObject *sender, int value);
+	void spectrumSizeChanged(int value);
 	void panadapterColorChanged();
 	void panGridStatusChanged(bool value, int rx);
 	void peakHoldStatusChanged(bool value, int rx);
 	void panLockedStatusChanged(bool value, int rx);
 	void clickVFOStatusChanged(bool value, int rx);
 	void hairCrossStatusChanged(bool value, int rx);
-	void showAGCLinesStatusChanged(QObject *sender, bool value, int rx);
+	void showAGCLinesStatusChanged(bool value, int rx);
 
-	void spectrumAveragingChanged(QObject *sender, int rx, bool value);
-	void spectrumAveragingCntChanged(QObject *sender, int rx, int value);
+	void spectrumAveragingChanged(int rx, bool value);
+	void spectrumAveragingCntChanged(int rx, int value);
 
 	void waterfallTimeChanged(int rx, int value);
 	void waterfallOffesetLoChanged(int rx, int value);
@@ -1016,7 +1014,7 @@ signals:
 	void sMeterHoldTimeChanged(int value);
 	void dBmScaleMinChanged(int rx, qreal value);
 	void dBmScaleMaxChanged(int rx, qreal value);
-    void agcMaximumGainChanged(QObject *sender,int, qreal value);
+    void agcMaximumGainChanged(int, qreal value);
     void noiseBlankerChanged(int rx, int mode);
 	void noiseFilterChanged(int rx, int mode);
     void nr2GainMethodChanged(int rx, int value);
@@ -1025,8 +1023,8 @@ signals:
     void nr2AeChanged(int rx, bool value);
     void snbChanged(int rx, bool value);
     void anfChanged(int rx, bool value);
-    void micInputLevelChanged(QObject *sender, int level);
-    void driveLevelChanged(QObject *sender, int level);
+    void micInputLevelChanged(int level);
+    void driveLevelChanged(int level);
     void repeaterModeChanged(bool mode);
     void repeaterOffsetchanged(double value);
     void fmPremphasizechanged(double value);
@@ -1264,8 +1262,8 @@ public:
     QString cfg_dir;
 
 public slots:
-	void	setMainPower(QObject *sender, bool power);
-	void	setDefaultSkin(QObject *sender, bool value);
+	void	setMainPower(bool power);
+	void	setDefaultSkin(bool value);
 	void	setSettingsFilename(QString filename);
 
 	void	setSystemMessage(const QString &msg, int time);
@@ -1276,23 +1274,21 @@ public slots:
 	void	setPBOPresence(bool value);
 	void	setFBOPresence(bool value);
 
-	void	setMainVolume(QObject *sender, int rx, float volume);
-	void	setMainVolumeMute(QObject *sender, int rx, bool value);
+	void	setMainVolume(int rx, float volume);
+	void	setMainVolumeMute(int rx, bool value);
 
 	void	setSystemState(
-				QObject *sender, 
 				QSDR::_Error err, 
 				QSDR::_HWInterfaceMode hwmode, 
 				QSDR::_ServerMode mode, 
 				QSDR::_DataEngineState state);
 
 	void	setGraphicsState(
-				QObject *sender,
 				int rx,
 				PanGraphicsMode panMode,
 				WaterfallColorMode waterfallColorMode);
 
-	void setTxAllowed(QObject* sender, bool value);
+	void setTxAllowed(bool value);
 
     RadioState setRadioState(RadioState mode);
 	RadioState getRadioState() { return m_radioState;}
@@ -1303,10 +1299,10 @@ public slots:
 	void setSMeterValue(int rx, double value);
 	void setFreeDVStatus(int rx, bool sync, float snr, quint64 rxFrames);
 	void addFreeDVTxFrames(int rx, quint64 txFrames);
-	void setFreeDVMode(QObject *sender, int rx, int mode);
+	void setFreeDVMode(int rx, int mode);
     void setSpectrumBuffer(int rx, const QList<float> &buffer);
 	void setPostSpectrumBuffer(int rx, const float*);
-	void setSampleSize(QObject* sender, int rx, int size);
+	void setSampleSize(int rx, int size);
     void setRxList (QList<Receiver*> list);
 	void setMetisCardList(QList<TNetworkDevicecard> list);
 	void searchHpsdrNetworkDevices();
@@ -1322,20 +1318,20 @@ public slots:
 	void setHPSDRDeviceNIC(int index);
 	void setServerWidgetNIC(int index);
 	void setHPSDRWidgetNIC(int index);
-	void setServerAddr(QObject *sender, QString addr);
-	void setHPSDRDeviceLocalAddr(QObject *sender, QString addr);
-	void setServerPort(QObject *sender, quint16 port);
-	void setListenPort(QObject *sender, quint16 port);
-	void setAudioPort(QObject *sender, quint16 port);
-	void setMetisPort(QObject *sender, quint16 port);
-	void setClientConnected(QObject *sender, bool value);
-	void setClientNoConnected(QObject* sender, int client);
-	void setRxConnectedStatus(QObject* sender, int rx, bool value);
-	void setAudioRx(QObject* sender, int rx);
-	void setConnected(QObject *sender, bool value);
-	void setCheckFirmwareVersion(QObject *sender, bool value);
+	void setServerAddr(QString addr);
+	void setHPSDRDeviceLocalAddr(QString addr);
+	void setServerPort(quint16 port);
+	void setListenPort(quint16 port);
+	void setAudioPort(quint16 port);
+	void setMetisPort(quint16 port);
+	void setClientConnected(bool value);
+	void setClientNoConnected(int client);
+	void setRxConnectedStatus(int rx, bool value);
+	void setAudioRx(int rx);
+	void setConnected(bool value);
+	void setCheckFirmwareVersion(bool value);
 
-	void setHPSDRDevices(QObject *sender, THPSDRDevices devices);
+	void setHPSDRDevices(THPSDRDevices devices);
 	//void setHermesPresence(bool value);
 	void setHermesVersion(int value);
 	void setHPSDRHardware(int value);
@@ -1349,25 +1345,25 @@ public slots:
 	void setExcaliburPresence(bool value);
 	void setMetisVersion(int value);
 
-	//void setAlexConfiguration(QObject *sender, const QList<TAlexConfiguration> &conf);
-	void setAlexConfiguration(QObject *sender, quint16 conf);
+	//void setAlexConfiguration(const QList<TAlexConfiguration> &conf);
+	void setAlexConfiguration(quint16 conf);
 	void setAlexHPFLoFrequencies(int filter, long value);
 	void setAlexHPFHiFrequencies(int filter, long value);
 	void setAlexLPFLoFrequencies(int filter, long value);
 	void setAlexLPFHiFrequencies(int filter, long value);
-	void setAlexStates(QObject *sender, const QList<int> &states);
-	void setAlexState(QObject *sender, int pos, int value);
-	void setAlexState(QObject *sender, int value);
-	void setAlexToManual(QObject *sender, bool value);
+	void setAlexStates(const QList<int> &states);
+	void setAlexState(int pos, int value);
+	void setAlexState(int value);
+	void setAlexToManual(bool value);
 	int checkAlexState(int state);
 
-	void setPennyOCEnabled(QObject *sender, bool value);
-	void setRxJ6Pin(QObject *sender, HamBand band, int value);
-	void setRxJ6Pins(QObject * sender, const QList<int> &states);
-	void setTxJ6Pin(QObject *sender, HamBand band, int value);
-	void setTxJ6Pins(QObject * sender, const QList<int> &states);
+	void setPennyOCEnabled(bool value);
+	void setRxJ6Pin(HamBand band, int value);
+	void setRxJ6Pins(const QList<int> &states);
+	void setTxJ6Pin(HamBand band, int value);
+	void setTxJ6Pins(const QList<int> &states);
 
-	void setIQPort(QObject *sender, int rx, int port);
+	void setIQPort(int rx, int port);
 
 	void setProtocolSync(int value);
 	void setADCOverflow(int value);
@@ -1380,100 +1376,100 @@ public slots:
 	void setSendIQ(int value);
 	void setRcveIQ(int value);
 
-	void setReceivers(QObject *sender, int value);
-	//void setReceiver(QObject *sender, int value);
-	void setCurrentReceiver(QObject *sender, int value);
-	void setSampleRate(QObject *sender, int value);
-	void setMercuryAttenuator(QObject *sender, int value);
-	void setDither(QObject *sender, int value);
-	void setRandom(QObject *sender, int value);
-	void set10MhzSource(QObject *sender, int source);
-	void set122_88MhzSource(QObject *sender, int source);
+	void setReceivers(int value);
+	//void setReceiver(int value);
+	void setCurrentReceiver(int value);
+	void setSampleRate(int value);
+	void setMercuryAttenuator(int value);
+	void setDither(int value);
+	void setRandom(int value);
+	void set10MhzSource(int source);
+	void set122_88MhzSource(int source);
     void setMicSource(int source);
     void setMicInputDev(int index);
 	void setMicInputSourceName(const QString &name);
 	void setDigitalAudioInputDev(int index);
 	void setDigitalInputSourceName(const QString &name);
-    void setMicInputLevel(QObject *sender , int level);
-    void setDriveLevel(QObject *sender , int level);
-	void setClass(QObject *sender, int value);
-	void setTiming(QObject *sender, int value);
-	void setCtrFrequency(QObject *sender, int mode, int rx, long frequency);
+    void setMicInputLevel(int level);
+    void setDriveLevel(int level);
+	void setClass(int value);
+	void setTiming(int value);
+	void setCtrFrequency(int mode, int rx, long frequency);
 	void setCtrFrequency(int rx, long frequency);
 	long getCtrFrequency(int rx);
-	void setVFOFrequency(QObject *sender, int mode, int rx, long frequency);
+	void setVFOFrequency(int mode, int rx, long frequency);
 	void setVfoFrequency(int rx, long frequency);
 	long getVfoFrequency(int rx);
-	void setNCOFrequency(QObject *sender, bool value, int rx, long frequency);
+	void setNCOFrequency(bool value, int rx, long frequency);
 		
 	void clientDisconnected(int client);
-	void setFramesPerSecond(QObject *sender, int rx, int value);
-	void setMouseWheelFreqStep(QObject *sender, int rx, qreal value);
-	void setSocketBufferSize(QObject *sender, int value);
-	void setManualSocketBufferSize(QObject *sender, bool value);
+	void setFramesPerSecond(int rx, int value);
+	void setMouseWheelFreqStep(int rx, qreal value);
+	void setSocketBufferSize(int value);
+	void setManualSocketBufferSize(bool value);
 	
 	void setReceiverDataReady();
 
-	void setSpectrumSize(QObject *sender, int value);
+	void setSpectrumSize(int value);
 	void setdBmPanScaleMin(int rx, qreal value);
 	void setdBmPanScaleMax(int rx, qreal value);
 		
 	void setdBmDistScaleMin(qreal value);
 	void setdBmDistScaleMax(qreal value);
 	
-	void setHamBand(QObject* sender, int rx, bool byButton, HamBand band);
-	void setDSPMode(QObject* sender, int rx, DSPMode mode);
-	void setADCMode(QObject* sender, int rx, ADCMode mode);
-	void setAGCMode(QObject* sender, int rx, AGCMode mode);
-	void setAGCGain(QObject* sender, int rx, int value);
-	void setAGCMaximumGain_dB(QObject *sender, int rx, qreal value);
-	void setAGCFixedGain_dB(QObject *sender, int rx, qreal value);
-	void setAGCThreshold_dB(QObject *sender, int rx, qreal value);
+	void setHamBand(int rx, bool byButton, HamBand band);
+	void setDSPMode(int rx, DSPMode mode);
+	void setADCMode(int rx, ADCMode mode);
+	void setAGCMode(int rx, AGCMode mode);
+	void setAGCGain(int rx, int value);
+	void setAGCMaximumGain_dB(int rx, qreal value);
+	void setAGCFixedGain_dB(int rx, qreal value);
+	void setAGCThreshold_dB(int rx, qreal value);
 
-	void setAGCHangThresholdSlider(QObject *sender, int rx, qreal value);
-	void setAGCHangThreshold(QObject *sender, int rx, int value);
-	void setAGCHangLevel_dB(QObject *sender, int rx, qreal value);
-	void setAGCLineLevels(QObject *sender, int rx, qreal thresh, qreal hang);
-	void setAGCShowLines(QObject *sender, int rx, bool value);
-	void setAGCVariableGain_dB(QObject *sender, int rx, qreal value);
-	void setAGCAttackTime(QObject *sender, int rx, qreal value);
-	void setAGCDecayTime(QObject *sender, int rx, qreal value);
-	void setAGCHangTime(QObject *sender, int rx, qreal value);
-	void setRXFilter(QObject* sender, int rx, qreal low, qreal high);
+	void setAGCHangThresholdSlider(int rx, qreal value);
+	void setAGCHangThreshold(int rx, int value);
+	void setAGCHangLevel_dB(int rx, qreal value);
+	void setAGCLineLevels(int rx, qreal thresh, qreal hang);
+	void setAGCShowLines(int rx, bool value);
+	void setAGCVariableGain_dB(int rx, qreal value);
+	void setAGCAttackTime(int rx, qreal value);
+	void setAGCDecayTime(int rx, qreal value);
+	void setAGCHangTime(int rx, qreal value);
+	void setRXFilter(int rx, qreal low, qreal high);
 
 	void setfftSize(int rx, int size);
 	void setfmsqLevel(int rx, int level);
 
 	// wideband data & options
-	void setWidebandBuffers(QObject *sender, int value);
+	void setWidebandBuffers(int value);
 	void setWidebandSpectrumBuffer(const qVectorFloat &buffer);
 	void resetWidebandSpectrumBuffer();
-	void setWidebandOptions(QObject* sender, TWideband options);
-	void setWidebandStatus(QObject* sender, bool value);
-	void setWidebandData(QObject* sender, bool value);
-	void setWidebanddBmScaleMin(QObject* sender, qreal value);
-	void setWidebanddBmScaleMax(QObject* sender, qreal value);
-	//void setWidebandAveraging(QObject *sender, bool value);
-	//void setWidebandAveragingCnt(QObject *sender, int value);
-	void setWideBandRulerPosition(QObject* sender, float pos);
+	void setWidebandOptions(TWideband options);
+	void setWidebandStatus(bool value);
+	void setWidebandData(bool value);
+	void setWidebanddBmScaleMin(qreal value);
+	void setWidebanddBmScaleMax(qreal value);
+	//void setWidebandAveraging(bool value);
+	//void setWidebandAveragingCnt(int value);
+	void setWideBandRulerPosition(float pos);
 
 	//void setOpenCLDevices(QList<QCLDevice>	dev);
 
 	/*void setCudaPresence(bool value);
 	void setCudaDevices(int value);
-	void setCudaLastDevice(QObject *sender, int vlaue);
-	void setCudaDriver(QObject *sender, int value);
-	void setCudaRuntime(QObject *sender, int value);
-	void setCurrentCudaDevice(QObject *sender, int value);*/
+	void setCudaLastDevice(int vlaue);
+	void setCudaDriver(int value);
+	void setCudaRuntime(int value);
+	void setCurrentCudaDevice(int value);*/
 
-	void setFreqRulerPosition(QObject* sender, int rx, float pos);
-	//void setRulerPosition(QObject *sender, float pos);
+	void setFreqRulerPosition(int rx, float pos);
+	//void setRulerPosition(float pos);
 
 
-	void setAudioFormat(QObject *sender, const QAudioFormat &format);
-	void setAudioPosition(QObject *sender, qint64 position);
-	void setAudioBuffer(QObject *sender, qint64 position, qint64 length, const QByteArray &buffer);
-	//void setAudioBuffer(QObject *sender, const QByteArray &buffer);
+	void setAudioFormat(const QAudioFormat &format);
+	void setAudioPosition(qint64 position);
+	void setAudioBuffer(qint64 position, qint64 length, const QByteArray &buffer);
+	//void setAudioBuffer(const QByteArray &buffer);
 
 
 	void moveDisplayWidget(int value);
@@ -1485,8 +1481,8 @@ public slots:
 	void setClickVFO(bool value, int rx);
 	void setHairCross(bool value, int rx);
 	
-	void setSpectrumAveraging(QObject *sender, int rx, bool value);
-	void setSpectrumAveragingCnt(QObject *sender, int rx, int value);
+	void setSpectrumAveraging(int rx, bool value);
+	void setSpectrumAveragingCnt(int rx, int value);
 	
 /* Waterfall */
 	void setWaterfallTime(int rx, int value);

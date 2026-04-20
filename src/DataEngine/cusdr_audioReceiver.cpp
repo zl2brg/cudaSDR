@@ -100,7 +100,7 @@ void AudioReceiver::readPendingAudioRcvrData() {
 			AUDIO_RECEIVER << "read client" << m_client << "socket failed.";
 			if (io->rcveIQ_toggle) {  // toggles the rcveIQ signal
 			
-				emit rcveIQEvent(this, 2);
+				emit rcveIQEvent(2);
 				io->rcveIQ_toggle = false;
 			}
 		}
@@ -110,7 +110,7 @@ void AudioReceiver::readPendingAudioRcvrData() {
 				
 			if (!io->rcveIQ_toggle) {  // toggles the rcveIQ signal
 
-				emit rcveIQEvent(this, 1);
+				emit rcveIQEvent(1);
 				io->rcveIQ_toggle = true;
 			}
 		}

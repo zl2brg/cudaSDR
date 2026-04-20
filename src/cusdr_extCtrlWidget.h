@@ -85,8 +85,8 @@ private slots:
 	void	transmitPinsBtnClicked();
 	
 signals:
-	void	showEvent(QObject* sender);
-	void	closeEvent(QObject* sender);
+	void	showEvent();
+	void	closeEvent();
 	void	messageEvent(QString);
 };
 

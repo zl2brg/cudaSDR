@@ -153,10 +153,7 @@ DataEngine::DataEngine(QObject *parent)
 }
 
 DataEngine::~DataEngine() {
-    if (m_protocol) {
-        delete m_protocol;
-        m_protocol = nullptr;
-    }
+    // m_protocol is a unique_ptr — destroyed automatically
     // Add socket cleanup
     if (sendSocket) {
         delete sendSocket;
@@ -177,12 +174,11 @@ void DataEngine::setupConnections() {
 	CHECKED_CONNECT(
 		set,
 		SIGNAL(systemStateChanged(
-                QObject*,QSDR::_Error,
+                QSDR::_Error,
 				QSDR::_HWInterfaceMode,
 				QSDR::_ServerMode,
 				QSDR::_DataEngineState)),this,
 		SLOT(systemStateChanged(
-				QObject*,
 				QSDR::_Error,
 				QSDR::_HWInterfaceMode,
 				QSDR::_ServerMode,
@@ -196,63 +192,63 @@ void DataEngine::setupConnections() {
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(numberOfRXChanged(QObject*,int)),
+		SIGNAL(numberOfRXChanged(int)),
 		this, 
-		SLOT(setNumberOfRx(QObject*,int)));
+		SLOT(setNumberOfRx(int)));
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(currentReceiverChanged(QObject*,int)),
+		SIGNAL(currentReceiverChanged(int)),
 		this, 
-		SLOT(setCurrentReceiver(QObject*,int)));
+		SLOT(setCurrentReceiver(int)));
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(hamBandChanged(QObject *, int, bool, HamBand)),
+		SIGNAL(hamBandChanged(int, bool, HamBand)),
 		this,
-		SLOT(setHamBand(QObject *, int, bool, HamBand)));
+		SLOT(setHamBand(int, bool, HamBand)));
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(sampleRateChanged(QObject *, int)), 
+		SIGNAL(sampleRateChanged(int)), 
 		this, 
-		SLOT(setSampleRate(QObject *, int)));
+		SLOT(setSampleRate(int)));
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(mercuryAttenuatorChanged(QObject *, HamBand, int)),
+		SIGNAL(mercuryAttenuatorChanged(HamBand, int)),
 		this, 
-		SLOT(setMercuryAttenuator(QObject *, HamBand, int)));
+		SLOT(setMercuryAttenuator(HamBand, int)));
 
 //	CHECKED_CONNECT(
 //		set,
-//		SIGNAL(mercuryAttenuatorsChanged(QObject *, QList<int>)),
+//		SIGNAL(mercuryAttenuatorsChanged(QList<int>)),
 //		this,
-//		SLOT(setMercuryAttenuators(QObject *, QList<int>)));
+//		SLOT(setMercuryAttenuators(QList<int>)));
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(ditherChanged(QObject*,int)),
+		SIGNAL(ditherChanged(int)),
 		this, 
-        SLOT(setDither(QObject*,int)))
+        SLOT(setDither(int)))
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(randomChanged(QObject*,int)),
+		SIGNAL(randomChanged(int)),
 		this, 
-		SLOT(setRandom(QObject*,int)));
+		SLOT(setRandom(int)));
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(src10MhzChanged(QObject *, int)), 
+		SIGNAL(src10MhzChanged(int)), 
 		this, 
-		SLOT(set10MhzSource(QObject *, int)));
+		SLOT(set10MhzSource(int)));
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(src122_88MhzChanged(QObject *, int)), 
+		SIGNAL(src122_88MhzChanged(int)), 
 		this, 
-		SLOT(set122_88MhzSource(QObject *, int)));
+		SLOT(set122_88MhzSource(int)));
 
 	CHECKED_CONNECT(
 		set, 
@@ -262,15 +258,15 @@ void DataEngine::setupConnections() {
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(classChanged(QObject *, int)), 
+		SIGNAL(classChanged(int)), 
 		this, 
-		SLOT(setMercuryClass(QObject *, int)));
+		SLOT(setMercuryClass(int)));
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(timingChanged(QObject *, int)), 
+		SIGNAL(timingChanged(int)), 
 		this, 
-		SLOT(setMercuryTiming(QObject *, int)));
+		SLOT(setMercuryTiming(int)));
 
 	CHECKED_CONNECT(
 		set, 
@@ -280,27 +276,27 @@ void DataEngine::setupConnections() {
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(clientNoConnectedChanged(QObject*, int)), 
+		SIGNAL(clientNoConnectedChanged(int)), 
 		this, 
-		SLOT(setClientConnected(QObject*, int)));
+		SLOT(setClientConnected(int)));
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(rxConnectedStatusChanged(QObject*, int, bool)), 
+		SIGNAL(rxConnectedStatusChanged(int, bool)), 
 		this, 
-		SLOT(setRxConnectedStatus(QObject*, int, bool)));
+		SLOT(setRxConnectedStatus(int, bool)));
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(audioRxChanged(QObject*, int)), 
+		SIGNAL(audioRxChanged(int)), 
 		this, 
-		SLOT(setAudioReceiver(QObject*, int)));
+		SLOT(setAudioReceiver(int)));
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(framesPerSecondChanged(QObject*, int, int)),
+		SIGNAL(framesPerSecondChanged(int, int)),
 		this, 
-		SLOT(setFramesPerSecond(QObject*, int, int)));
+		SLOT(setFramesPerSecond(int, int)));
 
 	CHECKED_CONNECT(
 		set, 
@@ -310,9 +306,9 @@ void DataEngine::setupConnections() {
 
 	/*CHECKED_CONNECT(
 		set, 
-		SIGNAL(spectrumAveragingChanged(QObject*, int, bool)), 
+		SIGNAL(spectrumAveragingChanged(int, bool)), 
 		this, 
-		SLOT(setWbSpectrumAveraging(QObject*, int, bool)));*/
+		SLOT(setWbSpectrumAveraging(int, bool)));*/
 
 	CHECKED_CONNECT(
 		set, 
@@ -364,9 +360,9 @@ void DataEngine::setupConnections() {
 
     CHECKED_CONNECT(
             set,
-            SIGNAL(driveLevelChanged(QObject *, int)),
-            this,
-            SLOT(set_tx_drivelevel(QObject *, int)));
+SIGNAL(driveLevelChanged(int)),
+			this,
+			SLOT(set_tx_drivelevel(int)));
 
     CHECKED_CONNECT(
             set,
@@ -548,17 +544,13 @@ bool DataEngine::getFirmwareVersions() {
 	// Create the protocol object now, before DataIO starts, so that
 	// initDataReceiverSocket() binds the correct ports and readDeviceData()
 	// doesn't drop packets with a null protocol check.
-	if (m_protocol) {
-		delete m_protocol;
-		m_protocol = nullptr;
-	}
 	if (m_hwInterface == QSDR::Metis || m_hwInterface == QSDR::Hermes) {
 		if (set->getCurrentMetisCard().protocol == 2)
-			m_protocol = new CProtocol2();
+			m_protocol = std::make_unique<CProtocol2>();
 		else
-			m_protocol = new CProtocol1();
+			m_protocol = std::make_unique<CProtocol1>();
 	}
-	io.protocol = m_protocol;
+	io.protocol = m_protocol.get();
 
 	// init receivers
 	int rcvrs = set->getNumberOfReceivers();
@@ -590,7 +582,7 @@ bool DataEngine::getFirmwareVersions() {
 	connectDSPSlots();
 
 //	for (int i = 0; i < set->getNumberOfReceivers(); i++)
-//		RX.at(i)->setAudioVolume(this, i, set->getMainVolume());
+//		RX.at(i)->setAudioVolume(i, set->getMainVolume());
 
 	// IQ data processing thread
 	if (!startDataProcessor(QThread::HighPriority)) {
@@ -606,7 +598,7 @@ bool DataEngine::getFirmwareVersions() {
 		return false;
 	}
 
-	//setSampleRate(this, set->getSampleRate());
+	//setSampleRate(set->getSampleRate());
 	SleeperThread::msleep(100);
 
 	// For Protocol 2: do NOT start the network device here.
@@ -857,17 +849,13 @@ bool DataEngine::start() {
 	// protocol and set io.protocol.  Deleting it here races with the DataIO
 	// thread which may be actively calling methods on io->protocol.
 	if (!m_dataIO) {
-		if (m_protocol) {
-			delete m_protocol;
-			m_protocol = nullptr;
-		}
 		if (m_hwInterface == QSDR::Metis || m_hwInterface == QSDR::Hermes) {
 			if (set->getCurrentMetisCard().protocol == 2)
-				m_protocol = new CProtocol2();
+				m_protocol = std::make_unique<CProtocol2>();
 			else
-				m_protocol = new CProtocol1();
+				m_protocol = std::make_unique<CProtocol1>();
 		}
-		io.protocol = m_protocol;
+		io.protocol = m_protocol.get();
 	}
 
 	int rcvrs = set->getNumberOfReceivers();
@@ -892,9 +880,9 @@ bool DataEngine::start() {
 			/*
 			//CHECKED_CONNECT(
 			//	set,
-			//	SIGNAL(frequencyChanged(QObject*, bool, int, long)),
+			//	SIGNAL(frequencyChanged(bool, int, long)),
 			//	this,
-			//	SLOT(setFrequency(QObject*, bool, int, long)));
+			//	SLOT(setFrequency(bool, int, long)));
 
         //if (!m_audioProcessorRunning) {
 
@@ -933,7 +921,7 @@ bool DataEngine::start() {
 
         case QSDR::SDRMode:
 
-            setTimeStamp(this, false);
+            setTimeStamp(false);
             break;
 
 		default:
@@ -971,9 +959,9 @@ bool DataEngine::start() {
     for (int i = 0; i < rcvrs ; i++) {
 
 		RX.at(i)->setConnectedStatus(true);
-        RX.at(i)->setAudioVolume(this, i, RX.at(i)->getAudioVolume());
+        RX.at(i)->setAudioVolume(i, RX.at(i)->getAudioVolume());
 		if (i < ctrFrequencies.count()) {
-			setFrequency(this, true, i, ctrFrequencies.at(i));
+			setFrequency(true, i, ctrFrequencies.at(i));
 		}
 
 
@@ -1104,7 +1092,7 @@ void DataEngine::stop() {
 			case QSDR::Hermes:
 				
 				// turn time stamping off
-				setTimeStamp(this, false);
+				setTimeStamp(false);
 
 				// For Protocol 2, stop periodic control traffic before issuing the
 				// final stop command so the simulator does not see interleaved HP
@@ -1130,11 +1118,8 @@ void DataEngine::stop() {
 				if (m_wbDataProcessor)
 					stopWideBandDataProcessor();
 
-                if (m_protocol) {
-                    delete m_protocol;
-                    m_protocol = nullptr;
-                    io.protocol = nullptr;
-                }
+                m_protocol.reset();
+                io.protocol = nullptr;
 				
 				// clear device list
 				SleeperThread::msleep(100);
@@ -1232,9 +1217,9 @@ void DataEngine::stop() {
 
 	/*disconnect(
 		set, 
-		SIGNAL(ctrFrequencyChanged(QObject*, int, int, long)), 
+		SIGNAL(ctrFrequencyChanged(int, int, long)), 
 		this, 
-		SLOT(setFrequency(QObject*, int, int, long)));*/
+		SLOT(setFrequency(int, int, long)));*/
 
 	DATA_ENGINE_DEBUG << "shut down done.";
 }
@@ -1420,7 +1405,7 @@ bool DataEngine::initReceivers(int rcvrs) {
 	// +-------------------------- Mic source (0 = Janus, 1 = Penelope)*
 
 	// Bits 1,0
-	setSampleRate(this, set->getSampleRate());
+	setSampleRate(set->getSampleRate());
 
 	// Bits 7,..,2
 	setHPSDRConfig();
@@ -1933,7 +1918,7 @@ void DataEngine::setWideBandBufferCount()
 	else
 		wbBuffers = SMALLWIDEBANDSIZE / 512;
 
-	set->setWidebandBuffers(this, wbBuffers);
+	set->setWidebandBuffers(wbBuffers);
 
 }
 //********************************************************
@@ -2013,16 +1998,14 @@ void DataEngine::processFileBuffer(const QList<qreal> buffer) {
 //
 
 void DataEngine::systemStateChanged(
-	QObject *sender, 
 	QSDR::_Error err, 
 	QSDR::_HWInterfaceMode hwmode, 
 	QSDR::_ServerMode mode, 
 	QSDR::_DataEngineState state)
 {
-	Q_UNUSED (sender)
 	Q_UNUSED (err)
 
-	io.mutex.lock();
+	QMutexLocker locker(&io.mutex);
 	if (m_hwInterface != hwmode)
 		m_hwInterface = hwmode;
 		
@@ -2031,8 +2014,6 @@ void DataEngine::systemStateChanged(
 		
 	if (m_dataEngineState != state)
 		m_dataEngineState = state;
-
-	io.mutex.unlock();
 }
 
 void DataEngine::setSystemState(
@@ -2041,9 +2022,8 @@ void DataEngine::setSystemState(
 		QSDR::_ServerMode statemode,
 		QSDR::_DataEngineState enginestate)
 {
-	io.networkIOMutex.lock();
-	set->setSystemState(this, err, hwmode, statemode, enginestate);
-	io.networkIOMutex.unlock();
+	QMutexLocker locker(&io.networkIOMutex);
+	set->setSystemState(err, hwmode, statemode, enginestate);
 }
 
 float DataEngine::getFilterSizeCalibrationOffset() {
@@ -2081,23 +2061,18 @@ void DataEngine::setHPSDRDeviceNumber(int value) {
 
 void DataEngine::rxListChanged(QList<Receiver *> list) {
 
-	io.mutex.lock();
+	QMutexLocker locker(&io.mutex);
 	RX = list;
-	io.mutex.unlock();
 }
 
-void DataEngine::setCurrentReceiver(QObject *sender, int rx) {
+void DataEngine::setCurrentReceiver(int rx) {
 
-	Q_UNUSED(sender)
-
-	io.mutex.lock();
+	QMutexLocker locker(&io.mutex);
 	io.currentReceiver = rx;
-	io.mutex.unlock();
 }
 
-void DataEngine::setFramesPerSecond(QObject *sender, int rx, int value) {
+void DataEngine::setFramesPerSecond(int rx, int value) {
 
-	Q_UNUSED(sender)
 	Q_UNUSED(rx)
 	Q_UNUSED(value)
 
@@ -2107,9 +2082,8 @@ void DataEngine::setFramesPerSecond(QObject *sender, int rx, int value) {
 	io.mutex.unlock();*/
 }
 
-void DataEngine::setSampleRate(QObject *sender, int value) {
+void DataEngine::setSampleRate(int value) {
 
-	Q_UNUSED(sender)
 	bool applyOk = true;
 
 	if (set && set->getSampleRate() != value) {
@@ -2117,7 +2091,9 @@ void DataEngine::setSampleRate(QObject *sender, int value) {
 		                  << "settings=" << set->getSampleRate();
 	}
 
-	io.mutex.lock();
+	bool shouldRequestP2Update = false;
+	{
+	QMutexLocker locker(&io.mutex);
 
 	switch (value) {
 	
@@ -2157,14 +2133,14 @@ void DataEngine::setSampleRate(QObject *sender, int value) {
 			break;
 	}
 
-	const bool shouldRequestP2Update = applyOk && m_protocol && set->getCurrentMetisCard().protocol == 2 && m_dataProcessor;
+	shouldRequestP2Update = applyOk && m_protocol && set->getCurrentMetisCard().protocol == 2 && m_dataProcessor;
 
 	if (io.samplerate != value) {
 		DATA_ENGINE_DEBUG << "samplerate apply mismatch: requested=" << value
 		                  << "applied=" << io.samplerate;
 	}
 
-	io.mutex.unlock();
+	} // QMutexLocker released here
 
 	if (!applyOk) {
 		stop();
@@ -2181,95 +2157,72 @@ void DataEngine::setSampleRate(QObject *sender, int value) {
 
 }
 
-void DataEngine::setMercuryAttenuator(QObject *sender, HamBand band, int value) {
+void DataEngine::setMercuryAttenuator(HamBand band, int value) {
 
-	Q_UNUSED(sender)
 	Q_UNUSED(band)
 
-	io.mutex.lock();
+	QMutexLocker locker(&io.mutex);
 	io.ccTx.mercuryAttenuator = value;
-	io.mutex.unlock();
 }
 
-void DataEngine::setMercuryAttenuators(QObject *sender, QList<int> attn) {
+void DataEngine::setMercuryAttenuators(QList<int> attn) {
 
-	Q_UNUSED(sender)
-
-	io.mutex.lock();
+	QMutexLocker locker(&io.mutex);
 	io.ccTx.mercuryAttenuators = attn;
-	io.mutex.unlock();
 }
 
-void DataEngine::setDither(QObject *sender, int value) {
+void DataEngine::setDither(int value) {
 
-	Q_UNUSED(sender)
-
-	io.mutex.lock();
+	QMutexLocker locker(&io.mutex);
 	io.ccTx.dither = value;
-	io.mutex.unlock();
 }
 
-void DataEngine::setRandom(QObject *sender, int value) {
+void DataEngine::setRandom(int value) {
 
-	Q_UNUSED(sender)
-
-	io.mutex.lock();
+	QMutexLocker locker(&io.mutex);
 	io.ccTx.random = value;
-	io.mutex.unlock();
 }
 
-void DataEngine::set10MhzSource(QObject *sender, int source) {
+void DataEngine::set10MhzSource(int source) {
 
-	Q_UNUSED(sender)
-
-	io.mutex.lock();
+	QMutexLocker locker(&io.mutex);
 	io.control_out[1] = io.control_out[1] & 0xF3;
 	io.control_out[1] = io.control_out[1] | (source << 2);
-	io.mutex.unlock();
 }
 
-void DataEngine::set122_88MhzSource(QObject *sender, int source) {
+void DataEngine::set122_88MhzSource(int source) {
 
-	Q_UNUSED(sender)
-
-	io.mutex.lock();
+	QMutexLocker locker(&io.mutex);
 	io.control_out[1] = io.control_out[1] & 0xEF;
 	io.control_out[1] = io.control_out[1] | (source << 4);
-	io.mutex.unlock();
 }
 
 void DataEngine::setMicSource( int source) {
 
-	io.mutex.lock();
+	QMutexLocker locker(&io.mutex);
 	io.control_out[1] = io.control_out[1] & 0x7F;
 	io.control_out[1] = io.control_out[1] | (source << 7);
-	io.mutex.unlock();
 }
 
-void DataEngine::setMercuryClass(QObject *sender, int value) {
+void DataEngine::setMercuryClass(int value) {
 
-	Q_UNUSED(sender)
-
-	io.mutex.lock();
+	QMutexLocker locker(&io.mutex);
 	io.rxClass = value;
-	io.mutex.unlock();
 }
 
-void DataEngine::setMercuryTiming(QObject *sender, int value) {
+void DataEngine::setMercuryTiming(int value) {
 
-	Q_UNUSED(sender)
-
-	io.mutex.lock();
+	QMutexLocker locker(&io.mutex);
 	io.timing = value;
-	io.mutex.unlock();
 }
 
 void DataEngine::setAlexConfiguration(quint16 conf) {
 
-	io.mutex.lock();
-	io.ccTx.alexConfig = conf;
-	DATA_ENGINE_DEBUG << "Alex Configuration = " << io.ccTx.alexConfig;
-	io.mutex.unlock();
+	{
+		QMutexLocker locker(&io.mutex);
+		io.ccTx.alexConfig = conf;
+		DATA_ENGINE_DEBUG << "Alex Configuration = " << io.ccTx.alexConfig;
+	}
 
 	if (set->getCurrentMetisCard().protocol == 2 && m_dataProcessor) {
 		QMetaObject::invokeMethod(m_dataProcessor,
@@ -2282,11 +2235,12 @@ void DataEngine::setAlexStates(HamBand band, const QList<int> &states) {
 
 	Q_UNUSED (band)
 
-	io.mutex.lock();
-	qDebug() << "setAlexStates: band=" << band << "states=" << states;
-	io.ccTx.alexStates = states;
-	DATA_ENGINE_DEBUG << "Alex States = " << io.ccTx.alexStates;
-	io.mutex.unlock();
+	{
+		QMutexLocker locker(&io.mutex);
+		qDebug() << "setAlexStates: band=" << band << "states=" << states;
+		io.ccTx.alexStates = states;
+		DATA_ENGINE_DEBUG << "Alex States = " << io.ccTx.alexStates;
+	}
 
 	if (set->getCurrentMetisCard().protocol == 2 && m_dataProcessor) {
 		QMetaObject::invokeMethod(m_dataProcessor,
@@ -2297,44 +2251,39 @@ void DataEngine::setAlexStates(HamBand band, const QList<int> &states) {
 
 void DataEngine::setPennyOCEnabled(bool value) {
 
-	io.mutex.lock();
+	QMutexLocker locker(&io.mutex);
 	io.ccTx.pennyOCenabled = value;
-	io.mutex.unlock();
 }
 
 void DataEngine::setRxJ6Pins(const QList<int> &list) {
 
-	io.mutex.lock();
+	QMutexLocker locker(&io.mutex);
 	io.ccTx.rxJ6pinList = list;
-	io.mutex.unlock();
 
 }
 
 void DataEngine::setTxJ6Pins(const QList<int> &list) {
 
-	io.mutex.lock();
+	QMutexLocker locker(&io.mutex);
 	io.ccTx.txJ6pinList = list;
-	io.mutex.unlock();
 }
 
-void DataEngine::setRcveIQSignal(QObject *sender, int value) {
+void DataEngine::setRcveIQSignal(int value) {
 
-	emit rcveIQEvent(sender, value);
+	emit rcveIQEvent(value);
 }
 
-void DataEngine::setPenelopeVersion(QObject *sender, int version) {
+void DataEngine::setPenelopeVersion(int version) {
 
-	emit penelopeVersionInfoEvent(sender, version);
+	emit penelopeVersionInfoEvent(version);
 }
 
-void DataEngine::setHwIOVersion(QObject *sender, int version) {
+void DataEngine::setHwIOVersion(int version) {
 
-	emit hwIOVersionInfoEvent(sender, version);
+	emit hwIOVersionInfoEvent(version);
 }
 
-void DataEngine::setNumberOfRx(QObject *sender, int value) {
-
-	Q_UNUSED(sender)
+void DataEngine::setNumberOfRx(int value) {
 
 	DATA_ENGINE_DEBUG << "[RX-ADD] setNumberOfRx: requested=" << value << "current=" << io.receivers;
 
@@ -2353,13 +2302,14 @@ void DataEngine::setNumberOfRx(QObject *sender, int value) {
 		DATA_ENGINE_DEBUG << "[RX-ADD] engine stopped, settling 200ms done.";
 	}
 
-	io.mutex.lock();
+	{
+	QMutexLocker locker(&io.mutex);
 	io.receivers = value;
 	if (io.currentReceiver >= value) {
 		DATA_ENGINE_DEBUG << "[RX-ADD] currentReceiver" << io.currentReceiver << ">= new count, resetting to 0";
 		io.currentReceiver = 0;
 	}
-	io.mutex.unlock();
+	}
 
 	DATA_ENGINE_DEBUG << "[RX-ADD] flushing IQ queue (" << io.iq_queue.count() << " items) and WB queue (" << io.wb_queue.count() << " items)";
 	while (!io.iq_queue.isEmpty())
@@ -2368,7 +2318,7 @@ void DataEngine::setNumberOfRx(QObject *sender, int value) {
 		io.wb_queue.dequeue();
 
 	if (set->getCurrentReceiver() >= value) {
-		set->setCurrentReceiver(this, 0);
+		set->setCurrentReceiver(0);
 	}
 
 	DATA_ENGINE_DEBUG << "[RX-ADD] io.receivers set to" << value;
@@ -2393,15 +2343,12 @@ void DataEngine::setNumberOfRx(QObject *sender, int value) {
 	}
 }
 
-void DataEngine::setTimeStamp(QObject *sender, bool value) {
-
-	Q_UNUSED(sender)
+void DataEngine::setTimeStamp(bool value) {
 
 	if (io.timeStamp == value) return;
 
-	io.mutex.lock();
+	QMutexLocker locker(&io.mutex);
 	io.timeStamp = value;
-	io.mutex.unlock();
 	//io.control_out[4] &= 0xc7;
 	//RRK io.control_out[4] |= value << 6;
 
@@ -2423,21 +2370,17 @@ void DataEngine::setRxPeerAddress(int rx, QHostAddress address) {
 
 void DataEngine::setRx(int rx) {
 
-	io.mutex.lock();
+	QMutexLocker locker(&io.mutex);
 	RX[rx]->setReceiver(rx);
-	io.mutex.unlock();
 }
 
 void DataEngine::setRxClient(int rx, int client) {
 
-	io.mutex.lock();
+	QMutexLocker locker(&io.mutex);
 	RX[rx]->setClient(client);
-	io.mutex.unlock();
 }
 
-void DataEngine::setClientConnected(QObject* sender, int rx) {
-
-	Q_UNUSED(sender)
+void DataEngine::setClientConnected(int rx) {
 
 	if (!io.clientList.contains(rx)) {
 
@@ -2486,40 +2429,31 @@ void DataEngine::setClientDisconnected(int client) {
 //	//m_audioInProcessorRunning = value;
 //}
 
-void DataEngine::setAudioReceiver(QObject *sender, int rx) {
+void DataEngine::setAudioReceiver(int rx) {
 
-	Q_UNUSED(sender)
-
-	io.mutex.lock();
+	QMutexLocker locker(&io.mutex);
 	emit audioRxEvent(rx);
-	io.mutex.unlock();
 }
 
 void DataEngine::setIQPort(int rx, int port) {
 
-	io.mutex.lock();
+	QMutexLocker locker(&io.mutex);
 	RX[rx]->setIQPort(port);
-	io.mutex.unlock();
 }
 
-void DataEngine::setRxConnectedStatus(QObject* sender, int rx, bool value) {
+void DataEngine::setRxConnectedStatus(int rx, bool value) {
 
-	Q_UNUSED(sender)
-
-	io.mutex.lock();
+	QMutexLocker locker(&io.mutex);
 	RX[rx]->setConnectedStatus(value);
-	io.mutex.unlock();
 }
 
-void DataEngine::setHamBand(QObject *sender, int rx, bool byBtn, HamBand band) {
+void DataEngine::setHamBand(int rx, bool byBtn, HamBand band) {
 
-	Q_UNUSED(sender)
 	Q_UNUSED(rx)
 	Q_UNUSED(byBtn)
 
-	io.mutex.lock();
+	QMutexLocker locker(&io.mutex);
 	io.ccTx.currentBand = band;
-	io.mutex.unlock();
 
 	if (set->getCurrentMetisCard().protocol == 2 && m_dataProcessor) {
 		QMetaObject::invokeMethod(m_dataProcessor,
@@ -2528,9 +2462,8 @@ void DataEngine::setHamBand(QObject *sender, int rx, bool byBtn, HamBand band) {
 	}
 }
 
-void DataEngine::setFrequency(QObject* sender, int mode, int rx, long frequency) {
+void DataEngine::setFrequency(int mode, int rx, long frequency) {
 
-	Q_UNUSED (sender)
 	Q_UNUSED (mode)
 
 	//RX[rx]->setFrequency(frequency);
@@ -3635,9 +3568,9 @@ void DataProcessor::writeData() {
     }
 }
 
-void 	DataEngine::setWbSpectrumAveraging(QObject* sender, int rx, int value)
+void 	DataEngine::setWbSpectrumAveraging(int rx, int value)
 {
-	m_wbDataProcessor->setWbSpectrumAveraging(sender,rx,value);
+	m_wbDataProcessor->setWbSpectrumAveraging(rx,value);
 }
 
 
@@ -3645,11 +3578,10 @@ void DataEngine::setRepeaterMode(bool mode) {
         io.ccTx.use_repeaterOffset = mode;
 }
 
-void DataEngine::dspModeChanged(QObject* sender, int rx, DSPMode mode){
-    Q_UNUSED(sender);
+void DataEngine::dspModeChanged(int rx, DSPMode mode){
     Q_UNUSED(rx);
     io.ccTx.mode = mode;
-    TX.setDSPMode(sender,1,mode);
+    TX.setDSPMode(1,mode);
 }
 
 void DataEngine::CwHangTimeChanged(int CwHangTime)
@@ -3780,7 +3712,7 @@ void DataEngine::createAudioInputProcessor() {
 
 }
 
-void DataEngine::set_tx_drivelevel(QObject* sender, int value){
+void DataEngine::set_tx_drivelevel(int value){
 
     qDebug() << "Drive level change" << value;
     io.ccTx.drivelevel = value;

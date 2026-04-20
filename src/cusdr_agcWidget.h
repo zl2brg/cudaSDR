@@ -135,15 +135,14 @@ private:
 
 private slots:
 	void	systemStateChanged(
-					QObject *sender, 
 					QSDR::_Error err, 
 					QSDR::_HWInterfaceMode hwmode, 
 					QSDR::_ServerMode mode, 
 					QSDR::_DataEngineState state);
 
-	void	setCurrentReceiver(QObject *sender, int rx);
-	void	sampleRateChanged(QObject *sender, int value);
-	void 	agcModeChanged(QObject *sender, int rx, AGCMode mode, bool value);
+	void	setCurrentReceiver(int rx);
+	void	sampleRateChanged(int value);
+	void 	agcModeChanged(int rx, AGCMode mode, bool value);
 	void 	agcModeChangedByBtn();
 	void	slopeChanged(int value);
 	void	maxGainChanged(int value);
@@ -152,13 +151,13 @@ private slots:
 	void	hangTimeChanged(int value);
 	void	fixedGainChanged(int value);
 	void	hangThresholdValueChanged(int value);
-	void	setAGCHangThresholdSlider(QObject *sender, int rx, qreal value);
-	void	setAGCMaximumGain_dB(QObject *sender, int rx, qreal value);
-	void	setAGCFixedGain_dB(QObject *sender, int rx, qreal value);
+	void	setAGCHangThresholdSlider(int rx, qreal value);
+	void	setAGCMaximumGain_dB(int rx, qreal value);
+	void	setAGCFixedGain_dB(int rx, qreal value);
 	
 signals:
-	void	showEvent(QObject *sender);
-	void	closeEvent(QObject *sender);
+	void	showEvent();
+	void	closeEvent();
 	void	messageEvent(QString );
 };
 

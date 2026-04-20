@@ -128,7 +128,7 @@ TransmitOptionsWidget::TransmitOptionsWidget(QWidget *parent)
 TransmitOptionsWidget::~TransmitOptionsWidget() {
 
 	disconnect(set, 0, this, 0);
-	disconnect(this, 0, 0, 0);
+	disconnect(0, 0, 0);
 }
 
 void TransmitOptionsWidget::setupConnections() {
@@ -378,13 +378,13 @@ void TransmitOptionsWidget::boostButtonClicked() {
 
 void TransmitOptionsWidget::closeEvent(QCloseEvent *event) {
 
-	emit closeEvent(this);
+	emit closeEvent();
 	QWidget::closeEvent(event);
 }
 
 void TransmitOptionsWidget::showEvent(QShowEvent *event) {
 
-	emit showEvent(this);
+	emit showEvent();
 	QWidget::showEvent(event);
 }
 

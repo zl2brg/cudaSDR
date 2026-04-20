@@ -329,7 +329,7 @@ int Settings::loadSettings() {
 
     value = settings->value("server/sample_rate", 48000).toInt();
     if ((value != 48000) & (value != 96000) & (value != 192000) & (value != 384000)) value = 48000;
-    setSampleRate(this, value);
+    setSampleRate(value);
 
     str = settings->value("server/dither", "off").toString();
     if (str.toLower() == "on")
@@ -440,12 +440,12 @@ int Settings::loadSettings() {
     if (str == "sdr") {
 
         m_serverMode = QSDR::SDRMode;
-        setSpectrumSize(this, 4096);
+        setSpectrumSize(4096);
 
     } else {
 
         m_serverMode = QSDR::SDRMode;
-        setSpectrumSize(this, 4096);
+        setSpectrumSize(4096);
     }
 
 
@@ -681,7 +681,7 @@ int Settings::loadSettings() {
             str.append(m_bandList.at(i).bandString);
 
             value = settings->value(str, 33).toInt();
-            setAlexState(this, i, value);
+            setAlexState(i, value);
         }
     }
 
@@ -704,7 +704,7 @@ int Settings::loadSettings() {
 
             value = settings->value(str, 0).toInt();
             if (value < 0 || value > 255) value = 0;
-            setRxJ6Pin(this, (HamBand) i, value);
+            setRxJ6Pin((HamBand) i, value);
         }
 
         for (int i = 0; i < MAX_BANDS - 1; i++) {
@@ -714,7 +714,7 @@ int Settings::loadSettings() {
 
             value = settings->value(str, 0).toInt();
             if (value < 0 || value > 255) value = 0;
-            setTxJ6Pin(this, (HamBand) i, value);
+            setTxJ6Pin((HamBand) i, value);
         }
     } else {
 
@@ -782,7 +782,7 @@ int Settings::loadSettings() {
         if (str == "qtdsp") {
 
             m_receiverDataList[i].dspCore = QSDR::QtDSP;
-            setSpectrumSize(this, 4096);
+            setSpectrumSize(4096);
             //SETTINGS_DEBUG << "DSP core for rx " << i << " is QtDSP.";
         }
 
@@ -2292,9 +2292,9 @@ int Settings::saveSettings() {
     return 0;
 }
 
-//void Settings::setMainWindowsState(QObject* sender) {
+//void Settings::setMainWindowsState() {
 //
-//	settings->setValue("geometry", sender.saveGeometry());
+//	settings->setValue("geometry", .saveGeometry());
 //	settings->setValue("windowState", saveState());
 //}
 
@@ -2470,7 +2470,7 @@ void Settings::debugSystemState() {
     qDebug() << " ";
 }
 
-void Settings::setMainPower(QObject *sender, bool power) {
+void Settings::setMainPower(bool power) {
 
     if (m_mainPower == power) return;
 
@@ -2480,7 +2480,7 @@ void Settings::setMainPower(QObject *sender, bool power) {
     else
         m_mainPower = false;
 
-    emit masterSwitchChanged(sender, m_mainPower);
+    emit masterSwitchChanged(m_mainPower);
 }
 
 bool Settings::getMainPower() {
@@ -2495,14 +2495,11 @@ void Settings::setSystemMessage(const QString &msg, int time) {
 
 void Settings::setSystemState(
 
-        QObject *sender,
         QSDR::_Error err,
         QSDR::_HWInterfaceMode hwmode,
         QSDR::_ServerMode mode,
         QSDR::_DataEngineState state) {
-    Q_UNUSED (sender)
-
-    //QMutexLocker locker(&settingsMutex);
+    QMutexLocker locker(&settingsMutex);
 
     if (m_systemError != err)
         m_systemError = err;
@@ -2520,13 +2517,13 @@ void Settings::setSystemState(
         m_dataEngineState = state;
 
   //if (m_dataEngineState == QSDR::DataEngineDown)
-//      setCurrentReceiver(this, 0);
+//      setCurrentReceiver(0);
     //m_currentReceiver = 0;
 
     //locker.unlock();
 
     debugSystemState();
-    emit systemStateChanged(this, m_systemError, m_hwInterface, m_serverMode, m_dataEngineState);
+    emit systemStateChanged(m_systemError, m_hwInterface, m_serverMode, m_dataEngineState);
 }
 
 QSDR::_ServerMode Settings::getCurrentServerMode() {
@@ -2658,14 +2655,14 @@ QString Settings::getHWInterfaceModeString(QSDR::_HWInterfaceMode mode) {
     return str;
 }
 
-void Settings::setTxAllowed(QObject *sender, bool value) {
+void Settings::setTxAllowed(bool value) {
 
     if (m_devices.penelopePresence || m_devices.pennylanePresence || (m_hwInterface == QSDR::Hermes))
         m_transmitter.txAllowed = value;
     else
         m_transmitter.txAllowed = false;
 
-    emit txAllowedChanged(sender, m_transmitter.txAllowed);
+    emit txAllowedChanged(m_transmitter.txAllowed);
 }
 
 bool Settings::getTxAllowed() {
@@ -2675,13 +2672,10 @@ bool Settings::getTxAllowed() {
 
 void Settings::setGraphicsState(
 
-        QObject *sender,
         int rx,
         PanGraphicsMode panMode,
         WaterfallColorMode waterfallColorMode) {
-    Q_UNUSED (sender)
-
-    //QMutexLocker locker(&settingsMutex);
+    QMutexLocker locker(&settingsMutex);
 
     if (rx == -1) {
 
@@ -2695,7 +2689,7 @@ void Settings::setGraphicsState(
     //locker.unlock();
 
     //SETTINGS_DEBUG << "graphics mode:" << panMode << waterfallColorMode;
-    emit graphicModeChanged(this, rx, panMode, waterfallColorMode);
+    emit graphicModeChanged(rx, panMode, waterfallColorMode);
 }
 
 PanGraphicsMode Settings::getPanadapterMode(int rx) {
@@ -2725,9 +2719,7 @@ WaterfallColorMode Settings::getWaterfallColorMode(int rx) {
 //	return m_colorItem;
 //}
 
-void Settings::setDefaultSkin(QObject *sender, bool value) {
-
-    Q_UNUSED (sender)
+void Settings::setDefaultSkin(bool value) {
 
     m_defaultSkin = value;
 }
@@ -2741,7 +2733,7 @@ void Settings::setSettingsFilename(QString filename) {
 
     filename = filename.trimmed();
 
-    //QMutexLocker locker(&settingsMutex);
+    QMutexLocker locker(&settingsMutex);
 
     settingsFilename = filename;
     //locker.unlock();
@@ -2906,7 +2898,7 @@ void Settings::addHPSDRDeviceNIC(QString nicName, QString ipAddress) {
 
 void Settings::setServerNetworkInterface(int index) {
 
-    setServerAddr(this, this->m_ipAddressesList.at(index).toString());
+    setServerAddr(this->m_ipAddressesList.at(index).toString());
 
     //qDebug() << "m_networkInterfaces.at(index).humanReadableName():" << m_networkInterfaces.at(index).humanReadableName();
     //qDebug() << "m_ipAddressesList.at(index).toString():" << m_ipAddressesList.at(index).toString();
@@ -2921,7 +2913,7 @@ void Settings::setServerNetworkInterface(int index) {
 
 void Settings::setHPSDRDeviceNIC(int index) {
 
-    setHPSDRDeviceLocalAddr(this, this->m_ipAddressesList.at(index).toString());
+    setHPSDRDeviceLocalAddr(this->m_ipAddressesList.at(index).toString());
 
     QString message = "[settings]: HPSDR device network interface set to: %1 (%2).";
     /*emit messageEvent(
@@ -2953,14 +2945,14 @@ void Settings::setHPSDRWidgetNIC(int index) {
     emit hpsdrDeviceNICChanged(index);
 }
 
-void Settings::setServerAddr(QObject *sender, QString addr) {
+void Settings::setServerAddr(QString addr) {
 
     QMutexLocker locker(&settingsMutex);
 
     m_serverAddress = addr;
 
     locker.unlock();
-    emit serverAddrChanged(sender, m_serverAddress);
+    emit serverAddrChanged(m_serverAddress);
 }
 
 QString Settings::getServerAddr() {
@@ -2968,14 +2960,14 @@ QString Settings::getServerAddr() {
     return m_serverAddress;
 }
 
-void Settings::setHPSDRDeviceLocalAddr(QObject *sender, QString addr) {
+void Settings::setHPSDRDeviceLocalAddr(QString addr) {
 
     QMutexLocker locker(&settingsMutex);
 
     m_hpsdrDeviceLocalAddr = addr;
 
     locker.unlock();
-    emit hpsdrDeviceLocalAddrChanged(sender, m_hpsdrDeviceLocalAddr);
+    emit hpsdrDeviceLocalAddrChanged(m_hpsdrDeviceLocalAddr);
 }
 
 QString Settings::getHPSDRDeviceLocalAddr() {
@@ -2983,14 +2975,14 @@ QString Settings::getHPSDRDeviceLocalAddr() {
     return m_hpsdrDeviceLocalAddr;
 }
 
-void Settings::setServerPort(QObject *sender, quint16 port) {
+void Settings::setServerPort(quint16 port) {
 
     QMutexLocker locker(&settingsMutex);
 
     m_serverPort = port;
 
     locker.unlock();
-    emit serverPortChanged(sender, m_serverPort);
+    emit serverPortChanged(m_serverPort);
 }
 
 quint16 Settings::getServerPort() {
@@ -2998,14 +2990,14 @@ quint16 Settings::getServerPort() {
     return m_serverPort;
 }
 
-void Settings::setListenPort(QObject *sender, quint16 port) {
+void Settings::setListenPort(quint16 port) {
 
     QMutexLocker locker(&settingsMutex);
 
     m_listenerPort = port;
 
     locker.unlock();
-    emit listenPortChanged(sender, m_listenerPort);
+    emit listenPortChanged(m_listenerPort);
 }
 
 quint16 Settings::getListenPort() {
@@ -3013,13 +3005,13 @@ quint16 Settings::getListenPort() {
     return m_listenerPort;
 }
 
-void Settings::setAudioPort(QObject *sender, quint16 port) {
+void Settings::setAudioPort(quint16 port) {
 
     QMutexLocker locker(&settingsMutex);
     m_audioPort = port;
     locker.unlock();
 
-    emit audioPortChanged(sender, m_audioPort);
+    emit audioPortChanged(m_audioPort);
 }
 
 quint16 Settings::getAudioPort() {
@@ -3027,13 +3019,13 @@ quint16 Settings::getAudioPort() {
     return m_audioPort;
 }
 
-void Settings::setMetisPort(QObject *sender, quint16 port) {
+void Settings::setMetisPort(quint16 port) {
 
     QMutexLocker locker(&settingsMutex);
     m_metisPort = port;
     locker.unlock();
 
-    emit metisPortChanged(sender, m_metisPort);
+    emit metisPortChanged(m_metisPort);
 }
 
 quint16 Settings::getMetisPort() {
@@ -3041,13 +3033,13 @@ quint16 Settings::getMetisPort() {
     return m_metisPort;
 }
 
-void Settings::setClientConnected(QObject *sender, bool value) {
+void Settings::setClientConnected(bool value) {
 
     QMutexLocker locker(&settingsMutex);
     m_clientConnected = value;
     locker.unlock();
 
-    emit clientConnectedChanged(sender, m_clientConnected);
+    emit clientConnectedChanged(m_clientConnected);
 }
 
 bool Settings::getClientConnected() {
@@ -3055,27 +3047,27 @@ bool Settings::getClientConnected() {
     return m_clientConnected;
 }
 
-void Settings::setClientNoConnected(QObject *sender, int client) {
+void Settings::setClientNoConnected(int client) {
 
     QMutexLocker locker(&settingsMutex);
     m_clientNoConnected = client;
     locker.unlock();
 
-    emit clientNoConnectedChanged(sender, m_clientNoConnected);
+    emit clientNoConnectedChanged(m_clientNoConnected);
 }
 
-void Settings::setAudioRx(QObject *sender, int rx) {
+void Settings::setAudioRx(int rx) {
 
-    emit audioRxChanged(sender, rx);
+    emit audioRxChanged(rx);
 }
 
-void Settings::setConnected(QObject *sender, bool value) {
+void Settings::setConnected(bool value) {
 
     QMutexLocker locker(&settingsMutex);
     m_connected = value;
     locker.unlock();
 
-    emit connectedChanged(sender, m_connected);
+    emit connectedChanged(m_connected);
 }
 
 bool Settings::getConnected() {
@@ -3088,23 +3080,23 @@ void Settings::clientDisconnected(int client) {
     emit clientDisconnectedEvent(client);
 }
 
-void Settings::setRxConnectedStatus(QObject *sender, int rx, bool value) {
+void Settings::setRxConnectedStatus(int rx, bool value) {
 
-    emit rxConnectedStatusChanged(sender, rx, value);
+    emit rxConnectedStatusChanged(rx, value);
 }
 
-void Settings::setSocketBufferSize(QObject *sender, int value) {
+void Settings::setSocketBufferSize(int value) {
 
     m_socketBufferSize = value;
     //SETTINGS_DEBUG << "m_socketBufferSize = " << value;
-    emit socketBufferSizeChanged(sender, value);
+    emit socketBufferSizeChanged(value);
 }
 
-void Settings::setManualSocketBufferSize(QObject *sender, bool value) {
+void Settings::setManualSocketBufferSize(bool value) {
 
     m_manualSocketBufferSize = value;
     //SETTINGS_DEBUG << "m_manualSocketBufferSize = " << value;
-    emit manualSocketBufferChanged(sender, m_manualSocketBufferSize);
+    emit manualSocketBufferChanged(m_manualSocketBufferSize);
 }
 
 
@@ -3116,9 +3108,8 @@ THPSDRDevices Settings::getHPSDRDevices() {
     return m_devices;
 }
 
-void Settings::setHPSDRDevices(QObject *sender, THPSDRDevices devices) {
+void Settings::setHPSDRDevices(THPSDRDevices devices) {
 
-    Q_UNUSED(sender)
     Q_UNUSED(devices)
 }
 
@@ -3196,7 +3187,7 @@ void Settings::setMercuryVersion(int value) {
 void Settings::setPenelopePresence(bool value) {
 
     m_devices.penelopePresence = value;
-    setTxAllowed(this, value);
+    setTxAllowed(value);
 
     emit penelopePresenceChanged(m_devices.penelopePresence);
 }
@@ -3213,7 +3204,7 @@ void Settings::setPenelopeVersion(int value) {
 void Settings::setPennyLanePresence(bool value) {
 
     m_devices.pennylanePresence = value;
-    setTxAllowed(this, value);
+    setTxAllowed(value);
 
     emit pennyLanePresenceChanged(m_devices.pennylanePresence);
 }
@@ -3250,11 +3241,11 @@ void Settings::setMetisVersion(int value) {
     emit metisVersionChanged(m_devices.metisFWVersion);
 }
 
-void Settings::setCheckFirmwareVersion(QObject *sender, bool value) {
+void Settings::setCheckFirmwareVersion(bool value) {
 
     m_checkFirmwareVersions = value;
 
-    emit checkFirmwareVersionChanged(sender, value);
+    emit checkFirmwareVersionChanged(value);
 }
 
 void Settings::setProtocolSync(int value) {
@@ -3313,7 +3304,7 @@ void Settings::setRcveIQ(int value) {
  * This value is embedded into the command & control bytes that are sent to Mercury.
  * Thus it determines how the I & Q samples read from EP6 are placed in the data stream to dspservers.
  */
-void Settings::setReceivers(QObject *sender, int value) {
+void Settings::setReceivers(int value) {
 
     QMutexLocker locker(&settingsMutex);
 
@@ -3324,10 +3315,10 @@ void Settings::setReceivers(QObject *sender, int value) {
     locker.unlock();
 
     SETTINGS_DEBUG << "set number of receivers to: " << m_mercuryReceivers;
-    emit numberOfRXChanged(sender, value);
+    emit numberOfRXChanged(value);
 }
 
-//void Settings::setReceiver(QObject *sender, int value) {
+//void Settings::setReceiver(int value) {
 //
 //	QMutexLocker locker(&settingsMutex);
 //
@@ -3339,12 +3330,11 @@ void Settings::setReceivers(QObject *sender, int value) {
 //
 //	SETTINGS_DEBUG << "switch to receiver: " << m_currentReceiver;
 //	emit receiverChanged(value);
-//	emit frequencyChanged(this, true, value, m_receiverDataList[value].frequency);
+//	emit frequencyChanged(true, value, m_receiverDataList[value].frequency);
 //}
 
-void Settings::setCurrentReceiver(QObject *sender, int value) {
+void Settings::setCurrentReceiver(int value) {
 
-    //SETTINGS_DEBUG << "sender: " << sender;
     QMutexLocker locker(&settingsMutex);
 
     if (value > MAX_RECEIVERS) {
@@ -3359,35 +3349,35 @@ void Settings::setCurrentReceiver(QObject *sender, int value) {
     DSPMode mode = m_receiverDataList.at(m_currentReceiver).dspModeList[band];
     locker.unlock();
 
-    setMercuryAttenuator(this, m_receiverDataList.at(m_currentReceiver).mercuryAttenuators.at(band));
-    setFramesPerSecond(this, m_currentReceiver, m_receiverDataList.at(m_currentReceiver).framesPerSecond);
+    setMercuryAttenuator(m_receiverDataList.at(m_currentReceiver).mercuryAttenuators.at(band));
+    setFramesPerSecond(m_currentReceiver, m_receiverDataList.at(m_currentReceiver).framesPerSecond);
 
     SETTINGS_DEBUG << "switch to receiver: " << m_currentReceiver;
-    emit currentReceiverChanged(sender, value);
-    //emit frequencyChanged(sender, true, value, m_receiverDataList.at(m_currentReceiver).frequency);
+    emit currentReceiverChanged(value);
+    //emit frequencyChanged(true, value, m_receiverDataList.at(m_currentReceiver).frequency);
     long vfoF = m_receiverDataList.at(m_currentReceiver).vfoFrequency;
     long ctrF = m_receiverDataList.at(m_currentReceiver).ctrFrequency;
 
-    emit ctrFrequencyChanged(sender, true, value, ctrF);
-    emit vfoFrequencyChanged(sender, true, value, vfoF);
+    emit ctrFrequencyChanged(true, value, ctrF);
+    emit vfoFrequencyChanged(true, value, vfoF);
     emit ncoFrequencyChanged(m_currentReceiver, vfoF - ctrF);
-    emit hamBandChanged(sender, m_currentReceiver, false, band);
-    emit dspModeChanged(sender, m_currentReceiver, mode);
+    emit hamBandChanged(m_currentReceiver, false, band);
+    emit dspModeChanged(m_currentReceiver, mode);
 
     // Sync the panadapter filter lines to the saved filter for this receiver.
     // Without this, setDSPMode only updates the mode label; the filter shading
     // stays at whatever filterLo/Hi the panel read at construction time.
-    emit filterFrequenciesChanged(sender, m_currentReceiver,
+    emit filterFrequenciesChanged(m_currentReceiver,
         m_receiverDataList.at(m_currentReceiver).filterLo,
         m_receiverDataList.at(m_currentReceiver).filterHi);
 
-    emit mouseWheelFreqStepChanged(sender, m_currentReceiver,
+    emit mouseWheelFreqStepChanged(m_currentReceiver,
     m_receiverDataList.at(m_currentReceiver).mouseWheelFreqStep);
 
 
 }
 
-void Settings::setSampleRate(QObject *sender, int value) {
+void Settings::setSampleRate(int value) {
 
     QMutexLocker locker(&settingsMutex);
 
@@ -3405,12 +3395,12 @@ void Settings::setSampleRate(QObject *sender, int value) {
     for (int i = 0; i < MAX_RECEIVERS; i++)
         m_receiverDataList[i].sampleRate = m_sampleRate;
 
-    emit sampleRateChanged(sender, m_sampleRate);
+    emit sampleRateChanged(m_sampleRate);
 }
 
-void Settings::setMercuryAttenuator(QObject *sender, int value) {
+void Settings::setMercuryAttenuator(int value) {
 
-    //QMutexLocker locker(&settingsMutex);
+    QMutexLocker locker(&settingsMutex);
 
     if (m_receiverDataList.at(m_currentReceiver).mercuryAttenuators.length() != MAX_BANDS)
         return;
@@ -3418,7 +3408,7 @@ void Settings::setMercuryAttenuator(QObject *sender, int value) {
     HamBand band = m_receiverDataList[m_currentReceiver].hamBand;
     m_receiverDataList[m_currentReceiver].mercuryAttenuators[band] = value;
 
-    emit mercuryAttenuatorChanged(sender, band, value);
+    emit mercuryAttenuatorChanged(band, value);
 }
 
 QList<int> Settings::getMercuryAttenuators(int rx) {
@@ -3426,36 +3416,36 @@ QList<int> Settings::getMercuryAttenuators(int rx) {
     return m_receiverDataList[rx].mercuryAttenuators;
 }
 
-void Settings::setDither(QObject *sender, int value) {
+void Settings::setDither(int value) {
 
     QMutexLocker locker(&settingsMutex);
     m_mercuryDither = value;
 
-    emit ditherChanged(sender, value);
+    emit ditherChanged(value);
 }
 
-void Settings::setRandom(QObject *sender, int value) {
+void Settings::setRandom(int value) {
 
     QMutexLocker locker(&settingsMutex);
     m_mercuryRandom = value;
 
-    emit randomChanged(sender, value);
+    emit randomChanged(value);
 }
 
-void Settings::set10MhzSource(QObject *sender, int source) {
+void Settings::set10MhzSource(int source) {
 
     QMutexLocker locker(&settingsMutex);
 
     m_10MHzSource = source;
-    emit src10MhzChanged(sender, source);
+    emit src10MhzChanged(source);
 }
 
-void Settings::set122_88MhzSource(QObject *sender, int source) {
+void Settings::set122_88MhzSource(int source) {
 
     QMutexLocker locker(&settingsMutex);
 
     m_122_8MHzSource = source;
-    emit src122_88MhzChanged(sender, source);
+    emit src122_88MhzChanged(source);
 }
 
 void Settings::setMicSource(int source) {
@@ -3494,49 +3484,49 @@ void Settings::setDigitalAudioInputDev(int index) {
     emit digitalAudioInputChanged(index);
 }
 
-void Settings::setMicInputLevel(QObject *sender, int level) {
+void Settings::setMicInputLevel(int level) {
 
     QMutexLocker locker(&settingsMutex);
 
     m_micGain = level;
-    emit micInputLevelChanged(sender, level);
+    emit micInputLevelChanged(level);
 }
 
-void Settings::setDriveLevel(QObject *sender, int level) {
+void Settings::setDriveLevel(int level) {
 
     QMutexLocker locker(&settingsMutex);
 
     m_drivelevel = level;
-    emit driveLevelChanged(sender, level);
+    emit driveLevelChanged(level);
 }
 
 
 
 
 
-void Settings::setClass(QObject *sender, int value) {
+void Settings::setClass(int value) {
 
     QMutexLocker locker(&settingsMutex);
 
     m_RxClass = value;
-    emit classChanged(sender, value);
+    emit classChanged(value);
 }
 
-void Settings::setTiming(QObject *sender, int value) {
+void Settings::setTiming(int value) {
 
     QMutexLocker locker(&settingsMutex);
 
     m_RxTiming = value;
-    emit timingChanged(sender, value);
+    emit timingChanged(value);
 }
 
-void Settings::setMouseWheelFreqStep(QObject *sender, int rx, qreal value) {
+void Settings::setMouseWheelFreqStep(int rx, qreal value) {
 
     QMutexLocker locker(&settingsMutex);
 
     //m_mouseWheelFreqStep = value;
     m_receiverDataList[rx].mouseWheelFreqStep = value;
-    emit mouseWheelFreqStepChanged(sender, rx, value);
+    emit mouseWheelFreqStepChanged(rx, value);
 }
 
 double Settings::getMouseWheelFreqStep(int rx) {
@@ -3549,7 +3539,7 @@ qreal Settings::getMainVolume(int rx) {
     return m_receiverDataList[rx].audioVolume;
 }
 
-void Settings::setMainVolume(QObject *sender, int rx, float volume) {
+void Settings::setMainVolume(int rx, float volume) {
 
     if (volume < 0) volume = 0.0f;
     if (volume > 1) volume = 1.0f;
@@ -3559,19 +3549,18 @@ void Settings::setMainVolume(QObject *sender, int rx, float volume) {
     //if (m_receiverDataList[rx].audioVolume == volume) return;
     m_receiverDataList[rx].audioVolume = volume;
 
-    emit mainVolumeChanged(sender, rx, volume);
+    emit mainVolumeChanged(rx, volume);
 }
 
-void Settings::setMainVolumeMute(QObject *sender, int rx, bool value) {
+void Settings::setMainVolumeMute(int rx, bool value) {
 
-    Q_UNUSED(sender)
     Q_UNUSED(value)
 
     qreal vol = getMainVolume(rx);
     if (value)
-        setMainVolume(this, rx, 0.0f);
+        setMainVolume(rx, 0.0f);
     else
-        setMainVolume(this, rx, vol);
+        setMainVolume(rx, vol);
 }
 
 void Settings::setCtrFrequency(int rx, long frequency) {
@@ -3598,11 +3587,11 @@ void Settings::setVfoFrequency(int rx, long frequency) {
     m_receiverDataList[rx].lastVfoFrequencyList[(int) band] = frequency;
 
     m_receiverDataList[rx].ncoFrequency = frequency - m_receiverDataList.at(rx).ctrFrequency;
- //   setDSPMode(this,rx,m_receiverDataList[rx].dspModeList[band]);
+ //   setDSPMode(rx,m_receiverDataList[rx].dspModeList[band]);
     SETTINGS_DEBUG << "set vfo freq (Rx " << rx << ") " << m_receiverDataList[rx].ctrFrequency;
 }
 
-void Settings::setCtrFrequency(QObject *sender, int mode, int rx, long frequency) {
+void Settings::setCtrFrequency(int mode, int rx, long frequency) {
 
     QMutexLocker locker(&settingsMutex);
     m_receiverDataList[rx].ctrFrequency = frequency;
@@ -3618,7 +3607,7 @@ void Settings::setCtrFrequency(QObject *sender, int mode, int rx, long frequency
 
         case 1:
 
-            setVFOFrequency(this, 0, rx, frequency);
+            setVFOFrequency(0, rx, frequency);
             break;
     }
 
@@ -3627,12 +3616,12 @@ void Settings::setCtrFrequency(QObject *sender, int mode, int rx, long frequency
     const DSPMode currentMode = m_receiverDataList.at(rx).dspModeList.at(m_receiverDataList.at(rx).hamBand);
     if (currentMode == FDV) {
         const DSPMode sideband = resolveWDSPMode(FDV, frequency);
-        setRXFilter(this, rx,
+        setRXFilter(rx,
             m_defaultFilterList.at((int) sideband).filterLo,
             m_defaultFilterList.at((int) sideband).filterHi);
     }
 
-    emit ctrFrequencyChanged(sender, mode, rx, frequency);
+    emit ctrFrequencyChanged(mode, rx, frequency);
 }
 
 long Settings::getCtrFrequency(int rx) {
@@ -3640,7 +3629,7 @@ long Settings::getCtrFrequency(int rx) {
     return m_receiverDataList.at(rx).ctrFrequency;
 }
 
-void Settings::setVFOFrequency(QObject *sender, int mode, int rx, long frequency) {
+void Settings::setVFOFrequency(int mode, int rx, long frequency) {
 
     QMutexLocker locker(&settingsMutex);
 
@@ -3657,7 +3646,7 @@ void Settings::setVFOFrequency(QObject *sender, int mode, int rx, long frequency
     if (m_receiverDataList.at(rx).hamBand != band) {
 
         //m_receiverDataList[rx].ctrFrequency = m_receiverDataList[rx].vfoFrequency;
-        setHamBand(this, rx, false, band);
+        setHamBand(rx, false, band);
     }
 
     switch (mode) {
@@ -3670,17 +3659,17 @@ void Settings::setVFOFrequency(QObject *sender, int mode, int rx, long frequency
 
         case 1: // change VFO and center freq; keep NCO frequency
 
-            setCtrFrequency(this, 0, rx, frequency - m_receiverDataList.at(rx).ncoFrequency);
+            setCtrFrequency(0, rx, frequency - m_receiverDataList.at(rx).ncoFrequency);
             break;
 
         case 2: // change VFO, set center frequency from lastCenterFrequencyList
 
-            setCtrFrequency(this, 0, rx, m_receiverDataList.at(rx).lastCenterFrequencyList.at((int) band));
+            setCtrFrequency(0, rx, m_receiverDataList.at(rx).lastCenterFrequencyList.at((int) band));
             m_receiverDataList[rx].ncoFrequency = frequency - m_receiverDataList.at(rx).ctrFrequency;
             break;
     }
 
-    emit vfoFrequencyChanged(sender, mode, rx, frequency);
+    emit vfoFrequencyChanged(mode, rx, frequency);
 
     SETTINGS_DEBUG << "nco freq (Rx " << rx << ")" << m_receiverDataList[rx].ncoFrequency ;
     emit ncoFrequencyChanged(rx, m_receiverDataList[rx].ncoFrequency);
@@ -3692,9 +3681,8 @@ long Settings::getVfoFrequency(int rx) {
     return m_receiverDataList.at(rx).vfoFrequency;
 }
 
-void Settings::setNCOFrequency(QObject *sender, bool value, int rx, long frequency) {
+void Settings::setNCOFrequency(bool value, int rx, long frequency) {
 
-    Q_UNUSED(sender)
     Q_UNUSED(value)
 
     SETTINGS_DEBUG << "nco freq (Rx " << rx << ") " << m_receiverDataList[rx].ncoFrequency << "(direct)";
@@ -3703,12 +3691,11 @@ void Settings::setNCOFrequency(QObject *sender, bool value, int rx, long frequen
     emit ncoFrequencyChanged(rx, frequency);
 }
 
-void Settings::setHamBand(QObject *sender, int rx, bool byButton, HamBand band) {
+void Settings::setHamBand(int rx, bool byButton, HamBand band) {
 
-    //SETTINGS_DEBUG << "sender: " << sender;
     QMutexLocker locker(&settingsMutex);
-    qDebug() << "ham band" << m_receiverDataList[rx].hamBand << "band" << band << "sender"  << sender;
-    if (m_receiverDataList[rx].hamBand == band && sender != this)
+    qDebug() << "ham band" << m_receiverDataList[rx].hamBand << "band" << band;
+    if (m_receiverDataList[rx].hamBand == band)
         return;
 
     m_receiverDataList[rx].lastHamBand = m_receiverDataList[rx].hamBand;
@@ -3718,15 +3705,15 @@ void Settings::setHamBand(QObject *sender, int rx, bool byButton, HamBand band) 
     SETTINGS_DEBUG << "Ham band:  " << m_receiverDataList[rx].hamBand;
 
     if (m_receiverDataList[rx].hamBand == (HamBand) gen)
-        setTxAllowed(this, false);
+        setTxAllowed(false);
     else
-        setTxAllowed(this, true);
+        setTxAllowed(true);
 
     locker.unlock();
 
-    setMercuryAttenuator(this, m_receiverDataList[rx].mercuryAttenuators[band]);
+    setMercuryAttenuator(m_receiverDataList[rx].mercuryAttenuators[band]);
 
-    emit hamBandChanged(sender, rx, byButton, band);
+    emit hamBandChanged(rx, byButton, band);
 }
 
 HamBand Settings::getCurrentHamBand(int rx) {
@@ -3734,7 +3721,7 @@ HamBand Settings::getCurrentHamBand(int rx) {
     return m_receiverDataList[rx].hamBand;
 }
 
-void Settings::setDSPMode(QObject *sender, int rx, DSPMode mode) {
+void Settings::setDSPMode(int rx, DSPMode mode) {
 
     SETTINGS_DEBUG << "DSP mode change " << mode << rx;
     if (rx < 0 || rx >= m_receiverDataList.size())
@@ -3745,8 +3732,8 @@ void Settings::setDSPMode(QObject *sender, int rx, DSPMode mode) {
 
 
     const DSPMode wdspMode = resolveWDSPMode(mode, m_receiverDataList[rx].ctrFrequency);
-    setRXFilter(this, rx, m_defaultFilterList.at((int) wdspMode).filterLo, m_defaultFilterList.at((int) wdspMode).filterHi);
-    emit dspModeChanged(sender, rx, mode);
+    setRXFilter(rx, m_defaultFilterList.at((int) wdspMode).filterLo, m_defaultFilterList.at((int) wdspMode).filterHi);
+    emit dspModeChanged(rx, mode);
 }
 
 int Settings::getFreeDVMode(int rx) {
@@ -3829,17 +3816,17 @@ QString Settings::getAGCModeString(int rx) {
     return str;
 }
 
-void Settings::setADCMode(QObject *sender, int rx, ADCMode mode) {
+void Settings::setADCMode(int rx, ADCMode mode) {
 
     QMutexLocker locker(&settingsMutex);
 
     if (m_receiverDataList[rx].adcMode == mode) return;
     m_receiverDataList[rx].adcMode = mode;
 
-    emit adcModeChanged(sender, rx, mode);
+    emit adcModeChanged(rx, mode);
 }
 
-void Settings::setAGCMode(QObject *sender, int rx, AGCMode mode) {
+void Settings::setAGCMode(int rx, AGCMode mode) {
 
     QMutexLocker locker(&settingsMutex);
 
@@ -3852,23 +3839,23 @@ void Settings::setAGCMode(QObject *sender, int rx, AGCMode mode) {
         m_receiverDataList[rx].hangEnabled = false;
         hang = false;
         if (mode == (AGCMode) agcOFF)
-                emit agcFixedGainChanged_dB(sender, rx, m_receiverDataList[rx].agcFixedGain_dB);
+                emit agcFixedGainChanged_dB(rx, m_receiverDataList[rx].agcFixedGain_dB);
     } else {
 
         m_receiverDataList[rx].hangEnabled = true;
         hang = true;
     }
 
-    emit agcModeChanged(sender, rx, mode, hang);
-    emit agcHangEnabledChanged(sender, rx, hang);
+    emit agcModeChanged(rx, mode, hang);
+    emit agcHangEnabledChanged(rx, hang);
 }
 
-void Settings::setAGCShowLines(QObject *sender, int rx, bool value) {
+void Settings::setAGCShowLines(int rx, bool value) {
 
     if (m_receiverDataList[rx].agcLines == value) return;
     m_receiverDataList[rx].agcLines = value;
 
-    emit showAGCLinesStatusChanged(sender, m_receiverDataList[rx].agcLines, rx);
+    emit showAGCLinesStatusChanged(m_receiverDataList[rx].agcLines, rx);
 }
 
 qreal Settings::getAGCGain(int rx) {
@@ -3876,26 +3863,25 @@ qreal Settings::getAGCGain(int rx) {
     return m_receiverDataList[rx].acgGain;
 }
 
-void Settings::setAGCGain(QObject *sender, int rx, int value) {
+void Settings::setAGCGain(int rx, int value) {
 
-    //QMutexLocker locker(&settingsMutex);
+    QMutexLocker locker(&settingsMutex);
 
     if (m_receiverDataList[rx].acgGain == value) return;
     m_receiverDataList[rx].acgGain = value;
     //SETTINGS_DEBUG << "acgGain " << value;
-    emit agcGainChanged(sender, rx, value);
+    emit agcGainChanged(rx, value);
 }
 
-void Settings::setAGCMaximumGain_dB(QObject *sender, int rx, qreal value) {
+void Settings::setAGCMaximumGain_dB(int rx, qreal value) {
 
-    //QMutexLocker locker(&settingsMutex);
+    QMutexLocker locker(&settingsMutex);
 
     if (m_receiverDataList[rx].agcMaximumGain_dB == value) return;
     m_receiverDataList[rx].agcMaximumGain_dB = value;
 
-    SETTINGS_DEBUG << "set agcMaximumGain_dB = " << m_receiverDataList[rx].agcMaximumGain_dB << " (sender: " << sender
-                   << ")";
-    emit agcMaximumGainChanged(sender, rx, value);
+    SETTINGS_DEBUG << "set agcMaximumGain_dB = " << m_receiverDataList[rx].agcMaximumGain_dB;
+    emit agcMaximumGainChanged(rx, value);
 }
 
 int Settings::getAGCMaximumGain_dB(int rx) {
@@ -3903,15 +3889,15 @@ int Settings::getAGCMaximumGain_dB(int rx) {
     return m_receiverDataList[rx].agcMaximumGain_dB;
 }
 
-void Settings::setAGCFixedGain_dB(QObject *sender, int rx, qreal value) {
+void Settings::setAGCFixedGain_dB(int rx, qreal value) {
 
-    //QMutexLocker locker(&settingsMutex);
+    QMutexLocker locker(&settingsMutex);
 
     if (m_receiverDataList[rx].agcFixedGain_dB == value) return;
     m_receiverDataList[rx].agcFixedGain_dB = value;
 
     SETTINGS_DEBUG << "m_receiverDataList[rx].agcFixedGain_dB = " << m_receiverDataList[rx].agcFixedGain_dB;
-    emit agcFixedGainChanged_dB(sender, rx, value);
+    emit agcFixedGainChanged_dB(rx, value);
 }
 
 qreal Settings::getAGCFixedGain_dB(int rx) {
@@ -3919,20 +3905,20 @@ qreal Settings::getAGCFixedGain_dB(int rx) {
     return m_receiverDataList[rx].agcFixedGain_dB;
 }
 
-void Settings::setAGCThreshold_dB(QObject *sender, int rx, qreal value) {
+void Settings::setAGCThreshold_dB(int rx, qreal value) {
 
-    //QMutexLocker locker(&settingsMutex);
+    QMutexLocker locker(&settingsMutex);
     SETTINGS_DEBUG << "acgThreshold = " << value;
     if (m_receiverDataList[rx].acgThreshold_dB == value) return;
     m_receiverDataList[rx].acgThreshold_dB = value;
 
     SETTINGS_DEBUG << "acgThreshold = " << m_receiverDataList[rx].acgThreshold_dB;
-    emit agcThresholdChanged_dB(sender, rx, value);
+    emit agcThresholdChanged_dB(rx, value);
 }
 
-void Settings::setAGCHangThresholdSlider(QObject *sender, int rx, qreal value) {
+void Settings::setAGCHangThresholdSlider(int rx, qreal value) {
 
-    emit agcHangThresholdSliderChanged(sender, rx, value);
+    emit agcHangThresholdSliderChanged(rx, value);
 }
 
 int Settings::getAGCHangThreshold(int rx) {
@@ -3940,15 +3926,15 @@ int Settings::getAGCHangThreshold(int rx) {
     return m_receiverDataList[rx].agcHangThreshold;
 }
 
-void Settings::setAGCHangThreshold(QObject *sender, int rx, int value) {
+void Settings::setAGCHangThreshold(int rx, int value) {
 
-    //QMutexLocker locker(&settingsMutex);
+    QMutexLocker locker(&settingsMutex);
 
     if (m_receiverDataList[rx].agcHangThreshold == value) return;
     m_receiverDataList[rx].agcHangThreshold = value;
 
     //SETTINGS_DEBUG << "agcHangThreshold = " << m_receiverDataList[rx].agcHangThreshold;
-    emit agcHangThresholdChanged(sender, rx, value);
+    emit agcHangThresholdChanged(rx, value);
 }
 
 int Settings::getAGCHangLeveldB(int rx) {
@@ -3956,18 +3942,18 @@ int Settings::getAGCHangLeveldB(int rx) {
     return m_receiverDataList[rx].agcHangThreshold;
 }
 
-void Settings::setAGCHangLevel_dB(QObject *sender, int rx, qreal value) {
+void Settings::setAGCHangLevel_dB(int rx, qreal value) {
 
-    //QMutexLocker locker(&settingsMutex);
+    QMutexLocker locker(&settingsMutex);
 
     if (m_receiverDataList[rx].agcHangLevel == value) return;
     m_receiverDataList[rx].agcHangLevel = value;
 
     //SETTINGS_DEBUG << "agcHangLevel = " << m_receiverDataList[rx].agcHangLevel;
-    emit agcHangLevelChanged_dB(sender, rx, value);
+    emit agcHangLevelChanged_dB(rx, value);
 }
 
-void Settings::setAGCLineLevels(QObject *sender, int rx, qreal thresh, qreal hang) {
+void Settings::setAGCLineLevels(int rx, qreal thresh, qreal hang) {
 
     if (m_currentReceiver != rx) return;
     if ((m_receiverDataList[rx].agcHangLevel == hang) && (m_receiverDataList[rx].acgThreshold_dB == thresh)) return;
@@ -3975,10 +3961,10 @@ void Settings::setAGCLineLevels(QObject *sender, int rx, qreal thresh, qreal han
     m_receiverDataList[rx].agcHangLevel = hang;
     m_receiverDataList[rx].acgThreshold_dB = thresh;
     SETTINGS_DEBUG << "SET agcHangLevel = " << m_receiverDataList[rx].agcHangLevel;
-    emit agcLineLevelsChanged(sender, rx, thresh, hang);
+    emit agcLineLevelsChanged(rx, thresh, hang);
 }
 
-void Settings::setAGCVariableGain_dB(QObject *sender, int rx, qreal value) {
+void Settings::setAGCVariableGain_dB(int rx, qreal value) {
 
     if (m_currentReceiver != rx) return;
 
@@ -3986,10 +3972,10 @@ void Settings::setAGCVariableGain_dB(QObject *sender, int rx, qreal value) {
     m_receiverDataList[rx].agcSlope = value;
 
     SETTINGS_DEBUG << "agcSlope = " << m_receiverDataList[rx].agcSlope;
-    emit agcVariableGainChanged_dB(sender, rx, value);
+    emit agcVariableGainChanged_dB(rx, value);
 }
 
-void Settings::setAGCAttackTime(QObject *sender, int rx, qreal value) {
+void Settings::setAGCAttackTime(int rx, qreal value) {
 
     if (m_currentReceiver != rx) return;
 
@@ -3997,10 +3983,10 @@ void Settings::setAGCAttackTime(QObject *sender, int rx, qreal value) {
     m_receiverDataList[rx].agcAttackTime = value;
 
     SETTINGS_DEBUG << "agcAttackTime = " << m_receiverDataList[rx].agcAttackTime;
-    emit agcAttackTimeChanged(sender, rx, value);
+    emit agcAttackTimeChanged(rx, value);
 }
 
-void Settings::setAGCDecayTime(QObject *sender, int rx, qreal value) {
+void Settings::setAGCDecayTime(int rx, qreal value) {
 
     if (m_currentReceiver != rx) return;
 
@@ -4008,10 +3994,10 @@ void Settings::setAGCDecayTime(QObject *sender, int rx, qreal value) {
     m_receiverDataList[rx].agcDecayTime = value;
 
     SETTINGS_DEBUG << "agcDecayTime = " << m_receiverDataList[rx].agcDecayTime;
-    emit agcDecayTimeChanged(sender, rx, value);
+    emit agcDecayTimeChanged(rx, value);
 }
 
-void Settings::setAGCHangTime(QObject *sender, int rx, qreal value) {
+void Settings::setAGCHangTime(int rx, qreal value) {
 
     if (m_currentReceiver != rx) return;
 
@@ -4019,10 +4005,10 @@ void Settings::setAGCHangTime(QObject *sender, int rx, qreal value) {
     m_receiverDataList[rx].agcHangTime = value;
 
     SETTINGS_DEBUG << "agcHangTime = " << m_receiverDataList[rx].agcHangTime;
-    emit agcHangTimeChanged(sender, rx, value);
+    emit agcHangTimeChanged(rx, value);
 }
 
-void Settings::setRXFilter(QObject *sender, int rx, qreal low, qreal high) {
+void Settings::setRXFilter(int rx, qreal low, qreal high) {
 
     QMutexLocker locker(&settingsMutex);
 
@@ -4035,14 +4021,14 @@ void Settings::setRXFilter(QObject *sender, int rx, qreal low, qreal high) {
     m_receiverDataList[rx].filterHi = m_filterFrequencyHigh = high;
 
     SETTINGS_DEBUG << "filter freq changed" << low << high;
-    emit filterFrequenciesChanged(sender, rx, low, high);
+    emit filterFrequenciesChanged(rx, low, high);
 }
 
 
 
-void Settings::setIQPort(QObject *sender, int rx, int port) {
+void Settings::setIQPort(int rx, int port) {
 
-    emit iqPortChanged(sender, rx, port);
+    emit iqPortChanged(rx, port);
 }
 
 void Settings::setSpectrumBuffer(int rx, const QList<float> &buffer) {
@@ -4090,7 +4076,7 @@ void Settings::addFreeDVTxFrames(int rx, quint64 txFrames) {
         m_freeDVTxFramesList[rx]);
 }
 
-void Settings::setFreeDVMode(QObject *sender, int rx, int mode) {
+void Settings::setFreeDVMode(int rx, int mode) {
 
     if (rx < 0 || rx >= m_freeDVModeList.size()) return;
     if (m_freeDVModeList[rx] == mode) return;
@@ -4101,7 +4087,7 @@ void Settings::setFreeDVMode(QObject *sender, int rx, int mode) {
     m_freeDVRxFramesList[rx] = 0;
     m_freeDVTxFramesList[rx] = 0;
 
-    emit freeDVModeChanged(sender, rx, mode);
+    emit freeDVModeChanged(rx, mode);
     emit freeDVStatusChanged(rx, false, 0.0f, 0, 0);
 }
 
@@ -4110,9 +4096,7 @@ void Settings::setReceiverDataReady() {
     emit receiverDataReady();
 }
 
-void Settings::setSampleSize(QObject *sender, int rx, int size) {
-
-    Q_UNUSED (sender)
+void Settings::setSampleSize(int rx, int size) {
 
     SETTINGS_DEBUG << "set sample size to: " << size << " for Rx " << rx;
     switch (size) {
@@ -4192,9 +4176,7 @@ int Settings::getFFTMultiplicator(int rx) {
 //   | +------------------------------ Alex   - select 12/10m LPF (0 = disable, 1 = enable)*
 //   +-------------------------------- Alex   - select 6m     LPF (0 = disable, 1 = enable)*
 
-void Settings::setAlexConfiguration(QObject *sender, quint16 conf) {
-
-    Q_UNUSED (sender)
+void Settings::setAlexConfiguration(quint16 conf) {
 
     QMutexLocker locker(&settingsMutex);
     m_alexConfig = conf;
@@ -4232,9 +4214,7 @@ void Settings::setAlexLPFHiFrequencies(int filter, long value) {
  * RR is TX antenna to use for RX (0 is NOT valid!)
  *
  */
-void Settings::setAlexState(QObject *sender, int pos, int value) {
-
-    Q_UNUSED (sender)
+void Settings::setAlexState(int pos, int value) {
 
     if (m_alexStates.length() != MAX_BANDS)
         return;
@@ -4252,18 +4232,14 @@ void Settings::setAlexState(QObject *sender, int pos, int value) {
     }
 }
 
-void Settings::setAlexState(QObject *sender, int value) {
-
-    Q_UNUSED(sender)
+void Settings::setAlexState(int value) {
 
     HamBand band = m_receiverDataList[m_currentReceiver].hamBand;
 
-    setAlexState(this, band, value);
+    setAlexState(band, value);
 }
 
-void Settings::setAlexStates(QObject *sender, const QList<int> &states) {
-
-    Q_UNUSED (sender)
+void Settings::setAlexStates(const QList<int> &states) {
 
     if (m_alexStates == states) return;
 
@@ -4289,16 +4265,14 @@ int Settings::checkAlexState(int state) {
     return state;
 }
 
-void Settings::setAlexToManual(QObject *sender, bool value) {
+void Settings::setAlexToManual(bool value) {
 
-    //QMutexLocker locker(&settingsMutex);
+    QMutexLocker locker(&settingsMutex);
 
-    emit alexManualStateChanged(sender, value);
+    emit alexManualStateChanged(value);
 }
 
-void Settings::setRxJ6Pin(QObject *sender, HamBand band, int value) {
-
-    Q_UNUSED (sender)
+void Settings::setRxJ6Pin(HamBand band, int value) {
 
     if (m_rxJ6pinList.length() != MAX_BANDS - 1) return;
     if (m_rxJ6pinList[band] == value) return;
@@ -4308,9 +4282,7 @@ void Settings::setRxJ6Pin(QObject *sender, HamBand band, int value) {
     emit rxJ6PinsChanged(m_rxJ6pinList);
 }
 
-void Settings::setRxJ6Pins(QObject *sender, const QList<int> &states) {
-
-    Q_UNUSED (sender)
+void Settings::setRxJ6Pins(const QList<int> &states) {
 
     //if (m_rxJ6pinList == states) return;
 
@@ -4319,9 +4291,7 @@ void Settings::setRxJ6Pins(QObject *sender, const QList<int> &states) {
     emit rxJ6PinsChanged(m_rxJ6pinList);
 }
 
-void Settings::setTxJ6Pin(QObject *sender, HamBand band, int value) {
-
-    Q_UNUSED (sender)
+void Settings::setTxJ6Pin(HamBand band, int value) {
 
     if (m_txJ6pinList.length() != MAX_BANDS - 1) return;
     if (m_txJ6pinList[band] == value) return;
@@ -4331,9 +4301,7 @@ void Settings::setTxJ6Pin(QObject *sender, HamBand band, int value) {
     emit txJ6PinsChanged(m_txJ6pinList);
 }
 
-void Settings::setTxJ6Pins(QObject *sender, const QList<int> &states) {
-
-    Q_UNUSED (sender)
+void Settings::setTxJ6Pins(const QList<int> &states) {
 
     //if (m_txJ6pinList == states) return;
 
@@ -4342,9 +4310,7 @@ void Settings::setTxJ6Pins(QObject *sender, const QList<int> &states) {
     emit txJ6PinsChanged(m_txJ6pinList);
 }
 
-void Settings::setPennyOCEnabled(QObject *sender, bool value) {
-
-    Q_UNUSED (sender)
+void Settings::setPennyOCEnabled(bool value) {
 
     if (m_pennyOCEnabled == value) return;
 
@@ -4362,40 +4328,36 @@ void Settings::setPennyOCEnabled(QObject *sender, bool value) {
 //	m_clDevices = devices;
 //}
 
-void Settings::setFreqRulerPosition(QObject *sender, int rx, float position) {
-
-    Q_UNUSED (sender)
+void Settings::setFreqRulerPosition(int rx, float position) {
 
     if (position < 0) position = 0;
     if (position > 1) position = 1;
 
     m_receiverDataList[rx].freqRulerPosition = position;
-    emit freqRulerPositionChanged(this, rx, position);
+    emit freqRulerPositionChanged(rx, position);
 }
 
 //**********************************************************************************
 // audio settings
 
-void Settings::setAudioFormat(QObject *sender, const QAudioFormat &format) {
-
-    Q_UNUSED (sender)
+void Settings::setAudioFormat(const QAudioFormat &format) {
 
     QMutexLocker locker(&settingsMutex);
 
     //if (m_format == format) return;
     m_format = format;
 
-    emit audioFormatChanged(sender, m_format);
+    emit audioFormatChanged(m_format);
 }
 
-void Settings::setAudioPosition(QObject *sender, qint64 position) {
+void Settings::setAudioPosition(qint64 position) {
 
-    emit audioPositionChanged(sender, position);
+    emit audioPositionChanged(position);
 }
 
-void Settings::setAudioBuffer(QObject *sender, qint64 position, qint64 length, const QByteArray &buffer) {
+void Settings::setAudioBuffer(qint64 position, qint64 length, const QByteArray &buffer) {
 
-    emit audioBufferChanged(sender, position, length, buffer);
+    emit audioBufferChanged(position, length, buffer);
 }
 
 
@@ -4412,45 +4374,44 @@ void Settings::resetWidebandSpectrumBuffer() {
     emit widebandSpectrumBufferReset();
 }
 
-void Settings::setWidebandOptions(QObject *sender, TWideband options) {
+void Settings::setWidebandOptions(TWideband options) {
 
     QMutexLocker locker(&settingsMutex);
 
     m_widebandOptions = options;
     locker.unlock();
-    emit widebandOptionsChanged(sender, m_widebandOptions);
+    emit widebandOptionsChanged(m_widebandOptions);
 }
 
-void Settings::setWidebandStatus(QObject *sender, bool value) {
+void Settings::setWidebandStatus(bool value) {
 
     QMutexLocker locker(&settingsMutex);
 
     if (m_widebandOptions.wideBandDisplayStatus == value) return;
     m_widebandOptions.wideBandDisplayStatus = value;
     locker.unlock();
-    emit widebandStatusChanged(sender, m_widebandOptions.wideBandDisplayStatus);
+    emit widebandStatusChanged(m_widebandOptions.wideBandDisplayStatus);
 }
 
-void Settings::setWidebandData(QObject *sender, bool value) {
+void Settings::setWidebandData(bool value) {
 
     QMutexLocker locker(&settingsMutex);
 
     if (m_widebandOptions.wideBandData == value) return;
     m_widebandOptions.wideBandData = value;
     locker.unlock();
-    emit widebandDataChanged(sender, m_widebandOptions.wideBandData);
+    emit widebandDataChanged(m_widebandOptions.wideBandData);
 }
 
-void Settings::setWidebandBuffers(QObject *sender, int value) {
+void Settings::setWidebandBuffers(int value) {
 
-    Q_UNUSED(sender)
     SETTINGS_DEBUG << "Set WidebandBuffers)! " << value ;
     QMutexLocker locker(&settingsMutex);
     m_widebandOptions.numberOfBuffers = value;
     locker.unlock();
 }
 
-void Settings::setWidebanddBmScaleMin(QObject *sender, qreal value) {
+void Settings::setWidebanddBmScaleMin(qreal value) {
 
     QMutexLocker locker(&settingsMutex);
 
@@ -4458,10 +4419,10 @@ void Settings::setWidebanddBmScaleMin(QObject *sender, qreal value) {
     m_widebandOptions.dBmWBScaleMin = value;
 
     locker.unlock();
-    emit widebanddBmScaleMinChanged(sender, m_widebandOptions.dBmWBScaleMin);
+    emit widebanddBmScaleMinChanged(m_widebandOptions.dBmWBScaleMin);
 }
 
-void Settings::setWidebanddBmScaleMax(QObject *sender, qreal value) {
+void Settings::setWidebanddBmScaleMax(qreal value) {
 
     QMutexLocker locker(&settingsMutex);
 
@@ -4469,26 +4430,26 @@ void Settings::setWidebanddBmScaleMax(QObject *sender, qreal value) {
     m_widebandOptions.dBmWBScaleMax = value;
 
     locker.unlock();
-    emit widebanddBmScaleMaxChanged(sender, m_widebandOptions.dBmWBScaleMax);
+    emit widebanddBmScaleMaxChanged(m_widebandOptions.dBmWBScaleMax);
 }
 
-void Settings::setWideBandRulerPosition(QObject *sender, float position) {
+void Settings::setWideBandRulerPosition(float position) {
 
     if (m_widebandOptions.scalePosition == position) return;
     if (position < 0) position = 0;
     if (position > 1) position = 1;
     m_widebandOptions.scalePosition = position;
 
-    emit wideBandScalePositionChanged(sender, m_widebandOptions.scalePosition);
+    emit wideBandScalePositionChanged(m_widebandOptions.scalePosition);
 }
 
 
-void Settings::setSpectrumSize(QObject *sender, int value) {
+void Settings::setSpectrumSize(int value) {
 
     if (m_spectrumSize == value) return;
 
     m_spectrumSize = value;
-    emit spectrumSizeChanged(sender, m_spectrumSize);
+    emit spectrumSizeChanged(m_spectrumSize);
 }
 
 void Settings::moveDisplayWidget(int value) {
@@ -4547,16 +4508,14 @@ void Settings::setPanadapterColors(TPanadapterColors type) {
     emit panadapterColorChanged();
 }
 
-void Settings::setFramesPerSecond(QObject *sender, int rx, int value) {
-
-    Q_UNUSED(sender)
+void Settings::setFramesPerSecond(int rx, int value) {
 
     QMutexLocker locker(&settingsMutex);
 
     if (m_receiverDataList.at(rx).framesPerSecond != value)
         m_receiverDataList[rx].framesPerSecond = value;
 
-    emit framesPerSecondChanged(this, rx, m_receiverDataList[rx].framesPerSecond);
+    emit framesPerSecondChanged(rx, m_receiverDataList[rx].framesPerSecond);
 }
 
 int Settings::getFramesPerSecond(int rx) {
@@ -4564,7 +4523,7 @@ int Settings::getFramesPerSecond(int rx) {
     return m_receiverDataList.at(rx).framesPerSecond;
 }
 
-void Settings::setSpectrumAveraging(QObject *sender, int rx, bool value) {
+void Settings::setSpectrumAveraging(int rx, bool value) {
 
     if (rx == -1) {
         m_widebandOptions.averagingCnt = value;
@@ -4573,8 +4532,8 @@ void Settings::setSpectrumAveraging(QObject *sender, int rx, bool value) {
     }
 
     SETTINGS_DEBUG << "Averaging for Rx " << rx << " : " << value;
-   // emit spectrumAveragingChanged(sender, rx, value);
-    emit spectrumAveragingCntChanged(sender, rx, 100);
+   // emit spectrumAveragingChanged(rx, value);
+    emit spectrumAveragingCntChanged(rx, 100);
 }
 
 bool Settings::getSpectrumAveraging(int rx) {
@@ -4593,7 +4552,7 @@ int Settings::getSpectrumAveragingCnt(int rx) {
         return m_receiverDataList[rx].averagingCnt;
 }
 
-void Settings::setSpectrumAveragingCnt(QObject *sender, int rx, int value) {
+void Settings::setSpectrumAveragingCnt(int rx, int value) {
 
  //   QMutexLocker locker(&settingsMutex);
 
@@ -4603,7 +4562,7 @@ void Settings::setSpectrumAveragingCnt(QObject *sender, int rx, int value) {
     else
         m_receiverDataList[rx].averagingCnt = value;
     qDebug() << "spec av" << value;
-    emit spectrumAveragingCntChanged(sender, rx, value);
+    emit spectrumAveragingCntChanged(rx, value);
 }
 
 

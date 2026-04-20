@@ -61,7 +61,7 @@ ReceiverWidget::ReceiverWidget()
 ReceiverWidget::~ReceiverWidget() {
 
 	disconnect(Settings::instance(), 0, this, 0);
-	disconnect(this, 0, 0, 0);
+	disconnect(0, 0, 0);
 }
 
 
@@ -72,13 +72,13 @@ void ReceiverWidget::closeEvent(QCloseEvent *event) {
 
 	//settings::instance()->serverFormRect = QRect(pos(), size());
 
-	emit closeEvent(this);
+	emit closeEvent();
 	QWidget::closeEvent(event);
 }
 
 void ReceiverWidget::showEvent(QShowEvent *event) {
 
-	emit showEvent(this);
+	emit showEvent();
 	QWidget::showEvent(event);
 }
 
@@ -103,7 +103,7 @@ MiniReceiverWidget::MiniReceiverWidget()
 MiniReceiverWidget::~MiniReceiverWidget() {
 
 	disconnect(Settings::instance(), 0, this, 0);
-	disconnect(this, 0, 0, 0);
+	disconnect(0, 0, 0);
 }
 
 
@@ -114,12 +114,12 @@ void MiniReceiverWidget::closeEvent(QCloseEvent *event) {
 
 	//settings::instance()->serverFormRect = QRect(pos(), size());
 
-	emit closeEvent(this);
+	emit closeEvent();
 	QWidget::closeEvent(event);
 }
 
 void MiniReceiverWidget::showEvent(QShowEvent *event) {
 
-	emit showEvent(this);
+	emit showEvent();
 	QWidget::showEvent(event);
 }

@@ -158,7 +158,7 @@ tx_settings_dialog::tx_settings_dialog(QWidget *parent) :
  connect(m_codec2ModeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int index) {
      if (index >= 0) {
          int mode = m_codec2ModeCombo->itemData(index).toInt();
-         set->setFreeDVMode(this, 0, mode); // Set mode for receiver 0
+         set->setFreeDVMode(0, mode); // Set mode for receiver 0
          qDebug() << "Codec2 mode changed to:" << mode << set->getCodec2ModeString(mode);
      }
  });
@@ -239,6 +239,6 @@ tx_settings_dialog::~tx_settings_dialog()
 {
     delete ui;
     disconnect(set, 0, this, 0);
-    disconnect(this, 0, 0, 0);
+    disconnect(0, 0, 0);
 }
 

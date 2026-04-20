@@ -130,16 +130,16 @@ private:
 	bool 	hpf1_5MHz;
 
 private slots:
-	void alexManualStateChanged(QObject *sender, bool value);
+	void alexManualStateChanged(bool value);
 
 	void hpfLoSpinBoxValueChanged(double value);
 	void hpfHiSpinBoxValueChanged(double value);
 	void lpfLoSpinBoxValueChanged(double value);
 	void lpfHiSpinBoxValueChanged(double value);
 
-	//void setFrequency(QObject * sender, bool value, int rx, long frequency);
-	void setFrequency(QObject * sender, int mode, int rx, long frequency);
-	void setCurrentReceiver(QObject *sender, int rx);
+	//void setFrequency(bool value, int rx, long frequency);
+	void setFrequency(int mode, int rx, long frequency);
+	void setCurrentReceiver(int rx);
 	void setAlexConfiguration(double frequency);
 	void manualFilterBtnClicked();
 	void defaultValuesBtnClicked();
@@ -152,8 +152,8 @@ private slots:
 	void hpf1_5MHzBtnClicked();
 
 signals:
-	void	showEvent(QObject* sender);
-	void	closeEvent(QObject* sender);
+	void	showEvent();
+	void	closeEvent();
 	void	messageEvent(QString);
 };
 

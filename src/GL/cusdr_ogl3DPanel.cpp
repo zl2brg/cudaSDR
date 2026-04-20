@@ -1158,8 +1158,7 @@ void QGL3DPanel::setSpectrumBuffer(int rx, const qVectorFloat& buffer) {
     setSpectrumData(spectrumData);
 }
 
-void QGL3DPanel::setCtrFrequency(QObject* sender, int mode, int rx, long freq) {
-    Q_UNUSED(sender)
+void QGL3DPanel::setCtrFrequency(int mode, int rx, long freq) {
     Q_UNUSED(mode)
     
     if (rx != m_receiver) return;
@@ -1168,8 +1167,7 @@ void QGL3DPanel::setCtrFrequency(QObject* sender, int mode, int rx, long freq) {
     update(); // Trigger repaint to update frequency labels
 }
 
-void QGL3DPanel::setVFOFrequency(QObject* sender, int mode, int rx, long freq) {
-    Q_UNUSED(sender)
+void QGL3DPanel::setVFOFrequency(int mode, int rx, long freq) {
     Q_UNUSED(mode)
     
     if (rx != m_receiver) return;

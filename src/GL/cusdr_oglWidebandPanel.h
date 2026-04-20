@@ -68,7 +68,7 @@ public slots:
 	QSize sizeHint() const;
 
 	//void setSpectrumBuffer(const float *buffer);
-	//void setFrequency(QObject *sender, bool value, long freq);
+	//void setFrequency(bool value, long freq);
 
 protected:
     void initializeGL();
@@ -268,34 +268,32 @@ private:
 
 private slots:
 	void	systemStateChanged(
-					QObject* sender, 
 					QSDR::_Error err, 
 					QSDR::_HWInterfaceMode hwmode, 
 					QSDR::_ServerMode mode, 
 					QSDR::_DataEngineState state);
 
 	void	graphicModeChanged(
-					QObject* sender,
 					int rx,
 					PanGraphicsMode panMode,
 					WaterfallColorMode waterfallColorMode);
 	void	setupConnections();
-	void	setCurrentReceiver(QObject *sender, int value);
-	void	setFrequency(QObject *sender, int mode, int rx, long freq);
+	void	setCurrentReceiver(int value);
+	void	setFrequency(int mode, int rx, long freq);
 	void	setupDisplayRegions(QSize size);
 	void	setWidebandSpectrumBuffer(const qVectorFloat &buffer);
 	void	resetWidebandSpectrumBuffer();
 	//void	setSpectrumAveragingCnt(int value);
 	void	setPanadapterColors();
 	void	setPanGridStatus(bool value, int rx);
-	void	setMercuryAttenuator(QObject* sender, HamBand band, int value);
+	void	setMercuryAttenuator(HamBand band, int value);
 
 	void	getRegion(QPoint p);
-	void	sampleRateChanged(QObject* sender, int value);
+	void	sampleRateChanged(int value);
 
 signals:
-	void showEvent(QObject* sender);
-	void closeEvent(QObject* sender);
+	void showEvent();
+	void closeEvent();
 	void messageEvent(QString msg);
 	void coordChanged(int x, int y);
 };

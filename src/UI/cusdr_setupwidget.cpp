@@ -66,7 +66,7 @@ cusdr_SetupWidget::~cusdr_SetupWidget()
     delete m_displaytabWidget;
 
     disconnect(set, 0, this, 0);
-    disconnect(this, 0, 0, 0);
+    disconnect(0, 0, 0);
 }
 
 
@@ -85,14 +85,12 @@ void cusdr_SetupWidget::setupConnections() {
     CHECKED_CONNECT(
             set,
             SIGNAL(systemStateChanged(
-                    QObject *,
                     QSDR::_Error,
                     QSDR::_HWInterfaceMode,
                     QSDR::_ServerMode,
                     QSDR::_DataEngineState)),
             this,
             SLOT(systemStateChanged(
-                    QObject *,
                     QSDR::_Error,
                     QSDR::_HWInterfaceMode,
                     QSDR::_ServerMode,
@@ -118,18 +116,15 @@ void cusdr_SetupWidget::setupConnections() {
 }
 
 void cusdr_SetupWidget::systemStateChanged(
-        QObject *sender,					/*!<[in] the sender of the signal. */
+        /*!<[in] the of the signal. */
         QSDR::_Error err,					/*!<[in] error state. */
         QSDR::_HWInterfaceMode hwmode,		/*!<[in] HPSDR interface (Metis, Hermes, none). */
         QSDR::_ServerMode mode,				/*!<[in] server mode. */
         QSDR::_DataEngineState state		/*!<[in] data engine state. */
 ) {
-    Q_UNUSED (sender)
     Q_UNUSED (err)
 
-    //if (sender == this) return;
-
-    if (m_hwInterface != hwmode)
+    //    if (m_hwInterface != hwmode)
         m_hwInterface = hwmode;
 
     if (m_hwInterface == QSDR::Hermes)
@@ -163,13 +158,13 @@ void cusdr_SetupWidget::addNICChangedConnection() {
 
 void cusdr_SetupWidget::closeEvent(QCloseEvent *event) {
 
-    emit closeEvent(this);
+    emit closeEvent();
     QWidget::closeEvent(event);
 }
 
 void cusdr_SetupWidget::showEvent(QShowEvent *event) {
 
-    emit showEvent(this);
+    emit showEvent();
     QWidget::showEvent(event);
 }
 

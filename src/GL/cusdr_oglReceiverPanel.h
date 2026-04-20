@@ -63,8 +63,8 @@ public slots:
 	//void setSpectrumBuffer(const float* buffer, int size);
 	//void setSpectrumBuffer(const qVectorFloat& buffer);
 	void setSpectrumBuffer(int rx, const qVectorFloat& buffer);
-	void setCtrFrequency(QObject* sender, int mode, int rx, long freq);
-	void setVFOFrequency(QObject* sender, int mode, int rx, long freq);
+	void setCtrFrequency(int mode, int rx, long freq);
+	void setVFOFrequency(int mode, int rx, long freq);
 
 protected:
     void initializeGL();
@@ -369,26 +369,24 @@ private:
 
 private slots:
 	void	systemStateChanged(
-					QObject *sender, 
 					QSDR::_Error err, 
 					QSDR::_HWInterfaceMode hwmode, 
 					QSDR::_ServerMode mode, 
 					QSDR::_DataEngineState state);
 
 	void	graphicModeChanged(
-					QObject *sender,
 					int rx,
 					PanGraphicsMode panMode,
 					WaterfallColorMode waterfallColorMode);
 
-	void	setSpectrumSize(QObject *sender, int value);
-	void	setCurrentReceiver(QObject *sender, int value);
-	void 	setHamBand(QObject *sender, int rx, bool byButton, HamBand band);
-	void	setFilterFrequencies(QObject *sender, int rx, qreal lo, qreal hi);
-	void	setMercuryAttenuator(QObject* sender, HamBand band, int value);
+	void	setSpectrumSize(int value);
+	void	setCurrentReceiver(int value);
+	void 	setHamBand(int rx, bool byButton, HamBand band);
+	void	setFilterFrequencies(int rx, qreal lo, qreal hi);
+	void	setMercuryAttenuator(HamBand band, int value);
 	void	setupDisplayRegions(QSize size);
 	
-	void	setSpectrumAveraging(QObject* sender, int rx, bool value);
+	void	setSpectrumAveraging(int rx, bool value);
 	void	setSpectrumAveragingCnt(int value);
 	void	setVfoToMidFrequency();
 	void	setMidToVfoFrequency();
@@ -399,28 +397,28 @@ private slots:
 	void	setHairCrossStatus(bool value, int rx);
 	void	setPanadapterColors();
 	void	getRegion(QPoint p);
-	void	freqRulerPositionChanged(QObject *sender, int rx, float pos);
-	void	sampleRateChanged(QObject *sender, int value);
+	void	freqRulerPositionChanged(int rx, float pos);
+	void	sampleRateChanged(int value);
 	void	setWaterfallOffesetLo(int rx, int value);
 	void	setWaterfallOffesetHi(int rx, int value);
 	void	setdBmScaleMin(int rx, qreal value);
 	void	setdBmScaleMax(int rx, qreal value);
-	void	setMouseWheelFreqStep(QObject *, int, qreal);
+	void	setMouseWheelFreqStep(int, qreal);
 
 	void 	setADCStatus(int value);
 	void 	updateADCStatus();
-	void	setFramesPerSecond(QObject* sender, int rx, int value);
-	void	setDSPMode(QObject* sender, int rx, DSPMode mode);
-	void	setADCMode(QObject* sender, int rx, ADCMode mode);
-	void	setAGCMode(QObject* sender, int rx, AGCMode mode, bool hangEnabled);
-	void 	setAGCLineLevels(QObject* sender, int rx, qreal thresh, qreal hang);
-	void	setAGCLineFixedLevel(QObject* sender, int rx, qreal value);
-	void	setAGCLinesStatus(QObject* sender, bool value, int rx);
+	void	setFramesPerSecond(int rx, int value);
+	void	setDSPMode(int rx, DSPMode mode);
+	void	setADCMode(int rx, ADCMode mode);
+	void	setAGCMode(int rx, AGCMode mode, bool hangEnabled);
+	void 	setAGCLineLevels(int rx, qreal thresh, qreal hang);
+	void	setAGCLineFixedLevel(int rx, qreal value);
+	void	setAGCLinesStatus(bool value, int rx);
 
 
 signals:
-	void	showEvent(QObject *sender);
-	void	closeEvent(QObject *sender);
+	void	showEvent();
+	void	closeEvent();
 	void	messageEvent(QString msg);
 	void	coordChanged(int x,int y);
 };

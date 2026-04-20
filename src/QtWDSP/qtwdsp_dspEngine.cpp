@@ -223,11 +223,11 @@ void QWDSPEngine::setupConnections() {
 
     // Signals routed directly here instead of relaying through Receiver
     connect(set, &Settings::mainVolumeChanged,
-            this, [this](QObject*, int rx, float value) {
+            this, [this](int rx, float value) {
         if (rx == m_rx) setVolume(value);
     });
     connect(set, &Settings::dspModeChanged,
-            this, [this](QObject*, int rx, DSPMode mode) {
+            this, [this](int rx, DSPMode mode) {
         if (rx != m_rx) return;
         setDSPMode(mode);
         auto filter = getFilterFromDSPMode(set->getDefaultFilterList(),
@@ -235,7 +235,7 @@ void QWDSPEngine::setupConnections() {
         setFilter(filter.filterLo, filter.filterHi);
     });
     connect(set, &Settings::ctrFrequencyChanged,
-            this, [this](QObject*, int /*mode*/, int rx, long frequency) {
+            this, [this](int /*mode*/, int rx, long frequency) {
         if (rx != m_rx) return;
         if (set->getDSPMode(m_rx) != FDV) return;
         // Reselect USB/LSB when frequency crosses the 10 MHz boundary in FDV/FreeDV mode.
@@ -248,47 +248,47 @@ void QWDSPEngine::setupConnections() {
         setFilter(filter.filterLo, filter.filterHi);
     });
     connect(set, &Settings::agcModeChanged,
-            this, [this](QObject*, int rx, AGCMode mode, bool) {
+            this, [this](int rx, AGCMode mode, bool) {
         if (rx == m_rx) setAGCMode(mode);
     });
     connect(set, &Settings::agcGainChanged,
-            this, [this](QObject*, int rx, int value) {
+            this, [this](int rx, int value) {
         if (rx == m_rx) setAGCThreshold(value - AGCOFFSET);
     });
     connect(set, &Settings::agcMaximumGainChanged,
-            this, [this](QObject*, int rx, qreal value) {
+            this, [this](int rx, qreal value) {
         if (rx == m_rx) setAGCMaximumGain(value);
     });
     connect(set, &Settings::agcThresholdChanged_dB,
-            this, [this](QObject*, int rx, qreal value) {
+            this, [this](int rx, qreal value) {
         if (rx == m_rx) setAGCThreshold((double)value);
     });
     connect(set, &Settings::agcHangThresholdChanged,
-            this, [this](QObject*, int rx, int value) {
+            this, [this](int rx, int value) {
         if (rx == m_rx) setAGCHangThreshold(rx, value / 100.0);
     });
     connect(set, &Settings::agcHangLevelChanged_dB,
-            this, [this](QObject*, int rx, qreal value) {
+            this, [this](int rx, qreal value) {
         if (rx == m_rx) setAGCHangLevel(value - AGCOFFSET);
     });
     connect(set, &Settings::agcVariableGainChanged_dB,
-            this, [this](QObject*, int rx, qreal value) {
+            this, [this](int rx, qreal value) {
         if (rx == m_rx) setAGCSlope(rx, (int)value);
     });
     connect(set, &Settings::agcAttackTimeChanged,
-            this, [this](QObject*, int rx, qreal value) {
+            this, [this](int rx, qreal value) {
         if (rx == m_rx) setAGCAttackTime(rx, (int)value);
     });
     connect(set, &Settings::agcDecayTimeChanged,
-            this, [this](QObject*, int rx, qreal value) {
+            this, [this](int rx, qreal value) {
         if (rx == m_rx) setAGCDecayTime(rx, (int)value);
     });
     connect(set, &Settings::agcHangTimeChanged,
-            this, [this](QObject*, int rx, qreal value) {
+            this, [this](int rx, qreal value) {
         if (rx == m_rx) setAGCHangTime((int)value);
     });
     connect(set, &Settings::filterFrequenciesChanged,
-            this, [this](QObject*, int rx, qreal low, qreal high) {
+            this, [this](int rx, qreal low, qreal high) {
         if (rx == m_rx) setFilter(low, high);
     });
 }
@@ -433,7 +433,7 @@ void QWDSPEngine::setAGCLineValues(int rx) {
 	{
 		m_agcHangLevel = hang;
 		m_agcThreshold = thresh;
-		emit set->agcLineLevelsChanged(this,m_rx,thresh,hang);
+		emit set->agcLineLevelsChanged(m_rx,thresh,hang);
 		WDSP_ENGINE_DEBUG << "Set AGC line value" << hang;
 
 	}
@@ -468,9 +468,7 @@ void QWDSPEngine::setAGCHangTime(int value) {
 }
 
 
-void QWDSPEngine::setSampleRate(QObject *sender, int value) {
-    Q_UNUSED(sender)
-
+void QWDSPEngine::setSampleRate(int value) {
     if (m_samplerate == value) return;
     const int previousRate = m_samplerate;
 
@@ -621,9 +619,8 @@ void QWDSPEngine::init_analyzer(int refreshrate) {
 
 
 
-void QWDSPEngine::setFramesPerSecond(QObject* sender, int rx, int value){
+void QWDSPEngine::setFramesPerSecond(int rx, int value){
 
-	Q_UNUSED(sender)
 	if (rx != m_rx) return;
     
     std::lock_guard<QMutex> lock(m_mutex);  // RAII mutex guard
@@ -653,8 +650,7 @@ void QWDSPEngine::setPanAdaptorDetectorMode(int rx, int mode) {
 
 }
 
-void QWDSPEngine::setPanAdaptorAveragingCnt(QObject* sender, int rx, int count){
-    Q_UNUSED(sender);
+void QWDSPEngine::setPanAdaptorAveragingCnt(int rx, int count){
     if (rx != m_rx) return;
     m_averageCount = count;
     calcDisplayAveraging();

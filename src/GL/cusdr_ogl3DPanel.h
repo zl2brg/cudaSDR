@@ -60,8 +60,8 @@ public:
 public slots:
     // SDR integration slots
     void setSpectrumBuffer(int rx, const qVectorFloat& buffer);
-    void setCtrFrequency(QObject* sender, int mode, int rx, long freq);
-    void setVFOFrequency(QObject* sender, int mode, int rx, long freq);
+    void setCtrFrequency(int mode, int rx, long freq);
+    void setVFOFrequency(int mode, int rx, long freq);
     
     // 3D Display control slots
     void setHeightScale(float scale);

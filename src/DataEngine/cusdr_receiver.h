@@ -114,7 +114,7 @@ public:
 public slots:
     void    enqueueRawData();
 	void	setReceiverData(TReceiver data);
-	void	setAudioMode(QObject* sender, int mode);
+	void	setAudioMode(int mode);
 	void	setServerMode(QSDR::_ServerMode mode);
 	void	setPeerAddress(QHostAddress addr);
 	void	setSocketDescriptor(int value);
@@ -124,15 +124,15 @@ public slots:
 	void	setBSPort(int value);
 	void	setConnectedStatus(bool value);
 	//void	setID(int value);
-    void	setSampleRate(QObject* sender,int value);
-	void	setHamBand(QObject* sender, int rx, bool byBtn, HamBand band);
-	void	setDspMode(QObject* sender, int rx, DSPMode mode);
-	void	setADCMode(QObject* sender, int rx, ADCMode mode);
-	void	setAudioVolume(QObject* sender, int rx, float value);
-	void	setFreeDVMode(QObject* sender, int rx, int mode);
+    void	setSampleRate(int value);
+	void	setHamBand(int rx, bool byBtn, HamBand band);
+	void	setDspMode(int rx, DSPMode mode);
+	void	setADCMode(int rx, ADCMode mode);
+	void	setAudioVolume(int rx, float value);
+	void	setFreeDVMode(int rx, int mode);
 	void	setCtrFrequency(long frequency);
 	void	setVfoFrequency(long frequency);
-	void	setFilterFrequencies(QObject* sender, int rx, qreal low, qreal high);
+	void	setFilterFrequencies(int rx, qreal low, qreal high);
 	void	setLastCtrFrequencyList(const QList<long> &frequencies);
 	void	setLastVfoFrequencyList(const QList<long> &frequencies);
 	void	setdBmPanScaleMin(qreal value);
@@ -144,21 +144,20 @@ public slots:
 
 private slots:
 	void	setSystemState(
-					QObject* sender, 
 					QSDR::_Error err, 
 					QSDR::_HWInterfaceMode hwmode, 
 					QSDR::_ServerMode mode, 
 					QSDR::_DataEngineState state);
 
 
-	void 	setFramesPerSecond(QObject *sender, int rx, int value);
+	void 	setFramesPerSecond(int rx, int value);
 
 	bool	initQtWDSPInterface();
 
 
     
-	//void	setAGCMaximumGain_dBm(QObject* sender, int rx, int value);
-	void	setAGCFixedGain_dB(QObject* sender, int rx, qreal value);
+	//void	setAGCMaximumGain_dBm(int rx, int value);
+	void	setAGCFixedGain_dB(int rx, qreal value);
 
 private:
 
