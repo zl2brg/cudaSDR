@@ -73,8 +73,8 @@ Settings *Settings::m_instance = nullptr;        /*!< set m_instance to NULL. */
 Settings::Settings(QObject *parent)
         : QObject(parent), m_dataEngineState(QSDR::DataEngineDown), setLoaded(false), m_mainPower(false),
           m_manualSocketBufferSize(false), m_peakHold(false), m_packetsToggle(true), m_radioPopupVisible(false),
-          m_hpsdrNetworkDevices(0), m_mercuryReceivers(1), m_currentReceiver(0),
-          m_maxFrequency(MAXFREQUENCY), m_minFrequency(0) {
+          m_maxFrequency(MAXFREQUENCY), m_minFrequency(0), m_hpsdrNetworkDevices(0),
+          m_mercuryReceivers(1), m_currentReceiver(0) {
     m_devices.mercuryFWVersion = 0;
 
     qRegisterMetaType<QSDR::_Error>();
@@ -99,9 +99,12 @@ Settings::Settings(QObject *parent)
     getConfigPath();
     m_titleString = "cudaSDR BETA";
     QFile File(":/cusdr_stylesheet.qss");
-    File.open(QFile::ReadOnly);
-    appStyleSheet = QLatin1String(File.readAll());
-    File.close();
+    if (File.open(QFile::ReadOnly)) {
+        appStyleSheet = QLatin1String(File.readAll());
+        File.close();
+    } else {
+        SETTINGS_DEBUG << "Failed to load stylesheet resource:" << File.errorString();
+    }
 
 #ifdef DEBUG
     m_titleString = "cudaSDR Debug BETA ";

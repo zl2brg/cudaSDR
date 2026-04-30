@@ -526,6 +526,7 @@ QByteArray CProtocol2::formatStartStop(char value, quint16& port) {
 }
 
 QByteArray CProtocol2::formatInitFrame(int rx, THPSDRParameter* io, quint16& port) {
+    Q_UNUSED(io)
     // Protocol 2 General Configuration Packet (PC → SDR, port 1024, 60 bytes).
     // Must be sent before setting the Run bit so the device knows which ports
     // to use for each data stream.  sendInitFramesToNetworkDevice() calls us

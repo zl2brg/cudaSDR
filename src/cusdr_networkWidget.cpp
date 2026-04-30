@@ -318,6 +318,7 @@ void NetworkWidget::createDeviceSearchGroup() {
 // ************************************************************************
 
 void NetworkWidget::addDeviceNICEntry(QString niName, QString ipAddress) {
+	Q_UNUSED(niName)
 
 	//QString item = niName;
 	QString item = ipAddress;
@@ -379,6 +380,11 @@ void NetworkWidget::hwInterfaceChanged() {
 			
 			noHWBtn->setBtnState(AeroButton::OFF);
 			networkPresenceBtn->setBtnState(AeroButton::ON);
+			break;
+
+		case QSDR::SoapySDR:
+			noHWBtn->setBtnState(AeroButton::OFF);
+			networkPresenceBtn->setBtnState(AeroButton::OFF);
 			break;
 	}
 
@@ -508,7 +514,7 @@ void NetworkWidget::setCurrentNetworkDevice(TNetworkDevicecard card) {
 
 void NetworkWidget::setSocketBufSize(int size) {
 
-	//	m_socketBufferSize = size;
+	m_socketBufferSize = size;
 
 	switch (m_socketBufferSize) {
 

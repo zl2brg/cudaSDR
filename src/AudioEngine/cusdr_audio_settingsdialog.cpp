@@ -110,26 +110,23 @@ SettingsDialog::SettingsDialog(QWidget *parent)
 
     // Add widgets to layout
 
-	QScopedPointer<QHBoxLayout> titleLayout(new QHBoxLayout);
+	QHBoxLayout* titleLayout = new QHBoxLayout;
 	QLabel *titleLabel = new QLabel(tr("Audio Settings:"), this);
 	titleLabel->setFont(m_titleFont);
     titleLayout->addWidget(titleLabel);
-    dialogLayout->addLayout(titleLayout.data());
-    titleLayout.take(); // ownership transferred to dialogLayout
+    dialogLayout->addLayout(titleLayout);
 
-    QScopedPointer<QHBoxLayout> inputDeviceLayout(new QHBoxLayout);
+    QHBoxLayout* inputDeviceLayout = new QHBoxLayout;
     QLabel *inputDeviceLabel = new QLabel(tr("Input device"), this);
     inputDeviceLayout->addWidget(inputDeviceLabel);
     inputDeviceLayout->addWidget(&m_inputDeviceComboBox);
-    dialogLayout->addLayout(inputDeviceLayout.data());
-    inputDeviceLayout.take(); // ownership transferred to dialogLayout
+    dialogLayout->addLayout(inputDeviceLayout);
 
-    QScopedPointer<QHBoxLayout> outputDeviceLayout(new QHBoxLayout);
+    QHBoxLayout* outputDeviceLayout = new QHBoxLayout;
     QLabel *outputDeviceLabel = new QLabel(tr("Output device"), this);
     outputDeviceLayout->addWidget(outputDeviceLabel);
     outputDeviceLayout->addWidget(&m_outputDeviceComboBox);
-    dialogLayout->addLayout(outputDeviceLayout.data());
-    outputDeviceLayout.take(); // ownership transferred to dialogLayout
+    dialogLayout->addLayout(outputDeviceLayout);
 
     //QScopedPointer<QHBoxLayout> windowFunctionLayout(new QHBoxLayout);
     //QLabel *windowFunctionLabel = new QLabel(tr("Window function"), this);

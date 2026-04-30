@@ -33,7 +33,6 @@ tx_settings_dialog::tx_settings_dialog(QWidget *parent) :
     ui->setupUi(this);
     this->setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
 
-    int temp = m_amCarrierLevel * 100;
     ui->amCarrierLevel->setSliderPosition(0.5);
     ui->audioCompression->setSliderPosition(m_audioCompressionLevel);
     ui->fm_deviation->setValue(int(set->getFMDeveation() / 1000.0));

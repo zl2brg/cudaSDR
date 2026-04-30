@@ -1795,12 +1795,12 @@ void QGLReceiverPanel::drawReceiverInfo() {
 		GLint x = m_panRect.left() + qRound((qreal)(m_panRect.width()/2.0f)  - m_deltaF * m_panRect.width() / m_freqScaleZoomFactor) + 10;
 		if (x > m_panRect.right() - fLength) x -= fLength + 20;
 
-		int alpha;
 		QColor colFlt;
 		QColor colADC;
 		QColor colAGC;
 		QColor colDSP;
 		QRect rect;
+        int alpha = 255;
 
 		if (m_dataEngineState == QSDR::DataEngineUp) {
 
@@ -1835,6 +1835,7 @@ void QGLReceiverPanel::drawReceiverInfo() {
 		}
 
 
+        Q_UNUSED(alpha)
 		str = "%1";
 		str = str.arg(m_filterWidthString);
 
@@ -3739,6 +3740,7 @@ void QGLReceiverPanel::setPanGridStatus(bool value, int rx) {
 }
 
 void QGLReceiverPanel::setPeakHoldStatus(bool value, int rx) {
+	Q_UNUSED(value)
 
 	if (m_receiver != rx) return;
 }

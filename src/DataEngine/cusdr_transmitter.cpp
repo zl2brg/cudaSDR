@@ -253,7 +253,7 @@ bool  Transmitter::create_transmitter(int id, int buffer_size, int fft_size, int
     SetTXAAMCarrierLevel(this->id, 0.5);
     SetTXACompressorGain(this->id, 0);
     SetTXACompressorRun(this->id, 0);
-    XCreateAnalyzer(this->id, &rc, 262144, 1, 1, "");
+    XCreateAnalyzer(this->id, &rc, 262144, 1, 1, const_cast<char*>(""));
     if (rc != 0) {
         fprintf(stderr, "XCreateAnalyzer id=%d failed: %d\n",this->id,rc);
     } else {
@@ -361,6 +361,7 @@ void Transmitter::transmitter_set_mic_level(int level){
 
 
      void Transmitter::init_analyser(int tx) {
+         Q_UNUSED(tx)
          int flp[] = {0};
          double keep_time = 0.1;
          int n_pixout=1;
@@ -373,10 +374,7 @@ void Transmitter::transmitter_set_mic_level(int level){
          int clip = 0;
          int span_clip_l = 0;
          int span_clip_h = 0;
-         int pixels=this->pixels;
          int stitches = 1;
-         int avm = 0;
-         double tau = 0.001 * 120.0;
          int calibration_data_set = 0;
          double span_min_freq = 0.0;
          double span_max_freq = 0.0;

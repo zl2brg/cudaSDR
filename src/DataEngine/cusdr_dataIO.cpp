@@ -60,8 +60,8 @@
 DataIO::DataIO(THPSDRParameter *ioData)
 	: QObject()
 	, set(Settings::instance())
-	, io(ioData)
     , m_dataIOSocket(nullptr)
+	, io(ioData)
 	, m_dataIOSocketOn(false)
 	, m_networkDeviceRunning(false)
 	, m_setNetworkDeviceHeader(true)
@@ -504,6 +504,7 @@ void DataIO::sendAudio(u_char *buf) {
 	// enum value routes here, so RX audio playback is silently skipped.
 	// Fix: either map P2 hardware to an existing enum, or add a QSDR::ProtocolV2
 	// enum case and handle it here or in full_txBuffer().
+#ifndef USE_INTERNAL_AUDIO
 	static TYPECPX cbuf[252];
 	int i, j;
 	short sample;
@@ -515,9 +516,10 @@ void DataIO::sendAudio(u_char *buf) {
 		sample = buf[i+2] << 8 | buf[i+3]; //right
 		cbuf[j].im = (double)sample;
 	}
-#ifndef USE_INTERNAL_AUDIO
     if((m_stopped != true) && m_pSoundCardOut)
         m_pSoundCardOut->PutOutQueue(63, cbuf);
+#else
+    Q_UNUSED(buf)
 #endif
 }
 

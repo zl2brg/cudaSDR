@@ -577,7 +577,8 @@ void QWDSPEngine::setSampleSize(int rx, int size) {
 }
 
 void QWDSPEngine::ProcessFrequencyShift(CPX &in, CPX &out) {
-
+    Q_UNUSED(in)
+    Q_UNUSED(out)
 
 }
 

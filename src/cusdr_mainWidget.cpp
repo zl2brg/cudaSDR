@@ -2460,19 +2460,17 @@ NetworkIODialog::NetworkIODialog(QWidget *parent)
 	m_deviceComboBox = new QComboBox(this);
 	m_deviceComboBox->setMinimumContentsLength(30);
 	
-	QScopedPointer<QHBoxLayout> titleLayout(new QHBoxLayout);
+	QHBoxLayout* titleLayout = new QHBoxLayout;
 	QLabel *titleLabel = new QLabel(tr("found more than one device:"), this);
 	titleLabel->setFont(m_titleFont);
 	titleLayout->addWidget(titleLabel);
-	dialogLayout->addLayout(titleLayout.data());
-	titleLayout.take(); // ownership transferred to dialogLayout
+	dialogLayout->addLayout(titleLayout);
 
-	QScopedPointer<QHBoxLayout> metisDeviceLayout(new QHBoxLayout);
+	QHBoxLayout* metisDeviceLayout = new QHBoxLayout;
 	QLabel *ipAddressLabel = new QLabel(tr("Device (IP Addr):"), this);
 	metisDeviceLayout->addWidget(ipAddressLabel);
 	metisDeviceLayout->addWidget(m_deviceComboBox);
-	dialogLayout->addLayout(metisDeviceLayout.data());
-	metisDeviceLayout.take(); // ownership transferred to dialogLayout
+	dialogLayout->addLayout(metisDeviceLayout);
 
 	/*CHECKED_CONNECT(
 		m_metisDeviceComboBox, 

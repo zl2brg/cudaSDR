@@ -1,17 +1,71 @@
-Forked from N1GP's cudaSDR github repo.
-Thanks to Hermann von Hasseln DL1HVH for the writing CuSDR,Moe Wheatley AE4JY and John Melton G0ORH/N6YT
-Changes:-
-Moved to CMake
-Now uses wdsp
-Updating to Qt6.x
-Added WDSP related functionality.
-Added P2 support - still debugging
-HamLib and Codec2 (freedv) implemented.
-Very much work in progress. 
+## cudaSDR
 
-Todo :-
-Soapy
-CW
+`cudaSDR` is a Qt-based SDR client forked from N1GP's cudaSDR work, with ongoing modernization and protocol work.
+
+### Current status
+
+- Migrated to CMake
+- Moving to Qt6
+- WDSP integrated
+- Protocol 2 support under active development
+- Hamlib and Codec2/FreeDV integration present
+
+This project is still work in progress.
+
+### Credits
+
+- Hermann von Hasseln (DL1HVH/DL3HVH)
+- Moe Wheatley (AE4JY)
+- John Melton (G0ORH/N6YT)
+- N1GP cudaSDR upstream contributors
+
+### Prerequisites
+
+- Linux
+- CMake 3.16+
+- C++17 compiler (GCC/Clang)
+- Qt 6.11.x (`Widgets`, `Core`, `Gui`, `Multimedia`, `Network`, `OpenGL`, `OpenGLWidgets`)
+- FFTW3 (`fftw3`, `fftw3f`)
+- ALSA (`asound`)
+- OpenGL
+- Optional: Codec2 (enables FreeDV integration)
+
+### Build
+
+Use the provided build helper:
+
+```bash
+./build.sh
+```
+
+Or run CMake directly:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel
+```
+
+### Run
+
+After building:
+
+```bash
+./run_cudasdr.sh
+```
+
+Useful runtime overrides:
+
+- `BUILD_DIR=build-qtfix-test ./run_cudasdr.sh`
+- `Qt6_DIR=$HOME/Qt/6.11.0/gcc_64/lib/cmake/Qt6 ./run_cudasdr.sh`
+
+### Docs
+
+Protocol and WDSP references are in `Docs/`.
+
+### Known gaps / TODO
+
+- SoapySDR integration
+- CW polish and validation
 
 
 

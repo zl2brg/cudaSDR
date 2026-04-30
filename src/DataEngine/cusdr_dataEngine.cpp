@@ -73,16 +73,18 @@ extern "C" {
 DataEngine::DataEngine(QObject *parent)
 	: QObject(parent)
 	, set(Settings::instance())
+    , m_protocol(nullptr)
     , m_internal_cw(set->isInternalCw())
 	, m_cw_key_reversed(set->isCwKeyReversed())
+    , m_cw_keyer_spacing(set->getCwKeyerSpacing())
 	, m_cw_keyer_speed(set->getCwKeyerSpeed())
 	, m_cw_keyer_mode(set->getCwKeyerMode())
+    , m_cw_keyer_weight(set->getCwKeyerWeight())
 	, m_cw_sidetone_volume(set->getCwSidetoneVolume())
 	, m_cw_ptt_delay(set->getCwPttDelay())
 	, m_cw_hang_time(set->getCwHangTime())
-    , m_cw_keyer_spacing(set->getCwKeyerSpacing())
-    , m_cw_keyer_weight(set->getCwKeyerWeight())
 	, m_cw_sidetone_freq(set->getCwSidetoneFreq())
+    , m_radioState(RadioState::RX)
 	, m_serverMode(set->getCurrentServerMode())
 	, m_hwInterface(set->getHWInterface())
 	, m_dataEngineState(QSDR::DataEngineDown)
@@ -110,8 +112,6 @@ DataEngine::DataEngine(QObject *parent)
     , m_spectrumSize(set->getSpectrumSize())
     , m_sendState(0)
     , m_sMeterCalibrationOffset(0.0f)
-    , m_radioState(RadioState::RX)
-    , m_protocol(nullptr)
 
 
 
@@ -2491,13 +2491,13 @@ DataProcessor::DataProcessor(
 	, m_hwInterface(hwMode)
 	, m_socketConnected(false)
 	, m_setNetworkDeviceHeader(true)
-	, m_sendSequence(0)
-	, m_oldSendSequence(0)
 	, m_bytes(0)
-	, m_offset(0)
-	, m_length(0)
     , m_idx(IO_HEADER_SIZE)
     , m_sendState(1) // start at DDC Specific; state 0 (GP) is sent explicitly at startup
+	, m_offset(0)
+	, m_length(0)
+	, m_sendSequence(0)
+	, m_oldSendSequence(0)
 	, m_stopped(false)
 {
 	m_IQSequence = 0L;
@@ -3008,13 +3008,15 @@ void DataProcessor::send_hpsdr_data(int rx, const CPX &buffer, int buffersize) {
 
 void DataProcessor::add_audio_sample(qint16 leftRXSample, qint16 rightRXSample)
 {
+    Q_UNUSED(leftRXSample)
+    Q_UNUSED(rightRXSample)
     buffer_tx_data();
     if (m_idx == IO_BUFFER_SIZE)
     {
         full_txBuffer();
         m_idx =8;
     }
-    if (tx_index >= sizeof(m_tx_iq_Buffer)) tx_index = 0;
+    if (tx_index >= static_cast<int>(sizeof(m_tx_iq_Buffer))) tx_index = 0;
 }
 
 
@@ -3083,15 +3085,10 @@ void DataProcessor::add_mic_sample()
 
 /* cw code from pihpsdr */
 double DataProcessor::get_cwsample() {
-    float cwsample;
-    double mic_sample_double;
-    double ramp;
     static int cw_not_ready =1;
     static int cw_shape;
     int cw_key_up = 0;
     int cw_key_down = 0;
-    int updown;
-    float cw_keyer_sidetone_volume=0.5;
 
 
 //
@@ -3112,13 +3109,11 @@ double DataProcessor::get_cwsample() {
         if (de->cw_key_down > 0 ) {
             if (cw_shape < RAMPLEN) cw_shape++;	// walk up the ramp
             cw_key_down--;			// decrement key-up counter
-            updown=1;
         } else {
             // dig into this even if cw_key_up is already zero, to ensure
             // that we reach the bottom of the ramp for very small pauses
             if (cw_shape > 0) cw_shape--;	// walk down the ramp
             if (cw_key_up > 0) cw_key_up--; // decrement key-down counter
-            updown=0;
         }
 
         return cwramp48[cw_shape] * 100;
@@ -3132,9 +3127,6 @@ void DataProcessor::send_mic_data() {
     double is,qs;
     double gain = 32767.0f;
     // double gain = 25 * 0.00392;
-    double temp;
-    float *sample;
-    int i,q;
     static AUDIOBUF a;
     get_cwsample();
 
@@ -3255,11 +3247,10 @@ void DataProcessor::DumpBuffer(unsigned char *buffer,int length, const char *who
 void DataProcessor::setAudioBuffer(int rx, const CPX &buffer, int buffersize)
 {
     //DATA_PROCESSOR_DEBUG << "processOutputBuffer: " << this->thread();
+    Q_UNUSED(rx)
 
     qint16 leftRXSample;
     qint16 rightRXSample;
-    qint16 leftTXSample;
-    qint16 rightTXSample;
 
 	// process the output
 	const DSPMode rxMode = set->getDSPMode(de->io.currentReceiver);
@@ -3329,6 +3320,7 @@ void DataProcessor::setAudioBuffer(int rx, const CPX &buffer, int buffersize)
 					break;
 
 				case QSDR::NoInterfaceMode:
+				case QSDR::SoapySDR:
 					break;
             }
         m_idx = IO_HEADER_SIZE;
@@ -3342,13 +3334,13 @@ void DataProcessor::setAudioBuffer(int rx, const CPX &buffer, int buffersize)
 /* Sends rx audio data from wdsp to  hermes audio and to PC */
 void DataProcessor::setAudioBuffer_old(int rx, const CPX &buffer, int buffersize)
 {
+    Q_UNUSED(rx)
 
 
 //    qDebug() << "Buffer Size" << buffersize;
     QTextStream stream( this->file );
     qint16 leftRXSample;
     qint16 rightRXSample;
-    char *ptr;
 	// process the output
 	const DSPMode rxMode = set->getDSPMode(de->io.currentReceiver);
 	const bool muteAnalogRxForCodec2 = (rxMode == FDV);
@@ -3412,6 +3404,7 @@ void DataProcessor::setAudioBuffer_old(int rx, const CPX &buffer, int buffersize
                     break;
 
                 case QSDR::NoInterfaceMode:
+                case QSDR::SoapySDR:
                     break;
             }
             m_idx = IO_HEADER_SIZE;
@@ -3480,6 +3473,7 @@ void DataProcessor::processOutputBuffer(const CPX &buffer) {
 					break;
 
 				case QSDR::NoInterfaceMode:
+				case QSDR::SoapySDR:
 					break;
 			}
 			m_idx = IO_HEADER_SIZE;
@@ -3779,6 +3773,7 @@ if (state) {
 }
 
 void DataProcessor::key_down_test(int dummy,int state) {
+    Q_UNUSED(dummy)
     qDebug() << QTime::currentTime().msec()  << "Key Down test" << state;
     if (state) {
         de->cw_key_down = 960000;    // up to 20 sec

@@ -24,8 +24,8 @@ CSplashScreen::CSplashScreen(const QPixmap& thePixmap)
     : QWidget(nullptr, Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint)
     , itsPixmap(thePixmap)
     , itsMessage()
-    , itsColor(Qt::black)
     , itsAlignment(Qt::AlignLeft)
+    , itsColor(Qt::black)
 {
     setAttribute(Qt::WA_TranslucentBackground);
     setAttribute(Qt::WA_TransparentForMouseEvents);

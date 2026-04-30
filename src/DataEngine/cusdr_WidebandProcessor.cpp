@@ -43,8 +43,6 @@ void  WideBandDataProcessor::initWidebandAnalyzer() {
 		int span_clip_h = 0;
 		int pixels = NUM_PIXELS * 2;
 		int stitches = 1;
-		int avm = 0;
-		double tau = 0.001 * 120.0;
 		int calibration_data_set = 0;
 		double span_min_freq = 0.0;
 		double span_max_freq = 0.0;

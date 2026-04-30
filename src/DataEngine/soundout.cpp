@@ -556,7 +556,6 @@ void CSoundOut::CalcError()
 // In audio thread (run)
 void CSoundOut::run()
 {
-    int iter_count = 0;
     while (!threadQuit) {
         if (m_pAudioSink->state() == QAudio::IdleState ||
             m_pAudioSink->state() == QAudio::ActiveState) {

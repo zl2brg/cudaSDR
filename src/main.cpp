@@ -71,11 +71,9 @@ DWORD WINAPI WatchItThreadProc(LPVOID lpParam) {
 }
 #endif
 
-#define DEBUG
-// NOTE: The message handler signature is updated for Qt 6.
-void cuSDRMessageHandler(QtMsgType type, const QLoggingCategory &category, const QString &msg) {
+void cuSDRMessageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg) {
     Q_UNUSED(type)
-    Q_UNUSED(category) // The context is replaced by category in Qt 6
+    Q_UNUSED(context)
 
     QString txt;
     QDateTime date;
@@ -85,9 +83,10 @@ void cuSDRMessageHandler(QtMsgType type, const QLoggingCategory &category, const
     txt.prepend(date.currentDateTime().toString());
 
     QFile outFile("cudaSDR.log");
-    outFile.open(QIODevice::WriteOnly | QIODevice::Append);
-    QTextStream ts(&outFile);
-    ts << txt << Qt::endl << Qt::flush;
+    if (outFile.open(QIODevice::WriteOnly | QIODevice::Append)) {
+        QTextStream ts(&outFile);
+        ts << txt << Qt::endl << Qt::flush;
+    }
 }
 
 void load_WDSPWisdom() {

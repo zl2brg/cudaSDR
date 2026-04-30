@@ -20,11 +20,6 @@
 int cw_keyer_spacing=10;
 
 void iambic::keyer_event(int left, int state) {
-    bool cw_key_hit;
-
-    if (state) {
-        cw_key_hit = true;
-    }
     if (left) {
         // left paddle hit or released
         kcwl = state;
@@ -90,11 +85,8 @@ void iambic::run()
 {
         struct timespec loop_delay;
         int interval = 1000000; // 1 ms
-        int i;
         int kdelay;
-        int old_volume;
         bool cw_breakin = false;
-        bool cw_not_ready = false;
         bool enforce_cw_vox = false;
         cwvox=0;
         while(!m_ThreadQuit) {
@@ -103,15 +95,16 @@ void iambic::run()
                 cw_event = false;
                 if (!kcwl && !kcwr) continue;
                 // check mode: to not induce RX/TX transition if not in CW mode
-                if (!radioState != MOX && cw_breakin && (txmode == CWU || txmode == CWL)) {
+                if (radioState != MOX && cw_breakin && (txmode == CWU || txmode == CWL)) {
                     // Wait for mox, that is, wait for WDSP shutting down the RX and
                     // firing up the TX. This induces a small delay when hitting the key for
                     // the first time, but excludes that the first dot is swallowed.
                     // Note: if out-of-band, mox will never come, therefore
                     // give up after 200 msec.
-                    i = 200;
+                    int wait_ms = 200;
               //      while ((radioState != MOX || cw_not_ready) && i-- > 0) usleep(1000L);
                 //    cwvox = (int) cw_keyer_hang_time;
+                    Q_UNUSED(wait_ms)
                 }
                 // Trigger VOX if CAT CW was active and we have interrupted it by hitting a key
                 if (enforce_cw_vox) cwvox = (int) cw_keyer_hang_time;

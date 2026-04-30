@@ -932,7 +932,6 @@ void OGLDisplayPanel::paintRxRegion() {
         GLint width = m_smeterRect.width();
         GLint height = m_smeterRect.height();
         GLint x1 = m_smeterRect.left();
-        GLint x2 = x1 + width;
         GLint y1 = m_smeterRect.top();
         GLint y2 = y1 + height;
 

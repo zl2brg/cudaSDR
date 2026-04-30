@@ -282,7 +282,6 @@ void QGLWidebandPanel::initializeGL() {
 }
 
 void QGLWidebandPanel::paintGL() {
-    QOpenGLFunctions *f = QOpenGLContext::currentContext()->functions();
 //    f->glClear(GL_COLOR_BUFFER_BIT);
 
 
@@ -1250,6 +1249,7 @@ void QGLWidebandPanel::leaveEvent(QEnterEvent *event) {
 }
 
 void QGLWidebandPanel::wheelEvent(QWheelEvent* event) {
+	Q_UNUSED(event)
 	
 	//GRAPHICS_DEBUG << "wheelEvent";
 
