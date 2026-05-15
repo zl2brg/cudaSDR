@@ -37,12 +37,14 @@
 //#include <QImage>
 //#include <QFontMetrics>
 #include <QWheelEvent>
-//#include <QQueue>
-//#include <QDebug>
+#include <QOpenGLFunctions>
+#include <QOpenGLShaderProgram>
+#include <QOpenGLBuffer>
+#include <QOpenGLVertexArrayObject>
 
 
 
-class QGLDistancePanel : public QOpenGLWidget {
+class QGLDistancePanel : public QOpenGLWidget, protected QOpenGLFunctions {
 
     Q_OBJECT
 
@@ -75,6 +77,10 @@ protected:
     void timerEvent(QTimerEvent *);
 
 private:
+    QOpenGLShaderProgram      *m_shaderProgram;
+    QOpenGLBuffer              m_vbo;
+    QOpenGLVertexArrayObject   m_vao;
+
 	Settings*	set;
 
 	QSDR::_ServerMode			m_serverMode;

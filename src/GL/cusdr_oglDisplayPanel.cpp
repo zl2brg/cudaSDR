@@ -98,8 +98,12 @@ OGLDisplayPanel::OGLDisplayPanel(QWidget *parent)
 	m_oglTextSmall = new OGLText(m_fonts.smallFont);
 
 	m_fonts.smallFont.setItalic(true);
-	//m_fonts.smallFont.setBold(true);
+
+	m_shaderProgram = nullptr;
+	m_vbo = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
+
 	m_oglTextSmallItalic = new OGLText(m_fonts.smallFont);
+
 	m_oglTextNormal = new OGLText(m_fonts.normalFont);
 	m_oglTextBig = new OGLText(m_fonts.bigFont);
 
@@ -149,6 +153,23 @@ OGLDisplayPanel::OGLDisplayPanel(QWidget *parent)
 }
 
 OGLDisplayPanel::~OGLDisplayPanel() {
+    if (m_shaderProgram) {
+        delete m_shaderProgram;
+        m_shaderProgram = nullptr;
+    }
+
+    if (m_vao.isCreated()) {
+        m_vao.destroy();
+    }
+
+    if (m_vbo.isCreated()) {
+        m_vbo.destroy();
+    }
+
+    if (m_sMeterTex) {
+        glDeleteTextures(1, &m_sMeterTex);
+    }
+
     delete  m_oglTextBigItalic;
     delete  m_oglTextFreq1;
     delete  m_oglTextFreq2;
@@ -288,6 +309,63 @@ void OGLDisplayPanel::setupTextstrings() {
 void OGLDisplayPanel::initializeGL() {
     initializeOpenGLFunctions();
     if (!isValid()) return;
+
+    // --- Modern OpenGL Setup ---
+    m_shaderProgram = new QOpenGLShaderProgram(this);
+    
+    // Vertex Shader: Pass through position and color, apply ortho projection
+    const char *vsrc =
+        "#version 150\n"
+        "in vec3 position;\n"
+        "in vec3 color;\n"
+        "out vec3 vertColor;\n"
+        "uniform mat4 matrix;\n"
+        "void main() {\n"
+        "   vertColor = color;\n"
+        "   gl_Position = matrix * vec4(position, 1.0);\n"
+        "}\n";
+
+    // Fragment Shader: Just output the color
+    const char *fsrc =
+        "#version 150\n"
+        "in vec3 vertColor;\n"
+        "out vec4 fragColor;\n"
+        "void main() {\n"
+        "   fragColor = vec4(vertColor, 1.0);\n"
+        "}\n";
+
+    if (!m_shaderProgram->addShaderFromSourceCode(QOpenGLShader::Vertex, vsrc)) {
+        qCritical() << "Vertex shader compilation failed:" << m_shaderProgram->log();
+    }
+
+    if (!m_shaderProgram->addShaderFromSourceCode(QOpenGLShader::Fragment, fsrc)) {
+        qCritical() << "Fragment shader compilation failed:" << m_shaderProgram->log();
+    }
+
+    m_shaderProgram->bindAttributeLocation("position", 0);
+    m_shaderProgram->bindAttributeLocation("color", 1);
+
+    if (!m_shaderProgram->link()) {
+        qCritical() << "Shader program linking failed:" << m_shaderProgram->log();
+    }
+
+    m_vao.create();
+    m_vao.bind();
+
+    m_vbo.create();
+    m_vbo.bind();
+    m_vbo.setUsagePattern(QOpenGLBuffer::StreamDraw);
+
+    m_shaderProgram->enableAttributeArray(0);
+    m_shaderProgram->setAttributeBuffer(0, GL_FLOAT, 0, 3, sizeof(float) * 6);
+
+    m_shaderProgram->enableAttributeArray(1);
+    m_shaderProgram->setAttributeBuffer(1, GL_FLOAT, sizeof(float) * 3, 3, sizeof(float) * 6);
+
+    m_vao.release();
+    m_vbo.release();
+
+
   // default initialization
 
     //glShadeModel(GL_FLAT);
@@ -979,13 +1057,31 @@ void OGLDisplayPanel::paintRxRegion() {
                 drawGLRect(bar, QColor(255, 50, 50), QColor(255, 255, 50), true);
 
             // S-Meter needle
-            glLineWidth(2);
-            qglColor(QColor(255, 255, 255));
             if (m_sMeterValue > 0) {
-                glBegin(GL_LINES);
-                glVertex3f(x1 + (int)(m_sMeterValue * m_unit), m_sMeterPosY - 15, 1.0f);
-                glVertex3f(x1 + (int)(m_sMeterValue * m_unit), m_sMeterPosY + 28, 1.0f);
-                glEnd();
+                if (m_shaderProgram && m_shaderProgram->isLinked()) {
+                    m_shaderProgram->bind();
+                    QMatrix4x4 projection;
+                    projection.ortho(0, size().width(), size().height(), 0, -10, 10);
+                    m_shaderProgram->setUniformValue("matrix", projection);
+
+                    struct VertexData {
+                        float x, y, z;
+                        float r, g, b;
+                    };
+                    
+                    float x = (float)(x1 + (int)(m_sMeterValue * m_unit));
+                    QList<VertexData> needleData;
+                    needleData.append({ x, (float)m_sMeterPosY - 15.0f, 1.0f, 1.0f, 1.0f, 1.0f });
+                    needleData.append({ x, (float)m_sMeterPosY + 28.0f, 1.0f, 1.0f, 1.0f, 1.0f });
+
+                    glLineWidth(2.0f);
+                    m_vao.bind();
+                    m_vbo.bind();
+                    m_vbo.allocate(needleData.data(), needleData.size() * (int)sizeof(VertexData));
+                    glDrawArrays(GL_LINES, 0, needleData.size());
+                    m_vao.release();
+                    m_shaderProgram->release();
+                }
             }
 
             // Actual S-Meter value
@@ -1030,70 +1126,85 @@ void OGLDisplayPanel::renderSMeterScale() {
 	glLineWidth(1.0f);
 
 	// draw horizontal lines
-	if (m_dataEngineState == QSDR::DataEngineUp)
-        qglColor(m_activeTextColor);
-	else
-        qglColor(m_activeTextColor);
+    if (m_shaderProgram && m_shaderProgram->isLinked()) {
+        m_shaderProgram->bind();
+        QMatrix4x4 projection;
+        projection.ortho(0, size().width(), size().height(), 0, -10, 10);
+        m_shaderProgram->setUniformValue("matrix", projection);
 
-	glBegin(GL_LINES);
-		glVertex3f(0,		m_sMeterPosY, 0.0);
-		glVertex3f(width-1,	m_sMeterPosY, 0.0);
-		glVertex3f(0,		m_sMeterPosY + 12, 0.0);
-		glVertex3f(width-1,	m_sMeterPosY + 12, 0.0);
-	glEnd();
+        struct VertexData {
+            float x, y, z;
+            float r, g, b;
+        };
 
-	// draw integer step scale
-	if (m_dataEngineState == QSDR::DataEngineUp)
-        qglColor(QColor(126, 156, 168));
-	else
-        qglColor(m_activeTextColor);
+        QColor col = m_activeTextColor;
+        float r = col.redF(), g = col.greenF(), b = col.blueF();
+        
+        QList<VertexData> scaleLines;
+        // horizontal lines
+        scaleLines.append({ 0.0f, (float)m_sMeterPosY, 0.0f, r, g, b });
+        scaleLines.append({ (float)width - 1.0f, (float)m_sMeterPosY, 0.0f, r, g, b });
+        scaleLines.append({ 0.0f, (float)m_sMeterPosY + 12.0f, 0.0f, r, g, b });
+        scaleLines.append({ (float)width - 1.0f, (float)m_sMeterPosY + 12.0f, 0.0f, r, g, b });
 
-	int vertexArrayLength = m_sMeterWidth;
-	vertexArrayLength += vertexArrayLength%2;
-	TGL3float *vertexArray = new TGL3float[2*vertexArrayLength];
+        // draw integer step scale
+        QColor stepCol = (m_dataEngineState == QSDR::DataEngineUp) ? QColor(126, 156, 168) : m_activeTextColor;
+        float sr = stepCol.redF(), sg = stepCol.greenF(), sb = stepCol.blueF();
 
-	for (int i = 0; i < vertexArrayLength; i++) {
+        int vertexArrayLength = m_sMeterWidth;
+        vertexArrayLength += vertexArrayLength%2;
+        for (int i = 0; i < vertexArrayLength; i++) {
+            scaleLines.append({ (float)(2.0f * i), (float)(m_sMeterPosY + 4), 0.0f, sr, sg, sb });
+            scaleLines.append({ (float)(2.0f * i), (float)(m_sMeterPosY + 9), 0.0f, sr, sg, sb });
+        }
 
-		vertexArray[2*i].x = (GLfloat)(2.0f * i);
-		vertexArray[2*i].y = (GLfloat)(m_sMeterPosY + 4);
-		vertexArray[2*i].z = 0.0;
+        m_vao.bind();
+        m_vbo.bind();
+        m_vbo.allocate(scaleLines.data(), scaleLines.size() * (int)sizeof(VertexData));
+        glDrawArrays(GL_LINES, 0, scaleLines.size());
+        m_vao.release();
+        m_shaderProgram->release();
+    }
 
-		vertexArray[2*i+1].x = (GLfloat)(2.0f * i);
-		vertexArray[2*i+1].y = (GLfloat)(m_sMeterPosY + 9);
-		vertexArray[2*i+1].z = 0.0;
-	}
+	// Draw the dbm items
+    if (m_shaderProgram && m_shaderProgram->isLinked()) {
+        m_shaderProgram->bind();
+        QMatrix4x4 projection;
+        projection.ortho(0, size().width(), size().height(), 0, -10, 10);
+        m_shaderProgram->setUniformValue("matrix", projection);
 
-	glEnableClientState(GL_VERTEX_ARRAY);
-				
-	glVertexPointer(3, GL_FLOAT, 0, vertexArray);
-	glDrawArrays(GL_LINES, 0, width);
-	glDisableClientState(GL_VERTEX_ARRAY);
+        struct VertexData {
+            float x, y, z;
+            float r, g, b;
+        };
 
-	delete[] vertexArray;
+        QList<VertexData> tickLines;
+        QColor tickCol = (m_dataEngineState == QSDR::DataEngineUp) ? Qt::white : m_inactiveTextColor;
+        float tr = tickCol.redF(), tg = tickCol.greenF(), tb = tickCol.blueF();
+
+        for (int i = 1, z = -120; z < 10; i++, z += 10) {
+            // big ticks
+            tickLines.append({ (float)(10*i*m_unit), (float)m_sMeterPosY - 4.0f, 0.0f, tr, tg, tb });
+            tickLines.append({ (float)(10*i*m_unit), (float)m_sMeterPosY,        0.0f, tr, tg, tb });
+
+            // small ticks
+            tickLines.append({ (float)((10*i - 5)*m_unit), (float)m_sMeterPosY - 2.0f, 0.0f, tr, tg, tb });
+            tickLines.append({ (float)((10*i - 5)*m_unit), (float)m_sMeterPosY,        0.0f, tr, tg, tb });
+        }
+
+        if (!tickLines.isEmpty()) {
+            m_vao.bind();
+            m_vbo.bind();
+            m_vbo.allocate(tickLines.data(), tickLines.size() * (int)sizeof(VertexData));
+            glDrawArrays(GL_LINES, 0, tickLines.size());
+            m_vao.release();
+        }
+        m_shaderProgram->release();
+    }
 
 	// Draw the dbm items
 	QString marker;
-
-	if (m_dataEngineState == QSDR::DataEngineUp)
-      //      qglColor(m_activeTextColor);
-        glColor4f(255,255,255,255);
-		else
-            qglColor(m_inactiveTextColor);
-
 	for (int i = 1, z = -120; z < 10; i++, z += 10) {
-		
-		// big ticks
-		glBegin(GL_LINES);
-			glVertex3f(10*i*m_unit, m_sMeterPosY - 4, 0.0);
-			glVertex3f(10*i*m_unit, m_sMeterPosY, 0.0);
-		glEnd();
-
-		// small ticks
-		glBegin(GL_LINES);
-			glVertex3f((10*i - 5)*m_unit, m_sMeterPosY - 2, 0.0);
-			glVertex3f((10*i - 5)*m_unit, m_sMeterPosY, 0.0);
-		glEnd();
-		
 		marker = QString::number(z, 'f', 0);
         int d = fm.horizontalAdvance(marker);
 

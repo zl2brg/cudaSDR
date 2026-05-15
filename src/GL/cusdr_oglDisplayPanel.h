@@ -37,6 +37,9 @@
 #include <QOpenGLWidget>
 #include <QtOpenGL/QOpenGLFramebufferObject>
 #include <QOpenGLFunctions>
+#include <QOpenGLShaderProgram>
+#include <QOpenGLBuffer>
+#include <QOpenGLVertexArrayObject>
 #include <QMenu>
 #include <QMenuBar>
 
@@ -84,7 +87,12 @@ protected:
     void restoreGLState();
 
 private:
-	Settings*	set;
+    QOpenGLShaderProgram      *m_shaderProgram;
+    QOpenGLBuffer              m_vbo;
+    QOpenGLVertexArrayObject   m_vao;
+
+	Settings*					set;
+
     qreal dpr;
 
 	QSDR::_ServerMode			m_serverMode;
