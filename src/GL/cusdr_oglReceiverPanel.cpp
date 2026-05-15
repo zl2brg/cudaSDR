@@ -29,6 +29,7 @@
 #include "cusdr_oglReceiverPanel.h"
 
 #include <QGuiApplication>
+#include <QMatrix4x4>
 #include <cstring>
 
 #ifndef GL_MULTISAMPLE
@@ -180,6 +181,9 @@ QGLReceiverPanel::QGLReceiverPanel(QWidget *parent, int rx)
 	m_waterfallTextureId = 0;
 	m_waterfallCurrentLine = 0;
 
+    m_shaderProgram = nullptr;
+    m_vbo = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
+
 	setupConnections();
 
 	m_displayTime.start();
@@ -252,6 +256,19 @@ QGLReceiverPanel::~QGLReceiverPanel() {
 
     qDebug() << "rx panel destructor" << m_receiver;
     disconnect(set, 0, this, 0);
+
+    if (m_shaderProgram) {
+        delete m_shaderProgram;
+        m_shaderProgram = nullptr;
+    }
+
+    if (m_vao.isCreated()) {
+        m_vao.destroy();
+    }
+
+    if (m_vbo.isCreated()) {
+        m_vbo.destroy();
+    }
 	
 	if (m_frequencyScaleFBO) {
 
@@ -348,6 +365,62 @@ void QGLReceiverPanel::initializeGL() {
 
 	if (!isValid()) return;
      initializeOpenGLFunctions();
+
+    // --- Modern OpenGL Setup ---
+    m_shaderProgram = new QOpenGLShaderProgram(this);
+    
+    // Vertex Shader: Pass through position and color, apply ortho projection
+    const char *vsrc =
+        "#version 150\n"
+        "in vec3 position;\n"
+        "in vec3 color;\n"
+        "out vec3 vertColor;\n"
+        "uniform mat4 matrix;\n"
+        "void main() {\n"
+        "   vertColor = color;\n"
+        "   gl_Position = matrix * vec4(position, 1.0);\n"
+        "}\n";
+
+    // Fragment Shader: Just output the color
+    const char *fsrc =
+        "#version 150\n"
+        "in vec3 vertColor;\n"
+        "out vec4 fragColor;\n"
+        "void main() {\n"
+        "   fragColor = vec4(vertColor, 1.0);\n"
+        "}\n";
+
+    if (!m_shaderProgram->addShaderFromSourceCode(QOpenGLShader::Vertex, vsrc)) {
+        qCritical() << "Vertex shader compilation failed:" << m_shaderProgram->log();
+    }
+
+    if (!m_shaderProgram->addShaderFromSourceCode(QOpenGLShader::Fragment, fsrc)) {
+        qCritical() << "Fragment shader compilation failed:" << m_shaderProgram->log();
+    }
+
+    m_shaderProgram->bindAttributeLocation("position", 0);
+    m_shaderProgram->bindAttributeLocation("color", 1);
+
+    if (!m_shaderProgram->link()) {
+        qCritical() << "Shader program linking failed:" << m_shaderProgram->log();
+    }
+
+    m_vao.create();
+    m_vao.bind();
+
+    m_vbo.create();
+    m_vbo.bind();
+    m_vbo.setUsagePattern(QOpenGLBuffer::StreamDraw); // Frequently updated
+
+    m_shaderProgram->enableAttributeArray(0);
+    m_shaderProgram->setAttributeBuffer(0, GL_FLOAT, 0, 3, sizeof(float) * 6);
+
+    m_shaderProgram->enableAttributeArray(1);
+    m_shaderProgram->setAttributeBuffer(1, GL_FLOAT, sizeof(float) * 3, 3, sizeof(float) * 6);
+
+    m_vao.release();
+    m_vbo.release();
+
 
 	//*****************************************************************
 	// default initialization
@@ -455,10 +528,10 @@ void QGLReceiverPanel::paint3DPanadapterMode() {
 void QGLReceiverPanel::drawPanadapter() {
 
     // Device Pixel Ratio Awareness
-    // Get device pixel ratio (float, so use devicePixelRatioF for accuracy)
-    float dpr = devicePixelRatio();
-   GLint vertexArrayLength = (GLint)m_panadapterBins.size();
-//	qDebug() << "vertex array length:" << vertexArrayLength;
+    float dpr = (float)devicePixelRatio();
+    GLint vertexArrayLength = (GLint)m_panadapterBins.size();
+    if (vertexArrayLength == 0) return;
+
     GLint height = m_panRect.height();
     GLint x1 = m_panRect.left();
     GLint y1 = m_panRect.top();
@@ -466,12 +539,9 @@ void QGLReceiverPanel::drawPanadapter() {
     GLint y2 = y1 + m_panRect.height();
 
     // y scale
-    float yScale;
-    float yTop;
     qreal dBmRange = qAbs(m_dBmPanMax - m_dBmPanMin);
-
-    yScale = m_panRect.height() / dBmRange;
-    yTop = (float)y2;
+    float yScale = m_panRect.height() / (float)dBmRange;
+    float yTop = (float)y2;
 
     if (m_dataEngineState == QSDR::DataEngineUp)
         glClear(GL_DEPTH_BUFFER_BIT);
@@ -485,9 +555,18 @@ void QGLReceiverPanel::drawPanadapter() {
     glEnable(GL_BLEND);
     glLineWidth(1);
 
-    // draw background
-    if (m_dataEngineState == QSDR::DataEngineUp) {
+    // --- Modern OpenGL Rendering ---
+    if (!m_shaderProgram || !m_shaderProgram->isLinked()) return;
 
+    m_shaderProgram->bind();
+    
+    QMatrix4x4 projection;
+    projection.ortho(0, size().width(), size().height(), 0, -10, 10);
+    m_shaderProgram->setUniformValue("matrix", projection);
+
+    // draw background (Fixed function for now to keep it simple, can modernize later)
+    if (m_dataEngineState == QSDR::DataEngineUp) {
+        m_shaderProgram->release(); // Switch back to fixed for simple rects
         if (m_receiver == m_currentReceiver) {
             glBegin(GL_TRIANGLE_STRIP);
             glColor3f(0.8f * m_bkgRed, 0.8f * m_bkgGreen, 0.8f * m_bkgBlue); glVertex3f(x1, y1, -4.0); // top left
@@ -503,160 +582,89 @@ void QGLReceiverPanel::drawPanadapter() {
             glColor3f(0.4f * m_bkgRed, 0.4f * m_bkgGreen, 0.4f * m_bkgBlue); glVertex3f(x2, y2, -4.0);
             glEnd();
         }
+        m_shaderProgram->bind();
     } else {
+        m_shaderProgram->release();
         drawGLRect(m_panRect, QColor(30, 30, 50, 155), -4.0f);
+        m_shaderProgram->bind();
     }
 
     // Set a DPR-aware scissor box
-    glScissor(x1, (size().height() * dpr - y2 * dpr), (x2 - x1) * dpr, height * dpr);
+    glScissor(x1, (size().height() * (int)dpr - y2 * (int)dpr), (x2 - x1) * (int)dpr, height * (int)dpr);
     glEnable(GL_SCISSOR_TEST);
     spectrumBufferMutex.lock();
 
-    TGL3float *vertexArray = new TGL3float[vertexArrayLength];
-    TGL3float *vertexColorArray = new TGL3float[vertexArrayLength];
-
-    TGL3float *vertexArrayBg = new TGL3float[2*vertexArrayLength];
-    TGL3float *vertexColorArrayBg = new TGL3float[2*vertexArrayLength];
-
-    TGL3float *vertexArrayBgPH = new TGL3float[2*vertexArrayLength];
-    TGL3float *vertexColorArrayBgPH = new TGL3float[2*vertexArrayLength];
-
-    TGL3float *vertexArrayPH = new TGL3float[vertexArrayLength];
-    TGL3float *vertexColorArrayPH = new TGL3float[vertexArrayLength];
+    // Prepare interleaved data: x, y, z, r, g, b
+    struct VertexData {
+        float x, y, z;
+        float r, g, b;
+    };
 
     switch (m_panMode) {
 
-        case (PanGraphicsMode) FilledLine:
-
+        case (PanGraphicsMode) FilledLine: {
+            QVarLengthArray<VertexData> data(vertexArrayLength * 2);
             for (int i = 0; i < vertexArrayLength; i++) {
+                float vx = (float)(i/m_scaleMult);
+                float vy = (float)(yTop - yScale * m_panadapterBins.at(i));
 
-                mutex.lock();
-                vertexColorArrayBg[2*i].x = 0.7 * m_redF;
-                vertexColorArrayBg[2*i].y = 0.7 * m_greenF;
-                vertexColorArrayBg[2*i].z = 0.7 * m_blueF;
-
-                vertexColorArrayBg[2*i+1].x = 0.3 * m_redF;
-                vertexColorArrayBg[2*i+1].y = 0.3 * m_greenF;
-                vertexColorArrayBg[2*i+1].z = 0.3 * m_blueF;
-
-                vertexColorArray[i].x = m_red;
-                vertexColorArray[i].y = m_green;
-                vertexColorArray[i].z = m_blue;
-
-                mutex.unlock();
-
-                vertexArrayBg[2*i].x = (GLfloat)(i/m_scaleMult);
-                vertexArrayBg[2*i].y = (GLfloat)(yTop - yScale * m_panadapterBins.at(i));
-                vertexArrayBg[2*i].z = -1.5;
-
-                vertexArrayBg[2*i+1].x = (GLfloat)(i/m_scaleMult);
-                vertexArrayBg[2*i+1].y = (GLfloat)yTop;
-                vertexArrayBg[2*i+1].z = -1.5;
-
-                /*vertexArray[i].x = (GLfloat)(i/m_scaleMult);
-                vertexArray[i].y = (GLfloat)(yTop - yScale * m_panadapterBins.at(i));
-                vertexArray[i].z = -1.0;*/
+                // Background strip
+                data[2*i] = { vx, vy, -1.5f, 0.7f * m_redF, 0.7f * m_greenF, 0.7f * m_blueF };
+                data[2*i+1] = { vx, yTop, -1.5f, 0.3f * m_redF, 0.3f * m_greenF, 0.3f * m_blueF };
             }
 
-            glEnableClientState(GL_VERTEX_ARRAY);
-            glEnableClientState(GL_COLOR_ARRAY);
+            m_vao.bind();
+            m_vbo.bind();
+            m_vbo.allocate(data.data(), data.size() * (int)sizeof(VertexData));
+            glDrawArrays(GL_TRIANGLE_STRIP, 0, vertexArrayLength * 2);
 
-            glVertexPointer(3, GL_FLOAT, 0, vertexArrayBg);
-            glColorPointer(3, GL_FLOAT, 0, vertexColorArrayBg);
-            glDrawArrays(GL_TRIANGLE_STRIP, 0, 2*vertexArrayLength);
-
-            glVertexPointer(3, GL_FLOAT, 6*sizeof(float), vertexArrayBg);
-            glColorPointer(3, GL_FLOAT, 0, vertexColorArray);
-            glDrawArrays(GL_LINE_STRIP, 0, vertexArrayLength);
-
-            glDisableClientState(GL_VERTEX_ARRAY);
-            glDisableClientState(GL_COLOR_ARRAY);
-
-            break;
-
-        case (PanGraphicsMode) Line:
-
+            // Overlay line
+            QVarLengthArray<VertexData> lineData(vertexArrayLength);
             for (int i = 0; i < vertexArrayLength; i++) {
+                lineData[i] = { (float)(i/m_scaleMult), (float)(yTop - yScale * m_panadapterBins.at(i)), -1.0f, m_red, m_green, m_blue };
+            }
+            m_vbo.allocate(lineData.data(), lineData.size() * (int)sizeof(VertexData));
+            glDrawArrays(GL_LINE_STRIP, 0, vertexArrayLength);
+            m_vao.release();
+            break;
+        }
 
-                mutex.lock();
-                vertexColorArray[i].x = m_red;
-                vertexColorArray[i].y = m_green;
-                vertexColorArray[i].z = m_blue;
-
-                mutex.unlock();
-
-                vertexArray[i].x = (GLfloat)(i/m_scaleMult);
-                vertexArray[i].y = (GLfloat)(yTop - yScale * m_panadapterBins.at(i));
-                vertexArray[i].z = -1.0;
+        case (PanGraphicsMode) Line: {
+            QVarLengthArray<VertexData> data(vertexArrayLength);
+            for (int i = 0; i < vertexArrayLength; i++) {
+                data[i] = { (float)(i/m_scaleMult), (float)(yTop - yScale * m_panadapterBins.at(i)), -1.0f, m_red, m_green, m_blue };
             }
 
-            glEnableClientState(GL_VERTEX_ARRAY);
-            glEnableClientState(GL_COLOR_ARRAY);
-
-            glVertexPointer(3, GL_FLOAT, 0, vertexArray);
-            glColorPointer(3, GL_FLOAT, 0, vertexColorArray);
+            m_vao.bind();
+            m_vbo.bind();
+            m_vbo.allocate(data.data(), data.size() * (int)sizeof(VertexData));
             glDrawArrays(GL_LINE_STRIP, 0, vertexArrayLength);
-
-
-            glDisableClientState(GL_VERTEX_ARRAY);
-            glDisableClientState(GL_COLOR_ARRAY);
-
+            m_vao.release();
             break;
+        }
 
-        case (PanGraphicsMode) Solid:
-
+        case (PanGraphicsMode) Solid: {
             glDisable(GL_MULTISAMPLE);
             glDisable(GL_LINE_SMOOTH);
 
-            mutex.lock();
+            QVarLengthArray<VertexData> data(vertexArrayLength * 2);
             for (int i = 0; i < vertexArrayLength; i++) {
-
-                vertexColorArrayBg[2*i].x = m_redST;
-                vertexColorArrayBg[2*i].y = m_greenST;
-                vertexColorArrayBg[2*i].z = m_blueST;
-
-                vertexColorArrayBg[2*i+1].x = m_redSB;
-                vertexColorArrayBg[2*i+1].y = m_greenSB;
-                vertexColorArrayBg[2*i+1].z = m_blueSB;
-
-            mutex.unlock();
-
-                vertexArrayBg[2*i].x = (GLfloat)(i/m_scaleMult);
-                vertexArrayBg[2*i].y = (GLfloat)(yTop - yScale * m_panadapterBins.at(i));
-                vertexArrayBg[2*i].z = -1.0f;
-
-                vertexArrayBg[2*i+1].x = (GLfloat)(i/m_scaleMult);
-                vertexArrayBg[2*i+1].y = (GLfloat)yTop;
-                //vertexArrayBg[2*i+1].y = (GLfloat)(m_panRect.bottom());
-                //vertexArrayBg[2*i].y = (GLfloat)(yScale * m_panadapterBins.at(i));
-                vertexArrayBg[2*i+1].z = -1.0f;
+                float vx = (float)(i/m_scaleMult);
+                float vy = (float)(yTop - yScale * m_panadapterBins.at(i));
+                data[2*i]   = { vx, vy,   -1.0f, m_redST, m_greenST, m_blueST };
+                data[2*i+1] = { vx, yTop, -1.0f, m_redSB, m_greenSB, m_blueSB };
             }
 
-            glEnableClientState(GL_VERTEX_ARRAY);
-            glEnableClientState(GL_COLOR_ARRAY);
-
-            glVertexPointer(3, GL_FLOAT, 0, vertexArrayBg);
-            glColorPointer(3, GL_FLOAT, 0, vertexColorArrayBg);
-            //glDrawArrays(GL_QUAD_STRIP, 0, 2*vertexArrayLength);
-            glDrawArrays(GL_LINES, 0, 2*vertexArrayLength);
-
-            glDisableClientState(GL_VERTEX_ARRAY);
-            glDisableClientState(GL_COLOR_ARRAY);
-
+            m_vao.bind();
+            m_vbo.bind();
+            m_vbo.allocate(data.data(), data.size() * (int)sizeof(VertexData));
+            glDrawArrays(GL_LINES, 0, vertexArrayLength * 2);
+            m_vao.release();
             break;
+        }
     }
     spectrumBufferMutex.unlock();
-
-    delete[] vertexArray;
-    delete[] vertexColorArray;
-    delete[] vertexArrayBg;
-    delete[] vertexColorArrayBg;
-    delete[] vertexArrayBgPH;
-    delete[] vertexColorArrayBgPH;
-    delete[] vertexArrayPH;
-    delete[] vertexColorArrayPH;
-
-    //glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
+    m_shaderProgram->release();
 
     glDisable(GL_MULTISAMPLE);
     glDisable(GL_LINE_SMOOTH);
@@ -842,138 +850,136 @@ void QGLReceiverPanel::drawPanadapterGrid() {
 
 	if (!m_panGrid) return;
 
-    glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
+    if (!m_shaderProgram || !m_shaderProgram->isLinked()) return;
 
     glDisable(GL_MULTISAMPLE);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glEnable(GL_BLEND);
 
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    // Note: Core profile doesn't support glLineStipple.
+    // For now we use solid lines or implement stippling in shader.
+    // Keeping glLineStipple for Compatibility mode if still active.
     glEnable(GL_LINE_STIPPLE);
     glLineStipple(1, 0x5555);  // Dotted pattern
-    glLineWidth(2.0f );
+    glLineWidth(1.0f);
     
-    // Use proper grid colors with transparency for non-current receiver
-    if (m_receiver == m_currentReceiver)
-        glColor4f(m_redGrid, m_greenGrid, m_blueGrid, 1.0f);
-    else
-        glColor4f(m_redGrid, m_greenGrid, m_blueGrid, 0.8f);
-    
-    glBegin(GL_LINES);
+    m_shaderProgram->bind();
+    QMatrix4x4 projection;
+    projection.ortho(0, size().width(), size().height(), 0, -10, 10);
+    m_shaderProgram->setUniformValue("matrix", projection);
+
+    struct VertexData {
+        float x, y, z;
+        float r, g, b;
+    };
+
+    float r = m_redGrid;
+    float g = m_greenGrid;
+    float b = m_blueGrid;
+    // Note: Our current simple shader doesn't handle alpha.
+
+    QList<VertexData> gridData;
     
     // Vertical lines (frequency grid)
     int len = m_frequencyScale.mainPointPositions.length();
-    if (len > 0) {
-        for (int i = 0; i < len; i++) {
-            GLint x = m_frequencyScale.mainPointPositions.at(i);
-            glVertex2i(x, m_panRect.top());
-            glVertex2i(x, m_panRect.bottom());
-        }
+    for (int i = 0; i < len; i++) {
+        float x = (float)m_frequencyScale.mainPointPositions.at(i);
+        gridData.append({ x, (float)m_panRect.top(),    3.0f, r, g, b });
+        gridData.append({ x, (float)m_panRect.bottom(), 3.0f, r, g, b });
     }
     
     // Horizontal lines (dBm grid)
     len = m_dBmScale.mainPointPositions.length();
-    if (len > 0) {
-        for (int i = 0; i < len; i++) {
-            GLint y = m_dBmScale.mainPointPositions.at(i);
-            glVertex2i(m_panRect.left(), y);
-            glVertex2i(m_panRect.right(), y);
-        }
+    for (int i = 0; i < len; i++) {
+        float y = (float)m_dBmScale.mainPointPositions.at(i);
+        gridData.append({ (float)m_panRect.left(),  y, 3.0f, r, g, b });
+        gridData.append({ (float)m_panRect.right(), y, 3.0f, r, g, b });
     }
     
-    glEnd();
-    
-    // Restore OpenGL state
+    if (!gridData.isEmpty()) {
+        m_vao.bind();
+        m_vbo.bind();
+        m_vbo.allocate(gridData.data(), gridData.size() * (int)sizeof(VertexData));
+        glDrawArrays(GL_LINES, 0, gridData.size());
+        m_vao.release();
+    }
+
+    m_shaderProgram->release();
     glDisable(GL_LINE_STIPPLE);
     glDisable(GL_BLEND);
-
-	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
-	glColor3f(0.65f, 0.76f, 0.81f);
 	glEnable(GL_MULTISAMPLE);
-
 }
 
 void QGLReceiverPanel::drawCenterLine() {
 
 	// draw a line for the center frequency
-	GLint y1, y2;
-    y1 = m_panRect.top();
-    y2 = m_displayCenterlineHeight;
+	float y1 = (float)m_panRect.top();
+    float y2 = (float)m_displayCenterlineHeight;
 	
 	if (y2 > y1 + 3) {
+        if (!m_shaderProgram || !m_shaderProgram->isLinked()) return;
 
-        GLint x = m_panRect.width()/2 ;
-        GLint y = m_panRect.top() + m_panRect.height() - 1 ;
-		//GLint y = m_panRect.top() + m_panRect.height() + m_freqScalePanRect.height() + m_waterfallRect.height() - 1;
-		//color = set->getPanadapterColors().panCenterLineColor;
+        m_shaderProgram->bind();
+        QMatrix4x4 projection;
+        projection.ortho(0, size().width(), size().height(), 0, -10, 10);
+        m_shaderProgram->setUniformValue("matrix", projection);
+
+        struct VertexData {
+            float x, y, z;
+            float r, g, b;
+        };
+
+        float x = (float)m_panRect.width()/2.0f;
+        float y = (float)(m_panRect.top() + m_panRect.height() - 1);
 		QColor col = QColor(80, 180, 240, 180);
 
 		glDisable(GL_MULTISAMPLE);
-        glLineWidth(3);
-		glColor4ub(col.red(), col.green(), col.blue(), col.alpha());
+        glLineWidth(3.0f);
+
+        QList<VertexData> lines;
+        float r = col.redF();
+        float g = col.greenF();
+        float b = col.blueF();
 
 		// center frequency line
-		glBegin(GL_LINES);
-			glVertex3f(x, y1 + 1, 3.5f);
-			glVertex3f(x, y - 1, 3.5f);
-		glEnd();
+        lines.append({ x, y1 + 1.0f, 3.5f, r, g, b });
+        lines.append({ x, y - 1.0f,  3.5f, r, g, b });
 			
-		x = m_panRect.left() + qRound((qreal)(m_panRect.width()/2.0f)  - m_deltaF * m_panRect.width() / m_freqScaleZoomFactor);
+		x = (float)(m_panRect.left() + qRound((qreal)(m_panRect.width()/2.0f)  - m_deltaF * m_panRect.width() / m_freqScaleZoomFactor));
 		col = set->getPanadapterColors().panCenterLineColor;
-		glColor4ub(col.red(), col.green(), col.blue(), 255);
+        r = col.redF(); g = col.greenF(); b = col.blueF();
 
 		// VFO frequency line
 		if (m_dragMouse && !m_panLocked) {
-
-			//glLineWidth(3);
-			glBegin(GL_LINES);
-				glVertex3f(x, m_freqScalePanRect.bottom() + 1, 3.0f);
-				glVertex3f(x, m_freqScalePanRect.bottom() + m_waterfallRect.height() - 1, 3.0f);
-			glEnd();
+            lines.append({ x, (float)m_freqScalePanRect.bottom() + 1.0f, 3.0f, r, g, b });
+            lines.append({ x, (float)(m_freqScalePanRect.bottom() + m_waterfallRect.height() - 1), 3.0f, r, g, b });
 		}
-		glBegin(GL_LINES);
-			glVertex3f(x, y1 + 1, 4.0f);
-			glVertex3f(x, y - 1, 4.0f);
-		glEnd();
+        
+        lines.append({ x, y1 + 1.0f, 4.0f, r, g, b });
+        lines.append({ x, y - 1.0f,  4.0f, r, g, b });
+
+        if (!lines.isEmpty()) {
+            m_vao.bind();
+            m_vbo.bind();
+            m_vbo.allocate(lines.data(), lines.size() * (int)sizeof(VertexData));
+            glDrawArrays(GL_LINES, 0, lines.size());
+            m_vao.release();
+        }
+
+        m_shaderProgram->release();
 		glEnable(GL_MULTISAMPLE);
 	}
 
 	// draw a frequency line from a different receiver
-	/*if (m_frequencyRxOnRx != 0) {
-		
-		y1 = m_waterfallRect.top();
-		y2 = m_waterfallRect.bottom();
-	
-		if (y2 > y1 + 3) {
-
-			qreal unit = (qreal)((m_sampleRate * m_freqScaleZoomFactor) / m_panRect.width());
-			qreal df = m_centerFrequency - m_rxDataList.at(m_frequencyRxOnRx%10 - 1).frequency;
-
-			GLint dx = (GLint)(df/unit);
-			GLint x = m_panRect.width()/2 - dx;
-			
-			color = QColor(255, 255, 0, 255);
-
-			glDisable(GL_MULTISAMPLE);
-			glLineWidth(2);
-			glColor4ub(color.red(), color.green(), color.blue(), color.alpha());
-			glBegin(GL_LINES);
-				glVertex3f(x-1, y1, 4.0f);
-				glVertex3f(x-1, y2, 4.0f);
-			glEnd();
-			glEnable(GL_MULTISAMPLE);
-		}
-	}*/
 }
 
 void QGLReceiverPanel::drawPanFilter() {
+    if (!m_shaderProgram || !m_shaderProgram->isLinked()) return;
+
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glEnable(GL_BLEND);
 
 	QColor color;
-	//QString str;
-
 	if (m_highlightFilter)
 		color = QColor(150, 150, 150, 140);
 	else
@@ -983,101 +989,100 @@ void QGLReceiverPanel::drawPanFilter() {
 	m_filterRight = m_panRect.left() + qRound((qreal)(m_panRect.width()/2.0f) + (m_filterHi - m_deltaF) * m_panRect.width() / m_freqScaleZoomFactor);
 	m_filterTop = m_panRect.top() + 1;
 	m_filterBottom = m_panRect.top() + m_panRect.height() - 1;
-	//m_filterBottom = m_panRect.top() + m_panRect.height() + m_freqScalePanRect.height() + m_waterfallRect.height() - 1;
 	
 	m_filterRect = QRect(m_filterLeft, m_filterTop, m_filterRight - m_filterLeft, m_filterBottom - m_filterTop);
+
+    m_shaderProgram->bind();
+    QMatrix4x4 projection;
+    projection.ortho(0, size().width(), size().height(), 0, -10, 10);
+    m_shaderProgram->setUniformValue("matrix", projection);
+
+    struct VertexData {
+        float x, y, z;
+        float r, g, b;
+    };
 
 	if ((m_filterLeft >= m_panRect.left() && m_filterLeft <= m_panRect.right()) ||
 		(m_filterRight >= m_panRect.left() && m_filterRight <= m_panRect.right()) ||
 		(m_filterLeft < m_panRect.left() && m_filterRight > m_panRect.right()))
 	{
-		if (m_filterRect.height() > 5) drawGLRect(m_filterRect, color, 0.0f);
+		if (m_filterRect.height() > 5) {
+            m_shaderProgram->release();
+            drawGLRect(m_filterRect, color, 0.0f);
+            m_shaderProgram->bind();
+        }
 	}
+
+    QList<VertexData> lines;
+
 	// filter boundaries
 	if (m_showFilterLeftBoundary) {
-
 		color = QColor(150, 150, 150, 230);
-
-		glDisable(GL_MULTISAMPLE);
-		glLineWidth(1);
-		qglColor(color);
-		glBegin(GL_LINES);
-			glVertex3f(m_filterLeft, m_filterTop, 4.0f);
-			glVertex3f(m_filterLeft, m_filterBottom, 4.0f);
-		glEnd();
-		glEnable(GL_MULTISAMPLE);
-
-		// text
-		QString str1 = QString("Filter Lo");
-		QString str2 = frequencyString(m_filterLowerFrequency, true);
-
-		qglColor(QColor(0, 0, 0, 255));
-		if (m_smallSize) {
-
-			m_oglTextSmall->renderText(m_filterLeft + 5, m_filterTop + 44, 4.0f, str1);
-			m_oglTextSmall->renderText(m_filterLeft + 5, m_filterTop + 64, 4.0f, str2);
-		}
-		else {
-
-			m_oglTextBig1->renderText(m_filterLeft + 5, m_filterTop + 44, 4.0f, str1);
-			m_oglTextBig1->renderText(m_filterLeft + 5, m_filterTop + 64, 4.0f, str2);
-		}
-
-		qglColor(QColor(255, 255, 255, 255));
-		if (m_smallSize) {
-
-			m_oglTextSmall->renderText(m_filterLeft + 3, m_filterTop + 42, 5.0f, str1);
-			m_oglTextSmall->renderText(m_filterLeft + 3, m_filterTop + 62, 5.0f, str2);
-		}
-		else {
-
-			m_oglTextBig1->renderText(m_filterLeft + 3, m_filterTop + 42, 5.0f, str1);
-			m_oglTextBig1->renderText(m_filterLeft + 3, m_filterTop + 62, 5.0f, str2);
-		}
+        float r = color.redF(), g = color.greenF(), b = color.blueF();
+        lines.append({ (float)m_filterLeft, (float)m_filterTop,    4.0f, r, g, b });
+        lines.append({ (float)m_filterLeft, (float)m_filterBottom, 4.0f, r, g, b });
 	}
 
 	if (m_showFilterRightBoundary) {
-
 		color = QColor(150, 150, 150, 230);
+        float r = color.redF(), g = color.greenF(), b = color.blueF();
+        lines.append({ (float)m_filterRight, (float)m_filterTop,    4.0f, r, g, b });
+        lines.append({ (float)m_filterRight, (float)m_filterBottom, 4.0f, r, g, b });
+	}
 
-		glDisable(GL_MULTISAMPLE);
-		glLineWidth(1);
-		qglColor(color);
-		glBegin(GL_LINES);
-			glVertex3f(m_filterRight, m_filterTop, 4.0f);
-			glVertex3f(m_filterRight, m_filterBottom, 4.0f);
-		glEnd();
-		glEnable(GL_MULTISAMPLE);
+    if (!lines.isEmpty()) {
+        glDisable(GL_MULTISAMPLE);
+        glLineWidth(1);
+        m_vao.bind();
+        m_vbo.bind();
+        m_vbo.allocate(lines.data(), lines.size() * (int)sizeof(VertexData));
+        glDrawArrays(GL_LINES, 0, lines.size());
+        m_vao.release();
+        glEnable(GL_MULTISAMPLE);
+    }
+    m_shaderProgram->release();
 
-		// text
-		QString str1 = QString("Filter Hi");
-		QString str2 = frequencyString(m_filterUpperFrequency, true);
-
+    // Re-render text using the original logic which is already texture-based
+    if (m_showFilterLeftBoundary) {
+		QString str1 = QString("Filter Lo");
+		QString str2 = frequencyString(m_filterLowerFrequency, true);
 		qglColor(QColor(0, 0, 0, 255));
 		if (m_smallSize) {
-
+			m_oglTextSmall->renderText(m_filterLeft + 5, m_filterTop + 44, 4.0f, str1);
+			m_oglTextSmall->renderText(m_filterLeft + 5, m_filterTop + 64, 4.0f, str2);
+		} else {
+			m_oglTextBig1->renderText(m_filterLeft + 5, m_filterTop + 44, 4.0f, str1);
+			m_oglTextBig1->renderText(m_filterLeft + 5, m_filterTop + 64, 4.0f, str2);
+		}
+		qglColor(QColor(255, 255, 255, 255));
+		if (m_smallSize) {
+			m_oglTextSmall->renderText(m_filterLeft + 3, m_filterTop + 42, 5.0f, str1);
+			m_oglTextSmall->renderText(m_filterLeft + 3, m_filterTop + 62, 5.0f, str2);
+		} else {
+			m_oglTextBig1->renderText(m_filterLeft + 3, m_filterTop + 42, 5.0f, str1);
+			m_oglTextBig1->renderText(m_filterLeft + 3, m_filterTop + 62, 5.0f, str2);
+		}
+    }
+    if (m_showFilterRightBoundary) {
+		QString str1 = QString("Filter Hi");
+		QString str2 = frequencyString(m_filterUpperFrequency, true);
+		qglColor(QColor(0, 0, 0, 255));
+		if (m_smallSize) {
 			m_oglTextSmall->renderText(m_filterRight + 5, m_filterTop + 44, 4.0f, str1);
 			m_oglTextSmall->renderText(m_filterRight + 5, m_filterTop + 64, 4.0f, str2);
-		}
-		else {
-
+		} else {
 			m_oglTextBig1->renderText(m_filterRight + 5, m_filterTop + 44, 4.0f, str1);
 			m_oglTextBig1->renderText(m_filterRight + 5, m_filterTop + 64, 4.0f, str2);
 		}
-
 		qglColor(QColor(255, 255, 255, 255));
 		if (m_smallSize) {
-
 			m_oglTextSmall->renderText(m_filterRight + 3, m_filterTop + 42, 5.0f, str1);
 			m_oglTextSmall->renderText(m_filterRight + 3, m_filterTop + 62, 5.0f, str2);
-		}
-		else {
-
+		} else {
 			m_oglTextBig1->renderText(m_filterRight + 3, m_filterTop + 42, 5.0f, str1);
 			m_oglTextBig1->renderText(m_filterRight + 3, m_filterTop + 62, 5.0f, str2);
-
 		}
-	}
+    }
 }
 
 void QGLReceiverPanel::drawWaterfall() {

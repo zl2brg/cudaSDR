@@ -39,6 +39,9 @@
 #include <QOpenGLWidget>
 #include <QOpenGLFunctions>
 #include <QOpenGLPaintDevice>
+#include <QOpenGLShaderProgram>
+#include <QOpenGLBuffer>
+#include <QOpenGLVertexArrayObject>
 
 
 #ifdef LOG_GRAPHICS
@@ -122,6 +125,10 @@ private:
 	QOpenGLFramebufferObject*	m_frequencyScaleFBO;
 	QOpenGLFramebufferObject*	m_dBmScaleFBO;
 	QOpenGLFramebufferObject*	m_secScaleWaterfallFBO;
+
+    QOpenGLShaderProgram      *m_shaderProgram;
+    QOpenGLBuffer              m_vbo;
+    QOpenGLVertexArrayObject   m_vao;
 
 	QRect						m_panRect;
 	QRect						m_dBmScalePanRect;
