@@ -1,5 +1,6 @@
 #include "CProtocol1.h"
 #include "cusdr_dataEngine.h"
+#include "protocol_boundary_utils.h"
 #include <QtEndian>
 
 CProtocol1::CProtocol1()
@@ -28,16 +29,11 @@ CProtocol1::CProtocol1()
 CProtocol1::~CProtocol1() {}
 
 bool CProtocol1::isPacketValid(const unsigned char* data, int len) {
-    if (len != METIS_DATA_SIZE) return false;
-    return (data[0] == (unsigned char)0xEF && data[1] == (unsigned char)0xFE && data[2] == (unsigned char)0x01);
+    return ProtocolBoundaryUtils::isProtocol1MetisPacketValid(data, len);
 }
 
 uint32_t CProtocol1::getSequence(const unsigned char* data) {
-    uint32_t seq = (data[4] & 0xFF) << 24;
-    seq += (data[5] & 0xFF) << 16;
-    seq += (data[6] & 0xFF) << 8;
-    seq += (data[7] & 0xFF);
-    return seq;
+    return ProtocolBoundaryUtils::protocol1Sequence(data);
 }
 
 int CProtocol1::getPacketType(const unsigned char* data) {

@@ -36,7 +36,7 @@ if(EXISTS "${_CUDASDR_QT611_PREFIX}/lib/cmake/Qt6/Qt6Config.cmake")
 endif()
 
 # --- Find Dependencies ---
-find_package(Qt6 6.11 REQUIRED COMPONENTS Widgets Core Gui Multimedia Network OpenGL OpenGLWidgets)
+find_package(Qt6 6.11 REQUIRED COMPONENTS Widgets Core Gui Multimedia Network OpenGL OpenGLWidgets Test)
 find_package(PkgConfig REQUIRED)
 
 # --- Find Codec2 ---
@@ -304,3 +304,31 @@ install(TARGETS cudasdr
     BUNDLE DESTINATION .
     RUNTIME DESTINATION bin
 )
+
+# --- Tests ---
+include(CTest)
+if(BUILD_TESTING)
+    qt_add_executable(protocol_boundary_tests
+        tests/protocol_boundary_tests.cpp
+    )
+    target_include_directories(protocol_boundary_tests PRIVATE
+        ${SRC_DIR}
+    )
+    target_link_libraries(protocol_boundary_tests PRIVATE
+        Qt6::Core
+        Qt6::Test
+    )
+    add_test(NAME protocol_boundary_tests COMMAND protocol_boundary_tests)
+
+    qt_add_executable(protocol2_format_init_tests
+        tests/protocol2_format_init_tests.cpp
+    )
+    target_include_directories(protocol2_format_init_tests PRIVATE
+        ${SRC_DIR}
+    )
+    target_link_libraries(protocol2_format_init_tests PRIVATE
+        Qt6::Core
+        Qt6::Test
+    )
+    add_test(NAME protocol2_format_init_tests COMMAND protocol2_format_init_tests)
+endif()

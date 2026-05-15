@@ -66,3 +66,7 @@ Repository-level technical review covering build health, maintainability, warnin
 3. Gradually tighten warning policy (`-Werror` in selected modules first).
 4. Document feature support matrix (P1/P2, Soapy status, CW status).
 
+## Related notes
+
+- [Protocol 1 / USB doc comparison and Alex filtering](protocol_and_alex_notes.md) — Metis vs USB PDF scope, padding table, and Alex `alexConfig` / `alexStates` encoding caveats.
+

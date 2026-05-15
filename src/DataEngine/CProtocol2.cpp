@@ -1,6 +1,7 @@
 #include "CProtocol2.h"
 #include "cusdr_dataEngine.h"
 #include "cusdr_settings.h"
+#include "protocol_boundary_utils.h"
 
 #ifdef LOG_P2_NETWORK
 #define P2_ROUTE_DEBUG qDebug().nospace() << "P2Route::\t"
@@ -51,10 +52,7 @@ int CProtocol2::getPacketType(const unsigned char* data) {
     // Return 0x04 for Wideband ADC data:
     //   16-byte header (4 seq + 12 zeros) + 512 samples x 16-bit = 1040 bytes.
     // Anything else is ignored.
-    if (m_lastPacketLen == 1040) return 0x04;  // Wideband (16 hdr + 512*2 payload)
-    if (m_lastPacketLen > 1000) return 0x06;
-    if (m_lastPacketLen == 60) return 0x05;
-    return 0xFF;
+    return ProtocolBoundaryUtils::protocol2PacketTypeForLength(m_lastPacketLen);
 }
 
 void CProtocol2::processInputBuffer(const QByteArray& buffer, DataEngine* de, quint16 sourcePort) {
@@ -518,11 +516,7 @@ QByteArray CProtocol2::formatStartStop(char value, quint16& port) {
     // The hpsdrsim highprio_thread does `if (rc != 1444) { break; }` and exits
     // if it gets anything shorter, so the run bit is never seen and RX never starts.
     port = 1027;
-    QByteArray commandDatagram(1444, '\0');
-    uint32_t seq = qToBigEndian(m_sequences[1027]++);
-    memcpy(commandDatagram.data(), &seq, 4);
-    commandDatagram[4] = value ? 0x01 : 0x00;
-    return commandDatagram;
+    return ProtocolBoundaryUtils::protocol2StartStopDatagram(value, m_sequences[1027]++);
 }
 
 QByteArray CProtocol2::formatInitFrame(int rx, THPSDRParameter* io, quint16& port) {
@@ -532,67 +526,9 @@ QByteArray CProtocol2::formatInitFrame(int rx, THPSDRParameter* io, quint16& por
     // to use for each data stream.  sendInitFramesToNetworkDevice() calls us
     // once per receiver; we send the real config only for rx==0 and a no-op
     // for subsequent receivers to avoid redundant reconfigurations.
-    if (rx > 0) {
-        // No additional init needed per-receiver in Protocol 2.
-        // Return a null/empty packet; sendInitFramesToNetworkDevice will send
-        // 0 bytes which writeDatagram ignores (returns 0, not < 0).
-        port = 1024;
-        return QByteArray();
-    }
-
-    port = 1024;
-    QByteArray pkt(60, 0);
-
-    // Bytes 0-3: sequence number (0 for first packet)
-    uint32_t seq = qToBigEndian(m_sequences[1024]++);
-    memcpy(pkt.data(), &seq, 4);
-
-    // Byte 4: 0x00 = General Packet to SDR
-    pkt[4] = 0x00;
-
-    // Bytes 5-6: DDC Specific port — hardware listens here for DDC Specific commands (default 1025)
-    quint16 ddcSpecPort = qToBigEndian((quint16)1025);
-    memcpy(pkt.data() + 5, &ddcSpecPort, 2);
-
-    // Bytes 7-8: DUC Specific port — hardware listens here for DUC Specific commands (default 1026)
-    quint16 txIqPort = qToBigEndian((quint16)1026);
-    memcpy(pkt.data() + 7, &txIqPort, 2);
-
-    // Bytes 9-10: High Priority from PC port — hardware listens here for HP commands from host (default 1027)
-    quint16 hpPCPort = qToBigEndian((quint16)1027);
-    memcpy(pkt.data() + 9, &hpPCPort, 2);
-
-    // Bytes 11-12: High Priority to PC port — hardware sends HP status FROM this port (default 1025)
-    // Use 0 to keep the hardware default.
-    // pkt[11..12] already 0.
-
-    // Bytes 13-14: DDC Audio port — hardware sends audio FROM this port (default 1028)
-    quint16 ddcAudioPort = qToBigEndian((quint16)1028);
-    memcpy(pkt.data() + 13, &ddcAudioPort, 2);
-
-    // Bytes 15-16: DUC IQ port — hardware receives TX IQ on this port (default 1029)
-    quint16 ducIqPort = qToBigEndian((quint16)1029);
-    memcpy(pkt.data() + 15, &ducIqPort, 2);
-
-    // Bytes 17-18: DDC0 IQ data source port — hardware sends DDC0 IQ FROM this port (default 1035)
-    // DDC1 uses 1036, DDC2 uses 1037, etc.
-    quint16 ddc0Port = qToBigEndian((quint16)1035);
-    memcpy(pkt.data() + 17, &ddc0Port, 2);
-
-    // Bytes 19-20: Mic samples source port — hardware sends mic data FROM here (default 1026)
-    // Use 0 so hardware uses its default.
-    // pkt[19..20] already 0.
-
-    // Bytes 21-22: Wideband ADC0 source port (0 = use default 1027).
-    // pkt[21..22] already 0.
-
-    // Byte 23: wide_enable = 1 → request wideband ADC data from device.
-    // Bytes 24-25: wide_len = 0 → device default (512 samples/packet).
-    // Byte 26: wide_size = 0 → device default (16 bits/sample).
-    // Bytes 27-59: wide_rate, ppf, endian, reserved — leave 0.
-    pkt[23] = 1;
-
-    return pkt;
+    const auto r = ProtocolBoundaryUtils::protocol2FormatInitFrame(rx, m_sequences[1024]);
+    port = r.port;
+    return r.datagram;
 }
 
 QByteArray CProtocol2::formatOutputPacket(const QByteArray& audioData, uint32_t& sequence) {
