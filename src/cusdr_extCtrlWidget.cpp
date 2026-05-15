@@ -63,9 +63,9 @@ ExtCtrlWidget::ExtCtrlWidget(QWidget *parent)
 	
 	CHECKED_CONNECT(
 		enableBtn, 
-		SIGNAL(clicked()), 
+		&AeroButton::clicked, 
 		this, 
-		SLOT(enable()));
+		&ExtCtrlWidget::enable);
 
 	// disable all buttons
 	foreach(QList<AeroButton *> btnList, receivePinsBtnMatrix) {
@@ -165,9 +165,9 @@ void ExtCtrlWidget::createReceivePinsGroup() {
 
 			CHECKED_CONNECT(
 				btn,
-				SIGNAL(clicked()), 
+				&AeroButton::clicked, 
 				this, 
-				SLOT(receivePinsBtnClicked()));
+				&ExtCtrlWidget::receivePinsBtnClicked);
 		}
 		receivePinsBtnMatrix.append(btnList);
 	}
@@ -233,9 +233,9 @@ void ExtCtrlWidget::createTransmitPinsGroup() {
 
 			CHECKED_CONNECT(
 				btn,
-				SIGNAL(clicked()), 
+				&AeroButton::clicked, 
 				this, 
-				SLOT(transmitPinsBtnClicked()));
+				&ExtCtrlWidget::transmitPinsBtnClicked);
 		}
 		transmitPinsBtnMatrix.append(btnList);
 	}

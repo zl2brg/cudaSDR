@@ -12,7 +12,7 @@ cusdr_cpuUsage::cusdr_cpuUsage()
     CLOCK_TICK = sysconf(_SC_CLK_TCK);
 
     QTimer *timer = new QTimer();
-    cusdr_cpuUsage::connect(timer, SIGNAL(timeout()), this, SLOT(getCPUUsage()));
+    connect(timer, &QTimer::timeout, this, &cusdr_cpuUsage::getCPUUsage);
 
     timer->start(1000);
 }

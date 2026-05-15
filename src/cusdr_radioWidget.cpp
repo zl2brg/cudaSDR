@@ -167,51 +167,43 @@ void RadioWidget::setupConnections() {
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(systemStateChanged(
-					QSDR::_Error,
-					QSDR::_HWInterfaceMode,
-					QSDR::_ServerMode,
-					QSDR::_DataEngineState)),
+		&Settings::systemStateChanged,
 		this,
-		SLOT(systemStateChanged(
-					QSDR::_Error,
-					QSDR::_HWInterfaceMode,
-					QSDR::_ServerMode,
-					QSDR::_DataEngineState)));
+		&RadioWidget::systemStateChanged);
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(currentReceiverChanged(int)),
+		&Settings::currentReceiverChanged,
 		this, 
-		SLOT(setCurrentReceiver(int)));
+		&RadioWidget::setCurrentReceiver);
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(vfoFrequencyChanged(int, int, long)),
+		&Settings::vfoFrequencyChanged,
 		this,
-		SLOT(vfoFrequencyChanged(int, int, long)));
+		&RadioWidget::vfoFrequencyChanged);
 	
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(hamBandChanged(int, bool, HamBand)),
+		&Settings::hamBandChanged,
 		this,
-		SLOT(bandChanged(int, bool, HamBand)));
+		&RadioWidget::bandChanged);
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(dspModeChanged(int, DSPMode)), 
+		&Settings::dspModeChanged, 
 		this, 
-		SLOT(dspModeChanged(int, DSPMode)));
+		&RadioWidget::dspModeChanged);
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(freeDVModeChanged(int, int)),
+		&Settings::freeDVModeChanged,
 		this,
-		SLOT(freeDVModeChanged(int, int)));
+		&RadioWidget::freeDVModeChanged);
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(freeDVStatusChanged(int, bool, float, quint64, quint64)),
+		&Settings::freeDVStatusChanged,
 		this,
-		SLOT(freeDVStatusChanged(int, bool, float, quint64, quint64)));
+		&RadioWidget::freeDVStatusChanged);
 
 //	CHECKED_CONNECT(
 //		set,
@@ -221,15 +213,15 @@ void RadioWidget::setupConnections() {
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(filterFrequenciesChanged(int, qreal, qreal)), 
+		&Settings::filterFrequenciesChanged, 
 		this, 
-		SLOT(filterChanged(int, qreal, qreal)));
+		&RadioWidget::filterChanged);
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(mercuryAttenuatorChanged(HamBand, int)),
+		&Settings::mercuryAttenuatorChanged,
 		this,
-		SLOT(setMercuryAttenuator(HamBand, int)));
+		&RadioWidget::setMercuryAttenuator);
 }
 
 void RadioWidget::createBandBtnGroup() {
@@ -240,159 +232,112 @@ void RadioWidget::createBandBtnGroup() {
 	band2200mBtn->setFixedSize(btn_widths, btn_height);
 	//band2200mBtn->setTextColor(QColor(200, 200, 200));
 	bandBtnList.append(band2200mBtn);
-	CHECKED_CONNECT(band2200mBtn, SIGNAL(clicked()), this, SLOT(bandChangedByBtn()));
-
+	CHECKED_CONNECT(band2200mBtn, &AeroButton::clicked, this, &RadioWidget::bandChangedByBtn);
 	band630mBtn = new AeroButton("630 m", this);
 	band630mBtn->setRoundness(0);
-	//band630Btn->setGlass(false);
 	band630mBtn->setFixedSize(btn_widths, btn_height);
-	//band630Btn->setTextColor(QColor(200, 200, 200));
 	bandBtnList.append(band630mBtn);
-	CHECKED_CONNECT(band630mBtn, SIGNAL(clicked()), this, SLOT(bandChangedByBtn()));
-
+	CHECKED_CONNECT(band630mBtn, &AeroButton::clicked, this, &RadioWidget::bandChangedByBtn);
 	band160mBtn = new AeroButton("160 m", this);
 	band160mBtn->setRoundness(0);
-	//band160mBtn->setGlass(false);
 	band160mBtn->setFixedSize(btn_widths, btn_height);
-	//band160mBtn->setTextColor(QColor(200, 200, 200));
 	bandBtnList.append(band160mBtn);
-	CHECKED_CONNECT(band160mBtn, SIGNAL(clicked()), this, SLOT(bandChangedByBtn()));
-
+	CHECKED_CONNECT(band160mBtn, &AeroButton::clicked, this, &RadioWidget::bandChangedByBtn);
 	band80mBtn = new AeroButton("80 m", this);
 	band80mBtn->setRoundness(0);
-	//band80mBtn->setGlass(false);
 	band80mBtn->setFixedSize(btn_widths, btn_height);
-	//band80mBtn->setTextColor(QColor(200, 200, 200));
 	bandBtnList.append(band80mBtn);
-	CHECKED_CONNECT(band80mBtn, SIGNAL(clicked()), this, SLOT(bandChangedByBtn()));
-
+	CHECKED_CONNECT(band80mBtn, &AeroButton::clicked, this, &RadioWidget::bandChangedByBtn);
 	band60mBtn = new AeroButton("60 m", this);
 	band60mBtn->setRoundness(0);
-	//band60mBtn->setGlass(false);
 	band60mBtn->setFixedSize(btn_widths, btn_height);
-	//band60mBtn->setTextColor(QColor(200, 200, 200));
 	bandBtnList.append(band60mBtn);
-	CHECKED_CONNECT(band60mBtn, SIGNAL(clicked()), this, SLOT(bandChangedByBtn()));
-
+	CHECKED_CONNECT(band60mBtn, &AeroButton::clicked, this, &RadioWidget::bandChangedByBtn);
 	band40mBtn = new AeroButton("40 m", this);
 	band40mBtn->setRoundness(0);
-	//band40mBtn->setGlass(false);
 	band40mBtn->setFixedSize(btn_widths, btn_height);
-	//band40mBtn->setTextColor(QColor(200, 200, 200));
 	bandBtnList.append(band40mBtn);
-	CHECKED_CONNECT(band40mBtn, SIGNAL(clicked()), this, SLOT(bandChangedByBtn()));
-
+	CHECKED_CONNECT(band40mBtn, &AeroButton::clicked, this, &RadioWidget::bandChangedByBtn);
 	band30mBtn = new AeroButton("30 m", this);
 	band30mBtn->setRoundness(0);
-	//band30mBtn->setGlass(false);
 	band30mBtn->setFixedSize(btn_widths, btn_height);
-	//band30mBtn->setTextColor(QColor(200, 200, 200));
 	bandBtnList.append(band30mBtn);
-	CHECKED_CONNECT(band30mBtn, SIGNAL(clicked()), this, SLOT(bandChangedByBtn()));
-
+	CHECKED_CONNECT(band30mBtn, &AeroButton::clicked, this, &RadioWidget::bandChangedByBtn);
 	band20mBtn = new AeroButton("20 m", this);
 	band20mBtn->setRoundness(0);
-	//band20mBtn->setGlass(false);
 	band20mBtn->setFixedSize(btn_widths, btn_height);
-	//band20mBtn->setTextColor(QColor(200, 200, 200));
 	bandBtnList.append(band20mBtn);
-	CHECKED_CONNECT(band20mBtn, SIGNAL(clicked()), this, SLOT(bandChangedByBtn()));
-
+	CHECKED_CONNECT(band20mBtn, &AeroButton::clicked, this, &RadioWidget::bandChangedByBtn);
 	band17mBtn = new AeroButton("17 m", this);
 	band17mBtn->setRoundness(0);
-	//band17mBtn->setGlass(false);
 	band17mBtn->setFixedSize(btn_widths, btn_height);
-	//band17mBtn->setTextColor(QColor(200, 200, 200));
 	bandBtnList.append(band17mBtn);
-	CHECKED_CONNECT(band17mBtn, SIGNAL(clicked()), this, SLOT(bandChangedByBtn()));
-
+	CHECKED_CONNECT(band17mBtn, &AeroButton::clicked, this, &RadioWidget::bandChangedByBtn);
 	band15mBtn = new AeroButton("15 m", this);
 	band15mBtn->setRoundness(0);
-	//band15mBtn->setGlass(false);
 	band15mBtn->setFixedSize(btn_widths, btn_height);
-	//band15mBtn->setTextColor(QColor(200, 200, 200));
 	bandBtnList.append(band15mBtn);
-	CHECKED_CONNECT(band15mBtn, SIGNAL(clicked()), this, SLOT(bandChangedByBtn()));
-
+	CHECKED_CONNECT(band15mBtn, &AeroButton::clicked, this, &RadioWidget::bandChangedByBtn);
 	band12mBtn = new AeroButton("12 m", this);
 	band12mBtn->setRoundness(0);
-	//band12mBtn->setGlass(false);
 	band12mBtn->setFixedSize(btn_widths, btn_height);
-	//band12mBtn->setTextColor(QColor(200, 200, 200));
 	bandBtnList.append(band12mBtn);
-	CHECKED_CONNECT(band12mBtn, SIGNAL(clicked()), this, SLOT(bandChangedByBtn()));
-
+	CHECKED_CONNECT(band12mBtn, &AeroButton::clicked, this, &RadioWidget::bandChangedByBtn);
 	band10mBtn = new AeroButton("10 m", this);
 	band10mBtn->setRoundness(0);
-	//band10mBtn->setGlass(false);
 	band10mBtn->setFixedSize(btn_widths, btn_height);
-	//band10mBtn->setTextColor(QColor(200, 200, 200));
 	bandBtnList.append(band10mBtn);
-	CHECKED_CONNECT(band10mBtn, SIGNAL(clicked()), this, SLOT(bandChangedByBtn()));
-
+	CHECKED_CONNECT(band10mBtn, &AeroButton::clicked, this, &RadioWidget::bandChangedByBtn);
 	band6mBtn = new AeroButton("6 m", this);
 	band6mBtn->setRoundness(0);
-	//band6mBtn->setGlass(false);
 	band6mBtn->setFixedSize(btn_widths, btn_height);
-	//band6mBtn->setTextColor(QColor(200, 200, 200));
 	bandBtnList.append(band6mBtn);
-	CHECKED_CONNECT(band6mBtn, SIGNAL(clicked()), this, SLOT(bandChangedByBtn()));
-
+	CHECKED_CONNECT(band6mBtn, &AeroButton::clicked, this, &RadioWidget::bandChangedByBtn);
 	band2mBtn = new AeroButton("2 m", this);
 	band2mBtn->setRoundness(0);
 	band2mBtn->setFixedSize(btn_widths, btn_height);
 	bandBtnList.append(band2mBtn);
-	CHECKED_CONNECT(band2mBtn, SIGNAL(clicked()), this, SLOT(bandChangedByBtn()));
-
+	CHECKED_CONNECT(band2mBtn, &AeroButton::clicked, this, &RadioWidget::bandChangedByBtn);
 	band125cmBtn = new AeroButton("125 cm", this);
 	band125cmBtn->setRoundness(0);
 	band125cmBtn->setFixedSize(btn_widths, btn_height);
 	bandBtnList.append(band125cmBtn);
-	CHECKED_CONNECT(band125cmBtn, SIGNAL(clicked()), this, SLOT(bandChangedByBtn()));
-
+	CHECKED_CONNECT(band125cmBtn, &AeroButton::clicked, this, &RadioWidget::bandChangedByBtn);
 	band70cmBtn = new AeroButton("70 cm", this);
 	band70cmBtn->setRoundness(0);
 	band70cmBtn->setFixedSize(btn_widths, btn_height);
 	bandBtnList.append(band70cmBtn);
-	CHECKED_CONNECT(band70cmBtn, SIGNAL(clicked()), this, SLOT(bandChangedByBtn()));
-
+	CHECKED_CONNECT(band70cmBtn, &AeroButton::clicked, this, &RadioWidget::bandChangedByBtn);
 	band33cmBtn = new AeroButton("33 cm", this);
 	band33cmBtn->setRoundness(0);
 	band33cmBtn->setFixedSize(btn_widths, btn_height);
 	bandBtnList.append(band33cmBtn);
-	CHECKED_CONNECT(band33cmBtn, SIGNAL(clicked()), this, SLOT(bandChangedByBtn()));
-
+	CHECKED_CONNECT(band33cmBtn, &AeroButton::clicked, this, &RadioWidget::bandChangedByBtn);
 	band23cmBtn = new AeroButton("23 cm", this);
 	band23cmBtn->setRoundness(0);
 	band23cmBtn->setFixedSize(btn_widths, btn_height);
 	bandBtnList.append(band23cmBtn);
-	CHECKED_CONNECT(band23cmBtn, SIGNAL(clicked()), this, SLOT(bandChangedByBtn()));
-
+	CHECKED_CONNECT(band23cmBtn, &AeroButton::clicked, this, &RadioWidget::bandChangedByBtn);
 	band13cmBtn = new AeroButton("13 cm", this);
 	band13cmBtn->setRoundness(0);
 	band13cmBtn->setFixedSize(btn_widths, btn_height);
 	bandBtnList.append(band13cmBtn);
-	CHECKED_CONNECT(band13cmBtn, SIGNAL(clicked()), this, SLOT(bandChangedByBtn()));
-
+	CHECKED_CONNECT(band13cmBtn, &AeroButton::clicked, this, &RadioWidget::bandChangedByBtn);
 	band10cmBtn = new AeroButton("10 cm", this);
 	band10cmBtn->setRoundness(0);
 	band10cmBtn->setFixedSize(btn_widths, btn_height);
 	bandBtnList.append(band10cmBtn);
-	CHECKED_CONNECT(band10cmBtn, SIGNAL(clicked()), this, SLOT(bandChangedByBtn()));
-
+	CHECKED_CONNECT(band10cmBtn, &AeroButton::clicked, this, &RadioWidget::bandChangedByBtn);
 	band5cmBtn = new AeroButton("5 cm", this);
 	band5cmBtn->setRoundness(0);
 	band5cmBtn->setFixedSize(btn_widths, btn_height);
 	bandBtnList.append(band5cmBtn);
-	CHECKED_CONNECT(band5cmBtn, SIGNAL(clicked()), this, SLOT(bandChangedByBtn()));
-
+	CHECKED_CONNECT(band5cmBtn, &AeroButton::clicked, this, &RadioWidget::bandChangedByBtn);
 	bandGenBtn = new AeroButton("Gen", this);
 	bandGenBtn->setRoundness(0);
-	//bandGenBtn->setGlass(false);
 	bandGenBtn->setFixedSize(btn_widths, btn_height);
-	//bandGenBtn->setTextColor(QColor(200, 200, 200));
 	bandBtnList.append(bandGenBtn);
-	CHECKED_CONNECT(bandGenBtn, SIGNAL(clicked()), this, SLOT(bandChangedByBtn()));
+	CHECKED_CONNECT(bandGenBtn, &AeroButton::clicked, this, &RadioWidget::bandChangedByBtn);
 
 	/*bandxxBtn = new AeroButton("", this);
 	bandxxBtn->setRoundness(0);
@@ -459,7 +404,7 @@ void RadioWidget::createModeBtnGroup() {
 	lsbBtn->setFixedSize(btn_widths, btn_height);
 	//lsbBtn->setTextColor(QColor(200, 200, 200));
 	dspModeBtnList.append(lsbBtn);
-	CHECKED_CONNECT(lsbBtn, SIGNAL(clicked()), this, SLOT(dspModeChangedByBtn()));
+	CHECKED_CONNECT(lsbBtn, &AeroButton::clicked, this, &RadioWidget::dspModeChangedByBtn);
 
 	usbBtn = new AeroButton("USB", this);
 	usbBtn->setRoundness(0);
@@ -467,7 +412,7 @@ void RadioWidget::createModeBtnGroup() {
 	usbBtn->setFixedSize(btn_widths, btn_height);
 	//usbBtn->setTextColor(QColor(200, 200, 200));
 	dspModeBtnList.append(usbBtn);
-	CHECKED_CONNECT(usbBtn, SIGNAL(clicked()), this, SLOT(dspModeChangedByBtn()));
+	CHECKED_CONNECT(usbBtn, &AeroButton::clicked, this, &RadioWidget::dspModeChangedByBtn);
 
 	dsbBtn = new AeroButton("DSB", this);
 	dsbBtn->setRoundness(0);
@@ -475,7 +420,7 @@ void RadioWidget::createModeBtnGroup() {
 	dsbBtn->setFixedSize(btn_widths, btn_height);
 	//dsbBtn->setTextColor(QColor(200, 200, 200));
 	dspModeBtnList.append(dsbBtn);
-	CHECKED_CONNECT(dsbBtn, SIGNAL(clicked()), this, SLOT(dspModeChangedByBtn()));
+	CHECKED_CONNECT(dsbBtn, &AeroButton::clicked, this, &RadioWidget::dspModeChangedByBtn);
 
 	cwlBtn = new AeroButton("CWL", this);
 	cwlBtn->setRoundness(0);
@@ -483,7 +428,7 @@ void RadioWidget::createModeBtnGroup() {
 	cwlBtn->setFixedSize(btn_widths, btn_height);
 	//cwlBtn->setTextColor(QColor(200, 200, 200));
 	dspModeBtnList.append(cwlBtn);
-	CHECKED_CONNECT(cwlBtn, SIGNAL(clicked()), this, SLOT(dspModeChangedByBtn()));
+	CHECKED_CONNECT(cwlBtn, &AeroButton::clicked, this, &RadioWidget::dspModeChangedByBtn);
 
 	cwuBtn = new AeroButton("CWU", this);
 	cwuBtn->setRoundness(0);
@@ -491,7 +436,7 @@ void RadioWidget::createModeBtnGroup() {
 	cwuBtn->setFixedSize(btn_widths, btn_height);
 	//cwuBtn->setTextColor(QColor(200, 200, 200));
 	dspModeBtnList.append(cwuBtn);
-	CHECKED_CONNECT(cwuBtn, SIGNAL(clicked()), this, SLOT(dspModeChangedByBtn()));
+	CHECKED_CONNECT(cwuBtn, &AeroButton::clicked, this, &RadioWidget::dspModeChangedByBtn);
 
 	fmnBtn = new AeroButton("FMN", this);
 	fmnBtn->setRoundness(0);
@@ -499,7 +444,7 @@ void RadioWidget::createModeBtnGroup() {
 	fmnBtn->setFixedSize(btn_widths, btn_height);
 	//fmnBtn->setTextColor(QColor(200, 200, 200));
 	dspModeBtnList.append(fmnBtn);
-	CHECKED_CONNECT(fmnBtn, SIGNAL(clicked()), this, SLOT(dspModeChangedByBtn()));
+	CHECKED_CONNECT(fmnBtn, &AeroButton::clicked, this, &RadioWidget::dspModeChangedByBtn);
 
 	amBtn = new AeroButton("AM", this);
 	amBtn->setRoundness(0);
@@ -507,7 +452,7 @@ void RadioWidget::createModeBtnGroup() {
 	amBtn->setFixedSize(btn_widths, btn_height);
 	//amBtn->setTextColor(QColor(200, 200, 200));
 	dspModeBtnList.append(amBtn);
-	CHECKED_CONNECT(amBtn, SIGNAL(clicked()), this, SLOT(dspModeChangedByBtn()));
+	CHECKED_CONNECT(amBtn, &AeroButton::clicked, this, &RadioWidget::dspModeChangedByBtn);
 
 	diguBtn = new AeroButton("DIGU", this);
 	diguBtn->setRoundness(0);
@@ -515,7 +460,7 @@ void RadioWidget::createModeBtnGroup() {
 	diguBtn->setFixedSize(btn_widths, btn_height);
 	//diguBtn->setTextColor(QColor(200, 200, 200));
 	dspModeBtnList.append(diguBtn);
-	CHECKED_CONNECT(diguBtn, SIGNAL(clicked()), this, SLOT(dspModeChangedByBtn()));
+	CHECKED_CONNECT(diguBtn, &AeroButton::clicked, this, &RadioWidget::dspModeChangedByBtn);
 
 	diglBtn = new AeroButton("DIGL", this);
 	diglBtn->setRoundness(0);
@@ -523,7 +468,7 @@ void RadioWidget::createModeBtnGroup() {
 	diglBtn->setFixedSize(btn_widths, btn_height);
 	//diglBtn->setTextColor(QColor(200, 200, 200));
 	dspModeBtnList.append(diglBtn);
-	CHECKED_CONNECT(diglBtn, SIGNAL(clicked()), this, SLOT(dspModeChangedByBtn()));
+	CHECKED_CONNECT(diglBtn, &AeroButton::clicked, this, &RadioWidget::dspModeChangedByBtn);
 
 	specBtn = new AeroButton("SPEC", this);
 	specBtn->setRoundness(0);
@@ -531,7 +476,7 @@ void RadioWidget::createModeBtnGroup() {
 	specBtn->setFixedSize(btn_widths, btn_height);
 	//specBtn->setTextColor(QColor(200, 200, 200));
 	dspModeBtnList.append(specBtn);
-	CHECKED_CONNECT(specBtn, SIGNAL(clicked()), this, SLOT(dspModeChangedByBtn()));
+	CHECKED_CONNECT(specBtn, &AeroButton::clicked, this, &RadioWidget::dspModeChangedByBtn);
 
 	samBtn = new AeroButton("SAM", this);
 	samBtn->setRoundness(0);
@@ -539,7 +484,7 @@ void RadioWidget::createModeBtnGroup() {
 	samBtn->setFixedSize(btn_widths, btn_height);
 	//samBtn->setTextColor(QColor(200, 200, 200));
 	dspModeBtnList.append(samBtn);
-	CHECKED_CONNECT(samBtn, SIGNAL(clicked()), this, SLOT(dspModeChangedByBtn()));
+	CHECKED_CONNECT(samBtn, &AeroButton::clicked, this, &RadioWidget::dspModeChangedByBtn);
 
 	drmBtn = new AeroButton("FreeDV", this);
 	drmBtn->setRoundness(0);
@@ -547,7 +492,7 @@ void RadioWidget::createModeBtnGroup() {
 	drmBtn->setFixedSize(btn_widths, btn_height);
 	//drmBtn->setTextColor(QColor(200, 200, 200));
 	dspModeBtnList.append(drmBtn);
-	CHECKED_CONNECT(drmBtn, SIGNAL(clicked()), this, SLOT(dspModeChangedByBtn()));
+	CHECKED_CONNECT(drmBtn, &AeroButton::clicked, this, &RadioWidget::dspModeChangedByBtn);
 
 	/*foreach(AeroButton *btn, dspModeBtnList) {
 
@@ -611,7 +556,7 @@ void RadioWidget::createFilterBtnGroupA() {
 	filter1kBtnA->setFixedSize(btn_widths, btn_height);
 	//filter1kBtnA->setTextColor(QColor(200, 200, 200));
 	filterBtnListA.append(filter1kBtnA);
-	CHECKED_CONNECT(filter1kBtnA, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
+	CHECKED_CONNECT(filter1kBtnA, &AeroButton::clicked, this, &RadioWidget::filterChangedByBtn);
 
 	filter1k8BtnA = new AeroButton("1k8", this);
 	filter1kBtnA->setObjectName("1k8");
@@ -620,7 +565,7 @@ void RadioWidget::createFilterBtnGroupA() {
 	filter1k8BtnA->setFixedSize(btn_widths, btn_height);
 	//filter1k8BtnA->setTextColor(QColor(200, 200, 200));
 	filterBtnListA.append(filter1k8BtnA);
-	CHECKED_CONNECT(filter1k8BtnA, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
+	CHECKED_CONNECT(filter1k8BtnA, &AeroButton::clicked, this, &RadioWidget::filterChangedByBtn);
 
 	filter2k1BtnA = new AeroButton("2k1", this);
 	filter1kBtnA->setObjectName("2k1");
@@ -629,7 +574,7 @@ void RadioWidget::createFilterBtnGroupA() {
 	filter2k1BtnA->setFixedSize(btn_widths, btn_height);
 	//filter2k1BtnA->setTextColor(QColor(200, 200, 200));
 	filterBtnListA.append(filter2k1BtnA);
-	CHECKED_CONNECT(filter2k1BtnA, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
+	CHECKED_CONNECT(filter2k1BtnA, &AeroButton::clicked, this, &RadioWidget::filterChangedByBtn);
 
 	filter2k4BtnA = new AeroButton("2k4", this);
 	filter1kBtnA->setObjectName("2k4");
@@ -638,7 +583,7 @@ void RadioWidget::createFilterBtnGroupA() {
 	filter2k4BtnA->setFixedSize(btn_widths, btn_height);
 	//filter2k4BtnA->setTextColor(QColor(200, 200, 200));
 	filterBtnListA.append(filter2k4BtnA);
-	CHECKED_CONNECT(filter2k4BtnA, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
+	CHECKED_CONNECT(filter2k4BtnA, &AeroButton::clicked, this, &RadioWidget::filterChangedByBtn);
 
 	filter2k7BtnA = new AeroButton("2k7", this);
 	filter1kBtnA->setObjectName("2k7");
@@ -647,7 +592,7 @@ void RadioWidget::createFilterBtnGroupA() {
 	filter2k7BtnA->setFixedSize(btn_widths, btn_height);
 	//filter2k7BtnA->setTextColor(QColor(200, 200, 200));
 	filterBtnListA.append(filter2k7BtnA);
-	CHECKED_CONNECT(filter2k7BtnA, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
+	CHECKED_CONNECT(filter2k7BtnA, &AeroButton::clicked, this, &RadioWidget::filterChangedByBtn);
 
 	filter2k9BtnA = new AeroButton("2k9", this);
 	filter1kBtnA->setObjectName("2k9");
@@ -656,7 +601,7 @@ void RadioWidget::createFilterBtnGroupA() {
 	filter2k9BtnA->setFixedSize(btn_widths, btn_height);
 	//filter2k9BtnA->setTextColor(QColor(200, 200, 200));
 	filterBtnListA.append(filter2k9BtnA);
-	CHECKED_CONNECT(filter2k9BtnA, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
+	CHECKED_CONNECT(filter2k9BtnA, &AeroButton::clicked, this, &RadioWidget::filterChangedByBtn);
 
 	filter3k3BtnA = new AeroButton("3k3", this);
 	filter1kBtnA->setObjectName("3k3");
@@ -665,7 +610,7 @@ void RadioWidget::createFilterBtnGroupA() {
 	filter3k3BtnA->setFixedSize(btn_widths, btn_height);
 	//filter3k3BtnA->setTextColor(QColor(200, 200, 200));
 	filterBtnListA.append(filter3k3BtnA);
-	CHECKED_CONNECT(filter3k3BtnA, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
+	CHECKED_CONNECT(filter3k3BtnA, &AeroButton::clicked, this, &RadioWidget::filterChangedByBtn);
 
 	filter3k8BtnA = new AeroButton("3k8", this);
 	filter1kBtnA->setObjectName("3k8");
@@ -674,7 +619,7 @@ void RadioWidget::createFilterBtnGroupA() {
 	filter3k8BtnA->setFixedSize(btn_widths, btn_height);
 	//filter3k8BtnA->setTextColor(QColor(200, 200, 200));
 	filterBtnListA.append(filter3k8BtnA);
-	CHECKED_CONNECT(filter3k8BtnA, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
+	CHECKED_CONNECT(filter3k8BtnA, &AeroButton::clicked, this, &RadioWidget::filterChangedByBtn);
 
 	filter4k4BtnA = new AeroButton("4k4", this);
 	filter1kBtnA->setObjectName("4k4");
@@ -683,7 +628,7 @@ void RadioWidget::createFilterBtnGroupA() {
 	filter4k4BtnA->setFixedSize(btn_widths, btn_height);
 	//filter4k4BtnA->setTextColor(QColor(200, 200, 200));
 	filterBtnListA.append(filter4k4BtnA);
-	CHECKED_CONNECT(filter4k4BtnA, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
+	CHECKED_CONNECT(filter4k4BtnA, &AeroButton::clicked, this, &RadioWidget::filterChangedByBtn);
 
 	filter5kBtnA = new AeroButton("5k", this);
 	filter1kBtnA->setObjectName("5k");
@@ -692,7 +637,7 @@ void RadioWidget::createFilterBtnGroupA() {
 	filter5kBtnA->setFixedSize(btn_widths, btn_height);
 	//filter5kBtnA->setTextColor(QColor(200, 200, 200));
 	filterBtnListA.append(filter5kBtnA);
-	CHECKED_CONNECT(filter5kBtnA, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
+	CHECKED_CONNECT(filter5kBtnA, &AeroButton::clicked, this, &RadioWidget::filterChangedByBtn);
 
 	filterVar1BtnA = new AeroButton("Var1", this);
 	filter1kBtnA->setObjectName("Var1");
@@ -701,7 +646,7 @@ void RadioWidget::createFilterBtnGroupA() {
 	filterVar1BtnA->setFixedSize(btn_widths, btn_height);
 	//filterVar1BtnA->setTextColor(QColor(200, 200, 200));
 	filterBtnListA.append(filterVar1BtnA);
-	CHECKED_CONNECT(filterVar1BtnA, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
+	CHECKED_CONNECT(filterVar1BtnA, &AeroButton::clicked, this, &RadioWidget::filterChangedByBtn);
 
 	filterVar2BtnA = new AeroButton("Var2", this);
 	filter1kBtnA->setObjectName("Var2");
@@ -710,7 +655,7 @@ void RadioWidget::createFilterBtnGroupA() {
 	filterVar2BtnA->setFixedSize(btn_widths, btn_height);
 	//filterVar2BtnA->setTextColor(QColor(200, 200, 200));
 	filterBtnListA.append(filterVar2BtnA);
-	CHECKED_CONNECT(filterVar2BtnA, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
+	CHECKED_CONNECT(filterVar2BtnA, &AeroButton::clicked, this, &RadioWidget::filterChangedByBtn);
 
 	foreach(AeroButton *btn, filterBtnListA) {
 
@@ -801,7 +746,7 @@ void RadioWidget::createFilterBtnGroupB() {
 	filter16kBtnB->setFixedSize(btn_widths, btn_height);
 	//filter16kBtnB->setTextColor(QColor(200, 200, 200));
 	filterBtnListB.append(filter16kBtnB);
-	CHECKED_CONNECT(filter16kBtnB, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
+	CHECKED_CONNECT(filter16kBtnB, &AeroButton::clicked, this, &RadioWidget::filterChangedByBtn);
 
 	filter12kBtnB = new AeroButton("12k", this);
 	filter12kBtnB->setRoundness(0);
@@ -809,7 +754,7 @@ void RadioWidget::createFilterBtnGroupB() {
 	filter12kBtnB->setFixedSize(btn_widths, btn_height);
 	//filter12kBtnB->setTextColor(QColor(200, 200, 200));
 	filterBtnListB.append(filter12kBtnB);
-	CHECKED_CONNECT(filter12kBtnB, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
+	CHECKED_CONNECT(filter12kBtnB, &AeroButton::clicked, this, &RadioWidget::filterChangedByBtn);
 
 	filter10kBtnB = new AeroButton("10k", this);
 	filter10kBtnB->setRoundness(0);
@@ -817,7 +762,7 @@ void RadioWidget::createFilterBtnGroupB() {
 	filter10kBtnB->setFixedSize(btn_widths, btn_height);
 	//filter10kBtnB->setTextColor(QColor(200, 200, 200));
 	filterBtnListB.append(filter10kBtnB);
-	CHECKED_CONNECT(filter10kBtnB, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
+	CHECKED_CONNECT(filter10kBtnB, &AeroButton::clicked, this, &RadioWidget::filterChangedByBtn);
 
 	filter8kBtnB = new AeroButton("8k", this);
 	filter8kBtnB->setRoundness(0);
@@ -825,7 +770,7 @@ void RadioWidget::createFilterBtnGroupB() {
 	filter8kBtnB->setFixedSize(btn_widths, btn_height);
 	//filter8kBtnB->setTextColor(QColor(200, 200, 200));
 	filterBtnListB.append(filter8kBtnB);
-	CHECKED_CONNECT(filter8kBtnB, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
+	CHECKED_CONNECT(filter8kBtnB, &AeroButton::clicked, this, &RadioWidget::filterChangedByBtn);
 
 	filter6k6BtnB = new AeroButton("6k6", this);
 	filter6k6BtnB->setRoundness(0);
@@ -833,7 +778,7 @@ void RadioWidget::createFilterBtnGroupB() {
 	filter6k6BtnB->setFixedSize(btn_widths, btn_height);
 	//filter6k6BtnB->setTextColor(QColor(200, 200, 200));
 	filterBtnListB.append(filter6k6BtnB);
-	CHECKED_CONNECT(filter6k6BtnB, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
+	CHECKED_CONNECT(filter6k6BtnB, &AeroButton::clicked, this, &RadioWidget::filterChangedByBtn);
 
 	filter5k2BtnB = new AeroButton("5k2", this);
 	filter5k2BtnB->setRoundness(0);
@@ -841,7 +786,7 @@ void RadioWidget::createFilterBtnGroupB() {
 	filter5k2BtnB->setFixedSize(btn_widths, btn_height);
 	//filter5k2BtnB->setTextColor(QColor(200, 200, 200));
 	filterBtnListB.append(filter5k2BtnB);
-	CHECKED_CONNECT(filter5k2BtnB, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
+	CHECKED_CONNECT(filter5k2BtnB, &AeroButton::clicked, this, &RadioWidget::filterChangedByBtn);
 
 	filter4kBtnB = new AeroButton("4k", this);
 	filter4kBtnB->setRoundness(0);
@@ -849,7 +794,7 @@ void RadioWidget::createFilterBtnGroupB() {
 	filter4kBtnB->setFixedSize(btn_widths, btn_height);
 	//filter4kBtnB->setTextColor(QColor(200, 200, 200));
 	filterBtnListB.append(filter4kBtnB);
-	CHECKED_CONNECT(filter4kBtnB, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
+	CHECKED_CONNECT(filter4kBtnB, &AeroButton::clicked, this, &RadioWidget::filterChangedByBtn);
 
 	filter3k1BtnB = new AeroButton("3k1", this);
 	filter3k1BtnB->setRoundness(0);
@@ -857,7 +802,7 @@ void RadioWidget::createFilterBtnGroupB() {
 	filter3k1BtnB->setFixedSize(btn_widths, btn_height);
 	//filter3k1BtnB->setTextColor(QColor(200, 200, 200));
 	filterBtnListB.append(filter3k1BtnB);
-	CHECKED_CONNECT(filter3k1BtnB, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
+	CHECKED_CONNECT(filter3k1BtnB, &AeroButton::clicked, this, &RadioWidget::filterChangedByBtn);
 
 	filter2k9BtnB = new AeroButton("2k9", this);
 	filter2k9BtnB->setRoundness(0);
@@ -865,7 +810,7 @@ void RadioWidget::createFilterBtnGroupB() {
 	filter2k9BtnB->setFixedSize(btn_widths, btn_height);
 	//filter2k9BtnB->setTextColor(QColor(200, 200, 200));
 	filterBtnListB.append(filter2k9BtnB);
-	CHECKED_CONNECT(filter2k9BtnB, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
+	CHECKED_CONNECT(filter2k9BtnB, &AeroButton::clicked, this, &RadioWidget::filterChangedByBtn);
 
 	filter2k4BtnB = new AeroButton("2k4", this);
 	filter2k4BtnB->setRoundness(0);
@@ -873,7 +818,7 @@ void RadioWidget::createFilterBtnGroupB() {
 	filter2k4BtnB->setFixedSize(btn_widths, btn_height);
 	//filter2k4BtnB->setTextColor(QColor(200, 200, 200));
 	filterBtnListB.append(filter2k4BtnB);
-	CHECKED_CONNECT(filter2k4BtnB, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
+	CHECKED_CONNECT(filter2k4BtnB, &AeroButton::clicked, this, &RadioWidget::filterChangedByBtn);
 
 	filterVar1BtnB = new AeroButton("Var1", this);
 	filterVar1BtnB->setRoundness(0);
@@ -881,7 +826,7 @@ void RadioWidget::createFilterBtnGroupB() {
 	filterVar1BtnB->setFixedSize(btn_widths, btn_height);
 	//filterVar1BtnB->setTextColor(QColor(200, 200, 200));
 	filterBtnListB.append(filterVar1BtnB);
-	CHECKED_CONNECT(filterVar1BtnB, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
+	CHECKED_CONNECT(filterVar1BtnB, &AeroButton::clicked, this, &RadioWidget::filterChangedByBtn);
 
 	filterVar2BtnB = new AeroButton("Var2", this);
 	filterVar2BtnB->setRoundness(0);
@@ -889,7 +834,7 @@ void RadioWidget::createFilterBtnGroupB() {
 	filterVar2BtnB->setFixedSize(btn_widths, btn_height);
 	//filterVar2BtnB->setTextColor(QColor(200, 200, 200));
 	filterBtnListB.append(filterVar2BtnB);
-	CHECKED_CONNECT(filterVar2BtnB, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
+	CHECKED_CONNECT(filterVar2BtnB, &AeroButton::clicked, this, &RadioWidget::filterChangedByBtn);
 
 	foreach(AeroButton *btn, filterBtnListB) {
 
@@ -938,7 +883,7 @@ void RadioWidget::createFilterBtnGroupC() {
 	filter1kBtnC->setFixedSize(btn_widths, btn_height);
 	//filter1kBtnC->setTextColor(QColor(200, 200, 200));
 	filterBtnListC.append(filter1kBtnC);
-	CHECKED_CONNECT(filter1kBtnC, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
+	CHECKED_CONNECT(filter1kBtnC, &AeroButton::clicked, this, &RadioWidget::filterChangedByBtn);
 
 	filter800BtnC = new AeroButton("800", this);
 	filter800BtnC->setRoundness(0);
@@ -946,7 +891,7 @@ void RadioWidget::createFilterBtnGroupC() {
 	filter800BtnC->setFixedSize(btn_widths, btn_height);
 	//filter800BtnC->setTextColor(QColor(200, 200, 200));
 	filterBtnListC.append(filter800BtnC);
-	CHECKED_CONNECT(filter800BtnC, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
+	CHECKED_CONNECT(filter800BtnC, &AeroButton::clicked, this, &RadioWidget::filterChangedByBtn);
 
 	filter750BtnC = new AeroButton("750", this);
 	filter750BtnC->setRoundness(0);
@@ -954,7 +899,7 @@ void RadioWidget::createFilterBtnGroupC() {
 	filter750BtnC->setFixedSize(btn_widths, btn_height);
 	//filter750BtnC->setTextColor(QColor(200, 200, 200));
 	filterBtnListC.append(filter750BtnC);
-	CHECKED_CONNECT(filter750BtnC, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
+	CHECKED_CONNECT(filter750BtnC, &AeroButton::clicked, this, &RadioWidget::filterChangedByBtn);
 
 	filter600BtnC = new AeroButton("600", this);
 	filter600BtnC->setRoundness(0);
@@ -962,7 +907,7 @@ void RadioWidget::createFilterBtnGroupC() {
 	filter600BtnC->setFixedSize(btn_widths, btn_height);
 	//filter600BtnC->setTextColor(QColor(200, 200, 200));
 	filterBtnListC.append(filter600BtnC);
-	CHECKED_CONNECT(filter600BtnC, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
+	CHECKED_CONNECT(filter600BtnC, &AeroButton::clicked, this, &RadioWidget::filterChangedByBtn);
 
 	filter500BtnC = new AeroButton("500", this);
 	filter500BtnC->setRoundness(0);
@@ -970,7 +915,7 @@ void RadioWidget::createFilterBtnGroupC() {
 	filter500BtnC->setFixedSize(btn_widths, btn_height);
 	//filter500BtnC->setTextColor(QColor(200, 200, 200));
 	filterBtnListC.append(filter500BtnC);
-	CHECKED_CONNECT(filter500BtnC, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
+	CHECKED_CONNECT(filter500BtnC, &AeroButton::clicked, this, &RadioWidget::filterChangedByBtn);
 
 	filter400BtnC = new AeroButton("400", this);
 	filter400BtnC->setRoundness(0);
@@ -978,7 +923,7 @@ void RadioWidget::createFilterBtnGroupC() {
 	filter400BtnC->setFixedSize(btn_widths, btn_height);
 	//filter400BtnC->setTextColor(QColor(200, 200, 200));
 	filterBtnListC.append(filter400BtnC);
-	CHECKED_CONNECT(filter400BtnC, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
+	CHECKED_CONNECT(filter400BtnC, &AeroButton::clicked, this, &RadioWidget::filterChangedByBtn);
 
 	filter250BtnC = new AeroButton("250", this);
 	filter250BtnC->setRoundness(0);
@@ -986,7 +931,7 @@ void RadioWidget::createFilterBtnGroupC() {
 	filter250BtnC->setFixedSize(btn_widths, btn_height);
 	//filter250BtnC->setTextColor(QColor(200, 200, 200));
 	filterBtnListC.append(filter250BtnC);
-	CHECKED_CONNECT(filter250BtnC, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
+	CHECKED_CONNECT(filter250BtnC, &AeroButton::clicked, this, &RadioWidget::filterChangedByBtn);
 
 	filter100BtnC = new AeroButton("100", this);
 	filter100BtnC->setRoundness(0);
@@ -994,7 +939,7 @@ void RadioWidget::createFilterBtnGroupC() {
 	filter100BtnC->setFixedSize(btn_widths, btn_height);
 	//filter100BtnC->setTextColor(QColor(200, 200, 200));
 	filterBtnListC.append(filter100BtnC);
-	CHECKED_CONNECT(filter100BtnC, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
+	CHECKED_CONNECT(filter100BtnC, &AeroButton::clicked, this, &RadioWidget::filterChangedByBtn);
 
 	filter50BtnC = new AeroButton("50", this);
 	filter50BtnC->setRoundness(0);
@@ -1002,7 +947,7 @@ void RadioWidget::createFilterBtnGroupC() {
 	filter50BtnC->setFixedSize(btn_widths, btn_height);
 	//filter50BtnC->setTextColor(QColor(200, 200, 200));
 	filterBtnListC.append(filter50BtnC);
-	CHECKED_CONNECT(filter50BtnC, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
+	CHECKED_CONNECT(filter50BtnC, &AeroButton::clicked, this, &RadioWidget::filterChangedByBtn);
 
 	filter25BtnC = new AeroButton("25", this);
 	filter25BtnC->setRoundness(0);
@@ -1010,7 +955,7 @@ void RadioWidget::createFilterBtnGroupC() {
 	filter25BtnC->setFixedSize(btn_widths, btn_height);
 	//filter25BtnC->setTextColor(QColor(200, 200, 200));
 	filterBtnListC.append(filter25BtnC);
-	CHECKED_CONNECT(filter25BtnC, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
+	CHECKED_CONNECT(filter25BtnC, &AeroButton::clicked, this, &RadioWidget::filterChangedByBtn);
 
 	filterVar1BtnC = new AeroButton("Var1", this);
 	filterVar1BtnC->setRoundness(0);
@@ -1018,7 +963,7 @@ void RadioWidget::createFilterBtnGroupC() {
 	filterVar1BtnC->setFixedSize(btn_widths, btn_height);
 	//filterVar1BtnC->setTextColor(QColor(200, 200, 200));
 	filterBtnListC.append(filterVar1BtnC);
-	CHECKED_CONNECT(filterVar1BtnC, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
+	CHECKED_CONNECT(filterVar1BtnC, &AeroButton::clicked, this, &RadioWidget::filterChangedByBtn);
 
 	filterVar2BtnC = new AeroButton("Var2", this);
 	filterVar2BtnC->setRoundness(0);
@@ -1026,7 +971,7 @@ void RadioWidget::createFilterBtnGroupC() {
 	filterVar2BtnC->setFixedSize(btn_widths, btn_height);
 	//filterVar2BtnC->setTextColor(QColor(200, 200, 200));
 	filterBtnListC.append(filterVar2BtnC);
-	CHECKED_CONNECT(filterVar2BtnC, SIGNAL(clicked()), this, SLOT(filterChangedByBtn()));
+	CHECKED_CONNECT(filterVar2BtnC, &AeroButton::clicked, this, &RadioWidget::filterChangedByBtn);
 
 	foreach(AeroButton *btn, filterBtnListC) {
 
@@ -1072,21 +1017,21 @@ QGroupBox *RadioWidget::mercuryBtnGroup() {
 	attenuatorBtn = new AeroButton("Attn.", this);
 	attenuatorBtn->setRoundness(0);
 	attenuatorBtn->setFixedSize (50, btn_height);
-	connect(attenuatorBtn, SIGNAL(released()), this, SLOT(attenuatorChanged()));
+	connect(attenuatorBtn, &AeroButton::released, this, &RadioWidget::attenuatorChanged);
 
 	ditherBtn = new AeroButton("Dither", this);
 	ditherBtn->setRoundness(0);
 	//ditherBtn->setGlass(false);
 	ditherBtn->setFixedSize (50, btn_height);
 	//ditherBtn->setTextColor(QColor(200, 200, 200));
-	connect(ditherBtn, SIGNAL(released()), this, SLOT(ditherChanged()));
+	connect(ditherBtn, &AeroButton::released, this, &RadioWidget::ditherChanged);
 
 	randomBtn = new AeroButton("Rand", this);
 	randomBtn->setRoundness(0);
 	//randomBtn->setGlass(false);
 	randomBtn->setFixedSize(50, btn_height);
 	//randomBtn->setTextColor(QColor(200, 200, 200));
-	CHECKED_CONNECT(randomBtn, SIGNAL(released()), this, SLOT(randomChanged()));
+	CHECKED_CONNECT(randomBtn, &AeroButton::released, this, &RadioWidget::randomChanged);
 	
 	HamBand band = m_receiverDataList.at(0).hamBand;
 

@@ -74,14 +74,14 @@ AlexFilterWidget::AlexFilterWidget(QWidget *parent)
 	manualFilterBtn->setFixedSize (btn_width3, btn_height);
 	manualFilterBtn->setBtnState(AeroButton::OFF);
 
-	CHECKED_CONNECT(manualFilterBtn, SIGNAL(clicked()), this, SLOT(manualFilterBtnClicked()));
+	CHECKED_CONNECT(manualFilterBtn, &AeroButton::clicked, this, &AlexFilterWidget::manualFilterBtnClicked);
 
 	defaultValuesBtn = new AeroButton("Default", this);
 	defaultValuesBtn->setRoundness(0);
 	defaultValuesBtn->setFixedSize (btn_width3, btn_height);
 	defaultValuesBtn->setBtnState(AeroButton::OFF);
 
-	CHECKED_CONNECT(defaultValuesBtn, SIGNAL(clicked()), this, SLOT(defaultValuesBtnClicked()));
+	CHECKED_CONNECT(defaultValuesBtn, &AeroButton::clicked, this, &AlexFilterWidget::defaultValuesBtnClicked);
 
 	//**************************************************************
 	// create groups
@@ -140,9 +140,9 @@ void AlexFilterWidget::setupConnections() {
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(alexManualStateChanged(bool)),
+		&Settings::alexManualStateChanged,
 		this,
-		SLOT(alexManualStateChanged(bool)));
+		&AlexFilterWidget::alexManualStateChanged);
 
 //	CHECKED_CONNECT(
 //		set,
@@ -158,9 +158,9 @@ void AlexFilterWidget::setupConnections() {
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(vfoFrequencyChanged(int, int, long)),
+		&Settings::vfoFrequencyChanged,
 		this,
-		SLOT(setFrequency(int, int, long)));
+		&AlexFilterWidget::setFrequency);
 }
 
 void AlexFilterWidget::createHPFGroup() {
@@ -219,7 +219,7 @@ void AlexFilterWidget::createHPFGroup() {
 		spinBox->setSingleStep(0.5);
 		spinBox->setValue((double)(values.at(i)/1000.0));
 
-		CHECKED_CONNECT(spinBox, SIGNAL(valueChanged(double)), this, SLOT(hpfLoSpinBoxValueChanged(double)));
+		CHECKED_CONNECT(spinBox, &QDoubleSpinBox::valueChanged, this, &AlexFilterWidget::hpfLoSpinBoxValueChanged);
 
 		m_HPFLoSpinBoxList << spinBox;
 	}

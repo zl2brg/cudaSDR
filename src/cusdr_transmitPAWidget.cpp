@@ -153,7 +153,7 @@ void TransmitPAWidget::createGainGroup() {
 		spinBox->setSingleStep(0.1);
 
 
-		//CHECKED_CONNECT(comboBox, SIGNAL(currentIndexChanged(int)), this, SLOT(setAttenuatorValue(int)));
+		//CHECKED_CONNECT(comboBox, &QComboBox::currentIndexChanged, this, &TransmitPAWidget::setAttenuatorValue);
 
 		gainSpinBoxList << spinBox;
 	}

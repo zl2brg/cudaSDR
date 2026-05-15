@@ -97,44 +97,16 @@ QSize DisplayTabWidget::minimumSizeHint() const {
 
 void DisplayTabWidget::setupConnections() {
 
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(systemStateChanged(
-					QSDR::_Error,
-					QSDR::_HWInterfaceMode,
-					QSDR::_ServerMode,
-					QSDR::_DataEngineState)),
-		this,
-		SLOT(systemStateChanged(
-					QSDR::_Error,
-					QSDR::_HWInterfaceMode,
-					QSDR::_ServerMode,
-					QSDR::_DataEngineState)));
+	CHECKED_CONNECT(set, &Settings::systemStateChanged, this, &DisplayTabWidget::systemStateChanged);
 
-	CHECKED_CONNECT(
-		set, 
-		SIGNAL(alexPresenceChanged(bool)),
-		this,
-		SLOT(setAlexPresence(bool)));
+	CHECKED_CONNECT(set, &Settings::alexPresenceChanged, this, &DisplayTabWidget::setAlexPresence);
 
-	CHECKED_CONNECT(
-		set, 
-		SIGNAL(penelopePresenceChanged(bool)),
-		this,
-		SLOT(setPennyPresence(bool)));
+	CHECKED_CONNECT(set, &Settings::penelopePresenceChanged, this, &DisplayTabWidget::setPennyPresence);
 
-	CHECKED_CONNECT(
-		set, 
-		SIGNAL(penelopePresenceChanged(bool)),
-		this,
-		SLOT(setPennyPresence(bool)));
+	CHECKED_CONNECT(set, &Settings::penelopePresenceChanged, this, &DisplayTabWidget::setPennyPresence);
 
 	// Connect 3D options widget
-	CHECKED_CONNECT(
-		m_3DWidget,
-		SIGNAL(show3DPanadapterChanged(bool)),
-		this,
-		SLOT(show3DPanadapter(bool)));
+	CHECKED_CONNECT(m_3DWidget, &Options3DWidget::show3DPanadapterChanged, this, &DisplayTabWidget::show3DPanadapter);
 }
 
 void DisplayTabWidget::systemStateChanged(
@@ -195,73 +167,29 @@ void DisplayTabWidget::create3DDockWidget(QWidget *mainWindow) {
 		m_3DDockWidget->setWidget(m_3DPanel);
 		
 		// Connect to real spectrum data
-		CHECKED_CONNECT(
-			set,
-			SIGNAL(spectrumBufferChanged(int, const qVectorFloat&)),
-			m_3DPanel,
-			SLOT(setSpectrumBuffer(int, const qVectorFloat&)));
+		CHECKED_CONNECT(set, &Settings::spectrumBufferChanged, m_3DPanel, &QGL3DPanel::setSpectrumBuffer);
 			
 		// Connect to frequency changes
-		CHECKED_CONNECT(
-			set,
-			SIGNAL(ctrFrequencyChanged(int, int, long)),
-			m_3DPanel,
-			SLOT(setCtrFrequency(int, int, long)));
+		CHECKED_CONNECT(set, &Settings::ctrFrequencyChanged, m_3DPanel, &QGL3DPanel::setCtrFrequency);
 			
-		CHECKED_CONNECT(
-			set,
-			SIGNAL(vfoFrequencyChanged(int, int, long)),
-			m_3DPanel,
-			SLOT(setVFOFrequency(int, int, long)));
+		CHECKED_CONNECT(set, &Settings::vfoFrequencyChanged, m_3DPanel, &QGL3DPanel::setVFOFrequency);
 		
 		// Connect 3D options widget controls to 3D panel
-		CHECKED_CONNECT(
-			m_3DWidget,
-			SIGNAL(heightScaleValueChanged(float)),
-			m_3DPanel,
-			SLOT(setHeightScale(float)));
+		CHECKED_CONNECT(m_3DWidget, &Options3DWidget::heightScaleValueChanged, m_3DPanel, &QGL3DPanel::setHeightScale);
 			
-		CHECKED_CONNECT(
-			m_3DWidget,
-			SIGNAL(frequencyScaleValueChanged(float)),
-			m_3DPanel,
-			SLOT(setFrequencyScale(float)));
+		CHECKED_CONNECT(m_3DWidget, &Options3DWidget::frequencyScaleValueChanged, m_3DPanel, &QGL3DPanel::setFrequencyScale);
 			
-		CHECKED_CONNECT(
-			m_3DWidget,
-			SIGNAL(timeScaleValueChanged(float)),
-			m_3DPanel,
-			SLOT(setTimeScale(float)));
+		CHECKED_CONNECT(m_3DWidget, &Options3DWidget::timeScaleValueChanged, m_3DPanel, &QGL3DPanel::setTimeScale);
 			
-		CHECKED_CONNECT(
-			m_3DWidget,
-			SIGNAL(updateIntervalValueChanged(int)),
-			m_3DPanel,
-			SLOT(setUpdateRate(int)));
+		CHECKED_CONNECT(m_3DWidget, &Options3DWidget::updateIntervalValueChanged, m_3DPanel, &QGL3DPanel::setUpdateRate);
 			
-		CHECKED_CONNECT(
-			m_3DWidget,
-			SIGNAL(showGridValueChanged(bool)),
-			m_3DPanel,
-			SLOT(setShowGrid(bool)));
+		CHECKED_CONNECT(m_3DWidget, &Options3DWidget::showGridValueChanged, m_3DPanel, &QGL3DPanel::setShowGrid);
 			
-		CHECKED_CONNECT(
-			m_3DWidget,
-			SIGNAL(showAxesValueChanged(bool)),
-			m_3DPanel,
-			SLOT(setShowAxes(bool)));
+		CHECKED_CONNECT(m_3DWidget, &Options3DWidget::showAxesValueChanged, m_3DPanel, &QGL3DPanel::setShowAxes);
 			
-		CHECKED_CONNECT(
-			m_3DWidget,
-			SIGNAL(wireframeModeValueChanged(bool)),
-			m_3DPanel,
-			SLOT(setWireframeMode(bool)));
+		CHECKED_CONNECT(m_3DWidget, &Options3DWidget::wireframeModeValueChanged, m_3DPanel, &QGL3DPanel::setWireframeMode);
 			
-		CHECKED_CONNECT(
-			m_3DWidget,
-			SIGNAL(waterfallOffsetValueChanged(float)),
-			m_3DPanel,
-			SLOT(setWaterfallOffset(float)));
+		CHECKED_CONNECT(m_3DWidget, &Options3DWidget::waterfallOffsetValueChanged, m_3DPanel, &QGL3DPanel::setWaterfallOffset);
 		
 		// Emit initial values to configure the 3D panel with current slider settings
 		m_3DWidget->emitInitialValues();

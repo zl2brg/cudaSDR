@@ -21,17 +21,17 @@ FilterWidget::FilterWidget(QWidget *parent)
 {
     CHECKED_CONNECT(
         set,
-        SIGNAL(dspModeChanged(int, DSPMode)),
+        &Settings::dspModeChanged,
         this,
-        SLOT(dspModeChanged(int, DSPMode)));
+        &FilterWidget::dspModeChanged);
 
 
     setContentsMargins(4, 0, 4, 0);
     m_FilterData = Mid_FilterGroup;
     //this->setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
     ui->setupUi(this);
-    CHECKED_CONNECT(this->ui->Var1_Slider, SIGNAL(valueChanged(int)), this, SLOT(slider_changed(int)));
-    CHECKED_CONNECT(this->ui->Var2_Slider, SIGNAL(valueChanged(int)), this, SLOT(slider_changed(int)));
+    CHECKED_CONNECT(this->ui->Var1_Slider, &QSlider::valueChanged, this, &FilterWidget::slider_changed);
+    CHECKED_CONNECT(this->ui->Var2_Slider, &QSlider::valueChanged, this, &FilterWidget::slider_changed);
 
     setupModeBtn(ui->filter_1);
     setupModeBtn(ui->filter_2);

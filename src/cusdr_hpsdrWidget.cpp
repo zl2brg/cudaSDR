@@ -123,17 +123,9 @@ void HPSDRWidget::setupConnections() {
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(systemStateChanged(
-					QSDR::_Error,
-					QSDR::_HWInterfaceMode,
-					QSDR::_ServerMode,
-					QSDR::_DataEngineState)),
+		&Settings::systemStateChanged,
 		this,
-		SLOT(systemStateChanged(
-					QSDR::_Error,
-					QSDR::_HWInterfaceMode,
-					QSDR::_ServerMode,
-					QSDR::_DataEngineState)));
+		&HPSDRWidget::systemStateChanged);
 }
 
 QGroupBox* HPSDRWidget::hpsdrHardwareBtnGroup() {
@@ -146,9 +138,9 @@ QGroupBox* HPSDRWidget::hpsdrHardwareBtnGroup() {
 	
 	CHECKED_CONNECT(
 		modulesPresenceBtn, 
-		SIGNAL(released()), 
+		&AeroButton::released, 
 		this, 
-		SLOT(hpsdrHardwareChanged()));
+		&HPSDRWidget::hpsdrHardwareChanged);
 
 	hermesPresenceBtn = new AeroButton("Hermes", this);
 	hermesPresenceBtn->setRoundness(0);
@@ -158,9 +150,9 @@ QGroupBox* HPSDRWidget::hpsdrHardwareBtnGroup() {
 	
 	CHECKED_CONNECT(
 		hermesPresenceBtn, 
-		SIGNAL(released()), 
+		&AeroButton::released, 
 		this, 
-		SLOT(hpsdrHardwareChanged()));
+		&HPSDRWidget::hpsdrHardwareChanged);
 
 	penelopePresenceBtn = new AeroButton("Penelope", this);
 	penelopePresenceBtn->setRoundness(0);
@@ -169,9 +161,9 @@ QGroupBox* HPSDRWidget::hpsdrHardwareBtnGroup() {
 	
 	CHECKED_CONNECT(
 		penelopePresenceBtn, 
-		SIGNAL(released()), 
+		&AeroButton::released, 
 		this, 
-		SLOT(penelopePresenceChanged()));
+		&HPSDRWidget::penelopePresenceChanged);
 
 	pennyPresenceBtn = new AeroButton("Pennylane", this);
 	pennyPresenceBtn->setRoundness(0);
@@ -180,9 +172,9 @@ QGroupBox* HPSDRWidget::hpsdrHardwareBtnGroup() {
 
 	CHECKED_CONNECT(
 		pennyPresenceBtn, 
-		SIGNAL(released()), 
+		&AeroButton::released, 
 		this, 
-		SLOT(pennyPresenceChanged()));
+		&HPSDRWidget::pennyPresenceChanged);
 	
 	mercuryPresenceBtn = new AeroButton("Mercury", this);
 	mercuryPresenceBtn->setRoundness(0);
@@ -191,9 +183,9 @@ QGroupBox* HPSDRWidget::hpsdrHardwareBtnGroup() {
 	
 	CHECKED_CONNECT(
 		mercuryPresenceBtn, 
-		SIGNAL(released()), 
+		&AeroButton::released, 
 		this, 
-		SLOT(mercuryPresenceChanged()));
+		&HPSDRWidget::mercuryPresenceChanged);
 
 	alexPresenceBtn = new AeroButton("Alex", this);
 	alexPresenceBtn->setRoundness(0);
@@ -202,9 +194,9 @@ QGroupBox* HPSDRWidget::hpsdrHardwareBtnGroup() {
 	
 	CHECKED_CONNECT(
 		alexPresenceBtn, 
-		SIGNAL(released()), 
+		&AeroButton::released, 
 		this, 
-		SLOT(alexPresenceChanged()));
+		&HPSDRWidget::alexPresenceChanged);
 	
 	excaliburPresenceBtn = new AeroButton("Excalibur", this);
 	excaliburPresenceBtn->setRoundness(0);
@@ -213,9 +205,9 @@ QGroupBox* HPSDRWidget::hpsdrHardwareBtnGroup() {
 	
 	CHECKED_CONNECT(
 		excaliburPresenceBtn, 
-		SIGNAL(released()), 
+		&AeroButton::released, 
 		this, 
-		SLOT(excaliburPresenceChanged()));
+		&HPSDRWidget::excaliburPresenceChanged);
 	
 	firmwareCheckBtn = new AeroButton("On", this);
 	firmwareCheckBtn->setRoundness(0);
@@ -234,9 +226,9 @@ QGroupBox* HPSDRWidget::hpsdrHardwareBtnGroup() {
 
 	CHECKED_CONNECT(
 		firmwareCheckBtn,
-		SIGNAL(released()),
+		&AeroButton::released,
 		this,
-		SLOT(firmwareCheckChanged()));
+		&HPSDRWidget::firmwareCheckChanged);
 
 	m_fwCheckLabel = new QLabel("Firmware Check:", this);
 	m_fwCheckLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
@@ -297,9 +289,9 @@ void HPSDRWidget::createSource10MhzExclusiveGroup() {
 
 	CHECKED_CONNECT(
 		atlasBtn, 
-		SIGNAL(released()), 
+		&AeroButton::released, 
 		this, 
-		SLOT(source10MhzChanged()));
+		&HPSDRWidget::source10MhzChanged);
 	
 	penelopeBtn = new AeroButton("Penny[Lane]", this);
 	penelopeBtn->setRoundness(0);
@@ -308,9 +300,9 @@ void HPSDRWidget::createSource10MhzExclusiveGroup() {
 
 	CHECKED_CONNECT(
 		penelopeBtn, 
-		SIGNAL(released()), 
+		&AeroButton::released, 
 		this, 
-		SLOT(source10MhzChanged()));
+		&HPSDRWidget::source10MhzChanged);
 	
 	mercuryBtn = new AeroButton("Mercury", this);
 	mercuryBtn->setRoundness(0);
@@ -319,9 +311,9 @@ void HPSDRWidget::createSource10MhzExclusiveGroup() {
 
 	CHECKED_CONNECT(
 		mercuryBtn, 
-		SIGNAL(released()), 
+		&AeroButton::released, 
 		this, 
-		SLOT(source10MhzChanged()));
+		&HPSDRWidget::source10MhzChanged);
 	
 	
 	sources10Mhz << "Atlas" << "Penelope" << "Mercury";
@@ -384,9 +376,9 @@ void HPSDRWidget::createSource122_88MhzExclusiveGroup() {
 
 	CHECKED_CONNECT(
 		penelope2Btn, 
-		SIGNAL(clicked()), 
+		&AeroButton::clicked, 
 		this, 
-		SLOT(source122_88MhzChanged()));
+		&HPSDRWidget::source122_88MhzChanged);
 
 	mercury2Btn = new AeroButton("Mercury", this);
 	mercury2Btn->setRoundness(0);
@@ -394,9 +386,9 @@ void HPSDRWidget::createSource122_88MhzExclusiveGroup() {
 
 	CHECKED_CONNECT(
 		mercury2Btn, 
-		SIGNAL(clicked()), 
+		&AeroButton::clicked, 
 		this, 
-		SLOT(source122_88MhzChanged()));
+		&HPSDRWidget::source122_88MhzChanged);
 
 	switch(set->get122_8MHzSource()) {
 
@@ -434,38 +426,38 @@ QGroupBox *HPSDRWidget::sampleRateExclusiveGroup() {
 	samplerate48Btn->setRoundness(0);
 	samplerate48Btn->setFixedSize (50, btn_height);
 	samplerateBtnList.append(samplerate48Btn);
-	CHECKED_CONNECT(samplerate48Btn, SIGNAL(released()), this, SLOT(sampleRateChanged()));
+	CHECKED_CONNECT(samplerate48Btn, &AeroButton::released, this, &HPSDRWidget::sampleRateChanged);
 
 	samplerate96Btn = new AeroButton("96 kHz", this);
 	samplerate96Btn->setRoundness(0);
 	samplerate96Btn->setFixedSize (50, btn_height);
 	samplerateBtnList.append(samplerate96Btn);
-	CHECKED_CONNECT(samplerate96Btn, SIGNAL(released()), this, SLOT(sampleRateChanged()));
+	CHECKED_CONNECT(samplerate96Btn, &AeroButton::released, this, &HPSDRWidget::sampleRateChanged);
 
 	samplerate192Btn = new AeroButton("192 kHz", this);
 	samplerate192Btn->setRoundness(0);
 	samplerate192Btn->setFixedSize (50, btn_height);
 	samplerateBtnList.append(samplerate192Btn);
-	CHECKED_CONNECT(samplerate192Btn, SIGNAL(released()), this, SLOT(sampleRateChanged()));
+	CHECKED_CONNECT(samplerate192Btn, &AeroButton::released, this, &HPSDRWidget::sampleRateChanged);
 
 	samplerate384Btn = new AeroButton("384 kHz", this);
 	samplerate384Btn->setRoundness(0);
 	samplerate384Btn->setFixedSize (50, btn_height);
 	//samplerate384Btn->setEnabled(false);
 	samplerateBtnList.append(samplerate384Btn);
-	CHECKED_CONNECT(samplerate384Btn, SIGNAL(released()), this, SLOT(sampleRateChanged()));
+	CHECKED_CONNECT(samplerate384Btn, &AeroButton::released, this, &HPSDRWidget::sampleRateChanged);
 
     samplerate768Btn = new AeroButton("768 kHz", this);
     samplerate768Btn->setRoundness(0);
     samplerate768Btn->setFixedSize (50, btn_height);
     samplerateBtnList.append(samplerate768Btn);
-    CHECKED_CONNECT(samplerate768Btn, SIGNAL(released()), this, SLOT(sampleRateChanged()));
+    CHECKED_CONNECT(samplerate768Btn, &AeroButton::released, this, &HPSDRWidget::sampleRateChanged);
 
     samplerate1536Btn = new AeroButton("1.536 MHz", this);
     samplerate1536Btn->setRoundness(0);
     samplerate1536Btn->setFixedSize (65, btn_height);
     samplerateBtnList.append(samplerate1536Btn);
-    CHECKED_CONNECT(samplerate1536Btn, SIGNAL(released()), this, SLOT(sampleRateChanged()));
+    CHECKED_CONNECT(samplerate1536Btn, &AeroButton::released, this, &HPSDRWidget::sampleRateChanged);
 
 	switch(set->getSampleRate()) {
 
@@ -558,9 +550,9 @@ QGroupBox *HPSDRWidget::numberOfReceiversGroup() {
 
 	CHECKED_CONNECT(
 		m_receiverComboBox,
-		SIGNAL(currentIndexChanged(int)),
+		&QComboBox::currentIndexChanged,
 		this,
-		SLOT(setNumberOfReceivers(int)));
+		&HPSDRWidget::setNumberOfReceivers);
 
 	m_receiversLabel = new QLabel("Receivers:", this);
     m_receiversLabel->setFrameStyle(QFrame::Box | QFrame::Raised);

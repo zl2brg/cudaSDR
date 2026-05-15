@@ -84,35 +84,27 @@ void cusdr_SetupWidget::setupConnections() {
 
     CHECKED_CONNECT(
             set,
-            SIGNAL(systemStateChanged(
-                    QSDR::_Error,
-                    QSDR::_HWInterfaceMode,
-                    QSDR::_ServerMode,
-                    QSDR::_DataEngineState)),
+            &Settings::systemStateChanged,
             this,
-            SLOT(systemStateChanged(
-                    QSDR::_Error,
-                    QSDR::_HWInterfaceMode,
-                    QSDR::_ServerMode,
-                    QSDR::_DataEngineState)));
+            &cusdr_SetupWidget::systemStateChanged);
 
     CHECKED_CONNECT(
             set,
-            SIGNAL(alexPresenceChanged(bool)),
+            &Settings::alexPresenceChanged,
             this,
-            SLOT(setAlexPresence(bool)));
+            &cusdr_SetupWidget::setAlexPresence);
 
     CHECKED_CONNECT(
             set,
-            SIGNAL(penelopePresenceChanged(bool)),
+            &Settings::penelopePresenceChanged,
             this,
-            SLOT(setPennyPresence(bool)));
+            &cusdr_SetupWidget::setPennyPresence);
 
     CHECKED_CONNECT(
             set,
-            SIGNAL(pennyLanePresenceChanged(bool)),
+            &Settings::pennyLanePresenceChanged,
             this,
-            SLOT(setPennyPresence(bool)));
+            &cusdr_SetupWidget::setPennyPresence);
 }
 
 void cusdr_SetupWidget::systemStateChanged(

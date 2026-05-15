@@ -87,6 +87,7 @@ fi
 CMAKE_PREFIX="${QT_PREFIX}/lib/cmake"
 
 echo "==> Configuring (BUILD_TYPE=${BUILD_TYPE})..."
+export LD_LIBRARY_PATH="${QT_PREFIX}/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
 cmake \
     -S "$(dirname "$0")" \
     -B "${BUILD_DIR}" \

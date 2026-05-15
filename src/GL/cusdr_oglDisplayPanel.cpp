@@ -1808,7 +1808,7 @@ void OGLDisplayPanel::setADCStatus(int value) {
 
 	m_adcStatus = value;
 
-    QTimer::singleShot(500, this, SLOT(updateADCStatus()));
+    QTimer::singleShot(500, this, &OGLDisplayPanel::updateADCStatus);
 }
 
 void OGLDisplayPanel::updateADCStatus() {
@@ -1823,7 +1823,7 @@ void OGLDisplayPanel::updateADCStatus() {
 void OGLDisplayPanel::setPacketLossStatus(int value) {
 
 	m_packetLossStatus = value;
-    QTimer::singleShot(100, this, SLOT(updatePacketLossStatus()));
+    QTimer::singleShot(100, this, &OGLDisplayPanel::updatePacketLossStatus);
 }
 
 void OGLDisplayPanel::updatePacketLossStatus() {
@@ -2066,9 +2066,9 @@ void OGLDisplayPanel::systemStateChanged(
 		m_sMeterMaxTimer.restart();
 		m_sMeterMinTimer.restart();
 
-        QTimer::singleShot(50, this, SLOT(updateADCStatus()));
-        QTimer::singleShot(50, this, SLOT(updateSyncStatus()));
-        QTimer::singleShot(50, this, SLOT(updatePacketLossStatus()));
+        QTimer::singleShot(50, this, &OGLDisplayPanel::updateADCStatus);
+        QTimer::singleShot(50, this, &OGLDisplayPanel::updateSyncStatus);
+        QTimer::singleShot(50, this, &OGLDisplayPanel::updatePacketLossStatus);
 
 		//resizeGL(width(), height());
 	}

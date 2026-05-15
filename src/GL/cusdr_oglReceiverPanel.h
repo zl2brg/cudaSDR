@@ -116,15 +116,11 @@ private:
 	
 	QVector<qreal>					m_panadapterBins;
 	QVarLengthArray<TGL_ubyteRGBA>	m_waterfallPixel;
-	QVarLengthArray<TGL_ubyteRGBA>	m_waterfallFramePixel;
 
 	QQueue<QVector<float> >			specAv_queue;
 
 	QOpenGLFramebufferObject*	m_frequencyScaleFBO;
 	QOpenGLFramebufferObject*	m_dBmScaleFBO;
-    QOpenGLFramebufferObject*	m_textureFBO;
-	QOpenGLFramebufferObject*	m_waterfallLineFBO;
-	QOpenGLFramebufferObject*	m_waterfallFBO;
 	QOpenGLFramebufferObject*	m_secScaleWaterfallFBO;
 
 	QRect						m_panRect;
@@ -224,6 +220,7 @@ private:
 	GLfloat		m_blueGrid;
 	
 	GLuint		m_waterfallTextureId;
+	int			m_waterfallCurrentLine;
 
 	int			m_bigHeight;
 	int			m_bigWidth;
@@ -242,6 +239,7 @@ private:
 	int			m_waterfallColorRange;
 	int			m_freqRulerDisplayWidth;
 	int			m_oldWaterfallWidth;
+	int			m_oldWaterfallHeight;
 	int			m_displayTop;
 	int			m_dBmPanLogGain;
 	int			m_panSpectrumMinimumHeight;

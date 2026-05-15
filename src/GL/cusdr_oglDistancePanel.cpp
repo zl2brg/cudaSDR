@@ -217,60 +217,47 @@ void QGLDistancePanel::setupConnections() {
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(systemStateChanged(
-					QSDR::_Error,
-					QSDR::_HWInterfaceMode,
-					QSDR::_ServerMode,
-					QSDR::_DataEngineState)),
+		&Settings::systemStateChanged,
 		this,
-		SLOT(systemStateChanged(
-					QSDR::_Error,
-					QSDR::_HWInterfaceMode,
-					QSDR::_ServerMode,
-					QSDR::_DataEngineState)));
+		&QGLDistancePanel::systemStateChanged);
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(graphicModeChanged(
-					int,
-					PanGraphicsMode,
-					WaterfallColorMode)),
+		&Settings::graphicModeChanged,
 		this, 
-		SLOT(graphicModeChanged(
-					int,
-					PanGraphicsMode,
-					WaterfallColorMode)));
+		&QGLDistancePanel::graphicModeChanged);
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(freqRulerPositionChanged(float, int)), 
+		&Settings::freqRulerPositionChanged, 
 		this, 
-		SLOT(freqRulerPositionChanged(float, int)));
+		&QGLDistancePanel::freqRulerPositionChanged);
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(sampleRateChanged(int)), 
+		&Settings::sampleRateChanged, 
 		this, 
-		SLOT(sampleRateChanged(int)));
+		&QGLDistancePanel::sampleRateChanged);
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(filterFrequenciesChanged(int, qreal, qreal)), 
+		&Settings::filterFrequenciesChanged, 
 		this, 
-		SLOT(setFilterFrequencies(int, qreal, qreal)));
+		&QGLDistancePanel::setFilterFrequencies);
 
+    /*
 	CHECKED_CONNECT_OPT(
 		set, 
-		SIGNAL(chirpSpectrumBufferChanged(int, qint64, const float *)),
+		&Settings::chirpSpectrumBufferChanged,
 		this,
-		SLOT(distanceSpectrumBufferChanged(int, qint64, const float *)),
+		&QGLDistancePanel::distanceSpectrumBufferChanged,
 		Qt::DirectConnection);
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(chirpFFTShowChanged(bool)),
+		&Settings::chirpFFTShowChanged,
 		this,
-		SLOT(setChirpFFTShow(bool)));
+		&QGLDistancePanel::setChirpFFTShow);
 
 	CHECKED_CONNECT(
 		set, 
@@ -289,30 +276,31 @@ void QGLDistancePanel::setupConnections() {
 		SIGNAL(waterfallOffesetHiChanged(int, int)),
 		this,
 		SLOT(setWaterfallOffesetHi(int, int)));
+    */
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(spectrumAveragingChanged(bool)), 
+		&Settings::spectrumAveragingChanged, 
 		this, 
-		SLOT(setSpectrumAveraging(bool)));
+		&QGLDistancePanel::setSpectrumAveraging);
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(spectrumAveragingCntChanged(int)), 
+		&Settings::spectrumAveragingCntChanged, 
 		this, 
-		SLOT(setSpectrumAveragingCnt(int)));
+		&QGLDistancePanel::setSpectrumAveragingCnt);
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(panGridStatusChanged(bool)),
+		&Settings::panGridStatusChanged,
 		this,
-		SLOT(setPanGridStatus(bool)));
+		&QGLDistancePanel::setPanGridStatus);
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(panadapterColorChanged()),
+		&Settings::panadapterColorChanged,
 		this,
-		SLOT(setPanadapterColors()));
+		&QGLDistancePanel::setPanadapterColors);
 }
 
 void QGLDistancePanel::initializeGL() {

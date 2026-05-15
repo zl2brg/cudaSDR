@@ -33,15 +33,53 @@ export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-xcb}"
 export QT_XCB_GL_INTEGRATION="${QT_XCB_GL_INTEGRATION:-xcb_egl}"
 export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-}"
 
-# If Qt6_DIR is set (as suggested by build.sh), derive runtime plugin/lib paths.
-if [[ -n "${Qt6_DIR:-}" ]]; then
-    QT_PREFIX="$(realpath -m "${Qt6_DIR}/../../.." 2>/dev/null || true)"
-    if [[ -d "${QT_PREFIX}/plugins/platforms" ]]; then
-        export QT_QPA_PLATFORM_PLUGIN_PATH="${QT_PREFIX}/plugins/platforms"
+# --- Qt 6.11.0 Detection Logic ---
+REQUIRED_QT_VERSION="6.11.0"
+QT_SEARCH_PATHS=(
+    "$HOME/Qt/${REQUIRED_QT_VERSION}/gcc_64"
+    "$HOME/Qt/${REQUIRED_QT_VERSION}/linux_gcc_64"
+    "/opt/Qt/${REQUIRED_QT_VERSION}/gcc_64"
+    "/usr/local/Qt-${REQUIRED_QT_VERSION}"
+    "/usr/lib/qt6"
+)
+
+find_qt() {
+    local prefix version
+    _qt_version_from_prefix() {
+        local p="$1"
+        grep -oP '_qt_package_version "\K[^"]+' \
+            "${p}/lib/cmake/Qt6/Qt6Targets.cmake" 2>/dev/null | head -1
+    }
+
+    if [[ -n "${Qt6_DIR:-}" ]]; then
+        for candidate in "${Qt6_DIR}" "${Qt6_DIR}/../../.."; do
+            candidate=$(realpath -m "${candidate}" 2>/dev/null || echo "${candidate}")
+            version=$(_qt_version_from_prefix "${candidate}")
+            if [[ "${version}" == "${REQUIRED_QT_VERSION}" ]]; then
+                echo "${candidate}"
+                return 0
+            fi
+        done
     fi
-    if [[ -d "${QT_PREFIX}/lib" ]]; then
-        export LD_LIBRARY_PATH="${QT_PREFIX}/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
-    fi
+
+    for prefix in "${QT_SEARCH_PATHS[@]}"; do
+        if [[ -f "${prefix}/lib/cmake/Qt6/Qt6Config.cmake" ]]; then
+            version=$(_qt_version_from_prefix "${prefix}")
+            if [[ "${version}" == "${REQUIRED_QT_VERSION}" ]]; then
+                echo "${prefix}"
+                return 0
+            fi
+        fi
+    done
+    return 1
+}
+
+if QT_PREFIX=$(find_qt); then
+    echo "==> Using Qt ${REQUIRED_QT_VERSION} at: ${QT_PREFIX}"
+    export QT_QPA_PLATFORM_PLUGIN_PATH="${QT_PREFIX}/plugins"
+    export LD_LIBRARY_PATH="${QT_PREFIX}/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
+else
+    echo "WARNING: Qt ${REQUIRED_QT_VERSION} not found. Launch might fail due to library conflicts."
 fi
 
 echo "Starting cudasdr..."

@@ -113,56 +113,48 @@ void NetworkWidget::setupConnections() {
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(systemStateChanged(
-					QSDR::_Error,
-					QSDR::_HWInterfaceMode,
-					QSDR::_ServerMode,
-					QSDR::_DataEngineState)),
+		&Settings::systemStateChanged,
 		this,
-		SLOT(systemStateChanged(
-					QSDR::_Error,
-					QSDR::_HWInterfaceMode,
-					QSDR::_ServerMode,
-					QSDR::_DataEngineState)));
+		&NetworkWidget::systemStateChanged);
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(newHPSDRDeviceNIC(QString, QString)), 
+		&Settings::newHPSDRDeviceNIC, 
 		this, 
-		SLOT(addDeviceNICEntry(QString, QString)));
+		&NetworkWidget::addDeviceNICEntry);
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(hpsdrDeviceNICChanged(int)), 
+		&Settings::hpsdrDeviceNICChanged, 
 		this, 
-		SLOT(setDeviceNIC(int)));
+		&NetworkWidget::setDeviceNIC);
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(metisCardListChanged(QList<TNetworkDevicecard>)), 
+		&Settings::metisCardListChanged, 
 		this, 
-		SLOT(setNetworkDeviceList(QList<TNetworkDevicecard>)));
+		&NetworkWidget::setNetworkDeviceList);
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(hpsdrNetworkDeviceChanged(TNetworkDevicecard)),
+		&Settings::hpsdrNetworkDeviceChanged,
 		this, 
-		SLOT(setCurrentNetworkDevice(TNetworkDevicecard)));
+		&NetworkWidget::setCurrentNetworkDevice);
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(socketBufferSizeChanged(int)), 
+		&Settings::socketBufferSizeChanged, 
 		this, 
-		SLOT(setSocketBufSize(int)));
+		&NetworkWidget::setSocketBufSize);
 }
 
 void NetworkWidget::addNICChangedConnection() {
 
 	CHECKED_CONNECT(
 		networkDeviceInterfaces, 
-		SIGNAL(currentIndexChanged(int)), 
+		&QComboBox::currentIndexChanged, 
 		set, 
-		SLOT(setHPSDRDeviceNIC(int)));
+		&Settings::setHPSDRDeviceNIC);
 }
 
 void NetworkWidget::setDeviceNIC(int index) {
@@ -179,9 +171,9 @@ QGroupBox* NetworkWidget::hpsdrInterfaceExclusiveBtnGroup() {
 
 	CHECKED_CONNECT(
 		networkPresenceBtn, 
-		SIGNAL(clicked()), 
+		&AeroButton::clicked, 
 		this, 
-		SLOT(interfaceBtnClicked()));
+		&NetworkWidget::interfaceBtnClicked);
 	
 	noHWBtn = new AeroButton("None", this);
     noHWBtn->setFont(QFont("Arial",8));
@@ -190,9 +182,9 @@ QGroupBox* NetworkWidget::hpsdrInterfaceExclusiveBtnGroup() {
 	
 	CHECKED_CONNECT(
 		noHWBtn, 
-		SIGNAL(clicked()), 
+		&AeroButton::clicked, 
 		this, 
-		SLOT(interfaceBtnClicked()));
+		&NetworkWidget::interfaceBtnClicked);
 
 	hwInterfaceChanged();
 
@@ -229,9 +221,9 @@ void NetworkWidget::createDeviceNetworkInterfaceGroup() {
 
 	CHECKED_CONNECT(
 		socketBufSizeBtn,
-		SIGNAL(clicked()),
+		&AeroButton::clicked,
 		this,
-		SLOT(socketBufSizeBtnClicked()));
+		&NetworkWidget::socketBufSizeBtnClicked);
 
 	socketBufferSizes = new QComboBox();
 	socketBufferSizes->addItem("1 kB");
@@ -246,9 +238,9 @@ void NetworkWidget::createDeviceNetworkInterfaceGroup() {
 
 	CHECKED_CONNECT(
 		socketBufferSizes,
-		SIGNAL(currentIndexChanged(int)),
+		&QComboBox::currentIndexChanged,
 		this,
-		SLOT(setSocketBufferSize(int)));
+		&NetworkWidget::setSocketBufferSize);
 
 	socketBufferSizeLabel = new QLabel("Socket Buffer Size:", this);
 	socketBufferSizeLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
@@ -288,9 +280,9 @@ void NetworkWidget::createDeviceSearchGroup() {
 	
 	CHECKED_CONNECT(
 		searchNetworkDeviceBtn, 
-		SIGNAL(clicked()), 
+		&AeroButton::clicked, 
 		this, 
-		SLOT(searchHPSDRDeviceBtnClicked()));
+		&NetworkWidget::searchHPSDRDeviceBtnClicked);
 
 	networkDeviceIPAdresses = new QComboBox();
 

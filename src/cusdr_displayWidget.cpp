@@ -157,49 +157,15 @@ QSize DisplayOptionsWidget::minimumSizeHint() const {
 
 void DisplayOptionsWidget::setupConnections() {
 
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(systemStateChanged(
-					QSDR::_Error,
-					QSDR::_HWInterfaceMode,
-					QSDR::_ServerMode,
-					QSDR::_DataEngineState)),
-		this,
-		SLOT(systemStateChanged(
-					QSDR::_Error,
-					QSDR::_HWInterfaceMode,
-					QSDR::_ServerMode,
-					QSDR::_DataEngineState)));
+	CHECKED_CONNECT(set, &Settings::systemStateChanged, this, &DisplayOptionsWidget::systemStateChanged);
 
-	CHECKED_CONNECT(
-		set, 
-		SIGNAL(graphicModeChanged(
-					int,
-					PanGraphicsMode,
-					WaterfallColorMode)),
-		this, 
-		SLOT(graphicModeChanged(
-					int,
-					PanGraphicsMode,
-					WaterfallColorMode)));
+	CHECKED_CONNECT(set, &Settings::graphicModeChanged, this, &DisplayOptionsWidget::graphicModeChanged);
 
-	CHECKED_CONNECT(
-		set, 
-SIGNAL(currentReceiverChanged(int)),
-		   this,
-		   SLOT(setCurrentReceiver(int)));
+	CHECKED_CONNECT(set, &Settings::currentReceiverChanged, this, &DisplayOptionsWidget::setCurrentReceiver);
 
-	CHECKED_CONNECT(
-		set, 
-SIGNAL(sampleRateChanged(int)), 
-		   this,
-		   SLOT(sampleRateChanged(int)));
+	CHECKED_CONNECT(set, &Settings::sampleRateChanged, this, &DisplayOptionsWidget::sampleRateChanged);
 
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(framesPerSecondChanged(int, int)),
-		this,
-		SLOT(setFramesPerSecond(int, int)));
+	CHECKED_CONNECT(set, &Settings::framesPerSecondChanged, this, &DisplayOptionsWidget::setFramesPerSecond);
 }
 
 void DisplayOptionsWidget::systemStateChanged(
@@ -285,7 +251,7 @@ void DisplayOptionsWidget::createFPSGroupBox() {
 	m_fpsSlider->setValue(m_framesPerSecond);
 
 
-	CHECKED_CONNECT(m_fpsSlider, SIGNAL(valueChanged(int)), this, SLOT(fpsValueChanged(int)));
+	CHECKED_CONNECT(m_fpsSlider, &QSlider::valueChanged, this, &DisplayOptionsWidget::fpsValueChanged);
 
 	QString str = "%1 ";
 	m_fpsLevelLabel = new QLabel(str.arg(m_framesPerSecond, 2, 10, QLatin1Char(' ')), this);
@@ -320,9 +286,9 @@ void DisplayOptionsWidget::createPanSpectrumOptions() {
 
 	CHECKED_CONNECT(
 		m_PanLineBtn,
-		SIGNAL(clicked()),
+		&AeroButton::clicked,
 		this,
-		SLOT(panModeChanged()));
+		&DisplayOptionsWidget::panModeChanged);
 
 	m_PanFilledLineBtn = new AeroButton("Filled Line", this);
 	m_PanFilledLineBtn->setRoundness(0);
@@ -331,9 +297,9 @@ void DisplayOptionsWidget::createPanSpectrumOptions() {
 
 	CHECKED_CONNECT(
 		m_PanFilledLineBtn,
-		SIGNAL(clicked()),
+		&AeroButton::clicked,
 		this,
-		SLOT(panModeChanged()));
+		&DisplayOptionsWidget::panModeChanged);
 
 	m_PanSolidBtn = new AeroButton("Solid", this);
 	m_PanSolidBtn->setRoundness(0);
@@ -342,9 +308,9 @@ void DisplayOptionsWidget::createPanSpectrumOptions() {
 
 	CHECKED_CONNECT(
 		m_PanSolidBtn,
-		SIGNAL(clicked()),
+		&AeroButton::clicked,
 		this,
-		SLOT(panModeChanged()));
+		&DisplayOptionsWidget::panModeChanged);
 
 	switch (m_panadapterMode) {
 
@@ -381,7 +347,7 @@ void DisplayOptionsWidget::createPanSpectrumOptions() {
 	m_fmSqlevel->setValue(80);
 	m_fmSqlevel->setRange(1, 100);
 
-	CHECKED_CONNECT(m_fmSqlevel, SIGNAL(valueChanged(int)), this, SLOT(sqLevelChanged(int)));
+	CHECKED_CONNECT(m_fmSqlevel, &QSlider::valueChanged, this, &DisplayOptionsWidget::sqLevelChanged);
 
 	m_avgSlider = new QSlider(Qt::Horizontal, this);
 	m_avgSlider->setTickPosition(QSlider::NoTicks);
@@ -390,7 +356,7 @@ void DisplayOptionsWidget::createPanSpectrumOptions() {
 	m_avgSlider->setRange(1, 1000);
 	m_avgSlider->setValue(m_avgValue);
 
-	CHECKED_CONNECT(m_avgSlider, SIGNAL(valueChanged(int)), this, SLOT(averagingFilterCntChanged(int)));
+	CHECKED_CONNECT(m_avgSlider, &QSlider::valueChanged, this, &DisplayOptionsWidget::averagingFilterCntChanged);
 
 
 	QString str = "%1 ";
@@ -419,7 +385,7 @@ void DisplayOptionsWidget::createPanSpectrumOptions() {
 	m_fftSizeCombo->addItems(QStringList() << "2k" << "4k" <<  "8k" <<"16k" << "32k");
 	m_fftSizeCombo->setFont(m_fonts.normalFont);
 	m_fftSizeCombo->setCurrentIndex(m_fftSize);
-	CHECKED_CONNECT(m_fftSizeCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(fftSizeChanged(int)));
+	CHECKED_CONNECT(m_fftSizeCombo, &QComboBox::currentIndexChanged, this, &DisplayOptionsWidget::fftSizeChanged);
 
 
 	m_panAverageCombo = new QComboBox(this);
@@ -427,7 +393,7 @@ void DisplayOptionsWidget::createPanSpectrumOptions() {
     m_panAverageCombo->setFont(m_fonts.normalFont);
     m_panAverageCombo->setCurrentIndex(m_panAvMode);
 
-    CHECKED_CONNECT(m_panAverageCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(panAverageModeChanged(int)));
+    CHECKED_CONNECT(m_panAverageCombo, &QComboBox::currentIndexChanged, this, &DisplayOptionsWidget::panAverageModeChanged);
 
 
     m_panDetectorCombo = new QComboBox(this);
@@ -435,7 +401,7 @@ void DisplayOptionsWidget::createPanSpectrumOptions() {
     m_panDetectorCombo->setFont(m_fonts.normalFont);
     m_panDetectorCombo->setCurrentIndex(m_panDetMode);
 
-    CHECKED_CONNECT(m_panDetectorCombo, SIGNAL(currentIndexChanged(int)), this, SLOT(panDetectorModeChanged(int)));
+    CHECKED_CONNECT(m_panDetectorCombo, &QComboBox::currentIndexChanged, this, &DisplayOptionsWidget::panDetectorModeChanged);
 
 
 
@@ -505,9 +471,9 @@ void DisplayOptionsWidget::createWidebandPanOptions() {
 
 	CHECKED_CONNECT(
 		m_wbPanLineBtn,
-		SIGNAL(clicked()),
+		&AeroButton::clicked,
 		this,
-		SLOT(wbPanModeChanged()));
+		&DisplayOptionsWidget::wbPanModeChanged);
 
 	m_wbPanFilledLineBtn = new AeroButton("Filled Line", this);
 	m_wbPanFilledLineBtn->setRoundness(0);
@@ -516,9 +482,9 @@ void DisplayOptionsWidget::createWidebandPanOptions() {
 
 	CHECKED_CONNECT(
 		m_wbPanFilledLineBtn,
-		SIGNAL(clicked()),
+		&AeroButton::clicked,
 		this,
-		SLOT(wbPanModeChanged()));
+		&DisplayOptionsWidget::wbPanModeChanged);
 
 	m_wbPanSolidBtn = new AeroButton("Solid", this);
 	m_wbPanSolidBtn->setRoundness(0);
@@ -527,9 +493,9 @@ void DisplayOptionsWidget::createWidebandPanOptions() {
 
 	CHECKED_CONNECT(
 		m_wbPanSolidBtn,
-		SIGNAL(clicked()),
+		&AeroButton::clicked,
 		this,
-		SLOT(wbPanModeChanged()));
+		&DisplayOptionsWidget::wbPanModeChanged);
 
 	switch (m_widebandOptions.panMode) {
 
@@ -566,7 +532,7 @@ void DisplayOptionsWidget::createWidebandPanOptions() {
 	m_wbAvgSlider->setRange(1, 1000);
 	m_wbAvgSlider->setValue(m_wbAvgValue);
 
-	CHECKED_CONNECT(m_wbAvgSlider, SIGNAL(valueChanged(int)), this, SLOT(setWidebandAveragingCnt(int)));
+	CHECKED_CONNECT(m_wbAvgSlider, &QSlider::valueChanged, this, &DisplayOptionsWidget::setWidebandAveragingCnt);
 
 	QString str = "%1 ";
 	m_wbAvgLevelLabel = new QLabel(str.arg(m_wbAvgValue, 2, 10, QLatin1Char(' ')), this);
@@ -614,9 +580,9 @@ void DisplayOptionsWidget::createWaterfallSpectrumOptions() {
 
 	CHECKED_CONNECT(
 		m_waterfallSimpleBtn, 
-		SIGNAL(clicked()), 
+		&AeroButton::clicked, 
 		this, 
-		SLOT(waterfallColorChanged()));
+		&DisplayOptionsWidget::waterfallColorChanged);
 
 	m_waterfallEnhancedBtn = new AeroButton("Enhanced", this);
 	m_waterfallEnhancedBtn->setRoundness(0);
@@ -625,9 +591,9 @@ void DisplayOptionsWidget::createWaterfallSpectrumOptions() {
 
 	CHECKED_CONNECT(
 		m_waterfallEnhancedBtn, 
-		SIGNAL(clicked()), 
+		&AeroButton::clicked, 
 		this, 
-		SLOT(waterfallColorChanged()));
+		&DisplayOptionsWidget::waterfallColorChanged);
 
 	/*m_waterfallSpectranBtn = new AeroButton("Spectran", this);
 	m_waterfallSpectranBtn->setRoundness(0);
@@ -692,9 +658,9 @@ void DisplayOptionsWidget::createWaterfallSpectrumOptions() {
 
 	CHECKED_CONNECT(
 		m_waterfallLoOffsetSpinBox,
-		SIGNAL(valueChanged(int)),
+		&QSpinBox::valueChanged,
 		this,
-		SLOT(waterfallLoOffsetChanged(int)));
+		&DisplayOptionsWidget::waterfallLoOffsetChanged);
 
 	m_waterfallHiOffsetSpinBox = new QSpinBox(this);
 	m_waterfallHiOffsetSpinBox->setMinimum(-200);
@@ -704,9 +670,9 @@ void DisplayOptionsWidget::createWaterfallSpectrumOptions() {
 
 	CHECKED_CONNECT(
 		m_waterfallHiOffsetSpinBox,
-		SIGNAL(valueChanged(int)),
+		&QSpinBox::valueChanged,
 		this,
-		SLOT(waterfallHiOffsetChanged(int)));
+		&DisplayOptionsWidget::waterfallHiOffsetChanged);
 
 	//m_waterfallTimeLabel = new QLabel("Timing (ms):", this);
     //m_waterfallTimeLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
@@ -779,9 +745,9 @@ void DisplayOptionsWidget::createSMeterOptions() {
 
 	CHECKED_CONNECT(
 		m_sMeterHoldTimeSpinBox,
-		SIGNAL(valueChanged(int)),
+		&QSpinBox::valueChanged,
 		this,
-		SLOT(sMeterHoldTimeChanged(int)));
+		&DisplayOptionsWidget::sMeterHoldTimeChanged);
 
 	m_sMeterHoldTimeLabel = new QLabel("Hold Time (ms):", this);
     m_sMeterHoldTimeLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
@@ -820,9 +786,9 @@ void DisplayOptionsWidget::createCallSignEditor() {
 
 	CHECKED_CONNECT(
 		callSignLineEdit, 
-		SIGNAL(textEdited(const QString &)), 
+		&QLineEdit::textEdited, 
 		this, 
-		SLOT(callSignTextChanged(const QString &)));
+		&DisplayOptionsWidget::callSignTextChanged);
 
 	m_setCallSignBtn = new AeroButton("Set", this);
 	m_setCallSignBtn->setRoundness(0);
@@ -830,9 +796,9 @@ void DisplayOptionsWidget::createCallSignEditor() {
 	
 	CHECKED_CONNECT(
 		m_setCallSignBtn, 
-		SIGNAL(clicked()), 
+		&AeroButton::clicked, 
 		this, 
-		SLOT(callSignChanged()));
+		&DisplayOptionsWidget::callSignChanged);
 
 	QHBoxLayout *hbox1 = new QHBoxLayout;
 	hbox1->setSpacing(4);
@@ -974,10 +940,10 @@ void DisplayOptionsWidget::setFramesPerSecond(int rx, int value) {
 
 	Q_UNUSED(rx)
 
-	disconnect(m_fpsSlider, SIGNAL(valueChanged(int)), this, SLOT(fpsValueChanged(int)));
+	disconnect(m_fpsSlider, &QSlider::valueChanged, this, &DisplayOptionsWidget::fpsValueChanged);
 	m_fpsSlider->setValue(value);
 	m_fpsSlider->update();
-	connect(m_fpsSlider, SIGNAL(valueChanged(int)), this, SLOT(fpsValueChanged(int)));
+	connect(m_fpsSlider, &QSlider::valueChanged, this, &DisplayOptionsWidget::fpsValueChanged);
 
 	QString str = "%1 ";
 	m_fpsLevelLabel->setText(str.arg(value, 2, 10, QLatin1Char(' ')));

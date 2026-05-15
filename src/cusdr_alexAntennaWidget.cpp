@@ -167,7 +167,7 @@ void AlexAntennaWidget::createAntennasGroup() {
 
 		antenna1BtnList << btn;
 
-		CHECKED_CONNECT(btn, SIGNAL(clicked()), this, SLOT(rxAntBtnClicked()));
+		CHECKED_CONNECT(btn, &AeroButton::clicked, this, &AlexAntennaWidget::rxAntBtnClicked);
 
 		btn = new AeroButton("2", this);
 		btn->setRoundness(0);
@@ -175,7 +175,7 @@ void AlexAntennaWidget::createAntennasGroup() {
 
 		antenna2BtnList << btn;
 
-		CHECKED_CONNECT(btn, SIGNAL(clicked()), this, SLOT(rxAntBtnClicked()));
+		CHECKED_CONNECT(btn, &AeroButton::clicked, this, &AlexAntennaWidget::rxAntBtnClicked);
 
 		btn = new AeroButton("3", this);
 		btn->setRoundness(0);
@@ -183,7 +183,7 @@ void AlexAntennaWidget::createAntennasGroup() {
 
 		antenna3BtnList << btn;
 
-		CHECKED_CONNECT(btn, SIGNAL(clicked()), this, SLOT(rxAntBtnClicked()));
+		CHECKED_CONNECT(btn, &AeroButton::clicked, this, &AlexAntennaWidget::rxAntBtnClicked);
 	}
 
 	for (int i = 0; i < m_numberOfBands; i++) {
@@ -203,7 +203,7 @@ void AlexAntennaWidget::createAntennasGroup() {
 
 		rx1BtnList << btn;
 
-		CHECKED_CONNECT(btn, SIGNAL(clicked()), this, SLOT(rxAuxBtnClicked()));
+		CHECKED_CONNECT(btn, &AeroButton::clicked, this, &AlexAntennaWidget::rxAuxBtnClicked);
 
 		btn = new AeroButton("2", this);
 		btn->setRoundness(0);
@@ -211,7 +211,7 @@ void AlexAntennaWidget::createAntennasGroup() {
 
 		rx2BtnList << btn;
 
-		CHECKED_CONNECT(btn, SIGNAL(clicked()), this, SLOT(rxAuxBtnClicked()));
+		CHECKED_CONNECT(btn, &AeroButton::clicked, this, &AlexAntennaWidget::rxAuxBtnClicked);
 
 		btn = new AeroButton("XV", this);
 		btn->setRoundness(0);
@@ -219,7 +219,7 @@ void AlexAntennaWidget::createAntennasGroup() {
 
 		xvBtnList << btn;
 
-		CHECKED_CONNECT(btn, SIGNAL(clicked()), this, SLOT(rxAuxBtnClicked()));
+		CHECKED_CONNECT(btn, &AeroButton::clicked, this, &AlexAntennaWidget::rxAuxBtnClicked);
 	}
 
 	for (int i = 0; i < m_numberOfBands; i++) {
@@ -239,7 +239,7 @@ void AlexAntennaWidget::createAntennasGroup() {
 
 		tx1BtnList << btn;
 
-		CHECKED_CONNECT(btn, SIGNAL(clicked()), this, SLOT(txAntBtnClicked()));
+		CHECKED_CONNECT(btn, &AeroButton::clicked, this, &AlexAntennaWidget::txAntBtnClicked);
 
 		btn = new AeroButton("2", this);
 		btn->setRoundness(0);
@@ -247,7 +247,7 @@ void AlexAntennaWidget::createAntennasGroup() {
 
 		tx2BtnList << btn;
 
-		CHECKED_CONNECT(btn, SIGNAL(clicked()), this, SLOT(txAntBtnClicked()));
+		CHECKED_CONNECT(btn, &AeroButton::clicked, this, &AlexAntennaWidget::txAntBtnClicked);
 
 		btn = new AeroButton("3", this);
 		btn->setRoundness(0);
@@ -255,7 +255,7 @@ void AlexAntennaWidget::createAntennasGroup() {
 
 		tx3BtnList << btn;
 
-		CHECKED_CONNECT(btn, SIGNAL(clicked()), this, SLOT(txAntBtnClicked()));
+		CHECKED_CONNECT(btn, &AeroButton::clicked, this, &AlexAntennaWidget::txAntBtnClicked);
 	}
 
 	for (int i = 0; i < m_numberOfBands; i++) {

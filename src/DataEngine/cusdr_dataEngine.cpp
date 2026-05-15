@@ -173,202 +173,177 @@ void DataEngine::setupConnections() {
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(systemStateChanged(
-                QSDR::_Error,
-				QSDR::_HWInterfaceMode,
-				QSDR::_ServerMode,
-				QSDR::_DataEngineState)),this,
-		SLOT(systemStateChanged(
-				QSDR::_Error,
-				QSDR::_HWInterfaceMode,
-				QSDR::_ServerMode,
-				QSDR::_DataEngineState)))
-
-	CHECKED_CONNECT(
-		set, 
-		SIGNAL(rxListChanged(QList<Receiver*>)),
+		&Settings::systemStateChanged,
 		this,
-		SLOT(rxListChanged(QList<Receiver*>)))
+		&DataEngine::systemStateChanged);
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(numberOfRXChanged(int)),
-		this, 
-		SLOT(setNumberOfRx(int)));
-
-	CHECKED_CONNECT(
-		set, 
-		SIGNAL(currentReceiverChanged(int)),
-		this, 
-		SLOT(setCurrentReceiver(int)));
-
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(hamBandChanged(int, bool, HamBand)),
+		&Settings::rxListChanged,
 		this,
-		SLOT(setHamBand(int, bool, HamBand)));
+		&DataEngine::rxListChanged);
+
+	CHECKED_CONNECT(
+		set, 
+		&Settings::numberOfRXChanged,
+		this, 
+		&DataEngine::setNumberOfRx);
+
+	CHECKED_CONNECT(
+		set, 
+		&Settings::currentReceiverChanged,
+		this, 
+		&DataEngine::setCurrentReceiver);
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(sampleRateChanged(int)), 
-		this, 
-		SLOT(setSampleRate(int)));
-
-	CHECKED_CONNECT(
-		set, 
-		SIGNAL(mercuryAttenuatorChanged(HamBand, int)),
-		this, 
-		SLOT(setMercuryAttenuator(HamBand, int)));
-
-//	CHECKED_CONNECT(
-//		set,
-//		SIGNAL(mercuryAttenuatorsChanged(QList<int>)),
-//		this,
-//		SLOT(setMercuryAttenuators(QList<int>)));
-
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(ditherChanged(int)),
-		this, 
-        SLOT(setDither(int)))
-
-	CHECKED_CONNECT(
-		set, 
-		SIGNAL(randomChanged(int)),
-		this, 
-		SLOT(setRandom(int)));
-
-	CHECKED_CONNECT(
-		set, 
-		SIGNAL(src10MhzChanged(int)), 
-		this, 
-		SLOT(set10MhzSource(int)));
-
-	CHECKED_CONNECT(
-		set, 
-		SIGNAL(src122_88MhzChanged(int)), 
-		this, 
-		SLOT(set122_88MhzSource(int)));
-
-	CHECKED_CONNECT(
-		set, 
-        SIGNAL(micSourceChanged(int)),
-		this, 
-        SLOT(setMicSource(int)));
-
-	CHECKED_CONNECT(
-		set, 
-		SIGNAL(classChanged(int)), 
-		this, 
-		SLOT(setMercuryClass(int)));
-
-	CHECKED_CONNECT(
-		set, 
-		SIGNAL(timingChanged(int)), 
-		this, 
-		SLOT(setMercuryTiming(int)));
-
-	CHECKED_CONNECT(
-		set, 
-		SIGNAL(clientDisconnectedEvent(int)), 
-		this, 
-		SLOT(setClientDisconnected(int)));
-
-	CHECKED_CONNECT(
-		set, 
-		SIGNAL(clientNoConnectedChanged(int)), 
-		this, 
-		SLOT(setClientConnected(int)));
-
-	CHECKED_CONNECT(
-		set, 
-		SIGNAL(rxConnectedStatusChanged(int, bool)), 
-		this, 
-		SLOT(setRxConnectedStatus(int, bool)));
-
-	CHECKED_CONNECT(
-		set, 
-		SIGNAL(audioRxChanged(int)), 
-		this, 
-		SLOT(setAudioReceiver(int)));
-
-	CHECKED_CONNECT(
-		set, 
-		SIGNAL(framesPerSecondChanged(int, int)),
-		this, 
-		SLOT(setFramesPerSecond(int, int)));
-
-	CHECKED_CONNECT(
-		set, 
-		SIGNAL(searchMetisSignal()), 
-		this, 
-		SLOT(searchHpsdrNetworkDevices()));
-
-	/*CHECKED_CONNECT(
-		set, 
-		SIGNAL(spectrumAveragingChanged(int, bool)), 
-		this, 
-		SLOT(setWbSpectrumAveraging(int, bool)));*/
-
-	CHECKED_CONNECT(
-		set, 
-		SIGNAL(networkDeviceNumberChanged(int)), 
-		this, 
-		SLOT(setHPSDRDeviceNumber(int)));
-
-//	CHECKED_CONNECT(
-//		set,
-//		SIGNAL(alexConfigurationChanged(const QList<TAlexConfiguration> &)),
-//		this,
-//		SLOT(setAlexConfiguration(const QList<TAlexConfiguration> &)));
-
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(alexConfigurationChanged(quint16)),
+		&Settings::hamBandChanged,
 		this,
-		SLOT(setAlexConfiguration(quint16)));
+		&DataEngine::setHamBand);
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(alexStateChanged(HamBand, const QList<int> &)),
-		this,
-		SLOT(setAlexStates(HamBand, const QList<int> &)));
+		&Settings::sampleRateChanged, 
+		this, 
+		&DataEngine::setSampleRate);
+
+	CHECKED_CONNECT(
+		set, 
+		&Settings::mercuryAttenuatorChanged,
+		this, 
+		&DataEngine::setMercuryAttenuator);
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(pennyOCEnabledChanged(bool)),
-		this,
-		SLOT(setPennyOCEnabled(bool)));
+		&Settings::ditherChanged,
+		this, 
+        &DataEngine::setDither);
+
+	CHECKED_CONNECT(
+		set, 
+		&Settings::randomChanged,
+		this, 
+		&DataEngine::setRandom);
+
+	CHECKED_CONNECT(
+		set, 
+		&Settings::src10MhzChanged, 
+		this, 
+		&DataEngine::set10MhzSource);
+
+	CHECKED_CONNECT(
+		set, 
+		&Settings::src122_88MhzChanged, 
+		this, 
+		&DataEngine::set122_88MhzSource);
+
+	CHECKED_CONNECT(
+		set, 
+        &Settings::micSourceChanged,
+		this, 
+        &DataEngine::setMicSource);
+
+	CHECKED_CONNECT(
+		set, 
+		&Settings::classChanged, 
+		this, 
+		&DataEngine::setMercuryClass);
+
+	CHECKED_CONNECT(
+		set, 
+		&Settings::timingChanged, 
+		this, 
+		&DataEngine::setMercuryTiming);
+
+	CHECKED_CONNECT(
+		set, 
+		&Settings::clientDisconnectedEvent, 
+		this, 
+		&DataEngine::setClientDisconnected);
+
+	CHECKED_CONNECT(
+		set, 
+		&Settings::clientNoConnectedChanged, 
+		this, 
+		(qOverload<int>(&DataEngine::setClientConnected)));
+
+	CHECKED_CONNECT(
+		set, 
+		&Settings::rxConnectedStatusChanged, 
+		this, 
+		&DataEngine::setRxConnectedStatus);
+
+	CHECKED_CONNECT(
+		set, 
+		&Settings::audioRxChanged, 
+		this, 
+		&DataEngine::setAudioReceiver);
+
+	CHECKED_CONNECT(
+		set, 
+		&Settings::framesPerSecondChanged,
+		this, 
+		&DataEngine::setFramesPerSecond);
+
+	CHECKED_CONNECT(
+		set, 
+		&Settings::searchMetisSignal, 
+		this, 
+		&DataEngine::searchHpsdrNetworkDevices);
+
+	CHECKED_CONNECT(
+		set, 
+		&Settings::networkDeviceNumberChanged, 
+		this, 
+		&DataEngine::setHPSDRDeviceNumber);
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(rxJ6PinsChanged(const QList<int> &)),
+		&Settings::alexConfigurationChanged,
 		this,
-		SLOT(setRxJ6Pins(const QList<int> &)));
+		&DataEngine::setAlexConfiguration);
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(txJ6PinsChanged(const QList<int> &)),
+		&Settings::alexStateChanged,
 		this,
-		SLOT(setTxJ6Pins(const QList<int> &)));
+		&DataEngine::setAlexStates);
+
+	CHECKED_CONNECT(
+		set,
+		&Settings::pennyOCEnabledChanged,
+		this,
+		&DataEngine::setPennyOCEnabled);
+
+	CHECKED_CONNECT(
+		set,
+		&Settings::rxJ6PinsChanged,
+		this,
+		&DataEngine::setRxJ6Pins);
+
+	CHECKED_CONNECT(
+		set,
+		&Settings::txJ6PinsChanged,
+		this,
+		&DataEngine::setTxJ6Pins);
 
     CHECKED_CONNECT(
             set,
-            SIGNAL(radioStateChanged(RadioState)),
+            &Settings::radioStateChanged,
             this,
-            SLOT(radioStateChange(RadioState)));
+            &DataEngine::radioStateChange);
 
     CHECKED_CONNECT(
             set,
-SIGNAL(driveLevelChanged(int)),
+            &Settings::driveLevelChanged,
 			this,
-			SLOT(set_tx_drivelevel(int)));
+			&DataEngine::set_tx_drivelevel);
 
     CHECKED_CONNECT(
             set,
-            SIGNAL(repeaterModeChanged(bool)),
+            &Settings::repeaterModeChanged,
             this,
-            SLOT(setRepeaterMode(bool)));
+            &DataEngine::setRepeaterMode);
 
 
     connect(set, &Settings::dspModeChanged, this, &DataEngine::dspModeChanged);
@@ -376,61 +351,61 @@ SIGNAL(driveLevelChanged(int)),
 
     CHECKED_CONNECT(
             set,
-            SIGNAL(CwHangTimeChanged(int)),
+            &Settings::CwHangTimeChanged,
             this,
-            SLOT(CwHangTimeChanged(int)));
+            &DataEngine::CwHangTimeChanged);
 
     CHECKED_CONNECT(
             set,
-            SIGNAL(CwSidetoneFreqChanged(int)),
+            &Settings::CwSidetoneFreqChanged,
             this,
-            SLOT(CwSidetoneFreqChanged(int)));
+            &DataEngine::CwSidetoneFreqChanged);
 
 
     connect(set, &Settings::CwKeyReversedChanged, this, &DataEngine::CwKeyReversedChanged);
 
     CHECKED_CONNECT(
             set,
-            SIGNAL(CwKeyerModeChanged(int)),
+            &Settings::CwKeyerModeChanged,
             this,
-            SLOT(CwKeyerModeChanged(int)));
+            &DataEngine::CwKeyerModeChanged);
 
     CHECKED_CONNECT(
                set,
-               SIGNAL(InternalCwChanged(int)),
+               &Settings::InternalCwChanged,
                this,
-               SLOT(InternalCwChanged(int)));
+               &DataEngine::InternalCwChanged);
 
     CHECKED_CONNECT(
                set,
-               SIGNAL(CwKeyerSpeedChanged(int)),
+               &Settings::CwKeyerSpeedChanged,
                this,
-               SLOT(CwKeyerSpeedChanged(int)));
+               &DataEngine::CwKeyerSpeedChanged);
 
 
     CHECKED_CONNECT(
                set,
-               SIGNAL(CwPttDelayChanged(int)),
+               &Settings::CwPttDelayChanged,
                this,
-               SLOT(CwPttDelayChanged(int)));
+               &DataEngine::CwPttDelayChanged);
 
     CHECKED_CONNECT(
                set,
-               SIGNAL(CwSidetoneVolumeChanged(int)),
+               &Settings::CwSidetoneVolumeChanged,
                this,
-               SLOT(CwSidetoneVolumeChanged(int)));
+               &DataEngine::CwSidetoneVolumeChanged);
 
     CHECKED_CONNECT(
             set,
-            SIGNAL(CwKeyerWeightChanged(int)),
+            &Settings::CwKeyerWeightChanged,
             this,
-            SLOT(CwKeyerWeightChanged(int)));
+            &DataEngine::CwKeyerWeightChanged);
 
     CHECKED_CONNECT(
             set,
-            SIGNAL(CwKeyerSpacingChanged(int)),
+            &Settings::CwKeyerSpacingChanged,
                     this,
-            SLOT(CwKeyerSpacingChanged(int)));
+            &DataEngine::CwKeyerSpacingChanged);
 
 
 }
@@ -973,9 +948,15 @@ bool DataEngine::start() {
 
 		CHECKED_CONNECT(
 				RX.at(i),
-				SIGNAL(outputBufferSignal(int, const CPX &)),m_dataProcessor,SLOT(setOutputBuffer(int, const CPX &)));
-        CHECKED_CONNECT(RX.at(i),SIGNAL(audioBufferSignal(int, const CPX &, int)),m_dataProcessor,SLOT(
-                send_hpsdr_data(int, const CPX &,int)));
+				&Receiver::outputBufferSignal,
+				m_dataProcessor,
+				&DataProcessor::setOutputBuffer);
+
+        CHECKED_CONNECT(
+				RX.at(i),
+				&Receiver::audioBufferSignal,
+				m_dataProcessor,
+				&DataProcessor::send_hpsdr_data);
 
    //     CHECKED_CONNECT(RX.at(i),SIGNAL(audioBufferSignal(int, const CPX &, int)),m_dataProcessor,SLOT(
     ///     setAudioBuffer(int, const CPX &,int)));
@@ -1528,8 +1509,9 @@ void DataEngine::createDiscoverer() {
 
 	m_discoverer->connect(
 					m_discoveryThread,
-					SIGNAL(started()), 
-					SLOT(initHPSDRDevice()));
+					&QThread::started, 
+					m_discoverer,
+					&Discoverer::initHPSDRDevice);
 }
 
 bool DataEngine::startDiscoverer(QThread::Priority prio) {
@@ -1622,8 +1604,9 @@ void DataEngine::createDataIO() {
 
 			m_dataIO->connect(
 						m_dataIOThread,
-						SIGNAL(started()), 
-						SLOT(initDataReceiverSocket()));
+						&QThread::started, 
+						m_dataIO,
+						&DataIO::initDataReceiverSocket);
 			break;
         case QSDR::SoapySDR:
             break;
@@ -1724,10 +1707,13 @@ void DataEngine::createDataProcessor() {
 	switch (m_hwInterface) {
 
 		case QSDR::NoInterfaceMode:
+            /*
 			m_dataProcessor->connect(
 						m_dataProcThread, 
-						SIGNAL(started()), 
-						SLOT(processData()));
+						&QThread::started, 
+						m_dataProcessor, 
+						&DataProcessor::processData);
+            */
 			break;
 			
 		case QSDR::Metis:
@@ -1743,9 +1729,9 @@ void DataEngine::createDataProcessor() {
 			if (m_dataIO) {
 				CHECKED_CONNECT(
 						m_dataIO,
-						SIGNAL(readydata()),
+						&DataIO::readydata,
 						m_dataProcessor,
-						SLOT(processReadData()));
+						&DataProcessor::processReadData);
 			} else {
 				DATA_ENGINE_DEBUG << "createDataProcessor: m_dataIO is null, skipping readydata connection.";
 			}
@@ -1862,8 +1848,9 @@ void DataEngine::createWideBandDataProcessor() {
 	m_wbDataProcessor->moveToThread(m_wbDataProcThread);
 	m_wbDataProcessor->connect(
 							m_wbDataProcThread, 
-							SIGNAL(started()), 
-							SLOT(processWideBandData()));
+							&QThread::started, 
+							m_wbDataProcessor, 
+							&WideBandDataProcessor::processWideBandData);
 }
 
 bool DataEngine::startWideBandDataProcessor(QThread::Priority prio) {
@@ -1940,8 +1927,9 @@ void DataEngine::createAudioReceiver() {
 
 	m_audioReceiver->connect(
 						m_AudioRcvrThread, 
-						SIGNAL(started()), 
-						SLOT(initClient()));
+						&QThread::started, 
+						m_audioReceiver, 
+						&AudioReceiver::initClient);
 }
  
 

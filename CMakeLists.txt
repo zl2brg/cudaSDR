@@ -25,19 +25,14 @@ set(SANITIZE_FLAGS "-fsanitize=address")
 # Optional: Enable profiling with gprof (uncomment to use)
 #set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -pg")
 
-# Prefer a local Qt 6.11.0 install when available.
-# This avoids accidentally resolving to distro Qt (e.g. 6.10.x).
-set(_CUDASDR_QT611_PREFIX "$ENV{HOME}/Qt/6.11.0/gcc_64")
-if(EXISTS "${_CUDASDR_QT611_PREFIX}/lib/cmake/Qt6/Qt6Config.cmake")
-    list(PREPEND CMAKE_PREFIX_PATH "${_CUDASDR_QT611_PREFIX}")
-    if(NOT DEFINED Qt6_DIR)
-        set(Qt6_DIR "${_CUDASDR_QT611_PREFIX}/lib/cmake/Qt6" CACHE PATH "Qt6 config directory")
-    endif()
-endif()
-
 # --- Find Dependencies ---
 find_package(Qt6 6.11 REQUIRED COMPONENTS Widgets Core Gui Multimedia Network OpenGL OpenGLWidgets Test)
 find_package(PkgConfig REQUIRED)
+find_package(OpenGL REQUIRED)
+
+pkg_check_modules(ALSA REQUIRED alsa)
+pkg_check_modules(FFTW3 REQUIRED fftw3)
+pkg_check_modules(FFTW3F REQUIRED fftw3f)
 
 # --- Find Codec2 ---
 find_library(CODEC2_LIBRARY codec2)
@@ -246,6 +241,9 @@ target_include_directories(cudasdr PRIVATE
     ${SRC_DIR}/UI
     ${WDSP_DIR}
     ${WDSP_LIBS_DIR}/include
+    ${ALSA_INCLUDE_DIRS}
+    ${FFTW3_INCLUDE_DIRS}
+    ${FFTW3F_INCLUDE_DIRS}
 )
 
 if(CODEC2_FOUND)
@@ -261,16 +259,16 @@ target_link_libraries(cudasdr PRIVATE
     Qt6::Network
     Qt6::OpenGL
     Qt6::OpenGLWidgets
-    # System libraries
-    -lm
-    -lstdc++
-    GL
-    asound
+    # Local static libraries (must come before system libs they depend on)
     ${WDSP_DIR}/libwdsp.a
     ${WDSP_LIBS_DIR}/lib/librnnoise.a
     ${WDSP_LIBS_DIR}/lib/libspecbleach.a
-    fftw3f
-    fftw3
+    # System libraries
+    -lm
+    OpenGL::GL
+    ${ALSA_LIBRARIES}
+    ${FFTW3_LIBRARIES}
+    ${FFTW3F_LIBRARIES}
 )
 
 if(CODEC2_FOUND)

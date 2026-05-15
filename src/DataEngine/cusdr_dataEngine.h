@@ -423,6 +423,8 @@ public slots:
 	void	processDeviceData();
     void    processMicData();
     void	displayDataProcessorSocketError(QAbstractSocket::SocketError error);
+	void	setOutputBuffer(int rx, const CPX &buffer);
+    void    send_hpsdr_data(int rx, const CPX &buffer, int buffersize);
 
 
 
@@ -432,9 +434,7 @@ private slots:
 	void	processOutputBuffer(const CPX &buffer);
 	void	decodeCCBytes(const QByteArray &buffer);
 	void	encodeCCBytes();
-	void	setOutputBuffer(int rx, const CPX &buffer);
 	void 	setAudioBuffer(int rx, const CPX &buffer, int buffersize);
-    void    send_hpsdr_data(int rx, const CPX &buffer, int buffersize);
     void 	setAudioBuffer_old(int rx, const CPX &buffer, int buffersize);
 	void	writeData();
     void    buffer_tx_data();

@@ -101,15 +101,15 @@ void ServerWidget::setupConnections() {
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(newServerNetworkInterface(QString, QString)), 
+		&Settings::newServerNetworkInterface, 
 		this, 
-		SLOT(addServerNIEntry(QString, QString)));
+		&ServerWidget::addServerNIEntry);
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(serverNICChanged(int)), 
+		&Settings::serverNICChanged, 
 		this, 
-		SLOT(setServerNIC(int)));
+		&ServerWidget::setServerNIC);
 
 }
 
@@ -117,9 +117,9 @@ void ServerWidget::addNICChangedConnection() {
 
 	CHECKED_CONNECT(
 		serverNetworkInterfaces, 
-		SIGNAL(currentIndexChanged(int)), 
+		&QComboBox::currentIndexChanged, 
 		set,
-		SLOT(setServerNetworkInterface(int)));
+		&Settings::setServerNetworkInterface);
 }
 
 void ServerWidget::createServerNIGroup() {

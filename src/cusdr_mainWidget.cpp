@@ -204,22 +204,22 @@ void MainWindow::setupConnections() {
 
 	CHECKED_CONNECT_OPT(
 		set,
-		SIGNAL(systemMessageEvent(const QString&, int)),
+		&Settings::systemMessageEvent,
 		this,
-		SLOT(showStatusBarMessage(const QString &, int)),
+		&MainWindow::showStatusBarMessage,
 		Qt::DirectConnection);
 
 	CHECKED_CONNECT(
 		m_dataEngine,
-		SIGNAL(clearSystemMessageEvent()),
+		&DataEngine::clearSystemMessageEvent,
 		this,
-		SLOT(clearStatusBarMessage()));
+		&MainWindow::clearStatusBarMessage);
 
 	CHECKED_CONNECT(
 	        set,
-	        SIGNAL(radioStateChanged(RadioState)),
+	        &Settings::radioStateChanged,
 	        this,
-	        SLOT(radioStateChange(RadioState)));
+	        &MainWindow::radioStateChange);
 
 
 
@@ -242,131 +242,123 @@ SIGNAL(showEvent()),
 	
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(cpuLoadChanged(short)), 
+		&Settings::cpuLoadChanged, 
 		this, 
-		SLOT(updateStatusBar(short)));
+		&MainWindow::updateStatusBar);
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(masterSwitchChanged(bool)), 
+		&Settings::masterSwitchChanged, 
 		this, 
-		SLOT(masterSwitchChanged(bool)));
+		&MainWindow::masterSwitchChanged);
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(numberOfRXChanged(int)), 
+		&Settings::numberOfRXChanged, 
 		this, 
-		SLOT(setNumberOfReceivers(int)));
+		&MainWindow::setNumberOfReceivers);
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(systemStateChanged(
-					QSDR::_Error,
-					QSDR::_HWInterfaceMode,
-					QSDR::_ServerMode,
-					QSDR::_DataEngineState)),
+		&Settings::systemStateChanged,
 		this,
-		SLOT(systemStateChanged(
-					QSDR::_Error,
-					QSDR::_HWInterfaceMode,
-					QSDR::_ServerMode,
-					QSDR::_DataEngineState)));
+		&MainWindow::systemStateChanged);
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(currentReceiverChanged(int)),
+		&Settings::currentReceiverChanged,
 		this,
-		SLOT(setCurrentReceiver(int)));
+		&MainWindow::setCurrentReceiver);
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(callsignChanged()),
+		&Settings::callsignChanged,
 		this,
-		SLOT(updateTitle()));
+		&MainWindow::updateTitle);
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(showNetworkIO()),
+		&Settings::showNetworkIO,
 		this,
-		SLOT(showNetworkIODialog()));
+		&MainWindow::showNetworkIODialog);
 
 	CHECKED_CONNECT(
 		set,
-        SIGNAL(showWarning(const QString)),
+        &Settings::showWarning,
 		this,
-        SLOT(showWarningDialog(const QString)));
+        &MainWindow::showWarningDialog);
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(networkIOComboBoxEntryAdded(QString)),
+		&Settings::networkIOComboBoxEntryAdded,
 		this,
-		SLOT(addNetworkIOComboBoxEntry(QString)));
+		&MainWindow::addNetworkIOComboBoxEntry);
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(clearNetworkIOComboBoxEntrySignal()),
+		&Settings::clearNetworkIOComboBoxEntrySignal,
 		this,
-		SLOT(clearNetworkIOComboBoxEntry()));
+		&MainWindow::clearNetworkIOComboBoxEntry);
 		
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(showRadioPopupChanged(bool)),
+		&Settings::showRadioPopupChanged,
 		this,
-		SLOT(showRadioPopup(bool)));
+		&MainWindow::showRadioPopup);
 
 	CHECKED_CONNECT(
 		set,
-        SIGNAL(txAllowedChanged(bool)),
+        &Settings::txAllowedChanged,
 		this,
-        SLOT(setTxAllowed(bool)));
+        &MainWindow::setTxAllowed);
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(adcModeChanged(int, ADCMode)),
+		&Settings::adcModeChanged,
 		this,
-		SLOT(setADCMode(int, ADCMode)));
+		&MainWindow::setADCMode);
 
 	CHECKED_CONNECT(
 		set,
-        SIGNAL(agcModeChanged(int, AGCMode, bool)),
+        &Settings::agcModeChanged,
 		this,
-		SLOT(setAGCMode(int, AGCMode, bool)));
+		&MainWindow::setAGCMode);
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(agcMaximumGainChanged_dB(int, qreal)),
+		&Settings::agcMaximumGainChanged_dB,
 		this,
-		SLOT(setAGCGain(int, qreal)));
+		(qOverload<int, qreal>(&MainWindow::setAGCGain)));
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(agcFixedGainChanged_dB(int, qreal)),
+		&Settings::agcFixedGainChanged_dB,
 		this,
-		SLOT(setAGCGain(int, qreal)));
+		(qOverload<int, qreal>(&MainWindow::setAGCGain)));
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(mercuryAttenuatorChanged(HamBand, int)),
+		&Settings::mercuryAttenuatorChanged,
 		this,
-		SLOT(mercuryAttenuatorChanged(HamBand, int)));
+		&MainWindow::mercuryAttenuatorChanged);
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(alexPresenceChanged(bool)),
+		&Settings::alexPresenceChanged,
 		this,
-		SLOT(alexPresenceChanged(bool)));
+		&MainWindow::alexPresenceChanged);
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(alexConfigurationChanged(quint16)),
+		&Settings::alexConfigurationChanged,
 		this,
-		SLOT(alexConfigurationChanged(quint16)));
+		&MainWindow::alexConfigurationChanged);
 
 	CHECKED_CONNECT(
 		set,
-        SIGNAL(alexStateChanged(HamBand,const QList<int> &)),
+        &Settings::alexStateChanged,
 		this,
-        SLOT(alexStateChanged(HamBand, const QList<int> &)));
+        &MainWindow::alexStateChanged);
 }
 
 /*!

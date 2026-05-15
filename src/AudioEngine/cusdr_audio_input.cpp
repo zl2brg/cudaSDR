@@ -39,14 +39,14 @@ TransmitAudioInput::TransmitAudioInput(QObject *parent)
     , m_isDigitalMode(false)
 {
     CHECKED_CONNECT(set,
-                    SIGNAL(micInputChanged(int)),
+                    &Settings::micInputChanged,
                     this,
-                    SLOT(MicInputChanged(int)));
+                    &TransmitAudioInput::MicInputChanged);
 
     CHECKED_CONNECT(set,
-                    SIGNAL(digitalAudioInputChanged(int)),
+                    &Settings::digitalAudioInputChanged,
                     this,
-                    SLOT(DigitalAudioInputChanged(int)));
+                    &TransmitAudioInput::DigitalAudioInputChanged);
 
     connect(set, &Settings::dspModeChanged,
             this, &TransmitAudioInput::dspModeChanged);

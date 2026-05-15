@@ -111,63 +111,63 @@ void NoiseFilterWidget::setupConnections() {
 
     CHECKED_CONNECT(
             ui->nrModeComboBox ,
-            SIGNAL(currentIndexChanged(int)),
+            &QComboBox::currentIndexChanged,
             this,
-            SLOT(nfModeChanged(int)));
+            &NoiseFilterWidget::nfModeChanged);
 
     CHECKED_CONNECT(
             ui->nbModeComboBox ,
-            SIGNAL(currentIndexChanged(int)),
+            &QComboBox::currentIndexChanged,
             this,
-            SLOT(nbModeChanged(int)));
+            &NoiseFilterWidget::nbModeChanged);
 
     CHECKED_CONNECT(
             ui->nr2GainComboBox ,
-            SIGNAL(currentIndexChanged(int)),
+            &QComboBox::currentIndexChanged,
             this,
-            SLOT(nr2GainChanged(int)));
+            &NoiseFilterWidget::nr2GainChanged);
 
     CHECKED_CONNECT(
             ui->snbCheckBox ,
-            SIGNAL(toggled(bool)),
+            &QCheckBox::toggled,
             this,
-            SLOT(snbChanged(bool)));
+            &NoiseFilterWidget::snbChanged);
 
     CHECKED_CONNECT(
             ui->anfCheckBox ,
-            SIGNAL(toggled(bool)),
+            &QCheckBox::toggled,
             this,
-            SLOT(anfChanged(bool)));
+            &NoiseFilterWidget::anfChanged);
 
     CHECKED_CONNECT(
             ui->omsCheckBox ,
-            SIGNAL(toggled(bool)),
+            &QCheckBox::toggled,
             this,
-            SLOT(omsChanged(bool)));
+            &NoiseFilterWidget::omsChanged);
 
     CHECKED_CONNECT(
             ui->mmseCheckBox ,
-            SIGNAL(toggled(bool)),
+            &QCheckBox::toggled,
             this,
-            SLOT(mmseChanged(bool)));
+            &NoiseFilterWidget::mmseChanged);
 
     CHECKED_CONNECT(
             ui->preAGCCheckBox ,
-            SIGNAL(toggled(bool)),
+            &QCheckBox::toggled,
             this,
-            SLOT(preAgcChanged(bool)));
+            &NoiseFilterWidget::preAgcChanged);
 
     CHECKED_CONNECT(
             ui->postAGCCheckBox ,
-            SIGNAL(toggled(bool)),
+            &QCheckBox::toggled,
             this,
-            SLOT(postAgcChanged(bool)));
+            &NoiseFilterWidget::postAgcChanged);
 
     CHECKED_CONNECT(
             ui->nr2aeCheckBox ,
-            SIGNAL(toggled(bool)),
+            &QCheckBox::toggled,
             this,
-            SLOT(nr2aeChanged(bool)));
+            &NoiseFilterWidget::nr2aeChanged);
 
 }
 

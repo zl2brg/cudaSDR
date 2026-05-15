@@ -118,17 +118,9 @@ void AGCOptionsWidget::setupConnections() {
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(systemStateChanged(
-					QSDR::_Error,
-					QSDR::_HWInterfaceMode,
-					QSDR::_ServerMode,
-					QSDR::_DataEngineState)),
+		&Settings::systemStateChanged,
 		this,
-		SLOT(systemStateChanged(
-					QSDR::_Error,
-					QSDR::_HWInterfaceMode,
-					QSDR::_ServerMode,
-					QSDR::_DataEngineState)));
+		&AGCOptionsWidget::systemStateChanged);
 
 //	CHECKED_CONNECT(
 //		set,
@@ -142,39 +134,39 @@ void AGCOptionsWidget::setupConnections() {
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(currentReceiverChanged(int)),
+		&Settings::currentReceiverChanged,
 		this, 
-		SLOT(setCurrentReceiver(int)));
+		&AGCOptionsWidget::setCurrentReceiver);
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(sampleRateChanged(int)), 
+		&Settings::sampleRateChanged, 
 		this, 
-		SLOT(sampleRateChanged(int)));
+		&AGCOptionsWidget::sampleRateChanged);
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(agcModeChanged(int, AGCMode, bool)),
+		&Settings::agcModeChanged,
 		this,
-		SLOT(agcModeChanged(int, AGCMode, bool)));
+		&AGCOptionsWidget::agcModeChanged);
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(agcHangThresholdSliderChanged(int, qreal)),
+		&Settings::agcHangThresholdSliderChanged,
 		this,
-		SLOT(setAGCHangThresholdSlider(int, qreal)));
+		&AGCOptionsWidget::setAGCHangThresholdSlider);
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(agcMaximumGainChanged_dB(int, qreal)),
+		&Settings::agcMaximumGainChanged_dB,
 		this,
-		SLOT(setAGCMaximumGain_dB(int, qreal)));
+		&AGCOptionsWidget::setAGCMaximumGain_dB);
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(agcFixedGainChanged_dB(int, qreal)),
+		&Settings::agcFixedGainChanged_dB,
 		this,
-		SLOT(setAGCFixedGain_dB(int, qreal)));
+		&AGCOptionsWidget::setAGCFixedGain_dB);
 }
 
 void AGCOptionsWidget::createAgcModeBtnGroup() {
@@ -183,37 +175,37 @@ void AGCOptionsWidget::createAgcModeBtnGroup() {
 	agcOFF->setRoundness(0);
 	agcOFF->setFixedSize(btn_widths, btn_height);
 	agcModeBtnList.append(agcOFF);
-	CHECKED_CONNECT(agcOFF, SIGNAL(clicked()), this, SLOT(agcModeChangedByBtn()));
+	CHECKED_CONNECT(agcOFF, &AeroButton::clicked, this, &AGCOptionsWidget::agcModeChangedByBtn);
 
 	agcLONG = new AeroButton("Long", this);
 	agcLONG->setRoundness(0);
 	agcLONG->setFixedSize(btn_widths, btn_height);
 	agcModeBtnList.append(agcLONG);
-	CHECKED_CONNECT(agcLONG, SIGNAL(clicked()), this, SLOT(agcModeChangedByBtn()));
+	CHECKED_CONNECT(agcLONG, &AeroButton::clicked, this, &AGCOptionsWidget::agcModeChangedByBtn);
 
 	agcSLOW = new AeroButton("Slow", this);
 	agcSLOW->setRoundness(0);
 	agcSLOW->setFixedSize(btn_widths, btn_height);
 	agcModeBtnList.append(agcSLOW);
-	CHECKED_CONNECT(agcSLOW, SIGNAL(clicked()), this, SLOT(agcModeChangedByBtn()));
+	CHECKED_CONNECT(agcSLOW, &AeroButton::clicked, this, &AGCOptionsWidget::agcModeChangedByBtn);
 
 	agcMED = new AeroButton("Med", this);
 	agcMED->setRoundness(0);
 	agcMED->setFixedSize(btn_widths, btn_height);
 	agcModeBtnList.append(agcMED);
-	CHECKED_CONNECT(agcMED, SIGNAL(clicked()), this, SLOT(agcModeChangedByBtn()));
+	CHECKED_CONNECT(agcMED, &AeroButton::clicked, this, &AGCOptionsWidget::agcModeChangedByBtn);
 
 	agcFAST = new AeroButton("Fast", this);
 	agcFAST->setRoundness(0);
 	agcFAST->setFixedSize(btn_widths, btn_height);
 	agcModeBtnList.append(agcFAST);
-	CHECKED_CONNECT(agcFAST, SIGNAL(clicked()), this, SLOT(agcModeChangedByBtn()));
+	CHECKED_CONNECT(agcFAST, &AeroButton::clicked, this, &AGCOptionsWidget::agcModeChangedByBtn);
 
 	agcUSER = new AeroButton("User", this);
 	agcUSER->setRoundness(0);
 	agcUSER->setFixedSize(btn_widths, btn_height);
 	agcModeBtnList.append(agcUSER);
-	CHECKED_CONNECT(agcUSER, SIGNAL(clicked()), this, SLOT(agcModeChangedByBtn()));
+	CHECKED_CONNECT(agcUSER, &AeroButton::clicked, this, &AGCOptionsWidget::agcModeChangedByBtn);
 
 	QGridLayout *layout = new QGridLayout();
 	layout->setVerticalSpacing(1);
@@ -253,9 +245,9 @@ void AGCOptionsWidget::createAgcOptionsGroup() {
 
 	CHECKED_CONNECT(
 		m_slopeSpinBox,
-		SIGNAL(valueChanged(int)),
+		&QSpinBox::valueChanged,
 		this,
-		SLOT(slopeChanged(int)));
+		&AGCOptionsWidget::slopeChanged);
 
 	m_slopeLabel = new QLabel("Slope (dB):", this);
 	m_slopeLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
@@ -270,9 +262,9 @@ void AGCOptionsWidget::createAgcOptionsGroup() {
 
 	CHECKED_CONNECT(
 		m_maxGainSpinBox,
-		SIGNAL(valueChanged(int)),
+		&QSpinBox::valueChanged,
 		this,
-		SLOT(maxGainChanged(int)));
+		&AGCOptionsWidget::maxGainChanged);
 
 	m_maxGainLabel = new QLabel("Max Gain (dB):", this);
 	m_maxGainLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
@@ -287,9 +279,9 @@ void AGCOptionsWidget::createAgcOptionsGroup() {
 
 	CHECKED_CONNECT(
 		m_attackTimeSpinBox,
-		SIGNAL(valueChanged(int)),
+		&QSpinBox::valueChanged,
 		this,
-		SLOT(attackTimeChanged(int)));
+		&AGCOptionsWidget::attackTimeChanged);
 
 	m_attackTimeLabel = new QLabel("Attack Time (ms):", this);
 	m_attackTimeLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
@@ -304,9 +296,9 @@ void AGCOptionsWidget::createAgcOptionsGroup() {
 
 	CHECKED_CONNECT(
 		m_decayTimeSpinBox,
-		SIGNAL(valueChanged(int)),
+		&QSpinBox::valueChanged,
 		this,
-		SLOT(decayTimeChanged(int)));
+		&AGCOptionsWidget::decayTimeChanged);
 
 	m_decayTimeLabel = new QLabel("Decay Time (ms):", this);
 	m_decayTimeLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
@@ -321,9 +313,9 @@ void AGCOptionsWidget::createAgcOptionsGroup() {
 
 	CHECKED_CONNECT(
 		m_hangTimeSpinBox,
-		SIGNAL(valueChanged(int)),
+		&QSpinBox::valueChanged,
 		this,
-		SLOT(hangTimeChanged(int)));
+		&AGCOptionsWidget::hangTimeChanged);
 
 	m_hangTimeLabel = new QLabel("Hang Time (ms):", this);
 	m_hangTimeLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
@@ -337,9 +329,9 @@ void AGCOptionsWidget::createAgcOptionsGroup() {
 
 	CHECKED_CONNECT(
 		m_hangThresholdSlider,
-		SIGNAL(valueChanged(int)),
+		&QSlider::valueChanged,
 		this,
-		SLOT(hangThresholdValueChanged(int)));
+		&AGCOptionsWidget::hangThresholdValueChanged);
 
 	int fontMaxWidth = m_fonts.smallFontMetrics->boundingRect(" 100 ").width();
 
@@ -362,9 +354,9 @@ void AGCOptionsWidget::createAgcOptionsGroup() {
 
 	CHECKED_CONNECT(
 		m_fixedGainSpinBox,
-		SIGNAL(valueChanged(int)),
+		&QSpinBox::valueChanged,
 		this,
-		SLOT(fixedGainChanged(int)));
+		&AGCOptionsWidget::fixedGainChanged);
 
 	m_fixedGainLabel = new QLabel("Fixed Gain (dB):", this);
 	m_fixedGainLabel->setFrameStyle(QFrame::Box | QFrame::Raised);

@@ -95,35 +95,27 @@ void HPSDRTabWidget::setupConnections() {
 
 	CHECKED_CONNECT(
 		set,
-		SIGNAL(systemStateChanged(
-					QSDR::_Error,
-					QSDR::_HWInterfaceMode,
-					QSDR::_ServerMode,
-					QSDR::_DataEngineState)),
+		&Settings::systemStateChanged,
 		this,
-		SLOT(systemStateChanged(
-					QSDR::_Error,
-					QSDR::_HWInterfaceMode,
-					QSDR::_ServerMode,
-					QSDR::_DataEngineState)));
+		&HPSDRTabWidget::systemStateChanged);
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(alexPresenceChanged(bool)),
+		&Settings::alexPresenceChanged,
 		this,
-		SLOT(setAlexPresence(bool)));
+		&HPSDRTabWidget::setAlexPresence);
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(penelopePresenceChanged(bool)),
+		&Settings::penelopePresenceChanged,
 		this,
-		SLOT(setPennyPresence(bool)));
+		&HPSDRTabWidget::setPennyPresence);
 
 	CHECKED_CONNECT(
 		set, 
-		SIGNAL(pennyLanePresenceChanged(bool)),
+		&Settings::pennyLanePresenceChanged,
 		this,
-		SLOT(setPennyPresence(bool)));
+		&HPSDRTabWidget::setPennyPresence);
 }
 
 void HPSDRTabWidget::systemStateChanged(

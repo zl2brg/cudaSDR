@@ -138,15 +138,15 @@ SettingsDialog::SettingsDialog(QWidget *parent)
     // Connect
     CHECKED_CONNECT(
         &m_inputDeviceComboBox,
-		SIGNAL(activated(int)),
+		qOverload<int>(&QComboBox::activated),
         this, 
-		SLOT(inputDeviceChanged(int)));
+		&SettingsDialog::inputDeviceChanged);
 
     CHECKED_CONNECT(
         &m_outputDeviceComboBox,
-		SIGNAL(activated(int)),
+		qOverload<int>(&QComboBox::activated),
         this, 
-		SLOT(outputDeviceChanged(int)));
+		&SettingsDialog::outputDeviceChanged);
 
     /*CHECKED_CONNECT(
 		m_windowFunctionComboBox,
@@ -159,18 +159,18 @@ SettingsDialog::SettingsDialog(QWidget *parent)
 	okBtn->setFixedSize(btn_width, btn_height);
 	CHECKED_CONNECT(
 		okBtn, 
-		SIGNAL(clicked()), 
+		&AeroButton::clicked, 
 		this, 
-		SLOT(accept()));
+		&SettingsDialog::accept);
 
 	AeroButton* cancelBtn = new AeroButton("Cancel", this);
 	cancelBtn->setRoundness(10);
 	cancelBtn->setFixedSize(btn_width, btn_height);
 	CHECKED_CONNECT(
 		cancelBtn, 
-		SIGNAL(clicked()), 
+		&AeroButton::clicked, 
 		this, 
-		SLOT(reject()));
+		&SettingsDialog::reject);
 
 	QHBoxLayout *hbox = new QHBoxLayout;
 	hbox->setSpacing(1);
