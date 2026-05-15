@@ -76,6 +76,15 @@ Settings::Settings(QObject *parent)
           m_maxFrequency(MAXFREQUENCY), m_minFrequency(0), m_hpsdrNetworkDevices(0),
           m_mercuryReceivers(1), m_currentReceiver(0) {
     m_devices.mercuryFWVersion = 0;
+    m_networkConfig = new NetworkConfig(this);
+    m_displayConfig = new DisplayConfig(this);
+    m_hardwareConfig = new HardwareConfig(this);
+    m_audioConfig = new AudioConfig(this);
+    m_cwConfig = new CWConfig(this);
+
+    for (int i = 0; i < MAX_RECEIVERS; ++i) {
+        m_receiverConfigs.append(new ReceiverConfig(i, this));
+    }
 
     qRegisterMetaType<QSDR::_Error>();
     qRegisterMetaType<QSDR::_DataEngineState>();
@@ -236,32 +245,39 @@ int Settings::loadSettings() {
     str = settings->value("network/server_ipAddress", "127.0.0.1").toString();
     while (str.startsWith('\"')) str = str.right(str.length() - 1).trimmed();
     while (str.endsWith('\"')) str = str.left(str.length() - 1).trimmed();
-    m_serverAddress = str;
+    m_networkConfig->setServerAddress(str);
+    m_serverAddress = m_networkConfig->serverAddress();
 
     str = settings->value("network/hpsdr_local_ipAddress", "127.0.0.1").toString();
     while (str.startsWith('\"')) str = str.right(str.length() - 1).trimmed();
     while (str.endsWith('\"')) str = str.left(str.length() - 1).trimmed();
-    m_hpsdrDeviceLocalAddr = str;
+    m_networkConfig->setLocalAddress(str);
+    m_hpsdrDeviceLocalAddr = m_networkConfig->localAddress();
 
     value = settings->value("network/server_port", 52685).toInt();
     if (value < 0 || value > 65535) value = 52685;
-    m_serverPort = value;
+    m_networkConfig->setServerPort(static_cast<quint16>(value));
+    m_serverPort = m_networkConfig->serverPort();
 
     value = settings->value("network/listen_port", 11000).toInt();
     if (value < 0 || value > 65535) value = 11000;
-    m_listenerPort = value;
+    m_networkConfig->setListenPort(static_cast<quint16>(value));
+    m_listenerPort = m_networkConfig->listenPort();
 
     value = settings->value("network/audio_port", 15000).toInt();
     if (value < 0 || value > 65535) value = 15000;
-    m_audioPort = value;
+    m_networkConfig->setAudioPort(static_cast<quint16>(value));
+    m_audioPort = m_networkConfig->audioPort();
 
     value = settings->value("network/metis_port", 1024).toInt();
     if (value < 0 || value > 65535) value = 1024;
-    m_metisPort = value;
+    m_networkConfig->setMetisPort(static_cast<quint16>(value));
+    m_metisPort = m_networkConfig->metisPort();
 
     value = settings->value("network/socketBufferSize", 32).toInt();
     if (value != 16 && value != 32 && value != 64 && value != 128 && value != 256) value = 32;
-    m_socketBufferSize = value;
+    m_networkConfig->setSocketBufferSize(value);
+    m_socketBufferSize = m_networkConfig->socketBufferSize();
 
     value = settings->value("hpsdr/receivers", 1).toInt();
     if (value < 1 || value > MAX_RECEIVERS) value = 1;
@@ -271,37 +287,28 @@ int Settings::loadSettings() {
     // HPSDR hardware
     value = settings->value("hpsdr/hardware", 0).toInt();
     if (value < 0 || value > 2) value = 0;
-    m_hpsdrHardware = value;
+    m_hardwareConfig->setHpsdrHardware(value);
+    m_hpsdrHardware = m_hardwareConfig->hpsdrHardware();
+
+    THPSDRDevices devices = m_hardwareConfig->devices();
 
     str = settings->value("hpsdr/mercury", "true").toString();
-    if (str == "true")
-        m_devices.mercuryPresence = true;
-    else
-        m_devices.mercuryPresence = false;
+    devices.mercuryPresence = (str == "true");
 
     str = settings->value("hpsdr/penelope", "false").toString();
-    if (str == "true")
-        m_devices.penelopePresence = true;
-    else
-        m_devices.penelopePresence = false;
+    devices.penelopePresence = (str == "true");
 
     str = settings->value("hpsdr/pennylane", "false").toString();
-    if (str == "true")
-        m_devices.pennylanePresence = true;
-    else
-        m_devices.pennylanePresence = false;
+    devices.pennylanePresence = (str == "true");
 
     str = settings->value("hpsdr/excalibur", "false").toString();
-    if (str == "true")
-        m_devices.excaliburPresence = true;
-    else
-        m_devices.excaliburPresence = false;
+    devices.excaliburPresence = (str == "true");
 
     str = settings->value("hpsdr/alex", "false").toString();
-    if (str == "true")
-        m_devices.alexPresence = true;
-    else
-        m_devices.alexPresence = false;
+    devices.alexPresence = (str == "true");
+
+    m_hardwareConfig->setDevices(devices);
+    m_devices = m_hardwareConfig->devices();
 
 
 //	str = settings->value("hpsdr/hermes", "false").toString();
@@ -323,10 +330,8 @@ int Settings::loadSettings() {
     }
 
     str = settings->value("hpsdr/checkfw", "true").toString();
-    if (str == "true")
-        m_checkFirmwareVersions = true;
-    else
-        m_checkFirmwareVersions = false;
+    m_hardwareConfig->setCheckFirmwareVersions(str == "true");
+    m_checkFirmwareVersions = m_hardwareConfig->checkFirmwareVersions();
 
     //checkHPSDRDevices();
 
@@ -348,75 +353,112 @@ int Settings::loadSettings() {
 
     str = settings->value("server/10mhzsource", "mercury").toString();
     if (str == "atlas")
-        m_10MHzSource = 0;
+        value = 0;
     else if (str == "penelope")
-        m_10MHzSource = 1;
+        value = 1;
     else if (str == "mercury")
-        m_10MHzSource = 2;
+        value = 2;
     else if (str == "none")
-        m_10MHzSource = 3;
+        value = 3;
     else
-        m_10MHzSource = 2;
+        value = 2;
+    m_hardwareConfig->setSource10Mhz(value);
+    m_10MHzSource = m_hardwareConfig->source10Mhz();
 
     str = settings->value("server/122_88mhzsource", "mercury").toString();
     if (str == "penelope")
-        m_122_8MHzSource = 0;
+        value = 0;
     else
-        m_122_8MHzSource = 1;
+        value = 1;
+    m_hardwareConfig->setSource122_88Mhz(value);
+    m_122_8MHzSource = m_hardwareConfig->source122_88Mhz();
 
     str = settings->value("server/mic_source", "penelope").toString();
     if (str == "janus")
-        m_micSource = 0;
+        value = 0;
     else
-        m_micSource = 1;
+        value = 1;
+    m_audioConfig->setMicSource(value);
+    m_micSource = m_audioConfig->micSource();
 
-    m_micInputDev = settings->value("mic_InputDevice",0).toInt();
-    m_digitalAudioInputDev = settings->value("digital_audio_InputDevice",0).toInt();
-    m_micInputSourceName = settings->value("mic_input_source",
-                                           (m_micInputDev > 0) ? QString("default") : QString()).toString();
-    m_digitalInputSourceName = settings->value("digital_input_source",
-                                               (m_digitalAudioInputDev > 0) ? QString("default") : QString("none")).toString();
+    m_audioConfig->setMicInputDev(settings->value("mic_InputDevice",0).toInt());
+    m_micInputDev = m_audioConfig->micInputDev();
+
+    m_audioConfig->setDigitalAudioInputDev(settings->value("digital_audio_InputDevice",0).toInt());
+    m_digitalAudioInputDev = m_audioConfig->digitalAudioInputDev();
+
+    m_audioConfig->setMicInputSourceName(settings->value("mic_input_source",
+                                           (m_micInputDev > 0) ? QString("default") : QString()).toString());
+    m_micInputSourceName = m_audioConfig->micInputSourceName();
+
+    m_audioConfig->setDigitalInputSourceName(settings->value("digital_input_source",
+                                               (m_digitalAudioInputDev > 0) ? QString("default") : QString("none")).toString());
+    m_digitalInputSourceName = m_audioConfig->digitalInputSourceName();
 
     if (m_micInputSourceName.isEmpty()) {
         // Legacy configs only stored an index; prefer a working host mic path.
-        m_micInputSourceName = "default";
-        m_micInputDev = 1;
+        m_audioConfig->setMicInputSourceName("default");
+        m_micInputSourceName = m_audioConfig->micInputSourceName();
+        m_audioConfig->setMicInputDev(1);
+        m_micInputDev = m_audioConfig->micInputDev();
     }
 
     if (m_digitalInputSourceName.isEmpty()) {
-        m_digitalInputSourceName = (m_digitalAudioInputDev > 0) ? QString("default") : QString("none");
+        m_audioConfig->setDigitalInputSourceName((m_digitalAudioInputDev > 0) ? QString("default") : QString("none"));
+        m_digitalInputSourceName = m_audioConfig->digitalInputSourceName();
     }
-    m_micGain = settings->value("micGain", 0).toDouble();
-    m_drivelevel = settings->value("driveLevel",0).toInt();
+    m_audioConfig->setMicGain(settings->value("micGain", 0).toDouble());
+    m_micGain = m_audioConfig->micGain();
+
+    m_audioConfig->setDriveLevel(settings->value("driveLevel",0).toInt());
+    m_drivelevel = m_audioConfig->driveLevel();
 
     m_repeaterOffset =  settings->value("repeater_offset",0).toDouble();
-    m_fmPremphasize =  settings->value("fm_preemphesize",0).toInt();
-    m_amCarrierLevel = settings->value("am_carrierlevel",0.5).toDouble();
-    m_audioCompression = settings->value("audiocompression",0).toDouble();
-    m_fmDeveation = settings->value("fmdeveation",5000).toDouble();
+    m_audioConfig->setFmPreemphasis(settings->value("fm_preemphesize",0).toInt());
+    m_fmPremphasize = m_audioConfig->fmPreemphasis();
+
+    m_audioConfig->setAmCarrierLevel(settings->value("am_carrierlevel",0.5).toDouble());
+    m_amCarrierLevel = m_audioConfig->amCarrierLevel();
+
+    m_audioConfig->setAudioCompression(settings->value("audiocompression",0).toInt());
+    m_audioCompression = m_audioConfig->audioCompression();
+
+    m_audioConfig->setFmDeviation(settings->value("fmdeveation",5000).toDouble());
+    m_fmDeveation = m_audioConfig->fmDeviation();
 
     str = settings->value("cw/internal", "off").toString();
     qDebug() << "internal" << str;
-    if (str.toLower() == "on")
-        m_internal_cw=1;
-    else m_internal_cw = 0;
+    m_cwConfig->setInternalCw(str.toLower() == "on" ? 1 : 0);
+    m_internal_cw = m_cwConfig->internalCw();
 
     str = settings->value("cw/key_reversed", "off").toString();
-    if (str.toLower() == "on")
-        m_cw_key_reversed=1;
-    else m_cw_key_reversed = 0;
-    str = settings->value("cw/key_spacing", "off").toString();
-    if (str.toLower() == "on")
-        m_cw_keyer_spacing=1;
-    else m_cw_keyer_spacing = 0;
+    m_cwConfig->setKeyReversed(str.toLower() == "on" ? 1 : 0);
+    m_cw_key_reversed = m_cwConfig->keyReversed();
 
-    m_cw_keyer_speed = settings->value("cw/keyer_speed",12).toInt();
-    m_cw_keyer_mode = settings->value("cw/keyer_mode",0).toInt();
-    m_cw_sidetone_volume = settings->value("cw/sidetone_volume",64).toInt();
-    m_cw_sidetone_freq =  settings->value("cw/sidetone_freq",1000).toInt();
-    m_cw_ptt_delay = settings->value("cw/ptt_delay",32).toInt();
-    m_cw_hang_time  =settings->value("cw/hang_time",32).toInt();
-    m_cw_keyer_weight = settings->value("cw/keyer_weight",20).toInt();
+    str = settings->value("cw/key_spacing", "off").toString();
+    m_cwConfig->setKeyerSpacing(str.toLower() == "on" ? 1 : 0);
+    m_cw_keyer_spacing = m_cwConfig->keyerSpacing();
+
+    m_cwConfig->setKeyerSpeed(settings->value("cw/keyer_speed",12).toInt());
+    m_cw_keyer_speed = m_cwConfig->keyerSpeed();
+
+    m_cwConfig->setKeyerMode(settings->value("cw/keyer_mode",0).toInt());
+    m_cw_keyer_mode = m_cwConfig->keyerMode();
+
+    m_cwConfig->setSidetoneVolume(settings->value("cw/sidetone_volume",64).toInt());
+    m_cw_sidetone_volume = m_cwConfig->sidetoneVolume();
+
+    m_cwConfig->setSidetoneFreq(settings->value("cw/sidetone_freq",1000).toInt());
+    m_cw_sidetone_freq = m_cwConfig->sidetoneFreq();
+
+    m_cwConfig->setPttDelay(settings->value("cw/ptt_delay",32).toInt());
+    m_cw_ptt_delay = m_cwConfig->pttDelay();
+
+    m_cwConfig->setHangTime(settings->value("cw/hang_time",32).toInt());
+    m_cw_hang_time = m_cwConfig->hangTime();
+
+    m_cwConfig->setKeyerWeight(settings->value("cw/keyer_weight",20).toInt());
+    m_cw_keyer_weight = m_cwConfig->keyerWeight();
 
 
 
@@ -434,10 +476,11 @@ int Settings::loadSettings() {
     if (value < 0 || value > 1) value = 0;
     m_RxTiming = value;
 
-    /*value = settings->value("server/mainVolume", 10).toInt();
+    value = settings->value("server/mainVolume", 10).toInt();
     if (value < 0) value = 0;
     if (value > 100) value = 100;
-    m_mainVolume = value / 100.0f;*/
+    m_audioConfig->setMainVolume(value / 100.0f);
+    m_mainVolume = m_audioConfig->mainVolume();
 
     str = settings->value("server/mode", "sdr").toString();
     if (str == "sdr") {
@@ -783,11 +826,22 @@ int Settings::loadSettings() {
 
         str = settings->value(cstr, "qtdsp").toString();
         if (str == "qtdsp") {
-
-            m_receiverDataList[i].dspCore = QSDR::QtDSP;
-            setSpectrumSize(4096);
-            //SETTINGS_DEBUG << "DSP core for rx " << i << " is QtDSP.";
+            m_receiverConfigs[i]->setDspCore(QSDR::QtDSP);
         }
+        m_receiverDataList[i].dspCore = m_receiverConfigs[i]->dspCore();
+        if (m_receiverDataList[i].dspCore == QSDR::QtDSP) {
+            setSpectrumSize(4096);
+        }
+
+        cstr = m_rxStringList.at(i);
+        cstr.append("/centerFrequency");
+        m_receiverConfigs[i]->setCtrFrequency(static_cast<long>(settings->value(cstr, (int) 7050000).toDouble()));
+        m_receiverDataList[i].ctrFrequency = m_receiverConfigs[i]->ctrFrequency();
+
+        cstr = m_rxStringList.at(i);
+        cstr.append("/vfoFrequency");
+        m_receiverConfigs[i]->setVfoFrequency(static_cast<long>(settings->value(cstr, (int) 7050000).toDouble()));
+        m_receiverDataList[i].vfoFrequency = m_receiverConfigs[i]->vfoFrequency();
 
 
         cstr = m_rxStringList.at(i);
@@ -1430,76 +1484,83 @@ int Settings::loadSettings() {
 
     value = settings->value("graphics/dBmDistScaleMin", -20).toInt();
     if ((value < -200) || (value > 0)) value = -20;
-    m_dBmDistScaleMin = (qreal) (1.0 * value);
+    m_displayConfig->setdBmDistScaleMin((qreal) (1.0 * value));
+    m_dBmDistScaleMin = m_displayConfig->dBmDistScaleMin();
 
     value = settings->value("graphics/dBmDistScaleMax", 100).toInt();
     if ((value < -100) || (value > 200)) value = 100;
-    m_dBmDistScaleMax = (qreal) (1.0 * value);
+    m_displayConfig->setdBmDistScaleMax((qreal) (1.0 * value));
+    m_dBmDistScaleMax = m_displayConfig->dBmDistScaleMax();
 
     value = settings->value("graphics/sMeterHoldTime", 2000).toInt();
     if ((value < 0) || (value > 10000)) value = 2000;
-    m_sMeterHoldTime = value;
+    m_displayConfig->setSMeterHoldTime(value);
+    m_sMeterHoldTime = m_displayConfig->sMeterHoldTime();
 
 
     //******************************************************************
     // color settings
     QColor color;
+    TPanadapterColors colors = m_displayConfig->panadapterColors();
 
     color = settings->value("colors/panBackground", QColor(102, 69, 8)).value<QColor>();
     if (!color.isValid()) color = QColor(102, 69, 8);
-    m_panadapterColors.panBackgroundColor = color;
+    colors.panBackgroundColor = color;
 
     color = settings->value("colors/waterfall", QColor(246, 146, 6)).value<QColor>();
     if (!color.isValid()) color = QColor(246, 146, 6);
-    m_panadapterColors.waterfallColor = color;
+    colors.waterfallColor = color;
 
     color = settings->value("colors/panLine", QColor(246, 164, 76)).value<QColor>();
     if (!color.isValid()) color = QColor(246, 164, 76);
-    m_panadapterColors.panLineColor = color;
+    colors.panLineColor = color;
 
     color = settings->value("colors/panLineFilled", QColor(246, 159, 7)).value<QColor>();
     if (!color.isValid()) color = QColor(246, 159, 7);
-    m_panadapterColors.panLineFilledColor = color;
+    colors.panLineFilledColor = color;
 
     color = settings->value("colors/panSolidTop", QColor(230, 246, 204)).value<QColor>();
     if (!color.isValid()) color = QColor(230, 246, 204);
-    m_panadapterColors.panSolidTopColor = color;
+    colors.panSolidTopColor = color;
 
     color = settings->value("colors/panSolidBottom", QColor(102, 96, 8)).value<QColor>();
     if (!color.isValid()) color = QColor(102, 96, 8);
-    m_panadapterColors.panSolidBottomColor = color;
+    colors.panSolidBottomColor = color;
 
     color = settings->value("colors/panWideBandLine", QColor(73, 111, 7)).value<QColor>();
     if (!color.isValid()) color = QColor(73, 111, 7);
-    m_panadapterColors.wideBandLineColor = color;
+    colors.wideBandLineColor = color;
 
     color = settings->value("colors/panWideBandFilled", QColor(137, 172, 62)).value<QColor>();
     if (!color.isValid()) color = QColor(137, 172, 62);
-    m_panadapterColors.wideBandFilledColor = color;
+    colors.wideBandFilledColor = color;
 
     color = settings->value("colors/panWideBandSolidTop", QColor(236, 38, 16)).value<QColor>();
     if (!color.isValid()) color = QColor(236, 38, 16);
-    m_panadapterColors.wideBandSolidTopColor = color;
+    colors.wideBandSolidTopColor = color;
 
     color = settings->value("colors/panWideBandSolidBottom", QColor(232, 134, 29)).value<QColor>();
     if (!color.isValid()) color = QColor(232, 134, 29);
-    m_panadapterColors.wideBandSolidBottomColor = color;
+    colors.wideBandSolidBottomColor = color;
 
     color = settings->value("colors/distanceLine", QColor(246, 27, 45)).value<QColor>();
     if (!color.isValid()) color = QColor(246, 27, 45);
-    m_panadapterColors.distanceLineColor = color;
+    colors.distanceLineColor = color;
 
     color = settings->value("colors/distanceLineFilled", QColor(232, 29, 86)).value<QColor>();
     if (!color.isValid()) color = QColor(232, 29, 86);
-    m_panadapterColors.distanceLineFilledColor = color;
+    colors.distanceLineFilledColor = color;
 
     color = settings->value("colors/panCenterLine", QColor(246, 7, 19)).value<QColor>();
     if (!color.isValid()) color = QColor(246, 7, 19);
-    m_panadapterColors.panCenterLineColor = color;
+    colors.panCenterLineColor = color;
 
     color = settings->value("colors/gridLine", QColor(7, 96, 96)).value<QColor>();
     if (!color.isValid()) color = QColor(7, 96, 96);
-    m_panadapterColors.gridLineColor = color;
+    colors.gridLineColor = color;
+
+    m_displayConfig->setPanadapterColors(colors);
+    m_panadapterColors = m_displayConfig->panadapterColors();
 
 
     SETTINGS_DEBUG << "reading done.";
@@ -1523,40 +1584,54 @@ int Settings::saveSettings() {
     settings->setValue("window/multiRxView", m_multiRxView);
 
     // network settings
-    settings->setValue("network/server_ipAddress", m_serverAddress);
-    settings->setValue("network/hpsdr_local_ipAddress", m_hpsdrDeviceLocalAddr);
-    settings->setValue("network/server_port", m_serverPort);
-    settings->setValue("network/listen_port", m_listenerPort);
-    settings->setValue("network/audio_port", m_audioPort);
-    settings->setValue("network/metis_port", m_metisPort);
-    settings->setValue("network/socketBufferSize", m_socketBufferSize);
+    m_networkConfig->setServerAddress(m_serverAddress);
+    m_networkConfig->setLocalAddress(m_hpsdrDeviceLocalAddr);
+    m_networkConfig->setServerPort(m_serverPort);
+    m_networkConfig->setListenPort(m_listenerPort);
+    m_networkConfig->setAudioPort(m_audioPort);
+    m_networkConfig->setMetisPort(m_metisPort);
+    m_networkConfig->setSocketBufferSize(m_socketBufferSize);
+
+    settings->setValue("network/server_ipAddress", m_networkConfig->serverAddress());
+    settings->setValue("network/hpsdr_local_ipAddress", m_networkConfig->localAddress());
+    settings->setValue("network/server_port", m_networkConfig->serverPort());
+    settings->setValue("network/listen_port", m_networkConfig->listenPort());
+    settings->setValue("network/audio_port", m_networkConfig->audioPort());
+    settings->setValue("network/metis_port", m_networkConfig->metisPort());
+    settings->setValue("network/socketBufferSize", m_networkConfig->socketBufferSize());
     settings->setValue("hpsdr/receivers", m_mercuryReceivers);
 
 
     // HPSDR hardware
-    settings->setValue("hpsdr/hardware", m_hpsdrHardware);
+    m_hardwareConfig->setHpsdrHardware(m_hpsdrHardware);
+    m_hardwareConfig->setDevices(m_devices);
+    m_hardwareConfig->setCheckFirmwareVersions(m_checkFirmwareVersions);
 
-    switch (m_hpsdrHardware) {
+    settings->setValue("hpsdr/hardware", m_hardwareConfig->hpsdrHardware());
+
+    THPSDRDevices devices = m_hardwareConfig->devices();
+
+    switch (m_hardwareConfig->hpsdrHardware()) {
 
         // Mercury/Penelope, PennyLane
         case 0:
 
-            if (m_devices.mercuryPresence)
+            if (devices.mercuryPresence)
                 settings->setValue("hpsdr/mercury", "true");
             else
                 settings->setValue("hpsdr/mercury", "false");
 
-            if (m_devices.penelopePresence)
+            if (devices.penelopePresence)
                 settings->setValue("hpsdr/penelope", "true");
             else
                 settings->setValue("hpsdr/penelope", "false");
 
-            if (m_devices.pennylanePresence)
+            if (devices.pennylanePresence)
                 settings->setValue("hpsdr/pennylane", "true");
             else
                 settings->setValue("hpsdr/pennylane", "false");
 
-            if (m_devices.excaliburPresence)
+            if (devices.excaliburPresence)
                 settings->setValue("hpsdr/excalibur", "true");
             else
                 settings->setValue("hpsdr/excalibur", "false");
@@ -1565,22 +1640,22 @@ int Settings::saveSettings() {
             // Hermes
         case 1:
 
-            if (m_devices.mercuryPresence)
+            if (devices.mercuryPresence)
                 settings->setValue("hpsdr/mercury", "true");
             else
                 settings->setValue("hpsdr/mercury", "false");
 
-            if (m_devices.penelopePresence)
+            if (devices.penelopePresence)
                 settings->setValue("hpsdr/penelope", "true");
             else
                 settings->setValue("hpsdr/penelope", "false");
 
-            if (m_devices.pennylanePresence)
+            if (devices.pennylanePresence)
                 settings->setValue("hpsdr/pennylane", "true");
             else
                 settings->setValue("hpsdr/pennylane", "false");
 
-            if (m_devices.excaliburPresence)
+            if (devices.excaliburPresence)
                 settings->setValue("hpsdr/excalibur", "true");
             else
                 settings->setValue("hpsdr/excalibur", "false");
@@ -1591,18 +1666,18 @@ int Settings::saveSettings() {
             break;
     }
 
-    if (m_devices.alexPresence)
+    if (devices.alexPresence)
         settings->setValue("hpsdr/alex", "true");
     else
         settings->setValue("hpsdr/alex", "false");
 
 
-//	if (m_devices.hermesPresence)
+//	if (devices.hermesPresence)
 //		settings->setValue("hpsdr/hermes", "true");
 //	else
 //		settings->setValue("hpsdr/hermes", "false");
 
-    switch (m_hpsdrHardware) {
+    switch (m_hardwareConfig->hpsdrHardware()) {
 
         // Mercury/Penelope
         case 0:
@@ -1625,7 +1700,7 @@ int Settings::saveSettings() {
             break;
     }
 
-    if (m_checkFirmwareVersions)
+    if (m_hardwareConfig->checkFirmwareVersions())
         settings->setValue("hpsdr/checkfw", "true");
     else
         settings->setValue("hpsdr/checkfw", "false");
@@ -1644,34 +1719,55 @@ int Settings::saveSettings() {
     else
         settings->setValue("server/random", "off");
 
-    if (m_10MHzSource == 0)
+    m_hardwareConfig->setSource10Mhz(m_10MHzSource);
+    m_hardwareConfig->setSource122_88Mhz(m_122_8MHzSource);
+
+    if (m_hardwareConfig->source10Mhz() == 0)
         settings->setValue("server/10mhzsource", "atlas");
-    else if (m_10MHzSource == 1)
+    else if (m_hardwareConfig->source10Mhz() == 1)
         settings->setValue("server/10mhzsource", "penelope");
-    else if (m_10MHzSource == 2)
+    else if (m_hardwareConfig->source10Mhz() == 2)
         settings->setValue("server/10mhzsource", "mercury");
-    else if (m_10MHzSource == 3)
+    else if (m_hardwareConfig->source10Mhz() == 3)
         settings->setValue("server/10mhzsource", "none");
     else
         settings->setValue("server/10mhzsource", "mercury");
 
-    if (m_122_8MHzSource == 0)
+    if (m_hardwareConfig->source122_88Mhz() == 0)
         settings->setValue("server/122_88mhzsource", "penelope");
-    else if (m_122_8MHzSource == 1)
+    else if (m_hardwareConfig->source122_88Mhz() == 1)
         settings->setValue("server/122_88mhzsource", "mercury");
 
-    if (m_micSource == 0)
+    // audio settings
+    m_audioConfig->setMicSource(m_micSource);
+    m_audioConfig->setMicInputDev(m_micInputDev);
+    m_audioConfig->setMicInputSourceName(m_micInputSourceName);
+    m_audioConfig->setDigitalAudioInputDev(m_digitalAudioInputDev);
+    m_audioConfig->setDigitalInputSourceName(m_digitalInputSourceName);
+    m_audioConfig->setMicGain(m_micGain);
+    m_audioConfig->setDriveLevel(m_drivelevel);
+    m_audioConfig->setFmPreemphasis(m_fmPremphasize);
+    m_audioConfig->setAmCarrierLevel(m_amCarrierLevel);
+    m_audioConfig->setAudioCompression(m_audioCompression);
+    m_audioConfig->setFmDeviation(m_fmDeveation);
+    m_audioConfig->setMainVolume(m_mainVolume);
+
+    if (m_audioConfig->micSource() == 0)
         settings->setValue("server/mic_source", "janus");
-    else if (m_micSource == 1)
+    else if (m_audioConfig->micSource() == 1)
         settings->setValue("server/mic_source", "penelope");
 
-    settings->setValue("mic_InputDevice",m_micInputDev);
-    settings->setValue("mic_input_source", m_micInputSourceName);
-    qDebug() << "Write" << m_micInputDev;
-    settings->setValue("digital_audio_InputDevice", m_digitalAudioInputDev);
-    settings->setValue("digital_input_source", m_digitalInputSourceName);
-    settings->setValue("micGain", m_micGain);
-    settings->setValue("driveLevel",m_drivelevel);
+    settings->setValue("mic_InputDevice", m_audioConfig->micInputDev());
+    settings->setValue("mic_input_source", m_audioConfig->micInputSourceName());
+    settings->setValue("digital_audio_InputDevice", m_audioConfig->digitalAudioInputDev());
+    settings->setValue("digital_input_source", m_audioConfig->digitalInputSourceName());
+    settings->setValue("micGain", m_audioConfig->micGain());
+    settings->setValue("driveLevel", m_audioConfig->driveLevel());
+    settings->setValue("fm_preemphesize", m_audioConfig->fmPreemphasis());
+    settings->setValue("am_carrierlevel", m_audioConfig->amCarrierLevel());
+    settings->setValue("audiocompression", m_audioConfig->audioCompression());
+    settings->setValue("fmdeveation", m_audioConfig->fmDeviation());
+    settings->setValue("server/mainVolume", (int) (m_audioConfig->mainVolume() * 100));
 
 
     settings->setValue("server/class", m_RxClass);
@@ -1682,23 +1778,35 @@ int Settings::saveSettings() {
     settings->setValue("am_carrierlevel",m_amCarrierLevel);
     settings->setValue("audiocompression",m_audioCompression);
     settings->setValue("fmdeveation",m_fmDeveation);
-    if (m_internal_cw )
+    // CW settings
+    m_cwConfig->setInternalCw(m_internal_cw);
+    m_cwConfig->setKeyReversed(m_cw_key_reversed);
+    m_cwConfig->setKeyerSpacing(m_cw_keyer_spacing);
+    m_cwConfig->setKeyerSpeed(m_cw_keyer_speed);
+    m_cwConfig->setKeyerMode(m_cw_keyer_mode);
+    m_cwConfig->setSidetoneVolume(m_cw_sidetone_volume);
+    m_cwConfig->setSidetoneFreq(m_cw_sidetone_freq);
+    m_cwConfig->setHangTime(m_cw_hang_time);
+    m_cwConfig->setPttDelay(m_cw_ptt_delay);
+    m_cwConfig->setKeyerWeight(m_cw_keyer_weight);
+
+    if (m_cwConfig->internalCw())
         settings->setValue("cw/internal", "on");
     else settings->setValue("cw/internal", "off");
-    if (m_cw_key_reversed )
+    if (m_cwConfig->keyReversed())
         settings->setValue("cw/key_reversed","on");
     else settings->setValue("cw/key_reversed","off");
-    if (m_cw_keyer_spacing )
+    if (m_cwConfig->keyerSpacing())
         settings->setValue("cw/key_spacing","on");
     else settings->setValue("cw/key_spacing","off");
 
-    settings->setValue("cw/keyer_speed", m_cw_keyer_speed);
-    settings->setValue("cw/keyer_mode", m_cw_keyer_mode);
-    settings->setValue("cw/sidetone_volume", m_cw_sidetone_volume);
-    settings->setValue("cw/sidetone_freq", m_cw_sidetone_freq);
-    settings->setValue("cw/hangime", m_cw_hang_time);
-    settings->setValue("cw/ptt_delay", m_cw_ptt_delay);
-    settings->setValue("cw/keyer_weight", m_cw_keyer_weight);
+    settings->setValue("cw/keyer_speed", m_cwConfig->keyerSpeed());
+    settings->setValue("cw/keyer_mode", m_cwConfig->keyerMode());
+    settings->setValue("cw/sidetone_volume", m_cwConfig->sidetoneVolume());
+    settings->setValue("cw/sidetone_freq", m_cwConfig->sidetoneFreq());
+    settings->setValue("cw/hang_time", m_cwConfig->hangTime());
+    settings->setValue("cw/ptt_delay", m_cwConfig->pttDelay());
+    settings->setValue("cw/keyer_weight", m_cwConfig->keyerWeight());
 
 
 
@@ -2168,13 +2276,16 @@ int Settings::saveSettings() {
             settings->setValue(str, (int) m_receiverDataList[i].lastVfoFrequencyList.at(j));
         }
 
+        m_receiverConfigs[i]->setCtrFrequency(m_receiverDataList[i].ctrFrequency);
+        m_receiverConfigs[i]->setVfoFrequency(m_receiverDataList[i].vfoFrequency);
+
         str = m_rxStringList.at(i);
         str.append("/centerFrequency");
-        settings->setValue(str, (int) m_receiverDataList[i].ctrFrequency);
+        settings->setValue(str, (int) m_receiverConfigs[i]->ctrFrequency());
 
         str = m_rxStringList.at(i);
         str.append("/vfoFrequency");
-        settings->setValue(str, (int) m_receiverDataList[i].vfoFrequency);
+        settings->setValue(str, (int) m_receiverConfigs[i]->vfoFrequency());
 
         for (int j = 0; j < MAX_BANDS; j++) {
 
@@ -2259,8 +2370,11 @@ int Settings::saveSettings() {
     else
         settings->setValue("graphics/grid", "off");*/
 
-    settings->setValue("graphics/dBmDistScaleMin", (int) m_dBmDistScaleMin);
-    settings->setValue("graphics/dBmDistScaleMax", (int) m_dBmDistScaleMax);
+    m_displayConfig->setdBmDistScaleMin(m_dBmDistScaleMin);
+    m_displayConfig->setdBmDistScaleMax(m_dBmDistScaleMax);
+
+    settings->setValue("graphics/dBmDistScaleMin", (int) m_displayConfig->dBmDistScaleMin());
+    settings->setValue("graphics/dBmDistScaleMax", (int) m_displayConfig->dBmDistScaleMax());
 
     /*if (m_waterfallColorScheme == QSDRGraphics::simple)
         settings->setValue("graphics/waterfall", "simple");
@@ -2271,25 +2385,29 @@ int Settings::saveSettings() {
     if (m_waterfallColorScheme == QSDRGraphics::spectran)
         settings->setValue("graphics/waterfall", "spectran");*/
 
-    settings->setValue("graphics/sMeterHoldTime", m_sMeterHoldTime);
+    m_displayConfig->setSMeterHoldTime(m_sMeterHoldTime);
+    m_displayConfig->setPanadapterColors(m_panadapterColors);
+
+    settings->setValue("graphics/sMeterHoldTime", m_displayConfig->sMeterHoldTime());
 
 
     // Colors
-    settings->setValue("colors/panBackground", QVariant(m_panadapterColors.panBackgroundColor).toString());
-    settings->setValue("colors/waterfall", QVariant(m_panadapterColors.waterfallColor).toString());
-    settings->setValue("colors/panLine", QVariant(m_panadapterColors.panLineColor).toString());
-    settings->setValue("colors/panLineFilled", QVariant(m_panadapterColors.panLineFilledColor).toString());
-    settings->setValue("colors/panSolidTop", QVariant(m_panadapterColors.panSolidTopColor).toString());
-    settings->setValue("colors/panSolidBottom", QVariant(m_panadapterColors.panSolidBottomColor).toString());
-    settings->setValue("colors/panWideBandLine", QVariant(m_panadapterColors.wideBandLineColor).toString());
-    settings->setValue("colors/panWideBandFilled", QVariant(m_panadapterColors.wideBandFilledColor).toString());
-    settings->setValue("colors/panWideBandSolidTop", QVariant(m_panadapterColors.wideBandSolidTopColor).toString());
+    TPanadapterColors colors = m_displayConfig->panadapterColors();
+    settings->setValue("colors/panBackground", QVariant(colors.panBackgroundColor).toString());
+    settings->setValue("colors/waterfall", QVariant(colors.waterfallColor).toString());
+    settings->setValue("colors/panLine", QVariant(colors.panLineColor).toString());
+    settings->setValue("colors/panLineFilled", QVariant(colors.panLineFilledColor).toString());
+    settings->setValue("colors/panSolidTop", QVariant(colors.panSolidTopColor).toString());
+    settings->setValue("colors/panSolidBottom", QVariant(colors.panSolidBottomColor).toString());
+    settings->setValue("colors/panWideBandLine", QVariant(colors.wideBandLineColor).toString());
+    settings->setValue("colors/panWideBandFilled", QVariant(colors.wideBandFilledColor).toString());
+    settings->setValue("colors/panWideBandSolidTop", QVariant(colors.wideBandSolidTopColor).toString());
     settings->setValue("colors/panWideBandSolidBottom",
-                       QVariant(m_panadapterColors.wideBandSolidBottomColor).toString());
-    settings->setValue("colors/distanceLine", QVariant(m_panadapterColors.distanceLineColor).toString());
-    settings->setValue("colors/distanceLineFilled", QVariant(m_panadapterColors.distanceLineFilledColor).toString());
-    settings->setValue("colors/panCenterLine", QVariant(m_panadapterColors.panCenterLineColor).toString());
-    settings->setValue("colors/gridLine", QVariant(m_panadapterColors.gridLineColor).toString());
+                       QVariant(colors.wideBandSolidBottomColor).toString());
+    settings->setValue("colors/distanceLine", QVariant(colors.distanceLineColor).toString());
+    settings->setValue("colors/distanceLineFilled", QVariant(colors.distanceLineFilledColor).toString());
+    settings->setValue("colors/panCenterLine", QVariant(colors.panCenterLineColor).toString());
+    settings->setValue("colors/gridLine", QVariant(colors.gridLineColor).toString());
 
     SETTINGS_DEBUG << "save settings done.";
     return 0;

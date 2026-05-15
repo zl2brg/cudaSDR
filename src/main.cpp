@@ -71,22 +71,55 @@ DWORD WINAPI WatchItThreadProc(LPVOID lpParam) {
 }
 #endif
 
-void cuSDRMessageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg) {
-    Q_UNUSED(type)
-    Q_UNUSED(context)
-
-    QString txt;
-    QDateTime date;
-
-    txt = msg;
-    txt.prepend(": ");
-    txt.prepend(date.currentDateTime().toString());
-
-    QFile outFile("cudaSDR.log");
-    if (outFile.open(QIODevice::WriteOnly | QIODevice::Append)) {
-        QTextStream ts(&outFile);
-        ts << txt << Qt::endl << Qt::flush;
+class LogManager : public QObject {
+public:
+    static LogManager& instance() {
+        static LogManager inst;
+        return inst;
     }
+
+    void write(const QString& txt) {
+        if (m_outFile.isOpen()) {
+            m_stream << txt << Qt::endl;
+        }
+    }
+
+private:
+    LogManager() : m_outFile("cudaSDR.log"), m_stream(&m_outFile) {
+        if (!m_outFile.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text)) {
+            qWarning() << "Failed to open log file for writing.";
+        }
+    }
+    ~LogManager() {
+        if (m_outFile.isOpen()) {
+            m_stream.flush();
+            m_outFile.close();
+        }
+    }
+
+    QFile m_outFile;
+    QTextStream m_stream;
+};
+
+void cuSDRMessageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg) {
+    QString level;
+    switch (type) {
+        case QtDebugMsg:    level = "DEBUG"; break;
+        case QtInfoMsg:     level = "INFO "; break;
+        case QtWarningMsg:  level = "WARN "; break;
+        case QtCriticalMsg: level = "CRIT "; break;
+        case QtFatalMsg:    level = "FATAL"; break;
+    }
+
+    QString txt = QString("%1 [%2] %3")
+                    .arg(QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss.zzz"))
+                    .arg(level)
+                    .arg(msg);
+
+    // Also print to console for developers
+    fprintf(stderr, "%s\n", qPrintable(txt));
+
+    LogManager::instance().write(txt);
 }
 
 void load_WDSPWisdom() {

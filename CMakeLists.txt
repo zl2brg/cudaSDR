@@ -143,6 +143,12 @@ set(SOURCES
     ${SRC_DIR}/UI/noisefilterwidget.cpp
     ${SRC_DIR}/UI/tx_settings_dialog.cpp
     ${SRC_DIR}/UI/cusdr_setupwidget.cpp
+    ${SRC_DIR}/Settings/NetworkConfig.cpp
+    ${SRC_DIR}/Settings/DisplayConfig.cpp
+    ${SRC_DIR}/Settings/HardwareConfig.cpp
+    ${SRC_DIR}/Settings/AudioConfig.cpp
+    ${SRC_DIR}/Settings/CWConfig.cpp
+    ${SRC_DIR}/Settings/ReceiverConfig.cpp
 
   )
 
@@ -197,6 +203,12 @@ set(HEADERS
 
     # Main Headers
     ${SRC_DIR}/cusdr_settings.h
+    ${SRC_DIR}/Settings/NetworkConfig.h
+    ${SRC_DIR}/Settings/DisplayConfig.h
+    ${SRC_DIR}/Settings/HardwareConfig.h
+    ${SRC_DIR}/Settings/AudioConfig.h
+    ${SRC_DIR}/Settings/CWConfig.h
+    ${SRC_DIR}/Settings/ReceiverConfig.h
     ${SRC_DIR}/cusdr_displayTabWidget.h
     ${SRC_DIR}/cusdr_displayWidget.h
     ${SRC_DIR}/cusdr_3DOptionsWidget.h

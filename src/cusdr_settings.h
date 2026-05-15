@@ -43,6 +43,14 @@
 #include "fftw3.h"
 #include "portaudio.h"
 
+#include "Settings/SettingsTypes.h"
+#include "Settings/NetworkConfig.h"
+#include "Settings/DisplayConfig.h"
+#include "Settings/HardwareConfig.h"
+#include "Settings/AudioConfig.h"
+#include "Settings/CWConfig.h"
+#include "Settings/ReceiverConfig.h"
+
 // test for OpenCL
 //#include "CL/qclcontext.h"
 
@@ -210,13 +218,6 @@ namespace QSDR {
 		DataEngineUp
 	};
 
-	enum _DSPCore {
-
-		QtDSP,
-        CudaDSP,
-		ExternalDSP
-	};
-
 	enum _ServerMode {
 
 		NoServerMode,
@@ -281,25 +282,6 @@ typedef struct _frequency {
 
 } TFrequency;
 
-typedef struct _hpsdrDevices {
-
-	bool 	mercuryPresence;
-	bool 	penelopePresence;
-	bool 	pennylanePresence;
-	bool 	excaliburPresence;
-	bool 	alexPresence;
-	bool	hermesPresence;
-	bool	metisPresence;
-
-	unsigned char 	mercuryFWVersion;
-    unsigned char 	penelopeFWVersion;
-    unsigned char 	pennylaneFWVersion;
-    unsigned char 	excaliburFWVersion;
-    unsigned char 	alexFWVersion;
-    unsigned char	hermesFWVersion;
-    unsigned char  	metisFWVersion;
-
-} THPSDRDevices;
 
 typedef struct _ccParameterRx {
 
@@ -537,47 +519,6 @@ typedef struct _networkDeviceCard {
 
 } TNetworkDevicecard;
 
-typedef enum _panGraphicsMode {
-
-	Line,		// 0
-	FilledLine, // 1
-	Solid		// 2
-
-} PanGraphicsMode;
-
-typedef enum _waterfallColorMode {
-
-	Simple,		// 0
-	Enhanced	// 1
-
-} WaterfallColorMode;
-
-typedef enum _panAveragingMode {
-
-    AV_MODE_NONE,
-    AV_MODE_RECURSIVE,
-    AV_MODE_TIME_WINDOW,
-    AV_MODE_LOG_RECURSIVE
-}PanAveragingMode;
-
-typedef enum _panDetectorMode {
-
-    DET_MODE_PEAK,
-    DET_MODE_ROSENFELL,
-    DET_MODE_AVERAGE,
-    DET_MODE_SAMPLE
-}PanDetectorMode;
-
-
-typedef enum _radioState {
-    RX,
-    MOX,
-    TUNE,
-    DUPLEX
-}RadioState;
-
-
-
 Q_DECLARE_METATYPE (TNetworkDevicecard)
 Q_DECLARE_METATYPE (QList<TNetworkDevicecard>)
 
@@ -688,25 +629,6 @@ typedef struct _transmitter {
 
 } TTransmitter;
 
-typedef struct t_panadapterColors {
-
-	QColor		panBackgroundColor;
-	QColor		waterfallColor;
-	QColor		panLineColor;
-	QColor		panLineFilledColor;
-	QColor		panSolidTopColor;
-	QColor		panSolidBottomColor;
-	QColor		wideBandLineColor;
-	QColor		wideBandFilledColor;
-	QColor		wideBandSolidTopColor;
-	QColor		wideBandSolidBottomColor;
-	QColor		distanceLineColor;
-	QColor		distanceLineFilledColor;
-	QColor		panCenterLineColor;
-	QColor		gridLineColor;
-
-} TPanadapterColors;
-
 
 typedef enum _smeterType {
 
@@ -796,6 +718,13 @@ public:
 		}
 	}
 
+    NetworkConfig *networkConfig() const { return m_networkConfig; }
+    DisplayConfig *displayConfig() const { return m_displayConfig; }
+    HardwareConfig *hardwareConfig() const { return m_hardwareConfig; }
+    AudioConfig *audioConfig() const { return m_audioConfig; }
+    CWConfig *cwConfig() const { return m_cwConfig; }
+    QList<ReceiverConfig*> receiverConfigs() const { return m_receiverConfigs; }
+
 	virtual ~Settings() override;
 
 	QMutex 			settingsMutex;
@@ -808,6 +737,13 @@ private:
 	QSettings			*settings;
 	QSettings			*debugLog;
 	QErrorMessage		*error;
+
+    NetworkConfig       *m_networkConfig;
+    DisplayConfig       *m_displayConfig;
+    HardwareConfig      *m_hardwareConfig;
+    AudioConfig         *m_audioConfig;
+    CWConfig            *m_cwConfig;
+    QList<ReceiverConfig*> m_receiverConfigs;
 
 signals:
 	void systemMessageEvent(const QString &msg, int);
