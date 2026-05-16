@@ -43,9 +43,11 @@ flowchart TB
 ```mermaid
 flowchart LR
   subgraph UI["UI shell & widgets"]
-    MW[cusdr_mainWidget]
+    MW[MainWindow]
+    MWUI[MainWindowUI — menu, toolbar, actions]
     RW[cusdr_radioWidget + tabs]
     UIpkg[UI/ — setup, filters, tx dialog, …]
+    MW --> MWUI
     MW --> RW
     RW --> UIpkg
   end
@@ -87,17 +89,25 @@ flowchart LR
   end
 
   subgraph GL["GL — spectrum & panadapter"]
-    OGL[oglReceiverPanel, wideband, 3D, …]
+    RP[oglReceiverPanel]
+    WR[WaterfallRenderer]
+    PR[PanadapterRenderer]
+    OR[OverlayRenderer]
+    RP --> WR
+    RP --> PR
+    RP --> OR
+    OGL[wideband, 3D, …]
   end
 
   subgraph UT["Util"]
     RIG[rigctl server]
+    CPU[CPUMonitor]
     SPL[splash, timers, …]
   end
 
   SET <--> DEng
   MW <--> DEng
-  REC --> OGL
+  REC --> RP
   DEng --> AE
   MW --> AE
   QWDSP --> WDSP[(wdsp C lib)]
@@ -136,13 +146,14 @@ sequenceDiagram
 |------|------|
 | `src/main.cpp` | `QApplication`, logging, `MainWindow` |
 | `src/cusdr_settings.*` | Global settings, persistence, signals |
+| `src/Settings/` | Modularized configuration (Network, Hardware, etc.) |
 | `src/DataEngine/` | Radio I/O, protocols, receivers, TX |
 | `src/QtWDSP/` | C++ bridge to WDSP demod/modem chain |
 | `src/AudioEngine/` | Sound devices, CW keyer, FreeDV/Codec2 |
-| `src/GL/` | OpenGL UI for panafall / wideband / 3D |
+| `src/GL/` | OpenGL UI with specialized sub-renderers |
+| `src/UI/MainWindow/` | MainWindow UI decomposition (`MainWindowUI`) |
 | `src/UI/` | Smaller dialogs and embedded widgets |
-| `src/Util/` | Rig control, splash, CPU meter, painting helpers |
-| `src/CL/` | OpenCL headers / manager (optional build paths) |
+| `src/Util/` | Rig control, splash, CPU monitor, timers |
 | `wdsp-1.29/` | Upstream-style WDSP sources |
 | `wdsp-libs/` | Prebuilt / vendored libs (e.g. rnnoise, specbleach) |
 | `tests/` | CMake `BUILD_TESTING` unit tests |

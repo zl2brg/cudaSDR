@@ -4,11 +4,12 @@
 
 ### Current status
 
-- Migrated to CMake
-- Moving to Qt6
-- WDSP integrated
-- Protocol 2 support under active development
-- Hamlib and Codec2/FreeDV integration present
+- **Modernized to Qt 6.11+**: Fully ported to modern Qt6 signal/slot syntax and Core Profile OpenGL.
+- **Architectural Modularization**: Major components like `MainWindow` and `ReceiverPanel` have been decomposed into specialized modules for better maintainability.
+- **Modern OpenGL Pipeline**: High-performance rendering using Shaders and VBOs, featuring optimized waterfall scrolling and transparent overlays.
+- **Standardized Foundation**: Unidied networking via `QUdpSocket` and cross-platform threading/monitoring.
+- **High-DPI Support**: Native scaling for 4K and Retina displays.
+- **Advanced DSP**: Integrated WDSP, Protocol 2 support, and FreeDV/Codec2 capabilities.
 
 This project is still work in progress.
 
