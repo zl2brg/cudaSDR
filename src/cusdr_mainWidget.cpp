@@ -804,18 +804,15 @@ void MainWindow::updateFromSettings() {
 */
 void MainWindow::ctrlDisplayBtnClickedEvent() {
 
-	if (ui->m_oglDisplayPanel->isVisible()) {
-	
-		ui->m_oglDisplayPanel->setVisible(false);
-		ui->ctrlDisplayBtn->setBtnState(AeroButton::OFF);
-	} 
-	else {
+        if (ui->m_oglDisplayPanel->isVisible()) {
 
-		ui->m_oglDisplayPanel->setVisible(true);
-		ui->ctrlDisplayBtn->setBtnState(AeroButton::ON);
-	}
+                ui->m_oglDisplayPanel->setVisible(false);
+        } 
+        else {
+
+                ui->m_oglDisplayPanel->setVisible(true);
+        }
 }
- 
 /*!
 	\brief implements various Button functionalities.
 */

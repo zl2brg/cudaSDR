@@ -75,7 +75,6 @@ public:
     QAction* aboutAction;
     QAction* testAction; // renamed from test
     QList<AeroButton*> mainBtnList;
-    AeroButton* ctrlDisplayBtn;
 
     QMenuBar* menuBar;
     QMenu* File;

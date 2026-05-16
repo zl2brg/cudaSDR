@@ -34,6 +34,9 @@
 #include "Util/cusdr_buttons.h"
 #include "cusdr_oglText.h"
 #include "cusdr_radioPopupWidget.h"
+#include "WaterfallRenderer.h"
+#include "PanadapterRenderer.h"
+#include "OverlayRenderer.h"
 
 #include <QWheelEvent>
 #include <QOpenGLWidget>
@@ -226,10 +229,11 @@ private:
 	GLfloat		m_greenGrid;
 	GLfloat		m_blueGrid;
 	
-	GLuint		m_waterfallTextureId;
-	int			m_waterfallCurrentLine;
+    WaterfallRenderer* m_waterfallRenderer;
+    PanadapterRenderer* m_panadapterRenderer;
+    OverlayRenderer* m_overlayRenderer;
 
-	int			m_bigHeight;
+    int			m_bigHeight;
 	int			m_bigWidth;
 	int			m_receiver;
 	//int			m_frequencyRxOnRx;
@@ -245,8 +249,6 @@ private:
 	int			m_waterfallOffsetHi;
 	int			m_waterfallColorRange;
 	int			m_freqRulerDisplayWidth;
-	int			m_oldWaterfallWidth;
-	int			m_oldWaterfallHeight;
 	int			m_displayTop;
 	int			m_dBmPanLogGain;
 	int			m_panSpectrumMinimumHeight;
@@ -263,7 +265,6 @@ private:
 	int			m_haircrossMaxRight;
 	int			m_haircrossMinTop;
 	int			m_displayCenterlineHeight;
-	int			m_waterfallLineCnt;
 	int			m_adcStatus;
 	int			m_fps;
 	int			m_filterWidth;
@@ -285,7 +286,6 @@ private:
 	bool		m_secScaleWaterfallRenew;
 	bool		m_panGridRenew;
 	bool		m_panGridUpdate;
-	bool		m_waterfallUpdate;
 	bool		m_waterfallDisplayUpdate;
 	bool		m_spectrumColorsChanged;
 	bool		m_spectrumAveraging;

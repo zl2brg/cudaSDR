@@ -150,6 +150,9 @@ set(SOURCES
     ${SRC_DIR}/Settings/CWConfig.cpp
     ${SRC_DIR}/Settings/ReceiverConfig.cpp
     ${SRC_DIR}/UI/MainWindow/MainWindowUI.cpp
+    ${SRC_DIR}/GL/WaterfallRenderer.cpp
+    ${SRC_DIR}/GL/PanadapterRenderer.cpp
+    ${SRC_DIR}/GL/OverlayRenderer.cpp
 
   )
 
@@ -211,6 +214,9 @@ set(HEADERS
     ${SRC_DIR}/Settings/CWConfig.h
     ${SRC_DIR}/Settings/ReceiverConfig.h
     ${SRC_DIR}/UI/MainWindow/MainWindowUI.h
+    ${SRC_DIR}/GL/WaterfallRenderer.h
+    ${SRC_DIR}/GL/PanadapterRenderer.h
+    ${SRC_DIR}/GL/OverlayRenderer.h
     ${SRC_DIR}/cusdr_displayTabWidget.h
     ${SRC_DIR}/cusdr_displayWidget.h
     ${SRC_DIR}/cusdr_3DOptionsWidget.h

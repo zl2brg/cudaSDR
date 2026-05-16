@@ -104,12 +104,6 @@ void MainWindowUI::createMainBtnToolBar() {
     startBtn->setFixedSize(btn_width1, btn_height1);
     CHECKED_CONNECT(startBtn, &AeroButton::clicked, m_mainWindow, &MainWindow::startButtonClickedEvent);
 
-    ctrlDisplayBtn = new AeroButton("Radio", m_mainWindow);
-    ctrlDisplayBtn->setRoundness(10);
-    ctrlDisplayBtn->setFixedSize(btn_width1, btn_height1);
-    ctrlDisplayBtn->setBtnState(AeroButton::ON);
-    CHECKED_CONNECT(ctrlDisplayBtn, &AeroButton::clicked, m_mainWindow, &MainWindow::ctrlDisplayBtnClickedEvent);
-
     serverBtn = new AeroButton("Server", m_mainWindow);
     serverBtn->setRoundness(10);
     serverBtn->setFont(m_fonts.normalFont);
