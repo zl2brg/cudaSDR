@@ -131,7 +131,7 @@ void AeroButton::paintEvent(QPaintEvent * pe)
 		button_color = QColor(50, 50, 50); // Dark grey for disabled
 	}
 
-	QRect button_rect = this->geometry();
+	QRect button_rect = this->rect();
 	const int radius = s_globalRoundness;
 
 	//outline

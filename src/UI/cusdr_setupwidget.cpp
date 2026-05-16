@@ -23,11 +23,12 @@
 #include <QMenu>
 #include <QFileDialog>
 #include <QDebug>
+#include <QScrollArea>
 
 #include "cusdr_setupwidget.h"
 
 
-#define	btn_height		15
+#define	btn_height		22
 #define	btn_width		74
 #define	btn_width2		52
 #define	btn_widths		40
@@ -46,12 +47,22 @@ cusdr_SetupWidget::cusdr_SetupWidget(QWidget *parent)
     m_extCtrlWidget = new ExtCtrlWidget(this);
     m_txsettingsWidget = new tx_settings_dialog(this);
     m_displaytabWidget = new DisplayTabWidget(this);
-   addTab(m_hpsdrWidget, " Config ");
-   addTab(m_networkWidget, " Network ");
-   addTab(m_extCtrlWidget, " Ext Ctrl ");
-   addTab(m_alexTabWidget, " Alex ");
-   addTab(m_txsettingsWidget, " Tx Settings ");
-   this->addTab(m_displaytabWidget," Display Ctrl");
+
+    auto addScrollableTab = [this](QWidget* widget, const QString& title) {
+        QScrollArea* scrollArea = new QScrollArea(this);
+        scrollArea->setWidget(widget);
+        scrollArea->setWidgetResizable(true);
+        scrollArea->setFrameShape(QFrame::NoFrame);
+        this->addTab(scrollArea, title);
+    };
+
+    addScrollableTab(m_hpsdrWidget, " Config ");
+    addScrollableTab(m_networkWidget, " Network ");
+    addScrollableTab(m_extCtrlWidget, " Ext Ctrl ");
+    addScrollableTab(m_alexTabWidget, " Alex ");
+    addScrollableTab(m_txsettingsWidget, " Tx Settings ");
+    addScrollableTab(m_displaytabWidget, " Display Ctrl");
+
 if (!set->getPenelopePresence() && !set->getPennyLanePresence() && (set->getHWInterface() != QSDR::Hermes)) {
 
 }

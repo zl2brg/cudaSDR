@@ -37,7 +37,7 @@
 
 #include "cusdr_extCtrlWidget.h"
 
-#define	btn_height		15
+#define	btn_height		22
 #define	btn_width		20
 #define	btn_width2		28
 #define	btn_width3		32

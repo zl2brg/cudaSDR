@@ -33,7 +33,7 @@
 #include "cusdr_alexTabWidget.h"
 
 
-#define	btn_height		15
+#define	btn_height		22
 #define	btn_width		74
 #define	btn_width2		52
 #define	btn_widths		40
