@@ -149,6 +149,7 @@ set(SOURCES
     ${SRC_DIR}/Settings/AudioConfig.cpp
     ${SRC_DIR}/Settings/CWConfig.cpp
     ${SRC_DIR}/Settings/ReceiverConfig.cpp
+    ${SRC_DIR}/UI/MainWindow/MainWindowUI.cpp
 
   )
 
@@ -209,6 +210,7 @@ set(HEADERS
     ${SRC_DIR}/Settings/AudioConfig.h
     ${SRC_DIR}/Settings/CWConfig.h
     ${SRC_DIR}/Settings/ReceiverConfig.h
+    ${SRC_DIR}/UI/MainWindow/MainWindowUI.h
     ${SRC_DIR}/cusdr_displayTabWidget.h
     ${SRC_DIR}/cusdr_displayWidget.h
     ${SRC_DIR}/cusdr_3DOptionsWidget.h

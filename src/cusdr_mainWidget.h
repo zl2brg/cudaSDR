@@ -1,68 +1,29 @@
-/**
-* @file  cusdr_mainWidget.h
-* @brief main window widget header file for cuSDR
-* @author Hermann von Hasseln, DL3HVH
-* @version 0.1
-* @date 2011-01-06
-*/
-
-/*   
- *   Copyright 2010, 2011, 2012 Hermann von Hasseln, DL3HVH
- *
- *   This program is free software; you can redistribute it and/or modify
- *   it under the terms of the GNU Library General Public License version 2 as
- *   published by the Free Software Foundation
- *
- *   This program is distributed in the hope that it will be useful,
- *   but WITHOUT ANY WARRANTY; without even the implied warranty of
- *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *   GNU General Public License for more details
- *
- *   You should have received a copy of the GNU Library General Public
- *   License along with this program; if not, write to the
- *   Free Software Foundation, Inc.,
- *   51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
- */
-
 #ifndef CUSDR_MAIN_H
 #define CUSDR_MAIN_H
 
 #include <QProcess>
-//#include <QMainWindow>
-//#include <QAction>
 #include <QActionGroup>
 #include <QMessageBox>
-//#include <QStyleOptionToolBar>
-//#include <QWidget>
-//#include <QListWidget>
-//#include <QElapsedTimerr>
-//#include <QNetworkInterface>
-//#include <QSlider>
-//#include <QMessageBox>
+#include <QNetworkInterface>
+#include <QSlider>
 #include <QTableWidget>
+#include <QMenu>
+#include <QMenuBar>
+#include <QMainWindow>
+#include <QComboBox>
+#include <QPainter>
 
 #include "cusdr_settings.h"
 #include "cusdr_fonts.h"
 #include "Util/cusdr_buttons.h"
 #include "DataEngine/cusdr_dataEngine.h"
-//#include "cusdr_hpsdrTabWidget.h
 #include "UI/cusdr_setupwidget.h"
 #include "cusdr_displayTabWidget.h"
 #include "cusdr_serverWidget.h"
-//#include "cusdr_alexTabWidget.h"
-//#include "cusdr_extCtrlWidget.h"
-//#include "cusdr_radioWidget.h"
-//#include "cusdr_radioPopupWidget.h"
 #include "GL/cusdr_oglWidebandPanel.h"
 #include "GL/cusdr_oglReceiverPanel.h"
 #include "GL/cusdr_oglDisplayPanel.h"
 #include "GL/cusdr_ogl3DPanel.h"
-//#include "cusdr_graphicOptionsWidget.h"
-//#include "cusdr_server.h"
-//#include "ui_setup.h"
-//#include "ui_cusdr_display.h"
-//#include "ui_display_ctrl.h"
-//#include "ui_radio_ctrl.h"
 #include "setupwidget.h"
 #include "tx_settings_dialog.h"
 
@@ -72,16 +33,9 @@
 #define MAIN_DEBUG nullDebug()
 #endif
 
-#ifdef LOG_NETWORKDIALOG
-#define NETWORKDIALOG_DEBUG qDebug().nospace() << "NetworkDialog::\t"
-#else
-#define NETWORKDIALOG_DEBUG nullDebug()
-#endif
-
-
 class NetworkIODialog;
 class WarningDialog;
-
+class MainWindowUI;
 
 class MainWindow : public QMainWindow {
 
@@ -96,16 +50,17 @@ public:
 public slots:
 	void	update();
 	void	masterSwitchChanged(bool power);
+    void systemStateChanged(
+            QSDR::_Error err,
+            QSDR::_HWInterfaceMode hwmode,
+            QSDR::_ServerMode mode,
+            QSDR::_DataEngineState state);
 	void	startButtonClickedEvent();
 	void	widgetBtnClickedEvent();
 	void	wideBandBtnClickedEvent();
 	void    radioStateChange(RadioState state);
-	//void	avgBtnClickedEvent();
-	//void	gridBtnClickedEvent();
-	//void	peakHoldBtnClickedEvent();
 	void	alexBtnClickedEvent();
 	void	muteBtnClickedEvent();
-	//void	resizeWidget();
 	void    moxBtnClickedEvent();
 	void    tunBtnClickedEvent();
 	
@@ -114,6 +69,47 @@ public slots:
 
 	void	suspendSignal();
 	void	showWarningDialog(const QString &msg);
+
+    void ctrlDisplayBtnClickedEvent();
+	void closeMainWindow();
+	void maximizeMainWindow();
+	void setMainWindowGeometry();
+	void updateTitle();
+	void updateStatusBar(short load);
+	void setFullScreen();
+	void getRegion();
+    void cusdr_setup();
+
+	void setServerMode(QSDR::_ServerMode mode);
+	void setTxAllowed(bool value);
+	void setCurrentReceiver(int rx);
+	void setNumberOfReceivers(int value);
+	void setSDRMode(bool);
+
+	void getNetworkInterfaces();
+	void setMainVolume(int value);
+    void setMicLevel(int value);
+    void setDriveLevel(int value);
+
+    void setADCMode(int rx, ADCMode mode);
+	void setAGCMode(int rx, AGCMode mode, bool hang);
+	void setAGCGain(int value);
+	void setAGCGain(int rx, qreal value);
+	void getLastFrequency();
+	void addReceiver();
+	void setAttenuator();
+	void showNetworkIODialog();
+	void addNetworkIOComboBoxEntry(QString value);
+	void clearNetworkIOComboBoxEntry();
+	void showRadioPopup(bool value);
+	void mercuryAttenuatorChanged(HamBand band, int value);
+	void alexPresenceChanged(bool value);
+	void alexConfigurationChanged(quint16 value);
+	void alexStateChanged(HamBand band, const QList<int> &states);
+	void widebandVisibilityChanged(bool value);
+	void showStatusBarMessage(const QString &msg, int timeout);
+	void clearStatusBarMessage();
+	void showAboutDialog();
 
 private:
 	void	setSystemState(
@@ -127,22 +123,15 @@ private:
 #endif
 	void	setupConnections();
 	void	setupLayout();
-	void	createModeMenu();
-	void	createViewMenu();
-	void	createAttenuatorMenu();
-	void	createDisplayPanelToolBar();
-	void	createMainBtnToolBar();
-	//void	createDisplayPanel();
-	void	createStatusToolBar();
-	//void	initWidebandDisplay();
+	
 	void	createReceiverPanels(int rx);
 	void	updateFromSettings();
-	//void	runFFTWWisdom();
 	void	setAttenuatorButton();
     void    setupActions();
 
 
 private:
+    MainWindowUI*               ui;
 	Settings*					set;
     QDialog                     *setupWidget;
     cusdr_SetupWidget           *test_widget;
@@ -155,8 +144,6 @@ private:
 	QMutex						m_mutex;
 
 	QDir 						m_currentDir;
-	QToolBar*					mainBtnToolBar;
-	QToolBar*					displayPanelToolBar;
 	
 	QMainWindow*				centralwidget;
 
@@ -176,8 +163,6 @@ private:
 	QList<QHostAddress>			m_ipList;
 	QList<QNetworkInterface>	m_niList;
 
-	//QThreadEx*				cpuLoadThread;
-
 	CFonts*						fonts;
 	TFonts						m_fonts;
 
@@ -196,14 +181,6 @@ private:
 	
 	QGridLayout*	m_contentLayout;
 
-	QLabel*			m_volumeLabel;
-	QLabel*			m_volLevelLabel;
-	QLabel*			m_agcGainLabel;
-	QLabel*			m_agcGainLevelLabel;
-    QLabel*			m_micGainLabel;
-    QLabel*			m_drivelevellLabel;
-    QLabel*			m_cpuLoadLabel;
-	QLabel*			m_dateTimeLabel;
 	QLabel*			m_statusBarMessage;
 
 	QString			m_windowsSettingsFilename;
@@ -213,10 +190,6 @@ private:
 
 	QWidget*		m_buttonWidget;
 	QWidget*		m_secondButtonWidget;
-	QSlider*        m_micGainSlider;
-    QSlider*        m_drivelevelSlider;
-    QSlider*		m_volumeSlider;
-	QSlider*		m_agcGainSlider;
 	ADCMode			m_adcMode;
 	AGCMode			m_agcMode;
 
@@ -225,8 +198,6 @@ private:
 	ServerWidget*		m_serverWidget;
     QTabWidget*  m_hpsdrTabWidget;
 	DisplayTabWidget*	m_displayTabWidget = NULL;
-	OGLDisplayPanel*	m_oglDisplayPanel;
-	//CudaInfoWidget*	m_cudaInfoWidget;
 	QGLWidebandPanel*	m_wbDisplay;
     NetworkIODialog*	m_netIODialog;
 	WarningDialog*		m_warningDialog;
@@ -236,58 +207,7 @@ private:
 	quint16				m_alexConfig;
 	QList<int>			m_alexStates;
 	QList<int>			m_mercuryAttn;
-	//QList<QCLDevice>	m_clDevices;
 	
-	AeroButton*			startBtn;
-	AeroButton*			serverBtn;
-	AeroButton*			setupBtn;
-	AeroButton*			modeBtn;
-	AeroButton*			viewBtn;
-	AeroButton*			chirpBtn;
-	AeroButton*			openclBtn;
-	AeroButton*			wideBandBtn;
-	AeroButton*			ctrlDisplayBtn;
-	AeroButton*			displayBtn;
-	AeroButton*			plusRxBtn;
-	AeroButton*			quitBtn;
-	AeroButton*			nullBtn;
-	
-	AeroButton*			moxBtn;
-	AeroButton*			tunBtn;
-	AeroButton*			alexBtn;
-	AeroButton*			lastFreqBtn;
-	AeroButton*			attenuatorBtn;
-	AeroButton*			muteBtn;
-
-	QList<AeroButton* >	mainBtnList;
-
-	QMenu			*modeMenu;
-	QMenu			*viewMenu;
-	QMenu			*attenuatorMenu;
-
-	QActionGroup	*modeActionGroup;
-	QAction			*noServerModeAction;
-	QAction			*sdrModeAction;
-    QAction			*chirpWSPRAction;
-
-    QActionGroup	*mercuryAttnActionGroup;
-    QActionGroup	*alexAttnActionGroup;
-    QAction			*mercuryAttn_0dBAction;
-    QAction			*mercuryAttn_10dBAction;
-    QAction			*mercuryAttn_20dBAction;
-    QAction			*mercuryAttn_30dBAction;
-    QAction			*alexAttn_0dBAction;
-    QAction			*alexAttn_10dBAction;
-    QAction			*alexAttn_20dBAction;
-    QAction			*alexAttn_30dBAction;
-    QAction         *setupAction;
-    QAction         *setupAudioInput;
-	QAction         *aboutAction;
-
-
-    QList<QAction *> mercuryAttnActionList;
-    QList<QAction *> alexAttnActionList;
-
 	bool		m_resizeFrame;
 	bool		m_mousePressed;
 	bool		m_quitHighBotton;
@@ -308,84 +228,17 @@ private:
 
 	int			m_oldSampleRate;
 
-	//qreal		m_agcMaxGain;
-
-private slots:
-	void systemStateChanged(
-			QSDR::_Error err, 
-			QSDR::_HWInterfaceMode hwmode, 
-			QSDR::_ServerMode mode, 
-			QSDR::_DataEngineState state);
-
-	void ctrlDisplayBtnClickedEvent();
-	void closeMainWindow();
-	void maximizeMainWindow();
-	void setMainWindowGeometry();
-	void updateTitle();
-	void updateStatusBar(short load);
-	void setFullScreen();
-	void getRegion();
-    void cusdr_setup();
-
-	void setServerMode(QSDR::_ServerMode mode);
-	//void setReceiver();
-	void setTxAllowed(bool value);
-	void setCurrentReceiver(int rx);
-	void setNumberOfReceivers(int value);
-	//void setInternalDSPMode(bool value);
-	void setSDRMode(bool);
-
-	void getNetworkInterfaces();
-	void setMainVolume(int value);
-    void setMicLevel(int value);
-    void setDriveLevel(int value);
-
-    //void setHamBand(int rx, bool byButton, HamBand band);
-    void setADCMode(int rx, ADCMode mode);
-	void setAGCMode(int rx, AGCMode mode, bool hang);
-	void setAGCGain(int value);
-	//void setAGCGain(int rx, int value);
-	void setAGCGain(int rx, qreal value);
-	void getLastFrequency();
-	void addReceiver();
-
-	void alexPresenceChanged(bool value);
-	void alexConfigurationChanged(quint16 conf);
-	void alexStateChanged(HamBand band, const QList<int> &states);
-	void setAttenuator();
-	void mercuryAttenuatorChanged(HamBand band, int value);
-
-	void showStatusBarMessage(const QString &msg, int time);
-	void clearStatusBarMessage();
-	void showNetworkIODialog();
-
-	void addNetworkIOComboBoxEntry(QString str);
-	void clearNetworkIOComboBoxEntry();
-
-	void widebandVisibilityChanged(bool value);
-	void showRadioPopup(bool value);
-	void showAboutDialog();
-
 protected:
-	//void getSelectedFrame(QPoint p);
-	//void paintEvent(QPaintEvent *event);
-	void closeEvent(QCloseEvent *event);
-	void keyPressEvent(QKeyEvent *event);
-	void showEvent(QShowEvent *event);
-    //void focusInEvent(QFocusEvent *event);
-    //void focusOutEvent(QFocusEvent *event);
-	//void moveEvent(QMoveEvent *event); 
-	void resizeEvent(QResizeEvent *event);
-	//void changeEvent(QEvent *event); 
-	//void mousePressEvent(QMouseEvent *event);
-	//void mouseMoveEvent(QMouseEvent *event);
-	//void mouseReleaseEvent(QMouseEvent *event);
-	void wheelEvent(QWheelEvent *event);
-	void enterEvent(QEvent *event);
-	void leaveEvent(QEvent *event);
+	void resizeEvent(QResizeEvent *event) override;
+	void closeEvent(QCloseEvent *event) override;
+    void wheelEvent(QWheelEvent *event) override;
+    void enterEvent(QEnterEvent *event) override;
+    void leaveEvent(QEvent *event) override;
+    void keyPressEvent(QKeyEvent *event) override;
+    void showEvent(QShowEvent *event) override;
 
 signals:
-	void setAGCSliderValue(int value);
+        void setAGCSliderValue(int value);
 };
 
 //***************************************************************************
@@ -400,20 +253,20 @@ public:
     ~NetworkIODialog() override;
 
 public slots:
-	void addDeviceComboBoxItem(QString str);
-	void clearDeviceComboBoxItem();
+        void addDeviceComboBoxItem(QString str);
+        void clearDeviceComboBoxItem();
 
 private:
-	Settings*		set;
+        Settings*               set;
 
-	QFont			m_titleFont;
+        QFont                   m_titleFont;
     QComboBox*      m_deviceComboBox;
 
-	TNetworkDevicecard			m_deviceCard;
-	QList<TNetworkDevicecard>	m_deviceCards;
+        TNetworkDevicecard                      m_deviceCard;
+        QList<TNetworkDevicecard>       m_deviceCards;
 
 private slots:
-	void	okBtnClicked();
+        void    okBtnClicked();
 };
 
 
@@ -429,30 +282,26 @@ public:
     ~WarningDialog();
 
 public slots:
-	void setWarningMessage(const QString &msg);
-	
+        void setWarningMessage(const QString &msg);
+
 protected:
-	void paintEvent(QPaintEvent *event);
+        void paintEvent(QPaintEvent *event) override;
 
 private:
-	Settings*		set;
+        Settings*               set;
 
-	QFont			m_titleFont;
-	//QPixmap			m_warningIcon;
+        QFont                   m_titleFont;
+        QLabel*                 m_warningLabel;
+        AeroButton*             okBtn;
+        QString                 m_message;
 
-	QLabel*			m_warningLabel;
-
-	AeroButton*		okBtn;
-
-	QString			m_message;
-
-	int		m_btnWidth;
-	int		m_btnHeight;
-	int		m_msgFontWidth;
-	int		m_msgFontHeight;
+        int             m_btnWidth;
+        int             m_btnHeight;
+        int             m_msgFontWidth;
+        int             m_msgFontHeight;
     
 private slots:
-	void	okBtnClicked();
+        void    okBtnClicked();
 };
 
 #endif // CUSDR_MAIN_H
