@@ -373,8 +373,8 @@ void QGLReceiverPanel::initializeGL() {
     const char *vsrc =
         "#version 150\n"
         "in vec3 position;\n"
-        "in vec3 color;\n"
-        "out vec3 vertColor;\n"
+        "in vec4 color;\n"
+        "out vec4 vertColor;\n"
         "uniform mat4 matrix;\n"
         "void main() {\n"
         "   vertColor = color;\n"
@@ -384,10 +384,10 @@ void QGLReceiverPanel::initializeGL() {
     // Fragment Shader: Just output the color
     const char *fsrc =
         "#version 150\n"
-        "in vec3 vertColor;\n"
+        "in vec4 vertColor;\n"
         "out vec4 fragColor;\n"
         "void main() {\n"
-        "   fragColor = vec4(vertColor, 1.0);\n"
+        "   fragColor = vertColor;\n"
         "}\n";
 
     if (!m_shaderProgram->addShaderFromSourceCode(QOpenGLShader::Vertex, vsrc)) {
@@ -413,10 +413,10 @@ void QGLReceiverPanel::initializeGL() {
     m_vbo.setUsagePattern(QOpenGLBuffer::StreamDraw); // Frequently updated
 
     m_shaderProgram->enableAttributeArray(0);
-    m_shaderProgram->setAttributeBuffer(0, GL_FLOAT, 0, 3, sizeof(float) * 6);
+    m_shaderProgram->setAttributeBuffer(0, GL_FLOAT, 0, 3, sizeof(float) * 7);
 
     m_shaderProgram->enableAttributeArray(1);
-    m_shaderProgram->setAttributeBuffer(1, GL_FLOAT, sizeof(float) * 3, 3, sizeof(float) * 6);
+    m_shaderProgram->setAttributeBuffer(1, GL_FLOAT, sizeof(float) * 3, 4, sizeof(float) * 7);
 
     m_vao.release();
     m_vbo.release();
@@ -520,7 +520,7 @@ void QGLReceiverPanel::paintReceiverDisplay() {
 			m_crossHairCursor)
 			drawCrossHair();
 	}
- }
+}
 
 void QGLReceiverPanel::paint3DPanadapterMode() {
 }
@@ -590,14 +590,14 @@ void QGLReceiverPanel::drawPanadapter() {
     }
 
     // Set a DPR-aware scissor box
-    glScissor(x1, (size().height() * (int)dpr - y2 * (int)dpr), (x2 - x1) * (int)dpr, height * (int)dpr);
+    glScissor((int)(x1 * dpr), (int)((size().height() - y2) * dpr), (int)((x2 - x1) * dpr), (int)(height * dpr));
     glEnable(GL_SCISSOR_TEST);
     spectrumBufferMutex.lock();
 
-    // Prepare interleaved data: x, y, z, r, g, b
+    // Prepare interleaved data: x, y, z, r, g, b, a
     struct VertexData {
         float x, y, z;
-        float r, g, b;
+        float r, g, b, a;
     };
 
     switch (m_panMode) {
@@ -609,21 +609,26 @@ void QGLReceiverPanel::drawPanadapter() {
                 float vy = (float)(yTop - yScale * m_panadapterBins.at(i));
 
                 // Background strip
-                data[2*i] = { vx, vy, -1.5f, 0.7f * m_redF, 0.7f * m_greenF, 0.7f * m_blueF };
-                data[2*i+1] = { vx, yTop, -1.5f, 0.3f * m_redF, 0.3f * m_greenF, 0.3f * m_blueF };
+                data[2*i] = { vx, vy, -1.5f, 0.7f * m_redF, 0.7f * m_greenF, 0.7f * m_blueF, 0.4f };
+                data[2*i+1] = { vx, yTop, -1.5f, 0.3f * m_redF, 0.3f * m_greenF, 0.3f * m_blueF, 0.2f };
             }
 
             m_vao.bind();
             m_vbo.bind();
-            m_vbo.allocate(data.data(), data.size() * (int)sizeof(VertexData));
+            m_vbo.allocate(data.data(), (int)(data.size() * sizeof(VertexData)));
+            // Re-setup pointers because allocate may have re-created storage
+            m_shaderProgram->setAttributeBuffer(0, GL_FLOAT, 0, 3, sizeof(float) * 7);
+            m_shaderProgram->setAttributeBuffer(1, GL_FLOAT, sizeof(float) * 3, 4, sizeof(float) * 7);
             glDrawArrays(GL_TRIANGLE_STRIP, 0, vertexArrayLength * 2);
 
             // Overlay line
             QVarLengthArray<VertexData> lineData(vertexArrayLength);
             for (int i = 0; i < vertexArrayLength; i++) {
-                lineData[i] = { (float)(i/m_scaleMult), (float)(yTop - yScale * m_panadapterBins.at(i)), -1.0f, m_red, m_green, m_blue };
+                lineData[i] = { (float)(i/m_scaleMult), (float)(yTop - yScale * m_panadapterBins.at(i)), -1.0f, m_red, m_green, m_blue, 1.0f };
             }
-            m_vbo.allocate(lineData.data(), lineData.size() * (int)sizeof(VertexData));
+            m_vbo.allocate(lineData.data(), (int)(lineData.size() * sizeof(VertexData)));
+            m_shaderProgram->setAttributeBuffer(0, GL_FLOAT, 0, 3, sizeof(float) * 7);
+            m_shaderProgram->setAttributeBuffer(1, GL_FLOAT, sizeof(float) * 3, 4, sizeof(float) * 7);
             glDrawArrays(GL_LINE_STRIP, 0, vertexArrayLength);
             m_vao.release();
             break;
@@ -632,12 +637,14 @@ void QGLReceiverPanel::drawPanadapter() {
         case (PanGraphicsMode) Line: {
             QVarLengthArray<VertexData> data(vertexArrayLength);
             for (int i = 0; i < vertexArrayLength; i++) {
-                data[i] = { (float)(i/m_scaleMult), (float)(yTop - yScale * m_panadapterBins.at(i)), -1.0f, m_red, m_green, m_blue };
+                data[i] = { (float)(i/m_scaleMult), (float)(yTop - yScale * m_panadapterBins.at(i)), -1.0f, m_red, m_green, m_blue, 1.0f };
             }
 
             m_vao.bind();
             m_vbo.bind();
-            m_vbo.allocate(data.data(), data.size() * (int)sizeof(VertexData));
+            m_vbo.allocate(data.data(), (int)(data.size() * sizeof(VertexData)));
+            m_shaderProgram->setAttributeBuffer(0, GL_FLOAT, 0, 3, sizeof(float) * 7);
+            m_shaderProgram->setAttributeBuffer(1, GL_FLOAT, sizeof(float) * 3, 4, sizeof(float) * 7);
             glDrawArrays(GL_LINE_STRIP, 0, vertexArrayLength);
             m_vao.release();
             break;
@@ -651,13 +658,15 @@ void QGLReceiverPanel::drawPanadapter() {
             for (int i = 0; i < vertexArrayLength; i++) {
                 float vx = (float)(i/m_scaleMult);
                 float vy = (float)(yTop - yScale * m_panadapterBins.at(i));
-                data[2*i]   = { vx, vy,   -1.0f, m_redST, m_greenST, m_blueST };
-                data[2*i+1] = { vx, yTop, -1.0f, m_redSB, m_greenSB, m_blueSB };
+                data[2*i]   = { vx, vy,   -1.0f, m_redST, m_greenST, m_blueST, 1.0f };
+                data[2*i+1] = { vx, yTop, -1.0f, m_redSB, m_greenSB, m_blueSB, 1.0f };
             }
 
             m_vao.bind();
             m_vbo.bind();
-            m_vbo.allocate(data.data(), data.size() * (int)sizeof(VertexData));
+            m_vbo.allocate(data.data(), (int)(data.size() * sizeof(VertexData)));
+            m_shaderProgram->setAttributeBuffer(0, GL_FLOAT, 0, 3, sizeof(float) * 7);
+            m_shaderProgram->setAttributeBuffer(1, GL_FLOAT, sizeof(float) * 3, 4, sizeof(float) * 7);
             glDrawArrays(GL_LINES, 0, vertexArrayLength * 2);
             m_vao.release();
             break;
@@ -870,13 +879,13 @@ void QGLReceiverPanel::drawPanadapterGrid() {
 
     struct VertexData {
         float x, y, z;
-        float r, g, b;
+        float r, g, b, a;
     };
 
     float r = m_redGrid;
     float g = m_greenGrid;
     float b = m_blueGrid;
-    // Note: Our current simple shader doesn't handle alpha.
+    float alpha = (m_receiver == m_currentReceiver) ? 1.0f : 0.8f;
 
     QList<VertexData> gridData;
     
@@ -884,22 +893,24 @@ void QGLReceiverPanel::drawPanadapterGrid() {
     int len = m_frequencyScale.mainPointPositions.length();
     for (int i = 0; i < len; i++) {
         float x = (float)m_frequencyScale.mainPointPositions.at(i);
-        gridData.append({ x, (float)m_panRect.top(),    3.0f, r, g, b });
-        gridData.append({ x, (float)m_panRect.bottom(), 3.0f, r, g, b });
+        gridData.append({ x, (float)m_panRect.top(),    3.0f, r, g, b, alpha });
+        gridData.append({ x, (float)m_panRect.bottom(), 3.0f, r, g, b, alpha });
     }
     
     // Horizontal lines (dBm grid)
     len = m_dBmScale.mainPointPositions.length();
     for (int i = 0; i < len; i++) {
         float y = (float)m_dBmScale.mainPointPositions.at(i);
-        gridData.append({ (float)m_panRect.left(),  y, 3.0f, r, g, b });
-        gridData.append({ (float)m_panRect.right(), y, 3.0f, r, g, b });
+        gridData.append({ (float)m_panRect.left(),  y, 3.0f, r, g, b, alpha });
+        gridData.append({ (float)m_panRect.right(), y, 3.0f, r, g, b, alpha });
     }
     
     if (!gridData.isEmpty()) {
         m_vao.bind();
         m_vbo.bind();
         m_vbo.allocate(gridData.data(), gridData.size() * (int)sizeof(VertexData));
+        m_shaderProgram->setAttributeBuffer(0, GL_FLOAT, 0, 3, sizeof(float) * 7);
+        m_shaderProgram->setAttributeBuffer(1, GL_FLOAT, sizeof(float) * 3, 4, sizeof(float) * 7);
         glDrawArrays(GL_LINES, 0, gridData.size());
         m_vao.release();
     }
@@ -926,42 +937,54 @@ void QGLReceiverPanel::drawCenterLine() {
 
         struct VertexData {
             float x, y, z;
-            float r, g, b;
+            float r, g, b, a;
         };
 
-        float x = (float)m_panRect.width()/2.0f;
-        float y = (float)(m_panRect.top() + m_panRect.height() - 1);
-		QColor col = QColor(80, 180, 240, 180);
+        float centerX = (float)m_panRect.width()/2.0f;
+        float centerY = (float)(m_panRect.top() + m_panRect.height() - 1);
+		QColor centerCol = QColor(80, 180, 240, 180);
 
 		glDisable(GL_MULTISAMPLE);
         glLineWidth(3.0f);
 
-        QList<VertexData> lines;
-        float r = col.redF();
-        float g = col.greenF();
-        float b = col.blueF();
+        QVarLengthArray<VertexData, 8> lines;
+        float cr = centerCol.redF();
+        float cg = centerCol.greenF();
+        float cb = centerCol.blueF();
+        float ca = centerCol.alphaF();
 
 		// center frequency line
-        lines.append({ x, y1 + 1.0f, 3.5f, r, g, b });
-        lines.append({ x, y - 1.0f,  3.5f, r, g, b });
+        lines.append({ centerX, y1 + 1.0f, 3.5f, cr, cg, cb, ca });
+        lines.append({ centerX, centerY - 1.0f,  3.5f, cr, cg, cb, ca });
 			
-		x = (float)(m_panRect.left() + qRound((qreal)(m_panRect.width()/2.0f)  - m_deltaF * m_panRect.width() / m_freqScaleZoomFactor));
-		col = set->getPanadapterColors().panCenterLineColor;
-        r = col.redF(); g = col.greenF(); b = col.blueF();
+		float vfoX = (float)(m_panRect.left() + qRound((qreal)(m_panRect.width()/2.0f)  - m_deltaF * m_panRect.width() / m_freqScaleZoomFactor));
+		QColor vfoCol = set->getPanadapterColors().panCenterLineColor;
+        float vr = vfoCol.redF(); float vg = vfoCol.greenF(); float vb = vfoCol.blueF();
+        float va = 1.0f;
 
-		// VFO frequency line
-		if (m_dragMouse && !m_panLocked) {
-            lines.append({ x, (float)m_freqScalePanRect.bottom() + 1.0f, 3.0f, r, g, b });
-            lines.append({ x, (float)(m_freqScalePanRect.bottom() + m_waterfallRect.height() - 1), 3.0f, r, g, b });
-		}
-        
-        lines.append({ x, y1 + 1.0f, 4.0f, r, g, b });
-        lines.append({ x, y - 1.0f,  4.0f, r, g, b });
+        // Safety check for valid coordinates
+        if (!qIsNaN(vfoX) && !qIsInf(vfoX)) {
+            // VFO frequency line (waterfall extension)
+            if (m_dragMouse && !m_panLocked) {
+                lines.append({ vfoX, (float)m_freqScalePanRect.bottom() + 1.0f, 3.0f, vr, vg, vb, va });
+                lines.append({ vfoX, (float)(m_freqScalePanRect.bottom() + m_waterfallRect.height() - 1), 3.0f, vr, vg, vb, va });
+            }
+            
+            // VFO frequency line (panadapter overlay)
+            lines.append({ vfoX, y1 + 1.0f, 4.0f, vr, vg, vb, va });
+            lines.append({ vfoX, centerY - 1.0f,  4.0f, vr, vg, vb, va });
+        }
 
-        if (!lines.isEmpty()) {
+        if (lines.size() >= 2) {
             m_vao.bind();
             m_vbo.bind();
-            m_vbo.allocate(lines.data(), lines.size() * (int)sizeof(VertexData));
+            m_vbo.allocate(lines.data(), (int)(lines.size() * sizeof(VertexData)));
+            
+            m_shaderProgram->enableAttributeArray(0);
+            m_shaderProgram->enableAttributeArray(1);
+            m_shaderProgram->setAttributeBuffer(0, GL_FLOAT, 0, 3, sizeof(float) * 7);
+            m_shaderProgram->setAttributeBuffer(1, GL_FLOAT, sizeof(float) * 3, 4, sizeof(float) * 7);
+            
             glDrawArrays(GL_LINES, 0, lines.size());
             m_vao.release();
         }
@@ -969,8 +992,6 @@ void QGLReceiverPanel::drawCenterLine() {
         m_shaderProgram->release();
 		glEnable(GL_MULTISAMPLE);
 	}
-
-	// draw a frequency line from a different receiver
 }
 
 void QGLReceiverPanel::drawPanFilter() {
@@ -999,47 +1020,66 @@ void QGLReceiverPanel::drawPanFilter() {
 
     struct VertexData {
         float x, y, z;
-        float r, g, b;
+        float r, g, b, a;
     };
+
+    m_vao.bind();
+    m_vbo.bind();
 
 	if ((m_filterLeft >= m_panRect.left() && m_filterLeft <= m_panRect.right()) ||
 		(m_filterRight >= m_panRect.left() && m_filterRight <= m_panRect.right()) ||
 		(m_filterLeft < m_panRect.left() && m_filterRight > m_panRect.right()))
 	{
 		if (m_filterRect.height() > 5) {
-            m_shaderProgram->release();
-            drawGLRect(m_filterRect, color, 0.0f);
-            m_shaderProgram->bind();
+            float fr = color.redF(), fg = color.greenF(), fb = color.blueF();
+            float fa = color.alphaF() * 0.4f; // 40% of original alpha for nice transparency
+            
+            QVarLengthArray<VertexData, 4> rectData;
+            float rx1 = (float)m_filterRect.left();
+            float ry1 = (float)m_filterRect.top();
+            float rx2 = (float)m_filterRect.right();
+            float ry2 = (float)m_filterRect.bottom();
+            
+            rectData.append({ rx1, ry1, 0.0f, fr, fg, fb, fa });
+            rectData.append({ rx2, ry1, 0.0f, fr, fg, fb, fa });
+            rectData.append({ rx1, ry2, 0.0f, fr, fg, fb, fa });
+            rectData.append({ rx2, ry2, 0.0f, fr, fg, fb, fa });
+
+            m_vbo.allocate(rectData.data(), (int)(rectData.size() * sizeof(VertexData)));
+            m_shaderProgram->setAttributeBuffer(0, GL_FLOAT, 0, 3, sizeof(float) * 7);
+            m_shaderProgram->setAttributeBuffer(1, GL_FLOAT, sizeof(float) * 3, 4, sizeof(float) * 7);
+            glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
         }
 	}
 
-    QList<VertexData> lines;
+    QVarLengthArray<VertexData, 4> lines;
 
 	// filter boundaries
 	if (m_showFilterLeftBoundary) {
 		color = QColor(150, 150, 150, 230);
-        float r = color.redF(), g = color.greenF(), b = color.blueF();
-        lines.append({ (float)m_filterLeft, (float)m_filterTop,    4.0f, r, g, b });
-        lines.append({ (float)m_filterLeft, (float)m_filterBottom, 4.0f, r, g, b });
+        float r = color.redF(), g = color.greenF(), b = color.blueF(), a = color.alphaF();
+        lines.append({ (float)m_filterLeft, (float)m_filterTop,    4.0f, r, g, b, a });
+        lines.append({ (float)m_filterLeft, (float)m_filterBottom, 4.0f, r, g, b, a });
 	}
 
 	if (m_showFilterRightBoundary) {
 		color = QColor(150, 150, 150, 230);
-        float r = color.redF(), g = color.greenF(), b = color.blueF();
-        lines.append({ (float)m_filterRight, (float)m_filterTop,    4.0f, r, g, b });
-        lines.append({ (float)m_filterRight, (float)m_filterBottom, 4.0f, r, g, b });
+        float r = color.redF(), g = color.greenF(), b = color.blueF(), a = color.alphaF();
+        lines.append({ (float)m_filterRight, (float)m_filterTop,    4.0f, r, g, b, a });
+        lines.append({ (float)m_filterRight, (float)m_filterBottom, 4.0f, r, g, b, a });
 	}
 
     if (!lines.isEmpty()) {
         glDisable(GL_MULTISAMPLE);
         glLineWidth(1);
-        m_vao.bind();
-        m_vbo.bind();
-        m_vbo.allocate(lines.data(), lines.size() * (int)sizeof(VertexData));
+        m_vbo.allocate(lines.data(), (int)(lines.size() * sizeof(VertexData)));
+        m_shaderProgram->setAttributeBuffer(0, GL_FLOAT, 0, 3, sizeof(float) * 7);
+        m_shaderProgram->setAttributeBuffer(1, GL_FLOAT, sizeof(float) * 3, 4, sizeof(float) * 7);
         glDrawArrays(GL_LINES, 0, lines.size());
-        m_vao.release();
         glEnable(GL_MULTISAMPLE);
     }
+    
+    m_vao.release();
     m_shaderProgram->release();
 
     // Re-render text using the original logic which is already texture-based
@@ -1260,7 +1300,7 @@ void QGLReceiverPanel::drawCrossHair() {
 
 	qglColor(QColor(95, 95, 95, 255));
 	// set a scissor box
-	glScissor(rect.left() * dpr, rect.top() * dpr, rect.width() * dpr - 1, rect.height() * dpr);
+    glScissor((int)(rect.left() * dpr), (int)((size().height() - rect.bottom()) * dpr), (int)(rect.width() * dpr - 1), (int)(rect.height() * dpr));
 	glEnable(GL_SCISSOR_TEST);
 
 	// horizontal line
@@ -1762,12 +1802,14 @@ void QGLReceiverPanel::drawReceiverInfo() {
 
 void QGLReceiverPanel::drawAGCControl() {
 
+    qreal dpr = devicePixelRatioF();
+
 	glDisable(GL_MULTISAMPLE);
 	glLineStipple(1, 0x0C0C);
 	glEnable(GL_LINE_STIPPLE);
 	glLineWidth(1.0f);
 
-	glScissor(m_panRect.left(), size().height() - (m_panRect.top() + m_panRect.height()), m_panRect.left() + m_panRect.width(), m_panRect.height());
+	glScissor((int)(m_panRect.left() * dpr), (int)((size().height() - m_panRect.bottom()) * dpr), (int)(m_panRect.width() * dpr), (int)(m_panRect.height() * dpr));
 	glEnable(GL_SCISSOR_TEST);
 
 	if (m_agcMode == (AGCMode) agcOFF) {

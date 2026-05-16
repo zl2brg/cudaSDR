@@ -1040,8 +1040,9 @@ void OGLDisplayPanel::paintRxRegion() {
         QRect rect(m_rxRect.right() + m_sMeterOffset, 0, m_sMeterWidth, height);
         renderTexture(rect, m_smeterFBO->texture(), -2.0f);
 
-        // Correct glScissor usage: width, not x2
-        glScissor(x1, size().height() - y2, width, height);
+        // Correct glScissor usage: physical pixels, use dpr
+        qreal dpr = devicePixelRatioF();
+        glScissor((int)(x1 * dpr), (int)((size().height() - y2) * dpr), (int)(width * dpr), (int)(height * dpr));
         glEnable(GL_SCISSOR_TEST);
 
         if (m_dataEngineState == QSDR::DataEngineUp) {

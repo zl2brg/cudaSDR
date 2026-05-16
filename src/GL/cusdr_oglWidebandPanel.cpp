@@ -441,8 +441,7 @@ void QGLWidebandPanel::drawSpectrum() {
 	}
 
 	// set a scissor box
-    glScissor(x1, (size().height() * dpr - y2 * dpr), x2 * dpr, height * dpr);
-
+	glScissor((int)(x1 * dpr), (int)((size().height() - y2) * dpr), (int)((x2 - x1) * dpr), (int)(height * dpr));
     glEnable(GL_SCISSOR_TEST);
 
 	// set up the vertex arrays

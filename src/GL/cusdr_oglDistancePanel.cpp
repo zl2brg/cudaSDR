@@ -328,8 +328,8 @@ void QGLDistancePanel::initializeGL() {
     const char *vsrc =
         "#version 150\n"
         "in vec3 position;\n"
-        "in vec3 color;\n"
-        "out vec3 vertColor;\n"
+        "in vec4 color;\n"
+        "out vec4 vertColor;\n"
         "uniform mat4 matrix;\n"
         "void main() {\n"
         "   vertColor = color;\n"
@@ -339,10 +339,10 @@ void QGLDistancePanel::initializeGL() {
     // Fragment Shader: Just output the color
     const char *fsrc =
         "#version 150\n"
-        "in vec3 vertColor;\n"
+        "in vec4 vertColor;\n"
         "out vec4 fragColor;\n"
         "void main() {\n"
-        "   fragColor = vec4(vertColor, 1.0);\n"
+        "   fragColor = vertColor;\n"
         "}\n";
 
     if (!m_shaderProgram->addShaderFromSourceCode(QOpenGLShader::Vertex, vsrc)) {
@@ -368,10 +368,10 @@ void QGLDistancePanel::initializeGL() {
     m_vbo.setUsagePattern(QOpenGLBuffer::StreamDraw);
 
     m_shaderProgram->enableAttributeArray(0);
-    m_shaderProgram->setAttributeBuffer(0, GL_FLOAT, 0, 3, sizeof(float) * 6);
+    m_shaderProgram->setAttributeBuffer(0, GL_FLOAT, 0, 3, sizeof(float) * 7);
 
     m_shaderProgram->enableAttributeArray(1);
-    m_shaderProgram->setAttributeBuffer(1, GL_FLOAT, sizeof(float) * 3, 3, sizeof(float) * 6);
+    m_shaderProgram->setAttributeBuffer(1, GL_FLOAT, sizeof(float) * 3, 4, sizeof(float) * 7);
 
     m_vao.release();
     m_vbo.release();
@@ -460,6 +460,7 @@ void QGLDistancePanel::paintChirpWSPRDisplay() {
 }
 
 void QGLDistancePanel::drawPanadapter() {
+    float dpr = (float)devicePixelRatio();
 	GLint vertexArrayLength = (GLint)m_panadapterBins.size();
     if (vertexArrayLength == 0) return;
 
@@ -522,13 +523,13 @@ void QGLDistancePanel::drawPanadapter() {
 	}
 
 	// set a scissor box
-	glScissor(x1, size().height() - y2, x2, height);
+	glScissor((int)(x1 * dpr), (int)((size().height() - y2) * dpr), (int)((x2 - x1) * dpr), (int)(height * dpr));
 	glEnable(GL_SCISSOR_TEST);
     spectrumBufferMutex.lock();
 
     struct VertexData {
         float x, y, z;
-        float r, g, b;
+        float r, g, b, a;
     };
 
 	switch (m_panMode) {
@@ -538,24 +539,27 @@ void QGLDistancePanel::drawPanadapter() {
 			for (int i = 0; i < vertexArrayLength; i++) {
                 float vx = (float)(i/m_scaleMult);
                 float vy = (float)(yTop - yScale * m_panadapterBins.at(i));
-                float binVal = m_panadapterBins.at(i);
 
-                data[2*i] = { vx, vy, -2.5f, m_redF, m_greenF, m_blueF };
-                data[2*i+1] = { vx, yTop, -2.5f, 0.3f * m_redF, 0.3f * m_greenF, 0.3f * m_blueF };
+                data[2*i] = { vx, vy, -2.5f, m_redF, m_greenF, m_blueF, 0.4f };
+                data[2*i+1] = { vx, yTop, -2.5f, 0.3f * m_redF, 0.3f * m_greenF, 0.3f * m_blueF, 0.2f };
 			}
 			
             m_vao.bind();
             m_vbo.bind();
-            m_vbo.allocate(data.data(), data.size() * (int)sizeof(VertexData));
+            m_vbo.allocate(data.data(), (int)(data.size() * sizeof(VertexData)));
+            m_shaderProgram->setAttributeBuffer(0, GL_FLOAT, 0, 3, sizeof(float) * 7);
+            m_shaderProgram->setAttributeBuffer(1, GL_FLOAT, sizeof(float) * 3, 4, sizeof(float) * 7);
 			glDrawArrays(GL_QUAD_STRIP, 0, 2*vertexArrayLength);
 
             QVarLengthArray<VertexData> lineData(vertexArrayLength);
             for (int i = 0; i < vertexArrayLength; i++) {
                 float binVal = m_panadapterBins.at(i);
                 lineData[i] = { (float)(i/m_scaleMult), (float)(yTop - yScale * binVal), -1.0f, 
-                                m_red * (yScaleColor * binVal), m_green * (yScaleColor * binVal), m_blue * (yScaleColor * binVal) };
+                                m_red * (yScaleColor * binVal), m_green * (yScaleColor * binVal), m_blue * (yScaleColor * binVal), 1.0f };
             }
-            m_vbo.allocate(lineData.data(), lineData.size() * (int)sizeof(VertexData));
+            m_vbo.allocate(lineData.data(), (int)(lineData.size() * sizeof(VertexData)));
+            m_shaderProgram->setAttributeBuffer(0, GL_FLOAT, 0, 3, sizeof(float) * 7);
+            m_shaderProgram->setAttributeBuffer(1, GL_FLOAT, sizeof(float) * 3, 4, sizeof(float) * 7);
 			glDrawArrays(GL_LINE_STRIP, 0, vertexArrayLength);
             m_vao.release();
 			break;
@@ -566,12 +570,14 @@ void QGLDistancePanel::drawPanadapter() {
 			for (int i = 0; i < vertexArrayLength; i++) {
                 float binVal = m_panadapterBins.at(i);
 				data[i] = { (float)(i/m_scaleMult), (float)(yTop - yScale * binVal), -1.0f,
-                            m_red * (yScaleColor * binVal), m_green * (yScaleColor * binVal), m_blue * (yScaleColor * binVal) };
+                            m_red * (yScaleColor * binVal), m_green * (yScaleColor * binVal), m_blue * (yScaleColor * binVal), 1.0f };
 			}
 		
             m_vao.bind();
             m_vbo.bind();
-            m_vbo.allocate(data.data(), data.size() * (int)sizeof(VertexData));
+            m_vbo.allocate(data.data(), (int)(data.size() * sizeof(VertexData)));
+            m_shaderProgram->setAttributeBuffer(0, GL_FLOAT, 0, 3, sizeof(float) * 7);
+            m_shaderProgram->setAttributeBuffer(1, GL_FLOAT, sizeof(float) * 3, 4, sizeof(float) * 7);
 			glDrawArrays(GL_LINE_STRIP, 0, vertexArrayLength);
             m_vao.release();
 			break;
@@ -585,13 +591,15 @@ void QGLDistancePanel::drawPanadapter() {
 			for (int i = 0; i < vertexArrayLength; i++) {
                 float vx = (float)(i/m_scaleMult);
                 float vy = (float)(yTop - yScale * m_panadapterBins.at(i));
-                data[2*i]   = { vx, vy,   -2.0f, m_redST, m_greenST, m_blueST };
-                data[2*i+1] = { vx, yTop, -2.0f, m_redSB, m_greenSB, m_blueSB };
+                data[2*i]   = { vx, vy,   -2.0f, m_redST, m_greenST, m_blueST, 1.0f };
+                data[2*i+1] = { vx, yTop, -2.0f, m_redSB, m_greenSB, m_blueSB, 1.0f };
 			}
 			
             m_vao.bind();
             m_vbo.bind();
-            m_vbo.allocate(data.data(), data.size() * (int)sizeof(VertexData));
+            m_vbo.allocate(data.data(), (int)(data.size() * sizeof(VertexData)));
+            m_shaderProgram->setAttributeBuffer(0, GL_FLOAT, 0, 3, sizeof(float) * 7);
+            m_shaderProgram->setAttributeBuffer(1, GL_FLOAT, sizeof(float) * 3, 4, sizeof(float) * 7);
 			glDrawArrays(GL_QUAD_STRIP, 0, 2*vertexArrayLength);
             m_vao.release();
 			break;
@@ -809,7 +817,8 @@ void QGLDistancePanel::drawCrossHair() {
     if (!m_shaderProgram || !m_shaderProgram->isLinked()) return;
 
 	// set a scissor box
-	glScissor(rect.left(), size().height() - rect.bottom(), rect.width() - 1, rect.height());
+    qreal dpr = devicePixelRatioF();
+	glScissor((int)(rect.left() * dpr), (int)((size().height() - rect.bottom()) * dpr), (int)((rect.width() - 1) * dpr), (int)(rect.height() * dpr));
 	glEnable(GL_SCISSOR_TEST);
 
     m_shaderProgram->bind();
@@ -819,30 +828,32 @@ void QGLDistancePanel::drawCrossHair() {
 
     struct VertexData {
         float x, y, z;
-        float r, g, b;
+        float r, g, b, a;
     };
 
     QList<VertexData> crossHairLines;
-    float r = 1.0f, g = 1.0f, b = 1.0f; // Simplified, alpha not in basic shader
+    float r = 1.0f, g = 1.0f, b = 1.0f; 
 
 	// horizontal line
-    crossHairLines.append({ (float)m_dBmScalePanRect.right() - 2.0f, (float)y, 4.0f, r, g, b });
-    crossHairLines.append({ (float)rect.right() - 1.0f, (float)y, 4.0f, r, g, b });
+    crossHairLines.append({ (float)m_dBmScalePanRect.right() - 2.0f, (float)y, 4.0f, r, g, b, 0.3f });
+    crossHairLines.append({ (float)rect.right() - 1.0f, (float)y, 4.0f, r, g, b, 0.3f });
 
 	// vertical line
-    crossHairLines.append({ (float)x, (float)rect.top() + 1.0f, 4.0f, r, g, b });
-    crossHairLines.append({ (float)x, (float)rect.bottom() - 1.0f, 4.0f, r, g, b });
+    crossHairLines.append({ (float)x, (float)rect.top() + 1.0f, 4.0f, r, g, b, 0.3f });
+    crossHairLines.append({ (float)x, (float)rect.bottom() - 1.0f, 4.0f, r, g, b, 0.3f });
 
 	// cross hair
-    crossHairLines.append({ (float)x     , (float)y - 20.0f, 5.0f, r, g, b });
-    crossHairLines.append({ (float)x     , (float)y + 20.0f, 5.0f, r, g, b });
-    crossHairLines.append({ (float)x - 20.0f, (float)y, 5.0f, r, g, b });
-    crossHairLines.append({ (float)x + 20.0f, (float)y, 5.0f, r, g, b });
+    crossHairLines.append({ (float)x     , (float)y - 20.0f, 5.0f, r, g, b, 0.7f });
+    crossHairLines.append({ (float)x     , (float)y + 20.0f, 5.0f, r, g, b, 0.7f });
+    crossHairLines.append({ (float)x - 20.0f, (float)y, 5.0f, r, g, b, 0.7f });
+    crossHairLines.append({ (float)x + 20.0f, (float)y, 5.0f, r, g, b, 0.7f });
 
     if (!crossHairLines.isEmpty()) {
         m_vao.bind();
         m_vbo.bind();
         m_vbo.allocate(crossHairLines.data(), crossHairLines.size() * (int)sizeof(VertexData));
+        m_shaderProgram->setAttributeBuffer(0, GL_FLOAT, 0, 3, sizeof(float) * 7);
+        m_shaderProgram->setAttributeBuffer(1, GL_FLOAT, sizeof(float) * 3, 4, sizeof(float) * 7);
         glDrawArrays(GL_LINES, 0, crossHairLines.size());
         m_vao.release();
     }
@@ -923,7 +934,8 @@ void QGLDistancePanel::drawDistanceSpectrum() {
 	int rIdx = 0;
 
 	// set a scissor box
-	glScissor(m_distanceSpectrumRect.left(), size().height() - m_distanceSpectrumRect.bottom() - 1, m_distanceSpectrumRect.left() + m_distanceSpectrumRect.width(), m_distanceSpectrumRect.height());
+    qreal dpr = devicePixelRatioF();
+	glScissor((int)(m_distanceSpectrumRect.left() * dpr), (int)((size().height() - m_distanceSpectrumRect.bottom() - 1) * dpr), (int)(m_distanceSpectrumRect.width() * dpr), (int)(m_distanceSpectrumRect.height() * dpr));
 	glEnable(GL_SCISSOR_TEST);
 
 	GLint vertexArrayLength = 0;
@@ -1432,11 +1444,12 @@ void QGLDistancePanel::renderPanadapterGrid() {
 
     struct VertexData {
         float x, y, z;
-        float r, g, b;
+        float r, g, b, a;
     };
 
     QList<VertexData> gridLines;
     float r = 0.45f, g = 0.56f, b = 0.61f; // Matching current color from drawPanadapterGrid
+    float a = 0.5f;
 
 	// vertical lines
 	int len = m_frequencyScale.mainPointPositions.length();
@@ -1452,8 +1465,8 @@ void QGLDistancePanel::renderPanadapterGrid() {
 			GLint x = m_frequencyScale.mainPointPositions.at(i);
 			if (x < x2) continue;
 			float vx = (float)(x + x1);
-            gridLines.append({ vx, y1, 0.0f, r, g, b });
-            gridLines.append({ vx, y2, 0.0f, r, g, b });
+            gridLines.append({ vx, y1, 0.0f, r, g, b, a });
+            gridLines.append({ vx, y2, 0.0f, r, g, b, a });
 		}
 	}
 
@@ -1465,8 +1478,8 @@ void QGLDistancePanel::renderPanadapterGrid() {
 		
 		for (int i = 0; i < len; i++) {
 			float vy = (float)m_dBmScale.mainPointPositions.at(i);
-            gridLines.append({ vx1, vy, 0.0f, r, g, b });
-            gridLines.append({ vx2, vy, 0.0f, r, g, b });
+            gridLines.append({ vx1, vy, 0.0f, r, g, b, a });
+            gridLines.append({ vx2, vy, 0.0f, r, g, b, a });
 		}
 	}
 
@@ -1474,6 +1487,8 @@ void QGLDistancePanel::renderPanadapterGrid() {
         m_vao.bind();
         m_vbo.bind();
         m_vbo.allocate(gridLines.data(), gridLines.size() * (int)sizeof(VertexData));
+        m_shaderProgram->setAttributeBuffer(0, GL_FLOAT, 0, 3, sizeof(float) * 7);
+        m_shaderProgram->setAttributeBuffer(1, GL_FLOAT, sizeof(float) * 3, 4, sizeof(float) * 7);
         glDrawArrays(GL_LINES, 0, gridLines.size());
         m_vao.release();
     }
