@@ -30,7 +30,6 @@ find_package(Qt6 6.11 REQUIRED COMPONENTS Widgets Core Gui Multimedia Network Op
 find_package(PkgConfig REQUIRED)
 find_package(OpenGL REQUIRED)
 
-pkg_check_modules(ALSA REQUIRED alsa)
 pkg_check_modules(FFTW3 REQUIRED fftw3)
 pkg_check_modules(FFTW3F REQUIRED fftw3f)
 
@@ -115,6 +114,7 @@ set(SOURCES
     ${SRC_DIR}/Util/cusdr_highResTimer.cpp
     ${SRC_DIR}/Util/cusdr_painter.cpp
     ${SRC_DIR}/Util/cusdr_rigctlserver.cpp
+    ${SRC_DIR}/Util/AudioDeviceService.cpp
 
     # Main Widget Classes
     ${SRC_DIR}/cusdr_alexAntennaWidget.cpp
@@ -202,6 +202,7 @@ set(HEADERS
     ${SRC_DIR}/Util/cusdr_imageblur.h
     ${SRC_DIR}/Util/cusdr_painter.h
     ${SRC_DIR}/Util/cusdr_rigctlserver.h
+    ${SRC_DIR}/Util/AudioDeviceService.h
 
     # Main Headers
     ${SRC_DIR}/cusdr_settings.h
@@ -260,7 +261,6 @@ target_include_directories(cudasdr PRIVATE
     ${SRC_DIR}/UI
     ${WDSP_DIR}
     ${WDSP_LIBS_DIR}/include
-    ${ALSA_INCLUDE_DIRS}
     ${FFTW3_INCLUDE_DIRS}
     ${FFTW3F_INCLUDE_DIRS}
 )
@@ -285,7 +285,6 @@ target_link_libraries(cudasdr PRIVATE
     # System libraries
     -lm
     OpenGL::GL
-    ${ALSA_LIBRARIES}
     ${FFTW3_LIBRARIES}
     ${FFTW3F_LIBRARIES}
 )

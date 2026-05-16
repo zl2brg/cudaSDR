@@ -71,37 +71,26 @@ QT_FORWARD_DECLARE_CLASS(QGridLayout)
 class SettingsDialog : public QDialog {
     Q_OBJECT
 public:
-    SettingsDialog(QWidget *parent = 0);
-
+    SettingsDialog(QWidget *parent = nullptr);
     ~SettingsDialog();
 
-    //WindowFunction windowFunction() const           { return m_windowFunction; }
     const QAudioDevice& inputDevice() const     { return m_inputDevice; }
     const QAudioDevice& outputDevice() const    { return m_outputDevice; }
-    const QList<QAudioDevice> availableInputDevices;
-    const QList<QAudioDevice> availableOutputDevices;
 
 private slots:
-    //void windowFunctionChanged(int index);
     void inputDeviceChanged(int index);
     void outputDeviceChanged(int index);
     void getAudioDevices();
+
 private:
 	Settings*		set;
-
 	QFont			m_titleFont;
-    //WindowFunction   m_windowFunction;
+
     QAudioDevice m_inputDevice;
     QAudioDevice m_outputDevice;
-    const QList<QAudioDevice> audioInputs = QMediaDevices::audioInputs();
-    const QList<QAudioDevice> audioOutputs = QMediaDevices::audioOutputs();
-;
 
     QComboBox      m_inputDeviceComboBox;
     QComboBox      m_outputDeviceComboBox;
-
-    //QComboBox*      m_windowFunctionComboBox;
-
 };
 
 #endif // SETTINGSDIALOG_H

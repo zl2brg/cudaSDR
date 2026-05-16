@@ -1,4 +1,5 @@
 #include "audiooutputmanager.h"
+#include "Util/AudioDeviceService.h"
 #include <QMediaDevices>
 #include <QDebug>
 #include <cstring>
@@ -7,12 +8,15 @@
 AudioOutputManager::AudioOutputManager(QObject* parent)
     : QObject(parent)
 {
+    AudioDeviceService* audioService = AudioDeviceService::instance();
+    connect(audioService, &AudioDeviceService::audioOutputsChanged, this, &AudioOutputManager::refreshDeviceList);
     refreshDeviceList();
 }
 
 QVector<QAudioDevice> AudioOutputManager::availableDevices() const
 {
-    return QMediaDevices::audioOutputs();
+    auto devices = AudioDeviceService::instance()->audioOutputs();
+    return QVector<QAudioDevice>(devices.begin(), devices.end());
 }
 
 void AudioOutputManager::refreshDeviceList()

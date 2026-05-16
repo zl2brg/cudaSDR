@@ -43,6 +43,7 @@
 //or implied, of Moe Wheatley.
 //==========================================================================================
 #include "soundout.h"
+#include "Util/AudioDeviceService.h"
 #include <QDebug>
 #include <QMediaDevices>
 #include <QAudioSink>
@@ -84,84 +85,28 @@ CSoundOut::~CSoundOut()
     Stop();
 }
 
-void GetAlsaMasterVolume(long *volume)
-{
-    snd_mixer_t *handle;
-    snd_mixer_selem_id_t *sid;
-    const char *card = "default";
-    const char *selem_name = "Master";
-
-    snd_mixer_open(&handle, 0);
-    snd_mixer_attach(handle, card);
-    snd_mixer_selem_register(handle, NULL, NULL);
-    snd_mixer_load(handle);
-
-    snd_mixer_selem_id_alloca(&sid);
-    snd_mixer_selem_id_set_index(sid, 0);
-    snd_mixer_selem_id_set_name(sid, selem_name);
-    snd_mixer_elem_t* elem = snd_mixer_find_selem(handle, sid);
-
-    snd_mixer_selem_get_playback_volume(elem, SND_MIXER_SCHN_FRONT_LEFT, volume);
-
-    snd_mixer_close(handle);
-}
-
-void SetAlsaMasterVolume(long volume)
-{
-    long min, max;
-    snd_mixer_t *handle;
-    snd_mixer_selem_id_t *sid;
-    const char *card = "default";
-    const char *selem_name = "Master";
-
-    snd_mixer_open(&handle, 0);
-    snd_mixer_attach(handle, card);
-    snd_mixer_selem_register(handle, NULL, NULL);
-    snd_mixer_load(handle);
-
-    snd_mixer_selem_id_alloca(&sid);
-    snd_mixer_selem_id_set_index(sid, 0);
-    snd_mixer_selem_id_set_name(sid, selem_name);
-    snd_mixer_elem_t* elem = snd_mixer_find_selem(handle, sid);
-
-    snd_mixer_selem_get_playback_volume_range(elem, &min, &max);
-    snd_mixer_selem_set_playback_volume_all(elem, volume * max / 100);
-
-    snd_mixer_close(handle);
-}
-
-/////////////////////////////////////////////////////////////////////
-// Starts up soundcard output thread using soundcard at list OutDevIndx
-/////////////////////////////////////////////////////////////////////
 bool CSoundOut::Start(int OutDevIndx, bool StereoOut, double UsrDataRate, bool BlockingMode)
 {
-    long mvolume = 0;
     m_StereoOut = StereoOut;
     m_BlockingMode = BlockingMode;
+    AudioDeviceService* audioService = AudioDeviceService::instance();
 
-    // Get available audio output devices using Qt6 API
-    const QList<QAudioDevice> outputDevices = QMediaDevices::audioOutputs();
+    // Get available audio output devices using centralized service
+    const QList<QAudioDevice> outputDevices = audioService->audioOutputs();
 
     if (outputDevices.isEmpty()) {
         qDebug() << "No audio output devices found";
         return false;
     }
 
-    // Select the specified device or default
     if (OutDevIndx == -1) {
-        GetAlsaMasterVolume(&mvolume);
-        qDebug() << "Soundcard volume" << mvolume;
-        m_OutDeviceInfo = QMediaDevices::defaultAudioOutput();
+        m_OutDeviceInfo = audioService->defaultOutput();
     } else if (OutDevIndx >= 0 && OutDevIndx < outputDevices.size()) {
         m_OutDeviceInfo = outputDevices.at(OutDevIndx);
     } else {
-        m_OutDeviceInfo = QMediaDevices::defaultAudioOutput();
+        m_OutDeviceInfo = audioService->defaultOutput();
     }
 
-    // Debug: List all available audio devices
-    for (const QAudioDevice &device : outputDevices) {
-        qDebug() << "Available audio device:" << device.description();
-    }
     qDebug() << "Selected device:" << m_OutDeviceInfo.description();
 
     // Setup audio format for output
@@ -196,9 +141,6 @@ bool CSoundOut::Start(int OutDevIndx, bool StereoOut, double UsrDataRate, bool B
 
     // Start the audio output
     m_pOutput = m_pAudioSink->start();
-
-    // Set system volume if using default device
-    if (OutDevIndx == -1) SetAlsaMasterVolume(50);
 
     // Calculate block time for thread sleep
     m_BlockTime = (250 * m_pAudioSink->bufferSize()) /

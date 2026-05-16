@@ -2,29 +2,8 @@
 // Created by Simon Eatough, ZL2BRG on 14/09/21.
 //
 
-#include <QCoreApplication>
-#include <QMetaObject>
-#include <QSet>
-#include <QDebug>
-#include <QThread>
-#include <QFile>
-#include <QElapsedTimer>
-#include <QtEndian>
-#define LOG_AUDIO_INPUT
-
 #include "cusdr_audio_input.h"
-
-namespace {
-int findAudioInputByDescription(const QList<QAudioDevice> &devices, const QString &name)
-{
-    for (int i = 0; i < devices.size(); ++i) {
-        if (devices.at(i).description() == name)
-            return i;
-    }
-    return -1;
-}
-}
-
+#include "Util/AudioDeviceService.h"
 
 TransmitAudioInput::TransmitAudioInput(QObject *parent) 
     : QObject(parent)
@@ -38,6 +17,8 @@ TransmitAudioInput::TransmitAudioInput(QObject *parent)
     , m_digitalDeviceIndex(0)
     , m_isDigitalMode(false)
 {
+    AudioDeviceService* audioService = AudioDeviceService::instance();
+
     CHECKED_CONNECT(set,
                     &Settings::micInputChanged,
                     this,
@@ -51,22 +32,22 @@ TransmitAudioInput::TransmitAudioInput(QObject *parent)
     connect(set, &Settings::dspModeChanged,
             this, &TransmitAudioInput::dspModeChanged);
 
+    connect(audioService, &AudioDeviceService::audioInputsChanged, this, &TransmitAudioInput::Setup);
+
     m_deviceIndex = set->getMicInputDev();
     m_digitalDeviceIndex = set->getDigitalAudioInputDev();
 
     // Resolve persisted source names against currently available devices.
-    // If the saved device no longer exists, fall back to the Qt default device.
-    const QList<QAudioDevice> devices = availableAudioInputDevices();
-    const QAudioDevice defaultDevice = QMediaDevices::defaultAudioInput();
-    const QString defaultName = defaultDevice.description();
-
     const QString savedMicName = set->getMicInputSourceName();
     if (savedMicName == "hpsdr-local") {
         m_deviceIndex = 0;
     } else {
-        int micPos = findAudioInputByDescription(devices, savedMicName);
-        if (micPos < 0 && !defaultName.isEmpty())
-            micPos = findAudioInputByDescription(devices, defaultName);
+        QStringList descriptions = audioService->audioInputDescriptions();
+        int micPos = descriptions.indexOf(savedMicName);
+        if (micPos < 0) {
+            // Fallback to default
+            micPos = descriptions.indexOf(audioService->defaultInput().description());
+        }
         if (micPos >= 0)
             m_deviceIndex = micPos + 1;
     }
@@ -75,9 +56,12 @@ TransmitAudioInput::TransmitAudioInput(QObject *parent)
     if (savedDigitalName == "none") {
         m_digitalDeviceIndex = 0;
     } else {
-        int digPos = findAudioInputByDescription(devices, savedDigitalName);
-        if (digPos < 0 && !defaultName.isEmpty())
-            digPos = findAudioInputByDescription(devices, defaultName);
+        QStringList descriptions = audioService->audioInputDescriptions();
+        int digPos = descriptions.indexOf(savedDigitalName);
+        if (digPos < 0) {
+            // Fallback to default
+            digPos = descriptions.indexOf(audioService->defaultInput().description());
+        }
         if (digPos >= 0)
             m_digitalDeviceIndex = digPos + 1;
         else
@@ -103,16 +87,17 @@ TransmitAudioInput::~TransmitAudioInput()
 
 QList<QAudioDevice> TransmitAudioInput::availableAudioInputDevices()
 {
-    return QMediaDevices::audioInputs();
+    return AudioDeviceService::instance()->audioInputs();
 }
 
 QList<QAudioDevice> TransmitAudioInput::getAudioInputDevices() const
 {
-    return availableAudioInputDevices();
+    return AudioDeviceService::instance()->audioInputs();
 }
 
 void TransmitAudioInput::Setup() {
     m_mutex.lock();
+    AudioDeviceService* audioService = AudioDeviceService::instance();
 
     AUDIO_INPUT_DEBUG << "Setup: mode=" << (m_isDigitalMode ? "digital" : "analog")
                       << " micIndex=" << m_deviceIndex
@@ -134,7 +119,7 @@ void TransmitAudioInput::Setup() {
 
     // Get audio input device
     QAudioDevice inputDevice;
-    QList<QAudioDevice> devices = getAudioInputDevices();
+    QList<QAudioDevice> devices = audioService->audioInputs();
 
     if (m_isDigitalMode) {
         // m_digitalDeviceIndex: 0 = None (no audio), >0 = device (1-based offset)
@@ -144,7 +129,7 @@ void TransmitAudioInput::Setup() {
                 inputDevice = devices[actualIndex];
                 AUDIO_INPUT_DEBUG << "Digital mode: using audio input:" << inputDevice.description();
             } else {
-                inputDevice = QMediaDevices::defaultAudioInput();
+                inputDevice = audioService->defaultInput();
                 AUDIO_INPUT_DEBUG << "Digital mode: device index out of range, using default:" << inputDevice.description();
             }
         } else {
@@ -164,7 +149,7 @@ void TransmitAudioInput::Setup() {
             inputDevice = devices[actualIndex];
             AUDIO_INPUT_DEBUG << "Using audio input device:" << inputDevice.description();
         } else {
-            inputDevice = QMediaDevices::defaultAudioInput();
+            inputDevice = audioService->defaultInput();
             AUDIO_INPUT_DEBUG << "Device index out of range, using default";
         }
     }

@@ -6,8 +6,6 @@
 #include <QAudioSink>
 #include <QIODevice>
 #include "fractresampler.h"
-#include <alsa/asoundlib.h>
-#include <alsa/mixer.h>
 #include <atomic>
 
 

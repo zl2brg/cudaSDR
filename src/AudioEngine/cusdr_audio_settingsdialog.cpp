@@ -49,6 +49,7 @@
 
 #include "cusdr_audio_settingsdialog.h"
 #include "Util/cusdr_buttons.h"
+#include "Util/AudioDeviceService.h"
 
 
 #include <QComboBox>
@@ -67,6 +68,8 @@ SettingsDialog::SettingsDialog(QWidget *parent)
     :   QDialog(parent)
 	,	set(Settings::instance())
  {
+    AudioDeviceService* audioService = AudioDeviceService::instance();
+
 	if (parent)
 		setWindowFlags(Qt::Tool | Qt::FramelessWindowHint);
 	else
@@ -82,31 +85,21 @@ SettingsDialog::SettingsDialog(QWidget *parent)
 	#ifdef Q_OS_MAC
 		m_titleFont.setPixelSize(10);
 		m_titleFont.setFamily("Arial");
-		//m_titleFont.setBold(true);
 	#endif
 	#ifdef Q_OS_WIN
 		m_titleFont.setPixelSize(13);
 		m_titleFont.setFamily("Arial");
 		m_titleFont.setBold(true);
-		//m_titleFont.setItalic(true);
 	#endif
 
     QVBoxLayout *dialogLayout = new QVBoxLayout(this);
-
-    // Populate combo boxes
-
-    //m_windowFunctionComboBox->addItem(tr("None"), qVariantFromValue(int(NoWindow)));
-    //m_windowFunctionComboBox->addItem("Hann", qVariantFromValue(int(HannWindow)));
-    //m_windowFunctionComboBox->setCurrentIndex(m_windowFunction);
 
     m_inputDeviceComboBox.setMinimumContentsLength(30);
     m_outputDeviceComboBox.setMinimumContentsLength(30);
 
     // Initialize default devices
-    if (!availableInputDevices.empty())
-        m_inputDevice = availableInputDevices.front();
-    if (!availableOutputDevices.empty())
-        m_outputDevice = availableOutputDevices.front();
+    m_inputDevice = audioService->defaultInput();
+    m_outputDevice = audioService->defaultOutput();
 
     // Add widgets to layout
 
@@ -128,13 +121,6 @@ SettingsDialog::SettingsDialog(QWidget *parent)
     outputDeviceLayout->addWidget(&m_outputDeviceComboBox);
     dialogLayout->addLayout(outputDeviceLayout);
 
-    //QScopedPointer<QHBoxLayout> windowFunctionLayout(new QHBoxLayout);
-    //QLabel *windowFunctionLabel = new QLabel(tr("Window function"), this);
-    //windowFunctionLayout->addWidget(windowFunctionLabel);
-    //windowFunctionLayout->addWidget(m_windowFunctionComboBox);
-    //dialogLayout->addLayout(windowFunctionLayout.data());
-    //windowFunctionLayout.take(); // ownership transferred to dialogLayout
-
     // Connect
     CHECKED_CONNECT(
         &m_inputDeviceComboBox,
@@ -148,11 +134,8 @@ SettingsDialog::SettingsDialog(QWidget *parent)
         this, 
 		&SettingsDialog::outputDeviceChanged);
 
-    /*CHECKED_CONNECT(
-		m_windowFunctionComboBox,
-		SIGNAL(activated(int)),
-        this, 
-		SLOT(windowFunctionChanged(int)));*/
+    connect(audioService, &AudioDeviceService::audioInputsChanged, this, &SettingsDialog::getAudioDevices);
+    connect(audioService, &AudioDeviceService::audioOutputsChanged, this, &SettingsDialog::getAudioDevices);
 
 	AeroButton* okBtn = new AeroButton("Ok", this);
 	okBtn->setRoundness(10);
@@ -186,40 +169,33 @@ SettingsDialog::SettingsDialog(QWidget *parent)
 SettingsDialog::~SettingsDialog() {
 }
 
-//void SettingsDialog::windowFunctionChanged(int index)
-//{
-//    m_windowFunction = static_cast<WindowFunction>(
-//            m_windowFunctionComboBox->itemData(index).value<int>());
-//}
-
 void SettingsDialog::inputDeviceChanged(int index) {
-
     m_inputDevice = m_inputDeviceComboBox.itemData(index).value<QAudioDevice>();
-    set->setMicInputDev(m_inputDeviceComboBox.currentIndex());
-
+    
+    // index 0 is "hpsdr-local", so we need to offset the Qt device index by 1.
+    set->setMicInputDev(index + 1);
+    set->setMicInputSourceName(m_inputDevice.description());
 }
 
 void SettingsDialog::outputDeviceChanged(int index) {
-
     m_outputDevice = m_outputDeviceComboBox.itemData(index).value<QAudioDevice>();
+    // set->setOutputDev(index); // Assuming there's a setting for this
 }
 
 void SettingsDialog::getAudioDevices() {
-        m_inputDeviceComboBox.clear();
-        m_outputDeviceComboBox.clear();
+    AudioDeviceService* audioService = AudioDeviceService::instance();
+    
+    m_inputDeviceComboBox.clear();
+    m_outputDeviceComboBox.clear();
 
-        QList<QAudioDevice> inputDevices = QMediaDevices::audioInputs();
-        qDebug() << "Audio Input Devices:";
-        for (const QAudioDevice &device : inputDevices) {
-            qDebug() << "Name:" << device.description() << "Id:" << device.id();
-            m_inputDeviceComboBox.addItem(device.description(), QVariant::fromValue(device));
-        }
-
-        QList<QAudioDevice> outputDevices = QMediaDevices::audioOutputs();
-        qDebug() << "Audio Output Devices:";
-        for (const QAudioDevice &device : outputDevices) {
-            qDebug() << "Name:" << device.description() << "Id:" << device.id();
-            m_outputDeviceComboBox.addItem(device.description(), QVariant::fromValue(device));
-        }
+    QStringList inputs = audioService->audioInputDescriptions();
+    for (int i = 0; i < inputs.size(); ++i) {
+        m_inputDeviceComboBox.addItem(inputs[i], QVariant::fromValue(audioService->audioInputs()[i]));
     }
+
+    QStringList outputs = audioService->audioOutputDescriptions();
+    for (int i = 0; i < outputs.size(); ++i) {
+        m_outputDeviceComboBox.addItem(outputs[i], QVariant::fromValue(audioService->audioOutputs()[i]));
+    }
+}
 
