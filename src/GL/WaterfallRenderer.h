@@ -5,6 +5,7 @@
 #include <QOpenGLShaderProgram>
 #include <QOpenGLBuffer>
 #include <QOpenGLVertexArrayObject>
+#include <QMatrix4x4>
 #include <QVector>
 #include <QRect>
 #include "../cusdr_settings.h"
@@ -16,10 +17,15 @@ public:
     ~WaterfallRenderer();
 
     void initialize();
-    void render(const QRect& rect, const QVarLengthArray<TGL_ubyteRGBA>& pixelData, QSDR::_DataEngineState dataEngineState);
+    void render(const QMatrix4x4& projection, const QRect& rect, const QVarLengthArray<TGL_ubyteRGBA>& pixelData, QSDR::_DataEngineState dataEngineState);
     void reset();
 
 private:
+    struct VertexData {
+        float x, y, z;
+        float u, v;
+    };
+
     void setupTexture(int width, int height);
 
     GLuint m_textureId;
@@ -28,6 +34,10 @@ private:
     int m_oldWidth;
     int m_oldHeight;
     bool m_updatePending;
+
+    QOpenGLShaderProgram* m_shader;
+    QOpenGLVertexArrayObject m_vao;
+    QOpenGLBuffer m_vbo;
 };
 
 #endif // WATERFALLRENDERER_H

@@ -551,12 +551,6 @@ void QGLReceiverPanel::drawPanadapter() {
     GLint vertexArrayLength = (GLint)m_panadapterBins.size();
     if (vertexArrayLength == 0) return;
 
-    GLint height = m_panRect.height();
-    GLint x1 = m_panRect.left();
-    GLint y1 = m_panRect.top();
-    GLint x2 = x1 + m_panRect.width();
-    GLint y2 = y1 + m_panRect.height();
-
     if (m_dataEngineState == QSDR::DataEngineUp)
         glClear(GL_DEPTH_BUFFER_BIT);
     else
@@ -569,34 +563,13 @@ void QGLReceiverPanel::drawPanadapter() {
     glDisable(GL_DEPTH_TEST);
     glLineWidth(1);
 
-    // draw background (Fixed function matches original)
-    if (m_dataEngineState == QSDR::DataEngineUp) {
-        if (m_receiver == m_currentReceiver) {
-            glBegin(GL_TRIANGLE_STRIP);
-            glColor3f(0.8f * m_bkgRed, 0.8f * m_bkgGreen, 0.8f * m_bkgBlue); glVertex3f(x1, y1, -4.0);
-            glColor3f(0.6f * m_bkgRed, 0.6f * m_bkgGreen, 0.6f * m_bkgBlue); glVertex3f(x2, y1, -4.0);
-            glColor3f(0.4f * m_bkgRed, 0.4f * m_bkgGreen, 0.4f * m_bkgBlue); glVertex3f(x1, y2, -4.0);
-            glColor3f(0.2f * m_bkgRed, 0.2f * m_bkgGreen, 0.2f * m_bkgBlue); glVertex3f(x2, y2, -4.0);
-            glEnd();
-        } else {
-            glBegin(GL_TRIANGLE_STRIP);
-            glColor3f(0.4f * m_bkgRed, 0.4f * m_bkgGreen, 0.4f * m_bkgBlue); glVertex3f(x1, y1, -4.0);
-            glColor3f(0.4f * m_bkgRed, 0.4f * m_bkgGreen, 0.4f * m_bkgBlue); glVertex3f(x2, y1, -4.0);
-            glColor3f(0.4f * m_bkgRed, 0.4f * m_bkgGreen, 0.4f * m_bkgBlue); glVertex3f(x1, y2, -4.0);
-            glColor3f(0.4f * m_bkgRed, 0.4f * m_bkgGreen, 0.4f * m_bkgBlue); glVertex3f(x2, y2, -4.0);
-            glEnd();
-        }
-    } else {
-        drawGLRect(m_panRect, QColor(30, 30, 50, 155), -4.0f);
-    }
-
     if (m_panadapterRenderer) {
         QMatrix4x4 projection;
         projection.ortho(0, size().width(), size().height(), 0, -10, 10);
         PanadapterRenderer::Colors colors = { m_red, m_green, m_blue, m_redF, m_greenF, m_blueF, m_redST, m_greenST, m_blueST, m_redSB, m_greenSB, m_blueSB, m_bkgRed, m_bkgGreen, m_bkgBlue };
-        m_panadapterRenderer->render(projection, m_panRect, m_panadapterBins, m_dBmPanMax, m_dBmPanMin, m_panMode, m_scaleMult, (float)devicePixelRatio(), size().height(), colors, m_dataEngineState, (m_receiver == m_currentReceiver));
+        m_panadapterRenderer->render(projection, m_panRect, m_panadapterBins, m_dBmPanMax, m_dBmPanMin, m_panMode, m_scaleMult, dpr, size().height(), colors, m_dataEngineState, (m_receiver == m_currentReceiver));
     }
-    
+
     glEnable(GL_DEPTH_TEST);
 }
 
@@ -845,7 +818,9 @@ void QGLReceiverPanel::drawPanFilter() {
 
 void QGLReceiverPanel::drawWaterfall() {
     if (m_waterfallRenderer) {
-        m_waterfallRenderer->render(m_waterfallRect, m_waterfallPixel, m_dataEngineState);
+        QMatrix4x4 projection;
+        projection.ortho(0, size().width(), size().height(), 0, -10, 10);
+        m_waterfallRenderer->render(projection, m_waterfallRect, m_waterfallPixel, m_dataEngineState);
     }
 }
 

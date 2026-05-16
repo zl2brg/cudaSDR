@@ -6,6 +6,7 @@ PanadapterRenderer::PanadapterRenderer()
     : m_shader(nullptr)
     , m_ownsShader(false)
     , m_vbo(QOpenGLBuffer::VertexBuffer)
+    , m_vboSize(0)
 {
 }
 
@@ -108,94 +109,88 @@ void PanadapterRenderer::render(const QMatrix4x4& projection,
     m_vao.bind();
     m_vbo.bind();
 
+    auto updateVBO = [&](int size, const void* data) {
+        if (size > m_vboSize) {
+            m_vbo.allocate(data, size);
+            m_vboSize = size;
+        } else {
+            m_vbo.write(0, data, size);
+        }
+        m_shader->setAttributeBuffer(0, GL_FLOAT, 0, 3, sizeof(float) * 7);
+        m_shader->setAttributeBuffer(1, GL_FLOAT, sizeof(float) * 3, 4, sizeof(float) * 7);
+    };
+
     // Modern Background Rendering
+    float r1, g1, b1, r2, g2, b2, r3, g3, b3, r4, g4, b4, a = 1.0f;
     if (dataEngineState == QSDR::_DataEngineState::DataEngineUp) {
-        float r1 = 0.8f * colors.bkgR, g1 = 0.8f * colors.bkgG, b1 = 0.8f * colors.bkgB;
-        float r2 = 0.6f * colors.bkgR, g2 = 0.6f * colors.bkgG, b2 = 0.6f * colors.bkgB;
-        float r3 = 0.4f * colors.bkgR, g3 = 0.4f * colors.bkgG, b3 = 0.4f * colors.bkgB;
-        float r4 = 0.2f * colors.bkgR, g4 = 0.2f * colors.bkgG, b4 = 0.2f * colors.bkgB;
+        r1 = 0.8f * colors.bkgR; g1 = 0.8f * colors.bkgG; b1 = 0.8f * colors.bkgB;
+        r2 = 0.6f * colors.bkgR; g2 = 0.6f * colors.bkgG; b2 = 0.6f * colors.bkgB;
+        r3 = 0.4f * colors.bkgR; g3 = 0.4f * colors.bkgG; b3 = 0.4f * colors.bkgB;
+        r4 = 0.2f * colors.bkgR; g4 = 0.2f * colors.bkgG; b4 = 0.2f * colors.bkgB;
         
         if (!isCurrentReceiver) {
             r1 = r2 = r3 = r4 = 0.4f * colors.bkgR;
             g1 = g2 = g3 = g4 = 0.4f * colors.bkgG;
             b1 = b2 = b3 = b4 = 0.4f * colors.bkgB;
         }
-
-        VertexData bkgData[4] = {
-            { (float)x1, (float)y1, -4.0f, r1, g1, b1, 1.0f }, // top left
-            { (float)x2, (float)y1, -4.0f, r2, g2, b2, 1.0f }, // top right
-            { (float)x1, (float)y2, -4.0f, r3, g3, b3, 1.0f }, // bottom left
-            { (float)x2, (float)y2, -4.0f, r4, g4, b4, 1.0f }  // bottom right
-        };
-        m_vbo.allocate(bkgData, 4 * sizeof(VertexData));
-        m_shader->setAttributeBuffer(0, GL_FLOAT, 0, 3, sizeof(float) * 7);
-        m_shader->setAttributeBuffer(1, GL_FLOAT, sizeof(float) * 3, 4, sizeof(float) * 7);
-        glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     } else {
-        float r = 0.15f * colors.bkgR, g = 0.15f * colors.bkgG, b = 0.15f * colors.bkgB, a = 1.0f;
-        VertexData bkgData[4] = {
-            { (float)x1, (float)y1, -4.0f, r, g, b, a },
-            { (float)x2, (float)y1, -4.0f, r, g, b, a },
-            { (float)x1, (float)y2, -4.0f, r, g, b, a },
-            { (float)x2, (float)y2, -4.0f, r, g, b, a }
-        };
-        m_vbo.allocate(bkgData, 4 * sizeof(VertexData));
-        m_shader->setAttributeBuffer(0, GL_FLOAT, 0, 3, sizeof(float) * 7);
-        m_shader->setAttributeBuffer(1, GL_FLOAT, sizeof(float) * 3, 4, sizeof(float) * 7);
-        glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+        r1 = r2 = r3 = r4 = 0.15f * colors.bkgR;
+        g1 = g2 = g3 = g4 = 0.15f * colors.bkgG;
+        b1 = b2 = b3 = b4 = 0.15f * colors.bkgB;
     }
+
+    VertexData bkgData[4] = {
+        { (float)x1, (float)y1, -4.0f, r1, g1, b1, a },
+        { (float)x2, (float)y1, -4.0f, r2, g2, b2, a },
+        { (float)x1, (float)y2, -4.0f, r3, g3, b3, a },
+        { (float)x2, (float)y2, -4.0f, r4, g4, b4, a }
+    };
+    updateVBO(4 * sizeof(VertexData), bkgData);
+    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
     switch (mode) {
         case (PanGraphicsMode) FilledLine: {
-            QVarLengthArray<VertexData> data(vertexArrayLength * 2);
+            m_vertexCache.resize(vertexArrayLength * 2);
             for (int i = 0; i < vertexArrayLength; i++) {
                 float vx = (float)(x1 + (i/scaleMult));
                 float vy = (float)(yTop - yScale * (float)bins.at(i));
-                data[2*i] = { vx, vy, -1.5f, 0.7f * colors.rf, 0.7f * colors.gf, 0.7f * colors.bf, 0.4f };
-                data[2*i+1] = { vx, yTop, -1.5f, 0.3f * colors.rf, 0.3f * colors.gf, 0.3f * colors.bf, 0.2f };
+                m_vertexCache[2*i] = { vx, vy, -1.5f, 0.7f * colors.rf, 0.7f * colors.gf, 0.7f * colors.bf, 0.4f };
+                m_vertexCache[2*i+1] = { vx, yTop, -1.5f, 0.3f * colors.rf, 0.3f * colors.gf, 0.3f * colors.bf, 0.2f };
             }
-            m_vbo.allocate(data.data(), (int)(data.size() * sizeof(VertexData)));
-            m_shader->setAttributeBuffer(0, GL_FLOAT, 0, 3, sizeof(float) * 7);
-            m_shader->setAttributeBuffer(1, GL_FLOAT, sizeof(float) * 3, 4, sizeof(float) * 7);
+            updateVBO((int)(m_vertexCache.size() * sizeof(VertexData)), m_vertexCache.data());
             glDrawArrays(GL_TRIANGLE_STRIP, 0, vertexArrayLength * 2);
 
-            QVarLengthArray<VertexData> lineData(vertexArrayLength);
+            m_vertexCache.resize(vertexArrayLength);
             for (int i = 0; i < vertexArrayLength; i++) {
                 float vx = (float)(x1 + (i/scaleMult));
-                lineData[i] = { vx, (float)(yTop - yScale * (float)bins.at(i)), -1.0f, colors.r, colors.g, colors.b, 1.0f };
+                m_vertexCache[i] = { vx, (float)(yTop - yScale * (float)bins.at(i)), -1.0f, colors.r, colors.g, colors.b, 1.0f };
             }
-            m_vbo.allocate(lineData.data(), (int)(lineData.size() * sizeof(VertexData)));
-            m_shader->setAttributeBuffer(0, GL_FLOAT, 0, 3, sizeof(float) * 7);
-            m_shader->setAttributeBuffer(1, GL_FLOAT, sizeof(float) * 3, 4, sizeof(float) * 7);
+            updateVBO((int)(m_vertexCache.size() * sizeof(VertexData)), m_vertexCache.data());
             glDrawArrays(GL_LINE_STRIP, 0, vertexArrayLength);
             break;
         }
 
         case (PanGraphicsMode) Line: {
-            QVarLengthArray<VertexData> data(vertexArrayLength);
+            m_vertexCache.resize(vertexArrayLength);
             for (int i = 0; i < vertexArrayLength; i++) {
                 float vx = (float)(x1 + (i/scaleMult));
-                data[i] = { vx, (float)(yTop - yScale * (float)bins.at(i)), -1.0f, colors.r, colors.g, colors.b, 1.0f };
+                m_vertexCache[i] = { vx, (float)(yTop - yScale * (float)bins.at(i)), -1.0f, colors.r, colors.g, colors.b, 1.0f };
             }
-            m_vbo.allocate(data.data(), (int)(data.size() * sizeof(VertexData)));
-            m_shader->setAttributeBuffer(0, GL_FLOAT, 0, 3, sizeof(float) * 7);
-            m_shader->setAttributeBuffer(1, GL_FLOAT, sizeof(float) * 3, 4, sizeof(float) * 7);
+            updateVBO((int)(m_vertexCache.size() * sizeof(VertexData)), m_vertexCache.data());
             glDrawArrays(GL_LINE_STRIP, 0, vertexArrayLength);
             break;
         }
 
         case (PanGraphicsMode) Solid: {
             glDisable(GL_MULTISAMPLE);
-            QVarLengthArray<VertexData> data(vertexArrayLength * 2);
+            m_vertexCache.resize(vertexArrayLength * 2);
             for (int i = 0; i < vertexArrayLength; i++) {
                 float vx = (float)(x1 + (i/scaleMult));
                 float vy = (float)(yTop - yScale * (float)bins.at(i));
-                data[2*i]   = { vx, vy,   -1.0f, colors.rst, colors.gst, colors.bst, 1.0f };
-                data[2*i+1] = { vx, yTop, -1.0f, colors.rsb, colors.gsb, colors.bsb, 1.0f };
+                m_vertexCache[2*i]   = { vx, vy,   -1.0f, colors.rst, colors.gst, colors.bst, 1.0f };
+                m_vertexCache[2*i+1] = { vx, yTop, -1.0f, colors.rsb, colors.gsb, colors.bsb, 1.0f };
             }
-            m_vbo.allocate(data.data(), (int)(data.size() * sizeof(VertexData)));
-            m_shader->setAttributeBuffer(0, GL_FLOAT, 0, 3, sizeof(float) * 7);
-            m_shader->setAttributeBuffer(1, GL_FLOAT, sizeof(float) * 3, 4, sizeof(float) * 7);
+            updateVBO((int)(m_vertexCache.size() * sizeof(VertexData)), m_vertexCache.data());
             glDrawArrays(GL_LINES, 0, vertexArrayLength * 2);
             glEnable(GL_MULTISAMPLE);
             break;
@@ -203,6 +198,7 @@ void PanadapterRenderer::render(const QMatrix4x4& projection,
     }
 
     m_vao.release();
+    m_vbo.release();
     m_shader->release();
     glDisable(GL_SCISSOR_TEST);
 }

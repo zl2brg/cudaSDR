@@ -44,6 +44,8 @@ private:
     bool m_ownsShader;
     QOpenGLVertexArrayObject m_vao;
     QOpenGLBuffer m_vbo;
+    int m_vboSize; // current allocated size in bytes
+    QVarLengthArray<VertexData> m_vertexCache;
 };
 
 #endif // PANADAPTERRENDERER_H

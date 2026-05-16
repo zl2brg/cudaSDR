@@ -8,19 +8,65 @@ WaterfallRenderer::WaterfallRenderer()
     , m_oldWidth(0)
     , m_oldHeight(0)
     , m_updatePending(false)
+    , m_shader(nullptr)
+    , m_vbo(QOpenGLBuffer::VertexBuffer)
 {
 }
 
 WaterfallRenderer::~WaterfallRenderer() {
+    if (m_vao.isCreated()) m_vao.destroy();
+    if (m_vbo.isCreated()) m_vbo.destroy();
+    if (m_shader) delete m_shader;
+    // Note: Texture deletion handled by setupTexture or assuming context is alive here
     if (m_textureId != 0) {
-        // Assume context is current if we are being destroyed in proper order, 
-        // otherwise this might leak or crash. In a robust impl, we'd handle context.
         // glDeleteTextures(1, &m_textureId);
     }
 }
 
 void WaterfallRenderer::initialize() {
     initializeOpenGLFunctions();
+
+    m_shader = new QOpenGLShaderProgram();
+    
+    const char *vsrc =
+        "#version 150\n"
+        "in vec3 position;\n"
+        "in vec2 texCoord;\n"
+        "out vec2 v_texCoord;\n"
+        "uniform mat4 matrix;\n"
+        "void main() {\n"
+        "   v_texCoord = texCoord;\n"
+        "   gl_Position = matrix * vec4(position, 1.0);\n"
+        "}\n";
+
+    const char *fsrc =
+        "#version 150\n"
+        "in vec2 v_texCoord;\n"
+        "out vec4 fragColor;\n"
+        "uniform sampler2D waterfallTexture;\n"
+        "void main() {\n"
+        "   fragColor = texture(waterfallTexture, v_texCoord);\n"
+        "}\n";
+
+    m_shader->addShaderFromSourceCode(QOpenGLShader::Vertex, vsrc);
+    m_shader->addShaderFromSourceCode(QOpenGLShader::Fragment, fsrc);
+    m_shader->bindAttributeLocation("position", 0);
+    m_shader->bindAttributeLocation("texCoord", 1);
+    m_shader->link();
+
+    m_vao.create();
+    m_vao.bind();
+    m_vbo.create();
+    m_vbo.bind();
+    m_vbo.setUsagePattern(QOpenGLBuffer::StreamDraw);
+    
+    m_shader->bind();
+    m_shader->enableAttributeArray(0);
+    m_shader->enableAttributeArray(1);
+    m_shader->release();
+    
+    m_vao.release();
+    m_vbo.release();
 }
 
 void WaterfallRenderer::reset() {
@@ -50,75 +96,79 @@ void WaterfallRenderer::setupTexture(int width, int height) {
     m_updatePending = false;
 }
 
-void WaterfallRenderer::render(const QRect& rect, const QVarLengthArray<TGL_ubyteRGBA>& pixelData, QSDR::_DataEngineState dataEngineState) {
+void WaterfallRenderer::render(const QMatrix4x4& projection, const QRect& rect, const QVarLengthArray<TGL_ubyteRGBA>& pixelData, QSDR::_DataEngineState dataEngineState) {
     if (rect.isEmpty()) return;
 
     int width = rect.width();
     int height = rect.height();
-    int top = rect.top();
-    int left = rect.left();
+    float top = (float)rect.top();
+    float left = (float)rect.left();
+    float right = left + (float)width;
+    float bottom = top + (float)height;
 
     if (m_textureId == 0 || m_oldWidth != width || m_oldHeight != height || m_updatePending) {
         setupTexture(width, height);
     }
 
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glEnable(GL_BLEND);
-    glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
-
-    if (dataEngineState == QSDR::DataEngineUp) {
+    if (dataEngineState == QSDR::DataEngineUp && !pixelData.isEmpty()) {
         glBindTexture(GL_TEXTURE_2D, m_textureId);
-        
-        if (!pixelData.isEmpty()) {
-            glTexSubImage2D(GL_TEXTURE_2D, 0, 0, m_currentLine, width, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixelData.data());
-        }
-
-        glEnable(GL_TEXTURE_2D);
-        
-        float v0 = (float)m_currentLine / height;
-        float h1 = (float)(m_currentLine + 1) / height;
-
-        glBegin(GL_QUADS);
-            glTexCoord2f(0, v0); glVertex2i(left,         top);
-            glTexCoord2f(1, v0); glVertex2i(left + width, top);
-            glTexCoord2f(1, 0);  glVertex2i(left + width, top + (m_currentLine + 1));
-            glTexCoord2f(0, 0);  glVertex2i(left,         top + (m_currentLine + 1));
-        glEnd();
-
-        if (m_currentLine < height - 1) {
-            glBegin(GL_QUADS);
-                glTexCoord2f(0, 1);  glVertex2i(left,         top + (m_currentLine + 1));
-                glTexCoord2f(1, 1);  glVertex2i(left + width, top + (m_currentLine + 1));
-                glTexCoord2f(1, h1); glVertex2i(left + width, top + height);
-                glTexCoord2f(0, h1); glVertex2i(left,         top + height);
-            glEnd();
-        }
-
-        glDisable(GL_TEXTURE_2D);
-
+        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, m_currentLine, width, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixelData.data());
         m_currentLine = (m_currentLine + 1) % height;
         if (m_lineCnt < height) m_lineCnt++;
-    } else {
-        glEnable(GL_TEXTURE_2D);
-        glBindTexture(GL_TEXTURE_2D, m_textureId);
-        
-        float v0 = (float)((m_currentLine - 1 + height) % height) / height;
-        
-        glBegin(GL_QUADS);
-            glTexCoord2f(0, v0); glVertex2i(left,         top);
-            glTexCoord2f(1, v0); glVertex2i(left + width, top);
-            glTexCoord2f(1, 0);  glVertex2i(left + width, top + m_currentLine);
-            glTexCoord2f(0, 0);  glVertex2i(left,         top + m_currentLine);
-        glEnd();
-
-        if (m_currentLine < height) {
-            glBegin(GL_QUADS);
-                glTexCoord2f(0, 1);  glVertex2i(left,         top + m_currentLine);
-                glTexCoord2f(1, 1);  glVertex2i(left + width, top + m_currentLine);
-                glTexCoord2f(1, v0 + 1.0f/height); glVertex2i(left + width, top + height);
-                glTexCoord2f(0, v0 + 1.0f/height); glVertex2i(left,         top + height);
-            glEnd();
-        }
-        glDisable(GL_TEXTURE_2D);
     }
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glDisable(GL_DEPTH_TEST);
+
+    m_shader->bind();
+    m_shader->setUniformValue("matrix", projection);
+    m_shader->setUniformValue("waterfallTexture", 0);
+
+    m_vao.bind();
+    m_vbo.bind();
+    glBindTexture(GL_TEXTURE_2D, m_textureId);
+
+    float v0 = (float)m_currentLine / height;
+    
+    // We draw the waterfall using two quads to handle the wrap-around texture.
+    // Quad 1: Top part of display (showing the latest lines)
+    // Quad 2: Bottom part of display (showing older lines)
+    
+    float splitY = top + (float)(m_currentLine + 1);
+    if (dataEngineState != QSDR::DataEngineUp) {
+        splitY = top + (float)((m_currentLine + height) % height);
+    }
+
+    VertexData vertices[12]; // 2 quads * 6 vertices (triangles)
+    
+    float h1 = (float)(m_currentLine + 1) / height;
+
+    // Quad 1 (Top to current line)
+    // Maps texture from currentLine (v0) up to the beginning of texture (0)
+    vertices[0] = { left,  top,    -3.0f, 0.0f, v0 };
+    vertices[1] = { right, top,    -3.0f, 1.0f, v0 };
+    vertices[2] = { left,  splitY, -3.0f, 0.0f, 0.0f };
+    vertices[3] = { right, top,    -3.0f, 1.0f, v0 };
+    vertices[4] = { right, splitY, -3.0f, 1.0f, 0.0f };
+    vertices[5] = { left,  splitY, -3.0f, 0.0f, 0.0f };
+
+    // Quad 2 (current line to bottom)
+    // Maps texture from end of texture (1) down to currentLine + 1 (h1)
+    vertices[6]  = { left,  splitY, -3.0f, 0.0f, 1.0f };
+    vertices[7]  = { right, splitY, -3.0f, 1.0f, 1.0f };
+    vertices[8]  = { left,  bottom, -3.0f, 0.0f, h1 };
+    vertices[9]  = { right, splitY, -3.0f, 1.0f, 1.0f };
+    vertices[10] = { right, bottom, -3.0f, 1.0f, h1 };
+    vertices[11] = { left,  bottom, -3.0f, 0.0f, h1 };
+
+    m_vbo.allocate(vertices, 12 * sizeof(VertexData));
+    m_shader->setAttributeBuffer(0, GL_FLOAT, 0, 3, sizeof(float) * 5);
+    m_shader->setAttributeBuffer(1, GL_FLOAT, sizeof(float) * 3, 2, sizeof(float) * 5);
+
+    glDrawArrays(GL_TRIANGLES, 0, 12);
+
+    m_vao.release();
+    m_vbo.release();
+    m_shader->release();
 }
