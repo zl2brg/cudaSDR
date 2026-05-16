@@ -1735,15 +1735,7 @@ inline NullDebug nullDebug() { return NullDebug(); }
 #endif
 
 
-//******************************************************
-// sleeper function
 
-class SleeperThread : public QThread {
-	
-	public:
-		static void msleep(unsigned long msecs) {QThread::msleep(msecs);}
-		static void usleep(unsigned long usecs) {QThread::usleep(usecs);}
-};
 
 
 

@@ -499,7 +499,7 @@ bool DataEngine::findHPSDRDevices() {
 		DATA_ENGINE_DEBUG << "using HPSDR network device at " << qPrintable(io.hpsdrDeviceIPAddress.toString());
 
 		//Sleep(100);
-		SleeperThread::msleep(100);
+		QThread::msleep(100);
 
 		// stop the discovery thread
 		io.networkIOMutex.unlock();
@@ -574,7 +574,7 @@ bool DataEngine::getFirmwareVersions() {
 	}
 
 	//setSampleRate(set->getSampleRate());
-	SleeperThread::msleep(100);
+	QThread::msleep(100);
 
 	// For Protocol 2: do NOT start the network device here.
 	// DSP threads have not been started yet; start() is called by initDataEngine()
@@ -594,7 +594,7 @@ bool DataEngine::getFirmwareVersions() {
 		
 		m_networkDeviceRunning = true;
 		setSystemState(QSDR::NoError, m_hwInterface, m_serverMode, QSDR::DataEngineUp);
-		SleeperThread::msleep(300);
+		QThread::msleep(300);
 	}
 
     io.metisFW = set->getMetisVersion();
@@ -1020,7 +1020,7 @@ bool DataEngine::start() {
 	// and networkDeviceStartStop() both check !m_dataIOSocket and silently return
 	// early, leaving the P1/P2 hardware without a start command.  This matches the
 	// same pattern used in getFirmwareVersions().
-	SleeperThread::msleep(100);
+	QThread::msleep(100);
 
 	// start Sync,ADC and S-Meter timers
 	//m_SyncChangedTime.start();
@@ -1034,7 +1034,7 @@ bool DataEngine::start() {
 
     if (m_serverMode == QSDR::SDRMode && set->getWidebandData()) {
 			m_dataIO->networkDeviceStartStop(0x03); // 0x03 for starting the device with wide band data
-			SleeperThread::msleep(100);
+			QThread::msleep(100);
 	    }
     else {
             DATA_ENGINE_DEBUG << "[START] calling networkDeviceStartStop(0x01) protocol="
@@ -1092,9 +1092,9 @@ void DataEngine::stop() {
 				DATA_ENGINE_DEBUG << "HPSDR device stopped";
 
 				// stop the threads
-				//SleeperThread::msleep(100);
+				//QThread::msleep(100);
 				stopDataIO();
-				SleeperThread::msleep(100);
+				QThread::msleep(100);
 				stopDataProcessor();
 				if (m_wbDataProcessor)
 					stopWideBandDataProcessor();
@@ -1103,7 +1103,7 @@ void DataEngine::stop() {
                 io.protocol = nullptr;
 				
 				// clear device list
-				SleeperThread::msleep(100);
+				QThread::msleep(100);
 				set->clearMetisCardList();
 				DATA_ENGINE_DEBUG << "device cards list cleared.";
 				break;
@@ -1135,7 +1135,7 @@ void DataEngine::stop() {
 				rx->qtwdsp->stopChannel();
 			}
 		}
-		SleeperThread::msleep(5); // let any in-flight fexchange0 observe run=0
+		QThread::msleep(5); // let any in-flight fexchange0 observe run=0
 
 		// clear receiver thread list
 		foreach (QThread* thread, m_dspThreadList) {
@@ -1971,7 +1971,7 @@ void DataEngine::processFileBuffer(const QList<qreal> buffer) {
 		//specMean *= 1.0f/BUFFER_SIZE;
 		//DATA_PROCESSOR_DEBUG << "pan min" << specMin << "max" << specMax << "mean" << specMean;
 
-		SleeperThread::usleep(42667);
+		QThread::usleep(42667);
 
 		//emit spectrumBufferChanged(m_spectrumBuffer);
 		//set->setSpectrumBuffer(m_spectrumBuffer);
@@ -2286,7 +2286,7 @@ void DataEngine::setNumberOfRx(int value) {
 		DATA_ENGINE_DEBUG << "[RX-ADD] stopping engine...";
 		stop();
 		// Give hardware/network stack a short settle window before re-init.
-		SleeperThread::msleep(200);
+		QThread::msleep(200);
 		DATA_ENGINE_DEBUG << "[RX-ADD] engine stopped, settling 200ms done.";
 	}
 
@@ -2313,7 +2313,7 @@ void DataEngine::setNumberOfRx(int value) {
 
     if (restart) {
 		DATA_ENGINE_DEBUG << "[RX-ADD] restarting engine with" << value << "receiver(s)...";
-		SleeperThread::msleep(100);
+		QThread::msleep(100);
 		if (!start()) {
 			DATA_ENGINE_DEBUG << "[RX-ADD] FAILED to restart data engine after receiver-count change.";
 		} else {
@@ -2811,7 +2811,7 @@ void DataProcessor::requestProtocol2ReceiverSetup() {
 	}
 
 	// 4. Assert Run=1 as the final startup packet.
-	SleeperThread::msleep(5);
+	QThread::msleep(5);
 	de->io.rcveIQ_toggle = true;
 	quint16 runPort = DEVICE_PORT;
 	QByteArray runDatagram = de->m_protocol->formatStartStop(1, runPort);
@@ -2827,7 +2827,7 @@ void DataProcessor::requestProtocol2ReceiverSetup() {
 	// Re-send DDC/TX setup in a short burst so newly spawned threads reliably
 	// receive and latch enable/rate config.
 	for (int attempt = 0; attempt < 20; ++attempt) {
-		SleeperThread::msleep(50);
+		QThread::msleep(50);
 
 		int ddcResendState = 1;
 		port = DEVICE_PORT;

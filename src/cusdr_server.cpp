@@ -293,7 +293,7 @@ char *HPSDRServer::detachReceiver(int rx, int client) {
 	m_rxList[rx]->setConnectedStatus(false);
 	m_serverMutex.unlock();
 
-	SleeperThread::msleep(200);
+	QThread::msleep(200);
 	
 	set->setRcveIQ(0);
 	set->setSendIQ(0);

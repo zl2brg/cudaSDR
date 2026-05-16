@@ -203,8 +203,8 @@ int Discoverer::findHPSDRDevices() {
 
 
 	// wait a little
-	//SleeperThread::msleep(30);
-	SleeperThread::msleep(500);
+	//QThread::msleep(30);
+	QThread::msleep(500);
 
 	while (socket.hasPendingDatagrams()) {
 

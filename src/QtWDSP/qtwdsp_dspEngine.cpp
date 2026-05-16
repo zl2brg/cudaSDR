@@ -104,7 +104,7 @@ QWDSPEngine::QWDSPEngine(QObject *parent, int rx, int size)
 
     setNCOFrequency(m_rx, 0);
     WDSP_ENGINE_DEBUG << "init DSPEngine with size: " << m_size;
-    SleeperThread::msleep(100);
+    QThread::msleep(100);
 
     setupConnections();
 

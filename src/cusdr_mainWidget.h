@@ -119,7 +119,6 @@ private:
 				QSDR::_DataEngineState state);
 
 #if defined(Q_OS_WIN32)
-	void	getCPULoadThread(LPVOID lpParam);
 #endif
 	void	setupConnections();
 	void	setupLayout();

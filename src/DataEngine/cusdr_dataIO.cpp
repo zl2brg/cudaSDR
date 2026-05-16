@@ -174,7 +174,7 @@ void DataIO::stop() {
     }
 
     if (m_pSoundCardOut) {
-        SleeperThread::msleep(100);
+        QThread::msleep(100);
         m_pSoundCardOut->Stop();
         m_pSoundCardOut.reset(); // Reset smart pointer instead of delete
     }

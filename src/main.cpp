@@ -45,31 +45,16 @@
 #include <QLoggingCategory> // NOTE: Added for the updated message handler
 
 #if defined(Q_OS_WIN32)
-#include "Util/cusdr_cpuUsage.h"
 #elif defined(Q_OS_LINUX)
-#include "Util/cusdr_cpuUsage_unix.h"
 #include <unistd.h>
 #include <errno.h>
 #define fopen_s(pFile,filename,mode) ((*(pFile))=fopen((filename),  (mode)))==NULL
 #endif
 
+#include "Util/CPUMonitor.h"
 
-// CPU usage
-#if defined(Q_OS_WIN32)
-DWORD WINAPI WatchItThreadProc(LPVOID lpParam);
-CpuUsage usage;
 
-DWORD WINAPI WatchItThreadProc(LPVOID lpParam) {
-    Q_UNUSED(lpParam)
-    DWORD dummy;
-    while (true) {
-        short cpuUsage = usage.GetUsage();
-        Settings::instance()->setCPULoad(cpuUsage);
-        Sleep(1000);
-    }
-    return dummy;
-}
-#endif
+
 
 class LogManager : public QObject {
 public:
@@ -165,7 +150,7 @@ int main(int argc, char *argv[]) {
     app.setStyleSheet(Settings::instance()->get_appStyleSheet());
 
 
-    // NOTE: Replaced SleeperThread::msleep() with the modern static QThread::msleep()
+    // NOTE: Replaced QThread::msleep() with the modern static QThread::msleep()
     QThread::msleep(500);
 
     Settings::instance()->setSettingsFilename(QCoreApplication::applicationDirPath() +
@@ -254,10 +239,7 @@ int main(int argc, char *argv[]) {
     Settings::instance()->setFBOPresence(true);
     QThread::msleep(100);
 
-    // cpu usage
-#if defined(Q_OS_WIN32)
-    CreateThread(NULL, 0, WatchItThreadProc, NULL, 0, NULL);
-#endif
+
 
     // setup main window
     splash->showMessage(
@@ -294,10 +276,9 @@ int main(int argc, char *argv[]) {
     mainWindow.update();
     mainWindow.setFocus();
 
-#if defined(Q_OS_LINUX)
-    cusdr_cpuUsage *cpu_load = new cusdr_cpuUsage();
-    cpu_load->start();
-#endif
+    CPUMonitor *cpu_monitor = new CPUMonitor(&app);
+    QObject::connect(cpu_monitor, &CPUMonitor::cpuLoadChanged, Settings::instance(), &Settings::setCPULoad);
+    cpu_monitor->start();
 
     qDebug() << "Init::\trunning application ...\n";
     return app.exec();
