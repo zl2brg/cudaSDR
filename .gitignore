@@ -34,3 +34,5 @@ windowsSettings.ini
 ..bfg-report/
 
 Source/
+cudaSDR.log
+original_end.txt
