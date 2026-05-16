@@ -1110,69 +1110,24 @@ void RadioWidget::vfoFrequencyChanged(int mode, int rx, long frequency) {
 }
 
 void RadioWidget::bandChangedByBtn() {
+    AeroButton *button = qobject_cast<AeroButton *>(sender());
+    int btnIndex = bandBtnList.indexOf(button);
+    if (btnIndex == -1) return;
 
-	AeroButton *button = qobject_cast<AeroButton *>(sender());
-	int btn = bandBtnList.indexOf(button);
+    for(AeroButton *btn : bandBtnList) {
+        btn->setBtnState(AeroButton::OFF);
+        btn->update();
+    }
 
-	foreach(AeroButton *btn, bandBtnList) {
+    button->setBtnState(AeroButton::ON);
+    button->update();
 
-		btn->setBtnState(AeroButton::OFF);
-		btn->update();
-	}
+    HamBand band = static_cast<HamBand>(btnIndex);
+    set->setHamBand(m_currentRx, true, band);
 
-	button->setBtnState(AeroButton::ON);
-	button->update();
-
-	set->setHamBand(m_currentRx, true, (HamBand) btn);
-
-	QString str = button->text();
-
-	if (str == "2200m")
-		set->setVFOFrequency(2, m_currentRx, m_lastVfoFrequencyList.at(m2200));
-	else
-	if (str == "630 m")
-		set->setVFOFrequency(2, m_currentRx, m_lastVfoFrequencyList.at(m630));
-	else
-	if (str == "160 m")
-		set->setVFOFrequency(2, m_currentRx, m_lastVfoFrequencyList.at(m160));
-	else
-	if (str == "80 m")
-		set->setVFOFrequency(2, m_currentRx, m_lastVfoFrequencyList.at(m80));
-	else
-	if (str == "60 m")
-		set->setVFOFrequency(2, m_currentRx, m_lastVfoFrequencyList.at(m60));
-	else
-	if (str == "40 m")
-		set->setVFOFrequency(2, m_currentRx, m_lastVfoFrequencyList.at(m40));
-	else
-	if (str == "30 m")
-		set->setVFOFrequency(2, m_currentRx, m_lastVfoFrequencyList.at(m30));
-	else
-	if (str == "20 m")
-		set->setVFOFrequency(2, m_currentRx, m_lastVfoFrequencyList.at(m20));
-	else
-	if (str == "17 m")
-		set->setVFOFrequency(2, m_currentRx, m_lastVfoFrequencyList.at(m17));
-	else
-	if (str == "15 m")
-		set->setVFOFrequency(2, m_currentRx, m_lastVfoFrequencyList.at(m15));
-	else
-	if (str == "12 m")
-		set->setVFOFrequency(2, m_currentRx, m_lastVfoFrequencyList.at(m12));
-	else
-	if (str == "10 m")
-		set->setVFOFrequency(2, m_currentRx, m_lastVfoFrequencyList.at(m10));
-	else
-	if (str == "6 m")
-		set->setVFOFrequency(2, m_currentRx, m_lastVfoFrequencyList.at(m6));
-	else
-	if (str == "2 m")
-		set->setVFOFrequency(2, m_currentRx, m_lastVfoFrequencyList.at(m2));
-
-	else
-	if (str == "Gen")
-		set->setVFOFrequency(2, m_currentRx, m_lastVfoFrequencyList.at(gen));
-
+    if (btnIndex >= 0 && btnIndex < m_lastVfoFrequencyList.size()) {
+        set->setVFOFrequency(2, m_currentRx, m_lastVfoFrequencyList.at(btnIndex));
+    }
 }
 
 void RadioWidget::bandChanged(int rx, bool byButton, HamBand band) {
@@ -1194,24 +1149,24 @@ void RadioWidget::bandChanged(int rx, bool byButton, HamBand band) {
 }
 
 void RadioWidget::dspModeChangedByBtn() {
+    AeroButton *button = qobject_cast<AeroButton *>(sender());
+    int btnIndex = dspModeBtnList.indexOf(button);
+    if (btnIndex == -1) return;
+    
+    for(AeroButton *btn : dspModeBtnList) {
+        btn->setBtnState(AeroButton::OFF);
+        btn->update();
+    }
 
-	AeroButton *button = qobject_cast<AeroButton *>(sender());
-	int btn = dspModeBtnList.indexOf(button);
-	
-	foreach(AeroButton *btn, dspModeBtnList) {
+    DSPMode mode = static_cast<DSPMode>(btnIndex);
+    set->setDSPMode(m_currentRx, mode);
+    m_dspModeList[m_hamBand] = mode;
+    filterChanged(m_currentRx, m_filterLo, m_filterHi);
+    filterGroupChanged(mode);
 
-		btn->setBtnState(AeroButton::OFF);
-		btn->update();
-	}
-
-	set->setDSPMode(m_currentRx, (DSPMode) btn);
-	m_dspModeList[m_hamBand] = (DSPMode) btn;
-	filterChanged(m_currentRx, m_filterLo, m_filterHi);
-	filterGroupChanged((DSPMode) btn);
-
-	button->setBtnState(AeroButton::ON);
-	button->update();
-	updateFreeDVControls();
+    button->setBtnState(AeroButton::ON);
+    button->update();
+    updateFreeDVControls();
 }
 
 void RadioWidget::dspModeChanged(int rx, DSPMode mode) {
@@ -1231,907 +1186,113 @@ void RadioWidget::dspModeChanged(int rx, DSPMode mode) {
 }
 
 void RadioWidget::filterGroupChanged(DSPMode mode) {
+    // A-group: SSB/Data (LSB, USB, DIGU, DIGL)
+    // B-group: Wide (DSB, FMN, AM, SAM)
+    // C-group: Narrow (CWL, CWU)
+    
+    bool showA = (mode == LSB || mode == USB || mode == DIGU || mode == DIGL);
+    bool showB = (mode == DSB || mode == FMN || mode == AM || mode == SAM);
+    bool showC = (mode == CWL || mode == CWU);
 
-	if (mode == 0 || mode == 1 || mode == 7 || mode == 9) {
-
-		filterGroupBBox->hide();
-		filterGroupCBox->hide();
-		filterGroupABox->show();
-	}
-	else if (mode == 2 || mode == 5 || mode == 6 || mode == 10)	{
-
-		filterGroupABox->hide();
-		filterGroupCBox->hide();
-		filterGroupBBox->show();
-	}
-	else if (mode == 3 || mode == 4) {
-
-		filterGroupABox->hide();
-		filterGroupBBox->hide();
-		filterGroupCBox->show();
-	}
-	/*else if (mode == 8 || mode == 11)
-	{
-		filterGroupA->hide();
-		filterGroupB->hide();
-		filterGroupC->hide();
-	}*/
+    filterGroupABox->setVisible(showA);
+    filterGroupBBox->setVisible(showB);
+    filterGroupCBox->setVisible(showC);
 }
 
-void RadioWidget::filterChangedByBtn()	 {
-
-	AeroButton *button = qobject_cast<AeroButton *>(sender());
-	
-	QList<AeroButton *> btnList;
-	int filterList = 0;
-
-	if (filterBtnListA.contains(button)) {
-		
-		btnList = filterBtnListA;
-		filterList = 0;
-	}
-	else if (filterBtnListB.contains(button)) {
-		
-		btnList = filterBtnListB;
-		filterList = 1;
-	}
-	else if (filterBtnListC.contains(button)) {
-		
-		btnList = filterBtnListC;
-		filterList = 2;
-	}
-
-	foreach(AeroButton *btn, btnList) {
-
-		btn->setBtnState(AeroButton::OFF);
-		btn->update();
-	}
-
-	button->setBtnState(AeroButton::ON);
-	button->update();
-
-	QString str = button->text();
-
-	DSPMode mode = m_dspModeList.at(m_hamBand);
-	switch (filterList) {
-
-		case 0: // filterBtnList A
-
-			if (str == "1k") {
-
-				switch (mode) {
-
-					case (DSPMode) LSB:
-						m_filterLo = -1150.0f;
-						m_filterHi = -150.0f;
-						break;
-
-					case (DSPMode) USB:
-						m_filterLo = 150.0f;
-						m_filterHi = 1150.0f;
-						break;
-
-					default:
-						break;
-
-				}
-			}
-			else
-			if (str == "1k8") {
-
-				switch (mode) {
-
-					case (DSPMode) LSB:
-						m_filterLo = -1950.0f;
-						m_filterHi = -150.0f;
-						break;
-
-					case (DSPMode) USB:
-						m_filterLo = 150.0f;
-						m_filterHi = 1950.0f;
-						break;
-
-					default:
-						break;
-				}
-			}
-			else
-			if (str == "2k1") {
-
-				switch (mode) {
-
-					case (DSPMode) LSB:
-						m_filterLo = -2250.0f;
-						m_filterHi = -150.0f;
-						break;
-
-					case (DSPMode)  USB:
-						m_filterLo = 150.0f;
-						m_filterHi = 2250.0f;
-						break;
-
-					default:
-						break;
-
-				}
-			}
-			else
-			if (str == "2k4") {
-
-				switch (mode) {
-
-					case (DSPMode) LSB:
-						m_filterLo = -2550.0f;
-						m_filterHi = -150.0f;
-						break;
-
-					case (DSPMode) USB:
-						m_filterLo = 150.0f;
-						m_filterHi = 2550.0f;
-						break;
-
-					default:
-						break;
-
-				}
-			}
-			else
-			if (str == "2k7") {
-
-				switch (mode) {
-
-					case (DSPMode) LSB:
-						m_filterLo = -2850.0f;
-						m_filterHi = -150.0f;
-						break;
-
-					case (DSPMode) USB:
-						m_filterLo = 150.0f;
-						m_filterHi = 2850.0f;
-						break;
-
-					default:
-						break;
-
-				}
-			}
-			else
-			if (str == "2k9") {
-
-				switch (mode) {
-
-					case (DSPMode) LSB:
-						m_filterLo = -3050.0f;
-						m_filterHi = -150.0f;
-						break;
-
-					case (DSPMode) USB:
-						m_filterLo = 150.0f;
-						m_filterHi = 3050.0f;
-						break;
-
-					default:
-						break;
-
-				}
-			}
-			else
-			if (str == "3k3") {
-
-				switch (mode) {
-
-					case (DSPMode) LSB:
-						m_filterLo = -3450.0f;
-						m_filterHi = -150.0f;
-						break;
-
-					case (DSPMode) USB:
-						m_filterLo = 150.0f;
-						m_filterHi = 3450.0f;
-						break;
-
-					default:
-						break;
-
-				}
-			}
-			else
-			if (str == "3k8") {
-
-				switch (mode) {
-
-					case (DSPMode) LSB:
-						m_filterLo = -3950.0f;
-						m_filterHi = -150.0f;
-						break;
-
-					case (DSPMode) USB:
-						m_filterLo = 150.0f;
-						m_filterHi = 3950.0f;
-						break;
-
-					default:
-						break;
-				}
-			}
-			else
-			if (str == "4k4") {
-
-				switch (mode) {
-
-					case (DSPMode) LSB:
-						m_filterLo = -4550.0f;
-						m_filterHi = -150.0f;
-						break;
-
-					case (DSPMode) USB:
-						m_filterLo = 150.0f;
-						m_filterHi = 4550.0f;
-						break;
-
-					default:
-						break;
-				}
-			}
-			else
-			if (str == "5k") {
-
-				switch (mode) {
-
-					case (DSPMode) LSB:
-						m_filterLo = -5150.0f;
-						m_filterHi = -150.0f;
-						break;
-
-					case (DSPMode) USB:
-						m_filterLo = 150.0f;
-						m_filterHi = 5150.0f;
-						break;
-
-					default:
-						break;
-				}
-			}
-			break;
-
-		case 1: // filterBtnList B
-
-			if (str == "2k4") {
-
-				switch (mode) {
-
-					case (DSPMode) DSB:
-					case (DSPMode) AM:
-					case (DSPMode) SAM:
-						m_filterLo = -1200.0f;
-						m_filterHi =  1200.0f;
-						break;
-
-					case 5:
-						m_filterLo = -2000.0f;
-						m_filterHi =  2000.0f;
-						break;
-
-					default:
-						break;
-				}
-			}
-			else
-			if (str == "2k9") {
-
-				switch (mode) {
-
-					case (DSPMode) DSB:
-					case (DSPMode) AM:
-					case (DSPMode) SAM:
-						m_filterLo = -1450.0f;
-						m_filterHi =  1450.0f;
-						break;
-
-					case 5:
-						m_filterLo = -2000.0f;
-						m_filterHi =  2000.0f;
-						break;
-
-					/*case 6:
-						m_filterLo = -4000.0f;
-						m_filterHi =  4000.0f;
-						break;*/
-
-					default:
-						break;
-				}
-			}
-			else
-			if (str == "3k1") {
-
-				switch (mode) {
-
-					case (DSPMode) DSB:
-					case (DSPMode) AM:
-					case (DSPMode) SAM:
-						m_filterLo = -1550.0f;
-						m_filterHi =  1550.0f;
-						break;
-
-					case 5:
-						m_filterLo = -2000.0f;
-						m_filterHi =  2000.0f;
-						break;
-
-					/*case 6:
-						m_filterLo = -4000.0f;
-						m_filterHi =  4000.0f;
-						break;*/
-
-					default:
-						break;
-				}
-			}
-			else
-			if (str == "4k") {
-
-				switch (mode) {
-
-					case (DSPMode) DSB:
-					case (DSPMode) AM:
-					case (DSPMode) SAM:
-						m_filterLo = -2000.0f;
-						m_filterHi =  2000.0f;
-						break;
-
-					case 5:
-						m_filterLo = -2000.0f;
-						m_filterHi =  2000.0f;
-						break;
-
-					/*case 6:
-						m_filterLo = -4000.0f;
-						m_filterHi =  4000.0f;
-						break;*/
-
-					default:
-						break;
-				}
-			}
-			else
-			if (str == "5k2") {
-
-				switch (mode) {
-
-					case (DSPMode) DSB:
-					case (DSPMode) AM:
-					case (DSPMode) SAM:
-						m_filterLo = -2600.0f;
-						m_filterHi =  2600.0f;
-						break;
-
-					case 5:
-						m_filterLo = -2000.0f;
-						m_filterHi =  2000.0f;
-						break;
-
-					/*case 6:
-						m_filterLo = -4000.0f;
-						m_filterHi =  4000.0f;
-						break;*/
-
-					default:
-						break;
-				}
-			}
-			else
-			if (str == "6k6") {
-
-				switch (mode) {
-
-					case (DSPMode) DSB:
-					case (DSPMode) AM:
-					case (DSPMode) SAM:
-						m_filterLo = -3300.0f;
-						m_filterHi =  3300.0f;
-						break;
-
-					case (DSPMode) FMN:
-						m_filterLo = -2000.0f;
-						m_filterHi =  2000.0f;
-						break;
-
-					/*case 6:
-						m_filterLo = -4000.0f;
-						m_filterHi =  4000.0f;
-						break;*/
-
-					default:
-						break;
-				}
-			}
-			else
-			if (str == "8k") {
-
-				switch (mode) {
-
-					case (DSPMode) DSB:
-					case (DSPMode) AM:
-					case (DSPMode) SAM:
-						m_filterLo = -4000.0f;
-						m_filterHi =  4000.0f;
-						break;
-
-					case (DSPMode) FMN:
-						m_filterLo = -2000.0f;
-						m_filterHi =  2000.0f;
-						break;
-
-					/*case 6:
-						m_filterLo = -4000.0f;
-						m_filterHi =  4000.0f;
-						break;*/
-
-					default:
-						break;
-				}
-			}
-			else
-			if (str == "10k") {
-
-				switch (mode) {
-
-					case (DSPMode) DSB:
-					case (DSPMode) AM:
-					case (DSPMode) SAM:
-						m_filterLo = -5000.0f;
-						m_filterHi =  5000.0f;
-						break;
-
-					case (DSPMode) FMN:
-						m_filterLo = -2000.0f;
-						m_filterHi =  2000.0f;
-						break;
-
-					/*case 6:
-						m_filterLo = -4000.0f;
-						m_filterHi =  4000.0f;
-						break;*/
-
-					default:
-						break;
-				}
-			}
-			else
-			if (str == "12k") {
-
-				switch (mode) {
-
-					case (DSPMode) DSB:
-					case (DSPMode) AM:
-					case (DSPMode) SAM:
-						m_filterLo = -6000.0f;
-						m_filterHi =  6000.0f;
-						break;
-
-					case (DSPMode) FMN:
-						m_filterLo = -2000.0f;
-						m_filterHi =  2000.0f;
-						break;
-
-					/*case 6:
-						m_filterLo = -4000.0f;
-						m_filterHi =  4000.0f;
-						break;*/
-
-					default:
-						break;
-				}
-			}
-			else
-			if (str == "16k") {
-
-				switch (mode) {
-
-					case (DSPMode) DSB:
-					case (DSPMode) AM:
-					case (DSPMode) SAM:
-						m_filterLo = -8000.0f;
-						m_filterHi =  8000.0f;
-						break;
-
-					case (DSPMode) FMN:
-						m_filterLo = -2000.0f;
-						m_filterHi =  2000.0f;
-						break;
-
-					/*case 6:
-						m_filterLo = -4000.0f;
-						m_filterHi =  4000.0f;
-						break;*/
-
-					default:
-						break;
-				}
-			}
-			break;
-
-		case 2: // filterBtnList C
-
-			if (str == "25") {
-
-				switch (mode) {
-
-					case (DSPMode) CWL:
-						m_filterLo = -125.0f;
-						m_filterHi = -100.0f;
-						break;
-
-					case (DSPMode) CWU:
-						m_filterLo = 100.0f;
-						m_filterHi = 125.0f;
-						break;
-
-					default:
-						break;
-				}
-			}
-			else
-			if (str == "50") {
-
-				switch (mode) {
-
-					case (DSPMode) CWL:
-						m_filterLo = -150.0f;
-						m_filterHi = -100.0f;
-						break;
-
-					case (DSPMode) CWU:
-						m_filterLo = 100.0f;
-						m_filterHi = 150.0f;
-						break;
-
-					default:
-						break;
-				}
-			}
-			else
-			if (str == "100") {
-
-				switch (mode) {
-
-					case (DSPMode) CWL:
-						m_filterLo = -200.0f;
-						m_filterHi = -100.0f;
-						break;
-
-					case (DSPMode) CWU:
-						m_filterLo = 100.0f;
-						m_filterHi = 200.0f;
-						break;
-
-					default:
-						break;
-				}
-			}
-			else
-			if (str == "250") {
-
-				switch (mode) {
-
-					case (DSPMode) CWL:
-						m_filterLo = -350.0f;
-						m_filterHi = -100.0f;
-						break;
-
-					case (DSPMode) CWU:
-						m_filterLo = 100.0f;
-						m_filterHi = 350.0f;
-						break;
-
-					default:
-						break;
-				}
-			}
-			else
-			if (str == "400") {
-
-				switch (mode) {
-
-					case (DSPMode) CWL:
-						m_filterLo = -500.0f;
-						m_filterHi = -100.0f;
-						break;
-
-					case (DSPMode) CWU:
-						m_filterLo = 100.0f;
-						m_filterHi = 500.0f;
-						break;
-
-					default:
-						break;
-				}
-			}
-			else
-			if (str == "500") {
-
-				switch (mode) {
-
-					case (DSPMode) CWL:
-						m_filterLo = -600.0f;
-						m_filterHi = -100.0f;
-						break;
-
-					case (DSPMode) CWU:
-						m_filterLo = 100.0f;
-						m_filterHi = 600.0f;
-						break;
-
-					default:
-						break;
-				}
-			}
-			else
-			if (str == "600") {
-
-				switch (mode) {
-
-					case (DSPMode) CWL:
-						m_filterLo = -700.0f;
-						m_filterHi = -100.0f;
-						break;
-
-					case (DSPMode) CWU:
-						m_filterLo = 100.0f;
-						m_filterHi = 700.0f;
-						break;
-
-					default:
-						break;
-				}
-			}
-			else
-			if (str == "750") {
-
-				switch (mode) {
-
-					case (DSPMode) CWL:
-						m_filterLo = -850.0f;
-						m_filterHi = -100.0f;
-						break;
-
-					case (DSPMode) CWU:
-						m_filterLo = 100.0f;
-						m_filterHi = 850.0f;
-						break;
-
-					default:
-						break;
-				}
-			}
-			else
-			if (str == "800") {
-
-				switch (mode) {
-
-					case (DSPMode) CWL:
-						m_filterLo = -900.0f;
-						m_filterHi = -100.0f;
-						break;
-
-					case (DSPMode) CWU:
-						m_filterLo = 100.0f;
-						m_filterHi = 900.0f;
-						break;
-
-					default:
-						break;
-				}
-			}
-			else
-			if (str == "1k") {
-
-				switch (mode) {
-
-					case (DSPMode) CWL:
-						m_filterLo = -1100.0f;
-						m_filterHi = -100.0f;
-						break;
-
-					case (DSPMode) CWU:
-						m_filterLo = 100.0f;
-						m_filterHi = 1100.0f;
-						break;
-
-					default:
-						break;
-				}
-			}
-			break;
-	}
-
-	set->setRXFilter(m_currentRx, m_filterLo, m_filterHi);	
+void RadioWidget::filterChangedByBtn() {
+    AeroButton *button = qobject_cast<AeroButton *>(sender());
+    if (!button) return;
+
+    QList<AeroButton *> btnList;
+    int groupIdx = -1;
+
+    if (filterBtnListA.contains(button)) { btnList = filterBtnListA; groupIdx = 0; }
+    else if (filterBtnListB.contains(button)) { btnList = filterBtnListB; groupIdx = 1; }
+    else if (filterBtnListC.contains(button)) { btnList = filterBtnListC; groupIdx = 2; }
+
+    if (groupIdx == -1) return;
+
+    int btnIndex = btnList.indexOf(button);
+    if (btnIndex == -1) return;
+
+    for (AeroButton *btn : btnList) {
+        btn->setBtnState(AeroButton::OFF);
+        btn->update();
+    }
+
+    button->setBtnState(AeroButton::ON);
+    button->update();
+
+    qreal filterWidth = 0.0f;
+    if (btnIndex < 10) {
+        float widths[] = {1000, 1800, 2100, 2400, 2700, 2900, 3300, 3800, 4400, 5000,
+                          2400, 2900, 3100, 4000, 5200, 6600, 8000, 10000, 12000, 16000,
+                          25, 50, 100, 250, 400, 500, 600, 750, 800, 1000};
+        filterWidth = widths[groupIdx * 10 + btnIndex];
+    } else {
+        filterWidth = qAbs(m_filterHi - m_filterLo);
+    }
+
+    DSPMode mode = m_dspModeList.at(m_hamBand);
+    if (groupIdx == 0) { // Group A: SSB/Data
+        if (mode == LSB || mode == DIGL) { m_filterLo = -(filterWidth + 150.0f); m_filterHi = -150.0f; }
+        else { m_filterLo = 150.0f; m_filterHi = filterWidth + 150.0f; }
+    } else if (groupIdx == 1) { // Group B: Wide
+        if (mode == FMN) { m_filterLo = -2000.0f; m_filterHi = 2000.0f; }
+        else { m_filterLo = -filterWidth/2.0f; m_filterHi = filterWidth/2.0f; }
+    } else if (groupIdx == 2) { // Group C: CW
+        if (mode == CWL) { m_filterLo = -(filterWidth + 100.0f); m_filterHi = -100.0f; }
+        else { m_filterLo = 100.0f; m_filterHi = filterWidth + 100.0f; }
+    }
+    
+    set->setRXFilter(m_currentRx, m_filterLo, m_filterHi);
+    update(); 
 }
 
 void RadioWidget::filterChanged(int rx, qreal low, qreal high) {
+    if (m_currentRx != rx) return;
+    m_filterLo = low;
+    m_filterHi = high;
 
-	if (m_currentRx != rx) return;
-	m_filterLo = low;
-	m_filterHi = high;
+    DSPMode mode = m_dspModeList.at(m_hamBand);
+    QList<AeroButton *> *activeList = nullptr;
+    int groupIdx = -1;
 
-	DSPMode mode = m_dspModeList.at(m_hamBand);
-	if (mode == (DSPMode ) LSB || mode == (DSPMode ) USB || mode == (DSPMode ) DIGU || mode == (DSPMode ) DIGL) {
+    if (mode == LSB || mode == USB || mode == DIGU || mode == DIGL) { activeList = &filterBtnListA; groupIdx = 0; }
+    else if (mode == DSB || mode == FMN || mode == AM || mode == SAM) { activeList = &filterBtnListB; groupIdx = 1; }
+    else if (mode == CWL || mode == CWU) { activeList = &filterBtnListC; groupIdx = 2; }
 
-		foreach(AeroButton *btn, filterBtnListA) {
+    if (!activeList) return;
 
-			btn->setBtnState(AeroButton::OFF);
-			btn->update();
-		}
+    for (AeroButton *btn : *activeList) {
+        btn->setBtnState(AeroButton::OFF);
+        btn->update();
+    }
 
-		if ((m_filterLo == -5150.0 && m_filterHi == -150.0) || (m_filterLo == 150.0 && m_filterHi == 5150.0)) {
-			filter5kBtnA->setBtnState(AeroButton::ON);
-			filter5kBtnA->update();
-		}
-		else 
-		if ((m_filterLo == -4550.0 && m_filterHi == -150.0) || (m_filterLo == 150.0 && m_filterHi == 4550.0)) {
-			filter4k4BtnA->setBtnState(AeroButton::ON);
-			filter4k4BtnA->update();
-		}
-		else 
-		if ((m_filterLo == -3950.0 && m_filterHi == -150.0) || (m_filterLo == 150.0 && m_filterHi == 3950.0)) {
-			filter3k8BtnA->setBtnState(AeroButton::ON);
-			filter3k8BtnA->update();
-		}
-		else 
-		if ((m_filterLo == -3450.0 && m_filterHi == -150.0) || (m_filterLo == 150.0 && m_filterHi == 3450.0)) {
-			filter3k3BtnA->setBtnState(AeroButton::ON);
-			filter3k3BtnA->update();
-		}
-		else 
-		if ((m_filterLo == -3050.0 && m_filterHi == -150.0) || (m_filterLo == 150.0 && m_filterHi == 3050.0)) {
-			filter2k9BtnA->setBtnState(AeroButton::ON);
-			filter2k9BtnA->update();
-		}
-		else 
-		if ((m_filterLo == -2850.0 && m_filterHi == -150.0) || (m_filterLo == 150.0 && m_filterHi == 2850.0)) {
-			filter2k7BtnA->setBtnState(AeroButton::ON);
-			filter2k7BtnA->update();
-		}
-		else 
-		if ((m_filterLo == -2550.0 && m_filterHi == -150.0) || (m_filterLo == 150.0 && m_filterHi == 2550.0)) {
-			filter2k4BtnA->setBtnState(AeroButton::ON);
-			filter2k4BtnA->update();
-		}
-		else 
-		if ((m_filterLo == -2250.0 && m_filterHi == -150.0) || (m_filterLo == 150.0 && m_filterHi == 2250.0)) {
-			filter2k1BtnA->setBtnState(AeroButton::ON);
-			filter2k1BtnA->update();
-		}
-		else 
-		if ((m_filterLo == -1950.0 && m_filterHi == -150.0) || (m_filterLo == 150.0 && m_filterHi == 1950.0)) {
-			filter1k8BtnA->setBtnState(AeroButton::ON);
-			filter1k8BtnA->update();
-		}
-		else 
-		if ((m_filterLo == -1150.0 && m_filterHi == -150.0) || (m_filterLo == 150.0 && m_filterHi == 1150.0)) {
-			filter1kBtnA->setBtnState(AeroButton::ON);
-			filter1kBtnA->update();
-		}
-	}
-	else if (mode == (DSPMode ) DSB || mode == (DSPMode ) FMN || mode == (DSPMode ) AM || mode == (DSPMode ) SAM)	{
-
-		// filterGroupBBox
-		foreach(AeroButton *btn, filterBtnListB) {
-
-			btn->setBtnState(AeroButton::OFF);
-			btn->update();
-		}
-
-		if (m_filterLo == -8000.0 && m_filterHi == 8000.0) {
-			filter16kBtnB->setBtnState(AeroButton::ON);
-			filter16kBtnB->update();
-		}
-		else
-		if (m_filterLo == -6000.0 && m_filterHi == 6000.0) {
-			filter12kBtnB->setBtnState(AeroButton::ON);
-			filter12kBtnB->update();
-		}
-		else
-		if (m_filterLo == -5000.0 && m_filterHi == 5000.0) {
-			filter10kBtnB->setBtnState(AeroButton::ON);
-			filter10kBtnB->update();
-		}
-		else
-		if (m_filterLo == -4000.0 && m_filterHi == 4000.0) {
-			filter8kBtnB->setBtnState(AeroButton::ON);
-			filter8kBtnB->update();
-		}
-		else
-		if (m_filterLo == -3300.0 && m_filterHi == 3300.0) {
-			filter6k6BtnB->setBtnState(AeroButton::ON);
-			filter6k6BtnB->update();
-		}
-		else
-		if (m_filterLo == -2600.0 && m_filterHi == 2600.0) {
-			filter5k2BtnB->setBtnState(AeroButton::ON);
-			filter5k2BtnB->update();
-		}
-		else
-		if (m_filterLo == -2000.0 && m_filterHi == 2000.0) {
-			filter4kBtnB->setBtnState(AeroButton::ON);
-			filter4kBtnB->update();
-		}
-		else
-		if (m_filterLo == -1550.0 && m_filterHi == 1550.0) {
-			filter3k1BtnB->setBtnState(AeroButton::ON);
-			filter3k1BtnB->update();
-		}
-		else
-		if (m_filterLo == -1450.0 && m_filterHi == 1450.0) {
-			filter2k9BtnB->setBtnState(AeroButton::ON);
-			filter2k9BtnB->update();
-		}
-		else
-		if (m_filterLo == -1200.0 && m_filterHi == 1200.0) {
-			filter2k4BtnB->setBtnState(AeroButton::ON);
-			filter2k4BtnB->update();
-		}
-	}
-	else if (mode == (DSPMode ) CWL || mode == (DSPMode ) CWU) {
-
-		// filterGroupCBox
-		foreach(AeroButton *btn, filterBtnListC) {
-
-			btn->setBtnState(AeroButton::OFF);
-			btn->update();
-		}
-
-		if ((m_filterLo == -1100.0 && m_filterHi == -100.0) || (m_filterLo == 100.0 && m_filterHi == 1100.0)) {
-			filter1kBtnC->setBtnState(AeroButton::ON);
-			filter1kBtnC->update();
-		}
-		else
-		if ((m_filterLo == -900.0 && m_filterHi == -100.0) || (m_filterLo == 100.0 && m_filterHi == 900.0)) {
-			filter800BtnC->setBtnState(AeroButton::ON);
-			filter800BtnC->update();
-		}
-		else
-		if ((m_filterLo == -850.0 && m_filterHi == -100.0) || (m_filterLo == 100.0 && m_filterHi == 850.0)) {
-			filter750BtnC->setBtnState(AeroButton::ON);
-			filter750BtnC->update();
-		}
-		else
-		if ((m_filterLo == -700.0 && m_filterHi == -100.0) || (m_filterLo == 100.0 && m_filterHi == 700.0)) {
-			filter600BtnC->setBtnState(AeroButton::ON);
-			filter600BtnC->update();
-		}
-		else
-		if ((m_filterLo == -600.0 && m_filterHi == -100.0) || (m_filterLo == 100.0 && m_filterHi == 600.0)) {
-			filter500BtnC->setBtnState(AeroButton::ON);
-			filter500BtnC->update();
-		}
-		else
-		if ((m_filterLo == -500.0 && m_filterHi == -100.0) || (m_filterLo == 100.0 && m_filterHi == 500.0)) {
-			filter400BtnC->setBtnState(AeroButton::ON);
-			filter400BtnC->update();
-		}
-		else
-		if ((m_filterLo == -350.0 && m_filterHi == -100.0) || (m_filterLo == 100.0 && m_filterHi == 350.0)) {
-			filter250BtnC->setBtnState(AeroButton::ON);
-			filter250BtnC->update();
-		}
-		else
-		if ((m_filterLo == -200.0 && m_filterHi == -100.0) || (m_filterLo == 100.0 && m_filterHi == 200.0)) {
-			filter100BtnC->setBtnState(AeroButton::ON);
-			filter100BtnC->update();
-		}
-		else
-		if ((m_filterLo == -150.0 && m_filterHi == -100.0) || (m_filterLo == 100.0 && m_filterHi == 150.0)) {
-			filter50BtnC->setBtnState(AeroButton::ON);
-			filter50BtnC->update();
-		}
-		else
-		if ((m_filterLo == -125.0 && m_filterHi == -100.0) || (m_filterLo == 100.0 && m_filterHi == 125.0)) {
-			filter25BtnC->setBtnState(AeroButton::ON);
-			filter25BtnC->update();
-		}	
-	}
+    float widths[] = {1000, 1800, 2100, 2400, 2700, 2900, 3300, 3800, 4400, 5000,
+                      2400, 2900, 3100, 4000, 5200, 6600, 8000, 10000, 12000, 16000,
+                      25, 50, 100, 250, 400, 500, 600, 750, 800, 1000};
+    
+    for (int i = 0; i < 10; ++i) {
+        float w = widths[groupIdx * 10 + i];
+        bool match = false;
+        if (groupIdx == 0) {
+            match = (qAbs(m_filterLo - (-(w + 150.0f))) < 2.0f && qAbs(m_filterHi - (-150.0f)) < 2.0f) ||
+                    (qAbs(m_filterLo - 150.0f) < 2.0f && qAbs(m_filterHi - (w + 150.0f)) < 2.0f);
+        } else if (groupIdx == 1) {
+            if (mode == FMN) match = (qAbs(m_filterLo - (-2000.0f)) < 2.0f && qAbs(m_filterHi - 2000.0f) < 2.0f);
+            else match = (qAbs(m_filterLo - (-w/2.0f)) < 2.0f && qAbs(m_filterHi - w/2.0f) < 2.0f);
+        } else if (groupIdx == 2) {
+            match = (qAbs(m_filterLo - (-(w + 100.0f))) < 2.0f && qAbs(m_filterHi - (-100.0f)) < 2.0f) ||
+                    (qAbs(m_filterLo - 100.0f) < 2.0f && qAbs(m_filterHi - (w + 100.0f)) < 2.0f);
+        }
+        
+        if (match) {
+            activeList->at(i)->setBtnState(AeroButton::ON);
+            activeList->at(i)->update();
+            break;
+        }
+    }
 }
 
 void RadioWidget::attenuatorChanged() {

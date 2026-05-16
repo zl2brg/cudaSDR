@@ -217,104 +217,50 @@ qreal FilterWidget::SetVarSlider(QAbstractSlider *slider)
 
 
 void FilterWidget::btnCallback() {
-
     AeroButton *button = qobject_cast<AeroButton *>(sender());
-
-    qreal filter = 0.0f;
+    int btnIndex = btnList.indexOf(button);
+    if (btnIndex == -1) return;
 
     foreach(AeroButton *btn, btnList) {
-
         btn->setBtnState(AeroButton::OFF);
         btn->update();
-
     }
     ui->Var1_Slider->setDisabled(true);
     ui->Var2_Slider->setDisabled(true);
 
     button->setBtnState(AeroButton::ON);
-    qDebug() << "button" << button->text();
-    if (button->text() == "Var1") ui->Var1_Slider->setDisabled(true);
-    if (button->text() == "Var2") ui->Var2_Slider->setDisabled(false);
-
-    switch(m_FilterGroup){
-    case NARROW_FILTER:
-        m_FilterData = Narrow_FilterGroup;
-        break;
-    case    MID_FILTER:
-        m_FilterData = Mid_FilterGroup;
-
-        break;
-    default:
-        m_FilterData = Wide_FilterGroup;
-           break;
-
-    }
-
-
-
-    for (int count = 0;count < 12;count++) {
-
-        if (m_FilterData->txt == button->text() )
-        {
-            if (button->text() == "Var1" )
-            {
-                filter =  SetVarSlider(ui->Var1_Slider);
-            }
-            else   if (button->text() == "Var2" )
-            {
-                filter =  SetVarSlider(ui->Var2_Slider);
-            }
-            else
-            filter = m_FilterData->filterWidth;
-            break;
+    
+    qreal filterWidth = 0.0f;
+    if (btnIndex == 10) { // Var1
+        ui->Var1_Slider->setEnabled(true);
+        filterWidth = (qreal)ui->Var1_Slider->value();
+    } else if (btnIndex == 11) { // Var2
+        ui->Var2_Slider->setEnabled(true);
+        filterWidth = (qreal)ui->Var2_Slider->value();
+    } else {
+        filterStruct* group = nullptr;
+        switch(m_FilterGroup) {
+            case NARROW_FILTER: group = Narrow_FilterGroup; break;
+            case MID_FILTER:    group = Mid_FilterGroup; break;
+            case WIDEBAND_FILTER: group = Wide_FilterGroup; break;
         }
-        m_FilterData++;
-
+        
+        if (group) {
+            filterWidth = group[btnIndex].filterWidth;
+        }
     }
+    
+    switch (m_FilterMode) {
+        case M_DSB: m_filterHi = filterWidth; m_filterLo = -filterWidth; break;
+        case M_LSB: m_filterLo = -150.0f; m_filterHi = -filterWidth; break;
+        case M_USB: m_filterLo = 150.0f; m_filterHi = filterWidth; break;
+    }
+    
     button->update();
     updateFilterWidget();
-
-    switch (m_FilterMode) {
-    case M_DSB:
-      m_filterHi = filter;
-      m_filterLo = -filter;
-    break;
-    case M_LSB:
-        m_filterLo = -150.0f;
-        m_filterHi = -filter;
-    break;
-    case M_USB:
-        m_filterLo = 150.0f;
-        m_filterHi = filter;
-
-    break;
-
-    }
-
-
-
-}
-void FilterWidget::filterChangedByBtn()	 {
-
-    AeroButton *button = qobject_cast<AeroButton *>(sender());
-
-
-    foreach(AeroButton *btn, btnList) {
-
-        btn->setBtnState(AeroButton::OFF);
-        btn->update();
-        ui->Var1_Slider->setDisabled(true);
-        ui->Var2_Slider->setDisabled(true);
-    }
-
-    button->setBtnState(AeroButton::ON);
-    button->update();
-
-
-    m_dspMode = m_dspModeList.at(m_hamBand);
-
     set->setRXFilter(m_receiver, m_filterLo, m_filterHi);
 }
+
 
 
 

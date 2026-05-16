@@ -208,137 +208,114 @@ void RadioCtrl::bandChanged(int rx, bool byButton, HamBand band) {
 
 void RadioCtrl::BandbtnCallback() {
     AeroButton *button = qobject_cast<AeroButton *>(sender());
-    int btn = m_band_btnList.indexOf(button);
-    qDebug() << "Button" << btn;
-    foreach(AeroButton *btn, m_band_btnList) {
+    int btnIndex = m_band_btnList.indexOf(button);
+    if (btnIndex == -1) return;
 
+    for(AeroButton *btn : m_band_btnList) {
         btn->setBtnState(AeroButton::OFF);
         btn->update();
     }
 
     button->setBtnState(AeroButton::ON);
     button->update();
-    qDebug() << "size" << m_band_btnList.size();
-    set->setHamBand(m_receiver, true, (HamBand) btn);
 
-    QString str = button->text();
-    if (str == "2200 m")
-        set->setVFOFrequency(2, m_receiver, m_lastVfoFrequencyList.at(m2200));
-    else
-    if (str == "630 m")
-        set->setVFOFrequency(2, m_receiver, m_lastVfoFrequencyList.at(m630));
-    else
-    if (str == "160 m")
-        set->setVFOFrequency(2, m_receiver, m_lastVfoFrequencyList.at(m160));
-    else
-    if (str == "80 m")
-        set->setVFOFrequency(2, m_receiver, m_lastVfoFrequencyList.at(m80));
-    else
-    if (str == "60 m")
-        set->setVFOFrequency(2, m_receiver, m_lastVfoFrequencyList.at(m60));
-    else
-    if (str == "40 m")
-        set->setVFOFrequency(2, m_receiver, m_lastVfoFrequencyList.at(m40));
-    else
-    if (str == "30 m")
-        set->setVFOFrequency(2, m_receiver, m_lastVfoFrequencyList.at(m30));
-    else
-    if (str == "20 m")
-        set->setVFOFrequency(2, m_receiver, m_lastVfoFrequencyList.at(m20));
-    else
-    if (str == "17 m")
-        set->setVFOFrequency(2, m_receiver, m_lastVfoFrequencyList.at(m17));
-    else
-    if (str == "15 m")
-        set->setVFOFrequency(2, m_receiver, m_lastVfoFrequencyList.at(m15));
-    else
-    if (str == "12 m")
-        set->setVFOFrequency(2, m_receiver, m_lastVfoFrequencyList.at(m12));
-    else
-    if (str == "10 m")
-        set->setVFOFrequency(2, m_receiver, m_lastVfoFrequencyList.at(m10));
-    else
-    if (str == "6 m")
-        set->setVFOFrequency(2, m_receiver, m_lastVfoFrequencyList.at(m6));
-    else
-    if (str == "2 m")
-        set->setVFOFrequency(2, m_receiver, m_lastVfoFrequencyList.at(m2));
+    HamBand band = static_cast<HamBand>(btnIndex);
+    set->setHamBand(m_receiver, true, band);
 
-    else
-        set->setVFOFrequency(2, m_receiver, m_lastVfoFrequencyList.at(gen));
+    if (btnIndex >= 0 && btnIndex < m_lastVfoFrequencyList.size()) {
+        set->setVFOFrequency(2, m_receiver, m_lastVfoFrequencyList.at(btnIndex));
+    }
 }
 
 
 
 void RadioCtrl::ModebtnCallback(){
     AeroButton *button = qobject_cast<AeroButton *>(sender());
-    int btn = m_mode_btnList.indexOf(button);
+    int btnIndex = m_mode_btnList.indexOf(button);
+    if (btnIndex == -1) return;
 
-            foreach(AeroButton *btn, m_mode_btnList) {
+    for(AeroButton *btn : m_mode_btnList) {
+        btn->setBtnState(AeroButton::OFF);
+        btn->update();
+    }
 
-            btn->setBtnState(AeroButton::OFF);
-            btn->update();
-        }
-
-    set->setDSPMode(m_receiver, (DSPMode) btn);
-    //m_dspModeList[m_hamBand] = (DSPMode) btn;
-    //filterChanged(m_receiver, m_filterLo, m_filterHi);
-    //filterGroupChanged((DSPMode) btn);
+    DSPMode mode = static_cast<DSPMode>(btnIndex);
+    set->setDSPMode(m_receiver, mode);
 
     button->setBtnState(AeroButton::ON);
     button->update();
-//#ToDO emit button text change
+}
 
+void RadioCtrl::FilterbtnCallback() {
+    AeroButton *button = qobject_cast<AeroButton *>(sender());
+    int btnIndex = m_filter_btnList.indexOf(button);
+    if (btnIndex == -1) return;
+
+    foreach(AeroButton *btn, m_filter_btnList) {
+        btn->setBtnState(AeroButton::OFF);
+        btn->update();
+    }
+    
+    ui->Var1_Slider->setDisabled(true);
+    ui->Var2_Slider->setDisabled(true);
+
+    button->setBtnState(AeroButton::ON);
+    
+    if (btnIndex == 10) ui->Var1_Slider->setEnabled(true);
+    else if (btnIndex == 11) ui->Var2_Slider->setEnabled(true);
+
+    button->update();
+    updateFilterWidget();
 }
 
 
-void RadioCtrl::FilterbtnCallback() {
 
+void RadioCtrl::filterChangedByBtn() {
     AeroButton *button = qobject_cast<AeroButton *>(sender());
-
+    int btnIndex = m_filter_btnList.indexOf(button);
+    if (btnIndex == -1) return;
 
     foreach(AeroButton *btn, m_filter_btnList) {
-
         btn->setBtnState(AeroButton::OFF);
         btn->update();
-
     }
     ui->Var1_Slider->setDisabled(true);
     ui->Var2_Slider->setDisabled(true);
 
     button->setBtnState(AeroButton::ON);
-    qDebug() << "button" << button->text();
-    if (button->text() == "Var1") ui->Var1_Slider->setDisabled(true);
-    if (button->text() == "Var2") ui->Var2_Slider->setDisabled(false);
-    int index = m_filter_btnList.indexOf(button);
-
-    button->update();
-    updateFilterWidget();
-
-
-}
-
-
-
-void RadioCtrl::filterChangedByBtn()	 {
-
-    AeroButton *button = qobject_cast<AeroButton *>(sender());
-
-
-    foreach(AeroButton *btn, m_filter_btnList) {
-
-        btn->setBtnState(AeroButton::OFF);
-        btn->update();
-        ui->Var1_Slider->setDisabled(true);
-        ui->Var2_Slider->setDisabled(true);
+    
+    qreal filterWidth = 0.0f;
+    if (btnIndex == 10) { // Var1
+        ui->Var1_Slider->setEnabled(true);
+        filterWidth = (qreal)ui->Var1_Slider->value();
+    } else if (btnIndex == 11) { // Var2
+        ui->Var2_Slider->setEnabled(true);
+        filterWidth = (qreal)ui->Var2_Slider->value();
+    } else {
+        DSPMode mode = m_dspModeList.at(m_hamBand);
+        int groupIdx = -1;
+        if (mode == LSB || mode == USB || mode == DIGU || mode == DIGL) groupIdx = 1; // Mid
+        else if (mode == DSB || mode == FMN || mode == AM || mode == SAM) groupIdx = 2; // Wide
+        else groupIdx = 0; // Narrow (CW)
+        
+        float widths[] = {25, 50, 100, 250, 400, 500, 600, 750, 800, 1000,   // Narrow
+                          1000, 1800, 2100, 2400, 2700, 2900, 3300, 3800, 4400, 5000, // Mid
+                          2400, 2900, 3100, 4000, 5200, 6600, 8000, 10000, 12000, 16000}; // Wide
+        
+        filterWidth = widths[groupIdx * 10 + btnIndex];
+        
+        int filterModeIdx = 2; // M_DSB
+        if (mode == LSB || mode == DIGL || mode == CWL) filterModeIdx = 0; // M_LSB
+        else if (mode == USB || mode == DIGU || mode == CWU) filterModeIdx = 1; // M_USB
+        
+        switch (filterModeIdx) {
+            case 0: m_filterLo = -150.0f; m_filterHi = -filterWidth; break; // M_LSB
+            case 1: m_filterLo = 150.0f; m_filterHi = filterWidth; break; // M_USB
+            case 2: m_filterHi = filterWidth; m_filterLo = -filterWidth; break; // M_DSB
+        }
     }
-
-    button->setBtnState(AeroButton::ON);
+    
     button->update();
-
-
-    m_dspMode = m_dspModeList.at(m_hamBand);
-
     set->setRXFilter(m_receiver, m_filterLo, m_filterHi);
 }
 
