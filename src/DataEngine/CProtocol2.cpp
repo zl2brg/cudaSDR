@@ -19,10 +19,15 @@ CProtocol2::CProtocol2() : m_lastSequence(0), m_lastPacketLen(0) {
 CProtocol2::~CProtocol2() {}
 
 QList<quint16> CProtocol2::getRequiredPorts() {
-    QList<quint16> ports = { 1024, 1025, 1026, 1027, 1028, 1029 };
+    QList<quint16> ports = { ProtocolBoundaryUtils::Ports::DevicePort, 
+                             ProtocolBoundaryUtils::Ports::P2DdcSpecPort, 
+                             ProtocolBoundaryUtils::Ports::P2TxSpecPort, 
+                             ProtocolBoundaryUtils::Ports::P2HighPriorityPort, 
+                             ProtocolBoundaryUtils::Ports::P2AudioPort, 
+                             ProtocolBoundaryUtils::Ports::P2DucIqPort };
     int nRx = Settings::instance()->getNumberOfReceivers();
     for (int i = 0; i < nRx; i++)
-        ports.append((quint16)(1035 + i));
+        ports.append((quint16)(ProtocolBoundaryUtils::Ports::P2Ddc0Port + i));
     return ports;
 }
 
@@ -80,8 +85,8 @@ void CProtocol2::processInputBuffer(const QByteArray& buffer, DataEngine* de, qu
     }
 
     int ddcIndex = 0;
-    if (sourcePort >= 1035) {
-        ddcIndex = (int)(sourcePort - 1035);
+    if (sourcePort >= ProtocolBoundaryUtils::Ports::P2Ddc0Port) {
+        ddcIndex = (int)(sourcePort - ProtocolBoundaryUtils::Ports::P2Ddc0Port);
     }
 
     if (ddcIndex < 0 || ddcIndex >= MAX_RECEIVERS) {
@@ -123,13 +128,12 @@ void CProtocol2::processInputBuffer(const QByteArray& buffer, DataEngine* de, qu
     }
 
     for (int i = 0; i < samplesInPacket && s + 6 <= buffer.size(); i++) {
-        int iSample = (int)((signed char)buffer.at(s++)) << 16;
-        iSample |= (int)((unsigned char)buffer.at(s++)) << 8;
-        iSample |= (int)((unsigned char)buffer.at(s++));
-
-        int qSample = (int)((signed char)buffer.at(s++)) << 16;
-        qSample |= (int)((unsigned char)buffer.at(s++)) << 8;
-        qSample |= (int)((unsigned char)buffer.at(s++));
+        const unsigned char* p = reinterpret_cast<const unsigned char*>(buffer.constData()) + s;
+        int iSample = ProtocolBoundaryUtils::decode24BitBE(p);
+        p += 3;
+        int qSample = ProtocolBoundaryUtils::decode24BitBE(p);
+        p += 3;
+        s += 6;
 
         if (rx->qtwdsp) {
             rx->m_rawIQ[rxSamples*2] = iSample;
@@ -202,12 +206,12 @@ void CProtocol2::decodeCCBytes(const QByteArray& buffer, THPSDRParameter* io) {
     }
 
     // Bytes 6-7: AIN1 — Forward power ADC (Alex0 fwd / Hermes PA fwd, 12-bit, 16-bit BE)
-    uint16_t fwdPwrRaw = qFromBigEndian<uint16_t>(reinterpret_cast<const uchar*>(buffer.constData() + 6));
+    uint16_t fwdPwrRaw = ProtocolBoundaryUtils::decode16BitBE(reinterpret_cast<const uchar*>(buffer.constData() + 6));
     io->ccRx.ain1 = fwdPwrRaw;
     io->alexForwardVolts = (double)fwdPwrRaw * (3.3 / 4095.0);
 
     // Bytes 8-9: AIN2 — Reverse power ADC (Alex0 rev / Hermes PA rev, 12-bit, 16-bit BE)
-    uint16_t revPwrRaw = qFromBigEndian<uint16_t>(reinterpret_cast<const uchar*>(buffer.constData() + 8));
+    uint16_t revPwrRaw = ProtocolBoundaryUtils::decode16BitBE(reinterpret_cast<const uchar*>(buffer.constData() + 8));
     io->ccRx.ain2 = revPwrRaw;
     io->alexReverseVolts = (double)revPwrRaw * (3.3 / 4095.0);
     io->alexForwardPower = io->alexForwardVolts * io->alexForwardVolts / 0.09;
@@ -226,11 +230,11 @@ void CProtocol2::decodeCCBytes(const QByteArray& buffer, THPSDRParameter* io) {
     }
 
     // Bytes 34-35: Temperature (16-bit BE, degrees C x 100)
-    uint16_t tempRaw = qFromBigEndian<uint16_t>(reinterpret_cast<const uchar*>(buffer.constData() + 34));
+    uint16_t tempRaw = ProtocolBoundaryUtils::decode16BitBE(reinterpret_cast<const uchar*>(buffer.constData() + 34));
     Settings::instance()->setTemperature((double)tempRaw / 100.0);
 
     // Bytes 36-37: Supply voltage (16-bit BE, millivolts)
-    uint16_t supplyMV = qFromBigEndian<uint16_t>(reinterpret_cast<const uchar*>(buffer.constData() + 36));
+    uint16_t supplyMV = ProtocolBoundaryUtils::decode16BitBE(reinterpret_cast<const uchar*>(buffer.constData() + 36));
     io->supplyVolts = (double)supplyMV / 1000.0;
     io->ccRx.ain6 = supplyMV;
     Settings::instance()->setSupplyVoltage(io->supplyVolts);
@@ -248,13 +252,13 @@ void CProtocol2::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
     QMutexLocker locker(&io->mutex);
     // Protocol 2 High Priority and DDC packets must be 1444 bytes.
     // The provided buffer is already 1444 bytes.
-    memset(buffer, 0, 1444);
+    memset(buffer, 0, ProtocolBoundaryUtils::kProtocol2IqPacketSize);
 
     switch (sendState) {
         case 0: // General Packet (Port 1024) — sent once at startup
-            port = 1024;
+            port = ProtocolBoundaryUtils::Ports::DevicePort;
             {
-                uint32_t seq = qToBigEndian(m_sequences[1024]++);
+                uint32_t seq = qToBigEndian(m_sequences[ProtocolBoundaryUtils::Ports::DevicePort]++);
                 memcpy(buffer, &seq, 4);
                 buffer[4] = 0x00; // Command - General Packet to SDR
                 
@@ -302,9 +306,9 @@ void CProtocol2::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
             break;
             
         case 1: // DDC Specific Packet (Port 1025)
-            port = 1025;
+            port = ProtocolBoundaryUtils::Ports::P2DdcSpecPort;
             {
-                uint32_t seq = qToBigEndian(m_sequences[1025]++);
+                uint32_t seq = qToBigEndian(m_sequences[ProtocolBoundaryUtils::Ports::P2DdcSpecPort]++);
                 memcpy(buffer, &seq, 4);
 
                 // Byte 4: Number of ADCs
@@ -346,9 +350,9 @@ void CProtocol2::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
             break;
             
         case 2: // Transmitter Specific Packet (Port 1026)
-            port = 1026;
+            port = ProtocolBoundaryUtils::Ports::P2TxSpecPort;
             {
-                uint32_t seq = qToBigEndian(m_sequences[1026]++);
+                uint32_t seq = qToBigEndian(m_sequences[ProtocolBoundaryUtils::Ports::P2TxSpecPort]++);
                 memcpy(buffer, &seq, 4);
                 buffer[4] = 1; // Number of DACs
                 
@@ -373,11 +377,11 @@ void CProtocol2::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
             
         case 3: // High Priority Data Packet (Port 1027)
         default:
-            port = 1027;
+            port = ProtocolBoundaryUtils::Ports::P2HighPriorityPort;
             {
                 
                 // ...existing case 3 body...
-                uint32_t seq = qToBigEndian(m_sequences[1027]++);
+                uint32_t seq = qToBigEndian(m_sequences[ProtocolBoundaryUtils::Ports::P2HighPriorityPort]++);
                 memcpy(buffer, &seq, 4);
 
                 // During startup staging, keep Run low until explicit final
@@ -515,8 +519,8 @@ QByteArray CProtocol2::formatStartStop(char value, quint16& port) {
     // The spec and the hpsdrsim both require this packet to be exactly 1444 bytes.
     // The hpsdrsim highprio_thread does `if (rc != 1444) { break; }` and exits
     // if it gets anything shorter, so the run bit is never seen and RX never starts.
-    port = 1027;
-    return ProtocolBoundaryUtils::protocol2StartStopDatagram(value, m_sequences[1027]++);
+    port = ProtocolBoundaryUtils::Ports::P2HighPriorityPort;
+    return ProtocolBoundaryUtils::protocol2StartStopDatagram(value, m_sequences[ProtocolBoundaryUtils::Ports::P2HighPriorityPort]++);
 }
 
 QByteArray CProtocol2::formatInitFrame(int rx, THPSDRParameter* io, quint16& port) {
@@ -552,7 +556,7 @@ QByteArray CProtocol2::formatOutputPacket(const QByteArray& audioData, uint32_t&
     const int P1_SAMPLE_BYTES= 8;             // L(2)+R(2)+I(2)+Q(2)
     const int P1_SAMPLES     = 63;            // (512 - 8) / 8
 
-    QByteArray pkt(4 + NUM_P2_SAMPLES * 6, '\0');
+    QByteArray pkt(ProtocolBoundaryUtils::kProtocol2IqPacketSize, '\0');
     unsigned char* p = reinterpret_cast<unsigned char*>(pkt.data());
 
     // Sequence (big-endian)

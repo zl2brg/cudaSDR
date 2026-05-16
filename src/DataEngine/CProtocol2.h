@@ -2,6 +2,7 @@
 #define CPROTOCOL2_H
 
 #include "IHPSDRProtocol.h"
+#include "protocol_boundary_utils.h"
 #include <QtEndian>
 
 class CProtocol2 : public IHPSDRProtocol {

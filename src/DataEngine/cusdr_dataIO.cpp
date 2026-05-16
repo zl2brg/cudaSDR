@@ -43,6 +43,7 @@
 #define LOG_DATAIO
 
 #include "cusdr_dataIO.h"
+#include "protocol_boundary_utils.h"
 #include "IHPSDRProtocol.h"
 #include "soundout.h"
 #include <QNetworkInterface>
@@ -105,12 +106,6 @@ DataIO::DataIO(THPSDRParameter *ioData)
 }
 
 namespace {
-constexpr int kProtocol1HeaderSize = 8;
-constexpr int kProtocol2HeaderSize = 16;
-constexpr int kPacketTypeP1IqPrimary = 0x06;
-constexpr int kPacketTypeP1IqLoopback = 0x02;
-constexpr int kPacketTypeWideband = 0x04;
-constexpr int kPacketTypeP2HighPriorityStatus = 0x05;
 
 int rxSocketBufferSizeForRate(int sampleRate) {
     switch (sampleRate) {
@@ -132,11 +127,11 @@ int rxSocketBufferSizeForRate(int sampleRate) {
 }
 
 bool isProtocol2(IHPSDRProtocol* protocol) {
-    return protocol && protocol->getHeaderSize() == kProtocol2HeaderSize;
+    return protocol && protocol->getHeaderSize() == ProtocolBoundaryUtils::kProtocol2HeaderSize;
 }
 
 bool isProtocol1(IHPSDRProtocol* protocol) {
-    return protocol && protocol->getHeaderSize() == kProtocol1HeaderSize;
+    return protocol && protocol->getHeaderSize() == ProtocolBoundaryUtils::kProtocol1HeaderSize;
 }
 
 bool isLocalAddress(const QHostAddress& address) {
@@ -266,7 +261,7 @@ void DataIO::readDeviceDataP1(QUdpSocket* socket) {
         if (!io->protocol || !io->protocol->isPacketValid((const unsigned char*)m_datagram.data(), size)) continue;
 
         int type = io->protocol->getPacketType((const unsigned char*)m_datagram.data());
-        if (type == kPacketTypeP1IqPrimary || type == kPacketTypeP1IqLoopback) { // IQ data (P1 EP6 or EP2 loopback)
+        if (type == ProtocolBoundaryUtils::kPacketTypeP1IqPrimary || type == ProtocolBoundaryUtils::kPacketTypeP1IqLoopback) { // IQ data (P1 EP6 or EP2 loopback)
             m_sequence = io->protocol->getSequence((const unsigned char*)m_datagram.data());
             if (m_sequence != m_oldSequence + 1) {
                 if (m_packetLossTime.elapsed() > 100) {
@@ -282,7 +277,7 @@ void DataIO::readDeviceDataP1(QUdpSocket* socket) {
                 emit (readydata());
             }
         }
-        else if (type == kPacketTypeWideband) {
+        else if (type == ProtocolBoundaryUtils::kPacketTypeWideband) {
             processWidebandPacket(size);
         }
     }
@@ -313,7 +308,7 @@ void DataIO::readDeviceDataP2(QUdpSocket* socket) {
 
         // Protocol 2 simulator may source wideband packets from an ephemeral
         // UDP source port. Classify by packet size first, then by port.
-        if (size == 1040) { // Wideband ADC packet: 16-byte header + 1024 payload
+        if (size == ProtocolBoundaryUtils::kProtocol2WidebandPacketSize) { // Wideband ADC packet: 16-byte header + 1024 payload
             ++p2WidePacketsSeen;
             if ((p2WidePacketsSeen % 100) == 1) {
                 P2_NET_DEBUG << "P2 wideband: localPort=" << socket->localPort()
@@ -323,7 +318,7 @@ void DataIO::readDeviceDataP2(QUdpSocket* socket) {
             }
             processWidebandPacket(size);
         }
-        else if (size >= 1444) { // DDC IQ packet (typically 1444 bytes)
+        else if (size >= ProtocolBoundaryUtils::kProtocol2IqPacketSize) { // DDC IQ packet (typically 1444 bytes)
             ++p2IqPacketsSeen;
             m_sequence = io->protocol->getSequence((const unsigned char*)m_datagram.data());
 
@@ -338,7 +333,7 @@ void DataIO::readDeviceDataP2(QUdpSocket* socket) {
             if (!io->iq_queue.isFull()) {
                 const int hdrSize = io->protocol->getHeaderSize();
                 quint16 effectiveSourcePort = Port;
-                if (effectiveSourcePort < 1035 || effectiveSourcePort >= (1035 + MAX_RECEIVERS)) {
+                if (effectiveSourcePort < ProtocolBoundaryUtils::Ports::P2Ddc0Port || effectiveSourcePort >= (ProtocolBoundaryUtils::Ports::P2Ddc0Port + MAX_RECEIVERS)) {
                     effectiveSourcePort = m_socketLogicalPorts.value(socket, socket->localPort());
                 }
                 io->iq_queue.enqueue(TIQPacket(m_datagram.mid(hdrSize, size - hdrSize), effectiveSourcePort));
@@ -361,7 +356,7 @@ void DataIO::readDeviceDataP2(QUdpSocket* socket) {
                              << " iqTotal=" << p2IqPacketsSeen;
             }
         }
-        else if (size == 60) { // High Priority Status (P2)
+        else if (size == ProtocolBoundaryUtils::kProtocol2HpStatusPacketSize) { // High Priority Status (P2)
             ++p2HpPacketsSeen;
             if ((p2HpPacketsSeen % 100) == 1) {
                 P2_NET_DEBUG << "P2 HP status: localPort=" << socket->localPort()

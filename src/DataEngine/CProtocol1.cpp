@@ -49,7 +49,7 @@ void CProtocol1::processInputBuffer(const QByteArray& buffer, DataEngine* de, qu
     int s = 0;
     int maxSamples;
 
-    if (buffer.at(s++) == SYNC && buffer.at(s++) == SYNC && buffer.at(s++) == SYNC)
+    if (buffer.at(s++) == ProtocolBoundaryUtils::kSyncByte && buffer.at(s++) == ProtocolBoundaryUtils::kSyncByte && buffer.at(s++) == ProtocolBoundaryUtils::kSyncByte)
     {
         // extract C&C bytes
         decodeCCBytes(buffer.mid(3, 5), &de->io);
@@ -83,24 +83,25 @@ void CProtocol1::processInputBuffer(const QByteArray& buffer, DataEngine* de, qu
         // extract the samples
         while (s < maxSamples)
         {
+            const unsigned char* p = reinterpret_cast<const unsigned char*>(buffer.constData()) + s;
             // extract each of the receivers
             for (int r = 0; r < de->io.receivers; r++)
             {
-                m_leftSample   = (int)((  signed char) buffer.at(s++)) << 16;
-                m_leftSample  += (int)((unsigned char) buffer.at(s++)) << 8;
-                m_leftSample  += (int)((unsigned char) buffer.at(s++));
-                m_rightSample  = (int)((  signed char) buffer.at(s++)) << 16;
-                m_rightSample += (int)((unsigned char) buffer.at(s++)) << 8;
-                m_rightSample += (int)((unsigned char) buffer.at(s++));
+                m_leftSample = ProtocolBoundaryUtils::decode24BitBE(p);
+                p += 3;
+                m_rightSample = ProtocolBoundaryUtils::decode24BitBE(p);
+                p += 3;
 
                 if (de->RX.at(r)->qtwdsp) {
                     de->RX[r]->m_rawIQ[m_rxSamples * 2] = m_leftSample;
                     de->RX[r]->m_rawIQ[m_rxSamples * 2 + 1] = m_rightSample;
                 }
             }
+            s += de->io.receivers * 6;
 
-            m_micSample = (int)((signed char) buffer.at(s++)) << 8;
-            m_micSample += (int)((unsigned char) buffer.at(s++));
+            m_micSample = ProtocolBoundaryUtils::decode16BitBE(p);
+            p += 2;
+            s += 2;
             m_micSample_float = (float) m_micSample / 32767.0f * de->io.mic_gain; // 16 bit sample
 
             m_rxSamples++;
@@ -223,11 +224,11 @@ void CProtocol1::decodeCCBytes(const QByteArray& buffer, THPSDRParameter* io) {
 }
 
 void CProtocol1::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& sendState, quint16& port) {
-    port = DEVICE_PORT;
+    port = ProtocolBoundaryUtils::Ports::DevicePort;
     Settings* set = Settings::instance();
-    buffer[0] = SYNC;
-    buffer[1] = SYNC;
-    buffer[2] = SYNC;
+    buffer[0] = ProtocolBoundaryUtils::kSyncByte;
+    buffer[1] = ProtocolBoundaryUtils::kSyncByte;
+    buffer[2] = ProtocolBoundaryUtils::kSyncByte;
 
     QMutexLocker locker(&io->mutex);
     switch (sendState) {
@@ -442,12 +443,12 @@ void CProtocol1::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
 
             if (io->ccTx.mox || io->ccTx.ptt) {
                 long txFrequency = io->ccTx.txFrequency;
-                if      (txFrequency > ALEX_LPF_6M_MIN_HZ)    { io->control_out[4] = 0x10; }
-                else if (txFrequency > ALEX_LPF_12_10M_MIN_HZ) { io->control_out[4] = 0x20; }
-                else if (txFrequency > ALEX_LPF_17_15M_MIN_HZ) { io->control_out[4] = 0x40; }
-                else if (txFrequency > ALEX_LPF_30_20M_MIN_HZ) { io->control_out[4] = 0x01; }
-                else if (txFrequency > ALEX_LPF_60_40M_MIN_HZ) { io->control_out[4] = 0x02; }
-                else if (txFrequency > ALEX_LPF_80M_MIN_HZ)    { io->control_out[4] = 0x04; }
+                if      (txFrequency > ProtocolBoundaryUtils::kAlexLpf6mMinHz)    { io->control_out[4] = 0x10; }
+                else if (txFrequency > ProtocolBoundaryUtils::kAlexLpf12_10mMinHz) { io->control_out[4] = 0x20; }
+                else if (txFrequency > ProtocolBoundaryUtils::kAlexLpf17_15mMinHz) { io->control_out[4] = 0x40; }
+                else if (txFrequency > ProtocolBoundaryUtils::kAlexLpf30_20mMinHz) { io->control_out[4] = 0x01; }
+                else if (txFrequency > ProtocolBoundaryUtils::kAlexLpf60_40mMinHz) { io->control_out[4] = 0x02; }
+                else if (txFrequency > ProtocolBoundaryUtils::kAlexLpf80mMinHz)    { io->control_out[4] = 0x04; }
                 else                                            { io->control_out[4] = 0x08; }
             } else io->control_out[4] = 0;
 
@@ -539,7 +540,7 @@ void CProtocol1::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
 }
 
 QByteArray CProtocol1::formatStartStop(char value, quint16& port) {
-    port = DEVICE_PORT;
+    port = ProtocolBoundaryUtils::Ports::DevicePort;
     QByteArray commandDatagram;
     commandDatagram.resize(64);
     commandDatagram[0] = (char)0xEF;
@@ -551,7 +552,7 @@ QByteArray CProtocol1::formatStartStop(char value, quint16& port) {
 }
 
 QByteArray CProtocol1::formatInitFrame(int rx, THPSDRParameter* io, quint16& port) {
-    port = DEVICE_PORT;
+    port = ProtocolBoundaryUtils::Ports::DevicePort;
     QByteArray initDatagram;
 	initDatagram.resize(1032);
 
@@ -564,9 +565,9 @@ QByteArray CProtocol1::formatInitFrame(int rx, THPSDRParameter* io, quint16& por
 	initDatagram[6] = (char)0x00;
 	initDatagram[7] = (char)0x00;
 
-	initDatagram[8] = SYNC;
-    initDatagram[9] = SYNC;
-    initDatagram[10] = SYNC;
+	initDatagram[8] = ProtocolBoundaryUtils::kSyncByte;
+    initDatagram[9] = ProtocolBoundaryUtils::kSyncByte;
+    initDatagram[10] = ProtocolBoundaryUtils::kSyncByte;
 
 	for (int i = 0; i < 5; i++) {
 		initDatagram[i + 11]  = io->control_out[i];
@@ -576,9 +577,9 @@ QByteArray CProtocol1::formatInitFrame(int rx, THPSDRParameter* io, quint16& por
 		initDatagram[i]  = 0x00;
 	}
 
-	initDatagram[520] = SYNC;
-    initDatagram[521] = SYNC;
-    initDatagram[522] = SYNC;
+	initDatagram[520] = ProtocolBoundaryUtils::kSyncByte;
+    initDatagram[521] = ProtocolBoundaryUtils::kSyncByte;
+    initDatagram[522] = ProtocolBoundaryUtils::kSyncByte;
 
 	initDatagram[523] = io->control_out[0] | ((rx + 2) << 1);
     Settings* set = Settings::instance();
