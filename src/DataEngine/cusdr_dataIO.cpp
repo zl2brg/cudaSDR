@@ -47,9 +47,7 @@
 #include "soundout.h"
 #include <QNetworkInterface>
 
-#if defined(Q_OS_WIN32)
-#include <winsock2.h>
-#endif
+
 #ifdef LOG_P2_NETWORK
 #define P2_NET_DEBUG DATAIO_DEBUG
 #else
@@ -229,11 +227,7 @@ void DataIO::initDataReceiverSocket() {
                          bindPort,
                          QUdpSocket::ReuseAddressHint | QUdpSocket::ShareAddress))
         {
-#if defined(Q_OS_WIN32)
-            ::setsockopt(socket->socketDescriptor(), SOL_SOCKET, SO_RCVBUF, (char *)&newBufferSize, sizeof(newBufferSize));
-#else
-            socket->setSocketOption(QAbstractSocket::ReceiveBufferSizeSocketOption, newBufferSize);
-#endif
+socket->setSocketOption(QAbstractSocket::ReceiveBufferSizeSocketOption, newBufferSize);
             connect(socket, &QUdpSocket::errorOccurred, this, &DataIO::displayDataReceiverSocketError);
             connect(socket, &QUdpSocket::readyRead, this, &DataIO::readDeviceData);
 
@@ -595,20 +589,11 @@ void DataIO::setManualSocketBufferSize(bool value) {
         socketBufferSize = 32 * 1024;
     }
 
-#if defined(Q_OS_WIN32)
-    for (auto socket : m_sockets) {
-        if (socket && socket->isValid()) {
-            ::setsockopt(socket->socketDescriptor(), SOL_SOCKET,
-                         SO_RCVBUF, (char *)&socketBufferSize, sizeof(socketBufferSize));
-        }
-    }
-#else
     for (auto socket : m_sockets) {
         if (socket && socket->isValid()) {
             socket->setSocketOption(QAbstractSocket::ReceiveBufferSizeSocketOption, socketBufferSize);
         }
     }
-#endif
 }
 
 void DataIO::setSocketBufferSize(int value) {
@@ -617,20 +602,11 @@ void DataIO::setSocketBufferSize(int value) {
 	DATAIO_DEBUG << "m_socketBufferSize = " << value;
 
 	QMutexLocker locker(&io->networkIOMutex);
-#if defined(Q_OS_WIN32)
-    for (auto socket : m_sockets) {
-        if (socket && socket->isValid()) {
-            ::setsockopt(socket->socketDescriptor(), SOL_SOCKET,
-                         SO_RCVBUF, (char *)&socketBufferSize, sizeof(socketBufferSize));
-        }
-    }
-#else
     for (auto socket : m_sockets) {
         if (socket && socket->isValid()) {
             socket->setSocketOption(QAbstractSocket::ReceiveBufferSizeSocketOption, socketBufferSize);
         }
     }
-#endif
 }
 
 void DataIO::setSampleRate(int value) {
@@ -640,20 +616,11 @@ void DataIO::setSampleRate(int value) {
 	QMutexLocker locker(&io->networkIOMutex);
     DATAIO_DEBUG << "socket buffer size set to" << (bufferSize / 1024) << "kB for sample rate" << value;
 
-#if defined(Q_OS_WIN32)
-    for (auto socket : m_sockets) {
-        if (socket && socket->isValid()) {
-            ::setsockopt(socket->socketDescriptor(), SOL_SOCKET,
-                         SO_RCVBUF, (char *)&bufferSize, sizeof(bufferSize));
-        }
-    }
-#else
     for (auto socket : m_sockets) {
         if (socket && socket->isValid()) {
             socket->setSocketOption(QAbstractSocket::ReceiveBufferSizeSocketOption, bufferSize);
         }
     }
-#endif
 	} // QMutexLocker released here
 
 #ifndef USE_INTERNAL_AUDIO

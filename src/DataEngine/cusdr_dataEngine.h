@@ -10,18 +10,11 @@
  *   
  *   Copyright 2010 Hermann von Hasseln, DL3HVH
  *
- *	 using original C code by John Melton, G0ORX/N6LYT and Dave McMcQuate, WA8YWQ
- *   
- *   This program is free software; you can redistribute it and/or modify
- *   it under the terms of the GNU Library General Public License version 2 as
- *   published by the Free Software Foundation
+ *	 using original code from SDRMAXII by 
+ *	 Copyright (C) John Melton, G0ORX/N6LYT
  *
- *   This program is distributed in the hope that it will be useful,
- *   but WITHOUT ANY WARRANTY; without even the implied warranty of
- *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *   GNU General Public License for more details
- *
- *   You should have received a copy of the GNU Library General Public
+ *   This program is free software; you can redistribute it and/or
+ *   modify it under the terms of the GNU Library General Public
  *   License along with this program; if not, write to the
  *   Free Software Foundation, Inc.,
  *   51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
@@ -31,28 +24,17 @@
 #define _CUSDR_DATA_ENGINE_H
 
 #include <memory>
+#include <vector>
 
-//#include <QObject>
-//#include <QThread>
-//#include <QMetaType>
-//#include <QtNetwork>
-//#include <QHostAddress>
-//#include <QMutexLocker>
-//#include <QMutex>
-//#include <QWaitCondition>
-//#include <QVariant>
-//#include <QElapsedTimer>
-//#include <QFuture>
-//#include <qtconcurrentrun.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/ioctl.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <netdb.h>
-#include <net/if_arp.h>
-#include <net/if.h>
-#include <ifaddrs.h>
+#include <QObject>
+#include <QMutex>
+#include <QDir>
+#include <QTimer>
+#include <QElapsedTimer>
+#include <QVector>
+#include <QMap>
+#include <QUdpSocket>
+
 #include "cusdr_settings.h"
 #include "cusdr_dataIO.h"
 #include "cusdr_receiver.h"
@@ -66,7 +48,6 @@
 #include "AudioEngine/cusdr_iambic.h"
 #ifdef HAVE_CODEC2
 #include "AudioEngine/cusdr_codec2processor.h"
-#include <vector>
 #endif
 
 #ifdef HAVE_CODEC2
