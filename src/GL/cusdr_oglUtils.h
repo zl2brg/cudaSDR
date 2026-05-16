@@ -538,11 +538,7 @@ inline GLuint emptyTexture1D(int width) {
 	
 	data = (unsigned int*)new GLuint[(width * 4 * sizeof(unsigned int))];
 
-#if defined(Q_OS_WIN32)
-	ZeroMemory(data,(width * 4 * sizeof(unsigned int)));
-#elif defined(Q_OS_LINUX)
 	memset(data, 0, width * 4 * sizeof(unsigned int));
-#endif
 
 	glGenTextures(1, &txtnumber);
 	glBindTexture(GL_TEXTURE_1D, txtnumber);
@@ -561,11 +557,7 @@ inline GLuint emptyTexture2D(int width, int height) {
 	
 	data = (unsigned int*)new GLuint[((width * height)* 4 * sizeof(unsigned int))];
 
-#if defined(Q_OS_WIN32)
-	ZeroMemory(data,((width * height)* 4 * sizeof(unsigned int)));
-#elif defined(Q_OS_LINUX)
 	memset(data, 0, (width * height)* 4 * sizeof(unsigned int));
-#endif
 	
 	glGenTextures(1, &txtnumber);
 	glBindTexture(GL_TEXTURE_2D, txtnumber);

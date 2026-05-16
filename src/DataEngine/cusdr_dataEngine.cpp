@@ -498,7 +498,7 @@ bool DataEngine::findHPSDRDevices() {
 		io.hpsdrDeviceName = set->getCurrentMetisCard().boardName;
 		DATA_ENGINE_DEBUG << "using HPSDR network device at " << qPrintable(io.hpsdrDeviceIPAddress.toString());
 
-		//Sleep(100);
+		
 		QThread::msleep(100);
 
 		// stop the discovery thread

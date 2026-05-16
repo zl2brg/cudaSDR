@@ -133,47 +133,23 @@ int Discoverer::findHPSDRDevices() {
 	// clear comboBox entries in the network dialogue
 	set->clearNetworkIOComboBoxEntry();
 
-#if defined(Q_OS_WIN32)
-
-	if (socket.bind(
-				QHostAddress(set->getHPSDRDeviceLocalAddr()), 0,
-				QUdpSocket::ReuseAddressHint | QUdpSocket::ShareAddress))
-				//QUdpSocket::ReuseAddressHint))
-	{
-		set->setMetisPort(socket.localPort());
-		{ QMutexLocker l(&io->networkIOMutex); DISCOVERER_DEBUG << "discovery_socket bound successfully to port " << socket.localPort(); }
-	}
-	else {
-
-		io->networkIOMutex.lock();
-		DISCOVERER_DEBUG << "discovery_socket bind failed.";
-		io->networkIOMutex.unlock();
-
-		socket.close();
-		return 0;
-	}
-#elif defined(Q_OS_LINUX)
-
-	if (socket.bind(
-				QHostAddress(set->getHPSDRDeviceLocalAddr()),
-				QUdpSocket::DefaultForPlatform))
-	{
-        connect(&socket, &QAbstractSocket::errorOccurred,
-                this, &Discoverer::displayDiscoverySocketError);;
-
-		set->setMetisPort(socket.localPort());
-		{ QMutexLocker l(&io->networkIOMutex); DISCOVERER_DEBUG << "discovery_socket bound successfully to port " << socket.localPort(); }
-	}
-	else {
-		
-		io->networkIOMutex.lock();
-		DISCOVERER_DEBUG << "discovery_socket bind failed.";
-		io->networkIOMutex.unlock();
-
-		socket.close();
-		return 0;
-	}
-#endif
+    if (socket.bind(QHostAddress(set->getHPSDRDeviceLocalAddr()), 0,
+                    QUdpSocket::ReuseAddressHint | QUdpSocket::ShareAddress))
+    {
+        set->setMetisPort(socket.localPort());
+        {
+            QMutexLocker l(&io->networkIOMutex);
+            DISCOVERER_DEBUG << "discovery_socket bound successfully to port " << socket.localPort();
+        }
+    }
+    else {
+        {
+            QMutexLocker l(&io->networkIOMutex);
+            DISCOVERER_DEBUG << "discovery_socket bind failed: " << socket.errorString();
+        }
+        socket.close();
+        return 0;
+    }
 
 	if (socket.writeDatagram(m_findDatagram, QHostAddress::Broadcast, DEVICE_PORT) == 63) {
 

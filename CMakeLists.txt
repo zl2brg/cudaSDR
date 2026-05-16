@@ -108,8 +108,6 @@ set(SOURCES
     # Util
     ${SRC_DIR}/Util/cusdr_buttons.cpp
     ${SRC_DIR}/Util/cusdr_colorTriangle.cpp
-    ${SRC_DIR}/Util/cusdr_cpuUsage.cpp
-    ${SRC_DIR}/Util/cusdr_cpuUsage_unix.cpp
     ${SRC_DIR}/Util/cusdr_image.cpp
     ${SRC_DIR}/Util/cusdr_imageblur.cpp
     ${SRC_DIR}/Util/cusdr_led.cpp
@@ -196,9 +194,8 @@ set(HEADERS
     # Util
     ${SRC_DIR}/Util/cusdr_buttons.h
     ${SRC_DIR}/Util/cusdr_colorTriangle.h
-    ${SRC_DIR}/Util/cusdr_cpuUsage.h
-    ${SRC_DIR}/Util/cusdr_cpuUsage_unix.h
-    ${SRC_DIR}/Util/cusdr_splash.h
+    ${SRC_DIR}/Util/cusdr_image.h
+
     ${SRC_DIR}/Util/cusdr_highResTimer.h
     ${SRC_DIR}/Util/cusdr_led.h
     ${SRC_DIR}/Util/cusdr_image.h
