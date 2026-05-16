@@ -132,7 +132,7 @@ void PanadapterRenderer::render(const QMatrix4x4& projection,
         m_shader->setAttributeBuffer(1, GL_FLOAT, sizeof(float) * 3, 4, sizeof(float) * 7);
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     } else {
-        float r = 30/255.0f, g = 30/255.0f, b = 50/255.0f, a = 155/255.0f;
+        float r = 0.15f * colors.bkgR, g = 0.15f * colors.bkgG, b = 0.15f * colors.bkgB, a = 1.0f;
         VertexData bkgData[4] = {
             { (float)x1, (float)y1, -4.0f, r, g, b, a },
             { (float)x2, (float)y1, -4.0f, r, g, b, a },
