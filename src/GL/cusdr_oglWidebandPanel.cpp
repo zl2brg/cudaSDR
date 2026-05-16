@@ -1636,7 +1636,8 @@ void QGLWidebandPanel::timerEvent(QTimerEvent *event) {
 void QGLWidebandPanel::setFrequency(int mode, int rx, long freq) {
 
 	Q_UNUSED (mode)
-	Q_UNUSED (rx)
+
+	if (rx != m_currentReceiver) return;
 	
 	m_frequency = freq;
 	m_freqScaleUpdate = true;
@@ -1649,6 +1650,9 @@ void QGLWidebandPanel::setFrequency(int mode, int rx, long freq) {
 void QGLWidebandPanel::setCurrentReceiver(int value) {
 
 	m_currentReceiver = value;
+	m_frequency = set->getVfoFrequency(m_currentReceiver);
+	m_freqScaleUpdate = true;
+	m_panGridUpdate = true;
 	update();
 }
 

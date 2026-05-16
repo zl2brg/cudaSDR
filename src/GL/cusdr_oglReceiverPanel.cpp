@@ -2573,7 +2573,7 @@ void QGLReceiverPanel::setCtrFrequency(int mode, int rx, long freq) {
 
 	Q_UNUSED(mode)
 	
-	//	if (m_receiver != rx) return;
+	if (m_receiver != rx) return;
 
 	m_rxDataList[rx].ctrFrequency = freq;
 
@@ -2588,7 +2588,7 @@ void QGLReceiverPanel::setVFOFrequency(int mode, int rx, long freq) {
 
 	Q_UNUSED(mode)
 	
-	//	if (m_receiver != rx) return;
+	if (m_receiver != rx) return;
 
 	m_rxDataList[rx].vfoFrequency = freq;
 

@@ -698,7 +698,7 @@ void QWDSPEngine::setfftSize(int rx, int value) {
     WDSP_ENGINE_DEBUG << "mfftsize set" << m_fftSize;
     
     std::lock_guard<QMutex> lock(m_mutex);  // RAII mutex guard
-    init_analyzer(value);
+    init_analyzer(m_refreshrate);
     calcDisplayAveraging();
     SetDisplayAvBackmult(rx, 0, m_display_avb);
     SetDisplayNumAverage(rx, 0, m_display_average);

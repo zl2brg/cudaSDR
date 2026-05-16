@@ -273,12 +273,18 @@ void Receiver::dspProcessing() {
       if (highResTimer->getElapsedTimeInMicroSec() >= getDisplayDelay()) {
 
         
-        if (m_state == RadioState::RX)
-            GetPixels(m_receiver,0,qtwdsp->spectrumBuffer.data(), &spectrumDataReady);
-        else {
-            GetPixels(TX_ID, 0, qtwdsp->spectrumBuffer.data(), &spectrumDataReady);
-            if (!spectrumDataReady) qDebug() << "Tx spectrum fetch fail";
-        }
+		if (m_state == RadioState::RX) {
+			GetPixels(m_receiver, 0, qtwdsp->spectrumBuffer.data(), &spectrumDataReady);
+		} else {
+			GetPixels(TX_ID, 0, qtwdsp->spectrumBuffer.data(), &spectrumDataReady);
+
+			// TX spectrum can be temporarily unavailable depending on DSP timing.
+			// Fall back to receiver spectrum so panadapter updates don't stall in TX.
+			if (!spectrumDataReady) {
+				qDebug() << "Tx spectrum fetch fail; falling back to RX spectrum";
+				GetPixels(m_receiver, 0, qtwdsp->spectrumBuffer.data(), &spectrumDataReady);
+			}
+		}
 
         if (spectrumDataReady) {
             newSpectrum = qtwdsp->spectrumBuffer;  // Direct assignment
