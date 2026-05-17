@@ -770,6 +770,8 @@ void QGLReceiverPanel::drawPanFilter() {
         m_overlayRenderer->drawFilter(projection, m_panRect, m_filterLo, m_filterHi, (float)m_deltaF, m_freqScaleZoomFactor, 
                                       m_highlightFilter, m_showFilterLeftBoundary, m_showFilterRightBoundary,
                                       m_filterLeft, m_filterRight, m_filterTop, m_filterBottom);
+        // Update m_filterRect so getRegion() mouse hit-testing uses current pixel positions
+        m_filterRect = QRect(m_filterLeft, m_filterTop, m_filterRight - m_filterLeft, m_filterBottom - m_filterTop);
     }
 
     // Re-render text using the original logic which is already texture-based

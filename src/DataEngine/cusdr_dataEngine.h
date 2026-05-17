@@ -279,18 +279,15 @@ private:
 	bool	m_soundFileLoaded;
 	bool	m_clientConnect{};
 	//bool	m_audioProcessorRunning;
-	bool	m_chirpInititalized;
 	bool	m_discoveryThreadRunning;
 	bool	m_dataIOThreadRunning;
 	bool	m_wbDataRcvrThreadRunning{};
-	bool	m_chirpDataProcThreadRunning;
 	bool	m_dataProcThreadRunning;
 	bool	m_audioRcvrThreadRunning;
 	bool	m_audioInProcThreadRunning;
 	bool	m_audioOutProcThreadRunning;
 	bool	m_frequencyChange;
 	bool	m_hamBandChanged;
-	bool	m_chirpThreadStopped;
 	bool	m_clientConnected;
 
 	float	m_mainVolume{};

@@ -75,7 +75,6 @@ MainWindow::MainWindow(QWidget *parent)
 	, m_serverMode(set->getCurrentServerMode())
 	, m_hwInterface(set->getHWInterface())
 	, m_dataEngineState(QSDR::DataEngineDown)
-	, m_cudaPresence(false)
 	, m_mover(false)
 	, m_resizePosition(0)
 {
@@ -1613,13 +1612,6 @@ void MainWindow::closeEvent(
 		delete m_dataEngine;
 		m_dataEngine = NULL;
 	}
-
-	/*if (m_cudaInfoWidget && m_cudaPresence) {
-
-		disconnect(m_cudaInfoWidget, 0, 0, 0);
-		delete m_cudaInfoWidget;
-		m_cudaInfoWidget = NULL;
-	}*/
 
 	if (ui->m_oglDisplayPanel) {
 		

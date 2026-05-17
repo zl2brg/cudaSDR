@@ -2,6 +2,7 @@
 #include "ui_tx_settings_dialog.h"
 #include "QtWDSP/qtwdsp_dspEngine.h"
 #include "AudioEngine/cusdr_audio_input.h"
+#include <QSignalBlocker>
 
 namespace {
 int findDeviceComboIndex(const QList<QAudioDevice> &devices, const QString &name, int offset)
@@ -18,7 +19,8 @@ tx_settings_dialog::tx_settings_dialog(QWidget *parent) :
     QWidget(parent),
     ui(new Ui::tx_settings_dialog),
     set(Settings::instance()),
-    m_codec2ModeCombo(nullptr)
+    m_codec2ModeCombo(nullptr),
+    m_currentReceiver(0)
 
 {
 
@@ -32,6 +34,7 @@ tx_settings_dialog::tx_settings_dialog(QWidget *parent) :
     setContentsMargins(4, 0, 4, 0);
     ui->setupUi(this);
     this->setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
+    m_currentReceiver = set->getCurrentReceiver();
 
     ui->amCarrierLevel->setSliderPosition(0.5);
     ui->audioCompression->setSliderPosition(m_audioCompressionLevel);
@@ -98,15 +101,27 @@ tx_settings_dialog::tx_settings_dialog(QWidget *parent) :
             set->setDigitalInputSourceName(ui->digitalAudioDevList->currentText());
     }
     
-    // Populate Codec2/FreeDV mode selector
+    // Digital voice controls are inserted dynamically so older .ui files stay compatible.
+    QGroupBox *digitalVoiceGroup = new QGroupBox("Digital Voice", this);
+    QVBoxLayout *digitalVoiceLayout = new QVBoxLayout(digitalVoiceGroup);
+    QLabel *codec2Label = new QLabel("FreeDV mode", digitalVoiceGroup);
     m_codec2ModeCombo = new QComboBox(this);
     m_codec2ModeCombo->setObjectName("codec2ModeCombo");
     QList<int> availableModes = set->availableCodec2Modes();
     for (int mode : availableModes) {
         m_codec2ModeCombo->addItem(set->getCodec2ModeString(mode), mode);
     }
-    // Set current mode
-    int currentMode = set->getFreeDVMode(0); // Use receiver 0 for now
+
+    digitalVoiceLayout->addWidget(codec2Label);
+    digitalVoiceLayout->addWidget(m_codec2ModeCombo);
+    ui->verticalLayoutScroll->insertWidget(2, digitalVoiceGroup);
+
+    int currentEngine = set->getFreeDVMode(m_currentReceiver);
+    int engineIndex = m_codec2ModeCombo->findData(currentEngine);
+    if (engineIndex >= 0)
+        m_codec2ModeCombo->setCurrentIndex(engineIndex);
+
+    int currentMode = set->getFreeDVMode(m_currentReceiver);
     int modeIndex = m_codec2ModeCombo->findData(currentMode);
     if (modeIndex >= 0) {
         m_codec2ModeCombo->setCurrentIndex(modeIndex);
@@ -157,9 +172,29 @@ tx_settings_dialog::tx_settings_dialog(QWidget *parent) :
  connect(m_codec2ModeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int index) {
      if (index >= 0) {
          int mode = m_codec2ModeCombo->itemData(index).toInt();
-         set->setFreeDVMode(0, mode); // Set mode for receiver 0
+         set->setFreeDVMode(m_currentReceiver, mode);
          qDebug() << "Codec2 mode changed to:" << mode << set->getCodec2ModeString(mode);
      }
+ });
+
+ connect(set, &Settings::currentReceiverChanged, this, [this](int rx) {
+     m_currentReceiver = rx;
+
+     {
+         const QSignalBlocker blocker(m_codec2ModeCombo);
+         const int mode = set->getFreeDVMode(rx);
+         const int modeIndex = m_codec2ModeCombo->findData(mode);
+         if (modeIndex >= 0)
+             m_codec2ModeCombo->setCurrentIndex(modeIndex);
+     }
+ });
+
+ connect(set, &Settings::freeDVModeChanged, this, [this](int rx, int mode) {
+     if (rx != m_currentReceiver) return;
+     const QSignalBlocker blocker(m_codec2ModeCombo);
+     const int idx = m_codec2ModeCombo->findData(mode);
+     if (idx >= 0)
+         m_codec2ModeCombo->setCurrentIndex(idx);
  });
 
  CHECKED_CONNECT(ui->audioCompression,

@@ -211,7 +211,6 @@ private:
 	bool		m_mousePressed;
 	bool		m_quitHighBotton;
 	bool		m_fullScreen;
-	bool		m_cudaPresence;
 	bool		m_mover;
 	bool		m_msgBrowserVisible;
 

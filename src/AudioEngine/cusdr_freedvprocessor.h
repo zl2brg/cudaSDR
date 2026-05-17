@@ -46,12 +46,14 @@ public:
 private:
     struct freedv* m_fdv       = nullptr;
     int   m_modemRate           = 8000;
-    int   m_decFactor           = 6;       // 48000 / m_modemRate
+    int   m_decFactor           = 6;       // 48000 / m_modemRate  (input decimation)
+    int   m_speechUpsample      = 6;       // 48000 / speechRate   (output upsample)
     bool  m_sync                = false;
     float m_snr                 = 0.0f;
 
     std::vector<int16_t> m_modemBuf;   // accumulated modem-rate samples
     std::vector<int16_t> m_speechTmp;  // scratch buffer for one freedv_rx call
+    std::vector<float>   m_outBuf;     // output rate-levelling ring buffer
 
     // Decimate n_in float samples (48 kHz) → int16 at modem rate,
     // appended to m_modemBuf.
@@ -60,7 +62,7 @@ private:
     // Zero-order-hold upsample n_speech int16 samples (modem speech rate)
     // to 48 kHz stereo float, appended to out.
     void upsampleToStereo(const int16_t* speech, int n_speech,
-                          QVector<float>& out);
+                          std::vector<float>& out);
 };
 
 #endif // CUSDR_FREEDVPROCESSOR_H

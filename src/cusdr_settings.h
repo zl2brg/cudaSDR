@@ -165,6 +165,8 @@
 #define LT2208_RANDOM_OFF			0x00
 #define LT2208_RANDOM_ON			0x10
 
+#define DV_ENGINE_FREEDV			0x00
+
 //#define SIMPLEX						0x00
 //#define DUPLEX						0x04
 
@@ -1389,15 +1391,6 @@ public slots:
 	//void setWidebandAveragingCnt(int value);
 	void setWideBandRulerPosition(float pos);
 
-	//void setOpenCLDevices(QList<QCLDevice>	dev);
-
-	/*void setCudaPresence(bool value);
-	void setCudaDevices(int value);
-	void setCudaLastDevice(int vlaue);
-	void setCudaDriver(int value);
-	void setCudaRuntime(int value);
-	void setCurrentCudaDevice(int value);*/
-
 	void setFreqRulerPosition(int rx, float pos);
 	//void setRulerPosition(float pos);
 
@@ -1644,13 +1637,6 @@ private:
 
 	//int		m_fft;
 
-	/*bool	m_cudaPresence;
-	int		m_cuda_devices;
-	int		m_cudaLastDevice;
-	int		m_cuda_driver_version;
-	int		m_cuda_runtime_version;
-	int		m_current_cuda_device;*/
-
 	void	checkHPSDRDevices();
     qreal   getRxFilterBandwidth(int rx, int index);
 };
@@ -1733,11 +1719,5 @@ inline NullDebug nullDebug() { return NullDebug(); }
 #else
 #   define SETTINGS_DEBUG nullDebug()
 #endif
-
-
-
-
-
-
 
 #endif  // CUSDR_SETTINGS_H

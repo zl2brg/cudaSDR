@@ -291,10 +291,16 @@ void CProtocol1::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
     		// + ------------------------- Alex Rx out (0 = off, 1 = on). Set if Alex Rx Antenna > 00.
     		rxAnt = 0x07 & (io->ccTx.alexStates.at(io->ccTx.currentBand) >> 2);
     		rxOut = (rxAnt > 0) ? 1 : 0;
-    		io->control_out[3] = (io->ccTx.alexStates.at(io->ccTx.currentBand) >> 7);
-    		io->control_out[3] &= 0xFB; // 1 1 1 1 1 0 1 1
-    		// During TX force preamp off (-20 dB) to protect the RX front-end.
-    		// C3 bit2=1 = preamp on (0 dB), bit2=0 = preamp off (-20 dB).
+    		// Bits [1:0]: step attenuator value (0=0dB, 1=10dB, 2=20dB, 3=30dB).
+    		// Source: mercuryAttenuator (main-window Attn menu), which overrides any
+    		// Alex-att contribution from alexStates bits [8:7] (used when an Alex board
+    		// is present).  Both default to 0 so the behaviour is unchanged when neither
+    		// is set.
+    		io->control_out[3] = (io->ccTx.alexStates.at(io->ccTx.currentBand) >> 7) & 0x03;
+    		io->control_out[3] |= (io->ccTx.mercuryAttenuator & 0x03);  // step-att at bits [1:0]
+    		// Bit 2: Preamp/LNA on when no step attenuation and not transmitting.
+    		// C3 bit2=1 = preamp on (full sensitivity), bit2=0 = preamp off (-20 dB).
+    		io->control_out[3] &= 0xFB; // 1 1 1 1 1 0 1 1 — clear bit 2
     		bool txActive = io->ccTx.mox || io->ccTx.ptt;
     		io->control_out[3] |= ((!txActive && io->ccTx.mercuryAttenuator == 0) ? 1 : 0) << 2;
     		io->control_out[3] &= 0xF7; // 1 1 1 1 0 1 1 1

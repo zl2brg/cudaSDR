@@ -30,8 +30,13 @@ find_package(Qt6 6.11 REQUIRED COMPONENTS Widgets Core Gui Multimedia Network Op
 find_package(PkgConfig REQUIRED)
 find_package(OpenGL REQUIRED)
 
+# Set PKG_CONFIG_PATH to find bundled libraries in wdsp-libs
+set(ENV{PKG_CONFIG_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/wdsp-libs/lib/pkgconfig:$ENV{PKG_CONFIG_PATH}")
+
 pkg_check_modules(FFTW3 REQUIRED fftw3)
 pkg_check_modules(FFTW3F REQUIRED fftw3f)
+pkg_check_modules(RNNOISE REQUIRED rnnoise IMPORTED_TARGET)
+pkg_check_modules(SPECLEACH REQUIRED libspecbleach IMPORTED_TARGET)
 
 # --- Find Codec2 ---
 find_library(CODEC2_LIBRARY codec2)
@@ -49,6 +54,9 @@ endif()
 set(SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
 set(WDSP_DIR  ${CMAKE_CURRENT_SOURCE_DIR}/wdsp-1.29)
 set(WDSP_LIBS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/wdsp-libs)
+
+# --- Add Subdirectories ---
+add_subdirectory(wdsp-1.29)
 
 # --- Define Source Files ---
 set(SOURCES
@@ -252,7 +260,6 @@ target_include_directories(cudasdr PRIVATE
     ${CMAKE_CURRENT_BINARY_DIR}
     ${SRC_DIR}
     ${SRC_DIR}/AudioEngine
-    ${SRC_DIR}/CL
     ${SRC_DIR}/DataEngine
     ${SRC_DIR}/GL
     ${SRC_DIR}/QtDSP
@@ -260,7 +267,8 @@ target_include_directories(cudasdr PRIVATE
     ${SRC_DIR}/Util
     ${SRC_DIR}/UI
     ${WDSP_DIR}
-    ${WDSP_LIBS_DIR}/include
+    ${RNNOISE_INCLUDE_DIRS}
+    ${SPECLEACH_INCLUDE_DIRS}
     ${FFTW3_INCLUDE_DIRS}
     ${FFTW3F_INCLUDE_DIRS}
 )
@@ -278,15 +286,10 @@ target_link_libraries(cudasdr PRIVATE
     Qt6::Network
     Qt6::OpenGL
     Qt6::OpenGLWidgets
-    # Local static libraries (must come before system libs they depend on)
-    ${WDSP_DIR}/libwdsp.a
-    ${WDSP_LIBS_DIR}/lib/librnnoise.a
-    ${WDSP_LIBS_DIR}/lib/libspecbleach.a
+    wdsp
     # System libraries
     -lm
     OpenGL::GL
-    ${FFTW3_LIBRARIES}
-    ${FFTW3F_LIBRARIES}
 )
 
 if(CODEC2_FOUND)

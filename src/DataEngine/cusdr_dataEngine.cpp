@@ -3161,14 +3161,14 @@ void DataProcessor::fetch_MicData(){
         memset(&mic_buffer,0x0,sizeof(mic_buffer));
     }
 
-#ifdef HAVE_CODEC2
 	// Keep WSJT-X digital-input handling (DIGU/DIGL) separate.
-	// Codec2 routing is only active for the FreeDV mode button (mapped to FDV).
+	// DV routing is only active for the FreeDV mode button (mapped to FDV).
 	const DSPMode txMode = set->getDSPMode(de->io.currentReceiver);
 	if (txMode == FDV) {
+#ifdef HAVE_CODEC2
 		applyCodec2ToMicBuffer(numSamples);
-	}
 #endif
+	}
 
     mic_buffer_index = 0;
 

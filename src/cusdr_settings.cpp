@@ -843,7 +843,6 @@ int Settings::loadSettings() {
         m_receiverConfigs[i]->setVfoFrequency(static_cast<long>(settings->value(cstr, (int) 7050000).toDouble()));
         m_receiverDataList[i].vfoFrequency = m_receiverConfigs[i]->vfoFrequency();
 
-
         cstr = m_rxStringList.at(i);
         cstr.append("/nr");
         m_receiverDataList[i].nr = settings->value(cstr, 1).toInt();
@@ -1438,11 +1437,21 @@ int Settings::loadSettings() {
                 cstr.append("/attenuator");
                 cstr.append(m_bandList.at(j).bandString);
 
-                str = settings->value(cstr, "off").toString();
-                if (str.toLower() == "on")
-                    m_receiverDataList[i].mercuryAttenuators[j] = 0; // which is 'Preamp' off
-                else
-                    m_receiverDataList[i].mercuryAttenuators[j] = 1; // which is 'Preamp' on
+                // New format: numeric step attenuator value (0..3 => 0/10/20/30 dB).
+                // Backward-compatible with legacy string values: "on"/"off".
+                const QVariant attnValue = settings->value(cstr, 0);
+                bool ok = false;
+                int attn = attnValue.toInt(&ok);
+                if (!ok) {
+                    const QString legacy = attnValue.toString().trimmed().toLower();
+                    if (legacy == "on")
+                        attn = 1;   // attenuator ON = 10 dB (was erroneously 0)
+                    else if (legacy == "off")
+                        attn = 0;   // attenuator OFF = 0 dB (was erroneously 1)
+                    else
+                        attn = 0;
+                }
+                m_receiverDataList[i].mercuryAttenuators[j] = qBound(0, attn, 3);
             }
         }
 
@@ -2287,6 +2296,10 @@ int Settings::saveSettings() {
         str.append("/vfoFrequency");
         settings->setValue(str, (int) m_receiverConfigs[i]->vfoFrequency());
 
+        str = m_rxStringList.at(i);
+        str.append("/digitalVoiceEngine");
+        settings->setValue(str, DV_ENGINE_FREEDV);
+
         for (int j = 0; j < MAX_BANDS; j++) {
 
             str = m_rxStringList.at(i);
@@ -2326,10 +2339,8 @@ int Settings::saveSettings() {
             str.append("/attenuator");
             str.append(m_bandList.at(j).bandString);
 
-            if (m_receiverDataList.at(i).mercuryAttenuators.at(j))
-                settings->setValue(str, "off");
-            else
-                settings->setValue(str, "on");
+            // Persist step attenuator directly (0..3 => 0/10/20/30 dB).
+            settings->setValue(str, qBound(0, m_receiverDataList.at(i).mercuryAttenuators.at(j), 3));
         }
 
         for (int j = 0; j < MAX_BANDS; j++) {
@@ -2347,14 +2358,6 @@ int Settings::saveSettings() {
             settings->setValue(str, (int) m_receiverDataList[i].dBmPanScaleMaxList[j]);
         }
     }
-
-
-    //******************************************************************
-    // Cuda settings
-    //settings->setValue("Cuda/lastDevice", m_cudaLastDevice);
-
-
-    //******************************************************************
 
 
     //******************************************************************
@@ -3866,20 +3869,22 @@ int Settings::getFreeDVMode(int rx) {
 QString Settings::getCodec2ModeString(int mode) {
 	// Return Codec2/FreeDV mode name and bitrate
 	switch(mode) {
-		case 0: return "1600 bps (FREEDV_MODE_1600)";
-		case 1: return "1400 bps (FREEDV_MODE_1400)";
-		case 2: return "1300 bps (FREEDV_MODE_1300)";
-		case 3: return "700C bps (FREEDV_MODE_700C)";
-		case 4: return "2400 bps (FREEDV_MODE_2400)";
-		case 5: return "3200 bps (FREEDV_MODE_3200)";
-		case 6: return "700D bps (FREEDV_MODE_700D)";
+		case 0:  return "1600 bps (FREEDV_MODE_1600)";
+		case 1:  return "1400 bps (FREEDV_MODE_1400)";
+		case 2:  return "1300 bps (FREEDV_MODE_1300)";
+		case 3:  return "700C bps (FREEDV_MODE_700C)";
+		case 4:  return "2400 bps (FREEDV_MODE_2400)";
+		case 5:  return "3200 bps (FREEDV_MODE_3200)";
+		case 6:  return "700D bps (FREEDV_MODE_700D)";
+		case 8:  return "2020 (FREEDV_MODE_2020)";
+		case 16: return "2020B (FREEDV_MODE_2020B)";
 		default: return "1600 bps (FREEDV_MODE_1600)";
 	}
 }
 
 QList<int> Settings::availableCodec2Modes() {
 	// Return list of available Codec2 modes
-	return {0, 1, 2, 3, 4, 5, 6};
+	return {0, 1, 2, 3, 4, 5, 6, 8, 16};
 }
 
 AGCMode Settings::getAGCMode(int rx) {

@@ -306,39 +306,46 @@ void Receiver::dspProcessing() {
 			// Normal analogue modes: pass WDSP audio output straight to soundcard.
 			m_audioOutput->writeAudio(interleaveFromCPX(audioOutputBuf, m_audiobuffersize));
 		}
-#ifdef HAVE_CODEC2
-		else if (m_freeDVProcessor) {
-			// FDV/FreeDV mode: extract mono audio from WDSP USB output (real
-			// channel, nominally 48 kHz), run it through the FreeDV decoder,
-			// and write the decoded speech to the soundcard.
+		else {
 			QVector<float> mono(m_audiobuffersize);
 			const cpx* src = audioOutputBuf.constData();
 			for (int i = 0; i < m_audiobuffersize; ++i)
 				mono[i] = static_cast<float>(src[i].re);
 
-			QVector<float> speech =
-				m_freeDVProcessor->processSamples(mono.constData(), m_audiobuffersize);
+			bool wroteAudio = false;
 
-			if (!speech.isEmpty()) {
+#ifdef HAVE_CODEC2
+			if (m_freeDVProcessor) {
+				QVector<float> speech = m_freeDVProcessor->processSamples(mono.constData(), m_audiobuffersize);
+				// processSamples always returns n*2 floats (silence-padded when no
+				// frame is ready), so write unconditionally — this prevents the
+				// passthrough from adding a second burst of audio.
 				m_audioOutput->writeAudio(speech);
-				m_freeDVRxFrames += 1;
-			}
+				wroteAudio = true;
+				if (m_freeDVProcessor->isSync())
+					m_freeDVRxFrames += 1;
 
-			if ((m_dspCallCount % 50) == 1) {
-				set->setFreeDVStatus(
-					m_receiver,
-					m_freeDVProcessor->isSync(),
-					m_freeDVProcessor->getSNR(),
-					m_freeDVRxFrames);
+				if ((m_dspCallCount % 50) == 1) {
+					set->setFreeDVStatus(
+						m_receiver,
+						m_freeDVProcessor->isSync(),
+						m_freeDVProcessor->getSNR(),
+						m_freeDVRxFrames);
+				}
 			}
+#endif
 
-			if ((m_dspCallCount % 500) == 1) {
-				RECEIVER_DEBUG << "FreeDV rx=" << m_receiver
-							   << " sync=" << m_freeDVProcessor->isSync()
-							   << " snr=" << m_freeDVProcessor->getSNR();
+			if (!wroteAudio) {
+				QVector<float> passthrough;
+				passthrough.reserve(m_audiobuffersize * 2);
+				for (int i = 0; i < m_audiobuffersize; ++i) {
+					const float s = mono.at(i);
+					passthrough.append(s);
+					passthrough.append(s);
+				}
+				m_audioOutput->writeAudio(passthrough);
 			}
 		}
-#endif // HAVE_CODEC2
 #endif // USE_INTERNAL_AUDIO
         emit audioBufferSignal(m_receiver, audioOutputBuf, m_audiobuffersize);
     }
