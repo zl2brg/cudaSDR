@@ -78,6 +78,7 @@ struct freedv;
 class DataProcessor;
 class AudioOutProcessor;
 class WideBandDataProcessor;
+class SoapySDRDataSource;
 
 //Q_DECLARE_METATYPE (QAbstractSocket::SocketError)
 
@@ -105,6 +106,7 @@ public:
 	QUdpSocket*			sendSocket{};
     QUdpSocket*         m_controlSocket{};
 	DataIO*				m_dataIO;
+	SoapySDRDataSource* m_soapySDRSource;
     TransmitAudioInput *       m_audioInput;
     iambic *            m_cwIO;
     std::unique_ptr<IHPSDRProtocol> m_protocol;
@@ -409,6 +411,7 @@ public slots:
 private slots:
 	void	initDataProcessorSocket();
 	void	processInputBuffer(const QByteArray &buffer, quint16 sourcePort);
+    void	processInputBuffer(const QList<double> &samples);
 	void	processOutputBuffer(const CPX &buffer);
 	void	decodeCCBytes(const QByteArray &buffer);
 	void	encodeCCBytes();

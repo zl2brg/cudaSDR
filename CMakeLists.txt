@@ -87,6 +87,7 @@ set(SOURCES
     ${SRC_DIR}/DataEngine/cusdr_audioReceiver.cpp
     ${SRC_DIR}/DataEngine/cusdr_dataEngine.cpp
     ${SRC_DIR}/DataEngine/cusdr_dataIO.cpp
+    ${SRC_DIR}/DataEngine/SoapySDRDataSource.cpp
     ${SRC_DIR}/DataEngine/cusdr_discoverer.cpp
     ${SRC_DIR}/DataEngine/CProtocol1.cpp
     ${SRC_DIR}/DataEngine/CProtocol2.cpp
@@ -287,6 +288,7 @@ target_link_libraries(cudasdr PRIVATE
     Qt6::OpenGL
     Qt6::OpenGLWidgets
     wdsp
+    SoapySDR
     # System libraries
     -lm
     OpenGL::GL

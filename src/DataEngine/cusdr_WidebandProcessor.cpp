@@ -144,7 +144,8 @@ void WideBandDataProcessor::setWbSpectrumAveraging(int rx, int value) {
 	m_wbSpectrumAveraging = value;
 	double t = 0.001 * m_wbSpectrumAveraging;
 	double avBackmult = exp(-1.0 / ((double)10 * t));
-	int    numAverage = max(2, (int)min(60, (double)10 * t));
+	int    numAverage = std::max(2, (int)std::min(60.0, (double)10 * t));
+
 	SetDisplayAvBackmult(WIDEBAND_DISPLAY_NUMBER, 0, avBackmult);
 	SetDisplayNumAverage(WIDEBAND_DISPLAY_NUMBER, 0, numAverage);
 	m_mutex.unlock();

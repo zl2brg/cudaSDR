@@ -91,7 +91,7 @@ QWDSPEngine::QWDSPEngine(QObject *parent, int rx, int size)
     m_agcSlope = set->getAGCSlope(m_rx);
     m_agcMaximumGain = set->getAGCMaximumGain_dB(m_rx);
     spectrumBuffer.resize(QWDSPEngine_BUFFER_SIZE * 4);
-    spectrumBuffer.resize(BUFFER_SIZE * 4);
+    // spectrumBuffer.resize(BUFFER_SIZE * 4);
     m_fftSize = getfftVal(set->getfftSize(m_rx));
     m_nr_agc = set->getNrAGC(m_rx);
     m_nr2_ae = set->getNr2ae(m_rx);

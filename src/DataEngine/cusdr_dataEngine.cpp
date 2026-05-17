@@ -43,6 +43,7 @@ extern double cwramp48[];		// see cwramp.c, for 48 kHz sample rate
  //use WIDEBAND_PROCESSOR_DEBUG
 #define RAMPLEN 250
 #include "cusdr_dataEngine.h"
+#include "SoapySDRDataSource.h"
 #include "CProtocol1.h"
 #include "CProtocol2.h"
 #ifdef HAVE_CODEC2
@@ -125,6 +126,7 @@ DataEngine::DataEngine(QObject *parent)
 	//currentRx = 0;
 	m_discoverer= nullptr;
 	m_dataIO= nullptr;
+	m_soapySDRSource = nullptr;
 	m_dataProcessor= nullptr;
 	m_wbDataProcessor= nullptr;
 	m_audioReceiver= nullptr;
@@ -1557,6 +1559,25 @@ void DataEngine::stopDiscoverer() {
 
 void DataEngine::createDataIO() {
 
+    if (m_hwInterface == QSDR::SoapySDR) {
+        m_soapySDRSource = new SoapySDRDataSource(&io);
+        m_dataIOThread = new QThreadEx();
+        m_soapySDRSource->moveToThread(m_dataIOThread);
+
+        m_soapySDRSource->connect(
+                    m_dataIOThread,
+                    &QThread::started,
+                    m_soapySDRSource,
+                    &SoapySDRDataSource::init);
+
+        m_soapySDRSource->connect(
+                    m_dataIOThread,
+                    &QThread::started,
+                    m_soapySDRSource,
+                    &SoapySDRDataSource::runStream);
+        return;
+    }
+
 	m_dataIO = new DataIO(&io);
 
 	switch (m_serverMode) {
@@ -1732,12 +1753,20 @@ void DataEngine::createDataProcessor() {
 						&DataIO::readydata,
 						m_dataProcessor,
 						&DataProcessor::processReadData);
-			} else {
-				DATA_ENGINE_DEBUG << "createDataProcessor: m_dataIO is null, skipping readydata connection.";
+			} else if (m_soapySDRSource) {
+                CHECKED_CONNECT(
+                        m_soapySDRSource,
+                        &SoapySDRDataSource::readydata,
+                        m_dataProcessor,
+                        &DataProcessor::processReadData);
+            } else {
+				DATA_ENGINE_DEBUG << "createDataProcessor: no data source found, skipping readydata connection.";
 			}
 
             break;
+
         case QSDR::SoapySDR:
+            // Handled above by connecting m_soapySDRSource to m_dataProcessor
             break;
     }
 	
@@ -3726,6 +3755,14 @@ void DataEngine::radioStateChange(RadioState state) {
 
 void DataProcessor::processReadData()
 {
+    if (set->getHWInterface() == QSDR::SoapySDR) {
+        while(!de->io.data_queue.isEmpty()) {
+            QList<double> samples = de->io.data_queue.dequeue();
+            processInputBuffer(samples);
+        }
+        return;
+    }
+
 	static quint64 p2ReadDataPackets = 0;
 	TIQPacket packet;
     while(!de->io.iq_queue.isEmpty()) {
@@ -3748,6 +3785,37 @@ void DataProcessor::processReadData()
 		  }
 		  processInputBuffer(buf, packet.sourcePort);
       }
+    }
+}
+
+#ifdef max
+#undef max
+#endif
+#ifdef min
+#undef min
+#endif
+#include <complex>
+
+void DataProcessor::processInputBuffer(const QList<double> &samples) {
+    if (samples.isEmpty()) return;
+
+    // For now, assume samples are for RX 0.
+    // In HPSDR, samples for multiple receivers are interleaved.
+    // For SoapySDR with multi-RX support, we'd need a more complex mapping.
+    
+    int rx = 0;
+    if (rx < de->RX.size() && de->RX[rx] && de->RX[rx]->qtwdsp) {
+        int numSamples = samples.size() / 2;
+        CPX in;
+        in.reserve(numSamples);
+        CPX out; // QWDSPEngine::processDSP handles resize
+        for (int i = 0; i < numSamples; ++i) {
+            _QCOMPLEX c;
+            c.re = samples[i * 2];
+            c.im = samples[i * 2 + 1];
+            in.append(c);
+        }
+        de->RX[rx]->qtwdsp->processDSP(in, out);
     }
 }
 
