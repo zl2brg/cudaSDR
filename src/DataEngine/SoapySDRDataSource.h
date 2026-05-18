@@ -1,6 +1,8 @@
 #ifndef SOAPYSDRDATASOURCE_H
 #define SOAPYSDRDATASOURCE_H
 
+#ifdef HAVE_SOAPYSDR
+
 #include <QObject>
 #include <QThread>
 #include <QTimer>
@@ -41,5 +43,7 @@ signals:
     void messageEvent(QString message);
     void readydata();
 };
+
+#endif // HAVE_SOAPYSDR
 
 #endif // SOAPYSDRDATASOURCE_H

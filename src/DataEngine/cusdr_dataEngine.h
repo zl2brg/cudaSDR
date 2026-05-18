@@ -106,7 +106,9 @@ public:
 	QUdpSocket*			sendSocket{};
     QUdpSocket*         m_controlSocket{};
 	DataIO*				m_dataIO;
+#ifdef HAVE_SOAPYSDR
 	SoapySDRDataSource* m_soapySDRSource;
+#endif
     TransmitAudioInput *       m_audioInput;
     iambic *            m_cwIO;
     std::unique_ptr<IHPSDRProtocol> m_protocol;
@@ -339,6 +341,7 @@ private slots:
 	void	setHPSDRDeviceNumber(int value);
 	void	rxListChanged(QList<Receiver *> rxList);
 	void	searchHpsdrNetworkDevices();
+    void    searchSoapyDevices();
 	void	setCurrentReceiver(int rx);
 	
 	void	setMercuryAttenuators(QList<int> attn);

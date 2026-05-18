@@ -62,6 +62,7 @@ public:
 
 public slots:
 	void	initHPSDRDevice();
+    void    discoverSoapyDevices();
 	
 	
 private slots:
@@ -83,7 +84,9 @@ private:
 	int  addDevice(TNetworkDevicecard &mc, int boardId, int protocol);
 
 signals:
-
+#ifdef HAVE_SOAPYSDR
+    void    soapyDeviceListFound(const QList<TSoapyDevice> &list);
+#endif
 };
 
 #endif // _CUSDR_DISCOVERER_H

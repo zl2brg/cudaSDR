@@ -26,7 +26,7 @@ set(SANITIZE_FLAGS "-fsanitize=address")
 #set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -pg")
 
 # --- Find Dependencies ---
-find_package(Qt6 6.11 REQUIRED COMPONENTS Widgets Core Gui Multimedia Network OpenGL OpenGLWidgets Test)
+find_package(Qt6 6.10 REQUIRED COMPONENTS Widgets Core Gui Multimedia Network OpenGL OpenGLWidgets Test)
 find_package(PkgConfig REQUIRED)
 find_package(OpenGL REQUIRED)
 
@@ -37,6 +37,14 @@ pkg_check_modules(FFTW3 REQUIRED fftw3)
 pkg_check_modules(FFTW3F REQUIRED fftw3f)
 pkg_check_modules(RNNOISE REQUIRED rnnoise IMPORTED_TARGET)
 pkg_check_modules(SPECLEACH REQUIRED libspecbleach IMPORTED_TARGET)
+pkg_check_modules(SOAPYSDR SoapySDR IMPORTED_TARGET)
+
+if(SOAPYSDR_FOUND)
+    message(STATUS "SoapySDR found - generic hardware support enabled")
+    add_definitions(-DHAVE_SOAPYSDR)
+else()
+    message(WARNING "SoapySDR not found - generic hardware support will be disabled")
+endif()
 
 # --- Find Codec2 ---
 find_library(CODEC2_LIBRARY codec2)
@@ -87,7 +95,6 @@ set(SOURCES
     ${SRC_DIR}/DataEngine/cusdr_audioReceiver.cpp
     ${SRC_DIR}/DataEngine/cusdr_dataEngine.cpp
     ${SRC_DIR}/DataEngine/cusdr_dataIO.cpp
-    ${SRC_DIR}/DataEngine/SoapySDRDataSource.cpp
     ${SRC_DIR}/DataEngine/cusdr_discoverer.cpp
     ${SRC_DIR}/DataEngine/CProtocol1.cpp
     ${SRC_DIR}/DataEngine/CProtocol2.cpp
@@ -237,6 +244,10 @@ set(HEADERS
     ${SRC_DIR}/Util/cusdr_queue.h
 )
 
+if(SOAPYSDR_FOUND)
+    list(APPEND SOURCES ${SRC_DIR}/DataEngine/SoapySDRDataSource.cpp)
+endif()
+
 # --- Define UI Files ---
 set(UI_SOURCES
     ${SRC_DIR}/UI/tx_settings_dialog.ui
@@ -288,11 +299,14 @@ target_link_libraries(cudasdr PRIVATE
     Qt6::OpenGL
     Qt6::OpenGLWidgets
     wdsp
-    SoapySDR
     # System libraries
     -lm
     OpenGL::GL
 )
+
+if(SOAPYSDR_FOUND)
+    target_link_libraries(cudasdr PRIVATE PkgConfig::SOAPYSDR)
+endif()
 
 if(CODEC2_FOUND)
     target_link_libraries(cudasdr PRIVATE ${CODEC2_LIBRARY})

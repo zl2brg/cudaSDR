@@ -126,7 +126,9 @@ DataEngine::DataEngine(QObject *parent)
 	//currentRx = 0;
 	m_discoverer= nullptr;
 	m_dataIO= nullptr;
+#ifdef HAVE_SOAPYSDR
 	m_soapySDRSource = nullptr;
+#endif
 	m_dataProcessor= nullptr;
 	m_wbDataProcessor= nullptr;
 	m_audioReceiver= nullptr;
@@ -169,6 +171,13 @@ DataEngine::~DataEngine() {
    // file->close();
     if (m_audioInput)
         delete m_audioInput;
+
+#ifdef HAVE_SOAPYSDR
+    if (m_soapySDRSource) {
+        delete m_soapySDRSource;
+        m_soapySDRSource = nullptr;
+    }
+#endif
 }
 
 void DataEngine::setupConnections() {
@@ -288,10 +297,18 @@ void DataEngine::setupConnections() {
 		&DataEngine::setFramesPerSecond);
 
 	CHECKED_CONNECT(
-		set, 
-		&Settings::searchMetisSignal, 
-		this, 
+		set,
+		&Settings::searchMetisSignal,
+		this,
 		&DataEngine::searchHpsdrNetworkDevices);
+
+#ifdef HAVE_SOAPYSDR
+	CHECKED_CONNECT(
+	set,
+	&Settings::searchSoapySignal,
+	this,
+	&DataEngine::searchSoapyDevices);
+#endif
 
 	CHECKED_CONNECT(
 		set, 
@@ -1117,9 +1134,15 @@ void DataEngine::stop() {
 				DATA_ENGINE_DEBUG << "data queue count: " << io.data_queue.count();
 
 				stopDataProcessor();
-
-            case QSDR::SoapySDR:
                 break;
+
+#ifdef HAVE_SOAPYSDR
+            case QSDR::SoapySDR:
+
+                stopDataIO();
+                stopDataProcessor();
+                break;
+#endif
         }
 
 		while (!io.au_queue.isEmpty())
@@ -1218,6 +1241,27 @@ bool DataEngine::initDataEngine() {
 		
 		return startDataEngineWithoutConnection();
 	}
+#ifdef HAVE_SOAPYSDR
+    else if (m_hwInterface == QSDR::SoapySDR) {
+        initReceivers(1);
+        if (!m_soapySDRSource) createDataIO();
+        if (!m_dataProcessor) createDataProcessor();
+
+        if (!startDataIO(QThread::HighPriority)) {
+            setSystemState(QSDR::DataReceiverThreadError, m_hwInterface, m_serverMode, QSDR::DataEngineDown);
+            return false;
+        }
+
+        if (!startDataProcessor(QThread::HighPriority)) {
+            setSystemState(QSDR::DataProcessThreadError, m_hwInterface, m_serverMode, QSDR::DataEngineDown);
+            return false;
+        }
+
+        setSystemState(QSDR::NoError, m_hwInterface, m_serverMode, QSDR::DataEngineUp);
+        set->setRadioState(RadioState::RX);
+        return true;
+    }
+#endif
 	else {
 		
 		if (findHPSDRDevices()) {
@@ -1559,6 +1603,7 @@ void DataEngine::stopDiscoverer() {
 
 void DataEngine::createDataIO() {
 
+#ifdef HAVE_SOAPYSDR
     if (m_hwInterface == QSDR::SoapySDR) {
         m_soapySDRSource = new SoapySDRDataSource(&io);
         m_dataIOThread = new QThreadEx();
@@ -1577,6 +1622,7 @@ void DataEngine::createDataIO() {
                     &SoapySDRDataSource::runStream);
         return;
     }
+#endif
 
 	m_dataIO = new DataIO(&io);
 
@@ -1629,8 +1675,10 @@ void DataEngine::createDataIO() {
 						m_dataIO,
 						&DataIO::initDataReceiverSocket);
 			break;
+#ifdef HAVE_SOAPYSDR
         case QSDR::SoapySDR:
             break;
+#endif
     }
 }
 
@@ -1659,7 +1707,15 @@ void DataEngine::stopDataIO() {
 
 	if (m_dataIOThread->isRunning()) {
 					
-		m_dataIO->stop();
+#ifdef HAVE_SOAPYSDR
+        if (m_hwInterface == QSDR::SoapySDR && m_soapySDRSource) {
+            m_soapySDRSource->stop();
+        } else 
+#endif
+        if (m_dataIO) {
+            m_dataIO->stop();
+        }
+
 		m_dataIOThread->quit();
 
 		while (!m_dataIOThread->isFinished()) {
@@ -1753,21 +1809,27 @@ void DataEngine::createDataProcessor() {
 						&DataIO::readydata,
 						m_dataProcessor,
 						&DataProcessor::processReadData);
-			} else if (m_soapySDRSource) {
+			} 
+#ifdef HAVE_SOAPYSDR
+            else if (m_soapySDRSource) {
                 CHECKED_CONNECT(
                         m_soapySDRSource,
                         &SoapySDRDataSource::readydata,
                         m_dataProcessor,
                         &DataProcessor::processReadData);
-            } else {
+            } 
+#endif
+            else {
 				DATA_ENGINE_DEBUG << "createDataProcessor: no data source found, skipping readydata connection.";
 			}
 
             break;
 
+#ifdef HAVE_SOAPYSDR
         case QSDR::SoapySDR:
             // Handled above by connecting m_soapySDRSource to m_dataProcessor
             break;
+#endif
     }
 	
 }
@@ -2071,6 +2133,16 @@ void DataEngine::searchHpsdrNetworkDevices() {
 	stopDiscoverer();
 }
 
+#ifdef HAVE_SOAPYSDR
+void DataEngine::searchSoapyDevices() {
+    if (!m_discoverer) createDiscoverer();
+    if (!m_discoveryThread->isRunning()) {
+        m_discoveryThread->start();
+    }
+    QMetaObject::invokeMethod(m_discoverer, "discoverSoapyDevices", Qt::QueuedConnection);
+}
+#endif
+
 void DataEngine::setHPSDRDeviceNumber(int value) {
 
 	m_hpsdrDevices = value;
@@ -2351,7 +2423,7 @@ void DataEngine::setNumberOfRx(int value) {
 				// For Protocol 2: after the engine restarts, push an explicit DDC Specific
 				// (port 1025) + HP Run=1 (port 1027) burst so the simulator immediately
 				// receives the updated DDC enable bitmask and re-asserts Run=1.
-				DATA_ENGINE_DEBUG << "[RX-ADD] P2: queuing DDC+HP Run=1 setup burst for\" << value << \"receiver(s)";
+				DATA_ENGINE_DEBUG << "[RX-ADD] P2: queuing DDC+HP Run=1 setup burst for" << value << "receiver(s)";
 				QMetaObject::invokeMethod(m_dataProcessor,
 				                          &DataProcessor::requestProtocol2ReceiverSetup,
 				                          Qt::QueuedConnection);
@@ -2960,8 +3032,10 @@ void DataProcessor::full_txBuffer(){
 
         case QSDR::NoInterfaceMode:
             break;
+#ifdef HAVE_SOAPYSDR
         case QSDR::SoapySDR:
             break;
+#endif
     }
     m_idx = IO_HEADER_SIZE;
 
@@ -3033,7 +3107,7 @@ void DataProcessor::add_audio_sample(qint16 leftRXSample, qint16 rightRXSample)
         full_txBuffer();
         m_idx =8;
     }
-    if (tx_index >= static_cast<int>(sizeof(m_tx_iq_Buffer))) tx_index = 0;
+    if (tx_index >= 4096) tx_index = 0;
 }
 
 
@@ -3337,7 +3411,9 @@ void DataProcessor::setAudioBuffer(int rx, const CPX &buffer, int buffersize)
 					break;
 
 				case QSDR::NoInterfaceMode:
+#ifdef HAVE_SOAPYSDR
 				case QSDR::SoapySDR:
+#endif
 					break;
             }
         m_idx = IO_HEADER_SIZE;
@@ -3421,7 +3497,9 @@ void DataProcessor::setAudioBuffer_old(int rx, const CPX &buffer, int buffersize
                     break;
 
                 case QSDR::NoInterfaceMode:
+#ifdef HAVE_SOAPYSDR
                 case QSDR::SoapySDR:
+#endif
                     break;
             }
             m_idx = IO_HEADER_SIZE;
@@ -3490,7 +3568,9 @@ void DataProcessor::processOutputBuffer(const CPX &buffer) {
 					break;
 
 				case QSDR::NoInterfaceMode:
+#ifdef HAVE_SOAPYSDR
 				case QSDR::SoapySDR:
+#endif
 					break;
 			}
 			m_idx = IO_HEADER_SIZE;
@@ -3755,6 +3835,7 @@ void DataEngine::radioStateChange(RadioState state) {
 
 void DataProcessor::processReadData()
 {
+#ifdef HAVE_SOAPYSDR
     if (set->getHWInterface() == QSDR::SoapySDR) {
         while(!de->io.data_queue.isEmpty()) {
             QList<double> samples = de->io.data_queue.dequeue();
@@ -3762,6 +3843,7 @@ void DataProcessor::processReadData()
         }
         return;
     }
+#endif
 
 	static quint64 p2ReadDataPackets = 0;
 	TIQPacket packet;
@@ -3796,6 +3878,7 @@ void DataProcessor::processReadData()
 #endif
 #include <complex>
 
+#ifdef HAVE_SOAPYSDR
 void DataProcessor::processInputBuffer(const QList<double> &samples) {
     if (samples.isEmpty()) return;
 
@@ -3818,14 +3901,15 @@ void DataProcessor::processInputBuffer(const QList<double> &samples) {
         de->RX[rx]->qtwdsp->processDSP(in, out);
     }
 }
+#endif
 
 void DataProcessor::key_down(int state) {
-qDebug() << "Key Down" << state;
-if (state) {
-  de->cw_key_down = 960000;    // up to 20 sec
-} else {
-  de->cw_key_down = 0;
-}
+    qDebug() << "Key Down" << state;
+    if (state) {
+        de->cw_key_down = 960000;    // up to 20 sec
+    } else {
+        de->cw_key_down = 0;
+    }
 }
 
 void DataProcessor::key_down_test(int dummy,int state) {

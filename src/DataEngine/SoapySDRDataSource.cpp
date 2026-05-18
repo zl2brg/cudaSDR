@@ -1,4 +1,7 @@
 #include "SoapySDRDataSource.h"
+
+#ifdef HAVE_SOAPYSDR
+
 #ifdef max
 #undef max
 #endif
@@ -27,17 +30,30 @@ SoapySDRDataSource::~SoapySDRDataSource() {
 void SoapySDRDataSource::init() {
     try {
         SoapySDR::Kwargs args;
-        // For now, pick the first available device. 
-        // In the future, we can use settings to select a specific one.
-        auto results = SoapySDR::Device::enumerate();
-        if (results.empty()) {
-            qCritical() << "SoapySDRDataSource: No devices found!";
-            return;
+        TSoapyDevice selected = set->getCurrentSoapyDevice();
+        
+        if (!selected.driver.isEmpty()) {
+            args["driver"] = selected.driver.toStdString();
+            if (!selected.serial.isEmpty()) {
+                args["serial"] = selected.serial.toStdString();
+            }
+            qDebug() << "SoapySDRDataSource: Opening device" << selected.label;
+            m_device = SoapySDR::Device::make(args);
+        } else {
+            auto results = SoapySDR::Device::enumerate();
+            if (results.empty()) {
+                QString msg = "SoapySDRDataSource: No devices found!";
+                qCritical() << msg;
+                emit messageEvent(msg);
+                return;
+            }
+            m_device = SoapySDR::Device::make(results[0]);
         }
 
-        m_device = SoapySDR::Device::make(results[0]);
         if (!m_device) {
-            qCritical() << "SoapySDRDataSource: Failed to create device!";
+            QString msg = "SoapySDRDataSource: Failed to create device!";
+            qCritical() << msg;
+            emit messageEvent(msg);
             return;
         }
 
@@ -113,3 +129,5 @@ void SoapySDRDataSource::setFrequency(int rx, long frequency) {
         m_device->setFrequency(SOAPY_SDR_RX, 0, (double)frequency);
     }
 }
+
+#endif // HAVE_SOAPYSDR

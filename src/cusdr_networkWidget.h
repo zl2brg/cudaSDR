@@ -78,15 +78,18 @@ private:
 	
 	QComboBox	*networkDeviceInterfaces;
 	QComboBox	*networkDeviceIPAdresses;
+	QComboBox   *soapyDevicesCombo;
 	QComboBox	*socketBufferSizes;
 	QComboBox	*m_receiverComboBox;
 
 	QLabel		*socketBufferSizeLabel;
-	
+
 	AeroButton	*networkPresenceBtn;
+	AeroButton  *soapyBtn;
 	AeroButton	*noHWBtn;
 
 	AeroButton	*searchNetworkDeviceBtn;
+	AeroButton  *searchSoapyDeviceBtn;
 	AeroButton	*socketBufSizeBtn;
 
 	QSDR::_ServerMode		m_serverMode;
@@ -118,6 +121,9 @@ private slots:
 	void	setDeviceNIC(int index);
 	void	setNetworkDeviceList(QList<TNetworkDevicecard> list);
 	void	setCurrentNetworkDevice(TNetworkDevicecard card);
+    void    searchSoapyDeviceBtnClicked();
+    void    setSoapyDeviceList(const QList<TSoapyDevice> &list);
+    void    soapyDeviceSelected(int index);
 	void	disableButtons();
 	void	enableButtons();
 	

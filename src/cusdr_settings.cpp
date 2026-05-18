@@ -97,6 +97,8 @@ Settings::Settings(QObject *parent)
     qRegisterMetaType<TDefaultFilterMode>();
     qRegisterMetaType<TNetworkDevicecard>();
     qRegisterMetaType<QList<TNetworkDevicecard> >();
+    qRegisterMetaType<TSoapyDevice>();
+    qRegisterMetaType<QList<TSoapyDevice> >();
     qRegisterMetaType<qVectorFloat>("qVectorFloat");
 
     startTime = QDateTime::currentDateTime();
@@ -327,6 +329,12 @@ int Settings::loadSettings() {
     } else if (m_hpsdrHardware == 1) {
 
         m_hwInterface = QSDR::Hermes;
+    } else if (m_hpsdrHardware == 2) {
+
+        m_hwInterface = QSDR::SoapySDR;
+        m_currentSoapyDevice.label = settings->value("SoapySDR/label", "").toString();
+        m_currentSoapyDevice.driver = settings->value("SoapySDR/driver", "").toString();
+        m_currentSoapyDevice.serial = settings->value("SoapySDR/serial", "").toString();
     }
 
     str = settings->value("hpsdr/checkfw", "true").toString();
@@ -2936,6 +2944,10 @@ void Settings::searchHpsdrNetworkDevices() {
     emit searchMetisSignal();
 }
 
+void Settings::searchSoapyDevices() {
+    emit searchSoapySignal();
+}
+
 void Settings::clearMetisCardList() {
 
     m_metisCards.clear();
@@ -2955,6 +2967,22 @@ void Settings::setCurrentHPSDRDevice(TNetworkDevicecard card) {
 
     emit hpsdrNetworkDeviceChanged(m_currentHPSDRDevice);
 }
+
+#ifdef HAVE_SOAPYSDR
+void Settings::setSoapyDeviceList(QList<TSoapyDevice> list) {
+    m_soapyDevices = list;
+    emit soapyDeviceListChanged(m_soapyDevices);
+}
+
+void Settings::setCurrentSoapyDevice(TSoapyDevice device) {
+    m_currentSoapyDevice = device;
+    emit soapyDeviceChanged(m_currentSoapyDevice);
+}
+
+void Settings::setSoapyMessage(QString message) {
+    emit soapyMessageEvent(message);
+}
+#endif
 
 void Settings::setHPSDRDeviceNumber(int value) {
 
@@ -4007,7 +4035,7 @@ void Settings::setAGCMaximumGain_dB(int rx, qreal value) {
     m_receiverDataList[rx].agcMaximumGain_dB = value;
 
     SETTINGS_DEBUG << "set agcMaximumGain_dB = " << m_receiverDataList[rx].agcMaximumGain_dB;
-    emit agcMaximumGainChanged(rx, value);
+    emit agcMaximumGainChanged_dB(rx, value);
 }
 
 int Settings::getAGCMaximumGain_dB(int rx) {

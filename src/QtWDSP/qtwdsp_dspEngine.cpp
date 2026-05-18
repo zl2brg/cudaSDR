@@ -255,7 +255,7 @@ void QWDSPEngine::setupConnections() {
             this, [this](int rx, int value) {
         if (rx == m_rx) setAGCThreshold(value - AGCOFFSET);
     });
-    connect(set, &Settings::agcMaximumGainChanged,
+    connect(set, &Settings::agcMaximumGainChanged_dB,
             this, [this](int rx, qreal value) {
         if (rx == m_rx) setAGCMaximumGain(value);
     });
