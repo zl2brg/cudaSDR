@@ -1553,11 +1553,9 @@ void DataEngine::createDiscoverer() {
 	m_discoveryThread = new QThreadEx();
 	m_discoverer->moveToThread(m_discoveryThread);
 
-	m_discoverer->connect(
-					m_discoveryThread,
-					&QThread::started, 
-					m_discoverer,
-					&Discoverer::initHPSDRDevice);
+#ifdef HAVE_SOAPYSDR
+    connect(m_discoverer, &Discoverer::soapyDeviceListFound, set, &Settings::setSoapyDeviceList);
+#endif
 }
 
 bool DataEngine::startDiscoverer(QThread::Priority prio) {
@@ -2122,6 +2120,8 @@ void DataEngine::searchHpsdrNetworkDevices() {
 		DATA_ENGINE_DEBUG << "HPSDR network discovery thread could not be started.";
 		return;
 	}
+
+    QMetaObject::invokeMethod(m_discoverer, "initHPSDRDevice", Qt::QueuedConnection);
 
 	io.networkIOMutex.lock();
 	io.devicefound.wait(&io.networkIOMutex);

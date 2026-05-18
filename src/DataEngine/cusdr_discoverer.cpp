@@ -67,6 +67,10 @@ void Discoverer::discoverSoapyDevices() {
     for (const auto &res : results) {
         TSoapyDevice dev;
         if (res.count("driver")) dev.driver = QString::fromStdString(res.at("driver"));
+        
+        // Skip generic audio devices
+        if (dev.driver == "audio") continue;
+
         if (res.count("hardware")) dev.hardware = QString::fromStdString(res.at("hardware"));
         if (res.count("name")) dev.name = QString::fromStdString(res.at("name"));
         if (res.count("serial")) dev.serial = QString::fromStdString(res.at("serial"));
