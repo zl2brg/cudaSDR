@@ -36,8 +36,11 @@ private:
     SoapySDR::Stream* m_rxStream;
 
     volatile bool m_stopped;
-    int m_sampleRate;
+    int m_sampleRate;     // DSP/WDSP processing rate (from Settings)
+    int m_rfSampleRate;   // hardware RF sample rate (clamped to device minimum)
     size_t m_numChannels;
+    long m_minFrequency;
+    long m_maxFrequency;
 
 signals:
     void messageEvent(QString message);

@@ -19,7 +19,10 @@ SoapySDRDataSource::SoapySDRDataSource(THPSDRParameter *ioData)
     , m_rxStream(nullptr)
     , m_stopped(false)
     , m_sampleRate(set->getSampleRate())
+    , m_rfSampleRate(set->getSampleRate())
     , m_numChannels(1)
+    , m_minFrequency(0)
+    , m_maxFrequency(0)
 {
 }
 
@@ -59,9 +62,44 @@ void SoapySDRDataSource::init() {
 
         qDebug() << "SoapySDRDataSource: Using device" << QString::fromStdString(m_device->getHardwareKey());
 
-        // Use the sample rate from settings (e.g. 48000) to keep DSP in sync
+        // Query device frequency range before any hardware configuration so we
+        // know the valid range even if subsequent calls throw.
+        try {
+            SoapySDR::RangeList ranges = m_device->getFrequencyRange(SOAPY_SDR_RX, 0);
+            if (!ranges.empty()) {
+                m_minFrequency = static_cast<long>(ranges.front().minimum());
+                m_maxFrequency = static_cast<long>(ranges.back().maximum());
+                qDebug() << "SoapySDRDataSource: Device freq range"
+                         << m_minFrequency / 1.0e6 << "to" << m_maxFrequency / 1.0e6 << "MHz";
+                set->setMaxFrequency(m_maxFrequency);
+            }
+        } catch (const std::exception &e) {
+            qDebug() << "SoapySDRDataSource: Could not query frequency range:" << e.what();
+        }
+
+        // Use the sample rate from settings (e.g. 48000) to keep DSP in sync.
+        // Many SoapySDR devices (e.g. LimeSDR-Mini) require a minimum RF sample
+        // rate higher than the WDSP/audio rate, so query the device and clamp.
         m_sampleRate = set->getSampleRate();
-        m_device->setSampleRate(SOAPY_SDR_RX, 0, m_sampleRate);
+        m_rfSampleRate = m_sampleRate;
+        try {
+            SoapySDR::RangeList srRanges = m_device->getSampleRateRange(SOAPY_SDR_RX, 0);
+            if (!srRanges.empty()) {
+                long minSR = static_cast<long>(srRanges.front().minimum());
+                long maxSR = static_cast<long>(srRanges.back().maximum());
+                qDebug() << "SoapySDRDataSource: Device sample rate range"
+                         << minSR / 1.0e6 << "to" << maxSR / 1.0e6 << "MSPS";
+                if (m_rfSampleRate < minSR) {
+                    m_rfSampleRate = static_cast<int>(minSR);
+                    qWarning() << "SoapySDRDataSource: DSP rate" << m_sampleRate
+                               << "Hz below device minimum; using" << m_rfSampleRate
+                               << "Hz for hardware. DSP filter bandwidth will be scaled.";
+                }
+            }
+        } catch (const std::exception &e) {
+            qDebug() << "SoapySDRDataSource: Could not query sample rate range:" << e.what();
+        }
+        m_device->setSampleRate(SOAPY_SDR_RX, 0, m_rfSampleRate);
 
         // Try to find a better antenna for LimeSDR (LNAH is usually better for HF/VHF)
         try {
@@ -84,13 +122,13 @@ void SoapySDRDataSource::init() {
             m_device->setAntenna(SOAPY_SDR_RX, 0, targetAntenna.toStdString());
             qDebug() << "SoapySDRDataSource: Selected antenna:" << targetAntenna;
 
-            // Set detailed gains if available, otherwise generic
+            // Set high gain
             if (m_device->getHardwareKey() == "LimeSDR-Mini") {
-                m_device->setGain(SOAPY_SDR_RX, 0, "LNA", 15.0);
+                m_device->setGain(SOAPY_SDR_RX, 0, "LNA", 30.0);
                 m_device->setGain(SOAPY_SDR_RX, 0, "TIA", 12.0);
-                m_device->setGain(SOAPY_SDR_RX, 0, "PGA", 15.0);
+                m_device->setGain(SOAPY_SDR_RX, 0, "PGA", 19.0);
             } else {
-                m_device->setGain(SOAPY_SDR_RX, 0, 40.0);
+                m_device->setGain(SOAPY_SDR_RX, 0, 60.0);
             }
             m_device->setBandwidth(SOAPY_SDR_RX, 0, 5e6);
         } catch (const std::exception &e) {
@@ -100,12 +138,21 @@ void SoapySDRDataSource::init() {
         m_rxStream = m_device->setupStream(SOAPY_SDR_RX, SOAPY_SDR_CF32);
         m_device->activateStream(m_rxStream);
 
-        // Force hardware settings again after stream is live
-        m_device->setSampleRate(SOAPY_SDR_RX, 0, m_sampleRate);
-        // Force 100MHz for testing
-        m_device->setFrequency(SOAPY_SDR_RX, 0, 100.0e6);
+        // Tune to current VFO frequency, clamped to the device's valid range
+        m_device->setSampleRate(SOAPY_SDR_RX, 0, m_rfSampleRate);
+        long vfo = set->getVfoFrequency(0);
+        if (vfo <= 0) vfo = 14200000L;
+        if (m_minFrequency > 0 && vfo < m_minFrequency) {
+            qDebug() << "SoapySDRDataSource: VFO" << vfo / 1.0e6
+                     << "MHz below device minimum, clamping to" << m_minFrequency / 1.0e6 << "MHz";
+            vfo = m_minFrequency;
+        }
+        if (m_maxFrequency > 0 && vfo > m_maxFrequency)
+            vfo = m_maxFrequency;
+        m_device->setFrequency(SOAPY_SDR_RX, 0, static_cast<double>(vfo));
 
-        qDebug() << "SoapySDRDataSource: Stream activated at" << m_sampleRate << "Hz, FORCED Freq: 100.0 MHz";
+        qDebug() << "SoapySDRDataSource: Stream activated at RF" << m_rfSampleRate
+                 << "Hz (DSP" << m_sampleRate << "Hz), freq:" << vfo / 1.0e6 << "MHz";
 
         connect(set, &Settings::sampleRateChanged, this, &SoapySDRDataSource::setSampleRate);
         connect(set, &Settings::vfoFrequencyChanged, this, &SoapySDRDataSource::setFrequency);
@@ -180,10 +227,15 @@ void SoapySDRDataSource::setSampleRate(int value) {
 
 void SoapySDRDataSource::setFrequency(int rx, long frequency) {
     Q_UNUSED(rx);
-    Q_UNUSED(frequency);
     if (m_device) {
-        // Force 100MHz regardless of GUI for now
-        m_device->setFrequency(SOAPY_SDR_RX, 0, 100.0e6);
+        long clamped = frequency;
+        if (m_minFrequency > 0 && clamped < m_minFrequency) clamped = m_minFrequency;
+        if (m_maxFrequency > 0 && clamped > m_maxFrequency) clamped = m_maxFrequency;
+        m_device->setFrequency(SOAPY_SDR_RX, 0, static_cast<double>(clamped));
+        if (clamped != frequency)
+            qDebug() << "SoapySDRDataSource: Freq" << frequency / 1.0e6 << "MHz clamped to" << clamped / 1.0e6 << "MHz";
+        else
+            qDebug() << "SoapySDRDataSource: Frequency set to" << clamped / 1.0e6 << "MHz";
     }
 }
 
