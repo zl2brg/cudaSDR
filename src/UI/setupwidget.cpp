@@ -51,6 +51,9 @@ SetupWidget::SetupWidget(QDialog *parent)
     ui->tabWidget->setTabEnabled(2, true);
     ui->tabWidget->setTabEnabled(3, true);
 
+    setupConnections();
+    getSettings();
+
 
 
     ui->label->setFrameStyle(QFrame::Box | QFrame::Raised);
@@ -132,9 +135,10 @@ QSize SetupWidget::minimumSizeHint() const {
 
 
 void SetupWidget::setupConnections() {
-
+    CHECKED_CONNECT(
+        set, SIGNAL(systemStateChanged(QSDR::_Error, QSDR::_HWInterfaceMode, QSDR::_ServerMode, QSDR::_DataEngineState)),
+        this, SLOT(systemStateChanged(QSDR::_Error, QSDR::_HWInterfaceMode, QSDR::_ServerMode, QSDR::_DataEngineState)));
 }
-
 
 
 
@@ -160,20 +164,4 @@ void SetupWidget::systemStateChanged(
 }
 
 void SetupWidget::getSettings() {
-    /*
-    ui->nrModeComboBox->setCurrentIndex(set->getnrMode(m_rx));
-    ui->nbModeComboBox->setCurrentIndex(set->getnbMode(m_rx));
-    ui->nr2GainComboBox->setCurrentIndex(set->getNr2GainMethod(m_rx));
-    ui->snbCheckBox->setChecked(set->getSnb(m_rx));
-    ui->anfCheckBox->setChecked(set->getAnf(m_rx));
-    int nr2Npe = set->getNr2NpeMethod(m_rx);
-    if (nr2Npe == 0) ui->omsCheckBox->setChecked(1);
-    else ui->mmseCheckBox->setChecked(1);
-    int agcMode = set->getNrAGC(m_rx);
-    if (agcMode == 0) ui->preAGCCheckBox->setChecked(1);
-    else ui->postAGCCheckBox->setChecked(1);
-    ui->nr2aeCheckBox->setChecked(set->getNr2ae(m_rx));
-//    ui->mmseCheckBox->setChecked();
-*/
 }
-

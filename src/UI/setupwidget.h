@@ -42,41 +42,18 @@ private:
 
     void	setupConnections();
 
-
 private slots:
     void	systemStateChanged(
             QSDR::_Error err,
             QSDR::_HWInterfaceMode hwmode,
             QSDR::_ServerMode mode,
             QSDR::_DataEngineState state);
-/*
-    void	setCurrentReceiver(int rx);
-    void    nfModeChanged(int value);
-    void    nbModeChanged(int value);
-    void    nr2GainChanged(int value);
-    void    agcProcChanged(int value);
-    void    snbChanged(bool value);
-    void    anfChanged(bool value);
-    void    nr2aeChanged(bool value);
-    void    omsChanged(bool value);
-    void    mmseChanged(bool value);
-    void    preAgcChanged(bool value);
-    void    postAgcChanged(bool nalue);
-    void    npeModeChanged(int value);
-*/
-
-
-
-
 
 public slots:
     QSize	sizeHint() const;
     QSize	minimumSizeHint() const;
 
-
-
 };
 
-
-
 #endif // SETUPWIGDET_H
+

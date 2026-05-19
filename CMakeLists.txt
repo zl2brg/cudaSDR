@@ -246,6 +246,8 @@ set(HEADERS
 
 if(SOAPYSDR_FOUND)
     list(APPEND SOURCES ${SRC_DIR}/DataEngine/SoapySDRDataSource.cpp)
+    list(APPEND SOURCES ${SRC_DIR}/UI/cusdr_soapyWidget.cpp)
+    list(APPEND HEADERS ${SRC_DIR}/UI/cusdr_soapyWidget.h)
 endif()
 
 # --- Define UI Files ---

@@ -223,6 +223,172 @@
        <string>Tab 2</string>
       </attribute>
      </widget>
+     <widget class="QWidget" name="radio">
+      <attribute name="title">
+       <string>Radio</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="radioVLayout">
+       <item>
+        <widget class="QGroupBox" name="antennaGroup">
+         <property name="title">
+          <string>Antenna</string>
+         </property>
+         <layout class="QHBoxLayout" name="antennaHLayout">
+          <item>
+           <widget class="QLabel" name="antennaLabel">
+            <property name="text">
+             <string>RX Antenna:</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QComboBox" name="antennaCombo">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+              <horstretch>1</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="limeGainGroup">
+         <property name="title">
+          <string>Gain — LimeSDR (LNA / TIA / PGA)</string>
+         </property>
+         <layout class="QFormLayout" name="limeGainFormLayout">
+          <item row="0" column="0">
+           <widget class="QLabel" name="lnaLabel">
+            <property name="text">
+             <string>LNA (0–30 dB):</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QSpinBox" name="lnaSpinBox">
+            <property name="minimum">
+             <number>0</number>
+            </property>
+            <property name="maximum">
+             <number>30</number>
+            </property>
+            <property name="value">
+             <number>25</number>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="tiaLabel">
+            <property name="text">
+             <string>TIA (0/9/12 dB):</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QComboBox" name="tiaCombo">
+            <item>
+             <property name="text">
+              <string>0</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>9</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>12</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+          <item row="2" column="0">
+           <widget class="QLabel" name="pgaLabel">
+            <property name="text">
+             <string>PGA (0–19 dB):</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="QSpinBox" name="pgaSpinBox">
+            <property name="minimum">
+             <number>0</number>
+            </property>
+            <property name="maximum">
+             <number>19</number>
+            </property>
+            <property name="value">
+             <number>12</number>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="overallGainGroup">
+         <property name="title">
+          <string>Gain — Overall</string>
+         </property>
+         <layout class="QHBoxLayout" name="overallGainHLayout">
+          <item>
+           <widget class="QLabel" name="overallGainLabel">
+            <property name="text">
+             <string>Gain (0–70 dB):</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QSlider" name="overallGainSlider">
+            <property name="minimum">
+             <number>0</number>
+            </property>
+            <property name="maximum">
+             <number>70</number>
+            </property>
+            <property name="value">
+             <number>60</number>
+            </property>
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QSpinBox" name="overallGainSpinBox">
+            <property name="minimum">
+             <number>0</number>
+            </property>
+            <property name="maximum">
+             <number>70</number>
+            </property>
+            <property name="value">
+             <number>60</number>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <spacer name="radioVSpacer">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>40</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+      </layout>
+     </widget>
     </widget>
    </item>
   </layout>

@@ -335,6 +335,16 @@ int Settings::loadSettings() {
         m_currentSoapyDevice.label = settings->value("SoapySDR/label", "").toString();
         m_currentSoapyDevice.driver = settings->value("SoapySDR/driver", "").toString();
         m_currentSoapyDevice.serial = settings->value("SoapySDR/serial", "").toString();
+#ifdef HAVE_SOAPYSDR
+        m_soapyRxAntenna   = settings->value("SoapySDR/rxAntenna", "LNAH").toString();
+        m_soapyLnaGain     = settings->value("SoapySDR/lnaGain", 25).toInt();
+        m_soapyTiaGain     = settings->value("SoapySDR/tiaGain", 12).toInt();
+        m_soapyPgaGain     = settings->value("SoapySDR/pgaGain", 12).toInt();
+        m_soapyOverallGain = settings->value("SoapySDR/overallGain", 60).toInt();
+        m_soapyAutoCalibrate = settings->value("SoapySDR/autoCalibrate", false).toBool();
+        m_soapyHardwareKey = "";
+        m_soapyAntennaList.clear();
+#endif
     }
 
     str = settings->value("hpsdr/checkfw", "true").toString();
@@ -1678,8 +1688,19 @@ int Settings::saveSettings() {
                 settings->setValue("hpsdr/excalibur", "false");
             break;
 
-            // Cyclops
+        // Cyclops / SoapySDR
         case 2:
+#ifdef HAVE_SOAPYSDR
+            settings->setValue("SoapySDR/label",  m_currentSoapyDevice.label);
+            settings->setValue("SoapySDR/driver", m_currentSoapyDevice.driver);
+            settings->setValue("SoapySDR/serial", m_currentSoapyDevice.serial);
+            settings->setValue("SoapySDR/rxAntenna",   m_soapyRxAntenna);
+            settings->setValue("SoapySDR/lnaGain",     m_soapyLnaGain);
+            settings->setValue("SoapySDR/tiaGain",     m_soapyTiaGain);
+            settings->setValue("SoapySDR/pgaGain",     m_soapyPgaGain);
+            settings->setValue("SoapySDR/overallGain", m_soapyOverallGain);
+            settings->setValue("SoapySDR/autoCalibrate", m_soapyAutoCalibrate);
+#endif
             break;
     }
 
@@ -1712,8 +1733,12 @@ int Settings::saveSettings() {
                 settings->setValue("hpsdr/interface", "hermes");
             break;
 
-            // Cyclops
+            // Cyclops / SoapySDR
         case 2:
+#ifdef HAVE_SOAPYSDR
+            if (m_hwInterface == QSDR::SoapySDR)
+                settings->setValue("hpsdr/interface", "soapy");
+#endif
             break;
     }
 
@@ -2997,6 +3022,58 @@ void Settings::setCurrentSoapyDevice(TSoapyDevice device) {
 
 void Settings::setSoapyMessage(QString message) {
     emit soapyMessageEvent(message);
+}
+
+void Settings::setSoapyAntennaList(const QStringList &list) {
+    m_soapyAntennaList = list;
+    emit soapyAntennaListChanged(list);
+}
+
+void Settings::setSoapyHardwareKey(const QString &key) {
+    m_soapyHardwareKey = key;
+    emit soapyHardwareKeyChanged(key);
+}
+
+void Settings::setSoapyRxAntenna(const QString &antenna) {
+    if (m_soapyRxAntenna != antenna) {
+        m_soapyRxAntenna = antenna;
+        emit soapyRxAntennaChanged(antenna);
+    }
+}
+
+void Settings::setSoapyLnaGain(int gain) {
+    if (m_soapyLnaGain != gain) {
+        m_soapyLnaGain = gain;
+        emit soapyLnaGainChanged(gain);
+    }
+}
+
+void Settings::setSoapyTiaGain(int gain) {
+    if (m_soapyTiaGain != gain) {
+        m_soapyTiaGain = gain;
+        emit soapyTiaGainChanged(gain);
+    }
+}
+
+void Settings::setSoapyPgaGain(int gain) {
+    if (m_soapyPgaGain != gain) {
+        m_soapyPgaGain = gain;
+        emit soapyPgaGainChanged(gain);
+    }
+}
+
+void Settings::setSoapyOverallGain(int gain) {
+    if (m_soapyOverallGain != gain) {
+        m_soapyOverallGain = gain;
+        emit soapyOverallGainChanged(gain);
+    }
+}
+
+void Settings::setSoapyAutoCalibrate(bool enabled) {
+    if (m_soapyAutoCalibrate != enabled) {
+        m_soapyAutoCalibrate = enabled;
+        emit soapyAutoCalibrateChanged(enabled);
+    }
 }
 #endif
 

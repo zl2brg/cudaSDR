@@ -803,6 +803,14 @@ signals:
     void soapyDeviceListChanged(const QList<TSoapyDevice> &list);
     void soapyDeviceChanged(TSoapyDevice device);
     void soapyMessageEvent(QString message);
+    void soapyAntennaListChanged(QStringList list);
+    void soapyHardwareKeyChanged(QString key);
+    void soapyRxAntennaChanged(QString antenna);
+    void soapyLnaGainChanged(int gain);
+    void soapyTiaGainChanged(int gain);
+    void soapyPgaGainChanged(int gain);
+    void soapyOverallGainChanged(int gain);
+    void soapyAutoCalibrateChanged(bool enabled);
 	void serverAddrChanged(QString addr);
 	void hpsdrDeviceLocalAddrChanged(QString addr);
 	void serverPortChanged(quint16 port);
@@ -1036,6 +1044,14 @@ public:
 	QList<TNetworkDevicecard>	getMetisCardsList()			{ return m_metisCards; }
     TSoapyDevice                getCurrentSoapyDevice()     { return m_currentSoapyDevice; }
     QList<TSoapyDevice>         getSoapyDeviceList()        { return m_soapyDevices; }
+    QString     getSoapyRxAntenna()     const { return m_soapyRxAntenna; }
+    QStringList getSoapyAntennaList()   const { return m_soapyAntennaList; }
+    QString     getSoapyHardwareKey()   const { return m_soapyHardwareKey; }
+    int         getSoapyLnaGain()       const { return m_soapyLnaGain; }
+    int         getSoapyTiaGain()       const { return m_soapyTiaGain; }
+    int         getSoapyPgaGain()       const { return m_soapyPgaGain; }
+    int         getSoapyOverallGain()   const { return m_soapyOverallGain; }
+    bool        getSoapyAutoCalibrate() const { return m_soapyAutoCalibrate; }
 	long						getMaxFrequency()			{ return m_maxFrequency; }
 	long						getMinFrequency()			{ return m_minFrequency; }
 	QList<TReceiver>			getReceiverDataList()		{ return m_receiverDataList; }
@@ -1243,6 +1259,15 @@ public slots:
     void setSoapyDeviceList(QList<TSoapyDevice> list);
     void setCurrentSoapyDevice(TSoapyDevice device);
     void setSoapyMessage(QString message);
+    // SoapySDR radio parameter setters
+    void setSoapyRxAntenna(const QString &antenna);
+    void setSoapyAntennaList(const QStringList &list);  // runtime, from device
+    void setSoapyHardwareKey(const QString &key);       // runtime, from device
+    void setSoapyLnaGain(int gain);
+    void setSoapyTiaGain(int gain);
+    void setSoapyPgaGain(int gain);
+    void setSoapyOverallGain(int gain);
+    void setSoapyAutoCalibrate(bool enabled);
 	void addNetworkIOComboBoxEntry(QString str);
 	void clearNetworkIOComboBoxEntry();
 	void addServerNetworkInterface(QString nicName, QString ipAddress);
@@ -1494,6 +1519,16 @@ private:
 	TNetworkDevicecard			m_currentHPSDRDevice;
 #ifdef HAVE_SOAPYSDR
     TSoapyDevice                m_currentSoapyDevice;
+    // SoapySDR radio parameters (persisted)
+    QString     m_soapyRxAntenna;       // selected antenna name
+    int         m_soapyLnaGain;         // LNA gain in dB
+    int         m_soapyTiaGain;         // TIA gain in dB
+    int         m_soapyPgaGain;         // PGA gain in dB
+    int         m_soapyOverallGain;     // aggregate gain (non-LimeSDR)
+    bool        m_soapyAutoCalibrate;   // LimeSuite auto-calibration flag
+    // Runtime-only (not persisted)
+    QStringList m_soapyAntennaList;
+    QString     m_soapyHardwareKey;
 #endif
 	TTransmitter				m_transmitter;
 	TWideband					m_widebandOptions;

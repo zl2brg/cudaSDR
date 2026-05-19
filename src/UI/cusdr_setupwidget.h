@@ -29,6 +29,9 @@
 #include "cusdr_alexTabWidget.h"
 #include "cusdr_extCtrlWidget.h"
 #include "cusdr_displayTabWidget.h"
+#ifdef HAVE_SOAPYSDR
+#include "cusdr_soapyWidget.h"
+#endif
 
 
 #include <QTabWidget>
@@ -76,6 +79,9 @@ private:
     TransmitTabWidget   *m_transmitTabWidget;
     tx_settings_dialog  *m_txsettingsWidget;
     DisplayTabWidget    *m_displaytabWidget;
+#ifdef HAVE_SOAPYSDR
+    SoapyWidget         *m_soapyWidget;
+#endif
 
     QString				m_message;
 

@@ -170,43 +170,47 @@ void SoapySDRDataSource::init() {
             }
         } catch (...) {}
 
-        // Try to find a better antenna for LimeSDR (LNAH is usually better for HF/VHF)
+        // Publish hardware key to Settings so the UI can show appropriate controls
+        std::string hwKey = m_device->getHardwareKey();
+        set->setSoapyHardwareKey(QString::fromStdString(hwKey));
+
+        // Build and publish antenna list; then select from Settings (with LNAH fallback)
         try {
             std::vector<std::string> antennas = m_device->listAntennas(SOAPY_SDR_RX, 0);
-            QString antennaList;
-            for (const auto& a : antennas) antennaList += QString::fromStdString(a) + " ";
-            qDebug() << "SoapySDRDataSource: Available antennas:" << antennaList;
-            
-            QString targetAntenna = "LNAH"; 
-            bool found = false;
-            for (const auto& a : antennas) {
-                if (QString::fromStdString(a) == targetAntenna) {
-                    found = true;
-                    break;
-                }
-            }
-            
-            if (!found && !antennas.empty()) targetAntenna = QString::fromStdString(antennas[0]);
-            
-            m_device->setAntenna(SOAPY_SDR_RX, 0, targetAntenna.toStdString());
-            qDebug() << "SoapySDRDataSource: Selected antenna:" << targetAntenna;
+            QStringList antennaQList;
+            for (const auto& a : antennas) antennaQList << QString::fromStdString(a);
+            set->setSoapyAntennaList(antennaQList);
+            qDebug() << "SoapySDRDataSource: Available antennas:" << antennaQList.join(" ");
 
-            // Set high gain
-            if (m_device->getHardwareKey() == "LimeSDR-Mini") {
-                // LNA 25 dB: good noise figure with headroom before ADC saturation.
-                // TIA 12 dB: only valid values are 0/9/12; max always preferred for NF.
-                // PGA 12 dB: mid-range trim (~2/3 of max), leaves room to increase.
-                // Total: 49 dB — receivable on most bands without saturating on
-                // strong HF broadcast / VHF signals.
-                m_device->setGain(SOAPY_SDR_RX, 0, "LNA", 25.0);
-                m_device->setGain(SOAPY_SDR_RX, 0, "TIA", 12.0);
-                m_device->setGain(SOAPY_SDR_RX, 0, "PGA", 12.0);
+            // Pick antenna: prefer stored setting, fall back to LNAH, then first available
+            QString wantAntenna = set->getSoapyRxAntenna();
+            if (wantAntenna.isEmpty() || !antennaQList.contains(wantAntenna)) {
+                wantAntenna = antennaQList.contains("LNAH") ? "LNAH"
+                            : antennaQList.isEmpty()        ? ""
+                            :                                  antennaQList.first();
+                if (!wantAntenna.isEmpty())
+                    set->setSoapyRxAntenna(wantAntenna);
+            }
+            if (!wantAntenna.isEmpty()) {
+                m_device->setAntenna(SOAPY_SDR_RX, 0, wantAntenna.toStdString());
+                qDebug() << "SoapySDRDataSource: Selected antenna:" << wantAntenna;
+            }
+        } catch (const std::exception &e) {
+            qWarning() << "SoapySDRDataSource: Antenna setup warning:" << e.what();
+        }
+
+        // Apply gain from Settings
+        try {
+            if (QString::fromStdString(m_device->getHardwareKey()).contains("LimeSDR", Qt::CaseInsensitive)) {
+                m_device->setGain(SOAPY_SDR_RX, 0, "LNA", set->getSoapyLnaGain());
+                m_device->setGain(SOAPY_SDR_RX, 0, "TIA", set->getSoapyTiaGain());
+                m_device->setGain(SOAPY_SDR_RX, 0, "PGA", set->getSoapyPgaGain());
             } else {
-                m_device->setGain(SOAPY_SDR_RX, 0, 60.0);
+                m_device->setGain(SOAPY_SDR_RX, 0, set->getSoapyOverallGain());
             }
             m_device->setBandwidth(SOAPY_SDR_RX, 0, 5e6);
         } catch (const std::exception &e) {
-            qDebug() << "SoapySDRDataSource: HW init warning:" << e.what();
+            qWarning() << "SoapySDRDataSource: Gain setup warning:" << e.what();
         }
         
         m_rxStream = m_device->setupStream(SOAPY_SDR_RX, SOAPY_SDR_CF32);
@@ -250,7 +254,57 @@ void SoapySDRDataSource::init() {
                              << "rx=" << rx << "freq=" << frequency / 1.0e6 << "MHz";
                     setFrequency(rx, frequency);
                 }, Qt::DirectConnection);
-        qDebug() << "[SoapySDR] init() complete — frequency and sample-rate signals connected";
+
+        // Apply antenna/gain changes from the Radio tab in real-time
+        connect(set, &Settings::soapyRxAntennaChanged, this,
+                [this](const QString &antenna) {
+                    if (m_device) {
+                        try { m_device->setAntenna(SOAPY_SDR_RX, 0, antenna.toStdString()); }
+                        catch (const std::exception &e) {
+                            qWarning() << "SoapySDR: setAntenna failed:" << e.what();
+                        }
+                    }
+                }, Qt::DirectConnection);
+        connect(set, &Settings::soapyLnaGainChanged, this,
+                [this](int gain) {
+                    if (m_device) {
+                        try { m_device->setGain(SOAPY_SDR_RX, 0, "LNA", gain); }
+                        catch (...) {}
+                    }
+                }, Qt::DirectConnection);
+        connect(set, &Settings::soapyTiaGainChanged, this,
+                [this](int gain) {
+                    if (m_device) {
+                        try { m_device->setGain(SOAPY_SDR_RX, 0, "TIA", gain); }
+                        catch (...) {}
+                    }
+                }, Qt::DirectConnection);
+        connect(set, &Settings::soapyPgaGainChanged, this,
+                [this](int gain) {
+                    if (m_device) {
+                        try { m_device->setGain(SOAPY_SDR_RX, 0, "PGA", gain); }
+                        catch (...) {}
+                    }
+                }, Qt::DirectConnection);
+        connect(set, &Settings::soapyOverallGainChanged, this,
+                [this](int gain) {
+                    if (m_device) {
+                        try { m_device->setGain(SOAPY_SDR_RX, 0, gain); }
+                        catch (...) {}
+                    }
+                }, Qt::DirectConnection);
+        connect(set, &Settings::soapyAutoCalibrateChanged, this,
+                [this](bool enabled) {
+                    if (m_device) {
+                        try {
+                            m_device->writeSetting("AUTO_CALIBRATION",
+                                                   enabled ? "TRUE" : "FALSE");
+                        }
+                        catch (...) {}
+                    }
+                }, Qt::DirectConnection);
+
+        qDebug() << "[SoapySDR] init() complete — signals connected";
 
     } catch (const std::exception &ex) {
         qCritical() << "SoapySDRDataSource init error:" << ex.what();
