@@ -7,6 +7,7 @@
 #include <QThread>
 #include <QTimer>
 #include <QElapsedTimer>
+#include <atomic>
 #include <SoapySDR/Device.hpp>
 #include <SoapySDR/Formats.hpp>
 #include <SoapySDR/Types.hpp>
@@ -36,11 +37,25 @@ private:
     SoapySDR::Stream* m_rxStream;
 
     volatile bool m_stopped;
-    int m_sampleRate;     // DSP/WDSP processing rate (from Settings)
-    int m_rfSampleRate;   // hardware RF sample rate (clamped to device minimum)
+    int m_sampleRate;      // DSP/WDSP processing rate (from Settings)
+    int m_rfSampleRate;    // hardware RF sample rate (exact multiple of m_sampleRate)
+    int m_decimRatio;      // m_rfSampleRate / m_sampleRate (averaging decimation factor)
+    int m_minSampleRate;   // device hardware minimum, read-only after init()
     size_t m_numChannels;
     long m_minFrequency;
     long m_maxFrequency;
+
+    // Pending hardware changes — written by slots (UI thread via DirectConnection),
+    // consumed by runStream() loop so they take effect between readStream() calls.
+    std::atomic<double> m_pendingFreq;
+    std::atomic<bool>   m_freqPending;
+    std::atomic<int>    m_pendingRfSampleRate;
+    std::atomic<int>    m_pendingDecimRatio;
+    std::atomic<bool>   m_sampleRatePending;
+
+    // Last VFO seen by runStream() — used for polling-based frequency tracking
+    // as a fallback when the signal/slot path doesn't fire.
+    long m_lastKnownVfo;
 
 signals:
     void messageEvent(QString message);

@@ -232,8 +232,8 @@ void Receiver::dspProcessingSoapy() {
     cpx* inPtr = inBuf.data();
     const float* rawPtr = rawIQ.constData();
     for (int i = 0; i < BUFFER_SIZE; ++i) {
-        inPtr[i].re = static_cast<double>(rawPtr[2*i]);
-        inPtr[i].im = static_cast<double>(rawPtr[2*i+1]);
+        inPtr[i].re =  static_cast<double>(rawPtr[2*i]);
+        inPtr[i].im = -static_cast<double>(rawPtr[2*i+1]); // negate Q: LimeSDR-Mini IQ is conjugated
     }
 
     dspProcessingCore();
