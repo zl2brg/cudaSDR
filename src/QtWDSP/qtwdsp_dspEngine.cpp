@@ -128,7 +128,7 @@ QWDSPEngine::QWDSPEngine(QObject *parent, int rx, int size)
     
     int analyzerResult;
     WDSP_ENGINE_DEBUG << "[WDSP-INIT] rx=" << m_rx << "-> XCreateAnalyzer";
-    XCreateAnalyzer(m_rx, &analyzerResult, 262144, 1, 1, const_cast<char*>(""));
+    XCreateAnalyzer(m_rx, &analyzerResult, 4096, 1, 1, const_cast<char*>(""));
     if (analyzerResult != 0) {
         qWarning() << "[WDSP-INIT] XCreateAnalyzer id=" << m_rx << "failed:" << analyzerResult;
     } else {

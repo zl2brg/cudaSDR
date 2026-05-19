@@ -43,6 +43,7 @@ Receiver::Receiver(int rx)
 	, m_samplerate(set->getSampleRate())
 	, m_audioMode(1)
 	, m_rateTransitionDropBuffers(0)
+    , m_iqQueue(100)
 	//, m_calOffset(63.0)
 	//, m_calOffset(33.0)
 {
@@ -288,7 +289,14 @@ void Receiver::dspProcessing() {
 
         if (spectrumDataReady) {
             newSpectrum = qtwdsp->spectrumBuffer;  // Direct assignment
+            if (m_dspCallCount % 100 == 1) {
+                qDebug() << "Receiver" << m_receiver << ": Spectrum data ready, emitting signal, first sample:" << newSpectrum.at(0);
+            }
             emit spectrumBufferChanged(m_receiver, newSpectrum);
+        } else {
+            if (m_dspCallCount % 100 == 1) {
+                qDebug() << "Receiver" << m_receiver << ": GetPixels returned no data";
+            }
         }
         
         highResTimer->start();

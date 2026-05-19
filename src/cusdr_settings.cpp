@@ -2944,8 +2944,17 @@ void Settings::searchHpsdrNetworkDevices() {
     emit searchMetisSignal();
 }
 
+#ifdef HAVE_SOAPYSDR
 void Settings::searchSoapyDevices() {
     emit searchSoapySignal();
+}
+#endif
+
+void Settings::searchDevices() {
+    emit searchMetisSignal();
+#ifdef HAVE_SOAPYSDR
+    emit searchSoapySignal();
+#endif
 }
 
 void Settings::clearMetisCardList() {

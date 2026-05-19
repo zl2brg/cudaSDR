@@ -127,6 +127,7 @@ private:
 	void	updateFromSettings();
 	void	setAttenuatorButton();
     void    setupActions();
+    void    checkStartButtonState();
 
 
 private:

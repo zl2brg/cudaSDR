@@ -59,12 +59,53 @@ void SoapySDRDataSource::init() {
 
         qDebug() << "SoapySDRDataSource: Using device" << QString::fromStdString(m_device->getHardwareKey());
 
+        // Use the sample rate from settings (e.g. 48000) to keep DSP in sync
+        m_sampleRate = set->getSampleRate();
         m_device->setSampleRate(SOAPY_SDR_RX, 0, m_sampleRate);
+
+        // Try to find a better antenna for LimeSDR (LNAH is usually better for HF/VHF)
+        try {
+            std::vector<std::string> antennas = m_device->listAntennas(SOAPY_SDR_RX, 0);
+            QString antennaList;
+            for (const auto& a : antennas) antennaList += QString::fromStdString(a) + " ";
+            qDebug() << "SoapySDRDataSource: Available antennas:" << antennaList;
+            
+            QString targetAntenna = "LNAH"; 
+            bool found = false;
+            for (const auto& a : antennas) {
+                if (QString::fromStdString(a) == targetAntenna) {
+                    found = true;
+                    break;
+                }
+            }
+            
+            if (!found && !antennas.empty()) targetAntenna = QString::fromStdString(antennas[0]);
+            
+            m_device->setAntenna(SOAPY_SDR_RX, 0, targetAntenna.toStdString());
+            qDebug() << "SoapySDRDataSource: Selected antenna:" << targetAntenna;
+
+            // Set detailed gains if available, otherwise generic
+            if (m_device->getHardwareKey() == "LimeSDR-Mini") {
+                m_device->setGain(SOAPY_SDR_RX, 0, "LNA", 15.0);
+                m_device->setGain(SOAPY_SDR_RX, 0, "TIA", 12.0);
+                m_device->setGain(SOAPY_SDR_RX, 0, "PGA", 15.0);
+            } else {
+                m_device->setGain(SOAPY_SDR_RX, 0, 40.0);
+            }
+            m_device->setBandwidth(SOAPY_SDR_RX, 0, 5e6);
+        } catch (const std::exception &e) {
+            qDebug() << "SoapySDRDataSource: HW init warning:" << e.what();
+        }
         
         m_rxStream = m_device->setupStream(SOAPY_SDR_RX, SOAPY_SDR_CF32);
         m_device->activateStream(m_rxStream);
 
-        qDebug() << "SoapySDRDataSource: Stream activated at" << m_sampleRate << "Hz";
+        // Force hardware settings again after stream is live
+        m_device->setSampleRate(SOAPY_SDR_RX, 0, m_sampleRate);
+        // Force 100MHz for testing
+        m_device->setFrequency(SOAPY_SDR_RX, 0, 100.0e6);
+
+        qDebug() << "SoapySDRDataSource: Stream activated at" << m_sampleRate << "Hz, FORCED Freq: 100.0 MHz";
 
         connect(set, &Settings::sampleRateChanged, this, &SoapySDRDataSource::setSampleRate);
         connect(set, &Settings::vfoFrequencyChanged, this, &SoapySDRDataSource::setFrequency);
@@ -90,18 +131,27 @@ void SoapySDRDataSource::stop() {
 void SoapySDRDataSource::runStream() {
     if (!m_device || !m_rxStream) return;
 
-    const size_t numSamples = 512; // Typical HPSDR packet size-ish
+    const size_t numSamples = 1024; // Match cudaSDR's BUFFER_SIZE
     std::vector<float> buff(numSamples * 2); // complex samples
     void *buffs[] = {buff.data()};
 
     m_stopped = false;
+    uint32_t packetCount = 0;
 
     while (!m_stopped) {
         int flags;
         long long timeNs;
-        int ret = m_device->readStream(m_rxStream, buffs, numSamples, flags, timeNs, 100000);
+        int ret = m_device->readStream(m_rxStream, buffs, numSamples, flags, timeNs, 1000000);
 
         if (ret > 0) {
+            packetCount++;
+            if (packetCount % 100 == 0) {
+                double mag = 0;
+                for(int i=0; i<ret*2; i++) mag += std::abs(buff[i]);
+                mag /= (ret*2);
+                qDebug() << "SoapySDRDataSource: Read" << ret << "samples, avg mag:" << mag;
+            }
+
             QList<double> samples;
             samples.reserve(ret * 2);
             for (int i = 0; i < ret; ++i) {
@@ -110,6 +160,11 @@ void SoapySDRDataSource::runStream() {
             }
             io->data_queue.enqueue(samples);
             emit readydata();
+
+            // Simple backpressure: if DataProcessor is not clearing the queue, slow down reading
+            if (io->data_queue.count() > 50) {
+                QThread::msleep(10);
+            }
         } else if (ret < 0) {
             qCritical() << "SoapySDRDataSource: readStream error" << ret;
         }
@@ -125,8 +180,10 @@ void SoapySDRDataSource::setSampleRate(int value) {
 
 void SoapySDRDataSource::setFrequency(int rx, long frequency) {
     Q_UNUSED(rx);
+    Q_UNUSED(frequency);
     if (m_device) {
-        m_device->setFrequency(SOAPY_SDR_RX, 0, (double)frequency);
+        // Force 100MHz regardless of GUI for now
+        m_device->setFrequency(SOAPY_SDR_RX, 0, 100.0e6);
     }
 }
 

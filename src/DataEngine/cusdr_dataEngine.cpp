@@ -1618,6 +1618,9 @@ void DataEngine::createDataIO() {
                     &QThread::started,
                     m_soapySDRSource,
                     &SoapySDRDataSource::runStream);
+        
+        // We still need DataIO for local soundcard output!
+        m_dataIO = new DataIO(&io);
         return;
     }
 #endif
@@ -1708,7 +1711,7 @@ void DataEngine::stopDataIO() {
 #ifdef HAVE_SOAPYSDR
         if (m_hwInterface == QSDR::SoapySDR && m_soapySDRSource) {
             m_soapySDRSource->stop();
-        } else 
+        }
 #endif
         if (m_dataIO) {
             m_dataIO->stop();
@@ -1807,9 +1810,10 @@ void DataEngine::createDataProcessor() {
 						&DataIO::readydata,
 						m_dataProcessor,
 						&DataProcessor::processReadData);
-			} 
+            } 
 #ifdef HAVE_SOAPYSDR
             else if (m_soapySDRSource) {
+                qDebug() << "DataEngine: Connecting m_soapySDRSource::readydata to DataProcessor";
                 CHECKED_CONNECT(
                         m_soapySDRSource,
                         &SoapySDRDataSource::readydata,
@@ -1825,12 +1829,21 @@ void DataEngine::createDataProcessor() {
 
 #ifdef HAVE_SOAPYSDR
         case QSDR::SoapySDR:
-            // Handled above by connecting m_soapySDRSource to m_dataProcessor
+            if (m_soapySDRSource) {
+                qDebug() << "DataEngine: Connecting m_soapySDRSource::readydata to DataProcessor";
+                CHECKED_CONNECT(
+                        m_soapySDRSource,
+                        &SoapySDRDataSource::readydata,
+                        m_dataProcessor,
+                        &DataProcessor::processReadData);
+                // Also trigger one immediate check in case data is already waiting
+                QMetaObject::invokeMethod(m_dataProcessor, "processReadData", Qt::QueuedConnection);
+            }
             break;
 #endif
     }
-	
 }
+
 
 bool DataEngine::startDataProcessor(QThread::Priority prio) {
 
@@ -3837,8 +3850,13 @@ void DataProcessor::processReadData()
 {
 #ifdef HAVE_SOAPYSDR
     if (set->getHWInterface() == QSDR::SoapySDR) {
+        static uint32_t soapyProcCount = 0;
         while(!de->io.data_queue.isEmpty()) {
+            soapyProcCount++;
             QList<double> samples = de->io.data_queue.dequeue();
+            if (soapyProcCount % 100 == 0) {
+                qDebug() << "DataProcessor: Processing SoapySDR samples, queue size:" << de->io.data_queue.count();
+            }
             processInputBuffer(samples);
         }
         return;
@@ -3882,23 +3900,30 @@ void DataProcessor::processReadData()
 void DataProcessor::processInputBuffer(const QList<double> &samples) {
     if (samples.isEmpty()) return;
 
+    static uint32_t inputBufCount = 0;
+    inputBufCount++;
+
     // For now, assume samples are for RX 0.
-    // In HPSDR, samples for multiple receivers are interleaved.
-    // For SoapySDR with multi-RX support, we'd need a more complex mapping.
-    
     int rx = 0;
-    if (rx < de->RX.size() && de->RX[rx] && de->RX[rx]->qtwdsp) {
-        int numSamples = samples.size() / 2;
-        CPX in;
-        in.reserve(numSamples);
-        CPX out; // QWDSPEngine::processDSP handles resize
-        for (int i = 0; i < numSamples; ++i) {
-            _QCOMPLEX c;
-            c.re = samples[i * 2];
-            c.im = samples[i * 2 + 1];
-            in.append(c);
+    if (rx < de->RX.size() && de->RX[rx]) {
+        if (inputBufCount % 100 == 0) {
+             qDebug() << "DataProcessor: Passing" << samples.size()/2 << "samples to RX" << rx;
         }
-        de->RX[rx]->qtwdsp->processDSP(in, out);
+        
+        int numSamples = samples.size() / 2;
+        // WDSP expects samples in de->RX[rx]->m_rawIQ as 24-bit integers
+        // Actually, Receiver::dspProcessing converts m_rawIQ queue items to double.
+        // Wait, looking at Receiver::enqueueRawData() slot: it copies from its own m_rawIQ member.
+        
+        // Correct flow for SoapySDR:
+        for (int i = 0; i < numSamples; ++i) {
+            de->RX[rx]->m_rawIQ[i * 2]     = static_cast<int32_t>(samples[i * 2] * 8388607.0);
+            de->RX[rx]->m_rawIQ[i * 2 + 1] = static_cast<int32_t>(samples[i * 2 + 1] * 8388607.0);
+        }
+
+        // Now trigger the standard receiver flow
+        de->RX[rx]->enqueueRawData();
+        QMetaObject::invokeMethod(de->RX[rx], "dspProcessing", Qt::QueuedConnection);
     }
 }
 #endif

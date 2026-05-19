@@ -1233,7 +1233,10 @@ public slots:
     void setRxList (QList<Receiver*> list);
 	void setMetisCardList(QList<TNetworkDevicecard> list);
 	void searchHpsdrNetworkDevices();
+#ifdef HAVE_SOAPYSDR
     void searchSoapyDevices();
+#endif
+    void searchDevices();
 	void clearMetisCardList();
 	void setHPSDRDeviceNumber(int value);
 	void setCurrentHPSDRDevice(TNetworkDevicecard card);
