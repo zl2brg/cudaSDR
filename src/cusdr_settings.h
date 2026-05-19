@@ -1331,6 +1331,7 @@ public slots:
 	void setCtrFrequency(int mode, int rx, long frequency);
 	void setCtrFrequency(int rx, long frequency);
 	long getCtrFrequency(int rx);
+	void setMaxFrequency(long value);
 	void setVFOFrequency(int mode, int rx, long frequency);
 	void setVfoFrequency(int rx, long frequency);
 	long getVfoFrequency(int rx);

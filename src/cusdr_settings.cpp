@@ -2964,6 +2964,13 @@ void Settings::clearMetisCardList() {
     //emit metisCardListChanged(m_metisCards);
 }
 
+void Settings::setMaxFrequency(long value) {
+
+    if (m_maxFrequency == value) return;
+    m_maxFrequency = value;
+    emit maxFrequencyChanged(m_maxFrequency);
+}
+
 void Settings::setCurrentHPSDRDevice(TNetworkDevicecard card) {
 
     m_currentHPSDRDevice = card;
@@ -3797,9 +3804,6 @@ void Settings::setVFOFrequency(int mode, int rx, long frequency) {
     if (m_receiverDataList.at(rx).vfoFrequency == frequency) return;
     m_receiverDataList[rx].vfoFrequency = frequency;
     SETTINGS_DEBUG << "vfo freq (Rx " << rx << ") " << m_receiverDataList[rx].vfoFrequency;
-    if (frequency > 60000000)
-        SETTINGS_DEBUG << "frequency out of expected range: " << frequency;
-
     HamBand band = getBandFromFrequency(m_bandList, frequency);
     m_receiverDataList[rx].lastVfoFrequencyList[(int) band] = frequency;
 
@@ -3814,8 +3818,17 @@ void Settings::setVFOFrequency(int mode, int rx, long frequency) {
 
         case 0: // change only VFO
 
-            m_receiverDataList[rx].ncoFrequency = frequency - m_receiverDataList.at(rx).ctrFrequency;
-            SETTINGS_DEBUG << "nco freq = " << m_receiverDataList[rx].ncoFrequency << "rx frequency = " << frequency << "Ctr Frequnecy =" << m_receiverDataList.at(rx).ctrFrequency;
+#ifdef HAVE_SOAPYSDR
+            if (m_hwInterface == QSDR::SoapySDR) {
+                // SoapySDR hardware tunes directly to VFO; keep center = VFO so NCO stays 0
+                m_receiverDataList[rx].ctrFrequency = frequency;
+                m_receiverDataList[rx].ncoFrequency = 0;
+            } else
+#endif
+            {
+                m_receiverDataList[rx].ncoFrequency = frequency - m_receiverDataList.at(rx).ctrFrequency;
+                SETTINGS_DEBUG << "nco freq = " << m_receiverDataList[rx].ncoFrequency << "rx frequency = " << frequency << "Ctr Frequnecy =" << m_receiverDataList.at(rx).ctrFrequency;
+            }
             break;
 
         case 1: // change VFO and center freq; keep NCO frequency
