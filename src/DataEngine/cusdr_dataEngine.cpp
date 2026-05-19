@@ -480,6 +480,10 @@ bool DataEngine::findHPSDRDevices() {
 		return false;
 	}
 
+    // Invoke discovery on the discoverer thread (moved to thread via moveToThread,
+    // so a queued invocation is required — a direct call would run on the wrong thread).
+    QMetaObject::invokeMethod(m_discoverer, "initHPSDRDevice", Qt::QueuedConnection);
+
 	io.networkIOMutex.lock();
 	DATA_ENGINE_DEBUG << "HPSDR network device detection...please wait.";
 	set->setSystemMessage("HPSDR network device detection...please wait", 0);
@@ -1244,6 +1248,13 @@ bool DataEngine::initDataEngine() {
 #ifdef HAVE_SOAPYSDR
     else if (m_hwInterface == QSDR::SoapySDR) {
         initReceivers(1);
+
+        // Start DSP threads for all receivers (skipped by the normal HPSDR path)
+        for (int i = 0; i < m_dspThreadList.size(); ++i) {
+            m_dspThreadList.at(i)->start(QThread::HighPriority);
+            DATA_ENGINE_DEBUG << "SoapySDR: started DSP thread for rx" << i;
+        }
+
         if (!m_soapySDRSource) createDataIO();
         if (!m_dataProcessor) createDataProcessor();
 
@@ -1810,18 +1821,7 @@ void DataEngine::createDataProcessor() {
 						&DataIO::readydata,
 						m_dataProcessor,
 						&DataProcessor::processReadData);
-            } 
-#ifdef HAVE_SOAPYSDR
-            else if (m_soapySDRSource) {
-                qDebug() << "DataEngine: Connecting m_soapySDRSource::readydata to DataProcessor";
-                CHECKED_CONNECT(
-                        m_soapySDRSource,
-                        &SoapySDRDataSource::readydata,
-                        m_dataProcessor,
-                        &DataProcessor::processReadData);
-            } 
-#endif
-            else {
+            } else {
 				DATA_ENGINE_DEBUG << "createDataProcessor: no data source found, skipping readydata connection.";
 			}
 
@@ -3903,27 +3903,16 @@ void DataProcessor::processInputBuffer(const QList<double> &samples) {
     static uint32_t inputBufCount = 0;
     inputBufCount++;
 
-    // For now, assume samples are for RX 0.
     int rx = 0;
     if (rx < de->RX.size() && de->RX[rx]) {
-        if (inputBufCount % 100 == 0) {
-             qDebug() << "DataProcessor: Passing" << samples.size()/2 << "samples to RX" << rx;
-        }
-        
-        int numSamples = samples.size() / 2;
-        // WDSP expects samples in de->RX[rx]->m_rawIQ as 24-bit integers
-        // Actually, Receiver::dspProcessing converts m_rawIQ queue items to double.
-        // Wait, looking at Receiver::enqueueRawData() slot: it copies from its own m_rawIQ member.
-        
-        // Correct flow for SoapySDR:
-        for (int i = 0; i < numSamples; ++i) {
-            de->RX[rx]->m_rawIQ[i * 2]     = static_cast<int32_t>(samples[i * 2] * 8388607.0);
-            de->RX[rx]->m_rawIQ[i * 2 + 1] = static_cast<int32_t>(samples[i * 2 + 1] * 8388607.0);
-        }
+        QVector<float> floatBlock;
+        floatBlock.reserve(samples.size());
+        for (const double s : samples)
+            floatBlock.append(static_cast<float>(s));
 
-        // Now trigger the standard receiver flow
-        de->RX[rx]->enqueueRawData();
-        QMetaObject::invokeMethod(de->RX[rx], "dspProcessing", Qt::QueuedConnection);
+        // Use thread-safe push
+        de->RX[rx]->enqueueSoapyData(floatBlock);
+        QMetaObject::invokeMethod(de->RX[rx], "dspProcessingSoapy", Qt::QueuedConnection);
     }
 }
 #endif

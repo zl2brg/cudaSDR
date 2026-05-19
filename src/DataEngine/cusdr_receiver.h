@@ -109,10 +109,14 @@ public:
     CPX			audioOutputBuf;
 
     QHQueue<QVector<int32_t>> m_iqQueue;
+    QHQueue<QVector<float>>   m_soapyQueue;
     int32_t     m_rawIQ[BUFFER_SIZE * 2];
 
 public slots:
     void    enqueueRawData();
+    void    enqueueRawData(const QVector<int32_t> &rawBlock);
+    void    enqueueSoapyData(const QVector<float> &data);
+    void    dspProcessingSoapy();
 	void	setReceiverData(TReceiver data);
 	void	setAudioMode(int mode);
 	void	setServerMode(QSDR::_ServerMode mode);
@@ -140,7 +144,11 @@ public slots:
 	void	setMercuryAttenuators(const QList<int> &attenuators);
 
 	void	dspProcessing();
+    void    dspProcessing(const QVector<int32_t> &rawIQ);
 	void	stop();
+
+private:
+    void    dspProcessingCore();
 
 private slots:
 	void	setSystemState(
