@@ -50,12 +50,13 @@
 #endif
 
 
+class SliceModel;
 class Receiver : public QObject {
 
 	Q_OBJECT
 
 public:
-	explicit Receiver(int rx = 0);
+	explicit Receiver(SliceModel *model, QObject *parent = nullptr);
 	~Receiver() override;
 
 	void	setupConnections();
@@ -133,6 +134,9 @@ public slots:
 	void	setCtrFrequency(long frequency);
 	void	setVfoFrequency(long frequency);
 	void	setFilterFrequencies(int rx, qreal low, qreal high);
+	/** Apply slice model mode to WDSP and local RX metadata (MVC path). */
+	void	applyDspModeFromSlice(DSPMode mode, long centerFrequencyHz);
+	void	applyFilterFromSlice(double low, double high);
 	void	setLastCtrFrequencyList(const QList<long> &frequencies);
 	void	setLastVfoFrequencyList(const QList<long> &frequencies);
 	void	setdBmPanScaleMin(qreal value);
@@ -162,7 +166,8 @@ private slots:
 private:
 
     QVector<float> interleaveFromCPX(const CPX& in, int size = -1);
-	Settings*				set;
+    SliceModel*      m_sliceModel;
+    Settings*                               set;
 	
 	QSDR::_ServerMode		m_serverMode;
 	QSDR::_HWInterfaceMode	m_hwInterface;

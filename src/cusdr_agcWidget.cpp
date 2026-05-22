@@ -1,3 +1,4 @@
+#include "Models/SliceModel.h"
 /**
 * @file  cusdr_agcWidget.h
 * @brief AGC options widget class for cuSDR
@@ -41,8 +42,9 @@
 #define	btn_width2		52
 #define	btn_width3		60
 
-AGCOptionsWidget::AGCOptionsWidget(QWidget *parent)
+AGCOptionsWidget::AGCOptionsWidget(SliceModel *model, QWidget *parent)
 	: QWidget(parent)
+        , m_sliceModel(model)
 	, set(Settings::instance())
 	, m_serverMode(set->getCurrentServerMode())
 	, m_hwInterface(set->getHWInterface())
@@ -52,7 +54,7 @@ AGCOptionsWidget::AGCOptionsWidget(QWidget *parent)
 	, m_minimumWidgetWidth(set->getMinimumWidgetWidth())
 	, m_minimumGroupBoxWidth(set->getMinimumGroupBoxWidth())
 	, m_btnSpacing(5)
-	, m_currentReceiver(set->getCurrentReceiver())
+	, m_currentReceiver(model->id())
 	, m_sampleRate(set->getSampleRate())
 	, m_mouseOver(false)
 {
@@ -92,7 +94,10 @@ AGCOptionsWidget::AGCOptionsWidget(QWidget *parent)
 	mainLayout->addStretch();
 	setLayout(mainLayout);
 
-	agcModeChanged(0, m_agcMode, false);
+	if (m_sliceModel)
+		agcModeChanged(m_sliceModel->id(), m_sliceModel->agcMode(), false);
+	else
+		agcModeChanged(0, m_agcMode, false);
 
 	setupConnections();
 }
@@ -144,29 +149,24 @@ void AGCOptionsWidget::setupConnections() {
 		this, 
 		&AGCOptionsWidget::sampleRateChanged);
 
-	CHECKED_CONNECT(
-		set,
-		&Settings::agcModeChanged,
-		this,
-		&AGCOptionsWidget::agcModeChanged);
-
-	CHECKED_CONNECT(
-		set,
-		&Settings::agcHangThresholdSliderChanged,
-		this,
-		&AGCOptionsWidget::setAGCHangThresholdSlider);
-
-	CHECKED_CONNECT(
-		set,
-		&Settings::agcMaximumGainChanged_dB,
-		this,
-		&AGCOptionsWidget::setAGCMaximumGain_dB);
-
-	CHECKED_CONNECT(
-		set,
-		&Settings::agcFixedGainChanged_dB,
-		this,
-		&AGCOptionsWidget::setAGCFixedGain_dB);
+	if (m_sliceModel) {
+		connect(m_sliceModel, &SliceModel::agcModeChanged, this,
+		        [this](AGCMode mode) { agcModeChanged(m_sliceModel->id(), mode, false); });
+		connect(m_sliceModel, &SliceModel::agcMaxGainChanged, this,
+		        [this](int gain) { setAGCMaximumGain_dB(m_sliceModel->id(), static_cast<qreal>(gain)); });
+		connect(m_sliceModel, &SliceModel::agcFixedGainChanged, this,
+		        [this](int gain) { setAGCFixedGain_dB(m_sliceModel->id(), static_cast<qreal>(gain)); });
+		connect(m_sliceModel, &SliceModel::agcHangThresholdChanged, this,
+		        [this](int value) { setAGCHangThresholdSlider(m_sliceModel->id(), static_cast<qreal>(value)); });
+	} else {
+		CHECKED_CONNECT(set, &Settings::agcModeChanged, this, &AGCOptionsWidget::agcModeChanged);
+		CHECKED_CONNECT(set, &Settings::agcHangThresholdSliderChanged, this,
+		                &AGCOptionsWidget::setAGCHangThresholdSlider);
+		CHECKED_CONNECT(set, &Settings::agcMaximumGainChanged_dB, this,
+		                &AGCOptionsWidget::setAGCMaximumGain_dB);
+		CHECKED_CONNECT(set, &Settings::agcFixedGainChanged_dB, this,
+		                &AGCOptionsWidget::setAGCFixedGain_dB);
+	}
 }
 
 void AGCOptionsWidget::createAgcModeBtnGroup() {
@@ -504,13 +504,15 @@ void AGCOptionsWidget::agcModeChanged(int rx, AGCMode mode, bool hang) {
 
 void AGCOptionsWidget::slopeChanged(int value) {
 
-	set->setAGCVariableGain_dB(set->getCurrentReceiver(), (qreal)value);
+	m_sliceModel->setAgcSlope(value);
 }
 
 void AGCOptionsWidget::maxGainChanged(int value) {
-
-	int rx = set->getCurrentReceiver();
-	set->setAGCMaximumGain_dB(rx, (qreal) value);
+	if (m_sliceModel) {
+		m_sliceModel->setAgcMaxGain(value);
+		return;
+	}
+	set->setAGCMaximumGain_dB(set->getCurrentReceiver(), static_cast<qreal>(value));
 }
 
 void AGCOptionsWidget::setAGCMaximumGain_dB(int rx, qreal value) {
@@ -523,9 +525,11 @@ void AGCOptionsWidget::setAGCMaximumGain_dB(int rx, qreal value) {
 }
 
 void AGCOptionsWidget::fixedGainChanged(int value) {
-
-	int rx = set->getCurrentReceiver();
-	set->setAGCFixedGain_dB(rx, (qreal) value);
+	if (m_sliceModel) {
+		m_sliceModel->setAgcFixedGain(value);
+		return;
+	}
+	set->setAGCFixedGain_dB(set->getCurrentReceiver(), static_cast<qreal>(value));
 }
 
 void AGCOptionsWidget::setAGCFixedGain_dB(int rx, qreal value) {
@@ -553,11 +557,13 @@ void AGCOptionsWidget::hangTimeChanged(int value) {
 }
 
 void AGCOptionsWidget::hangThresholdValueChanged(int value) {
-
 	QString str = " %1 ";
 	m_hangThresholdValueLabel->setText(str.arg(value, 2, 10, QLatin1Char(' ')));
 
-	set->setAGCHangThreshold(set->getCurrentReceiver(), value);
+	if (m_sliceModel)
+		m_sliceModel->setAgcHangThreshold(value);
+	else
+		set->setAGCHangThreshold(set->getCurrentReceiver(), value);
 }
 
 void AGCOptionsWidget::setAGCHangThresholdSlider(int rx, qreal value) {
@@ -591,7 +597,12 @@ void AGCOptionsWidget::setCurrentReceiver(int rx) {
 	if (m_currentReceiver == rx) return;
 	m_currentReceiver = rx;
 
-	if (m_agcMode != m_rxDataList.at(rx).agcMode) {
+	if (m_sliceModel && m_sliceModel->id() == rx) {
+		agcModeChanged(rx, m_sliceModel->agcMode(), false);
+		setAGCMaximumGain_dB(rx, static_cast<qreal>(m_sliceModel->agcMaxGain()));
+		setAGCFixedGain_dB(rx, static_cast<qreal>(m_sliceModel->agcFixedGain()));
+		setAGCHangThresholdSlider(rx, static_cast<qreal>(m_sliceModel->agcHangThreshold()));
+	} else if (m_agcMode != m_rxDataList.at(rx).agcMode) {
 		m_agcMode = m_rxDataList.at(rx).agcMode;
 	}
 }

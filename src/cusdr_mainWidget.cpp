@@ -1,3 +1,5 @@
+#include "Models/RadioModel.h"
+#include "Models/SliceModel.h"
 /**
 * @file  cusdr_mainWidget.cpp
 * @brief main window widget class for cuSDR
@@ -69,14 +71,15 @@ extern "C" int GetWDSPVersion();
 	- set up connections.
 	- find network connections.
 */
-MainWindow::MainWindow(QWidget *parent)
+MainWindow::MainWindow(RadioModel *model, QWidget *parent)
 	: QMainWindow(parent)
 	, set(Settings::instance())
 	, m_serverMode(set->getCurrentServerMode())
 	, m_hwInterface(set->getHWInterface())
 	, m_dataEngineState(QSDR::DataEngineDown)
 	, m_mover(false)
-	, m_resizePosition(0)
+        , m_resizePosition(0)
+        , m_radioModel(model)
 {
     ui = new MainWindowUI(this);
     setupWidget = new QDialog(this);
@@ -118,12 +121,12 @@ MainWindow::MainWindow(QWidget *parent)
 	m_fonts = fonts->getFonts();
 
 	// the SDR data engine
-	m_dataEngine = new DataEngine(this);
+	m_dataEngine = new DataEngine(m_radioModel, this);
 
 	// control widgets
     m_serverWidget = new ServerWidget(this);
-    m_hpsdrTabWidget = new cusdr_SetupWidget(this);
-    test_widget = new cusdr_SetupWidget();
+    m_hpsdrTabWidget = new cusdr_SetupWidget(m_radioModel, this);
+    test_widget = new cusdr_SetupWidget(m_radioModel);
     test_widget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
     QScrollArea *scrollArea = new QScrollArea(setupWidget);
@@ -282,23 +285,37 @@ SIGNAL(showEvent()),
 		this,
 		&MainWindow::setADCMode);
 
-	CHECKED_CONNECT(
-		set,
-        &Settings::agcModeChanged,
-		this,
-		&MainWindow::setAGCMode);
-
-	CHECKED_CONNECT(
-		set,
-		&Settings::agcMaximumGainChanged_dB,
-		this,
-		(qOverload<int, qreal>(&MainWindow::setAGCGain)));
-
-	CHECKED_CONNECT(
-		set,
-		&Settings::agcFixedGainChanged_dB,
-		this,
-		(qOverload<int, qreal>(&MainWindow::setAGCGain)));
+	if (m_radioModel) {
+		for (SliceModel* slice : m_radioModel->slices()) {
+			if (!slice) continue;
+			const int rx = slice->id();
+			connect(slice, &SliceModel::volumeChanged, this, [this, rx](float vol) {
+				if (set->getCurrentReceiver() != rx) return;
+				ui->volumeSlider->blockSignals(true);
+				ui->volumeSlider->setValue(static_cast<int>(vol * 100.0f));
+				ui->volumeSlider->blockSignals(false);
+				ui->volLevelLabel->setText(QString("%1 %").arg(static_cast<int>(vol * 100.0f), 2, 10, QLatin1Char(' ')));
+			});
+			connect(slice, &SliceModel::agcModeChanged, this,
+			        [this, rx](AGCMode mode) {
+				        if (set->getCurrentReceiver() == rx) setAGCMode(rx, mode, false);
+			        });
+			connect(slice, &SliceModel::agcMaxGainChanged, this,
+			        [this, rx](int gain) {
+				        if (set->getCurrentReceiver() == rx) setAGCGain(rx, static_cast<qreal>(gain));
+			        });
+			connect(slice, &SliceModel::agcFixedGainChanged, this,
+			        [this, rx](int gain) {
+				        if (set->getCurrentReceiver() == rx) setAGCGain(rx, static_cast<qreal>(gain));
+			        });
+		}
+	} else {
+		connect(set, &Settings::agcModeChanged, this, &MainWindow::setAGCMode);
+		connect(set, &Settings::agcMaximumGainChanged_dB, this,
+		        qOverload<int, qreal>(&MainWindow::setAGCGain));
+		connect(set, &Settings::agcFixedGainChanged_dB, this,
+		        qOverload<int, qreal>(&MainWindow::setAGCGain));
+	}
 
 	CHECKED_CONNECT(
 		set,
@@ -564,8 +581,10 @@ void MainWindow::createReceiverPanels(int rx) {
 	rxWidgetList.clear();
 	
 	for (int i = 0; i < rx; i++) {
+        if (!m_radioModel || i >= m_radioModel->slices().size()) continue;
 	
-		QGLReceiverPanel* rxPanel = new QGLReceiverPanel(this, i);
+                QGLReceiverPanel* rxPanel = new QGLReceiverPanel(m_radioModel->slices().at(i), this);
+                rxPanel->setObjectName(QString("RxPanel_%1").arg(i));
 		rxWidgetList.append(rxPanel);
     }
 }
@@ -1032,10 +1051,9 @@ void MainWindow::closeWidgetEvent(
 void MainWindow::setCurrentReceiver(int rx) {
 
 	MAIN_DEBUG << "setCurrentReceiver: " << rx;
-	//set->setCurrentReceiver(rx);
-	//m_dataEngine->io.currentReceiver = rx;
-	ui->volumeSlider->setValue((int)(set->getMainVolume(rx) * 100));
-	ui->agcGainSlider->setValue(set->getAGCMaximumGain_dB(rx));
+	ui->volumeSlider->setValue(static_cast<int>(set->getMainVolume(rx) * 100));
+	m_agcMode = set->getAGCMode(rx);
+	setAGCMode(rx, m_agcMode, false);
 }
 
 /*!
@@ -1083,14 +1101,17 @@ void MainWindow::setDriveLevel(int value)
 	\brief set the main volume.
 */
 void MainWindow::setMainVolume(int value) {
+	if (value < 0) value = 0;
+	if (value > 100) value = 100;
 
-	if (value < 0 ) value = 0;
-	if (value > 100 ) value = 100;
+	const int rx = set->getCurrentReceiver();
+	if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) {
+		m_radioModel->slices()[rx]->setVolume(value / 100.0f);
+		return;
+	}
 
-	QString str = "%1 %";
-	ui->volLevelLabel->setText(str.arg(value, 2, 10, QLatin1Char(' ')));
-
-	set->setMainVolume(set->getCurrentReceiver(), value / 100.0f);
+	set->setMainVolume(rx, value / 100.0f);
+	ui->volLevelLabel->setText(QString("%1 %").arg(value, 2, 10, QLatin1Char(' ')));
 }
 
 /*!
@@ -1105,9 +1126,12 @@ void MainWindow::muteBtnClickedEvent() {
 		ui->volumeSlider->setEnabled(false);
 
 		for (int i = 0; i < rcvr; i++) {
-
-			rxVolumeList[i] = set->getMainVolume(i);
-			set->setMainVolume(i, 0.0f);
+			if (m_radioModel && i < m_radioModel->slices().size() && m_radioModel->slices()[i])
+				m_radioModel->slices()[i]->setMute(true);
+			else {
+				rxVolumeList[i] = set->getMainVolume(i);
+				set->setMainVolume(i, 0.0f);
+			}
 		}
 	}
 	else if (ui->muteBtn->btnState() == AeroButton::ON) {
@@ -1116,8 +1140,10 @@ void MainWindow::muteBtnClickedEvent() {
 		ui->volumeSlider->setEnabled(true);
 
 		for (int i = 0; i < rcvr; i++) {
-
-			set->setMainVolume(i, rxVolumeList.at(i));
+			if (m_radioModel && i < m_radioModel->slices().size() && m_radioModel->slices()[i])
+				m_radioModel->slices()[i]->setMute(false);
+			else
+				set->setMainVolume(i, rxVolumeList.at(i));
 		}
 	}
 }
@@ -1179,10 +1205,18 @@ void MainWindow::setAGCGain(int value) {
 	ui->agcGainLevelLabel->setText(str.arg(value + 0, 2, 10, QLatin1Char(' ')));
 
 	int rx = set->getCurrentReceiver();
+	if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) {
+		SliceModel* slice = m_radioModel->slices()[rx];
+		if (m_agcMode == (AGCMode) agcOFF)
+			slice->setAgcFixedGain(value);
+		else
+			slice->setAgcMaxGain(value);
+		return;
+	}
 	if (m_agcMode == (AGCMode) agcOFF)
-		set->setAGCFixedGain_dB(rx, (qreal) value);
+		set->setAGCFixedGain_dB(rx, static_cast<qreal>(value));
 	else
-		set->setAGCMaximumGain_dB(rx, (qreal) value);
+		set->setAGCMaximumGain_dB(rx, static_cast<qreal>(value));
 }
 
 void MainWindow::setAGCGain(int rx, qreal value) {

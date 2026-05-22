@@ -1,3 +1,4 @@
+#include "Models/RadioModel.h"
 /*
  *
  *   Copyright 2022, Simon Eatough ZL2BRG, based on Hermann von Hasseln's DL3HVH work
@@ -33,8 +34,9 @@
 #define	btn_width2		52
 #define	btn_widths		40
 
-cusdr_SetupWidget::cusdr_SetupWidget(QWidget *parent)
+cusdr_SetupWidget::cusdr_SetupWidget(RadioModel *model, QWidget *parent)
 : QTabWidget(parent)
+    , m_radioModel(model)
 , set(Settings::instance())
 , m_minimumWidgetWidth(500)
 , m_minimumGroupBoxWidth(set->getMinimumGroupBoxWidth())
@@ -46,7 +48,7 @@ cusdr_SetupWidget::cusdr_SetupWidget(QWidget *parent)
     m_alexTabWidget = new AlexTabWidget(this);
     m_extCtrlWidget = new ExtCtrlWidget(this);
     m_txsettingsWidget = new tx_settings_dialog(this);
-    m_displaytabWidget = new DisplayTabWidget(this);
+    m_displaytabWidget = new DisplayTabWidget(m_radioModel, this);
 
     auto addScrollableTab = [this](QWidget* widget, const QString& title) {
         QScrollArea* scrollArea = new QScrollArea(this);

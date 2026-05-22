@@ -11,17 +11,19 @@ namespace Ui {
 class NoiseFilterWidget;
 }
 
+class SliceModel;
 class NoiseFilterWidget : public QWidget
 {
     Q_OBJECT
 
 public:
-    NoiseFilterWidget(QWidget *parent = 0, int rx = -1);
+    NoiseFilterWidget(SliceModel *model, QWidget *parent = nullptr);
     ~NoiseFilterWidget();
 
 private:
+    SliceModel*      m_sliceModel;
     Ui::NoiseFilterWidget *ui;
-    Settings	*set;
+    Settings *set;
     QSDR::_ServerMode			m_serverMode;
     QSDR::_HWInterfaceMode		m_hwInterface;
     QSDR::_DataEngineState		m_dataEngineState;

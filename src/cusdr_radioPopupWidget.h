@@ -46,12 +46,13 @@
 #include "cusdr_agcWidget.h"
 #include "noisefilterwidget.h"
 
+class SliceModel;
 class RadioPopupWidget : public QWidget {
 
 	Q_OBJECT
 
 public:
-	RadioPopupWidget(QWidget *parent = 0, int rx = 0);
+	RadioPopupWidget(SliceModel *model, QWidget *parent = 0);
 	~RadioPopupWidget();
 
 	bool getSpectrumAveraging() { return m_spectrumAveraging; }
@@ -85,6 +86,7 @@ protected:
 
 private:
 	Settings*				set;
+    SliceModel*                             m_sliceModel;
 
 
 	CFonts*					fonts;

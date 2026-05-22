@@ -31,6 +31,7 @@
 
 #include "cusdr_server.h"
 #include "cusdr_settings.h"
+#include "Models/RadioTelemetry.h"
 
 
 
@@ -295,8 +296,10 @@ char *HPSDRServer::detachReceiver(int rx, int client) {
 
 	QThread::msleep(200);
 	
-	set->setRcveIQ(0);
-	set->setSendIQ(0);
+	if (RadioTelemetry* tel = telemetryFromSettings()) {
+		tel->setRcveIQ(0);
+		tel->setSendIQ(0);
+	}
 
 	m_receivers[client] = -1;
 

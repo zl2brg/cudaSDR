@@ -62,6 +62,10 @@ add_subdirectory(wdsp-1.29)
 set(SOURCES
     # Main application
     ${SRC_DIR}/main.cpp
+    ${SRC_DIR}/Models/SliceModel.cpp
+    ${SRC_DIR}/Models/RadioModel.cpp
+    ${SRC_DIR}/Models/RadioTelemetry.cpp
+    ${SRC_DIR}/Controllers/RadioController.cpp
     ${SRC_DIR}/cusdr_settings.cpp
     ${SRC_DIR}/cusdr_hamDatabase.cpp
     ${SRC_DIR}/cusdr_fonts.cpp
@@ -263,6 +267,7 @@ target_include_directories(cudasdr PRIVATE
     ${SRC_DIR}/DataEngine
     ${SRC_DIR}/GL
     ${SRC_DIR}/QtDSP
+    ${SRC_DIR}/Models
     ${SRC_DIR}/QtWDSP
     ${SRC_DIR}/Util
     ${SRC_DIR}/UI

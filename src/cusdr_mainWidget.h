@@ -37,12 +37,15 @@ class NetworkIODialog;
 class WarningDialog;
 class MainWindowUI;
 
+class RadioModel;
 class MainWindow : public QMainWindow {
 
     Q_OBJECT
 
 public:
-    explicit MainWindow(QWidget *parent = nullptr);
+    RadioModel* radioModel() const { return m_radioModel; }
+    
+    explicit MainWindow(RadioModel *model, QWidget *parent = nullptr);
     ~MainWindow() override;
 
 	void	setup();
@@ -219,6 +222,7 @@ private:
 	int			m_deltaX_max;
     int			m_deltaY_max;
 	int			m_resizePosition;
+    RadioModel*                             m_radioModel;
 	int			m_numberOfReceivers;
 
 	int			m_alexAttnState;
@@ -247,6 +251,7 @@ class NetworkIODialog : public QDialog {
     Q_OBJECT
 
 public:
+    
     NetworkIODialog(QWidget *parent = nullptr);
     ~NetworkIODialog() override;
 
@@ -276,6 +281,7 @@ class WarningDialog : public QDialog {
     Q_OBJECT
 
 public:
+    
     WarningDialog(QWidget *parent = nullptr);
     ~WarningDialog();
 

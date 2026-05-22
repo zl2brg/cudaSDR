@@ -28,6 +28,8 @@
 #include "cusdr_settings.h"
 #include "fftw3.h"
 #include "cusdr_mainWidget.h"
+#include "Models/RadioModel.h"
+#include "Models/SliceModel.h"
 
 #include <QApplication>
 #include <QMessageBox>
@@ -253,9 +255,12 @@ int main(int argc, char *argv[]) {
     RigCtlServer rigCtlServer;
     rigCtlServer.startListening(4532);
     Settings::instance()->setRigCtlServer(&rigCtlServer);
-
+    RadioModel radioModel(&app);
+    for (int i = 0; i < 8; ++i) radioModel.addSlice(new SliceModel(i, &radioModel));
+    Settings::instance()->setRadioModel(&radioModel);
+    Settings::instance()->syncSlicesWithSettings();
+    MainWindow mainWindow(&radioModel);
     qDebug() << "Init::\tmain window setup ...";
-    MainWindow mainWindow;
     mainWindow.setup();
     qDebug() << "Init::\tmain window setup done.";
 

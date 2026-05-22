@@ -77,7 +77,7 @@ void MainWindowUI::createDisplayPanelToolBar() {
     m_displayPanelToolBar->setAllowedAreas(Qt::TopToolBarArea);
     m_displayPanelToolBar->setMovable(false);
 
-    m_oglDisplayPanel = new OGLDisplayPanel(m_displayPanelToolBar);
+    m_oglDisplayPanel = new OGLDisplayPanel(m_mainWindow->radioModel(), m_displayPanelToolBar);
     m_displayPanelToolBar->addWidget(m_oglDisplayPanel);
 
     m_mainWindow->addToolBar(m_displayPanelToolBar);

@@ -43,6 +43,7 @@
 #define LOG_DATAIO
 
 #include "cusdr_dataIO.h"
+#include "Models/RadioTelemetry.h"
 #include "protocol_boundary_utils.h"
 #include "IHPSDRProtocol.h"
 #include "soundout.h"
@@ -55,6 +56,27 @@
 #define P2_NET_DEBUG nullDebug()
 #endif
 
+namespace {
+void reportIqSequenceSync(uint32_t sequence, uint32_t& oldSequence, QElapsedTimer& packetLossTimer)
+{
+    RadioTelemetry* tel = telemetryFromSettings();
+    if (!tel) {
+        oldSequence = sequence;
+        return;
+    }
+
+    const bool firstPacket = (oldSequence == 0xFFFFFFFFu);
+    const bool inSequence = firstPacket || (sequence == oldSequence + 1);
+    if (inSequence) {
+        tel->setProtocolSync(1);
+    } else if (packetLossTimer.elapsed() > 100) {
+        tel->setProtocolSync(2);
+        tel->setPacketLoss(2);
+        packetLossTimer.restart();
+    }
+    oldSequence = sequence;
+}
+} // namespace
 
 DataIO::DataIO(THPSDRParameter *ioData)
 	: QObject()
@@ -263,13 +285,7 @@ void DataIO::readDeviceDataP1(QUdpSocket* socket) {
         int type = io->protocol->getPacketType((const unsigned char*)m_datagram.data());
         if (type == ProtocolBoundaryUtils::kPacketTypeP1IqPrimary || type == ProtocolBoundaryUtils::kPacketTypeP1IqLoopback) { // IQ data (P1 EP6 or EP2 loopback)
             m_sequence = io->protocol->getSequence((const unsigned char*)m_datagram.data());
-            if (m_sequence != m_oldSequence + 1) {
-                if (m_packetLossTime.elapsed() > 100) {
-                    set->setPacketLoss(2);
-                    m_packetLossTime.restart();
-                }
-            }
-            m_oldSequence = m_sequence;
+            reportIqSequenceSync(m_sequence, m_oldSequence, m_packetLossTime);
 
             if (!io->iq_queue.isFull()) {
                 const int hdrSize = io->protocol->getHeaderSize();
@@ -321,14 +337,7 @@ void DataIO::readDeviceDataP2(QUdpSocket* socket) {
         else if (size >= ProtocolBoundaryUtils::kProtocol2IqPacketSize) { // DDC IQ packet (typically 1444 bytes)
             ++p2IqPacketsSeen;
             m_sequence = io->protocol->getSequence((const unsigned char*)m_datagram.data());
-
-            if (m_sequence != m_oldSequence + 1) {
-                if (m_packetLossTime.elapsed() > 100) {
-                    set->setPacketLoss(2);
-                    m_packetLossTime.restart();
-                }
-            }
-            m_oldSequence = m_sequence;
+            reportIqSequenceSync(m_sequence, m_oldSequence, m_packetLossTime);
 
             if (!io->iq_queue.isFull()) {
                 const int hdrSize = io->protocol->getHeaderSize();
@@ -399,7 +408,9 @@ void DataIO::processWidebandPacket(qint64 size) {
         }
         
         if (m_packetLossTime.elapsed() > 100) {
-            set->setPacketLoss(2);
+            if (RadioTelemetry* tel = telemetryFromSettings()) {
+                tel->setPacketLoss(2);
+            }
             m_packetLossTime.restart();
         }
     }

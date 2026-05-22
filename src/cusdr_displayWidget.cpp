@@ -1,3 +1,5 @@
+#include "Models/RadioModel.h"
+#include "Models/SliceModel.h"
 /**
 * @file  cusdr_displayWidget.cpp
 * @brief OpenGL display options widget class for cuSDR
@@ -45,8 +47,9 @@
 #define	btn_width3		60
 
 
-DisplayOptionsWidget::DisplayOptionsWidget(QWidget *parent)
+DisplayOptionsWidget::DisplayOptionsWidget(RadioModel *model, QWidget *parent)
 	: QWidget(parent)
+        , m_radioModel(model)
 	, set(Settings::instance())
 	, m_serverMode(set->getCurrentServerMode())
 	, m_hwInterface(set->getHWInterface())
@@ -56,7 +59,7 @@ DisplayOptionsWidget::DisplayOptionsWidget(QWidget *parent)
 	, m_minimumWidgetWidth(set->getMinimumWidgetWidth())
 	, m_minimumGroupBoxWidth(set->getMinimumGroupBoxWidth())
 	, m_btnSpacing(5)
-	, m_currentReceiver(set->getCurrentReceiver())
+	, m_currentReceiver(0)
 	, m_btnChooserHit(0)
 	, m_framesPerSecond(set->getFramesPerSecond(m_currentReceiver))
 	, m_sampleRate(set->getSampleRate())
@@ -158,14 +161,50 @@ QSize DisplayOptionsWidget::minimumSizeHint() const {
 void DisplayOptionsWidget::setupConnections() {
 
 	CHECKED_CONNECT(set, &Settings::systemStateChanged, this, &DisplayOptionsWidget::systemStateChanged);
-
 	CHECKED_CONNECT(set, &Settings::graphicModeChanged, this, &DisplayOptionsWidget::graphicModeChanged);
-
 	CHECKED_CONNECT(set, &Settings::currentReceiverChanged, this, &DisplayOptionsWidget::setCurrentReceiver);
-
 	CHECKED_CONNECT(set, &Settings::sampleRateChanged, this, &DisplayOptionsWidget::sampleRateChanged);
-
 	CHECKED_CONNECT(set, &Settings::framesPerSecondChanged, this, &DisplayOptionsWidget::setFramesPerSecond);
+
+	if (!m_radioModel) return;
+	for (SliceModel* slice : m_radioModel->slices()) {
+		if (!slice) continue;
+		const int rx = slice->id();
+		connect(slice, &SliceModel::panModeChanged, this,
+		        [this, rx, slice](PanGraphicsMode mode) { graphicModeChanged(rx, mode, slice->waterfallMode()); });
+		connect(slice, &SliceModel::waterfallModeChanged, this,
+		        [this, rx, slice](WaterfallColorMode mode) { graphicModeChanged(rx, slice->panMode(), mode); });
+		connect(slice, &SliceModel::fftSizeChanged, this,
+		        [this, rx](int size) {
+			        if (m_currentReceiver == rx) {
+				        QSignalBlocker b(m_fftSizeCombo);
+				        m_fftSizeCombo->setCurrentIndex(size);
+			        }
+		        });
+		connect(slice, &SliceModel::panDetectorModeChanged, this,
+		        [this, rx](PanDetectorMode mode) {
+			        if (m_currentReceiver == rx) {
+				        QSignalBlocker b(m_panDetectorCombo);
+				        m_panDetectorCombo->setCurrentIndex(static_cast<int>(mode));
+			        }
+		        });
+		connect(slice, &SliceModel::panAveragingModeChanged, this,
+		        [this, rx](PanAveragingMode mode) {
+			        if (m_currentReceiver == rx) {
+				        QSignalBlocker b(m_panAverageCombo);
+				        m_panAverageCombo->setCurrentIndex(static_cast<int>(mode));
+			        }
+		        });
+		connect(slice, &SliceModel::spectrumAveragingCntChanged, this,
+		        [this, rx](int count) {
+			        if (m_currentReceiver == rx) {
+				        m_avgSlider->blockSignals(true);
+				        m_avgSlider->setValue(count);
+				        m_avgSlider->blockSignals(false);
+				        m_avgLevelLabel->setText(QString("%1 ").arg(count, 2, 10, QLatin1Char(' ')));
+			        }
+		        });
+	}
 }
 
 void DisplayOptionsWidget::systemStateChanged(
@@ -851,7 +890,13 @@ void DisplayOptionsWidget::panModeChanged() {
 			break;
 	}
 
-	set->setGraphicsState(m_currentReceiver, m_panadapterMode, m_waterColorMode);
+	if (m_radioModel && m_currentReceiver < m_radioModel->slices().size() && m_radioModel->slices()[m_currentReceiver]) {
+		SliceModel* slice = m_radioModel->slices()[m_currentReceiver];
+		slice->setPanMode(m_panadapterMode);
+		slice->setWaterfallMode(m_waterColorMode);
+	} else {
+		set->setGraphicsState(m_currentReceiver, m_panadapterMode, m_waterColorMode);
+	}
 }
 
 void DisplayOptionsWidget::wbPanModeChanged() {
@@ -924,7 +969,13 @@ void DisplayOptionsWidget::waterfallColorChanged() {
 		//	break;
 	}
 
-	set->setGraphicsState(m_currentReceiver, m_panadapterMode, m_waterColorMode);
+	if (m_radioModel && m_currentReceiver < m_radioModel->slices().size() && m_radioModel->slices()[m_currentReceiver]) {
+		SliceModel* slice = m_radioModel->slices()[m_currentReceiver];
+		slice->setPanMode(m_panadapterMode);
+		slice->setWaterfallMode(m_waterColorMode);
+	} else {
+		set->setGraphicsState(m_currentReceiver, m_panadapterMode, m_waterColorMode);
+	}
 }
 
 void DisplayOptionsWidget::fpsValueChanged(int value) {
@@ -950,6 +1001,7 @@ void DisplayOptionsWidget::setFramesPerSecond(int rx, int value) {
 }
 
 void DisplayOptionsWidget::averagingFilterCntChanged(int value) {
+    if (m_radioModel && m_currentReceiver < m_radioModel->slices().size()) m_radioModel->slices()[m_currentReceiver]->setSpectrumAveragingCnt(value);
 
 	m_avgValue = value;
 
@@ -1004,6 +1056,21 @@ void DisplayOptionsWidget::sMeterHoldTimeChanged(int value) {
 }
 
 void DisplayOptionsWidget::setCurrentReceiver(int rx) {
+    if (m_radioModel && rx < m_radioModel->slices().size()) {
+        auto slice = m_radioModel->slices().at(rx);
+        m_avgSlider->blockSignals(true);
+        m_avgSlider->setValue(slice->spectrumAveragingCnt());
+        m_avgLevelLabel->setText(QString("%1 ").arg(slice->spectrumAveragingCnt(), 2, 10, QLatin1Char(' ')));
+        m_avgSlider->blockSignals(false);
+
+        m_fftSizeCombo->blockSignals(true);
+        m_fftSizeCombo->setCurrentIndex(slice->fftSize());
+        m_fftSizeCombo->blockSignals(false);
+
+        m_panAverageCombo->blockSignals(true);
+        m_panAverageCombo->setCurrentIndex((int)slice->panAveragingMode());
+        m_panAverageCombo->blockSignals(false);
+    }
 
 	if (m_currentReceiver == rx) return;
 	m_currentReceiver = rx;
@@ -1070,18 +1137,24 @@ void DisplayOptionsWidget::callSignChanged() {
 }
 
 void DisplayOptionsWidget::panAverageModeChanged(int mode)  {
-
-    set->setPanAveragingMode(m_currentReceiver,(PanAveragingMode) mode);
+    if (m_radioModel && m_currentReceiver < m_radioModel->slices().size() && m_radioModel->slices()[m_currentReceiver])
+        m_radioModel->slices()[m_currentReceiver]->setPanAveragingMode(static_cast<PanAveragingMode>(mode));
+    else
+        set->setPanAveragingMode(m_currentReceiver, static_cast<PanAveragingMode>(mode));
 }
 
 void DisplayOptionsWidget::panDetectorModeChanged(int mode)  {
-
-    set->setPanDetectorMode(m_currentReceiver,(PanDetectorMode) mode);
+    if (m_radioModel && m_currentReceiver < m_radioModel->slices().size() && m_radioModel->slices()[m_currentReceiver])
+        m_radioModel->slices()[m_currentReceiver]->setPanDetectorMode(static_cast<PanDetectorMode>(mode));
+    else
+        set->setPanDetectorMode(m_currentReceiver, static_cast<PanDetectorMode>(mode));
 }
 
 void DisplayOptionsWidget::fftSizeChanged(int mode)  {
-
-	set->setfftSize(m_currentReceiver, mode);
+    if (m_radioModel && m_currentReceiver < m_radioModel->slices().size() && m_radioModel->slices()[m_currentReceiver])
+        m_radioModel->slices()[m_currentReceiver]->setFftSize(mode);
+    else
+        set->setfftSize(m_currentReceiver, mode);
 }
 
 void DisplayOptionsWidget::sqLevelChanged(int val) {

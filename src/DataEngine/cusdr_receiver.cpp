@@ -1,3 +1,4 @@
+#include "Models/SliceModel.h"
 /**
 * @file cusdr_receiver.cpp
 * @brief cuSDR receiver class
@@ -35,11 +36,12 @@ namespace {
 constexpr int HIGH_RATE_TRANSITION_DROP_BUFFERS = 12;
 }
 
-Receiver::Receiver(int rx)
-	: QObject()
+Receiver::Receiver(SliceModel *model, QObject *parent)
+	: QObject(parent)
+        , m_sliceModel(model)
 	, set(Settings::instance())
 	, m_stopped(false)
-	, m_receiver(rx)
+	, m_receiver(model ? model->id() : 0)
 	, m_samplerate(set->getSampleRate())
 	, m_audioMode(1)
 	, m_rateTransitionDropBuffers(0)
@@ -96,15 +98,14 @@ void Receiver::setupConnections() {
     connect(set, &Settings::systemStateChanged,
             this, &Receiver::setSystemState);
     
-    connect(set, &Settings::mainVolumeChanged,
-            this, &Receiver::setAudioVolume);
-    
+    // connect(set, &Settings::mainVolumeChanged,
+            // this, &Receiver::setAudioVolume);
+
+    connect(m_sliceModel, &SliceModel::volumeChanged, [this](float value){ setAudioVolume(m_receiver, value); });
+    connect(m_sliceModel, &SliceModel::muteChanged, [this](bool muted){ setAudioVolume(m_receiver, muted ? 0.0f : m_sliceModel->volume()); });
     connect(set, &Settings::sampleRateChanged,
             this, &Receiver::setSampleRate);
-    
-    connect(set, &Settings::dspModeChanged,
-            this, &Receiver::setDspMode);
-    
+
     connect(set, &Settings::hamBandChanged,
             this, &Receiver::setHamBand);
     
@@ -113,9 +114,6 @@ void Receiver::setupConnections() {
     
     connect(set, &Settings::agcFixedGainChanged_dB,
             this, &Receiver::setAGCFixedGain_dB);
-    
-    connect(set, &Settings::filterFrequenciesChanged,
-            this, &Receiver::setFilterFrequencies);
     
     connect(set, &Settings::framesPerSecondChanged,
             this, &Receiver::setFramesPerSecond);
@@ -147,7 +145,7 @@ bool Receiver::initQtWDSPInterface() {
 
     RECEIVER_DEBUG << "[RX-ADD] initQtWDSPInterface: rx=" << m_receiver << "BUFFER_SIZE=" << BUFFER_SIZE;
 //    qtwdsp = std::make_unique<QWDSPEngine>(this, m_receiver, BUFFER_SIZE);
-    qtwdsp = new QWDSPEngine(this, m_receiver, BUFFER_SIZE);
+    qtwdsp = new QWDSPEngine(m_sliceModel, this, BUFFER_SIZE);
 
     if (!qtwdsp || !qtwdsp->isValid()) {  // Add validity check
         RECEIVER_DEBUG << "[RX-ADD] ERROR: could not start QWtDSP for receiver: " << m_receiver;
@@ -544,6 +542,26 @@ void Receiver::setFilterFrequencies(int rx, double low, double high) {
 		if (m_receiverData.filterLo == low && m_receiverData.filterHi == high) return;
 		m_receiverData.filterLo = low;
 		m_receiverData.filterHi = high;
+	}
+}
+
+void Receiver::applyDspModeFromSlice(DSPMode mode, long centerFrequencyHz)
+{
+	setDspMode(m_receiver, mode);
+	if (!qtwdsp) {
+		return;
+	}
+	qtwdsp->setDSPMode(mode);
+	const DSPMode wdspMode = resolveWDSPMode(mode, centerFrequencyHz);
+	const TDefaultFilter filter = getFilterFromDSPMode(set->getDefaultFilterList(), wdspMode);
+	qtwdsp->setFilter(filter.filterLo, filter.filterHi);
+}
+
+void Receiver::applyFilterFromSlice(double low, double high)
+{
+	setFilterFrequencies(m_receiver, low, high);
+	if (qtwdsp) {
+		qtwdsp->setFilter(low, high);
 	}
 }
 

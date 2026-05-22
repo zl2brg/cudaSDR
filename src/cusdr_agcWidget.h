@@ -40,12 +40,13 @@
 #include "cusdr_fonts.h"
 
 
+class SliceModel;
 class AGCOptionsWidget : public QWidget {
 
 	Q_OBJECT
 
 public:
-	AGCOptionsWidget(QWidget *parent = 0);
+	AGCOptionsWidget(SliceModel *model, QWidget *parent = nullptr);
 	~AGCOptionsWidget();
 
 public slots:
@@ -53,7 +54,8 @@ public slots:
 	QSize	minimumSizeHint() const;
 
 private:
-	Settings	*set;
+    SliceModel*      m_sliceModel;
+    Settings        *set;
 
 	QSDR::_ServerMode			m_serverMode;
 	QSDR::_HWInterfaceMode		m_hwInterface;

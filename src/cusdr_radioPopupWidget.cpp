@@ -1,3 +1,5 @@
+#include "Models/RadioModel.h"
+#include "Models/SliceModel.h"
 /**
 * @file cusdr_radioPopupWidget.cpp
 * @brief Radio control popup widget class for cuSDR
@@ -65,11 +67,12 @@ namespace {
 }
 
 
-RadioPopupWidget::RadioPopupWidget(QWidget *parent, int rx)
+RadioPopupWidget::RadioPopupWidget(SliceModel *model, QWidget *parent)
     : QWidget(parent)
     , set(Settings::instance())
+    , m_sliceModel(model)
     , m_sticky(false)
-    , m_receiver(rx)
+    , m_receiver(model ? model->id() : 0)
     , m_currentRx(set->getCurrentReceiver())
     , m_singleAdcDevice(false)
     , m_minimumWidgetWidth(250)
@@ -141,8 +144,8 @@ RadioPopupWidget::RadioPopupWidget(QWidget *parent, int rx)
     createFilterBtnWidgetB();
     createFilterBtnWidgetC();
 
-    m_popupAgcWidget = new AGCOptionsWidget(this);
-    m_noiseFilterWidget = new NoiseFilterWidget(this, m_receiver);
+    m_popupAgcWidget = new AGCOptionsWidget(m_sliceModel, this);
+    m_noiseFilterWidget = new NoiseFilterWidget(m_sliceModel, this);
 
     m_filterStackedWidget = new QStackedWidget(this);
     m_filterStackedWidget->setContentsMargins(0, 0, 0, 0);
@@ -264,14 +267,19 @@ QSize RadioPopupWidget::minimumSizeHint() const {
 void RadioPopupWidget::setupConnections() {
     // NOTE: Using modern, type-safe connect syntax
     connect(set, &Settings::systemStateChanged, this, &RadioPopupWidget::systemStateChanged);
-    connect(set, &Settings::graphicModeChanged, this, &RadioPopupWidget::graphicModeChanged);
-    connect(set, &Settings::vfoFrequencyChanged, this, &RadioPopupWidget::vfoFrequencyChanged);
+    connect(m_sliceModel, &SliceModel::panModeChanged, this,
+            [this](PanGraphicsMode mode) { graphicModeChanged(m_sliceModel->id(), mode, m_waterfallColorMode); });
+    connect(m_sliceModel, &SliceModel::waterfallModeChanged, this,
+            [this](WaterfallColorMode mode) { graphicModeChanged(m_sliceModel->id(), m_panadapterMode, mode); });
+    connect(m_sliceModel, &SliceModel::frequencyChanged, [this](long freq){ vfoFrequencyChanged(0, m_sliceModel->id(), freq); });
     connect(set, &Settings::hamBandChanged, this, &RadioPopupWidget::bandChanged);
-    connect(set, &Settings::dspModeChanged, this, &RadioPopupWidget::dspModeChanged);
+    connect(m_sliceModel, &SliceModel::dspModeChanged, [this](DSPMode mode){ dspModeChanged(m_sliceModel->id(), mode); });
+    connect(m_sliceModel, &SliceModel::filterChanged, [this](){ filterChanged(m_sliceModel->id(), m_sliceModel->filterLow(), m_sliceModel->filterHigh()); });
     connect(set, &Settings::freeDVModeChanged, this, &RadioPopupWidget::freeDVModeChanged);
     connect(set, &Settings::freeDVStatusChanged, this, &RadioPopupWidget::freeDVStatusChanged);
     connect(set, &Settings::adcModeChanged, this, &RadioPopupWidget::adcModeChanged);
-    connect(set, &Settings::agcModeChanged, this, &RadioPopupWidget::agcModeChanged);
+    connect(m_sliceModel, &SliceModel::agcModeChanged, this,
+            [this](AGCMode mode) { agcModeChanged(m_sliceModel->id(), mode, false); });
     connect(set, &Settings::filterFrequenciesChanged, this, &RadioPopupWidget::filterChanged);
 }
 
@@ -1323,8 +1331,12 @@ void RadioPopupWidget::filterChangedByBtn() {
         else { m_filterLo = 100.0f; m_filterHi = filterWidth + 100.0f; }
     }
     
-    set->setRXFilter(m_receiver, m_filterLo, m_filterHi);
-     
+    if (m_sliceModel && m_receiver == m_sliceModel->id()) {
+        m_sliceModel->setFilterLow(static_cast<float>(m_filterLo));
+        m_sliceModel->setFilterHigh(static_cast<float>(m_filterHi));
+    } else {
+        set->setRXFilter(m_receiver, m_filterLo, m_filterHi);
+    }
 }
 
 void RadioPopupWidget::filterChanged(int rx, qreal low, qreal high) {
@@ -1615,7 +1627,8 @@ void RadioPopupWidget::panModeChanged() {
     case 1: m_panadapterMode = PanGraphicsMode::FilledLine; break;
     case 2: m_panadapterMode = PanGraphicsMode::Solid; break;
     }
-    set->setGraphicsState(m_receiver, m_panadapterMode, m_waterfallColorMode);
+    m_sliceModel->setPanMode(m_panadapterMode);
+    m_sliceModel->setWaterfallMode(m_waterfallColorMode);
 }
 
 void RadioPopupWidget::waterfallModeChanged() {
@@ -1634,7 +1647,8 @@ void RadioPopupWidget::waterfallModeChanged() {
     case 0: m_waterfallColorMode = WaterfallColorMode::Simple; break;
     case 1: m_waterfallColorMode = WaterfallColorMode::Enhanced; break;
     }
-    set->setGraphicsState(m_receiver, m_panadapterMode, m_waterfallColorMode);
+    m_sliceModel->setPanMode(m_panadapterMode);
+    m_sliceModel->setWaterfallMode(m_waterfallColorMode);
 }
 
 // **********************

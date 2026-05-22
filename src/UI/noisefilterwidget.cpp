@@ -1,17 +1,19 @@
+#include "Models/SliceModel.h"
 #include "noisefilterwidget.h"
 #include "ui_noisefilterwidget.h"
 #include <QSignalBlocker>
 
-#define	btn_height		15
-#define	btn_width		70
-#define	btn_widths		32
-#define	btn_width2		52
-#define	btn_width3		60
+#define btn_height              15
+#define btn_width               70
+#define btn_widths              32
+#define btn_width2              52
+#define btn_width3              60
 
 
 
-NoiseFilterWidget::NoiseFilterWidget(QWidget *parent, int rx)
+NoiseFilterWidget::NoiseFilterWidget(SliceModel *model, QWidget *parent)
     : QWidget(parent)
+    , m_sliceModel(model)
     , ui(new Ui::NoiseFilterWidget)
     , set(Settings::instance())
     , m_serverMode(set->getCurrentServerMode())
@@ -19,12 +21,12 @@ NoiseFilterWidget::NoiseFilterWidget(QWidget *parent, int rx)
     , m_dataEngineState(set->getDataEngineState())
     //, m_panadapterMode(set->getPanadapterMode())
     //, m_waterColorScheme(set->getWaterfallColorScheme())
-    , m_rx(rx >= 0 ? rx : set->getCurrentReceiver())
+    , m_rx(model->id())
     , m_minimumGroupBoxWidth(set->getMinimumGroupBoxWidth())
     , m_btnSpacing(5)
     , m_fontHeight(0)
     , m_maxFontWidth(0)
-    , m_currentReceiver(m_rx)
+    , m_currentReceiver(model->id())
     , m_mouseOver(false)
 
 {
@@ -84,91 +86,56 @@ void NoiseFilterWidget::setCurrentReceiver(int rx) {
 }
 
 void NoiseFilterWidget::setupConnections() {
-    connect(set, &Settings::noiseFilterChanged, this, [this](int rx, int) {
-        if (rx == m_rx) getSettings();
+    connect(m_sliceModel, &SliceModel::nrModeChanged, this, [this](int value) {
+        QSignalBlocker blocker(ui->nrModeComboBox);
+        ui->nrModeComboBox->setCurrentIndex(value);
     });
-    connect(set, &Settings::noiseBlankerChanged, this, [this](int rx, int) {
-        if (rx == m_rx) getSettings();
+    connect(m_sliceModel, &SliceModel::nbModeChanged, this, [this](int value) {
+        QSignalBlocker blocker(ui->nbModeComboBox);
+        ui->nbModeComboBox->setCurrentIndex(value);
     });
-    connect(set, &Settings::nr2GainMethodChanged, this, [this](int rx, int) {
-        if (rx == m_rx) getSettings();
+    connect(m_sliceModel, &SliceModel::nr2GainMethodChanged, this, [this](int value) {
+        QSignalBlocker blocker(ui->nr2GainComboBox);
+        ui->nr2GainComboBox->setCurrentIndex(value);
     });
-    connect(set, &Settings::nr2NpeMethodChanged, this, [this](int rx, int) {
-        if (rx == m_rx) getSettings();
+    connect(m_sliceModel, &SliceModel::nrAgcChanged, this, [this](int value) {
+        QSignalBlocker blocker1(ui->preAGCCheckBox);
+        QSignalBlocker blocker2(ui->postAGCCheckBox);
+        ui->preAGCCheckBox->setChecked(value == 0);
+        ui->postAGCCheckBox->setChecked(value != 0);
     });
-    connect(set, &Settings::nrAgcChanged, this, [this](int rx, int) {
-        if (rx == m_rx) getSettings();
-    });
-    connect(set, &Settings::nr2AeChanged, this, [this](int rx, bool) {
-        if (rx == m_rx) getSettings();
-    });
-    connect(set, &Settings::snbChanged, this, [this](int rx, bool) {
-        if (rx == m_rx) getSettings();
-    });
-    connect(set, &Settings::anfChanged, this, [this](int rx, bool) {
-        if (rx == m_rx) getSettings();
+    connect(m_sliceModel, &SliceModel::nr2AeChanged, this, [this](bool value) {
+        QSignalBlocker blocker(ui->nr2aeCheckBox);
+        ui->nr2aeCheckBox->setChecked(value);
     });
 
-    CHECKED_CONNECT(
-            ui->nrModeComboBox ,
-            &QComboBox::currentIndexChanged,
-            this,
-            &NoiseFilterWidget::nfModeChanged);
+    connect(m_sliceModel, &SliceModel::anfChanged, this, [this](bool value) {
+        QSignalBlocker blocker(ui->anfCheckBox);
+        ui->anfCheckBox->setChecked(value);
+    });
 
-    CHECKED_CONNECT(
-            ui->nbModeComboBox ,
-            &QComboBox::currentIndexChanged,
-            this,
-            &NoiseFilterWidget::nbModeChanged);
+    connect(m_sliceModel, &SliceModel::snbChanged, this, [this](bool value) {
+        QSignalBlocker blocker(ui->snbCheckBox);
+        ui->snbCheckBox->setChecked(value);
+    });
+    
+    connect(m_sliceModel, &SliceModel::nr2NpeMethodChanged, this, [this](int value) {
+        QSignalBlocker blocker1(ui->omsCheckBox);
+        QSignalBlocker blocker2(ui->mmseCheckBox);
+        ui->omsCheckBox->setChecked(value == 0);
+        ui->mmseCheckBox->setChecked(value != 0);
+    });
 
-    CHECKED_CONNECT(
-            ui->nr2GainComboBox ,
-            &QComboBox::currentIndexChanged,
-            this,
-            &NoiseFilterWidget::nr2GainChanged);
-
-    CHECKED_CONNECT(
-            ui->snbCheckBox ,
-            &QCheckBox::toggled,
-            this,
-            &NoiseFilterWidget::snbChanged);
-
-    CHECKED_CONNECT(
-            ui->anfCheckBox ,
-            &QCheckBox::toggled,
-            this,
-            &NoiseFilterWidget::anfChanged);
-
-    CHECKED_CONNECT(
-            ui->omsCheckBox ,
-            &QCheckBox::toggled,
-            this,
-            &NoiseFilterWidget::omsChanged);
-
-    CHECKED_CONNECT(
-            ui->mmseCheckBox ,
-            &QCheckBox::toggled,
-            this,
-            &NoiseFilterWidget::mmseChanged);
-
-    CHECKED_CONNECT(
-            ui->preAGCCheckBox ,
-            &QCheckBox::toggled,
-            this,
-            &NoiseFilterWidget::preAgcChanged);
-
-    CHECKED_CONNECT(
-            ui->postAGCCheckBox ,
-            &QCheckBox::toggled,
-            this,
-            &NoiseFilterWidget::postAgcChanged);
-
-    CHECKED_CONNECT(
-            ui->nr2aeCheckBox ,
-            &QCheckBox::toggled,
-            this,
-            &NoiseFilterWidget::nr2aeChanged);
-
+    CHECKED_CONNECT(ui->nbModeComboBox, &QComboBox::currentIndexChanged, this, &NoiseFilterWidget::nbModeChanged);
+    CHECKED_CONNECT(ui->nrModeComboBox, &QComboBox::currentIndexChanged, this, &NoiseFilterWidget::nfModeChanged);
+    CHECKED_CONNECT(ui->nr2GainComboBox, &QComboBox::currentIndexChanged, this, &NoiseFilterWidget::nr2GainChanged);
+    CHECKED_CONNECT(ui->nr2aeCheckBox, &QCheckBox::toggled, this, &NoiseFilterWidget::nr2aeChanged);
+    CHECKED_CONNECT(ui->snbCheckBox, &QCheckBox::toggled, this, &NoiseFilterWidget::snbChanged);
+    CHECKED_CONNECT(ui->anfCheckBox, &QCheckBox::toggled, this, &NoiseFilterWidget::anfChanged);
+    CHECKED_CONNECT(ui->omsCheckBox, &QCheckBox::toggled, this, &NoiseFilterWidget::omsChanged);
+    CHECKED_CONNECT(ui->mmseCheckBox, &QCheckBox::toggled, this, &NoiseFilterWidget::mmseChanged);
+    CHECKED_CONNECT(ui->preAGCCheckBox, &QCheckBox::toggled, this, &NoiseFilterWidget::preAgcChanged);
+    CHECKED_CONNECT(ui->postAGCCheckBox, &QCheckBox::toggled, this, &NoiseFilterWidget::postAgcChanged);
 }
 
 
@@ -207,100 +174,71 @@ void NoiseFilterWidget::getSettings() {
     const QSignalBlocker blockPostAgc(ui->postAGCCheckBox);
     const QSignalBlocker blockNr2Ae(ui->nr2aeCheckBox);
 
-    ui->nrModeComboBox->setCurrentIndex(set->getnrMode(m_rx));
-    ui->nbModeComboBox->setCurrentIndex(set->getnbMode(m_rx));
-    ui->nr2GainComboBox->setCurrentIndex(set->getNr2GainMethod(m_rx));
-    ui->snbCheckBox->setChecked(set->getSnb(m_rx));
-    ui->anfCheckBox->setChecked(set->getAnf(m_rx));
-    int nr2Npe = set->getNr2NpeMethod(m_rx);
+    ui->nrModeComboBox->setCurrentIndex(m_sliceModel->nrMode());
+    ui->nbModeComboBox->setCurrentIndex(m_sliceModel->nbMode());
+    ui->nr2GainComboBox->setCurrentIndex(m_sliceModel->nr2GainMethod());
+    ui->snbCheckBox->setChecked(m_sliceModel->snb());
+    ui->anfCheckBox->setChecked(m_sliceModel->anf());
+    int nr2Npe = m_sliceModel->nr2NpeMethod();
     ui->omsCheckBox->setChecked(nr2Npe == 0);
     ui->mmseCheckBox->setChecked(nr2Npe != 0);
-    int agcMode = set->getNrAGC(m_rx);
+    int agcMode = m_sliceModel->nrAgc();
     ui->preAGCCheckBox->setChecked(agcMode == 0);
     ui->postAGCCheckBox->setChecked(agcMode != 0);
-    ui->nr2aeCheckBox->setChecked(set->getNr2ae(m_rx));
-//    ui->mmseCheckBox->setChecked();
+    ui->nr2aeCheckBox->setChecked(m_sliceModel->nr2Ae());
 }
 
 
 void NoiseFilterWidget::nbModeChanged(int value) {
-    set->setNoiseBlankerMode(m_rx,value);
+    m_sliceModel->setNbMode(value);
 }
 
 void NoiseFilterWidget::nfModeChanged(int value){
-    set->setNoiseFilterMode(m_rx,value);
+    m_sliceModel->setNrMode(value);
 }
 
 void NoiseFilterWidget::nr2GainChanged(int value) {
-    set->setNR2GainMethod(m_rx,value);
+    m_sliceModel->setNr2GainMethod(value);
 }
 
 void NoiseFilterWidget::npeModeChanged(int value) {
-    set->setNR2NpeMethod(m_rx,value);
+    m_sliceModel->setNr2NpeMethod(value);
 }
 
 void NoiseFilterWidget::agcProcChanged(int value) {
-    set->setNRAgc(m_rx,value);
+    m_sliceModel->setNrAgc(value);
 }
 
 void NoiseFilterWidget::anfChanged(bool value) {
-    set->setAnf(m_rx,value);
+    m_sliceModel->setAnf(value);
 }
 
 void NoiseFilterWidget::snbChanged(bool value) {
-    set->setSnb(m_rx,value);
+    m_sliceModel->setSnb(value);
 }
 
 void NoiseFilterWidget::nr2aeChanged(bool value) {
-    set->setNR2Ae(m_rx,value);
+    m_sliceModel->setNr2Ae(value);
 }
 
 void NoiseFilterWidget::omsChanged(bool value) {
     if (!value) return;
-
-    {
-        const QSignalBlocker blockOms(ui->omsCheckBox);
-        const QSignalBlocker blockMmse(ui->mmseCheckBox);
-        ui->omsCheckBox->setChecked(true);
-        ui->mmseCheckBox->setChecked(false);
-    }
-    set->setNR2NpeMethod(m_rx, 0);
+    m_sliceModel->setNr2NpeMethod(0);
 }
 
 void NoiseFilterWidget::mmseChanged(bool value) {
     if (!value) return;
-
-    {
-        const QSignalBlocker blockOms(ui->omsCheckBox);
-        const QSignalBlocker blockMmse(ui->mmseCheckBox);
-        ui->omsCheckBox->setChecked(false);
-        ui->mmseCheckBox->setChecked(true);
-    }
-    set->setNR2NpeMethod(m_rx, 1);
+    m_sliceModel->setNr2NpeMethod(1);
 }
 
 
 void NoiseFilterWidget::preAgcChanged(bool value) {
     if (!value) return;
-
-    {
-        const QSignalBlocker blockPreAgc(ui->preAGCCheckBox);
-        const QSignalBlocker blockPostAgc(ui->postAGCCheckBox);
-        ui->preAGCCheckBox->setChecked(true);
-        ui->postAGCCheckBox->setChecked(false);
-    }
-    set->setNRAgc(m_rx, 0);
+    m_sliceModel->setNrAgc(0);
 }
 
 
 void NoiseFilterWidget::postAgcChanged(bool value) {
     if (!value) return;
-
-    {
-        const QSignalBlocker blockPreAgc(ui->preAGCCheckBox);
-        const QSignalBlocker blockPostAgc(ui->postAGCCheckBox);
-        ui->preAGCCheckBox->setChecked(false);
-        ui->postAGCCheckBox->setChecked(true);
-    }
-    set->setNRAgc(m_rx, 1);
+    m_sliceModel->setNrAgc(1);
 }

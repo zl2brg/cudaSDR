@@ -51,12 +51,13 @@
 #endif
 
 
+class RadioModel;
 class OGLDisplayPanel : public QOpenGLWidget, protected QOpenGLFunctions {
 
     Q_OBJECT
 
 public:
-    OGLDisplayPanel(QWidget *parent = 0);
+    OGLDisplayPanel(RadioModel *model, QWidget *parent = nullptr);
 	~OGLDisplayPanel();
     void renderFreqText(QPainter &painter,GLint &x1, GLint  &y1, QFont &font,QFontMetrics  fontMetrics, QColor fontcolor, const QString freqstr, int digit, int digit_pos);
     void renderText(QPainter &painter, int x, int y, QFont &font, QColor fontcolor, const QString &text);
@@ -91,6 +92,7 @@ private:
     QOpenGLBuffer              m_vbo;
     QOpenGLVertexArrayObject   m_vao;
 
+    RadioModel*                             m_radioModel;
 	Settings*					set;
 
     qreal dpr;

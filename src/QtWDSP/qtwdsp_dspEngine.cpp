@@ -1,3 +1,4 @@
+#include "Models/SliceModel.h"
 /**
 * @file  qtwdsp_dspEngine.cpp
 * @brief QtWDSP DSP engine class
@@ -58,12 +59,13 @@ double wmyLog(double x, double base) {
 	return log(x) / log(base);
 }
 
-QWDSPEngine::QWDSPEngine(QObject *parent, int rx, int size)
+QWDSPEngine::QWDSPEngine(SliceModel *model, QObject *parent, int size)
 	: QObject(parent)
+        , m_sliceModel(model)
 	, set(Settings::instance())
 	, m_qtdspOn(false)
 	, m_firstExchangeDone(false)
-	, m_rx(rx)
+	, m_rx(model ? model->id() : 0)
 	, m_size(size)
 	, m_samplerate(set->getSampleRate())
 	, m_fftMultiplier(1)
@@ -76,8 +78,8 @@ QWDSPEngine::QWDSPEngine(QObject *parent, int rx, int size)
         return;
     }
     
-    if (rx < 0 || size <= 0) {
-        qCritical() << "Invalid parameters: rx=" << rx << " size=" << size;
+    if (m_rx < 0 || size <= 0) {
+        qCritical() << "Invalid parameters: rx=" << m_rx << " size=" << size;
         return;
     }
 
@@ -173,6 +175,27 @@ QWDSPEngine::~QWDSPEngine() {
 
 void QWDSPEngine::setupConnections() {
 
+    connect(m_sliceModel, &SliceModel::anfChanged, [this](bool enabled){ setanf(m_rx, enabled); });
+    connect(m_sliceModel, &SliceModel::snbChanged, [this](bool enabled){ setsnb(m_rx, enabled); });
+    connect(m_sliceModel, &SliceModel::agcModeChanged, [this](AGCMode mode){ setAGCMode(mode); });
+    connect(m_sliceModel, &SliceModel::agcMaxGainChanged, [this](int gain){ setAGCMaximumGain((qreal)gain); });
+    connect(m_sliceModel, &SliceModel::agcGainChanged, [this](int gain) { setAGCThreshold(gain - AGCOFFSET); });
+    connect(m_sliceModel, &SliceModel::agcFixedGainChanged, [this](int gain) { SetRXAAGCFixed(m_rx, static_cast<double>(gain)); });
+    connect(m_sliceModel, &SliceModel::agcHangThresholdChanged, [this](int thresh){ setAGCHangThreshold(m_rx, (double)thresh); });
+    connect(m_sliceModel, &SliceModel::agcSlopeChanged, [this](int slope){ setAGCSlope(m_rx, slope); });
+    connect(m_sliceModel, &SliceModel::filterChanged, [this](){ setFilter((double)m_sliceModel->filterLow(), (double)m_sliceModel->filterHigh()); });
+    connect(m_sliceModel, &SliceModel::dspModeChanged, this, [this](DSPMode mode) { setDSPMode(mode); });
+    connect(m_sliceModel, &SliceModel::nbModeChanged, [this](int mode){ setNoiseBlankerMode(m_rx, mode); });
+    connect(m_sliceModel, &SliceModel::fftSizeChanged, [this](int size){ setfftSize(m_rx, size); });
+    connect(m_sliceModel, &SliceModel::spectrumAveragingCntChanged, [this](int count){ setPanAdaptorAveragingCnt(m_rx, count); });
+    connect(m_sliceModel, &SliceModel::panAveragingModeChanged, [this](PanAveragingMode mode){ setPanAdaptorAveragingMode(m_rx, (int)mode); });
+    connect(m_sliceModel, &SliceModel::nrModeChanged, [this](int mode){ setNoiseFilterMode(m_rx, mode); });
+    connect(m_sliceModel, &SliceModel::nr2GainMethodChanged, [this](int mode){ setNr2GainMethod(m_rx, mode); });
+    connect(m_sliceModel, &SliceModel::nr2NpeMethodChanged, [this](int mode){ setNr2NpeMethod(m_rx, mode); });
+    connect(m_sliceModel, &SliceModel::nr2AeChanged, [this](bool enabled){ setNr2Ae(m_rx, enabled); });
+    connect(m_sliceModel, &SliceModel::nrAgcChanged, [this](int mode){ setNrAGC(m_rx, mode); });
+    connect(m_sliceModel, &SliceModel::volumeChanged, [this](float value){ setVolume(value); });
+    connect(m_sliceModel, &SliceModel::muteChanged, [this](bool muted){ setVolume(muted ? 0.0f : m_sliceModel->volume()); });
     connect(set, &Settings::ncoFrequencyChanged,
             this, &QWDSPEngine::setNCOFrequency);
 
@@ -182,58 +205,47 @@ void QWDSPEngine::setupConnections() {
     connect(set, &Settings::framesPerSecondChanged,
             this, &QWDSPEngine::setFramesPerSecond);
 
-    connect(set, &Settings::panAveragingModeChanged,
-            this, &QWDSPEngine::setPanAdaptorAveragingMode);
+    // connect(set, &Settings::panAveragingModeChanged,
+            // this, &QWDSPEngine::setPanAdaptorAveragingMode);
 
-    connect(set, &Settings::panDetectorModeChanged,
-            this, &QWDSPEngine::setPanAdaptorDetectorMode);
+    if (!m_sliceModel) {
+        connect(set, &Settings::panDetectorModeChanged,
+                this, &QWDSPEngine::setPanAdaptorDetectorMode);
+    }
 
-    connect(set, &Settings::spectrumAveragingCntChanged,
-            this, &QWDSPEngine::setPanAdaptorAveragingCnt);
+    // connect(set, &Settings::spectrumAveragingCntChanged,
+            // this, &QWDSPEngine::setPanAdaptorAveragingCnt);
 
-    connect(set, &Settings::fftSizeChanged,
-            this, &QWDSPEngine::setfftSize);
+    // connect(set, &Settings::fftSizeChanged,
+            // this, &QWDSPEngine::setfftSize);
 
     connect(set, &Settings::fmsqLevelChanged,
             this, &QWDSPEngine::setfmsqLevel);
 
-    connect(set, &Settings::noiseBlankerChanged,
-            this, &QWDSPEngine::setNoiseBlankerMode);
 
-    connect(set, &Settings::noiseFilterChanged,
-            this, &QWDSPEngine::setNoiseFilterMode);
 
-    connect(set, &Settings::nr2AeChanged,
-            this, &QWDSPEngine::setNr2Ae);
 
-    connect(set, &Settings::nr2NpeMethodChanged,
-            this, &QWDSPEngine::setNr2NpeMethod);
 
-    connect(set, &Settings::nr2GainMethodChanged,
-            this, &QWDSPEngine::setNr2GainMethod);
 
-    connect(set, &Settings::nrAgcChanged,
-            this, &QWDSPEngine::setNrAGC);
 
-    connect(set, &Settings::anfChanged,
-            this, &QWDSPEngine::setanf);
 
-    connect(set, &Settings::snbChanged,
-            this, &QWDSPEngine::setsnb);
 
     // Signals routed directly here instead of relaying through Receiver
-    connect(set, &Settings::mainVolumeChanged,
-            this, [this](int rx, float value) {
-        if (rx == m_rx) setVolume(value);
-    });
-    connect(set, &Settings::dspModeChanged,
-            this, [this](int rx, DSPMode mode) {
-        if (rx != m_rx) return;
-        setDSPMode(mode);
-        auto filter = getFilterFromDSPMode(set->getDefaultFilterList(),
-                                           resolveWDSPMode(mode, set->getCtrFrequency(m_rx)));
-        setFilter(filter.filterLo, filter.filterHi);
-    });
+    // connect(set, &Settings::mainVolumeChanged,
+            // this, [this](int rx, float value) {
+        // if (rx == m_rx) setVolume(value);
+    // });
+    // DSP mode: SliceModel::dspModeChanged (above). Legacy Settings::dspModeChanged only when no slice model.
+    if (!m_sliceModel) {
+        connect(set, &Settings::dspModeChanged,
+                this, [this](int rx, DSPMode mode) {
+            if (rx != m_rx) return;
+            setDSPMode(mode);
+            auto filter = getFilterFromDSPMode(set->getDefaultFilterList(),
+                                               resolveWDSPMode(mode, set->getCtrFrequency(m_rx)));
+            setFilter(filter.filterLo, filter.filterHi);
+        });
+    }
     connect(set, &Settings::ctrFrequencyChanged,
             this, [this](int /*mode*/, int rx, long frequency) {
         if (rx != m_rx) return;
@@ -247,50 +259,75 @@ void QWDSPEngine::setupConnections() {
         auto filter = getFilterFromDSPMode(set->getDefaultFilterList(), wdspMode);
         setFilter(filter.filterLo, filter.filterHi);
     });
-    connect(set, &Settings::agcModeChanged,
-            this, [this](int rx, AGCMode mode, bool) {
-        if (rx == m_rx) setAGCMode(mode);
-    });
-    connect(set, &Settings::agcGainChanged,
-            this, [this](int rx, int value) {
-        if (rx == m_rx) setAGCThreshold(value - AGCOFFSET);
-    });
-    connect(set, &Settings::agcMaximumGainChanged,
-            this, [this](int rx, qreal value) {
-        if (rx == m_rx) setAGCMaximumGain(value);
-    });
-    connect(set, &Settings::agcThresholdChanged_dB,
-            this, [this](int rx, qreal value) {
-        if (rx == m_rx) setAGCThreshold((double)value);
-    });
-    connect(set, &Settings::agcHangThresholdChanged,
-            this, [this](int rx, int value) {
-        if (rx == m_rx) setAGCHangThreshold(rx, value / 100.0);
-    });
-    connect(set, &Settings::agcHangLevelChanged_dB,
-            this, [this](int rx, qreal value) {
-        if (rx == m_rx) setAGCHangLevel(value - AGCOFFSET);
-    });
-    connect(set, &Settings::agcVariableGainChanged_dB,
-            this, [this](int rx, qreal value) {
-        if (rx == m_rx) setAGCSlope(rx, (int)value);
-    });
-    connect(set, &Settings::agcAttackTimeChanged,
-            this, [this](int rx, qreal value) {
-        if (rx == m_rx) setAGCAttackTime(rx, (int)value);
-    });
-    connect(set, &Settings::agcDecayTimeChanged,
-            this, [this](int rx, qreal value) {
-        if (rx == m_rx) setAGCDecayTime(rx, (int)value);
-    });
-    connect(set, &Settings::agcHangTimeChanged,
-            this, [this](int rx, qreal value) {
-        if (rx == m_rx) setAGCHangTime((int)value);
-    });
-    connect(set, &Settings::filterFrequenciesChanged,
-            this, [this](int rx, qreal low, qreal high) {
-        if (rx == m_rx) setFilter(low, high);
-    });
+    if (!m_sliceModel) {
+        connect(set, &Settings::agcModeChanged,
+                this, [this](int rx, AGCMode mode, bool) {
+            if (rx == m_rx) setAGCMode(mode);
+        });
+        connect(set, &Settings::agcGainChanged,
+                this, [this](int rx, int value) {
+            if (rx == m_rx) setAGCThreshold(value - AGCOFFSET);
+        });
+        connect(set, &Settings::agcMaximumGainChanged,
+                this, [this](int rx, qreal value) {
+            if (rx == m_rx) setAGCMaximumGain(value);
+        });
+        connect(set, &Settings::agcThresholdChanged_dB,
+                this, [this](int rx, qreal value) {
+            if (rx == m_rx) setAGCThreshold((double)value);
+        });
+        connect(set, &Settings::agcHangThresholdChanged,
+                this, [this](int rx, int value) {
+            if (rx == m_rx) setAGCHangThreshold(rx, value / 100.0);
+        });
+        connect(set, &Settings::agcHangLevelChanged_dB,
+                this, [this](int rx, qreal value) {
+            if (rx == m_rx) setAGCHangLevel(value - AGCOFFSET);
+        });
+        connect(set, &Settings::agcVariableGainChanged_dB,
+                this, [this](int rx, qreal value) {
+            if (rx == m_rx) setAGCSlope(rx, (int)value);
+        });
+        connect(set, &Settings::agcAttackTimeChanged,
+                this, [this](int rx, qreal value) {
+            if (rx == m_rx) setAGCAttackTime(rx, (int)value);
+        });
+        connect(set, &Settings::agcDecayTimeChanged,
+                this, [this](int rx, qreal value) {
+            if (rx == m_rx) setAGCDecayTime(rx, (int)value);
+        });
+        connect(set, &Settings::agcHangTimeChanged,
+                this, [this](int rx, qreal value) {
+            if (rx == m_rx) setAGCHangTime((int)value);
+        });
+    } else {
+        connect(set, &Settings::agcThresholdChanged_dB,
+                this, [this](int rx, qreal value) {
+            if (rx == m_rx) setAGCThreshold((double)value);
+        });
+        connect(set, &Settings::agcHangLevelChanged_dB,
+                this, [this](int rx, qreal value) {
+            if (rx == m_rx) setAGCHangLevel(value - AGCOFFSET);
+        });
+        connect(set, &Settings::agcAttackTimeChanged,
+                this, [this](int rx, qreal value) {
+            if (rx == m_rx) setAGCAttackTime(rx, (int)value);
+        });
+        connect(set, &Settings::agcDecayTimeChanged,
+                this, [this](int rx, qreal value) {
+            if (rx == m_rx) setAGCDecayTime(rx, (int)value);
+        });
+        connect(set, &Settings::agcHangTimeChanged,
+                this, [this](int rx, qreal value) {
+            if (rx == m_rx) setAGCHangTime((int)value);
+        });
+    }
+    if (!m_sliceModel) {
+        connect(set, &Settings::filterFrequenciesChanged,
+                this, [this](int rx, qreal low, qreal high) {
+            if (rx == m_rx) setFilter(low, high);
+        });
+    }
 }
 
 

@@ -1,5 +1,6 @@
 #include "CProtocol1.h"
 #include "cusdr_dataEngine.h"
+#include "Models/RadioTelemetry.h"
 #include "protocol_boundary_utils.h"
 #include <QtEndian>
 
@@ -136,7 +137,9 @@ void CProtocol1::decodeCCBytes(const QByteArray& buffer, THPSDRParameter* io) {
 		case 0:
 			if (io->ccRx.lt2208) // check ADC signal
 			{
-                set->setADCOverflow(2);
+                if (RadioTelemetry* tel = telemetryFromSettings()) {
+                    tel->setADCOverflow(2);
+                }
 			}
 
 			if (set->getHWInterface() == QSDR::Hermes)
@@ -191,10 +194,14 @@ void CProtocol1::decodeCCBytes(const QByteArray& buffer, THPSDRParameter* io) {
 				io->ccRx.ain1 = (quint16)((quint16)(buffer.at(3) << 8) + (quint16)buffer.at(4));
 				io->alexForwardVolts = (qreal)(3.3 * (qreal)io->ccRx.ain1 / 4095.0);
 				io->alexForwardPower = (qreal)(io->alexForwardVolts * io->alexForwardVolts / 0.09);
-				set->setForwardPower(io->alexForwardPower);
+				if (RadioTelemetry* tel = telemetryFromSettings()) {
+					tel->setForwardPower(io->alexForwardPower);
+				}
 			} else if (set->getPenelopePresence() || (set->getHWInterface() == QSDR::Hermes)) {
 				// No Alex: report Penelope/Hermes PA forward power from AIN5
-				set->setForwardPower(io->penelopeForwardPower);
+				if (RadioTelemetry* tel = telemetryFromSettings()) {
+					tel->setForwardPower(io->penelopeForwardPower);
+				}
 			}
             break;
 
@@ -203,7 +210,9 @@ void CProtocol1::decodeCCBytes(const QByteArray& buffer, THPSDRParameter* io) {
 				io->ccRx.ain2 = (quint16)((quint16)(buffer.at(1) << 8) + (quint16)buffer.at(2));
 				io->alexReverseVolts = (qreal)(3.3 * (qreal)io->ccRx.ain2 / 4095.0);
 				io->alexReversePower = (qreal)(io->alexReverseVolts * io->alexReverseVolts / 0.09);
-				set->setReversePower(io->alexReversePower);
+				if (RadioTelemetry* tel = telemetryFromSettings()) {
+					tel->setReversePower(io->alexReversePower);
+				}
 			}
 			if (set->getPenelopePresence() || (set->getHWInterface() == QSDR::Hermes)) {
 				io->ccRx.ain3 = (quint16)((quint16)(buffer.at(3) << 8) + (quint16)buffer.at(4));

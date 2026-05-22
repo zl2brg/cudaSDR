@@ -39,6 +39,7 @@ typedef enum _iaruRegion {
 
 } IARURegion;
 
+#include <QDebug>
 Q_DECLARE_METATYPE (_iaruRegion)
 
 typedef enum _hamBand {

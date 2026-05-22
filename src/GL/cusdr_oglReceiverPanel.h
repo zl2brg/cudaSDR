@@ -54,12 +54,13 @@
 #endif
 
 
+class SliceModel;
 class QGLReceiverPanel : public QOpenGLWidget, protected QOpenGLFunctions {
 
     Q_OBJECT
 
 public:
-    QGLReceiverPanel(QWidget *parent = 0, int rx = 0);
+    QGLReceiverPanel(SliceModel *model, QWidget *parent = nullptr);
 	~QGLReceiverPanel();
 
 public slots:
@@ -88,7 +89,8 @@ protected:
 	void qglColor(QColor color);
 
 private:
-	Settings*					set;
+    SliceModel*                             m_sliceModel;
+    Settings*                                       set;
 
 	QSDR::_ServerMode			m_serverMode;
 	QSDR::_HWInterfaceMode		m_hwInterface;

@@ -1,3 +1,6 @@
+#include "Models/RadioModel.h"
+#include "Models/RadioTelemetry.h"
+#include "Models/SliceModel.h"
 /**
 * @file  cusdr_oglDisplayPanel.cpp
 * @brief Display panel class for cuSDR
@@ -37,8 +40,9 @@
 #endif
 
 
-OGLDisplayPanel::OGLDisplayPanel(QWidget *parent)
+OGLDisplayPanel::OGLDisplayPanel(RadioModel *model, QWidget *parent)
 	: QOpenGLWidget(parent)
+        , m_radioModel(model)
 
 	, set(Settings::instance())
 	, m_serverMode(set->getCurrentServerMode())
@@ -66,7 +70,7 @@ OGLDisplayPanel::OGLDisplayPanel(QWidget *parent)
 	, m_sMeterDeform(15)
 	, m_freqDigitsPosY(70)
 	, m_sMeterPosY(50)//(45)
-	, m_sMeterHoldTime(set->getSMeterHoldTime())
+	, m_sMeterHoldTime(model->slices().isEmpty() ? 1000 : model->slices().first()->sMeterHoldTime())
 	, m_sMeterPrevHoldTimeMax(0)
 	, m_sMeterPrevHoldTimeMin(0)
 	, m_sMeterMeanValueCnt(0)
@@ -196,7 +200,7 @@ QSize OGLDisplayPanel::sizeHint() const {
 void OGLDisplayPanel::setupConnections() {
 
 	connect(set, &Settings::systemStateChanged,       this, &OGLDisplayPanel::systemStateChanged);
-	connect(set, &Settings::vfoFrequencyChanged,      this, &OGLDisplayPanel::setFrequency);
+	// connect(set, &Settings::vfoFrequencyChanged,      this, &OGLDisplayPanel::setFrequency);
 	connect(set, &Settings::numberOfRXChanged,        this, &OGLDisplayPanel::setReceivers);
 	connect(set, &Settings::currentReceiverChanged,   this, &OGLDisplayPanel::setCurrentReceiver);
 	connect(set, &Settings::mercuryAttenuatorChanged, this, &OGLDisplayPanel::setMercuryAttenuator);
@@ -210,18 +214,24 @@ void OGLDisplayPanel::setupConnections() {
 	connect(set, &Settings::hermesVersionChanged,     this, &OGLDisplayPanel::setHermesVersion);
 	connect(set, &Settings::src10MhzChanged,          this, &OGLDisplayPanel::set10mhzSource);
 	connect(set, &Settings::src122_88MhzChanged,      this, &OGLDisplayPanel::set122_88mhzSource);
-	connect(set, &Settings::protocolSyncChanged,      this, &OGLDisplayPanel::setSyncStatus);
-	connect(set, &Settings::adcOverflowChanged,       this, &OGLDisplayPanel::setADCStatus);
-	connect(set, &Settings::packetLossChanged,        this, &OGLDisplayPanel::setPacketLossStatus);
-	connect(set, &Settings::forwardPowerChanged,      this, &OGLDisplayPanel::setForwardPower);
-	connect(set, &Settings::swrChanged,               this, &OGLDisplayPanel::setSWR);
+	if (RadioTelemetry* tel = m_radioModel ? m_radioModel->telemetry() : nullptr) {
+		connect(tel, &RadioTelemetry::protocolSyncChanged, this, &OGLDisplayPanel::setSyncStatus);
+		connect(tel, &RadioTelemetry::adcOverflowChanged, this, &OGLDisplayPanel::setADCStatus);
+		connect(tel, &RadioTelemetry::packetLossChanged, this, &OGLDisplayPanel::setPacketLossStatus);
+		connect(tel, &RadioTelemetry::forwardPowerChanged, this, &OGLDisplayPanel::setForwardPower);
+		connect(tel, &RadioTelemetry::swrChanged, this, &OGLDisplayPanel::setSWR);
+		connect(tel, &RadioTelemetry::supplyVoltageChanged, this, &OGLDisplayPanel::setSupplyVoltage);
+		connect(tel, &RadioTelemetry::temperatureChanged, this, &OGLDisplayPanel::setTemperature);
+		connect(tel, &RadioTelemetry::sendIQSignalChanged, this, &OGLDisplayPanel::setSendIQStatus);
+		connect(tel, &RadioTelemetry::rcveIQSignalChanged, this, &OGLDisplayPanel::setRecvAudioStatus);
+	}
 	connect(set, &Settings::radioStateChanged,        this, &OGLDisplayPanel::setRadioState);
-	connect(set, &Settings::supplyVoltageChanged,     this, &OGLDisplayPanel::setSupplyVoltage);
-	connect(set, &Settings::temperatureChanged,       this, &OGLDisplayPanel::setTemperature);
-	connect(set, &Settings::sendIQSignalChanged,      this, &OGLDisplayPanel::setSendIQStatus);
-	connect(set, &Settings::rcveIQSignalChanged,      this, &OGLDisplayPanel::setRecvAudioStatus);
 	connect(set, &Settings::mouseWheelFreqStepChanged,this, &OGLDisplayPanel::setMouseWheelFreqStep);
-	connect(set, &Settings::sMeterValueChanged,       this, &OGLDisplayPanel::setSMeterValue);
+        for (auto slice : m_radioModel->slices()) {
+            connect(slice, &SliceModel::sMeterValueChanged, this, [this, slice](double value){ this->setSMeterValue(slice->id(), value); });
+            connect(slice, &SliceModel::sMeterHoldTimeChanged, this, &OGLDisplayPanel::setSMeterHoldTime);
+            connect(slice, &SliceModel::frequencyChanged, this, [this, slice](long freq){ this->setFrequency(0, slice->id(), freq); });
+        }
 	connect(set, &Settings::sMeterHoldTimeChanged,    this, &OGLDisplayPanel::setSMeterHoldTime);
 
 	RigCtlServer *rcs = set->rigCtlServer();
@@ -2042,6 +2052,7 @@ void OGLDisplayPanel::setFrequency(int mode,int rx, long freq) {
 	}
 	else*/
 		m_frequencyList[rx] = f;
+        update();
 
 }
 
@@ -2177,6 +2188,9 @@ void OGLDisplayPanel::systemStateChanged(
 		m_sMeterDisplayTime.restart();
 		m_sMeterMaxTimer.restart();
 		m_sMeterMinTimer.restart();
+
+		if (m_radioModel && m_radioModel->telemetry())
+			m_radioModel->telemetry()->setProtocolSync(0);
 
         QTimer::singleShot(50, this, &OGLDisplayPanel::updateADCStatus);
         QTimer::singleShot(50, this, &OGLDisplayPanel::updateSyncStatus);

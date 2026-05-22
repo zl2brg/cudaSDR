@@ -695,10 +695,16 @@ protected:
 // **************************************
 // Settings class
 
+class RadioModel;
 class Settings : public QObject {
 
 	Q_OBJECT
 
+public:
+    void setRadioModel(RadioModel* model) { m_radioModel = model; }
+    RadioModel* radioModel() const { return m_radioModel; }
+    void syncSlicesWithSettings();
+    void syncSettingsWithSlices();
 public:
 	static Settings *instance(QObject *parent = nullptr) {
 
@@ -771,11 +777,8 @@ signals:
 	void cpuLoadChanged(short load);
 	void txAllowedChanged(bool value);
 	void multiRxViewChanged(int view);
-	void sMeterValueChanged(int rx, double value);
 	void freeDVStatusChanged(int rx, bool sync, float snr, quint64 rxFrames, quint64 txFrames);
 	void freeDVModeChanged(int rx, int mode);
-	void spectrumBufferChanged(int rx, const qVectorFloat& buffer);
-	void postSpectrumBufferChanged(int rx, const float* buffer);
 
 	void sampleSizeChanged(int rx, int size);
     void rxListChanged(QList<Receiver *> rxList);
@@ -848,17 +851,6 @@ signals:
 	void rxJ6PinsChanged(const QList<int> &states);
 	void txJ6PinsChanged(const QList<int> &states);
 
-	void protocolSyncChanged(int value);
-	void adcOverflowChanged(int value);
-	void packetLossChanged(int value);
-	void forwardPowerChanged(qreal watts);
-	void reversePowerChanged(qreal watts);
-    void swrChanged(qreal swr);
-    void supplyVoltageChanged(qreal volts);
-    void temperatureChanged(qreal temp);
-	void sendIQSignalChanged(int value);
-	void rcveIQSignalChanged(int value);
-
 	void numberOfRXChanged(int value);
 	void sampleRateChanged(int value);
 	void mercuryAttenuatorChanged(HamBand band, int value);
@@ -880,9 +872,7 @@ signals:
 	void ncoFrequencyChanged(int rx, long frequency);
 
 	// wideband data
-	void widebandSpectrumBufferChanged(const qVectorFloat& buffer);
 	void widebandOptionsChanged(TWideband options);
-	void widebandSpectrumBufferReset();
 	void widebandStatusChanged(bool value);
 	void widebandDataChanged(bool value);
 	void widebanddBmScaleMinChanged(qreal value);
@@ -944,6 +934,7 @@ signals:
 
 	void spectrumAveragingChanged(int rx, bool value);
 	void spectrumAveragingCntChanged(int rx, int value);
+	void spectrumBufferChanged(int rx, const qVectorFloat& buffer);
 
 	void waterfallTimeChanged(int rx, int value);
 	void waterfallOffesetLoChanged(int rx, int value);
@@ -1234,12 +1225,10 @@ public slots:
     void        setRigCtlServer(RigCtlServer *server) { m_rigCtlServer = server; }
     RigCtlServer *rigCtlServer() const { return m_rigCtlServer; }
 	void setMultiRxView(int view);
-	void setSMeterValue(int rx, double value);
 	void setFreeDVStatus(int rx, bool sync, float snr, quint64 rxFrames);
+	void setSpectrumBuffer(int rx, const qVectorFloat& buffer);
 	void addFreeDVTxFrames(int rx, quint64 txFrames);
 	void setFreeDVMode(int rx, int mode);
-    void setSpectrumBuffer(int rx, const QList<float> &buffer);
-	void setPostSpectrumBuffer(int rx, const float*);
 	void setSampleSize(int rx, int size);
     void setRxList (QList<Receiver*> list);
 	void setMetisCardList(QList<TNetworkDevicecard> list);
@@ -1303,16 +1292,6 @@ public slots:
 
 	void setIQPort(int rx, int port);
 
-	void setProtocolSync(int value);
-	void setADCOverflow(int value);
-	void setPacketLoss(int value);
-	void setForwardPower(qreal watts);
-	void setReversePower(qreal watts);
-    void setSWR(qreal swr);
-    void setSupplyVoltage(qreal volts);
-    void setTemperature(qreal temp);
-	void setSendIQ(int value);
-	void setRcveIQ(int value);
 
 	void setReceivers(int value);
 	//void setReceiver(int value);
@@ -1380,8 +1359,6 @@ public slots:
 
 	// wideband data & options
 	void setWidebandBuffers(int value);
-	void setWidebandSpectrumBuffer(const qVectorFloat &buffer);
-	void resetWidebandSpectrumBuffer();
 	void setWidebandOptions(TWideband options);
 	void setWidebandStatus(bool value);
 	void setWidebandData(bool value);
@@ -1477,6 +1454,7 @@ public:
         if (m_radioState > 0) return true;
         else return false;
     }
+    RadioModel* m_radioModel = nullptr;
 
 
 private slots:

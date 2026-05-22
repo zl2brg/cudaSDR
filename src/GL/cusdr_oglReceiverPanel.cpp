@@ -1,3 +1,6 @@
+#include "Models/RadioModel.h"
+#include "Models/RadioTelemetry.h"
+#include "Models/SliceModel.h"
 /**
 * @file  cusdr_oglReceiverPanel.cpp
 * @brief Receiver panel class for cuSDR
@@ -39,8 +42,9 @@
 
 
 
-QGLReceiverPanel::QGLReceiverPanel(QWidget *parent, int rx)
+QGLReceiverPanel::QGLReceiverPanel(SliceModel *model, QWidget *parent)
 	: QOpenGLWidget(parent)
+        , m_sliceModel(model)
 
 	, set(Settings::instance())
 	, m_serverMode(set->getCurrentServerMode())
@@ -57,7 +61,7 @@ QGLReceiverPanel::QGLReceiverPanel(QWidget *parent, int rx)
 	, m_filterRight(0)
 	, m_filterTop(0)
 	, m_filterBottom(0)
-	, m_receiver(rx)
+	, m_receiver(model ? model->id() : 0)
 	//, m_frequencyRxOnRx(0)
 	, m_spectrumSize(set->getSpectrumSize())
 	, m_sampleSize(0)
@@ -164,7 +168,7 @@ QGLReceiverPanel::QGLReceiverPanel(QWidget *parent, int rx)
 	m_agcHangEnabled = m_rxDataList.at(m_receiver).hangEnabled;
 	m_showAGCLines = m_rxDataList.at(m_receiver).agcLines;
 
-	radioPopup = new RadioPopupWidget(this, m_receiver);
+	radioPopup = new RadioPopupWidget(m_sliceModel, this);
 
 	fonts = new CFonts(this);
 	m_fonts = fonts->getFonts();
@@ -329,35 +333,44 @@ QSize QGLReceiverPanel::sizeHint() const {
 
 void QGLReceiverPanel::setupConnections() {
 
-	connect(set, &Settings::systemStateChanged,          this, &QGLReceiverPanel::systemStateChanged);
-	connect(set, &Settings::graphicModeChanged,          this, &QGLReceiverPanel::graphicModeChanged);
-	connect(set, &Settings::freqRulerPositionChanged,    this, &QGLReceiverPanel::freqRulerPositionChanged);
-	connect(set, &Settings::ctrFrequencyChanged,         this, &QGLReceiverPanel::setCtrFrequency);
-	connect(set, &Settings::vfoFrequencyChanged,         this, &QGLReceiverPanel::setVFOFrequency);
-	connect(set, &Settings::hamBandChanged,              this, &QGLReceiverPanel::setHamBand);
-	connect(set, &Settings::currentReceiverChanged,      this, &QGLReceiverPanel::setCurrentReceiver);
-	connect(set, &Settings::sampleRateChanged,           this, &QGLReceiverPanel::sampleRateChanged);
-	connect(set, &Settings::filterFrequenciesChanged,    this, &QGLReceiverPanel::setFilterFrequencies);
-	connect(set, &Settings::waterfallOffesetLoChanged,   this, &QGLReceiverPanel::setWaterfallOffesetLo);
-	connect(set, &Settings::waterfallOffesetHiChanged,   this, &QGLReceiverPanel::setWaterfallOffesetHi);
-	connect(set, &Settings::spectrumAveragingChanged,    this, &QGLReceiverPanel::setSpectrumAveraging);
-	connect(set, &Settings::spectrumBufferChanged,       this, &QGLReceiverPanel::setSpectrumBuffer);
-	connect(set, &Settings::panGridStatusChanged,        this, &QGLReceiverPanel::setPanGridStatus);
-	connect(set, &Settings::peakHoldStatusChanged,       this, &QGLReceiverPanel::setPeakHoldStatus);
-	connect(set, &Settings::panLockedStatusChanged,      this, &QGLReceiverPanel::setPanLockedStatus);
-	connect(set, &Settings::clickVFOStatusChanged,       this, &QGLReceiverPanel::setClickVFOStatus);
-	connect(set, &Settings::hairCrossStatusChanged,      this, &QGLReceiverPanel::setHairCrossStatus);
-	connect(set, &Settings::panadapterColorChanged,      this, &QGLReceiverPanel::setPanadapterColors);
-	connect(set, &Settings::mercuryAttenuatorChanged,    this, &QGLReceiverPanel::setMercuryAttenuator);
-	connect(set, &Settings::adcOverflowChanged,          this, &QGLReceiverPanel::setADCStatus);
-	connect(set, &Settings::framesPerSecondChanged,      this, &QGLReceiverPanel::setFramesPerSecond);
-	connect(set, &Settings::agcFixedGainChanged_dB,      this, &QGLReceiverPanel::setAGCLineFixedLevel);
-	connect(set, &Settings::agcLineLevelsChanged,        this, &QGLReceiverPanel::setAGCLineLevels);
-	connect(set, &Settings::agcModeChanged,              this, &QGLReceiverPanel::setAGCMode);
-	connect(set, &Settings::showAGCLinesStatusChanged,   this, &QGLReceiverPanel::setAGCLinesStatus);
-	connect(set, &Settings::adcModeChanged,              this, &QGLReceiverPanel::setADCMode);
-	connect(set, &Settings::dspModeChanged,              this, &QGLReceiverPanel::setDSPMode);
-	connect(set, &Settings::mouseWheelFreqStepChanged,   this, &QGLReceiverPanel::setMouseWheelFreqStep);
+    connect(set, &Settings::systemStateChanged,          this, &QGLReceiverPanel::systemStateChanged);
+    connect(set, &Settings::freqRulerPositionChanged,    this, &QGLReceiverPanel::freqRulerPositionChanged);
+    connect(set, &Settings::hamBandChanged,              this, &QGLReceiverPanel::setHamBand);
+    connect(set, &Settings::currentReceiverChanged,      this, &QGLReceiverPanel::setCurrentReceiver);
+    connect(set, &Settings::sampleRateChanged,           this, &QGLReceiverPanel::sampleRateChanged);
+    CHECKED_CONNECT(set, &Settings::spectrumBufferChanged, this, &QGLReceiverPanel::setSpectrumBuffer);
+    if (RadioModel* radioModel = qobject_cast<RadioModel*>(m_sliceModel ? m_sliceModel->parent() : nullptr)) {
+        if (RadioTelemetry* tel = radioModel->telemetry()) {
+            connect(tel, &RadioTelemetry::adcOverflowChanged, this, &QGLReceiverPanel::setADCStatus);
+        }
+    }
+    connect(set, &Settings::panLockedStatusChanged,      this, &QGLReceiverPanel::setPanLockedStatus);
+    connect(set, &Settings::clickVFOStatusChanged,       this, &QGLReceiverPanel::setClickVFOStatus);
+    connect(set, &Settings::hairCrossStatusChanged,      this, &QGLReceiverPanel::setHairCrossStatus);
+    connect(set, &Settings::panadapterColorChanged,      this, &QGLReceiverPanel::setPanadapterColors);
+    connect(set, &Settings::mercuryAttenuatorChanged,    this, &QGLReceiverPanel::setMercuryAttenuator);
+    connect(set, &Settings::framesPerSecondChanged,      this, &QGLReceiverPanel::setFramesPerSecond);
+    connect(set, &Settings::agcLineLevelsChanged,        this, &QGLReceiverPanel::setAGCLineLevels);
+    connect(set, &Settings::showAGCLinesStatusChanged,   this, &QGLReceiverPanel::setAGCLinesStatus);
+    connect(set, &Settings::adcModeChanged,              this, &QGLReceiverPanel::setADCMode);
+    connect(set, &Settings::mouseWheelFreqStepChanged,   this, &QGLReceiverPanel::setMouseWheelFreqStep);
+
+    connect(m_sliceModel, &SliceModel::frequencyChanged, this, [this](long freq){ this->setVFOFrequency(0, m_sliceModel->id(), freq); });
+    connect(m_sliceModel, &SliceModel::centerFrequencyChanged, this, [this](long freq){ setCtrFrequency(0, m_sliceModel->id(), freq); });
+    connect(m_sliceModel, &SliceModel::dspModeChanged, this, [this](DSPMode mode){ setDSPMode(m_sliceModel->id(), mode); });
+    connect(m_sliceModel, &SliceModel::filterChanged, this, [this](){ setFilterFrequencies(m_sliceModel->id(), (qreal)m_sliceModel->filterLow(), (qreal)m_sliceModel->filterHigh()); });
+    connect(m_sliceModel, &SliceModel::spectrumAveragingChanged, [this](bool enabled){ setSpectrumAveraging(m_sliceModel->id(), enabled); });
+    connect(m_sliceModel, &SliceModel::spectrumAveragingCntChanged, [this](int count){ setSpectrumAveragingCnt(count); });
+    connect(m_sliceModel, &SliceModel::panModeChanged, [this](PanGraphicsMode mode){ graphicModeChanged(m_sliceModel->id(), mode, m_sliceModel->waterfallMode()); });
+    connect(m_sliceModel, &SliceModel::waterfallModeChanged, [this](WaterfallColorMode mode){ graphicModeChanged(m_sliceModel->id(), m_sliceModel->panMode(), mode); });
+    connect(m_sliceModel, &SliceModel::panGridChanged, this, [this](bool enabled){ setPanGridStatus(enabled, m_sliceModel->id()); });
+    connect(m_sliceModel, &SliceModel::peakHoldChanged, this, [this](bool enabled){ setPeakHoldStatus(enabled, m_sliceModel->id()); });
+    connect(m_sliceModel, &SliceModel::waterfallOffsetChanged, [this](){ setWaterfallOffesetLo(m_sliceModel->id(), m_sliceModel->waterfallOffsetLo()); setWaterfallOffesetHi(m_sliceModel->id(), m_sliceModel->waterfallOffsetHi()); });
+    connect(m_sliceModel, &SliceModel::agcModeChanged, this,
+            [this](AGCMode mode) {
+                const bool hang = (mode != (AGCMode)agcOFF && mode != (AGCMode)agcMED && mode != (AGCMode)agcFAST);
+                setAGCMode(m_sliceModel->id(), mode, hang);
+            });
 
 	connect(radioPopup, &RadioPopupWidget::vfoToMidBtnEvent, this, &QGLReceiverPanel::setVfoToMidFrequency);
 	connect(radioPopup, &RadioPopupWidget::midToVfoBtnEvent, this, &QGLReceiverPanel::setMidToVfoFrequency);
@@ -2572,18 +2585,18 @@ void QGLReceiverPanel::setSpectrumSize(int value) {
 }
 
 void QGLReceiverPanel::setCtrFrequency(int mode, int rx, long freq) {
+    Q_UNUSED(mode)
+    if (m_receiver != rx) return;
 
-	Q_UNUSED(mode)
-	
-	if (m_receiver != rx) return;
+    m_centerFrequency = freq;
+    m_rxDataList[rx].ctrFrequency = freq;
 
-	m_rxDataList[rx].ctrFrequency = freq;
+    m_deltaFrequency = m_centerFrequency - m_vfoFrequency;
+    m_deltaF = (qreal)(1.0 * m_deltaFrequency / m_sampleRate);
 
-	//GRAPHICS_DEBUG << "set center F = " << freq;
-	m_centerFrequency = freq;
-	m_freqScalePanadapterUpdate = true;
-	m_panGridUpdate = true;
-//	update();
+    m_freqScalePanadapterUpdate = true;
+    m_panGridUpdate = true;
+    update();
 }
 
 void QGLReceiverPanel::setVFOFrequency(int mode, int rx, long freq) {
@@ -3314,6 +3327,7 @@ void QGLReceiverPanel::setAGCLinesStatus(bool value, int rx) {
 }
 
 void QGLReceiverPanel::setDSPMode(int rx, DSPMode mode) {
+        update();
 
 	if (m_receiver != rx) return;
 

@@ -34,12 +34,13 @@
 #include <QTabWidget>
 
 
+class RadioModel;
 class cusdr_SetupWidget : public QTabWidget
 {
     Q_OBJECT
 
 public:
-    explicit cusdr_SetupWidget(QWidget *parent = nullptr);
+    explicit cusdr_SetupWidget(RadioModel *model, QWidget *parent = nullptr);
     ~cusdr_SetupWidget();
     
     DisplayTabWidget* getDisplayTabWidget() const { return m_displaytabWidget; }
@@ -62,6 +63,7 @@ protected:
     void	mouseReleaseEvent(QMouseEvent *event);
 
 private:
+    RadioModel*                             m_radioModel;
     Settings			*set;
 
     QSDR::_Error				m_error;

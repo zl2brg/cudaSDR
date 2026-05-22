@@ -88,16 +88,19 @@ class WideBandDataProcessor;
 
 class IHPSDRProtocol;
 
+class RadioModel;
+class RadioController;
 class DataEngine : public QObject {
 
 	Q_OBJECT
 
 public:
-	explicit DataEngine(QObject* parent = nullptr);
+	explicit DataEngine(RadioModel *model, QObject* parent = nullptr);
 	~DataEngine() override;
 
 	Settings*			set;
 	THPSDRParameter		io;
+    RadioModel*                     m_radioModel;
 
     Transmitter         TX;
     QList<Receiver*> 	RX;
@@ -108,6 +111,7 @@ public:
     TransmitAudioInput *       m_audioInput;
     iambic *            m_cwIO;
     std::unique_ptr<IHPSDRProtocol> m_protocol;
+    std::unique_ptr<RadioController> m_radioController;
     bool                m_internal_cw;
     bool                m_cw_key_reversed;
     int                 m_cw_keyer_spacing;
@@ -166,6 +170,8 @@ public slots:
 	void	setMercuryTiming(int value);
 	void	setHamBand(int rx, bool byBtn, HamBand band);
 	void	setFrequency(int mode, int rx, long frequency);
+	/** MVC: apply slice model mode to TX CC and RX WDSP path. */
+	void	applySliceDspMode(int rx, DSPMode mode);
     void    set_tx_drivelevel(int value);
     void    setRepeaterMode(bool);
 

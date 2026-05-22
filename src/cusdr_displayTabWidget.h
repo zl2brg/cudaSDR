@@ -53,7 +53,7 @@ class DisplayTabWidget : public QTabWidget {
 	Q_OBJECT
 
 public:
-	DisplayTabWidget(QWidget *parent = 0);
+	DisplayTabWidget(RadioModel *model, QWidget *parent = nullptr);
 	~DisplayTabWidget();
 
 
@@ -74,6 +74,7 @@ protected:
 	void	mouseReleaseEvent(QMouseEvent *event);
 
 private:
+    RadioModel*                             m_radioModel;
 	Settings					*set;
 
 	QSDR::_Error				m_error;

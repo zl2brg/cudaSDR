@@ -1,3 +1,5 @@
+#include "Models/RadioModel.h"
+#include "Models/RadioTelemetry.h"
 /**
 * @file  cusdr_displayTabWidget.cpp
 * @brief Display settings tab widget class for cuSDR
@@ -40,8 +42,9 @@
 #define	btn_widths		40
 
 
-DisplayTabWidget::DisplayTabWidget(QWidget *parent)
+DisplayTabWidget::DisplayTabWidget(RadioModel *model, QWidget *parent)
 	: QTabWidget(parent)
+        , m_radioModel(model)
 	, set(Settings::instance())
 	, m_minimumWidgetWidth(set->getMinimumWidgetWidth())
 	, m_minimumGroupBoxWidth(set->getMinimumGroupBoxWidth())
@@ -51,7 +54,7 @@ DisplayTabWidget::DisplayTabWidget(QWidget *parent)
 	setContentsMargins(4, 4, 4, 0);
 	setMouseTracking(true);
 	
-	m_displayWidget = new DisplayOptionsWidget(this);
+	m_displayWidget = new DisplayOptionsWidget(m_radioModel, this);
 	m_colorWidget = new ColorOptionsWidget(this);
 	m_3DWidget = new Options3DWidget(this);
 
@@ -167,7 +170,10 @@ void DisplayTabWidget::create3DDockWidget(QWidget *mainWindow) {
 		m_3DDockWidget->setWidget(m_3DPanel);
 		
 		// Connect to real spectrum data
-		CHECKED_CONNECT(set, &Settings::spectrumBufferChanged, m_3DPanel, &QGL3DPanel::setSpectrumBuffer);
+		if (m_radioModel && m_radioModel->telemetry()) {
+			connect(m_radioModel->telemetry(), &RadioTelemetry::spectrumBufferChanged,
+			        m_3DPanel, &QGL3DPanel::setSpectrumBuffer);
+		}
 			
 		// Connect to frequency changes
 		CHECKED_CONNECT(set, &Settings::ctrFrequencyChanged, m_3DPanel, &QGL3DPanel::setCtrFrequency);

@@ -55,12 +55,13 @@ extern "C" {
 #define min(X, Y) ((X) < (Y) ? (X) : (Y))
 #define max(X, Y) ((X) < (Y) ? (Y) : (X))
 
+class SliceModel;
 class QWDSPEngine : public QObject {
 
     Q_OBJECT
 
 public:
-    explicit QWDSPEngine(QObject *parent = nullptr, int rx = 0, int size = 0);
+    explicit QWDSPEngine(SliceModel *model, QObject *parent = nullptr, int size = 0);
     ~QWDSPEngine() override;
 
     void processDSP(CPX &in, CPX &out);
@@ -125,6 +126,7 @@ public slots:
     int getSize() const { return m_size; }
 
 private:
+    SliceModel *m_sliceModel;
     Settings *set;
     AGCMode m_agcMode;
 

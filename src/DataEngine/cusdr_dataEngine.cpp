@@ -1,3 +1,6 @@
+#include "Models/RadioModel.h"
+#include "Models/RadioTelemetry.h"
+#include "Models/SliceModel.h"
 #if defined(__clang__)
 #pragma clang diagnostic push
 #endif
@@ -43,6 +46,7 @@ extern double cwramp48[];		// see cwramp.c, for 48 kHz sample rate
  //use WIDEBAND_PROCESSOR_DEBUG
 #define RAMPLEN 250
 #include "cusdr_dataEngine.h"
+#include "Controllers/RadioController.h"
 #include "CProtocol1.h"
 #include "CProtocol2.h"
 #ifdef HAVE_CODEC2
@@ -70,9 +74,10 @@ extern "C" {
 	- implements the audio processor thread.
 */
 
-DataEngine::DataEngine(QObject *parent)
+DataEngine::DataEngine(RadioModel *model, QObject *parent)
 	: QObject(parent)
 	, set(Settings::instance())
+        , m_radioModel(model)
     , m_protocol(nullptr)
     , m_internal_cw(set->isInternalCw())
 	, m_cw_key_reversed(set->isCwKeyReversed())
@@ -170,6 +175,11 @@ DataEngine::~DataEngine() {
 }
 
 void DataEngine::setupConnections() {
+
+	if (m_radioModel && m_radioModel->telemetry()) {
+		connect(this, &DataEngine::rcveIQEvent,
+		        m_radioModel->telemetry(), &RadioTelemetry::setRcveIQ);
+	}
 
 	CHECKED_CONNECT(
 		set,
@@ -346,7 +356,7 @@ void DataEngine::setupConnections() {
             &DataEngine::setRepeaterMode);
 
 
-    connect(set, &Settings::dspModeChanged, this, &DataEngine::dspModeChanged);
+    // connect(set, &Settings::dspModeChanged, this, &DataEngine::dspModeChanged);
 
 
     CHECKED_CONNECT(
@@ -1153,11 +1163,9 @@ void DataEngine::stop() {
 			rx->setConnectedStatus(false);
 			disconnectDSPSlots();
 
-			disconnect(
-				rx,
-				SIGNAL(spectrumBufferChanged(int, const qVectorFloat&)),
-				set,
-				SLOT(setSpectrumBuffer(int, const qVectorFloat&)));
+			if (m_radioModel && m_radioModel->telemetry()) {
+				disconnect(rx, nullptr, m_radioModel->telemetry(), nullptr);
+			}
 
 			/*disconnect(
 				rx,
@@ -1247,8 +1255,9 @@ bool DataEngine::initReceivers(int rcvrs) {
 	DATA_ENGINE_DEBUG << "[RX-ADD] initReceivers: allocating" << rcvrs << "receiver(s)";
 
 	for (int i = 0; i < rcvrs; i++) {
+        if (!m_radioModel || i >= m_radioModel->slices().size()) continue;
 
-        auto rx =  new Receiver(i);
+        auto rx =  new Receiver(m_radioModel->slices().at(i), this);
 		// init the DSP core
 		DATA_ENGINE_DEBUG << "[RX-ADD] initReceivers: init DSP core for rx " << i;
 
@@ -1265,17 +1274,13 @@ bool DataEngine::initReceivers(int rcvrs) {
 
 			//CHECKED_CONNECT(this, SIGNAL(doDSP()), rx, SLOT(dspProcessing()));
 
-            connect(
-                rx, // Connect to the raw pointer managed by the unique_ptr
-                &Receiver::spectrumBufferChanged,
-				set,
-                // The lambda captures the 'set' pointer and calls the slot
-                [this](int receiverId, const QList<float> &buffer) {
-                    set->setSpectrumBuffer(receiverId, buffer);
-                }
-                );
-
-            connect(rx, &Receiver::sMeterValueChanged, set, &Settings::setSMeterValue);
+            connect(rx, &Receiver::spectrumBufferChanged, set, &Settings::setSpectrumBuffer);
+            if (RadioTelemetry* tel = m_radioModel ? m_radioModel->telemetry() : nullptr) {
+                connect(rx, &Receiver::sMeterValueChanged, tel,
+                        [tel](int receiverId, double value) {
+                            tel->setSMeterValue(receiverId, value);
+                        });
+            }
          //   connect(rx.get(), &Receiver::outputBufferSignal, m_dataProcessor, &DataProcessor::setOutputBuffer);
 
 
@@ -1440,7 +1445,10 @@ bool DataEngine::initReceivers(int rcvrs) {
 	io.control_out[4] &= 0x07; // 1 1 0 0 0 1 1 1
 	io.control_out[4] = (io.ccTx.duplex << 2) | ((io.receivers - 1) << 3);
 
-
+	if (!m_radioController) {
+		m_radioController = std::make_unique<RadioController>(this);
+	}
+	m_radioController->bind(m_radioModel, this);
 
 	return true;
 }
@@ -1487,11 +1495,11 @@ void DataEngine::setHPSDRConfig() {
 }
 
 void DataEngine::connectDSPSlots() {
-    connect(set, &Settings::ctrFrequencyChanged, this, &DataEngine::setFrequency);
+    // connect(set, &Settings::ctrFrequencyChanged, this, &DataEngine::setFrequency);
 }
 
 void DataEngine::disconnectDSPSlots() {
-    disconnect(set, &Settings::ctrFrequencyChanged, this, &DataEngine::setFrequency);
+    // connect(set, &Settings::ctrFrequencyChanged, this, &DataEngine::setFrequency);
 }
 
 
@@ -1840,8 +1848,10 @@ void DataEngine::createWideBandDataProcessor() {
 	connect(set, &Settings::spectrumAveragingCntChanged,
 			this, &DataEngine::setWbSpectrumAveraging);
 
-	connect(m_wbDataProcessor, &WideBandDataProcessor::wbSpectrumBufferChanged,
-			set, &Settings::setWidebandSpectrumBuffer);
+	if (RadioTelemetry* tel = m_radioModel ? m_radioModel->telemetry() : nullptr) {
+		connect(m_wbDataProcessor, &WideBandDataProcessor::wbSpectrumBufferChanged,
+		        tel, &RadioTelemetry::setWidebandSpectrumBuffer);
+	}
 
 
 	m_wbDataProcThread = new QThreadEx();
@@ -2460,6 +2470,11 @@ void DataEngine::setFrequency(int mode, int rx, long frequency) {
 
 }
 
+void DataEngine::applySliceDspMode(int rx, DSPMode mode)
+{
+	dspModeChanged(rx, mode);
+}
+
 void DataEngine::suspend() {
 
 
@@ -2475,6 +2490,7 @@ DataProcessor::DataProcessor(
 	: QObject()
 	, de(de)
 	, set(Settings::instance())
+        
 	, m_serverMode(serverMode)
 	, m_hwInterface(hwMode)
 	, m_socketConnected(false)
@@ -3552,7 +3568,7 @@ void DataProcessor::writeData() {
 
 void 	DataEngine::setWbSpectrumAveraging(int rx, int value)
 {
-	m_wbDataProcessor->setWbSpectrumAveraging(rx,value);
+	if (m_wbDataProcessor) m_wbDataProcessor->setWbSpectrumAveraging(rx,value);
 }
 
 

@@ -29,6 +29,7 @@
 // use: WBGRAPHICS_DEBUG
 
 #include "cusdr_oglWidebandPanel.h"
+#include "Models/RadioTelemetry.h"
 
 
 #include <QDebug>
@@ -184,11 +185,12 @@ void QGLWidebandPanel::setupConnections() {
     connect(set, &Settings::graphicModeChanged,
             this, &QGLWidebandPanel::graphicModeChanged);
 
-    connect(set, &Settings::widebandSpectrumBufferChanged,
-            this, &QGLWidebandPanel::setWidebandSpectrumBuffer);
-
-    connect(set, &Settings::widebandSpectrumBufferReset,
-            this, &QGLWidebandPanel::resetWidebandSpectrumBuffer);
+    if (RadioTelemetry* tel = telemetryFromSettings()) {
+        connect(tel, &RadioTelemetry::widebandSpectrumBufferChanged,
+                this, &QGLWidebandPanel::setWidebandSpectrumBuffer);
+        connect(tel, &RadioTelemetry::widebandSpectrumBufferReset,
+                this, &QGLWidebandPanel::resetWidebandSpectrumBuffer);
+    }
 
     connect(set, &Settings::vfoFrequencyChanged,
             this, &QGLWidebandPanel::setFrequency);

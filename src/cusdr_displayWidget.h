@@ -49,12 +49,13 @@
 #endif
 
 
+class RadioModel;
 class DisplayOptionsWidget : public QWidget {
 
 	Q_OBJECT
 
 public:
-	DisplayOptionsWidget(QWidget* parent = 0);
+	DisplayOptionsWidget(RadioModel *model, QWidget* parent = nullptr);
 	~DisplayOptionsWidget();
 
 public slots:
@@ -62,6 +63,7 @@ public slots:
 	QSize	minimumSizeHint() const;
 
 private:
+    RadioModel*                             m_radioModel;
 	Settings*					set;
 
 	QSDR::_ServerMode			m_serverMode;

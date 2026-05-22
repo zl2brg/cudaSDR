@@ -1,6 +1,7 @@
 #include "CProtocol2.h"
 #include "cusdr_dataEngine.h"
 #include "cusdr_settings.h"
+#include "Models/RadioTelemetry.h"
 #include "protocol_boundary_utils.h"
 
 #ifdef LOG_P2_NETWORK
@@ -202,7 +203,9 @@ void CProtocol2::decodeCCBytes(const QByteArray& buffer, THPSDRParameter* io) {
     io->ccRx.mercury4_LT2208 = (adcOvld & 0x08);
 
     if (adcOvld != 0) {
-        set->setADCOverflow(2);
+        if (RadioTelemetry* tel = telemetryFromSettings()) {
+            tel->setADCOverflow(2);
+        }
     }
 
     // Bytes 6-7: AIN1 — Forward power ADC (Alex0 fwd / Hermes PA fwd, 12-bit, 16-bit BE)
@@ -216,28 +219,34 @@ void CProtocol2::decodeCCBytes(const QByteArray& buffer, THPSDRParameter* io) {
     io->alexReverseVolts = (double)revPwrRaw * (3.3 / 4095.0);
     io->alexForwardPower = io->alexForwardVolts * io->alexForwardVolts / 0.09;
     io->alexReversePower = io->alexReverseVolts * io->alexReverseVolts / 0.09;
-    Settings::instance()->setForwardPower(io->alexForwardPower);
-    Settings::instance()->setReversePower(io->alexReversePower);
+    if (RadioTelemetry* tel = telemetryFromSettings()) {
+        tel->setForwardPower(io->alexForwardPower);
+        tel->setReversePower(io->alexReversePower);
 
-    // Calculate SWR
-    if (io->alexForwardPower > 0.001) {
-        qreal rho = sqrt(io->alexReversePower / io->alexForwardPower);
-        if (rho > 0.999) rho = 0.999;
-        qreal swr = (1.0 + rho) / (1.0 - rho);
-        Settings::instance()->setSWR(swr);
-    } else {
-        Settings::instance()->setSWR(1.0);
+        // Calculate SWR
+        if (io->alexForwardPower > 0.001) {
+            qreal rho = sqrt(io->alexReversePower / io->alexForwardPower);
+            if (rho > 0.999) rho = 0.999;
+            qreal swr = (1.0 + rho) / (1.0 - rho);
+            tel->setSWR(swr);
+        } else {
+            tel->setSWR(1.0);
+        }
     }
 
     // Bytes 34-35: Temperature (16-bit BE, degrees C x 100)
     uint16_t tempRaw = ProtocolBoundaryUtils::decode16BitBE(reinterpret_cast<const uchar*>(buffer.constData() + 34));
-    Settings::instance()->setTemperature((double)tempRaw / 100.0);
+    if (RadioTelemetry* tel = telemetryFromSettings()) {
+        tel->setTemperature(static_cast<qreal>(tempRaw) / 100.0);
+    }
 
     // Bytes 36-37: Supply voltage (16-bit BE, millivolts)
     uint16_t supplyMV = ProtocolBoundaryUtils::decode16BitBE(reinterpret_cast<const uchar*>(buffer.constData() + 36));
     io->supplyVolts = (double)supplyMV / 1000.0;
     io->ccRx.ain6 = supplyMV;
-    Settings::instance()->setSupplyVoltage(io->supplyVolts);
+    if (RadioTelemetry* tel = telemetryFromSettings()) {
+        tel->setSupplyVoltage(static_cast<qreal>(io->supplyVolts));
+    }
 
     // Byte 59: IO2,IO4,IO5,IO6,IO8 inputs
     uint8_t inputs = (uint8_t)buffer.at(59);
