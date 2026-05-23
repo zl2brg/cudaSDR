@@ -84,13 +84,23 @@ protected:
 	void closeEvent(QCloseEvent *event);
     void timerEvent(QTimerEvent *);
     void qglColor(QColor color);
+    void renderPanelText(OGLText *text, float x, float y, const QString &str);
+    void renderPanelText(OGLText *text, float x, float y, float z, const QString &str);
     void saveGLState();
     void restoreGLState();
 
 private:
     QOpenGLShaderProgram      *m_shaderProgram;
+    QOpenGLShaderProgram      *m_textureProgram;
     QOpenGLBuffer              m_vbo;
     QOpenGLVertexArrayObject   m_vao;
+
+    QMatrix4x4 panelProjection() const;
+    void drawPanelRect(const QRect &rect, const QColor &color, float z = 0.0f);
+    void drawPanelGradientRect(const QRect &rect, const QColor &c1, const QColor &c2,
+                               bool leftToRight, float z = 0.0f);
+    void drawSMeterNeedle(const QMatrix4x4 &projection, int x1);
+    void drawSMeterScaleLabels(const QMatrix4x4 &projection, int xOffset);
 
     RadioModel*                             m_radioModel;
 	Settings*					set;
@@ -177,6 +187,7 @@ private:
 	QColor		m_bkgColor1;
 	QColor		m_bkgColor2;
 	QColor		m_activeTextColor;
+	QColor		m_glTextColor;
 	QColor		m_inactiveTextColor;
 	QColor		m_textBackgroundColor;
 

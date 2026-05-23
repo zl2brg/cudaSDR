@@ -130,8 +130,22 @@ private:
 	QOpenGLFramebufferObject*	m_secScaleWaterfallFBO;
 
     QOpenGLShaderProgram      *m_shaderProgram;
+    QOpenGLShaderProgram      *m_textureProgram;
     QOpenGLBuffer              m_vbo;
     QOpenGLVertexArrayObject   m_vao;
+
+    QMatrix4x4 panelProjection() const;
+    qreal displayedFrequencySpanHz() const;
+    float displayedZoomFactor() const;
+    void ensurePanelViewport();
+    void syncTextDevicePixelRatio();
+    void drawPanelRect(const QRect &rect, const QColor &color, float z = 0.0f);
+    void renderPanelText(OGLText *text, float x, float y, const QString &str);
+    void renderPanelText(OGLText *text, float x, float y, float z, const QString &str);
+    void drawCachedTexture(const QRect &rect, GLuint texId, float z = 0.0f);
+
+    QColor m_glTextColor;
+    qreal m_panelDpr;
 
 	QRect						m_panRect;
 	QRect						m_dBmScalePanRect;
@@ -169,6 +183,7 @@ private:
 	
 	QMutex						mutex;
 	QMutex						spectrumBufferMutex;
+	QVector<float>				m_cachedSpectrumBuffer;
     qreal                       dpr;
     QPainter                    painter;
 	enum Region {
@@ -300,6 +315,9 @@ private:
 	bool		m_showAGCLines;
 	bool		m_agcHangEnabled;
 	bool		m_dragMouse;
+	bool		m_dragDBmScale;
+	bool		m_dragFreqScale;
+	bool		m_dragFreqScaleZoom;
 	bool		m_panLocked;
 	bool		m_clickVFO;
 	
@@ -361,6 +379,8 @@ private:
 	void	drawAGCControl();
 	void	drawVFOControl();
 
+	void 	updateFrequencyRuler();
+	void 	updateDBmRuler();
 	void 	renderPanVerticalScale();
 	void 	renderPanHorizontalScale();
 	void 	renderPanadapterGrid();
@@ -369,6 +389,7 @@ private:
 	//void	computeDisplayBins(const QVector<float>& panBuffer, const float* waterfallBuffer);
 	//void	computeDisplayBins(QVector<float> &buffer);
 	void	computeDisplayBins(QVector<float>& panBuffer, QVector<float>& waterfallBuffer);
+	void	recomputeDisplayBinsFromCache();
 	void 	showText(float x, float y, float z, const QString &text, bool smallText);
 	void	showRadioPopup(bool value);
 

@@ -26,7 +26,8 @@ set(SANITIZE_FLAGS "-fsanitize=address")
 #set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -pg")
 
 # --- Find Dependencies ---
-find_package(Qt6 6.11 REQUIRED COMPONENTS Widgets Core Gui Multimedia Network OpenGL OpenGLWidgets Test)
+find_package(Qt6 6.11.0 EXACT REQUIRED COMPONENTS Widgets Core Gui GuiPrivate ShaderTools Multimedia Network OpenGL OpenGLWidgets Test)
+message(STATUS "Using Qt ${Qt6_VERSION} from ${Qt6_DIR}")
 find_package(PkgConfig REQUIRED)
 find_package(OpenGL REQUIRED)
 
@@ -256,7 +257,16 @@ qt_add_executable(cudasdr
     ${CMAKE_CURRENT_SOURCE_DIR}/res/cusdr.qrc 
     ${UI_SOURCES} 
     ${UI_HEADERS}
+)
 
+qt6_add_shaders(cudasdr "panadapter_shaders"
+    PREFIX "/shaders"
+    FILES
+        src/GL/shaders/panadapter.vert
+        src/GL/shaders/panadapter.frag
+    OUTPUTS
+        panadapter.vert.qsb
+        panadapter.frag.qsb
 )
 
 # --- Configure Include Directories ---
@@ -287,6 +297,7 @@ target_link_libraries(cudasdr PRIVATE
     Qt6::Widgets
     Qt6::Core
     Qt6::Gui
+    Qt6::GuiPrivate
     Qt6::Multimedia
     Qt6::Network
     Qt6::OpenGL

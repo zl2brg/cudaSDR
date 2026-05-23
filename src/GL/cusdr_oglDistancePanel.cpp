@@ -27,6 +27,7 @@
 #define LOG_GRAPHICS
 
 #include "cusdr_oglDistancePanel.h"
+#include "cusdr_glShaders.h"
 #include <QGuiApplication>
 #include <QMatrix4x4>
 
@@ -319,33 +320,12 @@ void QGLDistancePanel::initializeGL() {
 
     // --- Modern OpenGL Setup ---
     m_shaderProgram = new QOpenGLShaderProgram(this);
-    
-    // Vertex Shader: Pass through position and color, apply ortho projection
-    const char *vsrc =
-        "#version 150\n"
-        "in vec3 position;\n"
-        "in vec4 color;\n"
-        "out vec4 vertColor;\n"
-        "uniform mat4 matrix;\n"
-        "void main() {\n"
-        "   vertColor = color;\n"
-        "   gl_Position = matrix * vec4(position, 1.0);\n"
-        "}\n";
 
-    // Fragment Shader: Just output the color
-    const char *fsrc =
-        "#version 150\n"
-        "in vec4 vertColor;\n"
-        "out vec4 fragColor;\n"
-        "void main() {\n"
-        "   fragColor = vertColor;\n"
-        "}\n";
-
-    if (!m_shaderProgram->addShaderFromSourceCode(QOpenGLShader::Vertex, vsrc)) {
+    if (!m_shaderProgram->addShaderFromSourceCode(QOpenGLShader::Vertex, GlShaders::coloredVertexSource())) {
         qCritical() << "Vertex shader compilation failed:" << m_shaderProgram->log();
     }
 
-    if (!m_shaderProgram->addShaderFromSourceCode(QOpenGLShader::Fragment, fsrc)) {
+    if (!m_shaderProgram->addShaderFromSourceCode(QOpenGLShader::Fragment, GlShaders::coloredFragmentSource())) {
         qCritical() << "Fragment shader compilation failed:" << m_shaderProgram->log();
     }
 

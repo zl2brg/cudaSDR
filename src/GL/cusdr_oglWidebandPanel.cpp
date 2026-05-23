@@ -29,6 +29,7 @@
 // use: WBGRAPHICS_DEBUG
 
 #include "cusdr_oglWidebandPanel.h"
+#include "cusdr_glShaders.h"
 #include "Models/RadioTelemetry.h"
 
 
@@ -229,32 +230,11 @@ void QGLWidebandPanel::initializeGL() {
 
 	m_cnt = 0;
 
-	// ── Core-profile shader program ──────────────────────────────────────────
-	static const char *vertSrc = R"(
-		#version 130
-		in vec3 a_pos;
-		in vec3 a_color;
-		uniform mat4 u_mvp;
-		out vec3 v_color;
-		void main() {
-			gl_Position = u_mvp * vec4(a_pos, 1.0);
-			v_color = a_color;
-		}
-	)";
-
-	static const char *fragSrc = R"(
-		#version 130
-		in vec3 v_color;
-		out vec4 fragColor;
-		void main() {
-			fragColor = vec4(v_color, 1.0);
-		}
-	)";
-
+	// ── Shader program (GLES2 or desktop GLSL) ─────────────────────────────
 	m_program = new QOpenGLShaderProgram(this);
-	if (!m_program->addShaderFromSourceCode(QOpenGLShader::Vertex, vertSrc))
+	if (!m_program->addShaderFromSourceCode(QOpenGLShader::Vertex, GlShaders::widebandVertexSource()))
 		qWarning() << "WB vertex shader:" << m_program->log();
-	if (!m_program->addShaderFromSourceCode(QOpenGLShader::Fragment, fragSrc))
+	if (!m_program->addShaderFromSourceCode(QOpenGLShader::Fragment, GlShaders::widebandFragmentSource()))
 		qWarning() << "WB fragment shader:" << m_program->log();
 	if (!m_program->link())
 		qWarning() << "WB shader link:" << m_program->log();

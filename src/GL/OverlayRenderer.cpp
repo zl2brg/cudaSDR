@@ -1,5 +1,31 @@
 #include "OverlayRenderer.h"
+#include "cusdr_glShaders.h"
 #include <QVarLengthArray>
+
+namespace {
+
+void beginOverlayLines(QOpenGLFunctions *gl)
+{
+    gl->glDisable(GL_DEPTH_TEST);
+    gl->glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    gl->glEnable(GL_BLEND);
+    gl->glLineWidth(1.0f);
+#ifndef QT_OPENGL_ES_2
+    gl->glEnable(GL_LINE_STIPPLE);
+    ::glLineStipple(1, 0x5555);
+#endif
+}
+
+void endOverlayLines(QOpenGLFunctions *gl)
+{
+#ifndef QT_OPENGL_ES_2
+    gl->glDisable(GL_LINE_STIPPLE);
+#else
+    Q_UNUSED(gl);
+#endif
+}
+
+} // namespace
 
 OverlayRenderer::OverlayRenderer()
     : m_shader(nullptr)
@@ -23,27 +49,8 @@ void OverlayRenderer::initialize(QOpenGLShaderProgram* sharedShader) {
     } else {
         m_shader = new QOpenGLShaderProgram();
         m_ownsShader = true;
-        const char *vsrc =
-            "#version 150\n"
-            "in vec3 position;\n"
-            "in vec4 color;\n"
-            "out vec4 vertColor;\n"
-            "uniform mat4 matrix;\n"
-            "void main() {\n"
-            "   vertColor = color;\n"
-            "   gl_Position = matrix * vec4(position, 1.0);\n"
-            "}\n";
-
-        const char *fsrc =
-            "#version 150\n"
-            "in vec4 vertColor;\n"
-            "out vec4 fragColor;\n"
-            "void main() {\n"
-            "   fragColor = vertColor;\n"
-            "}\n";
-
-        m_shader->addShaderFromSourceCode(QOpenGLShader::Vertex, vsrc);
-        m_shader->addShaderFromSourceCode(QOpenGLShader::Fragment, fsrc);
+        m_shader->addShaderFromSourceCode(QOpenGLShader::Vertex, GlShaders::coloredVertexSource());
+        m_shader->addShaderFromSourceCode(QOpenGLShader::Fragment, GlShaders::coloredFragmentSource());
         m_shader->bindAttributeLocation("position", 0);
         m_shader->bindAttributeLocation("color", 1);
         m_shader->link();
@@ -66,21 +73,20 @@ void OverlayRenderer::initialize(QOpenGLShaderProgram* sharedShader) {
 
 void OverlayRenderer::drawGrid(const QMatrix4x4& projection,
                                const QRect& panRect,
-                               const QRect& dBmScalePanRect,
+                               const QRect& freqScalePanRect,
                                const TScale& freqScale,
                                const TScale& dBmScale,
+                               float deltaF,
+                               float zoomFactor,
                                float r, float g, float b, float alpha,
                                bool panGridEnabled) {
     if (!panGridEnabled) return;
     if (!m_shader || !m_shader->isLinked()) return;
+    if (panRect.isEmpty() || zoomFactor <= 0.0f) return;
 
-    glDisable(GL_MULTISAMPLE);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glEnable(GL_BLEND);
-    glEnable(GL_LINE_STIPPLE);
-    glLineStipple(1, 0x5555);
-    glLineWidth(1.0f);
-    glDisable(GL_DEPTH_TEST);
+    const float panOffset = deltaF * float(panRect.width()) / zoomFactor;
+
+    beginOverlayLines(this);
 
     m_shader->bind();
     m_shader->setUniformValue("matrix", projection);
@@ -89,21 +95,24 @@ void OverlayRenderer::drawGrid(const QMatrix4x4& projection,
     m_vbo.bind();
 
     QList<VertexData> gridData;
-    
-    int len = freqScale.mainPointPositions.length();
+    gridData.reserve((freqScale.mainPointPositions.length()
+                      + dBmScale.mainPointPositions.length()) * 2);
+
+    const int len = freqScale.mainPointPositions.length();
     for (int i = 0; i < len; i++) {
-        float x = (float)freqScale.mainPointPositions.at(i);
-        gridData.append({ x, (float)panRect.top(),    3.0f, r, g, b, alpha });
-        gridData.append({ x, (float)panRect.bottom(), 3.0f, r, g, b, alpha });
+        const float x = float(panRect.left() + freqScale.mainPointPositions.at(i))
+                        - panOffset;
+        gridData.append({ x, float(panRect.top()),    3.0f, r, g, b, alpha });
+        gridData.append({ x, float(panRect.bottom()), 3.0f, r, g, b, alpha });
     }
-    
-    len = dBmScale.mainPointPositions.length();
-    for (int i = 0; i < len; i++) {
-        float y = (float)dBmScale.mainPointPositions.at(i);
-        gridData.append({ (float)panRect.left(),  y, 3.0f, r, g, b, alpha });
-        gridData.append({ (float)panRect.right(), y, 3.0f, r, g, b, alpha });
+
+    const int dBmLen = dBmScale.mainPointPositions.length();
+    for (int i = 0; i < dBmLen; i++) {
+        const float y = float(panRect.top() + dBmScale.mainPointPositions.at(i));
+        gridData.append({ float(panRect.left()),  y, 3.0f, r, g, b, alpha });
+        gridData.append({ float(panRect.right()), y, 3.0f, r, g, b, alpha });
     }
-    
+
     if (!gridData.isEmpty()) {
         m_vbo.allocate(gridData.data(), gridData.size() * (int)sizeof(VertexData));
         m_shader->setAttributeBuffer(0, GL_FLOAT, 0, 3, sizeof(float) * 7);
@@ -113,9 +122,98 @@ void OverlayRenderer::drawGrid(const QMatrix4x4& projection,
 
     m_vao.release();
     m_shader->release();
-    glDisable(GL_LINE_STIPPLE);
-    glDisable(GL_BLEND);
-	glEnable(GL_MULTISAMPLE);
+    endOverlayLines(this);
+
+    Q_UNUSED(freqScalePanRect);
+}
+
+void OverlayRenderer::drawFrequencyScaleTicks(const QMatrix4x4& projection,
+                                              const QRect& freqScalePanRect,
+                                              const TScale& freqScale,
+                                              float deltaF,
+                                              float zoomFactor,
+                                              float r, float g, float b, float alpha) {
+    if (!m_shader || !m_shader->isLinked()) return;
+    if (freqScalePanRect.isEmpty() || zoomFactor <= 0.0f) return;
+
+    const float panOffset = deltaF * float(freqScalePanRect.width()) / zoomFactor;
+    const float y1 = float(freqScalePanRect.top() + 1);
+    const float y2 = float(freqScalePanRect.top() + 4);
+    const float ySub = float(freqScalePanRect.top() + 3);
+
+    beginOverlayLines(this);
+    m_shader->bind();
+    m_shader->setUniformValue("matrix", projection);
+    m_vao.bind();
+    m_vbo.bind();
+
+    QList<VertexData> tickData;
+    tickData.reserve((freqScale.mainPointPositions.length() + freqScale.subPointPositions.length()) * 2);
+
+    for (int i = 0; i < freqScale.mainPointPositions.length(); i++) {
+        const float x = float(freqScalePanRect.left() + freqScale.mainPointPositions.at(i))
+                        - panOffset;
+        tickData.append({ x, y1, 2.0f, r, g, b, alpha });
+        tickData.append({ x, y2, 2.0f, r, g, b, alpha });
+    }
+
+    const float sr = r * 0.85f;
+    const float sg = g * 0.85f;
+    const float sb = b * 0.85f;
+    for (int i = 0; i < freqScale.subPointPositions.length(); i++) {
+        const float x = float(freqScalePanRect.left() + freqScale.subPointPositions.at(i))
+                        - panOffset;
+        tickData.append({ x, y1, 2.0f, sr, sg, sb, alpha * 0.85f });
+        tickData.append({ x, ySub, 2.0f, sr, sg, sb, alpha * 0.85f });
+    }
+
+    if (!tickData.isEmpty()) {
+        m_vbo.allocate(tickData.data(), tickData.size() * (int)sizeof(VertexData));
+        m_shader->setAttributeBuffer(0, GL_FLOAT, 0, 3, sizeof(float) * 7);
+        m_shader->setAttributeBuffer(1, GL_FLOAT, sizeof(float) * 3, 4, sizeof(float) * 7);
+        glDrawArrays(GL_LINES, 0, tickData.size());
+    }
+
+    m_vao.release();
+    m_shader->release();
+    endOverlayLines(this);
+}
+
+void OverlayRenderer::drawDBmScaleTicks(const QMatrix4x4& projection,
+                                        const QRect& dBmScalePanRect,
+                                        const TScale& dBmScale,
+                                        float r, float g, float b, float alpha) {
+    if (!m_shader || !m_shader->isLinked()) return;
+    if (dBmScalePanRect.isEmpty()) return;
+
+    const float x1 = float(dBmScalePanRect.right() - 4);
+    const float x2 = float(dBmScalePanRect.right());
+
+    beginOverlayLines(this);
+    m_shader->bind();
+    m_shader->setUniformValue("matrix", projection);
+    m_vao.bind();
+    m_vbo.bind();
+
+    QList<VertexData> tickData;
+    tickData.reserve(dBmScale.mainPointPositions.length() * 2);
+
+    for (int i = 0; i < dBmScale.mainPointPositions.length(); i++) {
+        const float y = float(dBmScalePanRect.top() + dBmScale.mainPointPositions.at(i));
+        tickData.append({ x1, y, 2.0f, r, g, b, alpha });
+        tickData.append({ x2, y, 2.0f, r, g, b, alpha });
+    }
+
+    if (!tickData.isEmpty()) {
+        m_vbo.allocate(tickData.data(), tickData.size() * (int)sizeof(VertexData));
+        m_shader->setAttributeBuffer(0, GL_FLOAT, 0, 3, sizeof(float) * 7);
+        m_shader->setAttributeBuffer(1, GL_FLOAT, sizeof(float) * 3, 4, sizeof(float) * 7);
+        glDrawArrays(GL_LINES, 0, tickData.size());
+    }
+
+    m_vao.release();
+    m_shader->release();
+    endOverlayLines(this);
 }
 
 void OverlayRenderer::drawCenterLine(const QMatrix4x4& projection,
@@ -142,11 +240,10 @@ void OverlayRenderer::drawCenterLine(const QMatrix4x4& projection,
         m_vao.bind();
         m_vbo.bind();
 
-        float centerX = (float)panRect.width()/2.0f;
+        float centerX = (float)panRect.left() + (float)panRect.width() / 2.0f;
         float centerY = (float)(panRect.top() + panRect.height() - 1);
 		QColor centerCol = QColor(80, 180, 240, 180);
 
-		glDisable(GL_MULTISAMPLE);
         glLineWidth(3.0f);
 
         QVarLengthArray<VertexData, 8> lines;
@@ -176,7 +273,6 @@ void OverlayRenderer::drawCenterLine(const QMatrix4x4& projection,
 
         m_vao.release();
         m_shader->release();
-		glEnable(GL_MULTISAMPLE);
 	}
 }
 
@@ -185,6 +281,7 @@ void OverlayRenderer::drawFilter(const QMatrix4x4& projection,
                                  float filterLo, float filterHi,
                                  float deltaF, float zoomFactor,
                                  bool highlightFilter,
+                                 bool dragPanning,
                                  bool showLeftBoundary, bool showRightBoundary,
                                  int& filterLeft, int& filterRight,
                                  int& filterTop, int& filterBottom) {
@@ -214,15 +311,18 @@ void OverlayRenderer::drawFilter(const QMatrix4x4& projection,
     m_vao.bind();
     m_vbo.bind();
 
-	if ((filterLeft >= panRect.left() && filterLeft <= panRect.right()) ||
-		(filterRight >= panRect.left() && filterRight <= panRect.right()) ||
-		(filterLeft < panRect.left() && filterRight > panRect.right()))
-	{
+	if (!dragPanning
+	    && ((filterLeft >= panRect.left() && filterLeft <= panRect.right())
+	        || (filterRight >= panRect.left() && filterRight <= panRect.right())
+	        || (filterLeft < panRect.left() && filterRight > panRect.right()))) {
 		if (filterRect.height() > 5) {
             float fr = color.redF(), fg = color.greenF(), fb = color.blueF(), fa = color.alphaF() * 0.4f;
             QVarLengthArray<VertexData, 4> rectData;
-            float rx1 = (float)filterRect.left(), ry1 = (float)filterRect.top(), rx2 = (float)filterRect.right(), ry2 = (float)filterRect.bottom();
-            
+            const float rx1 = (float)filterRect.left();
+            const float ry1 = (float)filterRect.top();
+            const float rx2 = (float)filterRect.right();
+            const float ry2 = (float)filterRect.bottom();
+
             rectData.append({ rx1, ry1, 4.0f, fr, fg, fb, fa });
             rectData.append({ rx2, ry1, 4.0f, fr, fg, fb, fa });
             rectData.append({ rx1, ry2, 4.0f, fr, fg, fb, fa });
@@ -251,13 +351,11 @@ void OverlayRenderer::drawFilter(const QMatrix4x4& projection,
 	}
 
     if (!lines.isEmpty()) {
-        glDisable(GL_MULTISAMPLE);
         glLineWidth(1);
         m_vbo.allocate(lines.data(), (int)(lines.size() * sizeof(VertexData)));
         m_shader->setAttributeBuffer(0, GL_FLOAT, 0, 3, sizeof(float) * 7);
         m_shader->setAttributeBuffer(1, GL_FLOAT, sizeof(float) * 3, 4, sizeof(float) * 7);
         glDrawArrays(GL_LINES, 0, lines.size());
-        glEnable(GL_MULTISAMPLE);
     }
     
     m_vao.release();
@@ -278,7 +376,6 @@ void OverlayRenderer::drawCrossHair(const QMatrix4x4& projection,
 	int y = mousePos.y();
 	int crossHairSize = (int)(20 * dpr);
 
-	glDisable(GL_MULTISAMPLE);
 	glDisable(GL_BLEND);
 	glDisable(GL_LINE_SMOOTH);
 	glLineWidth(1.0f * dpr);
@@ -320,7 +417,6 @@ void OverlayRenderer::drawCrossHair(const QMatrix4x4& projection,
 
     m_vao.release();
 	glDisable(GL_SCISSOR_TEST);
-    glEnable(GL_MULTISAMPLE);
     m_shader->release();
 }
 
@@ -339,11 +435,10 @@ void OverlayRenderer::drawAGCControl(const QMatrix4x4& projection,
 
     if (!m_shader || !m_shader->isLinked()) return;
 
-	glDisable(GL_MULTISAMPLE);
-	glLineStipple(1, 0x0C0C);
-	glEnable(GL_LINE_STIPPLE);
-	glLineWidth(1.0f);
-    glDisable(GL_DEPTH_TEST);
+    beginOverlayLines(this);
+#ifndef QT_OPENGL_ES_2
+    ::glLineStipple(1, 0x0C0C);
+#endif
 
     m_shader->bind();
     m_shader->setUniformValue("matrix", projection);
@@ -390,7 +485,6 @@ void OverlayRenderer::drawAGCControl(const QMatrix4x4& projection,
 
     m_vao.release();
 	glDisable(GL_SCISSOR_TEST);
-	glDisable(GL_LINE_STIPPLE);
-	glEnable(GL_MULTISAMPLE);
+    endOverlayLines(this);
     m_shader->release();
 }

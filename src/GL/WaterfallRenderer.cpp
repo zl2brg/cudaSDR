@@ -1,4 +1,5 @@
 #include "WaterfallRenderer.h"
+#include "cusdr_glShaders.h"
 #include <QDebug>
 
 WaterfallRenderer::WaterfallRenderer()
@@ -27,32 +28,14 @@ void WaterfallRenderer::initialize() {
     initializeOpenGLFunctions();
 
     m_shader = new QOpenGLShaderProgram();
-    
-    const char *vsrc =
-        "#version 150\n"
-        "in vec3 position;\n"
-        "in vec2 texCoord;\n"
-        "out vec2 v_texCoord;\n"
-        "uniform mat4 matrix;\n"
-        "void main() {\n"
-        "   v_texCoord = texCoord;\n"
-        "   gl_Position = matrix * vec4(position, 1.0);\n"
-        "}\n";
 
-    const char *fsrc =
-        "#version 150\n"
-        "in vec2 v_texCoord;\n"
-        "out vec4 fragColor;\n"
-        "uniform sampler2D waterfallTexture;\n"
-        "void main() {\n"
-        "   fragColor = texture(waterfallTexture, v_texCoord);\n"
-        "}\n";
-
-    m_shader->addShaderFromSourceCode(QOpenGLShader::Vertex, vsrc);
-    m_shader->addShaderFromSourceCode(QOpenGLShader::Fragment, fsrc);
+    const QByteArray fragSrc = GlShaders::waterfallFragmentSource("waterfallTexture").toUtf8();
+    m_shader->addShaderFromSourceCode(QOpenGLShader::Vertex, GlShaders::texturedVertexSource());
+    m_shader->addShaderFromSourceCode(QOpenGLShader::Fragment, fragSrc.constData());
     m_shader->bindAttributeLocation("position", 0);
     m_shader->bindAttributeLocation("texCoord", 1);
-    m_shader->link();
+    if (!m_shader->link())
+        qWarning() << "WaterfallRenderer: shader link failed:" << m_shader->log();
 
     m_vao.create();
     m_vao.bind();
@@ -97,7 +80,8 @@ void WaterfallRenderer::setupTexture(int width, int height) {
 }
 
 void WaterfallRenderer::render(const QMatrix4x4& projection, const QRect& rect, const QVarLengthArray<TGL_ubyteRGBA>& pixelData, QSDR::_DataEngineState dataEngineState) {
-    if (rect.isEmpty()) return;
+    if (rect.isEmpty() || !m_shader || !m_shader->isLinked())
+        return;
 
     int width = rect.width();
     int height = rect.height();
@@ -110,9 +94,9 @@ void WaterfallRenderer::render(const QMatrix4x4& projection, const QRect& rect, 
         setupTexture(width, height);
     }
 
-    if (dataEngineState == QSDR::DataEngineUp && !pixelData.isEmpty()) {
+    if (dataEngineState == QSDR::DataEngineUp && !pixelData.isEmpty() && pixelData.size() >= width) {
         glBindTexture(GL_TEXTURE_2D, m_textureId);
-        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, m_currentLine, width, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixelData.data());
+        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, m_currentLine, width, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixelData.constData());
         m_currentLine = (m_currentLine + 1) % height;
         if (m_lineCnt < height) m_lineCnt++;
     }
@@ -123,11 +107,15 @@ void WaterfallRenderer::render(const QMatrix4x4& projection, const QRect& rect, 
 
     m_shader->bind();
     m_shader->setUniformValue("matrix", projection);
-    m_shader->setUniformValue("waterfallTexture", 0);
 
     m_vao.bind();
     m_vbo.bind();
+
+    glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, m_textureId);
+    const int texUniform = m_shader->uniformLocation("waterfallTexture");
+    if (texUniform >= 0)
+        m_shader->setUniformValue(texUniform, 0);
 
     float v0 = (float)m_currentLine / height;
     
@@ -163,12 +151,17 @@ void WaterfallRenderer::render(const QMatrix4x4& projection, const QRect& rect, 
     vertices[11] = { left,  bottom, -3.0f, 0.0f, h1 };
 
     m_vbo.allocate(vertices, 12 * sizeof(VertexData));
+    m_shader->enableAttributeArray(0);
+    m_shader->enableAttributeArray(1);
     m_shader->setAttributeBuffer(0, GL_FLOAT, 0, 3, sizeof(float) * 5);
     m_shader->setAttributeBuffer(1, GL_FLOAT, sizeof(float) * 3, 2, sizeof(float) * 5);
 
     glDrawArrays(GL_TRIANGLES, 0, 12);
 
+    m_shader->disableAttributeArray(0);
+    m_shader->disableAttributeArray(1);
     m_vao.release();
     m_vbo.release();
+    glBindTexture(GL_TEXTURE_2D, 0);
     m_shader->release();
 }

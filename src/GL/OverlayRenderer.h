@@ -20,11 +20,25 @@ public:
 
     void drawGrid(const QMatrix4x4& projection,
                   const QRect& panRect,
-                  const QRect& dBmScalePanRect,
+                  const QRect& freqScalePanRect,
                   const TScale& freqScale,
                   const TScale& dBmScale,
+                  float deltaF,
+                  float zoomFactor,
                   float r, float g, float b, float alpha,
                   bool panGridEnabled);
+
+    void drawFrequencyScaleTicks(const QMatrix4x4& projection,
+                                 const QRect& freqScalePanRect,
+                                 const TScale& freqScale,
+                                 float deltaF,
+                                 float zoomFactor,
+                                 float r, float g, float b, float alpha);
+
+    void drawDBmScaleTicks(const QMatrix4x4& projection,
+                           const QRect& dBmScalePanRect,
+                           const TScale& dBmScale,
+                           float r, float g, float b, float alpha);
 
     void drawCenterLine(const QMatrix4x4& projection,
                         const QRect& panRect,
@@ -42,6 +56,7 @@ public:
                     float filterLo, float filterHi,
                     float deltaF, float zoomFactor,
                     bool highlightFilter,
+                    bool dragPanning,
                     bool showLeftBoundary, bool showRightBoundary,
                     // Outputs for caller (needed for text rendering)
                     int& filterLeft, int& filterRight,

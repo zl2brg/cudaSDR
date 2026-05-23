@@ -34,6 +34,8 @@
 #include "cusdr_settings.h"
 
 #include <QtGlobal>
+#include <QColor>
+#include <QMatrix4x4>
 #include <QOpenGLTexture>
 #include <QPainter>
 class QChar;
@@ -46,14 +48,20 @@ class OGLTextPrivate;
 class OGLText {
 
 public:
-    OGLText(const QFont &f, qreal devicePixelRatio = 1.5);
+    OGLText(const QFont &f, qreal devicePixelRatio = 1.0);
     virtual ~OGLText();
 
     QFont font() const;
     QFontMetrics fontMetrics() const;
     
-    void renderText(float x, float y, const QString &text);
-	void renderText(float x, float y, float z, const QString &text);
+    void renderText(float x, float y, const QString &text, const QColor &color = Qt::white);
+	void renderText(float x, float y, float z, const QString &text, const QColor &color = Qt::white);
+    void renderText(const QMatrix4x4 &projection, float x, float y, const QString &text,
+                    const QColor &color = Qt::white);
+    void renderText(const QMatrix4x4 &projection, float x, float y, float z, const QString &text,
+                    const QColor &color = Qt::white);
+    void invalidateCache();
+    void setDevicePixelRatio(qreal devicePixelRatio);
   
 private:
     Q_DISABLE_COPY(OGLText)

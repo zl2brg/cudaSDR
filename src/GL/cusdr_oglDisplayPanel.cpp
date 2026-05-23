@@ -30,6 +30,8 @@
 #define LOG_DISPLAYPANEL
 
 #include "cusdr_oglDisplayPanel.h"
+#include "cusdr_glShaders.h"
+#include "cusdr_glDraw.h"
 #include "Util/cusdr_rigctlserver.h"
 
 #include <QGuiApplication>
@@ -98,24 +100,36 @@ OGLDisplayPanel::OGLDisplayPanel(RadioModel *model, QWidget *parent)
 	m_fonts = fonts->getFonts();
 
 	m_fonts.smallFont.setBold(true);
-	m_oglTextTiny = new OGLText(m_fonts.tinyFont);
-	m_oglTextSmall = new OGLText(m_fonts.smallFont);
+	m_oglTextTiny = new OGLText(m_fonts.tinyFont, dpr);
+	m_oglTextSmall = new OGLText(m_fonts.smallFont, dpr);
 
 	m_fonts.smallFont.setItalic(true);
 
 	m_shaderProgram = nullptr;
+    m_textureProgram = nullptr;
 	m_vbo = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
 
-	m_oglTextSmallItalic = new OGLText(m_fonts.smallFont);
+	m_oglTextSmallItalic = new OGLText(m_fonts.smallFont, dpr);
 
-	m_oglTextNormal = new OGLText(m_fonts.normalFont);
-	m_oglTextBig = new OGLText(m_fonts.bigFont);
+	m_oglTextNormal = new OGLText(m_fonts.normalFont, dpr);
+	m_oglTextBig = new OGLText(m_fonts.bigFont, dpr);
 
 	m_fonts.bigFont.setItalic(true);
-	m_oglTextBigItalic = new OGLText(m_fonts.bigFont);
-	m_oglTextFreq1 = new OGLText(m_fonts.freqFont1);
-	m_oglTextFreq2 = new OGLText(m_fonts.freqFont2);
-	m_oglTextImpact = new OGLText(m_fonts.impactFont);
+	m_oglTextBigItalic = new OGLText(m_fonts.bigFont, dpr);
+	m_oglTextFreq1 = new OGLText(m_fonts.freqFont1, dpr);
+	m_oglTextFreq2 = new OGLText(m_fonts.freqFont2, dpr);
+	m_oglTextImpact = new OGLText(m_fonts.impactFont, dpr);
+
+	// Glyph cache must match current dpr / CharData layout (GLES text path).
+	m_oglTextTiny->invalidateCache();
+	m_oglTextSmall->invalidateCache();
+	m_oglTextSmallItalic->invalidateCache();
+	m_oglTextNormal->invalidateCache();
+	m_oglTextBig->invalidateCache();
+	m_oglTextBigItalic->invalidateCache();
+	m_oglTextFreq1->invalidateCache();
+	m_oglTextFreq2->invalidateCache();
+	m_oglTextImpact->invalidateCache();
 
 	setupConnections();
 	setupTextstrings();
@@ -148,6 +162,7 @@ OGLDisplayPanel::OGLDisplayPanel(RadioModel *model, QWidget *parent)
 	m_bkgColor1 = QColor(30, 30, 30);
 	m_bkgColor2 = QColor(50, 50, 50);
     m_activeTextColor = QColor(166, 196, 208);
+    m_glTextColor = m_activeTextColor;
 	m_inactiveTextColor = QColor(68, 68, 68);//Qt::white;//
 	m_textBackgroundColor = QColor(66, 96, 208);
 	m_sMeterTimer.start();
@@ -160,6 +175,10 @@ OGLDisplayPanel::~OGLDisplayPanel() {
     if (m_shaderProgram) {
         delete m_shaderProgram;
         m_shaderProgram = nullptr;
+    }
+    if (m_textureProgram) {
+        delete m_textureProgram;
+        m_textureProgram = nullptr;
     }
 
     if (m_vao.isCreated()) {
@@ -322,33 +341,12 @@ void OGLDisplayPanel::initializeGL() {
 
     // --- Modern OpenGL Setup ---
     m_shaderProgram = new QOpenGLShaderProgram(this);
-    
-    // Vertex Shader: Pass through position and color, apply ortho projection
-    const char *vsrc =
-        "#version 150\n"
-        "in vec3 position;\n"
-        "in vec3 color;\n"
-        "out vec3 vertColor;\n"
-        "uniform mat4 matrix;\n"
-        "void main() {\n"
-        "   vertColor = color;\n"
-        "   gl_Position = matrix * vec4(position, 1.0);\n"
-        "}\n";
 
-    // Fragment Shader: Just output the color
-    const char *fsrc =
-        "#version 150\n"
-        "in vec3 vertColor;\n"
-        "out vec4 fragColor;\n"
-        "void main() {\n"
-        "   fragColor = vec4(vertColor, 1.0);\n"
-        "}\n";
-
-    if (!m_shaderProgram->addShaderFromSourceCode(QOpenGLShader::Vertex, vsrc)) {
+    if (!m_shaderProgram->addShaderFromSourceCode(QOpenGLShader::Vertex, GlShaders::coloredVertexSourceVec3())) {
         qCritical() << "Vertex shader compilation failed:" << m_shaderProgram->log();
     }
 
-    if (!m_shaderProgram->addShaderFromSourceCode(QOpenGLShader::Fragment, fsrc)) {
+    if (!m_shaderProgram->addShaderFromSourceCode(QOpenGLShader::Fragment, GlShaders::coloredFragmentSourceVec3())) {
         qCritical() << "Fragment shader compilation failed:" << m_shaderProgram->log();
     }
 
@@ -375,6 +373,14 @@ void OGLDisplayPanel::initializeGL() {
     m_vao.release();
     m_vbo.release();
 
+    m_textureProgram = new QOpenGLShaderProgram(this);
+    m_textureProgram->addShaderFromSourceCode(QOpenGLShader::Vertex, GlShaders::texturedQuadVertexSource());
+    m_textureProgram->addShaderFromSourceCode(QOpenGLShader::Fragment,
+                                              GlShaders::texturedFragmentSource("tex"));
+    m_textureProgram->bindAttributeLocation("position", 0);
+    m_textureProgram->bindAttributeLocation("texCoord", 1);
+    if (!m_textureProgram->link())
+        qCritical() << "S-meter texture shader link failed:" << m_textureProgram->log();
 
   // default initialization
 
@@ -403,6 +409,22 @@ void OGLDisplayPanel::resizeGL(int iWidth,int iHeight) {
 }
 
 void OGLDisplayPanel::paintGL() {
+    const qreal currentDpr = devicePixelRatioF();
+    if (!qFuzzyCompare(currentDpr, dpr)) {
+        dpr = currentDpr;
+        m_oglTextTiny->setDevicePixelRatio(dpr);
+        m_oglTextSmall->setDevicePixelRatio(dpr);
+        m_oglTextSmallItalic->setDevicePixelRatio(dpr);
+        m_oglTextNormal->setDevicePixelRatio(dpr);
+        m_oglTextBig->setDevicePixelRatio(dpr);
+        m_oglTextBigItalic->setDevicePixelRatio(dpr);
+        m_oglTextFreq1->setDevicePixelRatio(dpr);
+        m_oglTextFreq2->setDevicePixelRatio(dpr);
+        m_oglTextImpact->setDevicePixelRatio(dpr);
+        m_smeterUpdate = true;
+        m_smeterRenew = true;
+    }
+
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glClearColor(0, 0, 0, 1.0);
 	glClear(GL_DEPTH_BUFFER_BIT);
@@ -431,20 +453,20 @@ void OGLDisplayPanel::paintUpperRegion() {
 	switch (m_syncStatus) {
 
 		case 0:
-			drawGLRect(rect, QColor(68, 68, 68), -2.0f);
+			drawPanelRect(rect, QColor(68, 68, 68), -2.0f);
 			break;
 
 
 		case 1:
-			drawGLRect(rect, QColor(56, 242, 115), -2.0f);
+			drawPanelRect(rect, QColor(56, 242, 115), -2.0f);
 			break;
 
 		case 2:
-			drawGLRect(rect, QColor(242, 56, 109), -2.0f);
+			drawPanelRect(rect, QColor(242, 56, 109), -2.0f);
 			break;
 	}
-	qglColor(QColor(0, 0, 0));
-	m_oglTextSmallItalic->renderText(x1 + m_blankWidth, y1, m_SYNCString);
+	qglColor(Qt::black);
+	renderPanelText(m_oglTextSmallItalic, x1 + m_blankWidth, y1, m_SYNCString);
 	
 	// ADC status
 	str = QString(m_ADCString);
@@ -454,19 +476,19 @@ void OGLDisplayPanel::paintUpperRegion() {
 	switch (m_adcStatus) {
 
 		case 0:
-			drawGLRect(rect, QColor(68, 68, 68), -2.0f);
+			drawPanelRect(rect, QColor(68, 68, 68), -2.0f);
 			break;
 
 		case 1:
-			drawGLRect(rect, QColor(56, 242, 115), -2.0f);
+			drawPanelRect(rect, QColor(56, 242, 115), -2.0f);
 			break;
 
 		case 2:
-			drawGLRect(rect, QColor(242, 56, 109), -2.0f);
+			drawPanelRect(rect, QColor(242, 56, 109), -2.0f);
 			break;
 	}
-	qglColor(QColor(0, 0, 0));
-	m_oglTextSmallItalic->renderText(x1 + m_blankWidth, y1, m_ADCString);
+	qglColor(Qt::black);
+	renderPanelText(m_oglTextSmallItalic, x1 + m_blankWidth, y1, m_ADCString);
 
 	// Packet loss status
 	str = QString(m_PacketLossString);
@@ -476,19 +498,19 @@ void OGLDisplayPanel::paintUpperRegion() {
 	switch (m_packetLossStatus) {
 
 		case 0:
-			drawGLRect(rect, QColor(68, 68, 68), -2.0f);
+			drawPanelRect(rect, QColor(68, 68, 68), -2.0f);
 			break;
 
 		case 1:
-			drawGLRect(rect, QColor(56, 242, 115), -2.0f);
+			drawPanelRect(rect, QColor(56, 242, 115), -2.0f);
 			break;
 
 		case 2:
-			drawGLRect(rect, QColor(242, 56, 109), -2.0f);
+			drawPanelRect(rect, QColor(242, 56, 109), -2.0f);
 			break;
 	}
-	qglColor(QColor(0, 0, 0));
-	m_oglTextSmallItalic->renderText(x1 + m_blankWidth, y1, m_PacketLossString);
+	qglColor(Qt::black);
+	renderPanelText(m_oglTextSmallItalic, x1 + m_blankWidth, y1, m_PacketLossString);
 
 	// Metis status
 	str = m_metisString;
@@ -498,13 +520,13 @@ void OGLDisplayPanel::paintUpperRegion() {
 		int fwdWidth = m_oglTextSmall->fontMetrics().horizontalAdvance(fwdStr);
 		rect = QRect(x1, y1, fwdWidth + 2*m_blankWidth, m_blankHeight);
 		if (m_txActive) {
-            drawGLRect(rect, QColor(56, 242, 115), -2.0f);
+            drawPanelRect(rect, QColor(56, 242, 115), -2.0f);
             qglColor(QColor(0, 0, 0));
         } else {
-            drawGLRect(rect, QColor(50, 50, 50), -2.0f);
+            drawPanelRect(rect, QColor(50, 50, 50), -2.0f);
             qglColor(QColor(100, 100, 100));
         }
-        m_oglTextSmallItalic->renderText(x1 + m_blankWidth, y1, fwdStr);
+        renderPanelText(m_oglTextSmallItalic,x1 + m_blankWidth, y1, fwdStr);
         x1 += fwdWidth + 5*m_blankWidth;
 	}
 
@@ -517,18 +539,18 @@ void OGLDisplayPanel::paintUpperRegion() {
         if (m_txActive) {
             // Transmitting: show live colour-coded SWR
             if (m_swr < 1.5)
-                drawGLRect(rect, QColor(56, 242, 115), -2.0f); // Green
+                drawPanelRect(rect, QColor(56, 242, 115), -2.0f); // Green
             else if (m_swr < 2.5)
-                drawGLRect(rect, QColor(255, 255, 50), -2.0f); // Yellow
+                drawPanelRect(rect, QColor(255, 255, 50), -2.0f); // Yellow
             else
-                drawGLRect(rect, QColor(242, 56, 109), -2.0f); // Red
+                drawPanelRect(rect, QColor(242, 56, 109), -2.0f); // Red
             qglColor(QColor(0, 0, 0));
         } else {
             // Receiving: dim grey background
-            drawGLRect(rect, QColor(50, 50, 50), -2.0f);
+            drawPanelRect(rect, QColor(50, 50, 50), -2.0f);
             qglColor(QColor(100, 100, 100));
         }
-        m_oglTextSmallItalic->renderText(x1 + m_blankWidth, y1, swrStr);
+        renderPanelText(m_oglTextSmallItalic,x1 + m_blankWidth, y1, swrStr);
         x1 += swrWidth + 5*m_blankWidth;
     }
 
@@ -537,9 +559,9 @@ void OGLDisplayPanel::paintUpperRegion() {
         QString voltStr = QString("%1V").arg(m_supplyVolts, 0, 'f', 1);
         int voltWidth = m_oglTextSmall->fontMetrics().horizontalAdvance(voltStr);
         rect = QRect(x1, y1, voltWidth + 2*m_blankWidth, m_blankHeight);
-        drawGLRect(rect, QColor(100, 120, 140), -2.0f); // Blue-grey
+        drawPanelRect(rect, QColor(100, 120, 140), -2.0f); // Blue-grey
         qglColor(QColor(206, 236, 248));
-        m_oglTextSmallItalic->renderText(x1 + m_blankWidth, y1, voltStr);
+        renderPanelText(m_oglTextSmallItalic,x1 + m_blankWidth, y1, voltStr);
         x1 += voltWidth + 5*m_blankWidth;
     }
 
@@ -548,9 +570,9 @@ void OGLDisplayPanel::paintUpperRegion() {
         QString tempStr = QString("%1°C").arg(m_temperature, 0, 'f', 1);
         int tempWidth = m_oglTextSmall->fontMetrics().horizontalAdvance(tempStr);
         rect = QRect(x1, y1, tempWidth + 2*m_blankWidth, m_blankHeight);
-        drawGLRect(rect, QColor(80, 80, 80), -2.0f); // Deep grey
+        drawPanelRect(rect, QColor(80, 80, 80), -2.0f); // Deep grey
         qglColor(QColor(206, 236, 248));
-        m_oglTextSmallItalic->renderText(x1 + m_blankWidth, y1, tempStr);
+        renderPanelText(m_oglTextSmallItalic,x1 + m_blankWidth, y1, tempStr);
         x1 += tempWidth + 5*m_blankWidth;
     }
 
@@ -561,7 +583,7 @@ void OGLDisplayPanel::paintUpperRegion() {
 	
 	if (m_hwInterface == QSDR::Metis) {
 
-		drawGLRect(rect, m_textBackgroundColor, -2.0f);
+		drawPanelRect(rect, m_textBackgroundColor, -2.0f);
 		if (m_dataEngineState == QSDR::DataEngineUp) {
 
 			str.append(m_metisVersion);
@@ -572,10 +594,10 @@ void OGLDisplayPanel::paintUpperRegion() {
 	}
 	else {
 
-		drawGLRect(rect, QColor(68, 68, 68), -2.0f);
+		drawPanelRect(rect, QColor(68, 68, 68), -2.0f);
 		qglColor(QColor(0, 0, 0));
 	}
-	m_oglTextSmallItalic->renderText(x1, y1, 1.0f, str);
+	renderPanelText(m_oglTextSmallItalic,x1, y1, 1.0f, str);
 
 
 	// Mercury status
@@ -593,7 +615,7 @@ void OGLDisplayPanel::paintUpperRegion() {
     //rect = QRect(x1, y1, m_mercuryStringWidth + m_versionStringWidth, m_blankHeight);
 
 	if (set->getMercuryPresence() && m_hwInterface == QSDR::Metis) {
-		drawGLRect(rect, m_textBackgroundColor, -2.0f);
+		drawPanelRect(rect, m_textBackgroundColor, -2.0f);
 
 		if (m_dataEngineState == QSDR::DataEngineUp) {
 			str.append(m_mercuryVersion);
@@ -604,12 +626,12 @@ void OGLDisplayPanel::paintUpperRegion() {
 	}
 	else {
 
-		drawGLRect(rect, QColor(68, 68, 68), -2.0f);
+		drawPanelRect(rect, QColor(68, 68, 68), -2.0f);
 		qglColor(QColor(0, 0, 0));
 	}
 
 	//m_oglTextSmallItalic->renderFreqText(x1 + m_blankWidth, y1, 1.0f, str);
-	m_oglTextSmallItalic->renderText(x1, y1, 1.0f, str);
+	renderPanelText(m_oglTextSmallItalic,x1, y1, 1.0f, str);
 
 
 	// Penelope status
@@ -628,7 +650,7 @@ void OGLDisplayPanel::paintUpperRegion() {
 		else
 			rect = QRect(x1, y1, m_penelopeStringWidth, m_blankHeight);
 
-		drawGLRect(rect, m_textBackgroundColor, -2.0f);
+		drawPanelRect(rect, m_textBackgroundColor, -2.0f);
 
 		if (m_dataEngineState == QSDR::DataEngineUp) {
 			str.append(m_penelopeVersion);
@@ -645,7 +667,7 @@ void OGLDisplayPanel::paintUpperRegion() {
 		else
 			rect = QRect(x1, y1, m_pennylaneStringWidth, m_blankHeight);
 
-		drawGLRect(rect, m_textBackgroundColor, -2.0f);
+		drawPanelRect(rect, m_textBackgroundColor, -2.0f);
 
 		if (m_dataEngineState == QSDR::DataEngineUp) {
 			str.append(m_pennylaneVersion);
@@ -660,11 +682,11 @@ void OGLDisplayPanel::paintUpperRegion() {
 //        else
 			rect = QRect(x1, y1, m_penelopeStringWidth, m_blankHeight);
 
-        drawGLRect(rect, QColor(68, 68, 68), -2.0f);
+        drawPanelRect(rect, QColor(68, 68, 68), -2.0f);
 		qglColor(QColor(0, 0, 0));
 	}
 
-	m_oglTextSmallItalic->renderText(x1, y1, 1.0f, str);
+	renderPanelText(m_oglTextSmallItalic,x1, y1, 1.0f, str);
 
 
 	// Hermes status
@@ -695,7 +717,7 @@ void OGLDisplayPanel::paintUpperRegion() {
     }
 
     if (set->getHPSDRHardware() == 1) {
-		drawGLRect(rect, m_textBackgroundColor, -2.0f);
+		drawPanelRect(rect, m_textBackgroundColor, -2.0f);
 
 		if (m_dataEngineState == QSDR::DataEngineUp) {
 			str.append(m_hermesVersion);
@@ -705,12 +727,12 @@ void OGLDisplayPanel::paintUpperRegion() {
 			qglColor(QColor(0, 0, 0));
 	}
 	else {
-		drawGLRect(rect, QColor(68, 68, 68), -2.0f);
+		drawPanelRect(rect, QColor(68, 68, 68), -2.0f);
 		qglColor(QColor(0, 0, 0));
 	}
 
 	//m_oglTextSmallItalic->renderFreqText(x1 + m_blankWidth, y1, 1.0f, str);
-    m_oglTextSmallItalic->renderText(x1, y1, 1.0f, str);
+    renderPanelText(m_oglTextSmallItalic,x1, y1, 1.0f, str);
 
 
 	// Excalibur status
@@ -727,7 +749,7 @@ void OGLDisplayPanel::paintUpperRegion() {
 
 	if (set->getExcaliburPresence() && m_hwInterface == QSDR::Metis) {
 
-		drawGLRect(rect, m_textBackgroundColor, -2.0f);
+		drawPanelRect(rect, m_textBackgroundColor, -2.0f);
 		if (m_dataEngineState == QSDR::DataEngineUp) {
 
 			str.append(m_excaliburVersion);
@@ -738,11 +760,11 @@ void OGLDisplayPanel::paintUpperRegion() {
 	}
 	else {
 
-		drawGLRect(rect, QColor(68, 68, 68), -2.0f);
+		drawPanelRect(rect, QColor(68, 68, 68), -2.0f);
 		qglColor(QColor(0, 0, 0));
 	}
 	//m_oglTextSmallItalic->renderFreqText(x1 + m_blankWidth, y1, 1.0f, str);
-    m_oglTextSmallItalic->renderText(x1, y1, 1.0f, str);
+    renderPanelText(m_oglTextSmallItalic,x1, y1, 1.0f, str);
 
 	
 	// Alex status
@@ -754,7 +776,7 @@ void OGLDisplayPanel::paintUpperRegion() {
 
 	if (set->getAlexPresence()) {
 
-		drawGLRect(rect, m_textBackgroundColor, -2.0f);
+		drawPanelRect(rect, m_textBackgroundColor, -2.0f);
 		if (m_dataEngineState == QSDR::DataEngineUp) {
 
 			str.append(m_alexVersion);
@@ -765,23 +787,23 @@ void OGLDisplayPanel::paintUpperRegion() {
 	}
 	else {
 
-		drawGLRect(rect, QColor(68, 68, 68), -2.0f);
+		drawPanelRect(rect, QColor(68, 68, 68), -2.0f);
 		qglColor(QColor(0, 0, 0));
 	}
 	//m_oglTextSmallItalic->renderFreqText(x1 + m_blankWidth, y1, 1.0f, str);
-    m_oglTextSmallItalic->renderText(x1, y1, 1.0f, str);
+    renderPanelText(m_oglTextSmallItalic,x1, y1, 1.0f, str);
 
 	// RigCtl status
 	x1 += m_alexStringWidth + m_blankWidth;
 	rect = QRect(x1, y1, m_rigCtlStringWidth + 2*m_blankWidth, m_blankHeight);
 	if (m_rigCtlConnected) {
-		drawGLRect(rect, QColor(56, 242, 115), -2.0f);
+		drawPanelRect(rect, QColor(56, 242, 115), -2.0f);
 		qglColor(QColor(0, 0, 0));
 	} else {
-		drawGLRect(rect, QColor(68, 68, 68), -2.0f);
+		drawPanelRect(rect, QColor(68, 68, 68), -2.0f);
 		qglColor(QColor(0, 0, 0));
 	}
-	m_oglTextSmallItalic->renderText(x1 + m_blankWidth, y1, m_rigCtlString);
+	renderPanelText(m_oglTextSmallItalic,x1 + m_blankWidth, y1, m_rigCtlString);
 }
 
 void OGLDisplayPanel::paintLowerRegion() {
@@ -793,7 +815,7 @@ void OGLDisplayPanel::paintLowerRegion() {
 	
 	// Attenuator
 	qglColor(QColor(106, 136, 148));
-	m_oglTextSmallItalic->renderText(x1 + m_blankWidth, y2, m_AttnString);
+	renderPanelText(m_oglTextSmallItalic,x1 + m_blankWidth, y2, m_AttnString);
 
     x1 += m_AttnWidth + 2*m_blankWidth;
 	if (m_mercuryAttenuator == 1)
@@ -803,7 +825,7 @@ void OGLDisplayPanel::paintLowerRegion() {
 
     int attnValueWidth = m_oglTextSmall->fontMetrics().tightBoundingRect(str).width();
 	qglColor(m_activeTextColor);
-	m_oglTextSmallItalic->renderText(x1, y2, str);
+	renderPanelText(m_oglTextSmallItalic,x1, y2, str);
 
 	// Dither status
     x1 += attnValueWidth + 5*m_blankWidth;
@@ -813,7 +835,7 @@ void OGLDisplayPanel::paintLowerRegion() {
 	else
 		qglColor(QColor(68, 68, 68));
 
-	m_oglTextSmallItalic->renderText(x1 + m_blankWidth, y2, m_ditherString);
+	renderPanelText(m_oglTextSmallItalic,x1 + m_blankWidth, y2, m_ditherString);
 
 	// Random status
     x1 += m_ditherWidth + 5*m_blankWidth;
@@ -823,21 +845,21 @@ void OGLDisplayPanel::paintLowerRegion() {
 	else
 		qglColor(QColor(68, 68, 68));
 
-	m_oglTextSmallItalic->renderText(x1 + m_blankWidth, y2, m_randomString);
+	renderPanelText(m_oglTextSmallItalic,x1 + m_blankWidth, y2, m_randomString);
 
 	// Sample rate status
     x1 += m_randomWidth + 10*m_blankWidth;
 	str = "%1";
 
 	qglColor(QColor(166, 196, 208));
-	m_oglTextSmallItalic->renderText(x1 + m_blankWidth, y2, str.arg(m_sample_rate, 3, 10, QLatin1Char(' ')));
+	renderPanelText(m_oglTextSmallItalic,x1 + m_blankWidth, y2, str.arg(m_sample_rate, 3, 10, QLatin1Char(' ')));
 
 	int samplerateWidth = m_oglTextSmall->fontMetrics().tightBoundingRect(str.arg(m_sample_rate, 3, 10, QLatin1Char(' '))).width();
 	x1 += samplerateWidth + 4*m_blankWidth;
 
 	str = "kHz";
 	int samplerateUnitWidth = m_oglTextSmall->fontMetrics().tightBoundingRect(str).width();
-	m_oglTextSmallItalic->renderText(x1 + m_blankWidth, y2, str);
+	renderPanelText(m_oglTextSmallItalic,x1 + m_blankWidth, y2, str);
 
 
 	// server modus status
@@ -858,7 +880,7 @@ void OGLDisplayPanel::paintLowerRegion() {
 	int serverModeStringWidth = m_oglTextSmall->fontMetrics().tightBoundingRect(str).width();
 
 	qglColor(QColor(166, 196, 208));
-	m_oglTextSmallItalic->renderText(x1 + m_blankWidth, y2, str);
+	renderPanelText(m_oglTextSmallItalic,x1 + m_blankWidth, y2, str);
 
 	if (m_hwInterface == QSDR::Metis) {
 
@@ -866,21 +888,21 @@ void OGLDisplayPanel::paintLowerRegion() {
 
 		// 10 MHz source status
 		qglColor(QColor(106, 136, 148));
-		m_oglTextSmallItalic->renderText(x1 + m_blankWidth, y2, m_10MHzString);
+		renderPanelText(m_oglTextSmallItalic,x1 + m_blankWidth, y2, m_10MHzString);
 
 		x1 += m_10MHzWidth + 4*m_blankWidth;
 		qglColor(QColor(166, 196, 208));
 		int src10MHStringWidth = m_oglTextSmall->fontMetrics().tightBoundingRect(m_src10mhz).width();
-		m_oglTextSmallItalic->renderText(x1 + m_blankWidth, y2, m_src10mhz);
+		renderPanelText(m_oglTextSmallItalic,x1 + m_blankWidth, y2, m_src10mhz);
 
 		// 122.88 MHz source status
 		x1 += src10MHStringWidth + 10*m_blankWidth;
 		qglColor(QColor(106, 136, 148));
-		m_oglTextSmallItalic->renderText(x1 + m_blankWidth, y2, m_12288MHzString);
+		renderPanelText(m_oglTextSmallItalic,x1 + m_blankWidth, y2, m_12288MHzString);
 
 		x1 += m_12288MHzWidth + 4*m_blankWidth;
 		qglColor(QColor(166, 196, 208));
-		m_oglTextSmallItalic->renderText(x1 + m_blankWidth, y2, m_src122_88mhz);
+		renderPanelText(m_oglTextSmallItalic,x1 + m_blankWidth, y2, m_src122_88mhz);
 	}
 	else if (m_hwInterface == QSDR::Hermes) {
 
@@ -949,13 +971,13 @@ void OGLDisplayPanel::paintRxRegion() {
         // draw background
 	if (m_dataEngineState == QSDR::DataEngineUp) {
 
-        drawGLRect(m_rect, Qt::black, m_bkgColor2, -3.0f, false);
+        drawPanelGradientRect(m_rect, Qt::black, m_bkgColor2, false, -3.0f);
 		qglColor(m_activeTextColor);
         fontcolor = m_activeTextColor;
 	}
 	else {
 
-		drawGLRect(m_rect, QColor(0, 0, 0, 255), -3.0f);
+		drawPanelRect(m_rect, QColor(0, 0, 0, 255), -3.0f);
 		qglColor(QColor(68, 68, 68));
 		fontcolor = QColor(68, 68, 68);
 	}
@@ -1015,6 +1037,52 @@ void OGLDisplayPanel::paintRxRegion() {
 
     }
 
+QMatrix4x4 OGLDisplayPanel::panelProjection() const
+{
+    QMatrix4x4 projection;
+    projection.ortho(0, size().width(), size().height(), 0, -10, 10);
+    return projection;
+}
+
+void OGLDisplayPanel::drawPanelRect(const QRect &rect, const QColor &color, float z)
+{
+    if (rect.isEmpty())
+        return;
+    if (m_shaderProgram && m_shaderProgram->isLinked())
+        GlDraw::drawSolidRect(this, m_shaderProgram, m_vbo, panelProjection(), rect, color, z);
+    else
+        drawGLRect(rect, color, z);
+}
+
+void OGLDisplayPanel::drawPanelGradientRect(const QRect &rect,
+                                          const QColor &c1,
+                                          const QColor &c2,
+                                          bool leftToRight,
+                                          float z)
+{
+    if (rect.isEmpty())
+        return;
+    if (m_shaderProgram && m_shaderProgram->isLinked())
+        GlDraw::drawGradientRect(this, m_shaderProgram, m_vbo, panelProjection(), rect, c1, c2, leftToRight, z);
+    else
+        drawGLRect(rect, c1, c2, z, leftToRight);
+}
+
+void OGLDisplayPanel::drawSMeterNeedle(const QMatrix4x4 &projection, int x1)
+{
+    if (m_sMeterValue <= 0 || !m_shaderProgram || !m_shaderProgram->isLinked())
+        return;
+
+    const float x = float(x1 + int(m_sMeterValue * m_unit));
+    const GlDraw::Vec3Rgb needle[2] = {
+        { x, float(m_sMeterPosY) - 15.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+        { x, float(m_sMeterPosY) + 28.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+    };
+
+    glLineWidth(2.0f);
+    GlDraw::drawColoredLines(this, m_shaderProgram, m_vbo, projection, needle, 2);
+}
+
     void OGLDisplayPanel::paintSMeter() {
 
         GLint width = m_smeterRect.width();
@@ -1023,10 +1091,8 @@ void OGLDisplayPanel::paintRxRegion() {
         GLint y1 = m_smeterRect.top();
         GLint y2 = y1 + height;
 
-        glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         glEnable(GL_BLEND);
-        glEnable(GL_LINE_SMOOTH);
 
         // Only recreate FBO if needed
         if (!m_smeterFBO || m_smeterRenew) {
@@ -1034,7 +1100,7 @@ void OGLDisplayPanel::paintRxRegion() {
                 delete m_smeterFBO;
                 m_smeterFBO = nullptr;
             }
-            m_smeterFBO = new QOpenGLFramebufferObject(m_sMeterWidth *dpr, height * dpr);
+            m_smeterFBO = new QOpenGLFramebufferObject(m_sMeterWidth, height);
             m_smeterUpdate = true; // Need to re-render after FBO recreation
             m_smeterRenew = false;
         }
@@ -1047,12 +1113,21 @@ void OGLDisplayPanel::paintRxRegion() {
             m_smeterUpdate = false;
         }
 
-        QRect rect(m_rxRect.right() + m_sMeterOffset, 0, m_sMeterWidth, height);
-        renderTexture(rect, m_smeterFBO->texture(), -2.0f);
+        const QMatrix4x4 projection = panelProjection();
+        const int smeterX = m_rxRect.right() + m_sMeterOffset;
 
-        // Correct glScissor usage: physical pixels, use dpr
-        qreal dpr = devicePixelRatioF();
-        glScissor((int)(x1 * dpr), (int)((size().height() - y2) * dpr), (int)(width * dpr), (int)(height * dpr));
+        glDisable(GL_DEPTH_TEST);
+
+        const QRect texRect(smeterX, 0, m_sMeterWidth, height);
+        if (m_textureProgram && m_textureProgram->isLinked())
+            GlDraw::renderTexturedQuad(this, m_textureProgram, m_vbo, projection,
+                                       texRect, m_smeterFBO->texture(), -2.0f);
+        else
+            renderTexture(texRect, m_smeterFBO->texture(), -2.0f);
+
+        drawSMeterScaleLabels(projection, smeterX);
+
+        glScissor(int(x1 * dpr), int((size().height() - y2) * dpr), int(width * dpr), int(height * dpr));
         glEnable(GL_SCISSOR_TEST);
 
         if (m_dataEngineState == QSDR::DataEngineUp) {
@@ -1064,258 +1139,195 @@ void OGLDisplayPanel::paintRxRegion() {
             max += max % 2;
 
             QRect bar(x1 + min, m_sMeterPosY + 4, max - min, 5);
-            if (min > 0)
-                drawGLRect(bar, QColor(255, 50, 50), QColor(255, 255, 50), true);
+            if (min > 0 && m_shaderProgram && m_shaderProgram->isLinked())
+                GlDraw::drawGradientRect(this, m_shaderProgram, m_vbo, projection, bar,
+                                         QColor(255, 50, 50), QColor(255, 255, 50), true, 1.0f);
 
-            // S-Meter needle
-            if (m_sMeterValue > 0) {
-                if (m_shaderProgram && m_shaderProgram->isLinked()) {
-                    m_shaderProgram->bind();
-                    QMatrix4x4 projection;
-                    projection.ortho(0, size().width(), size().height(), 0, -10, 10);
-                    m_shaderProgram->setUniformValue("matrix", projection);
+            drawSMeterNeedle(projection, x1);
 
-                    struct VertexData {
-                        float x, y, z;
-                        float r, g, b;
-                    };
-                    
-                    float x = (float)(x1 + (int)(m_sMeterValue * m_unit));
-                    QList<VertexData> needleData;
-                    needleData.append({ x, (float)m_sMeterPosY - 15.0f, 1.0f, 1.0f, 1.0f, 1.0f });
-                    needleData.append({ x, (float)m_sMeterPosY + 28.0f, 1.0f, 1.0f, 1.0f, 1.0f });
-
-                    glLineWidth(2.0f);
-                    m_vao.bind();
-                    m_vbo.bind();
-                    m_vbo.allocate(needleData.data(), needleData.size() * (int)sizeof(VertexData));
-                    glDrawArrays(GL_LINES, 0, needleData.size());
-                    m_vao.release();
-                    m_shaderProgram->release();
-                }
-            }
-
-            // Actual S-Meter value
             qglColor(m_activeTextColor);
             m_sMeterNumValueString = QString::number(m_sMeterOrgValue, 'f', 1);
-            m_oglTextBig->renderText(x1 + m_sMeterWidth - 85, 2, 3.0, m_sMeterNumValueString);
-            m_oglTextNormal->renderText(x1 + m_sMeterWidth - 28, 9, 3.0, "dBm");
+            m_oglTextBig->renderText(projection, x1 + m_sMeterWidth - 85, 2, m_sMeterNumValueString, Qt::white);
+            m_oglTextNormal->renderText(projection, x1 + m_sMeterWidth - 28, 9, QStringLiteral("dBm"), m_activeTextColor);
         }
 
         glDisable(GL_SCISSOR_TEST);
+        glEnable(GL_DEPTH_TEST);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         glEnable(GL_BLEND);
-        glDisable(GL_LINE_SMOOTH);
-        glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
     }
 
 void OGLDisplayPanel::renderSMeterScale() {
-	GLint width = m_sMeterWidth;
-	GLint height = m_smeterRect.height();
+	const GLint width = m_sMeterWidth;
+	const GLint height = m_smeterRect.height();
 
-	GLint x1 = m_smeterRect.left();
-	GLint y1 = m_smeterRect.top();
-	GLint x2 = x1 + width;
-	GLint y2 = y1 + height;
+	const qreal dBmRange = qAbs(m_dBmPanMax - m_dBmPanMin);
+	m_unit = (dBmRange > 0) ? qreal(m_sMeterWidth / dBmRange) : 0;
 
-	QFontMetrics fm = m_oglTextNormal->fontMetrics();
+	GLint savedViewport[4] = { 0, 0, 0, 0 };
+	glGetIntegerv(GL_VIEWPORT, savedViewport);
 
-	//int fontHeight = fm.tightBoundingRect("S9").height();
-    //int fontMaxWidth = fm.boundingRect("-000").horizontalAdvance();
+	const int fboW = m_smeterFBO ? m_smeterFBO->width() : width;
+	const int fboH = m_smeterFBO ? m_smeterFBO->height() : height;
+	if (m_smeterFBO)
+		glViewport(0, 0, fboW, fboH);
 
-	qreal dBmRange = qAbs(m_dBmPanMax - m_dBmPanMin);
-	m_unit = (qreal)(m_sMeterWidth / dBmRange);
-	QRect rect = QRect(0, 0, x2-x1, y2-y1);
+	const QRect rect(0, 0, fboW, fboH);
 
-	// draw background
-    if (m_dataEngineState == QSDR::DataEngineUp)
-        drawGLRect(rect, Qt::black, m_bkgColor2, -3.0f, false);
-    else drawGLRect(rect, Qt::black);
+	QMatrix4x4 projection;
+	projection.ortho(0, fboW, fboH, 0, -10, 10);
+
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT);
 
 	glDisable(GL_MULTISAMPLE);
 	glDisable(GL_LINE_SMOOTH);
 	glLineWidth(1.0f);
 
-	// draw horizontal lines
-    if (m_shaderProgram && m_shaderProgram->isLinked()) {
-        m_shaderProgram->bind();
-        QMatrix4x4 projection;
-        projection.ortho(0, size().width(), size().height(), 0, -10, 10);
-        m_shaderProgram->setUniformValue("matrix", projection);
+	if (m_shaderProgram && m_shaderProgram->isLinked()) {
+		if (m_dataEngineState == QSDR::DataEngineUp)
+			GlDraw::drawGradientRect(this, m_shaderProgram, m_vbo, projection, rect,
+			                         Qt::black, m_bkgColor2, false, -3.0f);
+		else
+			GlDraw::drawSolidRect(this, m_shaderProgram, m_vbo, projection, rect, Qt::black, -3.0f);
 
-        struct VertexData {
-            float x, y, z;
-            float r, g, b;
-        };
+		QColor col = m_activeTextColor;
+		const float r = col.redF(), g = col.greenF(), b = col.blueF();
+		const float posY = float(m_sMeterPosY);
 
-        QColor col = m_activeTextColor;
-        float r = col.redF(), g = col.greenF(), b = col.blueF();
-        
-        QList<VertexData> scaleLines;
-        // horizontal lines
-        scaleLines.append({ 0.0f, (float)m_sMeterPosY, 0.0f, r, g, b });
-        scaleLines.append({ (float)width - 1.0f, (float)m_sMeterPosY, 0.0f, r, g, b });
-        scaleLines.append({ 0.0f, (float)m_sMeterPosY + 12.0f, 0.0f, r, g, b });
-        scaleLines.append({ (float)width - 1.0f, (float)m_sMeterPosY + 12.0f, 0.0f, r, g, b });
+		QVector<GlDraw::Vec3Rgb> scaleLines;
+		scaleLines.reserve(4 + m_sMeterWidth * 2);
+		scaleLines.append({ 0.0f, posY, 0.0f, r, g, b });
+		scaleLines.append({ float(width - 1), posY, 0.0f, r, g, b });
+		scaleLines.append({ 0.0f, posY + 12.0f, 0.0f, r, g, b });
+		scaleLines.append({ float(width - 1), posY + 12.0f, 0.0f, r, g, b });
 
-        // draw integer step scale
-        QColor stepCol = (m_dataEngineState == QSDR::DataEngineUp) ? QColor(126, 156, 168) : m_activeTextColor;
-        float sr = stepCol.redF(), sg = stepCol.greenF(), sb = stepCol.blueF();
+		const QColor stepCol = (m_dataEngineState == QSDR::DataEngineUp)
+		                           ? QColor(126, 156, 168)
+		                           : m_activeTextColor;
+		const float sr = stepCol.redF(), sg = stepCol.greenF(), sb = stepCol.blueF();
 
-        int vertexArrayLength = m_sMeterWidth;
-        vertexArrayLength += vertexArrayLength%2;
-        for (int i = 0; i < vertexArrayLength; i++) {
-            scaleLines.append({ (float)(2.0f * i), (float)(m_sMeterPosY + 4), 0.0f, sr, sg, sb });
-            scaleLines.append({ (float)(2.0f * i), (float)(m_sMeterPosY + 9), 0.0f, sr, sg, sb });
-        }
+		int vertexArrayLength = m_sMeterWidth;
+		vertexArrayLength += vertexArrayLength % 2;
+		for (int i = 0; i < vertexArrayLength; ++i) {
+			scaleLines.append({ 2.0f * float(i), posY + 4.0f, 0.0f, sr, sg, sb });
+			scaleLines.append({ 2.0f * float(i), posY + 9.0f, 0.0f, sr, sg, sb });
+		}
 
-        m_vao.bind();
-        m_vbo.bind();
-        m_vbo.allocate(scaleLines.data(), scaleLines.size() * (int)sizeof(VertexData));
-        glDrawArrays(GL_LINES, 0, scaleLines.size());
-        m_vao.release();
-        m_shaderProgram->release();
-    }
+		GlDraw::drawColoredLines(this, m_shaderProgram, m_vbo, projection,
+		                         scaleLines.constData(), scaleLines.size());
 
-	// Draw the dbm items
-    if (m_shaderProgram && m_shaderProgram->isLinked()) {
-        m_shaderProgram->bind();
-        QMatrix4x4 projection;
-        projection.ortho(0, size().width(), size().height(), 0, -10, 10);
-        m_shaderProgram->setUniformValue("matrix", projection);
+		const QColor tickCol = (m_dataEngineState == QSDR::DataEngineUp) ? Qt::white : m_inactiveTextColor;
+		const float tr = tickCol.redF(), tg = tickCol.greenF(), tb = tickCol.blueF();
 
-        struct VertexData {
-            float x, y, z;
-            float r, g, b;
-        };
+		QVector<GlDraw::Vec3Rgb> tickLines;
+		tickLines.reserve(52);
+		for (int i = 1, z = -120; z < 10; i++, z += 10) {
+			const float xMajor = float(10 * i * m_unit);
+			const float xMinor = float((10 * i - 5) * m_unit);
+			tickLines.append({ xMajor, posY - 4.0f, 0.0f, tr, tg, tb });
+			tickLines.append({ xMajor, posY, 0.0f, tr, tg, tb });
+			tickLines.append({ xMinor, posY - 2.0f, 0.0f, tr, tg, tb });
+			tickLines.append({ xMinor, posY, 0.0f, tr, tg, tb });
+		}
+		GlDraw::drawColoredLines(this, m_shaderProgram, m_vbo, projection,
+		                         tickLines.constData(), tickLines.size());
 
-        QList<VertexData> tickLines;
-        QColor tickCol = (m_dataEngineState == QSDR::DataEngineUp) ? Qt::white : m_inactiveTextColor;
-        float tr = tickCol.redF(), tg = tickCol.greenF(), tb = tickCol.blueF();
+		QVector<GlDraw::Vec3Rgb> sUnitLines;
+		sUnitLines.reserve(40);
+		auto appendLine = [&](float x, float y1, float y2, float lr, float lg, float lb) {
+			sUnitLines.append({ x, y1, 0.0f, lr, lg, lb });
+			sUnitLines.append({ x, y2, 0.0f, lr, lg, lb });
+		};
 
-        for (int i = 1, z = -120; z < 10; i++, z += 10) {
-            // big ticks
-            tickLines.append({ (float)(10*i*m_unit), (float)m_sMeterPosY - 4.0f, 0.0f, tr, tg, tb });
-            tickLines.append({ (float)(10*i*m_unit), (float)m_sMeterPosY,        0.0f, tr, tg, tb });
+		for (int i = 0; i < 17; ++i) {
+			if (i < 10) {
+				const float x = float((6 * i + 3) * m_unit);
+				appendLine(x, posY + 12.0f, posY + 17.0f, r, g, b);
+			} else {
+				float lr, lg, lb;
+				if (m_dataEngineState == QSDR::DataEngineUp) {
+					lr = 1.0f; lg = 80.0f / 255.0f; lb = 80.0f / 255.0f;
+				} else {
+					lr = m_inactiveTextColor.redF();
+					lg = m_inactiveTextColor.greenF();
+					lb = m_inactiveTextColor.blueF();
+				}
+				const float x = float((10 * i - 33) * m_unit);
+				appendLine(x, posY + 12.0f, posY + 17.0f, lr, lg, lb);
+			}
+		}
+		sUnitLines.append({ float(57 * m_unit + 1), posY + 12.0f, 0.0f, r, g, b });
+		sUnitLines.append({ float(width - 1), posY + 12.0f, 0.0f, r, g, b });
 
-            // small ticks
-            tickLines.append({ (float)((10*i - 5)*m_unit), (float)m_sMeterPosY - 2.0f, 0.0f, tr, tg, tb });
-            tickLines.append({ (float)((10*i - 5)*m_unit), (float)m_sMeterPosY,        0.0f, tr, tg, tb });
-        }
+		GlDraw::drawColoredLines(this, m_shaderProgram, m_vbo, projection,
+		                         sUnitLines.constData(), sUnitLines.size());
+	} else {
+		if (m_dataEngineState == QSDR::DataEngineUp)
+			GlDraw::drawGradientRect(this, m_shaderProgram, m_vbo, projection, rect,
+			                         Qt::black, m_bkgColor2, false, -3.0f);
+		else
+			GlDraw::drawSolidRect(this, m_shaderProgram, m_vbo, projection, rect, Qt::black, -3.0f);
+	}
 
-        if (!tickLines.isEmpty()) {
-            m_vao.bind();
-            m_vbo.bind();
-            m_vbo.allocate(tickLines.data(), tickLines.size() * (int)sizeof(VertexData));
-            glDrawArrays(GL_LINES, 0, tickLines.size());
-            m_vao.release();
-        }
-        m_shaderProgram->release();
-    }
+	glViewport(savedViewport[0], savedViewport[1], savedViewport[2], savedViewport[3]);
+}
 
-	// Draw the dbm items
+void OGLDisplayPanel::drawSMeterScaleLabels(const QMatrix4x4 &projection, int xOffset)
+{
+	const QFontMetrics fm = m_oglTextNormal->fontMetrics();
+
 	QString marker;
 	for (int i = 1, z = -120; z < 10; i++, z += 10) {
 		marker = QString::number(z, 'f', 0);
-        int d = fm.horizontalAdvance(marker);
+		const int d = fm.horizontalAdvance(marker);
+		const int x = xOffset + int(10 * i * m_unit) - d / 2 - 2;
 
-		if (z == -120 || z == -100 || z == -80 || z == -60 || z == -40 || z == -20) 
-			m_oglTextNormal->renderText(10*i*m_unit-d/2-2, m_sMeterPosY - 18, marker);
+		if (z == -120 || z == -100 || z == -80 || z == -60 || z == -40 || z == -20)
+			m_oglTextNormal->renderText(projection, float(x), float(m_sMeterPosY - 18), marker, m_activeTextColor);
 
 		if (m_sMeterWidth > 500) {
-
 			if (z == -110 || z == -90 || z == -70 || z == -50 || z == -30 || z == -10)
-				m_oglTextNormal->renderText(10*i*m_unit-d/2-2, m_sMeterPosY - 18, marker);
+				m_oglTextNormal->renderText(projection, float(x), float(m_sMeterPosY - 18), marker, m_activeTextColor);
 		}
 
-		if (m_sMeterWidth > 400)
-			if (z == 0) m_oglTextNormal->renderText(10*i*m_unit-d/2, m_sMeterPosY - 18, marker);
+		if (m_sMeterWidth > 400 && z == 0)
+			m_oglTextNormal->renderText(projection, float(xOffset + int(10 * i * m_unit) - d / 2),
+			                            float(m_sMeterPosY - 18), marker, m_activeTextColor);
 	}
 
-	m_oglTextSmallItalic->renderText(m_sMeterWidth - 25, m_sMeterPosY - 16, "dBm");
+	m_oglTextSmallItalic->renderText(projection, float(xOffset + m_sMeterWidth - 25),
+	                                 float(m_sMeterPosY - 16), QStringLiteral("dBm"), m_activeTextColor);
 
-	// Draw the S1..S9 value items
-	for (int i = 0; i < 17; i++) {
-
+	for (int i = 0; i < 17; ++i) {
 		if (i < 10) {
-		
-			glBegin(GL_LINES);
-				glVertex3f((6*i + 3)*m_unit, m_sMeterPosY + 12, 0.0f);
-				glVertex3f((6*i + 3)*m_unit, m_sMeterPosY + 17, 0.0f);
-			glEnd();
+			marker = QStringLiteral("S1");
+			const int d = fm.horizontalAdvance(marker);
+			const float x = float(xOffset + int((6 * (i + 1) - d / 2 + 1) * m_unit));
 
-			marker = "S1";
-            int d = fm.horizontalAdvance(marker);
+			if (i == 1)
+				m_oglTextNormal->renderText(projection, x, float(m_sMeterPosY + 18), marker, m_activeTextColor);
+			else if (i == 3)
+				m_oglTextNormal->renderText(projection, x, float(m_sMeterPosY + 18), QStringLiteral("S3"), m_activeTextColor);
+			else if (i == 5)
+				m_oglTextNormal->renderText(projection, x, float(m_sMeterPosY + 18), QStringLiteral("S5"), m_activeTextColor);
+			else if (i == 7)
+				m_oglTextNormal->renderText(projection, x, float(m_sMeterPosY + 18), QStringLiteral("S7"), m_activeTextColor);
+			else if (i == 9)
+				m_oglTextNormal->renderText(projection, x, float(m_sMeterPosY + 18), QStringLiteral("S9"), m_activeTextColor);
+		} else {
+			const int idx = xOffset + int((10 * i - 33) * m_unit);
+			marker = QStringLiteral("+20");
+			const int d = fm.horizontalAdvance(marker);
 
-			if (i == 1) {	
-			
-				m_oglTextNormal->renderText((6*(i+1) - d/2 + 1)*m_unit, m_sMeterPosY + 18, marker);
-			}
-			else if (i == 3) {
-			
-				marker = "S3";
-				m_oglTextNormal->renderText((6*(i+1) - d/2 + 1)*m_unit, m_sMeterPosY + 18, marker);
-			}
-			else if (i == 5) {
-			
-				marker = "S5";
-				m_oglTextNormal->renderText((6*(i+1) - d/2 + 1)*m_unit, m_sMeterPosY + 18, marker);
-			}
-			else if (i == 7) {
-			
-				marker = "S7";
-				m_oglTextNormal->renderText((6*(i+1) - d/2 + 1)*m_unit, m_sMeterPosY + 18, marker);
-			}
-			else if (i == 9) {
-			
-				marker = "S9";
-				m_oglTextNormal->renderText((6*(i+1) - d/2 + 1)*m_unit, m_sMeterPosY + 18, marker);
-			}
-		}
-		else {
-
-			if (m_dataEngineState == QSDR::DataEngineUp)
-				qglColor(QColor(255, 80, 80));
-				//qglColor(QColor(55, 180, 220));
-			else
-				qglColor(m_inactiveTextColor);
-
-			int idx = (10*i - 33)*m_unit;
-			glBegin(GL_LINES);
-				glVertex3f(idx, m_sMeterPosY + 12, 0.0);
-				glVertex3f(idx, m_sMeterPosY + 17, 0.0);
-			glEnd();
-
-			marker = "+20";
-            int d = fm.horizontalAdvance(marker);
-
-			if (i == 11) {
-				m_oglTextNormal->renderText(idx - d/2 - 2, m_sMeterPosY + 18, marker);
-			}
-			else if (i == 13) {
-				
-				marker = "+40";
-				m_oglTextNormal->renderText(idx - d/2 - 2, m_sMeterPosY + 18, marker);
-			}
-			else if (i == 15) {
-				
-				marker = "+60";
-				m_oglTextNormal->renderText(idx - d/2 - 2, m_sMeterPosY + 18, marker);
-			}
-			/*else if (i == 17) {
-				
-				marker = "+80";
-				m_oglTextNormal->renderFreqText(idx - d/2 - 2, m_sMeterPosY + 18, marker);
-			}*/
+			if (i == 11)
+				m_oglTextNormal->renderText(projection, float(idx - d / 2 - 2), float(m_sMeterPosY + 18), marker, m_activeTextColor);
+			else if (i == 13)
+				m_oglTextNormal->renderText(projection, float(idx - d / 2 - 2), float(m_sMeterPosY + 18), QStringLiteral("+40"), m_activeTextColor);
+			else if (i == 15)
+				m_oglTextNormal->renderText(projection, float(idx - d / 2 - 2), float(m_sMeterPosY + 18), QStringLiteral("+60"), m_activeTextColor);
 		}
 	}
-
-	glBegin(GL_LINES);
-		glVertex3f(57*m_unit+1, m_sMeterPosY+12, 0.0);
-		glVertex3f(width-1,	  m_sMeterPosY+12, 0.0);
-	glEnd();
-
-
 }
 
 void OGLDisplayPanel::renderSMeterB() {
@@ -1485,7 +1497,7 @@ void OGLDisplayPanel::renderSMeterB() {
 		if (z == 0) m_oglTextNormal->renderText(x-d/2-1, m_sMeterPosY - 18, marker);
 	}
 
-	m_oglTextSmallItalic->renderText(width - 25, m_sMeterPosY - 16, "dBm");
+	renderPanelText(m_oglTextSmallItalic,width - 25, m_sMeterPosY - 16, "dBm");
 
 	glEnable(GL_LINE_SMOOTH);
 	glEnable(GL_MULTISAMPLE);
@@ -2213,7 +2225,20 @@ void OGLDisplayPanel::systemStateChanged(
 
 void OGLDisplayPanel::qglColor(QColor color)
 {
+    m_glTextColor = color;
     glColor4f(color.redF(), color.greenF(), color.blueF(), color.alphaF());
+}
+
+void OGLDisplayPanel::renderPanelText(OGLText *text, float x, float y, const QString &str)
+{
+    if (text)
+        text->renderText(x, y, str, m_glTextColor);
+}
+
+void OGLDisplayPanel::renderPanelText(OGLText *text, float x, float y, float z, const QString &str)
+{
+    if (text)
+        text->renderText(x, y, z, str, m_glTextColor);
 }
 
 
