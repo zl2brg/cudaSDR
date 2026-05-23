@@ -164,7 +164,6 @@ private:
 	QIcon	agc_left;
 	QIcon	agc_right;
 
-	QList<TReceiver>	m_receiverDataList;
 	QList<DSPMode>		m_dspModeList;
 	HamBand				m_hamBand;
 	//DSPMode				m_dspMode;

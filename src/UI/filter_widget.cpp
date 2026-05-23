@@ -156,13 +156,11 @@ void FilterWidget::systemStateChanged(
 {
     Q_UNUSED (err)
 
-    m_receiverDataList = set->getReceiverDataList();
-
-    m_hamBand = m_receiverDataList.at(m_receiver).hamBand;
-    m_dspMode = m_receiverDataList.at(m_receiver).dspMode;
-    m_dspModeList = m_receiverDataList.at(m_receiver).dspModeList;
-    m_lastCtrFrequencyList = m_receiverDataList.at(m_receiver).lastCenterFrequencyList;
-    m_lastVfoFrequencyList = m_receiverDataList.at(m_receiver).lastVfoFrequencyList;
+    m_hamBand = set->getCurrentHamBand(m_receiver);
+    m_dspMode = set->getDSPMode(m_receiver);
+    m_dspModeList = set->getDSPModeList(m_receiver);
+    m_lastCtrFrequencyList = set->getLastCenterFrequencyList(m_receiver);
+    m_lastVfoFrequencyList = set->getLastVfoFrequencyList(m_receiver);
 
 
     if (m_hwInterface != hwmode)

@@ -76,7 +76,6 @@ private:
     PanAveragingMode            m_panAveragingMode;
     PanDetectorMode             m_panDetectorMode;
 
-    QList<TReceiver>		m_rxDataList;
 	TWideband				m_widebandOptions;
 	
 	QString					m_menu_style;

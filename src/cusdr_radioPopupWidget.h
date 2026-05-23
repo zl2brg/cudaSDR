@@ -241,7 +241,6 @@ private:
 	//QIcon	agc_left;
 	//QIcon	agc_right;
 
-	QList<TReceiver>	m_receiverDataList;
 	QList<DSPMode>		m_dspModeList;
 
 	HamBand				m_hamBand;
@@ -281,6 +280,7 @@ private:
     QTimer* m_closeTimer;
 
 	void setupConnections();
+	void loadReceiverState(int rx);
 	void createBackground(QSize size);
 	void updateAdcAvailability();
 

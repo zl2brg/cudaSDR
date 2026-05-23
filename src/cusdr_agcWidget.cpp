@@ -62,9 +62,7 @@ AGCOptionsWidget::AGCOptionsWidget(SliceModel *model, QWidget *parent)
 	setContentsMargins(4, 0, 4, 0);
 	setMouseTracking(true);
 
-	m_rxDataList = set->getReceiverDataList();
-	
-	m_agcMode = m_rxDataList.at(0).agcMode;
+	m_agcMode = m_sliceModel ? m_sliceModel->agcMode() : set->getAGCMode(m_currentReceiver);
 
 	fonts = new CFonts(this);
 	m_fonts = fonts->getFonts();
@@ -241,7 +239,7 @@ void AGCOptionsWidget::createAgcOptionsGroup() {
 	m_slopeSpinBox->setMaximum(20);
 	m_slopeSpinBox->setSingleStep(1);
 	m_slopeSpinBox->setMinimumWidth(60);
-	m_slopeSpinBox->setValue((int) m_rxDataList.at(m_currentReceiver).agcSlope);
+	m_slopeSpinBox->setValue(set->getAGCSlope(m_currentReceiver));
 
 	CHECKED_CONNECT(
 		m_slopeSpinBox,
@@ -258,7 +256,7 @@ void AGCOptionsWidget::createAgcOptionsGroup() {
 	m_maxGainSpinBox->setMaximum(120);
 	m_maxGainSpinBox->setSingleStep(1);
 	m_maxGainSpinBox->setMinimumWidth(60);
-	m_maxGainSpinBox->setValue((int) m_rxDataList.at(m_currentReceiver).agcMaximumGain_dB);
+	m_maxGainSpinBox->setValue(m_sliceModel ? m_sliceModel->agcMaxGain() : set->getAGCMaximumGain_dB(m_currentReceiver));
 
 	CHECKED_CONNECT(
 		m_maxGainSpinBox,
@@ -275,7 +273,7 @@ void AGCOptionsWidget::createAgcOptionsGroup() {
 	m_attackTimeSpinBox->setMaximum(10);
 	m_attackTimeSpinBox->setSingleStep(1);
 	m_attackTimeSpinBox->setMinimumWidth(60);
-	m_attackTimeSpinBox->setValue((int) m_rxDataList.at(m_currentReceiver).agcAttackTime * 1000);
+	m_attackTimeSpinBox->setValue((int)(set->getAGCAttackTime(m_currentReceiver) * 1000));
 
 	CHECKED_CONNECT(
 		m_attackTimeSpinBox,
@@ -292,7 +290,7 @@ void AGCOptionsWidget::createAgcOptionsGroup() {
 	m_decayTimeSpinBox->setMaximum(5000);
 	m_decayTimeSpinBox->setSingleStep(1);
 	m_decayTimeSpinBox->setMinimumWidth(60);
-	m_decayTimeSpinBox->setValue((int) (m_rxDataList.at(m_currentReceiver).agcDecayTime * 1000));
+	m_decayTimeSpinBox->setValue((int)(set->getAGCDecayTime(m_currentReceiver) * 1000));
 
 	CHECKED_CONNECT(
 		m_decayTimeSpinBox,
@@ -309,7 +307,7 @@ void AGCOptionsWidget::createAgcOptionsGroup() {
 	m_hangTimeSpinBox->setMaximum(5000);
 	m_hangTimeSpinBox->setSingleStep(1);
 	m_hangTimeSpinBox->setMinimumWidth(60);
-	m_hangTimeSpinBox->setValue((int) (m_rxDataList.at(m_currentReceiver).agcHangTime * 1000));
+	m_hangTimeSpinBox->setValue((int)(set->getAGCHangTime(m_currentReceiver) * 1000));
 
 	CHECKED_CONNECT(
 		m_hangTimeSpinBox,
@@ -350,7 +348,7 @@ void AGCOptionsWidget::createAgcOptionsGroup() {
 	m_fixedGainSpinBox->setMaximum(120);
 	m_fixedGainSpinBox->setSingleStep(1);
 	m_fixedGainSpinBox->setMinimumWidth(60);
-	m_fixedGainSpinBox->setValue((int) m_rxDataList.at(m_currentReceiver).agcFixedGain_dB);
+	m_fixedGainSpinBox->setValue(m_sliceModel ? m_sliceModel->agcFixedGain() : (int)set->getAGCFixedGain_dB(m_currentReceiver));
 
 	CHECKED_CONNECT(
 		m_fixedGainSpinBox,
@@ -602,7 +600,7 @@ void AGCOptionsWidget::setCurrentReceiver(int rx) {
 		setAGCMaximumGain_dB(rx, static_cast<qreal>(m_sliceModel->agcMaxGain()));
 		setAGCFixedGain_dB(rx, static_cast<qreal>(m_sliceModel->agcFixedGain()));
 		setAGCHangThresholdSlider(rx, static_cast<qreal>(m_sliceModel->agcHangThreshold()));
-	} else if (m_agcMode != m_rxDataList.at(rx).agcMode) {
-		m_agcMode = m_rxDataList.at(rx).agcMode;
+	} else if (m_agcMode != set->getAGCMode(rx)) {
+		m_agcMode = set->getAGCMode(rx);
 	}
 }

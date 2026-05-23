@@ -236,7 +236,7 @@ void QWDSPEngine::setupConnections() {
 
 
 
-    // Signals routed directly here instead of relaying through Receiver
+    // Signals routed directly here instead of relaying through SliceProcessor
     // connect(set, &Settings::mainVolumeChanged,
             // this, [this](int rx, float value) {
         // if (rx == m_rx) setVolume(value);

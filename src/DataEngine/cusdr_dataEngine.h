@@ -37,7 +37,7 @@
 
 #include "cusdr_settings.h"
 #include "cusdr_dataIO.h"
-#include "cusdr_receiver.h"
+#include "cusdr_sliceProcessor.h"
 #include "cusdr_audioReceiver.h"
 #include "cusdr_discoverer.h"
 #include "Util/qcircularbuffer.h"
@@ -103,7 +103,7 @@ public:
     RadioModel*                     m_radioModel;
 
     Transmitter         TX;
-    QList<Receiver*> 	RX;
+    QList<SliceProcessor*> 	RX;
 
 	QUdpSocket*			sendSocket{};
     QUdpSocket*         m_controlSocket{};
@@ -341,7 +341,7 @@ private slots:
 
 	//void	setCurrentNetworkDevice(TNetworkDevicecard card);
 	void	setHPSDRDeviceNumber(int value);
-	void	rxListChanged(QList<Receiver *> rxList);
+	void	rxListChanged(QList<SliceProcessor *> rxList);
 	void	searchHpsdrNetworkDevices();
 	void	setCurrentReceiver(int rx);
 	

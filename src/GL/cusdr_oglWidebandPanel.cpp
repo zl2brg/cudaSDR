@@ -82,12 +82,10 @@ QGLWidebandPanel::QGLWidebandPanel(QWidget *parent)
 	setupDisplayRegions(size());
 	m_oldWidth = size().width();
 	m_oldHeight = size().height();
-	
-	m_rxDataList = set->getReceiverDataList();
+
 	m_widebandOptions = set->getWidebandOptions();
 	m_panMode = m_widebandOptions.panMode;
-
-	m_frequency = m_rxDataList.at(0).vfoFrequency;
+	m_frequency = set->getVfoFrequency(0);
 
 	m_lowerFrequency = 0.0;
 	m_upperFrequency = (qreal) set->getMaxFrequency();

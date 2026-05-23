@@ -39,7 +39,7 @@
 #include <QUdpSocket>
 #include <QDebug>
 
-#include "cusdr_receiver.h"
+#include "cusdr_sliceProcessor.h"
 
 
 #ifdef LOG_SERVER
@@ -72,7 +72,7 @@ private:
 	QSDR::_HWInterfaceMode		m_hwInterface;
 	QSDR::_DataEngineState		m_dataEngineState;
 
-	QList<Receiver *>			m_rxList;
+	QList<SliceProcessor *>			m_rxList;
 	QList<QTcpSocket *>			m_clientConnections;
 
 	int			m_receivers[MAX_RECEIVERS];
@@ -102,7 +102,7 @@ private slots:
 					QSDR::_DataEngineState state);
 
 	void 	masterSwitchChanged(bool power);
-	void	rxListChanged(QList<Receiver *> rxList);
+	void	rxListChanged(QList<SliceProcessor *> rxList);
 	void	setupConnections();
 	void 	handleNewConnection();
     void 	clientDisconnected();

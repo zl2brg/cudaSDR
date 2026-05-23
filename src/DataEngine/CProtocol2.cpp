@@ -109,7 +109,7 @@ void CProtocol2::processInputBuffer(const QByteArray& buffer, DataEngine* de, qu
     }
 
     int& rxSamples = m_rxSamplesPerDDC[ddcIndex];
-    Receiver *rx = de->RX.at(ddcIndex);
+    SliceProcessor *rx = de->RX.at(ddcIndex);
     int s = 0; // IQ payload starts at the beginning of the buffer
     int samplesInPacket = buffer.size() / 6;
 

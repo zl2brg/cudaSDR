@@ -2927,7 +2927,7 @@ void Settings::setCallsign(const QString &callsign) {
     emit callsignChanged();
 }
 
-void Settings::setRxList(QList<Receiver *> rxList) {
+void Settings::setRxList(QList<SliceProcessor *> rxList) {
 
     emit rxListChanged(rxList);
 }
@@ -3522,6 +3522,145 @@ QSDR::_DSPCore Settings::getReceiverDspCore(int rx) const {
     if (rx < 0 || rx >= m_receiverDataList.size())
         return QSDR::QtDSP;
     return m_receiverDataList.at(rx).dspCore;
+}
+
+SliceModel* Settings::sliceModel(int rx) const {
+
+    if (!m_radioModel || rx < 0 || rx >= m_radioModel->slices().size())
+        return nullptr;
+    return m_radioModel->slices().at(rx);
+}
+
+QList<DSPMode> Settings::getDSPModeList(int rx) const {
+
+    if (rx < 0 || rx >= m_receiverDataList.size())
+        return {};
+    return m_receiverDataList.at(rx).dspModeList;
+}
+
+QList<long> Settings::getLastCenterFrequencyList(int rx) const {
+
+    if (rx < 0 || rx >= m_receiverDataList.size())
+        return {};
+    return m_receiverDataList.at(rx).lastCenterFrequencyList;
+}
+
+QList<long> Settings::getLastVfoFrequencyList(int rx) const {
+
+    if (rx < 0 || rx >= m_receiverDataList.size())
+        return {};
+    return m_receiverDataList.at(rx).lastVfoFrequencyList;
+}
+
+qreal Settings::getdBmPanScaleMin(int rx, HamBand band) const {
+
+    if (rx < 0 || rx >= m_receiverDataList.size())
+        return -140.0;
+    if (SliceModel* slice = sliceModel(rx)) {
+        if (band == m_receiverDataList.at(rx).hamBand)
+            return slice->dBmPanScaleMin();
+    }
+    if (band < 0 || band >= m_receiverDataList.at(rx).dBmPanScaleMinList.size())
+        return -140.0;
+    return m_receiverDataList.at(rx).dBmPanScaleMinList.at(band);
+}
+
+qreal Settings::getdBmPanScaleMax(int rx, HamBand band) const {
+
+    if (rx < 0 || rx >= m_receiverDataList.size())
+        return -20.0;
+    if (SliceModel* slice = sliceModel(rx)) {
+        if (band == m_receiverDataList.at(rx).hamBand)
+            return slice->dBmPanScaleMax();
+    }
+    if (band < 0 || band >= m_receiverDataList.at(rx).dBmPanScaleMaxList.size())
+        return -20.0;
+    return m_receiverDataList.at(rx).dBmPanScaleMaxList.at(band);
+}
+
+float Settings::getFreqRulerPosition(int rx) const {
+
+    if (rx < 0 || rx >= m_receiverDataList.size())
+        return 0.5f;
+    return m_receiverDataList.at(rx).freqRulerPosition;
+}
+
+qreal Settings::getFilterLo(int rx) const {
+
+    if (SliceModel* slice = sliceModel(rx))
+        return slice->filterLow();
+    if (rx < 0 || rx >= m_receiverDataList.size())
+        return -3050.0;
+    return m_receiverDataList.at(rx).filterLo;
+}
+
+qreal Settings::getFilterHi(int rx) const {
+
+    if (SliceModel* slice = sliceModel(rx))
+        return slice->filterHigh();
+    if (rx < 0 || rx >= m_receiverDataList.size())
+        return -150.0;
+    return m_receiverDataList.at(rx).filterHi;
+}
+
+TDefaultFilterMode Settings::getDefaultFilterMode(int rx) const {
+
+    if (rx < 0 || rx >= m_receiverDataList.size())
+        return (TDefaultFilterMode)0;
+    return m_receiverDataList.at(rx).defaultFilterMode;
+}
+
+qreal Settings::getAGCAttackTime(int rx) const {
+
+    if (rx < 0 || rx >= m_receiverDataList.size())
+        return 0.002;
+    return m_receiverDataList.at(rx).agcAttackTime;
+}
+
+qreal Settings::getAGCDecayTime(int rx) const {
+
+    if (rx < 0 || rx >= m_receiverDataList.size())
+        return 0.25;
+    return m_receiverDataList.at(rx).agcDecayTime;
+}
+
+qreal Settings::getAGCHangTime(int rx) const {
+
+    if (rx < 0 || rx >= m_receiverDataList.size())
+        return 0.0;
+    return m_receiverDataList.at(rx).agcHangTime;
+}
+
+bool Settings::getHangEnabled(int rx) const {
+
+    if (rx < 0 || rx >= m_receiverDataList.size())
+        return false;
+    return m_receiverDataList.at(rx).hangEnabled;
+}
+
+bool Settings::getAgcLines(int rx) const {
+
+    if (rx < 0 || rx >= m_receiverDataList.size())
+        return false;
+    return m_receiverDataList.at(rx).agcLines;
+}
+
+int Settings::getWaterfallOffsetLo(int rx) const {
+
+    if (SliceModel* slice = sliceModel(rx))
+        return slice->waterfallOffsetLo();
+    if (rx < 0 || rx >= m_receiverDataList.size())
+        return -120;
+    return m_receiverDataList.at(rx).waterfallOffsetLo;
+}
+
+int Settings::getWaterfallOffsetHi(int rx) const {
+
+    if (SliceModel* slice = sliceModel(rx))
+        return slice->waterfallOffsetHi();
+    if (rx < 0 || rx >= m_receiverDataList.size())
+        return -60;
+    return m_receiverDataList.at(rx).waterfallOffsetHi;
 }
 
 void Settings::setDither(int value) {
@@ -5155,6 +5294,8 @@ void Settings::getConfigPath() {
 
 
 DSPMode Settings::getDSPMode(int rx){
+    if (SliceModel* slice = sliceModel(rx))
+        return slice->dspMode();
     if (rx < 0 || rx >= m_receiverDataList.size())
         return LSB;
 

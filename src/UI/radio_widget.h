@@ -31,7 +31,6 @@ private:
     QSDR::_HWInterfaceMode		m_hwInterface;
     QSDR::_DataEngineState		m_dataEngineState;
 
-     QList<TReceiver>	m_rxDataList;
     void        getSettings();
     CFonts		*fonts;
     TFonts		m_fonts;

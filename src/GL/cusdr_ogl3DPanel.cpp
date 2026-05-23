@@ -81,10 +81,9 @@ QGL3DPanel::QGL3DPanel(QWidget *parent, int rx)
     m_meshWorker->start(QThread::HighPriority);  // Run at higher priority for responsive mesh updates
 
     // Get dBm scale from receiver panadapter settings (same as 2D panel)
-    QList<TReceiver> m_rxDataList = set->getReceiverDataList();
-    HamBand band = m_rxDataList.at(m_receiver).hamBand;
-    m_dBmPanMin = m_rxDataList.at(m_receiver).dBmPanScaleMinList.at(band);
-    m_dBmPanMax = m_rxDataList.at(m_receiver).dBmPanScaleMaxList.at(band);
+    const HamBand band = set->getCurrentHamBand(m_receiver);
+    m_dBmPanMin = set->getdBmPanScaleMin(m_receiver, band);
+    m_dBmPanMax = set->getdBmPanScaleMax(m_receiver, band);
 
     // Connect to panadapter scale change signals
     connect(set, &Settings::dBmScaleMaxChanged,

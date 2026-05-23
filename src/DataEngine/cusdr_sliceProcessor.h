@@ -1,6 +1,6 @@
 /**
-* @file cusdr_receiver.h
-* @brief cuSDR receiver header file
+* @file cusdr_sliceProcessor.h
+* @brief Per-slice DSP worker (IQ queue, WDSP, spectrum, audio)
 * @author Hermann von Hasseln, DL3HVH, Updated for WDSP by Simon Eatough ZL2BRG
 * @version 1.0
 * Updated 2018-04-10 for WDSP
@@ -27,11 +27,8 @@
 *
 */
 
-#ifndef CUSDR_RECEIVER_H
-#define CUSDR_RECEIVER_H
-
-//#include <QObject>
-//#include <QtNetwork>
+#ifndef CUSDR_SLICE_PROCESSOR_H
+#define CUSDR_SLICE_PROCESSOR_H
 
 #include "cusdr_settings.h"
 #include "Util/cusdr_highResTimer.h"
@@ -43,21 +40,21 @@
 #include "AudioEngine/cusdr_freedvprocessor.h"
 #endif
 
-#ifdef LOG_RECEIVER
-#   define RECEIVER_DEBUG qDebug().nospace() << "Receiver::\t"
+#ifdef LOG_SLICE_PROCESSOR
+#   define SLICE_PROCESSOR_DEBUG qDebug().nospace() << "SliceProcessor::\t"
 #else
-#   define RECEIVER_DEBUG nullDebug()
+#   define SLICE_PROCESSOR_DEBUG nullDebug()
 #endif
 
 
 class SliceModel;
-class Receiver : public QObject {
+class SliceProcessor : public QObject {
 
 	Q_OBJECT
 
 public:
-	explicit Receiver(SliceModel *model, QObject *parent = nullptr);
-	~Receiver() override;
+	explicit SliceProcessor(SliceModel *model, QObject *parent = nullptr);
+	~SliceProcessor() override;
 
 	void	setupConnections();
 	bool	initDSPInterface();
@@ -85,7 +82,6 @@ public:
     RadioState m_state  = RadioState::RX;
 	QVector<float>	newSpectrum;
     QWDSPEngine*	qtwdsp = nullptr;
- //   std::unique_ptr<QWDSPEngine> qtwdsp;
     std::unique_ptr<HResTimer>	highResTimer;
 	ReceiverAudioOutput *m_audioOutput = nullptr;
 
@@ -140,7 +136,7 @@ private:
 	QMutex				m_mutex;
 
 	QElapsedTimer		m_smeterTime;
-	QElapsedTimer		m_dspCallTimer;   // measures wall time of each processDSP call
+	QElapsedTimer		m_dspCallTimer;
 	double				m_dspTimeMin = 1e9;
 	double				m_dspTimeMax = 0.0;
 	double				m_dspTimeAccum = 0.0;
@@ -151,7 +147,7 @@ private:
 
 	int		m_receiver;
 	int		m_samplerate;
-	int		m_audioMode; // 1 = audio on, 0 = audio off
+	int		m_audioMode;
 	int		m_socketDescriptor;
 	int		m_client;
     int		m_iqPort;
@@ -179,4 +175,4 @@ signals:
 
 };
 
-#endif  // CUSDR_RECEIVER_H
+#endif  // CUSDR_SLICE_PROCESSOR_H

@@ -1,7 +1,7 @@
 #include "Models/SliceModel.h"
 /**
-* @file cusdr_receiver.cpp
-* @brief cuSDR receiver class
+* @file cusdr_sliceProcessor.cpp
+* @brief Per-slice DSP worker class
 * @author Hermann von Hasseln, DL3HVH
 * @version 0.1
 * @date 2010-11-12
@@ -26,17 +26,17 @@
 * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 *
 */
-#define LOG_RECEIVER
+#define LOG_SLICE_PROCESSOR
 
-// use: RECEIVER_DEBUG
+// use: SLICE_PROCESSOR_DEBUG
 
-#include "cusdr_receiver.h"
+#include "cusdr_sliceProcessor.h"
 
 namespace {
 constexpr int HIGH_RATE_TRANSITION_DROP_BUFFERS = 12;
 }
 
-Receiver::Receiver(SliceModel *model, QObject *parent)
+SliceProcessor::SliceProcessor(SliceModel *model, QObject *parent)
 	: QObject(parent)
         , m_sliceModel(model)
 	, set(Settings::instance())
@@ -67,8 +67,8 @@ Receiver::Receiver(SliceModel *model, QObject *parent)
 	m_smeterTime.start();
 }
 
-Receiver::~Receiver() {
-    qDebug() << "Destroy Receiver " << m_receiver;
+SliceProcessor::~SliceProcessor() {
+    qDebug() << "Destroy SliceProcessor " << m_receiver;
     inBuf.clear();
     outBuf.clear();
 	if (m_audioOutput) {
@@ -86,29 +86,29 @@ Receiver::~Receiver() {
 #endif
 }
 
-void Receiver::setAudioBufferSize() {
+void SliceProcessor::setAudioBufferSize() {
     int scale=m_samplerate/48000;
     m_audiobuffersize = 1024/scale;
-    RECEIVER_DEBUG << "set Audio buffer size to: " << m_audiobuffersize;
+    SLICE_PROCESSOR_DEBUG << "set Audio buffer size to: " << m_audiobuffersize;
     }
 
-void Receiver::setupConnections() {
+void SliceProcessor::setupConnections() {
     connect(set, &Settings::systemStateChanged,
-            this, &Receiver::setSystemState);
+            this, &SliceProcessor::setSystemState);
 
     connect(set, &Settings::sampleRateChanged,
-            this, &Receiver::setSampleRate);
+            this, &SliceProcessor::setSampleRate);
 
     connect(set, &Settings::framesPerSecondChanged,
-            this, &Receiver::setFramesPerSecond);
+            this, &SliceProcessor::setFramesPerSecond);
 
 #ifdef HAVE_CODEC2
 	connect(set, &Settings::freeDVModeChanged,
-			this, &Receiver::setFreeDVMode);
+			this, &SliceProcessor::setFreeDVMode);
 #endif
 }
 
-bool Receiver::initDSPInterface() {
+bool SliceProcessor::initDSPInterface() {
 
 	if (set->getReceiverDspCore(m_receiver) == QSDR::QtDSP) {
 
@@ -120,41 +120,41 @@ bool Receiver::initDSPInterface() {
 
 
 
-bool Receiver::initQtWDSPInterface() {
+bool SliceProcessor::initQtWDSPInterface() {
 
-    RECEIVER_DEBUG << "[RX-ADD] initQtWDSPInterface: rx=" << m_receiver << "BUFFER_SIZE=" << BUFFER_SIZE;
+    SLICE_PROCESSOR_DEBUG << "[RX-ADD] initQtWDSPInterface: rx=" << m_receiver << "BUFFER_SIZE=" << BUFFER_SIZE;
 //    qtwdsp = std::make_unique<QWDSPEngine>(this, m_receiver, BUFFER_SIZE);
     qtwdsp = new QWDSPEngine(m_sliceModel, this, BUFFER_SIZE);
 
     if (!qtwdsp || !qtwdsp->isValid()) {  // Add validity check
-        RECEIVER_DEBUG << "[RX-ADD] ERROR: could not start QWtDSP for receiver: " << m_receiver;
+        SLICE_PROCESSOR_DEBUG << "[RX-ADD] ERROR: could not start QWtDSP for receiver: " << m_receiver;
         return false;
     }
-    RECEIVER_DEBUG << "[RX-ADD] QWDSPEngine constructed for rx=" << m_receiver << "(isValid=true)";
+    SLICE_PROCESSOR_DEBUG << "[RX-ADD] QWDSPEngine constructed for rx=" << m_receiver << "(isValid=true)";
 
     qtwdsp->setQtDSPStatus(true);
     const float volume = m_sliceModel ? m_sliceModel->volume() : static_cast<float>(set->getMainVolume(m_receiver));
     qtwdsp->setVolume(volume);
 
     const DSPMode mode = m_sliceModel ? m_sliceModel->dspMode() : set->getDSPMode(m_receiver);
-    RECEIVER_DEBUG << "[RX-ADD] rx=" << m_receiver << "set DSP mode to:" << set->getDSPModeString(mode);
+    SLICE_PROCESSOR_DEBUG << "[RX-ADD] rx=" << m_receiver << "set DSP mode to:" << set->getDSPModeString(mode);
 
     qtwdsp->setDSPMode(mode);
 
     if (m_sliceModel) {
         qtwdsp->setFilter(m_sliceModel->filterLow(), m_sliceModel->filterHigh());
-        RECEIVER_DEBUG << "[RX-ADD] initQtWDSPInterface: rx=" << m_receiver << "complete (filter lo=" << m_sliceModel->filterLow() << "hi=" << m_sliceModel->filterHigh() << ")";
+        SLICE_PROCESSOR_DEBUG << "[RX-ADD] initQtWDSPInterface: rx=" << m_receiver << "complete (filter lo=" << m_sliceModel->filterLow() << "hi=" << m_sliceModel->filterHigh() << ")";
     } else {
         const long ctrHz = set->getCtrFrequency(m_receiver);
         auto filter = getFilterFromDSPMode(set->getDefaultFilterList(),
                                            resolveWDSPMode(mode, ctrHz));
         qtwdsp->setFilter(filter.filterLo, filter.filterHi);
-        RECEIVER_DEBUG << "[RX-ADD] initQtWDSPInterface: rx=" << m_receiver << "complete (filter lo=" << filter.filterLo << "hi=" << filter.filterHi << ")";
+        SLICE_PROCESSOR_DEBUG << "[RX-ADD] initQtWDSPInterface: rx=" << m_receiver << "complete (filter lo=" << filter.filterLo << "hi=" << filter.filterHi << ")";
     }
     return true;
 }
 
-void Receiver::enqueueRawData() {
+void SliceProcessor::enqueueRawData() {
     QVector<int32_t> rawBlock;
     rawBlock.reserve(BUFFER_SIZE * 2);
     for (int i = 0; i < BUFFER_SIZE * 2; ++i) {
@@ -162,35 +162,35 @@ void Receiver::enqueueRawData() {
     }
 
     if (m_iqQueue.isFull()) {
-        RECEIVER_DEBUG << "iqQueue full! dropping oldest packet";
+        SLICE_PROCESSOR_DEBUG << "iqQueue full! dropping oldest packet";
         m_iqQueue.dequeue();
     }
     m_iqQueue.enqueue(rawBlock);
 }
 
-void Receiver::enqueueData() {
+void SliceProcessor::enqueueData() {
     // Legacy support or internal use
     if (m_iqQueue.isFull()) {
-        RECEIVER_DEBUG << "iqQueue full! dropping oldest packet";
+        SLICE_PROCESSOR_DEBUG << "iqQueue full! dropping oldest packet";
         m_iqQueue.dequeue();
     }
     // Convert CPX to raw int for now if this is ever called, or just do nothing
 }
 
-void Receiver::stop() {
+void SliceProcessor::stop() {
 
 	m_mutex.lock();
 	m_stopped = true;
 	m_mutex.unlock();
 }
 
-void Receiver::dspProcessing() {
+void SliceProcessor::dspProcessing() {
 	static quint64 dspEntryCount = 0;
 	static quint64 dspEmptyQueueCount = 0;
 
 	++dspEntryCount;
 	if ((dspEntryCount % 100) == 1) {
-		RECEIVER_DEBUG << "dspProcessing entry rx=" << m_receiver
+		SLICE_PROCESSOR_DEBUG << "dspProcessing entry rx=" << m_receiver
 					   << " count=" << dspEntryCount
 					   << " iqQueue=" << m_iqQueue.count();
 	}
@@ -198,7 +198,7 @@ void Receiver::dspProcessing() {
 	if (m_iqQueue.isEmpty()) {
 		++dspEmptyQueueCount;
 		if ((dspEmptyQueueCount % 100) == 1) {
-			RECEIVER_DEBUG << "dspProcessing empty iqQueue rx=" << m_receiver
+			SLICE_PROCESSOR_DEBUG << "dspProcessing empty iqQueue rx=" << m_receiver
 						   << " emptyCount=" << dspEmptyQueueCount;
 		}
 		return;
@@ -241,7 +241,7 @@ void Receiver::dspProcessing() {
     static constexpr quint64 DSP_REPORT_INTERVAL = 500;
     if ((m_dspCallCount % DSP_REPORT_INTERVAL) == 0) {
         double mean = m_dspTimeAccum / DSP_REPORT_INTERVAL;
-        RECEIVER_DEBUG << "DSP perf rx=" << m_receiver
+        SLICE_PROCESSOR_DEBUG << "DSP perf rx=" << m_receiver
                        << " calls=" << m_dspCallCount
                        << " mean=" << QString::number(mean, 'f', 1) << "Âµs"
                        << " min="  << QString::number(m_dspTimeMin, 'f', 1) << "Âµs"
@@ -335,7 +335,7 @@ void Receiver::dspProcessing() {
     }
 }
 
-void Receiver::setFreeDVMode(int rx, int mode) {
+void SliceProcessor::setFreeDVMode(int rx, int mode) {
 	#ifdef HAVE_CODEC2
 	if (rx != m_receiver) return;
 	if (m_freeDVMode == mode) return;
@@ -356,7 +356,7 @@ void Receiver::setFreeDVMode(int rx, int mode) {
 #endif
 }
 
-QVector<float> Receiver::interleaveFromCPX(const CPX& in, int size) {
+QVector<float> SliceProcessor::interleaveFromCPX(const CPX& in, int size) {
     int limit = (size < 0 || size > in.size()) ? in.size() : size;
     QVector<float> out(limit * 2); 
     float* outData = out.data();
@@ -369,7 +369,7 @@ QVector<float> Receiver::interleaveFromCPX(const CPX& in, int size) {
     return out;
 }
 
-void Receiver::setSampleRate(int value) {
+void SliceProcessor::setSampleRate(int value) {
 	if (m_samplerate == value) return;
     const int previousRate = m_samplerate;
 
@@ -383,7 +383,7 @@ void Receiver::setSampleRate(int value) {
 			m_samplerate = value;
 			break;
 		default:
-			RECEIVER_DEBUG << "invalid sample rate (possible values are: 48, 96, 192, 384, 768, or 1536 kHz)!\n";
+			SLICE_PROCESSOR_DEBUG << "invalid sample rate (possible values are: 48, 96, 192, 384, 768, or 1536 kHz)!\n";
 			break;
 	}
 
@@ -407,30 +407,30 @@ void Receiver::setSampleRate(int value) {
 
     }
 	else
-		RECEIVER_DEBUG << "qtdsp down: cannot set sample rate!\n";
+		SLICE_PROCESSOR_DEBUG << "qtdsp down: cannot set sample rate!\n";
 }
 
-void Receiver::setServerMode(QSDR::_ServerMode mode) {
+void SliceProcessor::setServerMode(QSDR::_ServerMode mode) {
 
 	m_serverMode = mode;
 }
 
-QSDR::_ServerMode Receiver::getServerMode()	const {
+QSDR::_ServerMode SliceProcessor::getServerMode()	const {
 
 	return m_serverMode;
 }
 
-//void Receiver::setSocketState(SocketState state) {
+//void SliceProcessor::setSocketState(SocketState state) {
 //
 //	m_socketState = state;
 //}
 
-//Receiver::SocketState Receiver::socketState() const {
+//SliceProcessor::SocketState SliceProcessor::socketState() const {
 //
 //	return m_socketState;
 //}
 
-void Receiver::setSystemState(
+void SliceProcessor::setSystemState(
 	QSDR::_Error err,
 	QSDR::_HWInterfaceMode hwmode,
 	QSDR::_ServerMode mode,
@@ -448,56 +448,56 @@ void Receiver::setSystemState(
 		m_dataEngineState = state;
 }
 
-void Receiver::setAudioMode(int mode) {
+void SliceProcessor::setAudioMode(int mode) {
 
 	if (m_audioMode == mode) return;
 
 	m_audioMode = mode;
 }
 
-//void Receiver::setID(int value) {
+//void SliceProcessor::setID(int value) {
 //
 //	m_receiverID = value;
-//	RECEIVER_DEBUG << "This is receiver " << m_receiverID;
+//	SLICE_PROCESSOR_DEBUG << "This is receiver " << m_receiverID;
 //}
 
-void Receiver::setReceiver(int value) {
+void SliceProcessor::setReceiver(int value) {
 
 	m_receiver = value;
 }
 
-void Receiver::setFramesPerSecond(int rx, int value) {
+void SliceProcessor::setFramesPerSecond(int rx, int value) {
 
 	if (m_receiver == rx)
 		m_displayTime = (int)(1000000.0/value);
 }
 
-void Receiver::setPeerAddress(QHostAddress addr) {
+void SliceProcessor::setPeerAddress(QHostAddress addr) {
 
 	m_peerAddress = addr;
 }
 
-void Receiver::setSocketDescriptor(int value) {
+void SliceProcessor::setSocketDescriptor(int value) {
 
 	m_socketDescriptor = value;
 }
 
-void Receiver::setClient(int value) {
+void SliceProcessor::setClient(int value) {
 
 	m_client = value;
 }
 
-void Receiver::setIQPort(int value) {
+void SliceProcessor::setIQPort(int value) {
 
 	m_iqPort = value;
 }
 
-void Receiver::setBSPort(int value) {
+void SliceProcessor::setBSPort(int value) {
 
 	m_bsPort = value;
 }
 
-void Receiver::setConnectedStatus(bool value) {
+void SliceProcessor::setConnectedStatus(bool value) {
 
 	m_connected = value;
 }

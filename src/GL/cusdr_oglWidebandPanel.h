@@ -98,7 +98,6 @@ private:
 	
 	QVector<qreal>				m_widebandPanSpectrumBins;
 	QQueue<QVector<float> >		specAv_queue;
-	QList<TReceiver>			m_rxDataList;
 	TWideband					m_widebandOptions;
 
     QOpenGLFramebufferObject*		m_frequencyScaleFBO = nullptr;

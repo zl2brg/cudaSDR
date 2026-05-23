@@ -120,8 +120,6 @@ private:
 	TScale						m_dBmScale;
 	TScale						m_secScale;
 	
-	QList<TReceiver>			m_rxDataList;
-	
 	QVector<qreal>					m_panadapterBins;
 	QVarLengthArray<TGL_ubyteRGBA>	m_waterfallPixel;
 

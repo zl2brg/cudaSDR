@@ -65,8 +65,6 @@ private:
 
 	AGCMode				m_agcMode;
 
-	QList<TReceiver>	m_rxDataList;
-
 	CFonts		*fonts;
 	TFonts		m_fonts;
 

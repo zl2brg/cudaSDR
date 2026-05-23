@@ -68,7 +68,6 @@ DisplayOptionsWidget::DisplayOptionsWidget(RadioModel *model, QWidget *parent)
 	//setMinimumWidth(m_minimumWidgetWidth);
 	setContentsMargins(4, 0, 4, 0);
 	setMouseTracking(true);
-	m_rxDataList = set->getReceiverDataList();
 	m_widebandOptions = set->getWidebandOptions();
 	m_panadapterMode = set->getPanadapterMode(m_currentReceiver);
 	m_waterColorMode = set->getWaterfallColorMode(m_currentReceiver);
@@ -693,7 +692,7 @@ void DisplayOptionsWidget::createWaterfallSpectrumOptions() {
 	m_waterfallLoOffsetSpinBox->setMinimum(-200);
 	m_waterfallLoOffsetSpinBox->setMaximum(200);
 	m_waterfallLoOffsetSpinBox->setSingleStep(1);
-	m_waterfallLoOffsetSpinBox->setValue(m_rxDataList.at(m_currentReceiver).waterfallOffsetLo);
+	m_waterfallLoOffsetSpinBox->setValue(set->getWaterfallOffsetLo(m_currentReceiver));
 
 	CHECKED_CONNECT(
 		m_waterfallLoOffsetSpinBox,
@@ -705,7 +704,7 @@ void DisplayOptionsWidget::createWaterfallSpectrumOptions() {
 	m_waterfallHiOffsetSpinBox->setMinimum(-200);
 	m_waterfallHiOffsetSpinBox->setMaximum(200);
 	m_waterfallHiOffsetSpinBox->setSingleStep(1);
-	m_waterfallHiOffsetSpinBox->setValue(m_rxDataList.at(m_currentReceiver).waterfallOffsetHi);
+	m_waterfallHiOffsetSpinBox->setValue(set->getWaterfallOffsetHi(m_currentReceiver));
 
 	CHECKED_CONNECT(
 		m_waterfallHiOffsetSpinBox,

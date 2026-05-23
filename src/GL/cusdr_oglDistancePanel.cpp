@@ -85,9 +85,14 @@ QGLDistancePanel::QGLDistancePanel(QWidget *parent)
 	setupDisplayRegions(size());
 	m_oldWidth = size().width();
 	
-	m_rxDataList = set->getReceiverDataList();
-	//m_frequency = m_rxDataList.at(0).frequency;
-	m_frequency = m_rxDataList.at(0).vfoFrequency;
+	m_frequency = set->getVfoFrequency(0);
+
+	const HamBand band = set->getCurrentHamBand(0);
+	m_dBmPanMin = set->getdBmPanScaleMin(0, band);
+	m_dBmPanMax = set->getdBmPanScaleMax(0, band);
+
+	m_filterLowerFrequency = set->getFilterLo(0);
+	m_filterUpperFrequency = set->getFilterHi(0);
 
 	m_dBmScalePanadapterRenew = true;
 	m_dBmScalePanadapterUpdate = true;
@@ -95,15 +100,6 @@ QGLDistancePanel::QGLDistancePanel(QWidget *parent)
 	m_freqScalePanadapterUpdate = true;
 	m_panGridRenew = true;
 	m_panGridUpdate = true;
-
-	HamBand band = m_rxDataList.at(0).hamBand;
-
-	m_dBmPanMin = m_rxDataList.at(0).dBmPanScaleMinList.at(band);
-	m_dBmPanMax = m_rxDataList.at(0).dBmPanScaleMaxList.at(band);
-
-
-	m_filterLowerFrequency = m_rxDataList.at(0).filterLo;
-	m_filterUpperFrequency = m_rxDataList.at(0).filterHi;
 
 	fonts = new CFonts(this);
 	m_fonts = fonts->getFonts();

@@ -98,28 +98,7 @@ RadioPopupWidget::RadioPopupWidget(SliceModel *model, QWidget *parent)
     fonts = new CFonts(this);
     m_fonts = fonts->getFonts();
 
-    m_receiverDataList = set->getReceiverDataList();
-
-    m_hamBand = m_receiverDataList.at(m_receiver).hamBand;
-    m_dspModeList = m_receiverDataList.at(m_receiver).dspModeList;
-    m_adcMode = m_receiverDataList.at(m_receiver).adcMode;
-    m_agcMode = m_receiverDataList.at(m_receiver).agcMode;
-    m_filterMode = m_receiverDataList.at(m_receiver).defaultFilterMode;
-    m_filterLo = m_receiverDataList.at(m_receiver).filterLo;
-    m_filterHi = m_receiverDataList.at(m_receiver).filterHi;
-
-    m_spectrumAveraging = m_receiverDataList.at(m_receiver).spectrumAveraging;
-    m_panGrid = m_receiverDataList.at(m_receiver).panGrid;
-    m_peakHold = m_receiverDataList.at(m_receiver).peakHold;
-    m_panLocked = m_receiverDataList.at(m_receiver).panLocked;
-    m_clickVFO = m_receiverDataList.at(m_receiver).clickVFO;
-    m_showCross = m_receiverDataList.at(m_receiver).hairCross;
-
-    m_panadapterMode = m_receiverDataList.at(m_receiver).panMode;
-    m_waterfallColorMode = m_receiverDataList.at(m_receiver).waterfallMode;
-
-    m_lastCtrFrequencyList = m_receiverDataList.at(m_receiver).lastCenterFrequencyList;
-    m_lastVfoFrequencyList = m_receiverDataList.at(m_receiver).lastVfoFrequencyList;
+    loadReceiverState(m_receiver);
 
     stickyBtn = new AeroButton("Lock", this);
     stickyBtn->setRoundness(0);
@@ -224,10 +203,10 @@ RadioPopupWidget::RadioPopupWidget(SliceModel *model, QWidget *parent)
     bandBtnList.at(m_hamBand)->setBtnState(AeroButton::ON);
     bandBtnList.at(m_hamBand)->update();
 
-    dspModeChanged(0, m_dspModeList.at(m_hamBand));
+    dspModeChanged(m_receiver, m_dspModeList.at(m_hamBand));
     adcModeChanged(m_receiver, m_adcMode);
-    agcModeChanged(0, m_agcMode, false);
-    filterChanged(0, m_filterLo, m_filterHi);
+    agcModeChanged(m_receiver, m_agcMode, false);
+    filterChanged(m_receiver, m_filterLo, m_filterHi);
 
     DSPMode dspMode = m_dspModeList.at(m_hamBand);
     if (dspMode == LSB || dspMode == USB || dspMode == DIGU || dspMode == DIGL) {
@@ -819,7 +798,7 @@ void RadioPopupWidget::createAgcBtnGroup() {
     showAGCLines->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     connect(showAGCLines, &AeroButton::clicked, this, &RadioPopupWidget::agcShowLinesChanged);
 
-    if (m_receiverDataList.at(m_receiver).agcLines)
+    if (set->getAgcLines(m_receiver))
         showAGCLines->setBtnState(AeroButton::ON);
     else
         showAGCLines->setBtnState(AeroButton::OFF);
@@ -1544,15 +1523,38 @@ void RadioPopupWidget::vfoToMidBtnClicked() {
     emit vfoToMidBtnEvent();
 }
 
+void RadioPopupWidget::loadReceiverState(int rx) {
+
+    m_hamBand = set->getCurrentHamBand(rx);
+    m_dspModeList = set->getDSPModeList(rx);
+    m_adcMode = set->getADCMode(rx);
+    m_agcMode = set->getAGCMode(rx);
+    m_filterMode = set->getDefaultFilterMode(rx);
+    m_filterLo = set->getFilterLo(rx);
+    m_filterHi = set->getFilterHi(rx);
+    m_spectrumAveraging = set->getSpectrumAveraging(rx);
+    m_panGrid = set->getPanGridStatus(rx);
+    m_peakHold = set->getPeakHoldStatus(rx);
+    m_panLocked = set->getPanLockedStatus(rx);
+    m_clickVFO = set->getClickVFOStatus(rx);
+    m_showCross = set->getHairCrossStatus(rx);
+    m_panadapterMode = set->getPanadapterMode(rx);
+    m_waterfallColorMode = set->getWaterfallColorMode(rx);
+    m_lastCtrFrequencyList = set->getLastCenterFrequencyList(rx);
+    m_lastVfoFrequencyList = set->getLastVfoFrequencyList(rx);
+}
+
 void RadioPopupWidget::setCurrentReceiver(int value) {
     if (m_receiver == value) return;
     m_receiver = value;
 
-    TReceiver rxData = set->getReceiverDataList().at(m_receiver);
+    const HamBand prevBand = m_hamBand;
+    const DSPMode prevBandMode = m_dspModeList.value((int)m_hamBand, LSB);
+    const qreal prevFilterLo = m_filterLo;
+    const qreal prevFilterHi = m_filterHi;
+    loadReceiverState(m_receiver);
 
-    if (m_hamBand != rxData.hamBand) {
-        m_hamBand = rxData.hamBand;
-
+    if (m_hamBand != prevBand) {
         for(AeroButton *btn : bandBtnList) {
             btn->setBtnState(AeroButton::OFF);
             btn->update();
@@ -1562,10 +1564,8 @@ void RadioPopupWidget::setCurrentReceiver(int value) {
         button->update();
     }
 
-    DSPMode dspMode = m_dspModeList.at(m_hamBand);
-    if (dspMode != rxData.dspModeList.at(m_hamBand)) {
-        dspMode = rxData.dspModeList.at(m_hamBand);
-
+    const DSPMode dspMode = m_dspModeList.at(m_hamBand);
+    if (dspMode != prevBandMode) {
         for(AeroButton *btn : dspModeBtnList) {
             btn->setBtnState(AeroButton::OFF);
             btn->update();
@@ -1578,13 +1578,7 @@ void RadioPopupWidget::setCurrentReceiver(int value) {
         filterChanged(m_receiver, m_filterLo, m_filterHi);
     }
 
-    if (m_agcMode != rxData.agcMode) {
-        m_agcMode = rxData.agcMode;
-    }
-
-    if (m_filterLo != rxData.filterLo || m_filterHi != rxData.filterHi) {
-        m_filterLo = rxData.filterLo;
-        m_filterHi = rxData.filterHi;
+    if (m_filterLo != prevFilterLo || m_filterHi != prevFilterHi) {
         filterChanged(m_receiver, m_filterLo, m_filterHi);
     }
 

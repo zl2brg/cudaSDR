@@ -63,14 +63,14 @@ flowchart LR
     DEng[DataEngine]
     DIO[DataIO — UDP, discovery]
     DProc[DataProcessor]
-    REC[Receiver × N]
+    SP[SliceProcessor × N]
     TX[Transmitter]
     P1[CProtocol1]
     P2[CProtocol2]
     WB[WidebandProcessor]
     DEng --> DIO
     DEng --> DProc
-    DProc --> REC
+    DProc --> SP
     DEng --> TX
     DIO --> P1
     DIO --> P2
@@ -79,7 +79,7 @@ flowchart LR
 
   subgraph DSPB["QtWDSP bridge"]
     QWDSP[qtwdsp_dspEngine]
-    REC --> QWDSP
+    SP --> QWDSP
   end
 
   subgraph AE["AudioEngine"]
@@ -107,7 +107,7 @@ flowchart LR
 
   SET <--> DEng
   MW <--> DEng
-  REC --> RP
+  SP --> RP
   DEng --> AE
   MW --> AE
   QWDSP --> WDSP[(wdsp C lib)]
@@ -124,7 +124,7 @@ sequenceDiagram
   participant Q as iq_queue
   participant DP as DataProcessor
   participant P as CProtocol1/2
-  participant RX as Receiver
+  participant SP as SliceProcessor
   participant WDSP as qtwdsp / wdsp
   participant GL as OpenGL panels
 
@@ -132,10 +132,10 @@ sequenceDiagram
   DIO->>Q: enqueue payload
   DP->>Q: dequeue
   DP->>P: processInputBuffer
-  P->>RX: raw IQ / state
-  RX->>WDSP: DSP chain
-  WDSP-->>RX: audio / FFT buffers
-  RX->>GL: spectrum / waterfall
+  P->>SP: raw IQ / state
+  SP->>WDSP: DSP chain
+  WDSP-->>SP: audio / FFT buffers
+  SP->>GL: spectrum / waterfall
 ```
 
 ---

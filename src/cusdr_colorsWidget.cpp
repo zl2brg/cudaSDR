@@ -61,8 +61,6 @@ ColorOptionsWidget::ColorOptionsWidget(QWidget *parent)
 	setContentsMargins(4, 0, 4, 0);
 	setMouseTracking(true);
 
-	m_rxDataList = set->getReceiverDataList();
-	
 	createColorChooserWidget();
 
     mainLayout = new QBoxLayout(QBoxLayout::TopToBottom, this);

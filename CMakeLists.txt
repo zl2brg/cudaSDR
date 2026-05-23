@@ -94,7 +94,7 @@ set(SOURCES
     ${SRC_DIR}/DataEngine/cusdr_discoverer.cpp
     ${SRC_DIR}/DataEngine/CProtocol1.cpp
     ${SRC_DIR}/DataEngine/CProtocol2.cpp
-    ${SRC_DIR}/DataEngine/cusdr_receiver.cpp
+    ${SRC_DIR}/DataEngine/cusdr_sliceProcessor.cpp
     ${SRC_DIR}/DataEngine/receiveraudiooutput.cpp
     ${SRC_DIR}/DataEngine/cusdr_transmitter.cpp
     ${SRC_DIR}/DataEngine/soundout.cpp
@@ -179,7 +179,7 @@ set(HEADERS
 
     # Data Engine
     ${SRC_DIR}/DataEngine/cusdr_dataIO.h
-    ${SRC_DIR}/DataEngine/cusdr_receiver.h
+    ${SRC_DIR}/DataEngine/cusdr_sliceProcessor.h
     ${SRC_DIR}/DataEngine/cusdr_transmitter.h
     ${SRC_DIR}/DataEngine/soundout.h
 

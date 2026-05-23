@@ -101,8 +101,6 @@ private:
 	TScale			m_dBmDistScale;
 	TFonts			m_fonts;
 	
-	QList<TReceiver>	m_rxDataList;
-	
 	QVector<qreal>					m_panadapterBins;
 	QQueue<QVector<float> >			specAv_queue;
 

@@ -47,18 +47,14 @@ RadioWidget::RadioWidget(QWidget *parent)
 	//setMinimumWidth(m_minimumWidgetWidth);
 	setContentsMargins(4, 0, 4, 0);
 	
-	m_receiverDataList = set->getReceiverDataList();
+	m_hamBand = set->getCurrentHamBand(0);
+	m_dspModeList = set->getDSPModeList(0);
+	m_filterMode = set->getDefaultFilterMode(0);
+	m_filterLo = set->getFilterLo(0);
+	m_filterHi = set->getFilterHi(0);
 
-	m_hamBand = m_receiverDataList.at(0).hamBand;
-	//m_dspMode = m_receiverDataList.at(0).dspMode;
-	m_dspModeList = m_receiverDataList.at(0).dspModeList;
-	//m_agcMode = m_receiverDataList.at(0).agcMode;
-	m_filterMode = m_receiverDataList.at(0).defaultFilterMode;
-	m_filterLo = m_receiverDataList.at(0).filterLo;
-	m_filterHi = m_receiverDataList.at(0).filterHi;
-
-	m_lastCtrFrequencyList = m_receiverDataList.at(0).lastCenterFrequencyList;
-	m_lastVfoFrequencyList = m_receiverDataList.at(0).lastVfoFrequencyList;
+	m_lastCtrFrequencyList = set->getLastCenterFrequencyList(0);
+	m_lastVfoFrequencyList = set->getLastVfoFrequencyList(0);
 
 	createBandBtnGroup();
 	createModeBtnGroup();
@@ -1033,9 +1029,9 @@ QGroupBox *RadioWidget::mercuryBtnGroup() {
 	//randomBtn->setTextColor(QColor(200, 200, 200));
 	CHECKED_CONNECT(randomBtn, &AeroButton::released, this, &RadioWidget::randomChanged);
 	
-	HamBand band = m_receiverDataList.at(0).hamBand;
+	HamBand band = set->getCurrentHamBand(0);
 
-	if (m_receiverDataList.at(0).mercuryAttenuators.at(band)) {
+	if (set->getMercuryAttenuators(0).at(band)) {
 
 		attenuatorBtn->setBtnState(AeroButton::OFF);
 		attenuatorBtn->setText("Att 0dB");
@@ -1368,10 +1364,8 @@ void RadioWidget::setCurrentReceiver(int value) {
 	if (m_currentRx == value) return;
 	m_currentRx = value;
 
-	TReceiver rxData = set->getReceiverDataList().at(m_currentRx);
-
-	if (m_hamBand != rxData.hamBand) {
-		m_hamBand = rxData.hamBand;
+	if (m_hamBand != set->getCurrentHamBand(m_currentRx)) {
+		m_hamBand = set->getCurrentHamBand(m_currentRx);
 
 		foreach(AeroButton *btn, bandBtnList) {
 			
@@ -1413,10 +1407,10 @@ void RadioWidget::setCurrentReceiver(int value) {
 //		m_agcMode = rxData.agcMode;
 //	}
 
-	if (m_filterLo != rxData.filterLo || m_filterHi != rxData.filterHi) {
+	if (m_filterLo != set->getFilterLo(m_currentRx) || m_filterHi != set->getFilterHi(m_currentRx)) {
 
-		m_filterLo = rxData.filterLo;
-		m_filterHi = rxData.filterHi;
+		m_filterLo = set->getFilterLo(m_currentRx);
+		m_filterHi = set->getFilterHi(m_currentRx);
 		filterChanged(m_currentRx, m_filterLo, m_filterHi);
 	}
 }

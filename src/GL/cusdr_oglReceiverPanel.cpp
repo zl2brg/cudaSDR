@@ -112,16 +112,45 @@ QGLReceiverPanel::QGLReceiverPanel(SliceModel *model, QWidget *parent)
 
 	setupDisplayRegions(size());
 	m_oldWidth = size().width();
-	m_rxDataList = set->getReceiverDataList();
-	m_freqRulerPosition = m_rxDataList.at(m_receiver).freqRulerPosition;
-	m_centerFrequency = m_rxDataList.at(m_receiver).ctrFrequency;
-	m_vfoFrequency = m_rxDataList.at(m_receiver).vfoFrequency;
+	if (m_sliceModel) {
+		m_centerFrequency = m_sliceModel->centerFrequency();
+		m_vfoFrequency = m_sliceModel->frequency();
+		m_panMode = m_sliceModel->panMode();
+		m_waterfallMode = m_sliceModel->waterfallMode();
+		m_waterfallOffsetLo = m_sliceModel->waterfallOffsetLo();
+		m_waterfallOffsetHi = m_sliceModel->waterfallOffsetHi();
+		m_filterLowerFrequency = m_sliceModel->filterLow();
+		m_filterUpperFrequency = m_sliceModel->filterHigh();
+		m_agcMode = m_sliceModel->agcMode();
+		m_agcFixedGain = m_sliceModel->agcFixedGain();
+		m_dBmPanMin = m_sliceModel->dBmPanScaleMin();
+		m_dBmPanMax = m_sliceModel->dBmPanScaleMax();
+	} else {
+		m_centerFrequency = set->getCtrFrequency(m_receiver);
+		m_vfoFrequency = set->getVfoFrequency(m_receiver);
+		m_panMode = set->getPanadapterMode(m_receiver);
+		m_waterfallMode = set->getWaterfallColorMode(m_receiver);
+		m_waterfallOffsetLo = set->getWaterfallOffsetLo(m_receiver);
+		m_waterfallOffsetHi = set->getWaterfallOffsetHi(m_receiver);
+		m_filterLowerFrequency = set->getFilterLo(m_receiver);
+		m_filterUpperFrequency = set->getFilterHi(m_receiver);
+		m_agcMode = set->getAGCMode(m_receiver);
+		m_agcFixedGain = set->getAGCFixedGain_dB(m_receiver);
+		const HamBand band = set->getCurrentHamBand(m_receiver);
+		m_dBmPanMin = set->getdBmPanScaleMin(m_receiver, band);
+		m_dBmPanMax = set->getdBmPanScaleMax(m_receiver, band);
+	}
+	m_freqRulerPosition = set->getFreqRulerPosition(m_receiver);
+	m_mouseWheelFreqStep = set->getMouseWheelFreqStep(m_receiver);
+	m_adcMode = set->getADCMode(m_receiver);
+	m_dspModeString = set->getDSPModeString(set->getDSPMode(m_receiver));
+	m_agcHangEnabled = set->getHangEnabled(m_receiver);
+	m_showAGCLines = set->getAgcLines(m_receiver);
 
 	if (m_vfoFrequency > m_centerFrequency + m_sampleRate/2)
 		m_vfoFrequency = m_centerFrequency + m_sampleRate/2;
 	else if (m_vfoFrequency < m_centerFrequency - m_sampleRate/2)
 		m_vfoFrequency = m_centerFrequency - m_sampleRate/2;
-	else
 
 	m_deltaFrequency = m_centerFrequency - m_vfoFrequency;
 	m_deltaF = (qreal)(1.0*m_deltaFrequency/m_sampleRate);
@@ -136,37 +165,12 @@ QGLReceiverPanel::QGLReceiverPanel(SliceModel *model, QWidget *parent)
 	m_secScaleWaterfallUpdate = true;
 	m_secScaleWaterfallRenew = true;
 	m_waterfallDisplayUpdate = true;
-	m_panMode = m_rxDataList.at(m_receiver).panMode;
-	m_waterfallMode = m_rxDataList.at(m_receiver).waterfallMode;
-
-	HamBand band = m_rxDataList.at(m_receiver).hamBand;
-
-	m_dBmPanMin = m_rxDataList.at(m_receiver).dBmPanScaleMinList.at(band);
-	m_dBmPanMax = m_rxDataList.at(m_receiver).dBmPanScaleMaxList.at(band);
-
-	m_waterfallOffsetLo = m_rxDataList.at(m_receiver).waterfallOffsetLo;
-	m_waterfallOffsetHi = m_rxDataList.at(m_receiver).waterfallOffsetHi;
+	m_filterWidth = qAbs((int)(m_filterUpperFrequency - m_filterLowerFrequency));
+	m_adcModeString = set->getADCModeString(m_receiver);
+	m_agcModeString = set->getAGCModeString(m_receiver);
 
 	m_secWaterfallMin = 0.0;
 	m_secWaterfallMax = 0.0;
-
-	m_filterLowerFrequency = m_rxDataList.at(m_receiver).filterLo;
-	m_filterUpperFrequency = m_rxDataList.at(m_receiver).filterHi;
-	m_filterWidth = qAbs((int)(m_filterUpperFrequency - m_filterLowerFrequency));
-
-	m_mouseWheelFreqStep = m_rxDataList.at(m_receiver).mouseWheelFreqStep;
-
-	m_adcMode = m_rxDataList.at(m_receiver).adcMode;
-	m_adcModeString = set->getADCModeString(m_receiver);
-
-	m_agcMode = m_rxDataList.at(m_receiver).agcMode;
-	m_agcModeString = set->getAGCModeString(m_receiver);
-	m_agcFixedGain = m_rxDataList.at(m_receiver).agcFixedGain_dB;
-
-	m_dspModeString = set->getDSPModeString(m_rxDataList.at(m_receiver).dspModeList.at(m_receiver));
-
-	m_agcHangEnabled = m_rxDataList.at(m_receiver).hangEnabled;
-	m_showAGCLines = m_rxDataList.at(m_receiver).agcLines;
 
 	radioPopup = new RadioPopupWidget(m_sliceModel, this);
 
@@ -371,6 +375,13 @@ void QGLReceiverPanel::setupConnections() {
                 const bool hang = (mode != (AGCMode)agcOFF && mode != (AGCMode)agcMED && mode != (AGCMode)agcFAST);
                 setAGCMode(m_sliceModel->id(), mode, hang);
             });
+
+    connect(m_sliceModel, &SliceModel::panScaleChanged, this, [this]() {
+        m_dBmPanMin = m_sliceModel->dBmPanScaleMin();
+        m_dBmPanMax = m_sliceModel->dBmPanScaleMax();
+        m_dBmScalePanadapterUpdate = true;
+        update();
+    });
 
 	connect(radioPopup, &RadioPopupWidget::vfoToMidBtnEvent, this, &QGLReceiverPanel::setVfoToMidFrequency);
 	connect(radioPopup, &RadioPopupWidget::midToVfoBtnEvent, this, &QGLReceiverPanel::setMidToVfoFrequency);
@@ -2589,7 +2600,6 @@ void QGLReceiverPanel::setCtrFrequency(int mode, int rx, long freq) {
     if (m_receiver != rx) return;
 
     m_centerFrequency = freq;
-    m_rxDataList[rx].ctrFrequency = freq;
 
     m_deltaFrequency = m_centerFrequency - m_vfoFrequency;
     m_deltaF = (qreal)(1.0 * m_deltaFrequency / m_sampleRate);
@@ -2605,9 +2615,6 @@ void QGLReceiverPanel::setVFOFrequency(int mode, int rx, long freq) {
 	
 	if (m_receiver != rx) return;
 
-	m_rxDataList[rx].vfoFrequency = freq;
-
-    //GRAPHICS_DEBUG << "set vfo F = " << freq;
 	m_vfoFrequency = freq;
 	if (m_vfoFrequency > m_centerFrequency + m_sampleRate/2)
 		m_vfoFrequency = m_centerFrequency + m_sampleRate/2;
@@ -3252,18 +3259,13 @@ void QGLReceiverPanel::setMouseWheelFreqStep(int rx, qreal step) {
 void QGLReceiverPanel::setHamBand(int rx, bool byButton, HamBand band) {
 
 	if (m_receiver != rx || !byButton) return;
-	// we change the dBm-scale only, if the frequency is changed by changing the band by button.
-	// That is, if we change band by changing the frequency, the dBm scale stays constant.
 
-	//m_panLocked = false;
-	//m_deltaFrequency = 0;
-	//m_deltaF = 0;
-
-	m_rxDataList[m_receiver].hamBand = band;
-	//m_dspModeString = set->getDSPModeString(m_rxDataList[m_receiver].dspMode);
-
-	m_dBmPanMin = m_rxDataList.at(m_receiver).dBmPanScaleMinList.at(band);
-	m_dBmPanMax = m_rxDataList.at(m_receiver).dBmPanScaleMaxList.at(band);
+	m_dBmPanMin = set->getdBmPanScaleMin(m_receiver, band);
+	m_dBmPanMax = set->getdBmPanScaleMax(m_receiver, band);
+	if (m_sliceModel) {
+		m_sliceModel->setDBmPanScaleMin(m_dBmPanMin);
+		m_sliceModel->setDBmPanScaleMax(m_dBmPanMax);
+	}
 
 	m_dBmScalePanadapterUpdate = true;
 	m_panGridUpdate = true;

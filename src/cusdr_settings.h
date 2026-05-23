@@ -677,7 +677,7 @@ typedef enum _windowtype {
 
 
 
-class Receiver;
+class SliceProcessor;
 
 // *********************************************************************
 // thread class
@@ -696,6 +696,7 @@ protected:
 // Settings class
 
 class RadioModel;
+class SliceModel;
 class Settings : public QObject {
 
 	Q_OBJECT
@@ -703,6 +704,7 @@ class Settings : public QObject {
 public:
     void setRadioModel(RadioModel* model) { m_radioModel = model; }
     RadioModel* radioModel() const { return m_radioModel; }
+    SliceModel* sliceModel(int rx) const;
     void syncSlicesWithSettings();
     void syncSettingsWithSlices();
 public:
@@ -781,7 +783,7 @@ signals:
 	void freeDVModeChanged(int rx, int mode);
 
 	void sampleSizeChanged(int rx, int size);
-    void rxListChanged(QList<Receiver *> rxList);
+    void rxListChanged(QList<SliceProcessor *> rxList);
     void clientConnectedChanged(bool connect);
 	void clientNoConnectedChanged(int client);
 	void audioRxChanged(int rx);
@@ -1065,6 +1067,22 @@ public:
 	HamBand						getCurrentHamBand(int rx);
 	QList<int>					getMercuryAttenuators(int rx);
 	QSDR::_DSPCore				getReceiverDspCore(int rx) const;
+	QList<DSPMode>				getDSPModeList(int rx) const;
+	QList<long>					getLastCenterFrequencyList(int rx) const;
+	QList<long>					getLastVfoFrequencyList(int rx) const;
+	qreal						getdBmPanScaleMin(int rx, HamBand band) const;
+	qreal						getdBmPanScaleMax(int rx, HamBand band) const;
+	float						getFreqRulerPosition(int rx) const;
+	qreal						getFilterLo(int rx) const;
+	qreal						getFilterHi(int rx) const;
+	TDefaultFilterMode			getDefaultFilterMode(int rx) const;
+	qreal						getAGCAttackTime(int rx) const;
+	qreal						getAGCDecayTime(int rx) const;
+	qreal						getAGCHangTime(int rx) const;
+	bool						getHangEnabled(int rx) const;
+	bool						getAgcLines(int rx) const;
+	int							getWaterfallOffsetLo(int rx) const;
+	int							getWaterfallOffsetHi(int rx) const;
 	//int getMercuryAttenuator();
 
 	bool getPennyOCEnabled()		{ return m_pennyOCEnabled; }
@@ -1231,7 +1249,7 @@ public slots:
 	void addFreeDVTxFrames(int rx, quint64 txFrames);
 	void setFreeDVMode(int rx, int mode);
 	void setSampleSize(int rx, int size);
-    void setRxList (QList<Receiver*> list);
+    void setRxList (QList<SliceProcessor*> list);
 	void setMetisCardList(QList<TNetworkDevicecard> list);
 	void searchHpsdrNetworkDevices();
 	void clearMetisCardList();

@@ -65,9 +65,8 @@ private:
 	QSDR::_DataEngineState		m_dataEngineState;
 
 	QtColorTriangle				*m_colorTriangle;
-	QList<TReceiver>			m_rxDataList;
 	
-	QString						m_menu_style;
+    QString						m_menu_style;
 
 	QColor			m_currentColor;
 	QColor			m_newColor;

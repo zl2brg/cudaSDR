@@ -152,7 +152,7 @@ void HPSDRServer::stopServer() {
 	}
 }
 
-void HPSDRServer::rxListChanged(QList<Receiver *> rxList) {
+void HPSDRServer::rxListChanged(QList<SliceProcessor *> rxList) {
 
 	QMutexLocker locker(&m_serverMutex);
 		m_rxList = rxList;
@@ -243,7 +243,7 @@ void HPSDRServer::readCommand() {
 
 char *HPSDRServer::attachReceiver(int rx, int client) {
 
-	if (m_rxList[rx]->property("socketState") == Receiver::RECEIVER_ATTACHED)
+	if (m_rxList[rx]->property("socketState").toString() == QLatin1String("RECEIVER_ATTACHED"))
 		return CLIENT_ATTACHED;
 
 	if (rx >= m_rxList.size())
@@ -310,7 +310,7 @@ char *HPSDRServer::detachReceiver(int rx, int client) {
 
 char *HPSDRServer::setFrequency(long frequency, int rx) {
 
-	if (m_rxList[rx]->property("socketState") == Receiver::RECEIVER_DETACHED)
+	if (m_rxList[rx]->property("socketState").toString() == QLatin1String("RECEIVER_DETACHED"))
 		return CLIENT_DETACHED;
 
 	if (m_rxList[rx]->getReceiver() < 0)

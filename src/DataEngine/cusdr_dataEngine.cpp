@@ -957,13 +957,13 @@ bool DataEngine::start() {
 
 		CHECKED_CONNECT(
 				RX.at(i),
-				&Receiver::outputBufferSignal,
+				&SliceProcessor::outputBufferSignal,
 				m_dataProcessor,
 				&DataProcessor::setOutputBuffer);
 
         CHECKED_CONNECT(
 				RX.at(i),
-				&Receiver::audioBufferSignal,
+				&SliceProcessor::audioBufferSignal,
 				m_dataProcessor,
 				&DataProcessor::send_hpsdr_data);
 
@@ -1256,7 +1256,7 @@ bool DataEngine::initReceivers(int rcvrs) {
 	for (int i = 0; i < rcvrs; i++) {
         if (!m_radioModel || i >= m_radioModel->slices().size()) continue;
 
-        auto rx =  new Receiver(m_radioModel->slices().at(i), this);
+        auto rx =  new SliceProcessor(m_radioModel->slices().at(i), this);
 		// init the DSP core
 		DATA_ENGINE_DEBUG << "[RX-ADD] initReceivers: init DSP core for rx " << i;
 
@@ -1273,14 +1273,14 @@ bool DataEngine::initReceivers(int rcvrs) {
 
 			//CHECKED_CONNECT(this, SIGNAL(doDSP()), rx, SLOT(dspProcessing()));
 
-            connect(rx, &Receiver::spectrumBufferChanged, set, &Settings::setSpectrumBuffer);
+            connect(rx, &SliceProcessor::spectrumBufferChanged, set, &Settings::setSpectrumBuffer);
             if (RadioTelemetry* tel = m_radioModel ? m_radioModel->telemetry() : nullptr) {
-                connect(rx, &Receiver::sMeterValueChanged, tel,
+                connect(rx, &SliceProcessor::sMeterValueChanged, tel,
                         [tel](int receiverId, double value) {
                             tel->setSMeterValue(receiverId, value);
                         });
             }
-         //   connect(rx.get(), &Receiver::outputBufferSignal, m_dataProcessor, &DataProcessor::setOutputBuffer);
+         //   connect(rx.get(), &SliceProcessor::outputBufferSignal, m_dataProcessor, &DataProcessor::setOutputBuffer);
 
 
 			m_dspThreadList.append(thread);
@@ -2056,7 +2056,7 @@ void DataEngine::setHPSDRDeviceNumber(int value) {
 	m_hpsdrDevices = value;
 }
 
-void DataEngine::rxListChanged(QList<Receiver *> list) {
+void DataEngine::rxListChanged(QList<SliceProcessor *> list) {
 
 	QMutexLocker locker(&io.mutex);
 	RX = list;
@@ -3729,7 +3729,7 @@ void DataEngine::radioStateChange(RadioState state) {
     }
 
 	// Keep all receiver display pipelines in sync with TX/RX state.
-	// Receiver::dspProcessing uses m_state to choose RX or TX spectrum source.
+	// SliceProcessor::dspProcessing uses m_state to choose RX or TX spectrum source.
 	for (int i = 0; i < RX.size(); ++i) {
 		if (RX.at(i)) {
 			RX.at(i)->m_state = state;
