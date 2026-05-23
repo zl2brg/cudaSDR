@@ -3,9 +3,6 @@
 #include "Models/RadioModel.h"
 #include "Models/SliceModel.h"
 #include "DataEngine/cusdr_dataEngine.h"
-#include "DataEngine/cusdr_receiver.h"
-#include "QtWDSP/qtwdsp_dspEngine.h"
-#include "cusdr_settings.h"
 
 RadioController::RadioController(QObject* parent)
     : QObject(parent)
@@ -18,47 +15,40 @@ void RadioController::bind(RadioModel* model, DataEngine* engine)
         return;
     }
 
+    // Disconnect any connections from a previous bind() call to prevent
+    // duplicate signal firings after an engine stop/restart.
+    for (const QMetaObject::Connection& c : std::as_const(m_connections))
+        disconnect(c);
+    m_connections.clear();
+
     const QList<SliceModel*>& slices = model->slices();
     for (int i = 0; i < slices.size(); ++i) {
         SliceModel* slice = slices.at(i);
         if (!slice || i >= engine->RX.size()) {
             continue;
         }
-        bindSlice(slice, engine, engine->RX.at(i));
+        bindSlice(slice, engine);
     }
 }
 
-void RadioController::bindSlice(SliceModel* slice, DataEngine* engine, Receiver* receiver)
+void RadioController::bindSlice(SliceModel* slice, DataEngine* engine)
 {
-    if (!slice || !engine || !receiver) {
+    if (!slice || !engine) {
         return;
     }
 
     const int rx = slice->id();
 
-    // VFO -> hardware NCO / RX center tracking (Protocol 1 rx_freq_change).
-    connect(slice, &SliceModel::frequencyChanged, engine,
-            [engine, rx](long freq) { engine->setFrequency(0, rx, freq); });
-
-    // Panadapter center -> RX + protocol.
-    connect(slice, &SliceModel::centerFrequencyChanged, engine,
-            [engine, receiver, rx](long freq) {
-                receiver->setCtrFrequency(freq);
+    // Panadapter center -> tell Protocol 1/2 which RX had a center-frequency change.
+    // (WDSP NCO / filters / mode: SliceModel -> QWDSPEngine directly.)
+    m_connections.append(connect(slice, &SliceModel::centerFrequencyChanged, engine,
+            [engine, rx](long) {
                 engine->io.rx_freq_change = rx;
-            });
+            }));
 
-    // Mode -> TX CC + WDSP (slice is authoritative; Settings::dspMode no longer required).
-    connect(slice, &SliceModel::dspModeChanged, engine,
-            [engine, receiver, slice, rx](DSPMode mode) {
+    // Mode -> TX control bytes (WDSP mode is driven by SliceModel -> QWDSPEngine).
+    m_connections.append(connect(slice, &SliceModel::dspModeChanged, engine,
+            [engine, rx](DSPMode mode) {
                 engine->applySliceDspMode(rx, mode);
-                receiver->applyDspModeFromSlice(mode, slice->centerFrequency());
-            });
-
-    // Filters -> WDSP (Receiver also mirrors m_receiverData for legacy readers).
-    connect(slice, &SliceModel::filterChanged, receiver,
-            [receiver, slice]() {
-                receiver->applyFilterFromSlice(
-                    static_cast<double>(slice->filterLow()),
-                    static_cast<double>(slice->filterHigh()));
-            });
+            }));
 }

@@ -1351,7 +1351,8 @@ void QGLWidebandPanel::mousePressEvent(QMouseEvent* event) {
 
 			
 			m_frequency = (long)(1000 * (int)(qRound(m_mousePos.x()/unit + m_lowerFrequency)/1000));
-			set->setVFOFrequency(1, m_currentReceiver, m_frequency);
+			set->setCtrFrequency(0, m_currentReceiver, m_frequency);
+			set->setVFOFrequency(0, m_currentReceiver, m_frequency);
 		}
         update();
 

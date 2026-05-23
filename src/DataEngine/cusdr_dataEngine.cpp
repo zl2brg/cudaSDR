@@ -944,7 +944,6 @@ bool DataEngine::start() {
     for (int i = 0; i < rcvrs ; i++) {
 
 		RX.at(i)->setConnectedStatus(true);
-        RX.at(i)->setAudioVolume(i, RX.at(i)->getAudioVolume());
 		if (i < ctrFrequencies.count()) {
 			setFrequency(true, i, ctrFrequencies.at(i));
 		}
@@ -1328,9 +1327,9 @@ bool DataEngine::initReceivers(int rcvrs) {
 	io.ccRx.mercury4_LT2208 = false;
 
 	// init cc Tx parameters
-	io.ccTx.currentBand = RX.at(0)->getHamBand();
-	io.ccTx.mercuryAttenuators = RX.at(0)->getMercuryAttenuators();
-	io.ccTx.mercuryAttenuator = RX.at(0)->getMercuryAttenuators().at(io.ccTx.currentBand);
+	io.ccTx.currentBand = set->getCurrentHamBand(0);
+	io.ccTx.mercuryAttenuators = set->getMercuryAttenuators(0);
+	io.ccTx.mercuryAttenuator = io.ccTx.mercuryAttenuators.at(io.ccTx.currentBand);
 	io.ccTx.dither = set->getMercuryDither();
 	io.ccTx.random = set->getMercuryRandom();
 	io.ccTx.duplex = 1;
@@ -1495,11 +1494,11 @@ void DataEngine::setHPSDRConfig() {
 }
 
 void DataEngine::connectDSPSlots() {
-    // connect(set, &Settings::ctrFrequencyChanged, this, &DataEngine::setFrequency);
+    connect(set, &Settings::ctrFrequencyChanged, this, &DataEngine::setFrequency);
 }
 
 void DataEngine::disconnectDSPSlots() {
-    // connect(set, &Settings::ctrFrequencyChanged, this, &DataEngine::setFrequency);
+    disconnect(set, &Settings::ctrFrequencyChanged, this, &DataEngine::setFrequency);
 }
 
 
@@ -2462,12 +2461,10 @@ void DataEngine::setHamBand(int rx, bool byBtn, HamBand band) {
 
 void DataEngine::setFrequency(int mode, int rx, long frequency) {
 
-	Q_UNUSED (mode)
+	Q_UNUSED(mode)
+	Q_UNUSED(frequency)
 
-	//RX[rx]->setFrequency(frequency);
-	RX[rx]->setCtrFrequency(frequency);
 	io.rx_freq_change = rx;
-
 }
 
 void DataEngine::applySliceDspMode(int rx, DSPMode mode)

@@ -16,28 +16,27 @@ flowchart LR
   UI -->|setVolume setAgcMode setFilter*| SM
   SM --> RC
   RC --> DE
-  RC --> RX
-  SM --> RX
   SM --> WDSP
   RX --> WDSP
 ```
 
-## Bound through `RadioController`
+## Bound through `RadioController` (protocol / TX only)
 
 Per slice (`id` == receiver index), after `DataEngine::initReceivers()`:
 
 | Signal | Target |
 |--------|--------|
-| `frequencyChanged` | `DataEngine::setFrequency` |
-| `centerFrequencyChanged` | `Receiver::setCtrFrequency` + `io.rx_freq_change` |
-| `dspModeChanged` | `applySliceDspMode` + `Receiver::applyDspModeFromSlice` |
-| `filterChanged` | `Receiver::applyFilterFromSlice` |
+| `centerFrequencyChanged` | `io.rx_freq_change` (Protocol 1/2 center-freq CC) |
+| `dspModeChanged` | `DataEngine::applySliceDspMode` (TX CC bytes) |
+
+VFO (`frequencyChanged`), filters, volume, and WDSP mode are **not** routed through `Receiver`; they go `SliceModel` → `QWDSPEngine` at RX init.
+
+Legacy center-frequency updates from `Settings::setCtrFrequency` still emit `ctrFrequencyChanged` → `DataEngine::setFrequency` via `connectDSPSlots()`.
 
 ## Bound directly on `SliceModel` (at RX init)
 
 | Signal | Target |
 |--------|--------|
-| `volumeChanged` / `muteChanged` | `Receiver::setAudioVolume` |
 | `volumeChanged` / `muteChanged` | `QWDSPEngine::setVolume` |
 | `agcModeChanged` | `QWDSPEngine::setAGCMode` |
 | `agcGainChanged` | `QWDSPEngine::setAGCThreshold` |
@@ -65,10 +64,25 @@ Legacy `Settings::*Changed` signals for volume/AGC/mode/filter are **not** relay
 - **Load:** `Settings::syncSlicesWithSettings()` — INI → `SliceModel`
 - **Save:** `Settings::syncSettingsWithSlices()` — `SliceModel` → `m_receiverDataList` → INI
 
+## Phase 3: Receiver without `TReceiver` mirror
+
+`Receiver` is a DSP-thread worker only (IQ queue, spectrum, audio). It no longer holds a copy of `TReceiver m_receiverData` or mirrors Settings signals into local state.
+
+| Concern | Source |
+|---------|--------|
+| Frequency, mode, filters, volume, AGC | `SliceModel` (runtime) |
+| Ham band, attenuators, DSP core, INI fields | `Settings` getters / persistence |
+| Protocol center-freq CC | `RadioController` → `DataEngine::setFrequency` → `io.rx_freq_change` only |
+| WDSP init & live updates | `QWDSPEngine` reads `SliceModel` first (`centerFrequencyHz`, `currentDspMode`) |
+
+Removed from `Receiver`: mirror slots (`setHamBand`, `setDspMode`, `setCtrFrequency`, …), redundant getters, and `DataEngine::setFrequency` no longer calls `RX[rx]->setCtrFrequency`.
+
+UI widgets still read `Settings::getReceiverDataList()` for some display state; Phase 4 migrates those to `RadioModel::slices()`.
+
 ## Files
 
 - `src/Controllers/RadioController.{h,cpp}`
-- `src/DataEngine/cusdr_receiver.cpp` — `applyDspModeFromSlice`, `applyFilterFromSlice`, volume from slice
+- `src/DataEngine/cusdr_receiver.cpp` — DSP worker (IQ queue, spectrum); no slice→WDSP relay
 - `src/QtWDSP/qtwdsp_dspEngine.cpp` — slice-first WDSP connects
 - `src/Models/RadioTelemetry.{h,cpp}` — live spectrum, meters, sync/PA telemetry
 - `src/cusdr_settings.cpp` — persistence / config only (no telemetry relays)

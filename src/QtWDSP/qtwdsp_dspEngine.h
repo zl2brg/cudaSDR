@@ -174,6 +174,9 @@ private:
 
     void ProcessFrequencyShift(CPX &in, CPX &out);
     void setupConnections();
+    long centerFrequencyHz() const;
+    DSPMode currentDspMode() const;
+    void updateFreeDvSideband(long frequency);
 
 private slots:
 };

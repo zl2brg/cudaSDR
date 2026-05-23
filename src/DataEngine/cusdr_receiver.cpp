@@ -48,8 +48,6 @@ Receiver::Receiver(SliceModel *model, QObject *parent)
 	//, m_calOffset(63.0)
 	//, m_calOffset(33.0)
 {
-	setReceiverData(set->getReceiverDataList().at(m_receiver));
-
 	InitCPX(inBuf, BUFFER_SIZE, 0.0f);
 	InitCPX(outBuf, BUFFER_SIZE, 0.0f);
     InitCPX(audioOutputBuf, BUFFER_SIZE, 0.0f);
@@ -97,24 +95,10 @@ void Receiver::setAudioBufferSize() {
 void Receiver::setupConnections() {
     connect(set, &Settings::systemStateChanged,
             this, &Receiver::setSystemState);
-    
-    // connect(set, &Settings::mainVolumeChanged,
-            // this, &Receiver::setAudioVolume);
 
-    connect(m_sliceModel, &SliceModel::volumeChanged, [this](float value){ setAudioVolume(m_receiver, value); });
-    connect(m_sliceModel, &SliceModel::muteChanged, [this](bool muted){ setAudioVolume(m_receiver, muted ? 0.0f : m_sliceModel->volume()); });
     connect(set, &Settings::sampleRateChanged,
             this, &Receiver::setSampleRate);
 
-    connect(set, &Settings::hamBandChanged,
-            this, &Receiver::setHamBand);
-    
-    connect(set, &Settings::adcModeChanged,
-            this, &Receiver::setADCMode);
-    
-    connect(set, &Settings::agcFixedGainChanged_dB,
-            this, &Receiver::setAGCFixedGain_dB);
-    
     connect(set, &Settings::framesPerSecondChanged,
             this, &Receiver::setFramesPerSecond);
 
@@ -124,14 +108,9 @@ void Receiver::setupConnections() {
 #endif
 }
 
-void Receiver::setReceiverData(TReceiver data) {
-
-	m_receiverData = data;
-}
-
 bool Receiver::initDSPInterface() {
 
-	if (m_receiverData.dspCore == QSDR::QtDSP) {
+	if (set->getReceiverDspCore(m_receiver) == QSDR::QtDSP) {
 
         if (!initQtWDSPInterface()) return false;
 
@@ -154,18 +133,24 @@ bool Receiver::initQtWDSPInterface() {
     RECEIVER_DEBUG << "[RX-ADD] QWDSPEngine constructed for rx=" << m_receiver << "(isValid=true)";
 
     qtwdsp->setQtDSPStatus(true);
-    qtwdsp->setVolume(m_receiverData.audioVolume);
+    const float volume = m_sliceModel ? m_sliceModel->volume() : static_cast<float>(set->getMainVolume(m_receiver));
+    qtwdsp->setVolume(volume);
 
-    DSPMode mode = m_receiverData.dspModeList.at(m_receiverData.hamBand);
+    const DSPMode mode = m_sliceModel ? m_sliceModel->dspMode() : set->getDSPMode(m_receiver);
     RECEIVER_DEBUG << "[RX-ADD] rx=" << m_receiver << "set DSP mode to:" << set->getDSPModeString(mode);
 
     qtwdsp->setDSPMode(mode);
 
-    auto filter = getFilterFromDSPMode(set->getDefaultFilterList(),
-                                       resolveWDSPMode(mode, set->getCtrFrequency(m_receiver)));
-    qtwdsp->setFilter(filter.filterLo, filter.filterHi);
-
-    RECEIVER_DEBUG << "[RX-ADD] initQtWDSPInterface: rx=" << m_receiver << "complete (filter lo=" << filter.filterLo << "hi=" << filter.filterHi << ")";
+    if (m_sliceModel) {
+        qtwdsp->setFilter(m_sliceModel->filterLow(), m_sliceModel->filterHigh());
+        RECEIVER_DEBUG << "[RX-ADD] initQtWDSPInterface: rx=" << m_receiver << "complete (filter lo=" << m_sliceModel->filterLow() << "hi=" << m_sliceModel->filterHigh() << ")";
+    } else {
+        const long ctrHz = set->getCtrFrequency(m_receiver);
+        auto filter = getFilterFromDSPMode(set->getDefaultFilterList(),
+                                           resolveWDSPMode(mode, ctrHz));
+        qtwdsp->setFilter(filter.filterLo, filter.filterHi);
+        RECEIVER_DEBUG << "[RX-ADD] initQtWDSPInterface: rx=" << m_receiver << "complete (filter lo=" << filter.filterLo << "hi=" << filter.filterHi << ")";
+    }
     return true;
 }
 
@@ -300,7 +285,8 @@ void Receiver::dspProcessing() {
             m_smeterTime.restart();
         }
 #ifdef USE_INTERNAL_AUDIO
-		if (set->getDSPMode(m_receiver) != DSPMode::FDV) {
+		const DSPMode dspMode = m_sliceModel ? m_sliceModel->dspMode() : set->getDSPMode(m_receiver);
+		if (dspMode != DSPMode::FDV) {
 			// Normal analogue modes: pass WDSP audio output straight to soundcard.
 			m_audioOutput->writeAudio(interleaveFromCPX(audioOutputBuf, m_audiobuffersize));
 		}
@@ -434,11 +420,6 @@ QSDR::_ServerMode Receiver::getServerMode()	const {
 	return m_serverMode;
 }
 
-QSDR::_DSPCore Receiver::getDSPCoreMode() const {
-
-	return m_receiverData.dspCore;
-}
-
 //void Receiver::setSocketState(SocketState state) {
 //
 //	m_socketState = state;
@@ -483,131 +464,6 @@ void Receiver::setAudioMode(int mode) {
 void Receiver::setReceiver(int value) {
 
 	m_receiver = value;
-}
-
-
-void Receiver::setHamBand(int rx, bool byBtn, HamBand band) {
-
-	Q_UNUSED(byBtn)
-
-	if (m_receiver == rx) {
-
-		if (m_receiverData.hamBand == band) return;
-		m_receiverData.hamBand = band;
-	}
-}
-
-void Receiver::setDspMode(int rx, DSPMode mode) {
-
-	if (m_receiver != rx) return;
-	if (m_receiverData.dspMode == mode) return;
-
-	m_receiverData.dspMode = mode;
-	RECEIVER_DEBUG << "[RX" << rx << "] DSP mode changed to" << set->getDSPModeString(mode) << "(" << mode << ")";
-
-	QString msg = "[receiver]: set mode for receiver %1 to %2";
-	emit messageEvent(msg.arg(rx).arg(set->getDSPModeString(m_receiverData.dspMode)));
-}
-
-void Receiver::setADCMode(int rx, ADCMode mode) {
-
-	if (m_receiver != rx) return;
-	if (m_receiverData.adcMode == mode) return;
-
-	m_receiverData.adcMode = mode;
-
-	//RECEIVER_DEBUG << "RRK setADCMode = " << m_receiverData.adcMode;
-}
-
-void Receiver::setAGCFixedGain_dB(int rx, qreal value) {
-
-	if (m_receiver != rx) return;
-	if (m_receiverData.agcFixedGain_dB == value) return;
-
-	m_receiverData.agcFixedGain_dB = value;
-
-}
-
-void Receiver::setAudioVolume(int rx, float value) {
-
-	if (m_receiver != rx) return;
-
-	m_receiverData.audioVolume = value;
-}
-
-void Receiver::setFilterFrequencies(int rx, double low, double high) {
-
-	if (m_receiver == rx) {
-
-		if (m_receiverData.filterLo == low && m_receiverData.filterHi == high) return;
-		m_receiverData.filterLo = low;
-		m_receiverData.filterHi = high;
-	}
-}
-
-void Receiver::applyDspModeFromSlice(DSPMode mode, long centerFrequencyHz)
-{
-	setDspMode(m_receiver, mode);
-	if (!qtwdsp) {
-		return;
-	}
-	qtwdsp->setDSPMode(mode);
-	const DSPMode wdspMode = resolveWDSPMode(mode, centerFrequencyHz);
-	const TDefaultFilter filter = getFilterFromDSPMode(set->getDefaultFilterList(), wdspMode);
-	qtwdsp->setFilter(filter.filterLo, filter.filterHi);
-}
-
-void Receiver::applyFilterFromSlice(double low, double high)
-{
-	setFilterFrequencies(m_receiver, low, high);
-	if (qtwdsp) {
-		qtwdsp->setFilter(low, high);
-	}
-}
-
-void Receiver::setCtrFrequency(long frequency) {
-
-	if (m_receiverData.ctrFrequency == frequency) return;
-	m_receiverData.ctrFrequency = frequency;
-
-	HamBand band = getBandFromFrequency(set->getBandFrequencyList(), frequency);
-	m_receiverData.lastCenterFrequencyList[(int) band] = m_receiverData.ctrFrequency;
-}
-
-void Receiver::setVfoFrequency(long frequency) {
-
-	if (m_receiverData.vfoFrequency == frequency) return;
-	m_receiverData.vfoFrequency = frequency;
-
-	HamBand band = getBandFromFrequency(set->getBandFrequencyList(), frequency);
-	m_receiverData.lastVfoFrequencyList[(int) band] = m_receiverData.vfoFrequency;
-}
-
-void Receiver::setLastCtrFrequencyList(const QList<long> &fList) {
-
-	m_receiverData.lastCenterFrequencyList = fList;
-}
-
-void Receiver::setLastVfoFrequencyList(const QList<long> &fList) {
-
-	m_receiverData.lastVfoFrequencyList = fList;
-}
-
-void Receiver::setdBmPanScaleMin(qreal value) {
-
-	if (m_dBmPanScaleMin == value) return;
-	m_dBmPanScaleMin = value;
-}
-
-void Receiver::setdBmPanScaleMax(qreal value) {
-
-	if (m_dBmPanScaleMax == value) return;
-	m_dBmPanScaleMax = value;
-}
-
-void Receiver::setMercuryAttenuators(const QList<int> &attenuators) {
-
-	m_receiverData.mercuryAttenuators = attenuators;
 }
 
 void Receiver::setFramesPerSecond(int rx, int value) {

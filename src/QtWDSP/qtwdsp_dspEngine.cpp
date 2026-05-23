@@ -196,6 +196,12 @@ void QWDSPEngine::setupConnections() {
     connect(m_sliceModel, &SliceModel::nrAgcChanged, [this](int mode){ setNrAGC(m_rx, mode); });
     connect(m_sliceModel, &SliceModel::volumeChanged, [this](float value){ setVolume(value); });
     connect(m_sliceModel, &SliceModel::muteChanged, [this](bool muted){ setVolume(muted ? 0.0f : m_sliceModel->volume()); });
+    connect(m_sliceModel, &SliceModel::frequencyChanged, [this](long freq) {
+        setNCOFrequency(m_rx, freq - m_sliceModel->centerFrequency());
+    });
+    connect(m_sliceModel, &SliceModel::centerFrequencyChanged, [this](long ctrFreq) {
+        setNCOFrequency(m_rx, m_sliceModel->frequency() - ctrFreq);
+    });
     connect(set, &Settings::ncoFrequencyChanged,
             this, &QWDSPEngine::setNCOFrequency);
 
@@ -242,23 +248,20 @@ void QWDSPEngine::setupConnections() {
             if (rx != m_rx) return;
             setDSPMode(mode);
             auto filter = getFilterFromDSPMode(set->getDefaultFilterList(),
-                                               resolveWDSPMode(mode, set->getCtrFrequency(m_rx)));
+                                               resolveWDSPMode(mode, centerFrequencyHz()));
             setFilter(filter.filterLo, filter.filterHi);
         });
     }
-    connect(set, &Settings::ctrFrequencyChanged,
-            this, [this](int /*mode*/, int rx, long frequency) {
-        if (rx != m_rx) return;
-        if (set->getDSPMode(m_rx) != FDV) return;
-        // Reselect USB/LSB when frequency crosses the 10 MHz boundary in FDV/FreeDV mode.
-        DSPMode wdspMode = resolveWDSPMode(FDV, frequency);
-        if (m_dspmode == wdspMode) return;
-        m_dspmode = wdspMode;
-        WDSP_ENGINE_DEBUG << "FreeDV sideband updated to" << wdspMode << "for freq" << frequency;
-        SetRXAMode(m_rx, wdspMode);
-        auto filter = getFilterFromDSPMode(set->getDefaultFilterList(), wdspMode);
-        setFilter(filter.filterLo, filter.filterHi);
-    });
+    if (m_sliceModel) {
+        connect(m_sliceModel, &SliceModel::centerFrequencyChanged,
+                this, &QWDSPEngine::updateFreeDvSideband);
+    } else {
+        connect(set, &Settings::ctrFrequencyChanged,
+                this, [this](int /*mode*/, int rx, long frequency) {
+            if (rx != m_rx) return;
+            updateFreeDvSideband(frequency);
+        });
+    }
     if (!m_sliceModel) {
         connect(set, &Settings::agcModeChanged,
                 this, [this](int rx, AGCMode mode, bool) {
@@ -330,6 +333,29 @@ void QWDSPEngine::setupConnections() {
     }
 }
 
+long QWDSPEngine::centerFrequencyHz() const {
+
+    return m_sliceModel ? m_sliceModel->centerFrequency() : set->getCtrFrequency(m_rx);
+}
+
+DSPMode QWDSPEngine::currentDspMode() const {
+
+    return m_sliceModel ? m_sliceModel->dspMode() : set->getDSPMode(m_rx);
+}
+
+void QWDSPEngine::updateFreeDvSideband(long frequency) {
+
+    if (currentDspMode() != FDV) return;
+    // Reselect USB/LSB when frequency crosses the 10 MHz boundary in FDV/FreeDV mode.
+    DSPMode wdspMode = resolveWDSPMode(FDV, frequency);
+    if (m_dspmode == wdspMode) return;
+    m_dspmode = wdspMode;
+    WDSP_ENGINE_DEBUG << "FreeDV sideband updated to" << wdspMode << "for freq" << frequency;
+    SetRXAMode(m_rx, wdspMode);
+    auto filter = getFilterFromDSPMode(set->getDefaultFilterList(), wdspMode);
+    setFilter(filter.filterLo, filter.filterHi);
+}
+
 
 
 void QWDSPEngine::processDSP(CPX &in, CPX &out) {
@@ -377,7 +403,7 @@ void QWDSPEngine::setQtDSPStatus(bool value) {
 
 void QWDSPEngine::setDSPMode(DSPMode mode) {
 
-	DSPMode wdspMode = resolveWDSPMode(mode, set->getCtrFrequency(m_rx));
+	DSPMode wdspMode = resolveWDSPMode(mode, centerFrequencyHz());
 	m_dspmode = wdspMode;
 	WDSP_ENGINE_DEBUG << "[RX" << m_rx << "] DSP mode set to" << mode << "(WDSP:" << wdspMode << ")";
 	SetRXAMode(m_rx, wdspMode);

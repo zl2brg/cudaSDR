@@ -1877,8 +1877,10 @@ void OGLDisplayPanel::wheelEvent(QWheelEvent * event) {
 
                 set->setVFOFrequency(0, m_currentReceiver, newFreq);
 			}
-            else
-                set->setVFOFrequency(1, m_currentReceiver, newFreq);
+            else {
+                set->setCtrFrequency(0, m_currentReceiver, newFreq);
+                set->setVFOFrequency(0, m_currentReceiver, newFreq);
+            }
 		}
 	event->accept();
 	QOpenGLWidget::wheelEvent(event);

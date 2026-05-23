@@ -66,13 +66,7 @@ public:
 
 
 	QSDR::_ServerMode	getServerMode()	const;
-	QSDR::_DSPCore		getDSPCoreMode() const;
 	QHostAddress		getPeerAddress()		{ return m_peerAddress; }
-	HamBand				getHamBand()			{ return m_receiverData.hamBand; }
-	ADCMode				getADCMode()			{ return m_receiverData.adcMode; }
-	AGCMode				getAGCMode()			{ return m_receiverData.agcMode; }
-	QList<int>			getMercuryAttenuators() { return m_receiverData.mercuryAttenuators; }
-	QList<DSPMode>		getDSPModeList()		{ return m_receiverData.dspModeList; }
 
 	int		getAudioMode()			{ return m_audioMode; }
 	int		getSocketDescriptor()	{ return m_socketDescriptor; }
@@ -80,17 +74,7 @@ public:
 	int		getClient()				{ return m_client; }
 	int		getIQPort()				{ return m_iqPort; }
 	int		getBSPort()				{ return m_bsPort; }
-	//int		getID()					{ return m_receiverID; }
-	int		getSampleRate()			{ return m_receiverData.sampleRate; }
 	int		getDisplayDelay()		{ return m_displayTime; }
-	qreal	getAGCGain()			{ return m_receiverData.acgGain; }
-	float	getAudioVolume()		{ return m_receiverData.audioVolume; }
-	long	getCtrFrequency()		{ return m_receiverData.ctrFrequency; }
-	long	getVfoFrequency()		{ return m_receiverData.vfoFrequency; }
-	double	getFilterLo()			{ return m_receiverData.filterLo; }
-	double	getFilterHi()			{ return m_receiverData.filterHi; }
-	qreal	getdBmPanScaleMin()		{ return m_dBmPanScaleMin; }
-	qreal	getdBmPanScaleMax()		{ return m_dBmPanScaleMax; }
 	bool	getConnectedStatus()	{ return m_connected; }
     void 	setAudioBufferSize();
 
@@ -114,7 +98,6 @@ public:
 
 public slots:
     void    enqueueRawData();
-	void	setReceiverData(TReceiver data);
 	void	setAudioMode(int mode);
 	void	setServerMode(QSDR::_ServerMode mode);
 	void	setPeerAddress(QHostAddress addr);
@@ -124,24 +107,8 @@ public slots:
 	void	setIQPort(int value);
 	void	setBSPort(int value);
 	void	setConnectedStatus(bool value);
-	//void	setID(int value);
     void	setSampleRate(int value);
-	void	setHamBand(int rx, bool byBtn, HamBand band);
-	void	setDspMode(int rx, DSPMode mode);
-	void	setADCMode(int rx, ADCMode mode);
-	void	setAudioVolume(int rx, float value);
 	void	setFreeDVMode(int rx, int mode);
-	void	setCtrFrequency(long frequency);
-	void	setVfoFrequency(long frequency);
-	void	setFilterFrequencies(int rx, qreal low, qreal high);
-	/** Apply slice model mode to WDSP and local RX metadata (MVC path). */
-	void	applyDspModeFromSlice(DSPMode mode, long centerFrequencyHz);
-	void	applyFilterFromSlice(double low, double high);
-	void	setLastCtrFrequencyList(const QList<long> &frequencies);
-	void	setLastVfoFrequencyList(const QList<long> &frequencies);
-	void	setdBmPanScaleMin(qreal value);
-	void	setdBmPanScaleMax(qreal value);
-	void	setMercuryAttenuators(const QList<int> &attenuators);
 
 	void	dspProcessing();
 	void	stop();
@@ -153,15 +120,9 @@ private slots:
 					QSDR::_ServerMode mode, 
 					QSDR::_DataEngineState state);
 
-
 	void 	setFramesPerSecond(int rx, int value);
 
 	bool	initQtWDSPInterface();
-
-
-    
-	//void	setAGCMaximumGain_dBm(int rx, int value);
-	void	setAGCFixedGain_dB(int rx, qreal value);
 
 private:
 
@@ -173,7 +134,6 @@ private:
 	QSDR::_HWInterfaceMode	m_hwInterface;
 	QSDR::_DataEngineState	m_dataEngineState;
 
-	TReceiver 		m_receiverData;
 	QHostAddress	m_peerAddress;
 	quint16			m_peerPort;
 
@@ -198,9 +158,6 @@ private:
     int		m_bsPort;
 	int		m_displayTime;
 
-	//qreal	m_calOffset;
-	qreal	m_dBmPanScaleMin;
-	qreal	m_dBmPanScaleMax;
     int 	m_audiobuffersize;
 
 	bool	m_connected;

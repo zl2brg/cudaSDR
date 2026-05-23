@@ -1064,6 +1064,7 @@ public:
 
 	HamBand						getCurrentHamBand(int rx);
 	QList<int>					getMercuryAttenuators(int rx);
+	QSDR::_DSPCore				getReceiverDspCore(int rx) const;
 	//int getMercuryAttenuator();
 
 	bool getPennyOCEnabled()		{ return m_pennyOCEnabled; }

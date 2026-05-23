@@ -2437,8 +2437,12 @@ QList<long> Settings::getCtrFrequencies() {
 
     QList<long> frequencies;
 
-    for (int i = 0; i < MAX_RECEIVERS; i++)
-        frequencies << m_receiverDataList[i].ctrFrequency;
+    for (int i = 0; i < MAX_RECEIVERS; i++) {
+        if (m_radioModel && i < m_radioModel->slices().size() && m_radioModel->slices()[i])
+            frequencies << m_radioModel->slices()[i]->centerFrequency();
+        else
+            frequencies << m_receiverDataList[i].ctrFrequency;
+    }
 
     return frequencies;
 }
@@ -2447,8 +2451,12 @@ QList<long> Settings::getVfoFrequencies() {
 
     QList<long> frequencies;
 
-    for (int i = 0; i < MAX_RECEIVERS; i++)
-        frequencies << m_receiverDataList[i].vfoFrequency;
+    for (int i = 0; i < MAX_RECEIVERS; i++) {
+        if (m_radioModel && i < m_radioModel->slices().size() && m_radioModel->slices()[i])
+            frequencies << m_radioModel->slices()[i]->frequency();
+        else
+            frequencies << m_receiverDataList[i].vfoFrequency;
+    }
 
     return frequencies;
 }
@@ -3509,6 +3517,13 @@ QList<int> Settings::getMercuryAttenuators(int rx) {
     return m_receiverDataList[rx].mercuryAttenuators;
 }
 
+QSDR::_DSPCore Settings::getReceiverDspCore(int rx) const {
+
+    if (rx < 0 || rx >= m_receiverDataList.size())
+        return QSDR::QtDSP;
+    return m_receiverDataList.at(rx).dspCore;
+}
+
 void Settings::setDither(int value) {
 
     QMutexLocker locker(&settingsMutex);
@@ -3692,25 +3707,12 @@ void Settings::setVfoFrequency(int rx, long frequency) {
 }
 
 void Settings::setCtrFrequency(int mode, int rx, long frequency) {
-
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) {
-        auto slice = m_radioModel->slices()[rx];
-        slice->setCenterFrequency(frequency);
-
-        if (mode == 1) {
-            setVFOFrequency(0, rx, frequency);
-        }
-
-        const DSPMode currentMode = slice->dspMode();
-        if (currentMode == FDV) {
-            const DSPMode sideband = resolveWDSPMode(FDV, frequency);
-            slice->setFilterLow(static_cast<float>(m_defaultFilterList.at((int) sideband).filterLo));
-            slice->setFilterHigh(static_cast<float>(m_defaultFilterList.at((int) sideband).filterHi));
-        }
-
-        emit ctrFrequencyChanged(mode, rx, frequency);
+    if (rx < 0 || rx >= m_receiverDataList.size())
         return;
-    }
+
+    // Mirror into MVC slice model; pre-MVC legacy path continues below and remains authoritative
+    if (m_radioModel && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx])
+        m_radioModel->slices()[rx]->setCenterFrequency(frequency);
 
     QMutexLocker locker(&settingsMutex);
     m_receiverDataList[rx].ctrFrequency = frequency;
@@ -3750,7 +3752,12 @@ long Settings::getCtrFrequency(int rx) {
 }
 
 void Settings::setVFOFrequency(int mode, int rx, long frequency) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) { m_radioModel->slices()[rx]->setFrequency(frequency); return; }
+    if (rx < 0 || rx >= m_receiverDataList.size())
+        return;
+
+    // Mirror into MVC slice model; pre-MVC legacy path continues below and remains authoritative
+    if (m_radioModel && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx])
+        m_radioModel->slices()[rx]->setFrequency(frequency);
 
     QMutexLocker locker(&settingsMutex);
 
@@ -3844,6 +3851,7 @@ HamBand Settings::getCurrentHamBand(int rx) {
 }
 
 void Settings::setDSPMode(int rx, DSPMode mode) {
+    // Mirror into MVC slice model; pre-MVC legacy path continues below and remains authoritative
     if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) {
         auto slice = m_radioModel->slices()[rx];
         slice->setDspMode(mode);
@@ -3851,7 +3859,6 @@ void Settings::setDSPMode(int rx, DSPMode mode) {
         auto filter = getFilterFromDSPMode(m_defaultFilterList, wdspMode);
         slice->setFilterLow((float)filter.filterLo);
         slice->setFilterHigh((float)filter.filterHi);
-        return;
     }
 
     SETTINGS_DEBUG << "DSP mode change " << mode << rx;
@@ -4192,12 +4199,14 @@ void Settings::setAGCHangTime(int rx, qreal value) {
 }
 
 void Settings::setRXFilter(int rx, qreal low, qreal high) {
+    if (rx < 0 || rx >= m_receiverDataList.size())
+        return;
 
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) {
+    // Mirror into MVC slice model; legacy path continues below and remains authoritative
+    if (m_radioModel && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) {
         auto slice = m_radioModel->slices()[rx];
         slice->setFilterLow(static_cast<float>(low));
         slice->setFilterHigh(static_cast<float>(high));
-        return;
     }
 
     QMutexLocker locker(&settingsMutex);
