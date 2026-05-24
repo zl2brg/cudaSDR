@@ -1576,6 +1576,10 @@ int Settings::loadSettings() {
     if (!color.isValid()) color = QColor(7, 96, 96);
     colors.gridLineColor = color;
 
+    color = settings->value("colors/panFilter", QColor(150, 150, 150, 100)).value<QColor>();
+    if (!color.isValid()) color = QColor(150, 150, 150, 100);
+    colors.panFilterColor = color;
+
     m_displayConfig->setPanadapterColors(colors);
     m_panadapterColors = m_displayConfig->panadapterColors();
 
@@ -2420,6 +2424,7 @@ int Settings::saveSettings() {
     settings->setValue("colors/distanceLineFilled", QVariant(colors.distanceLineFilledColor).toString());
     settings->setValue("colors/panCenterLine", QVariant(colors.panCenterLineColor).toString());
     settings->setValue("colors/gridLine", QVariant(colors.gridLineColor).toString());
+    settings->setValue("colors/panFilter", QVariant(colors.panFilterColor).toString());
 
     SETTINGS_DEBUG << "save settings done.";
     return 0;
@@ -4782,8 +4787,18 @@ void Settings::moveDisplayWidget(int value) {
 //*********************************
 // color stuff
 
+TPanadapterColors Settings::getPanadapterColors() {
+    if (m_radioModel)
+        return m_radioModel->panadapterColors();
+    return m_panadapterColors;
+}
+
 void Settings::setPanadapterColors(TPanadapterColors type) {
-    if (m_radioModel) { m_radioModel->setPanadapterColors(type); return; }
+    if (m_radioModel) {
+        m_panadapterColors = type;
+        m_radioModel->setPanadapterColors(type);
+        return;
+    }
 
     if (type.panBackgroundColor != m_panadapterColors.panBackgroundColor)
         m_panadapterColors.panBackgroundColor = type.panBackgroundColor;
@@ -4826,6 +4841,9 @@ void Settings::setPanadapterColors(TPanadapterColors type) {
 
     if (type.gridLineColor != m_panadapterColors.gridLineColor)
         m_panadapterColors.gridLineColor = type.gridLineColor;
+
+    if (type.panFilterColor != m_panadapterColors.panFilterColor)
+        m_panadapterColors.panFilterColor = type.panFilterColor;
 
     emit panadapterColorChanged();
 }

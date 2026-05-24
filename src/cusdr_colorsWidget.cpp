@@ -408,6 +408,20 @@ void ColorOptionsWidget::createColorChooserWidget() {
 		this, 
 		SLOT(colorChooserChanged()));
 
+	col = set->getPanadapterColors().panFilterColor;
+
+	m_setPanFilter = new AeroButton("RX Filter", this);
+	m_setPanFilter->setRoundness(0);
+	m_setPanFilter->setFixedSize (btn_width3, btn_height);
+	m_setPanFilter->setColorOn(col);
+	m_changeColorBtnList.append(m_setPanFilter);
+
+	CHECKED_CONNECT(
+		m_setPanFilter,
+		SIGNAL(clicked()),
+		this,
+		SLOT(colorChooserChanged()));
+
 
 	m_setPanBackground->setBtnState(AeroButton::OFF);
 	m_setWaterfall->setBtnState(AeroButton::OFF);
@@ -423,6 +437,7 @@ void ColorOptionsWidget::createColorChooserWidget() {
 	m_setDistanceLineFilling->setBtnState(AeroButton::OFF);
 	m_setPanCenterLine->setBtnState(AeroButton::OFF);
 	m_setGridLine->setBtnState(AeroButton::OFF);
+	m_setPanFilter->setBtnState(AeroButton::OFF);
 
 	m_resetBtn = new AeroButton("Reset", this);
 	m_resetBtn->setRoundness(0);
@@ -466,6 +481,7 @@ void ColorOptionsWidget::createColorChooserWidget() {
 	grid1->addWidget(m_setDistanceLineFilling, 5, 1);
 	grid1->addWidget(m_setPanCenterLine, 6, 0);
 	grid1->addWidget(m_setGridLine, 6, 1);
+	grid1->addWidget(m_setPanFilter, 7, 0);
 	grid1->addWidget(m_resetBtn, 8, 0);
 	grid1->addWidget(m_okBtn, 8, 1);
 	//grid1->addWidget(m_resetBtn, 7, 3);
@@ -568,6 +584,10 @@ void ColorOptionsWidget::colorChooserChanged() {
 		case 13:
 			m_colorTriangle->setColor(set->getPanadapterColors().gridLineColor);
 			break;
+
+		case 14:
+			m_colorTriangle->setColor(set->getPanadapterColors().panFilterColor);
+			break;
 	}
 }
 
@@ -651,6 +671,10 @@ void ColorOptionsWidget::triangleColorChanged(QColor color) {
 
 		case 13:
 			m_panadapterColors.gridLineColor = color;
+			break;
+
+		case 14:
+			m_panadapterColors.panFilterColor = color;
 			break;
 	}
 	set->setPanadapterColors(m_panadapterColors);

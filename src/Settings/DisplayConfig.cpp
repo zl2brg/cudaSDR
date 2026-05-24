@@ -22,6 +22,7 @@ DisplayConfig::DisplayConfig(QObject *parent)
     m_colors.distanceLineFilledColor = QColor(232, 29, 86);
     m_colors.panCenterLineColor = QColor(246, 7, 19);
     m_colors.gridLineColor = QColor(7, 96, 96);
+    m_colors.panFilterColor = QColor(150, 150, 150, 100);
 }
 
 void DisplayConfig::setSpectrumSize(int size) {
@@ -89,6 +90,7 @@ void DisplayConfig::load(const QJsonObject &json) {
         if (colors.contains("distanceLineFilled")) m_colors.distanceLineFilledColor = stringToColor(colors["distanceLineFilled"].toString(), m_colors.distanceLineFilledColor);
         if (colors.contains("panCenterLine")) m_colors.panCenterLineColor = stringToColor(colors["panCenterLine"].toString(), m_colors.panCenterLineColor);
         if (colors.contains("gridLine")) m_colors.gridLineColor = stringToColor(colors["gridLine"].toString(), m_colors.gridLineColor);
+        if (colors.contains("panFilter")) m_colors.panFilterColor = stringToColor(colors["panFilter"].toString(), m_colors.panFilterColor);
     }
 }
 
@@ -113,5 +115,6 @@ void DisplayConfig::save(QJsonObject &json) const {
     colors["distanceLineFilled"] = colorToString(m_colors.distanceLineFilledColor);
     colors["panCenterLine"] = colorToString(m_colors.panCenterLineColor);
     colors["gridLine"] = colorToString(m_colors.gridLineColor);
+    colors["panFilter"] = colorToString(m_colors.panFilterColor);
     json["colors"] = colors;
 }

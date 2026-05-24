@@ -21,6 +21,7 @@ typedef struct t_panadapterColors {
     QColor distanceLineFilledColor;
     QColor panCenterLineColor;
     QColor gridLineColor;
+    QColor panFilterColor;
 } TPanadapterColors;
 
 class DisplayConfig : public QObject {

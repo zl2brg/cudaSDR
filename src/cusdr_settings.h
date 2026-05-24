@@ -1197,7 +1197,7 @@ public:
 	QAudioFormat getAudioFormat() const { return m_format; }
 
 	// colors
-	TPanadapterColors getPanadapterColors()	{ return m_panadapterColors; }
+	TPanadapterColors getPanadapterColors();
 
 	bool getSpectrumAveraging(int rx);
 	int getSpectrumAveragingCnt(int rx);

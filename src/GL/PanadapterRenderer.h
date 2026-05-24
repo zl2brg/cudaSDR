@@ -49,6 +49,15 @@ public:
                 QSDR::_DataEngineState dataEngineState,
                 bool isCurrentReceiver);
 
+    void renderIdleBackground(QOpenGLFunctions *gl,
+                              const QMatrix4x4& projection,
+                              const QRect& panRect,
+                              float dpr,
+                              int parentHeight,
+                              const Colors& colors,
+                              QSDR::_DataEngineState dataEngineState,
+                              bool isCurrentReceiver);
+
     bool compositeToDefaultFramebuffer(QOpenGLFunctions *gl,
                                        const QMatrix4x4& projection,
                                        const QRect& panRect,

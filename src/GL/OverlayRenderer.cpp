@@ -251,17 +251,27 @@ void OverlayRenderer::drawCenterLine(const QMatrix4x4& projection,
 
         lines.append({ centerX, y1 + 1.0f, 3.5f, cr, cg, cb, ca });
         lines.append({ centerX, centerY - 1.0f,  3.5f, cr, cg, cb, ca });
-			
+
+        if (waterfallRect.isValid() && waterfallRect.height() > 2) {
+            const float wfTop = (float)(freqScalePanRect.bottom() + 1);
+            const float wfBottom = (float)(freqScalePanRect.bottom() + waterfallRect.height() - 1);
+            lines.append({ centerX, wfTop, 3.5f, cr, cg, cb, ca });
+            lines.append({ centerX, wfBottom, 3.5f, cr, cg, cb, ca });
+        }
+
 		float vfoX = (float)(panRect.left() + qRound((qreal)(panRect.width()/2.0f)  - deltaF * panRect.width() / zoomFactor));
         float vr = vfoColor.redF(); float vg = vfoColor.greenF(); float vb = vfoColor.blueF(); float va = 1.0f;
 
         if (!qIsNaN(vfoX) && !qIsInf(vfoX)) {
-            if (dragMouse && !panLocked) {
-                lines.append({ vfoX, (float)freqScalePanRect.bottom() + 1.0f, 3.0f, vr, vg, vb, va });
-                lines.append({ vfoX, (float)(freqScalePanRect.bottom() + waterfallRect.height() - 1), 3.0f, vr, vg, vb, va });
-            }
             lines.append({ vfoX, y1 + 1.0f, 4.0f, vr, vg, vb, va });
             lines.append({ vfoX, centerY - 1.0f,  4.0f, vr, vg, vb, va });
+            if (waterfallRect.isValid() && waterfallRect.height() > 2) {
+                const float wfTop = (float)(freqScalePanRect.bottom() + 1);
+                const float wfBottom = (float)(freqScalePanRect.bottom() + waterfallRect.height() - 1);
+                const float vfoZ = (dragMouse && !panLocked) ? 3.0f : 4.0f;
+                lines.append({ vfoX, wfTop, vfoZ, vr, vg, vb, va });
+                lines.append({ vfoX, wfBottom, vfoZ, vr, vg, vb, va });
+            }
         }
 
         if (lines.size() >= 2) {
@@ -278,8 +288,10 @@ void OverlayRenderer::drawCenterLine(const QMatrix4x4& projection,
 
 void OverlayRenderer::drawFilter(const QMatrix4x4& projection,
                                  const QRect& panRect,
+                                 const QRect& waterfallRect,
                                  float filterLo, float filterHi,
                                  float deltaF, float zoomFactor,
+                                 const QColor& filterColor,
                                  bool highlightFilter,
                                  bool dragPanning,
                                  bool showLeftBoundary, bool showRightBoundary,
@@ -292,11 +304,14 @@ void OverlayRenderer::drawFilter(const QMatrix4x4& projection,
 	glEnable(GL_BLEND);
     glDisable(GL_DEPTH_TEST);
 
-	QColor color;
+	QColor color = filterColor;
 	if (highlightFilter)
-		color = QColor(150, 150, 150, 140);
-	else
-		color = QColor(150, 150, 150, 100);
+		color.setAlpha(qMin(255, filterColor.alpha() + 40));
+
+	const QColor boundaryColor(filterColor.red(), filterColor.green(), filterColor.blue(),
+	                           qMax(230, filterColor.alpha()));
+	const QColor edgeColor(filterColor.red(), filterColor.green(), filterColor.blue(),
+	                       qMax(180, filterColor.alpha()));
 
 	filterLeft = panRect.left() + qRound((qreal)(panRect.width()/2.0f) + (filterLo - deltaF) * panRect.width() / zoomFactor);
 	filterRight = panRect.left() + qRound((qreal)(panRect.width()/2.0f) + (filterHi - deltaF) * panRect.width() / zoomFactor);
@@ -311,12 +326,14 @@ void OverlayRenderer::drawFilter(const QMatrix4x4& projection,
     m_vao.bind();
     m_vbo.bind();
 
-	if (!dragPanning
-	    && ((filterLeft >= panRect.left() && filterLeft <= panRect.right())
-	        || (filterRight >= panRect.left() && filterRight <= panRect.right())
-	        || (filterLeft < panRect.left() && filterRight > panRect.right()))) {
+	const bool filterVisible = (filterLeft >= panRect.left() && filterLeft <= panRect.right())
+	    || (filterRight >= panRect.left() && filterRight <= panRect.right())
+	    || (filterLeft < panRect.left() && filterRight > panRect.right());
+
+	if (filterVisible) {
 		if (filterRect.height() > 5) {
-            float fr = color.redF(), fg = color.greenF(), fb = color.blueF(), fa = color.alphaF() * 0.4f;
+            const float fillAlphaScale = dragPanning ? 0.25f : 0.4f;
+            float fr = color.redF(), fg = color.greenF(), fb = color.blueF(), fa = color.alphaF() * fillAlphaScale;
             QVarLengthArray<VertexData, 4> rectData;
             const float rx1 = (float)filterRect.left();
             const float ry1 = (float)filterRect.top();
@@ -335,19 +352,67 @@ void OverlayRenderer::drawFilter(const QMatrix4x4& projection,
         }
 	}
 
-    QVarLengthArray<VertexData, 4> lines;
-	if (showLeftBoundary) {
-		color = QColor(150, 150, 150, 230);
-        float r = color.redF(), g = color.greenF(), b = color.blueF(), a = color.alphaF();
+    if (waterfallRect.isValid() && waterfallRect.height() > 5 && filterVisible) {
+        const int wfTop = waterfallRect.top() + 1;
+        const int wfBottom = waterfallRect.top() + waterfallRect.height() - 1;
+        const float fillAlphaScale = dragPanning ? 0.25f : 0.4f;
+        float fr = color.redF(), fg = color.greenF(), fb = color.blueF(), fa = color.alphaF() * fillAlphaScale;
+        QVarLengthArray<VertexData, 4> wfRectData;
+        const float rx1 = (float)filterLeft;
+        const float rx2 = (float)filterRight;
+        const float ry1 = (float)wfTop;
+        const float ry2 = (float)wfBottom;
+
+        wfRectData.append({ rx1, ry1, 4.0f, fr, fg, fb, fa });
+        wfRectData.append({ rx2, ry1, 4.0f, fr, fg, fb, fa });
+        wfRectData.append({ rx1, ry2, 4.0f, fr, fg, fb, fa });
+        wfRectData.append({ rx2, ry2, 4.0f, fr, fg, fb, fa });
+
+        m_vbo.allocate(wfRectData.data(), (int)(wfRectData.size() * sizeof(VertexData)));
+        m_shader->setAttributeBuffer(0, GL_FLOAT, 0, 3, sizeof(float) * 7);
+        m_shader->setAttributeBuffer(1, GL_FLOAT, sizeof(float) * 3, 4, sizeof(float) * 7);
+        glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    }
+
+    QVarLengthArray<VertexData, 8> lines;
+    if (dragPanning && filterVisible) {
+        const float r = edgeColor.redF(), g = edgeColor.greenF(), b = edgeColor.blueF(), a = edgeColor.alphaF();
         lines.append({ (float)filterLeft, (float)filterTop,    5.0f, r, g, b, a });
         lines.append({ (float)filterLeft, (float)filterBottom, 5.0f, r, g, b, a });
+        lines.append({ (float)filterRight, (float)filterTop,    5.0f, r, g, b, a });
+        lines.append({ (float)filterRight, (float)filterBottom, 5.0f, r, g, b, a });
+        if (waterfallRect.isValid() && waterfallRect.height() > 5) {
+            const float wfTop = (float)(waterfallRect.top() + 1);
+            const float wfBottom = (float)(waterfallRect.top() + waterfallRect.height() - 1);
+            lines.append({ (float)filterLeft, wfTop,    5.0f, r, g, b, a });
+            lines.append({ (float)filterLeft, wfBottom, 5.0f, r, g, b, a });
+            lines.append({ (float)filterRight, wfTop,    5.0f, r, g, b, a });
+            lines.append({ (float)filterRight, wfBottom, 5.0f, r, g, b, a });
+        }
+    }
+
+	if (showLeftBoundary) {
+        const float r = boundaryColor.redF(), g = boundaryColor.greenF(), b = boundaryColor.blueF(), a = boundaryColor.alphaF();
+        lines.append({ (float)filterLeft, (float)filterTop,    5.0f, r, g, b, a });
+        lines.append({ (float)filterLeft, (float)filterBottom, 5.0f, r, g, b, a });
+        if (waterfallRect.isValid() && waterfallRect.height() > 5) {
+            const float wfTop = (float)(waterfallRect.top() + 1);
+            const float wfBottom = (float)(waterfallRect.top() + waterfallRect.height() - 1);
+            lines.append({ (float)filterLeft, wfTop,    5.0f, r, g, b, a });
+            lines.append({ (float)filterLeft, wfBottom, 5.0f, r, g, b, a });
+        }
 	}
 
 	if (showRightBoundary) {
-		color = QColor(150, 150, 150, 230);
-        float r = color.redF(), g = color.greenF(), b = color.blueF(), a = color.alphaF();
+        const float r = boundaryColor.redF(), g = boundaryColor.greenF(), b = boundaryColor.blueF(), a = boundaryColor.alphaF();
         lines.append({ (float)filterRight, (float)filterTop,    5.0f, r, g, b, a });
         lines.append({ (float)filterRight, (float)filterBottom, 5.0f, r, g, b, a });
+        if (waterfallRect.isValid() && waterfallRect.height() > 5) {
+            const float wfTop = (float)(waterfallRect.top() + 1);
+            const float wfBottom = (float)(waterfallRect.top() + waterfallRect.height() - 1);
+            lines.append({ (float)filterRight, wfTop,    5.0f, r, g, b, a });
+            lines.append({ (float)filterRight, wfBottom, 5.0f, r, g, b, a });
+        }
 	}
 
     if (!lines.isEmpty()) {

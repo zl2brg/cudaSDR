@@ -89,6 +89,7 @@ private:
 	AeroButton		*m_setDistanceLine;
 	AeroButton		*m_setDistanceLineFilling;
 	AeroButton		*m_setGridLine;
+	AeroButton		*m_setPanFilter;
     QHBoxLayout     *hbox,*hbox1;
     QBoxLayout      *mainLayout;
     QVBoxLayout     *vbox;

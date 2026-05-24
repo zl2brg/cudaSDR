@@ -53,8 +53,10 @@ public:
 
     void drawFilter(const QMatrix4x4& projection,
                     const QRect& panRect,
+                    const QRect& waterfallRect,
                     float filterLo, float filterHi,
                     float deltaF, float zoomFactor,
+                    const QColor& filterColor,
                     bool highlightFilter,
                     bool dragPanning,
                     bool showLeftBoundary, bool showRightBoundary,

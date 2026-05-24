@@ -523,6 +523,99 @@ bool PanadapterRenderer::compositeToDefaultFramebuffer(QOpenGLFunctions *gl,
     return true;
 }
 
+void PanadapterRenderer::renderIdleBackground(QOpenGLFunctions *gl,
+                                              const QMatrix4x4& projection,
+                                              const QRect& panRect,
+                                              float dpr,
+                                              int parentHeight,
+                                              const Colors& colors,
+                                              QSDR::_DataEngineState dataEngineState,
+                                              bool isCurrentReceiver)
+{
+    if (!m_glShader || !m_glShader->isLinked() || !gl || panRect.width() <= 0 || panRect.height() <= 0)
+        return;
+
+    const int x1 = panRect.left();
+    const int y1 = panRect.top();
+    const int x2 = x1 + panRect.width();
+    const int y2 = y1 + panRect.height();
+    const int height = panRect.height();
+
+    gl->glScissor(int(x1 * dpr), int((parentHeight - y2) * dpr), int((x2 - x1) * dpr), int(height * dpr));
+    gl->glEnable(GL_SCISSOR_TEST);
+    gl->glEnable(GL_MULTISAMPLE);
+    gl->glEnable(GL_LINE_SMOOTH);
+    gl->glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    gl->glEnable(GL_BLEND);
+    gl->glDisable(GL_DEPTH_TEST);
+
+    m_glShader->bind();
+    const int matrixLoc = m_glShader->uniformLocation("matrix");
+    if (matrixLoc >= 0)
+        m_glShader->setUniformValue(matrixLoc, projection);
+
+    if (m_glVao.isCreated())
+        m_glVao.bind();
+    m_glVbo.bind();
+
+    const int posLoc = m_glShader->attributeLocation("position");
+    const int colLoc = m_glShader->attributeLocation("color");
+    const GLsizei stride = GLsizei(sizeof(VertexData));
+
+    float r1, g1, b1, r2, g2, b2, r3, g3, b3, r4, g4, b4;
+    const float a = 1.0f;
+    if (dataEngineState == QSDR::_DataEngineState::DataEngineUp) {
+        r1 = 0.8f * colors.bkgR; g1 = 0.8f * colors.bkgG; b1 = 0.8f * colors.bkgB;
+        r2 = 0.6f * colors.bkgR; g2 = 0.6f * colors.bkgG; b2 = 0.6f * colors.bkgB;
+        r3 = 0.4f * colors.bkgR; g3 = 0.4f * colors.bkgG; b3 = 0.4f * colors.bkgB;
+        r4 = 0.2f * colors.bkgR; g4 = 0.2f * colors.bkgG; b4 = 0.2f * colors.bkgB;
+        if (!isCurrentReceiver) {
+            r1 = r2 = r3 = r4 = 0.4f * colors.bkgR;
+            g1 = g2 = g3 = g4 = 0.4f * colors.bkgG;
+            b1 = b2 = b3 = b4 = 0.4f * colors.bkgB;
+        }
+    } else {
+        r1 = r2 = r3 = r4 = 0.15f * colors.bkgR;
+        g1 = g2 = g3 = g4 = 0.15f * colors.bkgG;
+        b1 = b2 = b3 = b4 = 0.15f * colors.bkgB;
+    }
+
+    const VertexData bkgData[4] = {
+        { (float)x1, (float)y1, -4.0f, r1, g1, b1, a },
+        { (float)x2, (float)y1, -4.0f, r2, g2, b2, a },
+        { (float)x1, (float)y2, -4.0f, r3, g3, b3, a },
+        { (float)x2, (float)y2, -4.0f, r4, g4, b4, a },
+    };
+
+    if (int(m_glVboSize) < int(sizeof(bkgData))) {
+        m_glVbo.allocate(bkgData, int(sizeof(bkgData)));
+        m_glVboSize = int(sizeof(bkgData));
+    } else {
+        m_glVbo.write(0, bkgData, int(sizeof(bkgData)));
+    }
+    if (posLoc >= 0) {
+        gl->glEnableVertexAttribArray(GLuint(posLoc));
+        gl->glVertexAttribPointer(GLuint(posLoc), 3, GL_FLOAT, GL_FALSE, stride,
+                                  reinterpret_cast<const void *>(0));
+    }
+    if (colLoc >= 0) {
+        gl->glEnableVertexAttribArray(GLuint(colLoc));
+        gl->glVertexAttribPointer(GLuint(colLoc), 4, GL_FLOAT, GL_FALSE, stride,
+                                  reinterpret_cast<const void *>(3 * sizeof(float)));
+    }
+    gl->glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+    if (posLoc >= 0)
+        gl->glDisableVertexAttribArray(GLuint(posLoc));
+    if (colLoc >= 0)
+        gl->glDisableVertexAttribArray(GLuint(colLoc));
+    m_glVbo.release();
+    if (m_glVao.isCreated())
+        m_glVao.release();
+    m_glShader->release();
+    gl->glDisable(GL_SCISSOR_TEST);
+}
+
 void PanadapterRenderer::renderWithOpenGL(const QMatrix4x4& projection,
                                           const QRect& panRect,
                                           const QVector<qreal>& bins,

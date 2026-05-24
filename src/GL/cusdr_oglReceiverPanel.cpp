@@ -624,9 +624,6 @@ void QGLReceiverPanel::paintReceiverDisplay() {
     drawPanHorizontalScale();
     drawPanVerticalScale();
     drawPanadapterGrid();
-    drawCenterLine();
-    drawPanFilter();
-    glEnable(GL_DEPTH_TEST);
 
 	if (m_dataEngineState == QSDR::DataEngineUp && m_showAGCLines && (m_receiver == m_currentReceiver)) {
         ensurePanelViewport();
@@ -643,7 +640,16 @@ void QGLReceiverPanel::paintReceiverDisplay() {
 	if (m_waterfallRect.height() > 10) {
         ensurePanelViewport();
         drawWaterfall();
+        glDisable(GL_DEPTH_TEST);
+        drawCenterLine();
+        drawPanFilter();
+        glEnable(GL_DEPTH_TEST);
         drawWaterfallVerticalScale();
+    } else {
+        glDisable(GL_DEPTH_TEST);
+        drawCenterLine();
+        drawPanFilter();
+        glEnable(GL_DEPTH_TEST);
     }
     if (m_waterfallDisplayUpdate)
         m_waterfallDisplayUpdate = false;
@@ -668,8 +674,21 @@ void QGLReceiverPanel::paint3DPanadapterMode() {
 
 void QGLReceiverPanel::drawPanadapter() {
 
-    GLint vertexArrayLength = (GLint)m_panadapterBins.size();
-    if (vertexArrayLength == 0) return;
+    const bool showSpectrum = (m_dataEngineState == QSDR::DataEngineUp && !m_panadapterBins.isEmpty());
+
+    if (!showSpectrum) {
+        if (m_dataEngineState != QSDR::DataEngineUp)
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        if (m_panadapterRenderer && m_panRect.isValid()) {
+            float dpr = (float)devicePixelRatio();
+            QMatrix4x4 projection;
+            projection.ortho(0, size().width(), size().height(), 0, -10, 10);
+            PanadapterRenderer::Colors colors = { m_red, m_green, m_blue, m_redF, m_greenF, m_blueF, m_redST, m_greenST, m_blueST, m_redSB, m_greenSB, m_blueSB, m_bkgRed, m_bkgGreen, m_bkgBlue };
+            m_panadapterRenderer->renderIdleBackground(this, projection, m_panRect, dpr, size().height(), colors, m_dataEngineState, (m_receiver == m_currentReceiver));
+        }
+        return;
+    }
 
     if (m_dataEngineState == QSDR::DataEngineUp)
         glClear(GL_DEPTH_BUFFER_BIT);
@@ -934,7 +953,8 @@ void QGLReceiverPanel::drawPanFilter() {
     if (m_overlayRenderer) {
         QMatrix4x4 projection;
         projection.ortho(0, size().width(), size().height(), 0, -10, 10);
-        m_overlayRenderer->drawFilter(projection, m_panRect, m_filterLo, m_filterHi, (float)m_deltaF, displayedZoomFactor(),
+        m_overlayRenderer->drawFilter(projection, m_panRect, m_waterfallRect, m_filterLo, m_filterHi, (float)m_deltaF, displayedZoomFactor(),
+                                      set->getPanadapterColors().panFilterColor,
                                       m_highlightFilter, m_dragMouse, m_showFilterLeftBoundary, m_showFilterRightBoundary,
                                       m_filterLeft, m_filterRight, m_filterTop, m_filterBottom);
         // Update m_filterRect so getRegion() mouse hit-testing uses current pixel positions
@@ -1736,19 +1756,30 @@ void QGLReceiverPanel::getRegion(QPoint p) {
 		m_mouseRegion = dBmScalePanadapterRegion;
 
 	}
-	else if (qAbs(p.x() - m_filterRect.left()) < m_snapMouse &&
-			 m_panRect.contains(p)
-	) {
+	else if (m_filterRect.width() > 0
+			 && qAbs(p.x() - m_filterRect.left()) < m_snapMouse
+			 && ((m_panRect.contains(p) && !m_dBmScalePanRect.contains(p))
+			     || (m_waterfallRect.contains(p) && !m_secScaleWaterfallRect.contains(p))))
+	{
 		m_mouseRegion = filterRegionLow;
 		m_mouseDownFilterFrequencyLo = m_filterLowerFrequency;
 	}
-	else if (qAbs(p.x() - m_filterRect.right()) < m_snapMouse &&
-			 m_panRect.contains(p)
-	) {
+	else if (m_filterRect.width() > 0
+			 && qAbs(p.x() - m_filterRect.right()) < m_snapMouse
+			 && ((m_panRect.contains(p) && !m_dBmScalePanRect.contains(p))
+			     || (m_waterfallRect.contains(p) && !m_secScaleWaterfallRect.contains(p))))
+	{
 		m_mouseRegion = filterRegionHigh;
 		m_mouseDownFilterFrequencyHi = m_filterUpperFrequency;
 	}
 	else if (m_filterRect.contains(p)) {
+
+		m_mouseRegion = filterRegion;
+
+	}
+	else if (m_filterRect.width() > 0
+			 && p.x() >= m_filterRect.left() && p.x() <= m_filterRect.right()
+			 && m_waterfallRect.contains(p) && !m_secScaleWaterfallRect.contains(p)) {
 
 		m_mouseRegion = filterRegion;
 
@@ -2044,9 +2075,18 @@ void QGLReceiverPanel::mousePressEvent(QMouseEvent* event) {
 	}
 	else if (m_mouseRegion == filterRegion) {
 
-		//setCursor(Qt::ArrowCursor);
-		if (event->buttons() == Qt::LeftButton)
+		if (event->buttons() == Qt::LeftButton) {
 			m_highlightFilter = true;
+			m_mouseDownFilterFrequencyLo = m_filterLowerFrequency;
+			m_mouseDownFilterFrequencyHi = m_filterUpperFrequency;
+		}
+	}
+	else if (m_mouseRegion == filterRegionLow || m_mouseRegion == filterRegionHigh) {
+
+		if (event->buttons() == Qt::LeftButton) {
+			m_mouseDownFilterFrequencyLo = m_filterLowerFrequency;
+			m_mouseDownFilterFrequencyHi = m_filterUpperFrequency;
+		}
 	}
 	else if (m_mouseRegion == freqScalePanadapterRegion) {
 
@@ -2099,6 +2139,9 @@ void QGLReceiverPanel::mouseReleaseEvent(QMouseEvent *event) {
 	m_dragDBmScale = false;
 	m_dragFreqScale = false;
 	m_dragFreqScaleZoom = false;
+	m_showFilterLeftBoundary = false;
+	m_showFilterRightBoundary = false;
+	m_highlightFilter = false;
 	m_freqScalePanadapterUpdate = true;
 	m_dBmScalePanadapterUpdate = true;
 	m_crossHairCursor = true;
@@ -3181,10 +3224,11 @@ void QGLReceiverPanel::systemStateChanged(
 	if (state == QSDR::DataEngineDown) {
 		m_fftMult = 1;
 		m_cachedSpectrumBuffer.clear();
+		m_panadapterBins.clear();
+		m_waterfallPixel.clear();
+		m_waterfallDisplayUpdate = true;
+		update();
 	}
-	//	m_panadapterBins.clear();
-
-	if (state == QSDR::DataEngineDown)
 
 	if (m_serverMode != mode)
 		m_serverMode = mode;
@@ -3330,6 +3374,7 @@ void QGLReceiverPanel::setPanadapterColors() {
 		m_panGridUpdate = true;
 	}
 	mutex.unlock();
+	update();
 }
 
 void QGLReceiverPanel::setWaterfallOffesetLo(int rx, int value) {
