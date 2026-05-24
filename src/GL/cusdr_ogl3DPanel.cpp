@@ -7,6 +7,7 @@
 */
 
 #include "cusdr_ogl3DPanel.h"
+#include "Models/SliceModel.h"
 
 #include <QGuiApplication>
 #include <QDebug>
@@ -52,6 +53,8 @@ QGL3DPanel::QGL3DPanel(QWidget *parent, int rx)
     , m_isVisible(true)
     , m_dBmPanMin(-140.0)
     , m_dBmPanMax(20.0)
+    , m_waterfallOffsetLo(-5)
+    , m_waterfallOffsetHi(20)
     , m_heightScale(1.0f)
     , m_frequencyScale(1.0f)
     , m_timeScale(0.2f)
@@ -80,16 +83,26 @@ QGL3DPanel::QGL3DPanel(QWidget *parent, int rx)
             this, &QGL3DPanel::onMeshReady, Qt::QueuedConnection);
     m_meshWorker->start(QThread::HighPriority);  // Run at higher priority for responsive mesh updates
 
-    // Get dBm scale from receiver panadapter settings (same as 2D panel)
-    const HamBand band = set->getCurrentHamBand(m_receiver);
-    m_dBmPanMin = set->getdBmPanScaleMin(m_receiver, band);
-    m_dBmPanMax = set->getdBmPanScaleMax(m_receiver, band);
+    // Pan scale / waterfall offsets — prefer SliceModel when RadioModel is active
+    syncPanScaleFromModel();
 
-    // Connect to panadapter scale change signals
+    // Legacy Settings path (non-RadioModel)
     connect(set, &Settings::dBmScaleMaxChanged,
         this, &QGL3DPanel::dBmScaleMaxChanged);
     connect(set, &Settings::dBmScaleMinChanged,
         this, &QGL3DPanel::dBmScaleMinChanged);
+    connect(set, &Settings::waterfallOffesetLoChanged,
+        this, &QGL3DPanel::waterfallOffsetLoChanged);
+    connect(set, &Settings::waterfallOffesetHiChanged,
+        this, &QGL3DPanel::waterfallOffsetHiChanged);
+
+    // RadioModel path: Settings updates SliceModel without emitting dBmScale*Changed
+    if (SliceModel* slice = set->sliceModel(m_receiver)) {
+        connect(slice, &SliceModel::panScaleChanged,
+                this, &QGL3DPanel::onPanScaleChanged);
+        connect(slice, &SliceModel::waterfallOffsetChanged,
+                this, &QGL3DPanel::onPanScaleChanged);
+    }
 
 
     // Initialize spectrum history
@@ -173,24 +186,111 @@ QGL3DPanel::~QGL3DPanel() {
 }
 
 void QGL3DPanel::dBmScaleMaxChanged(int rx, qreal val){
-    if (rx != m_receiver) return;  // Only update if it's for this receiver
+    if (rx != m_receiver) return;
     m_dBmPanMax = val;
-    update();  // Trigger redraw with new scale
+    updateMeshesForScaleChange();
 }
 
 void QGL3DPanel::dBmScaleMinChanged(int rx, qreal val){
-    if (rx != m_receiver) return;  // Only update if it's for this receiver
-    m_dBmPanMin = val;  // Fixed: was incorrectly setting m_dBmPanMax
-    update();  // Trigger redraw with new scale
+    if (rx != m_receiver) return;
+    m_dBmPanMin = val;
+    updateMeshesForScaleChange();
+}
+
+void QGL3DPanel::waterfallOffsetLoChanged(int rx, int value) {
+    if (rx != m_receiver) return;
+    m_waterfallOffsetLo = value;
+    updateMeshesForScaleChange();
+}
+
+void QGL3DPanel::waterfallOffsetHiChanged(int rx, int value) {
+    if (rx != m_receiver) return;
+    m_waterfallOffsetHi = value;
+    updateMeshesForScaleChange();
+}
+
+void QGL3DPanel::syncPanScaleFromModel() {
+    if (SliceModel* slice = set->sliceModel(m_receiver)) {
+        m_dBmPanMin = slice->dBmPanScaleMin();
+        m_dBmPanMax = slice->dBmPanScaleMax();
+        m_waterfallOffsetLo = slice->waterfallOffsetLo();
+        m_waterfallOffsetHi = slice->waterfallOffsetHi();
+        return;
+    }
+    const HamBand band = set->getCurrentHamBand(m_receiver);
+    m_dBmPanMin = set->getdBmPanScaleMin(m_receiver, band);
+    m_dBmPanMax = set->getdBmPanScaleMax(m_receiver, band);
+    m_waterfallOffsetLo = set->getWaterfallOffsetLo(m_receiver);
+    m_waterfallOffsetHi = set->getWaterfallOffsetHi(m_receiver);
+}
+
+void QGL3DPanel::onPanScaleChanged() {
+    syncPanScaleFromModel();
+    updateMeshesForScaleChange();
+}
+
+void QGL3DPanel::getWaterfallColorThresholds(float& lower, float& upper) const {
+    // Match 2D RX waterfall mapping, plus optional 3D-only offset shift
+    lower = static_cast<float>(m_dBmPanMin - m_waterfallOffsetLo + m_waterfallOffset);
+    upper = static_cast<float>(m_dBmPanMax + m_waterfallOffsetHi + m_waterfallOffset);
+}
+
+void QGL3DPanel::updateMeshesForScaleChange() {
+    if (m_timeSliceMeshes.isEmpty() || m_spectrumHistory.isEmpty()) {
+        update();
+        return;
+    }
+
+    if (!isValid()) {
+        update();
+        return;
+    }
+
+    makeCurrent();
+
+    float colorLower = 0.0f;
+    float colorUpper = 0.0f;
+    getWaterfallColorThresholds(colorLower, colorUpper);
+    const int lodLevel = calculateLODLevel();
+
+    const int sliceCount = qMin(m_timeSliceMeshes.size(), m_spectrumHistory.size());
+    for (int i = 0; i < sliceCount; ++i) {
+        const MeshGeneratorWorker::MeshData meshData =
+            MeshGeneratorWorker::buildSliceMesh(m_spectrumHistory.at(i),
+                                                m_spectrumWidth,
+                                                lodLevel,
+                                                m_frequencyScale,
+                                                colorLower,
+                                                colorUpper,
+                                                static_cast<float>(m_dBmPanMin),
+                                                static_cast<float>(m_dBmPanMax));
+        if (meshData.vertices.isEmpty())
+            continue;
+
+        TimeSliceMesh& slice = m_timeSliceMeshes[i];
+        if (!slice.vertexBuffer)
+            continue;
+
+        const int byteSize = meshData.vertices.size() * static_cast<int>(sizeof(float));
+        slice.vertexBuffer->bind();
+        if (slice.vertexBuffer->size() != byteSize) {
+            slice.vertexBuffer->allocate(meshData.vertices.constData(), byteSize);
+        } else {
+            slice.vertexBuffer->write(0, meshData.vertices.constData(), byteSize);
+        }
+    }
+
+    doneCurrent();
+    update();
 }
 
 void QGL3DPanel::initializeGL() {
     initializeOpenGLFunctions();
     
-    // Enable depth testing and back-face culling
+    // Depth test for correct slice ordering; do not cull back faces — the
+    // spectrum mesh is a single-sided ribbon and must stay visible when orbiting.
     glEnable(GL_DEPTH_TEST);
-    glEnable(GL_CULL_FACE);
-    glCullFace(GL_BACK);
+    glDisable(GL_CULL_FACE);
     
     // Enable blending for transparency
     glEnable(GL_BLEND);
@@ -230,11 +330,9 @@ void QGL3DPanel::setupShaders() {
         uniform float heightScale;
         
         out vec3 fragColor;
-        out vec3 worldPos;
         
         void main() {
             vec3 scaledPos = vec3(position.x, position.y * heightScale, position.z);
-            worldPos = scaledPos;
             gl_Position = mvpMatrix * vec4(scaledPos, 1.0);
             fragColor = color;
         }
@@ -244,14 +342,11 @@ void QGL3DPanel::setupShaders() {
     const char* fragmentShaderSource = R"(
         #version 330 core
         in vec3 fragColor;
-        in vec3 worldPos;
         
         out vec4 finalColor;
         
         void main() {
-            // Simple lighting based on height
-            float lightIntensity = 0.3 + 0.7 * clamp(worldPos.y / 20.0, 0.0, 1.0);
-            finalColor = vec4(fragColor * lightIntensity, 1.0);
+            finalColor = vec4(fragColor, 1.0);
         }
     )";
     
@@ -360,7 +455,11 @@ void QGL3DPanel::updateMesh() {
     
     // Get the newest spectrum slice (index 0 is newest)
     const QVector<float>& newestSlice = m_spectrumHistory.first();
-    
+
+    float colorLower = 0.0f;
+    float colorUpper = 0.0f;
+    getWaterfallColorThresholds(colorLower, colorUpper);
+
     // Request mesh generation for just this one slice
     m_meshWorker->generateSingleSliceMesh(newestSlice,
                                           m_timeSliceMeshes.size(),  // Time index
@@ -369,9 +468,10 @@ void QGL3DPanel::updateMesh() {
                                           m_heightScale,
                                           m_frequencyScale,
                                           m_timeScale,
-                                          m_waterfallOffset,
-                                          m_dBmPanMin,
-                                          m_dBmPanMax);
+                                          colorLower,
+                                          colorUpper,
+                                          static_cast<float>(m_dBmPanMin),
+                                          static_cast<float>(m_dBmPanMax));
     
     m_newSliceAvailable = false;
 }
@@ -458,9 +558,17 @@ void QGL3DPanel::renderSpectrum3D() {
         QMatrix4x4 mvpMatrix = m_projectionMatrix * m_viewMatrix * sliceModel;
         m_shaderProgram->setUniformValue("mvpMatrix", mvpMatrix);
         
-        // Bind this slice's VAO and render
+        // Bind this slice's VAO and render surface
         slice.vao->bind();
         glDrawElements(GL_TRIANGLES, slice.indexCount, GL_UNSIGNED_INT, 0);
+
+        // Colored ridge along the front row — always shows peak heights/colors when
+        // the surface sheet is edge-on or self-occluded at grazing angles.
+        if (slice.frontRowVertexCount > 1) {
+            glLineWidth(2.5f);
+            glDrawArrays(GL_LINE_STRIP, 0, slice.frontRowVertexCount);
+        }
+
         slice.vao->release();
     }
     
@@ -1255,9 +1363,8 @@ void QGL3DPanel::setWireframeMode(bool wireframe) {
 }
 
 void QGL3DPanel::setWaterfallOffset(float offset) {
-    m_waterfallOffset = qBound(-50.0f, offset, 50.0f);  // Reasonable offset range
-    // Trigger a color update for the waterfall
-    update();
+    m_waterfallOffset = qBound(-50.0f, offset, 50.0f);
+    updateMeshesForScaleChange();
 }
 
 int QGL3DPanel::calculateLODLevel() const {
@@ -1353,6 +1460,7 @@ void QGL3DPanel::addNewSliceMesh(const MeshGeneratorWorker::MeshData& meshData) 
     // Store metadata
     newSlice.vertexCount = meshData.vertexCount;
     newSlice.indexCount = meshData.indexCount;
+    newSlice.frontRowVertexCount = meshData.frontRowVertexCount;
     newSlice.timeIndex = 0;  // Always at front
     newSlice.lodLevel = calculateLODLevel();
     

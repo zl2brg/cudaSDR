@@ -68,47 +68,13 @@ bool PanadapterRenderer::initialize(QOpenGLContext *shareContext, QOpenGLShaderP
     };
 
     if (m_rhi)
-        return m_rhiActive || m_glShader;
+        return m_glShader && m_glShader->isLinked();
 
-    // QOpenGLWidget on OpenGL ES: RHI offscreen + texture composite is unreliable; use direct GL.
-    if (GlShaders::isOpenGLES())
-        return initGlFallback();
-
-    m_vertShader = loadSerializedShader(":/shaders/panadapter.vert.qsb");
-    m_fragShader = loadSerializedShader(":/shaders/panadapter.frag.qsb");
-    if (!m_vertShader.isValid() || !m_fragShader.isValid())
-        return initGlFallback();
-
-    m_fallbackSurface = QRhiGles2InitParams::newFallbackSurface(shareContext->format());
-    if (!m_fallbackSurface)
-        return initGlFallback();
-
-    QRhiGles2InitParams params;
-    params.format = shareContext->format();
-    params.fallbackSurface = m_fallbackSurface;
-
-    QRhiGles2NativeHandles importDev;
-    importDev.context = shareContext;
-
-    m_rhi.reset(QRhi::create(QRhi::OpenGLES2, &params, {}, &importDev));
-    if (!m_rhi) {
-        qWarning() << "PanadapterRenderer: QRhi::create failed, using OpenGL fallback";
-        return initGlFallback();
-    }
-
-    m_ubuf.reset(m_rhi->newBuffer(QRhiBuffer::Dynamic, QRhiBuffer::UniformBuffer, 64));
-    if (!m_ubuf->create())
-        return initGlFallback();
-
-    m_srb.reset(m_rhi->newShaderResourceBindings());
-    m_srb->setBindings({
-        QRhiShaderResourceBinding::uniformBuffer(0, QRhiShaderResourceBinding::VertexStage, m_ubuf.get()),
-    });
-    if (!m_srb->create())
-        return initGlFallback();
-
-    m_rhiActive = true;
-    return true;
+    // Always draw the RX panadapter with direct GL in the QOpenGLWidget context.
+    // QRhi offscreen + texture composite is unreliable on OpenGL ES (xcb_egl) and on
+    // desktop GLX; the GLES path already used this fallback — use it everywhere.
+    Q_UNUSED(shareContext);
+    return initGlFallback();
 }
 
 void PanadapterRenderer::release()

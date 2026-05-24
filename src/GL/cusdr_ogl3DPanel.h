@@ -111,6 +111,9 @@ private:
     void qglColor(QColor color);
     void cleanupOldSlices();
     void addNewSliceMesh(const MeshGeneratorWorker::MeshData& meshData);
+    void updateMeshesForScaleChange();
+    void syncPanScaleFromModel();
+    void getWaterfallColorThresholds(float& lower, float& upper) const;
     int calculateLODLevel() const;
     bool isSliceVisible(int sliceIndex) const;
     void calculateVisibleRange(int& minTimeSlice, int& maxTimeSlice, int& minFreqBin, int& maxFreqBin);
@@ -135,6 +138,7 @@ private:
         QOpenGLVertexArrayObject* vao;
         int vertexCount;
         int indexCount;
+        int frontRowVertexCount;
         int timeIndex;  // Position in history (0 = newest)
         int lodLevel;   // 0=full, 1=half, 2=quarter detail
     };
@@ -190,6 +194,8 @@ private:
     bool m_isVisible;
     qreal		m_dBmPanMin;
     qreal		m_dBmPanMax;
+    int         m_waterfallOffsetLo;
+    int         m_waterfallOffsetHi;
     
     // Rendering parameters
     float m_heightScale;
@@ -226,6 +232,9 @@ public slots:
     void updateDisplay();
     void dBmScaleMaxChanged(int rx, qreal val);
     void dBmScaleMinChanged(int rx, qreal val);
+    void waterfallOffsetLoChanged(int rx, int value);
+    void waterfallOffsetHiChanged(int rx, int value);
+    void onPanScaleChanged();
 
 signals:
     void mousePositionChanged(QPoint position);

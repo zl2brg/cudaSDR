@@ -31,6 +31,7 @@ public:
         QVector<unsigned int> indices;
         int vertexCount;
         int indexCount;
+        int frontRowVertexCount = 0;  // skyline vertices for ridge line strip
     };
 
     explicit MeshGeneratorWorker(QObject *parent = nullptr);
@@ -44,9 +45,20 @@ public:
                                  float heightScale,
                                  float frequencyScale,
                                  float timeScale,
-                                 float waterfallOffset,
+                                 float colorLower,
+                                 float colorUpper,
                                  float dBmPanMin,
                                  float dBmPanMax);
+
+    // Synchronous mesh build (same logic as worker thread, for scale/color refresh)
+    static MeshData buildSliceMesh(const QVector<float>& spectrumData,
+                                   int spectrumWidth,
+                                   int lodLevel,
+                                   float frequencyScale,
+                                   float colorLower,
+                                   float colorUpper,
+                                   float dBmPanMin,
+                                   float dBmPanMax);
 
     // Stop the worker thread
     void stop();
@@ -62,8 +74,9 @@ protected:
     void run() override;
 
 private:
-    // Color conversion (same as in main class)
-    QColor amplitudeToColorWithOffset(float amplitude, float offset);
+    static QColor amplitudeToColorWithThresholds(float amplitude,
+                                                 float lowerThreshold,
+                                                 float upperThreshold);
 
     // Generation state
     bool m_stop;
@@ -80,7 +93,8 @@ private:
     float m_heightScale;
     float m_frequencyScale;
     float m_timeScale;
-    float m_waterfallOffset;
+    float m_colorLower;
+    float m_colorUpper;
     float m_dBmPanMin;
     float m_dBmPanMax;
     

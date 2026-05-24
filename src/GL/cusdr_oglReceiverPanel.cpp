@@ -105,8 +105,8 @@ QGLReceiverPanel::QGLReceiverPanel(SliceModel *model, QWidget *parent)
 	//, m_freqRulerPosition(0.5)
 {
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-	const bool isWayland = QGuiApplication::platformName().contains("wayland", Qt::CaseInsensitive);
-	setUpdateBehavior(isWayland ? QOpenGLWidget::NoPartialUpdate : QOpenGLWidget::PartialUpdate);
+	// Full repaint each frame — PartialUpdate corrupts pan/waterfall on desktop GLX.
+	setUpdateBehavior(QOpenGLWidget::NoPartialUpdate);
 	//setAutoBufferSwap(true);
 	setAutoFillBackground(false);
 
@@ -588,7 +588,10 @@ void QGLReceiverPanel::paintGL() {
 }
  
 void QGLReceiverPanel::paintReceiverDisplay() {
- 
+
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
 	QRect mouse_rect(0, 0, 100, 100);
 	mouse_rect.moveCenter(m_mousePos);
 

@@ -30,7 +30,9 @@ if ! BINARY_PATH="$(find_binary)"; then
 fi
 
 export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-xcb}"
-export QT_XCB_GL_INTEGRATION="${QT_XCB_GL_INTEGRATION:-xcb_egl}"
+# xcb_glx: best 3D panadapter (desktop GL). xcb_egl: legacy EGL path.
+# 2D pan/waterfall use direct GL and work on either after NoPartialUpdate + pan GL fallback.
+export QT_XCB_GL_INTEGRATION="${QT_XCB_GL_INTEGRATION:-xcb_glx}"
 export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-}"
 
 # --- Qt 6.11.0 Detection Logic ---
