@@ -990,18 +990,6 @@ bool DataEngine::start() {
 				m_dataProcessor,
 				&DataProcessor::send_hpsdr_data);
 
-#ifdef HAVE_SOAPYSDR
-        if (m_hwInterface == QSDR::SoapySDR) {
-            if (m_soapySDRSource) {
-                CHECKED_CONNECT(m_soapySDRSource, &SoapySDRDataSource::readydata_soapy,
-                                RX.at(i), &SliceProcessor::enqueueSoapyData);
-            }
-            // connect the receiver's dspProcessingSoapy to its thread
-            connect(m_dspThreadList.at(i), &QThread::started,
-                    RX.at(i), &SliceProcessor::dspProcessingSoapy);
-        }
-#endif
-
 		m_dspThreadList.at(i)->start(QThread::HighPriority);
 
 		if (m_dspThreadList.at(i)->isRunning()) {
@@ -1264,17 +1252,6 @@ bool DataEngine::initDataEngine() {
     else if (m_hwInterface == QSDR::SoapySDR) {
         if (!m_soapySDRSource) createDataIO();
         initReceivers(1);
-
-        // connect soapy ready signals to receivers
-        for (int i = 0; i < RX.size(); ++i) {
-            if (m_soapySDRSource) {
-                CHECKED_CONNECT(m_soapySDRSource, &SoapySDRDataSource::readydata_soapy,
-                                RX.at(i), &SliceProcessor::enqueueSoapyData);
-            }
-            // connect the receiver's dspProcessingSoapy to its thread
-            connect(m_dspThreadList.at(i), &QThread::started,
-                    RX.at(i), &SliceProcessor::dspProcessingSoapy);
-        }
 
         // Start DSP threads for all receivers (skipped by the normal HPSDR path)
         for (int i = 0; i < m_dspThreadList.size(); ++i) {

@@ -98,7 +98,6 @@ public slots:
     void    enqueueRawData(const QVector<int32_t> &rawBlock);
     void    enqueueSoapyData(const QVector<float> &data);
     void    dspProcessingSoapy();
-	void	setReceiverData(TReceiver data);
 	void	setAudioMode(int mode);
 	void	setServerMode(QSDR::_ServerMode mode);
 	void	setPeerAddress(QHostAddress addr);
