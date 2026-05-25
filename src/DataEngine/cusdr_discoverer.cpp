@@ -28,6 +28,7 @@
 #define LOG_DISCOVERER
 
 #include "cusdr_discoverer.h"
+#include <SoapySDR/Device.hpp>
 #include "Util/cusdr_buttons.h"
 
 
@@ -57,6 +58,34 @@ Discoverer::~Discoverer() {
 }
 
 TNetworkDevicecard mc;
+
+#ifdef HAVE_SOAPYSDR
+void Discoverer::discoverSoapyDevices() {
+    QList<TSoapyDevice> list;
+    auto results = SoapySDR::Device::enumerate();
+    
+    for (const auto &res : results) {
+        TSoapyDevice dev;
+        if (res.count("driver")) dev.driver = QString::fromStdString(res.at("driver"));
+        
+        // Skip generic audio devices
+        if (dev.driver == "audio") continue;
+
+        if (res.count("hardware")) dev.hardware = QString::fromStdString(res.at("hardware"));
+        if (res.count("name")) dev.name = QString::fromStdString(res.at("name"));
+        if (res.count("serial")) dev.serial = QString::fromStdString(res.at("serial"));
+        if (res.count("label")) dev.label = QString::fromStdString(res.at("label"));
+        else dev.label = dev.name.isEmpty() ? dev.driver : dev.name;
+        
+        for (const auto &it : res) {
+            dev.args[QString::fromStdString(it.first)] = QString::fromStdString(it.second);
+        }
+        list.append(dev);
+    }
+    
+    emit soapyDeviceListFound(list);
+}
+#endif
 
 void Discoverer::initHPSDRDevice() {
 

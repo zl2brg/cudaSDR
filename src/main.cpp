@@ -89,6 +89,7 @@ private:
 };
 
 void cuSDRMessageHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg) {
+    Q_UNUSED(context);
     QString level;
     switch (type) {
         case QtDebugMsg:    level = "DEBUG"; break;
@@ -125,6 +126,7 @@ int main(int argc, char *argv[]) {
     
     QApplication app(argc, argv);
     app.setAttribute(Qt::AA_DontCreateNativeWidgetSiblings);
+    
     QSurfaceFormat format;
     format.setDepthBufferSize(24);
     format.setStencilBufferSize(8);

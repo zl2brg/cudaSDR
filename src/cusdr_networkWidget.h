@@ -77,16 +77,19 @@ private:
 	QGroupBox	*socketBufferSizeGroupBox;
 	
 	QComboBox	*networkDeviceInterfaces;
-	QComboBox	*networkDeviceIPAdresses;
+	QComboBox	*deviceCombo;
 	QComboBox	*socketBufferSizes;
 	QComboBox	*m_receiverComboBox;
 
 	QLabel		*socketBufferSizeLabel;
-	
+
 	AeroButton	*networkPresenceBtn;
+#ifdef HAVE_SOAPYSDR
+	AeroButton  *soapyBtn;
+#endif
 	AeroButton	*noHWBtn;
 
-	AeroButton	*searchNetworkDeviceBtn;
+	AeroButton	*searchBtn;
 	AeroButton	*socketBufSizeBtn;
 
 	QSDR::_ServerMode		m_serverMode;
@@ -112,12 +115,16 @@ private slots:
 					QSDR::_DataEngineState state);
 
 	void	interfaceBtnClicked();
-	void	searchHPSDRDeviceBtnClicked();
+	void	searchBtnClicked();
 	void	socketBufSizeBtnClicked();
 	void	setSocketBufferSize(int value);
 	void	setDeviceNIC(int index);
 	void	setNetworkDeviceList(QList<TNetworkDevicecard> list);
 	void	setCurrentNetworkDevice(TNetworkDevicecard card);
+#ifdef HAVE_SOAPYSDR
+    void    setSoapyDeviceList(const QList<TSoapyDevice> &list);
+#endif
+    void    deviceSelected(int index);
 	void	disableButtons();
 	void	enableButtons();
 	

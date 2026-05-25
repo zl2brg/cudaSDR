@@ -38,6 +38,14 @@ pkg_check_modules(FFTW3 REQUIRED fftw3)
 pkg_check_modules(FFTW3F REQUIRED fftw3f)
 pkg_check_modules(RNNOISE REQUIRED rnnoise IMPORTED_TARGET)
 pkg_check_modules(SPECLEACH REQUIRED libspecbleach IMPORTED_TARGET)
+pkg_check_modules(SOAPYSDR SoapySDR IMPORTED_TARGET)
+
+if(SOAPYSDR_FOUND)
+    message(STATUS "SoapySDR found - generic hardware support enabled")
+    add_definitions(-DHAVE_SOAPYSDR)
+else()
+    message(WARNING "SoapySDR not found - generic hardware support will be disabled")
+endif()
 
 # --- Find Codec2 ---
 find_library(CODEC2_LIBRARY codec2)
@@ -241,6 +249,12 @@ set(HEADERS
     ${SRC_DIR}/Util/cusdr_queue.h
 )
 
+if(SOAPYSDR_FOUND)
+    list(APPEND SOURCES ${SRC_DIR}/DataEngine/SoapySDRDataSource.cpp)
+    list(APPEND SOURCES ${SRC_DIR}/UI/cusdr_soapyWidget.cpp)
+    list(APPEND HEADERS ${SRC_DIR}/UI/cusdr_soapyWidget.h)
+endif()
+
 # --- Define UI Files ---
 set(UI_SOURCES
     ${SRC_DIR}/UI/tx_settings_dialog.ui
@@ -307,6 +321,10 @@ target_link_libraries(cudasdr PRIVATE
     -lm
     OpenGL::GL
 )
+
+if(SOAPYSDR_FOUND)
+    target_link_libraries(cudasdr PRIVATE PkgConfig::SOAPYSDR)
+endif()
 
 if(CODEC2_FOUND)
     target_link_libraries(cudasdr PRIVATE ${CODEC2_LIBRARY})

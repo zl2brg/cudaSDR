@@ -52,8 +52,14 @@ extern "C" {
 #define WDSP_ENGINE_DEBUG nullDebug()
 #endif
 
-#define min(X, Y) ((X) < (Y) ? (X) : (Y))
-#define max(X, Y) ((X) < (Y) ? (Y) : (X))
+#include <algorithm>
+
+#ifdef min
+#undef min
+#endif
+#ifdef max
+#undef max
+#endif
 
 class SliceModel;
 class QWDSPEngine : public QObject {

@@ -102,6 +102,7 @@ void MainWindowUI::createMainBtnToolBar() {
     startBtn->setFont(m_fonts.normalFont);
     startBtn->setTextColor(btnCol);
     startBtn->setFixedSize(btn_width1, btn_height1);
+    startBtn->setEnabled(false);
     CHECKED_CONNECT(startBtn, &AeroButton::clicked, m_mainWindow, &MainWindow::startButtonClickedEvent);
 
     serverBtn = new AeroButton("Server", m_mainWindow);

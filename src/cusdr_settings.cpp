@@ -105,6 +105,8 @@ Settings::Settings(QObject *parent)
     qRegisterMetaType<TDefaultFilterMode>();
     qRegisterMetaType<TNetworkDevicecard>();
     qRegisterMetaType<QList<TNetworkDevicecard> >();
+    qRegisterMetaType<TSoapyDevice>();
+    qRegisterMetaType<QList<TSoapyDevice> >();
     qRegisterMetaType<qVectorFloat>("qVectorFloat");
 
     startTime = QDateTime::currentDateTime();
@@ -335,6 +337,22 @@ int Settings::loadSettings() {
     } else if (m_hpsdrHardware == 1) {
 
         m_hwInterface = QSDR::Hermes;
+    } else if (m_hpsdrHardware == 2) {
+
+        m_hwInterface = QSDR::SoapySDR;
+        m_currentSoapyDevice.label = settings->value("SoapySDR/label", "").toString();
+        m_currentSoapyDevice.driver = settings->value("SoapySDR/driver", "").toString();
+        m_currentSoapyDevice.serial = settings->value("SoapySDR/serial", "").toString();
+#ifdef HAVE_SOAPYSDR
+        m_soapyRxAntenna   = settings->value("SoapySDR/rxAntenna", "LNAH").toString();
+        m_soapyLnaGain     = settings->value("SoapySDR/lnaGain", 25).toInt();
+        m_soapyTiaGain     = settings->value("SoapySDR/tiaGain", 12).toInt();
+        m_soapyPgaGain     = settings->value("SoapySDR/pgaGain", 12).toInt();
+        m_soapyOverallGain = settings->value("SoapySDR/overallGain", 60).toInt();
+        m_soapyAutoCalibrate = settings->value("SoapySDR/autoCalibrate", false).toBool();
+        m_soapyHardwareKey = "";
+        m_soapyAntennaList.clear();
+#endif
     }
 
     str = settings->value("hpsdr/checkfw", "true").toString();
@@ -1683,8 +1701,19 @@ int Settings::saveSettings() {
                 settings->setValue("hpsdr/excalibur", "false");
             break;
 
-            // Cyclops
+        // Cyclops / SoapySDR
         case 2:
+#ifdef HAVE_SOAPYSDR
+            settings->setValue("SoapySDR/label",  m_currentSoapyDevice.label);
+            settings->setValue("SoapySDR/driver", m_currentSoapyDevice.driver);
+            settings->setValue("SoapySDR/serial", m_currentSoapyDevice.serial);
+            settings->setValue("SoapySDR/rxAntenna",   m_soapyRxAntenna);
+            settings->setValue("SoapySDR/lnaGain",     m_soapyLnaGain);
+            settings->setValue("SoapySDR/tiaGain",     m_soapyTiaGain);
+            settings->setValue("SoapySDR/pgaGain",     m_soapyPgaGain);
+            settings->setValue("SoapySDR/overallGain", m_soapyOverallGain);
+            settings->setValue("SoapySDR/autoCalibrate", m_soapyAutoCalibrate);
+#endif
             break;
     }
 
@@ -1717,8 +1746,12 @@ int Settings::saveSettings() {
                 settings->setValue("hpsdr/interface", "hermes");
             break;
 
-            // Cyclops
+            // Cyclops / SoapySDR
         case 2:
+#ifdef HAVE_SOAPYSDR
+            if (m_hwInterface == QSDR::SoapySDR)
+                settings->setValue("hpsdr/interface", "soapy");
+#endif
             break;
     }
 
@@ -2968,11 +3001,31 @@ void Settings::searchHpsdrNetworkDevices() {
     emit searchMetisSignal();
 }
 
+#ifdef HAVE_SOAPYSDR
+void Settings::searchSoapyDevices() {
+    emit searchSoapySignal();
+}
+#endif
+
+void Settings::searchDevices() {
+    emit searchMetisSignal();
+#ifdef HAVE_SOAPYSDR
+    emit searchSoapySignal();
+#endif
+}
+
 void Settings::clearMetisCardList() {
 
     m_metisCards.clear();
 
     //emit metisCardListChanged(m_metisCards);
+}
+
+void Settings::setMaxFrequency(long value) {
+
+    if (m_maxFrequency == value) return;
+    m_maxFrequency = value;
+    emit maxFrequencyChanged(m_maxFrequency);
 }
 
 void Settings::setCurrentHPSDRDevice(TNetworkDevicecard card) {
@@ -2987,6 +3040,74 @@ void Settings::setCurrentHPSDRDevice(TNetworkDevicecard card) {
 
     emit hpsdrNetworkDeviceChanged(m_currentHPSDRDevice);
 }
+
+#ifdef HAVE_SOAPYSDR
+void Settings::setSoapyDeviceList(QList<TSoapyDevice> list) {
+    m_soapyDevices = list;
+    emit soapyDeviceListChanged(m_soapyDevices);
+}
+
+void Settings::setCurrentSoapyDevice(TSoapyDevice device) {
+    m_currentSoapyDevice = device;
+    emit soapyDeviceChanged(m_currentSoapyDevice);
+}
+
+void Settings::setSoapyMessage(QString message) {
+    emit soapyMessageEvent(message);
+}
+
+void Settings::setSoapyAntennaList(const QStringList &list) {
+    m_soapyAntennaList = list;
+    emit soapyAntennaListChanged(list);
+}
+
+void Settings::setSoapyHardwareKey(const QString &key) {
+    m_soapyHardwareKey = key;
+    emit soapyHardwareKeyChanged(key);
+}
+
+void Settings::setSoapyRxAntenna(const QString &antenna) {
+    if (m_soapyRxAntenna != antenna) {
+        m_soapyRxAntenna = antenna;
+        emit soapyRxAntennaChanged(antenna);
+    }
+}
+
+void Settings::setSoapyLnaGain(int gain) {
+    if (m_soapyLnaGain != gain) {
+        m_soapyLnaGain = gain;
+        emit soapyLnaGainChanged(gain);
+    }
+}
+
+void Settings::setSoapyTiaGain(int gain) {
+    if (m_soapyTiaGain != gain) {
+        m_soapyTiaGain = gain;
+        emit soapyTiaGainChanged(gain);
+    }
+}
+
+void Settings::setSoapyPgaGain(int gain) {
+    if (m_soapyPgaGain != gain) {
+        m_soapyPgaGain = gain;
+        emit soapyPgaGainChanged(gain);
+    }
+}
+
+void Settings::setSoapyOverallGain(int gain) {
+    if (m_soapyOverallGain != gain) {
+        m_soapyOverallGain = gain;
+        emit soapyOverallGainChanged(gain);
+    }
+}
+
+void Settings::setSoapyAutoCalibrate(bool enabled) {
+    if (m_soapyAutoCalibrate != enabled) {
+        m_soapyAutoCalibrate = enabled;
+        emit soapyAutoCalibrateChanged(enabled);
+    }
+}
+#endif
 
 void Settings::setHPSDRDeviceNumber(int value) {
 
@@ -3908,9 +4029,6 @@ void Settings::setVFOFrequency(int mode, int rx, long frequency) {
     if (m_receiverDataList.at(rx).vfoFrequency == frequency) return;
     m_receiverDataList[rx].vfoFrequency = frequency;
     SETTINGS_DEBUG << "vfo freq (Rx " << rx << ") " << m_receiverDataList[rx].vfoFrequency;
-    if (frequency > 60000000)
-        SETTINGS_DEBUG << "frequency out of expected range: " << frequency;
-
     HamBand band = getBandFromFrequency(m_bandList, frequency);
     m_receiverDataList[rx].lastVfoFrequencyList[(int) band] = frequency;
 
@@ -3925,8 +4043,17 @@ void Settings::setVFOFrequency(int mode, int rx, long frequency) {
 
         case 0: // change only VFO
 
-            m_receiverDataList[rx].ncoFrequency = frequency - m_receiverDataList.at(rx).ctrFrequency;
-            SETTINGS_DEBUG << "nco freq = " << m_receiverDataList[rx].ncoFrequency << "rx frequency = " << frequency << "Ctr Frequnecy =" << m_receiverDataList.at(rx).ctrFrequency;
+#ifdef HAVE_SOAPYSDR
+            if (m_hwInterface == QSDR::SoapySDR) {
+                // SoapySDR hardware tunes directly to VFO; keep center = VFO so NCO stays 0
+                m_receiverDataList[rx].ctrFrequency = frequency;
+                m_receiverDataList[rx].ncoFrequency = 0;
+            } else
+#endif
+            {
+                m_receiverDataList[rx].ncoFrequency = frequency - m_receiverDataList.at(rx).ctrFrequency;
+                SETTINGS_DEBUG << "nco freq = " << m_receiverDataList[rx].ncoFrequency << "rx frequency = " << frequency << "Ctr Frequnecy =" << m_receiverDataList.at(rx).ctrFrequency;
+            }
             break;
 
         case 1: // change VFO and center freq; keep NCO frequency
@@ -4194,7 +4321,7 @@ void Settings::setAGCMaximumGain_dB(int rx, qreal value) {
     m_receiverDataList[rx].agcMaximumGain_dB = value;
 
     SETTINGS_DEBUG << "set agcMaximumGain_dB = " << m_receiverDataList[rx].agcMaximumGain_dB;
-    emit agcMaximumGainChanged(rx, value);
+    emit agcMaximumGainChanged_dB(rx, value);
 }
 
 int Settings::getAGCMaximumGain_dB(int rx) {

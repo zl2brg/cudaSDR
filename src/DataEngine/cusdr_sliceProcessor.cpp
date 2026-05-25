@@ -12,8 +12,8 @@
 * 2010 - Hermann von Hasseln, DL3HVH
 *
 * This program is free software; you can redistribute it and/or
-* modify it under the terms of the GNU General Public License
-* as published by the Free Software Foundation; either version 2
+* modify it under the terms of the GNU Library General Public License version 2 as
+* published by the Free Software Foundation; either version 2
 * of the License, or (at your option) any later version.tw
 *
 * This program is distributed in the hope that it will be useful,
@@ -21,9 +21,9 @@
 * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 * GNU General Public License for more details.
 *
-* You should have received a copy of the GNU General Public License
-* along with this program; if not, write to the Free Software
-* Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+* You should have received a copy of the GNU Library General Public
+* License along with this program; if not, write to the
+* Free Software Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02110-1301, USA.
 *
 */
 #define LOG_SLICE_PROCESSOR
@@ -45,6 +45,8 @@ SliceProcessor::SliceProcessor(SliceModel *model, QObject *parent)
 	, m_samplerate(set->getSampleRate())
 	, m_audioMode(1)
 	, m_rateTransitionDropBuffers(0)
+    , m_iqQueue(100)
+    , m_soapyQueue(100)
 	//, m_calOffset(63.0)
 	//, m_calOffset(33.0)
 {
@@ -168,6 +170,22 @@ void SliceProcessor::enqueueRawData() {
     m_iqQueue.enqueue(rawBlock);
 }
 
+void SliceProcessor::enqueueRawData(const QVector<int32_t> &rawBlock) {
+    if (m_iqQueue.isFull()) {
+        SLICE_PROCESSOR_DEBUG << "iqQueue (Soapy) full! dropping oldest packet";
+        m_iqQueue.dequeue();
+    }
+    m_iqQueue.enqueue(rawBlock);
+}
+
+void SliceProcessor::enqueueSoapyData(const QVector<float> &data) {
+    if (m_soapyQueue.isFull()) {
+        SLICE_PROCESSOR_DEBUG << "soapyQueue full! dropping oldest packet";
+        m_soapyQueue.dequeue();
+    }
+    m_soapyQueue.enqueue(data);
+}
+
 void SliceProcessor::enqueueData() {
     // Legacy support or internal use
     if (m_iqQueue.isFull()) {
@@ -182,6 +200,26 @@ void SliceProcessor::stop() {
 	m_mutex.lock();
 	m_stopped = true;
 	m_mutex.unlock();
+}
+
+void SliceProcessor::dspProcessingSoapy() {
+    if (m_soapyQueue.isEmpty()) return;
+    const QVector<float> rawIQ = m_soapyQueue.dequeue();
+    if (rawIQ.size() < BUFFER_SIZE * 2) return;
+
+    ++m_dspCallCount;
+    if (m_dspCallCount % 100 == 1) {
+        qDebug() << "SliceProcessor" << m_receiver << ": Soapy DSP heartbeat, soapyQ:" << m_soapyQueue.count();
+    }
+
+    cpx* inPtr = inBuf.data();
+    const float* rawPtr = rawIQ.constData();
+    for (int i = 0; i < BUFFER_SIZE; ++i) {
+        inPtr[i].re =  static_cast<double>(rawPtr[2*i]);
+        inPtr[i].im = -static_cast<double>(rawPtr[2*i+1]); // negate Q: LimeSDR-Mini IQ is conjugated
+    }
+
+    dspProcessingCore();
 }
 
 void SliceProcessor::dspProcessing() {
@@ -214,17 +252,30 @@ void SliceProcessor::dspProcessing() {
 	}
     
     QVector<int32_t> rawIQ = m_iqQueue.dequeue();
-    
-    // Perform 24-bit integer to double conversion in this thread
-    // This offloads work from the bottleneck DataProcessor thread.
+    dspProcessing(rawIQ);
+}
+
+void SliceProcessor::dspProcessing(const QVector<int32_t> &rawIQ) {
+    if (rawIQ.size() < BUFFER_SIZE * 2) return;
+
+    ++m_dspCallCount;
+    if (m_dspCallCount % 100 == 1) {
+        qDebug() << "SliceProcessor" << m_receiver << ": DSP heartbeat, queue size:" << m_iqQueue.count();
+    }
+
+    // Perform 24-bit integer to double conversion
     const double scale = 1.0 / 8388607.0;
-    cpx* inPtr = inBuf.data(); // Trigger detach once
+    cpx* inPtr = inBuf.data();
     const int32_t* rawPtr = rawIQ.constData();
     for (int i = 0; i < BUFFER_SIZE; ++i) {
         inPtr[i].re = (double)rawPtr[2*i] * scale;
         inPtr[i].im = (double)rawPtr[2*i+1] * scale;
     }
 
+    dspProcessingCore();
+}
+
+void SliceProcessor::dspProcessingCore() {
     int spectrumDataReady;
     
     m_dspMutex.lock();
@@ -233,7 +284,6 @@ void SliceProcessor::dspProcessing() {
     double dspUs = m_dspCallTimer.nsecsElapsed() / 1000.0;
     m_dspMutex.unlock();
 
-    ++m_dspCallCount;
     if (dspUs < m_dspTimeMin) m_dspTimeMin = dspUs;
     if (dspUs > m_dspTimeMax) m_dspTimeMax = dspUs;
     m_dspTimeAccum += dspUs;
@@ -244,8 +294,6 @@ void SliceProcessor::dspProcessing() {
         SLICE_PROCESSOR_DEBUG << "DSP perf rx=" << m_receiver
                        << " calls=" << m_dspCallCount
                        << " mean=" << QString::number(mean, 'f', 1) << "Âµs"
-                       << " min="  << QString::number(m_dspTimeMin, 'f', 1) << "Âµs"
-                       << " max="  << QString::number(m_dspTimeMax, 'f', 1) << "Âµs"
                        << " budget=" << QString::number(getDisplayDelay(), 'f', 0) << "Âµs"
                        << " iqQ=" << m_iqQueue.count();
         m_dspTimeAccum = 0.0;
@@ -255,30 +303,30 @@ void SliceProcessor::dspProcessing() {
 
       if (highResTimer->getElapsedTimeInMicroSec() >= getDisplayDelay()) {
 
-        
 		if (m_state == RadioState::RX) {
 			GetPixels(m_receiver, 0, qtwdsp->spectrumBuffer.data(), &spectrumDataReady);
 		} else {
 			GetPixels(TX_ID, 0, qtwdsp->spectrumBuffer.data(), &spectrumDataReady);
-
-			// TX spectrum can be temporarily unavailable depending on DSP timing.
-			// Fall back to receiver spectrum so panadapter updates don't stall in TX.
 			if (!spectrumDataReady) {
-				qDebug() << "Tx spectrum fetch fail; falling back to RX spectrum";
 				GetPixels(m_receiver, 0, qtwdsp->spectrumBuffer.data(), &spectrumDataReady);
 			}
 		}
 
         if (spectrumDataReady) {
             newSpectrum = qtwdsp->spectrumBuffer;  // Direct assignment
+            if (m_dspCallCount % 100 == 1) {
+                qDebug() << "Receiver" << m_receiver << ": Spectrum data ready, emitting signal, first sample:" << newSpectrum.at(0);
+            }
             emit spectrumBufferChanged(m_receiver, newSpectrum);
+        } else {
+            if (m_dspCallCount % 100 == 1) {
+                qDebug() << "Receiver" << m_receiver << ": GetPixels returned no data";
+            }
         }
-        
         highResTimer->start();
     }
 
     if (m_receiver == set->getCurrentReceiver()) {
-        // Consider if this needs mutex protection too
         if (m_smeterTime.elapsed() > 200) {
             m_sMeterValue = qtwdsp->getSMeterInstValue();
             emit sMeterValueChanged(m_receiver, m_sMeterValue);
@@ -400,6 +448,8 @@ void SliceProcessor::setSampleRate(int value) {
 		// fexchange0 is not called on the channel while it is being rebuilt.
 		while (!m_iqQueue.isEmpty())
 			m_iqQueue.dequeue();
+		while (!m_soapyQueue.isEmpty())
+			m_soapyQueue.dequeue();
 		m_rateTransitionDropBuffers = HIGH_RATE_TRANSITION_DROP_BUFFERS;
 
         qtwdsp->setSampleRate(m_samplerate);

@@ -49,6 +49,9 @@ cusdr_SetupWidget::cusdr_SetupWidget(RadioModel *model, QWidget *parent)
     m_extCtrlWidget = new ExtCtrlWidget(this);
     m_txsettingsWidget = new tx_settings_dialog(this);
     m_displaytabWidget = new DisplayTabWidget(m_radioModel, this);
+#ifdef HAVE_SOAPYSDR
+    m_soapyWidget = new SoapyWidget(this);
+#endif
 
     auto addScrollableTab = [this](QWidget* widget, const QString& title) {
         QScrollArea* scrollArea = new QScrollArea(this);
@@ -64,6 +67,9 @@ cusdr_SetupWidget::cusdr_SetupWidget(RadioModel *model, QWidget *parent)
     addScrollableTab(m_alexTabWidget, " Alex ");
     addScrollableTab(m_txsettingsWidget, " Tx Settings ");
     addScrollableTab(m_displaytabWidget, " Display Ctrl");
+#ifdef HAVE_SOAPYSDR
+    addScrollableTab(m_soapyWidget, " Radio ");
+#endif
 
 if (!set->getPenelopePresence() && !set->getPennyLanePresence() && (set->getHWInterface() != QSDR::Hermes)) {
 

@@ -93,7 +93,7 @@ QWDSPEngine::QWDSPEngine(SliceModel *model, QObject *parent, int size)
     m_agcSlope = set->getAGCSlope(m_rx);
     m_agcMaximumGain = set->getAGCMaximumGain_dB(m_rx);
     spectrumBuffer.resize(QWDSPEngine_BUFFER_SIZE * 4);
-    spectrumBuffer.resize(BUFFER_SIZE * 4);
+    // spectrumBuffer.resize(BUFFER_SIZE * 4);
     m_fftSize = getfftVal(set->getfftSize(m_rx));
     m_nr_agc = set->getNrAGC(m_rx);
     m_nr2_ae = set->getNr2ae(m_rx);
@@ -130,7 +130,7 @@ QWDSPEngine::QWDSPEngine(SliceModel *model, QObject *parent, int size)
     
     int analyzerResult;
     WDSP_ENGINE_DEBUG << "[WDSP-INIT] rx=" << m_rx << "-> XCreateAnalyzer";
-    XCreateAnalyzer(m_rx, &analyzerResult, 262144, 1, 1, const_cast<char*>(""));
+    XCreateAnalyzer(m_rx, &analyzerResult, 4096, 1, 1, const_cast<char*>(""));
     if (analyzerResult != 0) {
         qWarning() << "[WDSP-INIT] XCreateAnalyzer id=" << m_rx << "failed:" << analyzerResult;
     } else {
@@ -331,29 +331,6 @@ void QWDSPEngine::setupConnections() {
             if (rx == m_rx) setFilter(low, high);
         });
     }
-}
-
-long QWDSPEngine::centerFrequencyHz() const {
-
-    return m_sliceModel ? m_sliceModel->centerFrequency() : set->getCtrFrequency(m_rx);
-}
-
-DSPMode QWDSPEngine::currentDspMode() const {
-
-    return m_sliceModel ? m_sliceModel->dspMode() : set->getDSPMode(m_rx);
-}
-
-void QWDSPEngine::updateFreeDvSideband(long frequency) {
-
-    if (currentDspMode() != FDV) return;
-    // Reselect USB/LSB when frequency crosses the 10 MHz boundary in FDV/FreeDV mode.
-    DSPMode wdspMode = resolveWDSPMode(FDV, frequency);
-    if (m_dspmode == wdspMode) return;
-    m_dspmode = wdspMode;
-    WDSP_ENGINE_DEBUG << "FreeDV sideband updated to" << wdspMode << "for freq" << frequency;
-    SetRXAMode(m_rx, wdspMode);
-    auto filter = getFilterFromDSPMode(set->getDefaultFilterList(), wdspMode);
-    setFilter(filter.filterLo, filter.filterHi);
 }
 
 

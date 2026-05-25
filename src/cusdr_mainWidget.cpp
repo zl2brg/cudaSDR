@@ -192,21 +192,6 @@ void MainWindow::setupConnections() {
 
 
 
-	/*if (m_cudaPresence) {
-	
-		CHECKED_CONNECT(
-			m_cudaInfoWidget, 
-SIGNAL(showEvent()), 
-			this,
-			SLOT(showWidgetEvent()));
-
-		CHECKED_CONNECT(
-			m_cudaInfoWidget, 
-			SIGNAL(closeEvent()), 
-			this,
-			SLOT(closeWidgetEvent()));
-	}*/
-	
 	CHECKED_CONNECT(
 		set,
 		&Settings::cpuLoadChanged, 
@@ -220,7 +205,28 @@ SIGNAL(showEvent()),
 		&MainWindow::masterSwitchChanged);
 
 	CHECKED_CONNECT(
-		set,
+	set,
+	&Settings::hpsdrNetworkDeviceChanged,
+	this,
+	&MainWindow::checkStartButtonState);
+
+	#ifdef HAVE_SOAPYSDR
+	CHECKED_CONNECT(
+	set,
+	&Settings::soapyDeviceChanged,
+	this,
+	&MainWindow::checkStartButtonState);
+	#endif
+
+	CHECKED_CONNECT(
+	set,
+	&Settings::systemStateChanged,
+	this,
+	&MainWindow::checkStartButtonState);
+
+	CHECKED_CONNECT(
+		set, 
+
 		&Settings::numberOfRXChanged, 
 		this, 
 		&MainWindow::setNumberOfReceivers);
@@ -433,6 +439,7 @@ void MainWindow::setup() {
 	setupConnections();
 
 	updateFromSettings();
+    checkStartButtonState();
 }
 
 void MainWindow::cusdr_setup()
@@ -1289,6 +1296,31 @@ void MainWindow::setAttenuator() {
 			ui->attenuatorBtn->setBtnState(AeroButton::ON);
 		}
 	}
+}
+
+void MainWindow::checkStartButtonState() {
+    bool enable = false;
+    QSDR::_HWInterfaceMode hw = set->getHWInterface();
+
+    if (hw == QSDR::NoInterfaceMode) {
+        // Only if we have some file loaded?
+        enable = false; // for now
+    } else if (hw == QSDR::Metis || hw == QSDR::Hermes) {
+        QHostAddress addr = set->getCurrentMetisCard().ip_address;
+        if (!addr.isNull() && addr != QHostAddress::Any && addr != QHostAddress::AnyIPv4) {
+            enable = true;
+        }
+    } 
+#ifdef HAVE_SOAPYSDR
+    else if (hw == QSDR::SoapySDR) {
+        if (!set->getCurrentSoapyDevice().driver.isEmpty()) {
+            enable = true;
+        }
+    }
+#endif
+
+    ui->startBtn->setEnabled(enable);
+    MAIN_DEBUG << "Check start button: hw=" << set->getHWInterfaceModeString(hw) << " enable=" << enable;
 }
 
 void MainWindow::setAttenuatorButton() {
