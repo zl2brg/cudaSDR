@@ -17,6 +17,9 @@
 
 namespace {
 
+constexpr int kReadTimeoutUs = 200000;
+constexpr int kStreamTimeoutsBeforeRestart = 5;
+
 bool listLooksLikeRangeEndpoints(const std::vector<double>& rates) {
     if (rates.size() < 2)
         return true;
@@ -371,8 +374,7 @@ void SoapySDRDataSource::init() {
         // so the slot receives the correct rx and frequency values.
         connect(set, &Settings::vfoFrequencyChanged, this,
                 [this](int mode, int rx, long frequency) {
-                    qDebug() << "[SoapySDR] vfoFrequencyChanged lambda: mode=" << mode
-                             << "rx=" << rx << "freq=" << frequency / 1.0e6 << "MHz";
+                    Q_UNUSED(mode);
                     setFrequency(rx, frequency);
                 }, Qt::DirectConnection);
 
@@ -475,35 +477,6 @@ void SoapySDRDataSource::runStream() {
                 if (m_maxFrequency > 0 && clamped > m_maxFrequency) clamped = m_maxFrequency;
                 m_pendingFreq.store(static_cast<double>(clamped), std::memory_order_relaxed);
                 m_freqPending.store(true, std::memory_order_release);
-                qDebug() << "[SoapySDR] runStream: VFO poll detected" << polledVfo / 1.0e6 << "MHz";
-            }
-        }
-
-        // Apply pending frequency change (set by UI thread via DirectConnection slot
-        // OR by the VFO poll above).
-        if (m_freqPending.load(std::memory_order_acquire)) {
-            m_freqPending.store(false, std::memory_order_relaxed);
-            const double freq = m_pendingFreq.load(std::memory_order_relaxed);
-            qDebug() << "[SoapySDR] runStream: applying frequency" << freq / 1.0e6 << "MHz to hardware";
-            bool freqOk = false;
-            try {
-                if (m_rxStream) {
-                    m_device->deactivateStream(m_rxStream);
-                    m_device->closeStream(m_rxStream);
-                    m_rxStream = nullptr;
-                }
-                m_device->setFrequency(SOAPY_SDR_RX, 0, freq);
-                const double actual = m_device->getFrequency(SOAPY_SDR_RX, 0);
-                qDebug() << "[SoapySDR] hardware freq confirmed:" << actual / 1.0e6 << "MHz";
-                freqOk = restartRxStream();
-            } catch (const std::exception &e) {
-                qWarning() << "[SoapySDR] setFrequency/restart failed:" << e.what();
-            }
-            decimOut = 0;
-            accumI = accumQ = 0.0;
-            accumN = 0;
-            if (!freqOk) {
-                qWarning() << "[SoapySDR] stream not running after frequency change";
             }
         }
 
@@ -543,7 +516,7 @@ void SoapySDRDataSource::runStream() {
 
         int flags;
         long long timeNs;
-        int ret = m_device->readStream(m_rxStream, buffs, numSamples, flags, timeNs, 1000000);
+        int ret = m_device->readStream(m_rxStream, buffs, numSamples, flags, timeNs, kReadTimeoutUs);
 
         if (ret > 0) {
             packetCount++;
@@ -577,15 +550,27 @@ void SoapySDRDataSource::runStream() {
             }
         } else if (ret < 0) {
             const int err = ret;
-            const char* errMsg = SoapySDR::errToStr(err);
-            if (++m_streamTimeouts <= 3 || (m_streamTimeouts % 20) == 0) {
-                qWarning() << "SoapySDRDataSource: readStream" << errMsg
-                           << "(" << err << ") — restarting stream";
+            if (++m_streamTimeouts >= kStreamTimeoutsBeforeRestart) {
+                qWarning() << "SoapySDRDataSource: readStream"
+                           << SoapySDR::errToStr(err) << "(" << err << ") — restarting stream";
+                m_streamTimeouts = 0;
+                if (restartRxStream()) {
+                    decimOut = 0;
+                    accumI = accumQ = 0.0;
+                    accumN = 0;
+                }
             }
-            if (restartRxStream()) {
-                decimOut = 0;
-                accumI = accumQ = 0.0;
-                accumN = 0;
+        }
+
+        // Tune after readStream so setFrequency never blocks IQ capture.
+        while (m_freqPending.exchange(false, std::memory_order_acq_rel)) {
+            const double freq = m_pendingFreq.load(std::memory_order_relaxed);
+            if (!m_device)
+                break;
+            try {
+                m_device->setFrequency(SOAPY_SDR_RX, 0, freq);
+            } catch (const std::exception& e) {
+                qWarning() << "SoapySDRDataSource: setFrequency failed:" << e.what();
             }
         }
     }
@@ -605,18 +590,12 @@ void SoapySDRDataSource::setSampleRate(int value) {
 
 // Runs on the UI thread (Qt::DirectConnection) — must only write atomics.
 void SoapySDRDataSource::setFrequency(int rx, long frequency) {
-    qDebug() << "[SoapySDR] setFrequency entry: rx=" << rx << "freq=" << frequency / 1.0e6 << "MHz"
-             << "(minFreq=" << m_minFrequency / 1.0e6 << "maxFreq=" << m_maxFrequency / 1.0e6 << ")";
     Q_UNUSED(rx);
     long clamped = frequency;
     if (m_minFrequency > 0 && clamped < m_minFrequency) clamped = m_minFrequency;
     if (m_maxFrequency > 0 && clamped > m_maxFrequency) clamped = m_maxFrequency;
     m_pendingFreq.store(static_cast<double>(clamped), std::memory_order_relaxed);
     m_freqPending.store(true, std::memory_order_release);
-    if (clamped != frequency)
-        qDebug() << "[SoapySDR] freq" << frequency / 1.0e6 << "MHz queued (clamped to" << clamped / 1.0e6 << "MHz)";
-    else
-        qDebug() << "[SoapySDR] freq" << clamped / 1.0e6 << "MHz queued";
 }
 
 #endif // HAVE_SOAPYSDR
