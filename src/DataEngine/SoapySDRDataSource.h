@@ -31,6 +31,19 @@ private slots:
     void setFrequency(int rx, long frequency);
 
 private:
+    struct RfRatePlan {
+        int rfSampleRate = 48000;
+        int decimRatio = 1;
+        int effectiveMinHz = 0;
+    };
+
+    RfRatePlan chooseRfSampleRate(int dspRate) const;
+    bool syncRfRateFromHardware(int dspRate);
+    bool restartRxStream();
+    void applyBandwidthForRfRate(int rfSampleRate);
+    static bool isSampleRateCompatible(double rfHz, int dspHz);
+    static int hardwareMinSampleRateHz(const std::string& hwKey, int driverReportedMin);
+
     Settings* set;
     THPSDRParameter* io;
     SoapySDR::Device* m_device;
@@ -56,6 +69,7 @@ private:
     // Last VFO seen by runStream() — used for polling-based frequency tracking
     // as a fallback when the signal/slot path doesn't fire.
     long m_lastKnownVfo;
+    int m_streamTimeouts;
 
 signals:
     void messageEvent(QString message);

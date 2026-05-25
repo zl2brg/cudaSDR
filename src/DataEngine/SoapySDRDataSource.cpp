@@ -9,7 +9,205 @@
 #undef min
 #endif
 #include <QDebug>
+#include <SoapySDR/Errors.hpp>
 #include <algorithm>
+#include <cmath>
+#include <limits>
+#include <vector>
+
+namespace {
+
+bool listLooksLikeRangeEndpoints(const std::vector<double>& rates) {
+    if (rates.size() < 2)
+        return true;
+    if (rates.size() == 2) {
+        const double lo = std::min(rates[0], rates[1]);
+        const double hi = std::max(rates[0], rates[1]);
+        if (lo <= 0.0)
+            return true;
+        return (hi / lo) > 50.0;
+    }
+    return false;
+}
+
+} // namespace
+
+bool SoapySDRDataSource::isSampleRateCompatible(double rfHz, int dspHz) {
+    if (dspHz <= 0 || rfHz + 0.5 < static_cast<double>(dspHz))
+        return false;
+    const int ratio = static_cast<int>(std::lround(rfHz / static_cast<double>(dspHz)));
+    if (ratio < 1)
+        return false;
+    return std::abs(rfHz - ratio * static_cast<double>(dspHz)) < 1.0;
+}
+
+int SoapySDRDataSource::hardwareMinSampleRateHz(const std::string& hwKey, int driverReportedMin) {
+    if (hwKey == "LimeSDR-Mini" || hwKey == "LimeSDR-Mini 2.0")
+        return std::max(driverReportedMin, 1300000);
+    return driverReportedMin;
+}
+
+void SoapySDRDataSource::applyBandwidthForRfRate(int rfSampleRate) {
+    if (!m_device)
+        return;
+    // Keep analog bandwidth close to the RF rate we actually use (not a fixed 5 MHz).
+    const double bw = std::min(5.0e6, std::max(static_cast<double>(rfSampleRate) * 1.25,
+                                                static_cast<double>(m_sampleRate) * 1.5));
+    try {
+        m_device->setBandwidth(SOAPY_SDR_RX, 0, bw);
+    } catch (const std::exception& e) {
+        qWarning() << "SoapySDRDataSource: setBandwidth failed:" << e.what();
+    }
+}
+
+SoapySDRDataSource::RfRatePlan SoapySDRDataSource::chooseRfSampleRate(int dspRate) const {
+    RfRatePlan plan;
+    plan.rfSampleRate = dspRate;
+    plan.decimRatio = 1;
+
+    if (dspRate <= 0)
+        return plan;
+
+    int rangeMinHz = 0;
+    int rangeMaxHz = 65000000;
+    std::vector<double> listedRates;
+
+    if (m_device) {
+        try {
+            const SoapySDR::RangeList srRanges = m_device->getSampleRateRange(SOAPY_SDR_RX, 0);
+            if (!srRanges.empty()) {
+                rangeMinHz = static_cast<int>(srRanges.front().minimum());
+                rangeMaxHz = static_cast<int>(srRanges.back().maximum());
+            }
+        } catch (const std::exception& e) {
+            qWarning() << "SoapySDRDataSource: getSampleRateRange failed:" << e.what();
+        }
+
+        try {
+            listedRates = m_device->listSampleRates(SOAPY_SDR_RX, 0);
+        } catch (...) {
+            listedRates.clear();
+        }
+    }
+
+    int driverMin = rangeMinHz;
+    if (driverMin <= 0 && !listedRates.empty())
+        driverMin = static_cast<int>(*std::min_element(listedRates.begin(), listedRates.end()));
+
+    const std::string hwKey = m_device ? m_device->getHardwareKey() : std::string();
+    plan.effectiveMinHz = hardwareMinSampleRateHz(hwKey, driverMin);
+    if (plan.effectiveMinHz <= 0)
+        plan.effectiveMinHz = 225000; // conservative RTL-ish fallback when the driver reports nothing
+
+    std::vector<double> candidates;
+
+    if (!listedRates.empty() && !listLooksLikeRangeEndpoints(listedRates)) {
+        for (double rate : listedRates) {
+            if (!isSampleRateCompatible(rate, dspRate))
+                continue;
+            if (rate + 0.5 < plan.effectiveMinHz)
+                continue;
+            if (rate > rangeMaxHz + 1.0)
+                continue;
+            candidates.push_back(rate);
+        }
+        if (!candidates.empty()) {
+            qDebug() << "SoapySDRDataSource: picked from" << candidates.size()
+                     << "listed rates compatible with DSP" << dspRate << "Hz";
+        }
+    } else if (!listedRates.empty()) {
+        qDebug() << "SoapySDRDataSource: listSampleRates looks like min/max endpoints only"
+                 << "(count" << listedRates.size() << ") — using integer multiples of DSP rate";
+    }
+
+    // Native DSP rate is best when the device supports it (decimRatio == 1).
+    if (static_cast<double>(dspRate) >= plan.effectiveMinHz - 1.0
+        && static_cast<double>(dspRate) <= rangeMaxHz + 1.0) {
+        candidates.push_back(static_cast<double>(dspRate));
+    }
+
+    if (candidates.empty()) {
+        const int kMin = std::max(1, static_cast<int>(std::ceil(
+            static_cast<double>(plan.effectiveMinHz) / static_cast<double>(dspRate))));
+        const int kMax = std::min(kMin + 128, std::max(kMin, rangeMaxHz / dspRate));
+        for (int k = kMin; k <= kMax; ++k) {
+            const double rate = static_cast<double>(k) * static_cast<double>(dspRate);
+            if (rate <= rangeMaxHz + 1.0)
+                candidates.push_back(rate);
+        }
+    }
+
+    double bestHz = std::numeric_limits<double>::max();
+    for (double rate : candidates) {
+        if (rate < bestHz)
+            bestHz = rate;
+    }
+
+    if (bestHz == std::numeric_limits<double>::max()) {
+        plan.decimRatio = std::max(1, static_cast<int>(std::ceil(
+            static_cast<double>(plan.effectiveMinHz) / static_cast<double>(dspRate))));
+        plan.rfSampleRate = plan.decimRatio * dspRate;
+        qWarning() << "SoapySDRDataSource: no compatible rate found; using RF"
+                   << plan.rfSampleRate << "Hz (decimate by" << plan.decimRatio << ")";
+    } else {
+        plan.rfSampleRate = static_cast<int>(std::lround(bestHz));
+        plan.decimRatio = std::max(1, static_cast<int>(std::lround(bestHz / dspRate)));
+        qDebug() << "SoapySDRDataSource: smallest compatible RF rate" << plan.rfSampleRate
+                 << "Hz for DSP" << dspRate << "Hz (decimate by" << plan.decimRatio << ")";
+    }
+
+    return plan;
+}
+
+bool SoapySDRDataSource::syncRfRateFromHardware(int dspRate) {
+    if (!m_device || dspRate <= 0)
+        return false;
+
+    try {
+        const double actual = m_device->getSampleRate(SOAPY_SDR_RX, 0);
+        const int actualHz = static_cast<int>(std::lround(actual));
+        int ratio = std::max(1, static_cast<int>(std::lround(actualHz / static_cast<double>(dspRate))));
+        const int snappedRf = ratio * dspRate;
+
+        if (snappedRf != m_rfSampleRate || ratio != m_decimRatio) {
+            qDebug() << "SoapySDRDataSource: RF rate readback" << actualHz
+                     << "Hz -> use" << snappedRf << "Hz (decimate by" << ratio << ")";
+            if (std::abs(actualHz - snappedRf) > 1) {
+                m_device->setSampleRate(SOAPY_SDR_RX, 0, snappedRf);
+            }
+            m_rfSampleRate = snappedRf;
+            m_decimRatio = ratio;
+        }
+        return true;
+    } catch (const std::exception& e) {
+        qWarning() << "SoapySDRDataSource: syncRfRateFromHardware failed:" << e.what();
+        return false;
+    }
+}
+
+bool SoapySDRDataSource::restartRxStream() {
+    if (!m_device)
+        return false;
+
+    try {
+        if (m_rxStream) {
+            m_device->deactivateStream(m_rxStream);
+            m_device->closeStream(m_rxStream);
+            m_rxStream = nullptr;
+        }
+        m_rxStream = m_device->setupStream(SOAPY_SDR_RX, SOAPY_SDR_CF32);
+        if (!m_rxStream)
+            return false;
+        m_device->activateStream(m_rxStream);
+        m_streamTimeouts = 0;
+        qDebug() << "SoapySDRDataSource: RX stream restarted";
+        return true;
+    } catch (const std::exception& e) {
+        qWarning() << "SoapySDRDataSource: restartRxStream failed:" << e.what();
+        m_rxStream = nullptr;
+        return false;
+    }
+}
 
 SoapySDRDataSource::SoapySDRDataSource(THPSDRParameter *ioData)
     : QObject(nullptr)
@@ -31,6 +229,7 @@ SoapySDRDataSource::SoapySDRDataSource(THPSDRParameter *ioData)
     , m_pendingDecimRatio(1)
     , m_sampleRatePending(false)
     , m_lastKnownVfo(0)
+    , m_streamTimeouts(0)
 {
 }
 
@@ -85,90 +284,14 @@ void SoapySDRDataSource::init() {
             qDebug() << "SoapySDRDataSource: Could not query frequency range:" << e.what();
         }
 
-        // Choose an RF sample rate that is an exact integer multiple of the DSP
-        // rate so that averaging m_decimRatio hardware samples produces exactly
-        // one sample at m_sampleRate for WDSP.
-        m_sampleRate    = set->getSampleRate();
-        m_rfSampleRate  = m_sampleRate;
-        m_decimRatio    = 1;
-        m_minSampleRate = 0;
-
-        // Step 1: check whether device advertises discrete rates that include ours.
-        bool exactRateMatch = false;
-        try {
-            std::vector<double> discrete = m_device->listSampleRates(SOAPY_SDR_RX, 0);
-            for (double r : discrete) {
-                if (std::abs(r - m_sampleRate) < 1.0) { exactRateMatch = true; break; }
-            }
-            if (exactRateMatch)
-                qDebug() << "SoapySDRDataSource: device natively supports DSP rate" << m_sampleRate << "Hz";
-        } catch (...) {
-            // Device doesn't implement listSampleRates (e.g. LimeSDR — continuous range).
-        }
-
-        // Step 2: if no exact discrete match, query the continuous range and compute
-        // the smallest integer multiple of the DSP rate that meets the device minimum.
-        if (!exactRateMatch) {
-            try {
-                SoapySDR::RangeList srRanges = m_device->getSampleRateRange(SOAPY_SDR_RX, 0);
-                if (!srRanges.empty()) {
-                    m_minSampleRate = static_cast<int>(srRanges.front().minimum());
-                    int maxSR       = static_cast<int>(srRanges.back().maximum());
-                    qDebug() << "SoapySDRDataSource: Device sample rate range"
-                             << m_minSampleRate / 1.0e6 << "to" << maxSR / 1.0e6 << "MSPS";
-                    if (m_rfSampleRate < m_minSampleRate) {
-                        m_decimRatio   = (int)std::ceil((double)m_minSampleRate / m_sampleRate);
-                        m_rfSampleRate = m_decimRatio * m_sampleRate;
-                        qWarning() << "SoapySDRDataSource: DSP rate" << m_sampleRate
-                                   << "Hz below device minimum; RF rate" << m_rfSampleRate
-                                   << "Hz (decimate by" << m_decimRatio << ")";
-                    }
-                }
-            } catch (const std::exception &e) {
-                qWarning() << "SoapySDRDataSource: Could not query sample rate range:" << e.what();
-            }
-        }
-
-        // Fallback: if neither query method succeeded, use a conservative 2 MHz minimum.
-        if (m_minSampleRate == 0 && m_rfSampleRate < 2000000) {
-            m_minSampleRate = 2000000;
-            m_decimRatio    = static_cast<int>(std::ceil(static_cast<double>(m_minSampleRate) / m_sampleRate));
-            m_rfSampleRate  = m_decimRatio * m_sampleRate;
-            qWarning() << "SoapySDRDataSource: Rate range unknown; using 2 MHz fallback minimum."
-                       << "RF rate" << m_rfSampleRate << "Hz (decimate by" << m_decimRatio << ")";
-        }
-
-        // Hardware-key corrections: some drivers report an overly optimistic minimum
-        // sample rate that the actual RF frontend cannot achieve.  Override with the
-        // known real hardware floor so setSampleRate() doesn't silently fail.
-        // LimeSDR-Mini / LimeSDR-Mini 2.0: LimeSuite reports 0.1 MSPS but the
-        // LMS7002M VCO minimum means the ADC rate floor is ~1.25 MSPS.
-        {
-            const std::string hwKey = m_device->getHardwareKey();
-            int hwMinHz = 0;
-            if (hwKey == "LimeSDR-Mini" || hwKey == "LimeSDR-Mini 2.0")
-                hwMinHz = 1300000; // 1.3 MSPS — safe margin above LMS7002M minimum
-            if (hwMinHz > 0 && m_rfSampleRate < hwMinHz) {
-                m_minSampleRate = hwMinHz;
-                m_decimRatio    = static_cast<int>(std::ceil(static_cast<double>(hwMinHz) / m_sampleRate));
-                m_rfSampleRate  = m_decimRatio * m_sampleRate;
-                qWarning() << "SoapySDRDataSource:" << QString::fromStdString(hwKey)
-                           << "driver minimum overridden to" << hwMinHz / 1.0e6 << "MHz;"
-                           << "RF rate" << m_rfSampleRate << "Hz (decimate by" << m_decimRatio << ")";
-            }
-        }
+        m_sampleRate = set->getSampleRate();
+        const RfRatePlan plan = chooseRfSampleRate(m_sampleRate);
+        m_rfSampleRate = plan.rfSampleRate;
+        m_decimRatio = plan.decimRatio;
+        m_minSampleRate = plan.effectiveMinHz;
 
         m_device->setSampleRate(SOAPY_SDR_RX, 0, m_rfSampleRate);
-        // Read back actual rate — device may round to nearest supported value.
-        try {
-            double actual = m_device->getSampleRate(SOAPY_SDR_RX, 0);
-            if (std::abs(actual - m_rfSampleRate) > 1.0) {
-                m_rfSampleRate = static_cast<int>(std::round(actual));
-                m_decimRatio   = std::max(1, static_cast<int>(std::round(actual / m_sampleRate)));
-                qDebug() << "SoapySDRDataSource: Actual RF rate" << (int)actual
-                         << "Hz, decimate-by adjusted to" << m_decimRatio;
-            }
-        } catch (...) {}
+        syncRfRateFromHardware(m_sampleRate);
 
         // Publish hardware key to Settings so the UI can show appropriate controls
         std::string hwKey = m_device->getHardwareKey();
@@ -208,19 +331,11 @@ void SoapySDRDataSource::init() {
             } else {
                 m_device->setGain(SOAPY_SDR_RX, 0, set->getSoapyOverallGain());
             }
-            m_device->setBandwidth(SOAPY_SDR_RX, 0, 5e6);
         } catch (const std::exception &e) {
             qWarning() << "SoapySDRDataSource: Gain setup warning:" << e.what();
         }
-        
-        m_rxStream = m_device->setupStream(SOAPY_SDR_RX, SOAPY_SDR_CF32);
-        if (!m_rxStream)
-            throw std::runtime_error("setupStream returned null");
-        m_device->activateStream(m_rxStream);
-        qDebug() << "[SoapySDR] init: stream active, RF" << m_rfSampleRate
-                 << "Hz (DSP" << m_sampleRate << "Hz, decimate by" << m_decimRatio << ")";
 
-        // Tune to current VFO frequency, clamped to the device's valid range
+        // Tune before starting stream (Lime needs stable RF path before activate).
         long vfo = set->getVfoFrequency(0);
         if (vfo <= 0) vfo = 14200000L;
         if (m_minFrequency > 0 && vfo < m_minFrequency) {
@@ -240,8 +355,14 @@ void SoapySDRDataSource::init() {
             throw;
         }
 
-        qDebug() << "SoapySDRDataSource: Stream activated at RF" << m_rfSampleRate
-                 << "Hz (DSP" << m_sampleRate << "Hz), freq:" << vfo / 1.0e6 << "MHz";
+        applyBandwidthForRfRate(m_rfSampleRate);
+
+        if (!restartRxStream())
+            throw std::runtime_error("setupStream/activateStream failed");
+
+        qDebug() << "SoapySDRDataSource: Stream active at RF" << m_rfSampleRate
+                 << "Hz (DSP" << m_sampleRate << "Hz, decimate by" << m_decimRatio
+                 << "), freq:" << vfo / 1.0e6 << "MHz";
 
         // DirectConnection: slots run on the caller's (UI) thread, writing only
         // atomics — safe because runStream() blocks the IO thread's event loop.
@@ -362,46 +483,63 @@ void SoapySDRDataSource::runStream() {
         // OR by the VFO poll above).
         if (m_freqPending.load(std::memory_order_acquire)) {
             m_freqPending.store(false, std::memory_order_relaxed);
-            double freq = m_pendingFreq.load(std::memory_order_relaxed);
+            const double freq = m_pendingFreq.load(std::memory_order_relaxed);
             qDebug() << "[SoapySDR] runStream: applying frequency" << freq / 1.0e6 << "MHz to hardware";
+            bool freqOk = false;
             try {
+                if (m_rxStream) {
+                    m_device->deactivateStream(m_rxStream);
+                    m_device->closeStream(m_rxStream);
+                    m_rxStream = nullptr;
+                }
                 m_device->setFrequency(SOAPY_SDR_RX, 0, freq);
-                double actual = m_device->getFrequency(SOAPY_SDR_RX, 0);
+                const double actual = m_device->getFrequency(SOAPY_SDR_RX, 0);
                 qDebug() << "[SoapySDR] hardware freq confirmed:" << actual / 1.0e6 << "MHz";
+                freqOk = restartRxStream();
             } catch (const std::exception &e) {
-                qWarning() << "[SoapySDR] setFrequency failed:" << e.what();
+                qWarning() << "[SoapySDR] setFrequency/restart failed:" << e.what();
+            }
+            decimOut = 0;
+            accumI = accumQ = 0.0;
+            accumN = 0;
+            if (!freqOk) {
+                qWarning() << "[SoapySDR] stream not running after frequency change";
             }
         }
 
         // Apply pending sample-rate change (requires stream restart)
         if (m_sampleRatePending.load(std::memory_order_acquire)) {
             m_sampleRatePending.store(false, std::memory_order_relaxed);
-            int newRfRate     = m_pendingRfSampleRate.load(std::memory_order_relaxed);
-            int newDecimRatio = m_pendingDecimRatio.load(std::memory_order_relaxed);
+            const int newRfRate = m_pendingRfSampleRate.load(std::memory_order_relaxed);
             try {
-                m_device->deactivateStream(m_rxStream);
-                m_device->closeStream(m_rxStream);
-                m_rxStream = nullptr;
+                if (m_rxStream) {
+                    m_device->deactivateStream(m_rxStream);
+                    m_device->closeStream(m_rxStream);
+                    m_rxStream = nullptr;
+                }
                 m_device->setSampleRate(SOAPY_SDR_RX, 0, newRfRate);
                 m_rfSampleRate = newRfRate;
-                m_decimRatio   = newDecimRatio;
-                // Reset decimation state for the new rate.
-                decimOut = 0; accumI = accumQ = 0.0; accumN = 0;
-                m_rxStream = m_device->setupStream(SOAPY_SDR_RX, SOAPY_SDR_CF32);
-                m_device->activateStream(m_rxStream);
-                qDebug() << "SoapySDRDataSource: Sample rate applied:" << newRfRate
-                         << "Hz (decimate by" << newDecimRatio << ")";
+                syncRfRateFromHardware(m_sampleRate);
+                applyBandwidthForRfRate(m_rfSampleRate);
+                decimOut = 0;
+                accumI = accumQ = 0.0;
+                accumN = 0;
+                if (!restartRxStream()) {
+                    qWarning() << "SoapySDRDataSource: stream restart failed after sample rate change";
+                    m_stopped = true;
+                    break;
+                }
+                qDebug() << "SoapySDRDataSource: Sample rate applied:" << m_rfSampleRate
+                         << "Hz (decimate by" << m_decimRatio << ")";
             } catch (const std::exception &e) {
                 qWarning() << "SoapySDRDataSource: setSampleRate restart failed:" << e.what();
                 m_stopped = true;
                 break;
             }
-            if (!m_rxStream) {
-                qWarning() << "SoapySDRDataSource: stream null after sample rate change, stopping";
-                m_stopped = true;
-                break;
-            }
         }
+
+        if (!m_rxStream)
+            continue;
 
         int flags;
         long long timeNs;
@@ -409,6 +547,7 @@ void SoapySDRDataSource::runStream() {
 
         if (ret > 0) {
             packetCount++;
+            m_streamTimeouts = 0;
 
             // Averaging decimator: accumulate m_decimRatio RF samples per output
             // sample, then emit full 1024-sample blocks to the DSP queue.
@@ -437,7 +576,17 @@ void SoapySDRDataSource::runStream() {
                 QThread::msleep(10);
             }
         } else if (ret < 0) {
-            qCritical() << "SoapySDRDataSource: readStream error" << ret;
+            const int err = ret;
+            const char* errMsg = SoapySDR::errToStr(err);
+            if (++m_streamTimeouts <= 3 || (m_streamTimeouts % 20) == 0) {
+                qWarning() << "SoapySDRDataSource: readStream" << errMsg
+                           << "(" << err << ") — restarting stream";
+            }
+            if (restartRxStream()) {
+                decimOut = 0;
+                accumI = accumQ = 0.0;
+                accumN = 0;
+            }
         }
     }
 }
@@ -445,16 +594,13 @@ void SoapySDRDataSource::runStream() {
 // Runs on the UI thread (Qt::DirectConnection) — must only write atomics.
 void SoapySDRDataSource::setSampleRate(int value) {
     m_sampleRate = value;
-    // Recompute decimation ratio for the new DSP rate using the stored device minimum.
-    int newDecimRatio = (m_minSampleRate > 0 && value < m_minSampleRate)
-                        ? static_cast<int>(std::ceil(static_cast<double>(m_minSampleRate) / value))
-                        : 1;
-    int newRfRate = newDecimRatio * value;
-    m_pendingDecimRatio.store(newDecimRatio, std::memory_order_relaxed);
-    m_pendingRfSampleRate.store(newRfRate, std::memory_order_relaxed);
+    const RfRatePlan plan = chooseRfSampleRate(value);
+    m_minSampleRate = plan.effectiveMinHz;
+    m_pendingDecimRatio.store(plan.decimRatio, std::memory_order_relaxed);
+    m_pendingRfSampleRate.store(plan.rfSampleRate, std::memory_order_relaxed);
     m_sampleRatePending.store(true, std::memory_order_release);
     qDebug() << "SoapySDRDataSource: DSP rate" << value << "Hz queued (RF"
-             << newRfRate << "Hz, decimate by" << newDecimRatio << ")";
+             << plan.rfSampleRate << "Hz, decimate by" << plan.decimRatio << ")";
 }
 
 // Runs on the UI thread (Qt::DirectConnection) — must only write atomics.
