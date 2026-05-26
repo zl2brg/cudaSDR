@@ -28,7 +28,7 @@ public slots:
 
 private slots:
     void setSampleRate(int value);
-    void setFrequency(int rx, long frequency);
+    void setFrequency(int rx, qint64 frequency);
 
 private:
     struct RfRatePlan {
@@ -55,8 +55,8 @@ private:
     int m_decimRatio;      // m_rfSampleRate / m_sampleRate (averaging decimation factor)
     int m_minSampleRate;   // device hardware minimum, read-only after init()
     size_t m_numChannels;
-    long m_minFrequency;
-    long m_maxFrequency;
+    qint64  m_minFrequency;
+    qint64  m_maxFrequency;
 
     // Pending hardware changes — written by slots (UI thread via DirectConnection),
     // consumed by runStream() loop so they take effect between readStream() calls.
@@ -68,7 +68,7 @@ private:
 
     // Last VFO seen by runStream() — used for polling-based frequency tracking
     // as a fallback when the signal/slot path doesn't fire.
-    long m_lastKnownVfo;
+    qint64 m_lastKnownVfo;
     int m_streamTimeouts;
 
 signals:

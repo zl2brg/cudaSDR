@@ -1,7 +1,7 @@
 # rnnoise installed pkg-config file
 
-prefix=/home/simon/Projects/cudaSDR/wdsp-libs
-exec_prefix=${prefix}
+prefix=${pcfiledir}/../..
+exec_prefix=${pcfiledir}/../..
 libdir=${exec_prefix}/lib
 includedir=${prefix}/include
 

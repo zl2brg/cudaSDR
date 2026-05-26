@@ -30,6 +30,7 @@
 #define LOG_DISPLAYPANEL
 
 #include "cusdr_oglDisplayPanel.h"
+#include "UI/FrequencyEntryDialog.h"
 #include "cusdr_glShaders.h"
 #include "cusdr_glDraw.h"
 #include "Util/cusdr_rigctlserver.h"
@@ -137,17 +138,17 @@ OGLDisplayPanel::OGLDisplayPanel(RadioModel *model, QWidget *parent)
 	set10mhzSource(set->get10MHzSource());
 	set122_88mhzSource(set->get122_8MHzSource());
 
-	QList<long> fList = set->getVfoFrequencies();
-	
+	QList<qint64> fList = set->getVfoFrequencies();
+
 	for (int i = 0; i < MAX_RECEIVERS; i++) {
 
 		TFrequency f;
+		f.frequency = fList.at(i);
 		f.freqMHz = (int)(fList.at(i) / 1000);
 		f.freqkHz = (int)(fList.at(i) % 1000);
-		
+
 		m_frequencyList << f;
 	}
-
 	QList<THamBandFrequencies> bandList = getHamBandFrequencies();
 	HamBand band = getBandFromFrequency(bandList, fList.at(0));
 
@@ -219,7 +220,7 @@ QSize OGLDisplayPanel::sizeHint() const {
 void OGLDisplayPanel::setupConnections() {
 
 	connect(set, &Settings::systemStateChanged,       this, &OGLDisplayPanel::systemStateChanged);
-	// connect(set, &Settings::vfoFrequencyChanged,      this, &OGLDisplayPanel::setFrequency);
+	connect(set, &Settings::vfoFrequencyChanged,      this, &OGLDisplayPanel::setFrequency);
 	connect(set, &Settings::numberOfRXChanged,        this, &OGLDisplayPanel::setReceivers);
 	connect(set, &Settings::currentReceiverChanged,   this, &OGLDisplayPanel::setCurrentReceiver);
 	connect(set, &Settings::mercuryAttenuatorChanged, this, &OGLDisplayPanel::setMercuryAttenuator);
@@ -985,25 +986,39 @@ void OGLDisplayPanel::paintRxRegion() {
 
 	str = "%1.%2";
 
-	int f1 = m_frequencyList[m_currentReceiver].freqMHz;
-	int f2 = m_frequencyList[m_currentReceiver].freqkHz;
-    QString f1str = str.arg(f1/1000).arg(f1 - 1000 * (int)(f1/1000), 3, 10, QLatin1Char('0'));
+	int f1 = m_frequencyList[m_currentReceiver].freqMHz; // kHz
+	int f2 = m_frequencyList[m_currentReceiver].freqkHz; // Hz
 
-	if (f1 / 1000 < 10)
-		x1 += m_blankWidthf1;
+    // Format: G.MMM.KKK
+    long ghz = f1 / 1000000;
+    long mhz = (f1 / 1000) % 1000;
+    long khz = f1 % 1000;
+    
+    m_f1str = QString("%1.%2.%3")
+            .arg(ghz)
+            .arg(mhz, 3, 10, QLatin1Char('0'))
+            .arg(khz, 3, 10, QLatin1Char('0'));
+
+    // Suppress leading zeros/dots in f1str
+    for (int i = 0; i < m_f1str.length() - 1; ++i) {
+        if (m_f1str[i] == '0' || m_f1str[i] == '.') {
+            m_f1str[i] = ' ';
+        } else {
+            break;
+        }
+    }
 
 	m_freqStringLeftPos = x1;
 
-    str = "%1";
-    QString f2str = str.arg(f2, 3, 10, QLatin1Char('0'));
+    m_f2str = QString("%1").arg(f2, 3, 10, QLatin1Char('0'));
     painter.endNativePainting();
     painter.scale(1,1);
-//    painter.drawText(x1,y1,"here");
-    renderFreqText(painter,x1,y1,m_fonts.freqFont1,m_oglTextFreq1->fontMetrics(), fontcolor,f1str,0,  (f1 / 1000 < 10)? m_digitPosition -1: m_digitPosition );
-    renderText(painter,x1, y1, m_fonts.freqFont2,fontcolor, ".");
 
-    x1 += (m_oglTextFreq2->fontMetrics().horizontalAdvance("."));
-    renderFreqText(painter,x1,y1,m_fonts.freqFont2,m_oglTextFreq2->fontMetrics(), fontcolor,f2str,7, m_digitPosition);
+    renderFreqText(painter,x1,y1,m_fonts.freqFont1,m_oglTextFreq1->fontMetrics(), fontcolor, m_f1str, 0, m_digitPosition, m_blankWidthf1 );
+    renderText(painter,x1, y1, m_fonts.freqFont1, fontcolor, ".");
+
+    x1 += m_pointStringWidth;
+    renderFreqText(painter,x1,y1,m_fonts.freqFont2,m_oglTextFreq2->fontMetrics(), fontcolor, m_f2str, 10, m_digitPosition, m_blankWidthf2);
     x1+= 2 * m_blankWidth;
 
     renderText(painter,x1, y1 - 1, m_fonts.freqFont2, fontcolor, "MHz");
@@ -1601,6 +1616,12 @@ void OGLDisplayPanel::setupDisplayRegions(QSize size) {
 	int x = m_rxRect.left() + 20;
 	int y = m_rxRect.top() + m_freqDigitsPosY;
 
+	m_freg1000000000 = QRegion(QRect(x, y -  m_fonts.fontHeightFreqFont1, m_blankWidthf1, m_fonts.fontHeightFreqFont1));
+    x += m_blankWidthf1;
+    m_point2         = QRegion(QRect(x, y -  m_fonts.fontHeightFreqFont1, m_pointStringWidth, m_fonts.fontHeightFreqFont1));
+    x += m_pointStringWidth;
+    m_freg100000000  = QRegion(QRect(x, y -  m_fonts.fontHeightFreqFont1, m_blankWidthf1, m_fonts.fontHeightFreqFont1));
+    x += m_blankWidthf1;
 	m_freg10000000	 = QRegion(QRect(x, y -  m_fonts.fontHeightFreqFont1, m_blankWidthf1, m_fonts.fontHeightFreqFont1));
     x += m_blankWidthf1;
 	m_freg1000000	 = QRegion(QRect(x, y -  m_fonts.fontHeightFreqFont1, m_blankWidthf1, m_fonts.fontHeightFreqFont1));
@@ -1627,6 +1648,7 @@ void OGLDisplayPanel::setupDisplayRegions(QSize size) {
 void OGLDisplayPanel::getSelectedDigit(QPoint p) {
 
     static int pos;
+    m_digitPosition = None;
 
 	if (m_freg1.contains(p))
 		m_digitPosition = Freq1;
@@ -1637,6 +1659,9 @@ void OGLDisplayPanel::getSelectedDigit(QPoint p) {
 	if (m_freg100.contains(p))
 		m_digitPosition = Freq100;
 	else 
+    if (m_point1.contains(p))
+        m_digitPosition = dp2;
+    else
 	if (m_freg1000.contains(p))
 		m_digitPosition = Freq1000;
 	else 
@@ -1646,19 +1671,50 @@ void OGLDisplayPanel::getSelectedDigit(QPoint p) {
 	if (m_freg100000.contains(p))
         m_digitPosition = Freq100000;
     else
+    if (m_point.contains(p))
+        m_digitPosition = dp1;
+    else
 	if (m_freg1000000.contains(p))
 		m_digitPosition = Freq1000000;
 	else 
 	if (m_freg10000000.contains(p))
 		m_digitPosition = Freq10000000;
     else
-		m_digitPosition = None;
+    if (m_freg100000000.contains(p))
+        m_digitPosition = Freq100000000;
+    else
+    if (m_point2.contains(p))
+        m_digitPosition = dp0;
+    else
+    if (m_freg1000000000.contains(p))
+        m_digitPosition = Freq1000000000;
+
+    // Check if the selected position is suppressed
+    if (m_digitPosition != None) {
+        if (m_digitPosition <= Freq1000) { // In m_f1str
+            int idx = -1;
+            switch(m_digitPosition) {
+                case Freq1000000000: idx = 0; break;
+                case dp0:            idx = 1; break;
+                case Freq100000000:  idx = 2; break;
+                case Freq10000000:   idx = 3; break;
+                case Freq1000000:    idx = 4; break;
+                case dp1:            idx = 5; break;
+                case Freq100000:     idx = 6; break;
+                case Freq10000:      idx = 7; break;
+                case Freq1000:       idx = 8; break;
+                default: break;
+            }
+            if (idx >= 0 && idx < m_f1str.length() && m_f1str[idx] == ' ') {
+                m_digitPosition = None;
+            }
+        }
+    }
 
     if (pos != m_digitPosition){
         pos=m_digitPosition;
         update();
      }
-
 }
 
 //***********************************************
@@ -1678,6 +1734,21 @@ void OGLDisplayPanel::mousePressEvent(QMouseEvent *event) {
 	
 	//if (m_serverMode != QSDR::ExternalDSP) {
 		getSelectedDigit(pos);
+
+        if (event->button() == Qt::LeftButton && m_digitPosition != None) {
+            qint64 currentFreq = m_frequencyList[m_currentReceiver].frequency;
+            FrequencyEntryDialog dlg(currentFreq, this);
+            if (dlg.exec() == QDialog::Accepted) {
+                qint64 newFreq = dlg.frequency();
+                if (newFreq < (qint64)set->getMaxFrequency() && newFreq >= 0) {
+                    // mode 1 in setCtrFrequency sets both Center AND VFO to the same value,
+                    // which effectively zeroes the NCO offset.
+                    set->setCtrFrequency(1, m_currentReceiver, newFreq);
+                }
+            }
+            return;
+        }
+
 		switch (m_digitPosition) {
 
 			case Freq1:
@@ -1746,6 +1817,24 @@ void OGLDisplayPanel::mousePressEvent(QMouseEvent *event) {
 				break;
 
 			case Freq10000000:
+				if (event->buttons() == Qt::LeftButton) {
+					if (set->getMouseWheelFreqStep(m_currentReceiver) == 10000000.0)
+						set->setMouseWheelFreqStep(m_currentReceiver, 50000000.0);
+					else
+						set->setMouseWheelFreqStep(m_currentReceiver, 10000000.0);
+				}
+				break;
+
+            case Freq100000000:
+                if (event->buttons() == Qt::LeftButton)
+                    set->setMouseWheelFreqStep(m_currentReceiver, 100000000.0);
+                break;
+
+            case Freq1000000000:
+                if (event->buttons() == Qt::LeftButton)
+                    set->setMouseWheelFreqStep(m_currentReceiver, 1000000000.0);
+                break;
+
 			case None:
 				return;
 		}
@@ -1808,13 +1897,25 @@ void OGLDisplayPanel::mouseMoveEvent(QMouseEvent *event) {
 			case Freq1000000:
 				setCursor(Qt::PointingHandCursor);
 					m_digitColor = QColor(136, 166, 178);
-                 break;
+			break;
+
 			case Freq10000000:
 				setCursor(Qt::PointingHandCursor);
 					m_digitColor = QColor(136, 166, 178);
 				break;
 
+			case Freq100000000:
+			setCursor(Qt::PointingHandCursor);
+			m_digitColor = QColor(136, 166, 178);
+			break;
+
+			case Freq1000000000:
+			setCursor(Qt::PointingHandCursor);
+			m_digitColor = QColor(136, 166, 178);
+			break;
+
 			case None:
+
 				setCursor(Qt::ArrowCursor);
 					m_digitColor = QColor(106, 136, 148);
 
@@ -1828,7 +1929,7 @@ void OGLDisplayPanel::mouseMoveEvent(QMouseEvent *event) {
 }
 
 void OGLDisplayPanel::wheelEvent(QWheelEvent * event) {
-		long deltaF = 0;
+		qint64 deltaF = 0;
 		switch (m_digitPosition) {
 			case Freq1:
 				deltaF = 1;
@@ -1862,25 +1963,29 @@ void OGLDisplayPanel::wheelEvent(QWheelEvent * event) {
 				deltaF = 10000000;
 				break;
 
+            case Freq100000000:
+                deltaF = 100000000;
+                break;
+
+            case Freq1000000000:
+                deltaF = 1000000000;
+                break;
+
 			case None:
 				return;
 		}
 
         int  numDegrees = event->angleDelta().y()/ 8;
         int  numSteps = numDegrees / 15;
-		int f1 = m_frequencyList[m_currentReceiver].freqMHz;
-		int f2 = m_frequencyList[m_currentReceiver].freqkHz;
+		
+        qint64 currentFreq = m_frequencyList[m_currentReceiver].frequency;
+        qint64 newFreq = currentFreq + (qint64)numSteps * deltaF;
 
-		long newFreq = -1;
-		if (deltaF > 0)
-			//newFreq = frequency1 * 1000 + frequency2 + numSteps * deltaF;
-			newFreq = f1 * 1000 + f2 + numSteps * deltaF;
-
-		if (newFreq < set->getMaxFrequency() && newFreq >= 0) {
+		if (newFreq < (qint64)set->getMaxFrequency() && newFreq >= 0) {
 
 			if (set->getPanLockedStatus(m_currentReceiver)) {
 
-				long ctrf = set->getCtrFrequency(m_currentReceiver);
+				qint64 ctrf = set->getCtrFrequency(m_currentReceiver);
 				int s = set->getSampleRate()/2;
 				if (newFreq > ctrf + s)
 					newFreq = ctrf + s;
@@ -2045,7 +2150,7 @@ void OGLDisplayPanel::setCurrentReceiver(int value) {
 	m_currentReceiver = value;
 }
 
-void OGLDisplayPanel::setFrequency(int mode,int rx, long freq) {
+void OGLDisplayPanel::setFrequency(int mode,int rx, qint64 freq) {
 
 	Q_UNUSED (mode)
 	//Q_UNUSED (rx)
@@ -2261,23 +2366,35 @@ void OGLDisplayPanel::restoreGLState() {
 }
 
 
-void OGLDisplayPanel::renderFreqText(QPainter &painter, GLint &x1, GLint &y1,QFont &font,QFontMetrics fontMetrics, QColor fontcolor, const QString freqstr,int digit,int digit_pos) {
+void OGLDisplayPanel::renderFreqText(QPainter &painter, GLint &x1, GLint &y1,QFont &font,QFontMetrics fontMetrics, QColor fontcolor, const QString freqstr,int digit,int digit_pos, int fixed_width) {
     int len = freqstr.length();
     QColor freqdigitcolor;
 
 
     for (int x = 0; x < len; x++) {
 
+        int current_pos = x + digit;
+        bool isDot = (current_pos == dp0 || current_pos == dp1 || current_pos == dp2);
+
         if (set->getRadioState() > RadioState::RX) {
             freqdigitcolor = m_txdigitColor;
         } else
 
-        if ((x + digit) == digit_pos)
+        if (current_pos == digit_pos)
             freqdigitcolor = QColor(106, 236, 248);
         else freqdigitcolor = fontcolor;
 
-        renderText(painter,x1, y1, font, freqdigitcolor, freqstr.at(x));
-        x1 += (fontMetrics.horizontalAdvance(freqstr.at(x)));
+        if (freqstr.at(x) != ' ') {
+            renderText(painter,x1, y1, font, freqdigitcolor, freqstr.at(x));
+        }
+
+        if (isDot) {
+            x1 += m_pointStringWidth;
+        } else if (fixed_width > 0) {
+            x1 += fixed_width;
+        } else {
+            x1 += (fontMetrics.horizontalAdvance(freqstr.at(x)));
+        }
     }
 }
 

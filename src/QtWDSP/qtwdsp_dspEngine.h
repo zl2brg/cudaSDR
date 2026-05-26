@@ -182,7 +182,7 @@ private:
     void setupConnections();
     long centerFrequencyHz() const;
     DSPMode currentDspMode() const;
-    void updateFreeDvSideband(long frequency);
+    void updateFreeDvSideband(qint64 frequency);
 
 private slots:
 };

@@ -277,8 +277,8 @@ void SoapySDRDataSource::init() {
         try {
             SoapySDR::RangeList ranges = m_device->getFrequencyRange(SOAPY_SDR_RX, 0);
             if (!ranges.empty()) {
-                m_minFrequency = static_cast<long>(ranges.front().minimum());
-                m_maxFrequency = static_cast<long>(ranges.back().maximum());
+                m_minFrequency = static_cast<qint64>(ranges.front().minimum());
+                m_maxFrequency = static_cast<qint64>(ranges.back().maximum());
                 qDebug() << "SoapySDRDataSource: Device freq range"
                          << m_minFrequency / 1.0e6 << "to" << m_maxFrequency / 1.0e6 << "MHz";
                 set->setMaxFrequency(m_maxFrequency);
@@ -339,7 +339,7 @@ void SoapySDRDataSource::init() {
         }
 
         // Tune before starting stream (Lime needs stable RF path before activate).
-        long vfo = set->getVfoFrequency(0);
+        qint64 vfo = set->getVfoFrequency(0);
         if (vfo <= 0) vfo = 14200000L;
         if (m_minFrequency > 0 && vfo < m_minFrequency) {
             qDebug() << "SoapySDRDataSource: VFO" << vfo / 1.0e6
@@ -373,7 +373,7 @@ void SoapySDRDataSource::init() {
         // vfoFrequencyChanged carries (mode, rx, frequency) — adapt with a lambda
         // so the slot receives the correct rx and frequency values.
         connect(set, &Settings::vfoFrequencyChanged, this,
-                [this](int mode, int rx, long frequency) {
+                [this](int mode, int rx, qint64 frequency) {
                     Q_UNUSED(mode);
                     setFrequency(rx, frequency);
                 }, Qt::DirectConnection);
@@ -469,10 +469,10 @@ void SoapySDRDataSource::runStream() {
         // Poll Settings for VFO changes — reliable fallback for when the signal
         // connection from init() didn't fire (e.g. init() threw before connect()).
         {
-            long polledVfo = set->getVfoFrequency(0);
+            qint64 polledVfo = set->getVfoFrequency(0);
             if (polledVfo != m_lastKnownVfo) {
                 m_lastKnownVfo = polledVfo;
-                long clamped = polledVfo;
+                qint64 clamped = polledVfo;
                 if (m_minFrequency > 0 && clamped < m_minFrequency) clamped = m_minFrequency;
                 if (m_maxFrequency > 0 && clamped > m_maxFrequency) clamped = m_maxFrequency;
                 m_pendingFreq.store(static_cast<double>(clamped), std::memory_order_relaxed);
@@ -589,9 +589,9 @@ void SoapySDRDataSource::setSampleRate(int value) {
 }
 
 // Runs on the UI thread (Qt::DirectConnection) — must only write atomics.
-void SoapySDRDataSource::setFrequency(int rx, long frequency) {
+void SoapySDRDataSource::setFrequency(int rx, qint64 frequency) {
     Q_UNUSED(rx);
-    long clamped = frequency;
+    qint64 clamped = frequency;
     if (m_minFrequency > 0 && clamped < m_minFrequency) clamped = m_minFrequency;
     if (m_maxFrequency > 0 && clamped > m_maxFrequency) clamped = m_maxFrequency;
     m_pendingFreq.store(static_cast<double>(clamped), std::memory_order_relaxed);

@@ -172,11 +172,11 @@ private:
 	TDefaultFilterMode	m_filterMode;
 
 	//QList<long>			m_lastFrequencyList;
-	QList<long>			m_lastCtrFrequencyList;
-	QList<long>			m_lastVfoFrequencyList;
+	QList<qint64>       m_lastCtrFrequencyList;
+	QList<qint64>       m_lastVfoFrequencyList;
 	
-	long	m_ctrFrequency;
-	long	m_vfoFrequency;
+	qint64	m_ctrFrequency;
+	qint64	m_vfoFrequency;
 
 	qreal	m_filterLo;
 	qreal	m_filterHi;
@@ -199,8 +199,8 @@ private slots:
 	QLabel *createLabel(const QString &text);
 
 	void setCurrentReceiver(int value);
-	void ctrFrequencyChanged(int mode, int rx, long frequency);
-	void vfoFrequencyChanged(int mode, int rx, long frequency);
+	void ctrFrequencyChanged(int mode, int rx, qint64 frequency);
+	void vfoFrequencyChanged(int mode, int rx, qint64 frequency);
 	void bandChangedByBtn();
 	void bandChanged(int rx, bool byButton, HamBand band);
 	void dspModeChangedByBtn();

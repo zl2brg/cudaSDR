@@ -1083,7 +1083,7 @@ QLabel *RadioWidget::createLabel(const QString &text) {
 
  
 //******************************************
-void RadioWidget::ctrFrequencyChanged(int mode, int rx, long frequency) {
+void RadioWidget::ctrFrequencyChanged(int mode, int rx, qint64 frequency) {
 
 	Q_UNUSED(mode)
 
@@ -1094,7 +1094,7 @@ void RadioWidget::ctrFrequencyChanged(int mode, int rx, long frequency) {
 	m_lastCtrFrequencyList[(int) band] = m_ctrFrequency;
 }
 
-void RadioWidget::vfoFrequencyChanged(int mode, int rx, long frequency) {
+void RadioWidget::vfoFrequencyChanged(int mode, int rx, qint64 frequency) {
 
 	Q_UNUSED(mode)
 

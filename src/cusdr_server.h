@@ -113,7 +113,7 @@ private slots:
 	char*	attachReceiver(int rx, int client);
 	char*	detachReceiver(int rx, int client);
 	char*	parseCommand(char *command, int client);
-	char*	setFrequency(long frequency, int client);
+	char*	setFrequency(qint64 frequency, int client);
 	
 signals:
 	void	masterSwitchEvent();
@@ -124,7 +124,7 @@ signals:
 	void	setPeerAddressEvent(int rx, QHostAddress address);
 	void	clientConnectedEvent(int rx);
 	void	clientDisconnectedEvent(int client);
-	void	frequencyChangedEvent(bool value, int rx, long frequency);
+	void	frequencyChangedEvent(bool value, int rx, qint64 frequency);
 	void	newClientEvent(int rx);
 	void	audioReceiverEvent(int rx);
 };

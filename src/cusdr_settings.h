@@ -270,7 +270,7 @@ typedef struct _frequency {
 	int	freqMHz;
 	int	freqkHz;
 
-	long frequency;
+	qint64 frequency;
 
 } TFrequency;
 
@@ -531,8 +531,8 @@ typedef struct _receiver {
 	int 				fftsize;
 	int					fmsqLevel;
 
-	QList<long>			lastCenterFrequencyList;
-	QList<long>			lastVfoFrequencyList;
+	QList<qint64>		lastCenterFrequencyList;
+	QList<qint64>		lastVfoFrequencyList;
 	QList<int>			mercuryAttenuators;
 	QList<qreal>		dBmPanScaleMinList;
 	QList<qreal>		dBmPanScaleMaxList;
@@ -547,9 +547,9 @@ typedef struct _receiver {
 	bool	peakHold;
 	bool	clickVFO;
 
-	long	ctrFrequency;
-	long	vfoFrequency;
-	long	ncoFrequency;
+	qint64	ctrFrequency;
+	qint64	vfoFrequency;
+	qint64	ncoFrequency;
 
 	float	freqRulerPosition;
 	float	audioVolume;
@@ -615,7 +615,7 @@ typedef struct _transmitter {
 	TDefaultFilterMode	defaultFilterMode;
 
 	bool	txAllowed;
-	long	frequency;
+	qint64	frequency;
 
 	float	audioVolume;
 
@@ -800,7 +800,7 @@ signals:
 	void hpsdrDevicesChanged(THPSDRDevices devices);
 	void hpsdrNetworkDeviceChanged(TNetworkDevicecard card);
 	void networkDeviceNumberChanged(int value);
-	void maxFrequencyChanged(long value);
+	void maxFrequencyChanged(qint64 value);
 	void networkIOComboBoxEntryAdded(QString str);
 	void clearNetworkIOComboBoxEntrySignal();
 	void searchMetisSignal();
@@ -870,10 +870,10 @@ signals:
 	void timingChanged(int value);
 	void controlBytesOutChanged(unsigned char *values);
 	//void ctrFrequencyChanged(bool value, int rx, long frequency);
-	void ctrFrequencyChanged(int mode, int rx, long frequency);
+	void ctrFrequencyChanged(int mode, int rx, qint64 frequency);
 	//void vfoFrequencyChanged(bool value, int rx, long frequency);
-	void vfoFrequencyChanged(int mode, int rx, long frequency);
-	void ncoFrequencyChanged(int rx, long frequency);
+	void vfoFrequencyChanged(int mode, int rx, qint64 frequency);
+	void ncoFrequencyChanged(int rx, qint64 frequency);
 
 	// wideband data
 	void widebandOptionsChanged(TWideband options);
@@ -1045,8 +1045,8 @@ public:
     int         getSoapyPgaGain()       const { return m_soapyPgaGain; }
     int         getSoapyOverallGain()   const { return m_soapyOverallGain; }
     bool        getSoapyAutoCalibrate() const { return m_soapyAutoCalibrate; }
-	long						getMaxFrequency()			{ return m_maxFrequency; }
-	long						getMinFrequency()			{ return m_minFrequency; }
+	qint64						getMaxFrequency()			{ return m_maxFrequency; }
+	qint64						getMinFrequency()			{ return m_minFrequency; }
 	QList<TReceiver>			getReceiverDataList()		{ return m_receiverDataList; }
 	QList<THamBandFrequencies>	getBandFrequencyList()		{ return m_bandList; }
 	QList<THamBandText>			getHamBandTextList()		{ return m_bandTextList; }
@@ -1073,8 +1073,8 @@ public:
 	QList<int>					getMercuryAttenuators(int rx);
 	QSDR::_DSPCore				getReceiverDspCore(int rx) const;
 	QList<DSPMode>				getDSPModeList(int rx) const;
-	QList<long>					getLastCenterFrequencyList(int rx) const;
-	QList<long>					getLastVfoFrequencyList(int rx) const;
+	QList<qint64>				getLastCenterFrequencyList(int rx) const;
+	QList<qint64>				getLastVfoFrequencyList(int rx) const;
 	qreal						getdBmPanScaleMin(int rx, HamBand band) const;
 	qreal						getdBmPanScaleMax(int rx, HamBand band) const;
 	float						getFreqRulerPosition(int rx) const;
@@ -1351,14 +1351,14 @@ public slots:
     void setDriveLevel(int level);
 	void setClass(int value);
 	void setTiming(int value);
-	void setCtrFrequency(int mode, int rx, long frequency);
-	void setCtrFrequency(int rx, long frequency);
-	long getCtrFrequency(int rx);
-	void setMaxFrequency(long value);
-	void setVFOFrequency(int mode, int rx, long frequency);
-	void setVfoFrequency(int rx, long frequency);
-	long getVfoFrequency(int rx);
-	void setNCOFrequency(bool value, int rx, long frequency);
+	void setCtrFrequency(int mode, int rx, qint64 frequency);
+	void setCtrFrequency(int rx, qint64 frequency);
+	qint64 getCtrFrequency(int rx);
+	void setMaxFrequency(qint64 value);
+	void setVFOFrequency(int mode, int rx, qint64 frequency);
+	void setVfoFrequency(int rx, qint64 frequency);
+	qint64 getVfoFrequency(int rx);
+	void setNCOFrequency(bool value, int rx, qint64 frequency);
 		
 	void clientDisconnected(int client);
 	void setFramesPerSecond(int rx, int value);
@@ -1473,8 +1473,8 @@ public slots:
 
 	void showRadioPopupWidget();
 
-	QList<long> getCtrFrequencies();
-	QList<long> getVfoFrequencies();
+	QList<qint64> getCtrFrequencies();
+	QList<qint64> getVfoFrequencies();
 
 
 public:
@@ -1591,8 +1591,8 @@ private:
 	bool	m_frequencyRx1onRx2;
 	bool	m_radioPopupVisible;
 
-	long	m_maxFrequency;
-	long	m_minFrequency;
+	qint64	m_maxFrequency;
+	qint64	m_minFrequency;
 
 	int		m_hpsdrHardware;
 	int		m_hpsdrNetworkDevices;

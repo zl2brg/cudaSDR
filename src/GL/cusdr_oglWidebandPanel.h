@@ -68,7 +68,7 @@ public slots:
 	QSize sizeHint() const;
 
 	//void setSpectrumBuffer(const float *buffer);
-	//void setFrequency(bool value, long freq);
+	//void setFrequency(bool value, qint64 freq);
 
 protected:
     void initializeGL();
@@ -278,7 +278,7 @@ private slots:
 					WaterfallColorMode waterfallColorMode);
 	void	setupConnections();
 	void	setCurrentReceiver(int value);
-	void	setFrequency(int mode, int rx, long freq);
+	void	setFrequency(int mode, int rx, qint64 freq);
 	void	setupDisplayRegions(QSize size);
 	void	setWidebandSpectrumBuffer(const qVectorFloat &buffer);
 	void	resetWidebandSpectrumBuffer();

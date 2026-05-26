@@ -250,7 +250,7 @@ void RadioPopupWidget::setupConnections() {
             [this](PanGraphicsMode mode) { graphicModeChanged(m_sliceModel->id(), mode, m_waterfallColorMode); });
     connect(m_sliceModel, &SliceModel::waterfallModeChanged, this,
             [this](WaterfallColorMode mode) { graphicModeChanged(m_sliceModel->id(), m_panadapterMode, mode); });
-    connect(m_sliceModel, &SliceModel::frequencyChanged, [this](long freq){ vfoFrequencyChanged(0, m_sliceModel->id(), freq); });
+    connect(m_sliceModel, &SliceModel::frequencyChanged, [this](qint64 freq){ vfoFrequencyChanged(0, m_sliceModel->id(), freq); });
     connect(set, &Settings::hamBandChanged, this, &RadioPopupWidget::bandChanged);
     connect(m_sliceModel, &SliceModel::dspModeChanged, [this](DSPMode mode){ dspModeChanged(m_sliceModel->id(), mode); });
     connect(m_sliceModel, &SliceModel::filterChanged, [this](){ filterChanged(m_sliceModel->id(), m_sliceModel->filterLow(), m_sliceModel->filterHigh()); });
@@ -1108,7 +1108,7 @@ void RadioPopupWidget::createFilterBtnWidgetC() {
     filterCWidget->setLayout(vbox);
 }
 
-void RadioPopupWidget::ctrFrequencyChanged(int mode, int rx, long frequency) {
+void RadioPopupWidget::ctrFrequencyChanged(int mode, int rx, qint64 frequency) {
     Q_UNUSED (mode)
 
     if (m_receiver != rx) return;
@@ -1118,7 +1118,7 @@ void RadioPopupWidget::ctrFrequencyChanged(int mode, int rx, long frequency) {
     m_lastCtrFrequencyList[static_cast<int>(band)] = m_ctrFrequency;
 }
 
-void RadioPopupWidget::vfoFrequencyChanged(int mode, int rx, long frequency) {
+void RadioPopupWidget::vfoFrequencyChanged(int mode, int rx, qint64 frequency) {
     Q_UNUSED (mode)
 
     if (m_receiver != rx) return;

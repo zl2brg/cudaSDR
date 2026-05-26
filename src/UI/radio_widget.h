@@ -62,8 +62,8 @@ public slots:
     void ModebtnCallback();
     void BandbtnCallback();
     void FilterbtnCallback();
-    void vfoFrequencyChanged(int mode, int rx, long frequency);
-    void ctrFrequencyChanged(int mode, int rx, long frequency);
+    void vfoFrequencyChanged(int mode, int rx, qint64 frequency);
+    void ctrFrequencyChanged(int mode, int rx, qint64 frequency);
     void filterChanged(int rx, qreal low, qreal high);
     void filterChangedByBtn();
     void dspModeChanged(int rx, DSPMode mode);

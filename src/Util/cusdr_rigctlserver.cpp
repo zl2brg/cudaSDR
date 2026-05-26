@@ -182,7 +182,7 @@ QString RigCtlServer::processCommand(const QString &cmd)
 
     // --- f / \get_freq : get frequency ---
     if (op == "f") {
-        long freq = m_settings->getVfoFrequency(0);
+        qint64 freq = m_settings->getVfoFrequency(0);
         return QString::number(freq) + "\nRPRT 0";
     }
 
@@ -193,13 +193,13 @@ QString RigCtlServer::processCommand(const QString &cmd)
             return "RPRT -1";
         }
         bool ok = false;
-        long freq = static_cast<long>(parts.at(1).toDouble(&ok));
+        qint64 freq = static_cast<qint64>(parts.at(1).toDouble(&ok));
         RIGCTL_DEBUG << "set_freq: raw arg=" << parts.at(1) << "parsed=" << freq << "ok=" << ok;
         if (!ok || freq <= 0) {
             RIGCTL_WARN << "set_freq: invalid frequency value:" << parts.at(1);
             return "RPRT -1";
         }
-        long prev = m_settings->getVfoFrequency(0);
+        qint64 prev = m_settings->getVfoFrequency(0);
         m_settings->setVFOFrequency(0, 0, freq);
         RIGCTL_DEBUG << "set_freq: changed" << prev << "->" << freq << "Hz";
         return "RPRT 0";

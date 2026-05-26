@@ -156,6 +156,8 @@ Settings::Settings(QObject *parent)
             m_receiverDataList[i].dBmPanScaleMinList << 0.0;
             m_receiverDataList[i].dBmPanScaleMaxList << 0.0;
             m_receiverDataList[i].dspModeList << (DSPMode) LSB;
+            m_receiverDataList[i].lastCenterFrequencyList << (qint64)7050000;
+            m_receiverDataList[i].lastVfoFrequencyList << (qint64)7050000;
         }
 
                 // Initialize FreeDV/Codec2 mode list with default mode 0 (FREEDV_MODE_1600, 1600 bps)
@@ -861,12 +863,12 @@ int Settings::loadSettings() {
 
         cstr = m_rxStringList.at(i);
         cstr.append("/centerFrequency");
-        m_receiverConfigs[i]->setCtrFrequency(static_cast<long>(settings->value(cstr, (int) 7050000).toDouble()));
+        m_receiverConfigs[i]->setCtrFrequency(static_cast<qint64>(settings->value(cstr, 7050000.0).toDouble()));
         m_receiverDataList[i].ctrFrequency = m_receiverConfigs[i]->ctrFrequency();
 
         cstr = m_rxStringList.at(i);
         cstr.append("/vfoFrequency");
-        m_receiverConfigs[i]->setVfoFrequency(static_cast<long>(settings->value(cstr, (int) 7050000).toDouble()));
+        m_receiverConfigs[i]->setVfoFrequency(static_cast<qint64>(settings->value(cstr, 7050000.0).toDouble()));
         m_receiverDataList[i].vfoFrequency = m_receiverConfigs[i]->vfoFrequency();
 
         cstr = m_rxStringList.at(i);
@@ -1134,274 +1136,277 @@ int Settings::loadSettings() {
         else
             m_receiverDataList[i].clickVFO = false;
 
+        m_receiverDataList[i].lastCenterFrequencyList.clear();
+        m_receiverDataList[i].lastVfoFrequencyList.clear();
+
         cstr = m_rxStringList.at(i);
         cstr.append("/lastCenterFrequency2200m");
-        lvalue = settings->value(cstr, 135700).toInt();
+        lvalue = settings->value(cstr, 135700).toLongLong();
         if ((lvalue < 135700) || (lvalue > 137800)) lvalue = 135700;
         m_receiverDataList[i].lastCenterFrequencyList << lvalue;
 
         cstr = m_rxStringList.at(i);
         cstr.append("/lastVfoFrequency2200m");
-        lvalue = settings->value(cstr, 135700).toInt();
+        lvalue = settings->value(cstr, 135700).toLongLong();
         if ((lvalue < 135700) || (lvalue > 137800)) lvalue = 135700;
         m_receiverDataList[i].lastVfoFrequencyList << lvalue;
 
         cstr = m_rxStringList.at(i);
         cstr.append("/lastCenterFrequency630m");
-        lvalue = settings->value(cstr, 472000).toInt();
+        lvalue = settings->value(cstr, 472000).toLongLong();
         if ((lvalue < 472000) || (lvalue > 479000)) lvalue = 472000;
         m_receiverDataList[i].lastCenterFrequencyList << lvalue;
 
         cstr = m_rxStringList.at(i);
         cstr.append("/lastVfoFrequency630m");
-        lvalue = settings->value(cstr, 472000).toInt();
+        lvalue = settings->value(cstr, 472000).toLongLong();
         if ((lvalue < 472000) || (lvalue > 479000)) lvalue = 472000;
         m_receiverDataList[i].lastVfoFrequencyList << lvalue;
 
         cstr = m_rxStringList.at(i);
         cstr.append("/lastCenterFrequency160m");
-        lvalue = settings->value(cstr, 1810000).toInt();
+        lvalue = settings->value(cstr, 1810000).toLongLong();
         if ((lvalue < 1810000) || (lvalue > 2000000)) lvalue = 1810000;
         m_receiverDataList[i].lastCenterFrequencyList << lvalue;
 
         cstr = m_rxStringList.at(i);
         cstr.append("/lastVfoFrequency160m");
-        lvalue = settings->value(cstr, 1800000).toInt();
+        lvalue = settings->value(cstr, 1800000).toLongLong();
         if ((lvalue < 1810000) || (lvalue > 2000000)) lvalue = 1810000;
         m_receiverDataList[i].lastVfoFrequencyList << lvalue;
 
         cstr = m_rxStringList.at(i);
         cstr.append("/lastCenterFrequency80m");
-        lvalue = settings->value(cstr, 3500000).toInt();
+        lvalue = settings->value(cstr, 3500000).toLongLong();
         if ((lvalue < 3500000) || (lvalue > 3800000)) lvalue = 3500000;
         m_receiverDataList[i].lastCenterFrequencyList << lvalue;
 
         cstr = m_rxStringList.at(i);
         cstr.append("/lastVfoFrequency80m");
-        lvalue = settings->value(cstr, 3500000).toInt();
+        lvalue = settings->value(cstr, 3500000).toLongLong();
         if ((lvalue < 3500000) || (lvalue > 3800000)) lvalue = 3500000;
         m_receiverDataList[i].lastVfoFrequencyList << lvalue;
 
         cstr = m_rxStringList.at(i);
         cstr.append("/lastCenterFrequency60m");
-        lvalue = settings->value(cstr, 5260000).toInt();
+        lvalue = settings->value(cstr, 5260000).toLongLong();
         if ((lvalue < 5260000) || (lvalue > 5410000)) lvalue = 5260000;
         m_receiverDataList[i].lastCenterFrequencyList << lvalue;
 
         cstr = m_rxStringList.at(i);
         cstr.append("/lastVfoFrequency60m");
-        lvalue = settings->value(cstr, 5260000).toInt();
+        lvalue = settings->value(cstr, 5260000).toLongLong();
         if ((lvalue < 5260000) || (lvalue > 5410000)) lvalue = 5260000;
         m_receiverDataList[i].lastVfoFrequencyList << lvalue;
 
         cstr = m_rxStringList.at(i);
         cstr.append("/lastCenterFrequency40m");
-        lvalue = settings->value(cstr, 7000000).toInt();
+        lvalue = settings->value(cstr, 7000000).toLongLong();
         if ((lvalue < 7000000) || (lvalue > 7200000)) lvalue = 7000000;
         m_receiverDataList[i].lastCenterFrequencyList << lvalue;
 
         cstr = m_rxStringList.at(i);
         cstr.append("/lastVfoFrequency40m");
-        lvalue = settings->value(cstr, 7000000).toInt();
+        lvalue = settings->value(cstr, 7000000).toLongLong();
         if ((lvalue < 7000000) || (lvalue > 7200000)) lvalue = 7000000;
         m_receiverDataList[i].lastVfoFrequencyList << lvalue;
 
         cstr = m_rxStringList.at(i);
         cstr.append("/lastCenterFrequency30m");
-        lvalue = settings->value(cstr, 10100000).toInt();
+        lvalue = settings->value(cstr, 10100000).toLongLong();
         if ((lvalue < 10100000) || (lvalue > 10150000)) lvalue = 10100000;
         m_receiverDataList[i].lastCenterFrequencyList << lvalue;
 
         cstr = m_rxStringList.at(i);
         cstr.append("/lastVfoFrequency30m");
-        lvalue = settings->value(cstr, 10100000).toInt();
+        lvalue = settings->value(cstr, 10100000).toLongLong();
         if ((lvalue < 10100000) || (lvalue > 10150000)) lvalue = 10100000;
         m_receiverDataList[i].lastVfoFrequencyList << lvalue;
 
         cstr = m_rxStringList.at(i);
         cstr.append("/lastCenterFrequency20m");
-        lvalue = settings->value(cstr, 14000000).toInt();
+        lvalue = settings->value(cstr, 14000000).toLongLong();
         if ((lvalue < 14000000) || (lvalue > 14350000)) lvalue = 14000000;
         m_receiverDataList[i].lastCenterFrequencyList << lvalue;
 
         cstr = m_rxStringList.at(i);
         cstr.append("/lastVfoFrequency20m");
-        lvalue = settings->value(cstr, 14000000).toInt();
+        lvalue = settings->value(cstr, 14000000).toLongLong();
         if ((lvalue < 14000000) || (lvalue > 14350000)) lvalue = 14000000;
         m_receiverDataList[i].lastVfoFrequencyList << lvalue;
 
         cstr = m_rxStringList.at(i);
         cstr.append("/lastCenterFrequency17m");
-        lvalue = settings->value(cstr, 18068000).toInt();
+        lvalue = settings->value(cstr, 18068000).toLongLong();
         if ((lvalue < 18068000) || (lvalue > 18168000)) lvalue = 18068000;
         m_receiverDataList[i].lastCenterFrequencyList << lvalue;
 
         cstr = m_rxStringList.at(i);
         cstr.append("/lastVfoFrequency17m");
-        lvalue = settings->value(cstr, 18068000).toInt();
+        lvalue = settings->value(cstr, 18068000).toLongLong();
         if ((lvalue < 18068000) || (lvalue > 18168000)) lvalue = 18068000;
         m_receiverDataList[i].lastVfoFrequencyList << lvalue;
 
         cstr = m_rxStringList.at(i);
         cstr.append("/lastCenterFrequency15m");
-        lvalue = settings->value(cstr, 21000000).toInt();
+        lvalue = settings->value(cstr, 21000000).toLongLong();
         if ((lvalue < 21000000) || (lvalue > 21450000)) lvalue = 21000000;
         m_receiverDataList[i].lastCenterFrequencyList << lvalue;
 
         cstr = m_rxStringList.at(i);
         cstr.append("/lastVfoFrequency15m");
-        lvalue = settings->value(cstr, 21000000).toInt();
+        lvalue = settings->value(cstr, 21000000).toLongLong();
         if ((lvalue < 21000000) || (lvalue > 21450000)) lvalue = 21000000;
         m_receiverDataList[i].lastVfoFrequencyList << lvalue;
 
         cstr = m_rxStringList.at(i);
         cstr.append("/lastCenterFrequency12m");
-        lvalue = settings->value(cstr, 24890000).toInt();
+        lvalue = settings->value(cstr, 24890000).toLongLong();
         if ((lvalue < 24890000) || (lvalue > 24990000)) lvalue = 24890000;
         m_receiverDataList[i].lastCenterFrequencyList << lvalue;
 
         cstr = m_rxStringList.at(i);
         cstr.append("/lastVfoFrequency12m");
-        lvalue = settings->value(cstr, 24890000).toInt();
+        lvalue = settings->value(cstr, 24890000).toLongLong();
         if ((lvalue < 24890000) || (lvalue > 24990000)) lvalue = 24890000;
         m_receiverDataList[i].lastVfoFrequencyList << lvalue;
 
         cstr = m_rxStringList.at(i);
         cstr.append("/lastCenterFrequency10m");
-        lvalue = settings->value(cstr, 28000000).toInt();
+        lvalue = settings->value(cstr, 28000000).toLongLong();
         if ((lvalue < 28000000) || (lvalue > 29700000)) lvalue = 28000000;
         m_receiverDataList[i].lastCenterFrequencyList << lvalue;
 
         cstr = m_rxStringList.at(i);
         cstr.append("/lastVfoFrequency10m");
-        lvalue = settings->value(cstr, 28000000).toInt();
+        lvalue = settings->value(cstr, 28000000).toLongLong();
         if ((lvalue < 28000000) || (lvalue > 29700000)) lvalue = 28000000;
         m_receiverDataList[i].lastVfoFrequencyList << lvalue;
 
         cstr = m_rxStringList.at(i);
         cstr.append("/lastCenterFrequency6m");
-        lvalue = settings->value(cstr, 50000000).toInt();
+        lvalue = settings->value(cstr, 50000000).toLongLong();
         if ((lvalue < 50000000) || (lvalue > 54000000)) lvalue = 50000000;
         m_receiverDataList[i].lastCenterFrequencyList << lvalue;
 
         cstr = m_rxStringList.at(i);
         cstr.append("/lastVfoFrequency6m");
-        lvalue = settings->value(cstr, 50000000).toInt();
+        lvalue = settings->value(cstr, 50000000).toLongLong();
         if ((lvalue < 50000000) || (lvalue > 54000000)) lvalue = 50000000;
         m_receiverDataList[i].lastVfoFrequencyList << lvalue;
 
         cstr = m_rxStringList.at(i);
         cstr.append("/lastCenterFrequency2m");
-        lvalue = settings->value(cstr, 144000000).toInt();
+        lvalue = settings->value(cstr, 144000000).toLongLong();
         if ((lvalue < 144000000) || (lvalue > 148000000)) lvalue = 144000000;
         m_receiverDataList[i].lastCenterFrequencyList << lvalue;
 
         cstr = m_rxStringList.at(i);
         cstr.append("/lastVfoFrequency2m");
-        lvalue = settings->value(cstr, 144000000).toInt();
+        lvalue = settings->value(cstr, 144000000).toLongLong();
         if ((lvalue < 144000000) || (lvalue > 148000000)) lvalue = 144000000;
         m_receiverDataList[i].lastVfoFrequencyList << lvalue;
 
         cstr = m_rxStringList.at(i);
         cstr.append("/lastCenterFrequency125cm");
-        lvalue = settings->value(cstr, 222000000).toInt();
+        lvalue = settings->value(cstr, 222000000).toLongLong();
         if ((lvalue < 222000000) || (lvalue > 225000000)) lvalue = 222000000;
         m_receiverDataList[i].lastCenterFrequencyList << lvalue;
 
         cstr = m_rxStringList.at(i);
         cstr.append("/lastVfoFrequency125cm");
-        lvalue = settings->value(cstr, 222000000).toInt();
+        lvalue = settings->value(cstr, 222000000).toLongLong();
         if ((lvalue < 222000000) || (lvalue > 225000000)) lvalue = 222000000;
         m_receiverDataList[i].lastVfoFrequencyList << lvalue;
 
         cstr = m_rxStringList.at(i);
         cstr.append("/lastCenterFrequency70cm");
-        lvalue = settings->value(cstr, 420000000).toInt();
+        lvalue = settings->value(cstr, 420000000).toLongLong();
         if ((lvalue < 420000000) || (lvalue > 450000000)) lvalue = 420000000;
         m_receiverDataList[i].lastCenterFrequencyList << lvalue;
 
         cstr = m_rxStringList.at(i);
         cstr.append("/lastVfoFrequency70cm");
-        lvalue = settings->value(cstr, 420000000).toInt();
+        lvalue = settings->value(cstr, 420000000).toLongLong();
         if ((lvalue < 420000000) || (lvalue > 450000000)) lvalue = 420000000;
         m_receiverDataList[i].lastVfoFrequencyList << lvalue;
 
         cstr = m_rxStringList.at(i);
         cstr.append("/lastCenterFrequency33cm");
-        lvalue = settings->value(cstr, 902000000).toInt();
+        lvalue = settings->value(cstr, 902000000).toLongLong();
         if ((lvalue < 902000000) || (lvalue > 928000000)) lvalue = 902000000;
         m_receiverDataList[i].lastCenterFrequencyList << lvalue;
 
 //RRK TODO FIX
         cstr = m_rxStringList.at(i);
         cstr.append("/lastVfoFrequency33cm");
-        lvalue = settings->value(cstr, 902000000).toInt();
+        lvalue = settings->value(cstr, 902000000).toLongLong();
         if ((lvalue < 902000000) || (lvalue > 928000000)) lvalue = 902000000;
         m_receiverDataList[i].lastVfoFrequencyList << lvalue;
 
         cstr = m_rxStringList.at(i);
         cstr.append("/lastCenterFrequency23cm");
-        lvalue = settings->value(cstr, 902000000).toInt();
+        lvalue = settings->value(cstr, 902000000).toLongLong();
         if ((lvalue < 902000000) || (lvalue > 928000000)) lvalue = 902000000;
         m_receiverDataList[i].lastCenterFrequencyList << lvalue;
 
         cstr = m_rxStringList.at(i);
         cstr.append("/lastVfoFrequency23cm");
-        lvalue = settings->value(cstr, 902000000).toInt();
+        lvalue = settings->value(cstr, 902000000).toLongLong();
         if ((lvalue < 902000000) || (lvalue > 928000000)) lvalue = 902000000;
         m_receiverDataList[i].lastVfoFrequencyList << lvalue;
 
         cstr = m_rxStringList.at(i);
         cstr.append("/lastCenterFrequency13cm");
-        lvalue = settings->value(cstr, 902000000).toInt();
+        lvalue = settings->value(cstr, 902000000).toLongLong();
         if ((lvalue < 902000000) || (lvalue > 928000000)) lvalue = 902000000;
         m_receiverDataList[i].lastCenterFrequencyList << lvalue;
 
         cstr = m_rxStringList.at(i);
         cstr.append("/lastVfoFrequency13cm");
-        lvalue = settings->value(cstr, 902000000).toInt();
+        lvalue = settings->value(cstr, 902000000).toLongLong();
         if ((lvalue < 902000000) || (lvalue > 928000000)) lvalue = 902000000;
         m_receiverDataList[i].lastVfoFrequencyList << lvalue;
 
         cstr = m_rxStringList.at(i);
         cstr.append("/lastCenterFrequency10cm");
-        lvalue = settings->value(cstr, 902000000).toInt();
+        lvalue = settings->value(cstr, 902000000).toLongLong();
         if ((lvalue < 902000000) || (lvalue > 928000000)) lvalue = 902000000;
         m_receiverDataList[i].lastCenterFrequencyList << lvalue;
 
         cstr = m_rxStringList.at(i);
         cstr.append("/lastVfoFrequency10cm");
-        lvalue = settings->value(cstr, 902000000).toInt();
+        lvalue = settings->value(cstr, 902000000).toLongLong();
         if ((lvalue < 902000000) || (lvalue > 928000000)) lvalue = 902000000;
         m_receiverDataList[i].lastVfoFrequencyList << lvalue;
 
         cstr = m_rxStringList.at(i);
         cstr.append("/lastCenterFrequency5cm");
-        lvalue = settings->value(cstr, 902000000).toInt();
+        lvalue = settings->value(cstr, 902000000).toLongLong();
         if ((lvalue < 902000000) || (lvalue > 928000000)) lvalue = 902000000;
         m_receiverDataList[i].lastCenterFrequencyList << lvalue;
 
         cstr = m_rxStringList.at(i);
         cstr.append("/lastVfoFrequency5cm");
-        lvalue = settings->value(cstr, 902000000).toInt();
+        lvalue = settings->value(cstr, 902000000).toLongLong();
         if ((lvalue < 902000000) || (lvalue > 928000000)) lvalue = 902000000;
         m_receiverDataList[i].lastVfoFrequencyList << lvalue;
 
         cstr = m_rxStringList.at(i);
         cstr.append("/lastCenterFrequencyGen");
-        lvalue = settings->value(cstr, 1800000).toInt();
+        lvalue = settings->value(cstr, 1800000).toLongLong();
         if ((lvalue < 0) || (lvalue > 50000000)) lvalue = 3500000;
         m_receiverDataList[i].lastCenterFrequencyList << lvalue;
 
         cstr = m_rxStringList.at(i);
         cstr.append("/lastVfoFrequencyGen");
-        lvalue = settings->value(cstr, 1800000).toInt();
+        lvalue = settings->value(cstr, 1800000).toLongLong();
         if ((lvalue < 0) || (lvalue > MAXFREQUENCY)) lvalue = 1800000;
         m_receiverDataList[i].lastVfoFrequencyList << lvalue;
 
         cstr = m_rxStringList.at(i);
         cstr.append("/centerFrequency");
-        lvalue = settings->value(cstr, 3672000).toInt();
+        lvalue = settings->value(cstr, 3672000).toLongLong();
         if ((lvalue < 0) || (lvalue > MAXFREQUENCY)) lvalue = 1800000;
         m_receiverDataList[i].ctrFrequency = lvalue;
 
@@ -1409,7 +1414,7 @@ int Settings::loadSettings() {
 
         cstr = m_rxStringList.at(i);
         cstr.append("/vfoFrequency");
-        lvalue = settings->value(cstr, 3672000).toInt();
+        lvalue = settings->value(cstr, 3672000).toLongLong();
         if ((lvalue < 0) || (lvalue > 50000000)) lvalue = 3600000;
         m_receiverDataList[i].vfoFrequency = lvalue;
 
@@ -2318,7 +2323,7 @@ int Settings::saveSettings() {
             str.append("/lastCenterFrequency");
             str.append(m_bandList.at(j).bandString);
 
-            settings->setValue(str, (int) m_receiverDataList[i].lastCenterFrequencyList.at(j));
+            settings->setValue(str,  m_receiverDataList[i].lastCenterFrequencyList.at(j));
         }
 
         // vfo frequencies
@@ -2328,7 +2333,7 @@ int Settings::saveSettings() {
             str.append("/lastVfoFrequency");
             str.append(m_bandList.at(j).bandString);
 
-            settings->setValue(str, (int) m_receiverDataList[i].lastVfoFrequencyList.at(j));
+            settings->setValue(str,  m_receiverDataList[i].lastVfoFrequencyList.at(j));
         }
 
         m_receiverConfigs[i]->setCtrFrequency(m_receiverDataList[i].ctrFrequency);
@@ -2336,11 +2341,11 @@ int Settings::saveSettings() {
 
         str = m_rxStringList.at(i);
         str.append("/centerFrequency");
-        settings->setValue(str, (int) m_receiverConfigs[i]->ctrFrequency());
+        settings->setValue(str,  m_receiverConfigs[i]->ctrFrequency());
 
         str = m_rxStringList.at(i);
         str.append("/vfoFrequency");
-        settings->setValue(str, (int) m_receiverConfigs[i]->vfoFrequency());
+        settings->setValue(str,  m_receiverConfigs[i]->vfoFrequency());
 
         str = m_rxStringList.at(i);
         str.append("/digitalVoiceEngine");
@@ -2395,13 +2400,13 @@ int Settings::saveSettings() {
             str.append("/dBmPanScaleMin");
             str.append(m_bandList.at(j).bandString);
 
-            settings->setValue(str, (int) m_receiverDataList[i].dBmPanScaleMinList[j]);
+            settings->setValue(str,  m_receiverDataList[i].dBmPanScaleMinList[j]);
 
             str = m_rxStringList.at(i);
             str.append("/dBmPanScaleMax");
             str.append(m_bandList.at(j).bandString);
 
-            settings->setValue(str, (int) m_receiverDataList[i].dBmPanScaleMaxList[j]);
+            settings->setValue(str,  m_receiverDataList[i].dBmPanScaleMaxList[j]);
         }
     }
 
@@ -2422,8 +2427,8 @@ int Settings::saveSettings() {
     m_displayConfig->setdBmDistScaleMin(m_dBmDistScaleMin);
     m_displayConfig->setdBmDistScaleMax(m_dBmDistScaleMax);
 
-    settings->setValue("graphics/dBmDistScaleMin", (int) m_displayConfig->dBmDistScaleMin());
-    settings->setValue("graphics/dBmDistScaleMax", (int) m_displayConfig->dBmDistScaleMax());
+    settings->setValue("graphics/dBmDistScaleMin",  m_displayConfig->dBmDistScaleMin());
+    settings->setValue("graphics/dBmDistScaleMax",  m_displayConfig->dBmDistScaleMax());
 
     /*if (m_waterfallColorScheme == QSDRGraphics::simple)
         settings->setValue("graphics/waterfall", "simple");
@@ -2471,9 +2476,9 @@ int Settings::saveSettings() {
 
 //*******************************************************
 
-QList<long> Settings::getCtrFrequencies() {
+QList<qint64> Settings::getCtrFrequencies() {
 
-    QList<long> frequencies;
+    QList<qint64> frequencies;
 
     for (int i = 0; i < MAX_RECEIVERS; i++) {
         if (m_radioModel && i < m_radioModel->slices().size() && m_radioModel->slices()[i])
@@ -2485,9 +2490,9 @@ QList<long> Settings::getCtrFrequencies() {
     return frequencies;
 }
 
-QList<long> Settings::getVfoFrequencies() {
+QList<qint64> Settings::getVfoFrequencies() {
 
-    QList<long> frequencies;
+    QList<qint64> frequencies;
 
     for (int i = 0; i < MAX_RECEIVERS; i++) {
         if (m_radioModel && i < m_radioModel->slices().size() && m_radioModel->slices()[i])
@@ -3021,7 +3026,7 @@ void Settings::clearMetisCardList() {
     //emit metisCardListChanged(m_metisCards);
 }
 
-void Settings::setMaxFrequency(long value) {
+void Settings::setMaxFrequency(qint64 value) {
 
     if (m_maxFrequency == value) return;
     m_maxFrequency = value;
@@ -3664,14 +3669,14 @@ QList<DSPMode> Settings::getDSPModeList(int rx) const {
     return m_receiverDataList.at(rx).dspModeList;
 }
 
-QList<long> Settings::getLastCenterFrequencyList(int rx) const {
+QList<qint64> Settings::getLastCenterFrequencyList(int rx) const {
 
     if (rx < 0 || rx >= m_receiverDataList.size())
         return {};
     return m_receiverDataList.at(rx).lastCenterFrequencyList;
 }
 
-QList<long> Settings::getLastVfoFrequencyList(int rx) const {
+QList<qint64> Settings::getLastVfoFrequencyList(int rx) const {
 
     if (rx < 0 || rx >= m_receiverDataList.size())
         return {};
@@ -3943,7 +3948,7 @@ void Settings::setMainVolumeMute(int rx, bool value) {
         setMainVolume(rx, vol);
 }
 
-void Settings::setCtrFrequency(int rx, long frequency) {
+void Settings::setCtrFrequency(int rx, qint64 frequency) {
 
     QMutexLocker locker(&settingsMutex);
 
@@ -3955,7 +3960,7 @@ void Settings::setCtrFrequency(int rx, long frequency) {
     m_receiverDataList[rx].lastCenterFrequencyList[(int) band] = frequency;
 }
 
-void Settings::setVfoFrequency(int rx, long frequency) {
+void Settings::setVfoFrequency(int rx, qint64 frequency) {
 
     QMutexLocker locker(&settingsMutex);
 
@@ -3971,7 +3976,7 @@ void Settings::setVfoFrequency(int rx, long frequency) {
     SETTINGS_DEBUG << "set vfo freq (Rx " << rx << ") " << m_receiverDataList[rx].ctrFrequency;
 }
 
-void Settings::setCtrFrequency(int mode, int rx, long frequency) {
+void Settings::setCtrFrequency(int mode, int rx, qint64 frequency) {
     if (rx < 0 || rx >= m_receiverDataList.size())
         return;
 
@@ -4010,13 +4015,13 @@ void Settings::setCtrFrequency(int mode, int rx, long frequency) {
     emit ctrFrequencyChanged(mode, rx, frequency);
 }
 
-long Settings::getCtrFrequency(int rx) {
+qint64 Settings::getCtrFrequency(int rx) {
     if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) return m_radioModel->slices()[rx]->centerFrequency();
 
     return m_receiverDataList.at(rx).ctrFrequency;
 }
 
-void Settings::setVFOFrequency(int mode, int rx, long frequency) {
+void Settings::setVFOFrequency(int mode, int rx, qint64 frequency) {
     if (rx < 0 || rx >= m_receiverDataList.size())
         return;
 
@@ -4075,13 +4080,13 @@ void Settings::setVFOFrequency(int mode, int rx, long frequency) {
 
 }
 
-long Settings::getVfoFrequency(int rx) {
+qint64 Settings::getVfoFrequency(int rx) {
     if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) return m_radioModel->slices()[rx]->frequency();
 
     return m_receiverDataList.at(rx).vfoFrequency;
 }
 
-void Settings::setNCOFrequency(bool value, int rx, long frequency) {
+void Settings::setNCOFrequency(bool value, int rx, qint64 frequency) {
 
     Q_UNUSED(value)
 

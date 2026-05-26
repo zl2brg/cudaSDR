@@ -5,13 +5,13 @@ SliceModel::SliceModel(int id, QObject *parent)
 {
 }
 
-void SliceModel::setFrequency(long freq) {
+void SliceModel::setFrequency(qint64 freq) {
     if (m_frequency == freq) return;
     m_frequency = freq;
     emit frequencyChanged(m_frequency);
 }
 
-void SliceModel::setCenterFrequency(long freq) {
+void SliceModel::setCenterFrequency(qint64 freq) {
     if (m_centerFrequency == freq) return;
     m_centerFrequency = freq;
     emit centerFrequencyChanged(m_centerFrequency);

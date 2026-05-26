@@ -47,14 +47,14 @@ void ReceiverConfig::setAgcMode(AGCMode mode) {
     }
 }
 
-void ReceiverConfig::setCtrFrequency(long freq) {
+void ReceiverConfig::setCtrFrequency(qint64 freq) {
     if (m_ctrFrequency != freq) {
         m_ctrFrequency = freq;
         emit ctrFrequencyChanged(m_ctrFrequency);
     }
 }
 
-void ReceiverConfig::setVfoFrequency(long freq) {
+void ReceiverConfig::setVfoFrequency(qint64 freq) {
     if (m_vfoFrequency != freq) {
         m_vfoFrequency = freq;
         emit vfoFrequencyChanged(m_vfoFrequency);
@@ -67,8 +67,8 @@ void ReceiverConfig::load(const QJsonObject &json) {
     if (json.contains("dspMode")) m_dspMode = static_cast<DSPMode>(json["dspMode"].toInt());
     if (json.contains("adcMode")) m_adcMode = static_cast<ADCMode>(json["adcMode"].toInt());
     if (json.contains("agcMode")) m_agcMode = static_cast<AGCMode>(json["agcMode"].toInt());
-    if (json.contains("ctrFrequency")) m_ctrFrequency = static_cast<long>(json["ctrFrequency"].toDouble());
-    if (json.contains("vfoFrequency")) m_vfoFrequency = static_cast<long>(json["vfoFrequency"].toDouble());
+    if (json.contains("ctrFrequency")) m_ctrFrequency = static_cast<qint64>(json["ctrFrequency"].toDouble());
+    if (json.contains("vfoFrequency")) m_vfoFrequency = static_cast<qint64>(json["vfoFrequency"].toDouble());
 }
 
 void ReceiverConfig::save(QJsonObject &json) const {

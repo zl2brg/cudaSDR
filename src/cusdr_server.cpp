@@ -308,7 +308,7 @@ char *HPSDRServer::detachReceiver(int rx, int client) {
     return OK;
 }
 
-char *HPSDRServer::setFrequency(long frequency, int rx) {
+char *HPSDRServer::setFrequency(qint64 frequency, int rx) {
 
 	if (m_rxList[rx]->property("socketState").toString() == QLatin1String("RECEIVER_DETACHED"))
 		return CLIENT_DETACHED;

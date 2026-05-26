@@ -402,7 +402,7 @@ void CProtocol2::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
 
                 // DDC RX frequencies: 4 bytes each starting at buffer[9 + 4*i]
                 {
-                    const QList<long>& freqs = set->getCtrFrequencies();
+                    const QList<qint64>& freqs = set->getCtrFrequencies();
                     for (int ddc = 0; ddc < io->receivers && ddc < freqs.size(); ddc++) {
                         uint32_t freq = qToBigEndian((uint32_t)freqs.at(ddc));
                         memcpy(&buffer[9 + 4 * ddc], &freq, 4);

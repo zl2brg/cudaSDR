@@ -64,8 +64,8 @@ typedef enum _hamBand {
   cm23,			// 17
   cm13,			// 18
   cm10,			// 19
-  cm5,			// 21
-  gen			// 22
+  cm5,			// 20
+  gen			// 21
 
 } HamBand;
 
@@ -89,7 +89,7 @@ typedef enum _dspMode {
 
 // Resolve the logical app mode to the actual WDSP mode.
 // FDV (FreeDV) uses LSB below 10 MHz and USB above; all other modes pass through unchanged.
-inline DSPMode resolveWDSPMode(DSPMode appMode, long frequency) {
+inline DSPMode resolveWDSPMode(DSPMode appMode, qint64 frequency) {
     return (appMode == FDV)
         ? (frequency < 10000000L ? LSB : USB)
         : appMode;
@@ -153,8 +153,8 @@ typedef struct _hamBandFrequencies {
 	IARURegion	region;
 	
 	QString		bandString;
-	long		frequencyLo;
-	long		frequencyHi;
+	qint64		frequencyLo;
+	qint64		frequencyHi;
 
 } THamBandFrequencies;
 
@@ -163,8 +163,8 @@ typedef struct _hamBandText {
 	HamBand		hamBand;
 	IARURegion	region;
 
-	long	frequencyLo;
-	long	frequencyHi;
+	qint64	frequencyLo;
+	qint64	frequencyHi;
 	int		maxBandwith;
 
 	QString			text;
@@ -178,7 +178,7 @@ typedef struct _hamBandDefaults {
 	HamBand	hamBand;
 	DSPMode	dspMode;
 
-	long	frequencyLo;
+	qint64	frequencyLo;
 
 } THamBandDefaults;
 
@@ -1492,7 +1492,7 @@ inline QList<QList<THamBandDefaults> > getHamBandDefaults() {
 	return hamBandDefaults;
 }
 
-inline HamBand getBandFromFrequency(const QList<THamBandFrequencies> bandList, long frequency) {
+inline HamBand getBandFromFrequency(const QList<THamBandFrequencies> bandList, qint64 frequency) {
 
 	HamBand band;
 
@@ -1523,7 +1523,7 @@ inline TDefaultFilter getFilterFromDSPMode(const QList<TDefaultFilter> filterLis
 	return filterList.at(0);
 }
 
-inline QString getHamBandTextString(const QList<THamBandText> textList, bool shortText, long frequency) {
+inline QString getHamBandTextString(const QList<THamBandText> textList, bool shortText, qint64 frequency) {
 
 	QString str = "";
 

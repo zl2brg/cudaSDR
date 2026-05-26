@@ -746,7 +746,7 @@ void AlexFilterWidget::hpf20MHzBtnClicked() {
 	setFrequency(0, m_receiver, set->getVfoFrequencies().at(m_receiver));
 }
 
-void AlexFilterWidget::setFrequency(int mode, int rx, long frequency) {
+void AlexFilterWidget::setFrequency(int mode, int rx, qint64 frequency) {
 
 	Q_UNUSED(mode)
 

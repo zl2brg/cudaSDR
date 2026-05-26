@@ -1614,7 +1614,7 @@ void QGLWidebandPanel::timerEvent(QTimerEvent *event) {
  
 //********************************************************************
  
-void QGLWidebandPanel::setFrequency(int mode, int rx, long freq) {
+void QGLWidebandPanel::setFrequency(int mode, int rx, qint64 freq) {
 
 	Q_UNUSED (mode)
 

@@ -15,8 +15,8 @@ class ReceiverConfig : public QObject {
     Q_PROPERTY(DSPMode dspMode READ dspMode WRITE setDspMode NOTIFY dspModeChanged)
     Q_PROPERTY(ADCMode adcMode READ adcMode WRITE setAdcMode NOTIFY adcModeChanged)
     Q_PROPERTY(AGCMode agcMode READ agcMode WRITE setAgcMode NOTIFY agcModeChanged)
-    Q_PROPERTY(long ctrFrequency READ ctrFrequency WRITE setCtrFrequency NOTIFY ctrFrequencyChanged)
-    Q_PROPERTY(long vfoFrequency READ vfoFrequency WRITE setVfoFrequency NOTIFY vfoFrequencyChanged)
+    Q_PROPERTY(qint64 ctrFrequency READ ctrFrequency WRITE setCtrFrequency NOTIFY ctrFrequencyChanged)
+    Q_PROPERTY(qint64 vfoFrequency READ vfoFrequency WRITE setVfoFrequency NOTIFY vfoFrequencyChanged)
 
 public:
     explicit ReceiverConfig(int id, QObject *parent = nullptr);
@@ -38,11 +38,11 @@ public:
     AGCMode agcMode() const { return m_agcMode; }
     void setAgcMode(AGCMode mode);
 
-    long ctrFrequency() const { return m_ctrFrequency; }
-    void setCtrFrequency(long freq);
+    qint64 ctrFrequency() const { return m_ctrFrequency; }
+    void setCtrFrequency(qint64 freq);
 
-    long vfoFrequency() const { return m_vfoFrequency; }
-    void setVfoFrequency(long freq);
+    qint64 vfoFrequency() const { return m_vfoFrequency; }
+    void setVfoFrequency(qint64 freq);
 
     void load(const QJsonObject &json);
     void save(QJsonObject &json) const;
@@ -53,8 +53,8 @@ signals:
     void dspModeChanged(DSPMode mode);
     void adcModeChanged(ADCMode mode);
     void agcModeChanged(AGCMode mode);
-    void ctrFrequencyChanged(long freq);
-    void vfoFrequencyChanged(long freq);
+    void ctrFrequencyChanged(qint64 freq);
+    void vfoFrequencyChanged(qint64 freq);
 
 private:
     int m_id;
@@ -63,8 +63,8 @@ private:
     DSPMode m_dspMode;
     ADCMode m_adcMode;
     AGCMode m_agcMode;
-    long m_ctrFrequency;
-    long m_vfoFrequency;
+    qint64 m_ctrFrequency;
+    qint64 m_vfoFrequency;
 };
 
 #endif // RECEIVERCONFIG_H

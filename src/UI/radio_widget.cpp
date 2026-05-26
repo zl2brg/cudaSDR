@@ -165,7 +165,7 @@ qreal RadioCtrl::SetVarSlider(QAbstractSlider *slider)
 }
 
 
-void RadioCtrl::ctrFrequencyChanged(int mode, int rx, long frequency) {
+void RadioCtrl::ctrFrequencyChanged(int mode, int rx, qint64 frequency) {
 
     Q_UNUSED (mode)
 
@@ -176,7 +176,7 @@ void RadioCtrl::ctrFrequencyChanged(int mode, int rx, long frequency) {
     m_lastCtrFrequencyList[(int) band] = m_ctrFrequency;
 }
 
-void RadioCtrl::vfoFrequencyChanged(int mode, int rx, long frequency) {
+void RadioCtrl::vfoFrequencyChanged(int mode, int rx, qint64 frequency) {
 
     Q_UNUSED (mode)
 

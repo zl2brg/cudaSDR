@@ -137,8 +137,8 @@ private slots:
 	void lpfLoSpinBoxValueChanged(double value);
 	void lpfHiSpinBoxValueChanged(double value);
 
-	//void setFrequency(bool value, int rx, long frequency);
-	void setFrequency(int mode, int rx, long frequency);
+	//void setFrequency(bool value, int rx, qint64 frequency);
+	void setFrequency(int mode, int rx, qint64 frequency);
 	void setCurrentReceiver(int rx);
 	void setAlexConfiguration(double frequency);
 	void manualFilterBtnClicked();

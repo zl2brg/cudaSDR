@@ -1,4 +1,4 @@
-prefix=/home/simon/Projects/cudaSDR/wdsp-libs
+prefix=${pcfiledir}/../..
 includedir=${prefix}/include
 libdir=${prefix}/lib
 

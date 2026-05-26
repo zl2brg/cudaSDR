@@ -173,7 +173,7 @@ public slots:
 	void	setMercuryClass(int value);
 	void	setMercuryTiming(int value);
 	void	setHamBand(int rx, bool byBtn, HamBand band);
-	void	setFrequency(int mode, int rx, long frequency);
+	void setFrequency(int mode, int rx, qint64 frequency);
 	/** MVC: apply slice model mode to TX CC and RX WDSP path. */
 	void	applySliceDspMode(int rx, DSPMode mode);
     void    set_tx_drivelevel(int value);

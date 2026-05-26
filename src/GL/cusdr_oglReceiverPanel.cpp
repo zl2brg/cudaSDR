@@ -373,8 +373,8 @@ void QGLReceiverPanel::setupConnections() {
     connect(set, &Settings::adcModeChanged,              this, &QGLReceiverPanel::setADCMode);
     connect(set, &Settings::mouseWheelFreqStepChanged,   this, &QGLReceiverPanel::setMouseWheelFreqStep);
 
-    connect(m_sliceModel, &SliceModel::frequencyChanged, this, [this](long freq){ this->setVFOFrequency(0, m_sliceModel->id(), freq); });
-    connect(m_sliceModel, &SliceModel::centerFrequencyChanged, this, [this](long freq){ setCtrFrequency(0, m_sliceModel->id(), freq); });
+    connect(m_sliceModel, &SliceModel::frequencyChanged, this, [this](qint64 freq){ this->setVFOFrequency(0, m_sliceModel->id(), freq); });
+    connect(m_sliceModel, &SliceModel::centerFrequencyChanged, this, [this](qint64 freq){ setCtrFrequency(0, m_sliceModel->id(), freq); });
     connect(m_sliceModel, &SliceModel::dspModeChanged, this, [this](DSPMode mode){ setDSPMode(m_sliceModel->id(), mode); });
     connect(m_sliceModel, &SliceModel::filterChanged, this, [this](){ setFilterFrequencies(m_sliceModel->id(), (qreal)m_sliceModel->filterLow(), (qreal)m_sliceModel->filterHigh()); });
     connect(m_sliceModel, &SliceModel::spectrumAveragingChanged, [this](bool enabled){ setSpectrumAveraging(m_sliceModel->id(), enabled); });
@@ -2730,7 +2730,7 @@ void QGLReceiverPanel::setSpectrumSize(int value) {
 	}
 }
 
-void QGLReceiverPanel::setCtrFrequency(int mode, int rx, long freq) {
+void QGLReceiverPanel::setCtrFrequency(int mode, int rx, qint64 freq) {
     Q_UNUSED(mode)
     if (m_receiver != rx) return;
 
@@ -2747,7 +2747,7 @@ void QGLReceiverPanel::setCtrFrequency(int mode, int rx, long freq) {
         update();
 }
 
-void QGLReceiverPanel::setVFOFrequency(int mode, int rx, long freq) {
+void QGLReceiverPanel::setVFOFrequency(int mode, int rx, qint64 freq) {
 
 	Q_UNUSED(mode)
 	

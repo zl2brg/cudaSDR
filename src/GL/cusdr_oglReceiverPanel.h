@@ -70,8 +70,8 @@ public slots:
 	//void setSpectrumBuffer(const float* buffer, int size);
 	//void setSpectrumBuffer(const qVectorFloat& buffer);
 	void setSpectrumBuffer(int rx, const qVectorFloat& buffer);
-	void setCtrFrequency(int mode, int rx, long freq);
-	void setVFOFrequency(int mode, int rx, long freq);
+	void setCtrFrequency(int mode, int rx, qint64 freq);
+	void setVFOFrequency(int mode, int rx, qint64 freq);
 
 protected:
     void initializeGL();

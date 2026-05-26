@@ -196,7 +196,7 @@ void QWDSPEngine::setupConnections() {
     connect(m_sliceModel, &SliceModel::nrAgcChanged, [this](int mode){ setNrAGC(m_rx, mode); });
     connect(m_sliceModel, &SliceModel::volumeChanged, [this](float value){ setVolume(value); });
     connect(m_sliceModel, &SliceModel::muteChanged, [this](bool muted){ setVolume(muted ? 0.0f : m_sliceModel->volume()); });
-    connect(m_sliceModel, &SliceModel::frequencyChanged, [this](long freq) {
+    connect(m_sliceModel, &SliceModel::frequencyChanged, [this](qint64 freq) {
         setNCOFrequency(m_rx, freq - m_sliceModel->centerFrequency());
     });
     connect(m_sliceModel, &SliceModel::centerFrequencyChanged, [this](long ctrFreq) {
@@ -257,7 +257,7 @@ void QWDSPEngine::setupConnections() {
                 this, &QWDSPEngine::updateFreeDvSideband);
     } else {
         connect(set, &Settings::ctrFrequencyChanged,
-                this, [this](int /*mode*/, int rx, long frequency) {
+                this, [this](int /*mode*/, int rx, qint64 frequency) {
             if (rx != m_rx) return;
             updateFreeDvSideband(frequency);
         });
@@ -345,7 +345,7 @@ DSPMode QWDSPEngine::currentDspMode() const {
     return m_sliceModel ? m_sliceModel->dspMode() : set->getDSPMode(m_rx);
 }
 
-void QWDSPEngine::updateFreeDvSideband(long frequency) {
+void QWDSPEngine::updateFreeDvSideband(qint64 frequency) {
 
     if (currentDspMode() != FDV) return;
     // Reselect USB/LSB when frequency crosses the 10 MHz boundary in FDV/FreeDV mode.

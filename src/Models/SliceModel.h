@@ -9,8 +9,8 @@ class SliceModel : public QObject {
     Q_OBJECT
 
     Q_PROPERTY(int id READ id CONSTANT)
-    Q_PROPERTY(long frequency READ frequency WRITE setFrequency NOTIFY frequencyChanged)
-    Q_PROPERTY(long centerFrequency READ centerFrequency WRITE setCenterFrequency NOTIFY centerFrequencyChanged)
+    Q_PROPERTY(qint64 frequency READ frequency WRITE setFrequency NOTIFY frequencyChanged)
+    Q_PROPERTY(qint64 centerFrequency READ centerFrequency WRITE setCenterFrequency NOTIFY centerFrequencyChanged)
     Q_PROPERTY(DSPMode dspMode READ dspMode WRITE setDspMode NOTIFY dspModeChanged)
     Q_PROPERTY(float filterLow READ filterLow WRITE setFilterLow NOTIFY filterChanged)
     Q_PROPERTY(float filterHigh READ filterHigh WRITE setFilterHigh NOTIFY filterChanged)
@@ -54,11 +54,11 @@ public:
 
     int id() const { return m_id; }
 
-    long frequency() const { return m_frequency; }
-    void setFrequency(long freq);
+    qint64 frequency() const { return m_frequency; }
+    void setFrequency(qint64 freq);
 
-    long centerFrequency() const { return m_centerFrequency; }
-    void setCenterFrequency(long freq);
+    qint64 centerFrequency() const { return m_centerFrequency; }
+    void setCenterFrequency(qint64 freq);
 
     DSPMode dspMode() const { return m_dspMode; }
     void setDspMode(DSPMode mode);
@@ -172,8 +172,8 @@ public:
     void setActive(bool active);
 
 signals:
-    void frequencyChanged(long freq);
-    void centerFrequencyChanged(long freq);
+    void frequencyChanged(qint64 freq);
+    void centerFrequencyChanged(qint64 freq);
     void dspModeChanged(DSPMode mode);
     void filterChanged();
     void filterPresetChanged(int preset);
@@ -211,8 +211,8 @@ signals:
 
 private:
     int m_id;
-    long m_frequency = 7000000;
-    long m_centerFrequency = 7000000;
+    qint64 m_frequency = 7000000;
+    qint64 m_centerFrequency = 7000000;
     DSPMode m_dspMode = LSB;
     float m_filterLow = -3050.0f;
     float m_filterHigh = -150.0f;

@@ -962,9 +962,8 @@ bool DataEngine::start() {
 	}
 
 	connectDSPSlots();
-	const QList<long> ctrFrequencies = set->getCtrFrequencies();
-
-    for (int i = 0; i < rcvrs ; i++) {
+	const QList<qint64> ctrFrequencies = set->getCtrFrequencies();
+	for (int i = 0; i < rcvrs ; i++) {
 
 		RX.at(i)->setConnectedStatus(true);
 		if (i < ctrFrequencies.count()) {
@@ -2569,7 +2568,7 @@ void DataEngine::setHamBand(int rx, bool byBtn, HamBand band) {
 	}
 }
 
-void DataEngine::setFrequency(int mode, int rx, long frequency) {
+void DataEngine::setFrequency(int mode, int rx, qint64 frequency) {
 
 	Q_UNUSED(mode)
 	Q_UNUSED(frequency)

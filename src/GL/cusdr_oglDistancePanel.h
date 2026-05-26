@@ -58,7 +58,7 @@ public slots:
 
 	void setSpectrumBuffer(const float *buffer);
 	void distanceSpectrumBufferChanged(int sampleRate, qint64 length, const float *buffer);
-	void setFrequency(bool value, long freq);
+	void setFrequency(bool value, qint64 freq);
 
 protected:
     void initializeGL();

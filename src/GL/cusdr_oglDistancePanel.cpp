@@ -2164,7 +2164,7 @@ void QGLDistancePanel::timerEvent(QTimerEvent *) {
  
 //********************************************************************
  
-void QGLDistancePanel::setFrequency(bool value, long freq) {
+void QGLDistancePanel::setFrequency(bool value, qint64 freq) {
 
 	Q_UNUSED(value)
 	

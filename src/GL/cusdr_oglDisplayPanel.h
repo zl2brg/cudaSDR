@@ -59,7 +59,7 @@ class OGLDisplayPanel : public QOpenGLWidget, protected QOpenGLFunctions {
 public:
     OGLDisplayPanel(RadioModel *model, QWidget *parent = nullptr);
 	~OGLDisplayPanel();
-    void renderFreqText(QPainter &painter,GLint &x1, GLint  &y1, QFont &font,QFontMetrics  fontMetrics, QColor fontcolor, const QString freqstr, int digit, int digit_pos);
+    void renderFreqText(QPainter &painter,GLint &x1, GLint  &y1, QFont &font,QFontMetrics  fontMetrics, QColor fontcolor, const QString freqstr, int digit, int digit_pos, int fixed_width = 0);
     void renderText(QPainter &painter, int x, int y, QFont &font, QColor fontcolor, const QString &text);
 
 	QSize minimumSizeHint() const;
@@ -67,7 +67,7 @@ public:
 
 public slots:
 	void setSampleRate(int value);
-	void setFrequency(int mode, int rx, long freq);
+	void setFrequency(int mode, int rx, qint64 freq);
 
 protected:
     void initializeGL();
@@ -169,6 +169,8 @@ private:
 	QString		m_sMeterNumValueString;
 
 	QString		m_bandText;
+    QString     m_f1str;
+    QString     m_f2str;
 
 	QRegion		m_freg1;
 	QRegion		m_freg10;
@@ -178,8 +180,11 @@ private:
 	QRegion		m_freg100000;
 	QRegion		m_freg1000000;
 	QRegion		m_freg10000000;
+	QRegion		m_freg100000000;
+	QRegion		m_freg1000000000;
     QRegion		m_point;
     QRegion		m_point1;
+    QRegion		m_point2;
 
 
     QColor      m_txdigitColor;
@@ -208,20 +213,21 @@ private:
 	};
 
 	enum FreqDigit {
-        Freq10000000,
-        Freq1000000,
-        dp1,
-        Freq100000,
-        Freq10000,
-        Freq1000,
-        dp2,
-        Freq100,
-        Freq10,
-        Freq1,
-        None,
-
-
-    };
+	Freq1000000000,
+	dp0,
+	Freq100000000,
+	Freq10000000,
+	Freq1000000,
+	dp1,
+	Freq100000,
+	Freq10000,
+	Freq1000,
+	dp2,
+	Freq100,
+	Freq10,
+	Freq1,
+	None,
+	};
 
 	GLuint	m_sMeterTex;
 	bool	m_smeterUpdate;
@@ -229,7 +235,7 @@ private:
 	bool	m_sMeterAvg;
 
 
-	long	m_oldFreq;
+	qint64	m_oldFreq;
 
 	int		m_height;
 	int		m_sMeterWidth;
