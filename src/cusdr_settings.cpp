@@ -3022,6 +3022,7 @@ void Settings::searchSoapyDevices() {
 #endif
 
 void Settings::searchDevices() {
+    emit clearDiscoveredDevicesSignal();
     emit searchMetisSignal();
 #ifdef HAVE_SOAPYSDR
     emit searchSoapySignal();

@@ -10,6 +10,8 @@
 #include <QMenu>
 #include <QMenuBar>
 #include <QMainWindow>
+#include <QVariant>
+#include <QTimer>
 #include <QComboBox>
 #include <QPainter>
 
@@ -110,6 +112,8 @@ public slots:
 #ifdef HAVE_SOAPYSDR
     void handleSoapyDeviceListChanged(const QList<TSoapyDevice> &list);
 #endif
+    void clearDiscoveredDevices();
+    void processDiscoveryResults();
 	void alexPresenceChanged(bool value);
 	void alexConfigurationChanged(quint16 value);
 	void alexStateChanged(HamBand band, const QList<int> &states);
@@ -228,6 +232,8 @@ private:
     int			m_deltaY_max;
 	int			m_resizePosition;
     RadioModel*                             m_radioModel;
+    QList<QVariant>                         m_discoveredDevices;
+    QTimer                                  m_discoveryTimer;
 	int			m_numberOfReceivers;
 
 	int			m_alexAttnState;

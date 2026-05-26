@@ -163,6 +163,7 @@ set(SOURCES
     ${SRC_DIR}/UI/tx_settings_dialog.cpp
     ${SRC_DIR}/UI/cusdr_setupwidget.cpp
     ${SRC_DIR}/UI/FrequencyEntryDialog.cpp
+    ${SRC_DIR}/UI/DeviceSelectionDialog.cpp
     ${SRC_DIR}/Settings/NetworkConfig.cpp
     ${SRC_DIR}/Settings/DisplayConfig.cpp
     ${SRC_DIR}/Settings/HardwareConfig.cpp
@@ -201,6 +202,7 @@ set(HEADERS
     ${SRC_DIR}/UI/tx_settings_dialog.h
     ${SRC_DIR}/UI/cusdr_setupwidget.h
     ${SRC_DIR}/UI/FrequencyEntryDialog.h
+    ${SRC_DIR}/UI/DeviceSelectionDialog.h
 
 
     # GL

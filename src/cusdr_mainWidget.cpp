@@ -43,6 +43,7 @@
 #include <QScrollArea>
 #include "cusdr_audio_settingsdialog.h"
 #include "cusdr_mainWidget.h"
+#include "UI/DeviceSelectionDialog.h"
 #include "UI/MainWindow/MainWindowUI.h"
 
 extern "C" int GetWDSPVersion();
@@ -284,6 +285,12 @@ void MainWindow::setupConnections() {
 		&Settings::clearNetworkIOComboBoxEntrySignal,
 		this,
 		&MainWindow::clearNetworkIOComboBoxEntry);
+
+    CHECKED_CONNECT(
+        set,
+        &Settings::clearDiscoveredDevicesSignal,
+        this,
+        &MainWindow::clearDiscoveredDevices);
 		
 	CHECKED_CONNECT(
 		set,
@@ -453,7 +460,11 @@ void MainWindow::setup() {
 	updateFromSettings();
     checkStartButtonState();
 
+    m_discoveryTimer.setSingleShot(true);
+    connect(&m_discoveryTimer, &QTimer::timeout, this, &MainWindow::processDiscoveryResults);
+
     QTimer::singleShot(1000, set, &Settings::searchDevices);
+    m_discoveryTimer.start(2500); // Wait 2.5s for discovery results
 }
 
 void MainWindow::cusdr_setup()
@@ -2017,39 +2028,98 @@ void WarningDialog::setWarningMessage(const QString &msg) {
 
 void WarningDialog::okBtnClicked() {
 
-	accept();
+        accept();
 }
 
-
-
 void MainWindow::handleDeviceListChanged(const QList<TNetworkDevicecard> &list) {
-    if (set->getMainPower()) return; // Already running
-
-    TSDRDevice lastDevice = set->getLastConnectedDevice();
-    if (lastDevice.deviceClass != DeviceClass_HPSDR || lastDevice.serialNumber.isEmpty()) return;
+    if (set->getMainPower()) return;
 
     for (const TNetworkDevicecard &card : list) {
-        if (QString::fromLatin1(card.mac_address) == lastDevice.serialNumber) {
-            MAIN_DEBUG << "Auto-select: found last HPSDR device " << lastDevice.serialNumber << " at " << card.ip_address.toString();
-            set->setCurrentHPSDRDevice(card);
-            break;
+        QVariant v = QVariant::fromValue(card);
+        bool found = false;
+        for (const QVariant &existing : m_discoveredDevices) {
+            if (existing.canConvert<TNetworkDevicecard>()) {
+                if (QString::fromLatin1(existing.value<TNetworkDevicecard>().mac_address) == QString::fromLatin1(card.mac_address)) {
+                    found = true;
+                    break;
+                }
+            }
         }
+        if (!found) m_discoveredDevices.append(v);
     }
 }
 
 #ifdef HAVE_SOAPYSDR
 void MainWindow::handleSoapyDeviceListChanged(const QList<TSoapyDevice> &list) {
-    if (set->getMainPower()) return; // Already running
-
-    TSDRDevice lastDevice = set->getLastConnectedDevice();
-    if (lastDevice.deviceClass != DeviceClass_SoapySDR || lastDevice.serialNumber.isEmpty()) return;
+    if (set->getMainPower()) return;
 
     for (const TSoapyDevice &dev : list) {
-        if (dev.driver == lastDevice.deviceType && dev.serial == lastDevice.serialNumber) {
-            MAIN_DEBUG << "Auto-select: found last SoapySDR device " << dev.label;
-            set->setCurrentSoapyDevice(dev);
-            break;
+        QVariant v = QVariant::fromValue(dev);
+        bool found = false;
+        for (const QVariant &existing : m_discoveredDevices) {
+            if (existing.canConvert<TSoapyDevice>()) {
+                if (existing.value<TSoapyDevice>().serial == dev.serial && existing.value<TSoapyDevice>().driver == dev.driver) {
+                    found = true;
+                    break;
+                }
+            }
         }
+        if (!found) m_discoveredDevices.append(v);
     }
 }
 #endif
+
+void MainWindow::processDiscoveryResults() {
+    if (set->getMainPower()) return;
+    if (m_discoveredDevices.isEmpty()) return;
+
+    TSDRDevice lastDevice = set->getLastConnectedDevice();
+
+    // Heuristic: If we found multiple devices, show the dialog.
+    // If we found only one, and it matches the last used OR we have nothing selected, select it.
+
+    if (m_discoveredDevices.size() > 1) {
+        DeviceSelectionDialog dlg(m_discoveredDevices, this);
+        if (dlg.exec() == QDialog::Accepted) {
+            QVariant selected = dlg.selectedDevice();
+            if (selected.canConvert<TNetworkDevicecard>()) {
+                set->setCurrentHPSDRDevice(selected.value<TNetworkDevicecard>());
+            }
+#ifdef HAVE_SOAPYSDR
+            else if (selected.canConvert<TSoapyDevice>()) {
+                set->setCurrentSoapyDevice(selected.value<TSoapyDevice>());
+            }
+#endif
+        }
+    } else if (m_discoveredDevices.size() == 1) {
+        QVariant dev = m_discoveredDevices.first();
+        if (dev.canConvert<TNetworkDevicecard>()) {
+            TNetworkDevicecard card = dev.value<TNetworkDevicecard>();
+            if (lastDevice.deviceClass == DeviceClass_HPSDR && lastDevice.serialNumber == QString::fromLatin1(card.mac_address)) {
+                set->setCurrentHPSDRDevice(card);
+            } else if (lastDevice.deviceClass == DeviceClass_None) {
+                set->setCurrentHPSDRDevice(card);
+            }
+        }
+#ifdef HAVE_SOAPYSDR
+        else if (dev.canConvert<TSoapyDevice>()) {
+            TSoapyDevice soapy = dev.value<TSoapyDevice>();
+            if (lastDevice.deviceClass == DeviceClass_SoapySDR && lastDevice.serialNumber == soapy.serial && lastDevice.deviceType == soapy.driver) {
+                set->setCurrentSoapyDevice(soapy);
+            } else if (lastDevice.deviceClass == DeviceClass_None) {
+                set->setCurrentSoapyDevice(soapy);
+            }
+        }
+#endif
+    }
+
+    m_discoveredDevices.clear();
+}
+
+void MainWindow::clearDiscoveredDevices() {
+    m_discoveredDevices.clear();
+    m_discoveryTimer.stop();
+    m_discoveryTimer.start(2500);
+}
+
+

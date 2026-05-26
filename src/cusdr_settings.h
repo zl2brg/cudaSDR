@@ -803,6 +803,7 @@ signals:
 	void maxFrequencyChanged(qint64 value);
 	void networkIOComboBoxEntryAdded(QString str);
 	void clearNetworkIOComboBoxEntrySignal();
+    void clearDiscoveredDevicesSignal();
 	void searchMetisSignal();
     void searchSoapySignal();
     void soapyDeviceListChanged(const QList<TSoapyDevice> &list);
