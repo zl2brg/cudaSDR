@@ -291,6 +291,11 @@ int Settings::loadSettings() {
     m_networkConfig->setSocketBufferSize(value);
     m_socketBufferSize = m_networkConfig->socketBufferSize();
 
+    m_lastConnectedDevice.deviceClass = static_cast<DeviceClass>(settings->value("network/lastDeviceClass", DeviceClass_None).toInt());
+    m_lastConnectedDevice.deviceType = settings->value("network/lastDeviceType", "").toString();
+    m_lastConnectedDevice.serialNumber = settings->value("network/lastDeviceSerial", "").toString();
+    m_lastConnectedDevice.label = settings->value("network/lastDeviceLabel", "").toString();
+
     value = settings->value("hpsdr/receivers", 1).toInt();
     if (value < 1 || value > MAX_RECEIVERS) value = 1;
     m_mercuryReceivers = value;
@@ -1644,6 +1649,10 @@ int Settings::saveSettings() {
     settings->setValue("network/audio_port", m_networkConfig->audioPort());
     settings->setValue("network/metis_port", m_networkConfig->metisPort());
     settings->setValue("network/socketBufferSize", m_networkConfig->socketBufferSize());
+    settings->setValue("network/lastDeviceClass", static_cast<int>(m_lastConnectedDevice.deviceClass));
+    settings->setValue("network/lastDeviceType", m_lastConnectedDevice.deviceType);
+    settings->setValue("network/lastDeviceSerial", m_lastConnectedDevice.serialNumber);
+    settings->setValue("network/lastDeviceLabel", m_lastConnectedDevice.label);
     settings->setValue("hpsdr/receivers", m_mercuryReceivers);
 
 
@@ -3036,14 +3045,19 @@ void Settings::setMaxFrequency(qint64 value) {
 void Settings::setCurrentHPSDRDevice(TNetworkDevicecard card) {
 
     m_currentHPSDRDevice = card;
+    m_lastConnectedDevice.deviceClass = DeviceClass_HPSDR;
+    m_lastConnectedDevice.deviceType = card.boardName;
+    m_lastConnectedDevice.serialNumber = QString::fromLatin1(card.mac_address);
+    m_lastConnectedDevice.label = card.boardName;
 
     if (card.frequency_max > 0) {
-        m_maxFrequency = static_cast<long>(card.frequency_max);
-        m_minFrequency = static_cast<long>(card.frequency_min);
+        m_maxFrequency = static_cast<qint64>(card.frequency_max);
+        m_minFrequency = static_cast<qint64>(card.frequency_min);
         emit maxFrequencyChanged(m_maxFrequency);
     }
 
     emit hpsdrNetworkDeviceChanged(m_currentHPSDRDevice);
+    saveSettings();
 }
 
 #ifdef HAVE_SOAPYSDR
@@ -3054,7 +3068,12 @@ void Settings::setSoapyDeviceList(QList<TSoapyDevice> list) {
 
 void Settings::setCurrentSoapyDevice(TSoapyDevice device) {
     m_currentSoapyDevice = device;
+    m_lastConnectedDevice.deviceClass = DeviceClass_SoapySDR;
+    m_lastConnectedDevice.deviceType = device.driver;
+    m_lastConnectedDevice.serialNumber = device.serial;
+    m_lastConnectedDevice.label = device.label;
     emit soapyDeviceChanged(m_currentSoapyDevice);
+    saveSettings();
 }
 
 void Settings::setSoapyMessage(QString message) {

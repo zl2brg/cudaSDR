@@ -210,12 +210,24 @@ void MainWindow::setupConnections() {
 	this,
 	&MainWindow::checkStartButtonState);
 
+	CHECKED_CONNECT(
+	set,
+	&Settings::metisCardListChanged,
+	this,
+	&MainWindow::handleDeviceListChanged);
+
 	#ifdef HAVE_SOAPYSDR
 	CHECKED_CONNECT(
 	set,
 	&Settings::soapyDeviceChanged,
 	this,
 	&MainWindow::checkStartButtonState);
+
+	CHECKED_CONNECT(
+	set,
+	&Settings::soapyDeviceListChanged,
+	this,
+	&MainWindow::handleSoapyDeviceListChanged);
 	#endif
 
 	CHECKED_CONNECT(
@@ -440,6 +452,8 @@ void MainWindow::setup() {
 
 	updateFromSettings();
     checkStartButtonState();
+
+    QTimer::singleShot(1000, set, &Settings::searchDevices);
 }
 
 void MainWindow::cusdr_setup()
@@ -2006,3 +2020,36 @@ void WarningDialog::okBtnClicked() {
 	accept();
 }
 
+
+
+void MainWindow::handleDeviceListChanged(const QList<TNetworkDevicecard> &list) {
+    if (set->getMainPower()) return; // Already running
+
+    TSDRDevice lastDevice = set->getLastConnectedDevice();
+    if (lastDevice.deviceClass != DeviceClass_HPSDR || lastDevice.serialNumber.isEmpty()) return;
+
+    for (const TNetworkDevicecard &card : list) {
+        if (QString::fromLatin1(card.mac_address) == lastDevice.serialNumber) {
+            MAIN_DEBUG << "Auto-select: found last HPSDR device " << lastDevice.serialNumber << " at " << card.ip_address.toString();
+            set->setCurrentHPSDRDevice(card);
+            break;
+        }
+    }
+}
+
+#ifdef HAVE_SOAPYSDR
+void MainWindow::handleSoapyDeviceListChanged(const QList<TSoapyDevice> &list) {
+    if (set->getMainPower()) return; // Already running
+
+    TSDRDevice lastDevice = set->getLastConnectedDevice();
+    if (lastDevice.deviceClass != DeviceClass_SoapySDR || lastDevice.serialNumber.isEmpty()) return;
+
+    for (const TSoapyDevice &dev : list) {
+        if (dev.driver == lastDevice.deviceType && dev.serial == lastDevice.serialNumber) {
+            MAIN_DEBUG << "Auto-select: found last SoapySDR device " << dev.label;
+            set->setCurrentSoapyDevice(dev);
+            break;
+        }
+    }
+}
+#endif

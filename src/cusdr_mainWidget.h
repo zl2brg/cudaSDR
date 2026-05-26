@@ -106,6 +106,10 @@ public slots:
 	void clearNetworkIOComboBoxEntry();
 	void showRadioPopup(bool value);
 	void mercuryAttenuatorChanged(HamBand band, int value);
+    void handleDeviceListChanged(const QList<TNetworkDevicecard> &list);
+#ifdef HAVE_SOAPYSDR
+    void handleSoapyDeviceListChanged(const QList<TSoapyDevice> &list);
+#endif
 	void alexPresenceChanged(bool value);
 	void alexConfigurationChanged(quint16 value);
 	void alexStateChanged(HamBand band, const QList<int> &states);

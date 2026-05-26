@@ -1034,6 +1034,7 @@ public:
 	quint16	getMetisPort();
 
 	TNetworkDevicecard			getCurrentMetisCard()		{ return m_currentHPSDRDevice; }
+    TSDRDevice                  getLastConnectedDevice()    { return m_lastConnectedDevice; }
 	QList<TNetworkDevicecard>	getMetisCardsList()			{ return m_metisCards; }
     TSoapyDevice                getCurrentSoapyDevice()     { return m_currentSoapyDevice; }
     QList<TSoapyDevice>         getSoapyDeviceList()        { return m_soapyDevices; }
@@ -1514,6 +1515,7 @@ private:
 	TDefaultFilterMode			m_filterMode;
 	TPanadapterColors			m_panadapterColors;
 	TNetworkDevicecard			m_currentHPSDRDevice;
+    TSDRDevice                  m_lastConnectedDevice;
 #ifdef HAVE_SOAPYSDR
     TSoapyDevice                m_currentSoapyDevice;
     // SoapySDR radio parameters (persisted)

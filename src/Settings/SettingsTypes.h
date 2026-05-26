@@ -43,11 +43,26 @@ typedef enum _radioState {
     DUPLEX
 } RadioState;
 
+typedef enum _deviceClass {
+    DeviceClass_None = 0,
+    DeviceClass_HPSDR = 1,
+    DeviceClass_SoapySDR = 2
+} DeviceClass;
+
+typedef struct _SDRDevice {
+    DeviceClass deviceClass = DeviceClass_None;
+    QString     deviceType;    // e.g. "Hermes", "rtlsdr"
+    QString     serialNumber;  // MAC for HPSDR, serial for Soapy
+    QString     label;         // Display name
+} TSDRDevice;
+
 Q_DECLARE_METATYPE(QSDR::_DSPCore)
 Q_DECLARE_METATYPE(PanGraphicsMode)
 Q_DECLARE_METATYPE(WaterfallColorMode)
 Q_DECLARE_METATYPE(PanAveragingMode)
 Q_DECLARE_METATYPE(PanDetectorMode)
 Q_DECLARE_METATYPE(RadioState)
+Q_DECLARE_METATYPE(DeviceClass)
+Q_DECLARE_METATYPE(TSDRDevice)
 
 #endif // SETTINGSTYPES_H
