@@ -53,6 +53,8 @@ DisplayTabWidget::DisplayTabWidget(RadioModel *model, QWidget *parent)
 {
 	setContentsMargins(4, 4, 4, 0);
 	setMouseTracking(true);
+	setUsesScrollButtons(true);
+	tabBar()->setExpanding(false);
 	
 	m_displayWidget = new DisplayOptionsWidget(m_radioModel, this);
 	m_colorWidget = new ColorOptionsWidget(this);
@@ -108,8 +110,7 @@ void DisplayTabWidget::setupConnections() {
 
 	CHECKED_CONNECT(set, &Settings::penelopePresenceChanged, this, &DisplayTabWidget::setPennyPresence);
 
-	// Connect 3D options widget
-	CHECKED_CONNECT(m_3DWidget, &Options3DWidget::show3DPanadapterChanged, this, &DisplayTabWidget::show3DPanadapter);
+	CHECKED_CONNECT(m_3DWidget, &Options3DWidget::show3DPanadapterChanged, this, &DisplayTabWidget::syncShow3DPanadapterUi);
 }
 
 void DisplayTabWidget::systemStateChanged(
@@ -124,10 +125,7 @@ void DisplayTabWidget::systemStateChanged(
 	//	if (m_hwInterface != hwmode)
 		m_hwInterface = hwmode;
 
-	if (m_hwInterface == QSDR::Hermes)
-		setTabEnabled(2, true);
-	else
-		setTabEnabled(2, false);
+	// Tab 2 is "3D View" — always available (legacy tab-2 gating was for removed HPSDR-only pages).
 
 	if (m_serverMode != mode)
 		m_serverMode = mode;
@@ -137,15 +135,11 @@ void DisplayTabWidget::systemStateChanged(
 }
 
 void DisplayTabWidget::setPennyPresence(bool value) {
-
-	//setTabEnabled(1, value);
-	setTabEnabled(2, value);
-	//setTabEnabled(3, value);
+	Q_UNUSED(value)
 }
 
 void DisplayTabWidget::setAlexPresence(bool value) {
-
-	setTabEnabled(3, value);
+	Q_UNUSED(value)
 }
 
 void DisplayTabWidget::addNICChangedConnection() {
@@ -199,7 +193,17 @@ void DisplayTabWidget::create3DDockWidget(QWidget *mainWindow) {
 		
 		// Emit initial values to configure the 3D panel with current slider settings
 		m_3DWidget->emitInitialValues();
+
+		connect(m_3DDockWidget, &QDockWidget::visibilityChanged, this, [this](bool visible) {
+			if (visible != m_3DWidget->is3DEnabled())
+				syncShow3DPanadapterUi(visible);
+		});
 	}
+}
+
+void DisplayTabWidget::syncShow3DPanadapterUi(bool enabled) {
+	m_3DWidget->setShow3DPanadapterChecked(enabled, false);
+	show3DPanadapter(enabled);
 }
 
 void DisplayTabWidget::show3DPanadapter(bool enabled) {

@@ -476,12 +476,11 @@ void DisplayOptionsWidget::createPanSpectrumOptions() {
 	hbox5->addWidget(m_fftLabel);
 	hbox5->addWidget(m_fftSizeCombo);
 
-	QHBoxLayout* hbox6 = new QHBoxLayout;
+    QHBoxLayout* hbox6 = new QHBoxLayout;
 	hbox6->setSpacing(0);
     hbox6->setContentsMargins(0,0,0,0);
 	hbox6->addWidget(m_sqlabel);
 	hbox6->addWidget(m_fmSqlevel);
-
 
 	QVBoxLayout *vbox = new QVBoxLayout;
 	vbox->setSpacing(6);

@@ -168,6 +168,12 @@ private:
     int     m_rateTransitionDropBuffers;
     QMutex  m_dspMutex;
 
+#ifdef HAVE_SOAPYSDR
+    double  m_soapyDcAvgI = 0.0;
+    double  m_soapyDcAvgQ = 0.0;
+    void    resetSoapyDcEstimator();
+#endif
+
 #ifdef HAVE_CODEC2
 	FreeDVProcessor* m_freeDVProcessor = nullptr;
 	int m_freeDVMode = 0;

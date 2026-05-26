@@ -127,13 +127,6 @@ void SoapyWidget::populateFromSettings()
     m_overallGainSpinBox->blockSignals(false);
     m_autoGainCheck->blockSignals(false);
 
-    bool agc = set->getSoapyAutoCalibrate();
-    m_lnaSlider->setEnabled(!agc);
-    m_lnaSpinBox->setEnabled(!agc);
-    m_tiaCombo->setEnabled(!agc);
-    m_pgaSlider->setEnabled(!agc);
-    m_pgaSpinBox->setEnabled(!agc);
-
     QStringList antennas = set->getSoapyAntennaList();
     if (!antennas.isEmpty())
         onSoapyAntennaListChanged(antennas);
@@ -171,11 +164,6 @@ void SoapyWidget::onAntennaComboChanged(int index)
 void SoapyWidget::onAutoCalToggled(bool enabled)
 {
     set->setSoapyAutoCalibrate(enabled);
-    m_lnaSlider->setEnabled(!enabled);
-    m_lnaSpinBox->setEnabled(!enabled);
-    m_tiaCombo->setEnabled(!enabled);
-    m_pgaSlider->setEnabled(!enabled);
-    m_pgaSpinBox->setEnabled(!enabled);
 }
 
 void SoapyWidget::onLnaSliderChanged(int value)

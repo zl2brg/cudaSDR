@@ -41,6 +41,9 @@ private:
     bool syncRfRateFromHardware(int dspRate);
     bool restartRxStream();
     void applyBandwidthForRfRate(int rfSampleRate);
+    void applyLimeAutoCalibrate(bool enabled);
+    void requestHardwareRetune();
+    bool isLimeHardware() const;
     static bool isSampleRateCompatible(double rfHz, int dspHz);
     static int hardwareMinSampleRateHz(const std::string& hwKey, int driverReportedMin);
 

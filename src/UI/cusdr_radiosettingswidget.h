@@ -16,6 +16,10 @@ public:
     explicit cusdr_radioSettingsWidget(QWidget *parent = nullptr);
     ~cusdr_radioSettingsWidget();
 
+#ifdef HAVE_SOAPYSDR
+    QWidget *detachRadioConfigPage();
+#endif
+
 private:
     Ui::cusdr_radioSettingsWidget *ui;
     Settings *set;
@@ -27,9 +31,13 @@ private slots:
 #ifdef HAVE_SOAPYSDR
     void onSoapyAntennaListChanged(QStringList list);
     void onSoapyHardwareKeyChanged(QString key);
+    void onSoapyAutoCalibrateChanged(bool enabled);
     void onAntennaComboChanged(int index);
+    void onAutoCalToggled(bool enabled);
+    void onLnaSliderChanged(int value);
     void onLnaSpinBoxChanged(int value);
-    void onTiaComboChanged(int index);
+    void onTiaSliderChanged(int value);
+    void onPgaSliderChanged(int value);
     void onPgaSpinBoxChanged(int value);
     void onOverallGainSliderChanged(int value);
     void onOverallGainSpinBoxChanged(int value);

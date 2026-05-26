@@ -581,10 +581,10 @@ void MainWindow::setupLayout() {
 			DisplayTabWidget* displayTabWidget = setupWidget->getDisplayTabWidget();
 			if (displayTabWidget) {
 				displayTabWidget->create3DDockWidget(centralwidget);
-				QDockWidget* dock3D = displayTabWidget->get3DDockWidget();
-				if (dock3D) {
-					centralwidget->addDockWidget(Qt::BottomDockWidgetArea, dock3D);
-					dock3D->hide(); // Initially hidden, user can show via 3D options
+				m_3DPanDock = displayTabWidget->get3DDockWidget();
+				if (m_3DPanDock) {
+					centralwidget->addDockWidget(Qt::BottomDockWidgetArea, m_3DPanDock);
+					m_3DPanDock->hide();
 				}
 			}
 		}
@@ -1084,6 +1084,12 @@ void MainWindow::setNumberOfReceivers(
 		int value					/*!<[in] the number of receivers. */
 ) {
 	ui->viewMenu->clear();
+	if (m_3DPanDock)
+		ui->viewMenu->addAction(m_3DPanDock->toggleViewAction());
+	if (widebandDock)
+		ui->viewMenu->addAction(widebandDock->toggleViewAction());
+	if (m_3DPanDock || widebandDock)
+		ui->viewMenu->addSeparator();
 	for (int i = 0; i < value-1; i++) {
 		
 		ui->viewMenu->addAction(rxDockWidgetList.at(i)->toggleViewAction());

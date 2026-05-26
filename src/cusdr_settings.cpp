@@ -149,6 +149,14 @@ Settings::Settings(QObject *parent)
         m_receiverDataList[i].agcHangThreshold = 0.0;
         m_receiverDataList[i].peakHold = false;
         m_receiverDataList[i].fftFactor = 1;
+        m_receiverDataList[i].nr = 0;
+        m_receiverDataList[i].nbMode = 0;
+        m_receiverDataList[i].anf = false;
+        m_receiverDataList[i].snb = false;
+        m_receiverDataList[i].nr2_gain_method = 0;
+        m_receiverDataList[i].nr2_npe_method = 0;
+        m_receiverDataList[i].nr_agc = 0;
+        m_receiverDataList[i].nr2_ae = false;
 
         for (int j = 0; j < MAX_BANDS; j++) {
 
@@ -878,35 +886,35 @@ int Settings::loadSettings() {
 
         cstr = m_rxStringList.at(i);
         cstr.append("/nr");
-        m_receiverDataList[i].nr = settings->value(cstr, 1).toInt();
+        m_receiverDataList[i].nr = settings->value(cstr, 0).toInt();
         cstr = m_rxStringList.at(i);
         cstr.append("/nbMode");
-        m_receiverDataList[i].nbMode = settings->value(cstr, 1).toInt();
+        m_receiverDataList[i].nbMode = settings->value(cstr, 0).toInt();
 
         cstr = m_rxStringList.at(i);
         cstr.append("/anf");
-        m_receiverDataList[i].anf = settings->value(cstr, 1).toBool();
+        m_receiverDataList[i].anf = settings->value(cstr, false).toBool();
 
         cstr = m_rxStringList.at(i);
         cstr.append("/snb");
-        m_receiverDataList[i].snb = settings->value(cstr, 1).toBool();
+        m_receiverDataList[i].snb = settings->value(cstr, false).toBool();
 
         cstr = m_rxStringList.at(i);
         cstr.append("/nr2_gain_method");
-        m_receiverDataList[i].nr2_gain_method = settings->value(cstr, 1).toInt();
+        m_receiverDataList[i].nr2_gain_method = settings->value(cstr, 0).toInt();
 
         cstr = m_rxStringList.at(i);
         cstr.append("/nr2_npe_method");
-        m_receiverDataList[i].nr2_npe_method = settings->value(cstr, 1).toInt();
+        m_receiverDataList[i].nr2_npe_method = settings->value(cstr, 0).toInt();
 
         cstr = m_rxStringList.at(i);
         cstr.append("/nr_agc");
-        value = settings->value(cstr, 1).toInt();
+        value = settings->value(cstr, 0).toInt();
         m_receiverDataList[i].nr_agc = value;
 
         cstr = m_rxStringList.at(i);
         cstr.append("/nr2_ae");
-        value = settings->value(cstr, 1).toBool();
+        value = settings->value(cstr, false).toBool();
         m_receiverDataList[i].nr2_ae = value;
 
         cstr = m_rxStringList.at(i);

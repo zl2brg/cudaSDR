@@ -61,7 +61,6 @@ public:
 public slots:
 	QSize	sizeHint() const;
 	QSize	minimumSizeHint() const;
-
 private:
     RadioModel*                             m_radioModel;
 	Settings*					set;
@@ -205,7 +204,6 @@ private slots:
     void    panDetectorModeChanged(int value);
 	void    fftSizeChanged(int value);
 	void 	sqLevelChanged(int);
-
 
 signals:
 	void	averagingModeChanged(bool value);

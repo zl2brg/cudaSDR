@@ -30,6 +30,9 @@ public:
     QSize sizeHint() const;
     QSize minimumSizeHint() const;
 
+    bool is3DEnabled() const;
+    void setShow3DPanadapterChecked(bool enabled, bool emitSignal = false);
+
 private slots:
     void enable3DChanged();
     void heightScaleChanged(int value);

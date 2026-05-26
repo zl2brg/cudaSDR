@@ -2869,6 +2869,9 @@ void QGLReceiverPanel::recomputeDisplayBinsFromCache()
 
 void QGLReceiverPanel::computeDisplayBins(QVector<float>& buffer, QVector<float>& waterfallBuffer) {
 
+	if (buffer.size() < m_spectrumSize || waterfallBuffer.size() < m_spectrumSize)
+		return;
+
 	//int m_sampleSize = 0;
 	int deltaSampleSize = 0;
 	int idx = 0;
@@ -2969,6 +2972,9 @@ void QGLReceiverPanel::computeDisplayBins(QVector<float>& buffer, QVector<float>
 
 	}
 
+	if (m_panRectWidth <= 0 || !m_panRect.isValid())
+		return;
+
 	m_panScale = (qreal)(1.0 * m_sampleSize / m_panRectWidth);
 	m_scaleMultOld = m_scaleMult;
 
@@ -2988,7 +2994,8 @@ void QGLReceiverPanel::computeDisplayBins(QVector<float>& buffer, QVector<float>
 		m_scaleMult = 1.0;
 	}
 
-	m_panSpectrumBinsLength = (GLint)(m_scaleMult * m_panRectWidth);
+	const int panPixelCount = qBound(0, static_cast<int>(m_panRectWidth), 16384);
+	m_panSpectrumBinsLength = qBound(0, static_cast<GLint>(m_scaleMult * m_panRectWidth), panPixelCount);
 //	qDebug() << "m_panSpectrumBinsLength =" << m_panSpectrumBinsLength;
 	if (m_sampleSize != m_oldSampleSize) {
 	
@@ -3006,7 +3013,8 @@ void QGLReceiverPanel::computeDisplayBins(QVector<float>& buffer, QVector<float>
 	}
 
 	m_waterfallPixel.clear();
-	m_waterfallPixel.resize(m_panRect.width());
+	if (panPixelCount > 0)
+		m_waterfallPixel.resize(panPixelCount);
 
 	m_panadapterBins.clear();
 
@@ -3055,9 +3063,11 @@ void QGLReceiverPanel::computeDisplayBins(QVector<float>& buffer, QVector<float>
 		color.blue  = (uchar)(pColor.blue());
 		color.alpha = 255;
 		
-		for (int j = 0; j < (int)(1/m_scaleMult); j++) {
-
-			m_waterfallPixel[(int)(i/m_scaleMult) + j] = color;
+		const int span = qMax(1, static_cast<int>(1.0 / m_scaleMult));
+		for (int j = 0; j < span; j++) {
+			const int wfIndex = static_cast<int>(i / m_scaleMult) + j;
+			if (wfIndex >= 0 && wfIndex < m_waterfallPixel.size())
+				m_waterfallPixel[wfIndex] = color;
 		}
 	}
 

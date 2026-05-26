@@ -100,6 +100,7 @@ private:
 	QString						m_message;
 
 	void	setupConnections();
+	void	syncShow3DPanadapterUi(bool enabled);
 
 private slots:
 	void systemStateChanged(

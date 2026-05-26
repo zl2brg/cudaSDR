@@ -159,6 +159,7 @@ private:
 	QVector<float>				rxVolumeList;
 
 	QDockWidget*				widebandDock;
+	QDockWidget*				m_3DPanDock = nullptr;
 	QDockWidget*				rx1Dock;
     QDockWidget*				rxDock;
 	QList<QDockWidget* >		dockWidgetList;

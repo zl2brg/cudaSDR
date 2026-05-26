@@ -30,7 +30,7 @@
 #include "cusdr_extCtrlWidget.h"
 #include "cusdr_displayTabWidget.h"
 #ifdef HAVE_SOAPYSDR
-#include "cusdr_soapyWidget.h"
+#include "cusdr_radiosettingswidget.h"
 #endif
 
 
@@ -82,7 +82,7 @@ private:
     tx_settings_dialog  *m_txsettingsWidget;
     DisplayTabWidget    *m_displaytabWidget;
 #ifdef HAVE_SOAPYSDR
-    SoapyWidget         *m_soapyWidget;
+    cusdr_radioSettingsWidget *m_radioSettingsWidget;
 #endif
 
     QString				m_message;

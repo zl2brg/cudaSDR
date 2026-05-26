@@ -255,8 +255,8 @@ set(HEADERS
 
 if(SOAPYSDR_FOUND)
     list(APPEND SOURCES ${SRC_DIR}/DataEngine/SoapySDRDataSource.cpp)
-    list(APPEND SOURCES ${SRC_DIR}/UI/cusdr_soapyWidget.cpp)
-    list(APPEND HEADERS ${SRC_DIR}/UI/cusdr_soapyWidget.h)
+    list(APPEND SOURCES ${SRC_DIR}/UI/cusdr_radiosettingswidget.cpp)
+    list(APPEND HEADERS ${SRC_DIR}/UI/cusdr_radiosettingswidget.h)
 endif()
 
 # --- Define UI Files ---
@@ -266,6 +266,9 @@ set(UI_SOURCES
     ${SRC_DIR}/UI/cusdr_display.ui
     ${SRC_DIR}/UI/setupwidget.ui
 )
+if(SOAPYSDR_FOUND)
+    list(APPEND UI_SOURCES ${SRC_DIR}/UI/cusdr_radiosettingswidget.ui)
+endif()
 
 # --- Create Executable ---
 qt6_wrap_ui(UI_HEADERS ${UI_SOURCES})

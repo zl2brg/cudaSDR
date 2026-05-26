@@ -225,9 +225,28 @@
      </widget>
      <widget class="QWidget" name="radio">
       <attribute name="title">
-       <string>Radio</string>
+       <string>Radio configuration</string>
       </attribute>
       <layout class="QVBoxLayout" name="radioVLayout">
+       <item>
+        <widget class="QGroupBox" name="calibrationGroup">
+         <property name="title">
+          <string>RX calibration</string>
+         </property>
+         <layout class="QVBoxLayout" name="calibrationVLayout">
+          <item>
+           <widget class="QCheckBox" name="autoCalCheck">
+            <property name="text">
+             <string>Auto calibration (DC / IQ)</string>
+            </property>
+            <property name="toolTip">
+             <string>Lime: RX calibration, Soapy DC-offset mode, retune, and DSP DC removal on the spectrum. LNA/TIA/PGA still apply to the device when Lime auto-cal is off; while on, Lime may override element gains.</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
        <item>
         <widget class="QGroupBox" name="antennaGroup">
          <property name="title">
@@ -268,17 +287,55 @@
            </widget>
           </item>
           <item row="0" column="1">
-           <widget class="QSpinBox" name="lnaSpinBox">
-            <property name="minimum">
+           <layout class="QHBoxLayout" name="lnaRowLayout">
+            <property name="leftMargin">
              <number>0</number>
             </property>
-            <property name="maximum">
-             <number>30</number>
+            <property name="topMargin">
+             <number>0</number>
             </property>
-            <property name="value">
-             <number>25</number>
+            <property name="rightMargin">
+             <number>0</number>
             </property>
-           </widget>
+            <property name="bottomMargin">
+             <number>0</number>
+            </property>
+            <item>
+             <widget class="QSlider" name="lnaSlider">
+              <property name="minimum">
+               <number>0</number>
+              </property>
+              <property name="maximum">
+               <number>30</number>
+              </property>
+              <property name="value">
+               <number>25</number>
+              </property>
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QSpinBox" name="lnaSpinBox">
+              <property name="minimum">
+               <number>0</number>
+              </property>
+              <property name="maximum">
+               <number>30</number>
+              </property>
+              <property name="value">
+               <number>25</number>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>52</width>
+                <height>16777215</height>
+               </size>
+              </property>
+             </widget>
+            </item>
+           </layout>
           </item>
           <item row="1" column="0">
            <widget class="QLabel" name="tiaLabel">
@@ -288,23 +345,61 @@
            </widget>
           </item>
           <item row="1" column="1">
-           <widget class="QComboBox" name="tiaCombo">
+           <layout class="QHBoxLayout" name="tiaRowLayout">
+            <property name="leftMargin">
+             <number>0</number>
+            </property>
+            <property name="topMargin">
+             <number>0</number>
+            </property>
+            <property name="rightMargin">
+             <number>0</number>
+            </property>
+            <property name="bottomMargin">
+             <number>0</number>
+            </property>
             <item>
-             <property name="text">
-              <string>0</string>
-             </property>
+             <widget class="QSlider" name="tiaSlider">
+              <property name="minimum">
+               <number>0</number>
+              </property>
+              <property name="maximum">
+               <number>2</number>
+              </property>
+              <property name="pageStep">
+               <number>1</number>
+              </property>
+              <property name="value">
+               <number>1</number>
+              </property>
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+              <property name="tickPosition">
+               <enum>QSlider::TicksBelow</enum>
+              </property>
+              <property name="tickInterval">
+               <number>1</number>
+              </property>
+             </widget>
             </item>
             <item>
-             <property name="text">
-              <string>9</string>
-             </property>
+             <widget class="QLabel" name="tiaValueLabel">
+              <property name="minimumSize">
+               <size>
+                <width>28</width>
+                <height>0</height>
+               </size>
+              </property>
+              <property name="text">
+               <string>9 dB</string>
+              </property>
+              <property name="alignment">
+               <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+              </property>
+             </widget>
             </item>
-            <item>
-             <property name="text">
-              <string>12</string>
-             </property>
-            </item>
-           </widget>
+           </layout>
           </item>
           <item row="2" column="0">
            <widget class="QLabel" name="pgaLabel">
@@ -314,17 +409,55 @@
            </widget>
           </item>
           <item row="2" column="1">
-           <widget class="QSpinBox" name="pgaSpinBox">
-            <property name="minimum">
+           <layout class="QHBoxLayout" name="pgaRowLayout">
+            <property name="leftMargin">
              <number>0</number>
             </property>
-            <property name="maximum">
-             <number>19</number>
+            <property name="topMargin">
+             <number>0</number>
             </property>
-            <property name="value">
-             <number>12</number>
+            <property name="rightMargin">
+             <number>0</number>
             </property>
-           </widget>
+            <property name="bottomMargin">
+             <number>0</number>
+            </property>
+            <item>
+             <widget class="QSlider" name="pgaSlider">
+              <property name="minimum">
+               <number>0</number>
+              </property>
+              <property name="maximum">
+               <number>19</number>
+              </property>
+              <property name="value">
+               <number>12</number>
+              </property>
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QSpinBox" name="pgaSpinBox">
+              <property name="minimum">
+               <number>0</number>
+              </property>
+              <property name="maximum">
+               <number>19</number>
+              </property>
+              <property name="value">
+               <number>12</number>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>52</width>
+                <height>16777215</height>
+               </size>
+              </property>
+             </widget>
+            </item>
+           </layout>
           </item>
          </layout>
         </widget>

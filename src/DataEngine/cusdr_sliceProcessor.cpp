@@ -108,7 +108,20 @@ void SliceProcessor::setupConnections() {
 	connect(set, &Settings::freeDVModeChanged,
 			this, &SliceProcessor::setFreeDVMode);
 #endif
+
+#ifdef HAVE_SOAPYSDR
+    connect(set, &Settings::soapyAutoCalibrateChanged,
+            this, &SliceProcessor::resetSoapyDcEstimator);
+#endif
 }
+
+#ifdef HAVE_SOAPYSDR
+void SliceProcessor::resetSoapyDcEstimator()
+{
+    m_soapyDcAvgI = 0.0;
+    m_soapyDcAvgQ = 0.0;
+}
+#endif
 
 bool SliceProcessor::initDSPInterface() {
 
@@ -214,9 +227,21 @@ void SliceProcessor::dspProcessingSoapy() {
 
     cpx* inPtr = inBuf.data();
     const float* rawPtr = rawIQ.constData();
+    const bool soapyDcRemove =
+        (set->getHWInterface() == QSDR::SoapySDR && set->getSoapyAutoCalibrate());
+    constexpr double kDcAlpha = 0.004; // ~256-sample time constant at 48 kHz
+
     for (int i = 0; i < BUFFER_SIZE; ++i) {
-        inPtr[i].re =  static_cast<double>(rawPtr[2*i]);
-        inPtr[i].im = -static_cast<double>(rawPtr[2*i+1]); // negate Q: LimeSDR-Mini IQ is conjugated
+        double I = static_cast<double>(rawPtr[2 * i]);
+        double Q = -static_cast<double>(rawPtr[2 * i + 1]); // negate Q: LimeSDR-Mini IQ is conjugated
+        if (soapyDcRemove) {
+            m_soapyDcAvgI += kDcAlpha * (I - m_soapyDcAvgI);
+            m_soapyDcAvgQ += kDcAlpha * (Q - m_soapyDcAvgQ);
+            I -= m_soapyDcAvgI;
+            Q -= m_soapyDcAvgQ;
+        }
+        inPtr[i].re = I;
+        inPtr[i].im = Q;
     }
 
     dspProcessingCore();

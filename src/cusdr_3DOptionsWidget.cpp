@@ -25,6 +25,7 @@ Options3DWidget::Options3DWidget(QWidget *parent)
     , m_minimumGroupBoxWidth(set->getMinimumGroupBoxWidth())
 {
     setMinimumWidth(m_minimumWidgetWidth);
+    setMinimumHeight(320);
     setContentsMargins(4, 8, 4, 0);
     setMouseTracking(true);
 
@@ -63,11 +64,28 @@ Options3DWidget::~Options3DWidget() {
 }
 
 QSize Options3DWidget::sizeHint() const {
-    return QSize(m_minimumWidgetWidth, height());
+    return QSize(m_minimumWidgetWidth, 400);
 }
 
 QSize Options3DWidget::minimumSizeHint() const {
-    return QSize(m_minimumWidgetWidth, height());
+    return QSize(m_minimumWidgetWidth, 320);
+}
+
+bool Options3DWidget::is3DEnabled() const {
+    return m_enable3DCheckBox && m_enable3DCheckBox->isChecked();
+}
+
+void Options3DWidget::setShow3DPanadapterChecked(bool enabled, bool emitSignal) {
+    if (!m_enable3DCheckBox || m_enable3DCheckBox->isChecked() == enabled)
+        return;
+
+    QSignalBlocker blocker(m_enable3DCheckBox);
+    m_enable3DCheckBox->setChecked(enabled);
+    m_renderingGroup->setEnabled(enabled);
+    m_performanceGroup->setEnabled(enabled);
+
+    if (emitSignal)
+        emit show3DPanadapterChanged(enabled);
 }
 
 void Options3DWidget::setupConnections() {
@@ -170,6 +188,7 @@ void Options3DWidget::createRenderingGroup() {
     layout->addWidget(m_waterfallOffsetLabel, 9, 0);
     layout->addWidget(m_waterfallOffsetSlider, 10, 0);
     m_renderingGroup->setLayout(layout);
+    m_renderingGroup->setEnabled(false);
 }
 
 void Options3DWidget::createPerformanceGroup() {
@@ -204,6 +223,7 @@ void Options3DWidget::createPerformanceGroup() {
     layout->addWidget(qualityLabel, 2, 0);
     layout->addWidget(m_qualityComboBox, 3, 0);
     m_performanceGroup->setLayout(layout);
+    m_performanceGroup->setEnabled(false);
 }
 
 void Options3DWidget::enable3DChanged() {

@@ -35,6 +35,69 @@ bool listLooksLikeRangeEndpoints(const std::vector<double>& rates) {
 
 } // namespace
 
+bool SoapySDRDataSource::isLimeHardware() const
+{
+    if (!m_device)
+        return false;
+    return QString::fromStdString(m_device->getHardwareKey())
+        .contains("LimeSDR", Qt::CaseInsensitive);
+}
+
+void SoapySDRDataSource::requestHardwareRetune()
+{
+    qint64 vfo = set->getVfoFrequency(0);
+    if (vfo <= 0)
+        vfo = 14200000L;
+    if (m_minFrequency > 0 && vfo < m_minFrequency)
+        vfo = m_minFrequency;
+    if (m_maxFrequency > 0 && vfo > m_maxFrequency)
+        vfo = m_maxFrequency;
+    m_pendingFreq.store(static_cast<double>(vfo), std::memory_order_relaxed);
+    m_freqPending.store(true, std::memory_order_release);
+}
+
+void SoapySDRDataSource::applyLimeAutoCalibrate(bool enabled)
+{
+    if (!m_device || !isLimeHardware())
+        return;
+
+    // SoapyLMS7 has no AUTO_CALIBRATION key (unknown keys are parsed with stoi → throws on "TRUE").
+    // Use Soapy DC-offset mode plus CALIBRATE_RX bandwidth trigger instead.
+    qDebug() << "SoapySDR: Lime auto-calibrate" << (enabled ? "on" : "off")
+             << "(DC offset mode + CALIBRATE_RX)";
+
+    if (m_device->hasDCOffsetMode(SOAPY_SDR_RX, 0)) {
+        try {
+            m_device->setDCOffsetMode(SOAPY_SDR_RX, 0, enabled);
+            qDebug() << "SoapySDR: setDCOffsetMode(RX,0)=" << enabled;
+        } catch (const std::exception &e) {
+            qWarning() << "SoapySDR: setDCOffsetMode failed:" << e.what();
+        }
+    } else {
+        qDebug() << "SoapySDR: device has no Soapy DC offset mode API";
+    }
+
+    if (enabled) {
+        try {
+            const double calBw =
+                std::max(500000.0, static_cast<double>(std::max(m_rfSampleRate, m_sampleRate)) * 0.8);
+            m_device->writeSetting(SOAPY_SDR_RX, 0, "CALIBRATE_RX", std::to_string(calBw));
+            qDebug() << "SoapySDR: CALIBRATE_RX bandwidth" << calBw;
+        } catch (const std::exception &e) {
+            qWarning() << "SoapySDR: CALIBRATE_RX failed:" << e.what();
+        }
+        requestHardwareRetune();
+    } else {
+        try {
+            m_device->setGain(SOAPY_SDR_RX, 0, "LNA", set->getSoapyLnaGain());
+            m_device->setGain(SOAPY_SDR_RX, 0, "TIA", set->getSoapyTiaGain());
+            m_device->setGain(SOAPY_SDR_RX, 0, "PGA", set->getSoapyPgaGain());
+        } catch (const std::exception &e) {
+            qWarning() << "SoapySDR: manual gain restore failed:" << e.what();
+        }
+    }
+}
+
 bool SoapySDRDataSource::isSampleRateCompatible(double rfHz, int dspHz) {
     if (dspHz <= 0 || rfHz + 0.5 < static_cast<double>(dspHz))
         return false;
@@ -325,14 +388,14 @@ void SoapySDRDataSource::init() {
             qWarning() << "SoapySDRDataSource: Antenna setup warning:" << e.what();
         }
 
-        // Apply gain from Settings
+        // Gain (Lime auto-cal applied after tune below)
         try {
-            if (QString::fromStdString(m_device->getHardwareKey()).contains("LimeSDR", Qt::CaseInsensitive)) {
+            if (!isLimeHardware()) {
+                m_device->setGain(SOAPY_SDR_RX, 0, set->getSoapyOverallGain());
+            } else if (!set->getSoapyAutoCalibrate()) {
                 m_device->setGain(SOAPY_SDR_RX, 0, "LNA", set->getSoapyLnaGain());
                 m_device->setGain(SOAPY_SDR_RX, 0, "TIA", set->getSoapyTiaGain());
                 m_device->setGain(SOAPY_SDR_RX, 0, "PGA", set->getSoapyPgaGain());
-            } else {
-                m_device->setGain(SOAPY_SDR_RX, 0, set->getSoapyOverallGain());
             }
         } catch (const std::exception &e) {
             qWarning() << "SoapySDRDataSource: Gain setup warning:" << e.what();
@@ -362,6 +425,9 @@ void SoapySDRDataSource::init() {
 
         if (!restartRxStream())
             throw std::runtime_error("setupStream/activateStream failed");
+
+        if (isLimeHardware())
+            applyLimeAutoCalibrate(set->getSoapyAutoCalibrate());
 
         qDebug() << "SoapySDRDataSource: Stream active at RF" << m_rfSampleRate
                  << "Hz (DSP" << m_sampleRate << "Hz, decimate by" << m_decimRatio
@@ -417,15 +483,8 @@ void SoapySDRDataSource::init() {
                     }
                 }, Qt::DirectConnection);
         connect(set, &Settings::soapyAutoCalibrateChanged, this,
-                [this](bool enabled) {
-                    if (m_device) {
-                        try {
-                            m_device->writeSetting("AUTO_CALIBRATION",
-                                                   enabled ? "TRUE" : "FALSE");
-                        }
-                        catch (...) {}
-                    }
-                }, Qt::DirectConnection);
+                [this](bool enabled) { applyLimeAutoCalibrate(enabled); },
+                Qt::DirectConnection);
 
         qDebug() << "[SoapySDR] init() complete — signals connected";
 

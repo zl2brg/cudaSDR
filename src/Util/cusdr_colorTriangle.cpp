@@ -68,7 +68,7 @@
 //#include <QtGui/QToolTip>
 //#include <QtGui/QVBoxLayout>
 
-//#include <math.h>
+#include <cmath>
 #include <QPainterPath>
 /*! \class QtColorTriangle
 
@@ -650,13 +650,26 @@ void QtColorTriangle::drawTrigon(QImage *buf, const QPointF &pa,
     // left-to-right drawing of the trigon.
     QVarLengthArray<DoubleColor, 2000> leftColors;
     QVarLengthArray<DoubleColor, 2000> rightColors;
-    QVarLengthArray<double, 2000> leftX; 
-    QVarLengthArray<double, 2000> rightX; 
+    QVarLengthArray<double, 2000> leftX;
+    QVarLengthArray<double, 2000> rightX;
 
-    leftColors.resize(int(floor(p3->point.y() + 1)));
-    rightColors.resize(int(floor(p3->point.y() + 1)));
-    leftX.resize(int(floor(p3->point.y() + 1)));
-    rightX.resize(int(floor(p3->point.y() + 1)));
+    // Size rows by span from top to bottom vertex (not absolute Y), clamped to image.
+    const int yTop = static_cast<int>(std::floor(p1->point.y()));
+    const int yBottom = static_cast<int>(std::floor(p3->point.y()));
+    if (yBottom < yTop || !buf || buf->height() <= 0)
+        return;
+
+    qsizetype rowCount = static_cast<qsizetype>(yBottom - yTop + 1);
+    const qsizetype maxRows = static_cast<qsizetype>(buf->height());
+    if (rowCount <= 0 || rowCount > maxRows)
+        return;
+
+    leftColors.resize(rowCount);
+    rightColors.resize(rowCount);
+    leftX.resize(rowCount);
+    rightX.resize(rowCount);
+
+    const auto rowIndex = [yTop](int y) -> int { return y - yTop; };
 
      // Scan longy - find all left and right colors and X-values for
     // the tallest edge (p1-p3).
@@ -688,12 +701,15 @@ void QtColorTriangle::drawTrigon(QImage *buf, const QPointF &pa,
     // Calculate gradients using linear approximation
     int y;
     for (y = y1; y < y2; ++y) {
+        if (y < yTop || y > yBottom)
+            continue;
+        const int ri = rowIndex(y);
 	if (lefty) {
-	    rightColors[y] = DoubleColor(r, g, b);
-	    rightX[y] = x;
+	    rightColors[ri] = DoubleColor(r, g, b);
+	    rightX[ri] = x;
 	} else {
-	    leftColors[y] = DoubleColor(r, g, b);
-	    leftX[y] = x;
+	    leftColors[ri] = DoubleColor(r, g, b);
+	    leftX[ri] = x;
 	}
 
 	r += rdelta;
@@ -722,12 +738,15 @@ void QtColorTriangle::drawTrigon(QImage *buf, const QPointF &pa,
 
     // Calculate gradients using linear approximation
     for (y = y1; y < y2; ++y) {
+        if (y < yTop || y > yBottom)
+            continue;
+        const int ri = rowIndex(y);
 	if (lefty) {
-	    leftColors[y] = DoubleColor(r, g, b);
-	    leftX[y] = x;
+	    leftColors[ri] = DoubleColor(r, g, b);
+	    leftX[ri] = x;
 	} else {
-	    rightColors[y] = DoubleColor(r, g, b);
-	    rightX[y] = x;
+	    rightColors[ri] = DoubleColor(r, g, b);
+	    rightX[ri] = x;
 	}
 
 	r += rdelta;
@@ -756,12 +775,15 @@ void QtColorTriangle::drawTrigon(QImage *buf, const QPointF &pa,
 
     // Calculate gradients using linear approximation
     for (y = y1; y < y2; ++y) {
+        if (y < yTop || y > yBottom)
+            continue;
+        const int ri = rowIndex(y);
 	if (lefty) {
-	    leftColors[y] = DoubleColor(r, g, b);
-	    leftX[y] = x;
+	    leftColors[ri] = DoubleColor(r, g, b);
+	    leftX[ri] = x;
 	} else {
-	    rightColors[y] = DoubleColor(r, g, b);
-	    rightX[y] = x;
+	    rightColors[ri] = DoubleColor(r, g, b);
+	    rightX[ri] = x;
 	}
 
 	r += rdelta;
@@ -772,15 +794,18 @@ void QtColorTriangle::drawTrigon(QImage *buf, const QPointF &pa,
 
     // Inner loop. For each y in the left map of x-values, draw one
     // line from left to right.
-    const int p3yfloor = int(floor(p3->point.y()));
-    for (int y = int(floor(p1->point.y())); y < p3yfloor; ++y) {
-	double lx = leftX[y];
-	double rx = rightX[y];
+    for (int y = yTop; y <= yBottom; ++y) {
+        if (y < 0 || y >= buf->height())
+            continue;
 
-	int lxi = (int) floor(lx);
-	int rxi = (int) floor(rx);
-	DoubleColor rc = rightColors[y];
-	DoubleColor lc = leftColors[y];
+        const int ri = rowIndex(y);
+	double lx = leftX[ri];
+	double rx = rightX[ri];
+
+	int lxi = static_cast<int>(std::floor(lx));
+	int rxi = static_cast<int>(std::floor(rx));
+	DoubleColor rc = rightColors[ri];
+	DoubleColor lc = leftColors[ri];
 
         // if the xdist is 0, don't draw anything.
 	double xdist = rx - lx;
@@ -797,7 +822,7 @@ void QtColorTriangle::drawTrigon(QImage *buf, const QPointF &pa,
 
             // Inner loop 2. Draws the line from left to right.
             for (int i = lxi; i < rxi; ++i) {
-                *scanline++ = qRgb((int) r, (int) g, (int) b);
+                *scanline++ = qRgb(static_cast<int>(r), static_cast<int>(g), static_cast<int>(b));
                 r += rdelta;
                 g += gdelta;
                 b += bdelta;
