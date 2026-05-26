@@ -35,7 +35,6 @@
 #define MAIN_DEBUG nullDebug()
 #endif
 
-class NetworkIODialog;
 class WarningDialog;
 class MainWindowUI;
 
@@ -104,8 +103,6 @@ public slots:
 	void addReceiver();
 	void setAttenuator();
 	void showNetworkIODialog();
-	void addNetworkIOComboBoxEntry(QString value);
-	void clearNetworkIOComboBoxEntry();
 	void showRadioPopup(bool value);
 	void mercuryAttenuatorChanged(HamBand band, int value);
     void handleDeviceListChanged(const QList<TNetworkDevicecard> &list);
@@ -210,7 +207,6 @@ private:
     QTabWidget*  m_hpsdrTabWidget;
 	DisplayTabWidget*	m_displayTabWidget = NULL;
 	QGLWidebandPanel*	m_wbDisplay;
-    NetworkIODialog*	m_netIODialog;
 	WarningDialog*		m_warningDialog;
     tx_settings_dialog* m_audioInput;
 	HamBand				m_currentHamBand;
@@ -234,6 +230,7 @@ private:
     RadioModel*                             m_radioModel;
     QList<QVariant>                         m_discoveredDevices;
     QTimer                                  m_discoveryTimer;
+    bool                                    m_isStartupDiscovery;
 	int			m_numberOfReceivers;
 
 	int			m_alexAttnState;
@@ -256,33 +253,6 @@ signals:
 
 //***************************************************************************
 // NetworkIODialog class
-
-class NetworkIODialog : public QDialog {
-
-    Q_OBJECT
-
-public:
-    
-    NetworkIODialog(QWidget *parent = nullptr);
-    ~NetworkIODialog() override;
-
-public slots:
-        void addDeviceComboBoxItem(QString str);
-        void clearDeviceComboBoxItem();
-
-private:
-        Settings*               set;
-
-        QFont                   m_titleFont;
-    QComboBox*      m_deviceComboBox;
-
-        TNetworkDevicecard                      m_deviceCard;
-        QList<TNetworkDevicecard>       m_deviceCards;
-
-private slots:
-        void    okBtnClicked();
-};
-
 
 //***************************************************************************
 // WarningDialog class

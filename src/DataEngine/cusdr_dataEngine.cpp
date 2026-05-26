@@ -1308,7 +1308,7 @@ bool DataEngine::initReceivers(int rcvrs) {
 	for (int i = 0; i < rcvrs; i++) {
         if (!m_radioModel || i >= m_radioModel->slices().size()) continue;
 
-        auto rx =  new SliceProcessor(m_radioModel->slices().at(i), this);
+        auto rx =  new SliceProcessor(m_radioModel->slices().at(i), nullptr);
 		// init the DSP core
 		DATA_ENGINE_DEBUG << "[RX-ADD] initReceivers: init DSP core for rx " << i;
 
@@ -1598,6 +1598,7 @@ void DataEngine::stopDiscoverer() {
 		m_discoveryThread->quit();
 		m_discoveryThread->wait(1000);
 		delete m_discoveryThread;
+        m_discoveryThread = nullptr;
 		delete m_discoverer;
 		m_discoverer = nullptr;
 
@@ -1719,10 +1720,10 @@ bool DataEngine::startDataIO(QThread::Priority prio) {
 
 void DataEngine::stopDataIO() {
 
-	if (m_dataIOThread->isRunning()) {
+	if (m_dataIOThread && m_dataIOThread->isRunning()) {
 					
 #ifdef HAVE_SOAPYSDR
-        if (m_hwInterface == QSDR::SoapySDR && m_soapySDRSource) {
+        if (m_soapySDRSource) {
             m_soapySDRSource->stop();
         }
 #endif
@@ -1740,8 +1741,15 @@ void DataEngine::stopDataIO() {
 		m_dataIOThreadRunning = false;
 		
 		delete m_dataIOThread;
+        m_dataIOThread = nullptr;
+
 		delete m_dataIO;
 		m_dataIO = nullptr;
+
+#ifdef HAVE_SOAPYSDR
+        delete m_soapySDRSource;
+        m_soapySDRSource = nullptr;
+#endif
 
 		DATA_ENGINE_DEBUG << "data IO thread deleted.";
 	}
@@ -1890,6 +1898,7 @@ void DataEngine::stopDataProcessor() {
 		m_dataProcThread->quit();
 		m_dataProcThread->wait();
 		delete m_dataProcThread;
+        m_dataProcThread = nullptr;
 		delete m_dataProcessor;
 		m_dataProcessor = nullptr;
 
@@ -1990,6 +1999,7 @@ void DataEngine::stopWideBandDataProcessor() {
 		m_wbDataProcThread->quit();
 		m_wbDataProcThread->wait();
 		delete m_wbDataProcThread;
+        m_wbDataProcThread = nullptr;
 		delete m_wbDataProcessor;
 		m_wbDataProcessor = nullptr;
 

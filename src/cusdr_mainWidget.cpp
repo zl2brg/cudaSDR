@@ -274,18 +274,6 @@ void MainWindow::setupConnections() {
 		this,
         &MainWindow::showWarningDialog);
 
-	CHECKED_CONNECT(
-		set,
-		&Settings::networkIOComboBoxEntryAdded,
-		this,
-		&MainWindow::addNetworkIOComboBoxEntry);
-
-	CHECKED_CONNECT(
-		set,
-		&Settings::clearNetworkIOComboBoxEntrySignal,
-		this,
-		&MainWindow::clearNetworkIOComboBoxEntry);
-
     CHECKED_CONNECT(
         set,
         &Settings::clearDiscoveredDevicesSignal,
@@ -414,7 +402,6 @@ void MainWindow::setup() {
 	getNetworkInterfaces();
 
 	// init network IO dialog to HPSDR components
-	m_netIODialog = new NetworkIODialog();
 
 	// init warning dialog
     m_warningDialog = new WarningDialog(this);
@@ -457,6 +444,7 @@ void MainWindow::setup() {
 	// initialize all Signal/Slot connections
 	setupConnections();
 
+    m_isStartupDiscovery = true;
 	updateFromSettings();
     checkStartButtonState();
 
@@ -1585,8 +1573,7 @@ void MainWindow::suspendSignal(
 
 
 void MainWindow::showNetworkIODialog() {
-
-	m_netIODialog->exec();
+    set->searchDevices();
 }
 
 void MainWindow::showWarningDialog(const QString &str) {
@@ -1595,16 +1582,6 @@ void MainWindow::showWarningDialog(const QString &str) {
 	m_warningDialog->exec();
 }
 
-void MainWindow::addNetworkIOComboBoxEntry(QString str) {
-
-	m_netIODialog->addDeviceComboBoxItem(str);
-}
-
-void MainWindow::clearNetworkIOComboBoxEntry() {
-
-	m_netIODialog->clearDeviceComboBoxItem();
-}
- 
 /*!
 	\brief generates an initial message for the logging widget-
 */
@@ -1821,106 +1798,6 @@ void MainWindow::tunBtnClickedEvent() {
 //***************************************************************************
 // NetworkIODialog class
 
-NetworkIODialog::NetworkIODialog(QWidget *parent)
-    :   QDialog(parent)
-	,	set(Settings::instance())
-{
-	int btnWidth = 74;
-	int btnHeight = 18;
-
-	m_deviceCards = set->getMetisCardsList();
-
-	setWindowModality(Qt::NonModal);
-	setWindowOpacity(0.9);
-//	setStyleSheet(set->getDialogStyle());
-
-	setMouseTracking(true);
-
-	m_titleFont.setStyleStrategy(QFont::PreferAntialias);
-	m_titleFont.setFixedPitch(true);
-	m_titleFont.setPixelSize(13);
-	m_titleFont.setFamily("Arial");
-	m_titleFont.setBold(true);
-	
-
-	QVBoxLayout *dialogLayout = new QVBoxLayout(this);
-
-	m_deviceComboBox = new QComboBox(this);
-	m_deviceComboBox->setMinimumContentsLength(30);
-	
-	QHBoxLayout* titleLayout = new QHBoxLayout;
-	QLabel *titleLabel = new QLabel(tr("found more than one device:"), this);
-	titleLabel->setFont(m_titleFont);
-	titleLayout->addWidget(titleLabel);
-	dialogLayout->addLayout(titleLayout);
-
-	QHBoxLayout* metisDeviceLayout = new QHBoxLayout;
-	QLabel *ipAddressLabel = new QLabel(tr("Device (IP Addr):"), this);
-	metisDeviceLayout->addWidget(ipAddressLabel);
-	metisDeviceLayout->addWidget(m_deviceComboBox);
-	dialogLayout->addLayout(metisDeviceLayout);
-
-	/*CHECKED_CONNECT(
-		m_metisDeviceComboBox, 
-		SIGNAL(activated(int)),
-		this, 
-		SLOT(metisDeviceChanged(int)));*/
-
-	AeroButton* okBtn = new AeroButton("Ok", this);
-	okBtn->setRoundness(10);
-	okBtn->setFixedSize(btnWidth, btnHeight);
-	CHECKED_CONNECT(
-		okBtn, 
-		SIGNAL(clicked()), 
-		this, 
-		SLOT(okBtnClicked()));
-
-	AeroButton* cancelBtn = new AeroButton("Cancel", this);
-	cancelBtn->setRoundness(10);
-	cancelBtn->setFixedSize(btnWidth, btnHeight);
-	CHECKED_CONNECT(
-		cancelBtn, 
-		SIGNAL(clicked()), 
-		this, 
-		SLOT(reject()));
-
-	QHBoxLayout *hbox = new QHBoxLayout;
-	hbox->setSpacing(1);
-	hbox->addWidget(okBtn);
-	hbox->addWidget(cancelBtn);
-
-	dialogLayout->addLayout(hbox);
-    
-    setLayout(dialogLayout);
-}
-
-NetworkIODialog::~NetworkIODialog() {
-}
-
-void NetworkIODialog::okBtnClicked() {
-
-	if (m_deviceCards.length() > 0) {
-		
-		set->setCurrentHPSDRDevice(m_deviceCards.at(m_deviceComboBox->currentIndex()));
-		NETWORKDIALOG_DEBUG << "Network device at: " << m_deviceCards.at(m_deviceComboBox->currentIndex()).ip_address.toString() << " selected.";
-		accept();
-	}
-	else
-		NETWORKDIALOG_DEBUG << "HPSDR network device list length:" << m_deviceCards.length();
-}
-
-void NetworkIODialog::addDeviceComboBoxItem(QString str) {
-
-	m_deviceComboBox->addItem(str);
-	m_deviceCards = set->getMetisCardsList();
-}
-
-void NetworkIODialog::clearDeviceComboBoxItem() {
-
-	m_deviceComboBox->clear();
-}
-
-
 //***************************************************************************
 // WarningDialog class
 
@@ -2075,10 +1952,38 @@ void MainWindow::processDiscoveryResults() {
 
     TSDRDevice lastDevice = set->getLastConnectedDevice();
 
-    // Heuristic: If we found multiple devices, show the dialog.
-    // If we found only one, and it matches the last used OR we have nothing selected, select it.
+    // If more than one device is found, OR if this is a manual search, show the selection dialog.
+    // If exactly one device is found during startup, auto-select it if it matches the last used hardware.
 
-    if (m_discoveredDevices.size() > 1) {
+    bool showDialog = (m_discoveredDevices.size() > 1) || !m_isStartupDiscovery;
+
+    if (m_discoveredDevices.size() == 1 && m_isStartupDiscovery) {
+        QVariant dev = m_discoveredDevices.first();
+        if (dev.canConvert<TNetworkDevicecard>()) {
+            TNetworkDevicecard card = dev.value<TNetworkDevicecard>();
+            if (lastDevice.deviceClass == DeviceClass_HPSDR && lastDevice.serialNumber == QString::fromLatin1(card.mac_address)) {
+                set->setCurrentHPSDRDevice(card);
+                showDialog = false;
+            } else if (lastDevice.deviceClass == DeviceClass_None) {
+                set->setCurrentHPSDRDevice(card);
+                showDialog = false;
+            }
+        }
+#ifdef HAVE_SOAPYSDR
+        else if (dev.canConvert<TSoapyDevice>()) {
+            TSoapyDevice soapy = dev.value<TSoapyDevice>();
+            if (lastDevice.deviceClass == DeviceClass_SoapySDR && lastDevice.serialNumber == soapy.serial && lastDevice.deviceType == soapy.driver) {
+                set->setCurrentSoapyDevice(soapy);
+                showDialog = false;
+            } else if (lastDevice.deviceClass == DeviceClass_None) {
+                set->setCurrentSoapyDevice(soapy);
+                showDialog = false;
+            }
+        }
+#endif
+    }
+
+    if (showDialog) {
         DeviceSelectionDialog dlg(m_discoveredDevices, this);
         if (dlg.exec() == QDialog::Accepted) {
             QVariant selected = dlg.selectedDevice();
@@ -2091,28 +1996,9 @@ void MainWindow::processDiscoveryResults() {
             }
 #endif
         }
-    } else if (m_discoveredDevices.size() == 1) {
-        QVariant dev = m_discoveredDevices.first();
-        if (dev.canConvert<TNetworkDevicecard>()) {
-            TNetworkDevicecard card = dev.value<TNetworkDevicecard>();
-            if (lastDevice.deviceClass == DeviceClass_HPSDR && lastDevice.serialNumber == QString::fromLatin1(card.mac_address)) {
-                set->setCurrentHPSDRDevice(card);
-            } else if (lastDevice.deviceClass == DeviceClass_None) {
-                set->setCurrentHPSDRDevice(card);
-            }
-        }
-#ifdef HAVE_SOAPYSDR
-        else if (dev.canConvert<TSoapyDevice>()) {
-            TSoapyDevice soapy = dev.value<TSoapyDevice>();
-            if (lastDevice.deviceClass == DeviceClass_SoapySDR && lastDevice.serialNumber == soapy.serial && lastDevice.deviceType == soapy.driver) {
-                set->setCurrentSoapyDevice(soapy);
-            } else if (lastDevice.deviceClass == DeviceClass_None) {
-                set->setCurrentSoapyDevice(soapy);
-            }
-        }
-#endif
     }
 
+    m_isStartupDiscovery = false;
     m_discoveredDevices.clear();
 }
 
