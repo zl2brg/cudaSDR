@@ -88,15 +88,14 @@ public:
 	CPX			inBuf;
     CPX			outBuf;
     CPX			audioOutputBuf;
-
-    QHQueue<QVector<int32_t>> m_iqQueue;
-    QHQueue<QVector<float>>   m_soapyQueue;
-    int32_t     m_rawIQ[BUFFER_SIZE * 2];
+	int32_t     m_rawIQ[BUFFER_SIZE * 2];
 
 public slots:
     void    enqueueRawData();
     void    enqueueRawData(const QVector<int32_t> &rawBlock);
     void    enqueueSoapyData(const QVector<float> &data);
+	void	noteRetuneActivity(qint64);
+	void    setSoapyInputSampleRate(int value);
     void    dspProcessingSoapy();
 	void	setAudioMode(int mode);
 	void	setServerMode(QSDR::_ServerMode mode);
@@ -145,6 +144,8 @@ private:
 
 	QElapsedTimer		m_smeterTime;
 	QElapsedTimer		m_dspCallTimer;
+	QElapsedTimer		m_retuneTimer;
+	qint64				m_audioMuteUntilMs = 0;
 	double				m_dspTimeMin = 1e9;
 	double				m_dspTimeMax = 0.0;
 	double				m_dspTimeAccum = 0.0;
@@ -155,12 +156,16 @@ private:
 
 	int		m_receiver;
 	int		m_samplerate;
+	int		m_soapyInputSampleRate;
 	int		m_audioMode;
 	int		m_socketDescriptor;
 	int		m_client;
     int		m_iqPort;
     int		m_bsPort;
 	int		m_displayTime;
+
+	QHQueue<QVector<int32_t>> m_iqQueue;
+	QHQueue<QVector<float>>   m_soapyQueue;
 
     int 	m_audiobuffersize;
 

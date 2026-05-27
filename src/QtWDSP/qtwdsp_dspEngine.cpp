@@ -68,6 +68,7 @@ QWDSPEngine::QWDSPEngine(SliceModel *model, QObject *parent, int size)
 	, m_rx(model ? model->id() : 0)
 	, m_size(size)
 	, m_samplerate(set->getSampleRate())
+    , m_inputSampleRate(set->getSampleRate())
 	, m_fftMultiplier(1)
 	, m_volume(0.0f)
     , m_filterLo(-4000.0)
@@ -110,12 +111,12 @@ QWDSPEngine::QWDSPEngine(SliceModel *model, QObject *parent, int size)
 
     setupConnections();
 
-    WDSP_ENGINE_DEBUG << "[WDSP-INIT] rx=" << m_rx << "size=" << m_size << "sampleRate=" << m_samplerate << "-> calling OpenChannel";
-    OpenChannel(m_rx, m_size, 2048, m_samplerate, 48000, 48000, 0, 0, 0.010, 0.025, 0.0, 0.010, 0);
+    WDSP_ENGINE_DEBUG << "[WDSP-INIT] rx=" << m_rx << "size=" << m_size << "inputRate=" << m_inputSampleRate << "dspRate=" << m_samplerate << "-> calling OpenChannel";
+    OpenChannel(m_rx, m_size, 2048, m_inputSampleRate, m_samplerate, 48000, 0, 0, 0.010, 0.025, 0.0, 0.010, 0);
     WDSP_ENGINE_DEBUG << "[WDSP-INIT] rx=" << m_rx << "OpenChannel done -> create_anbEXT";
-    create_anbEXT(m_rx, 1, size, m_samplerate, 0.0001, 0.0001, 0.0001, 0.05, 20);
+    create_anbEXT(m_rx, 1, size, m_inputSampleRate, 0.0001, 0.0001, 0.0001, 0.05, 20);
     WDSP_ENGINE_DEBUG << "[WDSP-INIT] rx=" << m_rx << "create_anbEXT done -> create_nobEXT";
-    create_nobEXT(m_rx, 1, 0, size, m_samplerate, 0.0001, 0.0001, 0.0001, 0.05, 20);
+    create_nobEXT(m_rx, 1, 0, size, m_inputSampleRate, 0.0001, 0.0001, 0.0001, 0.05, 20);
     WDSP_ENGINE_DEBUG << "[WDSP-INIT] rx=" << m_rx << "create_nobEXT done";
     
     qDebug() << "[WDSP-INIT] rx=" << m_rx << "RXASetNC(" << m_fftSize << ")";
@@ -365,6 +366,9 @@ void QWDSPEngine::processDSP(CPX &in, CPX &out) {
     fexchange0(m_rx, reinterpret_cast<double*>(in.data()),
                reinterpret_cast<double*>(out.data()), &error);
     if (error != 0) {
+        if (error == -2) {
+            return;
+        }
         // Suppress the first-call transient (-20 = ring buffer not yet primed).
         // Log subsequent errors at full severity so real problems are visible.
         if (!m_firstExchangeDone) {
@@ -546,6 +550,8 @@ void QWDSPEngine::setSampleRate(int value) {
         return;
     }
     m_samplerate = value;
+    if (m_inputSampleRate == previousRate)
+        m_inputSampleRate = value;
 
     Q_UNUSED(previousRate)
 
@@ -564,11 +570,11 @@ void QWDSPEngine::setSampleRate(int value) {
     WDSP_ENGINE_DEBUG << "[WDSP-SR] rx=" << m_rx << "-> CloseChannel";
     CloseChannel(m_rx);
 
-    WDSP_ENGINE_DEBUG << "[WDSP-SR] rx=" << m_rx << "-> OpenChannel at" << m_samplerate << "Hz";
-    OpenChannel(m_rx, m_size, 2048, m_samplerate, 48000, 48000, 0, 0, 0.010, 0.025, 0.0, 0.010, 0);
+    WDSP_ENGINE_DEBUG << "[WDSP-SR] rx=" << m_rx << "-> OpenChannel input=" << m_inputSampleRate << "Hz dsp=" << m_samplerate << "Hz";
+    OpenChannel(m_rx, m_size, 2048, m_inputSampleRate, m_samplerate, 48000, 0, 0, 0.010, 0.025, 0.0, 0.010, 0);
     WDSP_ENGINE_DEBUG << "[WDSP-SR] rx=" << m_rx << "-> create_anbEXT/nobEXT";
-    create_anbEXT(m_rx, 1, m_size, m_samplerate, 0.0001, 0.0001, 0.0001, 0.05, 20);
-    create_nobEXT(m_rx, 1, 0, m_size, m_samplerate, 0.0001, 0.0001, 0.0001, 0.05, 20);
+    create_anbEXT(m_rx, 1, m_size, m_inputSampleRate, 0.0001, 0.0001, 0.0001, 0.05, 20);
+    create_nobEXT(m_rx, 1, 0, m_size, m_inputSampleRate, 0.0001, 0.0001, 0.0001, 0.05, 20);
 
     RXASetNC(m_rx, m_fftSize);
     SetRXAMode(m_rx, m_dspmode);
@@ -596,6 +602,48 @@ void QWDSPEngine::setSampleRate(int value) {
     SetChannelState(m_rx, 1, 0);
     
     WDSP_ENGINE_DEBUG << "[WDSP-SR] rx=" << m_rx << "setSampleRate complete at" << m_samplerate << "Hz";
+}
+
+void QWDSPEngine::setInputSampleRate(int value) {
+    if (value <= 0 || m_inputSampleRate == value)
+        return;
+
+    m_inputSampleRate = value;
+
+    QMutexLocker wdspLocker(&s_wdspMutex);
+
+    SetChannelState(m_rx, 0, 1);
+    DestroyAnalyzer(m_rx);
+    destroy_nobEXT(m_rx);
+    destroy_anbEXT(m_rx);
+    CloseChannel(m_rx);
+
+    OpenChannel(m_rx, m_size, 2048, m_inputSampleRate, m_samplerate, 48000, 0, 0, 0.010, 0.025, 0.0, 0.010, 0);
+    create_anbEXT(m_rx, 1, m_size, m_inputSampleRate, 0.0001, 0.0001, 0.0001, 0.05, 20);
+    create_nobEXT(m_rx, 1, 0, m_size, m_inputSampleRate, 0.0001, 0.0001, 0.0001, 0.05, 20);
+
+    RXASetNC(m_rx, m_fftSize);
+    SetRXAMode(m_rx, m_dspmode);
+    setFilter(m_filterLo, m_filterHi);
+    setFilterMode(m_rx);
+
+    int analyzerResult;
+    XCreateAnalyzer(m_rx, &analyzerResult, 262144, 1, 1, const_cast<char*>(""));
+    if (analyzerResult != 0) {
+        qWarning() << "[WDSP-SR] XCreateAnalyzer id=" << m_rx << "failed after input samplerate change:" << analyzerResult;
+    }
+
+    init_analyzer(m_refreshrate);
+    calcDisplayAveraging();
+    SetDisplayAvBackmult(m_rx, 0, m_display_avb);
+    SetDisplayNumAverage(m_rx, 0, m_display_average);
+    SetDisplayDetectorMode(m_rx, 0, m_PanDetMode);
+    SetDisplayAverageMode(m_rx, 0, m_PanAvMode);
+    SetRXAFMSQRun(m_rx, 1);
+    SetRXAPanelGain1(m_rx, static_cast<double>(m_volume));
+    SetChannelState(m_rx, 1, 0);
+
+    WDSP_ENGINE_DEBUG << "[WDSP-SR] rx=" << m_rx << "setInputSampleRate complete at" << m_inputSampleRate << "Hz";
 }
 
 
@@ -671,7 +719,7 @@ void QWDSPEngine::init_analyzer(int refreshrate) {
     );
 
     const int overlap = static_cast<int>(
-        std::max(0.0, std::ceil(fft_size - static_cast<double>(m_samplerate) / static_cast<double>(refreshrate)))
+        std::max(0.0, std::ceil(fft_size - static_cast<double>(m_inputSampleRate) / static_cast<double>(refreshrate)))
     );
 
     qDebug() << "SetAnalyzer id=" << m_rx << "buffer_size=" << m_size 

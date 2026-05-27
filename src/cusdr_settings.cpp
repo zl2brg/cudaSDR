@@ -2500,8 +2500,10 @@ QList<qint64> Settings::getCtrFrequencies() {
     for (int i = 0; i < MAX_RECEIVERS; i++) {
         if (m_radioModel && i < m_radioModel->slices().size() && m_radioModel->slices()[i])
             frequencies << m_radioModel->slices()[i]->centerFrequency();
-        else
+        else if (i < m_receiverDataList.size())
             frequencies << m_receiverDataList[i].ctrFrequency;
+        else
+            frequencies << 7000000;
     }
 
     return frequencies;
@@ -2514,8 +2516,10 @@ QList<qint64> Settings::getVfoFrequencies() {
     for (int i = 0; i < MAX_RECEIVERS; i++) {
         if (m_radioModel && i < m_radioModel->slices().size() && m_radioModel->slices()[i])
             frequencies << m_radioModel->slices()[i]->frequency();
-        else
+        else if (i < m_receiverDataList.size())
             frequencies << m_receiverDataList[i].vfoFrequency;
+        else
+            frequencies << 7000000;
     }
 
     return frequencies;
@@ -3672,8 +3676,9 @@ void Settings::setMercuryAttenuator(int value) {
 }
 
 QList<int> Settings::getMercuryAttenuators(int rx) {
-
-    return m_receiverDataList[rx].mercuryAttenuators;
+    if (rx < 0 || rx >= m_receiverDataList.size())
+        return {};
+    return m_receiverDataList.at(rx).mercuryAttenuators;
 }
 
 QSDR::_DSPCore Settings::getReceiverDspCore(int rx) const {

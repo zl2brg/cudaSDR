@@ -90,6 +90,7 @@ public slots:
     void stopChannel();
 
     void setNCOFrequency(int rx, long value);
+    void setInputSampleRate(int value);
     void setSampleRate(int value);
     void setSampleSize(int rx, int size);
     void setQtDSPStatus(bool value);
@@ -146,6 +147,7 @@ private:
     int m_size;
     int m_spectrumSize;
     int m_samplerate;
+    int m_inputSampleRate;
     int m_fftMultiplier;
     int m_fftSize;
     int m_refreshrate;

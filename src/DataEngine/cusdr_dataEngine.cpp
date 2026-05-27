@@ -158,6 +158,7 @@ DataEngine::DataEngine(RadioModel *model, QObject *parent)
     //m_audiobuf.resize(IO_BUFFER_SIZE);
 
 	m_counter = 0;
+	io.soapyInputSampleRate = set->getSampleRate();
 
 }
 
@@ -3868,13 +3869,8 @@ void DataProcessor::processReadData()
 {
 #ifdef HAVE_SOAPYSDR
     if (set->getHWInterface() == QSDR::SoapySDR) {
-        static uint32_t soapyProcCount = 0;
         while(!de->io.data_queue.isEmpty()) {
-            soapyProcCount++;
             QList<double> samples = de->io.data_queue.dequeue();
-            if (soapyProcCount % 100 == 0) {
-                qDebug() << "DataProcessor: Processing SoapySDR samples, queue size:" << de->io.data_queue.count();
-            }
             processInputBuffer(samples);
         }
         return;
@@ -3918,11 +3914,18 @@ void DataProcessor::processReadData()
 void DataProcessor::processInputBuffer(const QList<double> &samples) {
     if (samples.isEmpty()) return;
 
-    static uint32_t inputBufCount = 0;
-    inputBufCount++;
-
     int rx = 0;
     if (rx < de->RX.size() && de->RX[rx]) {
+		int soapyInputRate = 0;
+		{
+			QMutexLocker lock(&de->io.mutex);
+			soapyInputRate = de->io.soapyInputSampleRate;
+		}
+		static int s_lastSoapyInputRate = 0;
+		if (soapyInputRate > 0 && soapyInputRate != s_lastSoapyInputRate) {
+			s_lastSoapyInputRate = soapyInputRate;
+			de->RX[rx]->setSoapyInputSampleRate(soapyInputRate);
+		}
         QVector<float> floatBlock;
         floatBlock.reserve(samples.size());
         for (const double s : samples)

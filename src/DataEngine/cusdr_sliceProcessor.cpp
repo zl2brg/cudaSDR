@@ -34,6 +34,7 @@
 
 namespace {
 constexpr int HIGH_RATE_TRANSITION_DROP_BUFFERS = 12;
+constexpr qint64 RETUNE_AUDIO_MUTE_MS = 120;
 }
 
 SliceProcessor::SliceProcessor(SliceModel *model, QObject *parent)
@@ -43,10 +44,11 @@ SliceProcessor::SliceProcessor(SliceModel *model, QObject *parent)
 	, m_stopped(false)
 	, m_receiver(model ? model->id() : 0)
 	, m_samplerate(set->getSampleRate())
+    , m_soapyInputSampleRate(set->getSampleRate())
 	, m_audioMode(1)
-	, m_rateTransitionDropBuffers(0)
     , m_iqQueue(100)
     , m_soapyQueue(100)
+    , m_rateTransitionDropBuffers(0)
 	//, m_calOffset(63.0)
 	//, m_calOffset(33.0)
 {
@@ -67,6 +69,7 @@ SliceProcessor::SliceProcessor(SliceModel *model, QObject *parent)
 	setupConnections();
     m_displayTime = (int)(1000000.0/set->getFramesPerSecond(m_receiver));
 	m_smeterTime.start();
+    m_retuneTimer.start();
 }
 
 SliceProcessor::~SliceProcessor() {
@@ -112,6 +115,15 @@ void SliceProcessor::setupConnections() {
 #ifdef HAVE_SOAPYSDR
     connect(set, &Settings::soapyAutoCalibrateChanged,
             this, &SliceProcessor::resetSoapyDcEstimator);
+#endif
+
+#ifdef HAVE_SOAPYSDR
+    if (m_sliceModel && set->getHWInterface() == QSDR::SoapySDR) {
+        connect(m_sliceModel, &SliceModel::frequencyChanged,
+                this, &SliceProcessor::noteRetuneActivity);
+        connect(m_sliceModel, &SliceModel::centerFrequencyChanged,
+                this, &SliceProcessor::noteRetuneActivity);
+    }
 #endif
 }
 
@@ -193,10 +205,46 @@ void SliceProcessor::enqueueRawData(const QVector<int32_t> &rawBlock) {
 
 void SliceProcessor::enqueueSoapyData(const QVector<float> &data) {
     if (m_soapyQueue.isFull()) {
-        SLICE_PROCESSOR_DEBUG << "soapyQueue full! dropping oldest packet";
         m_soapyQueue.dequeue();
     }
     m_soapyQueue.enqueue(data);
+}
+
+void SliceProcessor::setSoapyInputSampleRate(int value) {
+    if (QThread::currentThread() != thread()) {
+        QMetaObject::invokeMethod(this,
+                                  "setSoapyInputSampleRate",
+                                  Qt::QueuedConnection,
+                                  Q_ARG(int, value));
+        return;
+    }
+
+    if (value <= 0 || m_soapyInputSampleRate == value)
+        return;
+
+    m_soapyInputSampleRate = value;
+    if (qtwdsp) {
+        QMutexLocker dspLocker(&m_dspMutex);
+        qtwdsp->setInputSampleRate(m_soapyInputSampleRate);
+    }
+}
+
+void SliceProcessor::noteRetuneActivity(qint64)
+{
+#ifdef HAVE_SOAPYSDR
+    if (set->getHWInterface() != QSDR::SoapySDR)
+        return;
+
+    if (!m_retuneTimer.isValid()) {
+        m_retuneTimer.start();
+    }
+
+    const qint64 nowMs = m_retuneTimer.elapsed();
+    const qint64 muteUntil = nowMs + RETUNE_AUDIO_MUTE_MS;
+    if (muteUntil > m_audioMuteUntilMs) {
+        m_audioMuteUntilMs = muteUntil;
+    }
+#endif
 }
 
 void SliceProcessor::enqueueData() {
@@ -221,9 +269,6 @@ void SliceProcessor::dspProcessingSoapy() {
     if (rawIQ.size() < BUFFER_SIZE * 2) return;
 
     ++m_dspCallCount;
-    if (m_dspCallCount % 100 == 1) {
-        qDebug() << "SliceProcessor" << m_receiver << ": Soapy DSP heartbeat, soapyQ:" << m_soapyQueue.count();
-    }
 
     cpx* inPtr = inBuf.data();
     const float* rawPtr = rawIQ.constData();
@@ -248,22 +293,7 @@ void SliceProcessor::dspProcessingSoapy() {
 }
 
 void SliceProcessor::dspProcessing() {
-	static quint64 dspEntryCount = 0;
-	static quint64 dspEmptyQueueCount = 0;
-
-	++dspEntryCount;
-	if ((dspEntryCount % 100) == 1) {
-		SLICE_PROCESSOR_DEBUG << "dspProcessing entry rx=" << m_receiver
-					   << " count=" << dspEntryCount
-					   << " iqQueue=" << m_iqQueue.count();
-	}
-
 	if (m_iqQueue.isEmpty()) {
-		++dspEmptyQueueCount;
-		if ((dspEmptyQueueCount % 100) == 1) {
-			SLICE_PROCESSOR_DEBUG << "dspProcessing empty iqQueue rx=" << m_receiver
-						   << " emptyCount=" << dspEmptyQueueCount;
-		}
 		return;
 	}
 
@@ -284,9 +314,6 @@ void SliceProcessor::dspProcessing(const QVector<int32_t> &rawIQ) {
     if (rawIQ.size() < BUFFER_SIZE * 2) return;
 
     ++m_dspCallCount;
-    if (m_dspCallCount % 100 == 1) {
-        qDebug() << "SliceProcessor" << m_receiver << ": DSP heartbeat, queue size:" << m_iqQueue.count();
-    }
 
     // Perform 24-bit integer to double conversion
     const double scale = 1.0 / 8388607.0;
@@ -315,12 +342,7 @@ void SliceProcessor::dspProcessingCore() {
 
     static constexpr quint64 DSP_REPORT_INTERVAL = 500;
     if ((m_dspCallCount % DSP_REPORT_INTERVAL) == 0) {
-        double mean = m_dspTimeAccum / DSP_REPORT_INTERVAL;
-        SLICE_PROCESSOR_DEBUG << "DSP perf rx=" << m_receiver
-                       << " calls=" << m_dspCallCount
-                       << " mean=" << QString::number(mean, 'f', 1) << "Âµs"
-                       << " budget=" << QString::number(getDisplayDelay(), 'f', 0) << "Âµs"
-                       << " iqQ=" << m_iqQueue.count();
+        // Keep statistics updated for optional diagnostics, but do not log in hot path.
         m_dspTimeAccum = 0.0;
         m_dspTimeMin = 1e9;
         m_dspTimeMax = 0.0;
@@ -339,19 +361,22 @@ void SliceProcessor::dspProcessingCore() {
 
         if (spectrumDataReady) {
             newSpectrum = qtwdsp->spectrumBuffer;  // Direct assignment
-            if (m_dspCallCount % 100 == 1) {
-                qDebug() << "Receiver" << m_receiver << ": Spectrum data ready, emitting signal, first sample:" << newSpectrum.at(0);
-            }
             emit spectrumBufferChanged(m_receiver, newSpectrum);
-        } else {
-            if (m_dspCallCount % 100 == 1) {
-                qDebug() << "Receiver" << m_receiver << ": GetPixels returned no data";
-            }
         }
         highResTimer->start();
     }
 
     if (m_receiver == set->getCurrentReceiver()) {
+        int audioSamplesThisCall = m_audiobuffersize;
+#ifdef HAVE_SOAPYSDR
+        if (set->getHWInterface() == QSDR::SoapySDR && m_soapyInputSampleRate > 0) {
+            // WDSP channel output is fixed at 48 kHz. With high Soapy input rates,
+            // each fexchange0 call produces proportionally fewer output samples.
+            audioSamplesThisCall = std::max(1,
+                static_cast<int>((static_cast<long long>(BUFFER_SIZE) * 48000LL) / m_soapyInputSampleRate));
+        }
+#endif
+
         if (m_smeterTime.elapsed() > 200) {
             m_sMeterValue = qtwdsp->getSMeterInstValue();
             emit sMeterValueChanged(m_receiver, m_sMeterValue);
@@ -359,25 +384,35 @@ void SliceProcessor::dspProcessingCore() {
         }
 #ifdef USE_INTERNAL_AUDIO
 		const DSPMode dspMode = m_sliceModel ? m_sliceModel->dspMode() : set->getDSPMode(m_receiver);
-		if (dspMode != DSPMode::FDV) {
+        bool retuneMuteAudio = false;
+#ifdef HAVE_SOAPYSDR
+        if (set->getHWInterface() == QSDR::SoapySDR) {
+            retuneMuteAudio = m_retuneTimer.isValid() && (m_retuneTimer.elapsed() < m_audioMuteUntilMs);
+        }
+#endif
+        if (dspMode != DSPMode::FDV) {
 			// Normal analogue modes: pass WDSP audio output straight to soundcard.
-			m_audioOutput->writeAudio(interleaveFromCPX(audioOutputBuf, m_audiobuffersize));
+            if (!retuneMuteAudio) {
+                m_audioOutput->writeAudio(interleaveFromCPX(audioOutputBuf, audioSamplesThisCall));
+            }
 		}
 		else {
-			QVector<float> mono(m_audiobuffersize);
+			QVector<float> mono(audioSamplesThisCall);
 			const cpx* src = audioOutputBuf.constData();
-			for (int i = 0; i < m_audiobuffersize; ++i)
+			for (int i = 0; i < audioSamplesThisCall; ++i)
 				mono[i] = static_cast<float>(src[i].re);
 
 			bool wroteAudio = false;
 
 #ifdef HAVE_CODEC2
-			if (m_freeDVProcessor) {
-				QVector<float> speech = m_freeDVProcessor->processSamples(mono.constData(), m_audiobuffersize);
+            if (m_freeDVProcessor) {
+                QVector<float> speech = m_freeDVProcessor->processSamples(mono.constData(), audioSamplesThisCall);
 				// processSamples always returns n*2 floats (silence-padded when no
 				// frame is ready), so write unconditionally — this prevents the
 				// passthrough from adding a second burst of audio.
-				m_audioOutput->writeAudio(speech);
+                if (!retuneMuteAudio) {
+                    m_audioOutput->writeAudio(speech);
+                }
 				wroteAudio = true;
 				if (m_freeDVProcessor->isSync())
 					m_freeDVRxFrames += 1;
@@ -394,17 +429,19 @@ void SliceProcessor::dspProcessingCore() {
 
 			if (!wroteAudio) {
 				QVector<float> passthrough;
-				passthrough.reserve(m_audiobuffersize * 2);
-				for (int i = 0; i < m_audiobuffersize; ++i) {
+                passthrough.reserve(audioSamplesThisCall * 2);
+                for (int i = 0; i < audioSamplesThisCall; ++i) {
 					const float s = mono.at(i);
 					passthrough.append(s);
 					passthrough.append(s);
 				}
-				m_audioOutput->writeAudio(passthrough);
+                if (!retuneMuteAudio) {
+                    m_audioOutput->writeAudio(passthrough);
+                }
 			}
 		}
 #endif // USE_INTERNAL_AUDIO
-        emit audioBufferSignal(m_receiver, audioOutputBuf, m_audiobuffersize);
+        emit audioBufferSignal(m_receiver, audioOutputBuf, audioSamplesThisCall);
     }
 }
 

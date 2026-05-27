@@ -1499,7 +1499,6 @@ inline HamBand getBandFromFrequency(const QList<THamBandFrequencies> bandList, q
 	for (int i = 0; i < bandList.size(); ++i) {
 		
 		if (bandList.at(i).frequencyLo <= frequency && bandList.at(i).frequencyHi >= frequency) {
-            qDebug() << "bandlist" << bandList.at(i).frequencyLo << bandList.at(i).bandString;
 			band = bandList.at(i).hamBand;
 			return band;
 		}

@@ -1,5 +1,6 @@
 #include "receiveraudiooutput.h"
 #include <QDebug>
+#include <QElapsedTimer>
 
 ReceiverAudioOutput::ReceiverAudioOutput(QObject *parent)
     : QObject(parent)
@@ -55,6 +56,12 @@ void ReceiverAudioOutput::writeAudio(const QVector<float>& audioBuffer)
     QMutexLocker locker(&m_mutex);
     if (!m_device) return;
 
+    static QElapsedTimer overflowLogTimer;
+    static qint64 aggregatedDroppedBytes = 0;
+    if (!overflowLogTimer.isValid()) {
+        overflowLogTimer.start();
+    }
+
     // Append new samples to any unwritten bytes from the previous call
     const char* src = reinterpret_cast<const char*>(audioBuffer.constData());
     m_pending.append(src, audioBuffer.size() * (int)sizeof(float));
@@ -67,8 +74,18 @@ void ReceiverAudioOutput::writeAudio(const QVector<float>& audioBuffer)
     // growing unbounded (4 DSP buffers ≈ 85ms)
     constexpr int MAX_PENDING = 4 * 8192;
     if (m_pending.size() > MAX_PENDING) {
-        qWarning() << "Audio: pending overflow, dropping"
-                   << (m_pending.size() - MAX_PENDING) << "bytes";
-        m_pending.remove(0, m_pending.size() - MAX_PENDING);
+        const int dropped = m_pending.size() - MAX_PENDING;
+        m_pending.remove(0, dropped);
+        aggregatedDroppedBytes += dropped;
+
+        // During fast UI-driven retunes, the DSP can briefly outrun wall-clock
+        // playback. Aggregate drops and emit at most once per second.
+        if (overflowLogTimer.elapsed() >= 1000) {
+            qWarning() << "Audio: pending overflow, dropped"
+                       << aggregatedDroppedBytes << "bytes in last"
+                       << overflowLogTimer.elapsed() << "ms";
+            aggregatedDroppedBytes = 0;
+            overflowLogTimer.restart();
+        }
     }
 }

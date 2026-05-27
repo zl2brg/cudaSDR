@@ -141,18 +141,30 @@ OGLDisplayPanel::OGLDisplayPanel(RadioModel *model, QWidget *parent)
 	QList<qint64> fList = set->getVfoFrequencies();
 
 	for (int i = 0; i < MAX_RECEIVERS; i++) {
+		const qint64 freq =
+			(i < fList.size()) ? fList.at(i)
+			                   : (!fList.isEmpty() ? fList.at(0) : 7000000);
 
 		TFrequency f;
-		f.frequency = fList.at(i);
-		f.freqMHz = (int)(fList.at(i) / 1000);
-		f.freqkHz = (int)(fList.at(i) % 1000);
+		f.frequency = freq;
+		f.freqMHz = (int)(freq / 1000);
+		f.freqkHz = (int)(freq % 1000);
 
 		m_frequencyList << f;
 	}
 	QList<THamBandFrequencies> bandList = getHamBandFrequencies();
-	HamBand band = getBandFromFrequency(bandList, fList.at(0));
+	const qint64 baseFreq = !m_frequencyList.isEmpty() ? m_frequencyList.at(0).frequency : 7000000;
+	HamBand band = getBandFromFrequency(bandList, baseFreq);
 
-        m_mercuryAttenuator = set->getMercuryAttenuators(0).at(band);
+	QList<int> mercuryAttenuators = set->getMercuryAttenuators(0);
+	const int bandIndex = static_cast<int>(band);
+	if (bandIndex >= 0 && bandIndex < mercuryAttenuators.size()) {
+		m_mercuryAttenuator = mercuryAttenuators.at(bandIndex);
+	} else {
+		m_mercuryAttenuator = 0;
+		qWarning() << "OGLDisplayPanel: invalid mercury attenuator index" << bandIndex
+				   << "for list size" << mercuryAttenuators.size();
+	}
 
 
 
@@ -986,8 +998,17 @@ void OGLDisplayPanel::paintRxRegion() {
 
 	str = "%1.%2";
 
-	int f1 = m_frequencyList[m_currentReceiver].freqMHz; // kHz
-	int f2 = m_frequencyList[m_currentReceiver].freqkHz; // Hz
+	TFrequency currentFrequency;
+	if (m_currentReceiver >= 0 && m_currentReceiver < m_frequencyList.size()) {
+		currentFrequency = m_frequencyList.at(m_currentReceiver);
+	} else {
+		currentFrequency.frequency = 7000000;
+		currentFrequency.freqMHz = 7000;
+		currentFrequency.freqkHz = 0;
+	}
+
+	int f1 = currentFrequency.freqMHz; // kHz
+	int f2 = currentFrequency.freqkHz; // Hz
 
     // Format: G.MMM.KKK
     long ghz = f1 / 1000000;
@@ -1041,10 +1062,10 @@ void OGLDisplayPanel::paintRxRegion() {
 
 
 	// frequency info
-	if (m_oldFreq != m_frequencyList[m_currentReceiver].frequency) {
+	if (m_oldFreq != currentFrequency.frequency) {
 
-		m_bandText = getHamBandTextString(set->getHamBandTextList(), false, m_frequencyList[m_currentReceiver].frequency);
-                m_oldFreq = m_frequencyList[m_currentReceiver].frequency;
+		m_bandText = getHamBandTextString(set->getHamBandTextList(), false, currentFrequency.frequency);
+                m_oldFreq = currentFrequency.frequency;
         }
 
     renderText(painter,m_freqStringLeftPos,  y1 + (int) (m_fonts.fontHeightFreqFont1) - 10 ,m_fonts.smallFont, fontcolor, m_bandText);
@@ -1736,7 +1757,12 @@ void OGLDisplayPanel::mousePressEvent(QMouseEvent *event) {
 		getSelectedDigit(pos);
 
         if (event->button() == Qt::LeftButton && m_digitPosition != None) {
-            qint64 currentFreq = m_frequencyList[m_currentReceiver].frequency;
+			if (m_currentReceiver < 0 || m_currentReceiver >= m_frequencyList.size()) {
+				qWarning() << "OGLDisplayPanel::mousePressEvent invalid receiver index" << m_currentReceiver;
+				return;
+			}
+
+			qint64 currentFreq = m_frequencyList[m_currentReceiver].frequency;
             FrequencyEntryDialog dlg(currentFreq, this);
             if (dlg.exec() == QDialog::Accepted) {
                 qint64 newFreq = dlg.frequency();
@@ -1978,7 +2004,12 @@ void OGLDisplayPanel::wheelEvent(QWheelEvent * event) {
         int  numDegrees = event->angleDelta().y()/ 8;
         int  numSteps = numDegrees / 15;
 		
-        qint64 currentFreq = m_frequencyList[m_currentReceiver].frequency;
+		if (m_currentReceiver < 0 || m_currentReceiver >= m_frequencyList.size()) {
+			qWarning() << "OGLDisplayPanel::wheelEvent invalid receiver index" << m_currentReceiver;
+			return;
+		}
+
+		qint64 currentFreq = m_frequencyList[m_currentReceiver].frequency;
         qint64 newFreq = currentFreq + (qint64)numSteps * deltaF;
 
 		if (newFreq < (qint64)set->getMaxFrequency() && newFreq >= 0) {
@@ -2146,6 +2177,11 @@ void OGLDisplayPanel::setRandom(int value) {
 }
 
 void OGLDisplayPanel::setCurrentReceiver(int value) {
+	if (value < 0 || value >= m_frequencyList.size()) {
+		qWarning() << "OGLDisplayPanel::setCurrentReceiver invalid index" << value
+				   << "list size" << m_frequencyList.size();
+		return;
+	}
 
 	m_currentReceiver = value;
 }
@@ -2165,13 +2201,22 @@ void OGLDisplayPanel::setFrequency(int mode,int rx, qint64 freq) {
 	//frequency1 = (int)(freq / 1000);
 	//frequency2 = (int)(freq % 1000);
 
-	/*if (m_frequencyList.count() < set->getCurrentReceivers()) {
-
-		m_frequencyList << f;
+	if (rx < 0) {
+		qWarning() << "OGLDisplayPanel::setFrequency invalid rx" << rx;
+		return;
 	}
-	else*/
-		m_frequencyList[rx] = f;
-        update();
+
+	if (rx >= MAX_RECEIVERS) {
+		qWarning() << "OGLDisplayPanel::setFrequency out-of-range rx" << rx;
+		return;
+	}
+
+	if (rx >= m_frequencyList.size()) {
+		m_frequencyList.resize(rx + 1);
+	}
+
+	m_frequencyList[rx] = f;
+	update();
 
 }
 

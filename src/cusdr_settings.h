@@ -413,6 +413,7 @@ typedef struct _hpsdrParameter {
 	TCCParameterTx	ccTx;
 
 	int		samplerate;
+	int		soapyInputSampleRate;
 	int		speed;
 
 	int		metisFW;

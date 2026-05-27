@@ -358,6 +358,10 @@ void SoapySDRDataSource::init() {
 
         m_device->setSampleRate(SOAPY_SDR_RX, 0, m_rfSampleRate);
         syncRfRateFromHardware(m_sampleRate);
+        {
+            QMutexLocker lock(&io->mutex);
+            io->soapyInputSampleRate = m_rfSampleRate;
+        }
 
         // Publish hardware key to Settings so the UI can show appropriate controls
         std::string hwKey = m_device->getHardwareKey();
@@ -513,12 +517,10 @@ void SoapySDRDataSource::runStream() {
     std::vector<float> buff(numSamples * 2); // complex samples
     void *buffs[] = {buff.data()};
 
-    // Decimation state — local to this streaming session; also reset on
-    // runtime sample-rate changes inside the loop below.
-    std::vector<float> decimBuff(numSamples * 2, 0.0f);
-    int    decimOut = 0;
-    double accumI = 0.0, accumQ = 0.0;
-    int    accumN = 0;
+    // Pass-through buffering state: keep fixed 1024-sample blocks for the
+    // downstream queue/worker path while preserving full RF-rate IQ.
+    std::vector<float> outBuff(numSamples * 2, 0.0f);
+    int outFill = 0;
 
     m_stopped = false;
     uint32_t packetCount = 0;
@@ -552,17 +554,19 @@ void SoapySDRDataSource::runStream() {
                 m_device->setSampleRate(SOAPY_SDR_RX, 0, newRfRate);
                 m_rfSampleRate = newRfRate;
                 syncRfRateFromHardware(m_sampleRate);
+                {
+                    QMutexLocker lock(&io->mutex);
+                    io->soapyInputSampleRate = m_rfSampleRate;
+                }
                 applyBandwidthForRfRate(m_rfSampleRate);
-                decimOut = 0;
-                accumI = accumQ = 0.0;
-                accumN = 0;
+                outFill = 0;
                 if (!restartRxStream()) {
                     qWarning() << "SoapySDRDataSource: stream restart failed after sample rate change";
                     m_stopped = true;
                     break;
                 }
                 qDebug() << "SoapySDRDataSource: Sample rate applied:" << m_rfSampleRate
-                         << "Hz (decimate by" << m_decimRatio << ")";
+                         << "Hz (WDSP input-rate conversion to DSP" << m_sampleRate << "Hz)";
             } catch (const std::exception &e) {
                 qWarning() << "SoapySDRDataSource: setSampleRate restart failed:" << e.what();
                 m_stopped = true;
@@ -581,25 +585,17 @@ void SoapySDRDataSource::runStream() {
             packetCount++;
             m_streamTimeouts = 0;
 
-            // Averaging decimator: accumulate m_decimRatio RF samples per output
-            // sample, then emit full 1024-sample blocks to the DSP queue.
-            // When m_decimRatio == 1 this is a zero-overhead pass-through.
+            // Pass raw RF-rate IQ to WDSP in fixed 1024-sample blocks.
             for (int i = 0; i < ret; ++i) {
-                accumI += buff[i * 2];
-                accumQ += buff[i * 2 + 1];
-                if (++accumN == m_decimRatio) {
-                    decimBuff[decimOut * 2]     = static_cast<float>(accumI / m_decimRatio);
-                    decimBuff[decimOut * 2 + 1] = static_cast<float>(accumQ / m_decimRatio);
-                    accumI = accumQ = 0.0;
-                    accumN = 0;
-                    if (++decimOut == static_cast<int>(numSamples)) {
-                        QList<double> out;
-                        out.reserve(static_cast<int>(numSamples) * 2);
-                        for (float v : decimBuff) out.append(static_cast<double>(v));
-                        io->data_queue.enqueue(out);
-                        emit readydata();
-                        decimOut = 0;
-                    }
+                outBuff[outFill * 2]     = buff[i * 2];
+                outBuff[outFill * 2 + 1] = buff[i * 2 + 1];
+                if (++outFill == static_cast<int>(numSamples)) {
+                    QList<double> out;
+                    out.reserve(static_cast<int>(numSamples) * 2);
+                    for (float v : outBuff) out.append(static_cast<double>(v));
+                    io->data_queue.enqueue(out);
+                    emit readydata();
+                    outFill = 0;
                 }
             }
 
@@ -614,9 +610,7 @@ void SoapySDRDataSource::runStream() {
                            << SoapySDR::errToStr(err) << "(" << err << ") — restarting stream";
                 m_streamTimeouts = 0;
                 if (restartRxStream()) {
-                    decimOut = 0;
-                    accumI = accumQ = 0.0;
-                    accumN = 0;
+                    outFill = 0;
                 }
             }
         }
@@ -644,7 +638,7 @@ void SoapySDRDataSource::setSampleRate(int value) {
     m_pendingRfSampleRate.store(plan.rfSampleRate, std::memory_order_relaxed);
     m_sampleRatePending.store(true, std::memory_order_release);
     qDebug() << "SoapySDRDataSource: DSP rate" << value << "Hz queued (RF"
-             << plan.rfSampleRate << "Hz, decimate by" << plan.decimRatio << ")";
+             << plan.rfSampleRate << "Hz, WDSP converts RF->DSP)";
 }
 
 // Runs on the UI thread (Qt::DirectConnection) — must only write atomics.
