@@ -111,6 +111,7 @@ HPSDRWidget::HPSDRWidget(QWidget *parent)
 
 	setupConnections();
 	setHPSDRHardware();
+	updateDetectedBoardLabel(set->getCurrentMetisCard());
 }
 
 HPSDRWidget::~HPSDRWidget() {
@@ -126,6 +127,12 @@ void HPSDRWidget::setupConnections() {
 		&Settings::systemStateChanged,
 		this,
 		&HPSDRWidget::systemStateChanged);
+
+	CHECKED_CONNECT(
+		set,
+		&Settings::hpsdrNetworkDeviceChanged,
+		this,
+		&HPSDRWidget::updateDetectedBoardLabel);
 }
 
 QGroupBox* HPSDRWidget::hpsdrHardwareBtnGroup() {
@@ -142,7 +149,7 @@ QGroupBox* HPSDRWidget::hpsdrHardwareBtnGroup() {
 		this, 
 		&HPSDRWidget::hpsdrHardwareChanged);
 
-	hermesPresenceBtn = new AeroButton("Hermes", this);
+	hermesPresenceBtn = new AeroButton("Hermes/ANAN", this);
 	hermesPresenceBtn->setRoundness(0);
 	hermesPresenceBtn->setFixedSize(btn_width, btn_height);
 	hermesPresenceBtn->setBtnState(AeroButton::OFF);
@@ -261,6 +268,14 @@ QGroupBox* HPSDRWidget::hpsdrHardwareBtnGroup() {
 	hbox4->setSpacing(4);
 	hbox4->addStretch();
 	hbox4->addWidget(alexPresenceBtn);
+
+	m_detectedBoardLabel = new QLabel("Detected: none", this);
+	m_detectedBoardLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
+
+	QHBoxLayout *hbox5 = new QHBoxLayout();
+	hbox5->setSpacing(4);
+	hbox5->addStretch();
+	hbox5->addWidget(m_detectedBoardLabel);
 	
 	QVBoxLayout *vbox = new QVBoxLayout();
 	vbox->setSpacing(4);
@@ -271,6 +286,7 @@ QGroupBox* HPSDRWidget::hpsdrHardwareBtnGroup() {
 	vbox->addLayout(hbox2);
 	vbox->addLayout(hbox3);
 	vbox->addLayout(hbox4);
+	vbox->addLayout(hbox5);
 	
 	QGroupBox *groupBox = new QGroupBox(tr("Hardware selection"), this);
     m_hpsdrHardwareGroupBox = groupBox;
@@ -279,6 +295,20 @@ QGroupBox* HPSDRWidget::hpsdrHardwareBtnGroup() {
 	groupBox->setFont(QFont("Arial", 8));
 
 	return groupBox;
+}
+
+void HPSDRWidget::updateDetectedBoardLabel(TNetworkDevicecard card) {
+	if (!m_detectedBoardLabel) return;
+	if (card.boardName.isEmpty()) {
+		m_detectedBoardLabel->setText("Detected: none");
+		return;
+	}
+
+	m_detectedBoardLabel->setText(
+		QString("Detected: %1 (ID 0x%2, P%3)")
+			.arg(card.boardName)
+			.arg(card.boardID, 2, 16, QLatin1Char('0'))
+			.arg(card.protocol));
 }
 
 void HPSDRWidget::createSource10MhzExclusiveGroup() {

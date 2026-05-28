@@ -81,6 +81,7 @@ private:
 
 	QLabel		*m_fwCheckLabel;
 	QLabel		*m_receiversLabel;
+	QLabel		*m_detectedBoardLabel;
 	
 	QString		m_message;
 
@@ -135,6 +136,7 @@ private slots:
 					QSDR::_DataEngineState state);
 
 	void	setHPSDRHardware();
+	void	updateDetectedBoardLabel(TNetworkDevicecard card);
 	void	source10MhzChanged();
 	void	setNumberOfReceivers(int value);
 	void	disableButtons();
