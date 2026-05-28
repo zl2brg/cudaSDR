@@ -124,6 +124,7 @@ private slots:
 	void	setCurrentNetworkDevice(TNetworkDevicecard card);
 #ifdef HAVE_SOAPYSDR
     void    setSoapyDeviceList(const QList<TSoapyDevice> &list);
+    void    setCurrentSoapyDevice(TSoapyDevice device);
 #endif
     void    deviceSelected(int index);
 	void	disableButtons();
