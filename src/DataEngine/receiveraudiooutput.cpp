@@ -71,8 +71,9 @@ void ReceiverAudioOutput::writeAudio(const QVector<float>& audioBuffer)
         m_pending.remove(0, (int)written);
 
     // Safety cap: if the sink is stalled, drop oldest data rather than
-    // growing unbounded (4 DSP buffers ≈ 85ms)
-    constexpr int MAX_PENDING = 4 * 8192;
+    // growing unbounded. Increase to ~500ms at 48kHz stereo float 
+    // to accommodate high-rate batching bursts.
+    constexpr int MAX_PENDING = 500 * (48000 * 2 * sizeof(float)) / 1000;
     if (m_pending.size() > MAX_PENDING) {
         const int dropped = m_pending.size() - MAX_PENDING;
         m_pending.remove(0, dropped);

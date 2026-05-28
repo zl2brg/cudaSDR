@@ -394,7 +394,7 @@ typedef struct _hpsdrParameter {
 	QHQueue<TIQPacket>		iq_queue;
 	QHQueue<QByteArray>		au_queue;
 	QHQueue<QByteArray>		wb_queue;
-	QHQueue<QList<qreal> >	data_queue;
+	QHQueue<QVector<float>> soapy_iq_queue{100};
 
 	QList<qreal> inputBuffer;
 

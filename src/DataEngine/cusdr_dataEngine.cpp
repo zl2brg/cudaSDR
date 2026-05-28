@@ -1140,8 +1140,7 @@ void DataEngine::stop() {
 
 				stopDataIO();
 				
-				DATA_ENGINE_DEBUG << "data queue count: " << io.data_queue.count();
-
+				DATA_ENGINE_DEBUG << "data queue count: " << io.soapy_iq_queue.count();
 				stopDataProcessor();
                 break;
 
@@ -3868,12 +3867,30 @@ void DataEngine::radioStateChange(RadioState state) {
 void DataProcessor::processReadData()
 {
 #ifdef HAVE_SOAPYSDR
-    if (set->getHWInterface() == QSDR::SoapySDR) {
-        while(!de->io.data_queue.isEmpty()) {
-            QList<double> samples = de->io.data_queue.dequeue();
-            processInputBuffer(samples);
+    if (this->m_hwInterface == QSDR::SoapySDR) {
+        while (!de->io.soapy_iq_queue.isEmpty()) {
+            QVector<float> samples = de->io.soapy_iq_queue.dequeue();
+
+            int rx = 0;
+            if (rx < de->RX.size() && de->RX[rx]) {
+                int soapyInputRate = 0;
+                {
+                    QMutexLocker lock(&de->io.mutex);
+                    soapyInputRate = de->io.soapyInputSampleRate;
+                }
+                static int s_lastSoapyInputRate = 0;
+                if (soapyInputRate > 0 && soapyInputRate != s_lastSoapyInputRate) {
+                    s_lastSoapyInputRate = soapyInputRate;
+                    de->RX[rx]->setSoapyInputSampleRate(soapyInputRate);
+                }
+
+                // Use thread-safe push
+                de->RX[rx]->enqueueSoapyData(samples);
+                if (de->RX[rx]->trySetSoapyDspPending()) {
+                    QMetaObject::invokeMethod(de->RX[rx], "dspProcessingSoapy", Qt::QueuedConnection);
+                }
+            }
         }
-        return;
     }
 #endif
 
@@ -3909,34 +3926,6 @@ void DataProcessor::processReadData()
 #undef min
 #endif
 #include <complex>
-
-#ifdef HAVE_SOAPYSDR
-void DataProcessor::processInputBuffer(const QList<double> &samples) {
-    if (samples.isEmpty()) return;
-
-    int rx = 0;
-    if (rx < de->RX.size() && de->RX[rx]) {
-		int soapyInputRate = 0;
-		{
-			QMutexLocker lock(&de->io.mutex);
-			soapyInputRate = de->io.soapyInputSampleRate;
-		}
-		static int s_lastSoapyInputRate = 0;
-		if (soapyInputRate > 0 && soapyInputRate != s_lastSoapyInputRate) {
-			s_lastSoapyInputRate = soapyInputRate;
-			de->RX[rx]->setSoapyInputSampleRate(soapyInputRate);
-		}
-        QVector<float> floatBlock;
-        floatBlock.reserve(samples.size());
-        for (const double s : samples)
-            floatBlock.append(static_cast<float>(s));
-
-        // Use thread-safe push
-        de->RX[rx]->enqueueSoapyData(floatBlock);
-        QMetaObject::invokeMethod(de->RX[rx], "dspProcessingSoapy", Qt::QueuedConnection);
-    }
-}
-#endif
 
 void DataProcessor::key_down(int state) {
     qDebug() << "Key Down" << state;

@@ -42,6 +42,11 @@ private:
     QSlider    *m_overallGainSlider;
     QSpinBox   *m_overallGainSpinBox;
 
+    QGroupBox  *m_dspRateGroup;
+    QComboBox  *m_dspRateCombo;
+    QLabel     *m_hwRateLabel;
+    QLabel     *m_decimLabel;
+
     void buildUi();
     void populateFromSettings();
     void updateGainGroupVisibility();
@@ -49,7 +54,8 @@ private:
 private slots:
     void onSoapyAntennaListChanged(QStringList list);
     void onSoapyHardwareKeyChanged(QString key);
-    void onAntennaComboChanged(int index);
+    void onSampleRateChanged(int rate);
+    void onDspRateChanged(int index);
     void onAutoCalToggled(bool enabled);
     void onLnaSliderChanged(int value);
     void onLnaSpinBoxChanged(int value);

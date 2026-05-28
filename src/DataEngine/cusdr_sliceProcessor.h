@@ -35,6 +35,7 @@
 #include "QtWDSP/qtwdsp_dspEngine.h"
 #include "QtDSP/qtdsp_qComplex.h"
 #include "receiveraudiooutput.h"
+#include <atomic>
 
 #ifdef HAVE_CODEC2
 #include "AudioEngine/cusdr_freedvprocessor.h"
@@ -84,11 +85,15 @@ public:
     QWDSPEngine*	qtwdsp = nullptr;
     std::unique_ptr<HResTimer>	highResTimer;
 	ReceiverAudioOutput *m_audioOutput = nullptr;
+    QVector<float>       m_audioAccumulator;
+    int                  m_audioAccumulatorFill;
 
 	CPX			inBuf;
     CPX			outBuf;
     CPX			audioOutputBuf;
 	int32_t     m_rawIQ[BUFFER_SIZE * 2];
+
+    bool    trySetSoapyDspPending() { return !m_soapyDspPending.exchange(true); }
 
 public slots:
     void    enqueueRawData();
@@ -98,6 +103,7 @@ public slots:
 	void    setSoapyInputSampleRate(int value);
     void    dspProcessingSoapy();
 	void	setAudioMode(int mode);
+
 	void	setServerMode(QSDR::_ServerMode mode);
 	void	setPeerAddress(QHostAddress addr);
 	void	setSocketDescriptor(int value);
@@ -113,9 +119,6 @@ public slots:
     void    dspProcessing(const QVector<int32_t> &rawIQ);
 	void	stop();
 
-private:
-    void    dspProcessingCore();
-
 private slots:
 	void	setSystemState(
 					QSDR::_Error err, 
@@ -128,7 +131,7 @@ private slots:
 	bool	initQtWDSPInterface();
 
 private:
-
+    void    dspProcessingCore();
     QVector<float> interleaveFromCPX(const CPX& in, int size = -1);
     SliceModel*      m_sliceModel;
     Settings*                               set;
@@ -170,6 +173,7 @@ private:
     int 	m_audiobuffersize;
 
 	bool	m_connected;
+    std::atomic<bool> m_soapyDspPending;
     int     m_rateTransitionDropBuffers;
     QMutex  m_dspMutex;
 

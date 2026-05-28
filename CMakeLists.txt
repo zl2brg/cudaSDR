@@ -34,6 +34,17 @@ find_package(OpenGL REQUIRED)
 # Set PKG_CONFIG_PATH to find bundled libraries in wdsp-libs
 set(ENV{PKG_CONFIG_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/wdsp-libs/lib/pkgconfig:$ENV{PKG_CONFIG_PATH}")
 
+# --- Find liquid-dsp (local) ---
+find_path(LIQUID_INCLUDE_DIR NAMES liquid/liquid.h PATHS ${CMAKE_CURRENT_SOURCE_DIR}/wdsp-libs/include NO_DEFAULT_PATH)
+find_library(LIQUID_LIBRARY NAMES liquid PATHS ${CMAKE_CURRENT_SOURCE_DIR}/wdsp-libs/lib NO_DEFAULT_PATH)
+
+if(LIQUID_INCLUDE_DIR AND LIQUID_LIBRARY)
+    message(STATUS "liquid-dsp found: lib=${LIQUID_LIBRARY}, include=${LIQUID_INCLUDE_DIR}")
+    add_definitions(-DHAVE_LIQUID)
+else()
+    message(FATAL_ERROR "liquid-dsp not found in wdsp-libs! Please build and install it first.")
+endif()
+
 pkg_check_modules(FFTW3 REQUIRED fftw3)
 pkg_check_modules(FFTW3F REQUIRED fftw3f)
 pkg_check_modules(RNNOISE REQUIRED rnnoise IMPORTED_TARGET)
@@ -303,6 +314,7 @@ target_include_directories(cudasdr PRIVATE
     ${SRC_DIR}/Util
     ${SRC_DIR}/UI
     ${WDSP_DIR}
+    ${LIQUID_INCLUDE_DIR}
     ${RNNOISE_INCLUDE_DIRS}
     ${SPECLEACH_INCLUDE_DIRS}
     ${FFTW3_INCLUDE_DIRS}
@@ -324,6 +336,7 @@ target_link_libraries(cudasdr PRIVATE
     Qt6::OpenGL
     Qt6::OpenGLWidgets
     wdsp
+    ${LIQUID_LIBRARY}
     # System libraries
     -lm
     OpenGL::GL

@@ -273,6 +273,7 @@ QGroupBox* HPSDRWidget::hpsdrHardwareBtnGroup() {
 	vbox->addLayout(hbox4);
 	
 	QGroupBox *groupBox = new QGroupBox(tr("Hardware selection"), this);
+    m_hpsdrHardwareGroupBox = groupBox;
 	groupBox->setMinimumWidth(m_minimumGroupBoxWidth);
 	groupBox->setLayout(vbox);
 	groupBox->setFont(QFont("Arial", 8));
@@ -532,6 +533,7 @@ QGroupBox *HPSDRWidget::sampleRateExclusiveGroup() {
 	vbox->addLayout(hbox);
 
 	QGroupBox *groupBox = new QGroupBox(tr("Sample Rate"), this);
+    m_sampleRateGroupBox = groupBox;
 	groupBox->setMinimumWidth(m_minimumGroupBoxWidth);
 	groupBox->setLayout(vbox);
 	groupBox->setFont(QFont("Arial", 8));
@@ -571,6 +573,7 @@ QGroupBox *HPSDRWidget::numberOfReceiversGroup() {
 	vbox->addLayout(hbox1);
 	
 	QGroupBox *groupBox = new QGroupBox(tr("Number of Receivers"), this);
+    m_numberOfReceiversGroupBox = groupBox;
 	groupBox->setMinimumWidth(m_minimumGroupBoxWidth);
 	groupBox->setLayout(vbox);
 	groupBox->setFont(QFont("Arial", 8));
@@ -728,10 +731,18 @@ void HPSDRWidget::systemStateChanged(
 		m_dataEngineState = state;
 	}
 
-    // Enable/disable extended sample rates based on protocol
+    // HPSDR-specific controls (hardware selection, clocks) are irrelevant in Soapy mode.
+    const bool isHpsdr = (hwmode == QSDR::Metis || hwmode == QSDR::Hermes);
+    if (m_hpsdrHardwareGroupBox) m_hpsdrHardwareGroupBox->setVisible(isHpsdr);
+    if (source10MhzExclusiveGroup) source10MhzExclusiveGroup->setVisible(isHpsdr);
+    if (source122_88MhzExclusiveGroup) source122_88MhzExclusiveGroup->setVisible(isHpsdr);
+
+    // Enable/disable extended sample rates based on protocol or Soapy mode.
+    // SoapySDRDataSource now supports decimation/pass-through for high rates.
     bool isP2 = (set->getCurrentMetisCard().protocol == 2);
-    if (samplerate768Btn) samplerate768Btn->setEnabled(isP2);
-    if (samplerate1536Btn) samplerate1536Btn->setEnabled(isP2);
+    bool soapyOrP2 = (hwmode == QSDR::SoapySDR || isP2);
+    if (samplerate768Btn) samplerate768Btn->setEnabled(soapyOrP2);
+    if (samplerate1536Btn) samplerate1536Btn->setEnabled(soapyOrP2);
 
 	update();
 }

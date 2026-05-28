@@ -48,6 +48,7 @@ SliceProcessor::SliceProcessor(SliceModel *model, QObject *parent)
 	, m_audioMode(1)
     , m_iqQueue(100)
     , m_soapyQueue(100)
+    , m_soapyDspPending(false)
     , m_rateTransitionDropBuffers(0)
 	//, m_calOffset(63.0)
 	//, m_calOffset(33.0)
@@ -61,6 +62,8 @@ SliceProcessor::SliceProcessor(SliceModel *model, QObject *parent)
 #ifdef USE_INTERNAL_AUDIO
     m_audioOutput = new ReceiverAudioOutput(this);
     m_audioOutput->start();
+    m_audioAccumulator.resize(1024 * 2); // Buffer up to 1024 stereo samples
+    m_audioAccumulatorFill = 0;
 #endif
 #ifdef HAVE_CODEC2
 	m_freeDVMode = set->getFreeDVMode(m_receiver);
@@ -264,32 +267,59 @@ void SliceProcessor::stop() {
 }
 
 void SliceProcessor::dspProcessingSoapy() {
-    if (m_soapyQueue.isEmpty()) return;
-    const QVector<float> rawIQ = m_soapyQueue.dequeue();
-    if (rawIQ.size() < BUFFER_SIZE * 2) return;
+    // Flag is already set to true by trySetSoapyDspPending() in processReadData.
+    
+    while (!m_soapyQueue.isEmpty()) {
+        const QVector<float> rawIQ = m_soapyQueue.dequeue();
 
-    ++m_dspCallCount;
-
-    cpx* inPtr = inBuf.data();
-    const float* rawPtr = rawIQ.constData();
-    const bool soapyDcRemove =
-        (set->getHWInterface() == QSDR::SoapySDR && set->getSoapyAutoCalibrate());
-    constexpr double kDcAlpha = 0.004; // ~256-sample time constant at 48 kHz
-
-    for (int i = 0; i < BUFFER_SIZE; ++i) {
-        double I = static_cast<double>(rawPtr[2 * i]);
-        double Q = -static_cast<double>(rawPtr[2 * i + 1]); // negate Q: LimeSDR-Mini IQ is conjugated
-        if (soapyDcRemove) {
-            m_soapyDcAvgI += kDcAlpha * (I - m_soapyDcAvgI);
-            m_soapyDcAvgQ += kDcAlpha * (Q - m_soapyDcAvgQ);
-            I -= m_soapyDcAvgI;
-            Q -= m_soapyDcAvgQ;
+        {
+            QMutexLocker locker(&m_mutex);
+            if (m_rateTransitionDropBuffers > 0) {
+                --m_rateTransitionDropBuffers;
+                continue;
+            }
         }
-        inPtr[i].re = I;
-        inPtr[i].im = Q;
-    }
 
-    dspProcessingCore();
+        if (rawIQ.size() < BUFFER_SIZE * 2) continue;
+
+        ++m_dspCallCount;
+
+        cpx* inPtr = inBuf.data();
+        const float* rawPtr = rawIQ.constData();
+        const bool soapyDcRemove =
+            (set->getHWInterface() == QSDR::SoapySDR && set->getSoapyAutoCalibrate());
+        
+        // cudaSDR/WDSP expects conjugated IQ for most USB SDR data paths.
+        // We negate Q to flip the spectrum to the correct orientation.
+        const bool negateQ = true; 
+
+        constexpr double kDcAlpha = 0.004; // ~256-sample time constant at 48 kHz
+
+        for (int i = 0; i < BUFFER_SIZE; ++i) {
+            double I = static_cast<double>(rawPtr[2 * i]);
+            double Q = static_cast<double>(rawPtr[2 * i + 1]);
+            if (negateQ) Q = -Q;
+
+            if (soapyDcRemove) {
+                m_soapyDcAvgI += kDcAlpha * (I - m_soapyDcAvgI);
+                m_soapyDcAvgQ += kDcAlpha * (Q - m_soapyDcAvgQ);
+                I -= m_soapyDcAvgI;
+                Q -= m_soapyDcAvgQ;
+            }
+            inPtr[i].re = I;
+            inPtr[i].im = Q;
+        }
+
+        dspProcessingCore();
+    }
+    
+    // Clear pending flag. 
+    m_soapyDspPending.store(false, std::memory_order_release);
+    
+    // Safety check: if more data arrived between the loop and the flag clear, post again.
+    if (!m_soapyQueue.isEmpty() && trySetSoapyDspPending()) {
+        QMetaObject::invokeMethod(this, "dspProcessingSoapy", Qt::QueuedConnection);
+    }
 }
 
 void SliceProcessor::dspProcessing() {
@@ -392,7 +422,7 @@ void SliceProcessor::dspProcessingCore() {
 #endif
         if (dspMode != DSPMode::FDV) {
 			// Normal analogue modes: pass WDSP audio output straight to soundcard.
-            if (!retuneMuteAudio) {
+            if (m_audioOutput && !retuneMuteAudio) {
                 m_audioOutput->writeAudio(interleaveFromCPX(audioOutputBuf, audioSamplesThisCall));
             }
 		}
@@ -441,7 +471,9 @@ void SliceProcessor::dspProcessingCore() {
 			}
 		}
 #endif // USE_INTERNAL_AUDIO
-        emit audioBufferSignal(m_receiver, audioOutputBuf, audioSamplesThisCall);
+        if (set->getHWInterface() != QSDR::SoapySDR) {
+            emit audioBufferSignal(m_receiver, audioOutputBuf, audioSamplesThisCall);
+        }
     }
 }
 
@@ -514,7 +546,12 @@ void SliceProcessor::setSampleRate(int value) {
 			m_soapyQueue.dequeue();
 		m_rateTransitionDropBuffers = HIGH_RATE_TRANSITION_DROP_BUFFERS;
 
-        qtwdsp->setSampleRate(m_samplerate);
+        // Dual-Rate Strategy:
+        // We always run the WDSP math/audio path at 48 kHz for maximum stability 
+        // and correct audio pitch. We run the input path at the hardware-selected rate 
+        // (up to 1.5 MHz) so the Waterfall can show a wide span.
+        const int dspMathRate = 48000;
+        qtwdsp->setSampleRate(m_samplerate, dspMathRate);
         m_mutex.unlock();
 
     }

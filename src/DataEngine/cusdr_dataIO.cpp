@@ -442,7 +442,11 @@ void DataIO::readData() {
 	DATAIO_DEBUG << "input buffer length " << length << " buffers " << buffers;
 	while (!m_stopped) {
 		for (int i = 0; i < buffers; i++) {
-			io->data_queue.enqueue(io->inputBuffer.mid(i*128, 128));
+            QList<qreal> samples = io->inputBuffer.mid(i*128, 128);
+            QVector<float> floatSamples;
+            floatSamples.reserve(samples.size());
+            for (qreal s : samples) floatSamples.append(static_cast<float>(s));
+			io->soapy_iq_queue.enqueue(floatSamples);
 			if (m_stopped) break;
 		}
 	}

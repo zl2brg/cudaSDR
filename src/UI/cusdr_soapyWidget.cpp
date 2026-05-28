@@ -18,8 +18,13 @@ SoapyWidget::SoapyWidget(QWidget *parent)
             this, &SoapyWidget::onSoapyAntennaListChanged);
     connect(set, &Settings::soapyHardwareKeyChanged,
             this, &SoapyWidget::onSoapyHardwareKeyChanged);
+    connect(set, &Settings::sampleRateChanged,
+            this, &SoapyWidget::onSampleRateChanged);
+
     connect(m_antennaCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &SoapyWidget::onAntennaComboChanged);
+    connect(m_dspRateCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &SoapyWidget::onDspRateChanged);
     connect(m_autoGainCheck, &QCheckBox::toggled,
             this, &SoapyWidget::onAutoCalToggled);
     connect(m_lnaSlider,   &QSlider::valueChanged,
@@ -89,8 +94,23 @@ void SoapyWidget::buildUi()
     overallLayout->addWidget(m_overallGainSlider, 1);
     overallLayout->addWidget(m_overallGainSpinBox);
 
+    // --- DSP Rate group ---
+    m_dspRateGroup = new QGroupBox(tr("DSP Sample Rate (Internal IQ)"), this);
+    m_dspRateCombo = new QComboBox(this);
+    m_dspRateCombo->addItems({"48 kHz", "96 kHz", "192 kHz", "384 kHz", "768 kHz", "1.536 MHz"});
+    m_hwRateLabel = new QLabel(this);
+    m_decimLabel = new QLabel(this);
+    m_hwRateLabel->setStyleSheet("color: #888;");
+    m_decimLabel->setStyleSheet("color: #888;");
+
+    QFormLayout *rateLayout = new QFormLayout(m_dspRateGroup);
+    rateLayout->addRow(tr("DSP Rate:"), m_dspRateCombo);
+    rateLayout->addRow(tr("Hardware Rate:"), m_hwRateLabel);
+    rateLayout->addRow(tr("Bridge:"), m_decimLabel);
+
     QVBoxLayout *mainLayout = new QVBoxLayout(this);
     mainLayout->addWidget(m_antennaGroup);
+    mainLayout->addWidget(m_dspRateGroup);
     mainLayout->addWidget(m_limeGainGroup);
     mainLayout->addWidget(m_overallGainGroup);
     mainLayout->addStretch();
@@ -107,6 +127,7 @@ void SoapyWidget::populateFromSettings()
     m_overallGainSlider->blockSignals(true);
     m_overallGainSpinBox->blockSignals(true);
     m_autoGainCheck->blockSignals(true);
+    m_dspRateCombo->blockSignals(true);
 
     m_lnaSlider->setValue(set->getSoapyLnaGain());
     m_lnaSpinBox->setValue(set->getSoapyLnaGain());
@@ -118,6 +139,8 @@ void SoapyWidget::populateFromSettings()
     m_overallGainSpinBox->setValue(set->getSoapyOverallGain());
     m_autoGainCheck->setChecked(set->getSoapyAutoCalibrate());
 
+    onSampleRateChanged(set->getSampleRate());
+
     m_lnaSlider->blockSignals(false);
     m_lnaSpinBox->blockSignals(false);
     m_tiaCombo->blockSignals(false);
@@ -126,12 +149,61 @@ void SoapyWidget::populateFromSettings()
     m_overallGainSlider->blockSignals(false);
     m_overallGainSpinBox->blockSignals(false);
     m_autoGainCheck->blockSignals(false);
+    m_dspRateCombo->blockSignals(false);
 
     QStringList antennas = set->getSoapyAntennaList();
     if (!antennas.isEmpty())
         onSoapyAntennaListChanged(antennas);
 
     updateGainGroupVisibility();
+}
+
+void SoapyWidget::onSampleRateChanged(int rate)
+{
+    m_dspRateCombo->blockSignals(true);
+    switch (rate) {
+        case 48000:   m_dspRateCombo->setCurrentIndex(0); break;
+        case 96000:   m_dspRateCombo->setCurrentIndex(1); break;
+        case 192000:  m_dspRateCombo->setCurrentIndex(2); break;
+        case 384000:  m_dspRateCombo->setCurrentIndex(3); break;
+        case 768000:  m_dspRateCombo->setCurrentIndex(4); break;
+        case 1536000: m_dspRateCombo->setCurrentIndex(5); break;
+    }
+    m_dspRateCombo->blockSignals(false);
+
+    // Update hardware labels if data source is active
+    int hwRate = set->getSoapyRfSampleRate();
+    if (hwRate > 0) {
+        m_hwRateLabel->setText(QString("%1 MSPS").arg(hwRate / 1e6, 0, 'f', 3));
+#ifdef HAVE_LIQUID
+        double ratio = (double)hwRate / (double)rate;
+        m_decimLabel->setText(QString("Liquid Fractional (%1:1)").arg(ratio, 0, 'f', 2));
+#else
+        int decim = hwRate / rate;
+        if (decim > 1) {
+            m_decimLabel->setText(QString("Boxcar decimation (%1:1)").arg(decim));
+        } else {
+            m_decimLabel->setText(tr("Native (1:1 pass-through)"));
+        }
+#endif
+    } else {
+        m_hwRateLabel->setText(tr("Disconnected"));
+        m_decimLabel->setText(tr("n/a"));
+    }
+}
+
+void SoapyWidget::onDspRateChanged(int index)
+{
+    int rate = 48000;
+    switch (index) {
+        case 0: rate = 48000; break;
+        case 1: rate = 96000; break;
+        case 2: rate = 192000; break;
+        case 3: rate = 384000; break;
+        case 4: rate = 768000; break;
+        case 5: rate = 1536000; break;
+    }
+    set->setSampleRate(rate);
 }
 
 void SoapyWidget::updateGainGroupVisibility()
@@ -184,8 +256,8 @@ void SoapyWidget::onLnaSpinBoxChanged(int value)
 
 void SoapyWidget::onTiaComboChanged(int index)
 {
-    static const int vals[] = {0, 9, 12};
-    set->setSoapyTiaGain((index >= 0 && index < 3) ? vals[index] : 0);
+    int gain = (index == 2) ? 12 : (index == 1) ? 9 : 0;
+    set->setSoapyTiaGain(gain);
 }
 
 void SoapyWidget::onPgaSliderChanged(int value)

@@ -278,7 +278,7 @@ private:
 	QSDR::_HWInterfaceMode	m_hwInterface;
 	QSDR::_DataEngineState	m_dataEngineState;
 
-
+private:
 	TMeterType				m_meterType;
 
 	CPX		cpxIn;
@@ -419,8 +419,7 @@ public slots:
 
 private slots:
 	void	initDataProcessorSocket();
-	void	processInputBuffer(const QByteArray &buffer, quint16 sourcePort);
-    void	processInputBuffer(const QList<double> &samples);
+	void    processInputBuffer(const QByteArray &buffer, quint16 sourcePort);
 	void	processOutputBuffer(const CPX &buffer);
 	void	decodeCCBytes(const QByteArray &buffer);
 	void	encodeCCBytes();
@@ -431,8 +430,7 @@ private slots:
     void    key_down(int);
     void    key_down_test(int,int);
 
-	
-private:
+public:
 	DataEngine*		de;
 	Settings*		set;
 
@@ -441,6 +439,7 @@ private:
 	QSDR::_HWInterfaceMode	m_hwInterface;
 	QSDR::_DataEngineState	m_dataEngineState;
 
+private:
 	QHostAddress	m_deviceAddress;
 	QMutex			m_mutex;
 	QMutex			m_spectrumMutex;

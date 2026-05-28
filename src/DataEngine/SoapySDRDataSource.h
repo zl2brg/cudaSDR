@@ -11,6 +11,9 @@
 #include <SoapySDR/Device.hpp>
 #include <SoapySDR/Formats.hpp>
 #include <SoapySDR/Types.hpp>
+#ifdef HAVE_LIQUID
+#include <liquid/liquid.h>
+#endif
 #include "cusdr_settings.h"
 #include "Util/cusdr_queue.h"
 
@@ -47,6 +50,10 @@ private:
     static bool isSampleRateCompatible(double rfHz, int dspHz);
     static int hardwareMinSampleRateHz(const std::string& hwKey, int driverReportedMin);
 
+#ifdef HAVE_LIQUID
+    void setupResampler(int rfRate, int dspRate);
+#endif
+
     Settings* set;
     THPSDRParameter* io;
     SoapySDR::Device* m_device;
@@ -65,6 +72,7 @@ private:
     // consumed by runStream() loop so they take effect between readStream() calls.
     std::atomic<double> m_pendingFreq;
     std::atomic<bool>   m_freqPending;
+    std::atomic<int>    m_pendingDspSampleRate;
     std::atomic<int>    m_pendingRfSampleRate;
     std::atomic<int>    m_pendingDecimRatio;
     std::atomic<bool>   m_sampleRatePending;
@@ -73,6 +81,12 @@ private:
     // as a fallback when the signal/slot path doesn't fire.
     qint64 m_lastKnownVfo;
     int m_streamTimeouts;
+
+#ifdef HAVE_LIQUID
+    resamp_crcf m_resampler;
+    liquid_float_complex* m_resampIn;
+    liquid_float_complex* m_resampOut;
+#endif
 
 signals:
     void messageEvent(QString message);

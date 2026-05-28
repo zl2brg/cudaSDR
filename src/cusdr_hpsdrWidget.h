@@ -66,14 +66,18 @@ public slots:
 private:
 	Settings	*set;
 
-	QGroupBox	*hpsdrHardwareBtnGroup();
-	QGroupBox	*receiversExclusiveBtnGroup();
-	QGroupBox	*source10MhzExclusiveGroup;
-	QGroupBox	*source122_88MhzExclusiveGroup;
-	QGroupBox	*sampleRateExclusiveGroup();
-	QGroupBox	*numberOfReceiversGroup();
-	
-	QComboBox	*m_receiverComboBox;
+	QGroupBox       *hpsdrHardwareBtnGroup();
+	QGroupBox       *receiversExclusiveBtnGroup();
+	QGroupBox       *source10MhzExclusiveGroup;
+	QGroupBox       *source122_88MhzExclusiveGroup;
+	QGroupBox       *sampleRateExclusiveGroup();
+	QGroupBox       *numberOfReceiversGroup();
+
+	QGroupBox       *m_hpsdrHardwareGroupBox;
+	QGroupBox       *m_sampleRateGroupBox;
+	QGroupBox       *m_numberOfReceiversGroupBox;
+
+	QComboBox       *m_receiverComboBox;
 
 	QLabel		*m_fwCheckLabel;
 	QLabel		*m_receiversLabel;

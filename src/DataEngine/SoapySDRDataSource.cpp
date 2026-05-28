@@ -108,8 +108,13 @@ bool SoapySDRDataSource::isSampleRateCompatible(double rfHz, int dspHz) {
 }
 
 int SoapySDRDataSource::hardwareMinSampleRateHz(const std::string& hwKey, int driverReportedMin) {
-    if (hwKey == "LimeSDR-Mini" || hwKey == "LimeSDR-Mini 2.0")
+    QString key = QString::fromStdString(hwKey).toUpper();
+    if (key.contains("LIMESDR"))
         return std::max(driverReportedMin, 1300000);
+    if (key.contains("RTLSDR") || key.contains("RTL-SDR") || key.contains("R820T") || key.contains("RTL2832"))
+        return std::max(driverReportedMin, 900001);
+    if (key.contains("AIRSPY"))
+        return std::max(driverReportedMin, 2500000);
     return driverReportedMin;
 }
 
@@ -163,7 +168,7 @@ SoapySDRDataSource::RfRatePlan SoapySDRDataSource::chooseRfSampleRate(int dspRat
     const std::string hwKey = m_device ? m_device->getHardwareKey() : std::string();
     plan.effectiveMinHz = hardwareMinSampleRateHz(hwKey, driverMin);
     if (plan.effectiveMinHz <= 0)
-        plan.effectiveMinHz = 225000; // conservative RTL-ish fallback when the driver reports nothing
+        plan.effectiveMinHz = 900001; // conservative fallback (RTL-SDR minimum) when the driver reports nothing
 
     std::vector<double> candidates;
 
@@ -296,11 +301,21 @@ SoapySDRDataSource::SoapySDRDataSource(THPSDRParameter *ioData)
     , m_sampleRatePending(false)
     , m_lastKnownVfo(0)
     , m_streamTimeouts(0)
+#ifdef HAVE_LIQUID
+    , m_resampler(nullptr)
+    , m_resampIn(nullptr)
+    , m_resampOut(nullptr)
+#endif
 {
 }
 
 SoapySDRDataSource::~SoapySDRDataSource() {
     stop();
+#ifdef HAVE_LIQUID
+    if (m_resampler) resamp_crcf_destroy(m_resampler);
+    if (m_resampIn) delete[] (float*)m_resampIn;
+    if (m_resampOut) delete[] (float*)m_resampOut;
+#endif
 }
 
 void SoapySDRDataSource::init() {
@@ -358,9 +373,21 @@ void SoapySDRDataSource::init() {
 
         m_device->setSampleRate(SOAPY_SDR_RX, 0, m_rfSampleRate);
         syncRfRateFromHardware(m_sampleRate);
+
+#ifdef HAVE_LIQUID
+        setupResampler(m_rfSampleRate, m_sampleRate);
+#endif
+
         {
             QMutexLocker lock(&io->mutex);
-            io->soapyInputSampleRate = m_rfSampleRate;
+#ifdef HAVE_LIQUID
+            // Resampler will output exactly at the DSP rate
+            io->soapyInputSampleRate = m_sampleRate;
+#else
+            // After decimation in runStream, the effective rate seen by WDSP
+            // is the RF rate divided by the decimation factor.
+            io->soapyInputSampleRate = (m_decimRatio > 0) ? (m_rfSampleRate / m_decimRatio) : m_rfSampleRate;
+#endif
         }
 
         // Publish hardware key to Settings so the UI can show appropriate controls
@@ -517,10 +544,17 @@ void SoapySDRDataSource::runStream() {
     std::vector<float> buff(numSamples * 2); // complex samples
     void *buffs[] = {buff.data()};
 
-    // Pass-through buffering state: keep fixed 1024-sample blocks for the
-    // downstream queue/worker path while preserving full RF-rate IQ.
+    // Output buffering: keep fixed 1024-sample blocks for the downstream path.
     std::vector<float> outBuff(numSamples * 2, 0.0f);
     int outFill = 0;
+
+#ifndef HAVE_LIQUID
+    // Decimation state: average m_decimRatio samples into one output sample.
+    // This reduces CPU load on the WDSP engine by performing early filtering.
+    float accI = 0.0f;
+    float accQ = 0.0f;
+    int accCount = 0;
+#endif
 
     m_stopped = false;
     uint32_t packetCount = 0;
@@ -544,6 +578,7 @@ void SoapySDRDataSource::runStream() {
         // Apply pending sample-rate change (requires stream restart)
         if (m_sampleRatePending.load(std::memory_order_acquire)) {
             m_sampleRatePending.store(false, std::memory_order_relaxed);
+            const int newDspRate = m_pendingDspSampleRate.load(std::memory_order_relaxed);
             const int newRfRate = m_pendingRfSampleRate.load(std::memory_order_relaxed);
             try {
                 if (m_rxStream) {
@@ -553,12 +588,29 @@ void SoapySDRDataSource::runStream() {
                 }
                 m_device->setSampleRate(SOAPY_SDR_RX, 0, newRfRate);
                 m_rfSampleRate = newRfRate;
+                m_sampleRate = newDspRate;
                 syncRfRateFromHardware(m_sampleRate);
+
+#ifdef HAVE_LIQUID
+                setupResampler(m_rfSampleRate, m_sampleRate);
+#endif
+
                 {
                     QMutexLocker lock(&io->mutex);
-                    io->soapyInputSampleRate = m_rfSampleRate;
+#ifdef HAVE_LIQUID
+                    io->soapyInputSampleRate = m_sampleRate;
+#else
+                    io->soapyInputSampleRate = (m_decimRatio > 0) ? (m_rfSampleRate / m_decimRatio) : m_rfSampleRate;
+#endif
                 }
                 applyBandwidthForRfRate(m_rfSampleRate);
+#ifdef HAVE_LIQUID
+                if (m_resampler) resamp_crcf_reset(m_resampler);
+#else
+                accI = 0.0f;
+                accQ = 0.0f;
+                accCount = 0;
+#endif
                 outFill = 0;
                 if (!restartRxStream()) {
                     qWarning() << "SoapySDRDataSource: stream restart failed after sample rate change";
@@ -585,24 +637,58 @@ void SoapySDRDataSource::runStream() {
             packetCount++;
             m_streamTimeouts = 0;
 
-            // Pass raw RF-rate IQ to WDSP in fixed 1024-sample blocks.
-            for (int i = 0; i < ret; ++i) {
-                outBuff[outFill * 2]     = buff[i * 2];
-                outBuff[outFill * 2 + 1] = buff[i * 2 + 1];
-                if (++outFill == static_cast<int>(numSamples)) {
-                    QList<double> out;
-                    out.reserve(static_cast<int>(numSamples) * 2);
-                    for (float v : outBuff) out.append(static_cast<double>(v));
-                    io->data_queue.enqueue(out);
-                    emit readydata();
-                    outFill = 0;
+#ifdef HAVE_LIQUID
+            if (m_resampler && m_resampIn && m_resampOut) {
+                unsigned int num_written;
+                // Read 1024 complex samples into the resampler. 
+                // We cast the interleaved float buffer to liquid_float_complex.
+                resamp_crcf_execute_block(m_resampler, (liquid_float_complex*)buff.data(), ret, m_resampOut, &num_written);
+                
+                if (num_written > 0) {
+                    float* outPtr = (float*)m_resampOut;
+                    for (unsigned int i = 0; i < num_written; ++i) {
+                        outBuff[outFill * 2]     = outPtr[i * 2];
+                        outBuff[outFill * 2 + 1] = outPtr[i * 2 + 1];
+
+                        if (++outFill == static_cast<int>(numSamples)) {
+                            QVector<float> out(numSamples * 2);
+                            std::copy(outBuff.begin(), outBuff.end(), out.begin());
+                            io->soapy_iq_queue.enqueue(out);
+                            emit readydata();
+                            outFill = 0;
+                        }
+                    }
                 }
             }
+#else
+            // Implement boxcar decimation: average m_decimRatio samples into one.
+            // This provides simple low-pass filtering and bit-growth (processing gain).
+            const int ratio = std::max(1, m_decimRatio);
+            const float invRatio = 1.0f / static_cast<float>(ratio);
 
-            // Simple backpressure: if DataProcessor is not clearing the queue, slow down reading
-            if (io->data_queue.count() > 50) {
-                QThread::msleep(10);
+            for (int i = 0; i < ret; ++i) {
+                accI += buff[i * 2];
+                accQ += buff[i * 2 + 1];
+
+                if (++accCount >= ratio) {
+                    outBuff[outFill * 2]     = accI * invRatio;
+                    outBuff[outFill * 2 + 1] = accQ * invRatio;
+
+                    accI = 0.0f;
+                    accQ = 0.0f;
+                    accCount = 0;
+
+                    if (++outFill == static_cast<int>(numSamples)) {
+                        QList<double> out;
+                        out.reserve(static_cast<int>(numSamples) * 2);
+                        for (float v : outBuff) out.append(static_cast<double>(v));
+                        io->data_queue.enqueue(out);
+                        emit readydata();
+                        outFill = 0;
+                    }
+                }
             }
+#endif
         } else if (ret < 0) {
             const int err = ret;
             if (++m_streamTimeouts >= kStreamTimeoutsBeforeRestart) {
@@ -610,6 +696,13 @@ void SoapySDRDataSource::runStream() {
                            << SoapySDR::errToStr(err) << "(" << err << ") — restarting stream";
                 m_streamTimeouts = 0;
                 if (restartRxStream()) {
+#ifdef HAVE_LIQUID
+                    if (m_resampler) resamp_crcf_reset(m_resampler);
+#else
+                    accI = 0.0f;
+                    accQ = 0.0f;
+                    accCount = 0;
+#endif
                     outFill = 0;
                 }
             }
@@ -631,9 +724,9 @@ void SoapySDRDataSource::runStream() {
 
 // Runs on the UI thread (Qt::DirectConnection) — must only write atomics.
 void SoapySDRDataSource::setSampleRate(int value) {
-    m_sampleRate = value;
     const RfRatePlan plan = chooseRfSampleRate(value);
     m_minSampleRate = plan.effectiveMinHz;
+    m_pendingDspSampleRate.store(value, std::memory_order_relaxed);
     m_pendingDecimRatio.store(plan.decimRatio, std::memory_order_relaxed);
     m_pendingRfSampleRate.store(plan.rfSampleRate, std::memory_order_relaxed);
     m_sampleRatePending.store(true, std::memory_order_release);
@@ -652,3 +745,44 @@ void SoapySDRDataSource::setFrequency(int rx, qint64 frequency) {
 }
 
 #endif // HAVE_SOAPYSDR
+
+#ifdef HAVE_LIQUID
+void SoapySDRDataSource::setupResampler(int rfRate, int dspRate) {
+    if (m_resampler) {
+        resamp_crcf_destroy(m_resampler);
+        m_resampler = nullptr;
+    }
+    if (m_resampIn) {
+        delete[] (float*)m_resampIn;
+        m_resampIn = nullptr;
+    }
+    if (m_resampOut) {
+        delete[] (float*)m_resampOut;
+        m_resampOut = nullptr;
+    }
+
+    if (rfRate <= 0 || dspRate <= 0) return;
+
+    const float ratio = static_cast<float>(dspRate) / static_cast<float>(rfRate);
+    
+    // Polyphase filterbank resampler parameters
+    // As = 60dB stop-band attenuation
+    // fc = cutoff frequency (normalized to input rate). 
+    // To prevent aliasing, fc must be < 0.5 * ratio. We use 0.4 * ratio for guard band.
+    unsigned int m = 13; 
+    float as = 60.0f;
+    float fc = 0.40f * ratio; 
+    
+    m_resampler = resamp_crcf_create(ratio, m, fc, as, 32);
+    
+    // Buffer for one input block (1024 complex samples = 2048 floats)
+    m_resampIn = (liquid_float_complex*)new float[1024 * 2];
+    
+    // Maximum possible output samples for one block: ceil(1024 * ratio) + m
+    // Allocate generous buffer (2048 complex samples) to prevent overflows.
+    m_resampOut = (liquid_float_complex*)new float[2048 * 2];
+    
+    qDebug() << "SoapySDRDataSource: Liquid resampler configured for ratio" << ratio
+             << "(" << rfRate << "->" << dspRate << "Hz)";
+}
+#endif

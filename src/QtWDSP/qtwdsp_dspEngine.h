@@ -92,6 +92,7 @@ public slots:
     void setNCOFrequency(int rx, long value);
     void setInputSampleRate(int value);
     void setSampleRate(int value);
+    void setSampleRate(int inputRate, int dspRate);
     void setSampleSize(int rx, int size);
     void setQtDSPStatus(bool value);
     void setVolume(float value);

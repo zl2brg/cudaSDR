@@ -1542,10 +1542,14 @@ void OGLDisplayPanel::renderSMeterB() {
 void OGLDisplayPanel::setSMeterValue(int rx, double value) {
 
 	Q_UNUSED(rx)
-		//float tmp = (1.00423f * value + 93.3932f);
 		float tmp;
 
-		tmp = value + 140.0f;
+        // Automatic offset alignment: HPSDR (Hermes/Metis) hardware uses a +140dB offset
+        // to convert WDSP's raw dB values to dBm. Generic SoapySDR hardware (like RTL-SDR)
+        // typically has a much lower noise floor relative to full scale.
+        // A +90dB offset aligns the S-Meter with the visual Panadapter floor for Soapy mode.
+        const float offset = (set->getHWInterface() == QSDR::SoapySDR) ? 90.0f : 140.0f;
+		tmp = (float)value + offset;
 
 		if (m_sMeterTimer.elapsed() > 40) {
 
@@ -1593,10 +1597,7 @@ void OGLDisplayPanel::setSMeterValue(int rx, double value) {
 
 			if (m_sMeterDisplayTime.elapsed() > 200) {
 
-				if (m_mercuryAttenuator)
-					m_sMeterOrgValue = value;
-				else
-					m_sMeterOrgValue = value;
+                m_sMeterOrgValue = tmp - 130.0f;
 
 				m_sMeterDisplayTime.restart();
 			}

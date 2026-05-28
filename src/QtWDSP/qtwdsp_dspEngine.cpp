@@ -538,27 +538,18 @@ void QWDSPEngine::setAGCHangTime(int value) {
 
 
 void QWDSPEngine::setSampleRate(int value) {
-    if (m_samplerate == value) return;
+    setSampleRate(value, value);
+}
+
+void QWDSPEngine::setSampleRate(int inputRate, int dspRate) {
+    if (m_samplerate == dspRate && m_inputSampleRate == inputRate) return;
+    
     const int previousRate = m_samplerate;
+    m_samplerate = dspRate;
+    m_inputSampleRate = inputRate;
 
-    WDSP_ENGINE_DEBUG << "[WDSP-SR] rx=" << m_rx << "setSampleRate:" << previousRate << "->" << value;
+    WDSP_ENGINE_DEBUG << "[WDSP-SR] rx=" << m_rx << "setSampleRate: input=" << inputRate << "Hz dsp=" << dspRate << "Hz";
 
-    // Use modern validation
-    static const std::set<int> validRates{48000, 96000, 192000, 384000, 768000, 1536000};
-    if (validRates.find(value) == validRates.end()) {
-        WDSP_ENGINE_DEBUG << "[WDSP-SR] rx=" << m_rx << "INVALID rate" << value << "- ignored";
-        return;
-    }
-    m_samplerate = value;
-    if (m_inputSampleRate == previousRate)
-        m_inputSampleRate = value;
-
-    Q_UNUSED(previousRate)
-
-    // Some sample-rate transitions leave WDSP internal resampler/filter state stale.
-    // Rebuilding the RX channel on every transition keeps audio state consistent.
-    // s_wdspMutex serializes fftw_plan creation: fftw's planner is not thread-safe,
-    // and concurrent calls from multiple receiver instances corrupt the heap.
     QMutexLocker wdspLocker(&s_wdspMutex);
 
     WDSP_ENGINE_DEBUG << "[WDSP-SR] rx=" << m_rx << "-> SetChannelState(0,1) + DestroyAnalyzer";
@@ -601,7 +592,7 @@ void QWDSPEngine::setSampleRate(int value) {
     WDSP_ENGINE_DEBUG << "[WDSP-SR] rx=" << m_rx << "-> SetChannelState(1,0) (restart channel)";
     SetChannelState(m_rx, 1, 0);
     
-    WDSP_ENGINE_DEBUG << "[WDSP-SR] rx=" << m_rx << "setSampleRate complete at" << m_samplerate << "Hz";
+    WDSP_ENGINE_DEBUG << "[WDSP-SR] rx=" << m_rx << "setSampleRate complete";
 }
 
 void QWDSPEngine::setInputSampleRate(int value) {
