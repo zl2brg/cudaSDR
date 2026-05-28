@@ -61,6 +61,7 @@ public:
     QLabel* drivelevellLabel;
     QLabel* cpuLoadLabel;
     QLabel* dateTimeLabel;
+    QLabel* activeDeviceLabel;
 
     // Menus & Actions
     QMenu* modeMenu;

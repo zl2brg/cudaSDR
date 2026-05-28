@@ -404,4 +404,20 @@ if(BUILD_TESTING)
         Qt6::Test
     )
     add_test(NAME protocol2_format_init_tests COMMAND protocol2_format_init_tests)
+
+    qt_add_executable(device_identity_tests
+        tests/device_identity_tests.cpp
+    )
+    target_include_directories(device_identity_tests PRIVATE
+        ${SRC_DIR}
+    )
+    target_link_libraries(device_identity_tests PRIVATE
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Widgets
+        Qt6::Network
+        Qt6::Multimedia
+        Qt6::Test
+    )
+    add_test(NAME device_identity_tests COMMAND device_identity_tests)
 endif()

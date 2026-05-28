@@ -45,6 +45,7 @@
 #include "cusdr_mainWidget.h"
 #include "UI/DeviceSelectionDialog.h"
 #include "UI/MainWindow/MainWindowUI.h"
+#include "Util/device_identity.h"
 
 extern "C" int GetWDSPVersion();
 
@@ -1327,6 +1328,20 @@ void MainWindow::checkStartButtonState() {
 #endif
 
     ui->startBtn->setEnabled(enable);
+
+    const TSDRDevice active = set->getLastConnectedDevice();
+    QString activeText = "Active device: none";
+    if (active.deviceClass == DeviceClass_HPSDR && !active.label.isEmpty()) {
+        activeText = QString("Active device: [HPSDR] %1").arg(active.label);
+    }
+#ifdef HAVE_SOAPYSDR
+    else if (active.deviceClass == DeviceClass_SoapySDR && !active.label.isEmpty()) {
+        activeText = QString("Active device: [Soapy] %1").arg(active.label);
+    }
+#endif
+    if (ui->activeDeviceLabel)
+        ui->activeDeviceLabel->setText(activeText);
+
     MAIN_DEBUG << "Check start button: hw=" << set->getHWInterfaceModeString(hw) << " enable=" << enable;
 }
 
@@ -1910,7 +1925,7 @@ void MainWindow::handleDeviceListChanged(const QList<TNetworkDevicecard> &list) 
         bool found = false;
         for (const QVariant &existing : m_discoveredDevices) {
             if (existing.canConvert<TNetworkDevicecard>()) {
-                if (QString::fromLatin1(existing.value<TNetworkDevicecard>().mac_address) == QString::fromLatin1(card.mac_address)) {
+                if (sameHpsdrDeviceByMac(existing.value<TNetworkDevicecard>(), card)) {
                     found = true;
                     break;
                 }
@@ -1923,18 +1938,6 @@ void MainWindow::handleDeviceListChanged(const QList<TNetworkDevicecard> &list) 
 #ifdef HAVE_SOAPYSDR
 void MainWindow::handleSoapyDeviceListChanged(const QList<TSoapyDevice> &list) {
     if (set->getMainPower()) return;
-
-    auto sameSoapyDevice = [](const TSoapyDevice &a, const TSoapyDevice &b) {
-        // Prefer stable unique key when available.
-        if (!a.serial.isEmpty() || !b.serial.isEmpty())
-            return a.driver == b.driver && a.serial == b.serial;
-        // Some drivers leave serial empty; use broader identity fallback.
-        return a.driver == b.driver
-            && a.hardware == b.hardware
-            && a.name == b.name
-            && a.label == b.label
-            && a.args == b.args;
-    };
 
     for (const TSoapyDevice &dev : list) {
         QVariant v = QVariant::fromValue(dev);
@@ -1962,6 +1965,21 @@ void MainWindow::processDiscoveryResults() {
     // If exactly one device is found during startup, auto-select it if it matches the last used hardware.
 
     bool showDialog = (m_discoveredDevices.size() > 1) || !m_isStartupDiscovery;
+
+    if (m_isStartupDiscovery && m_discoveredDevices.size() > 1) {
+        const QVariant matched = findLastConnectedMatch(m_discoveredDevices, lastDevice);
+        if (matched.isValid()) {
+            if (matched.canConvert<TNetworkDevicecard>()) {
+                set->setCurrentHPSDRDevice(matched.value<TNetworkDevicecard>());
+            }
+#ifdef HAVE_SOAPYSDR
+            else if (matched.canConvert<TSoapyDevice>()) {
+                set->setCurrentSoapyDevice(matched.value<TSoapyDevice>());
+            }
+#endif
+            showDialog = false;
+        }
+    }
 
     if (m_discoveredDevices.size() == 1 && m_isStartupDiscovery) {
         QVariant dev = m_discoveredDevices.first();

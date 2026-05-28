@@ -56,8 +56,10 @@ void MainWindowUI::createStatusToolBar() {
 
     cpuLoadLabel = new QLabel("CPU load:     ", m_mainWindow);
     dateTimeLabel = new QLabel(dateTimeString, m_mainWindow);
+    activeDeviceLabel = new QLabel("Active device: none", m_mainWindow);
 
     m_mainWindow->statusBar()->addPermanentWidget(cpuLoadLabel);
+    m_mainWindow->statusBar()->addPermanentWidget(activeDeviceLabel, 1);
     m_mainWindow->statusBar()->insertPermanentWidget(1, dateTimeLabel, 0);
 }
 

@@ -36,6 +36,7 @@
 #include <QBoxLayout>
 
 #include "cusdr_networkWidget.h"
+#include "Util/device_identity.h"
 
 
 #define	btn_height		22
@@ -504,25 +505,12 @@ void NetworkWidget::interfaceBtnClicked() {
 
 void NetworkWidget::searchBtnClicked() {
     ++m_discoveryPassId;
-    NETWORK_WIDGET_DEBUG << "discovery pass" << m_discoveryPassId << ": search clicked, clearing combo entries =" << deviceCombo->count();
     deviceCombo->clear();
 	set->searchDevices();
 }
 
 #ifdef HAVE_SOAPYSDR
 void NetworkWidget::setSoapyDeviceList(const QList<TSoapyDevice> &list) {
-    auto sameSoapyDevice = [](const TSoapyDevice &a, const TSoapyDevice &b) {
-        // Prefer stable unique key when available.
-        if (!a.serial.isEmpty() || !b.serial.isEmpty())
-            return a.driver == b.driver && a.serial == b.serial;
-        // Some drivers leave serial empty; use broader identity fallback.
-        return a.driver == b.driver
-            && a.hardware == b.hardware
-            && a.name == b.name
-            && a.label == b.label
-            && a.args == b.args;
-    };
-
     int added = 0;
     int skipped = 0;
     const bool prevBlocked = deviceCombo->blockSignals(true);
@@ -546,20 +534,9 @@ void NetworkWidget::setSoapyDeviceList(const QList<TSoapyDevice> &list) {
         ++added;
     }
     deviceCombo->blockSignals(prevBlocked);
-    NETWORK_WIDGET_DEBUG << "discovery pass" << m_discoveryPassId << ": soapy list signal size =" << list.size() << "added =" << added << "skipped duplicates =" << skipped << "combo entries =" << deviceCombo->count();
 }
 
 void NetworkWidget::setCurrentSoapyDevice(TSoapyDevice device) {
-    auto sameSoapyDevice = [](const TSoapyDevice &a, const TSoapyDevice &b) {
-        if (!a.serial.isEmpty() || !b.serial.isEmpty())
-            return a.driver == b.driver && a.serial == b.serial;
-        return a.driver == b.driver
-            && a.hardware == b.hardware
-            && a.name == b.name
-            && a.label == b.label
-            && a.args == b.args;
-    };
-
     for (int i = 0; i < deviceCombo->count(); ++i) {
         const QVariant data = deviceCombo->itemData(i);
         if (!data.canConvert<TSoapyDevice>())
@@ -587,13 +564,12 @@ void NetworkWidget::setNetworkDeviceList(QList<TNetworkDevicecard> list) {
     const bool prevBlocked = deviceCombo->blockSignals(true);
 	foreach (TNetworkDevicecard device, list) {
         bool exists = false;
-        const QString mac = QString::fromLatin1(device.mac_address);
         for (int i = 0; i < deviceCombo->count(); ++i) {
             const QVariant data = deviceCombo->itemData(i);
             if (!data.canConvert<TNetworkDevicecard>())
                 continue;
             const TNetworkDevicecard existing = data.value<TNetworkDevicecard>();
-            if (QString::fromLatin1(existing.mac_address) == mac) {
+            if (sameHpsdrDeviceByMac(existing, device)) {
                 exists = true;
                 break;
             }
@@ -607,7 +583,6 @@ void NetworkWidget::setNetworkDeviceList(QList<TNetworkDevicecard> list) {
         ++added;
 	}
     deviceCombo->blockSignals(prevBlocked);
-    NETWORK_WIDGET_DEBUG << "discovery pass" << m_discoveryPassId << ": hpsdr list signal size =" << list.size() << "added =" << added << "skipped duplicates =" << skipped << "combo entries =" << deviceCombo->count();
 }
 
 void NetworkWidget::deviceSelected(int index) {
