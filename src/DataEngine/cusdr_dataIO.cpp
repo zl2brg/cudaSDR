@@ -276,7 +276,8 @@ void DataIO::readDeviceData() {
 
 void DataIO::readDeviceDataP1(QUdpSocket* socket) {
     while (socket->hasPendingDatagrams()) {
-        QMutexLocker locker(&io->networkIOMutex);
+        if (!m_iqArrivalTimer.isValid())
+            m_iqArrivalTimer.start();
         QHostAddress Address;
         quint16 Port = 0;
         qint64 size = socket->readDatagram(m_datagram.data(), m_datagram.size(), &Address, &Port);
@@ -286,11 +287,32 @@ void DataIO::readDeviceDataP1(QUdpSocket* socket) {
         if (type == ProtocolBoundaryUtils::kPacketTypeP1IqPrimary || type == ProtocolBoundaryUtils::kPacketTypeP1IqLoopback) { // IQ data (P1 EP6 or EP2 loopback)
             m_sequence = io->protocol->getSequence((const unsigned char*)m_datagram.data());
             reportIqSequenceSync(m_sequence, m_oldSequence, m_packetLossTime);
+            ++m_iqPacketCount;
 
-            if (!io->iq_queue.isFull()) {
+            {
                 const int hdrSize = io->protocol->getHeaderSize();
-                io->iq_queue.enqueue(TIQPacket(m_datagram.mid(hdrSize, size - hdrSize), 0));
-                emit (readydata());
+                bool enqueued = false;
+                {
+                    QMutexLocker locker(&io->networkIOMutex);
+                    if (!io->iq_queue.isFull()) {
+                    io->iq_queue.enqueue(TIQPacket(m_datagram.mid(hdrSize, size - hdrSize), 0));
+                        enqueued = true;
+                    }
+                }
+                if (enqueued)
+                    emit (readydata());
+                else
+                    ++m_iqDropCount;
+            }
+
+            if (m_iqArrivalTimer.elapsed() >= 5000) {
+                if (m_iqDropCount > 0) {
+                    DATAIO_DEBUG << "IQ queue drops in last 5s:" << m_iqDropCount
+                                 << "(received" << m_iqPacketCount << "packets)";
+                }
+                m_iqPacketCount = 0;
+                m_iqDropCount = 0;
+                m_iqArrivalTimer.restart();
             }
         }
         else if (type == ProtocolBoundaryUtils::kPacketTypeWideband) {
@@ -306,7 +328,8 @@ void DataIO::readDeviceDataP2(QUdpSocket* socket) {
     static quint64 p2WidePacketsSeen = 0;
 
     while (socket->hasPendingDatagrams()) {
-        QMutexLocker locker(&io->networkIOMutex);
+        if (!m_iqArrivalTimer.isValid())
+            m_iqArrivalTimer.start();
         QHostAddress Address;
         quint16 Port = 0;
         qint64 size = socket->readDatagram(m_datagram.data(), m_datagram.size(), &Address, &Port);
@@ -336,18 +359,26 @@ void DataIO::readDeviceDataP2(QUdpSocket* socket) {
         }
         else if (size >= ProtocolBoundaryUtils::kProtocol2IqPacketSize) { // DDC IQ packet (typically 1444 bytes)
             ++p2IqPacketsSeen;
+            ++m_iqPacketCount;
             m_sequence = io->protocol->getSequence((const unsigned char*)m_datagram.data());
             reportIqSequenceSync(m_sequence, m_oldSequence, m_packetLossTime);
 
-            if (!io->iq_queue.isFull()) {
+            {
+                bool enqueued = false;
                 const int hdrSize = io->protocol->getHeaderSize();
                 quint16 effectiveSourcePort = Port;
                 if (effectiveSourcePort < ProtocolBoundaryUtils::Ports::P2Ddc0Port || effectiveSourcePort >= (ProtocolBoundaryUtils::Ports::P2Ddc0Port + MAX_RECEIVERS)) {
                     effectiveSourcePort = m_socketLogicalPorts.value(socket, socket->localPort());
                 }
-                io->iq_queue.enqueue(TIQPacket(m_datagram.mid(hdrSize, size - hdrSize), effectiveSourcePort));
+                {
+                    QMutexLocker locker(&io->networkIOMutex);
+                    if (!io->iq_queue.isFull()) {
+                        io->iq_queue.enqueue(TIQPacket(m_datagram.mid(hdrSize, size - hdrSize), effectiveSourcePort));
+                        enqueued = true;
+                    }
+                }
 
-                if ((p2IqPacketsSeen % 500) == 1) {
+                if (enqueued && (p2IqPacketsSeen % 500) == 1) {
                     P2_NET_DEBUG << "P2 IQ enqueue: localPort=" << socket->localPort()
                                  << " Port=" << Port
                                  << " effectiveSourcePort=" << effectiveSourcePort
@@ -357,12 +388,25 @@ void DataIO::readDeviceDataP2(QUdpSocket* socket) {
                                  << " queueCount=" << io->iq_queue.count()
                                  << " iqTotal=" << p2IqPacketsSeen;
                 }
-                emit (readydata());
-            } else {
-                P2_NET_DEBUG << "P2 IQ queue FULL: localPort=" << socket->localPort()
-                             << " Port=" << Port
-                             << " size=" << size
-                             << " iqTotal=" << p2IqPacketsSeen;
+                if (enqueued) {
+                    emit (readydata());
+                } else {
+                    ++m_iqDropCount;
+                    P2_NET_DEBUG << "P2 IQ queue FULL: localPort=" << socket->localPort()
+                                 << " Port=" << Port
+                                 << " size=" << size
+                                 << " iqTotal=" << p2IqPacketsSeen;
+                }
+            }
+
+            if (m_iqArrivalTimer.elapsed() >= 5000) {
+                if (m_iqDropCount > 0) {
+                    DATAIO_DEBUG << "P2 IQ queue drops in last 5s:" << m_iqDropCount
+                                 << "(received" << m_iqPacketCount << "packets)";
+                }
+                m_iqPacketCount = 0;
+                m_iqDropCount = 0;
+                m_iqArrivalTimer.restart();
             }
         }
         else if (size == ProtocolBoundaryUtils::kProtocol2HpStatusPacketSize) { // High Priority Status (P2)

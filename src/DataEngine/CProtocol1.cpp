@@ -81,6 +81,12 @@ void CProtocol1::processInputBuffer(const QByteArray& buffer, DataEngine* de, qu
             default: maxSamples = 512; break;
         }
 
+        const int availableReceivers = de->RX.size();
+        const int activeReceivers = qMin(de->io.receivers, availableReceivers);
+        if (activeReceivers <= 0) {
+            return;
+        }
+
         // extract the samples
         while (s < maxSamples)
         {
@@ -93,7 +99,7 @@ void CProtocol1::processInputBuffer(const QByteArray& buffer, DataEngine* de, qu
                 m_rightSample = ProtocolBoundaryUtils::decode24BitBE(p);
                 p += 3;
 
-                if (de->RX.at(r)->qtwdsp) {
+                if (r < activeReceivers && de->RX.at(r)->qtwdsp) {
                     de->RX[r]->m_rawIQ[m_rxSamples * 2] = m_leftSample;
                     de->RX[r]->m_rawIQ[m_rxSamples * 2 + 1] = m_rightSample;
                 }
@@ -109,7 +115,7 @@ void CProtocol1::processInputBuffer(const QByteArray& buffer, DataEngine* de, qu
 
             // when we have enough rx samples we start the DSP processing.
             if (m_rxSamples == BUFFER_SIZE) {
-                for (int r = 0; r < de->io.receivers; r++) {
+                for (int r = 0; r < activeReceivers; r++) {
                     if (de->RX.at(r)->qtwdsp) {
                         de->RX[r]->enqueueRawData();
                         QMetaObject::invokeMethod(de->RX.at(r), "dspProcessing", Qt::QueuedConnection);

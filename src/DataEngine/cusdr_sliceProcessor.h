@@ -148,6 +148,7 @@ private:
 	QElapsedTimer		m_smeterTime;
 	QElapsedTimer		m_dspCallTimer;
 	QElapsedTimer		m_retuneTimer;
+	QElapsedTimer		m_queueDropLogTimer;
 	qint64				m_audioMuteUntilMs = 0;
 	double				m_dspTimeMin = 1e9;
 	double				m_dspTimeMax = 0.0;
@@ -169,6 +170,8 @@ private:
 
 	QHQueue<QVector<int32_t>> m_iqQueue;
 	QHQueue<QVector<float>>   m_soapyQueue;
+	quint64				m_iqQueueDropCount = 0;
+	quint64				m_soapyQueueDropCount = 0;
 
     int 	m_audiobuffersize;
 

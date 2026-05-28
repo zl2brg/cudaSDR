@@ -192,25 +192,62 @@ void SliceProcessor::enqueueRawData() {
     }
 
     if (m_iqQueue.isFull()) {
-        SLICE_PROCESSOR_DEBUG << "iqQueue full! dropping oldest packet";
         m_iqQueue.dequeue();
+        ++m_iqQueueDropCount;
     }
     m_iqQueue.enqueue(rawBlock);
+
+    if (!m_queueDropLogTimer.isValid())
+        m_queueDropLogTimer.start();
+    if (m_queueDropLogTimer.elapsed() >= 5000) {
+        if (m_iqQueueDropCount > 0 || m_soapyQueueDropCount > 0) {
+            SLICE_PROCESSOR_DEBUG << "[RX" << m_receiver << "] queue drops in last 5s: iq="
+                                  << m_iqQueueDropCount << " soapy=" << m_soapyQueueDropCount;
+        }
+        m_iqQueueDropCount = 0;
+        m_soapyQueueDropCount = 0;
+        m_queueDropLogTimer.restart();
+    }
 }
 
 void SliceProcessor::enqueueRawData(const QVector<int32_t> &rawBlock) {
     if (m_iqQueue.isFull()) {
-        SLICE_PROCESSOR_DEBUG << "iqQueue (Soapy) full! dropping oldest packet";
         m_iqQueue.dequeue();
+        ++m_iqQueueDropCount;
     }
     m_iqQueue.enqueue(rawBlock);
+
+    if (!m_queueDropLogTimer.isValid())
+        m_queueDropLogTimer.start();
+    if (m_queueDropLogTimer.elapsed() >= 5000) {
+        if (m_iqQueueDropCount > 0 || m_soapyQueueDropCount > 0) {
+            SLICE_PROCESSOR_DEBUG << "[RX" << m_receiver << "] queue drops in last 5s: iq="
+                                  << m_iqQueueDropCount << " soapy=" << m_soapyQueueDropCount;
+        }
+        m_iqQueueDropCount = 0;
+        m_soapyQueueDropCount = 0;
+        m_queueDropLogTimer.restart();
+    }
 }
 
 void SliceProcessor::enqueueSoapyData(const QVector<float> &data) {
     if (m_soapyQueue.isFull()) {
         m_soapyQueue.dequeue();
+        ++m_soapyQueueDropCount;
     }
     m_soapyQueue.enqueue(data);
+
+    if (!m_queueDropLogTimer.isValid())
+        m_queueDropLogTimer.start();
+    if (m_queueDropLogTimer.elapsed() >= 5000) {
+        if (m_iqQueueDropCount > 0 || m_soapyQueueDropCount > 0) {
+            SLICE_PROCESSOR_DEBUG << "[RX" << m_receiver << "] queue drops in last 5s: iq="
+                                  << m_iqQueueDropCount << " soapy=" << m_soapyQueueDropCount;
+        }
+        m_iqQueueDropCount = 0;
+        m_soapyQueueDropCount = 0;
+        m_queueDropLogTimer.restart();
+    }
 }
 
 void SliceProcessor::setSoapyInputSampleRate(int value) {
