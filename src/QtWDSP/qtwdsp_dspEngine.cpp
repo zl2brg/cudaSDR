@@ -131,7 +131,7 @@ QWDSPEngine::QWDSPEngine(SliceModel *model, QObject *parent, int size)
     
     int analyzerResult;
     WDSP_ENGINE_DEBUG << "[WDSP-INIT] rx=" << m_rx << "-> XCreateAnalyzer";
-    XCreateAnalyzer(m_rx, &analyzerResult, 4096, 1, 1, const_cast<char*>(""));
+    XCreateAnalyzer(m_rx, &analyzerResult, 32768, 1, 1, const_cast<char*>(""));
     if (analyzerResult != 0) {
         qWarning() << "[WDSP-INIT] XCreateAnalyzer id=" << m_rx << "failed:" << analyzerResult;
     } else {
@@ -176,33 +176,28 @@ QWDSPEngine::~QWDSPEngine() {
 
 void QWDSPEngine::setupConnections() {
 
-    connect(m_sliceModel, &SliceModel::anfChanged, [this](bool enabled){ setanf(m_rx, enabled); });
-    connect(m_sliceModel, &SliceModel::snbChanged, [this](bool enabled){ setsnb(m_rx, enabled); });
-    connect(m_sliceModel, &SliceModel::agcModeChanged, [this](AGCMode mode){ setAGCMode(mode); });
-    connect(m_sliceModel, &SliceModel::agcMaxGainChanged, [this](int gain){ setAGCMaximumGain((qreal)gain); });
-    connect(m_sliceModel, &SliceModel::agcGainChanged, [this](int gain) { setAGCThreshold(gain - AGCOFFSET); });
-    connect(m_sliceModel, &SliceModel::agcFixedGainChanged, [this](int gain) { SetRXAAGCFixed(m_rx, static_cast<double>(gain)); });
-    connect(m_sliceModel, &SliceModel::agcHangThresholdChanged, [this](int thresh){ setAGCHangThreshold(m_rx, (double)thresh); });
-    connect(m_sliceModel, &SliceModel::agcSlopeChanged, [this](int slope){ setAGCSlope(m_rx, slope); });
-    connect(m_sliceModel, &SliceModel::filterChanged, [this](){ setFilter((double)m_sliceModel->filterLow(), (double)m_sliceModel->filterHigh()); });
+    connect(m_sliceModel, &SliceModel::anfChanged, this, [this](bool enabled){ setanf(m_rx, enabled); });
+    connect(m_sliceModel, &SliceModel::snbChanged, this, [this](bool enabled){ setsnb(m_rx, enabled); });
+    connect(m_sliceModel, &SliceModel::agcModeChanged, this, [this](AGCMode mode){ setAGCMode(mode); });
+    connect(m_sliceModel, &SliceModel::agcMaxGainChanged, this, [this](int gain){ setAGCMaximumGain((qreal)gain); });
+    connect(m_sliceModel, &SliceModel::agcGainChanged, this, [this](int gain) { setAGCThreshold(gain - AGCOFFSET); });
+    connect(m_sliceModel, &SliceModel::agcFixedGainChanged, this, [this](int gain) { SetRXAAGCFixed(m_rx, static_cast<double>(gain)); });
+    connect(m_sliceModel, &SliceModel::agcHangThresholdChanged, this, [this](int thresh){ setAGCHangThreshold(m_rx, (double)thresh); });
+    connect(m_sliceModel, &SliceModel::agcSlopeChanged, this, [this](int slope){ setAGCSlope(m_rx, slope); });
+    connect(m_sliceModel, &SliceModel::filterChanged, this, [this](){ setFilter((double)m_sliceModel->filterLow(), (double)m_sliceModel->filterHigh()); });
     connect(m_sliceModel, &SliceModel::dspModeChanged, this, [this](DSPMode mode) { setDSPMode(mode); });
-    connect(m_sliceModel, &SliceModel::nbModeChanged, [this](int mode){ setNoiseBlankerMode(m_rx, mode); });
-    connect(m_sliceModel, &SliceModel::fftSizeChanged, [this](int size){ setfftSize(m_rx, size); });
-    connect(m_sliceModel, &SliceModel::spectrumAveragingCntChanged, [this](int count){ setPanAdaptorAveragingCnt(m_rx, count); });
-    connect(m_sliceModel, &SliceModel::panAveragingModeChanged, [this](PanAveragingMode mode){ setPanAdaptorAveragingMode(m_rx, (int)mode); });
-    connect(m_sliceModel, &SliceModel::nrModeChanged, [this](int mode){ setNoiseFilterMode(m_rx, mode); });
-    connect(m_sliceModel, &SliceModel::nr2GainMethodChanged, [this](int mode){ setNr2GainMethod(m_rx, mode); });
-    connect(m_sliceModel, &SliceModel::nr2NpeMethodChanged, [this](int mode){ setNr2NpeMethod(m_rx, mode); });
-    connect(m_sliceModel, &SliceModel::nr2AeChanged, [this](bool enabled){ setNr2Ae(m_rx, enabled); });
-    connect(m_sliceModel, &SliceModel::nrAgcChanged, [this](int mode){ setNrAGC(m_rx, mode); });
-    connect(m_sliceModel, &SliceModel::volumeChanged, [this](float value){ setVolume(value); });
-    connect(m_sliceModel, &SliceModel::muteChanged, [this](bool muted){ setVolume(muted ? 0.0f : m_sliceModel->volume()); });
-    connect(m_sliceModel, &SliceModel::frequencyChanged, [this](qint64 freq) {
-        setNCOFrequency(m_rx, freq - m_sliceModel->centerFrequency());
-    });
-    connect(m_sliceModel, &SliceModel::centerFrequencyChanged, [this](long ctrFreq) {
-        setNCOFrequency(m_rx, m_sliceModel->frequency() - ctrFreq);
-    });
+    connect(m_sliceModel, &SliceModel::nbModeChanged, this, [this](int mode){ setNoiseBlankerMode(m_rx, mode); });
+    connect(m_sliceModel, &SliceModel::fftSizeChanged, this, [this](int size){ setfftSize(m_rx, size); });
+    connect(m_sliceModel, &SliceModel::spectrumAveragingCntChanged, this, [this](int count){ setPanAdaptorAveragingCnt(m_rx, count); });
+    connect(m_sliceModel, &SliceModel::panAveragingModeChanged, this, [this](PanAveragingMode mode){ setPanAdaptorAveragingMode(m_rx, (int)mode); });
+    connect(m_sliceModel, &SliceModel::nrModeChanged, this, [this](int mode){ setNoiseFilterMode(m_rx, mode); });
+    connect(m_sliceModel, &SliceModel::nr2GainMethodChanged, this, [this](int mode){ setNr2GainMethod(m_rx, mode); });
+    connect(m_sliceModel, &SliceModel::nr2NpeMethodChanged, this, [this](int mode){ setNr2NpeMethod(m_rx, mode); });
+    connect(m_sliceModel, &SliceModel::nr2AeChanged, this, [this](bool enabled){ setNr2Ae(m_rx, enabled); });
+    connect(m_sliceModel, &SliceModel::nrAgcChanged, this, [this](int mode){ setNrAGC(m_rx, mode); });
+    connect(m_sliceModel, &SliceModel::volumeChanged, this, [this](float value){ setVolume(value); });
+    connect(m_sliceModel, &SliceModel::muteChanged, this, [this](bool muted){ setVolume(muted ? 0.0f : m_sliceModel->volume()); });
+
     connect(set, &Settings::ncoFrequencyChanged,
             this, &QWDSPEngine::setNCOFrequency);
 
@@ -544,55 +539,10 @@ void QWDSPEngine::setSampleRate(int value) {
 void QWDSPEngine::setSampleRate(int inputRate, int dspRate) {
     if (m_samplerate == dspRate && m_inputSampleRate == inputRate) return;
     
-    const int previousRate = m_samplerate;
     m_samplerate = dspRate;
     m_inputSampleRate = inputRate;
 
-    WDSP_ENGINE_DEBUG << "[WDSP-SR] rx=" << m_rx << "setSampleRate: input=" << inputRate << "Hz dsp=" << dspRate << "Hz";
-
-    QMutexLocker wdspLocker(&s_wdspMutex);
-
-    WDSP_ENGINE_DEBUG << "[WDSP-SR] rx=" << m_rx << "-> SetChannelState(0,1) + DestroyAnalyzer";
-    SetChannelState(m_rx, 0, 1);
-    DestroyAnalyzer(m_rx);
-    WDSP_ENGINE_DEBUG << "[WDSP-SR] rx=" << m_rx << "-> destroy_nobEXT/anbEXT";
-    destroy_nobEXT(m_rx);
-    destroy_anbEXT(m_rx);
-    WDSP_ENGINE_DEBUG << "[WDSP-SR] rx=" << m_rx << "-> CloseChannel";
-    CloseChannel(m_rx);
-
-    WDSP_ENGINE_DEBUG << "[WDSP-SR] rx=" << m_rx << "-> OpenChannel input=" << m_inputSampleRate << "Hz dsp=" << m_samplerate << "Hz";
-    OpenChannel(m_rx, m_size, 2048, m_inputSampleRate, m_samplerate, 48000, 0, 0, 0.010, 0.025, 0.0, 0.010, 0);
-    WDSP_ENGINE_DEBUG << "[WDSP-SR] rx=" << m_rx << "-> create_anbEXT/nobEXT";
-    create_anbEXT(m_rx, 1, m_size, m_inputSampleRate, 0.0001, 0.0001, 0.0001, 0.05, 20);
-    create_nobEXT(m_rx, 1, 0, m_size, m_inputSampleRate, 0.0001, 0.0001, 0.0001, 0.05, 20);
-
-    RXASetNC(m_rx, m_fftSize);
-    SetRXAMode(m_rx, m_dspmode);
-    setFilter(m_filterLo, m_filterHi);
-    setFilterMode(m_rx);
-
-    int analyzerResult;
-    WDSP_ENGINE_DEBUG << "[WDSP-SR] rx=" << m_rx << "-> XCreateAnalyzer";
-    XCreateAnalyzer(m_rx, &analyzerResult, 262144, 1, 1, const_cast<char*>(""));
-    if (analyzerResult != 0) {
-        qWarning() << "[WDSP-SR] XCreateAnalyzer id=" << m_rx << "failed after samplerate change:" << analyzerResult;
-    } else {
-        WDSP_ENGINE_DEBUG << "[WDSP-SR] rx=" << m_rx << "XCreateAnalyzer OK";
-    }
-
-    init_analyzer(m_refreshrate);
-    calcDisplayAveraging();
-    SetDisplayAvBackmult(m_rx, 0, m_display_avb);
-    SetDisplayNumAverage(m_rx, 0, m_display_average);
-    SetDisplayDetectorMode(m_rx, 0, m_PanDetMode);
-    SetDisplayAverageMode(m_rx, 0, m_PanAvMode);
-    SetRXAFMSQRun(m_rx, 1);
-    SetRXAPanelGain1(m_rx, static_cast<double>(m_volume));
-    WDSP_ENGINE_DEBUG << "[WDSP-SR] rx=" << m_rx << "-> SetChannelState(1,0) (restart channel)";
-    SetChannelState(m_rx, 1, 0);
-    
-    WDSP_ENGINE_DEBUG << "[WDSP-SR] rx=" << m_rx << "setSampleRate complete";
+    reconfigure();
 }
 
 void QWDSPEngine::setInputSampleRate(int value) {
@@ -600,16 +550,25 @@ void QWDSPEngine::setInputSampleRate(int value) {
         return;
 
     m_inputSampleRate = value;
+    reconfigure();
+}
+
+void QWDSPEngine::reconfigure() {
+    WDSP_ENGINE_DEBUG << "[WDSP-CFG] rx=" << m_rx << "reconfigure: input=" << m_inputSampleRate << "Hz dsp=" << m_samplerate << "Hz";
 
     QMutexLocker wdspLocker(&s_wdspMutex);
 
+    // Stop and destroy everything related to this channel
     SetChannelState(m_rx, 0, 1);
     DestroyAnalyzer(m_rx);
     destroy_nobEXT(m_rx);
     destroy_anbEXT(m_rx);
     CloseChannel(m_rx);
 
+    // Re-open and re-initialize
+    WDSP_ENGINE_DEBUG << "[WDSP-CFG] rx=" << m_rx << "-> OpenChannel";
     OpenChannel(m_rx, m_size, 2048, m_inputSampleRate, m_samplerate, 48000, 0, 0, 0.010, 0.025, 0.0, 0.010, 0);
+    
     create_anbEXT(m_rx, 1, m_size, m_inputSampleRate, 0.0001, 0.0001, 0.0001, 0.05, 20);
     create_nobEXT(m_rx, 1, 0, m_size, m_inputSampleRate, 0.0001, 0.0001, 0.0001, 0.05, 20);
 
@@ -619,9 +578,11 @@ void QWDSPEngine::setInputSampleRate(int value) {
     setFilterMode(m_rx);
 
     int analyzerResult;
-    XCreateAnalyzer(m_rx, &analyzerResult, 262144, 1, 1, const_cast<char*>(""));
+    WDSP_ENGINE_DEBUG << "[WDSP-CFG] rx=" << m_rx << "-> XCreateAnalyzer";
+    // Use a conservative but sufficient size for slice analyzers
+    XCreateAnalyzer(m_rx, &analyzerResult, 32768, 1, 1, const_cast<char*>(""));
     if (analyzerResult != 0) {
-        qWarning() << "[WDSP-SR] XCreateAnalyzer id=" << m_rx << "failed after input samplerate change:" << analyzerResult;
+        qWarning() << "[WDSP-CFG] XCreateAnalyzer id=" << m_rx << "failed:" << analyzerResult;
     }
 
     init_analyzer(m_refreshrate);
@@ -634,7 +595,7 @@ void QWDSPEngine::setInputSampleRate(int value) {
     SetRXAPanelGain1(m_rx, static_cast<double>(m_volume));
     SetChannelState(m_rx, 1, 0);
 
-    WDSP_ENGINE_DEBUG << "[WDSP-SR] rx=" << m_rx << "setInputSampleRate complete at" << m_inputSampleRate << "Hz";
+    WDSP_ENGINE_DEBUG << "[WDSP-CFG] rx=" << m_rx << "reconfigure complete";
 }
 
 

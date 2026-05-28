@@ -75,6 +75,7 @@ public:
     double getSMeterInstValue();
     void init_analyzer(int refreshrate);
     void calcDisplayAveraging();
+    void reconfigure();
     int getfftVal(int size);
     int isValid() const { return (m_rx >= 0 && m_size > 0 && set != nullptr); }
 

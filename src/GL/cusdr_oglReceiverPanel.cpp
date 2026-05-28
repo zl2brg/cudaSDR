@@ -75,6 +75,7 @@ QGLReceiverPanel::QGLReceiverPanel(SliceModel *model, QWidget *parent)
 	, m_currentReceiver(set->getCurrentReceiver())
 	, m_waterfallAlpha(255)
 	, m_freqRulerDisplayWidth(0)
+	, m_displayTop(0)
 	, m_panSpectrumMinimumHeight(0)
 	, m_snapMouse(3)
 	, m_sampleRate(set->getSampleRate())
@@ -102,7 +103,7 @@ QGLReceiverPanel::QGLReceiverPanel(SliceModel *model, QWidget *parent)
 	, m_scaleMult(1.0f)
 	, m_filterLowerFrequency(-3050.0)
 	, m_filterUpperFrequency(-150.0)
-	//, m_freqRulerPosition(0.5)
+	, m_freqRulerPosition(set->getFreqRulerPosition(model ? model->id() : 0))
 {
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 	// Full repaint each frame — PartialUpdate corrupts pan/waterfall on desktop GLX.
@@ -148,7 +149,6 @@ QGLReceiverPanel::QGLReceiverPanel(SliceModel *model, QWidget *parent)
 		m_dBmPanMin = set->getdBmPanScaleMin(m_receiver, band);
 		m_dBmPanMax = set->getdBmPanScaleMax(m_receiver, band);
 	}
-	m_freqRulerPosition = set->getFreqRulerPosition(m_receiver);
 	m_mouseWheelFreqStep = set->getMouseWheelFreqStep(m_receiver);
 	m_adcMode = set->getADCMode(m_receiver);
 	m_dspModeString = set->getDSPModeString(set->getDSPMode(m_receiver));

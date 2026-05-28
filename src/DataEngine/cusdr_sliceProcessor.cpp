@@ -530,7 +530,7 @@ void SliceProcessor::setSampleRate(int value) {
 	}
 
 	if (qtwdsp) {
-        m_mutex.lock();
+        QMutexLocker dspLocker(&m_dspMutex);
 
 		// Queue flush and drop-counter are now handled unconditionally below.
 		const bool highRateTransition = (previousRate >= 768000 || m_samplerate >= 768000);
@@ -547,12 +547,11 @@ void SliceProcessor::setSampleRate(int value) {
 		m_rateTransitionDropBuffers = HIGH_RATE_TRANSITION_DROP_BUFFERS;
 
         // Dual-Rate Strategy:
-        // We always run the WDSP math/audio path at 48 kHz for maximum stability 
-        // and correct audio pitch. We run the input path at the hardware-selected rate 
-        // (up to 1.5 MHz) so the Waterfall can show a wide span.
+        // We always force 48 kHz DSP for the demodulator/audio path for maximum
+        // stability and correct audio pitch. The user-selected high rate is used
+        // only for the hardware input and waterfall analyzer.
         const int dspMathRate = 48000;
         qtwdsp->setSampleRate(m_samplerate, dspMathRate);
-        m_mutex.unlock();
 
     }
 	else
