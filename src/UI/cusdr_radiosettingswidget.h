@@ -30,9 +30,11 @@ private:
 private slots:
 #ifdef HAVE_SOAPYSDR
     void onSoapyAntennaListChanged(QStringList list);
+    void onSoapyTxAntennaListChanged(QStringList list);
     void onSoapyHardwareKeyChanged(QString key);
     void onSoapyAutoCalibrateChanged(bool enabled);
     void onAntennaComboChanged(int index);
+    void onTxAntennaComboChanged(int index);
     void onAutoCalToggled(bool enabled);
     void onLnaSliderChanged(int value);
     void onLnaSpinBoxChanged(int value);

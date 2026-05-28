@@ -252,16 +252,33 @@
          <property name="title">
           <string>Antenna</string>
          </property>
-         <layout class="QHBoxLayout" name="antennaHLayout">
-          <item>
+         <layout class="QFormLayout" name="antennaFormLayout">
+          <item row="0" column="0">
            <widget class="QLabel" name="antennaLabel">
             <property name="text">
              <string>RX Antenna:</string>
             </property>
            </widget>
           </item>
-          <item>
+          <item row="0" column="1">
            <widget class="QComboBox" name="antennaCombo">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+              <horstretch>1</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="txAntennaLabel">
+            <property name="text">
+             <string>TX Antenna:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QComboBox" name="txAntennaCombo">
             <property name="sizePolicy">
              <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
               <horstretch>1</horstretch>

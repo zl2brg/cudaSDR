@@ -9,6 +9,7 @@
 #include <QElapsedTimer>
 #include <QVector>
 #include <atomic>
+#include <complex>
 #include <SoapySDR/Device.hpp>
 #include <SoapySDR/Formats.hpp>
 #include <SoapySDR/Types.hpp>
@@ -44,6 +45,7 @@ private:
     RfRatePlan chooseRfSampleRate(int dspRate) const;
     bool syncRfRateFromHardware(int dspRate);
     bool restartRxStream();
+    bool restartTxStream();
     void applyBandwidthForRfRate(int rfSampleRate);
     void applyLimeAutoCalibrate(bool enabled);
     void requestHardwareRetune();
@@ -61,6 +63,7 @@ private:
     THPSDRParameter* io;
     SoapySDR::Device* m_device;
     SoapySDR::Stream* m_rxStream;
+    SoapySDR::Stream* m_txStream;
 
     volatile bool m_stopped;
     int m_sampleRate;      // DSP/WDSP processing rate (from Settings)
@@ -84,6 +87,15 @@ private:
     // as a fallback when the signal/slot path doesn't fire.
     qint64 m_lastKnownVfo;
     int m_streamTimeouts;
+    int m_txUnderrunCount;
+    int m_txErrorCount;
+    QElapsedTimer m_txLogTimer;
+    std::complex<float> m_txTonePhase;
+    bool m_txCapable;
+    std::atomic<bool> m_txActive;
+    std::atomic<int> m_radioStateValue;
+    qint64 m_lastTxSetFrequency;
+    bool m_txDebugPrimed;
 
 #ifdef HAVE_LIQUID
     resamp_crcf m_resampler;

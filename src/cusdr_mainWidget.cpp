@@ -1164,13 +1164,22 @@ void MainWindow::muteBtnClickedEvent() {
 }
 
 void MainWindow::setTxAllowed(bool value) {
+    if (m_hwInterface == QSDR::SoapySDR) {
+        // Soapy TX availability is handled by Soapy source/runtime checks.
+        // Keep buttons enabled in Soapy mode so TUNE/MOX control remains usable.
+        ui->moxBtn->setEnabled(true);
+        ui->tunBtn->setEnabled(true);
+        return;
+    }
 
 	if (!value) {
 
 		ui->moxBtn->setEnabled(false);
 		ui->tunBtn->setEnabled(false);
 	}
-	else if (set->getPenelopePresence() || set->getPennyLanePresence() || (m_hwInterface == QSDR::Hermes)) {
+	else if (set->getPenelopePresence() || set->getPennyLanePresence()
+             || (m_hwInterface == QSDR::Hermes)
+             || (m_hwInterface == QSDR::SoapySDR)) {
 
 		ui->moxBtn->setEnabled(true);
 		ui->tunBtn->setEnabled(true);

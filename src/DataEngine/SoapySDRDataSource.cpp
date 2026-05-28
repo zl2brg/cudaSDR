@@ -347,12 +347,41 @@ bool SoapySDRDataSource::restartRxStream() {
     }
 }
 
+bool SoapySDRDataSource::restartTxStream() {
+    if (!m_device || !m_txCapable)
+        return false;
+
+    try {
+        if (m_txStream) {
+            m_device->deactivateStream(m_txStream);
+            m_device->closeStream(m_txStream);
+            m_txStream = nullptr;
+        }
+        m_txStream = m_device->setupStream(SOAPY_SDR_TX, SOAPY_SDR_CF32);
+        if (!m_txStream)
+            return false;
+        m_device->activateStream(m_txStream);
+        double txRate = 0.0;
+        double txFreq = 0.0;
+        try { txRate = m_device->getSampleRate(SOAPY_SDR_TX, 0); } catch (...) {}
+        try { txFreq = m_device->getFrequency(SOAPY_SDR_TX, 0); } catch (...) {}
+        qDebug() << "SoapySDRDataSource: TX stream restarted rate =" << txRate
+                 << "Hz freq =" << txFreq / 1.0e6 << "MHz";
+        return true;
+    } catch (const std::exception& e) {
+        qWarning() << "SoapySDRDataSource: restartTxStream failed:" << e.what();
+        m_txStream = nullptr;
+        return false;
+    }
+}
+
 SoapySDRDataSource::SoapySDRDataSource(THPSDRParameter *ioData)
     : QObject(nullptr)
     , set(Settings::instance())
     , io(ioData)
     , m_device(nullptr)
     , m_rxStream(nullptr)
+    , m_txStream(nullptr)
     , m_stopped(false)
     , m_sampleRate(set->getSampleRate())
     , m_rfSampleRate(set->getSampleRate())
@@ -368,6 +397,14 @@ SoapySDRDataSource::SoapySDRDataSource(THPSDRParameter *ioData)
     , m_sampleRatePending(false)
     , m_lastKnownVfo(0)
     , m_streamTimeouts(0)
+    , m_txUnderrunCount(0)
+    , m_txErrorCount(0)
+    , m_txTonePhase(1.0f, 0.0f)
+    , m_txCapable(false)
+    , m_txActive(false)
+    , m_radioStateValue(static_cast<int>(RadioState::RX))
+    , m_lastTxSetFrequency(0)
+    , m_txDebugPrimed(false)
 #ifdef HAVE_LIQUID
     , m_resampler(nullptr)
     , m_resampIn(nullptr)
@@ -417,6 +454,12 @@ void SoapySDRDataSource::init() {
 
         qDebug() << "SoapySDRDataSource: Using device" << QString::fromStdString(m_device->getHardwareKey());
 
+        m_txCapable = (m_device->getNumChannels(SOAPY_SDR_TX) > 0);
+        set->setTxAllowed(m_txCapable);
+        if (!m_txCapable) {
+            qDebug() << "SoapySDRDataSource: device has no TX channels (RX-only)";
+        }
+
         // Query device frequency range before any hardware configuration so we
         // know the valid range even if subsequent calls throw.
         try {
@@ -439,6 +482,8 @@ void SoapySDRDataSource::init() {
         m_minSampleRate = plan.effectiveMinHz;
 
         m_device->setSampleRate(SOAPY_SDR_RX, 0, m_rfSampleRate);
+        if (m_txCapable)
+            m_device->setSampleRate(SOAPY_SDR_TX, 0, m_rfSampleRate);
         syncRfRateFromHardware(m_sampleRate);
 
 #ifdef HAVE_LIQUID
@@ -486,6 +531,49 @@ void SoapySDRDataSource::init() {
             qWarning() << "SoapySDRDataSource: Antenna setup warning:" << e.what();
         }
 
+        // Configure TX antenna/path where available so transmitted tone reaches the RF output.
+        if (m_txCapable) {
+            try {
+                const std::vector<std::string> txAntennas = m_device->listAntennas(SOAPY_SDR_TX, 0);
+                if (!txAntennas.empty()) {
+                    QStringList txAntennaQList;
+                    for (const auto &a : txAntennas)
+                        txAntennaQList << QString::fromStdString(a);
+                    set->setSoapyTxAntennaList(txAntennaQList);
+
+                    // Prefer RX-selected antenna if present on TX, else use first TX antenna.
+                    QString wantTxAntenna = set->getSoapyTxAntenna();
+                    if (wantTxAntenna.isEmpty())
+                        wantTxAntenna = set->getSoapyRxAntenna();
+                    std::string txAntenna = txAntennas.front();
+                    for (const std::string &a : txAntennas) {
+                        if (QString::fromStdString(a) == wantTxAntenna) {
+                            txAntenna = a;
+                            break;
+                        }
+                    }
+                    // Never select an explicit disabled route if alternatives exist.
+                    if (QString::fromStdString(txAntenna).compare("NONE", Qt::CaseInsensitive) == 0) {
+                        for (const std::string &a : txAntennas) {
+                            if (QString::fromStdString(a).compare("NONE", Qt::CaseInsensitive) != 0) {
+                                txAntenna = a;
+                                break;
+                            }
+                        }
+                    }
+                    m_device->setAntenna(SOAPY_SDR_TX, 0, txAntenna);
+                    set->setSoapyTxAntenna(QString::fromStdString(txAntenna));
+                    qDebug() << "SoapySDR TX: antenna set to" << QString::fromStdString(txAntenna);
+                }
+                try {
+                    const std::string actualTxAntenna = m_device->getAntenna(SOAPY_SDR_TX, 0);
+                    qDebug() << "SoapySDR TX: antenna readback" << QString::fromStdString(actualTxAntenna);
+                } catch (...) {}
+            } catch (const std::exception &e) {
+                qWarning() << "SoapySDR TX: antenna setup warning:" << e.what();
+            }
+        }
+
         // Gain (Lime auto-cal applied after tune below)
         try {
             if (!isLimeHardware()) {
@@ -497,6 +585,48 @@ void SoapySDRDataSource::init() {
             }
         } catch (const std::exception &e) {
             qWarning() << "SoapySDRDataSource: Gain setup warning:" << e.what();
+        }
+
+        auto applySoapyTxDrive = [this](int driveValue) {
+            if (!m_device || !m_txCapable)
+                return;
+
+            // Map UI drive [0..128] to the Soapy TX gain range where available.
+            double gainToApply = static_cast<double>(driveValue);
+            try {
+                const SoapySDR::Range txGainRange = m_device->getGainRange(SOAPY_SDR_TX, 0);
+                const double minGain = txGainRange.minimum();
+                const double maxGain = txGainRange.maximum();
+                if (maxGain > minGain) {
+                    const double t = qBound(0.0, driveValue / 128.0, 1.0);
+                    gainToApply = minGain + (maxGain - minGain) * t;
+                }
+            } catch (...) {
+                // Keep fallback gainToApply derived from raw drive value.
+            }
+
+            try {
+                m_device->setGain(SOAPY_SDR_TX, 0, gainToApply);
+                qDebug() << "SoapySDR TX: drive level" << driveValue << "-> gain" << gainToApply;
+            } catch (const std::exception &e) {
+                qWarning() << "SoapySDR TX: set gain from drive level failed:" << e.what();
+            }
+        };
+
+        // TX gain: use drive slider as primary TX drive control.
+        if (m_txCapable) {
+            try {
+                int drive = set->getDriveLevel();
+                if (drive <= 0)
+                    drive = 64;
+                applySoapyTxDrive(drive);
+                try {
+                    const double txGainReadback = m_device->getGain(SOAPY_SDR_TX, 0);
+                    qDebug() << "SoapySDR TX: gain readback" << txGainReadback;
+                } catch (...) {}
+            } catch (const std::exception &e) {
+                qWarning() << "SoapySDR TX: gain setup warning:" << e.what();
+            }
         }
 
         // Tune before starting stream (Lime needs stable RF path before activate).
@@ -512,6 +642,8 @@ void SoapySDRDataSource::init() {
         qDebug() << "[SoapySDR] init: setting RX center freq to" << vfo / 1.0e6 << "MHz";
         try {
             m_device->setFrequency(SOAPY_SDR_RX, 0, static_cast<double>(vfo));
+            if (m_txCapable)
+                m_device->setFrequency(SOAPY_SDR_TX, 0, static_cast<double>(vfo));
             double actual = m_device->getFrequency(SOAPY_SDR_RX, 0);
             qDebug() << "[SoapySDR] init: hardware confirmed RX freq" << actual / 1.0e6 << "MHz";
         } catch (const std::exception &e) {
@@ -523,6 +655,8 @@ void SoapySDRDataSource::init() {
 
         if (!restartRxStream())
             throw std::runtime_error("setupStream/activateStream failed");
+        if (m_txCapable)
+            restartTxStream();
 
         if (isLimeHardware())
             applyLimeAutoCalibrate(set->getSoapyAutoCalibrate());
@@ -549,6 +683,17 @@ void SoapySDRDataSource::init() {
                         try { m_device->setAntenna(SOAPY_SDR_RX, 0, antenna.toStdString()); }
                         catch (const std::exception &e) {
                             qWarning() << "SoapySDR: setAntenna failed:" << e.what();
+                        }
+                    }
+                }, Qt::DirectConnection);
+        connect(set, &Settings::soapyTxAntennaChanged, this,
+                [this](const QString &antenna) {
+                    if (m_device && m_txCapable && !antenna.isEmpty()) {
+                        try {
+                            m_device->setAntenna(SOAPY_SDR_TX, 0, antenna.toStdString());
+                            qDebug() << "SoapySDR TX: antenna changed to" << antenna;
+                        } catch (const std::exception &e) {
+                            qWarning() << "SoapySDR TX: setAntenna failed:" << e.what();
                         }
                     }
                 }, Qt::DirectConnection);
@@ -580,9 +725,21 @@ void SoapySDRDataSource::init() {
                         catch (...) {}
                     }
                 }, Qt::DirectConnection);
+        connect(set, &Settings::driveLevelChanged, this,
+                [applySoapyTxDrive](int value) {
+                    applySoapyTxDrive(value);
+                }, Qt::DirectConnection);
         connect(set, &Settings::soapyAutoCalibrateChanged, this,
                 [this](bool enabled) { applyLimeAutoCalibrate(enabled); },
                 Qt::DirectConnection);
+        connect(set, &Settings::radioStateChanged, this,
+                [this](RadioState state) {
+                    m_txActive.store(state == RadioState::MOX || state == RadioState::TUNE,
+                                     std::memory_order_release);
+                    m_radioStateValue.store(static_cast<int>(state), std::memory_order_release);
+                    if (state == RadioState::MOX || state == RadioState::TUNE)
+                        m_txDebugPrimed = false;
+                }, Qt::DirectConnection);
 
         qDebug() << "[SoapySDR] init() complete — signals connected";
 
@@ -600,6 +757,11 @@ void SoapySDRDataSource::stop() {
         m_device->closeStream(m_rxStream);
         m_rxStream = nullptr;
     }
+    if (m_device && m_txStream) {
+        m_device->deactivateStream(m_txStream);
+        m_device->closeStream(m_txStream);
+        m_txStream = nullptr;
+    }
     if (m_device) {
         SoapySDR::Device::unmake(m_device);
         m_device = nullptr;
@@ -612,7 +774,9 @@ void SoapySDRDataSource::runStream() {
 
     const size_t numSamples = 1024; // Match cudaSDR's BUFFER_SIZE
     std::vector<float> buff(numSamples * 2); // complex samples
+    std::vector<float> txBuff(numSamples * 2, 0.0f);
     void *buffs[] = {buff.data()};
+    void *txBuffs[] = {txBuff.data()};
 
     // Output buffering: keep fixed 1024-sample blocks for the downstream path.
     std::vector<float> outBuff(numSamples * 2, 0.0f);
@@ -629,6 +793,10 @@ void SoapySDRDataSource::runStream() {
     m_stopped = false;
     uint32_t packetCount = 0;
     m_lastKnownVfo = set->getVfoFrequency(0); // baseline so first poll doesn't retune
+    QElapsedTimer txDebugTimer;
+    txDebugTimer.start();
+    QElapsedTimer txFreqSyncTimer;
+    txFreqSyncTimer.start();
 
     while (!m_stopped) {
         // Poll Settings for VFO changes — reliable fallback for when the signal
@@ -660,6 +828,8 @@ void SoapySDRDataSource::runStream() {
                     m_rxStream = nullptr;
                 }
                 m_device->setSampleRate(SOAPY_SDR_RX, 0, newRfRate);
+                if (m_txCapable)
+                    m_device->setSampleRate(SOAPY_SDR_TX, 0, newRfRate);
                 m_rfSampleRate = newRfRate;
                 m_sampleRate = newDspRate;
                 syncRfRateFromHardware(m_sampleRate);
@@ -691,6 +861,8 @@ void SoapySDRDataSource::runStream() {
                     m_stopped = true;
                     break;
                 }
+                if (m_txCapable)
+                    restartTxStream();
                 qDebug() << "SoapySDRDataSource: Sample rate applied:" << m_rfSampleRate
                          << "Hz (WDSP input-rate conversion to DSP" << m_sampleRate << "Hz)";
             } catch (const std::exception &e) {
@@ -704,6 +876,8 @@ void SoapySDRDataSource::runStream() {
                     m_sampleRate = oldDspRate;
                     m_rfSampleRate = oldRfRate;
                     m_device->setSampleRate(SOAPY_SDR_RX, 0, oldRfRate);
+                    if (m_txCapable)
+                        m_device->setSampleRate(SOAPY_SDR_TX, 0, oldRfRate);
                     syncRfRateFromHardware(m_sampleRate);
 #ifdef HAVE_LIQUID
                     setupResampler(m_rfSampleRate, m_sampleRate);
@@ -729,10 +903,106 @@ void SoapySDRDataSource::runStream() {
                         m_stopped = true;
                         break;
                     }
+                    if (m_txCapable)
+                        restartTxStream();
                 } catch (const std::exception &restoreErr) {
                     qWarning() << "SoapySDRDataSource: restore failed:" << restoreErr.what();
                     m_stopped = true;
                     break;
+                }
+            }
+        }
+
+        if (m_txCapable && m_txActive.load(std::memory_order_acquire)) {
+            if (!m_txStream && !restartTxStream()) {
+                m_txErrorCount++;
+            } else if (m_txStream) {
+                // Keep TX locked to the commanded tune/VFO while transmitting.
+                if (txFreqSyncTimer.elapsed() > 200) {
+                    try {
+                        qint64 targetTxHz = static_cast<qint64>(std::llround(m_pendingFreq.load(std::memory_order_relaxed)));
+                        const int rx = set->getCurrentReceiver();
+                        if (targetTxHz <= 0)
+                            targetTxHz = set->getVfoFrequency(rx);
+                        if (targetTxHz <= 0)
+                            targetTxHz = set->getCtrFrequency(rx);
+                        if (targetTxHz > 0 && std::llabs(targetTxHz - m_lastTxSetFrequency) > 1) {
+                            m_device->setFrequency(SOAPY_SDR_TX, 0, static_cast<double>(targetTxHz));
+                            m_lastTxSetFrequency = targetTxHz;
+                        }
+                    } catch (const std::exception& e) {
+                        ++m_txErrorCount;
+                        qWarning() << "SoapySDR TX frequency sync failed:" << e.what();
+                    }
+                    txFreqSyncTimer.restart();
+                }
+
+                const RadioState currentState = static_cast<RadioState>(m_radioStateValue.load(std::memory_order_acquire));
+                if (currentState == RadioState::TUNE) {
+                    // Tone only in TUNE mode.
+                    const float phaseStep = 2.0f * static_cast<float>(M_PI) * 1000.0f
+                                          / static_cast<float>(qMax(1, m_rfSampleRate));
+                    const std::complex<float> w(std::cos(phaseStep), std::sin(phaseStep));
+                    std::complex<float> ph = m_txTonePhase;
+                    const float amp = 0.08f;
+                    for (size_t i = 0; i < numSamples; ++i) {
+                        txBuff[2 * i] = amp * ph.real();
+                        txBuff[2 * i + 1] = amp * ph.imag();
+                        ph *= w;
+                    }
+                    m_txTonePhase = ph;
+                } else {
+                    // MOX: hold TX carrier silent until TX IQ path is wired.
+                    std::fill(txBuff.begin(), txBuff.end(), 0.0f);
+                }
+
+                int txFlags = 0;
+                long long txTimeNs = 0;
+                const int txRet = m_device->writeStream(m_txStream, txBuffs,
+                                                        static_cast<int>(numSamples),
+                                                        txFlags, txTimeNs, 100000);
+                if (txDebugTimer.elapsed() > 1000) {
+                    RadioState rs = static_cast<RadioState>(m_radioStateValue.load(std::memory_order_acquire));
+                    double txFreqHz = 0.0;
+                    try { txFreqHz = m_device->getFrequency(SOAPY_SDR_TX, 0); } catch (...) {}
+                    qDebug() << "SoapySDR TX debug: state =" << static_cast<int>(rs)
+                             << "ret =" << txRet
+                             << "samples =" << static_cast<int>(numSamples)
+                             << "rfRate =" << m_rfSampleRate
+                             << "txFreqHz =" << txFreqHz
+                             << "txFreqMHz =" << (txFreqHz / 1.0e6)
+                             << "tonePhaseRe =" << m_txTonePhase.real();
+                    txDebugTimer.restart();
+                    m_txDebugPrimed = true;
+                } else if (!m_txDebugPrimed) {
+                    // Emit one immediate line on TX entry so short TUNE presses still show txFreqMHz.
+                    RadioState rs = static_cast<RadioState>(m_radioStateValue.load(std::memory_order_acquire));
+                    double txFreqHz = 0.0;
+                    try { txFreqHz = m_device->getFrequency(SOAPY_SDR_TX, 0); } catch (...) {}
+                    qDebug() << "SoapySDR TX debug: state =" << static_cast<int>(rs)
+                             << "ret =" << txRet
+                             << "samples =" << static_cast<int>(numSamples)
+                             << "rfRate =" << m_rfSampleRate
+                             << "txFreqHz =" << txFreqHz
+                             << "txFreqMHz =" << (txFreqHz / 1.0e6)
+                             << "tonePhaseRe =" << m_txTonePhase.real();
+                    m_txDebugPrimed = true;
+                }
+                if (txRet < 0) {
+                    if (txRet == SOAPY_SDR_UNDERFLOW) {
+                        ++m_txUnderrunCount;
+                    } else {
+                        ++m_txErrorCount;
+                    }
+                }
+                if (!m_txLogTimer.isValid())
+                    m_txLogTimer.start();
+                if (m_txLogTimer.elapsed() > 5000 && (m_txUnderrunCount > 0 || m_txErrorCount > 0)) {
+                    qWarning() << "SoapySDRDataSource TX stats: underruns =" << m_txUnderrunCount
+                               << "errors =" << m_txErrorCount;
+                    m_txUnderrunCount = 0;
+                    m_txErrorCount = 0;
+                    m_txLogTimer.restart();
                 }
             }
         }
@@ -827,6 +1097,8 @@ void SoapySDRDataSource::runStream() {
                 break;
             try {
                 m_device->setFrequency(SOAPY_SDR_RX, 0, freq);
+                if (m_txCapable)
+                    m_device->setFrequency(SOAPY_SDR_TX, 0, freq);
                 publishWidebandFrequencyRange();
             } catch (const std::exception& e) {
                 qWarning() << "SoapySDRDataSource: setFrequency failed:" << e.what();

@@ -3859,14 +3859,16 @@ void DataEngine::radioStateChange(RadioState state) {
 
     m_radioState = state;
 
-    if ((state == RadioState::MOX) || (state == RadioState::TUNE))
-    {
+    if ((state == RadioState::MOX) || (state == RadioState::TUNE)) {
         io.ccTx.mox = true;
-        m_audioInput->Start();
-    }
-    else{
+        // Soapy TX slice-1 uses an internal tone/silence generator and does not
+        // consume mic samples yet. Avoid touching mic input state in Soapy mode.
+        if (m_hwInterface != QSDR::SoapySDR && m_audioInput)
+            m_audioInput->Start();
+    } else {
         io.ccTx.mox = false;
-        m_audioInput->Stop();
+        if (m_hwInterface != QSDR::SoapySDR && m_audioInput)
+            m_audioInput->Stop();
     }
 
 	// Keep all receiver display pipelines in sync with TX/RX state.

@@ -811,8 +811,10 @@ signals:
     void soapyDeviceChanged(TSoapyDevice device);
     void soapyMessageEvent(QString message);
     void soapyAntennaListChanged(QStringList list);
+    void soapyTxAntennaListChanged(QStringList list);
     void soapyHardwareKeyChanged(QString key);
     void soapyRxAntennaChanged(QString antenna);
+    void soapyTxAntennaChanged(QString antenna);
     void soapyLnaGainChanged(int gain);
     void soapyTiaGainChanged(int gain);
     void soapyPgaGainChanged(int gain);
@@ -1042,6 +1044,8 @@ public:
     QList<TSoapyDevice>         getSoapyDeviceList()        { return m_soapyDevices; }
     QString     getSoapyRxAntenna()     const { return m_soapyRxAntenna; }
     QStringList getSoapyAntennaList()   const { return m_soapyAntennaList; }
+    QString     getSoapyTxAntenna()     const { return m_soapyTxAntenna; }
+    QStringList getSoapyTxAntennaList() const { return m_soapyTxAntennaList; }
     QString     getSoapyHardwareKey()   const { return m_soapyHardwareKey; }
     int         getSoapyLnaGain()       const { return m_soapyLnaGain; }
     int         getSoapyTiaGain()       const { return m_soapyTiaGain; }
@@ -1273,6 +1277,8 @@ public slots:
     // SoapySDR radio parameter setters
     void setSoapyRxAntenna(const QString &antenna);
     void setSoapyAntennaList(const QStringList &list);  // runtime, from device
+    void setSoapyTxAntenna(const QString &antenna);
+    void setSoapyTxAntennaList(const QStringList &list);  // runtime, from device
     void setSoapyHardwareKey(const QString &key);       // runtime, from device
     void setSoapyLnaGain(int gain);
     void setSoapyTiaGain(int gain);
@@ -1522,6 +1528,7 @@ private:
     TSoapyDevice                m_currentSoapyDevice;
     // SoapySDR radio parameters (persisted)
     QString     m_soapyRxAntenna;       // selected antenna name
+    QString     m_soapyTxAntenna;       // selected TX antenna name
     int         m_soapyLnaGain;         // LNA gain in dB
     int         m_soapyTiaGain;         // TIA gain in dB
     int         m_soapyPgaGain;         // PGA gain in dB
@@ -1529,6 +1536,7 @@ private:
     bool        m_soapyAutoCalibrate;   // LimeSuite auto-calibration flag
     // Runtime-only (not persisted)
     QStringList m_soapyAntennaList;
+    QStringList m_soapyTxAntennaList;
     QString     m_soapyHardwareKey;
 #endif
 	TTransmitter				m_transmitter;

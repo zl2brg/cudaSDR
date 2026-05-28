@@ -360,6 +360,7 @@ int Settings::loadSettings() {
         m_currentSoapyDevice.serial = settings->value("SoapySDR/serial", "").toString();
 #ifdef HAVE_SOAPYSDR
         m_soapyRxAntenna   = settings->value("SoapySDR/rxAntenna", "LNAH").toString();
+        m_soapyTxAntenna   = settings->value("SoapySDR/txAntenna", "").toString();
         m_soapyLnaGain     = settings->value("SoapySDR/lnaGain", 25).toInt();
         m_soapyTiaGain     = settings->value("SoapySDR/tiaGain", 12).toInt();
         m_soapyPgaGain     = settings->value("SoapySDR/pgaGain", 12).toInt();
@@ -367,6 +368,7 @@ int Settings::loadSettings() {
         m_soapyAutoCalibrate = settings->value("SoapySDR/autoCalibrate", false).toBool();
         m_soapyHardwareKey = "";
         m_soapyAntennaList.clear();
+        m_soapyTxAntennaList.clear();
 #endif
     }
 
@@ -1730,6 +1732,7 @@ int Settings::saveSettings() {
             settings->setValue("SoapySDR/driver", m_currentSoapyDevice.driver);
             settings->setValue("SoapySDR/serial", m_currentSoapyDevice.serial);
             settings->setValue("SoapySDR/rxAntenna",   m_soapyRxAntenna);
+            settings->setValue("SoapySDR/txAntenna",   m_soapyTxAntenna);
             settings->setValue("SoapySDR/lnaGain",     m_soapyLnaGain);
             settings->setValue("SoapySDR/tiaGain",     m_soapyTiaGain);
             settings->setValue("SoapySDR/pgaGain",     m_soapyPgaGain);
@@ -3098,6 +3101,11 @@ void Settings::setSoapyAntennaList(const QStringList &list) {
     emit soapyAntennaListChanged(list);
 }
 
+void Settings::setSoapyTxAntennaList(const QStringList &list) {
+    m_soapyTxAntennaList = list;
+    emit soapyTxAntennaListChanged(list);
+}
+
 void Settings::setSoapyHardwareKey(const QString &key) {
     m_soapyHardwareKey = key;
     emit soapyHardwareKeyChanged(key);
@@ -3107,6 +3115,13 @@ void Settings::setSoapyRxAntenna(const QString &antenna) {
     if (m_soapyRxAntenna != antenna) {
         m_soapyRxAntenna = antenna;
         emit soapyRxAntennaChanged(antenna);
+    }
+}
+
+void Settings::setSoapyTxAntenna(const QString &antenna) {
+    if (m_soapyTxAntenna != antenna) {
+        m_soapyTxAntenna = antenna;
+        emit soapyTxAntennaChanged(antenna);
     }
 }
 

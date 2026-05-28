@@ -52,11 +52,16 @@ void cusdr_radioSettingsWidget::setupRadioTab()
     QStringList antennas = set->getSoapyAntennaList();
     if (!antennas.isEmpty())
         onSoapyAntennaListChanged(antennas);
+    QStringList txAntennas = set->getSoapyTxAntennaList();
+    if (!txAntennas.isEmpty())
+        onSoapyTxAntennaListChanged(txAntennas);
 
     updateGainGroupVisibility();
 
     connect(set, &Settings::soapyAntennaListChanged,
             this, &cusdr_radioSettingsWidget::onSoapyAntennaListChanged);
+    connect(set, &Settings::soapyTxAntennaListChanged,
+            this, &cusdr_radioSettingsWidget::onSoapyTxAntennaListChanged);
     connect(set, &Settings::soapyHardwareKeyChanged,
             this, &cusdr_radioSettingsWidget::onSoapyHardwareKeyChanged);
     connect(set, &Settings::soapyAutoCalibrateChanged,
@@ -65,6 +70,8 @@ void cusdr_radioSettingsWidget::setupRadioTab()
             this, &cusdr_radioSettingsWidget::onAutoCalToggled);
     connect(ui->antennaCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &cusdr_radioSettingsWidget::onAntennaComboChanged);
+    connect(ui->txAntennaCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &cusdr_radioSettingsWidget::onTxAntennaComboChanged);
     connect(ui->lnaSlider, &QSlider::valueChanged,
             this, &cusdr_radioSettingsWidget::onLnaSliderChanged);
     connect(ui->lnaSpinBox, QOverload<int>::of(&QSpinBox::valueChanged),
@@ -117,6 +124,21 @@ void cusdr_radioSettingsWidget::onSoapyAntennaListChanged(QStringList list)
     ui->antennaCombo->blockSignals(false);
 }
 
+void cusdr_radioSettingsWidget::onSoapyTxAntennaListChanged(QStringList list)
+{
+    ui->txAntennaCombo->blockSignals(true);
+    ui->txAntennaCombo->clear();
+    ui->txAntennaCombo->addItems(list);
+    int idx = list.indexOf(set->getSoapyTxAntenna());
+    if (idx < 0)
+        idx = list.indexOf(set->getSoapyRxAntenna());
+    if (idx < 0 && !list.isEmpty())
+        idx = 0;
+    if (idx >= 0)
+        ui->txAntennaCombo->setCurrentIndex(idx);
+    ui->txAntennaCombo->blockSignals(false);
+}
+
 void cusdr_radioSettingsWidget::onSoapyHardwareKeyChanged(QString /*key*/)
 {
     updateGainGroupVisibility();
@@ -137,6 +159,11 @@ void cusdr_radioSettingsWidget::onAutoCalToggled(bool enabled)
 void cusdr_radioSettingsWidget::onAntennaComboChanged(int index)
 {
     set->setSoapyRxAntenna(ui->antennaCombo->itemText(index));
+}
+
+void cusdr_radioSettingsWidget::onTxAntennaComboChanged(int index)
+{
+    set->setSoapyTxAntenna(ui->txAntennaCombo->itemText(index));
 }
 
 void cusdr_radioSettingsWidget::onLnaSliderChanged(int value)
