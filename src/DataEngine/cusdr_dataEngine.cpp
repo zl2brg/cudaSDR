@@ -620,10 +620,12 @@ bool DataEngine::getFirmwareVersions() {
 	// version response packets).
 	if (set->getCurrentMetisCard().protocol != 2) {
 		// pre-conditioning
-		for (int i = 0; i < io.receivers; i++)
-			m_dataIO->sendInitFramesToNetworkDevice(i);
+		if (m_dataIO) {
+			for (int i = 0; i < io.receivers; i++)
+				m_dataIO->sendInitFramesToNetworkDevice(i);
+		}
 		
-		if (m_serverMode == QSDR::SDRMode)
+		if (m_serverMode == QSDR::SDRMode && m_dataIO)
 			m_dataIO->networkDeviceStartStop(0x01);
 		
 		m_networkDeviceRunning = true;
@@ -1056,15 +1058,17 @@ bool DataEngine::start() {
 	//m_smeterTime.start();
 
 		// pre-conditioning
-	for (int i = 0; i < io.receivers; i++) {
-		m_dataIO->sendInitFramesToNetworkDevice(i);
+	if (m_dataIO) {
+		for (int i = 0; i < io.receivers; i++) {
+			m_dataIO->sendInitFramesToNetworkDevice(i);
+		}
 	}
 
-    if (m_serverMode == QSDR::SDRMode && set->getWidebandData()) {
+    if (m_serverMode == QSDR::SDRMode && set->getWidebandData() && m_dataIO) {
 			m_dataIO->networkDeviceStartStop(0x03); // 0x03 for starting the device with wide band data
 			QThread::msleep(100);
 	    }
-    else {
+    else if (m_dataIO) {
             DATA_ENGINE_DEBUG << "[START] calling networkDeviceStartStop(0x01) protocol="
                               << (m_protocol ? "valid" : "NULL")
                               << " hwInterface=" << m_hwInterface;
@@ -1115,7 +1119,8 @@ void DataEngine::stop() {
 				}
 
 				// stop the device
-				m_dataIO->networkDeviceStartStop(0);
+				if (m_dataIO)
+					m_dataIO->networkDeviceStartStop(0);
 				m_networkDeviceRunning = false;
 				DATA_ENGINE_DEBUG << "HPSDR device stopped";
 
