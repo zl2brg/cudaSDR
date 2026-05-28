@@ -95,6 +95,11 @@ void RadioTelemetry::resetWidebandSpectrumBuffer()
     emit widebandSpectrumBufferReset();
 }
 
+void RadioTelemetry::setWidebandFrequencyRange(qreal lowHz, qreal highHz)
+{
+    emit widebandFrequencyRangeChanged(lowHz, highHz);
+}
+
 RadioTelemetry* telemetryFromSettings()
 {
     Settings* settings = Settings::instance();

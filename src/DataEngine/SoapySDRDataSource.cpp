@@ -12,6 +12,7 @@
 #include <SoapySDR/Errors.hpp>
 #include <algorithm>
 #include <cmath>
+#include <complex>
 #include <limits>
 #include <vector>
 
@@ -19,6 +20,8 @@ namespace {
 
 constexpr int kReadTimeoutUs = 200000;
 constexpr int kStreamTimeoutsBeforeRestart = 5;
+constexpr int kSoapyWidebandFftSize = 1024;
+constexpr qint64 kSoapyWidebandUpdateMs = 50;
 
 bool listLooksLikeRangeEndpoints(const std::vector<double>& rates) {
     if (rates.size() < 2)
@@ -34,6 +37,70 @@ bool listLooksLikeRangeEndpoints(const std::vector<double>& rates) {
 }
 
 } // namespace
+
+void SoapySDRDataSource::publishWidebandSpectrum(const float* interleavedIQ, int complexSamples)
+{
+    if (!interleavedIQ || complexSamples < kSoapyWidebandFftSize)
+        return;
+
+    static QElapsedTimer s_wbTimer;
+    if (!s_wbTimer.isValid())
+        s_wbTimer.start();
+    if (s_wbTimer.elapsed() < kSoapyWidebandUpdateMs)
+        return;
+    s_wbTimer.restart();
+
+    std::vector<std::complex<float>> fft(kSoapyWidebandFftSize);
+    for (int i = 0; i < kSoapyWidebandFftSize; ++i) {
+        const float w = 0.5f - 0.5f * std::cos(2.0f * static_cast<float>(M_PI) * i / (kSoapyWidebandFftSize - 1));
+        fft[i] = std::complex<float>(interleavedIQ[2 * i], interleavedIQ[2 * i + 1]) * w;
+    }
+
+    // Iterative radix-2 FFT.
+    for (int i = 1, j = 0; i < kSoapyWidebandFftSize; ++i) {
+        int bit = kSoapyWidebandFftSize >> 1;
+        for (; j & bit; bit >>= 1) j ^= bit;
+        j ^= bit;
+        if (i < j) std::swap(fft[i], fft[j]);
+    }
+    for (int len = 2; len <= kSoapyWidebandFftSize; len <<= 1) {
+        const float ang = -2.0f * static_cast<float>(M_PI) / len;
+        const std::complex<float> wlen(std::cos(ang), std::sin(ang));
+        for (int i = 0; i < kSoapyWidebandFftSize; i += len) {
+            std::complex<float> w(1.0f, 0.0f);
+            for (int j = 0; j < len / 2; ++j) {
+                const std::complex<float> u = fft[i + j];
+                const std::complex<float> v = fft[i + j + len / 2] * w;
+                fft[i + j] = u + v;
+                fft[i + j + len / 2] = u - v;
+                w *= wlen;
+            }
+        }
+    }
+
+    // Publish full FFT width and FFT-shift it so the VFO (DC) sits in the center.
+    // The previous half-width + quarter-wrap mapping suppressed/warped peaks.
+    qVectorFloat spectrum(kSoapyWidebandFftSize);
+    for (int i = 0; i < kSoapyWidebandFftSize; ++i) {
+        const int idx = (i + kSoapyWidebandFftSize / 2) % kSoapyWidebandFftSize;
+        const float pwr = std::norm(fft[idx]) + 1e-12f;
+        spectrum[i] = 10.0f * std::log10(pwr) - 65.0f;
+    }
+    emit widebandSpectrumReady(spectrum);
+}
+
+void SoapySDRDataSource::publishWidebandFrequencyRange()
+{
+    qint64 centerHz = set->getVfoFrequency(0);
+    if (centerHz <= 0)
+        centerHz = static_cast<qint64>(m_pendingFreq.load(std::memory_order_relaxed));
+    if (centerHz <= 0)
+        centerHz = 14200000LL;
+
+    const qreal spanHz = static_cast<qreal>(std::max(1, m_rfSampleRate));
+    const qreal halfSpan = spanHz * 0.5;
+    emit widebandFrequencyRangeReady(centerHz - halfSpan, centerHz + halfSpan);
+}
 
 bool SoapySDRDataSource::isLimeHardware() const
 {
@@ -522,6 +589,8 @@ void SoapySDRDataSource::init() {
     } catch (const std::exception &ex) {
         qCritical() << "SoapySDRDataSource init error:" << ex.what();
     }
+
+    publishWidebandFrequencyRange();
 }
 
 void SoapySDRDataSource::stop() {
@@ -535,6 +604,7 @@ void SoapySDRDataSource::stop() {
         SoapySDR::Device::unmake(m_device);
         m_device = nullptr;
     }
+    emit widebandSpectrumReset();
 }
 
 void SoapySDRDataSource::runStream() {
@@ -580,6 +650,9 @@ void SoapySDRDataSource::runStream() {
             m_sampleRatePending.store(false, std::memory_order_relaxed);
             const int newDspRate = m_pendingDspSampleRate.load(std::memory_order_relaxed);
             const int newRfRate = m_pendingRfSampleRate.load(std::memory_order_relaxed);
+            const int oldDspRate = m_sampleRate;
+            const int oldRfRate = m_rfSampleRate;
+            const int oldDecimRatio = m_decimRatio;
             try {
                 if (m_rxStream) {
                     m_device->deactivateStream(m_rxStream);
@@ -590,6 +663,7 @@ void SoapySDRDataSource::runStream() {
                 m_rfSampleRate = newRfRate;
                 m_sampleRate = newDspRate;
                 syncRfRateFromHardware(m_sampleRate);
+                publishWidebandFrequencyRange();
 
 #ifdef HAVE_LIQUID
                 setupResampler(m_rfSampleRate, m_sampleRate);
@@ -620,9 +694,46 @@ void SoapySDRDataSource::runStream() {
                 qDebug() << "SoapySDRDataSource: Sample rate applied:" << m_rfSampleRate
                          << "Hz (WDSP input-rate conversion to DSP" << m_sampleRate << "Hz)";
             } catch (const std::exception &e) {
-                qWarning() << "SoapySDRDataSource: setSampleRate restart failed:" << e.what();
-                m_stopped = true;
-                break;
+                qWarning() << "SoapySDRDataSource: setSampleRate apply failed:" << e.what()
+                           << "requested DSP" << newDspRate << "RF" << newRfRate
+                           << "- restoring previous DSP" << oldDspRate << "RF" << oldRfRate;
+
+                // Keep streaming at the previous known-good rate instead of stopping.
+                try {
+                    m_decimRatio = oldDecimRatio;
+                    m_sampleRate = oldDspRate;
+                    m_rfSampleRate = oldRfRate;
+                    m_device->setSampleRate(SOAPY_SDR_RX, 0, oldRfRate);
+                    syncRfRateFromHardware(m_sampleRate);
+#ifdef HAVE_LIQUID
+                    setupResampler(m_rfSampleRate, m_sampleRate);
+                    if (m_resampler) resamp_crcf_reset(m_resampler);
+#else
+                    accI = 0.0f;
+                    accQ = 0.0f;
+                    accCount = 0;
+#endif
+                    {
+                        QMutexLocker lock(&io->mutex);
+#ifdef HAVE_LIQUID
+                        io->soapyInputSampleRate = m_sampleRate;
+#else
+                        io->soapyInputSampleRate = (m_decimRatio > 0) ? (m_rfSampleRate / m_decimRatio) : m_rfSampleRate;
+#endif
+                    }
+                    applyBandwidthForRfRate(m_rfSampleRate);
+                    publishWidebandFrequencyRange();
+                    outFill = 0;
+                    if (!restartRxStream()) {
+                        qWarning() << "SoapySDRDataSource: restore restart failed";
+                        m_stopped = true;
+                        break;
+                    }
+                } catch (const std::exception &restoreErr) {
+                    qWarning() << "SoapySDRDataSource: restore failed:" << restoreErr.what();
+                    m_stopped = true;
+                    break;
+                }
             }
         }
 
@@ -636,6 +747,7 @@ void SoapySDRDataSource::runStream() {
         if (ret > 0) {
             packetCount++;
             m_streamTimeouts = 0;
+            publishWidebandSpectrum(buff.data(), ret);
 
 #ifdef HAVE_LIQUID
             if (m_resampler && m_resampIn && m_resampOut) {
@@ -715,6 +827,7 @@ void SoapySDRDataSource::runStream() {
                 break;
             try {
                 m_device->setFrequency(SOAPY_SDR_RX, 0, freq);
+                publishWidebandFrequencyRange();
             } catch (const std::exception& e) {
                 qWarning() << "SoapySDRDataSource: setFrequency failed:" << e.what();
             }

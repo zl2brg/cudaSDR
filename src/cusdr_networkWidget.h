@@ -102,6 +102,7 @@ private:
 	int		m_numberOfReceivers;
 	int		m_hpsdrHardware;
 	int		m_socketBufferSize;
+    int     m_discoveryPassId;
 
 	void	setupConnections();
 	void	createDeviceNetworkInterfaceGroup();

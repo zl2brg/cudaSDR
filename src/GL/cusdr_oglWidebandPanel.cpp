@@ -69,6 +69,8 @@ QGLWidebandPanel::QGLWidebandPanel(QWidget *parent)
 		, m_sampleRate(set->getSampleRate())
 		, m_freqScaleZoomFactor(1.0)
 		, m_dBmScaleOffset(0.0)
+		, m_widebandMaxFrequency((qreal)set->getMaxFrequency())
+		, m_widebandMinFrequency(0.0)
 {
 //	QGL::setPreferredPaintEngine(QPaintEngine::OpenGL);
     dpr = devicePixelRatioF();
@@ -86,10 +88,11 @@ QGLWidebandPanel::QGLWidebandPanel(QWidget *parent)
 
 	m_widebandOptions = set->getWidebandOptions();
 	m_panMode = m_widebandOptions.panMode;
+	m_specAveragingCnt = qMax(1, m_widebandOptions.averagingCnt);
 	m_frequency = set->getVfoFrequency(0);
 
 	m_lowerFrequency = 0.0;
-	m_upperFrequency = (qreal) set->getMaxFrequency();
+	m_upperFrequency = m_widebandMaxFrequency;
 
 	m_dBmPanMin = set->getWidebanddBmScaleMin();
 	m_dBmPanMax = set->getWidebanddBmScaleMax();
@@ -189,6 +192,8 @@ void QGLWidebandPanel::setupConnections() {
                 this, &QGLWidebandPanel::setWidebandSpectrumBuffer);
         connect(tel, &RadioTelemetry::widebandSpectrumBufferReset,
                 this, &QGLWidebandPanel::resetWidebandSpectrumBuffer);
+        connect(tel, &RadioTelemetry::widebandFrequencyRangeChanged,
+                this, &QGLWidebandPanel::setWidebandFrequencyRange);
     }
 
     connect(set, &Settings::vfoFrequencyChanged,
@@ -352,7 +357,8 @@ void QGLWidebandPanel::drawSpectrum() {
 	qreal scaleMult = 1.0;
 
 	m_scaledBufferSize = qFloor(m_wbSpectrumBufferLength * m_freqScaleZoomFactor);
-	deltaIdx = qFloor((qreal)(m_wbSpectrumBufferLength * (m_lowerFrequency / set->getMaxFrequency())));
+	const qreal wbRange = qMax<qreal>(1.0, m_widebandMaxFrequency - m_widebandMinFrequency);
+	deltaIdx = qFloor((qreal)(m_wbSpectrumBufferLength * ((m_lowerFrequency - m_widebandMinFrequency) / wbRange)));
 	
 	qreal frequencyScale = (qreal)(1.0f * m_scaledBufferSize / width);
 	
@@ -876,7 +882,8 @@ void QGLWidebandPanel::drawCrossHair() {
 		
 		QString str;
 
-		qreal unit = (qreal)((set->getMaxFrequency() * m_freqScaleZoomFactor) / m_panRect.width());
+		const qreal wbRange = qMax<qreal>(1.0, m_widebandMaxFrequency - m_widebandMinFrequency);
+		qreal unit = (qreal)((wbRange * m_freqScaleZoomFactor) / m_panRect.width());
 		qreal frequency = (unit * x) + m_lowerFrequency;
 
 		str = frequencyString(frequency);
@@ -1009,7 +1016,7 @@ void QGLWidebandPanel::renderHorizontalScale() {
 	int fontHeight = m_fonts.smallFontMetrics->tightBoundingRect(".0kMGHz").height();
 	int fontMaxWidth = m_fonts.smallFontMetrics->boundingRect("000.000").width();
 
-	m_frequencySpan = set->getMaxFrequency() * m_freqScaleZoomFactor;
+	m_frequencySpan = (m_widebandMaxFrequency - m_widebandMinFrequency) * m_freqScaleZoomFactor;
 	m_frequencyUnit = (qreal)(m_freqScaleRect.width() / m_frequencySpan);
 	m_frequencyScale = getXRuler(m_freqScaleRect, fontMaxWidth, m_frequencyUnit, m_lowerFrequency, m_upperFrequency);
 	
@@ -1325,7 +1332,8 @@ void QGLWidebandPanel::mousePressEvent(QMouseEvent* event) {
 		}
 		else if (event->buttons() == Qt::LeftButton) {
 			
-			float unit = (float)(m_panRect.width() / (set->getMaxFrequency() * m_freqScaleZoomFactor));
+			const qreal wbRange = qMax<qreal>(1.0, m_widebandMaxFrequency - m_widebandMinFrequency);
+			float unit = (float)(m_panRect.width() / (wbRange * m_freqScaleZoomFactor));
 
 			
 			m_frequency = (long)(1000 * (int)(qRound(m_mousePos.x()/unit + m_lowerFrequency)/1000));
@@ -1467,18 +1475,19 @@ void QGLWidebandPanel::mouseMoveEvent(QMouseEvent* event) {
 
 					QPoint dPos = m_mouseDownPos - pos;
 
-					m_frequencySpan = set->getMaxFrequency() * m_freqScaleZoomFactor;
+					m_frequencySpan = (m_widebandMaxFrequency - m_widebandMinFrequency) * m_freqScaleZoomFactor;
 
-					qreal unit = (qreal)((set->getMaxFrequency() * m_freqScaleZoomFactor) / m_freqScaleRect.width());
+					const qreal wbRange = qMax<qreal>(1.0, m_widebandMaxFrequency - m_widebandMinFrequency);
+					qreal unit = (qreal)((wbRange * m_freqScaleZoomFactor) / m_freqScaleRect.width());
 
 					m_lowerFrequency += unit * dPos.x();
 					m_upperFrequency = m_lowerFrequency + m_frequencySpan;
 
-					if (m_lowerFrequency < 0.0) m_lowerFrequency = 0.0;
-					if (m_upperFrequency > (qreal) set->getMaxFrequency()) {
+					if (m_lowerFrequency < m_widebandMinFrequency) m_lowerFrequency = m_widebandMinFrequency;
+					if (m_upperFrequency > m_widebandMaxFrequency) {
 
-						m_upperFrequency = (qreal)set->getMaxFrequency();
-						m_lowerFrequency = (qreal)(set->getMaxFrequency() - m_frequencySpan);
+						m_upperFrequency = m_widebandMaxFrequency;
+						m_lowerFrequency = (qreal)(m_widebandMaxFrequency - m_frequencySpan);
 					}
 
 					m_mouseDownPos = pos;
@@ -1488,8 +1497,8 @@ void QGLWidebandPanel::mouseMoveEvent(QMouseEvent* event) {
 				}
 				else {
 
-					m_lowerFrequency = 0.0;
-					m_upperFrequency = (qreal) set->getMaxFrequency();
+					m_lowerFrequency = m_widebandMinFrequency;
+					m_upperFrequency = m_widebandMaxFrequency;
 				}
 			}
 			else if (event->buttons() == Qt::RightButton) {
@@ -1507,15 +1516,16 @@ void QGLWidebandPanel::mouseMoveEvent(QMouseEvent* event) {
 				//if (m_freqScaleZoomFactor < 0.24) m_freqScaleZoomFactor = 0.24f;
 				if (m_freqScaleZoomFactor < 0.15) m_freqScaleZoomFactor = 0.15f;
 
-				qreal unit = (qreal)((set->getMaxFrequency() * m_freqScaleZoomFactor) / m_freqScaleRect.width());
+				const qreal wbRange = qMax<qreal>(1.0, m_widebandMaxFrequency - m_widebandMinFrequency);
+				qreal unit = (qreal)((wbRange * m_freqScaleZoomFactor) / m_freqScaleRect.width());
 				m_lowerFrequency -= unit * dPos.x();
 				m_upperFrequency = m_lowerFrequency + m_frequencySpan;
 
-				if (m_lowerFrequency < 0.0) m_lowerFrequency = 0.0;
-				if (m_upperFrequency > (qreal) set->getMaxFrequency()) {
+				if (m_lowerFrequency < m_widebandMinFrequency) m_lowerFrequency = m_widebandMinFrequency;
+				if (m_upperFrequency > m_widebandMaxFrequency) {
 
-					m_upperFrequency = (qreal)set->getMaxFrequency();
-					m_lowerFrequency = (qreal)(set->getMaxFrequency() - m_frequencySpan);
+					m_upperFrequency = m_widebandMaxFrequency;
+					m_lowerFrequency = (qreal)(m_widebandMaxFrequency - m_frequencySpan);
 				}
 
 				m_mouseDownPos = pos;
@@ -1621,6 +1631,15 @@ void QGLWidebandPanel::setFrequency(int mode, int rx, qint64 freq) {
 	if (rx != m_currentReceiver) return;
 	
 	m_frequency = freq;
+	if (m_hwInterface == QSDR::SoapySDR && m_freqScaleZoomFactor >= 0.999f) {
+		const qreal span = qMax<qreal>(1.0, m_widebandMaxFrequency - m_widebandMinFrequency);
+		m_lowerFrequency = qMax<qreal>(m_widebandMinFrequency, static_cast<qreal>(m_frequency) - span * 0.5);
+		m_upperFrequency = m_lowerFrequency + span;
+		if (m_upperFrequency > m_widebandMaxFrequency) {
+			m_upperFrequency = m_widebandMaxFrequency;
+			m_lowerFrequency = m_widebandMaxFrequency - span;
+		}
+	}
 	m_freqScaleUpdate = true;
 	m_panGridUpdate = true;
 
@@ -1703,16 +1722,49 @@ void QGLWidebandPanel::setCurrentReceiver(int value) {
 //}
 
 void QGLWidebandPanel::setWidebandSpectrumBuffer(const qVectorFloat &buffer) {
-	//int deltaIdx;
-	//qreal frequencyScale;
-	//qreal scaleMult = 1.0;
 	m_wbSpectrumBufferLength = buffer.size();
+	if (m_wbSpectrumBufferLength <= 0)
+		return;
+
+	const TWideband wbOpts = set->getWidebandOptions();
+	const bool averagingEnabled = wbOpts.averaging;
+	const int requestedAvgCnt = qMax(1, wbOpts.averagingCnt);
 
 	mutex.lock();
-	m_wbSpectrumBuffer.resize(m_wbSpectrumBufferLength);
-	m_wbSpectrumBuffer = buffer;
+	if (!averagingEnabled || requestedAvgCnt <= 1) {
+		// Pass-through mode: clear averaging history so slider changes apply immediately.
+		specAv_queue.clear();
+		m_wbAverageAccum.clear();
+		m_specAveragingCnt = requestedAvgCnt;
+		m_scale = 1.0f;
+		m_wbSpectrumBuffer = buffer;
+	} else {
+		if (m_specAveragingCnt != requestedAvgCnt || m_wbAverageAccum.size() != m_wbSpectrumBufferLength) {
+			specAv_queue.clear();
+			m_wbAverageAccum = qVectorFloat(m_wbSpectrumBufferLength, 0.0f);
+		}
+		m_specAveragingCnt = requestedAvgCnt;
+		m_scale = 1.0f / m_specAveragingCnt;
 
-	//m_scaledBufferSize = qFloor(m_wbSpectrumBufferLength * m_freqScaleZoomFactor);
+		specAv_queue.enqueue(QVector<float>(buffer));
+		if (m_wbAverageAccum.size() != m_wbSpectrumBufferLength)
+			m_wbAverageAccum = qVectorFloat(m_wbSpectrumBufferLength, 0.0f);
+
+		const QVector<float> &latest = specAv_queue.back();
+		for (int i = 0; i < m_wbSpectrumBufferLength; ++i)
+			m_wbAverageAccum[i] += latest.at(i);
+
+		while (specAv_queue.size() > m_specAveragingCnt) {
+			const QVector<float> oldest = specAv_queue.dequeue();
+			for (int i = 0; i < m_wbSpectrumBufferLength; ++i)
+				m_wbAverageAccum[i] -= oldest.at(i);
+		}
+
+		const int divisor = qMax(1, specAv_queue.size());
+		m_wbSpectrumBuffer.resize(m_wbSpectrumBufferLength);
+		for (int i = 0; i < m_wbSpectrumBufferLength; ++i)
+			m_wbSpectrumBuffer[i] = m_wbAverageAccum.at(i) / divisor;
+	}
 	mutex.unlock();
 
 //	deltaIdx = qFloor((qreal)(m_wbSpectrumBufferLength * (m_lowerFrequency / set->getMaxFrequency())));
@@ -1733,8 +1785,26 @@ void QGLWidebandPanel::setWidebandSpectrumBuffer(const qVectorFloat &buffer) {
 	}
 }
 
+void QGLWidebandPanel::setWidebandFrequencyRange(qreal lowHz, qreal highHz) {
+	if (m_hwInterface != QSDR::SoapySDR)
+		return;
+	if (highHz <= lowHz)
+		return;
+	m_widebandMinFrequency = lowHz;
+	m_lowerFrequency = lowHz;
+	m_widebandMaxFrequency = highHz;
+	m_upperFrequency = highHz;
+	m_frequencySpan = m_upperFrequency - m_lowerFrequency;
+	m_freqScaleZoomFactor = 1.0f;
+	m_freqScaleUpdate = true;
+	m_panGridUpdate = true;
+	update();
+}
+
 void QGLWidebandPanel::resetWidebandSpectrumBuffer() {
 
+	specAv_queue.clear();
+	m_wbAverageAccum.clear();
 	m_wbSpectrumBuffer.resize(BIGWIDEBANDSIZE / 2);
 	m_wbSpectrumBuffer.fill(-1000.0f);
 }
@@ -1746,8 +1816,10 @@ void QGLWidebandPanel::systemStateChanged(
 	QSDR::_DataEngineState state)
 {
 	Q_UNUSED (err)
-	Q_UNUSED (hwmode)
 	Q_UNUSED (state)
+
+	if (m_hwInterface != hwmode)
+		m_hwInterface = hwmode;
 
 	//bool change = false;
 

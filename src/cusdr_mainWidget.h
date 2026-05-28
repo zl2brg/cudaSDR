@@ -142,7 +142,6 @@ private:
     MainWindowUI*               ui;
 	Settings*					set;
     QDialog                     *setupWidget;
-    cusdr_SetupWidget           *test_widget;
 
 	QSDR::_Error				m_error;
 	QSDR::_ServerMode			m_serverMode;

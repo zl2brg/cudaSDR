@@ -127,18 +127,6 @@ MainWindow::MainWindow(RadioModel *model, QWidget *parent)
 	// control widgets
     m_serverWidget = new ServerWidget(this);
     m_hpsdrTabWidget = new cusdr_SetupWidget(m_radioModel, this);
-    test_widget = new cusdr_SetupWidget(m_radioModel);
-    test_widget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-
-    QScrollArea *scrollArea = new QScrollArea(setupWidget);
-    scrollArea->setWidget(test_widget);
-    scrollArea->setWidgetResizable(true);
-    scrollArea->setFrameShape(QFrame::NoFrame);
-
-    QVBoxLayout *layout = new QVBoxLayout;
-    layout->setContentsMargins(0, 0, 0, 0);
-    layout->addWidget(scrollArea);
-    setupWidget->setLayout(layout);
 
 	m_wbDisplay = 0;
 
@@ -1936,12 +1924,24 @@ void MainWindow::handleDeviceListChanged(const QList<TNetworkDevicecard> &list) 
 void MainWindow::handleSoapyDeviceListChanged(const QList<TSoapyDevice> &list) {
     if (set->getMainPower()) return;
 
+    auto sameSoapyDevice = [](const TSoapyDevice &a, const TSoapyDevice &b) {
+        // Prefer stable unique key when available.
+        if (!a.serial.isEmpty() || !b.serial.isEmpty())
+            return a.driver == b.driver && a.serial == b.serial;
+        // Some drivers leave serial empty; use broader identity fallback.
+        return a.driver == b.driver
+            && a.hardware == b.hardware
+            && a.name == b.name
+            && a.label == b.label
+            && a.args == b.args;
+    };
+
     for (const TSoapyDevice &dev : list) {
         QVariant v = QVariant::fromValue(dev);
         bool found = false;
         for (const QVariant &existing : m_discoveredDevices) {
             if (existing.canConvert<TSoapyDevice>()) {
-                if (existing.value<TSoapyDevice>().serial == dev.serial && existing.value<TSoapyDevice>().driver == dev.driver) {
+                if (sameSoapyDevice(existing.value<TSoapyDevice>(), dev)) {
                     found = true;
                     break;
                 }

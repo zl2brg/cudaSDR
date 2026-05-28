@@ -182,6 +182,7 @@ private:
 
 
 	qVectorFloat m_wbSpectrumBuffer;
+	qVectorFloat m_wbAverageAccum;
 
 	float		m_scale;
 	float		m_distMax;
@@ -241,6 +242,8 @@ private:
 	qreal		m_frequencyUnit;
 	qreal		m_lowerFrequency;
 	qreal		m_upperFrequency;
+	qreal		m_widebandMaxFrequency;
+	qreal		m_widebandMinFrequency;
     qreal       dpr;
 	
 	//******************************************************************
@@ -282,6 +285,7 @@ private slots:
 	void	setupDisplayRegions(QSize size);
 	void	setWidebandSpectrumBuffer(const qVectorFloat &buffer);
 	void	resetWidebandSpectrumBuffer();
+	void	setWidebandFrequencyRange(qreal lowHz, qreal highHz);
 	//void	setSpectrumAveragingCnt(int value);
 	void	setPanadapterColors();
 	void	setPanGridStatus(bool value, int rx);

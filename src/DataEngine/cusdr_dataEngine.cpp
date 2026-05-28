@@ -1637,6 +1637,15 @@ void DataEngine::createDataIO() {
                     &QThread::started,
                     m_soapySDRSource,
                     &SoapySDRDataSource::runStream);
+
+        if (RadioTelemetry* tel = m_radioModel ? m_radioModel->telemetry() : nullptr) {
+            connect(m_soapySDRSource, &SoapySDRDataSource::widebandSpectrumReady,
+                    tel, &RadioTelemetry::setWidebandSpectrumBuffer);
+            connect(m_soapySDRSource, &SoapySDRDataSource::widebandSpectrumReset,
+                    tel, &RadioTelemetry::resetWidebandSpectrumBuffer);
+            connect(m_soapySDRSource, &SoapySDRDataSource::widebandFrequencyRangeReady,
+                    tel, &RadioTelemetry::setWidebandFrequencyRange);
+        }
         
         // We still need DataIO for local soundcard output!
         m_dataIO = new DataIO(&io);

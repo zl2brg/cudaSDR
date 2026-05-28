@@ -7,6 +7,7 @@
 #include <QThread>
 #include <QTimer>
 #include <QElapsedTimer>
+#include <QVector>
 #include <atomic>
 #include <SoapySDR/Device.hpp>
 #include <SoapySDR/Formats.hpp>
@@ -49,6 +50,8 @@ private:
     bool isLimeHardware() const;
     static bool isSampleRateCompatible(double rfHz, int dspHz);
     static int hardwareMinSampleRateHz(const std::string& hwKey, int driverReportedMin);
+    void publishWidebandSpectrum(const float* interleavedIQ, int complexSamples);
+    void publishWidebandFrequencyRange();
 
 #ifdef HAVE_LIQUID
     void setupResampler(int rfRate, int dspRate);
@@ -91,6 +94,9 @@ private:
 signals:
     void messageEvent(QString message);
     void readydata();
+    void widebandSpectrumReady(const qVectorFloat& buffer);
+    void widebandSpectrumReset();
+    void widebandFrequencyRangeReady(qreal lowHz, qreal highHz);
 };
 
 #endif // HAVE_SOAPYSDR

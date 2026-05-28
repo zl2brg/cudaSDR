@@ -2,7 +2,6 @@
 
 DeviceSelectionDialog::DeviceSelectionDialog(const QList<QVariant> &devices, QWidget *parent)
     : QDialog(parent)
-    , m_devices(devices)
 {
     setWindowTitle(tr("Select SDR Device"));
     setWindowFlags(windowFlags() & ~Qt::WindowContextHelpButtonHint);
@@ -17,17 +16,19 @@ DeviceSelectionDialog::DeviceSelectionDialog(const QList<QVariant> &devices, QWi
     layout->addWidget(titleLabel);
 
     m_deviceComboBox = new QComboBox(this);
-    for (const QVariant &dev : m_devices) {
+    for (const QVariant &dev : devices) {
         if (dev.canConvert<TNetworkDevicecard>()) {
             TNetworkDevicecard card = dev.value<TNetworkDevicecard>();
             QString label = QString("%1 (%2)").arg(card.boardName).arg(card.ip_address.toString());
-            m_deviceComboBox->addItem(label, dev);
+            m_deviceComboBox->addItem(label);
+            m_deviceItems.append(dev);
         }
 #ifdef HAVE_SOAPYSDR
         else if (dev.canConvert<TSoapyDevice>()) {
             TSoapyDevice soapy = dev.value<TSoapyDevice>();
             QString label = QString("[Soapy] %1").arg(soapy.label);
-            m_deviceComboBox->addItem(label, dev);
+            m_deviceComboBox->addItem(label);
+            m_deviceItems.append(dev);
         }
 #endif
     }
@@ -54,6 +55,10 @@ QVariant DeviceSelectionDialog::selectedDevice() const {
 }
 
 void DeviceSelectionDialog::okBtnClicked() {
-    m_selectedDevice = m_deviceComboBox->currentData();
+    const int idx = m_deviceComboBox->currentIndex();
+    if (idx >= 0 && idx < m_deviceItems.size())
+        m_selectedDevice = m_deviceItems.at(idx);
+    else
+        m_selectedDevice.clear();
     accept();
 }

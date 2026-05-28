@@ -33,6 +33,7 @@ public:
 
     void setWidebandSpectrumBuffer(const qVectorFloat& buffer);
     void resetWidebandSpectrumBuffer();
+    void setWidebandFrequencyRange(qreal lowHz, qreal highHz);
 
 signals:
     void spectrumBufferChanged(int rx, const qVectorFloat& buffer);
@@ -51,6 +52,7 @@ signals:
 
     void widebandSpectrumBufferChanged(const qVectorFloat& buffer);
     void widebandSpectrumBufferReset();
+    void widebandFrequencyRangeChanged(qreal lowHz, qreal highHz);
 
 private:
     SliceModel* sliceForRx(int rx) const;

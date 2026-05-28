@@ -25,7 +25,7 @@ private slots:
 
 private:
     QComboBox *m_deviceComboBox;
-    QList<QVariant> m_devices;
+    QList<QVariant> m_deviceItems;
     QVariant m_selectedDevice;
 };
 
