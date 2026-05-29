@@ -8,6 +8,7 @@
 #include <QTimer>
 #include <QElapsedTimer>
 #include <QVector>
+#include <QMutex>
 #include <atomic>
 #include <complex>
 #include <SoapySDR/Device.hpp>
@@ -54,6 +55,10 @@ private:
     static int hardwareMinSampleRateHz(const std::string& hwKey, int driverReportedMin);
     void publishWidebandSpectrum(const float* interleavedIQ, int complexSamples);
     void publishWidebandFrequencyRange();
+    void drainSoapyTxIqQueue();
+    bool fillTxBufferFromRing(float *txBuff, int numComplexSamples);
+    void clearTxIqRing();
+    void configureTxSampleRate();
 
 #ifdef HAVE_LIQUID
     void setupResampler(int rfRate, int dspRate);
@@ -96,6 +101,11 @@ private:
     std::atomic<int> m_radioStateValue;
     qint64 m_lastTxSetFrequency;
     bool m_txDebugPrimed;
+    static constexpr int kTxIqSampleRate = 48000;
+    int m_txSampleRate = kTxIqSampleRate;
+    QVector<float> m_txIqRing;
+    QMutex m_txIqMutex;
+    double m_txUpsamplePos = 0.0;
 
 #ifdef HAVE_LIQUID
     resamp_crcf m_resampler;

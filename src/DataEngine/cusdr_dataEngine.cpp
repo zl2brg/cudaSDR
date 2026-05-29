@@ -375,6 +375,12 @@ void DataEngine::setupConnections() {
             this,
             &DataEngine::setRepeaterMode);
 
+    CHECKED_CONNECT(
+            set,
+            &Settings::txFullDuplexChanged,
+            this,
+            &DataEngine::setTxFullDuplex);
+
 
     // connect(set, &Settings::dspModeChanged, this, &DataEngine::dspModeChanged);
 
@@ -1389,7 +1395,7 @@ bool DataEngine::initReceivers(int rcvrs) {
 	io.ccTx.mercuryAttenuator = io.ccTx.mercuryAttenuators.at(io.ccTx.currentBand);
 	io.ccTx.dither = set->getMercuryDither();
 	io.ccTx.random = set->getMercuryRandom();
-	io.ccTx.duplex = 1;
+	io.ccTx.duplex = set->getTxFullDuplex() ? 1 : 0;
 	io.ccTx.mox = false;
 	io.ccTx.ptt = false;
 	io.ccTx.alexStates = set->getAlexStates();
@@ -2650,6 +2656,12 @@ DataProcessor::DataProcessor(
     m_controlTimer = new QTimer(this);
     connect(m_controlTimer, &QTimer::timeout, this, &DataProcessor::encodeCCBytes);
 
+#ifdef HAVE_SOAPYSDR
+    m_soapyTxIqTimer = new QTimer(this);
+    m_soapyTxIqTimer->setTimerType(Qt::PreciseTimer);
+    connect(m_soapyTxIqTimer, &QTimer::timeout, this, &DataProcessor::pumpSoapyTxIqTimer);
+#endif
+
     file = new QFile("data.txt");
     file->open(QIODevice::ReadWrite);
 
@@ -2796,6 +2808,9 @@ void DataProcessor::applyCodec2ToMicBuffer(int sampleCount)
 void DataProcessor::stop() {
 
 	m_stopped = true;
+#ifdef HAVE_SOAPYSDR
+	stopSoapyTxIqTimer();
+#endif
 }
 
 void DataProcessor::startControlTimer() {
@@ -3116,8 +3131,19 @@ void DataProcessor::add_rx_audio_sample() {
 /* Sends RX Audio and tx iq data back to hpsdr. Always at 48 KHz bandwidth */
 
 void DataProcessor::send_hpsdr_data(int rx, const CPX &buffer, int buffersize) {
+#ifdef HAVE_SOAPYSDR
+    // Soapy TX IQ is paced by m_soapyTxIqTimer (half- and full-duplex).
+    if (m_hwInterface == QSDR::SoapySDR) {
+        Q_UNUSED(buffer)
+        Q_UNUSED(buffersize)
+        Q_UNUSED(rx)
+        return;
+    }
+#endif
+
     // Only send audio for the currently selected receiver.
     if (rx != de->io.currentReceiver) return;
+
     rx_audio_ptr = 0;
 /* buffer rx audio */
     for (int j = 0; j < buffersize; j++)
@@ -3288,7 +3314,7 @@ void DataProcessor::send_mic_data() {
 void DataProcessor::fetch_MicData(){
 	int numSamples = 0;
     AUDIOBUF temp_data;
-    if (de->m_audioInput->m_faudioInQueue.count() > 0)
+    if (de->m_audioInput && de->m_audioInput->m_faudioInQueue.count() > 0)
     {
         temp_data = de->m_audioInput->m_faudioInQueue.dequeue();
 
@@ -3324,6 +3350,7 @@ void DataProcessor::fetch_MicData(){
 
 /*  processes mic samples ready to transmit */
 void DataProcessor::get_tx_iqData(){
+    QMutexLocker pumpLock(&m_txIqPumpMutex);
     int error;
     long int   leftTXSample;
     long int rightTXSample;
@@ -3332,11 +3359,15 @@ void DataProcessor::get_tx_iqData(){
    // double gain = 25 * 0.00392;
     fetch_MicData();
 
-    if ( de->io.ccTx.mox ||  de->io.ccTx.ptt ) {
+    if (set->is_transmitting()) {
         fexchange0(TX_ID, mic_buffer, (double *) m_iq_output_buffer.data(), &error);
 
 		Spectrum0(1, TX_ID, 0, 0, (double *) m_iq_output_buffer.data());
 
+#ifdef HAVE_SOAPYSDR
+        if (m_hwInterface == QSDR::SoapySDR && !set->getTxFullDuplex())
+            publishTxSpectrumForPanadapter();
+#endif
 
 /* Queue the tx data */
         int idx = 0;
@@ -3350,8 +3381,57 @@ void DataProcessor::get_tx_iqData(){
             m_tx_iq_Buffer[idx++] = (int)rightTXSample >> 8;
             m_tx_iq_Buffer[idx++] = (int)rightTXSample;
         }
+#ifdef HAVE_SOAPYSDR
+        if (m_hwInterface == QSDR::SoapySDR && !de->io.soapy_tx_iq_queue.isFull()) {
+            QVector<float> soapyTxIq(DSP_SAMPLE_SIZE * 2);
+            for (int j = 0; j < DSP_SAMPLE_SIZE; ++j) {
+                soapyTxIq[j * 2] = static_cast<float>(m_iq_output_buffer.at(j).re);
+                soapyTxIq[j * 2 + 1] = static_cast<float>(m_iq_output_buffer.at(j).im);
+            }
+            de->io.soapy_tx_iq_queue.enqueue(soapyTxIq);
+        }
+#endif
     }
 }
+
+#ifdef HAVE_SOAPYSDR
+void DataProcessor::publishTxSpectrumForPanadapter() {
+    if (!set->is_transmitting())
+        return;
+
+    constexpr int kTxPanPixels = 4096;
+    if (m_txSpectrumBuffer.size() != kTxPanPixels)
+        m_txSpectrumBuffer.resize(kTxPanPixels);
+
+    int flag = 0;
+    GetPixels(TX_ID, 0, m_txSpectrumBuffer.data(), &flag);
+    if (!flag)
+        return;
+
+    applyTxPanadapterDisplayOffset(m_txSpectrumBuffer);
+    set->setSpectrumBuffer(de->io.currentReceiver, m_txSpectrumBuffer);
+}
+
+void DataProcessor::startSoapyTxIqTimer(int intervalMs) {
+    if (!m_soapyTxIqTimer || m_hwInterface != QSDR::SoapySDR)
+        return;
+    m_soapyTxIqTimer->setInterval(qMax(1, intervalMs));
+    if (!m_soapyTxIqTimer->isActive())
+        m_soapyTxIqTimer->start();
+    // Prime one block immediately so MOX does not wait for the first tick.
+    pumpSoapyTxIqTimer();
+}
+
+void DataProcessor::stopSoapyTxIqTimer() {
+    if (m_soapyTxIqTimer)
+        m_soapyTxIqTimer->stop();
+}
+
+void DataProcessor::pumpSoapyTxIqTimer() {
+    if (m_hwInterface == QSDR::SoapySDR && set->is_transmitting())
+        get_tx_iqData();
+}
+#endif
 
 /* copied from pihpsdr */
 void DataProcessor::DumpBuffer(unsigned char *buffer,int length, const char *who) {
@@ -3714,6 +3794,27 @@ void DataEngine::setRepeaterMode(bool mode) {
         io.ccTx.use_repeaterOffset = mode;
 }
 
+void DataEngine::setTxFullDuplex(bool fullDuplex) {
+    io.ccTx.duplex = fullDuplex ? 1 : 0;
+
+#ifdef HAVE_SOAPYSDR
+    if (m_hwInterface != QSDR::SoapySDR)
+        return;
+
+    const RadioState txState = m_radioState;
+    for (int i = 0; i < RX.size(); ++i) {
+        if (!RX.at(i))
+            continue;
+        if (fullDuplex && (txState == RadioState::MOX || txState == RadioState::TUNE))
+            RX.at(i)->m_state = RadioState::RX;
+        else if (!fullDuplex && (txState == RadioState::MOX || txState == RadioState::TUNE))
+            RX.at(i)->m_state = txState;
+        else
+            RX.at(i)->m_state = RadioState::RX;
+    }
+#endif
+}
+
 void DataEngine::dspModeChanged(int rx, DSPMode mode){
     Q_UNUSED(rx);
     io.ccTx.mode = mode;
@@ -3861,21 +3962,44 @@ void DataEngine::radioStateChange(RadioState state) {
 
     if ((state == RadioState::MOX) || (state == RadioState::TUNE)) {
         io.ccTx.mox = true;
-        // Soapy TX slice-1 uses an internal tone/silence generator and does not
-        // consume mic samples yet. Avoid touching mic input state in Soapy mode.
-        if (m_hwInterface != QSDR::SoapySDR && m_audioInput)
+        if (m_audioInput)
             m_audioInput->Start();
     } else {
         io.ccTx.mox = false;
-        if (m_hwInterface != QSDR::SoapySDR && m_audioInput)
+        if (m_audioInput)
             m_audioInput->Stop();
+#ifdef HAVE_SOAPYSDR
+        while (!io.soapy_tx_iq_queue.isEmpty())
+            io.soapy_tx_iq_queue.dequeue();
+#endif
     }
 
-	// Keep all receiver display pipelines in sync with TX/RX state.
-	// SliceProcessor::dspProcessing uses m_state to choose RX or TX spectrum source.
+#ifdef HAVE_SOAPYSDR
+	if (m_hwInterface == QSDR::SoapySDR && m_dataProcessor) {
+		if (state == RadioState::MOX || state == RadioState::TUNE) {
+			const int intervalMs = qMax(1,
+			    static_cast<int>((static_cast<long long>(DSP_SAMPLE_SIZE) * 1000LL) / 48000LL));
+			QMetaObject::invokeMethod(m_dataProcessor, "startSoapyTxIqTimer",
+			                          Qt::QueuedConnection,
+			                          Q_ARG(int, intervalMs));
+		} else {
+			QMetaObject::invokeMethod(m_dataProcessor, "stopSoapyTxIqTimer",
+			                          Qt::QueuedConnection);
+		}
+	}
+#endif
+
+	// SliceProcessor::dspProcessing uses m_state for spectrum source.
+	// Soapy full-duplex (ccTx.duplex): stay in RX during MOX so panadapter/audio continue.
+	// Soapy half-duplex: follow MOX/TUNE like HPSDR (RX WDSP path idles without IQ pump).
 	for (int i = 0; i < RX.size(); ++i) {
 		if (RX.at(i)) {
-			RX.at(i)->m_state = state;
+#ifdef HAVE_SOAPYSDR
+			if (m_hwInterface == QSDR::SoapySDR && set->getTxFullDuplex())
+				RX.at(i)->m_state = RadioState::RX;
+			else
+#endif
+				RX.at(i)->m_state = state;
 		}
 	}
 }

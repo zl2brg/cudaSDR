@@ -33,6 +33,8 @@ private slots:
     void onSoapyTxAntennaListChanged(QStringList list);
     void onSoapyHardwareKeyChanged(QString key);
     void onSoapyAutoCalibrateChanged(bool enabled);
+    void onTxFullDuplexChanged(bool fullDuplex);
+    void onFullDuplexToggled(bool enabled);
     void onAntennaComboChanged(int index);
     void onTxAntennaComboChanged(int index);
     void onAutoCalToggled(bool enabled);

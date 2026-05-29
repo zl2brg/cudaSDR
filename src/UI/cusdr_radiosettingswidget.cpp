@@ -19,6 +19,7 @@ void cusdr_radioSettingsWidget::setupRadioTab()
 {
 #ifdef HAVE_SOAPYSDR
     // Populate from current settings
+    ui->fullDuplexCheck->blockSignals(true);
     ui->autoCalCheck->blockSignals(true);
     ui->lnaSlider->blockSignals(true);
     ui->lnaSpinBox->blockSignals(true);
@@ -28,6 +29,7 @@ void cusdr_radioSettingsWidget::setupRadioTab()
     ui->overallGainSlider->blockSignals(true);
     ui->overallGainSpinBox->blockSignals(true);
 
+    ui->fullDuplexCheck->setChecked(set->getTxFullDuplex());
     ui->autoCalCheck->setChecked(set->getSoapyAutoCalibrate());
     ui->lnaSlider->setValue(set->getSoapyLnaGain());
     ui->lnaSpinBox->setValue(set->getSoapyLnaGain());
@@ -40,6 +42,7 @@ void cusdr_radioSettingsWidget::setupRadioTab()
     ui->overallGainSlider->setValue(set->getSoapyOverallGain());
     ui->overallGainSpinBox->setValue(set->getSoapyOverallGain());
 
+    ui->fullDuplexCheck->blockSignals(false);
     ui->autoCalCheck->blockSignals(false);
     ui->lnaSlider->blockSignals(false);
     ui->lnaSpinBox->blockSignals(false);
@@ -66,6 +69,10 @@ void cusdr_radioSettingsWidget::setupRadioTab()
             this, &cusdr_radioSettingsWidget::onSoapyHardwareKeyChanged);
     connect(set, &Settings::soapyAutoCalibrateChanged,
             this, &cusdr_radioSettingsWidget::onSoapyAutoCalibrateChanged);
+    connect(set, &Settings::txFullDuplexChanged,
+            this, &cusdr_radioSettingsWidget::onTxFullDuplexChanged);
+    connect(ui->fullDuplexCheck, &QCheckBox::toggled,
+            this, &cusdr_radioSettingsWidget::onFullDuplexToggled);
     connect(ui->autoCalCheck, &QCheckBox::toggled,
             this, &cusdr_radioSettingsWidget::onAutoCalToggled);
     connect(ui->antennaCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
@@ -149,6 +156,18 @@ void cusdr_radioSettingsWidget::onSoapyAutoCalibrateChanged(bool enabled)
     ui->autoCalCheck->blockSignals(true);
     ui->autoCalCheck->setChecked(enabled);
     ui->autoCalCheck->blockSignals(false);
+}
+
+void cusdr_radioSettingsWidget::onTxFullDuplexChanged(bool fullDuplex)
+{
+    ui->fullDuplexCheck->blockSignals(true);
+    ui->fullDuplexCheck->setChecked(fullDuplex);
+    ui->fullDuplexCheck->blockSignals(false);
+}
+
+void cusdr_radioSettingsWidget::onFullDuplexToggled(bool enabled)
+{
+    set->setTxFullDuplex(enabled);
 }
 
 void cusdr_radioSettingsWidget::onAutoCalToggled(bool enabled)

@@ -178,6 +178,7 @@ public slots:
 	void	applySliceDspMode(int rx, DSPMode mode);
     void    set_tx_drivelevel(int value);
     void    setRepeaterMode(bool);
+    void    setTxFullDuplex(bool fullDuplex);
 
 	void	suspend();
 
@@ -414,10 +415,11 @@ public slots:
     void	displayDataProcessorSocketError(QAbstractSocket::SocketError error);
 	void	setOutputBuffer(int rx, const CPX &buffer);
     void    send_hpsdr_data(int rx, const CPX &buffer, int buffersize);
-
-
+    void    startSoapyTxIqTimer(int intervalMs);
+    void    stopSoapyTxIqTimer();
 
 private slots:
+    void    pumpSoapyTxIqTimer();
 	void	initDataProcessorSocket();
 	void    processInputBuffer(const QByteArray &buffer, quint16 sourcePort);
 	void	processOutputBuffer(const CPX &buffer);
@@ -443,6 +445,7 @@ private:
 	QHostAddress	m_deviceAddress;
 	QMutex			m_mutex;
 	QMutex			m_spectrumMutex;
+	QMutex			m_txIqPumpMutex;
     uchar           m_tx_iq_Buffer[DSP_SAMPLE_SIZE * 4];
     double	        mic_buffer[DSP_SAMPLE_SIZE * 2]; // i & q  - audio is either i or q - dependant on patch panel selection
     int             mic_buffer_index;
@@ -488,6 +491,10 @@ private:
 
 	volatile bool	m_stopped;
     QTimer*         m_controlTimer;
+#ifdef HAVE_SOAPYSDR
+    QTimer*         m_soapyTxIqTimer = nullptr;
+    qVectorFloat    m_txSpectrumBuffer;
+#endif
 #ifdef HAVE_CODEC2
 	struct freedv* m_freeDVTx = nullptr;
 	int m_freeDVTxMode = -1;
@@ -504,9 +511,10 @@ private:
 	std::vector<int16_t> m_freeDVSpeechAccum;
 	std::vector<int16_t> m_freeDVModemQueue;
 	size_t m_freeDVModemReadPos = 0;
-	void applyCodec2ToMicBuffer(int sampleCount);
+    void applyCodec2ToMicBuffer(int sampleCount);
 #endif
     void            get_tx_iqData();
+    void            publishTxSpectrumForPanadapter();
     void            buffer_tx_iq_sample(int i, int q);
     void    DumpBuffer(unsigned char *buffer,int length, const char *who);
     void    add_mic_sample();

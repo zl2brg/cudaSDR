@@ -417,13 +417,28 @@ void SliceProcessor::dspProcessingCore() {
 
       if (highResTimer->getElapsedTimeInMicroSec() >= getDisplayDelay()) {
 
+#ifdef HAVE_SOAPYSDR
+		if (set->getHWInterface() == QSDR::SoapySDR && set->is_transmitting()) {
+			if (!set->getTxFullDuplex()) {
+				// Half duplex: TX panadapter updated from get_tx_iqData() (RX DSP idle).
+				spectrumDataReady = 0;
+			} else {
+				GetPixels(TX_ID, 0, qtwdsp->spectrumBuffer.data(), &spectrumDataReady);
+				if (spectrumDataReady)
+					applyTxPanadapterDisplayOffset(qtwdsp->spectrumBuffer);
+				else
+					GetPixels(m_receiver, 0, qtwdsp->spectrumBuffer.data(), &spectrumDataReady);
+			}
+		} else
+#endif
 		if (m_state == RadioState::RX) {
 			GetPixels(m_receiver, 0, qtwdsp->spectrumBuffer.data(), &spectrumDataReady);
 		} else {
 			GetPixels(TX_ID, 0, qtwdsp->spectrumBuffer.data(), &spectrumDataReady);
-			if (!spectrumDataReady) {
+			if (spectrumDataReady)
+				applyTxPanadapterDisplayOffset(qtwdsp->spectrumBuffer);
+			else
 				GetPixels(m_receiver, 0, qtwdsp->spectrumBuffer.data(), &spectrumDataReady);
-			}
 		}
 
         if (spectrumDataReady) {
@@ -508,6 +523,8 @@ void SliceProcessor::dspProcessingCore() {
 			}
 		}
 #endif // USE_INTERNAL_AUDIO
+        // HPSDR: audioBufferSignal feeds the network TX/RX interleave path.
+        // Soapy: TX IQ is paced by DataProcessor::m_soapyTxIqTimer (half- and full-duplex).
         if (set->getHWInterface() != QSDR::SoapySDR) {
             emit audioBufferSignal(m_receiver, audioOutputBuf, audioSamplesThisCall);
         }

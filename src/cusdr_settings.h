@@ -263,6 +263,13 @@ enum {
 
 
 typedef QVector<float> qVectorFloat;
+
+// WDSP TX analyzer levels run hot vs RX; offset panadapter display (dB).
+constexpr float kTxPanadapterDisplayDbOffset = -26.0f;
+inline void applyTxPanadapterDisplayOffset(qVectorFloat &spectrum) {
+    for (float &bin : spectrum)
+        bin += kTxPanadapterDisplayDbOffset;
+}
 typedef QVector<double> qVectorDouble;
 
 typedef struct _frequency {
@@ -395,6 +402,7 @@ typedef struct _hpsdrParameter {
 	QHQueue<QByteArray>		au_queue;
 	QHQueue<QByteArray>		wb_queue;
 	QHQueue<QVector<float>> soapy_iq_queue{100};
+	QHQueue<QVector<float>> soapy_tx_iq_queue{100};
 
 	QList<qreal> inputBuffer;
 
@@ -955,7 +963,8 @@ signals:
     void anfChanged(int rx, bool value);
     void micInputLevelChanged(int level);
     void driveLevelChanged(int level);
-    void repeaterModeChanged(bool mode);
+	void repeaterModeChanged(bool mode);
+    void txFullDuplexChanged(bool fullDuplex);
     void repeaterOffsetchanged(double value);
     void fmPremphasizechanged(double value);
     void fmdeveationchanged(double value);
@@ -1069,6 +1078,7 @@ public:
 	QList<int>					getTxJ6Pins()				{ return m_txJ6pinList; }
     int                         get_tx_drivelevel()         {return m_drivelevel;   }
     bool                        get_repeaterMode()          {return m_repeaterMode; }
+    bool                        getTxFullDuplex() const     { return m_txFullDuplex; }
     int							getFramesPerSecond(int rx);
 	QString						getDSPModeString(int mode);
     DSPMode                     getDSPMode(int rx);
@@ -1456,6 +1466,7 @@ public slots:
     void setAnf(int rx, bool value);
     void setSnb(int rx, bool value);
     void setRepeaterMode(bool mode);
+    void setTxFullDuplex(bool fullDuplex);
     void setRepeaterOffset(int offset);
     void setAudioCompression(int level);
     void setAMCarrierLevel(int level);
@@ -1649,6 +1660,7 @@ private:
     int		m_spectrumSize;
 	int		m_sMeterHoldTime;
     bool    m_repeaterMode;
+    bool    m_txFullDuplex = true;
 
 	long freq1;
 	

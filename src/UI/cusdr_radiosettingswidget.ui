@@ -229,6 +229,28 @@
       </attribute>
       <layout class="QVBoxLayout" name="radioVLayout">
        <item>
+        <widget class="QGroupBox" name="operationGroup">
+         <property name="title">
+          <string>Operation</string>
+         </property>
+         <layout class="QVBoxLayout" name="operationVLayout">
+          <item>
+           <widget class="QCheckBox" name="fullDuplexCheck">
+            <property name="text">
+             <string>Full duplex (RX during TX)</string>
+            </property>
+            <property name="toolTip">
+             <string>When checked, receive processing and panadapter continue during MOX. When unchecked (half duplex), RX WDSP is paused during transmit; TX audio uses the WDSP path at 48 kHz.</string>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
         <widget class="QGroupBox" name="calibrationGroup">
          <property name="title">
           <string>RX calibration</string>

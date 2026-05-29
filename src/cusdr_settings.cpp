@@ -457,6 +457,7 @@ int Settings::loadSettings() {
     m_drivelevel = m_audioConfig->driveLevel();
 
     m_repeaterOffset =  settings->value("repeater_offset",0).toDouble();
+    m_txFullDuplex = settings->value("radio/txFullDuplex", true).toBool();
     m_audioConfig->setFmPreemphasis(settings->value("fm_preemphesize",0).toInt());
     m_fmPremphasize = m_audioConfig->fmPreemphasis();
 
@@ -1854,6 +1855,7 @@ int Settings::saveSettings() {
     settings->setValue("server/timing", m_RxTiming);
 
     settings->setValue("repeater_offset",m_repeaterOffset);
+    settings->setValue("radio/txFullDuplex", m_txFullDuplex);
     settings->setValue("fm_preemphesize",m_fmPremphasize);
     settings->setValue("am_carrierlevel",m_amCarrierLevel);
     settings->setValue("audiocompression",m_audioCompression);
@@ -5520,6 +5522,13 @@ void Settings::setRepeaterMode(bool mode){
     m_repeaterMode = mode;
 
    emit repeaterModeChanged(mode);
+}
+
+void Settings::setTxFullDuplex(bool fullDuplex) {
+    if (m_txFullDuplex != fullDuplex) {
+        m_txFullDuplex = fullDuplex;
+        emit txFullDuplexChanged(fullDuplex);
+    }
 }
 
 void Settings::setRepeaterOffset(int offset)
