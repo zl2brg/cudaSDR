@@ -38,8 +38,7 @@ signals:
     void micInputChanged(int);
 
 private slots:
-
-
+    void refreshAudioDevices();
 
 };
 

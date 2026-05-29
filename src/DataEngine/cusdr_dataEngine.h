@@ -412,6 +412,7 @@ public slots:
 	void	processReadData();
 	void	processDeviceData();
     void    processMicData();
+    void    processSoapyMicData();
     void	displayDataProcessorSocketError(QAbstractSocket::SocketError error);
 	void	setOutputBuffer(int rx, const CPX &buffer);
     void    send_hpsdr_data(int rx, const CPX &buffer, int buffersize);

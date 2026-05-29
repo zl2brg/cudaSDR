@@ -1783,6 +1783,16 @@ void DataEngine::stopDataIO() {
 void DataEngine::createDataProcessor() {
 
 	m_dataProcessor = new DataProcessor(this, m_serverMode, m_hwInterface);
+
+    // Connect audio input to the newly created processor
+    if (m_audioInput) {
+        CHECKED_CONNECT(
+                m_audioInput,
+                SIGNAL(tx_mic_data_ready()),
+                m_dataProcessor,
+                SLOT(processSoapyMicData()));
+    }
+
 	sendSocket = new QUdpSocket();
     m_controlSocket = new QUdpSocket();
     if (!m_controlSocket->bind(QHostAddress::AnyIPv4, 0)) {
@@ -3324,6 +3334,22 @@ void DataProcessor::fetch_MicData(){
             mic_buffer[(s * 2 )]  = temp_data[s] ;
             mic_buffer[(s * 2 ) + 1 ] = 0.0f;
         }
+
+        // Diagnostic: Log if we are actually getting audio data
+        static int nonZeroCount = 0;
+        bool hasSignal = false;
+        for (int i = 0; i < numSamples; ++i) {
+            if (std::abs(temp_data[i]) > 1e-5) {
+                hasSignal = true;
+                break;
+            }
+        }
+        if (hasSignal) {
+            if (++nonZeroCount % 100 == 1) {
+                qDebug() << "fetch_MicData: Dequeued block with signal. RMS approx:" << temp_data[0];
+            }
+        }
+
         // Zero-fill remaining if buffer was short
         for (int s = numSamples; s < DSP_SAMPLE_SIZE; s++) {
             mic_buffer[(s * 2)] = 0.0f;
@@ -3333,6 +3359,12 @@ void DataProcessor::fetch_MicData(){
     else{
         temp_data.clear();
         memset(&mic_buffer,0x0,sizeof(mic_buffer));
+        
+        static int emptyCount = 0;
+        if (de->m_audioInput && ++emptyCount % 500 == 1) {
+            qDebug() << "fetch_MicData: Audio queue is empty. Mic capturing?" 
+                     << (de->m_audioInput ? "Yes (object exists)" : "No (null)");
+        }
     }
 
 	// Keep WSJT-X digital-input handling (DIGU/DIGL) separate.
@@ -3428,8 +3460,26 @@ void DataProcessor::stopSoapyTxIqTimer() {
 }
 
 void DataProcessor::pumpSoapyTxIqTimer() {
-    if (m_hwInterface == QSDR::SoapySDR && set->is_transmitting())
-        get_tx_iqData();
+    if (m_hwInterface == QSDR::SoapySDR && set->is_transmitting()) {
+        const RadioState state = set->getRadioState();
+        if (state == RadioState::TUNE) {
+            // TUNE is always timer-driven.
+            get_tx_iqData();
+        } else if (state == RadioState::MOX && set->getMicInputDev() == 0) {
+            // MOX with "HPSDR Mic Input" (index 0) has no soundcard signal, so use timer.
+            get_tx_iqData();
+        }
+    }
+}
+
+void DataProcessor::processSoapyMicData() {
+    // This is called whenever the soundcard provides a fresh block of audio.
+    if (m_hwInterface == QSDR::SoapySDR && set->is_transmitting()) {
+        if (set->getRadioState() == RadioState::MOX && set->getMicInputDev() > 0) {
+            // Reactive pump: drive WDSP at the soundcard's sample rate.
+            get_tx_iqData();
+        }
+    }
 }
 #endif
 
@@ -3922,13 +3972,6 @@ void AudioOutProcessor::processData() {
 void DataEngine::createAudioInputProcessor() {
 
     m_audioInput = new TransmitAudioInput();
-/*
-    CHECKED_CONNECT(
-            m_audioInput,
-            SIGNAL(tx_mic_data_ready()),
-            m_dataProcessor,
-            SLOT(processMicData()));
-*/
 
     m_cwIO = new iambic(this);
 

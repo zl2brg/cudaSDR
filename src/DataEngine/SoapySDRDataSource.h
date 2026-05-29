@@ -14,9 +14,7 @@
 #include <SoapySDR/Device.hpp>
 #include <SoapySDR/Formats.hpp>
 #include <SoapySDR/Types.hpp>
-#ifdef HAVE_LIQUID
 #include <liquid/liquid.h>
-#endif
 #include "cusdr_settings.h"
 #include "Util/cusdr_queue.h"
 
@@ -60,9 +58,7 @@ private:
     void clearTxIqRing();
     void configureTxSampleRate();
 
-#ifdef HAVE_LIQUID
-    void setupResampler(int rfRate, int dspRate);
-#endif
+    void setupResamplers(int rxRfRate, int rxDspRate, int txRfRate, int txDspRate);
 
     Settings* set;
     THPSDRParameter* io;
@@ -105,13 +101,16 @@ private:
     int m_txSampleRate = kTxIqSampleRate;
     QVector<float> m_txIqRing;
     QMutex m_txIqMutex;
-    double m_txUpsamplePos = 0.0;
 
-#ifdef HAVE_LIQUID
-    resamp_crcf m_resampler;
-    liquid_float_complex* m_resampIn;
-    liquid_float_complex* m_resampOut;
-#endif
+    // RX Resampler (RF -> DSP)
+    resamp_crcf m_rxResampler;
+    liquid_float_complex* m_rxResampIn;
+    liquid_float_complex* m_rxResampOut;
+
+    // TX Resampler (DSP -> RF)
+    resamp_crcf m_txResampler;
+    liquid_float_complex* m_txResampIn;
+    liquid_float_complex* m_txResampOut;
 
 signals:
     void messageEvent(QString message);

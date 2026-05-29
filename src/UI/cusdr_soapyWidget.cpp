@@ -175,17 +175,12 @@ void SoapyWidget::onSampleRateChanged(int rate)
     int hwRate = set->getSoapyRfSampleRate();
     if (hwRate > 0) {
         m_hwRateLabel->setText(QString("%1 MSPS").arg(hwRate / 1e6, 0, 'f', 3));
-#ifdef HAVE_LIQUID
         double ratio = (double)hwRate / (double)rate;
-        m_decimLabel->setText(QString("Liquid Fractional (%1:1)").arg(ratio, 0, 'f', 2));
-#else
-        int decim = hwRate / rate;
-        if (decim > 1) {
-            m_decimLabel->setText(QString("Boxcar decimation (%1:1)").arg(decim));
+        if (std::abs(ratio - 1.0) > 0.001) {
+            m_decimLabel->setText(QString("Liquid Fractional (%1:1)").arg(ratio, 0, 'f', 2));
         } else {
             m_decimLabel->setText(tr("Native (1:1 pass-through)"));
         }
-#endif
     } else {
         m_hwRateLabel->setText(tr("Disconnected"));
         m_decimLabel->setText(tr("n/a"));

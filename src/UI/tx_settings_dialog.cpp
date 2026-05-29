@@ -1,3 +1,4 @@
+#include "Util/AudioDeviceService.h"
 #include "tx_settings_dialog.h"
 #include "ui_tx_settings_dialog.h"
 #include "QtWDSP/qtwdsp_dspEngine.h"
@@ -40,67 +41,11 @@ tx_settings_dialog::tx_settings_dialog(QWidget *parent) :
     ui->audioCompression->setSliderPosition(m_audioCompressionLevel);
     ui->fm_deviation->setValue(int(set->getFMDeveation() / 1000.0));
 
-    // Populate audio input device list from the shared TX audio input helper
-    ui->audiodevlist->clear();
-    ui->audiodevlist->addItem("HPSDR Mic Input");
-    
-    const QList<QAudioDevice> micInputs = TransmitAudioInput::availableAudioInputDevices();
-    for (const QAudioDevice &deviceInfo : micInputs) {
-        ui->audiodevlist->addItem(deviceInfo.description());
-        qDebug() << "Audio input device:" << deviceInfo.description();
-    }
+    // Initial population and signal connection for dynamic updates
+    refreshAudioDevices();
+    connect(AudioDeviceService::instance(), &AudioDeviceService::audioInputsChanged,
+            this, &tx_settings_dialog::refreshAudioDevices);
 
-    {
-        int micIndex = -1;
-        const QString savedMicName = set->getMicInputSourceName();
-        if (savedMicName == "hpsdr-local") {
-            micIndex = 0;
-        } else {
-            micIndex = findDeviceComboIndex(micInputs, savedMicName, 1);
-            if (micIndex < 0) {
-                const QString defaultName = QMediaDevices::defaultAudioInput().description();
-                micIndex = findDeviceComboIndex(micInputs, defaultName, 1);
-            }
-            if (micIndex < 0)
-                micIndex = 0;
-        }
-        ui->audiodevlist->setCurrentIndex(micIndex);
-        set->setMicInputDev(micIndex);
-        if (micIndex == 0)
-            set->setMicInputSourceName("hpsdr-local");
-        else
-            set->setMicInputSourceName(ui->audiodevlist->currentText());
-    }
-
-    // Populate digital audio input device list (for FT8 / digi modes)
-    ui->digitalAudioDevList->clear();
-    ui->digitalAudioDevList->addItem("None");
-    const QList<QAudioDevice> digitalInputs = TransmitAudioInput::availableAudioInputDevices();
-    for (const QAudioDevice &deviceInfo : digitalInputs) {
-        ui->digitalAudioDevList->addItem(deviceInfo.description());
-    }
-    {
-        int digitalIndex = -1;
-        const QString savedDigitalName = set->getDigitalInputSourceName();
-        if (savedDigitalName == "none") {
-            digitalIndex = 0;
-        } else {
-            digitalIndex = findDeviceComboIndex(digitalInputs, savedDigitalName, 1);
-            if (digitalIndex < 0) {
-                const QString defaultName = QMediaDevices::defaultAudioInput().description();
-                digitalIndex = findDeviceComboIndex(digitalInputs, defaultName, 1);
-            }
-            if (digitalIndex < 0)
-                digitalIndex = 0;
-        }
-        ui->digitalAudioDevList->setCurrentIndex(digitalIndex);
-        set->setDigitalAudioInputDev(digitalIndex);
-        if (digitalIndex == 0)
-            set->setDigitalInputSourceName("none");
-        else
-            set->setDigitalInputSourceName(ui->digitalAudioDevList->currentText());
-    }
-    
     // Digital voice controls are inserted dynamically so older .ui files stay compatible.
     QGroupBox *digitalVoiceGroup = new QGroupBox("Digital Voice", this);
     QVBoxLayout *digitalVoiceLayout = new QVBoxLayout(digitalVoiceGroup);
@@ -265,6 +210,86 @@ tx_settings_dialog::tx_settings_dialog(QWidget *parent) :
                     SLOT(setCwKeyerSpacing(int)));
 
 }
+
+void tx_settings_dialog::refreshAudioDevices()
+{
+    const QSignalBlocker micBlocker(ui->audiodevlist);
+    const QSignalBlocker digBlocker(ui->digitalAudioDevList);
+
+    const QString currentMic = ui->audiodevlist->currentText();
+    const QString currentDig = ui->digitalAudioDevList->currentText();
+
+    // Populate Mic List
+    ui->audiodevlist->clear();
+    ui->audiodevlist->addItem("HPSDR Mic Input");
+    
+    const QList<QAudioDevice> micInputs = TransmitAudioInput::availableAudioInputDevices();
+    for (const QAudioDevice &deviceInfo : micInputs) {
+        ui->audiodevlist->addItem(deviceInfo.description());
+    }
+
+    // Restore mic selection
+    int micIndex = -1;
+    if (!currentMic.isEmpty()) {
+        micIndex = ui->audiodevlist->findText(currentMic);
+    }
+    
+    if (micIndex < 0) {
+        const QString savedMicName = set->getMicInputSourceName();
+        if (savedMicName == "hpsdr-local") {
+            micIndex = 0;
+        } else {
+            micIndex = findDeviceComboIndex(micInputs, savedMicName, 1);
+            if (micIndex < 0) {
+                const QString defaultName = QMediaDevices::defaultAudioInput().description();
+                micIndex = findDeviceComboIndex(micInputs, defaultName, 1);
+            }
+            if (micIndex < 0)
+                micIndex = 0;
+        }
+    }
+    ui->audiodevlist->setCurrentIndex(micIndex);
+    set->setMicInputDev(micIndex);
+    if (micIndex == 0)
+        set->setMicInputSourceName("hpsdr-local");
+    else
+        set->setMicInputSourceName(ui->audiodevlist->currentText());
+
+    // Populate digital audio input device list
+    ui->digitalAudioDevList->clear();
+    ui->digitalAudioDevList->addItem("None");
+    for (const QAudioDevice &deviceInfo : micInputs) {
+        ui->digitalAudioDevList->addItem(deviceInfo.description());
+    }
+
+    // Restore digital selection
+    int digitalIndex = -1;
+    if (!currentDig.isEmpty()) {
+        digitalIndex = ui->digitalAudioDevList->findText(currentDig);
+    }
+
+    if (digitalIndex < 0) {
+        const QString savedDigitalName = set->getDigitalInputSourceName();
+        if (savedDigitalName == "none") {
+            digitalIndex = 0;
+        } else {
+            digitalIndex = findDeviceComboIndex(micInputs, savedDigitalName, 1);
+            if (digitalIndex < 0) {
+                const QString defaultName = QMediaDevices::defaultAudioInput().description();
+                digitalIndex = findDeviceComboIndex(micInputs, defaultName, 1);
+            }
+            if (digitalIndex < 0)
+                digitalIndex = 0;
+        }
+    }
+    ui->digitalAudioDevList->setCurrentIndex(digitalIndex);
+    set->setDigitalAudioInputDev(digitalIndex);
+    if (digitalIndex == 0)
+        set->setDigitalInputSourceName("none");
+    else
+        set->setDigitalInputSourceName(ui->digitalAudioDevList->currentText());
+}
+
 
 
 

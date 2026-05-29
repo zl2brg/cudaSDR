@@ -245,6 +245,7 @@ bool TransmitAudioInput::Start() {
 
     m_mutex.lock();
     if (m_audioSource) {
+        qDebug() << "TransmitAudioInput: Starting capture...";
         // Start the audio input
         m_audioInputDevice = m_audioSource->start();
         if (m_audioInputDevice) {
@@ -258,10 +259,12 @@ bool TransmitAudioInput::Start() {
                 handleReadyRead();
             }
         } else {
-            AUDIO_INPUT_DEBUG << "Could not start audio input";
+            qWarning() << "TransmitAudioInput: Could not start audio input! Error:" << m_audioSource->error();
             m_mutex.unlock();
             return false;
         }
+    } else {
+        qWarning() << "TransmitAudioInput: Cannot start capture, m_audioSource is NULL. (Device index" << m_deviceIndex << ")";
     }
     m_mutex.unlock();
     return true;

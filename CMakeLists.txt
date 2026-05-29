@@ -38,12 +38,10 @@ set(ENV{PKG_CONFIG_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/wdsp-libs/lib/pkgconfig:$E
 find_path(LIQUID_INCLUDE_DIR NAMES liquid/liquid.h PATHS ${CMAKE_CURRENT_SOURCE_DIR}/wdsp-libs/include NO_DEFAULT_PATH)
 find_library(LIQUID_LIBRARY NAMES liquid PATHS ${CMAKE_CURRENT_SOURCE_DIR}/wdsp-libs/lib NO_DEFAULT_PATH)
 
-if(LIQUID_INCLUDE_DIR AND LIQUID_LIBRARY)
-    message(STATUS "liquid-dsp found: lib=${LIQUID_LIBRARY}, include=${LIQUID_INCLUDE_DIR}")
-    add_definitions(-DHAVE_LIQUID)
-else()
+if(NOT LIQUID_INCLUDE_DIR OR NOT LIQUID_LIBRARY)
     message(FATAL_ERROR "liquid-dsp not found in wdsp-libs! Please build and install it first.")
 endif()
+message(STATUS "liquid-dsp found: lib=${LIQUID_LIBRARY}, include=${LIQUID_INCLUDE_DIR}")
 
 pkg_check_modules(FFTW3 REQUIRED fftw3)
 pkg_check_modules(FFTW3F REQUIRED fftw3f)
