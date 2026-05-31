@@ -26,7 +26,7 @@ set(SANITIZE_FLAGS "-fsanitize=address")
 #set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -pg")
 
 # --- Find Dependencies ---
-find_package(Qt6 6.11.0 EXACT REQUIRED COMPONENTS Widgets Core Gui GuiPrivate ShaderTools Multimedia Network OpenGL OpenGLWidgets Test)
+find_package(Qt6 6.11.0 REQUIRED COMPONENTS Widgets Core Gui GuiPrivate ShaderTools Multimedia Network OpenGL OpenGLWidgets Test)
 message(STATUS "Using Qt ${Qt6_VERSION} from ${Qt6_DIR}")
 find_package(PkgConfig REQUIRED)
 find_package(OpenGL REQUIRED)

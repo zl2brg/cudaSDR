@@ -102,13 +102,19 @@ private:
     QVector<float> m_txIqRing;
     QMutex m_txIqMutex;
 
-    // RX Resampler (RF -> DSP)
-    resamp_crcf m_rxResampler;
+    // RX Resampler (RF -> DSP) — multi-stage for large decimation ratios (e.g. 125:1)
+    msresamp_crcf m_rxResampler;
     liquid_float_complex* m_rxResampIn;
     liquid_float_complex* m_rxResampOut;
 
-    // TX Resampler (DSP -> RF)
-    resamp_crcf m_txResampler;
+    // RX DC blocker state — single-pole IIR highpass on complex stream
+    float m_dcBlockXprevI = 0.0f;
+    float m_dcBlockXprevQ = 0.0f;
+    float m_dcBlockYprevI = 0.0f;
+    float m_dcBlockYprevQ = 0.0f;
+
+    // TX Resampler (DSP -> RF) — multi-stage for large interpolation ratios
+    msresamp_crcf m_txResampler;
     liquid_float_complex* m_txResampIn;
     liquid_float_complex* m_txResampOut;
 

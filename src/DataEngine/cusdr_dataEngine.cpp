@@ -1263,6 +1263,10 @@ bool DataEngine::initDataEngine() {
         if (!m_soapySDRSource) createDataIO();
         initReceivers(1);
 
+        if (!m_audioInput)
+            createAudioInputProcessor();
+        m_audioInput->Setup();
+
         // Start DSP threads for all receivers (skipped by the normal HPSDR path)
         for (int i = 0; i < m_dspThreadList.size(); ++i) {
             m_dspThreadList.at(i)->start(QThread::HighPriority);

@@ -101,5 +101,11 @@
     "editor.tabSize": 4,
     "editor.insertSpaces": true,
     "cmake.options.statusBarVisibility": "visible",
-    "cmake.useCMakePresets": "never"
+    "cmake.useCMakePresets": "never",
+    "chat.tools.terminal.autoApprove": {
+        "/^git add -A && git commit -m \"fix zoom reset, tx audio init, msresamp resampler, remove EXACT Qt version\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
 }

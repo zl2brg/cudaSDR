@@ -2884,93 +2884,83 @@ void QGLReceiverPanel::computeDisplayBins(QVector<float>& buffer, QVector<float>
 	//	qDebug() << "m_ssamplesdize" << m_sampleSize << deltaSampleSize << m_fftMult;
 			
 
-		if (m_sampleSize < 2048) {
+		// fftMult escalation only works when the engine is down (setSampleSize/setSpectrumSize
+		// are no-ops while the engine is running). Skip escalation while running to avoid
+		// cascading that corrupts m_fftMult and m_freqScaleZoomFactor.
+		if (m_dataEngineState != QSDR::DataEngineUp) {
 
-			if (m_fftMult == 1) {
+			if (m_sampleSize < 2048) {
 
-				GRAPHICS_DEBUG << "set sample size to 8192";
-				set->setSampleSize(m_receiver, 8192);
-				//m_dBmPanLogGain += 3.0103;
-				m_dBmPanLogGain += 6;
-				m_fftMult = 2;
+				if (m_fftMult == 1) {
 
-				return;
+					GRAPHICS_DEBUG << "set sample size to 8192";
+					set->setSampleSize(m_receiver, 8192);
+					m_dBmPanLogGain += 6;
+					m_fftMult = 2;
+					return;
+				}
+				else if (m_fftMult == 2) {
+
+					GRAPHICS_DEBUG << "set sample size to 16384";
+					set->setSampleSize(m_receiver, 16384);
+					m_dBmPanLogGain += 6;
+					m_fftMult = 4;
+					return;
+				}
+				else if (m_fftMult == 4) {
+
+					GRAPHICS_DEBUG << "set sample size to 32768";
+					set->setSampleSize(m_receiver, 32768);
+					m_dBmPanLogGain += 6;
+					m_fftMult = 8;
+					return;
+				}
+				else if (m_fftMult == 8) {
+
+					GRAPHICS_DEBUG << "set sample size to 65536";
+					set->setSampleSize(m_receiver, 65536);
+					m_dBmPanLogGain += 6;
+					m_fftMult = 16;
+					return;
+				}
 			}
-			else if (m_fftMult == 2) {
+			else if (m_sampleSize > 4096) {
 
-				GRAPHICS_DEBUG << "set sample size to 16384";
-				set->setSampleSize(m_receiver, 16384);
-				//m_dBmPanLogGain += 3.0103;
-				m_dBmPanLogGain += 6;
-				m_fftMult = 4;
+				if (m_fftMult == 2) {
 
-				return;
-			}
-			else if (m_fftMult == 4) {
+					GRAPHICS_DEBUG << "set sample size to 4096";
+					set->setSampleSize(m_receiver, 4096);
+					m_dBmPanLogGain -= 6;
+					m_fftMult = 1;
+					return;
+				}
+				else if (m_fftMult == 4) {
 
-				GRAPHICS_DEBUG << "set sample size to 32768";
-				set->setSampleSize(m_receiver, 32768);
-				//m_dBmPanLogGain += 3.0103;
-				m_dBmPanLogGain += 6;
-				m_fftMult = 8;
+					GRAPHICS_DEBUG << "set sample size to 8192";
+					set->setSampleSize(m_receiver, 8192);
+					m_dBmPanLogGain -= 6;
+					m_fftMult = 2;
+					return;
+				}
+				else if (m_fftMult == 8) {
 
-				return;
-			}
-			else if (m_fftMult == 8) {
+					GRAPHICS_DEBUG << "set sample size to 16384";
+					set->setSampleSize(m_receiver, 16384);
+					m_dBmPanLogGain -= 6;
+					m_fftMult = 4;
+					return;
+				}
+				else if (m_fftMult == 16) {
 
-				GRAPHICS_DEBUG << "set sample size to 65536";
-				set->setSampleSize(m_receiver, 65536);
-				//m_dBmPanLogGain += 3.0103;
-				m_dBmPanLogGain += 6;
-				m_fftMult = 16;
-
-				return;
-			}
-		}
-		else if (m_sampleSize > 4096) {
-
-			if (m_fftMult == 2) {
-
-				GRAPHICS_DEBUG << "set sample size to 4096";
-				set->setSampleSize(m_receiver, 4096);
-				//m_dBmPanLogGain -= 3.0103;
-				m_dBmPanLogGain -= 6;
-				m_fftMult = 1;
-
-				return;
-			}
-			else if (m_fftMult == 4) {
-
-				GRAPHICS_DEBUG << "set sample size to 8192";
-				set->setSampleSize(m_receiver, 8192);
-				//m_dBmPanLogGain -= 3.0103;
-				m_dBmPanLogGain -= 6;
-				m_fftMult = 2;
-
-				return;
-			}
-			else if (m_fftMult == 8) {
-
-				GRAPHICS_DEBUG << "set sample size to 16384";
-				set->setSampleSize(m_receiver, 16384);
-				//m_dBmPanLogGain -= 3.0103;
-				m_dBmPanLogGain -= 6;
-				m_fftMult = 4;
-
-				return;
-			}
-			else if (m_fftMult == 16) {
-
-				GRAPHICS_DEBUG << "set sample size to 32768";
-				set->setSampleSize(m_receiver, 32768);
-				//m_dBmPanLogGain -= 3.0103;
-				m_dBmPanLogGain -= 6;
-				m_fftMult = 8;
-
-				return;
+					GRAPHICS_DEBUG << "set sample size to 32768";
+					set->setSampleSize(m_receiver, 32768);
+					m_dBmPanLogGain -= 6;
+					m_fftMult = 8;
+					return;
+				}
 			}
 
-	}
+		} // end engine-down-only escalation
 
 	if (m_panRectWidth <= 0 || !m_panRect.isValid())
 		return;
