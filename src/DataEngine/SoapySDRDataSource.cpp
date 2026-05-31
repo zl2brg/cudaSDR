@@ -657,8 +657,9 @@ void SoapySDRDataSource::init() {
 
         if (!restartRxStream())
             throw std::runtime_error("setupStream/activateStream failed");
-        if (m_txCapable)
-            restartTxStream();
+        // TX stream is opened lazily on first MOX/TUNE — do not activate here.
+        // Keeping the TX stream inactive during receive prevents LimeSDR from
+        // radiating a carrier on the RX frequency.
 
         if (isLimeHardware())
             applyLimeAutoCalibrate(set->getSoapyAutoCalibrate());
@@ -1121,6 +1122,16 @@ void SoapySDRDataSource::runStream() {
                     ++m_txUnderrunCount;
                 }
             }
+        }
+
+        // Close TX stream as soon as we leave TX — stops LimeSDR carrier emission.
+        if (m_txCapable && m_txStream && !m_txActive.load(std::memory_order_acquire)) {
+            try {
+                m_device->deactivateStream(m_txStream);
+                m_device->closeStream(m_txStream);
+            } catch (...) {}
+            m_txStream = nullptr;
+            qDebug() << "SoapySDRDataSource: TX stream closed (RX mode)";
         }
     }
 }

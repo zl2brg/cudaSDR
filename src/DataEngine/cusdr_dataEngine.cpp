@@ -3417,8 +3417,10 @@ void DataProcessor::get_tx_iqData(){
         if (m_hwInterface == QSDR::SoapySDR && !de->io.soapy_tx_iq_queue.isFull()) {
             QVector<float> soapyTxIq(DSP_SAMPLE_SIZE * 2);
             for (int j = 0; j < DSP_SAMPLE_SIZE; ++j) {
-                soapyTxIq[j * 2] = static_cast<float>(m_iq_output_buffer.at(j).re);
-                soapyTxIq[j * 2 + 1] = static_cast<float>(m_iq_output_buffer.at(j).im);
+                // Negate Q to conjugate the IQ signal, correcting the legacy HPSDR
+                // sideband inversion (LimeSDR/SoapySDR otherwise transmits LSB as USB).
+                soapyTxIq[j * 2]     = static_cast<float>(m_iq_output_buffer.at(j).re);
+                soapyTxIq[j * 2 + 1] = static_cast<float>(-m_iq_output_buffer.at(j).im);
             }
             de->io.soapy_tx_iq_queue.enqueue(soapyTxIq);
         }
@@ -3462,24 +3464,19 @@ void DataProcessor::stopSoapyTxIqTimer() {
 void DataProcessor::pumpSoapyTxIqTimer() {
     if (m_hwInterface == QSDR::SoapySDR && set->is_transmitting()) {
         const RadioState state = set->getRadioState();
-        if (state == RadioState::TUNE) {
-            // TUNE is always timer-driven.
-            get_tx_iqData();
-        } else if (state == RadioState::MOX && set->getMicInputDev() == 0) {
-            // MOX with "HPSDR Mic Input" (index 0) has no soundcard signal, so use timer.
+        // Timer drives TX IQ for all mic input modes (TUNE and MOX).
+        // fetch_MicData() drains whatever the soundcard has placed in m_faudioInQueue;
+        // if nothing is available it substitutes zeros, which is correct for local mic.
+        if (state == RadioState::TUNE || state == RadioState::MOX) {
             get_tx_iqData();
         }
     }
 }
 
 void DataProcessor::processSoapyMicData() {
-    // This is called whenever the soundcard provides a fresh block of audio.
-    if (m_hwInterface == QSDR::SoapySDR && set->is_transmitting()) {
-        if (set->getRadioState() == RadioState::MOX && set->getMicInputDev() > 0) {
-            // Reactive pump: drive WDSP at the soundcard's sample rate.
-            get_tx_iqData();
-        }
-    }
+    // TX IQ is timer-driven (pumpSoapyTxIqTimer) for all mic input modes.
+    // The soundcard fills m_faudioInQueue; the timer drains it via get_tx_iqData().
+    // Nothing to do here — the slot is kept to preserve the signal connection.
 }
 #endif
 

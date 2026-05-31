@@ -158,9 +158,13 @@ void TransmitAudioInput::Setup() {
     
     // Check if format is supported
     if (!inputDevice.isFormatSupported(m_format)) {
-        AUDIO_INPUT_DEBUG << "Format not supported, using nearest format";
+        AUDIO_INPUT_DEBUG << "Requested format (Int16 mono 48kHz) not supported, falling back to preferred format";
         m_format = inputDevice.preferredFormat();
     }
+    AUDIO_INPUT_DEBUG << "Audio format: sampleRate=" << m_format.sampleRate()
+                      << " channels=" << m_format.channelCount()
+                      << " sampleFormat=" << static_cast<int>(m_format.sampleFormat())
+                      << " bytesPerSample=" << m_format.bytesPerSample();
 
     // Create the audio source
     AUDIO_INPUT_DEBUG << "Opening audio input device:" << inputDevice.description();
@@ -285,12 +289,35 @@ void TransmitAudioInput::handleReadyRead()
 
 void TransmitAudioInput::processAudioData(const QByteArray &data)
 {
-    // Process the incoming audio data (assuming 16-bit signed PCM)
-    const qint16 *ptr = reinterpret_cast<const qint16 *>(data.constData());
-    int numSamples = data.size() / sizeof(qint16);
-    
-    for (int i = 0; i < numSamples; ++i) {
-        m_residualBuffer.append(static_cast<float>(ptr[i]) / 32768.0f);
+    // Parse samples according to the actual capture format (may differ from requested Int16 mono
+    // if the device fell back to preferredFormat, e.g. Float32 stereo on PipeWire).
+    const int channels    = qMax(1, m_format.channelCount());
+    const int bytesPerSmp = qMax(1, m_format.bytesPerSample());
+    const int frameBytes  = channels * bytesPerSmp;
+    const int numFrames   = (frameBytes > 0) ? (data.size() / frameBytes) : 0;
+    const QAudioFormat::SampleFormat fmt = m_format.sampleFormat();
+
+    for (int i = 0; i < numFrames; ++i) {
+        // Extract the first (left) channel only — discard extra channels.
+        const char *framePtr = data.constData() + i * frameBytes;
+        float sample = 0.0f;
+        if (fmt == QAudioFormat::Int16) {
+            qint16 raw;
+            memcpy(&raw, framePtr, sizeof(raw));
+            sample = raw / 32768.0f;
+        } else if (fmt == QAudioFormat::Int32) {
+            qint32 raw;
+            memcpy(&raw, framePtr, sizeof(raw));
+            sample = raw / 2147483648.0f;
+        } else if (fmt == QAudioFormat::Float) {
+            memcpy(&sample, framePtr, sizeof(sample));
+        } else {
+            // Unknown format — treat as Int16
+            qint16 raw;
+            memcpy(&raw, framePtr, sizeof(raw));
+            sample = raw / 32768.0f;
+        }
+        m_residualBuffer.append(sample);
         
         if (m_residualBuffer.size() >= DSP_SAMPLE_SIZE) {
             AUDIOBUF chunk;
