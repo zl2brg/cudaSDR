@@ -655,7 +655,7 @@ void SoapySDRDataSource::init() {
             }
 
             // Apply TX IQ balance correction to suppress sideband image.
-            if (m_device->hasIQBalance(SOAPY_SDR_TX, 0)) {
+            if (m_device->hasIQBalance(SOAPY_SDR_TX, 0) && set->getSoapyIQBalance()) {
                 try {
                     m_device->setIQBalance(SOAPY_SDR_TX, 0, std::complex<double>(1.0, 0.0));
                     qDebug() << "SoapySDR TX: IQ balance correction enabled";
@@ -769,6 +769,21 @@ void SoapySDRDataSource::init() {
         connect(set, &Settings::soapyAutoCalibrateChanged, this,
                 [this](bool enabled) { applyLimeAutoCalibrate(enabled); },
                 Qt::DirectConnection);
+        connect(set, &Settings::soapyIQBalanceChanged, this,
+                [this](bool enabled) {
+                    if (!m_device) return;
+                    auto applyIQ = [&](int dir) {
+                        if (m_device->hasIQBalance(dir, 0)) {
+                            try {
+                                m_device->setIQBalance(dir, 0,
+                                    enabled ? std::complex<double>(1.0, 0.0)
+                                            : std::complex<double>(1.0, 0.0)); // unity = hardware default
+                            } catch (...) {}
+                        }
+                    };
+                    applyIQ(SOAPY_SDR_RX);
+                    if (m_txCapable) applyIQ(SOAPY_SDR_TX);
+                }, Qt::DirectConnection);
         connect(set, &Settings::radioStateChanged, this,
                 [this](RadioState state) {
                     m_txActive.store(state == RadioState::MOX || state == RadioState::TUNE,

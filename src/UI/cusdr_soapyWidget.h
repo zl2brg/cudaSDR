@@ -47,6 +47,10 @@ private:
     QLabel     *m_hwRateLabel;
     QLabel     *m_decimLabel;
 
+    QGroupBox  *m_txModeGroup;
+    QCheckBox  *m_fullDuplexCheck;
+    QCheckBox  *m_iqBalanceCheck;
+
     void buildUi();
     void populateFromSettings();
     void updateGainGroupVisibility();
@@ -64,6 +68,9 @@ private slots:
     void onPgaSpinBoxChanged(int value);
     void onOverallGainSliderChanged(int value);
     void onOverallGainSpinBoxChanged(int value);
+    void onAntennaComboChanged(int index);
+    void onFullDuplexToggled(bool enabled);
+    void onIQBalanceToggled(bool enabled);
 };
 
 #endif // HAVE_SOAPYSDR

@@ -7,7 +7,7 @@
 #include <cmath>
 #include <cstdint>
 
-#include "QtDSP/qtdsp_qComplex.h"
+#include "QtWDSP/qtdsp_qComplex.h"
 
 struct IqDiagStats {
     float minRe = 0.0f;

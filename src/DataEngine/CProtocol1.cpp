@@ -304,7 +304,8 @@ void CProtocol1::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
     		// | | | + ------------------- LT2208 Random (0= Off, 1 = On)
     		// | + + --------------------- Alex Rx Antenna (00 = none, 01 = Rx1, 10 = Rx2, 11 = XV)
     		// + ------------------------- Alex Rx out (0 = off, 1 = on). Set if Alex Rx Antenna > 00.
-    		rxAnt = 0x07 & (io->ccTx.alexStates.at(io->ccTx.currentBand) >> 2);
+    		// alexStates bits [1:0] = RX antenna; bits [4:2] = RX aux (see cusdr_alexAntennaWidget.cpp)
+    		rxAnt = 0x03 & io->ccTx.alexStates.at(io->ccTx.currentBand);
     		rxOut = (rxAnt > 0) ? 1 : 0;
     		// Bits [1:0]: step attenuator value (0=0dB, 1=10dB, 2=20dB, 3=30dB).
     		// Source: mercuryAttenuator (main-window Attn menu), which overrides any
@@ -428,7 +429,10 @@ void CProtocol1::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
     		io->control_out[3] = 0x0; // C3
             io->control_out[4] = 0x0; // C4
 
-    		io->control_out[2] &= 0xBF; // 1 0 1 1 1 1 1 1
+    		// C2 bit 6: manual HPF/LPF filter select (0 = auto, 1 = manual).
+		// Must be set when alexConfig bit 0 is on, otherwise hardware ignores C3/C4 filter bits.
+		if (io->ccTx.alexConfig & 0x01)
+			io->control_out[2] |= 0x40; // enable manual filter select
 
 
 			// C3

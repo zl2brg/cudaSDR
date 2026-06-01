@@ -828,6 +828,7 @@ signals:
     void soapyPgaGainChanged(int gain);
     void soapyOverallGainChanged(int gain);
     void soapyAutoCalibrateChanged(bool enabled);
+    void soapyIQBalanceChanged(bool enabled);
 	void serverAddrChanged(QString addr);
 	void hpsdrDeviceLocalAddrChanged(QString addr);
 	void serverPortChanged(quint16 port);
@@ -1061,6 +1062,7 @@ public:
     int         getSoapyPgaGain()       const { return m_soapyPgaGain; }
     int         getSoapyOverallGain()   const { return m_soapyOverallGain; }
     bool        getSoapyAutoCalibrate() const { return m_soapyAutoCalibrate; }
+    bool        getSoapyIQBalance()     const { return m_soapyIQBalance; }
 	qint64						getMaxFrequency()			{ return m_maxFrequency; }
 	qint64						getMinFrequency()			{ return m_minFrequency; }
 	QList<TReceiver>			getReceiverDataList()		{ return m_receiverDataList; }
@@ -1295,6 +1297,7 @@ public slots:
     void setSoapyPgaGain(int gain);
     void setSoapyOverallGain(int gain);
     void setSoapyAutoCalibrate(bool enabled);
+    void setSoapyIQBalance(bool enabled);
 	void addNetworkIOComboBoxEntry(QString str);
 	void clearNetworkIOComboBoxEntry();
 	void addServerNetworkInterface(QString nicName, QString ipAddress);
@@ -1545,6 +1548,7 @@ private:
     int         m_soapyPgaGain;         // PGA gain in dB
     int         m_soapyOverallGain;     // aggregate gain (non-LimeSDR)
     bool        m_soapyAutoCalibrate;   // LimeSuite auto-calibration flag
+    bool        m_soapyIQBalance;       // IQ balance correction enable
     // Runtime-only (not persisted)
     QStringList m_soapyAntennaList;
     QStringList m_soapyTxAntennaList;

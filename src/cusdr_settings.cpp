@@ -358,19 +358,22 @@ int Settings::loadSettings() {
         m_currentSoapyDevice.label = settings->value("SoapySDR/label", "").toString();
         m_currentSoapyDevice.driver = settings->value("SoapySDR/driver", "").toString();
         m_currentSoapyDevice.serial = settings->value("SoapySDR/serial", "").toString();
-#ifdef HAVE_SOAPYSDR
-        m_soapyRxAntenna   = settings->value("SoapySDR/rxAntenna", "LNAH").toString();
-        m_soapyTxAntenna   = settings->value("SoapySDR/txAntenna", "").toString();
-        m_soapyLnaGain     = settings->value("SoapySDR/lnaGain", 25).toInt();
-        m_soapyTiaGain     = settings->value("SoapySDR/tiaGain", 12).toInt();
-        m_soapyPgaGain     = settings->value("SoapySDR/pgaGain", 12).toInt();
-        m_soapyOverallGain = settings->value("SoapySDR/overallGain", 60).toInt();
-        m_soapyAutoCalibrate = settings->value("SoapySDR/autoCalibrate", false).toBool();
-        m_soapyHardwareKey = "";
-        m_soapyAntennaList.clear();
-        m_soapyTxAntennaList.clear();
-#endif
     }
+
+#ifdef HAVE_SOAPYSDR
+    // Always load SoapySDR settings regardless of active hardware mode.
+    m_soapyRxAntenna   = settings->value("SoapySDR/rxAntenna", "LNAH").toString();
+    m_soapyTxAntenna   = settings->value("SoapySDR/txAntenna", "").toString();
+    m_soapyLnaGain     = settings->value("SoapySDR/lnaGain", 25).toInt();
+    m_soapyTiaGain     = settings->value("SoapySDR/tiaGain", 12).toInt();
+    m_soapyPgaGain     = settings->value("SoapySDR/pgaGain", 12).toInt();
+    m_soapyOverallGain = settings->value("SoapySDR/overallGain", 60).toInt();
+    m_soapyAutoCalibrate = settings->value("SoapySDR/autoCalibrate", false).toBool();
+    m_soapyIQBalance     = settings->value("SoapySDR/iqBalance",      true).toBool();
+    m_soapyHardwareKey = "";
+    m_soapyAntennaList.clear();
+    m_soapyTxAntennaList.clear();
+#endif
 
     str = settings->value("hpsdr/checkfw", "true").toString();
     m_hardwareConfig->setCheckFirmwareVersions(str == "true");
@@ -1728,20 +1731,24 @@ int Settings::saveSettings() {
 
         // Cyclops / SoapySDR
         case 2:
-#ifdef HAVE_SOAPYSDR
-            settings->setValue("SoapySDR/label",  m_currentSoapyDevice.label);
-            settings->setValue("SoapySDR/driver", m_currentSoapyDevice.driver);
-            settings->setValue("SoapySDR/serial", m_currentSoapyDevice.serial);
-            settings->setValue("SoapySDR/rxAntenna",   m_soapyRxAntenna);
-            settings->setValue("SoapySDR/txAntenna",   m_soapyTxAntenna);
-            settings->setValue("SoapySDR/lnaGain",     m_soapyLnaGain);
-            settings->setValue("SoapySDR/tiaGain",     m_soapyTiaGain);
-            settings->setValue("SoapySDR/pgaGain",     m_soapyPgaGain);
-            settings->setValue("SoapySDR/overallGain", m_soapyOverallGain);
-            settings->setValue("SoapySDR/autoCalibrate", m_soapyAutoCalibrate);
-#endif
             break;
     }
+
+#ifdef HAVE_SOAPYSDR
+    // Always save SoapySDR settings regardless of active hardware mode,
+    // so they persist when switching back to SoapySDR.
+    settings->setValue("SoapySDR/label",       m_currentSoapyDevice.label);
+    settings->setValue("SoapySDR/driver",      m_currentSoapyDevice.driver);
+    settings->setValue("SoapySDR/serial",      m_currentSoapyDevice.serial);
+    settings->setValue("SoapySDR/rxAntenna",   m_soapyRxAntenna);
+    settings->setValue("SoapySDR/txAntenna",   m_soapyTxAntenna);
+    settings->setValue("SoapySDR/lnaGain",     m_soapyLnaGain);
+    settings->setValue("SoapySDR/tiaGain",     m_soapyTiaGain);
+    settings->setValue("SoapySDR/pgaGain",     m_soapyPgaGain);
+    settings->setValue("SoapySDR/overallGain", m_soapyOverallGain);
+    settings->setValue("SoapySDR/autoCalibrate", m_soapyAutoCalibrate);
+    settings->setValue("SoapySDR/iqBalance",   m_soapyIQBalance);
+#endif
 
     if (devices.alexPresence)
         settings->setValue("hpsdr/alex", "true");
@@ -2685,11 +2692,8 @@ void Settings::setMainPower(bool power) {
     if (m_mainPower == power) return;
 
     m_mainPower = power;
-    if (power)
-        m_mainPower = true;
-    else
-        m_mainPower = false;
 
+    saveSettings();
     emit masterSwitchChanged(m_mainPower);
 }
 
@@ -3159,6 +3163,14 @@ void Settings::setSoapyAutoCalibrate(bool enabled) {
     if (m_soapyAutoCalibrate != enabled) {
         m_soapyAutoCalibrate = enabled;
         emit soapyAutoCalibrateChanged(enabled);
+        saveSettings();
+    }
+}
+
+void Settings::setSoapyIQBalance(bool enabled) {
+    if (m_soapyIQBalance != enabled) {
+        m_soapyIQBalance = enabled;
+        emit soapyIQBalanceChanged(enabled);
     }
 }
 #endif

@@ -38,6 +38,7 @@ private slots:
     void onAntennaComboChanged(int index);
     void onTxAntennaComboChanged(int index);
     void onAutoCalToggled(bool enabled);
+    void onIQBalanceToggled(bool enabled);
     void onLnaSliderChanged(int value);
     void onLnaSpinBoxChanged(int value);
     void onTiaSliderChanged(int value);

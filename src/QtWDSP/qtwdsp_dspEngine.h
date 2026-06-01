@@ -44,7 +44,7 @@ extern "C" {
 }
 
 #include "../cusdr_settings.h"
-#include "QtDSP/qtdsp_qComplex.h"
+#include "QtWDSP/qtdsp_qComplex.h"
 
 #ifdef LOG_WDSP_ENGINE
 #define WDSP_ENGINE_DEBUG qDebug().nospace() << "WDSPEngine::\t"

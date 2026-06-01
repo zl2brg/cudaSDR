@@ -247,6 +247,19 @@
             </property>
            </widget>
           </item>
+          <item>
+           <widget class="QCheckBox" name="iqBalanceCheck">
+            <property name="text">
+             <string>IQ balance correction (TX sideband suppression)</string>
+            </property>
+            <property name="toolTip">
+             <string>Apply hardware IQ balance correction on TX to suppress the unwanted sideband image.</string>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
          </layout>
         </widget>
        </item>

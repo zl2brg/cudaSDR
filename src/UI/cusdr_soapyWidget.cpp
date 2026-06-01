@@ -14,6 +14,9 @@ SoapyWidget::SoapyWidget(QWidget *parent)
     buildUi();
     populateFromSettings();
 
+    connect(set, &Settings::masterSwitchChanged,
+            this, [](bool){ Settings::instance()->saveSettings(); });
+
     connect(set, &Settings::soapyAntennaListChanged,
             this, &SoapyWidget::onSoapyAntennaListChanged);
     connect(set, &Settings::soapyHardwareKeyChanged,
@@ -41,6 +44,10 @@ SoapyWidget::SoapyWidget(QWidget *parent)
             this, &SoapyWidget::onOverallGainSliderChanged);
     connect(m_overallGainSpinBox, QOverload<int>::of(&QSpinBox::valueChanged),
             this, &SoapyWidget::onOverallGainSpinBoxChanged);
+    connect(m_fullDuplexCheck, &QCheckBox::toggled,
+            this, &SoapyWidget::onFullDuplexToggled);
+    connect(m_iqBalanceCheck, &QCheckBox::toggled,
+            this, &SoapyWidget::onIQBalanceToggled);
 }
 
 void SoapyWidget::buildUi()
@@ -108,11 +115,20 @@ void SoapyWidget::buildUi()
     rateLayout->addRow(tr("Hardware Rate:"), m_hwRateLabel);
     rateLayout->addRow(tr("Bridge:"), m_decimLabel);
 
+    // --- TX Mode / correction group ---
+    m_txModeGroup     = new QGroupBox(tr("TX Mode && Correction"), this);
+    m_fullDuplexCheck = new QCheckBox(tr("Full duplex (simultaneous RX+TX)"), this);
+    m_iqBalanceCheck  = new QCheckBox(tr("IQ balance correction"), this);
+    QVBoxLayout *txModeLayout = new QVBoxLayout(m_txModeGroup);
+    txModeLayout->addWidget(m_fullDuplexCheck);
+    txModeLayout->addWidget(m_iqBalanceCheck);
+
     QVBoxLayout *mainLayout = new QVBoxLayout(this);
     mainLayout->addWidget(m_antennaGroup);
     mainLayout->addWidget(m_dspRateGroup);
     mainLayout->addWidget(m_limeGainGroup);
     mainLayout->addWidget(m_overallGainGroup);
+    mainLayout->addWidget(m_txModeGroup);
     mainLayout->addStretch();
     setLayout(mainLayout);
 }
@@ -138,6 +154,8 @@ void SoapyWidget::populateFromSettings()
     m_overallGainSlider->setValue(set->getSoapyOverallGain());
     m_overallGainSpinBox->setValue(set->getSoapyOverallGain());
     m_autoGainCheck->setChecked(set->getSoapyAutoCalibrate());
+    m_fullDuplexCheck->setChecked(set->getTxFullDuplex());
+    m_iqBalanceCheck->setChecked(set->getSoapyIQBalance());
 
     onSampleRateChanged(set->getSampleRate());
 

@@ -893,7 +893,6 @@ void MainWindow::startButtonClickedEvent() {
 		QColor col = QColor(0x91, 0xeb, 0xff);
 		ui->startBtn->setHighlight(col);
 		ui->startBtn->setText("Start");
-		set->saveSettings();
 		set->setMainPower(false);
 
 		if (ui->muteBtn->btnState() == AeroButton::ON) {

@@ -33,7 +33,7 @@
 #include "cusdr_settings.h"
 #include "Util/cusdr_highResTimer.h"
 #include "QtWDSP/qtwdsp_dspEngine.h"
-#include "QtDSP/qtdsp_qComplex.h"
+#include "QtWDSP/qtdsp_qComplex.h"
 #include "receiveraudiooutput.h"
 #include <atomic>
 

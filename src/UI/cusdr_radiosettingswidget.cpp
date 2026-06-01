@@ -30,6 +30,7 @@ void cusdr_radioSettingsWidget::setupRadioTab()
     ui->overallGainSpinBox->blockSignals(true);
 
     ui->fullDuplexCheck->setChecked(set->getTxFullDuplex());
+    ui->iqBalanceCheck->setChecked(set->getSoapyIQBalance());
     ui->autoCalCheck->setChecked(set->getSoapyAutoCalibrate());
     ui->lnaSlider->setValue(set->getSoapyLnaGain());
     ui->lnaSpinBox->setValue(set->getSoapyLnaGain());
@@ -73,6 +74,8 @@ void cusdr_radioSettingsWidget::setupRadioTab()
             this, &cusdr_radioSettingsWidget::onTxFullDuplexChanged);
     connect(ui->fullDuplexCheck, &QCheckBox::toggled,
             this, &cusdr_radioSettingsWidget::onFullDuplexToggled);
+    connect(ui->iqBalanceCheck, &QCheckBox::toggled,
+            this, &cusdr_radioSettingsWidget::onIQBalanceToggled);
     connect(ui->autoCalCheck, &QCheckBox::toggled,
             this, &cusdr_radioSettingsWidget::onAutoCalToggled);
     connect(ui->antennaCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
@@ -168,6 +171,11 @@ void cusdr_radioSettingsWidget::onTxFullDuplexChanged(bool fullDuplex)
 void cusdr_radioSettingsWidget::onFullDuplexToggled(bool enabled)
 {
     set->setTxFullDuplex(enabled);
+}
+
+void cusdr_radioSettingsWidget::onIQBalanceToggled(bool enabled)
+{
+    set->setSoapyIQBalance(enabled);
 }
 
 void cusdr_radioSettingsWidget::onAutoCalToggled(bool enabled)
