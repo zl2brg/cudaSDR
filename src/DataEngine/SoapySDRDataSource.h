@@ -14,6 +14,7 @@
 #include <SoapySDR/Device.hpp>
 #include <SoapySDR/Formats.hpp>
 #include <SoapySDR/Types.hpp>
+#include <vector>
 #include <liquid/liquid.h>
 #include "cusdr_settings.h"
 #include "Util/cusdr_queue.h"
@@ -117,6 +118,23 @@ private:
     msresamp_crcf m_txResampler;
     liquid_float_complex* m_txResampIn;
     liquid_float_complex* m_txResampOut;
+
+    // Two-stage polyphase decimation for exact integer RX ratios
+    // Replaces msresamp_crcf when rfRate % dspRate == 0.
+    firdecim_crcf  m_rxDecim1 = nullptr;      // Stage 1: rfRate → intermediate
+    firdecim_crcf  m_rxDecim2 = nullptr;      // Stage 2: intermediate → dspRate
+    unsigned int   m_rxD1 = 0;
+    unsigned int   m_rxD2 = 0;
+    std::vector<liquid_float_complex> m_rxDecimSurplus1; // ≤ D1-1 carry samples
+    std::vector<liquid_float_complex> m_rxDecimSurplus2; // ≤ D2-1 carry samples
+    liquid_float_complex* m_rxDecimInterBuf = nullptr;   // stage1 → stage2 scratch
+
+    // Two-stage polyphase interpolation for exact integer TX ratios
+    firinterp_crcf m_txInterp1 = nullptr;     // Stage 1: dspRate → intermediate
+    firinterp_crcf m_txInterp2 = nullptr;     // Stage 2: intermediate → rfRate
+    unsigned int   m_txL1 = 0;
+    unsigned int   m_txL2 = 0;
+    liquid_float_complex* m_txInterpInterBuf = nullptr;  // stage1 → stage2 scratch
 
 signals:
     void messageEvent(QString message);

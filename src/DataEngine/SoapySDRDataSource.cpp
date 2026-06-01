@@ -267,7 +267,7 @@ SoapySDRDataSource::RfRatePlan SoapySDRDataSource::chooseRfSampleRate(int dspRat
             candidates.push_back(rate);
         }
         if (!candidates.empty()) {
-            qDebug() << "SoapySDRDataSource: picked from" << candidates.size()
+            qDebug() << "SoapySDRDataSource: found" << candidates.size()
                      << "listed rates compatible with DSP" << dspRate << "Hz";
         }
     } else if (!listedRates.empty()) {
@@ -275,13 +275,12 @@ SoapySDRDataSource::RfRatePlan SoapySDRDataSource::chooseRfSampleRate(int dspRat
                  << "(count" << listedRates.size() << ") — using integer multiples of DSP rate";
     }
 
-    // Native DSP rate is best when the device supports it (decimRatio == 1).
-    if (static_cast<double>(dspRate) >= plan.effectiveMinHz - 1.0
-        && static_cast<double>(dspRate) <= rangeMaxHz + 1.0) {
-        candidates.push_back(static_cast<double>(dspRate));
-    }
-
-    if (candidates.empty()) {
+    // Add integer multiples of dspRate within the hardware's supported range when:
+    //   (a) the device provides only a continuous range (no discrete list), or
+    //   (b) the discrete list gave no compatible candidates.
+    // This lets devices with a continuous range (e.g. LimeSDR) use the lowest
+    // possible RF rate while keeping us within the discrete list for picky devices.
+    if (listLooksLikeRangeEndpoints(listedRates) || candidates.empty()) {
         const int kMin = std::max(1, static_cast<int>(std::ceil(
             static_cast<double>(plan.effectiveMinHz) / static_cast<double>(dspRate))));
         const int kMax = std::min(kMin + 128, std::max(kMin, rangeMaxHz / dspRate));
@@ -433,6 +432,12 @@ SoapySDRDataSource::SoapySDRDataSource(THPSDRParameter *ioData)
 
 SoapySDRDataSource::~SoapySDRDataSource() {
     stop();
+    if (m_rxDecim1) firdecim_crcf_destroy(m_rxDecim1);
+    if (m_rxDecim2) firdecim_crcf_destroy(m_rxDecim2);
+    if (m_rxDecimInterBuf) delete[] (float*)m_rxDecimInterBuf;
+    if (m_txInterp1) firinterp_crcf_destroy(m_txInterp1);
+    if (m_txInterp2) firinterp_crcf_destroy(m_txInterp2);
+    if (m_txInterpInterBuf) delete[] (float*)m_txInterpInterBuf;
     if (m_rxResampler) msresamp_crcf_destroy(m_rxResampler);
     if (m_rxResampIn) delete[] (float*)m_rxResampIn;
     if (m_rxResampOut) delete[] (float*)m_rxResampOut;
@@ -831,7 +836,17 @@ void SoapySDRDataSource::drainSoapyTxIqQueue() {
         const QVector<float> block = io->soapy_tx_iq_queue.dequeue();
         QMutexLocker lock(&m_txIqMutex);
 
-        if (m_txResampler) {
+        if (m_txInterp1 && m_txInterp2 && m_txInterpInterBuf && m_txResampOut) {
+            // Two-stage polyphase interpolation: dspRate → intermediate (L1) → rfRate (L2)
+            const unsigned int n_in    = static_cast<unsigned int>(block.size() / 2);
+            const unsigned int n_inter = n_in * m_txL1;
+            firinterp_crcf_execute_block(m_txInterp1, (liquid_float_complex*)block.data(), n_in,    m_txInterpInterBuf);
+            firinterp_crcf_execute_block(m_txInterp2, m_txInterpInterBuf,                  n_inter, m_txResampOut);
+            const unsigned int n_out = n_inter * m_txL2;
+            float* outPtr = (float*)m_txResampOut;
+            for (unsigned int i = 0; i < n_out * 2; ++i)
+                m_txIqRing.append(outPtr[i]);
+        } else if (m_txResampler) {
             unsigned int num_written;
             // Up-sample from DSP rate (48k) to RF TX rate.
             msresamp_crcf_execute(m_txResampler, (liquid_float_complex*)block.data(), block.size() / 2, m_txResampOut, &num_written);
@@ -947,7 +962,11 @@ void SoapySDRDataSource::runStream() {
                     io->soapyInputSampleRate = m_sampleRate;
                 }
                 applyBandwidthForRfRate(m_rfSampleRate);
+                if (m_rxDecim1) { firdecim_crcf_reset(m_rxDecim1); m_rxDecimSurplus1.clear(); }
+                if (m_rxDecim2) { firdecim_crcf_reset(m_rxDecim2); m_rxDecimSurplus2.clear(); }
                 if (m_rxResampler) msresamp_crcf_reset(m_rxResampler);
+                if (m_txInterp1) firinterp_crcf_reset(m_txInterp1);
+                if (m_txInterp2) firinterp_crcf_reset(m_txInterp2);
                 if (m_txResampler) msresamp_crcf_reset(m_txResampler);
                 m_dcBlockXprevI = m_dcBlockXprevQ = m_dcBlockYprevI = m_dcBlockYprevQ = 0.0f;
                 outFill = 0;
@@ -975,7 +994,11 @@ void SoapySDRDataSource::runStream() {
                     m_device->setSampleRate(SOAPY_SDR_RX, 0, oldRfRate);
                     syncRfRateFromHardware(m_sampleRate);
                     setupResamplers(m_rfSampleRate, m_sampleRate, m_txSampleRate, kTxIqSampleRate);
+                    if (m_rxDecim1) { firdecim_crcf_reset(m_rxDecim1); m_rxDecimSurplus1.clear(); }
+                    if (m_rxDecim2) { firdecim_crcf_reset(m_rxDecim2); m_rxDecimSurplus2.clear(); }
                     if (m_rxResampler) msresamp_crcf_reset(m_rxResampler);
+                    if (m_txInterp1) firinterp_crcf_reset(m_txInterp1);
+                    if (m_txInterp2) firinterp_crcf_reset(m_txInterp2);
                     if (m_txResampler) msresamp_crcf_reset(m_txResampler);
                     {
                         QMutexLocker lock(&io->mutex);
@@ -1014,41 +1037,60 @@ void SoapySDRDataSource::runStream() {
             m_streamTimeouts = 0;
             publishWidebandSpectrum(buff.data(), ret);
 
-            if (m_rxResampler && m_rxResampIn && m_rxResampOut) {
-                unsigned int num_written;
-                // Read 1024 complex samples into the resampler. 
-                // We cast the interleaved float buffer to liquid_float_complex.
+            // --- RX decimation ---
+            // Two-stage polyphase path (integer ratio, no circular buffer) or msresamp fallback.
+            unsigned int num_written = 0;
+            if (m_rxDecim1 && m_rxDecim2 && m_rxResampOut) {
+                // Stage 1: rfRate → intermediate (decimation by D1)
+                const auto* inPtr = reinterpret_cast<liquid_float_complex*>(buff.data());
+                m_rxDecimSurplus1.insert(m_rxDecimSurplus1.end(), inPtr, inPtr + ret);
+                const int n1 = static_cast<int>(m_rxDecimSurplus1.size()) / static_cast<int>(m_rxD1);
+                if (n1 > 0) {
+                    firdecim_crcf_execute_block(m_rxDecim1, m_rxDecimSurplus1.data(), n1, m_rxDecimInterBuf);
+                    m_rxDecimSurplus1.erase(m_rxDecimSurplus1.begin(),
+                                            m_rxDecimSurplus1.begin() + n1 * static_cast<int>(m_rxD1));
+                    // Stage 2: intermediate → dspRate (decimation by D2)
+                    m_rxDecimSurplus2.insert(m_rxDecimSurplus2.end(), m_rxDecimInterBuf, m_rxDecimInterBuf + n1);
+                    const int n2 = static_cast<int>(m_rxDecimSurplus2.size()) / static_cast<int>(m_rxD2);
+                    if (n2 > 0) {
+                        firdecim_crcf_execute_block(m_rxDecim2, m_rxDecimSurplus2.data(), n2, m_rxResampOut);
+                        m_rxDecimSurplus2.erase(m_rxDecimSurplus2.begin(),
+                                                m_rxDecimSurplus2.begin() + n2 * static_cast<int>(m_rxD2));
+                        num_written = static_cast<unsigned int>(n2);
+                    }
+                }
+            } else if (m_rxResampler && m_rxResampIn && m_rxResampOut) {
                 msresamp_crcf_execute(m_rxResampler, (liquid_float_complex*)buff.data(), ret, m_rxResampOut, &num_written);
-                
-                if (num_written > 0) {
-                    float* outPtr = (float*)m_rxResampOut;
-                    // DC blocker: y[n] = x[n] - x[n-1] + α*y[n-1]
-                    // α = 0.9999 gives a corner ~0.5 Hz at 48 kHz — invisible to WDSP
-                    // but eliminates the DC spur completely.
-                    constexpr float kDcAlpha = 0.9999f;
-                    for (unsigned int i = 0; i < num_written; ++i) {
-                        const float xi = outPtr[i * 2];
-                        const float xq = outPtr[i * 2 + 1];
-                        const float yi = xi - m_dcBlockXprevI + kDcAlpha * m_dcBlockYprevI;
-                        const float yq = xq - m_dcBlockXprevQ + kDcAlpha * m_dcBlockYprevQ;
-                        m_dcBlockXprevI = xi;  m_dcBlockXprevQ = xq;
-                        m_dcBlockYprevI = yi;  m_dcBlockYprevQ = yq;
-                        outBuff[outFill * 2]     = yi;
-                        outBuff[outFill * 2 + 1] = yq;
+            }
 
-                        if (++outFill == static_cast<int>(numSamples)) {
-                            // Half-duplex: do not feed RX WDSP while MOX (TX IQ uses timer).
-                            const bool halfDuplexTx =
-                                m_txActive.load(std::memory_order_acquire)
-                                && !set->getTxFullDuplex();
-                            if (!halfDuplexTx) {
-                                QVector<float> out(numSamples * 2);
-                                std::copy(outBuff.begin(), outBuff.end(), out.begin());
-                                io->soapy_iq_queue.enqueue(out);
-                                emit readydata();
-                            }
-                            outFill = 0;
+            if (num_written > 0) {
+                float* outPtr = (float*)m_rxResampOut;
+                // DC blocker: y[n] = x[n] - x[n-1] + α*y[n-1]
+                // α = 0.9999 gives a corner ~0.5 Hz at 48 kHz — invisible to WDSP
+                // but eliminates the DC spur completely.
+                constexpr float kDcAlpha = 0.9999f;
+                for (unsigned int i = 0; i < num_written; ++i) {
+                    const float xi = outPtr[i * 2];
+                    const float xq = outPtr[i * 2 + 1];
+                    const float yi = xi - m_dcBlockXprevI + kDcAlpha * m_dcBlockYprevI;
+                    const float yq = xq - m_dcBlockXprevQ + kDcAlpha * m_dcBlockYprevQ;
+                    m_dcBlockXprevI = xi;  m_dcBlockXprevQ = xq;
+                    m_dcBlockYprevI = yi;  m_dcBlockYprevQ = yq;
+                    outBuff[outFill * 2]     = yi;
+                    outBuff[outFill * 2 + 1] = yq;
+
+                    if (++outFill == static_cast<int>(numSamples)) {
+                        // Half-duplex: do not feed RX WDSP while MOX (TX IQ uses timer).
+                        const bool halfDuplexTx =
+                            m_txActive.load(std::memory_order_acquire)
+                            && !set->getTxFullDuplex();
+                        if (!halfDuplexTx) {
+                            QVector<float> out(numSamples * 2);
+                            std::copy(outBuff.begin(), outBuff.end(), out.begin());
+                            io->soapy_iq_queue.enqueue(out);
+                            emit readydata();
                         }
+                        outFill = 0;
                     }
                 }
             }
@@ -1059,6 +1101,8 @@ void SoapySDRDataSource::runStream() {
                            << SoapySDR::errToStr(err) << "(" << err << ") — restarting stream";
                 m_streamTimeouts = 0;
                 if (restartRxStream()) {
+                    if (m_rxDecim1) { firdecim_crcf_reset(m_rxDecim1); m_rxDecimSurplus1.clear(); }
+                    if (m_rxDecim2) { firdecim_crcf_reset(m_rxDecim2); m_rxDecimSurplus2.clear(); }
                     if (m_rxResampler) msresamp_crcf_reset(m_rxResampler);
                     m_dcBlockXprevI = m_dcBlockXprevQ = m_dcBlockYprevI = m_dcBlockYprevQ = 0.0f;
                     outFill = 0;
@@ -1214,35 +1258,85 @@ void SoapySDRDataSource::setFrequency(int rx, qint64 frequency) {
 }
 
 void SoapySDRDataSource::setupResamplers(int rxRfRate, int rxDspRate, int txRfRate, int txDspRate) {
-    // RX Resampler (RF -> DSP)
+    // Destroy previous polyphase filters
+    if (m_rxDecim1) { firdecim_crcf_destroy(m_rxDecim1); m_rxDecim1 = nullptr; } m_rxD1 = 0;
+    if (m_rxDecim2) { firdecim_crcf_destroy(m_rxDecim2); m_rxDecim2 = nullptr; } m_rxD2 = 0;
+    m_rxDecimSurplus1.clear(); m_rxDecimSurplus2.clear();
+    if (m_rxDecimInterBuf) { delete[] (float*)m_rxDecimInterBuf; m_rxDecimInterBuf = nullptr; }
+    if (m_txInterp1) { firinterp_crcf_destroy(m_txInterp1); m_txInterp1 = nullptr; } m_txL1 = 0;
+    if (m_txInterp2) { firinterp_crcf_destroy(m_txInterp2); m_txInterp2 = nullptr; } m_txL2 = 0;
+    if (m_txInterpInterBuf) { delete[] (float*)m_txInterpInterBuf; m_txInterpInterBuf = nullptr; }
+
+    // Destroy previous msresamp fallback filters
     if (m_rxResampler) { msresamp_crcf_destroy(m_rxResampler); m_rxResampler = nullptr; }
-    if (m_rxResampIn) { delete[] (float*)m_rxResampIn; m_rxResampIn = nullptr; }
+    if (m_rxResampIn)  { delete[] (float*)m_rxResampIn;  m_rxResampIn  = nullptr; }
     if (m_rxResampOut) { delete[] (float*)m_rxResampOut; m_rxResampOut = nullptr; }
-
-    if (rxRfRate > 0 && rxDspRate > 0 && std::abs(rxRfRate - rxDspRate) > 1) {
-        const float ratio = static_cast<float>(rxDspRate) / static_cast<float>(rxRfRate);
-        const float as = 60.0f; // stopband attenuation dB — msresamp auto-sizes filter stages
-        m_rxResampler = msresamp_crcf_create(ratio, as);
-        m_rxResampIn = (liquid_float_complex*)new float[1024 * 2];
-        m_rxResampOut = (liquid_float_complex*)new float[2048 * 2];
-        qDebug() << "SoapySDRDataSource: RX msresamp configured for ratio" << ratio
-                 << "(" << rxRfRate << "->" << rxDspRate << "Hz)";
-    }
-
-    // TX Resampler (DSP -> RF)
     if (m_txResampler) { msresamp_crcf_destroy(m_txResampler); m_txResampler = nullptr; }
-    if (m_txResampIn) { delete[] (float*)m_txResampIn; m_txResampIn = nullptr; }
+    if (m_txResampIn)  { delete[] (float*)m_txResampIn;  m_txResampIn  = nullptr; }
     if (m_txResampOut) { delete[] (float*)m_txResampOut; m_txResampOut = nullptr; }
 
-    if (txRfRate > 0 && txDspRate > 0 && std::abs(txRfRate - txDspRate) > 1) {
-        const float ratio = static_cast<float>(txRfRate) / static_cast<float>(txDspRate);
-        const float as = 60.0f;
-        m_txResampler = msresamp_crcf_create(ratio, as);
-        m_txResampIn = (liquid_float_complex*)new float[1024 * 2];
-        const int maxOut = static_cast<int>(std::ceil(1024 * ratio)) + 64;
-        m_txResampOut = (liquid_float_complex*)new float[maxOut * 2];
-        qDebug() << "SoapySDRDataSource: TX msresamp configured for ratio" << ratio
-                 << "(" << txDspRate << "->" << txRfRate << "Hz)";
+    // Factor D into two stages: D1 (larger) * D2 (smallest prime factor).
+    // For D=125: D1=25, D2=5.  For non-factorable D: D1=D, D2=1.
+    auto factor2 = [](unsigned int D, unsigned int& D1, unsigned int& D2) {
+        D2 = 1;
+        for (unsigned int f = 2; f * f <= D; ++f) {
+            if (D % f == 0) { D2 = f; break; }
+        }
+        D1 = D / D2;
+    };
+
+    // RX path: rfRate → dspRate
+    if (rxRfRate > 0 && rxDspRate > 0 && rxRfRate > rxDspRate) {
+        if (rxRfRate % rxDspRate == 0) {
+            const unsigned int D = static_cast<unsigned int>(rxRfRate / rxDspRate);
+            factor2(D, m_rxD1, m_rxD2);
+            // m=6 polyphase arms (12 taps each), 60 dB stopband attenuation
+            m_rxDecim1 = firdecim_crcf_create_kaiser(m_rxD1, 6, 60.0f);
+            m_rxDecim2 = firdecim_crcf_create_kaiser(m_rxD2, 6, 60.0f);
+            // Intermediate buffer: holds up to ceil((numSamples+D1-1)/D1) samples from stage 1
+            const int interSize = 1024 / static_cast<int>(m_rxD1) + 8;
+            m_rxDecimInterBuf = (liquid_float_complex*)new float[interSize * 2];
+            m_rxResampOut     = (liquid_float_complex*)new float[2048 * 2];
+            qDebug() << "SoapySDRDataSource: RX 2-stage firdecim D1=" << m_rxD1
+                     << "D2=" << m_rxD2 << "total=" << D
+                     << "(" << rxRfRate << "->" << rxDspRate << " Hz)";
+        } else {
+            const float ratio = static_cast<float>(rxDspRate) / static_cast<float>(rxRfRate);
+            m_rxResampler = msresamp_crcf_create(ratio, 60.0f);
+            m_rxResampIn  = (liquid_float_complex*)new float[1024 * 2];
+            m_rxResampOut = (liquid_float_complex*)new float[2048 * 2];
+            qDebug() << "SoapySDRDataSource: RX msresamp ratio=" << ratio
+                     << "(" << rxRfRate << "->" << rxDspRate << " Hz)";
+        }
+    }
+
+    // TX path: dspRate → rfRate
+    if (txRfRate > 0 && txDspRate > 0 && txRfRate > txDspRate) {
+        if (txRfRate % txDspRate == 0) {
+            const unsigned int L = static_cast<unsigned int>(txRfRate / txDspRate);
+            unsigned int Llarge, Lsmall;
+            factor2(L, Llarge, Lsmall);
+            // Apply smaller factor first to limit intermediate buffer size
+            m_txL1 = Lsmall;   // e.g. 5  (48k → 240k)
+            m_txL2 = Llarge;   // e.g. 25 (240k → 6M)
+            m_txInterp1 = firinterp_crcf_create_kaiser(m_txL1, 6, 60.0f);
+            m_txInterp2 = firinterp_crcf_create_kaiser(m_txL2, 6, 60.0f);
+            // Intermediate: 1024 * L1 complex samples; output: 1024 * L total
+            m_txInterpInterBuf = (liquid_float_complex*)new float[1024 * m_txL1 * 2 + 128];
+            const int maxOut = 1024 * static_cast<int>(L) + 64;
+            m_txResampOut = (liquid_float_complex*)new float[maxOut * 2];
+            qDebug() << "SoapySDRDataSource: TX 2-stage firinterp L1=" << m_txL1
+                     << "L2=" << m_txL2 << "total=" << L
+                     << "(" << txDspRate << "->" << txRfRate << " Hz)";
+        } else {
+            const float ratio = static_cast<float>(txRfRate) / static_cast<float>(txDspRate);
+            m_txResampler = msresamp_crcf_create(ratio, 60.0f);
+            m_txResampIn  = (liquid_float_complex*)new float[1024 * 2];
+            const int maxOut = static_cast<int>(std::ceil(1024 * ratio)) + 64;
+            m_txResampOut = (liquid_float_complex*)new float[maxOut * 2];
+            qDebug() << "SoapySDRDataSource: TX msresamp ratio=" << ratio
+                     << "(" << txDspRate << "->" << txRfRate << " Hz)";
+        }
     }
 }
 
