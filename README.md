@@ -11,6 +11,7 @@
 - **High-DPI Support**: Native scaling for 4K and Retina displays.
 - **Advanced DSP**: Integrated WDSP, Protocol 2 support, and FreeDV/Codec2 capabilities - no rade yet.
 - **Soapy Integration underway **
+- AI Development assist from 2025 on
 
 
 This project is still work in progress and very much alpha.
@@ -67,7 +68,6 @@ Protocol and WDSP references are in `Docs/`.
 
 ### Known gaps / TODO
 
-- SoapySDR integration
 - CW polish and validation
 
 
