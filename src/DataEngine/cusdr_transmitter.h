@@ -69,6 +69,7 @@ private slots:
     void set_fm_deviation(double level);
     void transmitter_set_am_carrier_level(double level);
     void transmitter_set_mic_level(int level);
+    void transmitter_set_audio_compression(int level);
 
 private:
     Settings*   set;

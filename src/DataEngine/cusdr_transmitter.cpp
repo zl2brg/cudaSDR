@@ -28,6 +28,20 @@
 
 #include "cusdr_transmitter.h"
 
+namespace {
+double micSliderToPanelGain(const double sliderValue)
+{
+    // UI/settings store mic level as 0..100. Map 50 -> unity gain.
+    const double clamped = qBound(0.0, sliderValue, 100.0);
+    return clamped / 50.0;
+}
+
+int compressionSliderToDb(const int sliderValue)
+{
+    return qBound(0, sliderValue, 20);
+}
+}
+
 Transmitter::Transmitter(int transmitter)
     : QObject()
     , set(Settings::instance())
@@ -81,6 +95,9 @@ void Transmitter::setupConnections() {
 
     connect(set, &Settings::micInputLevelChanged,
             this, &Transmitter::transmitter_set_mic_level);
+
+    connect(set, &Settings::audioCompressionchanged,
+            this, &Transmitter::transmitter_set_audio_compression);
 }
 
 
@@ -226,8 +243,9 @@ bool  Transmitter::create_transmitter(int id, int buffer_size, int fft_size, int
     SetTXAAMSQRun(this->id, 0);
     SetTXAosctrlRun(this->id, 0);
 
-    SetTXAALCAttack(this->id, 1);
-    SetTXAALCDecay(this->id, 10);
+    // A gentler ALC profile reduces audible pumping/background lift.
+    SetTXAALCAttack(this->id, 2);
+    SetTXAALCDecay(this->id, 120);
     SetTXAALCSt(this->id, 1); // turn it on (always on)
 
     SetTXALevelerAttack(this->id, 1);
@@ -246,13 +264,14 @@ bool  Transmitter::create_transmitter(int id, int buffer_size, int fft_size, int
     SetTXAPostGenToneFreq(this->id, 1000.0);
     SetTXAPostGenRun(this->id, 0);
 
-    SetTXAPanelGain1(this->id,pow(10.0, mic_gain/20.0));
+    const double initialMicLevel = set->getMicInputLevel();
+    mic_gain = initialMicLevel;
+    SetTXAPanelGain1(this->id, micSliderToPanelGain(initialMicLevel));
     SetTXAPanelRun(this->id, 1);
 
     SetTXAFMDeviation(this->id, set->getFMDeveation());
     SetTXAAMCarrierLevel(this->id, 0.5);
-    SetTXACompressorGain(this->id, 0);
-    SetTXACompressorRun(this->id, 0);
+    transmitter_set_audio_compression(set->getAudioCompression());
     XCreateAnalyzer(this->id, &rc, 262144, 1, 1, const_cast<char*>(""));
     if (rc != 0) {
         fprintf(stderr, "XCreateAnalyzer id=%d failed: %d\n",this->id,rc);
@@ -292,7 +311,7 @@ void Transmitter::setRadioState(RadioState state)
         tx_set_filter(filter.filterLo, filter.filterHi);
         SetTXAPostGenRun(this->id, 0);
         SetTXAMode(this->id, wdspMode);
-        SetTXAPanelGain1(this->id, pow(10.0, mic_gain / 20.0));
+        SetTXAPanelGain1(this->id, micSliderToPanelGain(mic_gain));
         SetTXAPanelRun(this->id, 1);
         SetTXABandpassWindow(this->id, 1);
         SetTXABandpassRun(this->id, 1);
@@ -311,7 +330,7 @@ void Transmitter::setRadioState(RadioState state)
         SetTXAPostGenMode(this->id, 0);
         SetTXAPostGenRun(this->id, 1);
         SetTXAMode(this->id, wdspModeTune);
-        SetTXAPanelGain1(this->id, pow(10.0, mic_gain / 20.0));
+        SetTXAPanelGain1(this->id, micSliderToPanelGain(mic_gain));
         SetTXAPanelRun(this->id, 1);
         SetTXABandpassWindow(this->id, 1);
         SetTXABandpassRun(this->id, 1);
@@ -354,8 +373,18 @@ void Transmitter::setRadioState(RadioState state)
 void Transmitter::transmitter_set_mic_level(int level){
     TRANSMITTER_DEBUG << "Set Tx mic level" << level;
     mic_gain = level * 1.0;
-    SetTXAPanelGain1(this->id,pow(10.0, mic_gain/20.0));
+    SetTXAPanelGain1(this->id, micSliderToPanelGain(mic_gain));
 
+}
+
+void Transmitter::transmitter_set_audio_compression(int level)
+{
+    const int compressionDb = compressionSliderToDb(level);
+    compressor_level = static_cast<float>(compressionDb);
+    compressor = (compressionDb > 0) ? 1 : 0;
+    SetTXACompressorGain(this->id, compressionDb);
+    SetTXACompressorRun(this->id, compressor);
+    TRANSMITTER_DEBUG << "Set Tx compression " << compressionDb << " dB run=" << compressor;
 }
 
 
