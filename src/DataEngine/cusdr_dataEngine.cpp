@@ -1339,6 +1339,9 @@ bool DataEngine::initReceivers(int rcvrs) {
 	io.ccTx.pennyOCenabled = set->getPennyOCEnabled();
 	io.ccTx.rxJ6pinList = set->getRxJ6Pins();
 	io.ccTx.txJ6pinList = set->getTxJ6Pins();
+	// Protocol 1 TX control (C0/C1..C4 state 1) uses ccTx.txFrequency.
+	// Keep it initialized to the currently selected receiver center frequency.
+	io.ccTx.txFrequency = set->getCtrFrequency(set->getCurrentReceiver());
 
 	setAlexConfiguration(io.ccTx.alexConfig);
 
@@ -2057,6 +2060,7 @@ void DataEngine::setCurrentReceiver(int rx) {
 
 	QMutexLocker locker(&io.mutex);
 	io.currentReceiver = rx;
+	io.ccTx.txFrequency = set->getCtrFrequency(rx);
 }
 
 void DataEngine::setFramesPerSecond(int rx, int value) {
@@ -2457,6 +2461,9 @@ void DataEngine::setFrequency(int mode, int rx, long frequency) {
 	//RX[rx]->setFrequency(frequency);
 	RX[rx]->setCtrFrequency(frequency);
 	io.rx_freq_change = rx;
+	if (rx == io.currentReceiver) {
+		io.ccTx.txFrequency = frequency;
+	}
 
 }
 
