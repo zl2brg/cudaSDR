@@ -75,6 +75,7 @@ set(WDSP_LIBS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/wdsp-libs)
 
 # --- Add Subdirectories ---
 add_subdirectory(wdsp-1.29)
+add_subdirectory(deps/freedv-backend)
 
 # --- Define Source Files ---
 set(SOURCES
@@ -95,6 +96,7 @@ set(SOURCES
     ${SRC_DIR}/AudioEngine/audiooutputmanager.cpp
     ${SRC_DIR}/AudioEngine/cusdr_codec2processor.cpp
     ${SRC_DIR}/AudioEngine/cusdr_freedvprocessor.cpp
+    ${SRC_DIR}/AudioEngine/cusdr_radeprocessor.cpp
 
 #    ${SRC_DIR}/AudioEngine/cusdr_audio_utils.cpp
 #    ${SRC_DIR}/AudioEngine/cusdr_audio_waveform.cpp
@@ -196,6 +198,7 @@ set(HEADERS
     ${SRC_DIR}/AudioEngine/audiooutputmanager.h
     ${SRC_DIR}/AudioEngine/cusdr_codec2processor.h
     ${SRC_DIR}/AudioEngine/cusdr_freedvprocessor.h
+    ${SRC_DIR}/AudioEngine/cusdr_radeprocessor.h
 
     # Data Engine
     ${SRC_DIR}/DataEngine/cusdr_dataIO.h
@@ -317,6 +320,8 @@ target_include_directories(cudasdr PRIVATE
     ${SPECLEACH_INCLUDE_DIRS}
     ${FFTW3_INCLUDE_DIRS}
     ${FFTW3F_INCLUDE_DIRS}
+    ${CMAKE_CURRENT_SOURCE_DIR}/deps/freedv-backend/src/pipeline
+    ${CMAKE_CURRENT_BINARY_DIR}/deps/freedv-backend
 )
 
 if(CODEC2_FOUND)
@@ -335,10 +340,14 @@ target_link_libraries(cudasdr PRIVATE
     Qt6::OpenGLWidgets
     wdsp
     ${LIQUID_LIBRARY}
-    # System libraries
     -lm
     OpenGL::GL
+    fdv_audio_pipeline
+    rade
+    opus
 )
+
+target_compile_definitions(cudasdr PRIVATE HAVE_RADE)
 
 if(SOAPYSDR_FOUND)
     target_link_libraries(cudasdr PRIVATE PkgConfig::SOAPYSDR)

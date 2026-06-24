@@ -58,6 +58,105 @@ extern "C" {
 }
 #endif
 
+#ifdef HAVE_RADE
+#include "rade_api.h"
+extern "C" {
+#include "lpcnet.h"
+int opus_select_arch(void);
+}
+#if defined(Q_OS_LINUX)
+#include <fcntl.h>
+#include <unistd.h>
+#include <cstdio>
+#endif
+#endif
+
+namespace {
+bool txDiagEnabled() {
+    static const bool enabled = qEnvironmentVariableIntValue("CUSDR_TX_DIAG") != 0;
+    return enabled;
+}
+
+bool radeVerboseEnabled() {
+    static const bool enabled = qEnvironmentVariableIntValue("CUSDR_RADE_VERBOSE") != 0;
+    return enabled;
+}
+
+#if defined(Q_OS_LINUX)
+template <typename Fn>
+auto runWithSuppressedCStdio(Fn&& fn) -> decltype(fn()) {
+    if (radeVerboseEnabled())
+        return fn();
+
+    fflush(stdout);
+    fflush(stderr);
+    const int savedOut = dup(STDOUT_FILENO);
+    const int savedErr = dup(STDERR_FILENO);
+    const int devNull = open("/dev/null", O_WRONLY);
+    if (devNull < 0 || savedOut < 0 || savedErr < 0) {
+        if (devNull >= 0) close(devNull);
+        if (savedOut >= 0) close(savedOut);
+        if (savedErr >= 0) close(savedErr);
+        return fn();
+    }
+
+    dup2(devNull, STDOUT_FILENO);
+    dup2(devNull, STDERR_FILENO);
+    close(devNull);
+
+    auto result = fn();
+
+    fflush(stdout);
+    fflush(stderr);
+    dup2(savedOut, STDOUT_FILENO);
+    dup2(savedErr, STDERR_FILENO);
+    close(savedOut);
+    close(savedErr);
+    return result;
+}
+#else
+template <typename Fn>
+auto runWithSuppressedCStdio(Fn&& fn) -> decltype(fn()) {
+    return fn();
+}
+#endif
+
+struct TxIqStats {
+    double micRms = 0.0;
+    double micPeak = 0.0;
+    double iqRms = 0.0;
+    double iqPeak = 0.0;
+};
+
+static TxIqStats computeTxIqStats(const double* micInterleaved, const CPX& iq) {
+    TxIqStats st;
+    double micSumSq = 0.0;
+    for (int i = 0; i < DSP_SAMPLE_SIZE; ++i) {
+        const double mRaw = micInterleaved[i * 2];
+        const double m = std::isfinite(mRaw) ? mRaw : 0.0;
+        micSumSq += m * m;
+        const double a = std::abs(m);
+        if (a > st.micPeak) st.micPeak = a;
+    }
+    st.micRms = std::sqrt(micSumSq / static_cast<double>(DSP_SAMPLE_SIZE));
+
+    double iqSumSq = 0.0;
+    for (int i = 0; i < iq.size(); ++i) {
+        const double reRaw = iq.at(i).re;
+        const double imRaw = iq.at(i).im;
+        const double re = std::isfinite(reRaw) ? reRaw : 0.0;
+        const double im = std::isfinite(imRaw) ? imRaw : 0.0;
+        const double p = re * re + im * im;
+        iqSumSq += p;
+        const double a = std::sqrt(p);
+        if (a > st.iqPeak) st.iqPeak = a;
+    }
+    if (!iq.isEmpty())
+        st.iqRms = std::sqrt(iqSumSq / static_cast<double>(iq.size()));
+    return st;
+}
+} // namespace
+
 
 /*!
 	\class DataEngine
@@ -2709,6 +2808,16 @@ DataProcessor::~DataProcessor() {
 		freedv_close(m_freeDVTx);
 		m_freeDVTx = nullptr;
 	}
+#ifdef HAVE_RADE
+	if (m_radeTx) {
+		rade_close(m_radeTx);
+		m_radeTx = nullptr;
+	}
+	if (m_lpcnetTx) {
+		lpcnet_encoder_destroy(m_lpcnetTx);
+		m_lpcnetTx = nullptr;
+	}
+#endif
 #endif
     if (file) {
     file->close();
@@ -2720,42 +2829,158 @@ DataProcessor::~DataProcessor() {
 #ifdef HAVE_CODEC2
 void DataProcessor::applyCodec2ToMicBuffer(int sampleCount)
 {
-	if (sampleCount <= 0) return;
+    const int inputSamples = qMax(0, sampleCount);
+    // Keep TX modem output continuous across brief mic underruns by reusing the
+    // previously held FreeDV sample when no new mic block is available.
+    const int outputSamples = (inputSamples > 0) ? inputSamples : DSP_SAMPLE_SIZE;
+    if (inputSamples == 0) {
+        static quint64 underrunCount = 0;
+        if (++underrunCount % 200 == 1) {
+            qDebug() << "FreeDV TX: mic underrun, reusing held modem sample"
+                     << "count=" << underrunCount;
+        }
+    }
 
-	// Use the selected Codec2 mode directly (0=1600, 1=1400, 2=1300, 3=700C, 4=2400, 5=3200, 6=700D)
+	// Use the selected Codec2 mode directly (0=1600, 1=1400, 2=1300, 3=700C, 4=2400, 5=3200, 6=700D, 100=RADE v1)
 	const int wantedMode = set->getFreeDVMode(de->io.currentReceiver);
-	if (!m_freeDVTx || m_freeDVTxMode != wantedMode) {
+	if (m_freeDVTxMode != wantedMode) {
 		if (m_freeDVTx) {
 			freedv_close(m_freeDVTx);
 			m_freeDVTx = nullptr;
 		}
-
-		m_freeDVTx = freedv_open(wantedMode);
+#ifdef HAVE_RADE
+		if (m_radeTx) {
+			rade_close(m_radeTx);
+			m_radeTx = nullptr;
+		}
+		if (m_lpcnetTx) {
+			lpcnet_encoder_destroy(m_lpcnetTx);
+			m_lpcnetTx = nullptr;
+		}
+#endif
 		m_freeDVTxMode = wantedMode;
-		m_freeDVSpeechAccum.clear();
-		m_freeDVModemQueue.clear();
-		m_freeDVModemReadPos = 0;
-		m_freeDVTxHoldCount = 0;
-		m_freeDVTxHeldSample = 0;
 
-		if (!m_freeDVTx) {
-			DATA_PROCESSOR_DEBUG << "FreeDV TX reopen failed for mode" << wantedMode;
-			return;
+		if (wantedMode == 100) {
+#ifdef HAVE_RADE
+			char emptyModel[1] = {0};
+			m_radeTx = rade_open(emptyModel, RADE_USE_C_ENCODER);
+			if (!m_radeTx) {
+				DATA_PROCESSOR_DEBUG << "RADE TX failed to open";
+				return;
+			}
+			m_lpcnetTx = lpcnet_encoder_create();
+			m_freeDVSpeechRate = 16000;
+			m_freeDVModemRate = 8000;
+			m_freeDVTxNSpeech = LPCNET_FRAME_SIZE; // 160
+			m_freeDVTxNModem = rade_nin(m_radeTx);
+			m_freeDVTxDecim = 48000 / 16000; // 3
+			m_freeDVTxInterp = 48000 / 8000; // 6
+			m_radeTxSpeechAccum.clear();
+			m_radeTxModemQueue.clear();
+			m_radeTxModemReadPos = 0;
+			m_freeDVTxHoldCount = 0;
+			m_radeTxHeldSampleReal = 0.0f;
+			m_radeTxHeldSampleImag = 0.0f;
+#endif
+		} else {
+			m_freeDVTx = freedv_open(wantedMode);
+			if (!m_freeDVTx) {
+				DATA_PROCESSOR_DEBUG << "FreeDV TX reopen failed for mode" << wantedMode;
+				return;
+			}
+			m_freeDVSpeechRate = freedv_get_speech_sample_rate(m_freeDVTx);
+			m_freeDVModemRate = freedv_get_modem_sample_rate(m_freeDVTx);
+			m_freeDVTxNSpeech = freedv_get_n_speech_samples(m_freeDVTx);
+			m_freeDVTxNModem = freedv_get_n_nom_modem_samples(m_freeDVTx);
+			m_freeDVTxDecim = qMax(1, 48000 / qMax(1, m_freeDVSpeechRate));
+			m_freeDVTxInterp = qMax(1, 48000 / qMax(1, m_freeDVModemRate));
+			m_freeDVSpeechFrame.assign(m_freeDVTxNSpeech, 0);
+			m_freeDVModemFrame.assign(m_freeDVTxNModem, 0);
+			m_freeDVSpeechAccum.clear();
+			m_freeDVModemQueue.clear();
+			m_freeDVModemReadPos = 0;
+			m_freeDVTxHoldCount = 0;
+			m_freeDVTxHeldSample = 0;
+		}
+	}
+
+	if (wantedMode == 100) {
+#ifdef HAVE_RADE
+		if (!m_radeTx) return;
+
+		// Decimate input mic buffer to 16 kHz speech
+		for (int i = 0; i + m_freeDVTxDecim <= inputSamples; i += m_freeDVTxDecim) {
+			double sum = 0.0;
+			for (int k = 0; k < m_freeDVTxDecim; ++k) {
+				sum += mic_buffer[(i + k) * 2];
+			}
+			double s = sum / static_cast<double>(m_freeDVTxDecim);
+			float speechVal = static_cast<float>(std::clamp(s * 32767.0, -32768.0, 32767.0));
+			m_radeTxSpeechAccum.push_back(speechVal);
 		}
 
-		m_freeDVSpeechRate = freedv_get_speech_sample_rate(m_freeDVTx);
-		m_freeDVModemRate = freedv_get_modem_sample_rate(m_freeDVTx);
-		m_freeDVTxNSpeech = freedv_get_n_speech_samples(m_freeDVTx);
-		m_freeDVTxNModem = freedv_get_n_nom_modem_samples(m_freeDVTx);
-		m_freeDVTxDecim = qMax(1, 48000 / qMax(1, m_freeDVSpeechRate));
-		m_freeDVTxInterp = qMax(1, 48000 / qMax(1, m_freeDVModemRate));
-		m_freeDVSpeechFrame.assign(m_freeDVTxNSpeech, 0);
-		m_freeDVModemFrame.assign(m_freeDVTxNModem, 0);
+		quint64 txFramesThisBlock = 0;
+		while (static_cast<int>(m_radeTxSpeechAccum.size()) >= m_freeDVTxNSpeech) {
+			// Convert speech accumulated floats to int16 for lpcnet encoder
+			std::vector<int16_t> speech16k(m_freeDVTxNSpeech);
+			for (int i = 0; i < m_freeDVTxNSpeech; ++i) {
+				speech16k[i] = static_cast<int16_t>(m_radeTxSpeechAccum[i]);
+			}
+			m_radeTxSpeechAccum.erase(m_radeTxSpeechAccum.begin(), m_radeTxSpeechAccum.begin() + m_freeDVTxNSpeech);
+
+			float features[NB_TOTAL_FEATURES];
+			lpcnet_compute_single_frame_features(m_lpcnetTx, speech16k.data(), features, opus_select_arch());
+
+			int nin = rade_nin(m_radeTx);
+			std::vector<RADE_COMP> modemFrame(nin);
+            runWithSuppressedCStdio([&]() {
+                rade_tx(m_radeTx, modemFrame.data(), features);
+                return 0;
+            });
+
+			for (int i = 0; i < nin; ++i) {
+                const float re = std::isfinite(modemFrame[i].real) ? modemFrame[i].real : 0.0f;
+                const float im = std::isfinite(modemFrame[i].imag) ? modemFrame[i].imag : 0.0f;
+				m_radeTxModemQueue.push_back(re);
+				m_radeTxModemQueue.push_back(im);
+			}
+			txFramesThisBlock += 1;
+		}
+
+		for (int i = 0; i < outputSamples; ++i) {
+			if (m_freeDVTxHoldCount <= 0) {
+				if (m_radeTxModemReadPos + 1 < m_radeTxModemQueue.size()) {
+					m_radeTxHeldSampleReal = m_radeTxModemQueue[m_radeTxModemReadPos++];
+					m_radeTxHeldSampleImag = m_radeTxModemQueue[m_radeTxModemReadPos++];
+                    if (!std::isfinite(m_radeTxHeldSampleReal)) m_radeTxHeldSampleReal = 0.0f;
+                    if (!std::isfinite(m_radeTxHeldSampleImag)) m_radeTxHeldSampleImag = 0.0f;
+				} else {
+					m_radeTxHeldSampleReal = 0.0f;
+					m_radeTxHeldSampleImag = 0.0f;
+				}
+				m_freeDVTxHoldCount = m_freeDVTxInterp;
+			}
+
+			mic_buffer[i * 2] = m_radeTxHeldSampleReal;
+			mic_buffer[i * 2 + 1] = m_radeTxHeldSampleImag;
+			m_freeDVTxHoldCount -= 1;
+		}
+
+		if (txFramesThisBlock > 0) {
+			set->addFreeDVTxFrames(de->io.currentReceiver, txFramesThisBlock);
+		}
+
+		if (m_radeTxModemReadPos > 0 && m_radeTxModemReadPos >= m_radeTxModemQueue.size()) {
+			m_radeTxModemQueue.clear();
+			m_radeTxModemReadPos = 0;
+		}
+#endif
+		return;
 	}
 
 	if (!m_freeDVTx || m_freeDVTxNSpeech <= 0 || m_freeDVTxNModem <= 0) return;
 
-	for (int i = 0; i + m_freeDVTxDecim <= sampleCount; i += m_freeDVTxDecim) {
+	for (int i = 0; i + m_freeDVTxDecim <= inputSamples; i += m_freeDVTxDecim) {
 		double sum = 0.0;
 		for (int k = 0; k < m_freeDVTxDecim; ++k) {
 			sum += mic_buffer[(i + k) * 2];
@@ -2793,7 +3018,7 @@ void DataProcessor::applyCodec2ToMicBuffer(int sampleCount)
 		txFramesThisBlock += 1;
 	}
 
-	for (int i = 0; i < sampleCount; ++i) {
+	for (int i = 0; i < outputSamples; ++i) {
 		if (m_freeDVTxHoldCount <= 0) {
 			if (m_freeDVModemReadPos < m_freeDVModemQueue.size()) {
 				m_freeDVTxHeldSample = m_freeDVModemQueue[m_freeDVModemReadPos++];
@@ -3348,7 +3573,7 @@ void DataProcessor::fetch_MicData(){
                 break;
             }
         }
-        if (hasSignal) {
+        if (hasSignal && txDiagEnabled()) {
             if (++nonZeroCount % 100 == 1) {
                 qDebug() << "fetch_MicData: Dequeued block with signal. RMS approx:" << temp_data[0];
             }
@@ -3365,9 +3590,19 @@ void DataProcessor::fetch_MicData(){
         memset(&mic_buffer,0x0,sizeof(mic_buffer));
         
         static int emptyCount = 0;
-        if (de->m_audioInput && ++emptyCount % 500 == 1) {
-            qDebug() << "fetch_MicData: Audio queue is empty. Mic capturing?" 
-                     << (de->m_audioInput ? "Yes (object exists)" : "No (null)");
+        if (txDiagEnabled() && ++emptyCount % 200 == 1) {
+            const int micIndex = set->getMicInputDev();
+            const QString micName = set->getMicInputSourceName();
+            const int digitalIndex = set->getDigitalAudioInputDev();
+            const QString digitalName = set->getDigitalInputSourceName();
+            qDebug().nospace()
+                << "fetch_MicData: Audio queue empty"
+                << " txMode=" << set->getDSPMode(de->io.currentReceiver)
+                << " micIndex=" << micIndex
+                << " micSource=\"" << micName << "\""
+                << " digIndex=" << digitalIndex
+                << " digSource=\"" << digitalName << "\""
+                << " audioInputObj=" << (de->m_audioInput ? "yes" : "no");
         }
     }
 
@@ -3387,6 +3622,8 @@ void DataProcessor::fetch_MicData(){
 /*  processes mic samples ready to transmit */
 void DataProcessor::get_tx_iqData(){
     QMutexLocker pumpLock(&m_txIqPumpMutex);
+    static quint64 txDiagCounter = 0;
+    static quint64 txNanBlocks = 0;
     int error;
     long int   leftTXSample;
     long int rightTXSample;
@@ -3394,11 +3631,54 @@ void DataProcessor::get_tx_iqData(){
     double gain = 32767.0f;
    // double gain = 25 * 0.00392;
     fetch_MicData();
+    int micNonFinite = 0;
+    for (int i = 0; i < DSP_SAMPLE_SIZE * 2; ++i) {
+        if (!std::isfinite(mic_buffer[i])) {
+            mic_buffer[i] = 0.0;
+            ++micNonFinite;
+        }
+    }
 
     if (set->is_transmitting()) {
         fexchange0(TX_ID, mic_buffer, (double *) m_iq_output_buffer.data(), &error);
+        int iqNonFinite = 0;
+        for (int i = 0; i < m_iq_output_buffer.size(); ++i) {
+            if (!std::isfinite(m_iq_output_buffer[i].re)) {
+                m_iq_output_buffer[i].re = 0.0;
+                ++iqNonFinite;
+            }
+            if (!std::isfinite(m_iq_output_buffer[i].im)) {
+                m_iq_output_buffer[i].im = 0.0;
+                ++iqNonFinite;
+            }
+        }
+        if (micNonFinite > 0 || iqNonFinite > 0) {
+            ++txNanBlocks;
+            if (txNanBlocks % 20 == 1) {
+                qWarning() << "TX stream: non-finite samples sanitized"
+                           << "mic=" << micNonFinite
+                           << "iq=" << iqNonFinite
+                           << "mode=" << set->getDSPMode(de->io.currentReceiver);
+            }
+        }
 
 		Spectrum0(1, TX_ID, 0, 0, (double *) m_iq_output_buffer.data());
+
+        if (error != 0) {
+            qWarning() << "TX stream: fexchange0(TX_ID) error=" << error
+                       << "mode=" << set->getDSPMode(de->io.currentReceiver)
+                       << "state=" << set->getRadioState();
+        }
+
+        if (txDiagEnabled() && (++txDiagCounter % 50) == 1) {
+            const TxIqStats st = computeTxIqStats(mic_buffer, m_iq_output_buffer);
+            qDebug().nospace() << "[TX-DIAG] mode=" << set->getDSPMode(de->io.currentReceiver)
+                               << " state=" << set->getRadioState()
+                               << " micQ=" << (de->m_audioInput ? de->m_audioInput->m_faudioInQueue.count() : -1)
+                               << " micRms=" << st.micRms << " micPeak=" << st.micPeak
+                               << " iqRms=" << st.iqRms << " iqPeak=" << st.iqPeak
+                               << " fexchange=" << error;
+        }
 
 #ifdef HAVE_SOAPYSDR
         if (m_hwInterface == QSDR::SoapySDR && !set->getTxFullDuplex())
@@ -3443,11 +3723,33 @@ void DataProcessor::publishTxSpectrumForPanadapter() {
 
     int flag = 0;
     GetPixels(TX_ID, 0, m_txSpectrumBuffer.data(), &flag);
-    if (!flag)
-        return;
+    if (!flag) {
+        // TX analyzer runs asynchronously; a single immediate GetPixels() can miss,
+        // especially in FDV where TX framing cadence is bursty.
+        for (int i = 0; i < 12 && !flag; ++i) {
+            QThread::usleep(500);
+            GetPixels(TX_ID, 0, m_txSpectrumBuffer.data(), &flag);
+        }
+    }
 
-    applyTxPanadapterDisplayOffset(m_txSpectrumBuffer);
-    set->setSpectrumBuffer(de->io.currentReceiver, m_txSpectrumBuffer);
+    if (flag) {
+        m_txSpectrumSeen = true;
+        m_txSpectrumMissCount = 0;
+        applyTxPanadapterDisplayOffset(m_txSpectrumBuffer);
+        set->setSpectrumBuffer(de->io.currentReceiver, m_txSpectrumBuffer);
+        return;
+    }
+
+    if (m_txSpectrumSeen) {
+        // Keep the last valid TX trace visible instead of blanking the pane.
+        set->setSpectrumBuffer(de->io.currentReceiver, m_txSpectrumBuffer);
+    }
+
+    if (txDiagEnabled() && ++m_txSpectrumMissCount % 200 == 1) {
+        qDebug() << "TX panadapter: GetPixels miss count=" << m_txSpectrumMissCount
+                 << "mode=" << set->getDSPMode(de->io.currentReceiver)
+                 << "state=" << set->getRadioState();
+    }
 }
 
 void DataProcessor::startSoapyTxIqTimer(int intervalMs) {

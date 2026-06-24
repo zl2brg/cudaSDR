@@ -41,6 +41,10 @@
 #include "AudioEngine/cusdr_freedvprocessor.h"
 #endif
 
+#ifdef HAVE_RADE
+#include "AudioEngine/cusdr_radeprocessor.h"
+#endif
+
 #ifdef LOG_SLICE_PROCESSOR
 #   define SLICE_PROCESSOR_DEBUG qDebug().nospace() << "SliceProcessor::\t"
 #else
@@ -190,6 +194,10 @@ private:
 	FreeDVProcessor* m_freeDVProcessor = nullptr;
 	int m_freeDVMode = 0;
 	quint64 m_freeDVRxFrames = 0;
+#endif
+
+#ifdef HAVE_RADE
+	RadeProcessor* m_radeProcessor = nullptr;
 #endif
 
 signals:

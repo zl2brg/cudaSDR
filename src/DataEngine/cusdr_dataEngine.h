@@ -495,6 +495,8 @@ private:
 #ifdef HAVE_SOAPYSDR
     QTimer*         m_soapyTxIqTimer = nullptr;
     qVectorFloat    m_txSpectrumBuffer;
+    bool            m_txSpectrumSeen = false;
+    quint64         m_txSpectrumMissCount = 0;
 #endif
 #ifdef HAVE_CODEC2
 	struct freedv* m_freeDVTx = nullptr;
@@ -513,6 +515,16 @@ private:
 	std::vector<int16_t> m_freeDVModemQueue;
 	size_t m_freeDVModemReadPos = 0;
     void applyCodec2ToMicBuffer(int sampleCount);
+
+#ifdef HAVE_RADE
+    struct rade* m_radeTx = nullptr;
+    struct LPCNetEncState* m_lpcnetTx = nullptr;
+    float m_radeTxHeldSampleReal = 0.0f;
+    float m_radeTxHeldSampleImag = 0.0f;
+    std::vector<float> m_radeTxSpeechAccum;
+    std::vector<float> m_radeTxModemQueue;
+    size_t m_radeTxModemReadPos = 0;
+#endif
 #endif
     void            get_tx_iqData();
     void            publishTxSpectrumForPanadapter();

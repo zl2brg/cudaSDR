@@ -120,6 +120,16 @@ int main(int argc, char *argv[]) {
     // NOTE: The function name is the same, but it now works with the updated handler signature.
     qInstallMessageHandler(cuSDRMessageHandler);
 #endif
+#if defined(Q_OS_LINUX)
+    // Qt6 multimedia on Linux commonly uses FFmpeg. Allow explicit override,
+    // but default to ffmpeg so behavior is predictable across hosts.
+    if (!qEnvironmentVariableIsSet("QT_MEDIA_BACKEND")) {
+        qputenv("QT_MEDIA_BACKEND", QByteArrayLiteral("ffmpeg"));
+        qInfo() << "QT_MEDIA_BACKEND not set; defaulting to" << qEnvironmentVariable("QT_MEDIA_BACKEND");
+    } else {
+        qInfo() << "Using QT_MEDIA_BACKEND =" << qEnvironmentVariable("QT_MEDIA_BACKEND");
+    }
+#endif
     QApplication::setHighDpiScaleFactorRoundingPolicy(Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
     // Temporarily disable shared contexts to test if this is causing the refresh issue
     QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);

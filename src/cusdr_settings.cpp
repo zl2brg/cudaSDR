@@ -4229,13 +4229,14 @@ QString Settings::getCodec2ModeString(int mode) {
 		case 6:  return "700D bps (FREEDV_MODE_700D)";
 		case 8:  return "2020 (FREEDV_MODE_2020)";
 		case 16: return "2020B (FREEDV_MODE_2020B)";
+		case 100: return "RADE v1 (Neural Codec)";
 		default: return "1600 bps (FREEDV_MODE_1600)";
 	}
 }
 
 QList<int> Settings::availableCodec2Modes() {
 	// Return list of available Codec2 modes
-	return {0, 1, 2, 3, 4, 5, 6, 8, 16};
+	return {0, 1, 2, 3, 4, 5, 6, 8, 16, 100};
 }
 
 AGCMode Settings::getAGCMode(int rx) {

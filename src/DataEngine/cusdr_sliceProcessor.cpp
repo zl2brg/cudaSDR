@@ -67,7 +67,13 @@ SliceProcessor::SliceProcessor(SliceModel *model, QObject *parent)
 #endif
 #ifdef HAVE_CODEC2
 	m_freeDVMode = set->getFreeDVMode(m_receiver);
-	m_freeDVProcessor = new FreeDVProcessor(m_freeDVMode);
+	if (m_freeDVMode == 100) {
+#ifdef HAVE_RADE
+		m_radeProcessor = new RadeProcessor();
+#endif
+	} else {
+		m_freeDVProcessor = new FreeDVProcessor(m_freeDVMode);
+	}
 #endif
 	setupConnections();
     m_displayTime = (int)(1000000.0/set->getFramesPerSecond(m_receiver));
@@ -91,6 +97,10 @@ SliceProcessor::~SliceProcessor() {
 #ifdef HAVE_CODEC2
 	delete m_freeDVProcessor;
 	m_freeDVProcessor = nullptr;
+#endif
+#ifdef HAVE_RADE
+	delete m_radeProcessor;
+	m_radeProcessor = nullptr;
 #endif
 }
 
@@ -396,6 +406,7 @@ void SliceProcessor::dspProcessing(const QVector<int32_t> &rawIQ) {
 
 void SliceProcessor::dspProcessingCore() {
     int spectrumDataReady;
+    bool txPixelsRequested = false;
     
     m_dspMutex.lock();
     m_dspCallTimer.start();
@@ -423,6 +434,7 @@ void SliceProcessor::dspProcessingCore() {
 				// Half duplex: TX panadapter updated from get_tx_iqData() (RX DSP idle).
 				spectrumDataReady = 0;
 			} else {
+                txPixelsRequested = true;
 				GetPixels(TX_ID, 0, qtwdsp->spectrumBuffer.data(), &spectrumDataReady);
 				if (spectrumDataReady)
 					applyTxPanadapterDisplayOffset(qtwdsp->spectrumBuffer);
@@ -434,6 +446,7 @@ void SliceProcessor::dspProcessingCore() {
 		if (m_state == RadioState::RX) {
 			GetPixels(m_receiver, 0, qtwdsp->spectrumBuffer.data(), &spectrumDataReady);
 		} else {
+            txPixelsRequested = true;
 			GetPixels(TX_ID, 0, qtwdsp->spectrumBuffer.data(), &spectrumDataReady);
 			if (spectrumDataReady)
 				applyTxPanadapterDisplayOffset(qtwdsp->spectrumBuffer);
@@ -444,6 +457,14 @@ void SliceProcessor::dspProcessingCore() {
         if (spectrumDataReady) {
             newSpectrum = qtwdsp->spectrumBuffer;  // Direct assignment
             emit spectrumBufferChanged(m_receiver, newSpectrum);
+        }
+
+        static const bool txPanDiagEnabled = (qEnvironmentVariableIntValue("CUSDR_TX_DIAG") != 0);
+        if (txPanDiagEnabled && txPixelsRequested && (m_dspCallCount % 100) == 1) {
+            qDebug().nospace() << "[TX-PAN-DIAG] rx=" << m_receiver
+                               << " mode=" << (m_sliceModel ? m_sliceModel->dspMode() : set->getDSPMode(m_receiver))
+                               << " state=" << m_state
+                               << " txPixels=" << (spectrumDataReady ? "yes" : "no");
         }
         highResTimer->start();
     }
@@ -487,6 +508,25 @@ void SliceProcessor::dspProcessingCore() {
 			bool wroteAudio = false;
 
 #ifdef HAVE_CODEC2
+#ifdef HAVE_RADE
+            if (m_freeDVMode == 100 && m_radeProcessor) {
+                QVector<float> speech = m_radeProcessor->processSamples(mono.constData(), audioSamplesThisCall);
+                if (!retuneMuteAudio) {
+                    m_audioOutput->writeAudio(speech);
+                }
+                wroteAudio = true;
+                if (m_radeProcessor->isSync())
+                    m_freeDVRxFrames += 1;
+
+                if ((m_dspCallCount % 50) == 1) {
+                    set->setFreeDVStatus(
+                        m_receiver,
+                        m_radeProcessor->isSync(),
+                        m_radeProcessor->getSNR(),
+                        m_freeDVRxFrames);
+                }
+            } else
+#endif
             if (m_freeDVProcessor) {
                 QVector<float> speech = m_freeDVProcessor->processSamples(mono.constData(), audioSamplesThisCall);
 				// processSamples always returns n*2 floats (silence-padded when no
@@ -543,8 +583,20 @@ void SliceProcessor::setFreeDVMode(int rx, int mode) {
 		delete m_freeDVProcessor;
 		m_freeDVProcessor = nullptr;
 	}
+#ifdef HAVE_RADE
+	if (m_radeProcessor) {
+		delete m_radeProcessor;
+		m_radeProcessor = nullptr;
+	}
+#endif
 
-	m_freeDVProcessor = new FreeDVProcessor(m_freeDVMode);
+	if (m_freeDVMode == 100) {
+#ifdef HAVE_RADE
+		m_radeProcessor = new RadeProcessor();
+#endif
+	} else {
+		m_freeDVProcessor = new FreeDVProcessor(m_freeDVMode);
+	}
 	set->setFreeDVStatus(m_receiver, false, 0.0f, 0);
 #else
 	Q_UNUSED(rx)

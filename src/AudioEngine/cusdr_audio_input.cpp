@@ -98,10 +98,16 @@ QList<QAudioDevice> TransmitAudioInput::getAudioInputDevices() const
 void TransmitAudioInput::Setup() {
     m_mutex.lock();
     AudioDeviceService* audioService = AudioDeviceService::instance();
+    const QList<QAudioDevice> devices = audioService->audioInputs();
+    const QAudioDevice defaultInputDevice = audioService->defaultInput();
+    const bool haveInputDevices = !devices.isEmpty();
 
     AUDIO_INPUT_DEBUG << "Setup: mode=" << (m_isDigitalMode ? "digital" : "analog")
                       << " micIndex=" << m_deviceIndex
-                      << " digitalIndex=" << m_digitalDeviceIndex;
+                      << " digitalIndex=" << m_digitalDeviceIndex
+                      << " hw=" << set->getHWInterface()
+                      << " inputDevices=" << devices.size()
+                      << " defaultInput=\"" << defaultInputDevice.description() << "\"";
     
     // Clean up existing audio source
     if (m_audioSource) {
@@ -119,8 +125,6 @@ void TransmitAudioInput::Setup() {
 
     // Get audio input device
     QAudioDevice inputDevice;
-    QList<QAudioDevice> devices = audioService->audioInputs();
-
     if (m_isDigitalMode) {
         // m_digitalDeviceIndex: 0 = None (no audio), >0 = device (1-based offset)
         if (m_digitalDeviceIndex > 0) {
@@ -138,10 +142,17 @@ void TransmitAudioInput::Setup() {
             return; // "None" selected — no audio source needed
         }
     } else if (m_deviceIndex == 0) {
-        // Index 0 is HPSDR/local mic path. Do not open a host Qt audio input.
-        AUDIO_INPUT_DEBUG << "Current TX audio input device: HPSDR local mic (no host Qt input device)";
-        m_mutex.unlock();
-        return;
+        // Index 0 is HPSDR/local mic path. For Soapy there is no external
+        // HPSDR mic stream, so fall back to the host default input device.
+        if (set->getHWInterface() == QSDR::SoapySDR) {
+            inputDevice = defaultInputDevice;
+            AUDIO_INPUT_DEBUG << "Soapy TX: mic index 0 selected; using default host input:"
+                              << inputDevice.description();
+        } else {
+            AUDIO_INPUT_DEBUG << "Current TX audio input device: HPSDR local mic (no host Qt input device)";
+            m_mutex.unlock();
+            return;
+        }
     } else {
         // Use specific device (adjust index since 0 is HPSDR)
         int actualIndex = m_deviceIndex - 1;
@@ -149,9 +160,17 @@ void TransmitAudioInput::Setup() {
             inputDevice = devices[actualIndex];
             AUDIO_INPUT_DEBUG << "Using audio input device:" << inputDevice.description();
         } else {
-            inputDevice = audioService->defaultInput();
+            inputDevice = defaultInputDevice;
             AUDIO_INPUT_DEBUG << "Device index out of range, using default";
         }
+    }
+
+    if (!haveInputDevices || inputDevice.isNull()) {
+        qWarning().nospace()
+            << "TransmitAudioInput::Setup: no usable input device (count=" << devices.size()
+            << ", default=\"" << defaultInputDevice.description() << "\")";
+        m_mutex.unlock();
+        return;
     }
 
     AUDIO_INPUT_DEBUG << "Current TX audio input device:" << inputDevice.description();
@@ -185,8 +204,8 @@ void TransmitAudioInput::MicInputChanged(int value) {
     if (!m_isDigitalMode) {
         stopHardware();
         Setup();
-        // Mirror original behaviour: always capture from an external device
-        if (m_deviceIndex > 0)
+        // For Soapy, index 0 falls back to default host capture in Setup().
+        if (m_deviceIndex > 0 || set->getHWInterface() == QSDR::SoapySDR)
             Start();
         else
             AUDIO_INPUT_DEBUG << "Local HPSDR Mic Mode selected";
@@ -218,7 +237,9 @@ void TransmitAudioInput::dspModeChanged(int rx, DSPMode mode) {
     stopHardware();
     Setup();
     // Start if the active mode has a valid device
-    bool shouldStart = m_isDigitalMode ? (m_digitalDeviceIndex > 0) : (m_deviceIndex > 0);
+    const bool shouldStart = m_isDigitalMode
+                                 ? (m_digitalDeviceIndex > 0)
+                                 : (m_deviceIndex > 0 || set->getHWInterface() == QSDR::SoapySDR);
     if (shouldStart)
         Start();
 }
@@ -246,6 +267,13 @@ void TransmitAudioInput::Stop() {
 bool TransmitAudioInput::Start() {
     if (m_running)
         return true;
+
+    // Late-initialize capture path at TX start time. This covers cases where
+    // the object was created before HW interface selection settled (e.g. Soapy),
+    // which can leave m_audioSource null after constructor-time Setup().
+    if (!m_audioSource) {
+        Setup();
+    }
 
     m_mutex.lock();
     if (m_audioSource) {

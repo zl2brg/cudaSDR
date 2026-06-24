@@ -733,6 +733,7 @@ void RadioPopupWidget::createModeBtnGroup() {
     m_freeDVModeCombo = new QComboBox(this);
     m_freeDVModeCombo->addItem("FreeDV 1600", 0);
     m_freeDVModeCombo->addItem("FreeDV 700C", 6);
+    m_freeDVModeCombo->addItem("FreeDV RADE v1", 100);
     m_freeDVModeCombo->setCurrentIndex(qMax(0, m_freeDVModeCombo->findData(set->getFreeDVMode(m_receiver))));
     connect(m_freeDVModeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &RadioPopupWidget::freeDVModeSelectionChanged);
 
