@@ -5705,7 +5705,11 @@ void Settings::syncSlicesWithSettings() {
 
         slice->setFrequency(m_receiverDataList[i].vfoFrequency);
         slice->setCenterFrequency(m_receiverDataList[i].ctrFrequency);
-        slice->setDspMode(m_receiverDataList[i].dspMode);
+        const HamBand band = m_receiverDataList[i].hamBand;
+        DSPMode startupMode = m_receiverDataList[i].dspMode;
+        if (band >= 0 && band < m_receiverDataList[i].dspModeList.size())
+            startupMode = m_receiverDataList[i].dspModeList[band];
+        slice->setDspMode(startupMode);
         slice->setFilterLow((float)m_receiverDataList[i].filterLo);
         slice->setFilterHigh((float)m_receiverDataList[i].filterHi);
         slice->setAgcMode(m_receiverDataList[i].agcMode);
@@ -5753,6 +5757,9 @@ void Settings::syncSettingsWithSlices() {
         m_receiverDataList[i].vfoFrequency = slice->frequency();
         m_receiverDataList[i].ctrFrequency = slice->centerFrequency();
         m_receiverDataList[i].dspMode = slice->dspMode();
+        const HamBand band = m_receiverDataList[i].hamBand;
+        if (band >= 0 && band < m_receiverDataList[i].dspModeList.size())
+            m_receiverDataList[i].dspModeList[band] = slice->dspMode();
         m_receiverDataList[i].filterLo = (qreal)slice->filterLow();
         m_receiverDataList[i].filterHi = (qreal)slice->filterHigh();
         m_receiverDataList[i].agcMode = slice->agcMode();

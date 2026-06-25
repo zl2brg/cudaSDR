@@ -124,7 +124,18 @@ QWDSPEngine::QWDSPEngine(SliceModel *model, QObject *parent, int size)
 
     setFilterMode(m_rx);
     SetRXAFMDeviation(m_rx, 8000.0);
-    SetRXAMode(m_rx, FMN);
+    const DSPMode startupMode = currentDspMode();
+    const DSPMode startupWdspMode = resolveWDSPMode(startupMode, centerFrequencyHz());
+    m_dspmode = startupWdspMode;
+    SetRXAMode(m_rx, startupWdspMode);
+    const double startupFilterLo = set->getFilterLo(m_rx);
+    const double startupFilterHi = set->getFilterHi(m_rx);
+    if (startupFilterLo < startupFilterHi) {
+        setFilter(startupFilterLo, startupFilterHi);
+    } else {
+        const auto filter = getFilterFromDSPMode(set->getDefaultFilterList(), startupWdspMode);
+        setFilter(filter.filterLo, filter.filterHi);
+    }
     RXASetNC(m_rx, 4096);
     SetRXAPanelRun(m_rx, 1);
     SetRXAPanelSelect(m_rx, 3);
