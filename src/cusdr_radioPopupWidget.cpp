@@ -1543,6 +1543,12 @@ void RadioPopupWidget::loadReceiverState(int rx) {
     m_waterfallColorMode = set->getWaterfallColorMode(rx);
     m_lastCtrFrequencyList = set->getLastCenterFrequencyList(rx);
     m_lastVfoFrequencyList = set->getLastVfoFrequencyList(rx);
+
+    // UI should mirror the live slice mode (source of truth for WDSP), not only
+    // the persisted per-band snapshot.
+    const DSPMode liveMode = set->getDSPMode(rx);
+    if (m_hamBand >= 0 && m_hamBand < m_dspModeList.size())
+        m_dspModeList[m_hamBand] = liveMode;
 }
 
 void RadioPopupWidget::setCurrentReceiver(int value) {

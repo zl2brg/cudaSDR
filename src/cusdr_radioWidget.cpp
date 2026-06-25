@@ -49,6 +49,8 @@ RadioWidget::RadioWidget(QWidget *parent)
 	
 	m_hamBand = set->getCurrentHamBand(0);
 	m_dspModeList = set->getDSPModeList(0);
+	if (m_hamBand >= 0 && m_hamBand < m_dspModeList.size())
+		m_dspModeList[m_hamBand] = set->getDSPMode(0);
 	m_filterMode = set->getDefaultFilterMode(0);
 	m_filterLo = set->getFilterLo(0);
 	m_filterHi = set->getFilterHi(0);
@@ -1384,6 +1386,12 @@ void RadioWidget::setCurrentReceiver(int value) {
 		m_freeDVModeCombo->setCurrentIndex(modeIdx);
 
 	updateFreeDVControls();
+
+	const DSPMode mode = set->getDSPMode(m_currentRx);
+	if (m_hamBand >= 0 && m_hamBand < m_dspModeList.size()) {
+		m_dspModeList[m_hamBand] = mode;
+	}
+	dspModeChanged(m_currentRx, mode);
 
 //	DSPMode mode = m_dspModeList.at(m_hamBand);
 //	if (mode != rxData.dspModeList.at(m_hamBand)) {
