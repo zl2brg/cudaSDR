@@ -519,9 +519,11 @@ private:
 #ifdef HAVE_RADE
     struct rade* m_radeTx = nullptr;
     struct LPCNetEncState* m_lpcnetTx = nullptr;
+    int m_radeTxFeaturesIn = 0;
     float m_radeTxHeldSampleReal = 0.0f;
     float m_radeTxHeldSampleImag = 0.0f;
     std::vector<float> m_radeTxSpeechAccum;
+    std::vector<float> m_radeTxFeatureAccum;
     std::vector<float> m_radeTxModemQueue;
     size_t m_radeTxModemReadPos = 0;
 #endif

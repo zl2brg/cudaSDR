@@ -429,10 +429,9 @@ void CProtocol1::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
     		io->control_out[3] = 0x0; // C3
             io->control_out[4] = 0x0; // C4
 
-    		// C2 bit 6: manual HPF/LPF filter select (0 = auto, 1 = manual).
-		// Must be set when alexConfig bit 0 is on, otherwise hardware ignores C3/C4 filter bits.
-		if (io->ccTx.alexConfig & 0x01)
-			io->control_out[2] |= 0x40; // enable manual filter select
+    		// Protocol 1 TX LPF should follow TX frequency (master branch behavior).
+    		// Keep C2 bit 6 cleared (auto filter select).
+    		io->control_out[2] &= 0xBF; // 1 0 1 1 1 1 1 1
 
 
 			// C3
@@ -466,27 +465,16 @@ void CProtocol1::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
     		io->control_out[3] &= 0x7F; // 0 1 1 1 1 1 1 1
     		io->control_out[3] |= ((int)io->ccTx.vnaMode) << 7;
 
-            if (io->ccTx.alexConfig & 0x01) {
-                io->control_out[4] = 0;
-                io->control_out[4] |= (io->ccTx.alexConfig & 0x0800) >> 11; // 30/20m LPF (bit 11 -> bit 0)
-                io->control_out[4] |= (io->ccTx.alexConfig & 0x0400) >> 9;  // 60/40m LPF (bit 10 -> bit 1)
-                io->control_out[4] |= (io->ccTx.alexConfig & 0x0200) >> 7;  // 80m LPF    (bit 9  -> bit 2)
-                io->control_out[4] |= (io->ccTx.alexConfig & 0x0100) >> 5;  // 160m LPF   (bit 8  -> bit 3)
-                io->control_out[4] |= (io->ccTx.alexConfig & 0x4000) >> 10; // 6m LPF     (bit 14 -> bit 4)
-                io->control_out[4] |= (io->ccTx.alexConfig & 0x2000) >> 8;  // 12/10m LPF (bit 13 -> bit 5)
-                io->control_out[4] |= (io->ccTx.alexConfig & 0x1000) >> 6;  // 17/15m LPF (bit 12 -> bit 6)
-            } else {
-                if (io->ccTx.mox || io->ccTx.ptt) {
-                    long txFrequency = io->ccTx.txFrequency;
-                    if      (txFrequency > ProtocolBoundaryUtils::kAlexLpf6mMinHz)    { io->control_out[4] = 0x10; }
-                    else if (txFrequency > ProtocolBoundaryUtils::kAlexLpf12_10mMinHz) { io->control_out[4] = 0x20; }
-                    else if (txFrequency > ProtocolBoundaryUtils::kAlexLpf17_15mMinHz) { io->control_out[4] = 0x40; }
-                    else if (txFrequency > ProtocolBoundaryUtils::kAlexLpf30_20mMinHz) { io->control_out[4] = 0x01; }
-                    else if (txFrequency > ProtocolBoundaryUtils::kAlexLpf60_40mMinHz) { io->control_out[4] = 0x02; }
-                    else if (txFrequency > ProtocolBoundaryUtils::kAlexLpf80mMinHz)    { io->control_out[4] = 0x04; }
-                    else                                            { io->control_out[4] = 0x08; }
-                } else io->control_out[4] = 0;
-            }
+            if (io->ccTx.mox || io->ccTx.ptt) {
+                long txFrequency = io->ccTx.txFrequency;
+                if      (txFrequency > ProtocolBoundaryUtils::kAlexLpf6mMinHz)    { io->control_out[4] = 0x10; }
+                else if (txFrequency > ProtocolBoundaryUtils::kAlexLpf12_10mMinHz) { io->control_out[4] = 0x20; }
+                else if (txFrequency > ProtocolBoundaryUtils::kAlexLpf17_15mMinHz) { io->control_out[4] = 0x40; }
+                else if (txFrequency > ProtocolBoundaryUtils::kAlexLpf30_20mMinHz) { io->control_out[4] = 0x01; }
+                else if (txFrequency > ProtocolBoundaryUtils::kAlexLpf60_40mMinHz) { io->control_out[4] = 0x02; }
+                else if (txFrequency > ProtocolBoundaryUtils::kAlexLpf80mMinHz)    { io->control_out[4] = 0x04; }
+                else                                            { io->control_out[4] = 0x08; }
+            } else io->control_out[4] = 0;
 
 		m_new_adc_rx1_4 = m_new_adc_rx5_8 = m_new_adc_rx9_16 = 0;
 		for (int i = 0; i < set->getNumberOfReceivers(); i++) {

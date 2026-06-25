@@ -4790,9 +4790,20 @@ int Settings::checkAlexState(int state) {
 
 void Settings::setAlexToManual(bool value) {
 
-    QMutexLocker locker(&settingsMutex);
+    quint16 newAlexConfig = 0;
+    {
+        QMutexLocker locker(&settingsMutex);
+        if (value)
+            m_alexConfig |= 0x01;
+        else
+            m_alexConfig &= 0xFFFE;
+        newAlexConfig = m_alexConfig;
+    }
 
+    // Emit after releasing settingsMutex to avoid re-entrant deadlocks/crashes
+    // when connected slots call back into Settings mutators.
     emit alexManualStateChanged(value);
+    emit alexConfigurationChanged(newAlexConfig);
 }
 
 void Settings::setRxJ6Pin(HamBand band, int value) {

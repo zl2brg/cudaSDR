@@ -82,6 +82,19 @@ bool radeVerboseEnabled() {
     return enabled;
 }
 
+float radeTxSpeechGain() {
+    static const float gain = []() {
+        bool ok = false;
+        const float envGain = qEnvironmentVariable("CUSDR_RADE_TX_GAIN").toFloat(&ok);
+        if (ok && envGain > 0.0f && envGain <= 20.0f) {
+            return envGain;
+        }
+        // RADE v1 TX path benefits from a higher speech drive than legacy FreeDV modes.
+        return 2.0f;
+    }();
+    return gain;
+}
+
 #if defined(Q_OS_LINUX)
 template <typename Fn>
 auto runWithSuppressedCStdio(Fn&& fn) -> decltype(fn()) {
@@ -2878,10 +2891,13 @@ void DataProcessor::applyCodec2ToMicBuffer(int sampleCount)
 			m_freeDVSpeechRate = 16000;
 			m_freeDVModemRate = 8000;
 			m_freeDVTxNSpeech = LPCNET_FRAME_SIZE; // 160
-			m_freeDVTxNModem = rade_nin(m_radeTx);
+			m_freeDVTxNModem = rade_n_tx_out(m_radeTx);
+			m_radeTxFeaturesIn = rade_n_features_in_out(m_radeTx);
 			m_freeDVTxDecim = 48000 / 16000; // 3
 			m_freeDVTxInterp = 48000 / 8000; // 6
 			m_radeTxSpeechAccum.clear();
+			m_radeTxFeatureAccum.clear();
+			m_radeTxFeatureAccum.reserve(qMax(m_radeTxFeaturesIn, NB_TOTAL_FEATURES) * 2);
 			m_radeTxModemQueue.clear();
 			m_radeTxModemReadPos = 0;
 			m_freeDVTxHoldCount = 0;
@@ -2921,7 +2937,9 @@ void DataProcessor::applyCodec2ToMicBuffer(int sampleCount)
 				sum += mic_buffer[(i + k) * 2];
 			}
 			double s = sum / static_cast<double>(m_freeDVTxDecim);
-			float speechVal = static_cast<float>(std::clamp(s * 32767.0, -32768.0, 32767.0));
+            s *= static_cast<double>(radeTxSpeechGain());
+            s = std::clamp(s, -1.0, 1.0);
+			float speechVal = static_cast<float>(s * 32767.0);
 			m_radeTxSpeechAccum.push_back(speechVal);
 		}
 
@@ -2936,39 +2954,46 @@ void DataProcessor::applyCodec2ToMicBuffer(int sampleCount)
 
 			float features[NB_TOTAL_FEATURES];
 			lpcnet_compute_single_frame_features(m_lpcnetTx, speech16k.data(), features, opus_select_arch());
+			m_radeTxFeatureAccum.insert(
+				m_radeTxFeatureAccum.end(), features, features + NB_TOTAL_FEATURES);
 
-			int nin = rade_nin(m_radeTx);
-			std::vector<RADE_COMP> modemFrame(nin);
-            runWithSuppressedCStdio([&]() {
-                rade_tx(m_radeTx, modemFrame.data(), features);
-                return 0;
-            });
+			while (m_radeTxFeaturesIn > 0
+			       && static_cast<int>(m_radeTxFeatureAccum.size()) >= m_radeTxFeaturesIn) {
+				std::vector<float> featuresIn(
+					m_radeTxFeatureAccum.begin(),
+					m_radeTxFeatureAccum.begin() + m_radeTxFeaturesIn);
+				m_radeTxFeatureAccum.erase(
+					m_radeTxFeatureAccum.begin(),
+					m_radeTxFeatureAccum.begin() + m_radeTxFeaturesIn);
 
-			for (int i = 0; i < nin; ++i) {
-                const float re = std::isfinite(modemFrame[i].real) ? modemFrame[i].real : 0.0f;
-                const float im = std::isfinite(modemFrame[i].imag) ? modemFrame[i].imag : 0.0f;
-				m_radeTxModemQueue.push_back(re);
-				m_radeTxModemQueue.push_back(im);
+				std::vector<RADE_COMP> modemFrame(m_freeDVTxNModem);
+				const int nTxOut = runWithSuppressedCStdio([&]() {
+					return rade_tx(m_radeTx, modemFrame.data(), featuresIn.data());
+				});
+
+				for (int i = 0; i < nTxOut; ++i) {
+					const float re = std::isfinite(modemFrame[i].real) ? modemFrame[i].real : 0.0f;
+					// Feed RADE v1 into the existing TX audio->WDSP chain as mono modem audio.
+					// This preserves TX shaping and avoids wideband splatter.
+					m_radeTxModemQueue.push_back(re);
+				}
+				txFramesThisBlock += 1;
 			}
-			txFramesThisBlock += 1;
 		}
 
 		for (int i = 0; i < outputSamples; ++i) {
 			if (m_freeDVTxHoldCount <= 0) {
-				if (m_radeTxModemReadPos + 1 < m_radeTxModemQueue.size()) {
+				if (m_radeTxModemReadPos < m_radeTxModemQueue.size()) {
 					m_radeTxHeldSampleReal = m_radeTxModemQueue[m_radeTxModemReadPos++];
-					m_radeTxHeldSampleImag = m_radeTxModemQueue[m_radeTxModemReadPos++];
                     if (!std::isfinite(m_radeTxHeldSampleReal)) m_radeTxHeldSampleReal = 0.0f;
-                    if (!std::isfinite(m_radeTxHeldSampleImag)) m_radeTxHeldSampleImag = 0.0f;
 				} else {
 					m_radeTxHeldSampleReal = 0.0f;
-					m_radeTxHeldSampleImag = 0.0f;
 				}
 				m_freeDVTxHoldCount = m_freeDVTxInterp;
 			}
 
 			mic_buffer[i * 2] = m_radeTxHeldSampleReal;
-			mic_buffer[i * 2 + 1] = m_radeTxHeldSampleImag;
+			mic_buffer[i * 2 + 1] = 0.0f;
 			m_freeDVTxHoldCount -= 1;
 		}
 
