@@ -46,6 +46,7 @@ extern double cwramp48[];		// see cwramp.c, for 48 kHz sample rate
  //use WIDEBAND_PROCESSOR_DEBUG
 #define RAMPLEN 250
 #include "cusdr_dataEngine.h"
+#include "Util/cusdr_tciserver.h"
 #include "Controllers/RadioController.h"
 #include "SoapySDRDataSource.h"
 #include "CProtocol1.h"
@@ -1457,6 +1458,10 @@ bool DataEngine::initReceivers(int rcvrs) {
                         [tel](int receiverId, double value) {
                             tel->setSMeterValue(receiverId, value);
                         });
+            }
+            if (TciServer *tci = set->tciServer()) {
+                connect(rx, &SliceProcessor::rxAudioSamples, tci, &TciServer::onRxAudioSamples,
+                        Qt::QueuedConnection);
             }
          //   connect(rx.get(), &SliceProcessor::outputBufferSignal, m_dataProcessor, &DataProcessor::setOutputBuffer);
 

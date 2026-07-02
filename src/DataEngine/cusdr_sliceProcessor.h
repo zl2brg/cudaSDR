@@ -137,6 +137,7 @@ private slots:
 private:
     void    dspProcessingCore();
     QVector<float> interleaveFromCPX(const CPX& in, int size = -1);
+    QVector<float> monoStereoFromCPX(const CPX& in, int size = -1);
     SliceModel*      m_sliceModel;
     Settings*                               set;
 	
@@ -206,6 +207,7 @@ signals:
 	void	sMeterValueChanged(int rx, double value);
 	void	outputBufferSignal(int rx, const CPX &buffer);
 	void	audioBufferSignal(int rx, const CPX &buffer, int);
+	void	rxAudioSamples(int rx, QVector<float> stereoInterleaved, int sampleRate);
 
 };
 

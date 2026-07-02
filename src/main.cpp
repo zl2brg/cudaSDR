@@ -281,6 +281,7 @@ int main(int argc, char *argv[]) {
         qDebug() << "Init::\tTCI server listening on port" << tciPort;
     else
         qWarning() << "Init::\tTCI server failed to start on port" << tciPort;
+    Settings::instance()->setTciServer(&tciServer);
     RadioModel radioModel(&app);
     for (int i = 0; i < 8; ++i) radioModel.addSlice(new SliceModel(i, &radioModel));
     Settings::instance()->setRadioModel(&radioModel);

@@ -365,6 +365,7 @@ typedef struct _ccParameterTx {
 
 class IHPSDRProtocol;
 class RigCtlServer;
+class TciServer;
 
 typedef struct _iqPacket {
 	QByteArray	payload;
@@ -1267,6 +1268,8 @@ public slots:
 
     void        setRigCtlServer(RigCtlServer *server) { m_rigCtlServer = server; }
     RigCtlServer *rigCtlServer() const { return m_rigCtlServer; }
+    void        setTciServer(TciServer *server) { m_tciServer = server; }
+    TciServer  *tciServer() const { return m_tciServer; }
 	void setMultiRxView(int view);
 	void setFreeDVStatus(int rx, bool sync, float snr, quint64 rxFrames);
 	void setSpectrumBuffer(int rx, const qVectorFloat& buffer);
@@ -1600,6 +1603,7 @@ private:
 	bool	m_mainPower;
     RadioState m_radioState = RadioState::RX;
     RigCtlServer *m_rigCtlServer = nullptr;
+    TciServer    *m_tciServer = nullptr;
 	bool	m_defaultSkin;
 	bool	m_connected;
 	bool	m_clientConnected;

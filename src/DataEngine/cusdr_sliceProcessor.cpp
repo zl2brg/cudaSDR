@@ -486,18 +486,26 @@ void SliceProcessor::dspProcessingCore() {
             m_smeterTime.restart();
         }
 #ifdef USE_INTERNAL_AUDIO
-		const DSPMode dspMode = m_sliceModel ? m_sliceModel->dspMode() : set->getDSPMode(m_receiver);
+        const DSPMode dspMode = m_sliceModel ? m_sliceModel->dspMode() : set->getDSPMode(m_receiver);
         bool retuneMuteAudio = false;
 #ifdef HAVE_SOAPYSDR
         if (set->getHWInterface() == QSDR::SoapySDR) {
             retuneMuteAudio = m_retuneTimer.isValid() && (m_retuneTimer.elapsed() < m_audioMuteUntilMs);
         }
 #endif
+        auto deliverInternalAudio = [this, retuneMuteAudio](const QVector<float> &soundcardStereo,
+                                                              const QVector<float> &tciStereo) {
+            if (retuneMuteAudio)
+                return;
+            if (m_audioOutput)
+                m_audioOutput->writeAudio(soundcardStereo);
+            emit rxAudioSamples(m_receiver, tciStereo, 48000);
+        };
         if (dspMode != DSPMode::FDV) {
 			// Normal analogue modes: pass WDSP audio output straight to soundcard.
-            if (m_audioOutput && !retuneMuteAudio) {
-                m_audioOutput->writeAudio(interleaveFromCPX(audioOutputBuf, audioSamplesThisCall));
-            }
+            const int n = audioSamplesThisCall;
+            deliverInternalAudio(interleaveFromCPX(audioOutputBuf, n),
+                                 monoStereoFromCPX(audioOutputBuf, n));
 		}
 		else {
 			QVector<float> mono(audioSamplesThisCall);
@@ -511,9 +519,7 @@ void SliceProcessor::dspProcessingCore() {
 #ifdef HAVE_RADE
             if (m_freeDVMode == 100 && m_radeProcessor) {
                 QVector<float> speech = m_radeProcessor->processSamples(mono.constData(), audioSamplesThisCall);
-                if (!retuneMuteAudio) {
-                    m_audioOutput->writeAudio(speech);
-                }
+                deliverInternalAudio(speech, speech);
                 wroteAudio = true;
                 if (m_radeProcessor->isSync())
                     m_freeDVRxFrames += 1;
@@ -532,9 +538,7 @@ void SliceProcessor::dspProcessingCore() {
 				// processSamples always returns n*2 floats (silence-padded when no
 				// frame is ready), so write unconditionally — this prevents the
 				// passthrough from adding a second burst of audio.
-                if (!retuneMuteAudio) {
-                    m_audioOutput->writeAudio(speech);
-                }
+                deliverInternalAudio(speech, speech);
 				wroteAudio = true;
 				if (m_freeDVProcessor->isSync())
 					m_freeDVRxFrames += 1;
@@ -557,9 +561,7 @@ void SliceProcessor::dspProcessingCore() {
 					passthrough.append(s);
 					passthrough.append(s);
 				}
-                if (!retuneMuteAudio) {
-                    m_audioOutput->writeAudio(passthrough);
-                }
+                deliverInternalAudio(passthrough, passthrough);
 			}
 		}
 #endif // USE_INTERNAL_AUDIO
@@ -613,6 +615,20 @@ QVector<float> SliceProcessor::interleaveFromCPX(const CPX& in, int size) {
     for (int i = 0; i < limit; i++) {
         *outData++ = (float)inData[i].re;
         *outData++ = (float)inData[i].im;
+    }
+    return out;
+}
+
+QVector<float> SliceProcessor::monoStereoFromCPX(const CPX& in, int size) {
+    int limit = (size < 0 || size > in.size()) ? in.size() : size;
+    QVector<float> out(limit * 2);
+    float *outData = out.data();
+    const cpx *inData = in.constData();
+
+    for (int i = 0; i < limit; ++i) {
+        const float sample = static_cast<float>(inData[i].re);
+        *outData++ = sample;
+        *outData++ = sample;
     }
     return out;
 }

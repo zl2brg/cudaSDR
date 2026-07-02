@@ -3,7 +3,8 @@
  * @brief ExpertSDR TCI WebSocket server — Phase 1 control commands
  *
  * Implements a subset of the TCI text protocol for remote rig control:
- *   VFO, DDS, IF, MODULATION, RX_FILTER_BAND, TRX, DRIVE, TUNE, RX_SMETER, START, STOP
+ *   VFO, DDS, IF, MODULATION, RX_FILTER_BAND, TRX, DRIVE, TUNE, RX_SMETER,
+ *   AUDIO_START/STOP (binary RX audio), START, STOP
  *
  * Transport: WebSocket text frames, commands NAME:arg1,arg2;
  * cudaSDR acts as server; clients receive an init burst on connect plus live push updates.
@@ -21,6 +22,9 @@
 #include <QHostAddress>
 #include <QStringList>
 #include <QDebug>
+#include <QtEndian>
+#include <QMetaType>
+#include <cstring>
 #include <cstdlib>
 
 namespace {
@@ -44,6 +48,8 @@ TciServer::TciServer(QObject *parent)
     , m_watchdog(new QTimer(this))
     , m_settings(Settings::instance())
 {
+    qRegisterMetaType<QVector<float>>("QVector<float>");
+
     connect(m_server, &QWebSocketServer::newConnection, this, &TciServer::onNewConnection);
 
     m_watchdog->setSingleShot(true);
@@ -302,7 +308,144 @@ void TciServer::sendInitState(QWebSocket *client)
     sendToClient(client, formatTrx(0, m_settings->getRadioState()));
     sendToClient(client, formatDrive(0, m_settings->getDriveLevel()));
     sendToClient(client, formatTune(0, m_settings->getRadioState() == RadioState::TUNE));
+    sendToClient(client, tciMessage(QStringLiteral("AUDIO_SAMPLERATE"), {QStringLiteral("48000")}));
     sendToClient(client, tciMessage(QStringLiteral("READY")));
+}
+
+TciServer::TciClientState *TciServer::clientState(QWebSocket *client)
+{
+    if (!client)
+        return nullptr;
+    return &m_clientStates[client];
+}
+
+const TciServer::TciClientState *TciServer::clientState(QWebSocket *client) const
+{
+    const auto it = m_clientStates.constFind(client);
+    return (it == m_clientStates.cend()) ? nullptr : &(*it);
+}
+
+int TciServer::stereoFloatsNeeded(const TciClientState &state) const
+{
+    return (state.audioChannels == 1) ? state.audioSamplesPerPacket * 2
+                                      : state.audioSamplesPerPacket;
+}
+
+int TciServer::parseAudioFormat(const QString &value) const
+{
+    const QString fmt = value.trimmed().toLower();
+    if (fmt == QLatin1String("float32"))
+        return 3;
+    if (fmt == QLatin1String("int32"))
+        return 2;
+    if (fmt == QLatin1String("int24"))
+        return 1;
+    if (fmt == QLatin1String("int16"))
+        return 0;
+    return 3;
+}
+
+void TciServer::sendAudioPacket(QWebSocket *client, const TciClientState &state, int rx,
+                                const float *stereoInterleaved, int stereoFloatCount)
+{
+    if (!client || stereoFloatCount < 2)
+        return;
+
+    const int frames = stereoFloatCount / 2;
+    int length = 0;
+    QByteArray payload;
+
+    if (state.audioFormat == 3) {
+        if (state.audioChannels == 1) {
+            length = frames;
+            payload.resize(length * static_cast<int>(sizeof(float)));
+            float *dst = reinterpret_cast<float *>(payload.data());
+            for (int i = 0; i < frames; ++i)
+                dst[i] = stereoInterleaved[i * 2];
+        } else {
+            length = stereoFloatCount;
+            payload.resize(length * static_cast<int>(sizeof(float)));
+            std::memcpy(payload.data(), stereoInterleaved,
+                        static_cast<size_t>(length) * sizeof(float));
+        }
+    } else if (state.audioFormat == 0) {
+        if (state.audioChannels == 1) {
+            length = frames;
+            payload.resize(length * static_cast<int>(sizeof(qint16)));
+            auto *out = reinterpret_cast<qint16 *>(payload.data());
+            for (int i = 0; i < frames; ++i) {
+                const float clamped = qBound(-1.0f, stereoInterleaved[i * 2], 1.0f);
+                out[i] = static_cast<qint16>(clamped * 32767.0f);
+            }
+        } else {
+            length = stereoFloatCount;
+            payload.resize(length * static_cast<int>(sizeof(qint16)));
+            auto *out = reinterpret_cast<qint16 *>(payload.data());
+            for (int i = 0; i < length; ++i) {
+                const float clamped = qBound(-1.0f, stereoInterleaved[i], 1.0f);
+                out[i] = static_cast<qint16>(clamped * 32767.0f);
+            }
+        }
+    } else {
+        return;
+    }
+
+    QByteArray frame(kStreamHeaderBytes, 0);
+    auto writeU32 = [&frame](int offset, quint32 value) {
+        qToLittleEndian(value, reinterpret_cast<uchar *>(frame.data() + offset));
+    };
+
+    writeU32(0, static_cast<quint32>(rx));
+    writeU32(4, static_cast<quint32>(state.audioSampleRate));
+    writeU32(8, static_cast<quint32>(state.audioFormat));
+    writeU32(12, 0);
+    writeU32(16, 0);
+    writeU32(20, static_cast<quint32>(length));
+    writeU32(24, kRxAudioStreamType);
+    writeU32(28, static_cast<quint32>(state.audioChannels));
+    frame.append(payload);
+
+    client->sendBinaryMessage(frame);
+}
+
+void TciServer::flushClientAudio(QWebSocket *client, int rx, bool forcePartial)
+{
+    TciClientState *state = clientState(client);
+    if (!state || !state->audioEnabledReceivers.contains(rx))
+        return;
+
+    QVector<float> &pending = state->pendingAudio[rx];
+    const int needed = stereoFloatsNeeded(*state);
+    while (pending.size() >= needed) {
+        sendAudioPacket(client, *state, rx, pending.constData(), needed);
+        pending.remove(0, needed);
+    }
+
+    if (forcePartial && pending.size() >= 2) {
+        const int partialStereo = (pending.size() / 2) * 2;
+        sendAudioPacket(client, *state, rx, pending.constData(), partialStereo);
+        pending.clear();
+    }
+}
+
+void TciServer::onRxAudioSamples(int rx, QVector<float> stereoInterleaved, int sampleRate)
+{
+    Q_UNUSED(sampleRate)
+
+    if (stereoInterleaved.isEmpty())
+        return;
+
+    for (QWebSocket *client : std::as_const(m_clients)) {
+        if (client->state() != QAbstractSocket::ConnectedState)
+            continue;
+
+        TciClientState *state = clientState(client);
+        if (!state || !state->audioEnabledReceivers.contains(rx))
+            continue;
+
+        state->pendingAudio[rx].append(stereoInterleaved);
+        flushClientAudio(client, rx, false);
+    }
 }
 
 void TciServer::onNewConnection()
@@ -347,6 +490,7 @@ void TciServer::onClientDisconnected()
 
     TCI_DEBUG << "Client disconnected";
     m_clients.removeAll(client);
+    m_clientStates.remove(client);
     client->deleteLater();
 
     if (m_clients.isEmpty()) {
@@ -511,6 +655,68 @@ void TciServer::handleCommand(QWebSocket *client, const QString &commandLine)
 
     // Accept enable command from TCI clients; cudaSDR always pushes S-meter updates.
     if (name == QLatin1String("RX_SENSORS_ENABLE")) {
+        return;
+    }
+
+    if (name == QLatin1String("AUDIO_START") || name == QLatin1String("LINE_OUT_START")) {
+        TciClientState *state = clientState(client);
+        if (!state)
+            return;
+        state->audioEnabledReceivers.insert(rx);
+        state->pendingAudio[rx].clear();
+        sendToClient(client, tciMessage(QStringLiteral("AUDIO_SAMPLERATE"),
+                                        {QString::number(state->audioSampleRate)}));
+        return;
+    }
+
+    if (name == QLatin1String("AUDIO_STOP") || name == QLatin1String("LINE_OUT_STOP")) {
+        if (TciClientState *state = clientState(client)) {
+            flushClientAudio(client, rx, true);
+            state->audioEnabledReceivers.remove(rx);
+            state->pendingAudio.remove(rx);
+        }
+        return;
+    }
+
+    if (name == QLatin1String("AUDIO_SAMPLERATE")) {
+        const QString rateArg = (args.size() >= 2) ? args.at(1) : (args.isEmpty() ? QString() : args.at(0));
+        if (!rateArg.isEmpty()) {
+            bool ok = false;
+            const int rate = rateArg.toInt(&ok);
+            if (ok && clientState(client))
+                clientState(client)->audioSampleRate = rate;
+            return;
+        }
+        sendToClient(client, tciMessage(QStringLiteral("AUDIO_SAMPLERATE"), {QStringLiteral("48000")}));
+        return;
+    }
+
+    if (name == QLatin1String("AUDIO_STREAM_SAMPLE_TYPE")) {
+        const QString fmtArg = (args.size() >= 2) ? args.at(1) : (args.isEmpty() ? QString() : args.at(0));
+        if (!fmtArg.isEmpty() && clientState(client))
+            clientState(client)->audioFormat = parseAudioFormat(fmtArg);
+        return;
+    }
+
+    if (name == QLatin1String("AUDIO_STREAM_CHANNELS")) {
+        const QString chArg = (args.size() >= 2) ? args.at(1) : (args.isEmpty() ? QString() : args.at(0));
+        if (!chArg.isEmpty()) {
+            bool ok = false;
+            const int channels = chArg.toInt(&ok);
+            if (ok && clientState(client))
+                clientState(client)->audioChannels = (channels == 1) ? 1 : 2;
+        }
+        return;
+    }
+
+    if (name == QLatin1String("AUDIO_STREAM_SAMPLES")) {
+        const QString samplesArg = (args.size() >= 2) ? args.at(1) : (args.isEmpty() ? QString() : args.at(0));
+        if (!samplesArg.isEmpty()) {
+            bool ok = false;
+            const int samples = samplesArg.toInt(&ok);
+            if (ok && clientState(client) && samples > 0)
+                clientState(client)->audioSamplesPerPacket = samples;
+        }
         return;
     }
 

@@ -22,6 +22,9 @@
 #include <QObject>
 #include <QTimer>
 #include <QList>
+#include <QHash>
+#include <QSet>
+#include <QVector>
 
 class QWebSocketServer;
 class QWebSocket;
@@ -43,6 +46,10 @@ public:
 
     /** Connect to SliceModel S-meter updates (call after RadioModel is ready). */
     void bindSlices(RadioModel *radioModel);
+
+public slots:
+    /** RX audio from SliceProcessor (queued to GUI thread). */
+    void onRxAudioSamples(int rx, QVector<float> stereoInterleaved, int sampleRate);
 
 signals:
     void remoteControlChanged(bool active);
@@ -67,6 +74,23 @@ private:
     void broadcast(const QString &message);
     void sendInitState(QWebSocket *client);
     void handleCommand(QWebSocket *client, const QString &commandLine);
+    void flushClientAudio(QWebSocket *client, int rx, bool forcePartial = false);
+
+    struct TciClientState {
+        QSet<int> audioEnabledReceivers;
+        int audioChannels = 2;
+        int audioFormat = 3;          // FLOAT32
+        int audioSamplesPerPacket = 512;
+        int audioSampleRate = 48000;
+        QHash<int, QVector<float>> pendingAudio;
+    };
+
+    TciClientState *clientState(QWebSocket *client);
+    const TciClientState *clientState(QWebSocket *client) const;
+    void sendAudioPacket(QWebSocket *client, const TciClientState &state, int rx,
+                         const float *stereoInterleaved, int stereoFloatCount);
+    int stereoFloatsNeeded(const TciClientState &state) const;
+    int parseAudioFormat(const QString &value) const;
 
     QString formatVfo(int trx, int channel, qint64 frequency) const;
     QString formatDds(int trx, int channel, qint64 frequency) const;
@@ -87,10 +111,13 @@ private:
     double smeterDbmForRx(int rx) const;
 
     static constexpr int WATCHDOG_TIMEOUT_MS = 30000;
+    static constexpr int kStreamHeaderBytes = 64;
+    static constexpr uint32_t kRxAudioStreamType = 1;
 
     QWebSocketServer *m_server   = nullptr;
     QTimer           *m_watchdog = nullptr;
     QList<QWebSocket *> m_clients;
+    QHash<QWebSocket *, TciClientState> m_clientStates;
     Settings         *m_settings = nullptr;
     RadioModel       *m_radioModel = nullptr;
     QList<QMetaObject::Connection> m_sliceConnections;
