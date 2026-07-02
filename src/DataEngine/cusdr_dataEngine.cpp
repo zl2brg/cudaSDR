@@ -62,7 +62,6 @@ extern "C" {
 #include "rade_api.h"
 extern "C" {
 #include "lpcnet.h"
-int opus_select_arch(void);
 }
 #if defined(Q_OS_LINUX)
 #include <fcntl.h>
@@ -2953,7 +2952,8 @@ void DataProcessor::applyCodec2ToMicBuffer(int sampleCount)
 			m_radeTxSpeechAccum.erase(m_radeTxSpeechAccum.begin(), m_radeTxSpeechAccum.begin() + m_freeDVTxNSpeech);
 
 			float features[NB_TOTAL_FEATURES];
-			lpcnet_compute_single_frame_features(m_lpcnetTx, speech16k.data(), features, opus_select_arch());
+			// Use generic LPCNet path to avoid a link-time dependency on opus_select_arch().
+			lpcnet_compute_single_frame_features(m_lpcnetTx, speech16k.data(), features, 0);
 			m_radeTxFeatureAccum.insert(
 				m_radeTxFeatureAccum.end(), features, features + NB_TOTAL_FEATURES);
 
