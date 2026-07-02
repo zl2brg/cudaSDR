@@ -3481,7 +3481,10 @@ void DataProcessor::processMicData() {
     
     if (queueCount > 0)
     {
-	    qDebug() << "processMicData called, queue count:" << queueCount;
+        static quint64 micTraceCounter = 0;
+        if (txDiagEnabled() && (++micTraceCounter % 200) == 1) {
+            qDebug() << "processMicData queue count:" << queueCount;
+        }
 
         temp_data = de->m_audioInput->m_faudioInQueue.dequeue();
         // Only process the actual number of samples in the buffer
@@ -3492,7 +3495,10 @@ void DataProcessor::processMicData() {
             mic_buffer[(s * 2) + 1] = 0.0f;
         }
 
-		qDebug() << "Mic buffer processed with " << numSamples << " samples." << mic_buffer[0] << mic_buffer[1];
+        if (txDiagEnabled() && (micTraceCounter % 200) == 1) {
+            qDebug() << "Mic buffer processed with" << numSamples
+                     << "samples." << mic_buffer[0] << mic_buffer[1];
+        }
     }
     else {
         temp_data.clear();
