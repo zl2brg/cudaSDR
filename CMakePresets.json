@@ -1,0 +1,51 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 21,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "default",
+      "displayName": "cudaSDR (Unix Makefiles)",
+      "description": "Default configure into ./build",
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "debug",
+      "inherits": "default",
+      "displayName": "cudaSDR Debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "default",
+      "displayName": "Build cudaSDR (capped jobs)",
+      "description": "Bounded parallel build so it never runs 'make -j' unbounded and locks the machine. Adjust 'jobs' to match your CPU/RAM.",
+      "configurePreset": "default",
+      "jobs": 6
+    },
+    {
+      "name": "cudasdr",
+      "inherits": "default",
+      "displayName": "Build cudasdr target only",
+      "targets": [
+        "cudasdr"
+      ]
+    },
+    {
+      "name": "debug",
+      "displayName": "Build cudaSDR Debug (capped jobs)",
+      "configurePreset": "debug",
+      "jobs": 6
+    }
+  ]
+}

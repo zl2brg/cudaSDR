@@ -1,6 +1,21 @@
 cmake_minimum_required(VERSION 3.16)
 project(cudaSDR LANGUAGES CXX)
 
+# --- Build parallelism cap ---
+# Detect available cores so builds don't run unbounded. NOTE: the *top-level*
+# job count is chosen by the build invocation (see CMakePresets.json / the
+# CMAKE_BUILD_PARALLEL_LEVEL env var); this value bounds anything CMake launches
+# itself (e.g. the RADE/RNNoise ExternalProjects) and is reported for reference.
+include(ProcessorCount)
+ProcessorCount(CUDASDR_HOST_CORES)
+if(CUDASDR_HOST_CORES EQUAL 0)
+    set(CUDASDR_HOST_CORES 1)
+endif()
+set(CUDASDR_PARALLEL_JOBS ${CUDASDR_HOST_CORES} CACHE STRING
+    "Max parallel compile jobs for cudaSDR and its bundled dependencies")
+message(STATUS "cudaSDR: capping parallel build jobs at ${CUDASDR_PARALLEL_JOBS} (host cores: ${CUDASDR_HOST_CORES})")
+message(STATUS "cudaSDR: build with 'cmake --build build -j ${CUDASDR_PARALLEL_JOBS}' or use the bundled CMakePresets")
+
 # --- Basic Setup ---
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -26,7 +41,7 @@ set(SANITIZE_FLAGS "-fsanitize=address")
 #set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -pg")
 
 # --- Find Dependencies ---
-find_package(Qt6 6.11.0 REQUIRED COMPONENTS Widgets Core Gui GuiPrivate ShaderTools Multimedia Network OpenGL OpenGLWidgets Test)
+find_package(Qt6 6.11.0 REQUIRED COMPONENTS Widgets Core Gui GuiPrivate ShaderTools Multimedia Network OpenGL OpenGLWidgets WebSockets Test)
 message(STATUS "Using Qt ${Qt6_VERSION} from ${Qt6_DIR}")
 find_package(PkgConfig REQUIRED)
 find_package(OpenGL REQUIRED)
@@ -146,6 +161,7 @@ set(SOURCES
     ${SRC_DIR}/Util/cusdr_highResTimer.cpp
     ${SRC_DIR}/Util/cusdr_painter.cpp
     ${SRC_DIR}/Util/cusdr_rigctlserver.cpp
+    ${SRC_DIR}/Util/cusdr_tciserver.cpp
     ${SRC_DIR}/Util/AudioDeviceService.cpp
 
     # Main Widget Classes
@@ -239,6 +255,7 @@ set(HEADERS
     ${SRC_DIR}/Util/cusdr_imageblur.h
     ${SRC_DIR}/Util/cusdr_painter.h
     ${SRC_DIR}/Util/cusdr_rigctlserver.h
+    ${SRC_DIR}/Util/cusdr_tciserver.h
     ${SRC_DIR}/Util/AudioDeviceService.h
 
     # Main Headers
@@ -336,6 +353,7 @@ target_link_libraries(cudasdr PRIVATE
     Qt6::GuiPrivate
     Qt6::Multimedia
     Qt6::Network
+    Qt6::WebSockets
     Qt6::OpenGL
     Qt6::OpenGLWidgets
     wdsp

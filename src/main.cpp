@@ -25,6 +25,7 @@
 
 #include "Util/cusdr_splash.h"
 #include "Util/cusdr_rigctlserver.h"
+#include "Util/cusdr_tciserver.h"
 #include "cusdr_settings.h"
 #include "fftw3.h"
 #include "cusdr_mainWidget.h"
@@ -267,10 +268,24 @@ int main(int argc, char *argv[]) {
     RigCtlServer rigCtlServer;
     rigCtlServer.startListening(4532);
     Settings::instance()->setRigCtlServer(&rigCtlServer);
+
+    TciServer tciServer;
+    quint16 tciPort = 50001;
+    if (const char *portEnv = std::getenv("CUSDR_TCI_PORT")) {
+        bool ok = false;
+        const int parsed = QString::fromLocal8Bit(portEnv).toInt(&ok);
+        if (ok && parsed > 0 && parsed <= 65535)
+            tciPort = static_cast<quint16>(parsed);
+    }
+    if (tciServer.startListening(tciPort))
+        qDebug() << "Init::\tTCI server listening on port" << tciPort;
+    else
+        qWarning() << "Init::\tTCI server failed to start on port" << tciPort;
     RadioModel radioModel(&app);
     for (int i = 0; i < 8; ++i) radioModel.addSlice(new SliceModel(i, &radioModel));
     Settings::instance()->setRadioModel(&radioModel);
     Settings::instance()->syncSlicesWithSettings();
+    tciServer.bindSlices(&radioModel);
     MainWindow mainWindow(&radioModel);
     qDebug() << "Init::\tmain window setup ...";
     mainWindow.setup();

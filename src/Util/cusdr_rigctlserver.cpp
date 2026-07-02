@@ -50,7 +50,8 @@ bool RigCtlServer::startListening(quint16 port)
     if (m_server->isListening())
         return true;
 
-    if (!m_server->listen(QHostAddress::AnyIPv4, port)) {
+    // Dual-stack bind so localhost (::1) and 127.0.0.1 clients both connect.
+    if (!m_server->listen(QHostAddress::Any, port)) {
         RIGCTL_WARN << "Failed to listen on port" << port << ":" << m_server->errorString();
         return false;
     }
