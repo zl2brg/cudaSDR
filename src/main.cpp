@@ -277,10 +277,29 @@ int main(int argc, char *argv[]) {
         if (ok && parsed > 0 && parsed <= 65535)
             tciPort = static_cast<quint16>(parsed);
     }
-    if (tciServer.startListening(tciPort))
-        qDebug() << "Init::\tTCI server listening on port" << tciPort;
-    else
-        qWarning() << "Init::\tTCI server failed to start on port" << tciPort;
+    if (Settings::instance()->getTciServerEnabled()) {
+        if (tciServer.startListening(tciPort))
+            qDebug() << "Init::\tTCI server listening on port" << tciPort;
+        else
+            qWarning() << "Init::\tTCI server failed to start on port" << tciPort;
+    }
+    else {
+        qDebug() << "Init::\tTCI server disabled in settings";
+    }
+    // Start/stop the TCI server at runtime when the setting is toggled.
+    QObject::connect(Settings::instance(), &Settings::tciServerEnabledChanged,
+                     &tciServer, [&tciServer, tciPort](bool enabled) {
+        if (enabled) {
+            if (tciServer.startListening(tciPort))
+                qDebug() << "Init::\tTCI server listening on port" << tciPort;
+            else
+                qWarning() << "Init::\tTCI server failed to start on port" << tciPort;
+        }
+        else {
+            tciServer.stopListening();
+            qDebug() << "Init::\tTCI server stopped";
+        }
+    });
     Settings::instance()->setTciServer(&tciServer);
     RadioModel radioModel(&app);
     for (int i = 0; i < 8; ++i) radioModel.addSlice(new SliceModel(i, &radioModel));

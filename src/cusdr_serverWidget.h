@@ -36,6 +36,7 @@
 #include <QLabel>
 #include <QTableWidget>
 #include <QGridLayout>
+#include <QCheckBox>
 
 #include "Util/cusdr_buttons.h"
 #include "cusdr_settings.h"
@@ -76,7 +77,10 @@ private:
 	QGroupBox		*serverPortAddressGroup();
 	QGroupBox		*listenerPortAddressGroup();
 	QGroupBox		*audioPortAddressGroup();
+	QGroupBox		*tciServerGroup();
 	QGroupBox		*serverNIGroupBox;
+
+	QCheckBox		*tciEnableCheckBox;
 
 	QGridLayout		*portGridBox;
 	QComboBox		*serverNetworkInterfaces;
@@ -108,6 +112,7 @@ private slots:
 	void	setupConnections();
 	void	portChanged(const QString &text);
 	void	setServerNIC(int index);
+	void	syncTciEnabled(bool enabled);
 	
 signals:
 	void	showEvent();

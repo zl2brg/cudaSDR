@@ -299,6 +299,8 @@ int Settings::loadSettings() {
     m_networkConfig->setSocketBufferSize(value);
     m_socketBufferSize = m_networkConfig->socketBufferSize();
 
+    m_tciServerEnabled = settings->value("network/tci_enabled", true).toBool();
+
     m_lastConnectedDevice.deviceClass = static_cast<DeviceClass>(settings->value("network/lastDeviceClass", DeviceClass_None).toInt());
     m_lastConnectedDevice.deviceType = settings->value("network/lastDeviceType", "").toString();
     m_lastConnectedDevice.serialNumber = settings->value("network/lastDeviceSerial", "").toString();
@@ -1663,6 +1665,7 @@ int Settings::saveSettings() {
     settings->setValue("network/audio_port", m_networkConfig->audioPort());
     settings->setValue("network/metis_port", m_networkConfig->metisPort());
     settings->setValue("network/socketBufferSize", m_networkConfig->socketBufferSize());
+    settings->setValue("network/tci_enabled", m_tciServerEnabled);
     settings->setValue("network/lastDeviceClass", static_cast<int>(m_lastConnectedDevice.deviceClass));
     settings->setValue("network/lastDeviceType", m_lastConnectedDevice.deviceType);
     settings->setValue("network/lastDeviceSerial", m_lastConnectedDevice.serialNumber);
@@ -3275,6 +3278,14 @@ void Settings::setServerWidgetNIC(int index) {
             m_ipAddressesList.at(index).toString() ));*/
 
     emit serverNICChanged(index);
+}
+
+void Settings::setTciServerEnabled(bool enabled) {
+
+    if (m_tciServerEnabled == enabled) return;
+    m_tciServerEnabled = enabled;
+    settings->setValue("network/tci_enabled", m_tciServerEnabled);
+    emit tciServerEnabledChanged(m_tciServerEnabled);
 }
 
 void Settings::setHPSDRWidgetNIC(int index) {

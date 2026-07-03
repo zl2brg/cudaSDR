@@ -803,6 +803,7 @@ signals:
 	void newServerNetworkInterface(QString nicName, QString ipAddress);
 	void newHPSDRDeviceNIC(QString nicName, QString ipAddress);
 	void serverNICChanged(int);
+	void tciServerEnabledChanged(bool enabled);
 	void hpsdrDeviceNICChanged(int);
 	void socketBufferSizeChanged(int value);
 	void manualSocketBufferChanged(bool value);
@@ -1271,6 +1272,10 @@ public slots:
     RigCtlServer *rigCtlServer() const { return m_rigCtlServer; }
     void        setTciServer(TciServer *server) { m_tciServer = server; }
     TciServer  *tciServer() const { return m_tciServer; }
+    // TCI WebSocket server enable/disable (persisted). Emits
+    // tciServerEnabledChanged so the server can be started/stopped at runtime.
+    bool        getTciServerEnabled() const { return m_tciServerEnabled; }
+    void        setTciServerEnabled(bool enabled);
     // Lock-free hint set by TciServer when any client is subscribed to the IQ
     // stream. The DSP thread reads it to skip building/emitting per-block IQ
     // when nobody is listening (avoids the interleave alloc + copy each block).
@@ -1610,6 +1615,7 @@ private:
     RadioState m_radioState = RadioState::RX;
     RigCtlServer *m_rigCtlServer = nullptr;
     TciServer    *m_tciServer = nullptr;
+    bool          m_tciServerEnabled = true;
     std::atomic<bool> m_tciIqActive{false};
 	bool	m_defaultSkin;
 	bool	m_connected;

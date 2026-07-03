@@ -34,6 +34,7 @@
 #include <QLabel>
 
 #include "cusdr_serverWidget.h"
+#include "Util/cusdr_tciserver.h"
 
 #define	btn_height		15
 #define	btn_width		80
@@ -70,8 +71,15 @@ ServerWidget::ServerWidget(QWidget *parent)
 	hbox2->addStretch();
 	hbox2->addWidget(portAddressesGroup());
 
+	QHBoxLayout *hbox3 = new QHBoxLayout();
+	hbox3->setSpacing(0);
+    hbox3->setContentsMargins(0,0,0,0);
+	hbox3->addStretch();
+	hbox3->addWidget(tciServerGroup());
+
 	mainLayout->addLayout(hbox1);
 	mainLayout->addLayout(hbox2);
+	mainLayout->addLayout(hbox3);
 	mainLayout->addStretch();
 		
 	setLayout(mainLayout);
@@ -110,6 +118,12 @@ void ServerWidget::setupConnections() {
 		&Settings::serverNICChanged, 
 		this, 
 		&ServerWidget::setServerNIC);
+
+	CHECKED_CONNECT(
+		set,
+		&Settings::tciServerEnabledChanged,
+		this,
+		&ServerWidget::syncTciEnabled);
 
 }
 
@@ -210,6 +224,40 @@ QGroupBox *ServerWidget::portAddressesGroup() {
 	return groupBox;
 }
 
+QGroupBox *ServerWidget::tciServerGroup() {
+
+	tciEnableCheckBox = new QCheckBox(tr("Enable TCI server"));
+	tciEnableCheckBox->setChecked(set->getTciServerEnabled());
+	tciEnableCheckBox->setFont(QFont("Arial", 8));
+
+	quint16 tciPort = 50001;
+	if (set->tciServer() && set->tciServer()->port() != 0)
+		tciPort = set->tciServer()->port();
+
+	QLabel *portLabel = new QLabel(tr("WebSocket port: %1").arg(tciPort));
+	portLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
+
+	CHECKED_CONNECT(
+		tciEnableCheckBox,
+		&QCheckBox::toggled,
+		set,
+		&Settings::setTciServerEnabled);
+
+	QVBoxLayout *vbox = new QVBoxLayout;
+	vbox->setSpacing(4);
+	vbox->addSpacing(4);
+	vbox->addWidget(tciEnableCheckBox);
+	vbox->addWidget(portLabel);
+	vbox->addSpacing(4);
+
+	QGroupBox *groupBox = new QGroupBox(tr("TCI Server"));
+	groupBox->setMinimumWidth(m_minimumGroupBoxWidth);
+	groupBox->setLayout(vbox);
+	groupBox->setFont(QFont("Arial", 8));
+
+	return groupBox;
+}
+
 QGroupBox *ServerWidget::serverPortAddressGroup() {
 
 	le_server_port = new QLineEdit(QString::number(Settings::instance()->getServerPort()), this);
@@ -289,6 +337,12 @@ QGroupBox *ServerWidget::audioPortAddressGroup() {
 void ServerWidget::setServerNIC(int index) {
 
 	serverNetworkInterfaces->setCurrentIndex(index);
+}
+
+void ServerWidget::syncTciEnabled(bool enabled) {
+
+	if (tciEnableCheckBox && tciEnableCheckBox->isChecked() != enabled)
+		tciEnableCheckBox->setChecked(enabled);
 }
 
 void ServerWidget::setPorts() {
