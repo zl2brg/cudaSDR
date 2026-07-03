@@ -407,7 +407,18 @@ void SliceProcessor::dspProcessing(const QVector<int32_t> &rawIQ) {
 void SliceProcessor::dspProcessingCore() {
     int spectrumDataReady;
     bool txPixelsRequested = false;
-    
+
+    // TCI raw IQ tap. inBuf holds the normalized input I/Q at the radio's RX
+    // rate (m_samplerate) for both HPSDR (P1/P2) and SoapySDR. Capture it now,
+    // before WDSP consumes inBuf, but emit it at the END of this function so
+    // the RX audio frame (emitted mid-function) is queued onto the shared TCI
+    // socket first — audio has priority over the droppable panadapter IQ.
+    // Built only when a TCI client is subscribed, so the DSP hot path pays
+    // nothing when nobody is listening.
+    QVector<float> tciIqFrame;
+    if (set->tciIqActive())
+        tciIqFrame = interleaveFromCPX(inBuf);
+
     m_dspMutex.lock();
     m_dspCallTimer.start();
     qtwdsp->processDSP(inBuf, audioOutputBuf);
@@ -571,6 +582,12 @@ void SliceProcessor::dspProcessingCore() {
             emit audioBufferSignal(m_receiver, audioOutputBuf, audioSamplesThisCall);
         }
     }
+
+    // Emit the captured raw IQ last: RX audio has already been queued to the
+    // TCI socket above, so audio wins the shared link and panadapter IQ only
+    // uses spare capacity (and is dropped under backpressure by the server).
+    if (!tciIqFrame.isEmpty())
+        emit rxIqSamples(m_receiver, tciIqFrame, m_samplerate);
 }
 
 void SliceProcessor::setFreeDVMode(int rx, int mode) {

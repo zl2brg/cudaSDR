@@ -208,6 +208,7 @@ signals:
 	void	outputBufferSignal(int rx, const CPX &buffer);
 	void	audioBufferSignal(int rx, const CPX &buffer, int);
 	void	rxAudioSamples(int rx, QVector<float> stereoInterleaved, int sampleRate);
+	void	rxIqSamples(int rx, QVector<float> iqInterleaved, int sampleRate);
 
 };
 

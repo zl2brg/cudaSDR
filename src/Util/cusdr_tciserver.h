@@ -21,6 +21,7 @@
 
 #include <QObject>
 #include <QTimer>
+#include <QElapsedTimer>
 #include <QList>
 #include <QHash>
 #include <QSet>
@@ -51,6 +52,10 @@ public slots:
     /** RX audio from SliceProcessor (queued to GUI thread). */
     void onRxAudioSamples(int rx, QVector<float> stereoInterleaved, int sampleRate);
 
+    /** RX IQ from SliceProcessor (queued to GUI thread). Raw input I/Q at the
+     *  radio's actual RX sample rate, for both HPSDR and SoapySDR. */
+    void onRxIqSamples(int rx, QVector<float> iqInterleaved, int sampleRate);
+
 signals:
     void remoteControlChanged(bool active);
 
@@ -74,7 +79,6 @@ private:
     void broadcast(const QString &message);
     void sendInitState(QWebSocket *client);
     void handleCommand(QWebSocket *client, const QString &commandLine);
-    void flushClientAudio(QWebSocket *client, int rx, bool forcePartial = false);
 
     struct TciClientState {
         QSet<int> audioEnabledReceivers;
@@ -82,15 +86,32 @@ private:
         int audioFormat = 3;          // FLOAT32
         int audioSamplesPerPacket = 512;
         int audioSampleRate = 48000;
-        QHash<int, QVector<float>> pendingAudio;
+
+        QSet<int> iqEnabledReceivers;
+        int iqChannels = 2;
+        int iqFormat = 3;             // FLOAT32
+        int iqSamplesPerPacket = 512;
+        int iqSampleRate = 48000;     // set to the radio's actual RX rate on each block
+
+        // Best-effort IQ drop counter (diagnostics). The panadapter IQ stream is
+        // shed when the socket write backlog is large so it never builds latency
+        // on the socket shared with RX audio (audio priority). RX audio is never
+        // dropped.
+        qint64 iqFramesDropped = 0;
     };
 
     TciClientState *clientState(QWebSocket *client);
     const TciClientState *clientState(QWebSocket *client) const;
     void sendAudioPacket(QWebSocket *client, const TciClientState &state, int rx,
                          const float *stereoInterleaved, int stereoFloatCount);
-    int stereoFloatsNeeded(const TciClientState &state) const;
+    void sendIqPacket(QWebSocket *client, const TciClientState &state, int rx,
+                      const float *iqInterleaved, int iqFloatCount);
     int parseAudioFormat(const QString &value) const;
+
+    // Recompute and publish the "any client wants IQ" hint to Settings so the
+    // DSP thread can gate the per-block IQ emission. Call whenever an IQ
+    // subscription changes (start/stop/disconnect).
+    void updateIqActiveHint();
 
     QString formatVfo(int trx, int channel, qint64 frequency) const;
     QString formatDds(int trx, int channel, qint64 frequency) const;
@@ -109,10 +130,24 @@ private:
     int ifOffsetHz(int rx) const;
     double smeterDbmFromRaw(double rawValue) const;
     double smeterDbmForRx(int rx) const;
+    int nativeIqSampleRate() const;
+    int effectiveIqSampleRate(int actualRate) const;
 
     static constexpr int WATCHDOG_TIMEOUT_MS = 30000;
     static constexpr int kStreamHeaderBytes = 64;
+    static constexpr uint32_t kIqStreamType = 0;
     static constexpr uint32_t kRxAudioStreamType = 1;
+
+    // RX audio nominal rate (used when deriving a distinct IQ rate so the IQ
+    // stream never collides with the audio rate — see effectiveIqSampleRate).
+    static constexpr double kRxAudioRateHz = 48000.0;
+
+    // IQ backpressure threshold (socket bytesToWrite backlog). The panadapter
+    // IQ stream is best-effort: it is shed at a very small backlog so it can
+    // never build socket latency that would delay RX audio on the shared
+    // socket. A dropped panadapter frame is invisible; late audio makes the
+    // client hard-reset its buffer. RX audio itself is never dropped.
+    static constexpr qint64 kIqBacklogDropBytes = 32 * 1024;
 
     QWebSocketServer *m_server   = nullptr;
     QTimer           *m_watchdog = nullptr;

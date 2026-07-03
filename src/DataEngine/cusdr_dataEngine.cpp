@@ -1462,6 +1462,8 @@ bool DataEngine::initReceivers(int rcvrs) {
             if (TciServer *tci = set->tciServer()) {
                 connect(rx, &SliceProcessor::rxAudioSamples, tci, &TciServer::onRxAudioSamples,
                         Qt::QueuedConnection);
+                connect(rx, &SliceProcessor::rxIqSamples, tci, &TciServer::onRxIqSamples,
+                        Qt::QueuedConnection);
             }
          //   connect(rx.get(), &SliceProcessor::outputBufferSignal, m_dataProcessor, &DataProcessor::setOutputBuffer);
 
@@ -4398,6 +4400,10 @@ void DataProcessor::processReadData()
     if (this->m_hwInterface == QSDR::SoapySDR) {
         while (!de->io.soapy_iq_queue.isEmpty()) {
             QVector<float> samples = de->io.soapy_iq_queue.dequeue();
+
+            // TCI IQ is now tapped per-receiver in SliceProcessor::dspProcessingCore
+            // (covers both HPSDR and SoapySDR) and delivered via a queued signal,
+            // so it is no longer forwarded from this worker thread.
 
             int rx = 0;
             if (rx < de->RX.size() && de->RX[rx]) {

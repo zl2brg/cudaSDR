@@ -39,6 +39,7 @@
 #include <QAudioFormat>
 #include <qaudiodevice.h>
 #include <QMap>
+#include <atomic>
 
 #include "cusdr_hamDatabase.h"
 #include "fftw3.h"
@@ -1270,6 +1271,11 @@ public slots:
     RigCtlServer *rigCtlServer() const { return m_rigCtlServer; }
     void        setTciServer(TciServer *server) { m_tciServer = server; }
     TciServer  *tciServer() const { return m_tciServer; }
+    // Lock-free hint set by TciServer when any client is subscribed to the IQ
+    // stream. The DSP thread reads it to skip building/emitting per-block IQ
+    // when nobody is listening (avoids the interleave alloc + copy each block).
+    void        setTciIqActive(bool active) { m_tciIqActive.store(active, std::memory_order_relaxed); }
+    bool        tciIqActive() const { return m_tciIqActive.load(std::memory_order_relaxed); }
 	void setMultiRxView(int view);
 	void setFreeDVStatus(int rx, bool sync, float snr, quint64 rxFrames);
 	void setSpectrumBuffer(int rx, const qVectorFloat& buffer);
@@ -1604,6 +1610,7 @@ private:
     RadioState m_radioState = RadioState::RX;
     RigCtlServer *m_rigCtlServer = nullptr;
     TciServer    *m_tciServer = nullptr;
+    std::atomic<bool> m_tciIqActive{false};
 	bool	m_defaultSkin;
 	bool	m_connected;
 	bool	m_clientConnected;

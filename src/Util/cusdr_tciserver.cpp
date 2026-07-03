@@ -257,6 +257,45 @@ double TciServer::smeterDbmForRx(int rx) const
     return smeterDbmFromRaw(-140.0);
 }
 
+int TciServer::nativeIqSampleRate() const
+{
+    const int rate = m_settings ? m_settings->getSampleRate() : 0;
+    return effectiveIqSampleRate(rate > 0 ? rate : 48000);
+}
+
+int TciServer::effectiveIqSampleRate(int actualRate) const
+{
+    // Manual override: CUSDR_TCI_IQ_RATE=N forces the advertised and per-frame
+    // IQ sample rate (0/unset = automatic).
+    static const int override = qEnvironmentVariableIntValue("CUSDR_TCI_IQ_RATE");
+    if (override > 0)
+        return override;
+
+    // TCI Remote (and similar clients) mishandle an IQ stream whose rate equals
+    // the audio rate: the two binary streams become indistinguishable by rate
+    // and the client mixes IQ into the audio path (buzz + gaps). Whenever the
+    // radio rate would collide with the 48k audio stream, advertise a distinct
+    // (doubled) rate so the client keeps the streams separate.
+    const int audioRate = static_cast<int>(kRxAudioRateHz);
+    int rate = actualRate > 0 ? actualRate : audioRate;
+    while (rate <= audioRate)
+        rate *= 2;
+    return rate;
+}
+
+void TciServer::updateIqActiveHint()
+{
+    bool anyIq = false;
+    for (auto it = m_clientStates.cbegin(); it != m_clientStates.cend(); ++it) {
+        if (!it->iqEnabledReceivers.isEmpty()) {
+            anyIq = true;
+            break;
+        }
+    }
+    if (m_settings)
+        m_settings->setTciIqActive(anyIq);
+}
+
 void TciServer::bindSlices(RadioModel *radioModel)
 {
     if (!radioModel || m_radioModel == radioModel)
@@ -309,6 +348,8 @@ void TciServer::sendInitState(QWebSocket *client)
     sendToClient(client, formatDrive(0, m_settings->getDriveLevel()));
     sendToClient(client, formatTune(0, m_settings->getRadioState() == RadioState::TUNE));
     sendToClient(client, tciMessage(QStringLiteral("AUDIO_SAMPLERATE"), {QStringLiteral("48000")}));
+    sendToClient(client, tciMessage(QStringLiteral("IQ_SAMPLERATE"),
+                                    {QString::number(nativeIqSampleRate())}));
     sendToClient(client, tciMessage(QStringLiteral("READY")));
 }
 
@@ -323,12 +364,6 @@ const TciServer::TciClientState *TciServer::clientState(QWebSocket *client) cons
 {
     const auto it = m_clientStates.constFind(client);
     return (it == m_clientStates.cend()) ? nullptr : &(*it);
-}
-
-int TciServer::stereoFloatsNeeded(const TciClientState &state) const
-{
-    return (state.audioChannels == 1) ? state.audioSamplesPerPacket * 2
-                                      : state.audioSamplesPerPacket;
 }
 
 int TciServer::parseAudioFormat(const QString &value) const
@@ -408,26 +443,6 @@ void TciServer::sendAudioPacket(QWebSocket *client, const TciClientState &state,
     client->sendBinaryMessage(frame);
 }
 
-void TciServer::flushClientAudio(QWebSocket *client, int rx, bool forcePartial)
-{
-    TciClientState *state = clientState(client);
-    if (!state || !state->audioEnabledReceivers.contains(rx))
-        return;
-
-    QVector<float> &pending = state->pendingAudio[rx];
-    const int needed = stereoFloatsNeeded(*state);
-    while (pending.size() >= needed) {
-        sendAudioPacket(client, *state, rx, pending.constData(), needed);
-        pending.remove(0, needed);
-    }
-
-    if (forcePartial && pending.size() >= 2) {
-        const int partialStereo = (pending.size() / 2) * 2;
-        sendAudioPacket(client, *state, rx, pending.constData(), partialStereo);
-        pending.clear();
-    }
-}
-
 void TciServer::onRxAudioSamples(int rx, QVector<float> stereoInterleaved, int sampleRate)
 {
     Q_UNUSED(sampleRate)
@@ -435,6 +450,10 @@ void TciServer::onRxAudioSamples(int rx, QVector<float> stereoInterleaved, int s
     if (stereoInterleaved.isEmpty())
         return;
 
+    // Send each DSP audio block straight to the socket, in its natural cadence
+    // (~21 ms at 48k pan, ~5 ms at 192k) — exactly like the local soundcard
+    // path. The client's own jitter buffer absorbs the block granularity. RX
+    // audio is never dropped: it is small and any gap makes the client reset.
     for (QWebSocket *client : std::as_const(m_clients)) {
         if (client->state() != QAbstractSocket::ConnectedState)
             continue;
@@ -443,9 +462,85 @@ void TciServer::onRxAudioSamples(int rx, QVector<float> stereoInterleaved, int s
         if (!state || !state->audioEnabledReceivers.contains(rx))
             continue;
 
-        state->pendingAudio[rx].append(stereoInterleaved);
-        flushClientAudio(client, rx, false);
+        sendAudioPacket(client, *state, rx, stereoInterleaved.constData(),
+                        stereoInterleaved.size());
     }
+}
+
+void TciServer::onRxIqSamples(int rx, QVector<float> iqInterleaved, int sampleRate)
+{
+    if (iqInterleaved.isEmpty() || sampleRate <= 0)
+        return;
+
+    for (QWebSocket *client : std::as_const(m_clients)) {
+        if (client->state() != QAbstractSocket::ConnectedState)
+            continue;
+
+        TciClientState *state = clientState(client);
+        if (!state || !state->iqEnabledReceivers.contains(rx))
+            continue;
+
+        state->iqSampleRate = effectiveIqSampleRate(sampleRate);
+
+        // Panadapter IQ is best-effort and droppable. If the socket already has
+        // a write backlog the link is congested — skip this frame so IQ never
+        // builds latency on the socket shared with RX audio (audio priority).
+        if (client->bytesToWrite() > kIqBacklogDropBytes) {
+            if ((++state->iqFramesDropped % 200) == 1)
+                TCI_WARN << "IQ backpressure: dropping panadapter frame (link congested), total drops"
+                         << state->iqFramesDropped;
+            continue;
+        }
+
+        // Send the radio's actual RX rate as-is (no decimation); the frame
+        // header advertises the rate so the client's FFT scales correctly.
+        sendIqPacket(client, *state, rx, iqInterleaved.constData(),
+                     iqInterleaved.size());
+    }
+}
+
+void TciServer::sendIqPacket(QWebSocket *client, const TciClientState &state, int rx,
+                             const float *iqInterleaved, int iqFloatCount)
+{
+    if (!client || iqFloatCount < 2)
+        return;
+
+    int length = 0;
+    QByteArray payload;
+
+    if (state.iqFormat == 3) { // FLOAT32
+        length = iqFloatCount;
+        payload.resize(length * static_cast<int>(sizeof(float)));
+        std::memcpy(payload.data(), iqInterleaved,
+                    static_cast<size_t>(length) * sizeof(float));
+    } else if (state.iqFormat == 0) { // INT16
+        length = iqFloatCount;
+        payload.resize(length * static_cast<int>(sizeof(qint16)));
+        auto *out = reinterpret_cast<qint16 *>(payload.data());
+        for (int i = 0; i < length; ++i) {
+            const float clamped = qBound(-1.0f, iqInterleaved[i], 1.0f);
+            out[i] = static_cast<qint16>(clamped * 32767.0f);
+        }
+    } else {
+        return;
+    }
+
+    QByteArray frame(kStreamHeaderBytes, 0);
+    auto writeU32 = [&frame](int offset, quint32 value) {
+        qToLittleEndian(value, reinterpret_cast<uchar *>(frame.data() + offset));
+    };
+
+    writeU32(0, static_cast<quint32>(rx));
+    writeU32(4, static_cast<quint32>(state.iqSampleRate));
+    writeU32(8, static_cast<quint32>(state.iqFormat));
+    writeU32(12, 0);
+    writeU32(16, 0);
+    writeU32(20, static_cast<quint32>(length));
+    writeU32(24, kIqStreamType); // 0 = IQ_STREAM
+    writeU32(28, static_cast<quint32>(state.iqChannels)); // 2
+    frame.append(payload);
+
+    client->sendBinaryMessage(frame);
 }
 
 void TciServer::onNewConnection()
@@ -464,8 +559,9 @@ void TciServer::onNewConnection()
         TCI_DEBUG << "Client connected from" << client->peerAddress().toString();
         sendInitState(client);
 
-        if (wasEmpty)
+        if (wasEmpty) {
             emit remoteControlChanged(true);
+        }
     }
 }
 
@@ -492,6 +588,7 @@ void TciServer::onClientDisconnected()
     m_clients.removeAll(client);
     m_clientStates.remove(client);
     client->deleteLater();
+    updateIqActiveHint();
 
     if (m_clients.isEmpty()) {
         emit remoteControlChanged(false);
@@ -537,8 +634,68 @@ void TciServer::handleCommand(QWebSocket *client, const QString &commandLine)
     const int maxRx = qMax(0, m_settings->getNumberOfReceivers() - 1);
     const int rx = qBound(0, channel, maxRx);
 
-    if (name == QLatin1String("START") || name == QLatin1String("STOP")) {
-        // Phase 1: IQ/audio streaming not implemented yet.
+    if (name == QLatin1String("START") || name == QLatin1String("IQ_START")) {
+        // Test toggle: set CUSDR_TCI_NO_IQ=1 to refuse IQ subscriptions so the
+        // panadapter stream stays off while RX audio keeps running. Lets us
+        // isolate whether audio choppiness is caused by the IQ stream.
+        static const bool iqDisabled = qEnvironmentVariableIntValue("CUSDR_TCI_NO_IQ") != 0;
+        if (iqDisabled) {
+            TCI_DEBUG << "IQ_START ignored (CUSDR_TCI_NO_IQ set)";
+            sendToClient(client, tciMessage(QStringLiteral("IQ_STOP"), {QString::number(rx)}));
+            return;
+        }
+        TciClientState *state = clientState(client);
+        if (!state)
+            return;
+        state->iqEnabledReceivers.insert(rx);
+        updateIqActiveHint();
+        // Advertise the radio's actual RX rate so the client scales its FFT.
+        sendToClient(client, tciMessage(QStringLiteral("IQ_SAMPLERATE"),
+                                        {QString::number(nativeIqSampleRate())}));
+        return;
+    }
+
+    if (name == QLatin1String("STOP") || name == QLatin1String("IQ_STOP")) {
+        if (TciClientState *state = clientState(client))
+            state->iqEnabledReceivers.remove(rx);
+        updateIqActiveHint();
+        return;
+    }
+
+    if (name == QLatin1String("IQ_SAMPLERATE")) {
+        // cudaSDR streams the radio's actual RX rate (no decimation), so a
+        // client-requested rate is ignored; we always report the native rate.
+        sendToClient(client, tciMessage(QStringLiteral("IQ_SAMPLERATE"),
+                                        {QString::number(nativeIqSampleRate())}));
+        return;
+    }
+
+    if (name == QLatin1String("IQ_STREAM_SAMPLE_TYPE")) {
+        const QString fmtArg = (args.size() >= 2) ? args.at(1) : (args.isEmpty() ? QString() : args.at(0));
+        if (!fmtArg.isEmpty() && clientState(client))
+            clientState(client)->iqFormat = parseAudioFormat(fmtArg);
+        return;
+    }
+
+    if (name == QLatin1String("IQ_STREAM_CHANNELS")) {
+        const QString chArg = (args.size() >= 2) ? args.at(1) : (args.isEmpty() ? QString() : args.at(0));
+        if (!chArg.isEmpty()) {
+            bool ok = false;
+            const int channels = chArg.toInt(&ok);
+            if (ok && clientState(client))
+                clientState(client)->iqChannels = (channels == 1) ? 1 : 2;
+        }
+        return;
+    }
+
+    if (name == QLatin1String("IQ_STREAM_SAMPLES")) {
+        const QString samplesArg = (args.size() >= 2) ? args.at(1) : (args.isEmpty() ? QString() : args.at(0));
+        if (!samplesArg.isEmpty()) {
+            bool ok = false;
+            const int samples = samplesArg.toInt(&ok);
+            if (ok && clientState(client) && samples > 0)
+                clientState(client)->iqSamplesPerPacket = samples;
+        }
         return;
     }
 
@@ -663,18 +820,14 @@ void TciServer::handleCommand(QWebSocket *client, const QString &commandLine)
         if (!state)
             return;
         state->audioEnabledReceivers.insert(rx);
-        state->pendingAudio[rx].clear();
         sendToClient(client, tciMessage(QStringLiteral("AUDIO_SAMPLERATE"),
                                         {QString::number(state->audioSampleRate)}));
         return;
     }
 
     if (name == QLatin1String("AUDIO_STOP") || name == QLatin1String("LINE_OUT_STOP")) {
-        if (TciClientState *state = clientState(client)) {
-            flushClientAudio(client, rx, true);
+        if (TciClientState *state = clientState(client))
             state->audioEnabledReceivers.remove(rx);
-            state->pendingAudio.remove(rx);
-        }
         return;
     }
 
