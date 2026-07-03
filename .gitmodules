@@ -1,3 +1,3 @@
 [submodule "deps/freedv-backend"]
 	path = deps/freedv-backend
-	url = https://github.com/tmiw/freedv-backend
+	url = https://github.com/zl2brg/freedv-backend
