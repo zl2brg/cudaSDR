@@ -5,6 +5,8 @@
 #include <QString>
 #include <QJsonObject>
 
+class QSettings;
+
 class AudioConfig : public QObject {
     Q_OBJECT
     Q_PROPERTY(int micSource READ micSource WRITE setMicSource NOTIFY micSourceChanged)
@@ -61,6 +63,9 @@ public:
 
     void load(const QJsonObject &json);
     void save(QJsonObject &json) const;
+
+    void loadIni(QSettings *settings);
+    void saveIni(QSettings *settings) const;
 
 signals:
     void micSourceChanged(int source);

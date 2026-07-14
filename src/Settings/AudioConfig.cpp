@@ -1,4 +1,6 @@
 #include "AudioConfig.h"
+#include <QSettings>
+#include "Util/settings_utils.h"
 
 AudioConfig::AudioConfig(QObject *parent)
     : QObject(parent)
@@ -128,4 +130,58 @@ void AudioConfig::save(QJsonObject &json) const {
     json["audioCompression"] = m_audioCompression;
     json["fmDeviation"] = m_fmDeviation;
     json["mainVolume"] = static_cast<double>(m_mainVolume);
+}
+
+void AudioConfig::loadIni(QSettings *settings) {
+    QString str = settings->value("server/mic_source", "penelope").toString();
+    int val = (str == "janus") ? 0 : 1;
+    setMicSource(val);
+
+    setMicInputDev(settings->value("mic_InputDevice", 0).toInt());
+    setDigitalAudioInputDev(settings->value("digital_audio_InputDevice", 0).toInt());
+
+    setMicInputSourceName(settings->value("mic_input_source",
+                                          (micInputDev() > 0) ? QString("default") : QString()).toString());
+    setDigitalInputSourceName(settings->value("digital_input_source",
+                                              (digitalAudioInputDev() > 0) ? QString("default") : QString("none")).toString());
+
+    if (micInputSourceName().isEmpty()) {
+        setMicInputSourceName("default");
+        setMicInputDev(1);
+    }
+    if (digitalInputSourceName().isEmpty()) {
+        setDigitalInputSourceName((digitalAudioInputDev() > 0) ? QString("default") : QString("none"));
+    }
+
+    setMicGain(settings->value("micGain", 0).toDouble());
+    setDriveLevel(SettingsUtils::clampDriveLevel(settings->value("driveLevel", 0).toInt()));
+
+    setFmPreemphasis(settings->value("fm_preemphesize", 0).toInt());
+    setAmCarrierLevel(settings->value("am_carrierlevel", 0.5).toDouble());
+    setAudioCompression(settings->value("audiocompression", 0).toInt());
+    setFmDeviation(settings->value("fmdeveation", 5000.0).toDouble());
+
+    int volVal = settings->value("server/mainVolume", 10).toInt();
+    if (volVal < 0) volVal = 0;
+    if (volVal > 100) volVal = 100;
+    setMainVolume(volVal / 100.0f);
+}
+
+void AudioConfig::saveIni(QSettings *settings) const {
+    if (m_micSource == 0)
+        settings->setValue("server/mic_source", "janus");
+    else
+        settings->setValue("server/mic_source", "penelope");
+
+    settings->setValue("mic_InputDevice", m_micInputDev);
+    settings->setValue("mic_input_source", m_micInputSourceName);
+    settings->setValue("digital_audio_InputDevice", m_digitalAudioInputDev);
+    settings->setValue("digital_input_source", m_digitalInputSourceName);
+    settings->setValue("micGain", m_micGain);
+    settings->setValue("driveLevel", m_driveLevel);
+    settings->setValue("fm_preemphesize", m_fmPreemphasis);
+    settings->setValue("am_carrierlevel", m_amCarrierLevel);
+    settings->setValue("audiocompression", m_audioCompression);
+    settings->setValue("fmdeveation", m_fmDeviation);
+    settings->setValue("server/mainVolume", static_cast<int>(m_mainVolume * 100));
 }

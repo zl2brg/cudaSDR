@@ -50,6 +50,10 @@ public:
     QHQueue<QByteArray> m_audioInQueue;
     AUDIOBUF  audioinputBuffer;
     QHQueue<AUDIOBUF> m_faudioInQueue;
+    // Network mic audio (from a remote TCI/browser client). Filled by TciServer
+    // (socket thread), drained by the DataProcessor thread. When non-empty it
+    // takes over the TX mic input; otherwise the local soundcard queue is used.
+    QHQueue<AUDIOBUF> m_netAudioInQueue;
 
 signals:
     void tx_mic_data_ready();

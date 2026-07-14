@@ -3597,9 +3597,19 @@ void DataProcessor::send_mic_data() {
 void DataProcessor::fetch_MicData(){
 	int numSamples = 0;
     AUDIOBUF temp_data;
-    if (de->m_audioInput && de->m_audioInput->m_faudioInQueue.count() > 0)
+    // Network TX audio (remote TCI/browser client mic) takes over the TX mic
+    // input whenever frames are arriving; the local soundcard mic is the
+    // fallback. Both queues carry DSP_SAMPLE_SIZE mono double blocks.
+    QHQueue<AUDIOBUF> *srcQueue = nullptr;
+    if (de->m_audioInput) {
+        if (de->m_audioInput->m_netAudioInQueue.count() > 0)
+            srcQueue = &de->m_audioInput->m_netAudioInQueue;
+        else if (de->m_audioInput->m_faudioInQueue.count() > 0)
+            srcQueue = &de->m_audioInput->m_faudioInQueue;
+    }
+    if (srcQueue)
     {
-        temp_data = de->m_audioInput->m_faudioInQueue.dequeue();
+        temp_data = srcQueue->dequeue();
 
 		numSamples = qMin((int)temp_data.size(), (int)DSP_SAMPLE_SIZE);
         for (int s = 0; s < numSamples; s++)
@@ -4320,6 +4330,12 @@ void DataEngine::createAudioInputProcessor() {
 
     m_audioInput = new TransmitAudioInput();
 
+    // Give the TCI server the network-mic queue so remote client TX audio can
+    // be injected into the transmit path (network audio takes over the mic
+    // input when frames arrive; see DataProcessor::fetch_MicData).
+    if (set && set->tciServer())
+        set->tciServer()->setTransmitAudioQueue(&m_audioInput->m_netAudioInQueue);
+
     m_cwIO = new iambic(this);
 
     connect(m_dataProcessor, &DataProcessor::keyer_event,
@@ -4356,8 +4372,13 @@ void DataEngine::radioStateChange(RadioState state) {
             m_audioInput->Start();
     } else {
         io.ccTx.mox = false;
-        if (m_audioInput)
+        if (m_audioInput) {
             m_audioInput->Stop();
+            // Drop any leftover network mic audio so it can't leak into a
+            // later transmission.
+            while (m_audioInput->m_netAudioInQueue.count() > 0)
+                m_audioInput->m_netAudioInQueue.dequeue();
+        }
 #ifdef HAVE_SOAPYSDR
         while (!io.soapy_tx_iq_queue.isEmpty())
             io.soapy_tx_iq_queue.dequeue();

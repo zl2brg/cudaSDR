@@ -7,6 +7,8 @@
 #include <QHostAddress>
 #include <QNetworkInterface>
 
+class QSettings;
+
 class NetworkConfig : public QObject {
     Q_OBJECT
     Q_PROPERTY(QString serverAddress READ serverAddress WRITE setServerAddress NOTIFY serverAddressChanged)
@@ -43,6 +45,9 @@ public:
 
     void load(const QJsonObject &json);
     void save(QJsonObject &json) const;
+
+    void loadIni(QSettings *settings);
+    void saveIni(QSettings *settings) const;
 
 signals:
     void serverAddressChanged(const QString &addr);

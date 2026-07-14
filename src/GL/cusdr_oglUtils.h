@@ -283,8 +283,26 @@ inline TScale getXRuler(const QRect &rect, int fontMaxWidth, qreal unit, qreal l
 	TScale ruler;
 	
 	TScaleSteps scale = getXScale(fontMaxWidth / unit);
-	//qreal value = floor(lo / scale.bigStep) * scale.bigStep;
 	qreal value = qFloor(lo / scale.bigStep) * scale.bigStep;
+
+	if (rect.width() > 0 && unit > 0) {
+		qreal firstMajor = qFloor(lo / scale.bigStep) * scale.bigStep;
+		if (firstMajor < lo)
+			firstMajor += scale.bigStep;
+		const int firstMajorX = qRound(unit * (firstMajor - lo));
+
+		if (firstMajorX > fontMaxWidth) {
+			ruler.mainPoints << lo;
+			ruler.mainPointPositions << 0;
+			if (scale.smallStep > 0) {
+				for (qreal sv = lo + scale.smallStep; sv < firstMajor && sv < hi; sv += scale.smallStep) {
+					const int x = qRound(unit * (sv - lo));
+					if (x > 0 && x < rect.width())
+						ruler.subPointPositions << x;
+				}
+			}
+		}
+	}
 
 	while (value < hi) {
 
@@ -322,8 +340,26 @@ inline TScale getXRuler(const QRect &rect, int fontMaxWidth, qreal unit, qreal l
 	TScale ruler;
 	
 	TScaleSteps scale = getXScale(fontMaxWidth / unit, s);
-	//qreal value = floor(lo / scale.bigStep) * scale.bigStep;
 	qreal value = qFloor(lo / scale.bigStep) * scale.bigStep;
+
+	if (rect.width() > 0 && unit > 0) {
+		qreal firstMajor = qFloor(lo / scale.bigStep) * scale.bigStep;
+		if (firstMajor < lo)
+			firstMajor += scale.bigStep;
+		const int firstMajorX = qRound(unit * (firstMajor - lo));
+
+		if (firstMajorX > fontMaxWidth) {
+			ruler.mainPoints << lo;
+			ruler.mainPointPositions << 0;
+			if (scale.smallStep > 0) {
+				for (qreal sv = lo + scale.smallStep; sv < firstMajor && sv < hi; sv += scale.smallStep) {
+					const int x = qRound(unit * (sv - lo));
+					if (x > 0 && x < rect.width())
+						ruler.subPointPositions << x;
+				}
+			}
+		}
+	}
 
 	while (value < hi) {
 

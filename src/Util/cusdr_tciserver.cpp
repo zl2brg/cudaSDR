@@ -11,6 +11,7 @@
  */
 
 #include "cusdr_tciserver.h"
+#include "Util/tci_protocol_utils.h"
 #include "cusdr_settings.h"
 #include "cusdr_hamDatabase.h"
 #include "Settings/SettingsTypes.h"
@@ -27,19 +28,7 @@
 #include <cstring>
 #include <cstdlib>
 
-namespace {
-
-constexpr qint64 kVfoMinHz = 135700;
-constexpr qint64 kVfoMaxHz = 61868000;
-
-QString tciMessage(const QString &name, const QStringList &args = {})
-{
-    if (args.isEmpty())
-        return name + ';';
-    return name + ':' + args.join(',') + ';';
-}
-
-} // namespace
+using namespace TciProtocol;
 
 TciServer::TciServer(QObject *parent)
     : QObject(parent)
@@ -70,6 +59,8 @@ TciServer::TciServer(QObject *parent)
             this, &TciServer::onRadioStateChanged);
     connect(m_settings, &Settings::driveLevelChanged,
             this, &TciServer::onDriveLevelChanged);
+    connect(m_settings, &Settings::tciServerEnabledChanged,
+            this, &TciServer::onTciServerEnabledChanged);
 }
 
 TciServer::~TciServer()
@@ -101,6 +92,8 @@ void TciServer::stopListening()
     }
     m_clients.clear();
     m_server->close();
+    if (m_settings)
+        m_settings->setTciIqActive(false);
 }
 
 bool TciServer::isListening() const
@@ -124,6 +117,8 @@ void TciServer::sendToClient(QWebSocket *client, const QString &message)
 
 void TciServer::broadcast(const QString &message)
 {
+    if (m_clients.isEmpty())
+        return;
     TCI_DEBUG << "TX *" << message;
     for (QWebSocket *client : std::as_const(m_clients))
         sendToClient(client, message);
@@ -163,9 +158,8 @@ QString TciServer::formatRxFilterBand(int trx, qreal low, qreal high) const
 
 QString TciServer::formatTrx(int trx, RadioState state) const
 {
-    const bool txActive = (state == RadioState::MOX || state == RadioState::TUNE || state == RadioState::DUPLEX);
     return tciMessage(QStringLiteral("TRX"),
-                      {QString::number(trx), txActive ? QStringLiteral("true") : QStringLiteral("false")});
+                      {QString::number(trx), isTrxActive(state) ? QStringLiteral("true") : QStringLiteral("false")});
 }
 
 QString TciServer::formatDrive(int trx, int level) const
@@ -190,51 +184,17 @@ QString TciServer::formatRxSMeter(int trx, int channel, double dbm) const
 
 QString TciServer::dspModeToTci(DSPMode mode) const
 {
-    switch (mode) {
-        case LSB:  return QStringLiteral("LSB");
-        case USB:  return QStringLiteral("USB");
-        case DSB:  return QStringLiteral("DSB");
-        case CWL:  return QStringLiteral("CWL");
-        case CWU:  return QStringLiteral("CW");
-        case FMN:  return QStringLiteral("FM");
-        case AM:   return QStringLiteral("AM");
-        case DIGU: return QStringLiteral("DIGU");
-        case DIGL: return QStringLiteral("DIGL");
-        case SAM:  return QStringLiteral("SAM");
-        case FDV:  return QStringLiteral("FDV");
-        default:   return QStringLiteral("USB");
-    }
+    return TciProtocol::dspModeToTci(mode);
 }
 
 DSPMode TciServer::tciModeToDsp(const QString &mode) const
 {
-    const QString m = mode.trimmed().toUpper();
-    if (m == QLatin1String("LSB"))    return LSB;
-    if (m == QLatin1String("USB"))    return USB;
-    if (m == QLatin1String("DSB"))    return DSB;
-    if (m == QLatin1String("CWL"))    return CWL;
-    if (m == QLatin1String("CW"))     return CWU;
-    if (m == QLatin1String("CWU"))    return CWU;
-    if (m == QLatin1String("FM"))     return FMN;
-    if (m == QLatin1String("NFM"))    return FMN;
-    if (m == QLatin1String("FMN"))    return FMN;
-    if (m == QLatin1String("AM"))     return AM;
-    if (m == QLatin1String("AMS"))    return SAM;
-    if (m == QLatin1String("SAM"))    return SAM;
-    if (m == QLatin1String("DIGU"))   return DIGU;
-    if (m == QLatin1String("DIGL"))   return DIGL;
-    if (m == QLatin1String("FDV"))    return FDV;
-    if (m == QLatin1String("FREEDV")) return FDV;
-    return USB;
+    return TciProtocol::tciModeToDsp(mode);
 }
 
 bool TciServer::parseBoolArg(const QString &value) const
 {
-    const QString v = value.trimmed().toLower();
-    return v == QLatin1String("1")
-        || v == QLatin1String("true")
-        || v == QLatin1String("on")
-        || v == QLatin1String("tx");
+    return TciProtocol::parseBoolArg(value);
 }
 
 int TciServer::ifOffsetHz(int rx) const
@@ -265,31 +225,19 @@ int TciServer::nativeIqSampleRate() const
 
 int TciServer::effectiveIqSampleRate(int actualRate) const
 {
-    // Manual override: CUSDR_TCI_IQ_RATE=N forces the advertised and per-frame
-    // IQ sample rate (0/unset = automatic).
     static const int override = qEnvironmentVariableIntValue("CUSDR_TCI_IQ_RATE");
-    if (override > 0)
-        return override;
-
-    // TCI Remote (and similar clients) mishandle an IQ stream whose rate equals
-    // the audio rate: the two binary streams become indistinguishable by rate
-    // and the client mixes IQ into the audio path (buzz + gaps). Whenever the
-    // radio rate would collide with the 48k audio stream, advertise a distinct
-    // (doubled) rate so the client keeps the streams separate.
-    const int audioRate = static_cast<int>(kRxAudioRateHz);
-    int rate = actualRate > 0 ? actualRate : audioRate;
-    while (rate <= audioRate)
-        rate *= 2;
-    return rate;
+    return TciProtocol::effectiveIqSampleRate(actualRate, static_cast<int>(kRxAudioRateHz), override);
 }
 
 void TciServer::updateIqActiveHint()
 {
     bool anyIq = false;
-    for (auto it = m_clientStates.cbegin(); it != m_clientStates.cend(); ++it) {
-        if (!it->iqEnabledReceivers.isEmpty()) {
-            anyIq = true;
-            break;
+    if (m_settings && m_settings->getTciServerEnabled()) {
+        for (auto it = m_clientStates.cbegin(); it != m_clientStates.cend(); ++it) {
+            if (!it->iqEnabledReceivers.isEmpty()) {
+                anyIq = true;
+                break;
+            }
         }
     }
     if (m_settings)
@@ -368,77 +316,20 @@ const TciServer::TciClientState *TciServer::clientState(QWebSocket *client) cons
 
 int TciServer::parseAudioFormat(const QString &value) const
 {
-    const QString fmt = value.trimmed().toLower();
-    if (fmt == QLatin1String("float32"))
-        return 3;
-    if (fmt == QLatin1String("int32"))
-        return 2;
-    if (fmt == QLatin1String("int24"))
-        return 1;
-    if (fmt == QLatin1String("int16"))
-        return 0;
-    return 3;
+    return TciProtocol::parseAudioFormat(value);
 }
 
 void TciServer::sendAudioPacket(QWebSocket *client, const TciClientState &state, int rx,
                                 const float *stereoInterleaved, int stereoFloatCount)
 {
-    if (!client || stereoFloatCount < 2)
+    if (!client)
         return;
 
-    const int frames = stereoFloatCount / 2;
-    int length = 0;
-    QByteArray payload;
-
-    if (state.audioFormat == 3) {
-        if (state.audioChannels == 1) {
-            length = frames;
-            payload.resize(length * static_cast<int>(sizeof(float)));
-            float *dst = reinterpret_cast<float *>(payload.data());
-            for (int i = 0; i < frames; ++i)
-                dst[i] = stereoInterleaved[i * 2];
-        } else {
-            length = stereoFloatCount;
-            payload.resize(length * static_cast<int>(sizeof(float)));
-            std::memcpy(payload.data(), stereoInterleaved,
-                        static_cast<size_t>(length) * sizeof(float));
-        }
-    } else if (state.audioFormat == 0) {
-        if (state.audioChannels == 1) {
-            length = frames;
-            payload.resize(length * static_cast<int>(sizeof(qint16)));
-            auto *out = reinterpret_cast<qint16 *>(payload.data());
-            for (int i = 0; i < frames; ++i) {
-                const float clamped = qBound(-1.0f, stereoInterleaved[i * 2], 1.0f);
-                out[i] = static_cast<qint16>(clamped * 32767.0f);
-            }
-        } else {
-            length = stereoFloatCount;
-            payload.resize(length * static_cast<int>(sizeof(qint16)));
-            auto *out = reinterpret_cast<qint16 *>(payload.data());
-            for (int i = 0; i < length; ++i) {
-                const float clamped = qBound(-1.0f, stereoInterleaved[i], 1.0f);
-                out[i] = static_cast<qint16>(clamped * 32767.0f);
-            }
-        }
-    } else {
+    const QByteArray frame = buildRxAudioFrame(rx, state.audioSampleRate, state.audioFormat,
+                                               state.audioChannels, stereoInterleaved,
+                                               stereoFloatCount);
+    if (frame.isEmpty())
         return;
-    }
-
-    QByteArray frame(kStreamHeaderBytes, 0);
-    auto writeU32 = [&frame](int offset, quint32 value) {
-        qToLittleEndian(value, reinterpret_cast<uchar *>(frame.data() + offset));
-    };
-
-    writeU32(0, static_cast<quint32>(rx));
-    writeU32(4, static_cast<quint32>(state.audioSampleRate));
-    writeU32(8, static_cast<quint32>(state.audioFormat));
-    writeU32(12, 0);
-    writeU32(16, 0);
-    writeU32(20, static_cast<quint32>(length));
-    writeU32(24, kRxAudioStreamType);
-    writeU32(28, static_cast<quint32>(state.audioChannels));
-    frame.append(payload);
 
     client->sendBinaryMessage(frame);
 }
@@ -447,7 +338,7 @@ void TciServer::onRxAudioSamples(int rx, QVector<float> stereoInterleaved, int s
 {
     Q_UNUSED(sampleRate)
 
-    if (stereoInterleaved.isEmpty())
+    if (stereoInterleaved.isEmpty() || !m_settings || !m_settings->getTciServerEnabled())
         return;
 
     // Send each DSP audio block straight to the socket, in its natural cadence
@@ -469,7 +360,7 @@ void TciServer::onRxAudioSamples(int rx, QVector<float> stereoInterleaved, int s
 
 void TciServer::onRxIqSamples(int rx, QVector<float> iqInterleaved, int sampleRate)
 {
-    if (iqInterleaved.isEmpty() || sampleRate <= 0)
+    if (iqInterleaved.isEmpty() || sampleRate <= 0 || !m_settings || !m_settings->getTciServerEnabled())
         return;
 
     for (QWebSocket *client : std::as_const(m_clients)) {
@@ -502,43 +393,13 @@ void TciServer::onRxIqSamples(int rx, QVector<float> iqInterleaved, int sampleRa
 void TciServer::sendIqPacket(QWebSocket *client, const TciClientState &state, int rx,
                              const float *iqInterleaved, int iqFloatCount)
 {
-    if (!client || iqFloatCount < 2)
+    if (!client)
         return;
 
-    int length = 0;
-    QByteArray payload;
-
-    if (state.iqFormat == 3) { // FLOAT32
-        length = iqFloatCount;
-        payload.resize(length * static_cast<int>(sizeof(float)));
-        std::memcpy(payload.data(), iqInterleaved,
-                    static_cast<size_t>(length) * sizeof(float));
-    } else if (state.iqFormat == 0) { // INT16
-        length = iqFloatCount;
-        payload.resize(length * static_cast<int>(sizeof(qint16)));
-        auto *out = reinterpret_cast<qint16 *>(payload.data());
-        for (int i = 0; i < length; ++i) {
-            const float clamped = qBound(-1.0f, iqInterleaved[i], 1.0f);
-            out[i] = static_cast<qint16>(clamped * 32767.0f);
-        }
-    } else {
+    const QByteArray frame = buildIqFrame(rx, state.iqSampleRate, state.iqFormat, state.iqChannels,
+                                          iqInterleaved, iqFloatCount);
+    if (frame.isEmpty())
         return;
-    }
-
-    QByteArray frame(kStreamHeaderBytes, 0);
-    auto writeU32 = [&frame](int offset, quint32 value) {
-        qToLittleEndian(value, reinterpret_cast<uchar *>(frame.data() + offset));
-    };
-
-    writeU32(0, static_cast<quint32>(rx));
-    writeU32(4, static_cast<quint32>(state.iqSampleRate));
-    writeU32(8, static_cast<quint32>(state.iqFormat));
-    writeU32(12, 0);
-    writeU32(16, 0);
-    writeU32(20, static_cast<quint32>(length));
-    writeU32(24, kIqStreamType); // 0 = IQ_STREAM
-    writeU32(28, static_cast<quint32>(state.iqChannels)); // 2
-    frame.append(payload);
 
     client->sendBinaryMessage(frame);
 }
@@ -549,6 +410,8 @@ void TciServer::onNewConnection()
         QWebSocket *client = m_server->nextPendingConnection();
         connect(client, &QWebSocket::textMessageReceived,
                 this, &TciServer::onClientTextMessage);
+        connect(client, &QWebSocket::binaryMessageReceived,
+                this, &TciServer::onClientBinaryMessage);
         connect(client, &QWebSocket::disconnected,
                 this, &TciServer::onClientDisconnected);
 
@@ -576,6 +439,56 @@ void TciServer::onClientTextMessage(const QString &message)
     const QStringList commands = message.split(';', Qt::SkipEmptyParts);
     for (const QString &rawCommand : commands)
         handleCommand(client, rawCommand.trimmed());
+}
+
+void TciServer::onClientBinaryMessage(const QByteArray &message)
+{
+    if (!m_settings || !m_settings->getTciServerEnabled())
+        return;
+
+    StreamHeader hdr;
+    if (!parseStreamHeader(message, hdr))
+        return;
+
+    // We only accept the client→server TX (mic) audio stream here. Any other
+    // binary type is silently ignored so unrelated frames never disturb TX.
+    if (hdr.streamType != kTxAudioStreamType)
+        return;
+
+    // Network mic audio is only fed to the transmitter while the radio is
+    // actually in a TX state. Outside TX we drop it (and reset the accumulator)
+    // so nothing is buffered up to leak into a later transmission.
+    const RadioState state = m_settings->getRadioState();
+    if (!acceptsTxAudio(state)) {
+        m_txAudioResidual.clear();
+        return;
+    }
+    if (!m_txAudioQueue)
+        return;
+
+    const int channels = (hdr.channels >= 1) ? static_cast<int>(hdr.channels) : 1;
+    const QByteArray payload = message.mid(kStreamHeaderBytes);
+    if (!decodeTxAudioMonoSamples(payload, static_cast<int>(hdr.format), channels, m_txAudioResidual))
+        return;
+
+    // Enqueue exactly DSP_SAMPLE_SIZE mono blocks — the same granularity the
+    // local soundcard mic uses (fetch_MicData truncates to DSP_SAMPLE_SIZE).
+    static quint64 txAudioBlockCounter = 0;
+    const TxAudioChunkResult chunked = chunkTxAudioResidual(
+        m_txAudioResidual,
+        DSP_SAMPLE_SIZE,
+        kTxAudioMaxQueueBlocks,
+        m_txAudioQueue->count());
+    m_txAudioResidual = chunked.residual;
+
+    for (const QVector<double> &block : chunked.blocks)
+        m_txAudioQueue->enqueue(block);
+
+    if (chunked.droppedBlocks > 0 && (++txAudioBlockCounter % 200) == 1) {
+        // Client is producing faster than the TX path drains — drop to keep
+        // TX latency bounded. Never block the socket thread on the queue.
+        TCI_WARN << "TX audio backlog: dropping client mic block (TX drain slower than input)";
+    }
 }
 
 void TciServer::onClientDisconnected()
@@ -703,7 +616,7 @@ void TciServer::handleCommand(QWebSocket *client, const QString &commandLine)
         if (args.size() >= 3) {
             bool ok = false;
             const qint64 freq = args.at(2).toLongLong(&ok);
-            if (!ok || freq < kVfoMinHz || freq > kVfoMaxHz)
+            if (!ok || !isValidVfoHz(freq))
                 return;
             m_settings->setVFOFrequency(0, rx, freq);
             return;
@@ -717,7 +630,7 @@ void TciServer::handleCommand(QWebSocket *client, const QString &commandLine)
         if (args.size() >= 3) {
             bool ok = false;
             const qint64 freq = args.at(2).toLongLong(&ok);
-            if (!ok || freq < kVfoMinHz || freq > kVfoMaxHz)
+            if (!ok || !isValidVfoHz(freq))
                 return;
             m_settings->setCtrFrequency(0, rx, freq);
             return;
@@ -919,4 +832,11 @@ void TciServer::onDriveLevelChanged(int level)
 void TciServer::onSMeterValueChanged(int rx, double rawValue)
 {
     broadcast(formatRxSMeter(0, rx, smeterDbmFromRaw(rawValue)));
+}
+
+void TciServer::onTciServerEnabledChanged(bool enabled)
+{
+    if (!enabled) {
+        stopListening();
+    }
 }

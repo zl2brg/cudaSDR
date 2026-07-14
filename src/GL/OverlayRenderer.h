@@ -23,8 +23,7 @@ public:
                   const QRect& freqScalePanRect,
                   const TScale& freqScale,
                   const TScale& dBmScale,
-                  float deltaF,
-                  float zoomFactor,
+                  int freqPlotLeft,
                   float r, float g, float b, float alpha,
                   bool panGridEnabled);
 

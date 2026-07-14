@@ -19,6 +19,7 @@
 */
 
 #include "cusdr_rigctlserver.h"
+#include "Util/rigctl_protocol_utils.h"
 #include "cusdr_settings.h"
 #include "cusdr_hamDatabase.h"
 
@@ -378,33 +379,10 @@ QString RigCtlServer::dumpState() const
 
 QString RigCtlServer::dspModeToRigctlMode(int dspMode) const
 {
-    switch (static_cast<DSPMode>(dspMode)) {
-        case LSB:  return "LSB";
-        case USB:  return "USB";
-        case DSB:  return "DSB";
-        case CWL:  return "CWR";
-        case CWU:  return "CW";
-        case FMN:  return "FM";
-        case AM:   return "AM";
-        case DIGU: return "PKTUSB";
-        case DIGL: return "PKTLSB";
-        case SAM:  return "AMS";
-        default:   return "USB";
-    }
+    return RigctlProtocol::dspModeToRigctlMode(static_cast<DSPMode>(dspMode));
 }
 
 int RigCtlServer::rigctlModeToDsp(const QString &mode) const
 {
-    const QString m = mode.toUpper();
-    if (m == "LSB")    return LSB;
-    if (m == "USB")    return USB;
-    if (m == "DSB")    return DSB;
-    if (m == "CWR")    return CWL;
-    if (m == "CW")     return CWU;
-    if (m == "FM")     return FMN;
-    if (m == "AM")     return AM;
-    if (m == "AMS")    return SAM;
-    if (m == "PKTUSB") return DIGU;
-    if (m == "PKTLSB") return DIGL;
-    return -1;
+    return RigctlProtocol::rigctlModeToDsp(mode);
 }

@@ -8,6 +8,8 @@ private slots:
     void protocol2PacketTypeByLength();
     void protocol2StartStopDatagramShape();
     void protocol1HeaderAndSequenceParsing();
+    void decode24BitBESignAndMagnitude();
+    void decode16BitBEBigEndian();
 };
 
 void ProtocolBoundaryTests::protocol2PacketTypeByLength() {
@@ -51,6 +53,27 @@ void ProtocolBoundaryTests::protocol1HeaderAndSequenceParsing() {
     packet[0] = 0x00;
     QVERIFY(!ProtocolBoundaryUtils::isProtocol1MetisPacketValid(
         reinterpret_cast<const unsigned char*>(packet.constData()), packet.size()));
+}
+
+void ProtocolBoundaryTests::decode24BitBESignAndMagnitude()
+{
+    const unsigned char pos[] = {0x00, 0x00, 0x01};
+    QCOMPARE(ProtocolBoundaryUtils::decode24BitBE(pos), 1);
+
+    const unsigned char neg[] = {0xFF, 0xFF, 0xFF};
+    QCOMPARE(ProtocolBoundaryUtils::decode24BitBE(neg), -1);
+
+    const unsigned char mid[] = {0x7F, 0xFF, 0xFF};
+    QCOMPARE(ProtocolBoundaryUtils::decode24BitBE(mid), 8388607);
+}
+
+void ProtocolBoundaryTests::decode16BitBEBigEndian()
+{
+    const unsigned char bytes[] = {0x01, 0x00};
+    QCOMPARE(ProtocolBoundaryUtils::decode16BitBE(bytes), 256);
+
+    const unsigned char neg[] = {0xFF, 0xFE};
+    QCOMPARE(ProtocolBoundaryUtils::decode16BitBE(neg), -2);
 }
 
 QTEST_MAIN(ProtocolBoundaryTests)

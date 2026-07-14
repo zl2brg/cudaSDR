@@ -53,6 +53,7 @@
 #include "Settings/CWConfig.h"
 #include "Settings/ReceiverConfig.h"
 #include "Util/cusdr_queue.h"
+#include "Util/display_utils.h"
 
 typedef struct _TSoapyDevice {
     QString driver;
@@ -266,10 +267,9 @@ enum {
 typedef QVector<float> qVectorFloat;
 
 // WDSP TX analyzer levels run hot vs RX; offset panadapter display (dB).
-constexpr float kTxPanadapterDisplayDbOffset = -26.0f;
+constexpr float kTxPanadapterDisplayDbOffset = DisplayUtils::kTxPanadapterDisplayDbOffset;
 inline void applyTxPanadapterDisplayOffset(qVectorFloat &spectrum) {
-    for (float &bin : spectrum)
-        bin += kTxPanadapterDisplayDbOffset;
+    DisplayUtils::applyTxPanadapterDisplayOffset(spectrum);
 }
 typedef QVector<double> qVectorDouble;
 
@@ -998,6 +998,8 @@ public:
     void	debugSystemState();
 	int 	loadSettings();
 	int 	saveSettings();
+	/** Point settings storage at an absolute .ini path (primarily for tests). */
+	void    reopenSettingsStorage(const QString &absoluteIniPath);
 	QSDR::_ServerMode			getCurrentServerMode();
 	QSDR::_HWInterfaceMode		getHWInterface();
 	QSDR::_DataEngineState		getDataEngineState();
@@ -1081,7 +1083,7 @@ public:
 	QList<long>					getLPFHiFrequencies()		{ return m_LPFHiFrequencyList; }
 	QList<int>					getRxJ6Pins()				{ return m_rxJ6pinList; }
 	QList<int>					getTxJ6Pins()				{ return m_txJ6pinList; }
-    int                         get_tx_drivelevel()         {return m_drivelevel;   }
+    int                         get_tx_drivelevel()         { return m_audioConfig->driveLevel(); }
     bool                        get_repeaterMode()          {return m_repeaterMode; }
     bool                        getTxFullDuplex() const     { return m_txFullDuplex; }
     int							getFramesPerSecond(int rx);
@@ -1160,23 +1162,23 @@ public:
 	//int getMercuryAttenuator()		{ return m_mercuryAttenuator; }
     int     getMercuryDither()			{ return m_mercuryDither; }
     int     getMercuryRandom()			{ return m_mercuryRandom; }
-    int     get10MHzSource()			{ return m_10MHzSource; }
-    int     get122_8MHzSource()			{ return m_122_8MHzSource; }
-    int     getMicSource()				{ return m_micSource; }
+    int     get10MHzSource()			{ return m_hardwareConfig->source10Mhz(); }
+    int     get122_8MHzSource()			{ return m_hardwareConfig->source122_88Mhz(); }
+    int     getMicSource()				{ return m_audioConfig->micSource(); }
     int     getRxClass()				{ return m_RxClass; }
     int     getRxTiming()				{ return m_RxTiming; }
-    int     getMicInputDev()            { return m_micInputDev;}
-    int     getDigitalAudioInputDev()   { return m_digitalAudioInputDev;}
-	QString getMicInputSourceName()     { return m_micInputSourceName; }
-	QString getDigitalInputSourceName() { return m_digitalInputSourceName; }
-    int     getMicInputLevel()          { return m_micGain;}
-    int     getDriveLevel()             { return m_drivelevel;}
-    bool    getRepeaterMode()           { return m_repeaterMode;}
-    double  getRepeaterOffset()         { return m_repeaterOffset;}
-    double  getFMpreemphesis()          { return m_fmPremphasize;}
-    double  getFMDeveation()            { return m_fmDeveation;}
-    double  getAMCarrierLevel()         { return m_amCarrierLevel;}
-    double  getAudioCompression()       { return m_audioCompression;}
+    int     getMicInputDev()            { return m_audioConfig->micInputDev(); }
+    int     getDigitalAudioInputDev()   { return m_audioConfig->digitalAudioInputDev(); }
+	QString getMicInputSourceName()     { return m_audioConfig->micInputSourceName(); }
+	QString getDigitalInputSourceName() { return m_audioConfig->digitalInputSourceName(); }
+    int     getMicInputLevel()          { return m_audioConfig->micGain(); }
+    int     getDriveLevel()             { return m_audioConfig->driveLevel(); }
+    bool    getRepeaterMode()           { return m_repeaterMode; }
+    double  getRepeaterOffset()         { return m_repeaterOffset; }
+    double  getFMpreemphesis()          { return m_audioConfig->fmPreemphasis(); }
+    double  getFMDeveation()            { return m_audioConfig->fmDeviation(); }
+    double  getAMCarrierLevel()         { return m_audioConfig->amCarrierLevel(); }
+    double  getAudioCompression()       { return m_audioConfig->audioCompression(); }
 
 	qreal	getMainVolume(int rx);
 	qreal	getMouseWheelFreqStep(int rx);// { return m_mouseWheelFreqStep; }
@@ -1205,12 +1207,12 @@ public:
 
 
 	
-	int		getSpectrumSize()			{ return m_spectrumSize; }
+	int		getSpectrumSize()			{ return m_displayConfig->spectrumSize(); }
 	
-	qreal	getdBmDistScaleMin()		{ return m_dBmDistScaleMin; }
-	qreal	getdBmDistScaleMax()		{ return m_dBmDistScaleMax; }
+	qreal	getdBmDistScaleMin()		{ return m_displayConfig->dBmDistScaleMin(); }
+	qreal	getdBmDistScaleMax()		{ return m_displayConfig->dBmDistScaleMax(); }
 
-	int		getSMeterHoldTime()			{ return m_sMeterHoldTime; }
+	int		getSMeterHoldTime()			{ return m_displayConfig->sMeterHoldTime(); }
 
 	qreal	getFilterFrequencyLow()		{ return m_filterFrequencyLow; }
 	qreal	getFilterFrequencyHigh()	{ return m_filterFrequencyHigh; }
@@ -1515,16 +1517,16 @@ public slots:
 
 
 public:
-    bool isInternalCw() const;
-    int getCwKeyerSpeed() const;
-    int getCwKeyerMode() const;
-    int isCwKeyReversed() const;
-    int getCwSidetoneFreq() const;
-    int getCwSidetoneVolume() const;
-    int getCwPttDelay() const;
-    int getCwHangTime() const;
-    int getCwKeyerWeight() const;
-    int getCwKeyerSpacing() const;
+    bool isInternalCw() const { return m_cwConfig->internalCw() > 0; }
+    int getCwKeyerSpeed() const { return m_cwConfig->keyerSpeed(); }
+    int getCwKeyerMode() const { return m_cwConfig->keyerMode(); }
+    int isCwKeyReversed() const { return m_cwConfig->keyReversed(); }
+    int getCwSidetoneFreq() const { return m_cwConfig->sidetoneFreq(); }
+    int getCwSidetoneVolume() const { return m_cwConfig->sidetoneVolume(); }
+    int getCwPttDelay() const { return m_cwConfig->pttDelay(); }
+    int getCwHangTime() const { return m_cwConfig->hangTime(); }
+    int getCwKeyerWeight() const { return m_cwConfig->keyerWeight(); }
+    int getCwKeyerSpacing() const { return m_cwConfig->keyerSpacing(); }
 
 
 
@@ -1549,7 +1551,6 @@ private:
 
 	THPSDRDevices				m_devices;
 	TDefaultFilterMode			m_filterMode;
-	TPanadapterColors			m_panadapterColors;
 	TNetworkDevicecard			m_currentHPSDRDevice;
     TSDRDevice                  m_lastConnectedDevice;
 #ifdef HAVE_SOAPYSDR
@@ -1656,15 +1657,6 @@ private:
 	int		m_mercuryRandom;
 
 	int		m_outputSampleIncrement;
-	int		m_10MHzSource;
-	int		m_122_8MHzSource;
-	int		m_micSource;
-    int     m_micInputDev;
-    int     m_digitalAudioInputDev;
-	QString m_micInputSourceName;
-	QString m_digitalInputSourceName;
-    double  m_micGain;
-    int     m_drivelevel;
 	int		m_RxClass;
 	int		m_RxTiming;
 
@@ -1678,20 +1670,13 @@ private:
 	QList<quint64>		m_freeDVTxFramesList;
 
 	//int		m_wbBuffers;
-    int		m_spectrumSize;
-	int		m_sMeterHoldTime;
     bool    m_repeaterMode;
     bool    m_txFullDuplex = true;
 
 	long freq1;
 	
-	float m_mainVolume;
-
 	int control_register;
 	bool connect_at_startup;
-
-	qreal	m_dBmDistScaleMin;
-	qreal	m_dBmDistScaleMax;
 
 	qreal	m_filterFrequencyLow;
 	qreal	m_filterFrequencyHigh;
@@ -1699,20 +1684,6 @@ private:
 
     double  m_repeaterOffset;
     bool    m_use_repeaterOffset;
-    int     m_fmPremphasize;
-    double  m_amCarrierLevel;
-    int     m_audioCompression;
-    double  m_fmDeveation;
-    int     m_internal_cw;
-    int     m_cw_keyer_spacing;
-    int     m_cw_keyer_weight;
-    int     m_cw_key_reversed;
-    int     m_cw_keyer_speed;
-    int     m_cw_keyer_mode;
-    int     m_cw_sidetone_volume;
-    int     m_cw_ptt_delay;
-    int     m_cw_hang_time;
-    int     m_cw_sidetone_freq;
 
 
 	//int		m_fft;

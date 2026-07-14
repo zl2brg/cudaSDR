@@ -1,4 +1,5 @@
 #include "DisplayConfig.h"
+#include <QSettings>
 
 DisplayConfig::DisplayConfig(QObject *parent)
     : QObject(parent)
@@ -117,4 +118,93 @@ void DisplayConfig::save(QJsonObject &json) const {
     colors["gridLine"] = colorToString(m_colors.gridLineColor);
     colors["panFilter"] = colorToString(m_colors.panFilterColor);
     json["colors"] = colors;
+}
+
+void DisplayConfig::loadIni(QSettings *settings) {
+    int value;
+
+    value = settings->value("graphics/dBmDistScaleMin", -20).toInt();
+    if ((value < -200) || (value > 0)) value = -20;
+    setdBmDistScaleMin(static_cast<qreal>(value));
+
+    value = settings->value("graphics/dBmDistScaleMax", 100).toInt();
+    if ((value < -100) || (value > 200)) value = 100;
+    setdBmDistScaleMax(static_cast<qreal>(value));
+
+    value = settings->value("graphics/sMeterHoldTime", 2000).toInt();
+    if ((value < 0) || (value > 10000)) value = 2000;
+    setSMeterHoldTime(value);
+
+    // Color loading
+    TPanadapterColors colors = m_colors;
+    QColor color;
+
+    color = settings->value("colors/panBackground", QColor(102, 69, 8)).value<QColor>();
+    if (color.isValid()) colors.panBackgroundColor = color;
+
+    color = settings->value("colors/waterfall", QColor(246, 146, 6)).value<QColor>();
+    if (color.isValid()) colors.waterfallColor = color;
+
+    color = settings->value("colors/panLine", QColor(246, 164, 76)).value<QColor>();
+    if (color.isValid()) colors.panLineColor = color;
+
+    color = settings->value("colors/panLineFilled", QColor(246, 159, 7)).value<QColor>();
+    if (color.isValid()) colors.panLineFilledColor = color;
+
+    color = settings->value("colors/panSolidTop", QColor(230, 246, 204)).value<QColor>();
+    if (color.isValid()) colors.panSolidTopColor = color;
+
+    color = settings->value("colors/panSolidBottom", QColor(102, 96, 8)).value<QColor>();
+    if (color.isValid()) colors.panSolidBottomColor = color;
+
+    color = settings->value("colors/panWideBandLine", QColor(73, 111, 7)).value<QColor>();
+    if (color.isValid()) colors.wideBandLineColor = color;
+
+    color = settings->value("colors/panWideBandFilled", QColor(137, 172, 62)).value<QColor>();
+    if (color.isValid()) colors.wideBandFilledColor = color;
+
+    color = settings->value("colors/panWideBandSolidTop", QColor(236, 38, 16)).value<QColor>();
+    if (color.isValid()) colors.wideBandSolidTopColor = color;
+
+    color = settings->value("colors/panWideBandSolidBottom", QColor(232, 134, 29)).value<QColor>();
+    if (color.isValid()) colors.wideBandSolidBottomColor = color;
+
+    color = settings->value("colors/distanceLine", QColor(246, 27, 45)).value<QColor>();
+    if (color.isValid()) colors.distanceLineColor = color;
+
+    color = settings->value("colors/distanceLineFilled", QColor(232, 29, 86)).value<QColor>();
+    if (color.isValid()) colors.distanceLineFilledColor = color;
+
+    color = settings->value("colors/panCenterLine", QColor(246, 7, 19)).value<QColor>();
+    if (color.isValid()) colors.panCenterLineColor = color;
+
+    color = settings->value("colors/gridLine", QColor(7, 96, 96)).value<QColor>();
+    if (color.isValid()) colors.gridLineColor = color;
+
+    color = settings->value("colors/panFilter", QColor(150, 150, 150, 100)).value<QColor>();
+    if (color.isValid()) colors.panFilterColor = color;
+
+    setPanadapterColors(colors);
+}
+
+void DisplayConfig::saveIni(QSettings *settings) const {
+    settings->setValue("graphics/dBmDistScaleMin",  m_dBmDistScaleMin);
+    settings->setValue("graphics/dBmDistScaleMax",  m_dBmDistScaleMax);
+    settings->setValue("graphics/sMeterHoldTime",   m_sMeterHoldTime);
+
+    settings->setValue("colors/panBackground", m_colors.panBackgroundColor);
+    settings->setValue("colors/waterfall", m_colors.waterfallColor);
+    settings->setValue("colors/panLine", m_colors.panLineColor);
+    settings->setValue("colors/panLineFilled", m_colors.panLineFilledColor);
+    settings->setValue("colors/panSolidTop", m_colors.panSolidTopColor);
+    settings->setValue("colors/panSolidBottom", m_colors.panSolidBottomColor);
+    settings->setValue("colors/panWideBandLine", m_colors.wideBandLineColor);
+    settings->setValue("colors/panWideBandFilled", m_colors.wideBandFilledColor);
+    settings->setValue("colors/panWideBandSolidTop", m_colors.wideBandSolidTopColor);
+    settings->setValue("colors/panWideBandSolidBottom", m_colors.wideBandSolidBottomColor);
+    settings->setValue("colors/distanceLine", m_colors.distanceLineColor);
+    settings->setValue("colors/distanceLineFilled", m_colors.distanceLineFilledColor);
+    settings->setValue("colors/panCenterLine", m_colors.panCenterLineColor);
+    settings->setValue("colors/gridLine", m_colors.gridLineColor);
+    settings->setValue("colors/panFilter", m_colors.panFilterColor);
 }

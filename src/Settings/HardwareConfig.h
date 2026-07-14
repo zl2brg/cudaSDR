@@ -22,6 +22,8 @@ typedef struct _hpsdrDevices {
     unsigned char  	metisFWVersion;
 } THPSDRDevices;
 
+class QSettings;
+
 class HardwareConfig : public QObject {
     Q_OBJECT
     Q_PROPERTY(int hpsdrHardware READ hpsdrHardware WRITE setHpsdrHardware NOTIFY hpsdrHardwareChanged)
@@ -57,6 +59,9 @@ public:
 
     void load(const QJsonObject &json);
     void save(QJsonObject &json) const;
+
+    void loadIni(QSettings *settings);
+    void saveIni(QSettings *settings) const;
 
 signals:
     void hpsdrHardwareChanged(int val);

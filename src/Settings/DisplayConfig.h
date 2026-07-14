@@ -24,6 +24,8 @@ typedef struct t_panadapterColors {
     QColor panFilterColor;
 } TPanadapterColors;
 
+class QSettings;
+
 class DisplayConfig : public QObject {
     Q_OBJECT
     Q_PROPERTY(int spectrumSize READ spectrumSize WRITE setSpectrumSize NOTIFY spectrumSizeChanged)
@@ -51,6 +53,9 @@ public:
 
     void load(const QJsonObject &json);
     void save(QJsonObject &json) const;
+
+    void loadIni(QSettings *settings);
+    void saveIni(QSettings *settings) const;
 
     // Helper to convert QColor to JSON string
     static QString colorToString(const QColor &color);

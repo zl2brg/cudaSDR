@@ -31,6 +31,8 @@
 #include "cusdr_settings.h"
 #include "cusdr_fonts.h"
 #include "cusdr_oglText.h"
+#include "OverlayRenderer.h"
+#include "cusdr_glDraw.h"
 #include <QEvent>
 //#include <QPixmap>
 //#include <QImage>
@@ -106,6 +108,8 @@ private:
 
     // Core-profile shader pipeline
     QOpenGLShaderProgram*		m_program = nullptr;
+    QOpenGLShaderProgram*		m_textureProgram = nullptr;
+    OverlayRenderer*			m_overlayRenderer = nullptr;
     QOpenGLVertexArrayObject	m_vao;
     QOpenGLBuffer				m_vbo{QOpenGLBuffer::VertexBuffer};
     int							m_attrPos   = -1;
@@ -192,6 +196,9 @@ private:
 	bool		m_freqScaleRenew;
 	bool		m_dBmScaleUpdate;
 	bool		m_dBmScaleRenew;
+	bool		m_dragFreqScale;
+	bool		m_dragFreqScaleZoom;
+	bool		m_dragDBmScale;
 	bool		m_panGridUpdate;
 	bool		m_panGridRenew;
 	bool		m_spectrumColorsChanged;
@@ -257,6 +264,10 @@ private:
 	void drawVerticalScale();
 	void drawHorizontalScale();
 	void drawGrid();
+	void updateFrequencyRuler();
+	void updateDBmRuler();
+	void drawCachedTexture(const QRect &rect, GLuint texId, float z);
+	QMatrix4x4 panelProjection() const;
 	void drawCrossHair();
 	void drawHamBand(int lo, int hi, const QString &band);
 	void renderVerticalScale();

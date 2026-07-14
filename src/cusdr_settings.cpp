@@ -32,44 +32,9 @@
 #include "Models/RadioModel.h"
 #include "Models/RadioTelemetry.h"
 #include "Models/SliceModel.h"
+#include "Util/settings_utils.h"
 
-namespace {
-bool agcHangEnabledForMode(AGCMode mode)
-{
-    return mode != (AGCMode)agcOFF && mode != (AGCMode)agcMED && mode != (AGCMode)agcFAST;
-}
-
-bool sampleRateToParams(int rate, int &speed, int &outputIncrement) {
-    switch (rate) {
-        case 48000:
-            speed = 0;
-            outputIncrement = 1;
-            return true;
-        case 96000:
-            speed = 1;
-            outputIncrement = 2;
-            return true;
-        case 192000:
-            speed = 2;
-            outputIncrement = 4;
-            return true;
-        case 384000:
-            speed = 3;
-            outputIncrement = 8;
-            return true;
-        case 768000:
-            speed = 4;
-            outputIncrement = 16;
-            return true;
-        case 1536000:
-            speed = 5;
-            outputIncrement = 32;
-            return true;
-        default:
-            return false;
-    }
-}
-}
+using namespace SettingsUtils;
 
 Settings *Settings::m_instance = nullptr;        /*!< set m_instance to NULL. */
 
@@ -89,6 +54,10 @@ Settings::Settings(QObject *parent)
     m_hardwareConfig = new HardwareConfig(this);
     m_audioConfig = new AudioConfig(this);
     m_cwConfig = new CWConfig(this);
+
+    connect(m_displayConfig, &DisplayConfig::spectrumSizeChanged, this, &Settings::spectrumSizeChanged);
+    connect(m_displayConfig, &DisplayConfig::sMeterHoldTimeChanged, this, &Settings::sMeterHoldTimeChanged);
+
 
     for (int i = 0; i < MAX_RECEIVERS; ++i) {
         m_receiverConfigs.append(new ReceiverConfig(i, this));
@@ -249,54 +218,23 @@ int Settings::loadSettings() {
 
     // Window settings
     value = settings->value("window/minimumWidgetWidth", 300).toInt();
-    if (value < 235 || value > 350) m_minimumWidgetWidth = 300;
-    else m_minimumWidgetWidth = value;
+    m_minimumWidgetWidth = clampMinimumWidgetWidth(value);
 
     value = settings->value("window/minimumGroupBoxWidth", 250).toInt();
-    if (value < 230 || value > 295 || value > m_minimumWidgetWidth - 5) m_minimumGroupBoxWidth = 250;
-    else m_minimumGroupBoxWidth = value;
+    m_minimumGroupBoxWidth = clampMinimumGroupBoxWidth(value, m_minimumWidgetWidth);
 
     value = settings->value("window/multiRxView", 0).toInt();
-    if (value < 0 || value > 2) m_multiRxView = 0;
-    m_multiRxView = value;
+    m_multiRxView = clampMultiRxView(value);
 
 
     // network settings
-    str = settings->value("network/server_ipAddress", "127.0.0.1").toString();
-    while (str.startsWith('\"')) str = str.right(str.length() - 1).trimmed();
-    while (str.endsWith('\"')) str = str.left(str.length() - 1).trimmed();
-    m_networkConfig->setServerAddress(str);
+    m_networkConfig->loadIni(settings);
     m_serverAddress = m_networkConfig->serverAddress();
-
-    str = settings->value("network/hpsdr_local_ipAddress", "127.0.0.1").toString();
-    while (str.startsWith('\"')) str = str.right(str.length() - 1).trimmed();
-    while (str.endsWith('\"')) str = str.left(str.length() - 1).trimmed();
-    m_networkConfig->setLocalAddress(str);
     m_hpsdrDeviceLocalAddr = m_networkConfig->localAddress();
-
-    value = settings->value("network/server_port", 52685).toInt();
-    if (value < 0 || value > 65535) value = 52685;
-    m_networkConfig->setServerPort(static_cast<quint16>(value));
     m_serverPort = m_networkConfig->serverPort();
-
-    value = settings->value("network/listen_port", 11000).toInt();
-    if (value < 0 || value > 65535) value = 11000;
-    m_networkConfig->setListenPort(static_cast<quint16>(value));
     m_listenerPort = m_networkConfig->listenPort();
-
-    value = settings->value("network/audio_port", 15000).toInt();
-    if (value < 0 || value > 65535) value = 15000;
-    m_networkConfig->setAudioPort(static_cast<quint16>(value));
     m_audioPort = m_networkConfig->audioPort();
-
-    value = settings->value("network/metis_port", 1024).toInt();
-    if (value < 0 || value > 65535) value = 1024;
-    m_networkConfig->setMetisPort(static_cast<quint16>(value));
     m_metisPort = m_networkConfig->metisPort();
-
-    value = settings->value("network/socketBufferSize", 32).toInt();
-    if (value != 16 && value != 32 && value != 64 && value != 128 && value != 256) value = 32;
-    m_networkConfig->setSocketBufferSize(value);
     m_socketBufferSize = m_networkConfig->socketBufferSize();
 
     m_tciServerEnabled = settings->value("network/tci_enabled", true).toBool();
@@ -399,120 +337,14 @@ int Settings::loadSettings() {
     else
         m_mercuryRandom = 0;
 
-    str = settings->value("server/10mhzsource", "mercury").toString();
-    if (str == "atlas")
-        value = 0;
-    else if (str == "penelope")
-        value = 1;
-    else if (str == "mercury")
-        value = 2;
-    else if (str == "none")
-        value = 3;
-    else
-        value = 2;
-    m_hardwareConfig->setSource10Mhz(value);
-    m_10MHzSource = m_hardwareConfig->source10Mhz();
+    m_hardwareConfig->loadIni(settings);
 
-    str = settings->value("server/122_88mhzsource", "mercury").toString();
-    if (str == "penelope")
-        value = 0;
-    else
-        value = 1;
-    m_hardwareConfig->setSource122_88Mhz(value);
-    m_122_8MHzSource = m_hardwareConfig->source122_88Mhz();
-
-    str = settings->value("server/mic_source", "penelope").toString();
-    if (str == "janus")
-        value = 0;
-    else
-        value = 1;
-    m_audioConfig->setMicSource(value);
-    m_micSource = m_audioConfig->micSource();
-
-    m_audioConfig->setMicInputDev(settings->value("mic_InputDevice",0).toInt());
-    m_micInputDev = m_audioConfig->micInputDev();
-
-    m_audioConfig->setDigitalAudioInputDev(settings->value("digital_audio_InputDevice",0).toInt());
-    m_digitalAudioInputDev = m_audioConfig->digitalAudioInputDev();
-
-    m_audioConfig->setMicInputSourceName(settings->value("mic_input_source",
-                                           (m_micInputDev > 0) ? QString("default") : QString()).toString());
-    m_micInputSourceName = m_audioConfig->micInputSourceName();
-
-    m_audioConfig->setDigitalInputSourceName(settings->value("digital_input_source",
-                                               (m_digitalAudioInputDev > 0) ? QString("default") : QString("none")).toString());
-    m_digitalInputSourceName = m_audioConfig->digitalInputSourceName();
-
-    if (m_micInputSourceName.isEmpty()) {
-        // Legacy configs only stored an index; prefer a working host mic path.
-        m_audioConfig->setMicInputSourceName("default");
-        m_micInputSourceName = m_audioConfig->micInputSourceName();
-        m_audioConfig->setMicInputDev(1);
-        m_micInputDev = m_audioConfig->micInputDev();
-    }
-
-    if (m_digitalInputSourceName.isEmpty()) {
-        m_audioConfig->setDigitalInputSourceName((m_digitalAudioInputDev > 0) ? QString("default") : QString("none"));
-        m_digitalInputSourceName = m_audioConfig->digitalInputSourceName();
-    }
-    m_audioConfig->setMicGain(settings->value("micGain", 0).toDouble());
-    m_micGain = m_audioConfig->micGain();
-
-    m_audioConfig->setDriveLevel(settings->value("driveLevel",0).toInt());
-    m_drivelevel = m_audioConfig->driveLevel();
+    m_audioConfig->loadIni(settings);
 
     m_repeaterOffset =  settings->value("repeater_offset",0).toDouble();
     m_txFullDuplex = settings->value("radio/txFullDuplex", true).toBool();
-    m_audioConfig->setFmPreemphasis(settings->value("fm_preemphesize",0).toInt());
-    m_fmPremphasize = m_audioConfig->fmPreemphasis();
 
-    m_audioConfig->setAmCarrierLevel(settings->value("am_carrierlevel",0.5).toDouble());
-    m_amCarrierLevel = m_audioConfig->amCarrierLevel();
-
-    m_audioConfig->setAudioCompression(settings->value("audiocompression",0).toInt());
-    m_audioCompression = m_audioConfig->audioCompression();
-
-    m_audioConfig->setFmDeviation(settings->value("fmdeveation",5000).toDouble());
-    m_fmDeveation = m_audioConfig->fmDeviation();
-
-    str = settings->value("cw/internal", "off").toString();
-    qDebug() << "internal" << str;
-    m_cwConfig->setInternalCw(str.toLower() == "on" ? 1 : 0);
-    m_internal_cw = m_cwConfig->internalCw();
-
-    str = settings->value("cw/key_reversed", "off").toString();
-    m_cwConfig->setKeyReversed(str.toLower() == "on" ? 1 : 0);
-    m_cw_key_reversed = m_cwConfig->keyReversed();
-
-    str = settings->value("cw/key_spacing", "off").toString();
-    m_cwConfig->setKeyerSpacing(str.toLower() == "on" ? 1 : 0);
-    m_cw_keyer_spacing = m_cwConfig->keyerSpacing();
-
-    m_cwConfig->setKeyerSpeed(settings->value("cw/keyer_speed",12).toInt());
-    m_cw_keyer_speed = m_cwConfig->keyerSpeed();
-
-    m_cwConfig->setKeyerMode(settings->value("cw/keyer_mode",0).toInt());
-    m_cw_keyer_mode = m_cwConfig->keyerMode();
-
-    m_cwConfig->setSidetoneVolume(settings->value("cw/sidetone_volume",64).toInt());
-    m_cw_sidetone_volume = m_cwConfig->sidetoneVolume();
-
-    m_cwConfig->setSidetoneFreq(settings->value("cw/sidetone_freq",1000).toInt());
-    m_cw_sidetone_freq = m_cwConfig->sidetoneFreq();
-
-    m_cwConfig->setPttDelay(settings->value("cw/ptt_delay",32).toInt());
-    m_cw_ptt_delay = m_cwConfig->pttDelay();
-
-    m_cwConfig->setHangTime(settings->value("cw/hang_time",32).toInt());
-    m_cw_hang_time = m_cwConfig->hangTime();
-
-    m_cwConfig->setKeyerWeight(settings->value("cw/keyer_weight",20).toInt());
-    m_cw_keyer_weight = m_cwConfig->keyerWeight();
-
-
-
-    m_spectrumSize = 0;
-
+    m_cwConfig->loadIni(settings);
 
     str = settings->value("server/class", 0).toString();
     m_RxClass = (str.toLower() == "E");
@@ -525,11 +357,7 @@ int Settings::loadSettings() {
     if (value < 0 || value > 1) value = 0;
     m_RxTiming = value;
 
-    value = settings->value("server/mainVolume", 10).toInt();
-    if (value < 0) value = 0;
-    if (value > 100) value = 100;
-    m_audioConfig->setMainVolume(value / 100.0f);
-    m_mainVolume = m_audioConfig->mainVolume();
+
 
     str = settings->value("server/mode", "sdr").toString();
     if (str == "sdr") {
@@ -870,29 +698,15 @@ int Settings::loadSettings() {
 
     for (int i = 0; i < MAX_RECEIVERS; i++) {
 
-        QString cstr = m_rxStringList.at(i);
-        cstr.append("/dspCore");
-
-        str = settings->value(cstr, "qtdsp").toString();
-        if (str == "qtdsp") {
-            m_receiverConfigs[i]->setDspCore(QSDR::QtDSP);
-        }
+        m_receiverConfigs[i]->loadIni(settings);
         m_receiverDataList[i].dspCore = m_receiverConfigs[i]->dspCore();
         if (m_receiverDataList[i].dspCore == QSDR::QtDSP) {
             setSpectrumSize(4096);
         }
-
-        cstr = m_rxStringList.at(i);
-        cstr.append("/centerFrequency");
-        m_receiverConfigs[i]->setCtrFrequency(static_cast<qint64>(settings->value(cstr, 7050000.0).toDouble()));
         m_receiverDataList[i].ctrFrequency = m_receiverConfigs[i]->ctrFrequency();
-
-        cstr = m_rxStringList.at(i);
-        cstr.append("/vfoFrequency");
-        m_receiverConfigs[i]->setVfoFrequency(static_cast<qint64>(settings->value(cstr, 7050000.0).toDouble()));
         m_receiverDataList[i].vfoFrequency = m_receiverConfigs[i]->vfoFrequency();
 
-        cstr = m_rxStringList.at(i);
+        QString cstr = m_rxStringList.at(i);
         cstr.append("/nr");
         m_receiverDataList[i].nr = settings->value(cstr, 0).toInt();
         cstr = m_rxStringList.at(i);
@@ -1541,91 +1355,8 @@ int Settings::loadSettings() {
     }
 
      //******************************************************************
-    // graphics settings
-
-    value = settings->value("graphics/dBmDistScaleMin", -20).toInt();
-    if ((value < -200) || (value > 0)) value = -20;
-    m_displayConfig->setdBmDistScaleMin((qreal) (1.0 * value));
-    m_dBmDistScaleMin = m_displayConfig->dBmDistScaleMin();
-
-    value = settings->value("graphics/dBmDistScaleMax", 100).toInt();
-    if ((value < -100) || (value > 200)) value = 100;
-    m_displayConfig->setdBmDistScaleMax((qreal) (1.0 * value));
-    m_dBmDistScaleMax = m_displayConfig->dBmDistScaleMax();
-
-    value = settings->value("graphics/sMeterHoldTime", 2000).toInt();
-    if ((value < 0) || (value > 10000)) value = 2000;
-    m_displayConfig->setSMeterHoldTime(value);
-    m_sMeterHoldTime = m_displayConfig->sMeterHoldTime();
-
-
-    //******************************************************************
-    // color settings
-    QColor color;
-    TPanadapterColors colors = m_displayConfig->panadapterColors();
-
-    color = settings->value("colors/panBackground", QColor(102, 69, 8)).value<QColor>();
-    if (!color.isValid()) color = QColor(102, 69, 8);
-    colors.panBackgroundColor = color;
-
-    color = settings->value("colors/waterfall", QColor(246, 146, 6)).value<QColor>();
-    if (!color.isValid()) color = QColor(246, 146, 6);
-    colors.waterfallColor = color;
-
-    color = settings->value("colors/panLine", QColor(246, 164, 76)).value<QColor>();
-    if (!color.isValid()) color = QColor(246, 164, 76);
-    colors.panLineColor = color;
-
-    color = settings->value("colors/panLineFilled", QColor(246, 159, 7)).value<QColor>();
-    if (!color.isValid()) color = QColor(246, 159, 7);
-    colors.panLineFilledColor = color;
-
-    color = settings->value("colors/panSolidTop", QColor(230, 246, 204)).value<QColor>();
-    if (!color.isValid()) color = QColor(230, 246, 204);
-    colors.panSolidTopColor = color;
-
-    color = settings->value("colors/panSolidBottom", QColor(102, 96, 8)).value<QColor>();
-    if (!color.isValid()) color = QColor(102, 96, 8);
-    colors.panSolidBottomColor = color;
-
-    color = settings->value("colors/panWideBandLine", QColor(73, 111, 7)).value<QColor>();
-    if (!color.isValid()) color = QColor(73, 111, 7);
-    colors.wideBandLineColor = color;
-
-    color = settings->value("colors/panWideBandFilled", QColor(137, 172, 62)).value<QColor>();
-    if (!color.isValid()) color = QColor(137, 172, 62);
-    colors.wideBandFilledColor = color;
-
-    color = settings->value("colors/panWideBandSolidTop", QColor(236, 38, 16)).value<QColor>();
-    if (!color.isValid()) color = QColor(236, 38, 16);
-    colors.wideBandSolidTopColor = color;
-
-    color = settings->value("colors/panWideBandSolidBottom", QColor(232, 134, 29)).value<QColor>();
-    if (!color.isValid()) color = QColor(232, 134, 29);
-    colors.wideBandSolidBottomColor = color;
-
-    color = settings->value("colors/distanceLine", QColor(246, 27, 45)).value<QColor>();
-    if (!color.isValid()) color = QColor(246, 27, 45);
-    colors.distanceLineColor = color;
-
-    color = settings->value("colors/distanceLineFilled", QColor(232, 29, 86)).value<QColor>();
-    if (!color.isValid()) color = QColor(232, 29, 86);
-    colors.distanceLineFilledColor = color;
-
-    color = settings->value("colors/panCenterLine", QColor(246, 7, 19)).value<QColor>();
-    if (!color.isValid()) color = QColor(246, 7, 19);
-    colors.panCenterLineColor = color;
-
-    color = settings->value("colors/gridLine", QColor(7, 96, 96)).value<QColor>();
-    if (!color.isValid()) color = QColor(7, 96, 96);
-    colors.gridLineColor = color;
-
-    color = settings->value("colors/panFilter", QColor(150, 150, 150, 100)).value<QColor>();
-    if (!color.isValid()) color = QColor(150, 150, 150, 100);
-    colors.panFilterColor = color;
-
-    m_displayConfig->setPanadapterColors(colors);
-    m_panadapterColors = m_displayConfig->panadapterColors();
+    // graphics and color settings
+    m_displayConfig->loadIni(settings);
 
 
     SETTINGS_DEBUG << "reading done.";
@@ -1658,13 +1389,7 @@ int Settings::saveSettings() {
     m_networkConfig->setMetisPort(m_metisPort);
     m_networkConfig->setSocketBufferSize(m_socketBufferSize);
 
-    settings->setValue("network/server_ipAddress", m_networkConfig->serverAddress());
-    settings->setValue("network/hpsdr_local_ipAddress", m_networkConfig->localAddress());
-    settings->setValue("network/server_port", m_networkConfig->serverPort());
-    settings->setValue("network/listen_port", m_networkConfig->listenPort());
-    settings->setValue("network/audio_port", m_networkConfig->audioPort());
-    settings->setValue("network/metis_port", m_networkConfig->metisPort());
-    settings->setValue("network/socketBufferSize", m_networkConfig->socketBufferSize());
+    m_networkConfig->saveIni(settings);
     settings->setValue("network/tci_enabled", m_tciServerEnabled);
     settings->setValue("network/lastDeviceClass", static_cast<int>(m_lastConnectedDevice.deviceClass));
     settings->setValue("network/lastDeviceType", m_lastConnectedDevice.deviceType);
@@ -1810,55 +1535,9 @@ int Settings::saveSettings() {
     else
         settings->setValue("server/random", "off");
 
-    m_hardwareConfig->setSource10Mhz(m_10MHzSource);
-    m_hardwareConfig->setSource122_88Mhz(m_122_8MHzSource);
+    m_hardwareConfig->saveIni(settings);
 
-    if (m_hardwareConfig->source10Mhz() == 0)
-        settings->setValue("server/10mhzsource", "atlas");
-    else if (m_hardwareConfig->source10Mhz() == 1)
-        settings->setValue("server/10mhzsource", "penelope");
-    else if (m_hardwareConfig->source10Mhz() == 2)
-        settings->setValue("server/10mhzsource", "mercury");
-    else if (m_hardwareConfig->source10Mhz() == 3)
-        settings->setValue("server/10mhzsource", "none");
-    else
-        settings->setValue("server/10mhzsource", "mercury");
-
-    if (m_hardwareConfig->source122_88Mhz() == 0)
-        settings->setValue("server/122_88mhzsource", "penelope");
-    else if (m_hardwareConfig->source122_88Mhz() == 1)
-        settings->setValue("server/122_88mhzsource", "mercury");
-
-    // audio settings
-    m_audioConfig->setMicSource(m_micSource);
-    m_audioConfig->setMicInputDev(m_micInputDev);
-    m_audioConfig->setMicInputSourceName(m_micInputSourceName);
-    m_audioConfig->setDigitalAudioInputDev(m_digitalAudioInputDev);
-    m_audioConfig->setDigitalInputSourceName(m_digitalInputSourceName);
-    m_audioConfig->setMicGain(m_micGain);
-    m_audioConfig->setDriveLevel(m_drivelevel);
-    m_audioConfig->setFmPreemphasis(m_fmPremphasize);
-    m_audioConfig->setAmCarrierLevel(m_amCarrierLevel);
-    m_audioConfig->setAudioCompression(m_audioCompression);
-    m_audioConfig->setFmDeviation(m_fmDeveation);
-    m_audioConfig->setMainVolume(m_mainVolume);
-
-    if (m_audioConfig->micSource() == 0)
-        settings->setValue("server/mic_source", "janus");
-    else if (m_audioConfig->micSource() == 1)
-        settings->setValue("server/mic_source", "penelope");
-
-    settings->setValue("mic_InputDevice", m_audioConfig->micInputDev());
-    settings->setValue("mic_input_source", m_audioConfig->micInputSourceName());
-    settings->setValue("digital_audio_InputDevice", m_audioConfig->digitalAudioInputDev());
-    settings->setValue("digital_input_source", m_audioConfig->digitalInputSourceName());
-    settings->setValue("micGain", m_audioConfig->micGain());
-    settings->setValue("driveLevel", m_audioConfig->driveLevel());
-    settings->setValue("fm_preemphesize", m_audioConfig->fmPreemphasis());
-    settings->setValue("am_carrierlevel", m_audioConfig->amCarrierLevel());
-    settings->setValue("audiocompression", m_audioConfig->audioCompression());
-    settings->setValue("fmdeveation", m_audioConfig->fmDeviation());
-    settings->setValue("server/mainVolume", (int) (m_audioConfig->mainVolume() * 100));
+    m_audioConfig->saveIni(settings);
 
 
     settings->setValue("server/class", m_RxClass);
@@ -1866,39 +1545,9 @@ int Settings::saveSettings() {
 
     settings->setValue("repeater_offset",m_repeaterOffset);
     settings->setValue("radio/txFullDuplex", m_txFullDuplex);
-    settings->setValue("fm_preemphesize",m_fmPremphasize);
-    settings->setValue("am_carrierlevel",m_amCarrierLevel);
-    settings->setValue("audiocompression",m_audioCompression);
-    settings->setValue("fmdeveation",m_fmDeveation);
     // CW settings
-    m_cwConfig->setInternalCw(m_internal_cw);
-    m_cwConfig->setKeyReversed(m_cw_key_reversed);
-    m_cwConfig->setKeyerSpacing(m_cw_keyer_spacing);
-    m_cwConfig->setKeyerSpeed(m_cw_keyer_speed);
-    m_cwConfig->setKeyerMode(m_cw_keyer_mode);
-    m_cwConfig->setSidetoneVolume(m_cw_sidetone_volume);
-    m_cwConfig->setSidetoneFreq(m_cw_sidetone_freq);
-    m_cwConfig->setHangTime(m_cw_hang_time);
-    m_cwConfig->setPttDelay(m_cw_ptt_delay);
-    m_cwConfig->setKeyerWeight(m_cw_keyer_weight);
 
-    if (m_cwConfig->internalCw())
-        settings->setValue("cw/internal", "on");
-    else settings->setValue("cw/internal", "off");
-    if (m_cwConfig->keyReversed())
-        settings->setValue("cw/key_reversed","on");
-    else settings->setValue("cw/key_reversed","off");
-    if (m_cwConfig->keyerSpacing())
-        settings->setValue("cw/key_spacing","on");
-    else settings->setValue("cw/key_spacing","off");
-
-    settings->setValue("cw/keyer_speed", m_cwConfig->keyerSpeed());
-    settings->setValue("cw/keyer_mode", m_cwConfig->keyerMode());
-    settings->setValue("cw/sidetone_volume", m_cwConfig->sidetoneVolume());
-    settings->setValue("cw/sidetone_freq", m_cwConfig->sidetoneFreq());
-    settings->setValue("cw/hang_time", m_cwConfig->hangTime());
-    settings->setValue("cw/ptt_delay", m_cwConfig->pttDelay());
-    settings->setValue("cw/keyer_weight", m_cwConfig->keyerWeight());
+    m_cwConfig->saveIni(settings);
 
 
 
@@ -2136,11 +1785,7 @@ int Settings::saveSettings() {
     for (int i = 0; i < MAX_RECEIVERS; i++) {
 
 
-        QString str = m_rxStringList.at(i);
-        str.append("/dspCore");
 
-        if (m_receiverDataList[i].dspCore == QSDR::QtDSP)
-            settings->setValue(str, "qtdsp");
 
         str = m_rxStringList.at(i);
         str.append("/nr_agc");
@@ -2368,16 +2013,10 @@ int Settings::saveSettings() {
             settings->setValue(str,  m_receiverDataList[i].lastVfoFrequencyList.at(j));
         }
 
+        m_receiverConfigs[i]->setDspCore(m_receiverDataList[i].dspCore);
         m_receiverConfigs[i]->setCtrFrequency(m_receiverDataList[i].ctrFrequency);
         m_receiverConfigs[i]->setVfoFrequency(m_receiverDataList[i].vfoFrequency);
-
-        str = m_rxStringList.at(i);
-        str.append("/centerFrequency");
-        settings->setValue(str,  m_receiverConfigs[i]->ctrFrequency());
-
-        str = m_rxStringList.at(i);
-        str.append("/vfoFrequency");
-        settings->setValue(str,  m_receiverConfigs[i]->vfoFrequency());
+        m_receiverConfigs[i]->saveIni(settings);
 
         str = m_rxStringList.at(i);
         str.append("/digitalVoiceEngine");
@@ -2456,48 +2095,20 @@ int Settings::saveSettings() {
     else
         settings->setValue("graphics/grid", "off");*/
 
-    m_displayConfig->setdBmDistScaleMin(m_dBmDistScaleMin);
-    m_displayConfig->setdBmDistScaleMax(m_dBmDistScaleMax);
-
-    settings->setValue("graphics/dBmDistScaleMin",  m_displayConfig->dBmDistScaleMin());
-    settings->setValue("graphics/dBmDistScaleMax",  m_displayConfig->dBmDistScaleMax());
-
-    /*if (m_waterfallColorScheme == QSDRGraphics::simple)
-        settings->setValue("graphics/waterfall", "simple");
-    else
-    if (m_waterfallColorScheme == QSDRGraphics::enhanced)
-        settings->setValue("graphics/waterfall", "enhanced");
-    else
-    if (m_waterfallColorScheme == QSDRGraphics::spectran)
-        settings->setValue("graphics/waterfall", "spectran");*/
-
-    m_displayConfig->setSMeterHoldTime(m_sMeterHoldTime);
-    m_displayConfig->setPanadapterColors(m_panadapterColors);
-
-    settings->setValue("graphics/sMeterHoldTime", m_displayConfig->sMeterHoldTime());
-
-
-    // Colors
-    TPanadapterColors colors = m_displayConfig->panadapterColors();
-    settings->setValue("colors/panBackground", QVariant(colors.panBackgroundColor).toString());
-    settings->setValue("colors/waterfall", QVariant(colors.waterfallColor).toString());
-    settings->setValue("colors/panLine", QVariant(colors.panLineColor).toString());
-    settings->setValue("colors/panLineFilled", QVariant(colors.panLineFilledColor).toString());
-    settings->setValue("colors/panSolidTop", QVariant(colors.panSolidTopColor).toString());
-    settings->setValue("colors/panSolidBottom", QVariant(colors.panSolidBottomColor).toString());
-    settings->setValue("colors/panWideBandLine", QVariant(colors.wideBandLineColor).toString());
-    settings->setValue("colors/panWideBandFilled", QVariant(colors.wideBandFilledColor).toString());
-    settings->setValue("colors/panWideBandSolidTop", QVariant(colors.wideBandSolidTopColor).toString());
-    settings->setValue("colors/panWideBandSolidBottom",
-                       QVariant(colors.wideBandSolidBottomColor).toString());
-    settings->setValue("colors/distanceLine", QVariant(colors.distanceLineColor).toString());
-    settings->setValue("colors/distanceLineFilled", QVariant(colors.distanceLineFilledColor).toString());
-    settings->setValue("colors/panCenterLine", QVariant(colors.panCenterLineColor).toString());
-    settings->setValue("colors/gridLine", QVariant(colors.gridLineColor).toString());
-    settings->setValue("colors/panFilter", QVariant(colors.panFilterColor).toString());
+    m_displayConfig->saveIni(settings);
 
     SETTINGS_DEBUG << "save settings done.";
     return 0;
+}
+
+void Settings::reopenSettingsStorage(const QString &absoluteIniPath)
+{
+    if (settings) {
+        delete settings;
+        settings = nullptr;
+    }
+    settingsFilename = QFileInfo(absoluteIniPath).fileName();
+    settings = new QSettings(absoluteIniPath, QSettings::IniFormat);
 }
 
 //void Settings::setMainWindowsState() {
@@ -3884,71 +3495,46 @@ void Settings::setRandom(int value) {
 }
 
 void Settings::set10MhzSource(int source) {
-
-    QMutexLocker locker(&settingsMutex);
-
-    m_10MHzSource = source;
+    m_hardwareConfig->setSource10Mhz(source);
     emit src10MhzChanged(source);
 }
 
 void Settings::set122_88MhzSource(int source) {
-
-    QMutexLocker locker(&settingsMutex);
-
-    m_122_8MHzSource = source;
+    m_hardwareConfig->setSource122_88Mhz(source);
     emit src122_88MhzChanged(source);
 }
 
 void Settings::setMicSource(int source) {
-
-    QMutexLocker locker(&settingsMutex);
-
-    m_micSource = source;
+    m_audioConfig->setMicSource(source);
     emit micSourceChanged(source);
 }
 
 void Settings::setMicInputDev(int index) {
-
-    QMutexLocker locker(&settingsMutex);
-
-    m_micInputDev = index;
+    m_audioConfig->setMicInputDev(index);
     emit micInputChanged(index);
 }
 
 void Settings::setMicInputSourceName(const QString &name) {
-
-	QMutexLocker locker(&settingsMutex);
-	m_micInputSourceName = name;
+    m_audioConfig->setMicInputSourceName(name);
 }
 
 void Settings::setDigitalInputSourceName(const QString &name) {
-
-    QMutexLocker locker(&settingsMutex);
-    m_digitalInputSourceName = name;
+    m_audioConfig->setDigitalInputSourceName(name);
 }
 
 void Settings::setDigitalAudioInputDev(int index) {
-
-    QMutexLocker locker(&settingsMutex);
-
-    m_digitalAudioInputDev = index;
+    m_audioConfig->setDigitalAudioInputDev(index);
     emit digitalAudioInputChanged(index);
 }
 
 void Settings::setMicInputLevel(int level) {
-
-    QMutexLocker locker(&settingsMutex);
-
-    m_micGain = level;
+    m_audioConfig->setMicGain(level);
     emit micInputLevelChanged(level);
 }
 
 void Settings::setDriveLevel(int level) {
-
-    QMutexLocker locker(&settingsMutex);
-
-    m_drivelevel = level;
-    emit driveLevelChanged(level);
+    m_audioConfig->setDriveLevel(level);
+    emit driveLevelChanged(clampDriveLevel(level));
 }
 
 
@@ -4980,11 +4566,7 @@ void Settings::setWideBandRulerPosition(float position) {
 
 
 void Settings::setSpectrumSize(int value) {
-
-    if (m_spectrumSize == value) return;
-
-    m_spectrumSize = value;
-    emit spectrumSizeChanged(m_spectrumSize);
+    m_displayConfig->setSpectrumSize(value);
 }
 
 void Settings::setSpectrumBuffer(int rx, const qVectorFloat& buffer)
@@ -5007,61 +4589,14 @@ void Settings::moveDisplayWidget(int value) {
 TPanadapterColors Settings::getPanadapterColors() {
     if (m_radioModel)
         return m_radioModel->panadapterColors();
-    return m_panadapterColors;
+    return m_displayConfig->panadapterColors();
 }
 
 void Settings::setPanadapterColors(TPanadapterColors type) {
+    m_displayConfig->setPanadapterColors(type);
     if (m_radioModel) {
-        m_panadapterColors = type;
         m_radioModel->setPanadapterColors(type);
-        return;
     }
-
-    if (type.panBackgroundColor != m_panadapterColors.panBackgroundColor)
-        m_panadapterColors.panBackgroundColor = type.panBackgroundColor;
-
-    if (type.waterfallColor != m_panadapterColors.waterfallColor)
-        m_panadapterColors.waterfallColor = type.waterfallColor;
-
-    if (type.panLineColor != m_panadapterColors.panLineColor)
-        m_panadapterColors.panLineColor = type.panLineColor;
-
-    if (type.panLineFilledColor != m_panadapterColors.panLineFilledColor)
-        m_panadapterColors.panLineFilledColor = type.panLineFilledColor;
-
-    if (type.panSolidTopColor != m_panadapterColors.panSolidTopColor)
-        m_panadapterColors.panSolidTopColor = type.panSolidTopColor;
-
-    if (type.panSolidBottomColor != m_panadapterColors.panSolidBottomColor)
-        m_panadapterColors.panSolidBottomColor = type.panSolidBottomColor;
-
-    if (type.wideBandLineColor != m_panadapterColors.wideBandLineColor)
-        m_panadapterColors.wideBandLineColor = type.wideBandLineColor;
-
-    if (type.wideBandFilledColor != m_panadapterColors.wideBandFilledColor)
-        m_panadapterColors.wideBandFilledColor = type.wideBandFilledColor;
-
-    if (type.wideBandSolidTopColor != m_panadapterColors.wideBandSolidTopColor)
-        m_panadapterColors.wideBandSolidTopColor = type.wideBandSolidTopColor;
-
-    if (type.wideBandSolidBottomColor != m_panadapterColors.wideBandSolidBottomColor)
-        m_panadapterColors.wideBandSolidBottomColor = type.wideBandSolidBottomColor;
-
-    if (type.distanceLineColor != m_panadapterColors.distanceLineColor)
-        m_panadapterColors.distanceLineColor = type.distanceLineColor;
-
-    if (type.distanceLineFilledColor != m_panadapterColors.distanceLineFilledColor)
-        m_panadapterColors.distanceLineFilledColor = type.distanceLineFilledColor;
-
-    if (type.panCenterLineColor != m_panadapterColors.panCenterLineColor)
-        m_panadapterColors.panCenterLineColor = type.panCenterLineColor;
-
-    if (type.gridLineColor != m_panadapterColors.gridLineColor)
-        m_panadapterColors.gridLineColor = type.gridLineColor;
-
-    if (type.panFilterColor != m_panadapterColors.panFilterColor)
-        m_panadapterColors.panFilterColor = type.panFilterColor;
-
     emit panadapterColorChanged();
 }
 
@@ -5244,13 +4779,7 @@ void Settings::setWaterfallOffesetHi(int rx, int value) {
 
 void Settings::setSMeterHoldTime(int value) {
     if (m_radioModel) { for (auto slice : m_radioModel->slices()) if (slice) slice->setSMeterHoldTime(value); }
-
-    QMutexLocker locker(&settingsMutex);
-
-    if (m_sMeterHoldTime == value) return;
-    m_sMeterHoldTime = value;
-
-    emit sMeterHoldTimeChanged(m_sMeterHoldTime);
+    m_displayConfig->setSMeterHoldTime(value);
 }
 
 void Settings::setdBmPanScaleMin(int rx, qreal value) {
@@ -5276,13 +4805,11 @@ void Settings::setdBmPanScaleMax(int rx, qreal value) {
 }
 
 void Settings::setdBmDistScaleMin(qreal value) {
-
-    Q_UNUSED(value)
+    m_displayConfig->setdBmDistScaleMin(value);
 }
 
 void Settings::setdBmDistScaleMax(qreal value) {
-
-    Q_UNUSED(value)
+    m_displayConfig->setdBmDistScaleMax(value);
 }
 
 // **********************************************************************
@@ -5574,138 +5101,81 @@ m_repeaterOffset = (double)offset;
 
 void Settings::setFMPreEmphasize(int value)
 {
-
-    m_fmPremphasize=(double)value;
+    m_audioConfig->setFmPreemphasis(value);
     emit fmPremphasizechanged(value);
-
 }
 
 void Settings::setFmDeveation(int value)
 {
-    m_fmDeveation = (double)value;
+    m_audioConfig->setFmDeviation(value);
     emit fmdeveationchanged(value);
 }
 
 void Settings::setAMCarrierLevel(int level)
 {
     qDebug() << "set Am carrier level" << level;
-    m_amCarrierLevel = (double) level;
- emit amCarrierlevelchanged(level);
+    m_audioConfig->setAmCarrierLevel(level);
+    emit amCarrierlevelchanged(level);
 }
 
 void Settings::setAudioCompression(int level){
-
-m_audioCompression = level;
-emit audioCompressionchanged(level);
-}
-
-bool Settings::isInternalCw() const {
-    return (m_internal_cw > 0);
+    m_audioConfig->setAudioCompression(level);
+    emit audioCompressionchanged(level);
 }
 
 void Settings::setInternalCw(int InternalCw) {
-     m_internal_cw = InternalCw;
-     emit(InternalCwChanged (InternalCw));
-}
-
-int Settings::getCwKeyerSpeed() const {
-    return m_cw_keyer_speed;
-
-}
-
-int Settings::getCwKeyerMode() const {
-    return m_cw_keyer_mode;
+    m_cwConfig->setInternalCw(InternalCw);
+    emit(InternalCwChanged(InternalCw));
 }
 
 void Settings::setCwKeyerMode(int mCwKeyerMode) {
-    m_cw_keyer_mode = mCwKeyerMode;
-    emit(CwKeyerModeChanged(m_cw_keyer_mode));
-}
-
-int  Settings::isCwKeyReversed() const {
-      return m_cw_key_reversed;
+    m_cwConfig->setKeyerMode(mCwKeyerMode);
+    emit(CwKeyerModeChanged(mCwKeyerMode));
 }
 
 void Settings::setCwKeyReversed(int mCwKeyReversed) {
-    m_cw_key_reversed = mCwKeyReversed;
+    m_cwConfig->setKeyReversed(mCwKeyReversed);
     emit(CwKeyReversedChanged(mCwKeyReversed));
 }
 
-
 void Settings::setCwKeyerSpeed(int mCwKeyerSpeed) {
-    m_cw_keyer_speed = mCwKeyerSpeed;
+    m_cwConfig->setKeyerSpeed(mCwKeyerSpeed);
     emit(CwKeyerSpeedChanged(mCwKeyerSpeed));
 }
 
-int Settings::getCwSidetoneVolume() const {
-    return m_cw_sidetone_volume;
-}
-
 void Settings::setCwSidetoneVolume(int mCwSidetoneVolume) {
-    m_cw_sidetone_volume = mCwSidetoneVolume;
+    m_cwConfig->setSidetoneVolume(mCwSidetoneVolume);
     emit(CwSidetoneVolumeChanged(mCwSidetoneVolume));
 }
 
-
-int Settings::getCwPttDelay() const {
-    return m_cw_ptt_delay;
-}
-
 void Settings::setCwPttDelay(int mCwPttDelay) {
-    m_cw_ptt_delay = mCwPttDelay;
+    m_cwConfig->setPttDelay(mCwPttDelay);
     emit(CwPttDelayChanged(mCwPttDelay));
 }
 
-int Settings::getCwHangTime() const {
-    return m_cw_hang_time;
-}
-
 void Settings::setCwHangTime(int mCwHangTime) {
-    m_cw_hang_time = mCwHangTime;
+    m_cwConfig->setHangTime(mCwHangTime);
     emit(CwHangTimeChanged(mCwHangTime));
 }
 
-
-int Settings::getCwSidetoneFreq() const {
-    return m_cw_sidetone_freq;
-}
-
-
-int Settings::getCwKeyerWeight() const {
-    return m_cw_keyer_weight;
-}
-
-
-int Settings::getCwKeyerSpacing() const {
-    return m_cw_keyer_spacing;
-}
-
-
-
-
 void Settings::setCwSidetoneFreq(int mCwSidetoneFreq) {
-    m_cw_sidetone_freq = mCwSidetoneFreq;
+    m_cwConfig->setSidetoneFreq(mCwSidetoneFreq);
     emit(CwSidetoneFreqChanged(mCwSidetoneFreq));
 }
 
-
 void Settings::setCwKeyerWeight(int val){
-    m_cw_keyer_weight= val;
-    qDebug() << "CW weight" << val;
+    m_cwConfig->setKeyerWeight(val);
     emit(CwKeyerWeightChanged(val));
-
 }
 
-
 void Settings::setCwKeyerSpacing(int val) {
-    m_cw_keyer_spacing = val;
-    qDebug() << "CW spacing" << val;
+    m_cwConfig->setKeyerSpacing(val);
     emit(CwKeyerSpacingChanged(val));
 }
 
 void Settings::syncSlicesWithSettings() {
     if (!m_radioModel) return;
-    m_radioModel->setPanadapterColors(m_panadapterColors);
+    m_radioModel->setPanadapterColors(m_displayConfig->panadapterColors());
     connect(m_radioModel, &RadioModel::colorsChanged, this, &Settings::panadapterColorChanged);
 
     for (int i = 0; i < m_receiverDataList.size() && i < m_radioModel->slices().size(); ++i) {
@@ -5737,7 +5207,7 @@ void Settings::syncSlicesWithSettings() {
         slice->setNr2NpeMethod(m_receiverDataList[i].nr2_npe_method);
         slice->setNr2Ae(m_receiverDataList[i].nr2_ae);
         slice->setNrAgc(m_receiverDataList[i].nr_agc);
-        slice->setSMeterHoldTime(m_sMeterHoldTime);
+        slice->setSMeterHoldTime(m_displayConfig->sMeterHoldTime());
         slice->setFftSize(m_receiverDataList[i].fftsize);
         slice->setSpectrumAveraging(m_receiverDataList[i].spectrumAveraging);
         slice->setSpectrumAveragingCnt(m_receiverDataList[i].averagingCnt);
@@ -5761,7 +5231,7 @@ void Settings::syncSlicesWithSettings() {
 
 void Settings::syncSettingsWithSlices() {
     if (!m_radioModel) return;
-    m_panadapterColors = m_radioModel->panadapterColors();
+    m_displayConfig->setPanadapterColors(m_radioModel->panadapterColors());
     for (int i = 0; i < m_receiverDataList.size() && i < m_radioModel->slices().size(); ++i) {
         auto slice = m_radioModel->slices().at(i);
         if (!slice) continue;

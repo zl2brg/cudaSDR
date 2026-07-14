@@ -4,6 +4,8 @@
 #include <QObject>
 #include <QJsonObject>
 
+class QSettings;
+
 class CWConfig : public QObject {
     Q_OBJECT
     Q_PROPERTY(int internalCw READ internalCw WRITE setInternalCw NOTIFY internalCwChanged)
@@ -52,6 +54,9 @@ public:
 
     void load(const QJsonObject &json);
     void save(QJsonObject &json) const;
+
+    void loadIni(QSettings *settings);
+    void saveIni(QSettings *settings) const;
 
 signals:
     void internalCwChanged(int val);

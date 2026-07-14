@@ -40,6 +40,17 @@ set(SANITIZE_FLAGS "-fsanitize=address")
 # Optional: Enable profiling with gprof (uncomment to use)
 #set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -pg")
 
+option(CUDASDR_ENABLE_COVERAGE "Build with gcov/lcov coverage instrumentation" OFF)
+if(CUDASDR_ENABLE_COVERAGE)
+    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        add_compile_options(--coverage)
+        add_link_options(--coverage)
+        message(STATUS "Coverage instrumentation enabled (gcov/lcov)")
+    else()
+        message(WARNING "CUDASDR_ENABLE_COVERAGE is only supported with GCC or Clang")
+    endif()
+endif()
+
 # --- Find Dependencies ---
 find_package(Qt6 6.11.0 REQUIRED COMPONENTS Widgets Core Gui GuiPrivate ShaderTools Multimedia Network OpenGL OpenGLWidgets WebSockets Test)
 message(STATUS "Using Qt ${Qt6_VERSION} from ${Qt6_DIR}")
@@ -406,6 +417,20 @@ install(TARGETS cudasdr
 # --- Tests ---
 include(CTest)
 if(BUILD_TESTING)
+    set(CUDASDR_SETTINGS_TEST_SOURCES
+        ${SRC_DIR}/cusdr_settings.cpp
+        ${SRC_DIR}/cusdr_hamDatabase.cpp
+        ${SRC_DIR}/Settings/NetworkConfig.cpp
+        ${SRC_DIR}/Settings/DisplayConfig.cpp
+        ${SRC_DIR}/Settings/HardwareConfig.cpp
+        ${SRC_DIR}/Settings/AudioConfig.cpp
+        ${SRC_DIR}/Settings/CWConfig.cpp
+        ${SRC_DIR}/Settings/ReceiverConfig.cpp
+        ${SRC_DIR}/Models/RadioModel.cpp
+        ${SRC_DIR}/Models/SliceModel.cpp
+        ${SRC_DIR}/Models/RadioTelemetry.cpp
+    )
+
     qt_add_executable(protocol_boundary_tests
         tests/protocol_boundary_tests.cpp
     )
@@ -445,4 +470,170 @@ if(BUILD_TESTING)
         Qt6::Test
     )
     add_test(NAME device_identity_tests COMMAND device_identity_tests)
+
+    qt_add_executable(tci_protocol_utils_tests
+        tests/tci_protocol_utils_tests.cpp
+    )
+    target_include_directories(tci_protocol_utils_tests PRIVATE
+        ${SRC_DIR}
+    )
+    target_link_libraries(tci_protocol_utils_tests PRIVATE
+        Qt6::Core
+        Qt6::Test
+    )
+    add_test(NAME tci_protocol_utils_tests COMMAND tci_protocol_utils_tests)
+
+    qt_add_executable(display_utils_tests
+        tests/display_utils_tests.cpp
+    )
+    target_include_directories(display_utils_tests PRIVATE
+        ${SRC_DIR}
+    )
+    target_link_libraries(display_utils_tests PRIVATE
+        Qt6::Core
+        Qt6::Test
+    )
+    add_test(NAME display_utils_tests COMMAND display_utils_tests)
+
+    qt_add_executable(rigctl_protocol_utils_tests
+        tests/rigctl_protocol_utils_tests.cpp
+    )
+    target_include_directories(rigctl_protocol_utils_tests PRIVATE
+        ${SRC_DIR}
+    )
+    target_link_libraries(rigctl_protocol_utils_tests PRIVATE
+        Qt6::Core
+        Qt6::Test
+    )
+    add_test(NAME rigctl_protocol_utils_tests COMMAND rigctl_protocol_utils_tests)
+
+    qt_add_executable(settings_utils_tests
+        tests/settings_utils_tests.cpp
+    )
+    target_include_directories(settings_utils_tests PRIVATE
+        ${SRC_DIR}
+    )
+    target_link_libraries(settings_utils_tests PRIVATE
+        Qt6::Core
+        Qt6::Test
+    )
+    add_test(NAME settings_utils_tests COMMAND settings_utils_tests)
+
+    qt_add_executable(ham_database_utils_tests
+        tests/ham_database_utils_tests.cpp
+    )
+    target_include_directories(ham_database_utils_tests PRIVATE
+        ${SRC_DIR}
+    )
+    target_link_libraries(ham_database_utils_tests PRIVATE
+        Qt6::Core
+        Qt6::Test
+    )
+    add_test(NAME ham_database_utils_tests COMMAND ham_database_utils_tests)
+
+    qt_add_executable(settings_persistence_tests
+        tests/settings_persistence_tests.cpp
+        ${CUDASDR_SETTINGS_TEST_SOURCES}
+    )
+    target_include_directories(settings_persistence_tests PRIVATE
+        ${SRC_DIR}
+    )
+    target_link_libraries(settings_persistence_tests PRIVATE
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Widgets
+        Qt6::Network
+        Qt6::Multimedia
+        Qt6::Test
+    )
+    add_test(NAME settings_persistence_tests COMMAND settings_persistence_tests)
+    set_tests_properties(settings_persistence_tests PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    )
+
+    qt_add_executable(settings_signal_tests
+        tests/settings_signal_tests.cpp
+        ${CUDASDR_SETTINGS_TEST_SOURCES}
+    )
+    target_include_directories(settings_signal_tests PRIVATE
+        ${SRC_DIR}
+    )
+    target_link_libraries(settings_signal_tests PRIVATE
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Widgets
+        Qt6::Network
+        Qt6::Multimedia
+        Qt6::Test
+    )
+    add_test(NAME settings_signal_tests COMMAND settings_signal_tests)
+    set_tests_properties(settings_signal_tests PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    )
+
+    qt_add_executable(tci_server_ws_tests
+        tests/tci_server_ws_tests.cpp
+        ${SRC_DIR}/Util/cusdr_tciserver.cpp
+        ${CUDASDR_SETTINGS_TEST_SOURCES}
+    )
+    target_include_directories(tci_server_ws_tests PRIVATE
+        ${SRC_DIR}
+    )
+    target_link_libraries(tci_server_ws_tests PRIVATE
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Widgets
+        Qt6::Network
+        Qt6::Multimedia
+        Qt6::WebSockets
+        Qt6::Test
+    )
+    add_test(NAME tci_server_ws_tests COMMAND tci_server_ws_tests)
+    set_tests_properties(tci_server_ws_tests PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    )
+
+    qt_add_executable(models_tests
+        tests/models_tests.cpp
+        ${CUDASDR_SETTINGS_TEST_SOURCES}
+    )
+    target_include_directories(models_tests PRIVATE
+        ${SRC_DIR}
+    )
+    target_link_libraries(models_tests PRIVATE
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Widgets
+        Qt6::Network
+        Qt6::Multimedia
+        Qt6::Test
+    )
+    add_test(NAME models_tests COMMAND models_tests)
+    set_tests_properties(models_tests PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    )
+
+    qt_add_executable(config_json_tests
+        tests/config_json_tests.cpp
+        ${SRC_DIR}/Settings/DisplayConfig.cpp
+        ${SRC_DIR}/Settings/ReceiverConfig.cpp
+        ${SRC_DIR}/Settings/NetworkConfig.cpp
+        ${SRC_DIR}/Settings/AudioConfig.cpp
+        ${SRC_DIR}/Settings/CWConfig.cpp
+        ${SRC_DIR}/Settings/HardwareConfig.cpp
+    )
+    target_include_directories(config_json_tests PRIVATE
+        ${SRC_DIR}
+    )
+    target_link_libraries(config_json_tests PRIVATE
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Widgets
+        Qt6::Network
+        Qt6::Test
+    )
+    add_test(NAME config_json_tests COMMAND config_json_tests)
+    set_tests_properties(config_json_tests PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    )
 endif()

@@ -25,7 +25,7 @@ This project is still work in progress.
 - Linux
 - CMake 3.16+
 - C++17 compiler (GCC/Clang)
-- Qt 6.11.x (`Widgets`, `Core`, `Gui`, `Multimedia`, `Network`, `OpenGL`, `OpenGLWidgets`)
+- Qt 6.11.x (`Widgets`, `Core`, `Gui`, `Multimedia`, `Network`, `OpenGL`, `OpenGLWidgets`, `WebSockets`, `Test`)
 - FFTW3 (`fftw3`, `fftw3f`)
 - ALSA (`asound`)
 - OpenGL
@@ -44,6 +44,27 @@ Or run CMake directly:
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --parallel
+```
+
+On Ubuntu/Debian, install Qt dev packages including WebSockets:
+
+```bash
+sudo apt install qt6-websockets-dev
+```
+
+### Coverage
+
+Requires `lcov` and `genhtml` in addition to the normal build dependencies:
+
+```bash
+sudo apt install lcov
+./scripts/run_coverage.sh
+```
+
+Optional: reuse an existing build directory:
+
+```bash
+./scripts/run_coverage.sh build
 ```
 
 ### Run

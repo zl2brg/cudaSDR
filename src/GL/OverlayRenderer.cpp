@@ -76,15 +76,12 @@ void OverlayRenderer::drawGrid(const QMatrix4x4& projection,
                                const QRect& freqScalePanRect,
                                const TScale& freqScale,
                                const TScale& dBmScale,
-                               float deltaF,
-                               float zoomFactor,
+                               int freqPlotLeft,
                                float r, float g, float b, float alpha,
                                bool panGridEnabled) {
     if (!panGridEnabled) return;
     if (!m_shader || !m_shader->isLinked()) return;
-    if (panRect.isEmpty() || zoomFactor <= 0.0f) return;
-
-    const float panOffset = deltaF * float(panRect.width()) / zoomFactor;
+    if (panRect.isEmpty()) return;
 
     beginOverlayLines(this);
 
@@ -100,8 +97,9 @@ void OverlayRenderer::drawGrid(const QMatrix4x4& projection,
 
     const int len = freqScale.mainPointPositions.length();
     for (int i = 0; i < len; i++) {
-        const float x = float(panRect.left() + freqScale.mainPointPositions.at(i))
-                        - panOffset;
+        const float x = float(panRect.left() + freqPlotLeft + freqScale.mainPointPositions.at(i));
+        if (x < float(panRect.left() + freqPlotLeft) || x > float(panRect.right()))
+            continue;
         gridData.append({ x, float(panRect.top()),    3.0f, r, g, b, alpha });
         gridData.append({ x, float(panRect.bottom()), 3.0f, r, g, b, alpha });
     }

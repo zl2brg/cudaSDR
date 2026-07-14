@@ -7,6 +7,8 @@
 #include "SettingsTypes.h"
 #include "cusdr_hamDatabase.h"
 
+class QSettings;
+
 class ReceiverConfig : public QObject {
     Q_OBJECT
     Q_PROPERTY(int id READ id CONSTANT)
@@ -46,6 +48,9 @@ public:
 
     void load(const QJsonObject &json);
     void save(QJsonObject &json) const;
+
+    void loadIni(QSettings *settings);
+    void saveIni(QSettings *settings) const;
 
 signals:
     void dspCoreChanged(QSDR::_DSPCore core);

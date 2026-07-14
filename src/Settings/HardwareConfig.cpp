@@ -1,4 +1,5 @@
 #include "HardwareConfig.h"
+#include <QSettings>
 
 HardwareConfig::HardwareConfig(QObject *parent)
     : QObject(parent)
@@ -109,4 +110,49 @@ void HardwareConfig::save(QJsonObject &json) const {
     d["hermesPresence"] = m_devices.hermesPresence;
     d["metisPresence"] = m_devices.metisPresence;
     json["devices"] = d;
+}
+
+void HardwareConfig::loadIni(QSettings *settings) {
+    QString str;
+    int value;
+
+    str = settings->value("server/10mhzsource", "mercury").toString();
+    if (str == "atlas")
+        value = 0;
+    else if (str == "penelope")
+        value = 1;
+    else if (str == "mercury")
+        value = 2;
+    else if (str == "none")
+        value = 3;
+    else
+        value = 2;
+    setSource10Mhz(value);
+
+    str = settings->value("server/122_88mhzsource", "mercury").toString();
+    if (str == "penelope")
+        value = 0;
+    else if (str == "mercury")
+        value = 1;
+    else
+        value = 1;
+    setSource122_88Mhz(value);
+}
+
+void HardwareConfig::saveIni(QSettings *settings) const {
+    if (m_10MhzSource == 0)
+        settings->setValue("server/10mhzsource", "atlas");
+    else if (m_10MhzSource == 1)
+        settings->setValue("server/10mhzsource", "penelope");
+    else if (m_10MhzSource == 2)
+        settings->setValue("server/10mhzsource", "mercury");
+    else if (m_10MhzSource == 3)
+        settings->setValue("server/10mhzsource", "none");
+    else
+        settings->setValue("server/10mhzsource", "mercury");
+
+    if (m_122_88MhzSource == 0)
+        settings->setValue("server/122_88mhzsource", "penelope");
+    else if (m_122_88MhzSource == 1)
+        settings->setValue("server/122_88mhzsource", "mercury");
 }

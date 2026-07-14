@@ -18,6 +18,8 @@
 
 #include "cusdr_hamDatabase.h"
 #include "Settings/SettingsTypes.h"
+#include "Util/cusdr_queue.h"
+#include "Util/tci_protocol_utils.h"
 
 #include <QObject>
 #include <QTimer>
@@ -48,6 +50,11 @@ public:
     /** Connect to SliceModel S-meter updates (call after RadioModel is ready). */
     void bindSlices(RadioModel *radioModel);
 
+    /** Hand the transmit path's network-mic queue to the server so received
+     *  TX-audio frames can be enqueued for the DSP transmit path. The queue is
+     *  owned by TransmitAudioInput and is thread-safe (QHQueue). */
+    void setTransmitAudioQueue(QHQueue<QVector<double>> *queue) { m_txAudioQueue = queue; }
+
 public slots:
     /** RX audio from SliceProcessor (queued to GUI thread). */
     void onRxAudioSamples(int rx, QVector<float> stereoInterleaved, int sampleRate);
@@ -62,6 +69,7 @@ signals:
 private slots:
     void onNewConnection();
     void onClientTextMessage(const QString &message);
+    void onClientBinaryMessage(const QByteArray &message);
     void onClientDisconnected();
     void onWatchdogTimeout();
 
@@ -73,6 +81,7 @@ private slots:
     void onRadioStateChanged(RadioState state);
     void onDriveLevelChanged(int level);
     void onSMeterValueChanged(int rx, double rawValue);
+    void onTciServerEnabledChanged(bool enabled);
 
 private:
     void sendToClient(QWebSocket *client, const QString &message);
@@ -134,13 +143,11 @@ private:
     int effectiveIqSampleRate(int actualRate) const;
 
     static constexpr int WATCHDOG_TIMEOUT_MS = 30000;
-    static constexpr int kStreamHeaderBytes = 64;
-    static constexpr uint32_t kIqStreamType = 0;
-    static constexpr uint32_t kRxAudioStreamType = 1;
 
-    // RX audio nominal rate (used when deriving a distinct IQ rate so the IQ
-    // stream never collides with the audio rate — see effectiveIqSampleRate).
-    static constexpr double kRxAudioRateHz = 48000.0;
+    // Bound the transmit-mic queue backlog (in DSP blocks) so a client sending
+    // TX audio faster than the DSP transmit path drains can never build TX
+    // latency nor block the socket thread. ~48 blocks ≈ 1 s at 48 kHz/1024.
+    static constexpr int kTxAudioMaxQueueBlocks = 48;
 
     // IQ backpressure threshold (socket bytesToWrite backlog). The panadapter
     // IQ stream is best-effort: it is shed at a very small backlog so it can
@@ -156,6 +163,12 @@ private:
     Settings         *m_settings = nullptr;
     RadioModel       *m_radioModel = nullptr;
     QList<QMetaObject::Connection> m_sliceConnections;
+
+    // Transmit (mic) audio received from clients. The queue is owned by
+    // TransmitAudioInput; the residual accumulates decoded mono samples so we
+    // enqueue exactly DSP_SAMPLE_SIZE blocks (matching the local mic path).
+    QHQueue<QVector<double>> *m_txAudioQueue = nullptr;
+    QVector<double>          m_txAudioResidual;
 };
 
 #endif // CUSDR_TCISERVER_H

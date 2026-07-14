@@ -32,7 +32,7 @@ CSplashScreen::CSplashScreen(const QPixmap& thePixmap)
     setFixedSize(itsPixmap.size());
 
     // Dynamically create the copyright string to always show the current year.
-    itsMessage = QString("(C) 2011-2018 DL3HVH, 2020-%i ZL2BRG").arg(QDate::currentDate().year());
+    itsMessage = QString("(C) 2011-2018 DL3HVH, 2020-%1 ZL2BRG").arg(QDate::currentDate().year());
 };
 
 void CSplashScreen::clearMessage() {

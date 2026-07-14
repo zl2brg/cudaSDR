@@ -1,4 +1,5 @@
 #include "CWConfig.h"
+#include <QSettings>
 
 CWConfig::CWConfig(QObject *parent)
     : QObject(parent)
@@ -108,4 +109,38 @@ void CWConfig::save(QJsonObject &json) const {
     json["pttDelay"] = m_ptt_delay;
     json["hangTime"] = m_hang_time;
     json["keyerWeight"] = m_keyer_weight;
+}
+
+void CWConfig::loadIni(QSettings *settings) {
+    QString str;
+
+    str = settings->value("cw/internal", "off").toString();
+    setInternalCw(str.toLower() == "on" ? 1 : 0);
+
+    str = settings->value("cw/key_reversed", "off").toString();
+    setKeyReversed(str.toLower() == "on" ? 1 : 0);
+
+    str = settings->value("cw/key_spacing", "off").toString();
+    setKeyerSpacing(str.toLower() == "on" ? 1 : 0);
+
+    setKeyerSpeed(settings->value("cw/keyer_speed", 12).toInt());
+    setKeyerMode(settings->value("cw/keyer_mode", 0).toInt());
+    setSidetoneVolume(settings->value("cw/sidetone_volume", 10).toInt());
+    setSidetoneFreq(settings->value("cw/sidetone_freq", 700).toInt());
+    setPttDelay(settings->value("cw/ptt_delay", 32).toInt());
+    setHangTime(settings->value("cw/hang_time", 32).toInt());
+    setKeyerWeight(settings->value("cw/keyer_weight", 20).toInt());
+}
+
+void CWConfig::saveIni(QSettings *settings) const {
+    settings->setValue("cw/internal", m_internal_cw == 1 ? "on" : "off");
+    settings->setValue("cw/key_reversed", m_key_reversed == 1 ? "on" : "off");
+    settings->setValue("cw/key_spacing", m_keyer_spacing == 1 ? "on" : "off");
+    settings->setValue("cw/keyer_speed", m_keyer_speed);
+    settings->setValue("cw/keyer_mode", m_keyer_mode);
+    settings->setValue("cw/sidetone_volume", m_sidetone_volume);
+    settings->setValue("cw/sidetone_freq", m_sidetone_freq);
+    settings->setValue("cw/ptt_delay", m_ptt_delay);
+    settings->setValue("cw/hang_time", m_hang_time);
+    settings->setValue("cw/keyer_weight", m_keyer_weight);
 }

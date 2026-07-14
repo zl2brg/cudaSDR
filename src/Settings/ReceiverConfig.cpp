@@ -1,4 +1,5 @@
 #include "ReceiverConfig.h"
+#include <QSettings>
 
 ReceiverConfig::ReceiverConfig(int id, QObject *parent)
     : QObject(parent)
@@ -79,4 +80,35 @@ void ReceiverConfig::save(QJsonObject &json) const {
     json["agcMode"] = static_cast<int>(m_agcMode);
     json["ctrFrequency"] = static_cast<double>(m_ctrFrequency);
     json["vfoFrequency"] = static_cast<double>(m_vfoFrequency);
+}
+
+void ReceiverConfig::loadIni(QSettings *settings) {
+    QString prefix = QString("rx%1").arg(m_id);
+
+    QString cstr = prefix + "/dspCore";
+    QString valStr = settings->value(cstr, "qtdsp").toString();
+    if (valStr == "qtdsp") {
+        setDspCore(QSDR::QtDSP);
+    }
+
+    cstr = prefix + "/centerFrequency";
+    setCtrFrequency(static_cast<qint64>(settings->value(cstr, 7050000.0).toDouble()));
+
+    cstr = prefix + "/vfoFrequency";
+    setVfoFrequency(static_cast<qint64>(settings->value(cstr, 7050000.0).toDouble()));
+}
+
+void ReceiverConfig::saveIni(QSettings *settings) const {
+    QString prefix = QString("rx%1").arg(m_id);
+
+    QString cstr = prefix + "/dspCore";
+    if (m_dspCore == QSDR::QtDSP) {
+        settings->setValue(cstr, "qtdsp");
+    }
+
+    cstr = prefix + "/centerFrequency";
+    settings->setValue(cstr, m_ctrFrequency);
+
+    cstr = prefix + "/vfoFrequency";
+    settings->setValue(cstr, m_vfoFrequency);
 }

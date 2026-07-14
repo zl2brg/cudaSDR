@@ -35,3 +35,7 @@ windowsSettings.ini
 
 Source/
 cudaSDR.log
+
+# TCI web client
+web/tci-client/node_modules/
+web/tci-client/dist/

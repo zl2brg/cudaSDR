@@ -30,10 +30,8 @@
 
 #include "cusdr_oglWidebandPanel.h"
 #include "cusdr_glShaders.h"
+#include "cusdr_glDraw.h"
 #include "Models/RadioTelemetry.h"
-
-
-#include <QDebug>
 #include <QGuiApplication>
 #include <QScreen>
 #include <QWindow>
@@ -57,6 +55,9 @@ QGLWidebandPanel::QGLWidebandPanel(QWidget *parent)
 		, m_freqScaleRenew(true)
 		, m_dBmScaleUpdate(true)
 		, m_dBmScaleRenew(true)
+		, m_dragFreqScale(false)
+		, m_dragFreqScaleZoom(false)
+		, m_dragDBmScale(false)
 		, m_panGridRenew(true)
 		, m_spectrumColorsChanged(true)
 		, m_crossHairCursor(false)
@@ -166,6 +167,7 @@ QGLWidebandPanel::~QGLWidebandPanel() {
     delete m_oglTextSmall;
     delete m_oglTextNormal;
     delete fonts;
+    delete m_overlayRenderer;
 }
 
 QSize QGLWidebandPanel::minimumSizeHint() const {
@@ -264,6 +266,35 @@ void QGLWidebandPanel::initializeGL() {
 	glEnableVertexAttribArray(m_attrColor);
 	m_vbo.release();
 	m_vao.release();
+
+	m_textureProgram = new QOpenGLShaderProgram(this);
+	m_textureProgram->addShaderFromSourceCode(QOpenGLShader::Vertex, GlShaders::texturedQuadVertexSource());
+	m_textureProgram->addShaderFromSourceCode(QOpenGLShader::Fragment,
+	                                          GlShaders::texturedFragmentSource("tex"));
+	m_textureProgram->bindAttributeLocation("position", 0);
+	m_textureProgram->bindAttributeLocation("texCoord", 1);
+	if (!m_textureProgram->link())
+		qWarning() << "Wideband panel texture shader link failed:" << m_textureProgram->log();
+
+	m_overlayRenderer = new OverlayRenderer();
+	m_overlayRenderer->initialize(nullptr);
+}
+
+QMatrix4x4 QGLWidebandPanel::panelProjection() const
+{
+	QMatrix4x4 projection;
+	projection.ortho(0, width(), height(), 0, -10, 10);
+	return projection;
+}
+
+void QGLWidebandPanel::drawCachedTexture(const QRect &rect, GLuint texId, float z)
+{
+	if (rect.isEmpty() || !texId)
+		return;
+	if (m_textureProgram && m_textureProgram->isLinked())
+		GlDraw::renderTexturedQuad(this, m_textureProgram, m_vbo, panelProjection(), rect, texId, z);
+	else
+		renderTexture(rect, texId, z);
 }
 
 void QGLWidebandPanel::paintGL() {
@@ -282,7 +313,13 @@ void QGLWidebandPanel::paintGL() {
 			if (m_resizeTime.elapsed() > 200 || m_dataEngineState == QSDR::DataEngineDown) {
 			
                 drawSpectrum();
-                               drawHorizontalScale();
+
+                if (m_freqScaleRect.isValid())
+                    updateFrequencyRuler();
+                if (m_dBmScaleRect.isValid())
+                    updateDBmRuler();
+
+                drawHorizontalScale();
                 drawVerticalScale();
 
             if (m_panGrid)
@@ -767,22 +804,55 @@ void QGLWidebandPanel::drawSpectrum() {
 	glDisable(GL_LINE_SMOOTH);
 }
 
+void QGLWidebandPanel::updateFrequencyRuler()
+{
+	if (!m_freqScaleRect.isValid())
+		return;
+
+	m_frequencySpan = (m_widebandMaxFrequency - m_widebandMinFrequency) * m_freqScaleZoomFactor;
+	if (m_frequencySpan <= 0)
+		return;
+
+	m_frequencyUnit = qreal(m_freqScaleRect.width()) / m_frequencySpan;
+	const int fontMaxWidth = m_fonts.smallFontMetrics->boundingRect(QStringLiteral("000.000")).width();
+	m_frequencyScale = getXRuler(m_freqScaleRect, fontMaxWidth, m_frequencyUnit,
+	                             m_lowerFrequency, m_upperFrequency);
+}
+
+void QGLWidebandPanel::updateDBmRuler()
+{
+	if (!m_dBmScaleRect.isValid())
+		return;
+
+	const qreal dBmRange = qAbs(m_dBmPanMax - m_dBmPanMin);
+	if (dBmRange <= 0)
+		return;
+
+	const int spacing = 6;
+	const int fontHeight = m_fonts.smallFontMetrics->tightBoundingRect(QStringLiteral(".0dBm")).height() + spacing;
+	const qreal unit = qreal(m_dBmScaleRect.height()) / dBmRange;
+	m_dBmScale = getYRuler2(m_dBmScaleRect, fontHeight, unit, m_dBmPanMin, m_dBmPanMax);
+}
+
 void QGLWidebandPanel::drawVerticalScale() {
 
 	if (!m_dBmScaleRect.isValid()) return;
 
     int width = m_dBmScaleRect.width();
     int height = m_dBmScaleRect.height();
+	if (width <= 0 || height <= 0) return;
 
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glEnable(GL_BLEND);
 
-	if (!m_dBmScaleFBO || m_dBmScaleUpdate || m_dBmScaleRenew)	{
+	const bool regenDBmScale = !m_dBmScaleFBO || m_dBmScaleRenew
+	                           || (m_dBmScaleUpdate && !m_dragDBmScale);
+
+	if (regenDBmScale) {
 
 		if (!m_dBmScaleFBO || m_dBmScaleRenew) {
 
 			if (m_dBmScaleFBO) {
-			
 				delete m_dBmScaleFBO;
                 m_dBmScaleFBO = nullptr;
 			}
@@ -790,20 +860,30 @@ void QGLWidebandPanel::drawVerticalScale() {
             m_dBmScaleFBO = new QOpenGLFramebufferObject(width, height);
 		}
 
+		glPushAttrib(GL_VIEWPORT_BIT | GL_TEXTURE_BIT);
+        glViewport(0, 0, width, height);
         setProjectionOrthographic(width, height);
 
 		m_dBmScaleFBO->bind();
 			renderVerticalScale();
 		m_dBmScaleFBO->release();
 
+		glPopAttrib();
         setProjectionOrthographic(size().width(), size().height());
 
-		m_dBmScaleUpdate = false;
+		if (!m_dragDBmScale)
+			m_dBmScaleUpdate = false;
 		m_dBmScaleRenew = false;
 	}
 
-	glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
-	renderTexture(m_dBmScaleRect, m_dBmScaleFBO->texture(), 0.0f);
+	drawCachedTexture(m_dBmScaleRect, m_dBmScaleFBO ? m_dBmScaleFBO->texture() : 0, 0.0f);
+
+	if (m_dragDBmScale && m_overlayRenderer && m_dBmScaleFBO) {
+		QMatrix4x4 projection;
+		projection.ortho(0, size().width(), size().height(), 0, -10, 10);
+		m_overlayRenderer->drawDBmScaleTicks(projection, m_dBmScaleRect, m_dBmScale,
+		                                     m_redGrid, m_greenGrid, m_blueGrid, 1.0f);
+	}
 }
 
 void QGLWidebandPanel::drawHorizontalScale() {
@@ -812,44 +892,42 @@ void QGLWidebandPanel::drawHorizontalScale() {
 
     int width = m_freqScaleRect.width();
     int height = m_freqScaleRect.height();
+	if (width <= 0 || height <= 0) return;
 
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glEnable(GL_BLEND);
 
-    if (!m_frequencyScaleFBO || m_freqScaleUpdate || m_freqScaleRenew) {
+	const bool regenFreqScale = !m_frequencyScaleFBO || m_freqScaleRenew
+	                            || m_freqScaleUpdate
+	                            || (m_dragFreqScale && !m_dragFreqScaleZoom);
+
+    if (regenFreqScale) {
 
 		if (!m_frequencyScaleFBO || m_freqScaleRenew) {
-        if (m_frequencyScaleFBO) {
-			
+			if (m_frequencyScaleFBO) {
 				delete m_frequencyScaleFBO;
                 m_frequencyScaleFBO = nullptr;
 			}
 
             m_frequencyScaleFBO = new QOpenGLFramebufferObject(width, height);
-
         }
 
-		// Save & set viewport manually (no glPushAttrib)
-		GLint savedViewport[4];
-		glGetIntegerv(GL_VIEWPORT, savedViewport);
-
+		glPushAttrib(GL_VIEWPORT_BIT | GL_TEXTURE_BIT);
+        glViewport(0, 0, width, height);
         setProjectionOrthographic(width, height);
-        qDebug() << "horizontal scale";
 
 		m_frequencyScaleFBO->bind();
         renderHorizontalScale();
         m_frequencyScaleFBO->release();
 
-		// Restore viewport
-		glViewport(savedViewport[0], savedViewport[1], savedViewport[2], savedViewport[3]);
+		glPopAttrib();
         setProjectionOrthographic(size().width(), size().height());
 
 		m_freqScaleUpdate = false;
 		m_freqScaleRenew = false;
 	}
-	
-	glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
-	renderTexture(m_freqScaleRect, m_frequencyScaleFBO->texture(), 0.0f);
+
+	drawCachedTexture(m_freqScaleRect, m_frequencyScaleFBO ? m_frequencyScaleFBO->texture() : 0, 0.0f);
 }
 
 void QGLWidebandPanel::drawGrid() {
@@ -946,16 +1024,11 @@ void QGLWidebandPanel::renderVerticalScale() {
 	//QFontMetrics d_fm(m_smallFont);
 	int spacing = 6;
 	int fontHeight = m_fonts.smallFontMetrics->tightBoundingRect(".0dBm").height() + spacing;
-	int fontMaxWidth = m_fonts.smallFontMetrics->boundingRect("-000.0").width();
 
     int width = m_dBmScaleRect.width();
     int height = m_dBmScaleRect.height();
 
-	qreal unit = (qreal)(m_dBmScaleRect.height() / qAbs(m_dBmPanMax - m_dBmPanMin));
-
-	m_dBmScale = getYRuler2(m_dBmScaleRect, fontHeight, unit, m_dBmPanMin, m_dBmPanMax);
-	
-	QRect textRect(0, 0, fontMaxWidth, fontHeight);
+	QRect textRect(0, 0, m_fonts.smallFontMetrics->boundingRect(QStringLiteral("-000.0")).width(), fontHeight);
 	textRect.moveLeft(3);
 	m_dBmScaleTextPos = -textRect.height();
 
@@ -1014,12 +1087,7 @@ void QGLWidebandPanel::renderHorizontalScale() {
     painter.begin(&paintDevice);
     //QFontMetrics d_fm(m_smallFont);
 	int fontHeight = m_fonts.smallFontMetrics->tightBoundingRect(".0kMGHz").height();
-	int fontMaxWidth = m_fonts.smallFontMetrics->boundingRect("000.000").width();
 
-	m_frequencySpan = (m_widebandMaxFrequency - m_widebandMinFrequency) * m_freqScaleZoomFactor;
-	m_frequencyUnit = (qreal)(m_freqScaleRect.width() / m_frequencySpan);
-	m_frequencyScale = getXRuler(m_freqScaleRect, fontMaxWidth, m_frequencyUnit, m_lowerFrequency, m_upperFrequency);
-	
 	// draw the frequency scale
 	int		offset_X		= -1;
 	int		textOffset_y	= 5;
@@ -1279,6 +1347,10 @@ void QGLWidebandPanel::mousePressEvent(QMouseEvent* event) {
 	if (m_mouseRegion == freqScaleRegion) {
 
 		m_yScaleMouseDownPos = m_freqScaleRect.topLeft();
+
+		if (event->buttons() == Qt::LeftButton || event->buttons() == Qt::RightButton)
+			m_dragFreqScale = true;
+		m_dragFreqScaleZoom = (event->button() == Qt::RightButton);
 		
 		if (event->buttons() == Qt::RightButton) setCursor(Qt::SplitHCursor);
         update();
@@ -1287,7 +1359,8 @@ void QGLWidebandPanel::mousePressEvent(QMouseEvent* event) {
 	}
 	else if (m_mouseRegion == dBmScaleRegion) {
 
-		//m_yScaleMouseDownPos = m_dBmScaleRect.topLeft();
+		if (event->buttons() == Qt::LeftButton)
+			m_dragDBmScale = true;
 
 		if (event->buttons() == Qt::RightButton) {
 
@@ -1356,7 +1429,18 @@ void QGLWidebandPanel::mouseReleaseEvent(QMouseEvent *event) {
 	getRegion(m_mousePos);
 
 	if (m_mouseRegion == freqScaleRegion) {
-
+		m_dragFreqScale = false;
+		m_dragFreqScaleZoom = false;
+		m_freqScaleUpdate = true;
+		setCursor(Qt::ArrowCursor);
+		update();
+		return;
+	}
+	else if (m_mouseRegion == dBmScaleRegion) {
+		m_dragDBmScale = false;
+		m_dBmScaleUpdate = true;
+		setCursor(Qt::ArrowCursor);
+		update();
 		return;
 	}
 	else if (m_mouseRegion == panRegion) {
@@ -1492,7 +1576,6 @@ void QGLWidebandPanel::mouseMoveEvent(QMouseEvent* event) {
 
 					m_mouseDownPos = pos;
                     m_freqScaleUpdate = true;
-                    m_dBmScaleUpdate = true;
                     m_panGridUpdate = true;
 				}
 				else {
@@ -1530,7 +1613,6 @@ void QGLWidebandPanel::mouseMoveEvent(QMouseEvent* event) {
 
 				m_mouseDownPos = pos;
                 m_freqScaleUpdate = true;
-                m_dBmScaleUpdate = true;
                 m_panGridUpdate = true;
              //   update();
 			}

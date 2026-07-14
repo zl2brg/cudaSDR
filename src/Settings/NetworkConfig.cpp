@@ -1,4 +1,6 @@
 #include "NetworkConfig.h"
+#include <QSettings>
+#include "Util/settings_utils.h"
 
 NetworkConfig::NetworkConfig(QObject *parent)
     : QObject(parent)
@@ -78,4 +80,24 @@ void NetworkConfig::save(QJsonObject &json) const {
     json["audioPort"] = m_audioPort;
     json["metisPort"] = m_metisPort;
     json["socketBufferSize"] = m_socketBufferSize;
+}
+
+void NetworkConfig::loadIni(QSettings *settings) {
+    setServerAddress(SettingsUtils::stripSurroundingQuotes(settings->value("network/server_ipAddress", "127.0.0.1").toString()));
+    setLocalAddress(SettingsUtils::stripSurroundingQuotes(settings->value("network/hpsdr_local_ipAddress", "127.0.0.1").toString()));
+    setServerPort(static_cast<quint16>(SettingsUtils::clampNetworkPort(settings->value("network/server_port", 52685).toInt(), 52685)));
+    setListenPort(static_cast<quint16>(SettingsUtils::clampNetworkPort(settings->value("network/listen_port", 11000).toInt(), 11000)));
+    setAudioPort(static_cast<quint16>(SettingsUtils::clampNetworkPort(settings->value("network/audio_port", 15000).toInt(), 15000)));
+    setMetisPort(static_cast<quint16>(SettingsUtils::clampNetworkPort(settings->value("network/metis_port", 1024).toInt(), 1024)));
+    setSocketBufferSize(SettingsUtils::clampSocketBufferSizeKb(settings->value("network/socketBufferSize", 32).toInt()));
+}
+
+void NetworkConfig::saveIni(QSettings *settings) const {
+    settings->setValue("network/server_ipAddress", m_serverAddress);
+    settings->setValue("network/hpsdr_local_ipAddress", m_localAddress);
+    settings->setValue("network/server_port", m_serverPort);
+    settings->setValue("network/listen_port", m_listenPort);
+    settings->setValue("network/audio_port", m_audioPort);
+    settings->setValue("network/metis_port", m_metisPort);
+    settings->setValue("network/socketBufferSize", m_socketBufferSize);
 }

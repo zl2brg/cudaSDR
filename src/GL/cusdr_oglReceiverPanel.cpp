@@ -853,8 +853,9 @@ void QGLReceiverPanel::drawPanHorizontalScale() {
 	glEnable(GL_BLEND);
 
     const bool regenFreqScale = !m_frequencyScaleFBO || m_freqScalePanadapterRenew
-                                || (m_freqScalePanadapterUpdate && !m_dragMouse
-                                    && (!m_dragFreqScale || m_dragFreqScaleZoom));
+                                || m_freqScalePanadapterUpdate
+                                || m_dragMouse
+                                || (m_dragFreqScale && !m_dragFreqScaleZoom);
 
     if (regenFreqScale) {
 
@@ -879,21 +880,11 @@ void QGLReceiverPanel::drawPanHorizontalScale() {
 
 		glPopAttrib(); // This restores the viewport and texture state
         setProjectionOrthographic(size().width(), size().height());
-		if (!m_dragMouse && (!m_dragFreqScale || m_dragFreqScaleZoom))
-            m_freqScalePanadapterUpdate = false;
+        m_freqScalePanadapterUpdate = false;
 		m_freqScalePanadapterRenew = false;
 	}
 
 	drawCachedTexture(m_freqScalePanRect, m_frequencyScaleFBO->texture(), 0.0f);
-
-    if ((m_dragMouse || (m_dragFreqScale && !m_dragFreqScaleZoom)) && m_overlayRenderer && m_frequencyScaleFBO) {
-        QMatrix4x4 projection;
-        projection.ortho(0, size().width(), size().height(), 0, -10, 10);
-        const float alpha = (m_receiver == m_currentReceiver) ? 1.0f : 0.8f;
-        m_overlayRenderer->drawFrequencyScaleTicks(projection, m_freqScalePanRect, m_frequencyScale,
-                                                 (float)m_deltaF, displayedZoomFactor(),
-                                                 m_redGrid, m_greenGrid, m_blueGrid, alpha);
-    }
 }
 
 void QGLReceiverPanel::updateFrequencyRuler()
@@ -905,12 +896,26 @@ void QGLReceiverPanel::updateFrequencyRuler()
     if (freqSpan <= 0)
         return;
 
+    const int plotLeft = m_dBmScalePanRect.isValid() ? m_dBmScalePanRect.width() : 0;
+    const int plotWidth = m_freqScalePanRect.width() - plotLeft;
+    if (plotWidth <= 0)
+        return;
+
+    const int fullWidth = m_freqScalePanRect.width();
+    const int panOffset = qRound(m_deltaF * qreal(fullWidth) / displayedZoomFactor());
+
     const qreal lowerFreq = qreal(m_centerFrequency) - freqSpan / 2;
     const qreal upperFreq = qreal(m_centerFrequency) + freqSpan / 2;
-    const qreal unit = qreal(m_freqScalePanRect.width()) / freqSpan;
+
+    const qreal plotLo = lowerFreq + qreal(plotLeft) * freqSpan / qreal(fullWidth);
+    const qreal plotFreqSpan = upperFreq - plotLo;
+    const qreal visibleLo = plotLo + qreal(panOffset) * plotFreqSpan / qreal(plotWidth);
+    const qreal visibleHi = visibleLo + plotFreqSpan;
+    const qreal unit = qreal(plotWidth) / plotFreqSpan;
     const int fontMaxWidth = m_fonts.smallFontMetrics->boundingRect(QStringLiteral("000.000.0")).width();
 
-    m_frequencyScale = getXRuler(m_freqScalePanRect, fontMaxWidth, unit, lowerFreq, upperFreq);
+    const QRect plotRect(0, 0, plotWidth, m_freqScalePanRect.height());
+    m_frequencyScale = getXRuler(plotRect, fontMaxWidth, unit, visibleLo, visibleHi);
 }
 
 void QGLReceiverPanel::updateDBmRuler()
@@ -939,7 +944,7 @@ void QGLReceiverPanel::drawPanadapterGrid() {
         projection.ortho(0, size().width(), size().height(), 0, -10, 10);
         float alpha = (m_receiver == m_currentReceiver) ? 1.0f : 0.8f;
         m_overlayRenderer->drawGrid(projection, m_panRect, m_freqScalePanRect, m_frequencyScale, m_dBmScale,
-                                  (float)m_deltaF, displayedZoomFactor(),
+                                  m_dBmScalePanRect.width(),
                                   m_redGrid, m_greenGrid, m_blueGrid, alpha, m_panGrid);
     }
 }
@@ -1520,7 +1525,8 @@ void QGLReceiverPanel::renderPanHorizontalScale() {
     const qreal freqSpan = displayedFrequencySpanHz();
     qreal upperFreq = (qreal)m_centerFrequency + freqSpan / 2;
 
-    const int panOffset = qRound(m_deltaF * qreal(m_freqScalePanRect.width()) / displayedZoomFactor());
+    const int plotLeft = m_dBmScalePanRect.isValid() ? m_dBmScalePanRect.width() : 0;
+    const int fullWidth = m_freqScalePanRect.width();
 
     QOpenGLPaintDevice paintDevice(m_frequencyScaleFBO->size());
     painter.begin(&paintDevice);
@@ -1537,45 +1543,59 @@ void QGLReceiverPanel::renderPanHorizontalScale() {
 	else
 	if (upperFreq >= 1e3) { freqScale = 1e3; fstr = QString("  kHz "); }
 
-	// draw the scale background
-    painter.fillRect(0, 0, m_freqScalePanRect.width(), m_freqScalePanRect.height(), QColor(0, 0, 0, 255));
+    auto formatFreqLabel = [&](qreal freqHz, bool allowExtraDigit) -> QString {
+        const int decimals = (allowExtraDigit && freqScale >= 1e3) ? 4 : 3;
+        QString str = QString::number(freqHz / freqScale, 'f', decimals);
+        if (freqScale == 1e3 && decimals == 3)
+            while (str.endsWith('0')) str.remove(str.size() - 1, 1);
+        if (str.endsWith('.')) str.remove(str.size() - 1, 1);
+        return str;
+    };
+
+	// Full-width background; ruler positions are plot-relative (see updateFrequencyRuler).
+    painter.fillRect(0, 0, fullWidth, m_freqScalePanRect.height(), QColor(0, 0, 0, 255));
 
     QRect scaledTextRect(0, textOffset_y, 1, m_freqScalePanRect.height());
     scaledTextRect.setWidth(m_fonts.smallFontMetrics->horizontalAdvance(fstr));
-    scaledTextRect.moveLeft(m_freqScalePanRect.width() - scaledTextRect.width());// - menu_pull_right_rect.width());
+    scaledTextRect.moveLeft(fullWidth - scaledTextRect.width());
     painter.setRenderHint(QPainter::Antialiasing);
-    painter.setFont(m_oglTextSmall->font());  // Set consistent font for horizontal scale
+    painter.setFont(m_oglTextSmall->font());
     painter.setPen(QPen(textColor,3, Qt::SolidLine, Qt::FlatCap));
+
 	int len = m_frequencyScale.mainPointPositions.length();
+	int lastLabelRight = plotLeft;
+
 	if (len > 0) {
 
 		for (int i = 0; i < len; i++) {
-            const int x = m_frequencyScale.mainPointPositions.at(i) - panOffset;
-            painter.drawLine(x, 1, x, 4);
+            const int screenX = plotLeft + m_frequencyScale.mainPointPositions.at(i);
+            if (screenX < plotLeft || screenX > fullWidth)
+                continue;
+            painter.drawLine(screenX, 1, screenX, 4);
 		}
-		
-		for (int i = 0; i < len; i++) {
-		
-			QString str = QString::number(m_frequencyScale.mainPoints.at(i) / freqScale, 'f', 3);
-			
-			if (i > 0) {
 
-				double delta = m_frequencyScale.mainPoints.at(i) - m_frequencyScale.mainPoints.at(i-1);
-				if (delta < 1000.0)
-					str = QString::number(m_frequencyScale.mainPoints.at(i) / freqScale, 'f', 4);
-				else
-				if (freqScale == 1e3)
-					while (str.endsWith('0')) str.remove(str.size() - 1, 1);
-			}
-			if (str.endsWith('.')) str.remove(str.size() - 1, 1);
+		for (int i = 0; i < len; i++) {
+            const int tickX = m_frequencyScale.mainPointPositions.at(i);
+            const int screenX = plotLeft + tickX;
+            if (screenX < plotLeft || screenX > fullWidth)
+                continue;
+
+			QString str = formatFreqLabel(m_frequencyScale.mainPoints.at(i), tickX == 0);
 
             int textWidth = m_fonts.smallFontMetrics->horizontalAdvance(str);
 
-            QRect textRect(m_frequencyScale.mainPointPositions.at(i) + offset_X - (textWidth / 2) - panOffset,
-                           textOffset_y, textWidth, fontHeight);
+            int textX = (tickX == 0) ? (screenX + 2) : (screenX + offset_X - (textWidth / 2));
 
-			if (textRect.left() < 0 || textRect.right() >= scaledTextRect.left()) continue;
+            if (textX < plotLeft + 2)
+                textX = plotLeft + 2;
+
+            QRect textRect(textX, textOffset_y, textWidth, fontHeight);
+
+			if (textRect.right() >= scaledTextRect.left()) continue;
+            if (textRect.left() < lastLabelRight + 2) continue;
+
              painter.drawText(textRect.x(), textRect.y() + m_oglTextSmall->fontMetrics().height(), str);
+             lastLabelRight = textRect.right();
 
 		}
 	}
@@ -1583,13 +1603,15 @@ void QGLReceiverPanel::renderPanHorizontalScale() {
     len = m_frequencyScale.subPointPositions.length();
     if (len > 0) {
         for (int i = 0; i < len; i++) {
-            const int x = m_frequencyScale.subPointPositions.at(i) - panOffset;
-            painter.drawLine(x, 1, x, 3);
+            const int screenX = plotLeft + m_frequencyScale.subPointPositions.at(i);
+            if (screenX < plotLeft || screenX > fullWidth)
+                continue;
+            painter.drawLine(screenX, 1, screenX, 3);
         }
     }
 
 	painter.setPen(QPen(QColor(239, 56, 109)));
-     painter.drawText(m_freqScalePanRect.width() - 30, textOffset_y + 10, fstr);
+     painter.drawText(fullWidth - 30, textOffset_y + 10, fstr);
     painter.end();
 }
 
@@ -2321,12 +2343,15 @@ void QGLReceiverPanel::mouseMoveEvent(QMouseEvent* event) {
 
 					m_deltaFrequency = m_centerFrequency - m_vfoFrequency;
 					m_deltaF = (qreal)(1.0*m_deltaFrequency/m_sampleRate);
+					m_freqScalePanadapterUpdate = true;
+					m_panGridUpdate = true;
 				}
 				else {
 
 					m_vfoFrequency = m_centerFrequency - m_deltaFrequency;
                     GRAPHICS_DEBUG << "vfo freq " << m_vfoFrequency << m_centerFrequency;
 					m_freqScalePanadapterUpdate = true;
+					m_panGridUpdate = true;
 					set->setVFOFrequency(0, m_receiver, m_vfoFrequency);
 					set->setCtrFrequency(0, m_receiver, m_centerFrequency);
 				}
@@ -2339,11 +2364,7 @@ void QGLReceiverPanel::mouseMoveEvent(QMouseEvent* event) {
 				m_showFilterRightBoundary = false;
 				m_highlightFilter = false;
 
-//				if (m_displayTime.elapsed() >= 50) {
-//
-//					m_displayTime.restart();
-//					update();
-//				}
+				update();
 			}
 			m_displayCenterlineHeight = m_panRect.top() + (m_panRect.height() - 3);
 
