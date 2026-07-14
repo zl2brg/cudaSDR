@@ -2,7 +2,6 @@
 #define CUSDR_RADIOSETTINGSWIDGET_H
 
 #include <QDialog>
-#include "cusdr_settings.h"
 
 namespace Ui {
 class cusdr_radioSettingsWidget;
@@ -18,27 +17,45 @@ public:
 
 #ifdef HAVE_SOAPYSDR
     QWidget *detachRadioConfigPage();
+
+    // MVC View Interface Setters
+    void setTxFullDuplex(bool enabled);
+    void setSoapyIQBalance(bool enabled);
+    void setSoapyAutoCalibrate(bool enabled);
+    void setSoapyLnaGain(int value);
+    void setSoapyTiaGain(int value);
+    void setSoapyPgaGain(int value);
+    void setSoapyOverallGain(int value);
+    void setAntennaList(const QStringList& list, const QString& active);
+    void setTxAntennaList(const QStringList& list, const QString& active);
+    void updateGainGroupVisibility(const QString& hardwareKey);
+#endif
+
+signals:
+#ifdef HAVE_SOAPYSDR
+    // MVC View Interface Signals
+    void txFullDuplexRequested(bool enabled);
+    void soapyIQBalanceRequested(bool enabled);
+    void soapyAutoCalibrateRequested(bool enabled);
+    void soapyLnaGainRequested(int value);
+    void soapyTiaGainRequested(int value);
+    void soapyPgaGainRequested(int value);
+    void soapyOverallGainRequested(int value);
+    void soapyRxAntennaRequested(const QString& antenna);
+    void soapyTxAntennaRequested(const QString& antenna);
 #endif
 
 private:
     Ui::cusdr_radioSettingsWidget *ui;
-    Settings *set;
-
-    void setupRadioTab();
-    void updateGainGroupVisibility();
 
 private slots:
 #ifdef HAVE_SOAPYSDR
-    void onSoapyAntennaListChanged(QStringList list);
-    void onSoapyTxAntennaListChanged(QStringList list);
-    void onSoapyHardwareKeyChanged(QString key);
-    void onSoapyAutoCalibrateChanged(bool enabled);
-    void onTxFullDuplexChanged(bool fullDuplex);
+    // Internal UI wiring slots
     void onFullDuplexToggled(bool enabled);
+    void onIQBalanceToggled(bool enabled);
+    void onAutoCalToggled(bool enabled);
     void onAntennaComboChanged(int index);
     void onTxAntennaComboChanged(int index);
-    void onAutoCalToggled(bool enabled);
-    void onIQBalanceToggled(bool enabled);
     void onLnaSliderChanged(int value);
     void onLnaSpinBoxChanged(int value);
     void onTiaSliderChanged(int value);

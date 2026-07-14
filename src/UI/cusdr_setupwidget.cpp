@@ -27,6 +27,9 @@
 #include <QScrollArea>
 
 #include "cusdr_setupwidget.h"
+#ifdef HAVE_SOAPYSDR
+#include "Controllers/RadioSettingsController.h"
+#endif
 
 
 #define	btn_height		22
@@ -51,6 +54,8 @@ cusdr_SetupWidget::cusdr_SetupWidget(RadioModel *model, QWidget *parent)
     m_displaytabWidget = new DisplayTabWidget(m_radioModel, this);
 #ifdef HAVE_SOAPYSDR
     m_radioSettingsWidget = new cusdr_radioSettingsWidget(this);
+    m_radioSettingsController = new RadioSettingsController(this);
+    m_radioSettingsController->bind(m_radioSettingsWidget, set);
 #endif
 
     auto addScrollableTab = [this](QWidget* widget, const QString& title) {

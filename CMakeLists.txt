@@ -111,6 +111,7 @@ set(SOURCES
     ${SRC_DIR}/Models/RadioModel.cpp
     ${SRC_DIR}/Models/RadioTelemetry.cpp
     ${SRC_DIR}/Controllers/RadioController.cpp
+    ${SRC_DIR}/Controllers/RadioSettingsController.cpp
     ${SRC_DIR}/cusdr_settings.cpp
     ${SRC_DIR}/cusdr_hamDatabase.cpp
     ${SRC_DIR}/cusdr_fonts.cpp

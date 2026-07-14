@@ -3,75 +3,11 @@
 
 cusdr_radioSettingsWidget::cusdr_radioSettingsWidget(QWidget *parent) :
     QDialog(parent),
-    ui(new Ui::cusdr_radioSettingsWidget),
-    set(Settings::instance())
+    ui(new Ui::cusdr_radioSettingsWidget)
 {
     ui->setupUi(this);
-    setupRadioTab();
-}
 
-cusdr_radioSettingsWidget::~cusdr_radioSettingsWidget()
-{
-    delete ui;
-}
-
-void cusdr_radioSettingsWidget::setupRadioTab()
-{
 #ifdef HAVE_SOAPYSDR
-    // Populate from current settings
-    ui->fullDuplexCheck->blockSignals(true);
-    ui->autoCalCheck->blockSignals(true);
-    ui->lnaSlider->blockSignals(true);
-    ui->lnaSpinBox->blockSignals(true);
-    ui->tiaSlider->blockSignals(true);
-    ui->pgaSlider->blockSignals(true);
-    ui->pgaSpinBox->blockSignals(true);
-    ui->overallGainSlider->blockSignals(true);
-    ui->overallGainSpinBox->blockSignals(true);
-
-    ui->fullDuplexCheck->setChecked(set->getTxFullDuplex());
-    ui->iqBalanceCheck->setChecked(set->getSoapyIQBalance());
-    ui->autoCalCheck->setChecked(set->getSoapyAutoCalibrate());
-    ui->lnaSlider->setValue(set->getSoapyLnaGain());
-    ui->lnaSpinBox->setValue(set->getSoapyLnaGain());
-    const int tiaGain = set->getSoapyTiaGain();
-    const int tiaIndex = tiaGain >= 12 ? 2 : tiaGain >= 9 ? 1 : 0;
-    ui->tiaSlider->setValue(tiaIndex);
-    ui->tiaValueLabel->setText(QStringLiteral("%1 dB").arg(tiaGain >= 12 ? 12 : tiaGain >= 9 ? 9 : 0));
-    ui->pgaSlider->setValue(set->getSoapyPgaGain());
-    ui->pgaSpinBox->setValue(set->getSoapyPgaGain());
-    ui->overallGainSlider->setValue(set->getSoapyOverallGain());
-    ui->overallGainSpinBox->setValue(set->getSoapyOverallGain());
-
-    ui->fullDuplexCheck->blockSignals(false);
-    ui->autoCalCheck->blockSignals(false);
-    ui->lnaSlider->blockSignals(false);
-    ui->lnaSpinBox->blockSignals(false);
-    ui->tiaSlider->blockSignals(false);
-    ui->pgaSlider->blockSignals(false);
-    ui->pgaSpinBox->blockSignals(false);
-    ui->overallGainSlider->blockSignals(false);
-    ui->overallGainSpinBox->blockSignals(false);
-
-    QStringList antennas = set->getSoapyAntennaList();
-    if (!antennas.isEmpty())
-        onSoapyAntennaListChanged(antennas);
-    QStringList txAntennas = set->getSoapyTxAntennaList();
-    if (!txAntennas.isEmpty())
-        onSoapyTxAntennaListChanged(txAntennas);
-
-    updateGainGroupVisibility();
-
-    connect(set, &Settings::soapyAntennaListChanged,
-            this, &cusdr_radioSettingsWidget::onSoapyAntennaListChanged);
-    connect(set, &Settings::soapyTxAntennaListChanged,
-            this, &cusdr_radioSettingsWidget::onSoapyTxAntennaListChanged);
-    connect(set, &Settings::soapyHardwareKeyChanged,
-            this, &cusdr_radioSettingsWidget::onSoapyHardwareKeyChanged);
-    connect(set, &Settings::soapyAutoCalibrateChanged,
-            this, &cusdr_radioSettingsWidget::onSoapyAutoCalibrateChanged);
-    connect(set, &Settings::txFullDuplexChanged,
-            this, &cusdr_radioSettingsWidget::onTxFullDuplexChanged);
     connect(ui->fullDuplexCheck, &QCheckBox::toggled,
             this, &cusdr_radioSettingsWidget::onFullDuplexToggled);
     connect(ui->iqBalanceCheck, &QCheckBox::toggled,
@@ -99,6 +35,11 @@ void cusdr_radioSettingsWidget::setupRadioTab()
 #endif
 }
 
+cusdr_radioSettingsWidget::~cusdr_radioSettingsWidget()
+{
+    delete ui;
+}
+
 #ifdef HAVE_SOAPYSDR
 QWidget *cusdr_radioSettingsWidget::detachRadioConfigPage()
 {
@@ -111,37 +52,88 @@ QWidget *cusdr_radioSettingsWidget::detachRadioConfigPage()
     page->setParent(nullptr);
     return page;
 }
-#endif
 
-void cusdr_radioSettingsWidget::updateGainGroupVisibility()
+void cusdr_radioSettingsWidget::setTxFullDuplex(bool enabled)
 {
-#ifdef HAVE_SOAPYSDR
-    bool isLime = set->getSoapyHardwareKey().contains("LimeSDR", Qt::CaseInsensitive);
-    ui->calibrationGroup->setVisible(isLime);
-    ui->limeGainGroup->setVisible(isLime);
-    ui->overallGainGroup->setVisible(!isLime);
-#endif
+    ui->fullDuplexCheck->blockSignals(true);
+    ui->fullDuplexCheck->setChecked(enabled);
+    ui->fullDuplexCheck->blockSignals(false);
 }
 
-#ifdef HAVE_SOAPYSDR
-void cusdr_radioSettingsWidget::onSoapyAntennaListChanged(QStringList list)
+void cusdr_radioSettingsWidget::setSoapyIQBalance(bool enabled)
+{
+    ui->iqBalanceCheck->blockSignals(true);
+    ui->iqBalanceCheck->setChecked(enabled);
+    ui->iqBalanceCheck->blockSignals(false);
+}
+
+void cusdr_radioSettingsWidget::setSoapyAutoCalibrate(bool enabled)
+{
+    ui->autoCalCheck->blockSignals(true);
+    ui->autoCalCheck->setChecked(enabled);
+    ui->autoCalCheck->blockSignals(false);
+}
+
+void cusdr_radioSettingsWidget::setSoapyLnaGain(int value)
+{
+    ui->lnaSlider->blockSignals(true);
+    ui->lnaSlider->setValue(value);
+    ui->lnaSlider->blockSignals(false);
+
+    ui->lnaSpinBox->blockSignals(true);
+    ui->lnaSpinBox->setValue(value);
+    ui->lnaSpinBox->blockSignals(false);
+}
+
+void cusdr_radioSettingsWidget::setSoapyTiaGain(int value)
+{
+    ui->tiaSlider->blockSignals(true);
+    const int tiaIndex = value >= 12 ? 2 : value >= 9 ? 1 : 0;
+    ui->tiaSlider->setValue(tiaIndex);
+    ui->tiaSlider->blockSignals(false);
+    ui->tiaValueLabel->setText(QStringLiteral("%1 dB").arg(value >= 12 ? 12 : value >= 9 ? 9 : 0));
+}
+
+void cusdr_radioSettingsWidget::setSoapyPgaGain(int value)
+{
+    ui->pgaSlider->blockSignals(true);
+    ui->pgaSlider->setValue(value);
+    ui->pgaSlider->blockSignals(false);
+
+    ui->pgaSpinBox->blockSignals(true);
+    ui->pgaSpinBox->setValue(value);
+    ui->pgaSpinBox->blockSignals(false);
+}
+
+void cusdr_radioSettingsWidget::setSoapyOverallGain(int value)
+{
+    ui->overallGainSlider->blockSignals(true);
+    ui->overallGainSlider->setValue(value);
+    ui->overallGainSlider->blockSignals(false);
+
+    ui->overallGainSpinBox->blockSignals(true);
+    ui->overallGainSpinBox->setValue(value);
+    ui->overallGainSpinBox->blockSignals(false);
+}
+
+void cusdr_radioSettingsWidget::setAntennaList(const QStringList& list, const QString& active)
 {
     ui->antennaCombo->blockSignals(true);
     ui->antennaCombo->clear();
     ui->antennaCombo->addItems(list);
-    int idx = list.indexOf(set->getSoapyRxAntenna());
+    int idx = list.indexOf(active);
     if (idx >= 0) ui->antennaCombo->setCurrentIndex(idx);
     ui->antennaCombo->blockSignals(false);
 }
 
-void cusdr_radioSettingsWidget::onSoapyTxAntennaListChanged(QStringList list)
+void cusdr_radioSettingsWidget::setTxAntennaList(const QStringList& list, const QString& active)
 {
     ui->txAntennaCombo->blockSignals(true);
     ui->txAntennaCombo->clear();
     ui->txAntennaCombo->addItems(list);
-    int idx = list.indexOf(set->getSoapyTxAntenna());
+    int idx = list.indexOf(active);
     if (idx < 0)
-        idx = list.indexOf(set->getSoapyRxAntenna());
+        idx = list.indexOf(active);
     if (idx < 0 && !list.isEmpty())
         idx = 0;
     if (idx >= 0)
@@ -149,48 +141,37 @@ void cusdr_radioSettingsWidget::onSoapyTxAntennaListChanged(QStringList list)
     ui->txAntennaCombo->blockSignals(false);
 }
 
-void cusdr_radioSettingsWidget::onSoapyHardwareKeyChanged(QString /*key*/)
+void cusdr_radioSettingsWidget::updateGainGroupVisibility(const QString& hardwareKey)
 {
-    updateGainGroupVisibility();
-}
-
-void cusdr_radioSettingsWidget::onSoapyAutoCalibrateChanged(bool enabled)
-{
-    ui->autoCalCheck->blockSignals(true);
-    ui->autoCalCheck->setChecked(enabled);
-    ui->autoCalCheck->blockSignals(false);
-}
-
-void cusdr_radioSettingsWidget::onTxFullDuplexChanged(bool fullDuplex)
-{
-    ui->fullDuplexCheck->blockSignals(true);
-    ui->fullDuplexCheck->setChecked(fullDuplex);
-    ui->fullDuplexCheck->blockSignals(false);
+    bool isLime = hardwareKey.contains("LimeSDR", Qt::CaseInsensitive);
+    ui->calibrationGroup->setVisible(isLime);
+    ui->limeGainGroup->setVisible(isLime);
+    ui->overallGainGroup->setVisible(!isLime);
 }
 
 void cusdr_radioSettingsWidget::onFullDuplexToggled(bool enabled)
 {
-    set->setTxFullDuplex(enabled);
+    emit txFullDuplexRequested(enabled);
 }
 
 void cusdr_radioSettingsWidget::onIQBalanceToggled(bool enabled)
 {
-    set->setSoapyIQBalance(enabled);
+    emit soapyIQBalanceRequested(enabled);
 }
 
 void cusdr_radioSettingsWidget::onAutoCalToggled(bool enabled)
 {
-    set->setSoapyAutoCalibrate(enabled);
+    emit soapyAutoCalibrateRequested(enabled);
 }
 
 void cusdr_radioSettingsWidget::onAntennaComboChanged(int index)
 {
-    set->setSoapyRxAntenna(ui->antennaCombo->itemText(index));
+    emit soapyRxAntennaRequested(ui->antennaCombo->itemText(index));
 }
 
 void cusdr_radioSettingsWidget::onTxAntennaComboChanged(int index)
 {
-    set->setSoapyTxAntenna(ui->txAntennaCombo->itemText(index));
+    emit soapyTxAntennaRequested(ui->txAntennaCombo->itemText(index));
 }
 
 void cusdr_radioSettingsWidget::onLnaSliderChanged(int value)
@@ -198,7 +179,7 @@ void cusdr_radioSettingsWidget::onLnaSliderChanged(int value)
     ui->lnaSpinBox->blockSignals(true);
     ui->lnaSpinBox->setValue(value);
     ui->lnaSpinBox->blockSignals(false);
-    set->setSoapyLnaGain(value);
+    emit soapyLnaGainRequested(value);
 }
 
 void cusdr_radioSettingsWidget::onLnaSpinBoxChanged(int value)
@@ -206,7 +187,7 @@ void cusdr_radioSettingsWidget::onLnaSpinBoxChanged(int value)
     ui->lnaSlider->blockSignals(true);
     ui->lnaSlider->setValue(value);
     ui->lnaSlider->blockSignals(false);
-    set->setSoapyLnaGain(value);
+    emit soapyLnaGainRequested(value);
 }
 
 void cusdr_radioSettingsWidget::onTiaSliderChanged(int index)
@@ -214,7 +195,7 @@ void cusdr_radioSettingsWidget::onTiaSliderChanged(int index)
     static const int tiaValues[] = {0, 9, 12};
     const int gain = (index >= 0 && index < 3) ? tiaValues[index] : 0;
     ui->tiaValueLabel->setText(QStringLiteral("%1 dB").arg(gain));
-    set->setSoapyTiaGain(gain);
+    emit soapyTiaGainRequested(gain);
 }
 
 void cusdr_radioSettingsWidget::onPgaSliderChanged(int value)
@@ -222,7 +203,7 @@ void cusdr_radioSettingsWidget::onPgaSliderChanged(int value)
     ui->pgaSpinBox->blockSignals(true);
     ui->pgaSpinBox->setValue(value);
     ui->pgaSpinBox->blockSignals(false);
-    set->setSoapyPgaGain(value);
+    emit soapyPgaGainRequested(value);
 }
 
 void cusdr_radioSettingsWidget::onPgaSpinBoxChanged(int value)
@@ -230,7 +211,7 @@ void cusdr_radioSettingsWidget::onPgaSpinBoxChanged(int value)
     ui->pgaSlider->blockSignals(true);
     ui->pgaSlider->setValue(value);
     ui->pgaSlider->blockSignals(false);
-    set->setSoapyPgaGain(value);
+    emit soapyPgaGainRequested(value);
 }
 
 void cusdr_radioSettingsWidget::onOverallGainSliderChanged(int value)
@@ -238,7 +219,7 @@ void cusdr_radioSettingsWidget::onOverallGainSliderChanged(int value)
     ui->overallGainSpinBox->blockSignals(true);
     ui->overallGainSpinBox->setValue(value);
     ui->overallGainSpinBox->blockSignals(false);
-    set->setSoapyOverallGain(value);
+    emit soapyOverallGainRequested(value);
 }
 
 void cusdr_radioSettingsWidget::onOverallGainSpinBoxChanged(int value)
@@ -246,6 +227,6 @@ void cusdr_radioSettingsWidget::onOverallGainSpinBoxChanged(int value)
     ui->overallGainSlider->blockSignals(true);
     ui->overallGainSlider->setValue(value);
     ui->overallGainSlider->blockSignals(false);
-    set->setSoapyOverallGain(value);
+    emit soapyOverallGainRequested(value);
 }
 #endif

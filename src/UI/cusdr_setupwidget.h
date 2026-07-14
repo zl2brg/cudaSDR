@@ -38,6 +38,9 @@
 
 
 class RadioModel;
+#ifdef HAVE_SOAPYSDR
+class RadioSettingsController;
+#endif
 class cusdr_SetupWidget : public QTabWidget
 {
     Q_OBJECT
@@ -83,6 +86,7 @@ private:
     DisplayTabWidget    *m_displaytabWidget;
 #ifdef HAVE_SOAPYSDR
     cusdr_radioSettingsWidget *m_radioSettingsWidget;
+    RadioSettingsController   *m_radioSettingsController = nullptr;
 #endif
 
     QString				m_message;
