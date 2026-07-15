@@ -1,37 +1,10 @@
-/**
-* @file  cusdr_alexFilterWidget.h
-* @brief Alexiares filter settings widget header file for cuSDR
-* @author Hermann von Hasseln, DL3HVH
-* @version 0.1
-* @date 2012-08-23
-*/
-
-/*
- *   
- *   Copyright 2012 Hermann von Hasseln, DL3HVH
- *
- *   This program is free software; you can redistribute it and/or modify
- *   it under the terms of the GNU Library General Public License version 2 as
- *   published by the Free Software Foundation
- *
- *   This program is distributed in the hope that it will be useful,
- *   but WITHOUT ANY WARRANTY; without even the implied warranty of
- *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *   GNU General Public License for more details
- *
- *   You should have received a copy of the GNU Library General Public
- *   License along with this program; if not, write to the
- *   Free Software Foundation, Inc.,
- *   51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
- */
- 
 #ifndef _CUSDR_ALEX_FILTER_WIDGET_H
 #define _CUSDR_ALEX_FILTER_WIDGET_H
 
 #include <QWidget>
 #include <QComboBox>
 #include <QGroupBox>
-#include <QSpinBox>
+#include <QDoubleSpinBox>
 #include <QLabel>
 #include <QLineEdit>
 #include <QBoxLayout>
@@ -41,27 +14,39 @@
 #include "cusdr_settings.h"
 #include "cusdr_fonts.h"
 
-
 class AlexFilterWidget : public QWidget {
-
 	Q_OBJECT
 
 public:
 	AlexFilterWidget(QWidget *parent = 0);
 	~AlexFilterWidget();
 
-public slots:
-	
-private:
-	void	setupConnections();
-	void	createHPFGroup();
-	void	createLPFGroup();
-	
-	void 	initAlexValues();
-	void	setFilterValues();
+	// MVC View Interface Setters
+	void	setAlexConfig(quint16 config);
+	void	setAlexStates(const QList<int>& states);
+	void	setAlexManualState(bool manual);
+	void	setFrequencies(const QList<long>& hpfLo, const QList<long>& hpfHi, const QList<long>& lpfLo, const QList<long>& lpfHi);
+	void	setFrequency(int mode, int rx, qint64 frequency);
+
+signals:
+	// MVC View Interface Signals
+	void	manualFilterRequested(bool manual);
+	void	alexConfigurationRequested(quint16 config);
+	void	hpfLoFrequencyRequested(int filter, long value);
+	void	hpfHiFrequencyRequested(int filter, long value);
+	void	lpfLoFrequencyRequested(int filter, long value);
+	void	lpfHiFrequencyRequested(int filter, long value);
+
+	void	showEvent();
+	void	closeEvent();
+	void	messageEvent(QString);
 
 private:
-	Settings				*set;
+	void	createHPFGroup();
+	void	createLPFGroup();
+	void 	initAlexValues();
+	void	setFilterValues();
+	void	setAlexConfiguration(double frequency);
 
 	QSDR::_ServerMode		m_serverMode;
 	QSDR::_HWInterfaceMode	m_hwInterface;
@@ -130,17 +115,13 @@ private:
 	bool 	hpf1_5MHz;
 
 private slots:
-	void alexManualStateChanged(bool value);
-
+	// Internal UI slots
 	void hpfLoSpinBoxValueChanged(double value);
 	void hpfHiSpinBoxValueChanged(double value);
 	void lpfLoSpinBoxValueChanged(double value);
 	void lpfHiSpinBoxValueChanged(double value);
 
-	//void setFrequency(bool value, int rx, qint64 frequency);
-	void setFrequency(int mode, int rx, qint64 frequency);
 	void setCurrentReceiver(int rx);
-	void setAlexConfiguration(double frequency);
 	void manualFilterBtnClicked();
 	void defaultValuesBtnClicked();
 	void bypassAllHPFBtnClicked();
@@ -150,11 +131,6 @@ private slots:
 	void hpf9_5MHzBtnClicked();
 	void hpf6_5MHzBtnClicked();
 	void hpf1_5MHzBtnClicked();
-
-signals:
-	void	showEvent();
-	void	closeEvent();
-	void	messageEvent(QString);
 };
 
 #endif // _CUSDR_ALEX_FILTER_WIDGET_H

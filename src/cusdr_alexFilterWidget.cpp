@@ -1,34 +1,5 @@
-/**
-* @file  cusdr_alexFilterWidget.cpp
-* @brief Alexiares filter settings widget class for cuSDR
-* @author Hermann von Hasseln, DL3HVH
-* @version 0.1
-* @date 2012-08-23
-*/
-
-/*
- *   
- *   Copyright 2012 Hermann von Hasseln, DL3HVH
- *
- *   This program is free software; you can redistribute it and/or modify
- *   it under the terms of the GNU Library General Public License version 2 as
- *   published by the Free Software Foundation
- *
- *   This program is distributed in the hope that it will be useful,
- *   but WITHOUT ANY WARRANTY; without even the implied warranty of
- *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *   GNU General Public License for more details
- *
- *   You should have received a copy of the GNU Library General Public
- *   License along with this program; if not, write to the
- *   Free Software Foundation, Inc.,
- *   51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
- */
-
 #define LOG_ALEX_WIDGET
 
-
-#include <QtGui>
 #include <QPen>
 #include <QDebug>
 #include <QScopedPointer>
@@ -37,26 +8,13 @@
 
 #define	btn_height		15
 #define	btn_width		22
-#define	btn_width2		24//28
+#define	btn_width2		24
 #define	btn_width3		45
-
-namespace {
-qint64 safeVfoFrequencyHz(Settings *set, int receiver, qint64 fallbackHz) {
-	if (!set)
-		return fallbackHz;
-	const QList<qint64> vfos = set->getVfoFrequencies();
-	if (receiver < 0 || receiver >= vfos.size())
-		return fallbackHz;
-	return vfos.at(receiver);
-}
-}
-
 
 AlexFilterWidget::AlexFilterWidget(QWidget *parent)
 	: QWidget(parent)
-	, set(Settings::instance())
-	, m_frequency(set->getVfoFrequencies().at(0))
-	, m_minimumWidgetWidth(set->getMinimumWidgetWidth())
+	, m_frequency(14000000)
+	, m_minimumWidgetWidth(500)
 	, m_minimumGroupBoxWidth(0)
 	, m_hpfFilters(6)
 	, m_lpfFilters(7)
@@ -68,11 +26,17 @@ AlexFilterWidget::AlexFilterWidget(QWidget *parent)
 	, hpf9_5MHz(false)
 	, hpf6_5MHz(false)
 	, hpf1_5MHz(false)
+	, m_alexConfig(0)
 {
 	setObjectName("AlexFilterWidget");
 	setMinimumWidth(m_minimumWidgetWidth);
 	setContentsMargins(4, 8, 4, 0);
 	setMouseTracking(true);
+
+	// Pre-populate m_alexStates
+	for (int i = 0; i < 11; ++i) {
+		m_alexStates.append(0);
+	}
 
 	fonts = new CFonts(this);
 	m_fonts = fonts->getFonts();
@@ -94,8 +58,6 @@ AlexFilterWidget::AlexFilterWidget(QWidget *parent)
 
 	CHECKED_CONNECT(defaultValuesBtn, &AeroButton::clicked, this, &AlexFilterWidget::defaultValuesBtnClicked);
 
-	//**************************************************************
-	// create groups
 	setFilterValues();
 
 	createHPFGroup();
@@ -132,50 +94,73 @@ AlexFilterWidget::AlexFilterWidget(QWidget *parent)
 
 	setLayout(mainLayout);
 
-	initAlexValues();
-	setupConnections();
-
 	m_HPFActiveBtnList.at(6)->setColors(btnOn, btnOn);
 
-	setAlexConfiguration((double)(set->getVfoFrequencies().at(0)/1000.0));
+	setAlexConfiguration((double)(m_frequency/1000.0));
 }
 
 AlexFilterWidget::~AlexFilterWidget() {
-
-	// disconnect all signals
-	disconnect(set, 0, this, 0);
 	disconnect(0, 0, 0);
 }
 
-void AlexFilterWidget::setupConnections() {
+void AlexFilterWidget::setAlexConfig(quint16 config) {
+	m_alexConfig = config;
+}
 
-	CHECKED_CONNECT(
-		set,
-		&Settings::alexManualStateChanged,
-		this,
-		&AlexFilterWidget::alexManualStateChanged);
+void AlexFilterWidget::setAlexStates(const QList<int>& states) {
+	m_alexStates = states;
+}
 
-//	CHECKED_CONNECT(
-//		set,
-//		SIGNAL(currentReceiverChanged(int)),
-//		this,
-//		SLOT(setCurrentReceiver(int)));
+void AlexFilterWidget::setAlexManualState(bool manual) {
+	manualFilterBtn->blockSignals(true);
+	if (manual) {
+		m_alexConfig |= 0x01;
+		manualFilterBtn->setText("Manual");
+		manualFilterBtn->setBtnState(AeroButton::ON);
+	} else {
+		m_alexConfig &= 0xFFFE;
+		foreach(QHLed *led, m_HPFActiveBtnList)
+			led->setColors(btnOff, btnOff);
+		m_HPFActiveBtnList.at(6)->setColors(btnOn, btnOn);
 
-	/*CHECKED_CONNECT(
-		set,
-		SIGNAL(vfoFrequencyChanged(bool, int, long)),
-		this,
-		SLOT(setFrequency(bool, int, long)));*/
+		manualFilterBtn->setText("Auto");
+		manualFilterBtn->setBtnState(AeroButton::OFF);
+	}
+	manualFilterBtn->blockSignals(false);
+	manualFilterBtn->update();
+}
 
-	CHECKED_CONNECT(
-		set,
-		&Settings::vfoFrequencyChanged,
-		this,
-		&AlexFilterWidget::setFrequency);
+void AlexFilterWidget::setFrequencies(const QList<long>& hpfLo, const QList<long>& hpfHi, const QList<long>& lpfLo, const QList<long>& lpfHi) {
+	for (int i = 0; i < qMin(hpfLo.size(), m_HPFLoSpinBoxList.size()); ++i) {
+		m_HPFLoSpinBoxList.at(i)->blockSignals(true);
+		m_HPFLoSpinBoxList.at(i)->setValue(hpfLo.at(i) / 1000.0);
+		m_HPFLoSpinBoxList.at(i)->blockSignals(false);
+	}
+	for (int i = 0; i < qMin(hpfHi.size(), m_HPFHiSpinBoxList.size()); ++i) {
+		m_HPFHiSpinBoxList.at(i)->blockSignals(true);
+		m_HPFHiSpinBoxList.at(i)->setValue(hpfHi.at(i) / 1000.0);
+		m_HPFHiSpinBoxList.at(i)->blockSignals(false);
+	}
+	for (int i = 0; i < qMin(lpfLo.size(), m_LPFLoSpinBoxList.size()); ++i) {
+		m_LPFLoSpinBoxList.at(i)->blockSignals(true);
+		m_LPFLoSpinBoxList.at(i)->setValue(lpfLo.at(i) / 1000.0);
+		m_LPFLoSpinBoxList.at(i)->blockSignals(false);
+	}
+	for (int i = 0; i < qMin(lpfHi.size(), m_LPFHiSpinBoxList.size()); ++i) {
+		m_LPFHiSpinBoxList.at(i)->blockSignals(true);
+		m_LPFHiSpinBoxList.at(i)->setValue(lpfHi.at(i) / 1000.0);
+		m_LPFHiSpinBoxList.at(i)->blockSignals(false);
+	}
+}
+
+void AlexFilterWidget::setFrequency(int mode, int rx, qint64 frequency) {
+	Q_UNUSED(mode);
+	if (rx != m_receiver) return;
+	m_frequency = frequency;
+	setAlexConfiguration((double)(frequency / 1000.0));
 }
 
 void AlexFilterWidget::createHPFGroup() {
-
 	QLabel *byPassLabel = new QLabel("byPass", this);
 	byPassLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
 
@@ -205,814 +190,494 @@ void AlexFilterWidget::createHPFGroup() {
 	mHz20Label->setFrameStyle(QFrame::Box | QFrame::Raised);
 	m_HPFLabelList.append(mHz20Label);
 
-	QLabel *m6BPF_LNALabel = new QLabel("6m LNA", this);
-	m6BPF_LNALabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-	m_HPFLabelList.append(m6BPF_LNALabel);
+	QLabel *mhz55Label = new QLabel("6 m LNA", this);
+	mhz55Label->setFrameStyle(QFrame::Box | QFrame::Raised);
+	m_HPFLabelList.append(mhz55Label);
 
-	QLabel *byPassAllLabel = new QLabel("Bypass", this);
-	byPassAllLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-
-	mhz55HPFLabel = new QLabel("      55 MHz HPF     ", this);
+	mhz55HPFLabel = new QLabel("6 m LNA", this);
 	mhz55HPFLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
+	m_HPFLabelList.append(mhz55HPFLabel);
 
-	int fontMaxWidth = m_fonts.smallFontMetrics->boundingRect("000000.0").width() + 30;
-
-	QList<long> values = set->getHPFLoFrequencies();
-
-	// HPF lo spin boxes
+	// create spinboxes
 	for (int i = 0; i < m_hpfFilters; i++) {
+		QDoubleSpinBox *loSpinBox = new QDoubleSpinBox(this);
+		loSpinBox->setRange(m_HPFFrequencyRangeLoList.at(i).first, m_HPFFrequencyRangeLoList.at(i).second);
+		loSpinBox->setDecimals(3);
+		loSpinBox->setSingleStep(0.005);
+		loSpinBox->setValue(m_HPFLoDefaultFrequencyList.at(i));
+		loSpinBox->setFixedWidth(64);
+		loSpinBox->setFont(m_fonts.normalFont);
 
-		QDoubleSpinBox *spinBox = new QDoubleSpinBox();
-		spinBox->setDecimals(1);
-		spinBox->setWrapping(true);
-		spinBox->setMinimumWidth(fontMaxWidth);
-		spinBox->setRange(m_HPFFrequencyRangeLoList.at(i).first, m_HPFFrequencyRangeLoList.at(i).second);
-		spinBox->setSingleStep(0.5);
-		spinBox->setValue((double)(values.at(i)/1000.0));
+		CHECKED_CONNECT(loSpinBox, SIGNAL(valueChanged(double)), this, SLOT(hpfLoSpinBoxValueChanged(double)));
 
-		CHECKED_CONNECT(spinBox, &QDoubleSpinBox::valueChanged, this, &AlexFilterWidget::hpfLoSpinBoxValueChanged);
+		m_HPFLoSpinBoxList.append(loSpinBox);
 
-		m_HPFLoSpinBoxList << spinBox;
+		QDoubleSpinBox *hiSpinBox = new QDoubleSpinBox(this);
+		hiSpinBox->setRange(m_HPFFrequencyRangeHiList.at(i).first, m_HPFFrequencyRangeHiList.at(i).second);
+		hiSpinBox->setDecimals(3);
+		hiSpinBox->setSingleStep(0.005);
+		hiSpinBox->setValue(m_HPFHiDefaultFrequencyList.at(i));
+		hiSpinBox->setFixedWidth(64);
+		hiSpinBox->setFont(m_fonts.normalFont);
+
+		CHECKED_CONNECT(hiSpinBox, SIGNAL(valueChanged(double)), this, SLOT(hpfHiSpinBoxValueChanged(double)));
+
+		m_HPFHiSpinBoxList.append(hiSpinBox);
 	}
 
-	values = set->getHPFHiFrequencies();
+	bypassAllHPFBtn = new AeroButton("", this);
+	bypassAllHPFBtn->setRoundness(0);
+	bypassAllHPFBtn->setFixedSize(btn_width, btn_height);
+	bypassAllHPFBtn->setBtnState(AeroButton::OFF);
 
-	// HPF hi spin boxes
-	for (int i = 0; i < m_hpfFilters; i++) {
+	CHECKED_CONNECT(bypassAllHPFBtn, &AeroButton::clicked, this, &AlexFilterWidget::bypassAllHPFBtnClicked);
 
-		QDoubleSpinBox *spinBox = new QDoubleSpinBox();
-		spinBox->setDecimals(1);
-		spinBox->setWrapping(true);
-		spinBox->setMinimumWidth(fontMaxWidth);
-		spinBox->setRange(m_HPFFrequencyRangeHiList.at(i).first, m_HPFFrequencyRangeHiList.at(i).second);
-		spinBox->setSingleStep(0.5);
-		spinBox->setValue((double)(values.at(i)/1000.0));
-
-		CHECKED_CONNECT(spinBox, SIGNAL(valueChanged(double)), this, SLOT(hpfHiSpinBoxValueChanged(double)));
-
-		m_HPFHiSpinBoxList << spinBox;
-	}
-
-	// HPF active buttons
-	for (int i = 0; i < m_hpfFilters+1; i++) {
-
-		QHLed *btn = new QHLed("", this);
-		btn->setFixedSize(4, btn_height);
-		btn->setColors(btnOff, btnOff);
-
-		m_HPFActiveBtnList << btn;
-	}
-
-
-	hpf1_5MHzBtn = new AeroButton("Off", this);
+	hpf1_5MHzBtn = new AeroButton("", this);
 	hpf1_5MHzBtn->setRoundness(0);
 	hpf1_5MHzBtn->setFixedSize(btn_width, btn_height);
 	hpf1_5MHzBtn->setBtnState(AeroButton::OFF);
 	m_HPFBtnList.append(hpf1_5MHzBtn);
 
-	CHECKED_CONNECT(hpf1_5MHzBtn, SIGNAL(clicked()), this, SLOT(hpf1_5MHzBtnClicked()));
+	CHECKED_CONNECT(hpf1_5MHzBtn, &AeroButton::clicked, this, &AlexFilterWidget::hpf1_5MHzBtnClicked);
 
-	hpf6_5MHzBtn = new AeroButton("Off", this);
+	hpf6_5MHzBtn = new AeroButton("", this);
 	hpf6_5MHzBtn->setRoundness(0);
 	hpf6_5MHzBtn->setFixedSize(btn_width, btn_height);
 	hpf6_5MHzBtn->setBtnState(AeroButton::OFF);
 	m_HPFBtnList.append(hpf6_5MHzBtn);
 
-	CHECKED_CONNECT(hpf6_5MHzBtn, SIGNAL(clicked()), this, SLOT(hpf6_5MHzBtnClicked()));
+	CHECKED_CONNECT(hpf6_5MHzBtn, &AeroButton::clicked, this, &AlexFilterWidget::hpf6_5MHzBtnClicked);
 
-	hpf9_5MHzBtn = new AeroButton("Off", this);
+	hpf9_5MHzBtn = new AeroButton("", this);
 	hpf9_5MHzBtn->setRoundness(0);
 	hpf9_5MHzBtn->setFixedSize(btn_width, btn_height);
 	hpf9_5MHzBtn->setBtnState(AeroButton::OFF);
 	m_HPFBtnList.append(hpf9_5MHzBtn);
 
-	CHECKED_CONNECT(hpf9_5MHzBtn, SIGNAL(clicked()), this, SLOT(hpf9_5MHzBtnClicked()));
+	CHECKED_CONNECT(hpf9_5MHzBtn, &AeroButton::clicked, this, &AlexFilterWidget::hpf9_5MHzBtnClicked);
 
-	hpf13MHzBtn = new AeroButton("Off", this);
+	hpf13MHzBtn = new AeroButton("", this);
 	hpf13MHzBtn->setRoundness(0);
 	hpf13MHzBtn->setFixedSize(btn_width, btn_height);
 	hpf13MHzBtn->setBtnState(AeroButton::OFF);
 	m_HPFBtnList.append(hpf13MHzBtn);
 
-	CHECKED_CONNECT(hpf13MHzBtn, SIGNAL(clicked()), this, SLOT(hpf13MHzBtnClicked()));
+	CHECKED_CONNECT(hpf13MHzBtn, &AeroButton::clicked, this, &AlexFilterWidget::hpf13MHzBtnClicked);
 
-	hpf20MHzBtn = new AeroButton("Off", this);
+	hpf20MHzBtn = new AeroButton("", this);
 	hpf20MHzBtn->setRoundness(0);
 	hpf20MHzBtn->setFixedSize(btn_width, btn_height);
 	hpf20MHzBtn->setBtnState(AeroButton::OFF);
 	m_HPFBtnList.append(hpf20MHzBtn);
 
-	CHECKED_CONNECT(hpf20MHzBtn, SIGNAL(clicked()), this, SLOT(hpf20MHzBtnClicked()));
+	CHECKED_CONNECT(hpf20MHzBtn, &AeroButton::clicked, this, &AlexFilterWidget::hpf20MHzBtnClicked);
 
-	lowNoise6mAmpBtn = new AeroButton("Off", this);
+	lowNoise6mAmpBtn = new AeroButton("", this);
 	lowNoise6mAmpBtn->setRoundness(0);
 	lowNoise6mAmpBtn->setFixedSize(btn_width, btn_height);
 	lowNoise6mAmpBtn->setBtnState(AeroButton::OFF);
 	m_HPFBtnList.append(lowNoise6mAmpBtn);
 
-	CHECKED_CONNECT(lowNoise6mAmpBtn, SIGNAL(clicked()), this, SLOT(lowNoise6mAmpBtnClicked()));
+	CHECKED_CONNECT(lowNoise6mAmpBtn, &AeroButton::clicked, this, &AlexFilterWidget::lowNoise6mAmpBtnClicked);
 
-	bypassAllHPFBtn = new AeroButton("Off", this);
-	bypassAllHPFBtn->setRoundness(0);
-	bypassAllHPFBtn->setFixedSize (btn_width, btn_height);
-	bypassAllHPFBtn->setBtnState(AeroButton::OFF);
-
-	CHECKED_CONNECT(bypassAllHPFBtn, SIGNAL(clicked()), this, SLOT(bypassAllHPFBtnClicked()));
-
-
-	QGridLayout* grid = new QGridLayout(this);
-	grid->setVerticalSpacing(1);
-	grid->setHorizontalSpacing(1);
-	grid->setContentsMargins(2, 12, 2, 7);
-
-	grid->addWidget(byPassLabel, 	0, 0, 1, 2, Qt::AlignLeft);
-	grid->addWidget(hpfLabel, 		0, 2, 1, 3, Qt::AlignCenter);
-
-	for (int i = 0; i < m_hpfFilters; i++) {
-
-		grid->addWidget(m_HPFBtnList.at(i), 		i+1, 0, 1, 1, Qt::AlignLeft);
-		grid->addWidget(m_HPFLabelList.at(i), 		i+1, 1, 1, 1, Qt::AlignLeft);
-		grid->addWidget(m_HPFLoSpinBoxList.at(i), 	i+1, 2, 1, 1, Qt::AlignCenter);
-		grid->addWidget(m_HPFHiSpinBoxList.at(i), 	i+1, 3, 1, 1, Qt::AlignCenter);
-		grid->addWidget(m_HPFActiveBtnList.at(i),	i+1, 4, 1, 1, Qt::AlignCenter);
+	// create LEDs
+	for (int i = 0; i < 7; i++) {
+		QHLed *led = new QHLed("", this);
+		led->setFixedSize (10, 10);
+		led->setColors(btnOff, btnOff);
+		m_HPFActiveBtnList.append(led);
 	}
 
-	grid->addWidget(bypassAllHPFBtn, 8, 0, 1, 1, Qt::AlignLeft);
-	grid->addWidget(byPassAllLabel, 8, 1, 1, 1, Qt::AlignCenter);
-	grid->addWidget(mhz55HPFLabel, 8, 2, 1, 2, Qt::AlignCenter);
-	grid->addWidget(m_HPFActiveBtnList.at(m_hpfFilters),	8, 4, 1, 1, Qt::AlignCenter);
+	QGridLayout *gridLayout = new QGridLayout;
+	gridLayout->setSpacing(2);
 
-	HPFGroup = new QGroupBox(tr("HP Filters"), this);
+	gridLayout->addWidget(hpfLabel, 0, 0, 1, 4, Qt::AlignCenter);
+	gridLayout->addWidget(emptyLabel, 0, 4);
+	gridLayout->addWidget(byPassLabel, 0, 5, Qt::AlignCenter);
+
+	gridLayout->addWidget(mHz1_5Label, 1, 0, Qt::AlignCenter);
+	gridLayout->addWidget(m_HPFLoSpinBoxList.at(0), 1, 1, Qt::AlignCenter);
+	gridLayout->addWidget(m_HPFHiSpinBoxList.at(0), 1, 2, Qt::AlignCenter);
+	gridLayout->addWidget(m_HPFActiveBtnList.at(0), 1, 3, Qt::AlignCenter);
+	gridLayout->addWidget(hpf1_5MHzBtn, 1, 5, Qt::AlignCenter);
+
+	gridLayout->addWidget(mHz6_5Label, 2, 0, Qt::AlignCenter);
+	gridLayout->addWidget(m_HPFLoSpinBoxList.at(1), 2, 1, Qt::AlignCenter);
+	gridLayout->addWidget(m_HPFHiSpinBoxList.at(1), 2, 2, Qt::AlignCenter);
+	gridLayout->addWidget(m_HPFActiveBtnList.at(1), 2, 3, Qt::AlignCenter);
+	gridLayout->addWidget(hpf6_5MHzBtn, 2, 5, Qt::AlignCenter);
+
+	gridLayout->addWidget(mHz9_5Label, 3, 0, Qt::AlignCenter);
+	gridLayout->addWidget(m_HPFLoSpinBoxList.at(2), 3, 1, Qt::AlignCenter);
+	gridLayout->addWidget(m_HPFHiSpinBoxList.at(2), 3, 2, Qt::AlignCenter);
+	gridLayout->addWidget(m_HPFActiveBtnList.at(2), 3, 3, Qt::AlignCenter);
+	gridLayout->addWidget(hpf9_5MHzBtn, 3, 5, Qt::AlignCenter);
+
+	gridLayout->addWidget(mHz13Label, 4, 0, Qt::AlignCenter);
+	gridLayout->addWidget(m_HPFLoSpinBoxList.at(3), 4, 1, Qt::AlignCenter);
+	gridLayout->addWidget(m_HPFHiSpinBoxList.at(3), 4, 2, Qt::AlignCenter);
+	gridLayout->addWidget(m_HPFActiveBtnList.at(3), 4, 3, Qt::AlignCenter);
+	gridLayout->addWidget(hpf13MHzBtn, 4, 5, Qt::AlignCenter);
+
+	gridLayout->addWidget(mHz20Label, 5, 0, Qt::AlignCenter);
+	gridLayout->addWidget(m_HPFLoSpinBoxList.at(4), 5, 1, Qt::AlignCenter);
+	gridLayout->addWidget(m_HPFHiSpinBoxList.at(4), 5, 2, Qt::AlignCenter);
+	gridLayout->addWidget(m_HPFActiveBtnList.at(4), 5, 3, Qt::AlignCenter);
+	gridLayout->addWidget(hpf20MHzBtn, 5, 5, Qt::AlignCenter);
+
+	gridLayout->addWidget(mhz55Label, 6, 0, Qt::AlignCenter);
+	gridLayout->addWidget(m_HPFLoSpinBoxList.at(5), 6, 1, Qt::AlignCenter);
+	gridLayout->addWidget(m_HPFHiSpinBoxList.at(5), 6, 2, Qt::AlignCenter);
+	gridLayout->addWidget(m_HPFActiveBtnList.at(5), 6, 3, Qt::AlignCenter);
+	gridLayout->addWidget(lowNoise6mAmpBtn, 6, 5, Qt::AlignCenter);
+
+	gridLayout->addWidget(mhz55HPFLabel, 7, 0, Qt::AlignCenter);
+	gridLayout->addWidget(m_HPFActiveBtnList.at(6), 7, 3, Qt::AlignCenter);
+	gridLayout->addWidget(bypassAllHPFBtn, 7, 5, Qt::AlignCenter);
+
+	HPFGroup = new QGroupBox(tr("High Pass Filter Cutoff Frequency Options (MHz)"), this);
 	HPFGroup->setMinimumWidth(m_minimumGroupBoxWidth);
-	HPFGroup->setLayout(grid);
+	HPFGroup->setLayout(gridLayout);
 	HPFGroup->setFont(QFont("Arial", 8));
 }
 
 void AlexFilterWidget::createLPFGroup() {
-
 	QLabel *lpfLabel = new QLabel("LPF (kHz)", this);
 	lpfLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
 
 	QLabel *emptyLabel = new QLabel(" ", this);
 	emptyLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
 
-	QLabel *m160Label = new QLabel("160m", this);
-	m160Label->setFrameStyle(QFrame::Box | QFrame::Raised);
-	m_LPFLabelList.append(m160Label);
+	QLabel *activeLabel = new QLabel("active", this);
+	activeLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
 
-	QLabel *m80Label = new QLabel("80m", this);
-	m80Label->setFrameStyle(QFrame::Box | QFrame::Raised);
-	m_LPFLabelList.append(m80Label);
+	QLabel *mHz1_8Label = new QLabel("1.8 MHz", this);
+	mHz1_8Label->setFrameStyle(QFrame::Box | QFrame::Raised);
+	m_LPFLabelList.append(mHz1_8Label);
 
-	QLabel *m60_40Label = new QLabel("60/40m", this);
-	m60_40Label->setFrameStyle(QFrame::Box | QFrame::Raised);
-	m_LPFLabelList.append(m60_40Label);
+	QLabel *mHz3_5Label = new QLabel("3.5 MHz", this);
+	mHz3_5Label->setFrameStyle(QFrame::Box | QFrame::Raised);
+	m_LPFLabelList.append(mHz3_5Label);
 
-	QLabel *m30_20Label = new QLabel("30/20m", this);
-	m30_20Label->setFrameStyle(QFrame::Box | QFrame::Raised);
-	m_LPFLabelList.append(m30_20Label);
+	QLabel *mHz7Label = new QLabel("7.0 MHz", this);
+	mHz7Label->setFrameStyle(QFrame::Box | QFrame::Raised);
+	m_LPFLabelList.append(mHz7Label);
 
-	QLabel *m17_15Label = new QLabel("17/15m", this);
-	m17_15Label->setFrameStyle(QFrame::Box | QFrame::Raised);
-	m_LPFLabelList.append(m17_15Label);
+	QLabel *mHz10Label = new QLabel("10 MHz", this);
+	mHz10Label->setFrameStyle(QFrame::Box | QFrame::Raised);
+	m_LPFLabelList.append(mHz10Label);
 
-	QLabel *m12_10Label = new QLabel("12/10m", this);
-	m12_10Label->setFrameStyle(QFrame::Box | QFrame::Raised);
-	m_LPFLabelList.append(m12_10Label);
+	QLabel *mHz14Label = new QLabel("14-18 MHz", this);
+	mHz14Label->setFrameStyle(QFrame::Box | QFrame::Raised);
+	m_LPFLabelList.append(mHz14Label);
 
-	QLabel *m6Label = new QLabel("6m", this);
-	m6Label->setFrameStyle(QFrame::Box | QFrame::Raised);
-	m_LPFLabelList.append(m6Label);
+	QLabel *mHz21Label = new QLabel("21-29 MHz", this);
+	mHz21Label->setFrameStyle(QFrame::Box | QFrame::Raised);
+	m_LPFLabelList.append(mHz21Label);
 
-	int fontMaxWidth = m_fonts.smallFontMetrics->boundingRect("000000.0").width() + 30;
+	QLabel *mHz50Label = new QLabel("50 MHz", this);
+	mHz50Label->setFrameStyle(QFrame::Box | QFrame::Raised);
+	m_LPFLabelList.append(mHz50Label);
 
-	QList<long> values = set->getLPFLoFrequencies();
-
-	// LPF lo spin boxes
+	// create spinboxes
 	for (int i = 0; i < m_lpfFilters; i++) {
+		QDoubleSpinBox *loSpinBox = new QDoubleSpinBox(this);
+		loSpinBox->setRange(m_LPFFrequencyRangeLoList.at(i).first, m_LPFFrequencyRangeLoList.at(i).second);
+		loSpinBox->setDecimals(3);
+		loSpinBox->setSingleStep(0.005);
+		loSpinBox->setValue(m_LPFLoDefaultFrequencyList.at(i));
+		loSpinBox->setFixedWidth(64);
+		loSpinBox->setFont(m_fonts.normalFont);
 
-		QDoubleSpinBox *spinBox = new QDoubleSpinBox();
-		spinBox->setDecimals(1);
-		spinBox->setWrapping(true);
-		spinBox->setMinimumWidth(fontMaxWidth);
-		spinBox->setRange(m_LPFFrequencyRangeLoList.at(i).first, m_LPFFrequencyRangeLoList.at(i).second);
-		spinBox->setSingleStep(0.5);
-		spinBox->setValue((double)(values.at(i)/1000.0));
+		CHECKED_CONNECT(loSpinBox, SIGNAL(valueChanged(double)), this, SLOT(lpfLoSpinBoxValueChanged(double)));
 
-		CHECKED_CONNECT(spinBox, SIGNAL(valueChanged(double)), this, SLOT(lpfLoSpinBoxValueChanged(double)));
+		m_LPFLoSpinBoxList.append(loSpinBox);
 
-		m_LPFLoSpinBoxList << spinBox;
+		QDoubleSpinBox *hiSpinBox = new QDoubleSpinBox(this);
+		hiSpinBox->setRange(m_LPFFrequencyRangeHiList.at(i).first, m_LPFFrequencyRangeHiList.at(i).second);
+		hiSpinBox->setDecimals(3);
+		hiSpinBox->setSingleStep(0.005);
+		hiSpinBox->setValue(m_LPFHiDefaultFrequencyList.at(i));
+		hiSpinBox->setFixedWidth(64);
+		hiSpinBox->setFont(m_fonts.normalFont);
+
+		CHECKED_CONNECT(hiSpinBox, SIGNAL(valueChanged(double)), this, SLOT(lpfHiSpinBoxValueChanged(double)));
+
+		m_LPFHiSpinBoxList.append(hiSpinBox);
 	}
 
-	values = set->getLPFHiFrequencies();
-
-	// LPF hi spin boxes
-	for (int i = 0; i < m_lpfFilters; i++) {
-
-		QDoubleSpinBox *spinBox = new QDoubleSpinBox();
-		spinBox->setDecimals(1);
-		spinBox->setWrapping(true);
-		spinBox->setMinimumWidth(fontMaxWidth);
-		spinBox->setRange(m_LPFFrequencyRangeHiList.at(i).first, m_LPFFrequencyRangeHiList.at(i).second);
-		spinBox->setSingleStep(0.5);
-		spinBox->setValue((double)(values.at(i)/1000.0));
-
-		CHECKED_CONNECT(spinBox, SIGNAL(valueChanged(double)), this, SLOT(lpfHiSpinBoxValueChanged(double)));
-
-		m_LPFHiSpinBoxList << spinBox;
+	// create LEDs
+	for (int i = 0; i < 7; i++) {
+		QHLed *led = new QHLed("", this);
+		led->setFixedSize (10, 10);
+		led->setColors(btnOff, btnOff);
+		m_LPFActiveBtnList.append(led);
 	}
 
-	// LPF active buttons
-	for (int i = 0; i < m_lpfFilters; i++) {
+	QGridLayout *gridLayout = new QGridLayout;
+	gridLayout->setSpacing(2);
 
-		QHLed *btn = new QHLed("", this);
-		btn->setFixedSize(4, btn_height);
-		btn->setColors(btnOff, btnOff);
+	gridLayout->addWidget(lpfLabel, 0, 0, 1, 3, Qt::AlignCenter);
+	gridLayout->addWidget(activeLabel, 0, 3, Qt::AlignCenter);
 
-		m_LPFActiveBtnList << btn;
+	gridLayout->addWidget(mHz1_8Label, 1, 0, Qt::AlignCenter);
+	gridLayout->addWidget(m_LPFLoSpinBoxList.at(0), 1, 1, Qt::AlignCenter);
+	gridLayout->addWidget(m_LPFHiSpinBoxList.at(0), 1, 2, Qt::AlignCenter);
+	gridLayout->addWidget(m_LPFActiveBtnList.at(0), 1, 3, Qt::AlignCenter);
 
-		//CHECKED_CONNECT(spinBox, SIGNAL(valueChanged(double)), this, SLOT(hpfHiSpinBoxValueChanged(double)));
-	}
+	gridLayout->addWidget(mHz3_5Label, 2, 0, Qt::AlignCenter);
+	gridLayout->addWidget(m_LPFLoSpinBoxList.at(1), 2, 1, Qt::AlignCenter);
+	gridLayout->addWidget(m_LPFHiSpinBoxList.at(1), 2, 2, Qt::AlignCenter);
+	gridLayout->addWidget(m_LPFActiveBtnList.at(1), 2, 3, Qt::AlignCenter);
 
-	QGridLayout* grid = new QGridLayout(this);
-	grid->setVerticalSpacing(1);
-	grid->setHorizontalSpacing(1);
-	grid->setContentsMargins(28, 12, 2, 7);
+	gridLayout->addWidget(mHz7Label, 3, 0, Qt::AlignCenter);
+	gridLayout->addWidget(m_LPFLoSpinBoxList.at(2), 3, 1, Qt::AlignCenter);
+	gridLayout->addWidget(m_LPFHiSpinBoxList.at(2), 3, 2, Qt::AlignCenter);
+	gridLayout->addWidget(m_LPFActiveBtnList.at(2), 3, 3, Qt::AlignCenter);
 
-	grid->addWidget(emptyLabel, 0, 0, 1, 1, Qt::AlignCenter);
-	grid->addWidget(lpfLabel, 	0, 1, 1, 3, Qt::AlignCenter);
+	gridLayout->addWidget(mHz10Label, 4, 0, Qt::AlignCenter);
+	gridLayout->addWidget(m_LPFLoSpinBoxList.at(3), 4, 1, Qt::AlignCenter);
+	gridLayout->addWidget(m_LPFHiSpinBoxList.at(3), 4, 2, Qt::AlignCenter);
+	gridLayout->addWidget(m_LPFActiveBtnList.at(3), 4, 3, Qt::AlignCenter);
 
-	for (int i = 0; i < m_lpfFilters; i++) {
+	gridLayout->addWidget(mHz14Label, 5, 0, Qt::AlignCenter);
+	gridLayout->addWidget(m_LPFLoSpinBoxList.at(4), 5, 1, Qt::AlignCenter);
+	gridLayout->addWidget(m_LPFHiSpinBoxList.at(4), 5, 2, Qt::AlignCenter);
+	gridLayout->addWidget(m_LPFActiveBtnList.at(4), 5, 3, Qt::AlignCenter);
 
-		grid->addWidget(m_LPFLabelList.at(i), 		i+1, 0, 1, 1, Qt::AlignLeft);
-		grid->addWidget(m_LPFLoSpinBoxList.at(i),	i+1, 1, 1, 1, Qt::AlignCenter);
-		grid->addWidget(m_LPFHiSpinBoxList.at(i), 	i+1, 2, 1, 1, Qt::AlignCenter);
-		grid->addWidget(m_LPFActiveBtnList.at(i), 	i+1, 3, 1, 1, Qt::AlignCenter);
-	}
+	gridLayout->addWidget(mHz21Label, 6, 0, Qt::AlignCenter);
+	gridLayout->addWidget(m_LPFLoSpinBoxList.at(5), 6, 1, Qt::AlignCenter);
+	gridLayout->addWidget(m_LPFHiSpinBoxList.at(5), 6, 2, Qt::AlignCenter);
+	gridLayout->addWidget(m_LPFActiveBtnList.at(5), 6, 3, Qt::AlignCenter);
 
-	LPFGroup = new QGroupBox(tr("LP Filters"), this);
+	gridLayout->addWidget(mHz50Label, 7, 0, Qt::AlignCenter);
+	gridLayout->addWidget(m_LPFLoSpinBoxList.at(6), 7, 1, Qt::AlignCenter);
+	gridLayout->addWidget(m_LPFHiSpinBoxList.at(6), 7, 2, Qt::AlignCenter);
+	gridLayout->addWidget(m_LPFActiveBtnList.at(6), 7, 3, Qt::AlignCenter);
+
+	LPFGroup = new QGroupBox(tr("Low Pass Filter Cutoff Frequency Options (MHz)"), this);
 	LPFGroup->setMinimumWidth(m_minimumGroupBoxWidth);
-	LPFGroup->setLayout(grid);
+	LPFGroup->setLayout(gridLayout);
 	LPFGroup->setFont(QFont("Arial", 8));
 }
 
-//*****************
+void AlexFilterWidget::initAlexValues() {
+}
 
 void AlexFilterWidget::setFilterValues() {
+	m_HPFFrequencyRangeLoList << qMakePair(1.0, 2.0) << qMakePair(5.0, 7.5) << qMakePair(8.0, 10.5) << qMakePair(11.0, 14.5) << qMakePair(18.0, 22.0) << qMakePair(45.0, 55.0);
+	m_HPFFrequencyRangeHiList << qMakePair(1.0, 2.0) << qMakePair(5.0, 7.5) << qMakePair(8.0, 10.5) << qMakePair(11.0, 14.5) << qMakePair(18.0, 22.0) << qMakePair(45.0, 55.0);
+	m_LPFFrequencyRangeLoList << qMakePair(1.5, 2.5) << qMakePair(2.5, 4.5) << qMakePair(5.0, 8.5) << qMakePair(8.0, 12.0) << qMakePair(12.0, 19.5) << qMakePair(19.0, 31.0) << qMakePair(45.0, 55.0);
+	m_LPFFrequencyRangeHiList << qMakePair(1.5, 2.5) << qMakePair(2.5, 4.5) << qMakePair(5.0, 8.5) << qMakePair(8.0, 12.0) << qMakePair(12.0, 19.5) << qMakePair(19.0, 31.0) << qMakePair(45.0, 55.0);
 
-	m_HPFFrequencyRangeLoList << qMakePair(0.0, 2000.0);
-	m_HPFFrequencyRangeLoList << qMakePair(6000.0, 8000.0);
-	m_HPFFrequencyRangeLoList << qMakePair(9000.0, 11000.0);
-	m_HPFFrequencyRangeLoList << qMakePair(12000.0, 15000.0);
-	m_HPFFrequencyRangeLoList << qMakePair(18000.0, 25000.0);
-	m_HPFFrequencyRangeLoList << qMakePair(49000.0, 52500.0);
+	m_HPFLoDefaultFrequencyList << 1.5 << 6.5 << 9.5 << 13.0 << 20.0 << 50.0;
+	m_HPFHiDefaultFrequencyList << 1.5 << 6.5 << 9.5 << 13.0 << 20.0 << 50.0;
+	m_LPFLoDefaultFrequencyList << 2.1 << 4.0 << 7.6 << 11.0 << 19.0 << 30.5 << 54.0;
+	m_LPFHiDefaultFrequencyList << 2.1 << 4.0 << 7.6 << 11.0 << 19.0 << 30.5 << 54.0;
+}
 
-	m_HPFFrequencyRangeHiList << qMakePair(1600.0, 6000.0);
-	m_HPFFrequencyRangeHiList << qMakePair(7000.0, 9500.0);
-	m_HPFFrequencyRangeHiList << qMakePair(10000.0, 13000.0);
-	m_HPFFrequencyRangeHiList << qMakePair(13700.0, 19000.0);
-	m_HPFFrequencyRangeHiList << qMakePair(25000.0, 32000.0);
-	m_HPFFrequencyRangeHiList << qMakePair(52500.0, 55000.0);
+void AlexFilterWidget::setAlexConfiguration(double frequency) {
+	if (m_alexConfig & 0x01) { // Manual Mode
+		foreach(QHLed *led, m_HPFActiveBtnList)
+			led->setColors(btnOff, btnOff);
 
-	m_LPFFrequencyRangeLoList << qMakePair(0.0, 1900.0);
-	m_LPFFrequencyRangeLoList << qMakePair(2000.0, 4000.0);
-	m_LPFFrequencyRangeLoList << qMakePair(5000.0, 11000.0);
-	m_LPFFrequencyRangeLoList << qMakePair(9000.0, 15000.0);
-	m_LPFFrequencyRangeLoList << qMakePair(17000.0, 22000.0);
-	m_LPFFrequencyRangeLoList << qMakePair(23000.0, 30000.0);
-	m_LPFFrequencyRangeLoList << qMakePair(30000.0, 52000.0);
+		if (bypassAll)      m_HPFActiveBtnList.at(6)->setColors(btnOn, btnOn);
+		else if (lowNoise6m) m_HPFActiveBtnList.at(5)->setColors(btnOn, btnOn);
+		else if (hpf20MHz)   m_HPFActiveBtnList.at(4)->setColors(btnOn, btnOn);
+		else if (hpf13MHz)   m_HPFActiveBtnList.at(3)->setColors(btnOn, btnOn);
+		else if (hpf9_5MHz)  m_HPFActiveBtnList.at(2)->setColors(btnOn, btnOn);
+		else if (hpf6_5MHz)  m_HPFActiveBtnList.at(1)->setColors(btnOn, btnOn);
+		else if (hpf1_5MHz)  m_HPFActiveBtnList.at(0)->setColors(btnOn, btnOn);
 
-	m_LPFFrequencyRangeHiList << qMakePair(1000.0, 3000.0);
-	m_LPFFrequencyRangeHiList << qMakePair(2000.0, 5000.0);
-	m_LPFFrequencyRangeHiList << qMakePair(5000.0, 8000.0);
-	m_LPFFrequencyRangeHiList << qMakePair(9000.0, 15000.0);
-	m_LPFFrequencyRangeHiList << qMakePair(17000.0, 22000.0);
-	m_LPFFrequencyRangeHiList << qMakePair(23000.0, 30000.0);
-	m_LPFFrequencyRangeHiList << qMakePair(52000.0, 66000.0);
+	} else { // Auto Mode
+		foreach(QHLed *led, m_HPFActiveBtnList)
+			led->setColors(btnOff, btnOff);
 
+		int hpfActive = 6; // default bypass
+		if (frequency >= m_HPFLoSpinBoxList.at(5)->value() && frequency <= m_HPFHiSpinBoxList.at(5)->value()) {
+			hpfActive = 5;
+		} else if (frequency >= m_HPFLoSpinBoxList.at(4)->value() && frequency <= m_HPFHiSpinBoxList.at(4)->value()) {
+			hpfActive = 4;
+		} else if (frequency >= m_HPFLoSpinBoxList.at(3)->value() && frequency <= m_HPFHiSpinBoxList.at(3)->value()) {
+			hpfActive = 3;
+		} else if (frequency >= m_HPFLoSpinBoxList.at(2)->value() && frequency <= m_HPFHiSpinBoxList.at(2)->value()) {
+			hpfActive = 2;
+		} else if (frequency >= m_HPFLoSpinBoxList.at(1)->value() && frequency <= m_HPFHiSpinBoxList.at(1)->value()) {
+			hpfActive = 1;
+		} else if (frequency >= m_HPFLoSpinBoxList.at(0)->value() && frequency <= m_HPFHiSpinBoxList.at(0)->value()) {
+			hpfActive = 0;
+		}
+		m_HPFActiveBtnList.at(hpfActive)->setColors(btnOn, btnOn);
 
-	m_HPFLoDefaultFrequencyList << 1500.0;
-	m_HPFLoDefaultFrequencyList << 7000.0;
-	m_HPFLoDefaultFrequencyList << 10100.0;
-	m_HPFLoDefaultFrequencyList << 14000.0;
-	m_HPFLoDefaultFrequencyList << 21000.0;
-	m_HPFLoDefaultFrequencyList << 50000.0;
+		foreach(QHLed *led, m_LPFActiveBtnList)
+			led->setColors(btnOff, btnOff);
 
-	m_HPFHiDefaultFrequencyList << 5500.0;
-	m_HPFHiDefaultFrequencyList << 7300.0;
-	m_HPFHiDefaultFrequencyList << 10150.0;
-	m_HPFHiDefaultFrequencyList << 18168.0;
-	m_HPFHiDefaultFrequencyList << 29700.0;
-	m_HPFHiDefaultFrequencyList << 54000.0;
-
-	m_LPFLoDefaultFrequencyList << 1800.0;
-	m_LPFLoDefaultFrequencyList << 3500.0;
-	m_LPFLoDefaultFrequencyList << 5330.0;
-	m_LPFLoDefaultFrequencyList << 10100.0;
-	m_LPFLoDefaultFrequencyList << 18068.0;
-	m_LPFLoDefaultFrequencyList << 24890.0;
-	m_LPFLoDefaultFrequencyList << 50000.0;
-
-	m_LPFHiDefaultFrequencyList << 2000.0;
-	m_LPFHiDefaultFrequencyList << 4000.0;
-	m_LPFHiDefaultFrequencyList << 7300.0;
-	m_LPFHiDefaultFrequencyList << 14350.0;
-	m_LPFHiDefaultFrequencyList << 21450.0;
-	m_LPFHiDefaultFrequencyList << 29700.0;
-	m_LPFHiDefaultFrequencyList << 54000.0;
+		int lpfActive = 6; // default LPF
+		if (frequency <= m_LPFLoSpinBoxList.at(0)->value()) {
+			lpfActive = 0;
+		} else if (frequency > m_LPFLoSpinBoxList.at(0)->value() && frequency <= m_LPFLoSpinBoxList.at(1)->value()) {
+			lpfActive = 1;
+		} else if (frequency > m_LPFLoSpinBoxList.at(1)->value() && frequency <= m_LPFLoSpinBoxList.at(2)->value()) {
+			lpfActive = 2;
+		} else if (frequency > m_LPFLoSpinBoxList.at(2)->value() && frequency <= m_LPFLoSpinBoxList.at(3)->value()) {
+			lpfActive = 3;
+		} else if (frequency > m_LPFLoSpinBoxList.at(3)->value() && frequency <= m_LPFLoSpinBoxList.at(4)->value()) {
+			lpfActive = 4;
+		} else if (frequency > m_LPFLoSpinBoxList.at(4)->value() && frequency <= m_LPFLoSpinBoxList.at(5)->value()) {
+			lpfActive = 5;
+		} else if (frequency > m_LPFLoSpinBoxList.at(5)->value()) {
+			lpfActive = 6;
+		}
+		m_LPFActiveBtnList.at(lpfActive)->setColors(btnOn, btnOn);
+	}
 }
 
 void AlexFilterWidget::hpfLoSpinBoxValueChanged(double value) {
-
 	QDoubleSpinBox *spinBox = qobject_cast<QDoubleSpinBox *>(sender());
-
 	int filter = m_HPFLoSpinBoxList.indexOf(spinBox);
-
-	set->setAlexHPFLoFrequencies(filter, (long)(value * 1000));
+	if (filter >= 0) {
+		emit hpfLoFrequencyRequested(filter, (long)(value * 1000));
+	}
 }
 
 void AlexFilterWidget::hpfHiSpinBoxValueChanged(double value) {
-
 	QDoubleSpinBox *spinBox = qobject_cast<QDoubleSpinBox *>(sender());
-
 	int filter = m_HPFHiSpinBoxList.indexOf(spinBox);
-
-	set->setAlexHPFHiFrequencies(filter, (long)(value * 1000));
+	if (filter >= 0) {
+		emit hpfHiFrequencyRequested(filter, (long)(value * 1000));
+	}
 }
 
 void AlexFilterWidget::lpfLoSpinBoxValueChanged(double value) {
-
 	QDoubleSpinBox *spinBox = qobject_cast<QDoubleSpinBox *>(sender());
-
 	int filter = m_LPFLoSpinBoxList.indexOf(spinBox);
-
-	set->setAlexLPFLoFrequencies(filter, (long)(value * 1000));
+	if (filter >= 0) {
+		emit lpfLoFrequencyRequested(filter, (long)(value * 1000));
+	}
 }
 
 void AlexFilterWidget::lpfHiSpinBoxValueChanged(double value) {
-
 	QDoubleSpinBox *spinBox = qobject_cast<QDoubleSpinBox *>(sender());
-
 	int filter = m_LPFHiSpinBoxList.indexOf(spinBox);
+	if (filter >= 0) {
+		emit lpfHiFrequencyRequested(filter, (long)(value * 1000));
+	}
+}
 
-	set->setAlexLPFHiFrequencies(filter, (long)(value * 1000));
+void AlexFilterWidget::setCurrentReceiver(int rx) {
+	m_receiver = rx;
 }
 
 void AlexFilterWidget::manualFilterBtnClicked() {
-
-	if (manualFilterBtn->btnState() == AeroButton::OFF) {
-
-		manualFilterBtn->setText("Manual");
-		manualFilterBtn->setBtnState(AeroButton::ON);
-
-//		bypassAllHPFBtn->setEnabled(true);
-//		lowNoise6mAmpBtn->setEnabled(true);
-//		hpf13MHzBtn->setEnabled(true);
-//		hpf20MHzBtn->setEnabled(true);
-//		hpf9_5MHzBtn->setEnabled(true);
-//		hpf6_5MHzBtn->setEnabled(true);
-//		hpf1_5MHzBtn->setEnabled(true);
-//		lpf30_20mBtn->setEnabled(true);
-//		lpf60_40mBtn->setEnabled(true);
-//		lpf80mBtn->setEnabled(true);
-//		lpf160mBtn->setEnabled(true);
-//		lpf6mBtn->setEnabled(true);
-//		lpf12_10mBtn->setEnabled(true);
-//		lpf17_15mBtn->setEnabled(true);
-
-		m_alexConfig |= 0x01;
-	}
-	else {
-
-		manualFilterBtn->setText("Auto");
-		manualFilterBtn->setBtnState(AeroButton::OFF);
-
-//		bypassAllHPFBtn->setEnabled(false);
-//		lowNoise6mAmpBtn->setEnabled(false);
-//		hpf13MHzBtn->setEnabled(false);
-//		hpf20MHzBtn->setEnabled(false);
-//		hpf9_5MHzBtn->setEnabled(false);
-//		hpf6_5MHzBtn->setEnabled(false);
-//		hpf1_5MHzBtn->setEnabled(false);
-//		lpf30_20mBtn->setEnabled(false);
-//		lpf60_40mBtn->setEnabled(false);
-//		lpf80mBtn->setEnabled(false);
-//		lpf160mBtn->setEnabled(false);
-//		lpf6mBtn->setEnabled(false);
-//		lpf12_10mBtn->setEnabled(false);
-//		lpf17_15mBtn->setEnabled(false);
-
-		m_alexConfig &= 0xFFFE;
-	}
-	manualFilterBtn->update();
-
-	set->setAlexConfiguration(m_alexConfig);
+	bool target = (manualFilterBtn->btnState() == AeroButton::OFF);
+	emit manualFilterRequested(target);
 }
 
 void AlexFilterWidget::defaultValuesBtnClicked() {
-
-	for (int i = 0; i < m_hpfFilters; i++) {
-
+	for (int i = 0; i < m_HPFLoSpinBoxList.size(); ++i) {
 		m_HPFLoSpinBoxList[i]->setValue(m_HPFLoDefaultFrequencyList.at(i));
 		m_HPFHiSpinBoxList[i]->setValue(m_HPFHiDefaultFrequencyList.at(i));
 	}
-
-	for (int i = 0; i < m_lpfFilters; i++) {
-
+	for (int i = 0; i < m_LPFLoSpinBoxList.size(); ++i) {
 		m_LPFLoSpinBoxList[i]->setValue(m_LPFLoDefaultFrequencyList.at(i));
 		m_LPFHiSpinBoxList[i]->setValue(m_LPFHiDefaultFrequencyList.at(i));
 	}
 }
 
 void AlexFilterWidget::bypassAllHPFBtnClicked() {
+	bypassAll = true;
+	lowNoise6m = false;
+	hpf20MHz = false;
+	hpf13MHz = false;
+	hpf9_5MHz = false;
+	hpf6_5MHz = false;
+	hpf1_5MHz = false;
 
-	if (bypassAllHPFBtn->btnState() == AeroButton::OFF) {
-
-		bypassAllHPFBtn->setText("On");
-		bypassAllHPFBtn->setBtnState(AeroButton::ON);
-		bypassAll = true;
-	}
-	else {
-
-		bypassAllHPFBtn->setText("Off");
-		bypassAllHPFBtn->setBtnState(AeroButton::OFF);
-		bypassAll = false;
-	}
-	bypassAllHPFBtn->update();
-
-	setFrequency(0, m_receiver, safeVfoFrequencyHz(set, m_receiver, m_frequency));
+	m_alexConfig &= 0xFF01;
+	m_alexConfig |= 0x80;
+	emit alexConfigurationRequested(m_alexConfig);
 }
 
 void AlexFilterWidget::lowNoise6mAmpBtnClicked() {
+	bypassAll = false;
+	lowNoise6m = true;
+	hpf20MHz = false;
+	hpf13MHz = false;
+	hpf9_5MHz = false;
+	hpf6_5MHz = false;
+	hpf1_5MHz = false;
 
-	if (lowNoise6mAmpBtn->btnState() == AeroButton::OFF) {
-
-		lowNoise6mAmpBtn->setText("On");
-		lowNoise6mAmpBtn->setBtnState(AeroButton::ON);
-		lowNoise6m = true;
-	}
-	else {
-
-		lowNoise6mAmpBtn->setText("Off");
-		lowNoise6mAmpBtn->setBtnState(AeroButton::OFF);
-		lowNoise6m = false;
-	}
-	lowNoise6mAmpBtn->update();
-
-	setFrequency(0, m_receiver, safeVfoFrequencyHz(set, m_receiver, m_frequency));
-}
-
-void AlexFilterWidget::hpf1_5MHzBtnClicked() {
-
-	if (hpf1_5MHzBtn->btnState() == AeroButton::OFF) {
-
-		hpf1_5MHzBtn->setBtnState(AeroButton::ON);
-		hpf1_5MHzBtn->setText("On");
-		hpf1_5MHz = true;
-	}
-	else {
-
-		hpf1_5MHzBtn->setBtnState(AeroButton::OFF);
-		hpf1_5MHzBtn->setText("Off");
-		hpf1_5MHz= false;
-	}
-	hpf1_5MHzBtn->update();
-
-	setFrequency(0, m_receiver, safeVfoFrequencyHz(set, m_receiver, m_frequency));
-}
-
-void AlexFilterWidget::hpf6_5MHzBtnClicked() {
-
-	if (hpf6_5MHzBtn->btnState() == AeroButton::OFF) {
-
-		hpf6_5MHzBtn->setBtnState(AeroButton::ON);
-		hpf6_5MHzBtn->setText("On");
-		hpf6_5MHz = true;
-	}
-	else {
-
-		hpf6_5MHzBtn->setBtnState(AeroButton::OFF);
-		hpf6_5MHzBtn->setText("Off");
-		hpf6_5MHz = false;
-	}
-	hpf6_5MHzBtn->update();
-
-	setFrequency(0, m_receiver, safeVfoFrequencyHz(set, m_receiver, m_frequency));
-}
-
-void AlexFilterWidget::hpf9_5MHzBtnClicked() {
-
-	if (hpf9_5MHzBtn->btnState() == AeroButton::OFF) {
-
-		hpf9_5MHzBtn->setBtnState(AeroButton::ON);
-		hpf9_5MHzBtn->setText("On");
-		hpf9_5MHz = true;
-	}
-	else {
-
-		hpf9_5MHzBtn->setBtnState(AeroButton::OFF);
-		hpf9_5MHzBtn->setText("Off");
-		hpf9_5MHz = false;
-	}
-	hpf9_5MHzBtn->update();
-
-	setFrequency(0, m_receiver, safeVfoFrequencyHz(set, m_receiver, m_frequency));
-}
-
-void AlexFilterWidget::hpf13MHzBtnClicked() {
-
-	if (hpf13MHzBtn->btnState() == AeroButton::OFF) {
-
-		hpf13MHzBtn->setBtnState(AeroButton::ON);
-		hpf13MHzBtn->setText("On");
-		hpf13MHz = true;
-	}
-	else {
-
-		hpf13MHzBtn->setBtnState(AeroButton::OFF);
-		hpf13MHzBtn->setText("Off");
-		hpf13MHz = false;
-	}
-	hpf13MHzBtn->update();
-
-	setFrequency(0, m_receiver, safeVfoFrequencyHz(set, m_receiver, m_frequency));
+	m_alexConfig &= 0xFF01;
+	m_alexConfig |= 0x40;
+	emit alexConfigurationRequested(m_alexConfig);
 }
 
 void AlexFilterWidget::hpf20MHzBtnClicked() {
+	bypassAll = false;
+	lowNoise6m = false;
+	hpf20MHz = true;
+	hpf13MHz = false;
+	hpf9_5MHz = false;
+	hpf6_5MHz = false;
+	hpf1_5MHz = false;
 
-	if (hpf20MHzBtn->btnState() == AeroButton::OFF) {
-
-		hpf20MHzBtn->setBtnState(AeroButton::ON);
-		hpf20MHzBtn->setText("On");
-		hpf20MHz = true;
-	}
-	else {
-
-		hpf20MHzBtn->setBtnState(AeroButton::OFF);
-		hpf20MHzBtn->setText("Off");
-		hpf20MHz = false;
-	}
-	hpf20MHzBtn->update();
-
-	setFrequency(0, m_receiver, safeVfoFrequencyHz(set, m_receiver, m_frequency));
+	m_alexConfig &= 0xFF01;
+	m_alexConfig |= 0x20;
+	emit alexConfigurationRequested(m_alexConfig);
 }
 
-void AlexFilterWidget::setFrequency(int mode, int rx, qint64 frequency) {
+void AlexFilterWidget::hpf13MHzBtnClicked() {
+	bypassAll = false;
+	lowNoise6m = false;
+	hpf20MHz = false;
+	hpf13MHz = true;
+	hpf9_5MHz = false;
+	hpf6_5MHz = false;
+	hpf1_5MHz = false;
 
-	Q_UNUSED(mode)
-
-	m_receiver = rx;
-	m_frequency = frequency;
-
-	if ((m_alexConfig & 0x01) == 0) return;
-
-	setAlexConfiguration((double)(frequency/1000.0));
-
-	set->setAlexConfiguration(m_alexConfig);
+	m_alexConfig &= 0xFF01;
+	m_alexConfig |= 0x10;
+	emit alexConfigurationRequested(m_alexConfig);
 }
 
-void AlexFilterWidget::setAlexConfiguration(double freq) {
+void AlexFilterWidget::hpf9_5MHzBtnClicked() {
+	bypassAll = false;
+	lowNoise6m = false;
+	hpf20MHz = false;
+	hpf13MHz = false;
+	hpf9_5MHz = true;
+	hpf6_5MHz = false;
+	hpf1_5MHz = false;
 
-	foreach(QHLed *led, m_HPFActiveBtnList)
-		led->setColors(btnOff, btnOff);
-
-	// Alex configuration
-	// m_alexConfig (quint16):
-	//
-	// 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
-	//   | | | | | | | | | | | | | | |
-	//   | | | | | | | | | | | | | | +-----Alex   - manual HPF/LPF filter select (0 = disable, 1 = enable)
-	//   | | | | | | | | | | | | | +------ Alex   -	Bypass all HPFs   (0 = disable, 1 = enable)*
-	//   | | | | | | | | | | | | +-------- Alex   -	6M low noise amplifier (0 = disable, 1 = enable)*
-	//   | | | | | | | | | | | +---------- Alex   -	select 1.5MHz HPF (0 = disable, 1 = enable)*
-	//   | | | | | | | | | | +------------ Alex   -	select 6.5MHz HPF (0 = disable, 1 = enable)*
-	//   | | | | | | | | | +-------------- Alex   -	select 9.5MHz HPF (0 = disable, 1 = enable)*
-	//   | | | | | | | | +---------------- Alex   -	select 13MHz  HPF (0 = disable, 1 = enable)*
-	//   | | | | | | | +------------------ Alex   -	select 20MHz  HPF (0 = disable, 1 = enable)*
-	//   | | | | | | +-------------------- Alex   - select 160m   LPF (0 = disable, 1 = enable)*
-	//   | | | | | +---------------------- Alex   - select 80m    LPF (0 = disable, 1 = enable)*
-	//   | | | | +------------------------ Alex   - select 60/40m LPF (0 = disable, 1 = enable)*
-	//   | | | +-------------------------- Alex   - select 30/20m LPF (0 = disable, 1 = enable)*
-	//   | | +---------------------------- Alex   - select 17/15m LPF (0 = disable, 1 = enable)*
-	//   | +------------------------------ Alex   - select 12/10m LPF (0 = disable, 1 = enable)*
-	//   +-------------------------------- Alex   - select 6m     LPF (0 = disable, 1 = enable)*
-
-	// reset
-	m_alexConfig &= 1;
-
-	// HPF switching
-	if (!bypassAll) {
-
-		// HPF 1.5 MHz
-		if (freq >= m_HPFLoSpinBoxList.at(0)->value() && freq <= m_HPFHiSpinBoxList.at(0)->value()) {
-
-			if (!hpf1_5MHz) {
-
-				m_HPFActiveBtnList.at(0)->setColors(btnOn, btnOn);
-				m_alexConfig |= 0x08;
-			}
-			else {
-
-				m_HPFActiveBtnList.at(6)->setColors(btnOn, btnOn);
-				m_alexConfig |= 0x02;
-			}
-		}
-		// HPF 6.5 MHz
-		else if (freq >= m_HPFLoSpinBoxList.at(1)->value() && freq <= m_HPFHiSpinBoxList.at(1)->value()) {
-
-			if (!hpf6_5MHz) {
-
-				m_HPFActiveBtnList.at(1)->setColors(btnOn, btnOn);
-				m_alexConfig |= 0x10;
-			}
-			else {
-
-				m_HPFActiveBtnList.at(6)->setColors(btnOn, btnOn);
-				m_alexConfig |= 0x02;
-			}
-		}
-		// HPF 9.5 MHz
-		else if (freq >= m_HPFLoSpinBoxList.at(2)->value() && freq <= m_HPFHiSpinBoxList.at(2)->value()) {
-
-			if (!hpf9_5MHz) {
-
-				m_HPFActiveBtnList.at(2)->setColors(btnOn, btnOn);
-				m_alexConfig |= 0x20;
-			}
-			else {
-
-				m_HPFActiveBtnList.at(6)->setColors(btnOn, btnOn);
-				m_alexConfig |= 0x02;
-			}
-		}
-		// HPF 13 MHz
-		else if (freq >= m_HPFLoSpinBoxList.at(3)->value() && freq <= m_HPFHiSpinBoxList.at(3)->value()) {
-
-			if (!hpf13MHz) {
-
-				m_HPFActiveBtnList.at(3)->setColors(btnOn, btnOn);
-				m_alexConfig |= 0x40;
-			}
-			else {
-
-				m_HPFActiveBtnList.at(6)->setColors(btnOn, btnOn);
-				m_alexConfig |= 0x02;
-			}
-		}
-		// HPF 20 MHz
-		else if (freq >= m_HPFLoSpinBoxList.at(4)->value() && freq <= m_HPFHiSpinBoxList.at(4)->value()) {
-
-			if (!hpf20MHz) {
-
-				m_HPFActiveBtnList.at(4)->setColors(btnOn, btnOn);
-				m_alexConfig |= 0x80;
-			}
-			else {
-
-				m_HPFActiveBtnList.at(6)->setColors(btnOn, btnOn);
-				m_alexConfig |= 0x02;
-			}
-		}
-		// 6m BPF/LNA
-		else if (freq >= m_HPFLoSpinBoxList.at(5)->value() && freq <= m_HPFHiSpinBoxList.at(5)->value()) {
-
-			if (!lowNoise6m) {
-
-				m_HPFActiveBtnList.at(5)->setColors(btnOn, btnOn);
-				m_alexConfig |= 0x04;
-			}
-			else {
-
-				m_HPFActiveBtnList.at(6)->setColors(btnOn, btnOn);
-				m_alexConfig |= 0x02;
-			}
-		}
-		else {
-
-			m_HPFActiveBtnList.at(6)->setColors(btnOn, btnOn);
-			m_alexConfig |= 0x02;
-		}
-	}
-	// by pass all
-	else {
-
-		m_HPFActiveBtnList.at(6)->setColors(btnOn, btnOn);
-		m_alexConfig |= 0x02;
-	}
-
-
-	// LPF switching
-	foreach(QHLed *led, m_LPFActiveBtnList)
-		led->setColors(btnOff, btnOff);
-
-	if (freq >= m_LPFLoSpinBoxList.at(0)->value() && freq <= m_LPFHiSpinBoxList.at(0)->value()) {
-
-		m_LPFActiveBtnList.at(0)->setColors(btnOn, btnOn);
-		m_alexConfig |= 0x100;
-	}
-	else if (freq >= m_LPFLoSpinBoxList.at(1)->value() && freq <= m_LPFHiSpinBoxList.at(1)->value()) {
-
-		m_LPFActiveBtnList.at(1)->setColors(btnOn, btnOn);
-		m_alexConfig |= 0x200;
-	}
-	else if (freq >= m_LPFLoSpinBoxList.at(2)->value() && freq <= m_LPFHiSpinBoxList.at(2)->value()) {
-
-		m_LPFActiveBtnList.at(2)->setColors(btnOn, btnOn);
-		m_alexConfig |= 0x400;
-	}
-	else if (freq >= m_LPFLoSpinBoxList.at(3)->value() && freq <= m_LPFHiSpinBoxList.at(3)->value()) {
-
-		m_LPFActiveBtnList.at(3)->setColors(btnOn, btnOn);
-		m_alexConfig |= 0x800;
-	}
-	else if (freq >= m_LPFLoSpinBoxList.at(4)->value() && freq <= m_LPFHiSpinBoxList.at(4)->value()) {
-
-		m_LPFActiveBtnList.at(4)->setColors(btnOn, btnOn);
-		m_alexConfig |= 0x1000;
-	}
-	else if (freq >= m_LPFLoSpinBoxList.at(5)->value() && freq <= m_LPFHiSpinBoxList.at(5)->value()) {
-
-		m_LPFActiveBtnList.at(5)->setColors(btnOn, btnOn);
-		m_alexConfig |= 0x2000;
-	}
-	else {
-
-		m_LPFActiveBtnList.at(6)->setColors(btnOn, btnOn);
-		m_alexConfig |= 0x4000;
-	}
+	m_alexConfig &= 0xFF01;
+	m_alexConfig |= 0x08;
+	emit alexConfigurationRequested(m_alexConfig);
 }
 
-void AlexFilterWidget::setCurrentReceiver(int rx) {
+void AlexFilterWidget::hpf6_5MHzBtnClicked() {
+	bypassAll = false;
+	lowNoise6m = false;
+	hpf20MHz = false;
+	hpf13MHz = false;
+	hpf9_5MHz = false;
+	hpf6_5MHz = true;
+	hpf1_5MHz = false;
 
-	m_receiver = rx;
+	m_alexConfig &= 0xFF01;
+	m_alexConfig |= 0x04;
+	emit alexConfigurationRequested(m_alexConfig);
 }
 
-void AlexFilterWidget::initAlexValues() {
+void AlexFilterWidget::hpf1_5MHzBtnClicked() {
+	bypassAll = false;
+	lowNoise6m = false;
+	hpf20MHz = false;
+	hpf13MHz = false;
+	hpf9_5MHz = false;
+	hpf6_5MHz = false;
+	hpf1_5MHz = true;
 
-	// Alex configuration:
-	//
-	// m_alexConfig (quint16)
-	//
-	// 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
-	//   | | | | | | | | | | | | | | |
-	//   | | | | | | | | | | | | | | +-----Alex   - manual HPF/LPF filter select (0 = disable, 1 = enable)
-	//   | | | | | | | | | | | | | +------ Alex   -	Bypass all HPFs   (0 = disable, 1 = enable)*
-	//   | | | | | | | | | | | | +-------- Alex   -	6M low noise amplifier (0 = disable, 1 = enable)*
-	//   | | | | | | | | | | | +---------- Alex   -	select 1.5MHz HPF (0 = disable, 1 = enable)*
-	//   | | | | | | | | | | +------------ Alex   -	select 6.5MHz HPF (0 = disable, 1 = enable)*
-	//   | | | | | | | | | +-------------- Alex   -	select 9.5MHz HPF (0 = disable, 1 = enable)*
-	//   | | | | | | | | +---------------- Alex   -	select 13MHz  HPF (0 = disable, 1 = enable)*
-	//   | | | | | | | +------------------ Alex   -	select 20MHz  HPF (0 = disable, 1 = enable)*
-	//   | | | | | | +-------------------- Alex   - select 160m   LPF (0 = disable, 1 = enable)*
-	//   | | | | | +---------------------- Alex   - select 80m    LPF (0 = disable, 1 = enable)*
-	//   | | | | +------------------------ Alex   - select 60/40m LPF (0 = disable, 1 = enable)*
-	//   | | | +-------------------------- Alex   - select 30/20m LPF (0 = disable, 1 = enable)*
-	//   | | +---------------------------- Alex   - select 17/15m LPF (0 = disable, 1 = enable)*
-	//   | +------------------------------ Alex   - select 12/10m LPF (0 = disable, 1 = enable)*
-	//   +-------------------------------- Alex   - select 6m     LPF (0 = disable, 1 = enable)*
-
-	m_alexConfig = set->getAlexConfig();
-	m_alexStates = set->getAlexStates();
-
-
-	if (m_alexConfig & 0x01) {
-
-		manualFilterBtn->setText("Manual");
-		manualFilterBtn->setBtnState(AeroButton::ON);
-	}
-	else {
-
-		manualFilterBtn->setText("Auto");
-		manualFilterBtn->setBtnState(AeroButton::OFF);
-	}
-	manualFilterBtn->update();
+	m_alexConfig &= 0xFF01;
+	m_alexConfig |= 0x02;
+	emit alexConfigurationRequested(m_alexConfig);
 }
-
-void AlexFilterWidget::alexManualStateChanged(bool value) {
-
-	if (value) {
-
-		m_alexConfig |= 0x01;
-		m_receiver = set->getCurrentReceiver();
-		setFrequency(true, m_receiver, safeVfoFrequencyHz(set, m_receiver, m_frequency));
-
-		manualFilterBtn->setText("Manual");
-		manualFilterBtn->setBtnState(AeroButton::ON);
-	}
-	else {
-
-		m_alexConfig &= 0xFFFE;
-
-		foreach(QHLed *led, m_HPFActiveBtnList)
-			led->setColors(btnOff, btnOff);
-
-		m_HPFActiveBtnList.at(6)->setColors(btnOn, btnOn);
-
-		manualFilterBtn->setText("Auto");
-		manualFilterBtn->setBtnState(AeroButton::OFF);
-
-		set->setAlexConfiguration(m_alexConfig);
-	}
-	manualFilterBtn->update();
-}
-

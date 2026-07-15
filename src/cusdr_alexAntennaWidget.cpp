@@ -1,91 +1,37 @@
-/**
-* @file  cusdr_alexAntennaWidget.cpp
-* @brief Alexiares antenna settings widget class for cuSDR
-* @author Hermann von Hasseln, DL3HVH
-* @version 0.1
-* @date 2012-06-09
-*/
+#define LOG_ANTENNA_WIDGET
 
-/*
- *   
- *   Copyright 2012 Hermann von Hasseln, DL3HVH
- *
- *   This program is free software; you can redistribute it and/or modify
- *   it under the terms of the GNU Library General Public License version 2 as
- *   published by the Free Software Foundation
- *
- *   This program is distributed in the hope that it will be useful,
- *   but WITHOUT ANY WARRANTY; without even the implied warranty of
- *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *   GNU General Public License for more details
- *
- *   You should have received a copy of the GNU Library General Public
- *   License along with this program; if not, write to the
- *   Free Software Foundation, Inc.,
- *   51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
- */
-
-#define LOG_ALEX_WIDGET
-
-#include <QtWidgets>
-#include <QtGui>
-#include <QPen>
-#include <QDebug>
-#include <QScopedPointer>
+#include <QLabel>
+#include <QGroupBox>
+#include <QBoxLayout>
 
 #include "cusdr_alexAntennaWidget.h"
 
-#define	btn_height		15
-#define	btn_width		16//20
-#define	btn_width2		24//28
-#define	btn_width3		45
+#define	btn_height		22
+#define	btn_width		20
+#define	btn_width2		28
+#define	btn_width3		32
 
 AlexAntennaWidget::AlexAntennaWidget(QWidget *parent)
 	: QWidget(parent)
-	, set(Settings::instance())
-	, m_minimumWidgetWidth(set->getMinimumWidgetWidth())
+	, m_serverMode(QSDR::SDRMode)
+	, m_hwInterface(QSDR::NoInterfaceMode)
+	, m_dataEngineState(QSDR::DataEngineDown)
+	, m_alexConfig(0)
+	, m_numberOfBands(11)
+	, m_minimumWidgetWidth(500)
 	, m_minimumGroupBoxWidth(0)
-    , m_numberOfBands(MAX_BANDS)
 {
 	setMinimumWidth(m_minimumWidgetWidth);
-	setContentsMargins(2, 2, 12, 0);
+	setContentsMargins(4, 8, 4, 0);
 	setMouseTracking(true);
 
-	fonts = new CFonts(this);
-	m_fonts = fonts->getFonts();
-
-//	//QFont titleFont;
-//	m_normalFont.setStyleStrategy(QFont::PreferQuality);
-//	m_normalFont.setFixedPitch(true);
-//	#ifdef Q_OS_MAC
-//		m_titleFont.setPixelSize(11);
-//		m_titleFont.setFamily("Arial");
-//		//m_smallFont.setBold(true);
-//	#endif
-//	#ifdef Q_OS_WIN
-//		m_normalFont.setPixelSize(11);
-//		m_normalFont.setFamily("Arial");
-//		//m_smallFont.setBold(true);
-//		//m_smallFont.setItalic(true);
-//	#endif
-
-//	m_smallFont.setStyleStrategy(QFont::PreferAntialias);
-//	m_smallFont.setFixedPitch(true);
-//	#ifdef Q_OS_MAC
-//		m_smallFont.setPixelSize(9);
-//		m_smallFont.setFamily("Arial");
-//		//m_smallFont.setBold(true);
-//	#endif
-//	#ifdef Q_OS_WIN
-//		m_smallFont.setPixelSize(9);
-//		m_smallFont.setFamily("Arial");
-//		//m_smallFont.setBold(true);
-//		//m_smallFont.setItalic(true);
-//	#endif
+	// Pre-initialize m_alexStates
+	for (int i = 0; i < m_numberOfBands; ++i) {
+		m_alexStates.append(0);
+	}
 
 	createAntennasGroup();
 
-	// set main layout
 	QBoxLayout *mainLayout = new QBoxLayout(QBoxLayout::TopToBottom, this);
 	mainLayout->setSpacing(5);
     mainLayout->setContentsMargins(0,0,0,0);
@@ -100,31 +46,13 @@ AlexAntennaWidget::AlexAntennaWidget(QWidget *parent)
 	mainLayout->addStretch();
 		
 	setLayout(mainLayout);
-
-	setAlexValues();
-	setupConnections();
 }
 
 AlexAntennaWidget::~AlexAntennaWidget() {
-
-	// disconnect all signals
-	disconnect(set, 0, this, 0);
 	disconnect(0, 0, 0);
 }
 
-void AlexAntennaWidget::setupConnections() {
-
-	/*
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(alexStateChanged(int, int)),
-		this,
-		SLOT(alexStateChanged(int, int)));
-*/
-}
-
 void AlexAntennaWidget::createAntennasGroup() {
-
 	QLabel *emptyLabel1 = new QLabel("  ", this);
     emptyLabel1->setFrameStyle(QFrame::Box | QFrame::Raised);
 
@@ -134,341 +62,288 @@ void AlexAntennaWidget::createAntennasGroup() {
 	QLabel *emptyLabel3 = new QLabel(" ", this);
 	emptyLabel3->setFrameStyle(QFrame::Box | QFrame::Raised);
 
-	QLabel *antRxLabel = new QLabel("Rx Ant", this);
-	antRxLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-
-	QLabel *rxAuxLabel = new QLabel("Rx Aux", this);
-    rxAuxLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-
-	QLabel *antTxLabel = new QLabel("Tx Ant", this);
-	antTxLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-
-	// band label
+	// band names
 	QStringList bandNames;
-    bandNames << "2200m" << "630m" << "160 m" << "80 m" << "60 m" << "40 m" << "30 m" << "20 m" << "17 m" << "15 m" << "12 m" << "10 m" << "6 m" << "2 m" << "125 cm" << "70 cm" << "33 cm" << "23 cm" << "13 cm" << "10 cm" << "5 cm" << "gen";
+    bandNames << "160 m" << "80 m" << "60 m" << "40 m" << "30 m" << "20 m" << "17 m" << "15 m" << "12 m" << "10 m" << "6 m";
 
 	QList<QLabel *> bandLabelList;
 
 	for (int i = 0; i < m_numberOfBands; i++) {
-
 		QLabel *label = new QLabel(bandNames.at(i), this);
 		label->setFrameStyle(QFrame::Box | QFrame::Raised);
-
 		bandLabelList << label;
 	}
 
-
-	// antennas 1,2, and 3 button lists
-	for (int i = 0; i < m_numberOfBands; i++) {
-
-		AeroButton *btn = new AeroButton("1", this);
-		btn->setRoundness(0);
-		btn->setFixedSize (btn_width, btn_height);
-
-		antenna1BtnList << btn;
-
-		CHECKED_CONNECT(btn, &AeroButton::clicked, this, &AlexAntennaWidget::rxAntBtnClicked);
-
-		btn = new AeroButton("2", this);
-		btn->setRoundness(0);
-		btn->setFixedSize (btn_width, btn_height);
-
-		antenna2BtnList << btn;
-
-		CHECKED_CONNECT(btn, &AeroButton::clicked, this, &AlexAntennaWidget::rxAntBtnClicked);
-
-		btn = new AeroButton("3", this);
-		btn->setRoundness(0);
-		btn->setFixedSize (btn_width, btn_height);
-
-		antenna3BtnList << btn;
-
-		CHECKED_CONNECT(btn, &AeroButton::clicked, this, &AlexAntennaWidget::rxAntBtnClicked);
+	// rx antenna names
+	QList<QLabel *> rxAntLabelList;
+	for (int i = 0; i < 3; i++) {
+		QLabel *label = new QLabel(QString("ANT%1").arg(i+1), this);
+		label->setFrameStyle(QFrame::Box | QFrame::Raised);
+		rxAntLabelList << label;
 	}
 
-	for (int i = 0; i < m_numberOfBands; i++) {
+	// rx aux names
+	QList<QLabel *> rxAuxLabelList;
+	rxAuxLabelList << new QLabel("RX1", this) << new QLabel("RX2", this) << new QLabel("XV", this);
+	for (int i = 0; i < 3; i++)
+		rxAuxLabelList.at(i)->setFrameStyle(QFrame::Box | QFrame::Raised);
 
-		QList<AeroButton *> btnList;
-		btnList << antenna1BtnList.at(i) << antenna2BtnList.at(i) << antenna3BtnList.at(i);
-
-		bandBtnMatrix << btnList;
+	// tx antenna names
+	QList<QLabel *> txAntLabelList;
+	for (int i = 0; i < 3; i++) {
+		QLabel *label = new QLabel(QString("ANT%1").arg(i+1), this);
+		label->setFrameStyle(QFrame::Box | QFrame::Raised);
+		txAntLabelList << label;
 	}
 
-	// Rx Aux 1,2, and XV button lists
-	for (int i = 0; i < m_numberOfBands; i++) {
+	QGridLayout *gridLayout = new QGridLayout;
+	gridLayout->setSpacing(1);
 
-		AeroButton *btn = new AeroButton("1", this);
-		btn->setRoundness(0);
-		btn->setFixedSize (btn_width, btn_height);
+	// header row 0
+	gridLayout->addWidget(emptyLabel1, 0, 0);
 
-		rx1BtnList << btn;
+	QLabel *rxLabel = new QLabel("Rx ANT Selection", this);
+	rxLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
+	gridLayout->addWidget(rxLabel, 0, 1, 1, 3, Qt::AlignCenter);
 
-		CHECKED_CONNECT(btn, &AeroButton::clicked, this, &AlexAntennaWidget::rxAuxBtnClicked);
+	gridLayout->addWidget(emptyLabel2, 0, 4);
 
-		btn = new AeroButton("2", this);
-		btn->setRoundness(0);
-		btn->setFixedSize (btn_width, btn_height);
+	QLabel *rxAuxLabel = new QLabel("Rx AUX Selection", this);
+	rxAuxLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
+	gridLayout->addWidget(rxAuxLabel, 0, 5, 1, 3, Qt::AlignCenter);
 
-		rx2BtnList << btn;
+	gridLayout->addWidget(emptyLabel3, 0, 8);
 
-		CHECKED_CONNECT(btn, &AeroButton::clicked, this, &AlexAntennaWidget::rxAuxBtnClicked);
+	QLabel *txLabel = new QLabel("Tx ANT Selection", this);
+	txLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
+	gridLayout->addWidget(txLabel, 0, 9, 1, 3, Qt::AlignCenter);
 
-		btn = new AeroButton("XV", this);
-		btn->setRoundness(0);
-		btn->setFixedSize (btn_width, btn_height);
+	// header row 1
+	for (int i = 0; i < rxAntLabelList.count(); i++)
+		gridLayout->addWidget(rxAntLabelList.at(i), 1, i+1, Qt::AlignCenter);
 
-		xvBtnList << btn;
+	for (int i = 0; i < rxAuxLabelList.count(); i++)
+		gridLayout->addWidget(rxAuxLabelList.at(i), 1, i+5, Qt::AlignCenter);
 
-		CHECKED_CONNECT(btn, &AeroButton::clicked, this, &AlexAntennaWidget::rxAuxBtnClicked);
+	for (int i = 0; i < txAntLabelList.count(); i++)
+		gridLayout->addWidget(txAntLabelList.at(i), 1, i+9, Qt::AlignCenter);
+
+	// band labels row 2 - 12
+	for (int i = 0; i < bandLabelList.count(); i++)
+		gridLayout->addWidget(bandLabelList.at(i), i+2, 0);
+
+	// separators
+	for (int i = 0; i < bandLabelList.count(); i++) {
+		QLabel *sep1 = new QLabel(" ", this);
+		sep1->setFrameStyle(QFrame::Box | QFrame::Raised);
+		sep1->setFixedWidth(10);
+		gridLayout->addWidget(sep1, i+2, 4);
+
+		QLabel *sep2 = new QLabel(" ", this);
+		sep2->setFrameStyle(QFrame::Box | QFrame::Raised);
+		sep2->setFixedWidth(10);
+		gridLayout->addWidget(sep2, i+2, 8);
 	}
 
-	for (int i = 0; i < m_numberOfBands; i++) {
+	for (int i = 0; i < bandLabelList.count(); i++) { // bands
+		QList<AeroButton *> rxAntList;
+		for (int j = 0; j < 3; j++) { // pins
+			AeroButton *btn = new AeroButton("", this);
+			btn->setRoundness(0);
+			btn->setFixedSize (btn_width, btn_height);
+			btn->setBtnState(AeroButton::OFF);
+			gridLayout->addWidget(btn, i+2, j+1);
+			rxAntList << btn;
 
-		QList<AeroButton *> btnList;
-		btnList << rx1BtnList.at(i) << rx2BtnList.at(i) << xvBtnList.at(i);
+			CHECKED_CONNECT(
+				btn, 
+				&AeroButton::clicked, 
+				this, 
+				&AlexAntennaWidget::antBtnClicked);
+		}
+		bandBtnMatrix << rxAntList;
 
-		bandBtnRxMatrix << btnList;
+		QList<AeroButton *> rxAuxList;
+		for (int j = 0; j < 3; j++) { // pins
+			AeroButton *btn = new AeroButton("", this);
+			btn->setRoundness(0);
+			btn->setFixedSize (btn_width, btn_height);
+			btn->setBtnState(AeroButton::OFF);
+			gridLayout->addWidget(btn, i+2, j+5);
+			rxAuxList << btn;
+
+			CHECKED_CONNECT(
+				btn, 
+				&AeroButton::clicked, 
+				this, 
+				&AlexAntennaWidget::rxAuxBtnClicked);
+		}
+		bandBtnRxMatrix << rxAuxList;
+		rx1BtnList << rxAuxList.at(0);
+		rx2BtnList << rxAuxList.at(1);
+		xvBtnList << rxAuxList.at(2);
+
+		QList<AeroButton *> txAntList;
+		for (int j = 0; j < 3; j++) { // pins
+			AeroButton *btn = new AeroButton("", this);
+			btn->setRoundness(0);
+			btn->setFixedSize (btn_width, btn_height);
+			btn->setBtnState(AeroButton::OFF);
+			gridLayout->addWidget(btn, i+2, j+9);
+			txAntList << btn;
+
+			CHECKED_CONNECT(
+				btn, 
+				&AeroButton::clicked, 
+				this, 
+				&AlexAntennaWidget::txAntBtnClicked);
+		}
+		bandBtnTxMatrix << txAntList;
+		tx1BtnList << txAntList.at(0);
+		tx2BtnList << txAntList.at(1);
+		tx3BtnList << txAntList.at(2);
 	}
 
-	// Tx 1,2, and 3 button lists
-	for (int i = 0; i < m_numberOfBands; i++) {
-
-		AeroButton *btn = new AeroButton("1", this);
-		btn->setRoundness(0);
-		btn->setFixedSize (btn_width, btn_height);
-
-		tx1BtnList << btn;
-
-		CHECKED_CONNECT(btn, &AeroButton::clicked, this, &AlexAntennaWidget::txAntBtnClicked);
-
-		btn = new AeroButton("2", this);
-		btn->setRoundness(0);
-		btn->setFixedSize (btn_width, btn_height);
-
-		tx2BtnList << btn;
-
-		CHECKED_CONNECT(btn, &AeroButton::clicked, this, &AlexAntennaWidget::txAntBtnClicked);
-
-		btn = new AeroButton("3", this);
-		btn->setRoundness(0);
-		btn->setFixedSize (btn_width, btn_height);
-
-		tx3BtnList << btn;
-
-		CHECKED_CONNECT(btn, &AeroButton::clicked, this, &AlexAntennaWidget::txAntBtnClicked);
-	}
-
-	for (int i = 0; i < m_numberOfBands; i++) {
-
-		QList<AeroButton *> btnList;
-		btnList << tx1BtnList.at(i) << tx2BtnList.at(i) << tx3BtnList.at(i);
-
-		bandBtnTxMatrix << btnList;
-	}
-
-	QGridLayout* grid = new QGridLayout(this);
-	grid->setVerticalSpacing(1);
-	grid->setHorizontalSpacing(1);
-	grid->setContentsMargins(3, 7, 5, 7);
-
-	grid->addWidget(emptyLabel1, 0, 0, 1, 2, Qt::AlignLeft);
-	grid->addWidget(antRxLabel, 0, 2, 1, 3, Qt::AlignCenter);
-	grid->addWidget(emptyLabel2, 0, 5, 1, 1, Qt::AlignCenter);
-	grid->addWidget(rxAuxLabel, 0, 6, 1, 3, Qt::AlignCenter);
-	grid->addWidget(emptyLabel3, 0, 9, 1, 1, Qt::AlignCenter);
-	grid->addWidget(antTxLabel, 0, 10, 1, 3, Qt::AlignCenter);
-
-
-	for (int i = 0; i < m_numberOfBands; i++) {
-
-		grid->addWidget(bandLabelList.at(i),   i+1, 0, 1, 2, Qt::AlignLeft);
-		grid->addWidget(antenna1BtnList.at(i), i+1, 2, 1, 1, Qt::AlignCenter);
-		grid->addWidget(antenna2BtnList.at(i), i+1, 3, 1, 1, Qt::AlignCenter);
-		grid->addWidget(antenna3BtnList.at(i), i+1, 4, 1, 1, Qt::AlignCenter);
-		grid->addWidget(emptyLabel2,            i+1, 5, 1, 1, Qt::AlignCenter);
-		grid->addWidget(rx1BtnList.at(i),      i+1, 6, 1, 1, Qt::AlignCenter);
-		grid->addWidget(rx2BtnList.at(i),      i+1, 7, 1, 1, Qt::AlignCenter);
-		grid->addWidget(xvBtnList.at(i),       i+1, 8, 1, 1, Qt::AlignCenter);
-		grid->addWidget(emptyLabel3,            i+1, 9, 1, 1, Qt::AlignCenter);
-		grid->addWidget(tx1BtnList.at(i),      i+1, 10, 1, 1, Qt::AlignCenter);
-		grid->addWidget(tx2BtnList.at(i),      i+1, 11, 1, 1, Qt::AlignCenter);
-		grid->addWidget(tx3BtnList.at(i),      i+1, 12, 1, 1, Qt::AlignCenter);
-	}
-
-	antennaGroup = new QGroupBox(tr(""), this);
+	antennaGroup = new QGroupBox(tr("Alex RF Routing Selection"), this);
 	antennaGroup->setMinimumWidth(m_minimumGroupBoxWidth);
-	antennaGroup->setLayout(grid);
-    antennaGroup->setFont(QFont("Arial", 8));
+	antennaGroup->setLayout(gridLayout);
+	antennaGroup->setFont(QFont("Arial", 8));
 }
 
-//*****************
-void AlexAntennaWidget::rxAntBtnClicked() {
+void AlexAntennaWidget::setAlexConfig(quint16 config) {
+	m_alexConfig = config;
+}
 
-	AeroButton *button = qobject_cast<AeroButton *>(sender());
+void AlexAntennaWidget::setAlexStates(const QList<int>& states) {
+	m_alexStates = states;
+	setAlexValues();
+}
 
-	int btnHit;
-	int antenna;
-	int btnHit1 = antenna1BtnList.indexOf(button);
-	int btnHit2 = antenna2BtnList.indexOf(button);
-	int btnHit3 = antenna3BtnList.indexOf(button);
-
-	if (btnHit1 >= 0) {
-
-		btnHit = btnHit1;
-		antenna = 1;
-	}
-	else if (btnHit2 >= 0) {
-
-		btnHit = btnHit2;
-		antenna = 2;
-	}
-	else if (btnHit3 >= 0) {
-
-		btnHit = btnHit3;
-		antenna = 3;
-	}
-	else
-		return;
-
-	if (btnHit >= 0) {
-
-		foreach(AeroButton *btn, bandBtnMatrix.at(btnHit)) {
-
+void AlexAntennaWidget::setAlexValues() {
+	for (int i = 0; i < qMin(m_numberOfBands, m_alexStates.size()); i++) {
+		// Clear buttons first
+		foreach(AeroButton *btn, bandBtnMatrix.at(i)) {
+			btn->blockSignals(true);
 			btn->setBtnState(AeroButton::OFF);
+			btn->blockSignals(false);
 			btn->update();
 		}
-		button->setBtnState(AeroButton::ON);
-		button->update();
+		foreach(AeroButton *btn, bandBtnRxMatrix.at(i)) {
+			btn->blockSignals(true);
+			btn->setBtnState(AeroButton::OFF);
+			btn->blockSignals(false);
+			btn->update();
+		}
+		foreach(AeroButton *btn, bandBtnTxMatrix.at(i)) {
+			btn->blockSignals(true);
+			btn->setBtnState(AeroButton::OFF);
+			btn->blockSignals(false);
+			btn->update();
+		}
+
+		int rxAnt = m_alexStates.at(i) & 0x03;
+		if (rxAnt > 0 && rxAnt <= 3) {
+			bandBtnMatrix.at(i).at(rxAnt-1)->blockSignals(true);
+			bandBtnMatrix.at(i).at(rxAnt-1)->setBtnState(AeroButton::ON);
+			bandBtnMatrix.at(i).at(rxAnt-1)->blockSignals(false);
+			bandBtnMatrix.at(i).at(rxAnt-1)->update();
+		}
+
+		int rxAux = (m_alexStates.at(i) >> 2) & 0x07;
+		if (rxAux > 0 && rxAux <= 3) {
+			bandBtnRxMatrix.at(i).at(rxAux-1)->blockSignals(true);
+			bandBtnRxMatrix.at(i).at(rxAux-1)->setBtnState(AeroButton::ON);
+			bandBtnRxMatrix.at(i).at(rxAux-1)->blockSignals(false);
+			bandBtnRxMatrix.at(i).at(rxAux-1)->update();
+		}
+
+		int txAnt = (m_alexStates.at(i) >> 5) & 0x03;
+		if (txAnt > 0 && txAnt <= 3) {
+			bandBtnTxMatrix.at(i).at(txAnt-1)->blockSignals(true);
+			bandBtnTxMatrix.at(i).at(txAnt-1)->setBtnState(AeroButton::ON);
+			bandBtnTxMatrix.at(i).at(txAnt-1)->blockSignals(false);
+			bandBtnTxMatrix.at(i).at(txAnt-1)->update();
+		}
+	}
+}
+
+void AlexAntennaWidget::antBtnClicked() {
+	AeroButton *button = qobject_cast<AeroButton *>(sender());
+	int btnHit = -1;
+	int antenna = -1;
+	for (int i = 0; i < bandBtnMatrix.size(); i++) {
+		int idx = bandBtnMatrix.at(i).indexOf(button);
+		if (idx >= 0) {
+			btnHit = i;
+			antenna = idx + 1;
+			break;
+		}
 	}
 
-	m_alexStates[btnHit] &= 0x1FC; // 1 1 1 1 1 1 1 0 0
-	m_alexStates[btnHit] |= antenna;
-
-	set->setAlexState(btnHit, m_alexStates[btnHit]);
+	if (btnHit >= 0) {
+		int nextState = m_alexStates.at(btnHit);
+		nextState &= 0x1FC;
+		nextState |= antenna;
+		emit alexStateRequested(btnHit, nextState);
+	}
 }
 
 void AlexAntennaWidget::rxAuxBtnClicked() {
-
 	AeroButton *button = qobject_cast<AeroButton *>(sender());
-
-	int btnHit;
-	int aux;
+	int btnHit = -1;
+	int aux = -1;
 	int btnHit1 = rx1BtnList.indexOf(button);
 	int btnHit2 = rx2BtnList.indexOf(button);
 	int btnHit3 = xvBtnList.indexOf(button);
 
 	if (btnHit1 >= 0) {
-
 		btnHit = btnHit1;
 		aux = 1;
-	}
-	else if (btnHit2 >= 0) {
-
+	} else if (btnHit2 >= 0) {
 		btnHit = btnHit2;
 		aux = 2;
-	}
-	else if (btnHit3 >= 0) {
-
+	} else if (btnHit3 >= 0) {
 		btnHit = btnHit3;
 		aux = 3;
-	}
-	else
+	} else {
 		return;
-
-	if (button->btnState() == AeroButton::ON) {
-
-		button->setBtnState(AeroButton::OFF);
-		button->update();
-
-		m_alexStates[btnHit] &= 0x1E3; // 1 1 1 1 0 0 0 1 1
 	}
-	else {
 
-		if (btnHit >= 0) {
-
-			foreach(AeroButton *btn, bandBtnRxMatrix.at(btnHit)) {
-
-				btn->setBtnState(AeroButton::OFF);
-				btn->update();
-			}
-			button->setBtnState(AeroButton::ON);
-			button->update();
+	if (btnHit >= 0) {
+		int nextState = m_alexStates.at(btnHit);
+		nextState &= 0x1E3;
+		if (button->btnState() == AeroButton::OFF) {
+			nextState |= aux << 2;
 		}
-		m_alexStates[btnHit] &= 0x1E3; // 1 1 1 1 0 0 0 1 1
-		m_alexStates[btnHit] |= aux << 2;
+		emit alexStateRequested(btnHit, nextState);
 	}
-	set->setAlexState(btnHit, m_alexStates[btnHit]);
 }
 
 void AlexAntennaWidget::txAntBtnClicked() {
-
 	AeroButton *button = qobject_cast<AeroButton *>(sender());
-
-	int btnHit;
-	int antenna;
+	int btnHit = -1;
+	int antenna = -1;
 	int btnHit1 = tx1BtnList.indexOf(button);
 	int btnHit2 = tx2BtnList.indexOf(button);
 	int btnHit3 = tx3BtnList.indexOf(button);
 
 	if (btnHit1 >= 0) {
-
 		btnHit = btnHit1;
 		antenna = 1;
-	}
-	else if (btnHit2 >= 0) {
-
+	} else if (btnHit2 >= 0) {
 		btnHit = btnHit2;
 		antenna = 2;
-	}
-	else if (btnHit3 >= 0) {
-
+	} else if (btnHit3 >= 0) {
 		btnHit = btnHit3;
 		antenna = 3;
-	}
-	else
+	} else {
 		return;
+	}
 
 	if (btnHit >= 0) {
-
-		foreach(AeroButton *btn, bandBtnTxMatrix.at(btnHit)) {
-
-			btn->setBtnState(AeroButton::OFF);
-			btn->update();
-		}
-		button->setBtnState(AeroButton::ON);
-		button->update();
-	}
-
-	m_alexStates[btnHit] &= 0x19F; // 1 1 0 0 1 1 1 1 1
-	m_alexStates[btnHit] |= antenna << 5;
-
-	set->setAlexState(btnHit, m_alexStates[btnHit]);
-}
-
-void AlexAntennaWidget::setAlexValues() {
-
-	//m_alexConfiguration = set->getAlexConfiguration();
-	m_alexConfig = set->getAlexConfig();
-	m_alexStates = set->getAlexStates();//m_alexParameters.state;
-
-	for (int i = 0; i < m_numberOfBands; i++) {
-
-		int rxAnt = m_alexStates.at(i) & 0x03;
-		if (rxAnt > 0)
-			bandBtnMatrix.at(i).at(rxAnt-1)->setBtnState(AeroButton::ON);
-
-		int rxAux = (m_alexStates.at(i) >> 2) & 0x07;
-		if (rxAux > 0)
-			bandBtnRxMatrix.at(i).at(rxAux-1)->setBtnState(AeroButton::ON);
-		else {
-
-			bandBtnRxMatrix.at(i).at(0)->setBtnState(AeroButton::OFF);
-			bandBtnRxMatrix.at(i).at(1)->setBtnState(AeroButton::OFF);
-			bandBtnRxMatrix.at(i).at(2)->setBtnState(AeroButton::OFF);
-		}
-
-		int txAnt = (m_alexStates.at(i) >> 5) & 0x03;
-		if (txAnt > 0)
-			bandBtnTxMatrix.at(i).at(txAnt-1)->setBtnState(AeroButton::ON);
+		int nextState = m_alexStates.at(btnHit);
+		nextState &= 0x19F;
+		nextState |= antenna << 5;
+		emit alexStateRequested(btnHit, nextState);
 	}
 }
