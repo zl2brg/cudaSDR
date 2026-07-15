@@ -1,36 +1,5 @@
-/**
-* @file  cusdr_extCtrlWidget.cpp
-* @brief J6-Pins settings widget header file for cuSDR
-* @author Hermann von Hasseln, DL3HVH
-* @version 0.1
-* @date 2012-06-13
-*/
-
-/*
- *   Copyright 2012 Hermann von Hasseln, DL3HVH
- *
- *   This program is free software; you can redistribute it and/or modify
- *   it under the terms of the GNU Library General Public License version 2 as
- *   published by the Free Software Foundation
- *
- *   This program is distributed in the hope that it will be useful,
- *   but WITHOUT ANY WARRANTY; without even the implied warranty of
- *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *   GNU General Public License for more details
- *
- *   You should have received a copy of the GNU Library General Public
- *   License along with this program; if not, write to the
- *   Free Software Foundation, Inc.,
- *   51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
- */
-
 #define LOG_PENNY_WIDGET
 
-
-//#include <QtGui>
-//#include <QPen>
-//#include <QDebug>
-//#include <QScopedPointer>
 #include <QLabel>
 #include <QGroupBox>
 #include <QBoxLayout>
@@ -44,14 +13,19 @@
 
 ExtCtrlWidget::ExtCtrlWidget(QWidget *parent)
 	: QWidget(parent)
-	, set(Settings::instance())
 	, m_pennyOCEnabled(false)
-	, m_minimumWidgetWidth(set->getMinimumWidgetWidth())
+	, m_minimumWidgetWidth(500)
 	, m_minimumGroupBoxWidth(0)
 {
 	setMinimumWidth(m_minimumWidgetWidth);
 	setContentsMargins(4, 8, 4, 0);
 	setMouseTracking(true);
+
+	// Pre-initialize lists
+	for (int i = 0; i < MAX_BANDS - 1; ++i) {
+		m_rxPins.append(0);
+		m_txPins.append(0);
+	}
 
 	createReceivePinsGroup();
 	createTransmitPinsGroup();
@@ -67,25 +41,20 @@ ExtCtrlWidget::ExtCtrlWidget(QWidget *parent)
 		this, 
 		&ExtCtrlWidget::enable);
 
-	// disable all buttons
+	// disable all buttons initially
 	foreach(QList<AeroButton *> btnList, receivePinsBtnMatrix) {
-
 		foreach(AeroButton *btn, btnList) {
-
 			btn->setEnabled(false);
 			btn->update();
 		}
 	}
 
 	foreach(QList<AeroButton *> btnList, transmitPinsBtnMatrix) {
-
 		foreach(AeroButton *btn, btnList) {
-
 			btn->setEnabled(false);
 			btn->update();
 		}
 	}
-
 
 	// set main layout
 	QBoxLayout *mainLayout = new QBoxLayout(QBoxLayout::TopToBottom, this);
@@ -115,352 +84,247 @@ ExtCtrlWidget::ExtCtrlWidget(QWidget *parent)
 	mainLayout->addStretch();
 		
 	setLayout(mainLayout);
-
-	setValues();
-	setupConnections();
 }
 
 ExtCtrlWidget::~ExtCtrlWidget() {
-
-	// disconnect all signals
-	disconnect(set, 0, this, 0);
 	disconnect(0, 0, 0);
 }
 
-void ExtCtrlWidget::setupConnections() {
-}
-
 void ExtCtrlWidget::createReceivePinsGroup() {
-
 	QLabel* emptyLabel = new QLabel(" ", this);
     emptyLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
 
-	// band label
 	QStringList bandNames;
     bandNames << "2200m" << "630m" << "160 m" << "80 m" << "60 m" << "40 m" << "30 m" << "20 m" << "17 m" << "15 m" << "12 m" << "10 m" << "6 m" << "2 m" << "125 cm" << "70 cm" << "33 cm" << "23 cm" << "13 cm" << "10 cm" << "5 cm" << "gen";
 
 	QList<QLabel *> bandLabelList;
 
 	for (int i = 0; i < MAX_BANDS-1; i++) {
-
 		QLabel *label = new QLabel(bandNames.at(i), this);
 		label->setFrameStyle(QFrame::Box | QFrame::Raised);
-
 		bandLabelList << label;
 	}
 
+	QList<QLabel *> pinLabelList;
 
-	// buttons
-	QString str = "%1";
-	for (int i = 0; i < MAX_BANDS-1; i++) { // bands
+	for (int i = 0; i < 7; i++) {
+		QLabel *label = new QLabel(QString("Pin %1").arg(i+1), this);
+		label->setFrameStyle(QFrame::Box | QFrame::Raised);
+		pinLabelList << label;
+	}
 
+	QGridLayout *gridLayout = new QGridLayout;
+	gridLayout->setSpacing(1);
+
+	gridLayout->addWidget(emptyLabel, 0, 0);
+
+	for (int i = 0; i < pinLabelList.count(); i++)
+		gridLayout->addWidget(pinLabelList.at(i), 0, i+1, Qt::AlignCenter);
+
+	for (int i = 0; i < bandLabelList.count(); i++)
+		gridLayout->addWidget(bandLabelList.at(i), i+1, 0);
+
+	for (int i = 0; i < bandLabelList.count(); i++) { // bands
 		QList<AeroButton *> btnList;
-		for (int j = 0; j < 7; j++) { // pins
-
-			AeroButton* btn = new AeroButton(str.arg(j+1), this);
+		for (int j = 0; j < pinLabelList.count(); j++) { // pins
+			AeroButton *btn = new AeroButton("", this);
 			btn->setRoundness(0);
 			btn->setFixedSize (btn_width, btn_height);
-			//receivePinsBtnList.append(btn);
-			btnList.append(btn);
+			btn->setBtnState(AeroButton::OFF);
+			gridLayout->addWidget(btn, i+1, j+1);
+			btnList << btn;
 
 			CHECKED_CONNECT(
-				btn,
+				btn, 
 				&AeroButton::clicked, 
 				this, 
 				&ExtCtrlWidget::receivePinsBtnClicked);
 		}
-		receivePinsBtnMatrix.append(btnList);
+		receivePinsBtnMatrix << btnList;
 	}
 
-
-	QGridLayout* grid = new QGridLayout(this);
-	grid->setVerticalSpacing(2);
-	grid->setHorizontalSpacing(0);
-	grid->setContentsMargins(5, 10, 20, 10);
-
-	grid->addWidget(emptyLabel, 0, 0, 1, 1, Qt::AlignLeft);
-	grid->addWidget(emptyLabel, 0, 1, 1, 1, Qt::AlignCenter);
-	grid->addWidget(emptyLabel, 0, 2, 1, 7, Qt::AlignCenter);
-	
-	for (int i = 0; i < MAX_BANDS-1; i++) { // bands
-
-		grid->addWidget(bandLabelList.at(i), i+1, 0, 1, 1, Qt::AlignLeft);
-		grid->addWidget(emptyLabel, i+1, 1, 1, 1, Qt::AlignCenter);
-
-		for (int j = 0; j < 7; j++) { // pins
-
-			grid->addWidget(receivePinsBtnMatrix.at(i).at(j), i+1, j+2, 1, 1, Qt::AlignCenter);
-		}
-	}
-
-
-	receivePinsGroup = new QGroupBox(tr("Receive Pins"), this);
+	receivePinsGroup = new QGroupBox(tr("PennyLane Open Collector Outputs - Receive State"), this);
 	receivePinsGroup->setMinimumWidth(m_minimumGroupBoxWidth);
-	receivePinsGroup->setLayout(grid);
+	receivePinsGroup->setLayout(gridLayout);
 	receivePinsGroup->setFont(QFont("Arial", 8));
 }
 
 void ExtCtrlWidget::createTransmitPinsGroup() {
-
 	QLabel* emptyLabel = new QLabel(" ", this);
     emptyLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
 
-	// band label
 	QStringList bandNames;
     bandNames << "2200m" << "630m" << "160 m" << "80 m" << "60 m" << "40 m" << "30 m" << "20 m" << "17 m" << "15 m" << "12 m" << "10 m" << "6 m" << "2 m" << "125 cm" << "70 cm" << "33 cm" << "23 cm" << "13 cm" << "10 cm" << "5 cm" << "gen";
 
 	QList<QLabel *> bandLabelList;
 
 	for (int i = 0; i < MAX_BANDS-1; i++) {
-
 		QLabel *label = new QLabel(bandNames.at(i), this);
 		label->setFrameStyle(QFrame::Box | QFrame::Raised);
-
 		bandLabelList << label;
 	}
 
+	QList<QLabel *> pinLabelList;
 
-	QString str = "%1";
-	for (int i = 0; i < MAX_BANDS-1; i++) { // bands
+	for (int i = 0; i < 7; i++) {
+		QLabel *label = new QLabel(QString("Pin %1").arg(i+1), this);
+		label->setFrameStyle(QFrame::Box | QFrame::Raised);
+		pinLabelList << label;
+	}
 
+	QGridLayout *gridLayout = new QGridLayout;
+	gridLayout->setSpacing(1);
+
+	gridLayout->addWidget(emptyLabel, 0, 0);
+
+	for (int i = 0; i < pinLabelList.count(); i++)
+		gridLayout->addWidget(pinLabelList.at(i), 0, i+1, Qt::AlignCenter);
+
+	for (int i = 0; i < bandLabelList.count(); i++)
+		gridLayout->addWidget(bandLabelList.at(i), i+1, 0);
+
+	for (int i = 0; i < bandLabelList.count(); i++) { // bands
 		QList<AeroButton *> btnList;
-		for (int j = 0; j < 7; j++) { // pins
-
-			AeroButton* btn = new AeroButton(str.arg(j+1), this);
+		for (int j = 0; j < pinLabelList.count(); j++) { // pins
+			AeroButton *btn = new AeroButton("", this);
 			btn->setRoundness(0);
 			btn->setFixedSize (btn_width, btn_height);
-			btnList.append(btn);
+			btn->setBtnState(AeroButton::OFF);
+			gridLayout->addWidget(btn, i+1, j+1);
+			btnList << btn;
 
 			CHECKED_CONNECT(
-				btn,
+				btn, 
 				&AeroButton::clicked, 
 				this, 
 				&ExtCtrlWidget::transmitPinsBtnClicked);
 		}
-		transmitPinsBtnMatrix.append(btnList);
+		transmitPinsBtnMatrix << btnList;
 	}
 
-	QGridLayout* grid = new QGridLayout(this);
-	grid->setVerticalSpacing(2);
-	grid->setHorizontalSpacing(0);
-	grid->setContentsMargins(5, 10, 20, 10);
-
-	grid->addWidget(emptyLabel, 0, 0, 1, 1, Qt::AlignLeft);
-	grid->addWidget(emptyLabel, 0, 1, 1, 1, Qt::AlignCenter);
-	grid->addWidget(emptyLabel, 0, 2, 1, 7, Qt::AlignCenter);
-	
-	for (int i = 0; i < MAX_BANDS-1; i++) { // bands
-
-		grid->addWidget(bandLabelList.at(i), i+1, 0, 1, 1, Qt::AlignLeft);
-		grid->addWidget(emptyLabel, i+1, 1, 1, 1, Qt::AlignCenter);
-
-		for (int j = 0; j < 7; j++) { // pins
-
-			grid->addWidget(transmitPinsBtnMatrix.at(i).at(j), i+1, j+2, 1, 1, Qt::AlignCenter);
-		}
-	}
-
-	transmitPinsGroup = new QGroupBox(tr("Transmit Pins"), this);
+	transmitPinsGroup = new QGroupBox(tr("PennyLane Open Collector Outputs - Transmit State"), this);
 	transmitPinsGroup->setMinimumWidth(m_minimumGroupBoxWidth);
-	transmitPinsGroup->setLayout(grid);
+	transmitPinsGroup->setLayout(gridLayout);
 	transmitPinsGroup->setFont(QFont("Arial", 8));
 }
 
+void ExtCtrlWidget::setPennyOCEnabled(bool enabled) {
+	m_pennyOCEnabled = enabled;
+	enableBtn->blockSignals(true);
+	enableBtn->setBtnState(enabled ? AeroButton::ON : AeroButton::OFF);
+	enableBtn->blockSignals(false);
+	enableBtn->update();
 
-//**************
-void ExtCtrlWidget::enable() {
-
-	if (enableBtn->btnState() == AeroButton::OFF) {
-
-		enableBtn->setBtnState(AeroButton::ON);
-
-		foreach(QList<AeroButton *> btnList, receivePinsBtnMatrix) {
-
-			foreach(AeroButton *btn, btnList) {
-
-				btn->setEnabled(true);
-				btn->update();
-			}
+	foreach(QList<AeroButton *> btnList, receivePinsBtnMatrix) {
+		foreach(AeroButton *btn, btnList) {
+			btn->setEnabled(enabled);
+			btn->update();
 		}
-
-		foreach(QList<AeroButton *> btnList, transmitPinsBtnMatrix) {
-
-			foreach(AeroButton *btn, btnList) {
-
-				btn->setEnabled(true);
-				btn->update();
-			}
-		}
-
-		m_pennyOCEnabled = true;
 	}
-	else {
 
-		enableBtn->setBtnState(AeroButton::OFF);
-
-		foreach(QList<AeroButton *> btnList, receivePinsBtnMatrix) {
-
-			foreach(AeroButton *btn, btnList) {
-
-				btn->setEnabled(false);
-				btn->update();
-			}
+	foreach(QList<AeroButton *> btnList, transmitPinsBtnMatrix) {
+		foreach(AeroButton *btn, btnList) {
+			btn->setEnabled(enabled);
+			btn->update();
 		}
-
-		foreach(QList<AeroButton *> btnList, transmitPinsBtnMatrix) {
-
-			foreach(AeroButton *btn, btnList) {
-
-				btn->setEnabled(false);
-				btn->update();
-			}
-		}
-		m_pennyOCEnabled = false;
 	}
-	set->setPennyOCEnabled(m_pennyOCEnabled);
 }
 
-void ExtCtrlWidget::receivePinsBtnClicked() {
-
-	AeroButton *button = qobject_cast<AeroButton *>(sender());
-
-	int band = -1;
-	int pin = -1;
-	for (int i = 0; i < MAX_BANDS-1; i++) { // bands
-
-		pin = receivePinsBtnMatrix.at(i).indexOf(button);
-		if (pin < 0)
-			continue;
-		else {
-
-			band = i;
-			break;
-		}
-	}
-
-	if (button->btnState() == AeroButton::ON) {
-			
-		button->setBtnState(AeroButton::OFF);
-		button->update();
-
-		if (pin >= 0)
-			m_rxPins[band] &= getMask(pin);
-	}
-	else {
-		
-		button->setBtnState(AeroButton::ON);
-		button->update();
-
-		if (pin >= 0) {
-
-			m_rxPins[band] &= getMask(pin);
-			m_rxPins[band] |= (1 << (pin+1));
-		}
-	}
-
-	set->setRxJ6Pins(m_rxPins);
+void ExtCtrlWidget::setRxPins(const QList<int>& pins) {
+	m_rxPins = pins;
+	setValues();
 }
 
-void ExtCtrlWidget::transmitPinsBtnClicked() {
-
-	AeroButton *button = qobject_cast<AeroButton *>(sender());
-
-	int band = -1;
-	int pin = -1;
-	for (int i = 0; i < MAX_BANDS-1; i++) { // bands
-
-		pin = transmitPinsBtnMatrix.at(i).indexOf(button);
-		if (pin < 0)
-			continue;
-		else {
-
-			band = i;
-			break;
-		}
-	}
-
-	if (button->btnState() == AeroButton::ON) {
-			
-		button->setBtnState(AeroButton::OFF);
-		button->update();
-
-		if (pin >= 0)
-			m_txPins[band] &= getMask(pin);
-	}
-	else {
-		
-		button->setBtnState(AeroButton::ON);
-		button->update();
-
-		if (pin >= 0) {
-
-			m_txPins[band] &= getMask(pin);//mask;
-			m_txPins[band] |= (1 << (pin+1));
-		}
-	}
-	
-	set->setTxJ6Pins(m_txPins);
+void ExtCtrlWidget::setTxPins(const QList<int>& pins) {
+	m_txPins = pins;
+	setValues();
 }
 
 void ExtCtrlWidget::setValues() {
-
-	m_pennyOCEnabled = set->getPennyOCEnabled();
-
-	if (m_pennyOCEnabled) enable();
-
-	m_rxPins = set->getRxJ6Pins();
-	m_txPins = set->getTxJ6Pins();
-
-	for (int i = 0; i < 11; i++) { // bands
-
+	for (int i = 0; i < qMin(m_rxPins.size(), receivePinsBtnMatrix.size()); i++) { // bands
 		for (int j = 0; j < 7; j++) { // pins
-
-			if (0x1 & (m_rxPins.at(i) >> (j+1)))
-				receivePinsBtnMatrix.at(i).at(j)->setBtnState(AeroButton::ON);
-
-			if (0x1 & (m_txPins.at(i) >> (j+1)))
-				transmitPinsBtnMatrix.at(i).at(j)->setBtnState(AeroButton::ON);
+			const bool rxOn = (0x1 & (m_rxPins.at(i) >> (j+1)));
+			receivePinsBtnMatrix.at(i).at(j)->blockSignals(true);
+			receivePinsBtnMatrix.at(i).at(j)->setBtnState(rxOn ? AeroButton::ON : AeroButton::OFF);
+			receivePinsBtnMatrix.at(i).at(j)->blockSignals(false);
+			receivePinsBtnMatrix.at(i).at(j)->update();
+		}
+	}
+	for (int i = 0; i < qMin(m_txPins.size(), transmitPinsBtnMatrix.size()); i++) { // bands
+		for (int j = 0; j < 7; j++) { // pins
+			const bool txOn = (0x1 & (m_txPins.at(i) >> (j+1)));
+			transmitPinsBtnMatrix.at(i).at(j)->blockSignals(true);
+			transmitPinsBtnMatrix.at(i).at(j)->setBtnState(txOn ? AeroButton::ON : AeroButton::OFF);
+			transmitPinsBtnMatrix.at(i).at(j)->blockSignals(false);
+			transmitPinsBtnMatrix.at(i).at(j)->update();
 		}
 	}
 }
 
 uchar ExtCtrlWidget::getMask(int value) {
-
 	uchar mask = 0x0;
 	switch (value) {
-
-		case 0:
-			mask = 0xFD;
-			break;
-
-		case 1:
-			mask = 0xFB;
-			break;
-
-		case 2:
-			mask = 0xF7;
-			break;
-
-		case 3:
-			mask = 0xEF;
-			break;
-
-		case 4:
-			mask = 0xDF;
-			break;
-
-		case 5:
-			mask = 0xBF;
-			break;
-
-		case 6:
-			mask = 0x7F;
-			break;
-
-		default:
-			mask = 0x0;
-			break;
+		case 0:  mask = 0xFD; break;
+		case 1:  mask = 0xFB; break;
+		case 2:  mask = 0xF7; break;
+		case 3:  mask = 0xEF; break;
+		case 4:  mask = 0xDF; break;
+		case 5:  mask = 0xBF; break;
+		case 6:  mask = 0x7F; break;
+		default: mask = 0x0;  break;
 	}
 	return mask;
 }
 
+void ExtCtrlWidget::enable() {
+	bool target = (enableBtn->btnState() == AeroButton::OFF);
+	emit pennyOCEnabledRequested(target);
+}
+
+void ExtCtrlWidget::receivePinsBtnClicked() {
+	AeroButton *button = qobject_cast<AeroButton *>(sender());
+	int band = -1;
+	int pin = -1;
+	for (int i = 0; i < m_rxPins.size(); i++) {
+		pin = receivePinsBtnMatrix.at(i).indexOf(button);
+		if (pin >= 0) {
+			band = i;
+			break;
+		}
+	}
+
+	if (band >= 0 && pin >= 0) {
+		QList<int> targetPins = m_rxPins;
+		if (button->btnState() == AeroButton::ON) {
+			targetPins[band] &= getMask(pin);
+		} else {
+			targetPins[band] &= getMask(pin);
+			targetPins[band] |= (1 << (pin+1));
+		}
+		emit rxPinsRequested(targetPins);
+	}
+}
+
+void ExtCtrlWidget::transmitPinsBtnClicked() {
+	AeroButton *button = qobject_cast<AeroButton *>(sender());
+	int band = -1;
+	int pin = -1;
+	for (int i = 0; i < m_txPins.size(); i++) {
+		pin = transmitPinsBtnMatrix.at(i).indexOf(button);
+		if (pin >= 0) {
+			band = i;
+			break;
+		}
+	}
+
+	if (band >= 0 && pin >= 0) {
+		QList<int> targetPins = m_txPins;
+		if (button->btnState() == AeroButton::ON) {
+			targetPins[band] &= getMask(pin);
+		} else {
+			targetPins[band] &= getMask(pin);
+			targetPins[band] |= (1 << (pin+1));
+		}
+		emit txPinsRequested(targetPins);
+	}
+}

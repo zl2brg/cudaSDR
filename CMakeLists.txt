@@ -114,6 +114,7 @@ set(SOURCES
     ${SRC_DIR}/Controllers/RadioSettingsController.cpp
     ${SRC_DIR}/Controllers/NetworkSettingsController.cpp
     ${SRC_DIR}/Controllers/HpsdrSettingsController.cpp
+    ${SRC_DIR}/Controllers/ExtCtrlSettingsController.cpp
     ${SRC_DIR}/cusdr_settings.cpp
     ${SRC_DIR}/cusdr_hamDatabase.cpp
     ${SRC_DIR}/cusdr_fonts.cpp
