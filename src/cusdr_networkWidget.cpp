@@ -1,61 +1,25 @@
-/**
-* @file cusdr_networkWidget.cpp
-* @brief Network settings widget class for cuSDR
-* @author Hermann von Hasseln, DL3HVH
-* @version 0.1
-* @date 2012-10-24
-*/
-
-/*
- *   
- *   Copyright 2010 - 2012 Hermann von Hasseln, DL3HVH
- *
- *   This program is free software; you can redistribute it and/or modify
- *   it under the terms of the GNU Library General Public License version 2 as
- *   published by the Free Software Foundation
- *
- *   This program is distributed in the hope that it will be useful,
- *   but WITHOUT ANY WARRANTY; without even the implied warranty of
- *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *   GNU General Public License for more details
- *
- *   You should have received a copy of the GNU Library General Public
- *   License along with this program; if not, write to the
- *   Free Software Foundation, Inc.,
- *   51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
- */
-
 #define LOG_NETWORK_WIDGET
 
-// use: NETWORK_WIDGET_DEBUG
-
-//#include <QtGui>
-//#include <QMenu>
-//#include <QFileDialog>
-//#include <QDebug>
 #include <QBoxLayout>
 
 #include "cusdr_networkWidget.h"
 #include "Util/device_identity.h"
-
 
 #define	btn_height		22
 #define	btn_width		74
 #define	btn_width2		52
 #define	btn_widths		42
 
-
 NetworkWidget::NetworkWidget(QWidget *parent)
     : QTabWidget(parent)
-	, set(Settings::instance())
-	, m_serverMode(set->getCurrentServerMode())
-	, m_hwInterface(set->getHWInterface())
-	, m_hwInterfaceTemp(set->getHWInterface())
+	, m_serverMode(QSDR::SDRMode)
+	, m_hwInterface(QSDR::NoInterfaceMode)
+	, m_hwInterfaceTemp(QSDR::NoInterfaceMode)
 	, m_dataEngineState(QSDR::DataEngineDown)
-	, m_minimumWidgetWidth(set->getMinimumWidgetWidth())
+	, m_minimumWidgetWidth(500)
 	, m_minimumGroupBoxWidth(0)
 	, m_numberOfReceivers(1)
-	, m_hpsdrHardware(set->getHPSDRHardware())
+	, m_hpsdrHardware(0)
     , m_discoveryPassId(0)
 {
 	setMinimumWidth(m_minimumWidgetWidth);
@@ -63,8 +27,6 @@ NetworkWidget::NetworkWidget(QWidget *parent)
 	setMouseTracking(true);
     setFont(QFont("Arial",10));
 	
-	m_deviceCards = set->getMetisCardsList();
-
 	createDeviceNetworkInterfaceGroup();
 	createDeviceSearchGroup();
 
@@ -89,7 +51,6 @@ NetworkWidget::NetworkWidget(QWidget *parent)
 	hbox3->addWidget(searchNetworkDeviceGroupBox);
 
 	if (m_hwInterface == QSDR::NoInterfaceMode) {
-		
 		deviceNIGroupBox->hide();
 		searchNetworkDeviceGroupBox->hide();
 	}
@@ -100,86 +61,32 @@ NetworkWidget::NetworkWidget(QWidget *parent)
 	mainLayout->addStretch();
 	setLayout(mainLayout);
 
-	setupConnections();
     addNICChangedConnection();
-	setSocketBufSize(set->getSocketBufferSize());
 }
 
 NetworkWidget::~NetworkWidget() {
-
-	disconnect(set, 0, this, 0);
 	disconnect(0, 0, 0);
 }
 
-void NetworkWidget::setupConnections() {
-
-	CHECKED_CONNECT(
-		set,
-		&Settings::systemStateChanged,
-		this,
-		&NetworkWidget::systemStateChanged);
-
-	CHECKED_CONNECT(
-		set, 
-		&Settings::newHPSDRDeviceNIC, 
-		this, 
-		&NetworkWidget::addDeviceNICEntry);
-
-	CHECKED_CONNECT(
-		set, 
-		&Settings::hpsdrDeviceNICChanged, 
-		this, 
-		&NetworkWidget::setDeviceNIC);
-
-	CHECKED_CONNECT(
-		set, 
-		&Settings::metisCardListChanged, 
-		this, 
-		&NetworkWidget::setNetworkDeviceList);
-
-	CHECKED_CONNECT(
-		set, 
-		&Settings::hpsdrNetworkDeviceChanged,
-		this, 
-		&NetworkWidget::setCurrentNetworkDevice);
-
-	CHECKED_CONNECT(
-		set, 
-		&Settings::socketBufferSizeChanged, 
-		this, 
-		&NetworkWidget::setSocketBufSize);
-
-#ifdef HAVE_SOAPYSDR
-    CHECKED_CONNECT(
-        set,
-        &Settings::soapyDeviceListChanged,
-        this,
-        &NetworkWidget::setSoapyDeviceList);
-
-    CHECKED_CONNECT(
-        set,
-        &Settings::soapyDeviceChanged,
-        this,
-        &NetworkWidget::setCurrentSoapyDevice);
-#endif
-}
-
 void NetworkWidget::addNICChangedConnection() {
-
 	CHECKED_CONNECT(
 		networkDeviceInterfaces, 
 		&QComboBox::currentIndexChanged, 
-		set, 
-		&Settings::setHPSDRDeviceNIC);
+		this, 
+		&NetworkWidget::onDeviceNICChanged);
+}
+
+void NetworkWidget::onDeviceNICChanged(int index) {
+	emit nicInterfaceSelected(index);
 }
 
 void NetworkWidget::setDeviceNIC(int index) {
-
+	const bool prev = networkDeviceInterfaces->blockSignals(true);
 	networkDeviceInterfaces->setCurrentIndex(index);
+	networkDeviceInterfaces->blockSignals(prev);
 }
 
 QGroupBox* NetworkWidget::hpsdrInterfaceExclusiveBtnGroup() {
-
 	networkPresenceBtn = new AeroButton("Network", this);
     networkPresenceBtn->setFont(QFont("Arial",8));
 	networkPresenceBtn->setRoundness(0);
@@ -240,9 +147,7 @@ QGroupBox* NetworkWidget::hpsdrInterfaceExclusiveBtnGroup() {
 }
 
 void NetworkWidget::createDeviceNetworkInterfaceGroup() {
-
 	networkDeviceInterfaces = new QComboBox();
-
 	networkDeviceInterfaces->setMinimumContentsLength(22);
 	
 	socketBufSizeBtn = new AeroButton("Enable", this);
@@ -272,7 +177,7 @@ void NetworkWidget::createDeviceNetworkInterfaceGroup() {
 		socketBufferSizes,
 		&QComboBox::currentIndexChanged,
 		this,
-		&NetworkWidget::setSocketBufferSize);
+		&NetworkWidget::onSocketBufferSizeChanged);
 
 	socketBufferSizeLabel = new QLabel("Socket Buffer Size:", this);
 	socketBufferSizeLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
@@ -284,7 +189,6 @@ void NetworkWidget::createDeviceNetworkInterfaceGroup() {
 	
 	QHBoxLayout *hbox2 = new QHBoxLayout();
 	hbox2->setSpacing(1);
-	//hbox2->addStretch();
 	hbox2->addWidget(socketBufferSizeLabel);
 	hbox2->addWidget(socketBufSizeBtn);
 	hbox2->addSpacing(3);
@@ -305,7 +209,6 @@ void NetworkWidget::createDeviceNetworkInterfaceGroup() {
 }
 
 void NetworkWidget::createDeviceSearchGroup() {
-
 	searchBtn = new AeroButton("search", this);
 	searchBtn->setRoundness(10);
 	searchBtn->setFixedSize(btn_width2, btn_height);
@@ -333,7 +236,6 @@ void NetworkWidget::createDeviceSearchGroup() {
 	hbox1->addWidget(deviceCombo);
 
 	QVBoxLayout *vbox = new QVBoxLayout();
-
 	vbox->setSpacing(3);
 	vbox->addSpacing(5);
 	vbox->addLayout(hbox1);
@@ -345,62 +247,22 @@ void NetworkWidget::createDeviceSearchGroup() {
 	searchNetworkDeviceGroupBox->setFont(QFont("Arial", 8));
 }
 
-// ************************************************************************
-
 void NetworkWidget::addDeviceNICEntry(QString niName, QString ipAddress) {
 	Q_UNUSED(niName)
-
-	//QString item = niName;
-	QString item = ipAddress;
-	//item.append(" (");
-	//item.append(ipAddress);
-	//item.append(")");
-	networkDeviceInterfaces->addItem(item);
-	//this->repaint();
+	networkDeviceInterfaces->addItem(ipAddress);
 }
 
-void NetworkWidget::systemStateChanged(
-	QSDR::_Error err, 
-	QSDR::_HWInterfaceMode hwmode, 
-	QSDR::_ServerMode mode, 
-	QSDR::_DataEngineState state)
-{
-	Q_UNUSED (err)
-
-	if (m_hwInterface != hwmode) {
-		
-		m_hwInterface = hwmode;
+void NetworkWidget::setHwInterface(QSDR::_HWInterfaceMode mode) {
+	if (m_hwInterface != mode) {
+		m_hwInterface = mode;
 		hwInterfaceChanged();
 	}
-
-	//m_oldServerMode = m_serverMode;
-	if (m_serverMode != mode) {
-
-		enableButtons();
-		
-		m_serverMode = mode;
-	}
-		
-	if (m_dataEngineState != state) {
-
-		if (state == QSDR::DataEngineUp)
-			disableButtons();
-		else
-			enableButtons();
-
-		m_dataEngineState = state;
-	}
-
-	//if (!change) return;
 	update();
 }
 
 void NetworkWidget::hwInterfaceChanged() {
-
 	switch (m_hwInterface) {
-
 		case QSDR::NoInterfaceMode:
-
 			noHWBtn->setBtnState(AeroButton::ON);
 			networkPresenceBtn->setBtnState(AeroButton::OFF);
 #ifdef HAVE_SOAPYSDR
@@ -412,13 +274,11 @@ void NetworkWidget::hwInterfaceChanged() {
 
 		case QSDR::Metis:
 		case QSDR::Hermes:
-			
 			noHWBtn->setBtnState(AeroButton::OFF);
 			networkPresenceBtn->setBtnState(AeroButton::ON);
 #ifdef HAVE_SOAPYSDR
             soapyBtn->setBtnState(AeroButton::OFF);
 #endif
-            
             deviceNIGroupBox->show();
             searchNetworkDeviceGroupBox->show();
             searchNetworkDeviceGroupBox->setTitle(tr("Discovered Devices"));
@@ -436,102 +296,50 @@ void NetworkWidget::hwInterfaceChanged() {
 			break;
 #endif
 	}
-
 	m_hwInterfaceTemp = m_hwInterface;
 }
 
 void NetworkWidget::interfaceBtnClicked() {
-
 	AeroButton *button = qobject_cast<AeroButton *>(sender());
+	QSDR::_HWInterfaceMode wanted = m_hwInterface;
 
-	if (button == networkPresenceBtn) { // HPSDR modules
-
-		noHWBtn->setBtnState(AeroButton::OFF);
-		noHWBtn->update();
-#ifdef HAVE_SOAPYSDR
-        soapyBtn->setBtnState(AeroButton::OFF);
-        soapyBtn->update();
-#endif
-		networkPresenceBtn->setBtnState(AeroButton::ON);
-
-		if (m_hpsdrHardware == 0) {
-
-			m_hwInterface = QSDR::Metis;
-			NETWORK_WIDGET_DEBUG << "HW interface changed to Metis.";
-		}
-		else if (m_hpsdrHardware == 1) {
-
-			m_hwInterface = QSDR::Hermes;
-			NETWORK_WIDGET_DEBUG << "HW interface changed to Hermes.";
-		}
-	}
-	else
-	if (button == noHWBtn) {
-
-		networkPresenceBtn->setBtnState(AeroButton::OFF);
-		networkPresenceBtn->update();
-#ifdef HAVE_SOAPYSDR
-        soapyBtn->setBtnState(AeroButton::OFF);
-        soapyBtn->update();
-#endif
-		noHWBtn->setBtnState(AeroButton::ON);
-		m_hwInterface = QSDR::NoInterfaceMode;
-		emit messageEvent("[hpsdr]: changed to no-interface mode.");
+	if (button == networkPresenceBtn) {
+		if (m_hpsdrHardware == 0) wanted = QSDR::Metis;
+		else wanted = QSDR::Hermes;
+	} else if (button == noHWBtn) {
+		wanted = QSDR::NoInterfaceMode;
 	}
 #ifdef HAVE_SOAPYSDR
-    else
-    if (button == soapyBtn) {
-        noHWBtn->setBtnState(AeroButton::OFF);
-        noHWBtn->update();
-        networkPresenceBtn->setBtnState(AeroButton::OFF);
-        networkPresenceBtn->update();
-        soapyBtn->setBtnState(AeroButton::ON);
-
-        m_hwInterface = QSDR::SoapySDR;
-        NETWORK_WIDGET_DEBUG << "HW interface changed to SoapySDR.";
-    }
+	else if (button == soapyBtn) {
+		wanted = QSDR::SoapySDR;
+	}
 #endif
 
-	if (m_hwInterfaceTemp != m_hwInterface) {
-        hwInterfaceChanged();
-        qDebug() << "HPSDRWidget::  setSystemState.";
-        set->setSystemState(
-                        QSDR::NoError,
-                        m_hwInterface,
-                        m_serverMode,
-                        m_dataEngineState);
-    }
+	if (wanted != m_hwInterface) {
+		emit hwInterfaceModeRequested(wanted);
+	}
 }
 
 void NetworkWidget::searchBtnClicked() {
     ++m_discoveryPassId;
     deviceCombo->clear();
-	set->searchDevices();
+	emit searchDevicesRequested();
 }
 
 #ifdef HAVE_SOAPYSDR
-void NetworkWidget::setSoapyDeviceList(const QList<TSoapyDevice> &list) {
-    int added = 0;
-    int skipped = 0;
+void NetworkWidget::setSoapyDevicesList(const QList<TSoapyDevice>& list, const TSoapyDevice& active) {
     const bool prevBlocked = deviceCombo->blockSignals(true);
-    foreach (const TSoapyDevice &dev, list) {
-        bool exists = false;
-        for (int i = 0; i < deviceCombo->count(); ++i) {
-            const QVariant data = deviceCombo->itemData(i);
-            if (!data.canConvert<TSoapyDevice>())
-                continue;
-            if (sameSoapyDevice(data.value<TSoapyDevice>(), dev)) {
-                exists = true;
-                break;
-            }
-        }
-        if (exists) {
-            ++skipped;
-            continue;
-        }
-
+    deviceCombo->clear();
+    int activeIdx = -1;
+    for (int i = 0; i < list.size(); ++i) {
+        const TSoapyDevice &dev = list.at(i);
         deviceCombo->addItem("[Soapy] " + dev.label, QVariant::fromValue(dev));
-        ++added;
+        if (sameSoapyDevice(dev, active)) {
+            activeIdx = i;
+        }
+    }
+    if (activeIdx >= 0) {
+        deviceCombo->setCurrentIndex(activeIdx);
     }
     deviceCombo->blockSignals(prevBlocked);
 }
@@ -551,37 +359,20 @@ void NetworkWidget::setCurrentSoapyDevice(TSoapyDevice device) {
 }
 #endif
 
-void NetworkWidget::setNetworkDeviceList(QList<TNetworkDevicecard> list) {
-
-	m_deviceCards = list;
-
-	if (list.length() == 0 ) {
-		return;
-	}
-
-    int added = 0;
-    int skipped = 0;
+void NetworkWidget::setMetisCardsList(const QList<TNetworkDevicecard>& list, const TNetworkDevicecard& active) {
     const bool prevBlocked = deviceCombo->blockSignals(true);
-	foreach (TNetworkDevicecard device, list) {
-        bool exists = false;
-        for (int i = 0; i < deviceCombo->count(); ++i) {
-            const QVariant data = deviceCombo->itemData(i);
-            if (!data.canConvert<TNetworkDevicecard>())
-                continue;
-            const TNetworkDevicecard existing = data.value<TNetworkDevicecard>();
-            if (sameHpsdrDeviceByMac(existing, device)) {
-                exists = true;
-                break;
-            }
+    deviceCombo->clear();
+    int activeIdx = -1;
+    for (int i = 0; i < list.size(); ++i) {
+        const TNetworkDevicecard &device = list.at(i);
+        deviceCombo->addItem("[HPSDR] " + device.ip_address.toString(), QVariant::fromValue(device));
+        if (sameHpsdrDeviceByMac(device, active)) {
+            activeIdx = i;
         }
-        if (exists) {
-            ++skipped;
-            continue;
-        }
-
-		deviceCombo->addItem("[HPSDR] " + device.ip_address.toString(), QVariant::fromValue(device));
-        ++added;
-	}
+    }
+    if (activeIdx >= 0) {
+        deviceCombo->setCurrentIndex(activeIdx);
+    }
     deviceCombo->blockSignals(prevBlocked);
 }
 
@@ -589,34 +380,19 @@ void NetworkWidget::deviceSelected(int index) {
     if (index < 0) return;
 
     QVariant data = deviceCombo->itemData(index);
-    
     if (data.canConvert<TNetworkDevicecard>()) {
         TNetworkDevicecard card = data.value<TNetworkDevicecard>();
-        set->setCurrentHPSDRDevice(card);
-        // Automatically switch to HPSDR mode
-        QSDR::_HWInterfaceMode wanted = (card.protocol == 2) ? QSDR::Hermes : QSDR::Metis;
-        if (m_hwInterface != wanted) {
-            m_hwInterface = wanted;
-            hwInterfaceChanged();
-            set->setSystemState(QSDR::NoError, m_hwInterface, m_serverMode, m_dataEngineState);
-        }
+        emit currentHpsdrDeviceSelected(card);
     } 
 #ifdef HAVE_SOAPYSDR
     else if (data.canConvert<TSoapyDevice>()) {
         TSoapyDevice dev = data.value<TSoapyDevice>();
-        set->setCurrentSoapyDevice(dev);
-        // Automatically switch to SoapySDR mode
-        if (m_hwInterface != QSDR::SoapySDR) {
-            m_hwInterface = QSDR::SoapySDR;
-            hwInterfaceChanged();
-            set->setSystemState(QSDR::NoError, m_hwInterface, m_serverMode, m_dataEngineState);
-        }
+        emit currentSoapyDeviceSelected(dev);
     }
 #endif
 }
 
 void NetworkWidget::setCurrentNetworkDevice(TNetworkDevicecard card) {
-    // Search in combo
     for (int i = 0; i < deviceCombo->count(); ++i) {
         QVariant data = deviceCombo->itemData(i);
         if (data.canConvert<TNetworkDevicecard>()) {
@@ -631,31 +407,29 @@ void NetworkWidget::setCurrentNetworkDevice(TNetworkDevicecard card) {
 }
 
 void NetworkWidget::socketBufSizeBtnClicked() {
-
 	if (socketBufSizeBtn->btnState() == AeroButton::OFF) {
+		emit manualSocketBufferSizeRequested(true);
+	} else {
+		emit manualSocketBufferSizeRequested(false);
+	}
+}
 
+void NetworkWidget::setManualSocketBufferSize(bool manual) {
+	socketBufSizeBtn->blockSignals(true);
+	if (manual) {
 		socketBufferSizes->setEnabled(true);
-		socketBufferSizes->blockSignals(true);
-		setSocketBufSize(set->getSocketBufferSize());
-		socketBufferSizes->blockSignals(false);
-		//NETWORK_WIDGET_DEBUG << "getSocketBufferSize() :" << set->getSocketBufferSize();
-		set->setManualSocketBufferSize(true);
 		socketBufSizeBtn->setText("Disable");
 		socketBufSizeBtn->setBtnState(AeroButton::ON);
-	}
-	else {
-
+	} else {
 		socketBufferSizes->setEnabled(false);
-		set->setManualSocketBufferSize(false);
 		socketBufSizeBtn->setText("Enable");
 		socketBufSizeBtn->setBtnState(AeroButton::OFF);
 	}
-
+	socketBufSizeBtn->blockSignals(false);
 	socketBufSizeBtn->update();
 }
 
 void NetworkWidget::disableButtons() {
-
 	noHWBtn->setEnabled(false);
 	networkPresenceBtn->setEnabled(false);
 #ifdef HAVE_SOAPYSDR
@@ -664,7 +438,6 @@ void NetworkWidget::disableButtons() {
 }
 
 void NetworkWidget::enableButtons() {
-
 	noHWBtn->setEnabled(true);
 	networkPresenceBtn->setEnabled(true);
 #ifdef HAVE_SOAPYSDR
@@ -673,80 +446,32 @@ void NetworkWidget::enableButtons() {
 }
 
 void NetworkWidget::setSocketBufSize(int size) {
-
 	m_socketBufferSize = size;
-
+	const bool prev = socketBufferSizes->blockSignals(true);
 	switch (m_socketBufferSize) {
-
-		case 1:
-			socketBufferSizes->setCurrentIndex(0);
-			break;
-
-		case 8:
-			socketBufferSizes->setCurrentIndex(1);
-			break;
-
-		case 16:
-			socketBufferSizes->setCurrentIndex(2);
-			break;
-
-		case 32:
-			socketBufferSizes->setCurrentIndex(3);
-			break;
-
-		case 64:
-			socketBufferSizes->setCurrentIndex(4);
-			break;
-
-		case 128:
-			socketBufferSizes->setCurrentIndex(5);
-			break;
-
-		case 256:
-			socketBufferSizes->setCurrentIndex(6);
-			break;
-
-		case 512:
-			socketBufferSizes->setCurrentIndex(7);
-			break;
+		case 1:   socketBufferSizes->setCurrentIndex(0); break;
+		case 8:   socketBufferSizes->setCurrentIndex(1); break;
+		case 16:  socketBufferSizes->setCurrentIndex(2); break;
+		case 32:  socketBufferSizes->setCurrentIndex(3); break;
+		case 64:  socketBufferSizes->setCurrentIndex(4); break;
+		case 128: socketBufferSizes->setCurrentIndex(5); break;
+		case 256: socketBufferSizes->setCurrentIndex(6); break;
+		case 512: socketBufferSizes->setCurrentIndex(7); break;
 	}
-	
+	socketBufferSizes->blockSignals(prev);
 }
 
-void NetworkWidget::setSocketBufferSize(int value) {
-
-	switch (value) {
-
-		case 0:
-			set->setSocketBufferSize(1);
-			break;
-
-		case 1:
-			set->setSocketBufferSize(8);
-			break;
-
-		case 2:
-			set->setSocketBufferSize(16);
-			break;
-
-		case 3:
-			set->setSocketBufferSize(32);
-			break;
-
-		case 4:
-			set->setSocketBufferSize(64);
-			break;
-
-		case 5:
-			set->setSocketBufferSize(128);
-			break;
-
-		case 6:
-			set->setSocketBufferSize(256);
-			break;
-
-		case 7:
-			set->setSocketBufferSize(512);
-			break;
+void NetworkWidget::onSocketBufferSizeChanged(int index) {
+	int size = 32;
+	switch (index) {
+		case 0: size = 1;   break;
+		case 1: size = 8;   break;
+		case 2: size = 16;  break;
+		case 3: size = 32;  break;
+		case 4: size = 64;  break;
+		case 5: size = 128; break;
+		case 6: size = 256; break;
+		case 7: size = 512; break;
 	}
+	emit socketBufferSizeRequested(size);
 }

@@ -1,65 +1,30 @@
-/**
-* @file cusdr_hpsdrWidget.cpp
-* @brief Hardware settings widget class for cuSDR
-* @author Hermann von Hasseln, DL3HVH
-* @version 0.1
-* @date 2010-09-21
-*/
-
-/*
- *   
- *   Copyright 2010, 2011 Hermann von Hasseln, DL3HVH
- *
- *   This program is free software; you can redistribute it and/or modify
- *   it under the terms of the GNU Library General Public License version 2 as
- *   published by the Free Software Foundation
- *
- *   This program is distributed in the hope that it will be useful,
- *   but WITHOUT ANY WARRANTY; without even the implied warranty of
- *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *   GNU General Public License for more details
- *
- *   You should have received a copy of the GNU Library General Public
- *   License along with this program; if not, write to the
- *   Free Software Foundation, Inc.,
- *   51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
- */
 #define LOG_HPSDR_WIDGET
 
-// use: HPSDR_WIDGET_DEBUG
-
-//#include <QtGui>
-//#include <QMenu>
-//#include <QFileDialog>
-//#include <QDebug>
 #include <QBoxLayout>
 
 #include "cusdr_hpsdrWidget.h"
-
 
 #define	btn_height		22
 #define	btn_width		74
 #define	btn_width2		52
 #define	btn_widths		42
 
-
 HPSDRWidget::HPSDRWidget(QWidget *parent) 
 	: QWidget(parent)
-	, set(Settings::instance())
-	, m_serverMode(set->getCurrentServerMode())
-	, m_hwInterface(set->getHWInterface())
-	, m_hwInterfaceTemp(set->getHWInterface())
+	, m_serverMode(QSDR::SDRMode)
+	, m_hwInterface(QSDR::NoInterfaceMode)
+	, m_hwInterfaceTemp(QSDR::NoInterfaceMode)
 	, m_dataEngineState(QSDR::DataEngineDown)
-	, m_minimumWidgetWidth(set->getMinimumWidgetWidth())
+	, m_minimumWidgetWidth(500)
 	, m_minimumGroupBoxWidth(0)
-	, m_numberOfReceivers(set->getNumberOfReceivers())
-	, m_hpsdrHardware(set->getHPSDRHardware())
+	, m_numberOfReceivers(1)
+	, m_hpsdrHardware(0)
 {
 	setMinimumWidth(m_minimumWidgetWidth);
 	setContentsMargins(4, 8, 4, 0);
 	setMouseTracking(true);
 	
-	m_firmwareCheck = set->getFirmwareVersionCheck();
+	m_firmwareCheck = false;
 
 	createSource10MhzExclusiveGroup();
 	createSource122_88MhzExclusiveGroup();
@@ -86,8 +51,6 @@ HPSDRWidget::HPSDRWidget(QWidget *parent)
 
 	QHBoxLayout *hbox4 = new QHBoxLayout();
 	hbox4->setSpacing(0);
-    //hbox4->setContentsMargins(0,0,0,0);
-	//hbox4->addStretch();
 	hbox4->setContentsMargins(4, 0, 4, 0);
 	hbox4->addWidget(sampleRateExclusiveGroup());
 
@@ -104,39 +67,18 @@ HPSDRWidget::HPSDRWidget(QWidget *parent)
 	mainLayout->addStretch();
 	setLayout(mainLayout);
 
-	// Restore saved receiver count without triggering a redundant setReceivers() call
 	m_receiverComboBox->blockSignals(true);
 	m_receiverComboBox->setCurrentIndex(m_numberOfReceivers - 1);
 	m_receiverComboBox->blockSignals(false);
 
-	setupConnections();
 	setHPSDRHardware();
-	updateDetectedBoardLabel(set->getCurrentMetisCard());
 }
 
 HPSDRWidget::~HPSDRWidget() {
-
-	disconnect(set, 0, this, 0);
 	disconnect(0, 0, 0);
 }
 
-void HPSDRWidget::setupConnections() {
-
-	CHECKED_CONNECT(
-		set,
-		&Settings::systemStateChanged,
-		this,
-		&HPSDRWidget::systemStateChanged);
-
-	CHECKED_CONNECT(
-		set,
-		&Settings::hpsdrNetworkDeviceChanged,
-		this,
-		&HPSDRWidget::updateDetectedBoardLabel);
-}
-
 QGroupBox* HPSDRWidget::hpsdrHardwareBtnGroup() {
-
 	modulesPresenceBtn = new AeroButton("Modules", this);
 	modulesPresenceBtn->setRoundness(0);
 	modulesPresenceBtn->setFixedSize(btn_width, btn_height);
@@ -148,13 +90,13 @@ QGroupBox* HPSDRWidget::hpsdrHardwareBtnGroup() {
 		&AeroButton::released, 
 		this, 
 		&HPSDRWidget::hpsdrHardwareChanged);
-
-	hermesPresenceBtn = new AeroButton("Hermes/ANAN", this);
+	
+	hermesPresenceBtn = new AeroButton("Hermes", this);
 	hermesPresenceBtn->setRoundness(0);
 	hermesPresenceBtn->setFixedSize(btn_width, btn_height);
 	hermesPresenceBtn->setBtnState(AeroButton::OFF);
 	hardwareBtnList.append(hermesPresenceBtn);
-	
+
 	CHECKED_CONNECT(
 		hermesPresenceBtn, 
 		&AeroButton::released, 
@@ -172,17 +114,17 @@ QGroupBox* HPSDRWidget::hpsdrHardwareBtnGroup() {
 		this, 
 		&HPSDRWidget::penelopePresenceChanged);
 
-	pennyPresenceBtn = new AeroButton("Pennylane", this);
+	pennyPresenceBtn = new AeroButton("PennyLane", this);
 	pennyPresenceBtn->setRoundness(0);
 	pennyPresenceBtn->setFixedSize(btn_width, btn_height);
 	pennyPresenceBtn->setBtnState(AeroButton::OFF);
-
+	
 	CHECKED_CONNECT(
 		pennyPresenceBtn, 
 		&AeroButton::released, 
 		this, 
 		&HPSDRWidget::pennyPresenceChanged);
-	
+
 	mercuryPresenceBtn = new AeroButton("Mercury", this);
 	mercuryPresenceBtn->setRoundness(0);
 	mercuryPresenceBtn->setFixedSize(btn_width, btn_height);
@@ -204,7 +146,7 @@ QGroupBox* HPSDRWidget::hpsdrHardwareBtnGroup() {
 		&AeroButton::released, 
 		this, 
 		&HPSDRWidget::alexPresenceChanged);
-	
+
 	excaliburPresenceBtn = new AeroButton("Excalibur", this);
 	excaliburPresenceBtn->setRoundness(0);
 	excaliburPresenceBtn->setFixedSize(btn_width, btn_height);
@@ -221,12 +163,9 @@ QGroupBox* HPSDRWidget::hpsdrHardwareBtnGroup() {
 	firmwareCheckBtn->setFixedSize(btn_widths, btn_height);
 
 	if (m_firmwareCheck) {
-
 		firmwareCheckBtn->setBtnState(AeroButton::ON);
 		firmwareCheckBtn->setText("On");
-	}
-	else {
-
+	} else {
 		firmwareCheckBtn->setBtnState(AeroButton::OFF);
 		firmwareCheckBtn->setText("Off");
 	}
@@ -235,16 +174,13 @@ QGroupBox* HPSDRWidget::hpsdrHardwareBtnGroup() {
 		firmwareCheckBtn,
 		&AeroButton::released,
 		this,
-		&HPSDRWidget::firmwareCheckChanged);
+		&HPSDRWidget::hpsdrHardwareChanged);
 
 	m_fwCheckLabel = new QLabel("Firmware Check:", this);
 	m_fwCheckLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
 
-	QHBoxLayout *hbox0 = new QHBoxLayout();
-	hbox0->setSpacing(4);
-	hbox0->addStretch();
-	hbox0->addWidget(m_fwCheckLabel);
-	hbox0->addWidget(firmwareCheckBtn);
+	m_detectedBoardLabel = new QLabel("HPSDR Board: unknown", this);
+	m_detectedBoardLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
 
 	QHBoxLayout *hbox1 = new QHBoxLayout();
 	hbox1->setSpacing(4);
@@ -257,44 +193,432 @@ QGroupBox* HPSDRWidget::hpsdrHardwareBtnGroup() {
 	hbox2->addStretch();
 	hbox2->addWidget(penelopePresenceBtn);
 	hbox2->addWidget(pennyPresenceBtn);
+	hbox2->addWidget(mercuryPresenceBtn);
+	hbox2->addWidget(excaliburPresenceBtn);
+	hbox2->addWidget(alexPresenceBtn);
 
 	QHBoxLayout *hbox3 = new QHBoxLayout();
 	hbox3->setSpacing(4);
 	hbox3->addStretch();
-	hbox3->addWidget(mercuryPresenceBtn);
-	hbox3->addWidget(excaliburPresenceBtn);
+	hbox3->addWidget(m_detectedBoardLabel);
+	hbox3->addSpacing(4);
+	hbox3->addWidget(m_fwCheckLabel);
+	hbox3->addWidget(firmwareCheckBtn);
 
-	QHBoxLayout *hbox4 = new QHBoxLayout();
-	hbox4->setSpacing(4);
-	hbox4->addStretch();
-	hbox4->addWidget(alexPresenceBtn);
-
-	m_detectedBoardLabel = new QLabel("Detected: none", this);
-	m_detectedBoardLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-
-	QHBoxLayout *hbox5 = new QHBoxLayout();
-	hbox5->setSpacing(4);
-	hbox5->addStretch();
-	hbox5->addWidget(m_detectedBoardLabel);
-	
 	QVBoxLayout *vbox = new QVBoxLayout();
 	vbox->setSpacing(4);
 	vbox->addSpacing(6);
-	vbox->addLayout(hbox0);
+	vbox->addLayout(hbox1);
+	vbox->addSpacing(6);
+	vbox->addLayout(hbox2);
+	vbox->addSpacing(6);
+	vbox->addLayout(hbox3);
+	
+	m_hpsdrHardwareGroupBox = new QGroupBox(tr("HPSDR Hardware Selection"), this);
+	m_hpsdrHardwareGroupBox->setMinimumWidth(m_minimumGroupBoxWidth);
+	m_hpsdrHardwareGroupBox->setLayout(vbox);
+	m_hpsdrHardwareGroupBox->setFont(QFont("Arial", 8));
+
+	return m_hpsdrHardwareGroupBox;
+}
+
+void HPSDRWidget::createSource10MhzExclusiveGroup() {
+	atlasBtn = new AeroButton("Atlas", this);
+	atlasBtn->setRoundness(0);
+	atlasBtn->setFixedSize(btn_width, btn_height);
+	atlasBtn->setBtnState(AeroButton::OFF);
+	source10MhzBtnList.append(atlasBtn);
+
+	CHECKED_CONNECT(
+		atlasBtn, 
+		&AeroButton::released, 
+		this, 
+		&HPSDRWidget::source10MhzChanged);
+
+	penelopeBtn = new AeroButton("Penelope", this);
+	penelopeBtn->setRoundness(0);
+	penelopeBtn->setFixedSize(btn_width, btn_height);
+	penelopeBtn->setBtnState(AeroButton::OFF);
+	source10MhzBtnList.append(penelopeBtn);
+
+	CHECKED_CONNECT(
+		penelopeBtn, 
+		&AeroButton::released, 
+		this, 
+		&HPSDRWidget::source10MhzChanged);
+
+	mercuryBtn = new AeroButton("Mercury", this);
+	mercuryBtn->setRoundness(0);
+	mercuryBtn->setFixedSize(btn_width, btn_height);
+	mercuryBtn->setBtnState(AeroButton::OFF);
+	source10MhzBtnList.append(mercuryBtn);
+
+	CHECKED_CONNECT(
+		mercuryBtn, 
+		&AeroButton::released, 
+		this, 
+		&HPSDRWidget::source10MhzChanged);
+
+	AeroButton *noneBtn = new AeroButton("None", this);
+	noneBtn->setRoundness(0);
+	noneBtn->setFixedSize(btn_width, btn_height);
+	noneBtn->setBtnState(AeroButton::OFF);
+	source10MhzBtnList.append(noneBtn);
+
+	CHECKED_CONNECT(
+		noneBtn, 
+		&AeroButton::released, 
+		this, 
+		&HPSDRWidget::source10MhzChanged);
+
+	QHBoxLayout *hbox1 = new QHBoxLayout();
+	hbox1->setSpacing(4);
+	hbox1->addStretch();
+	hbox1->addWidget(atlasBtn);
+	hbox1->addWidget(penelopeBtn);
+	hbox1->addWidget(mercuryBtn);
+	hbox1->addWidget(noneBtn);
+
+	QVBoxLayout *vbox = new QVBoxLayout();
+	vbox->setSpacing(4);
 	vbox->addSpacing(6);
 	vbox->addLayout(hbox1);
-	vbox->addLayout(hbox2);
-	vbox->addLayout(hbox3);
-	vbox->addLayout(hbox4);
-	vbox->addLayout(hbox5);
 	
-	QGroupBox *groupBox = new QGroupBox(tr("Hardware selection"), this);
-    m_hpsdrHardwareGroupBox = groupBox;
-	groupBox->setMinimumWidth(m_minimumGroupBoxWidth);
-	groupBox->setLayout(vbox);
-	groupBox->setFont(QFont("Arial", 8));
+	source10MhzExclusiveGroup = new QGroupBox(tr("10 MHz Clock Reference Source Selection"), this);
+	source10MhzExclusiveGroup->setMinimumWidth(m_minimumGroupBoxWidth);
+	source10MhzExclusiveGroup->setLayout(vbox);
+	source10MhzExclusiveGroup->setFont(QFont("Arial", 8));
+}
 
-	return groupBox;
+void HPSDRWidget::createSource122_88MhzExclusiveGroup() {
+	penelope2Btn = new AeroButton("Penelope", this);
+	penelope2Btn->setRoundness(0);
+	penelope2Btn->setFixedSize(btn_width, btn_height);
+	penelope2Btn->setBtnState(AeroButton::OFF);
+
+	CHECKED_CONNECT(
+		penelope2Btn, 
+		&AeroButton::released, 
+		this, 
+		&HPSDRWidget::source122_88MhzChanged);
+
+	mercury2Btn = new AeroButton("Mercury", this);
+	mercury2Btn->setRoundness(0);
+	mercury2Btn->setFixedSize(btn_width, btn_height);
+	mercury2Btn->setBtnState(AeroButton::OFF);
+
+	CHECKED_CONNECT(
+		mercury2Btn, 
+		&AeroButton::released, 
+		this, 
+		&HPSDRWidget::source122_88MhzChanged);
+
+	QHBoxLayout *hbox1 = new QHBoxLayout();
+	hbox1->setSpacing(4);
+	hbox1->addStretch();
+	hbox1->addWidget(penelope2Btn);
+	hbox1->addWidget(mercury2Btn);
+
+	QVBoxLayout *vbox = new QVBoxLayout();
+	vbox->setSpacing(4);
+	vbox->addSpacing(6);
+	vbox->addLayout(hbox1);
+	
+	source122_88MhzExclusiveGroup = new QGroupBox(tr("122.88 MHz Clock Reference Source Selection"), this);
+	source122_88MhzExclusiveGroup->setMinimumWidth(m_minimumGroupBoxWidth);
+	source122_88MhzExclusiveGroup->setLayout(vbox);
+	source122_88MhzExclusiveGroup->setFont(QFont("Arial", 8));
+}
+
+QGroupBox *HPSDRWidget::sampleRateExclusiveGroup() {
+	samplerate48Btn = new AeroButton("48 kHz", this);
+	samplerate48Btn->setRoundness(0);
+	samplerate48Btn->setFixedSize(btn_width, btn_height);
+	samplerate48Btn->setBtnState(AeroButton::OFF);
+	samplerateBtnList.append(samplerate48Btn);
+
+	CHECKED_CONNECT(
+		samplerate48Btn, 
+		&AeroButton::released, 
+		this, 
+		&HPSDRWidget::sampleRateChanged);
+
+	samplerate96Btn = new AeroButton("96 kHz", this);
+	samplerate96Btn->setRoundness(0);
+	samplerate96Btn->setFixedSize(btn_width, btn_height);
+	samplerate96Btn->setBtnState(AeroButton::OFF);
+	samplerateBtnList.append(samplerate96Btn);
+
+	CHECKED_CONNECT(
+		samplerate96Btn, 
+		&AeroButton::released, 
+		this, 
+		&HPSDRWidget::sampleRateChanged);
+
+	samplerate192Btn = new AeroButton("192 kHz", this);
+	samplerate192Btn->setRoundness(0);
+	samplerate192Btn->setFixedSize(btn_width, btn_height);
+	samplerate192Btn->setBtnState(AeroButton::OFF);
+	samplerateBtnList.append(samplerate192Btn);
+
+	CHECKED_CONNECT(
+		samplerate192Btn, 
+		&AeroButton::released, 
+		this, 
+		&HPSDRWidget::sampleRateChanged);
+
+	samplerate384Btn = new AeroButton("384 kHz", this);
+	samplerate384Btn->setRoundness(0);
+	samplerate384Btn->setFixedSize(btn_width, btn_height);
+	samplerate384Btn->setBtnState(AeroButton::OFF);
+	samplerateBtnList.append(samplerate384Btn);
+
+	CHECKED_CONNECT(
+		samplerate384Btn, 
+		&AeroButton::released, 
+		this, 
+		&HPSDRWidget::sampleRateChanged);
+
+    samplerate768Btn = new AeroButton("768 kHz", this);
+    samplerate768Btn->setRoundness(0);
+    samplerate768Btn->setFixedSize(btn_width, btn_height);
+    samplerate768Btn->setBtnState(AeroButton::OFF);
+    samplerateBtnList.append(samplerate768Btn);
+
+    CHECKED_CONNECT(
+        samplerate768Btn, 
+        &AeroButton::released, 
+        this, 
+        &HPSDRWidget::sampleRateChanged);
+
+    samplerate1536Btn = new AeroButton("1.536 MHz", this);
+    samplerate1536Btn->setRoundness(0);
+    samplerate1536Btn->setFixedSize(btn_width, btn_height);
+    samplerate1536Btn->setBtnState(AeroButton::OFF);
+    samplerateBtnList.append(samplerate1536Btn);
+
+    CHECKED_CONNECT(
+        samplerate1536Btn, 
+        &AeroButton::released, 
+        this, 
+        &HPSDRWidget::sampleRateChanged);
+
+	QHBoxLayout *hbox1 = new QHBoxLayout();
+	hbox1->setSpacing(4);
+	hbox1->addStretch();
+	hbox1->addWidget(samplerate48Btn);
+	hbox1->addWidget(samplerate96Btn);
+	hbox1->addWidget(samplerate192Btn);
+	hbox1->addWidget(samplerate384Btn);
+    hbox1->addWidget(samplerate768Btn);
+    hbox1->addWidget(samplerate1536Btn);
+
+	QVBoxLayout *vbox = new QVBoxLayout();
+	vbox->setSpacing(4);
+	vbox->addSpacing(6);
+	vbox->addLayout(hbox1);
+	
+	m_sampleRateGroupBox = new QGroupBox(tr("Sample Rate Selection"), this);
+	m_sampleRateGroupBox->setMinimumWidth(m_minimumGroupBoxWidth);
+	m_sampleRateGroupBox->setLayout(vbox);
+	m_sampleRateGroupBox->setFont(QFont("Arial", 8));
+
+	return m_sampleRateGroupBox;
+}
+
+QGroupBox *HPSDRWidget::numberOfReceiversGroup() {
+	m_receiverComboBox = new QComboBox(this);
+	m_receiverComboBox->setMinimumContentsLength(4);
+
+	QString str = "%1";
+	for (int i = 0; i < MAX_RECEIVERS; i++)
+		m_receiverComboBox->addItem(str.arg(i+1));
+
+	CHECKED_CONNECT(
+		m_receiverComboBox,
+		&QComboBox::currentIndexChanged,
+		this,
+		&HPSDRWidget::receiverComboBoxChanged);
+
+	m_receiversLabel = new QLabel("Receivers:", this);
+    m_receiversLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
+
+	QHBoxLayout *hbox1 = new QHBoxLayout();
+	hbox1->setSpacing(5);
+	hbox1->addWidget(m_receiversLabel);
+	hbox1->addWidget(m_receiverComboBox);
+	hbox1->addStretch();
+
+	QVBoxLayout *vbox = new QVBoxLayout();
+	vbox->setSpacing(4);
+	vbox->addSpacing(6);
+	vbox->addLayout(hbox1);
+	
+	m_numberOfReceiversGroupBox = new QGroupBox(tr("Receiver Count Selection"), this);
+	m_numberOfReceiversGroupBox->setMinimumWidth(m_minimumGroupBoxWidth);
+	m_numberOfReceiversGroupBox->setLayout(vbox);
+	m_numberOfReceiversGroupBox->setFont(QFont("Arial", 8));
+
+	return m_numberOfReceiversGroupBox;
+}
+
+void HPSDRWidget::setHwInterface(QSDR::_HWInterfaceMode mode) {
+	if (m_hwInterface != mode) {
+		m_hwInterface = mode;
+		hwInterfaceChanged();
+	}
+	update();
+}
+
+void HPSDRWidget::hwInterfaceChanged() {
+	switch (m_hwInterface) {
+		case QSDR::NoInterfaceMode:
+			break;
+		case QSDR::Metis:
+		case QSDR::Hermes:
+			break;
+#ifdef HAVE_SOAPYSDR
+		case QSDR::SoapySDR:
+			break;
+#endif
+	}
+	m_hwInterfaceTemp = m_hwInterface;
+}
+
+void HPSDRWidget::setHpsdrHardware(int hw) {
+	m_hpsdrHardware = hw;
+	setHPSDRHardware();
+}
+
+void HPSDRWidget::setHPSDRHardware() {
+	foreach(AeroButton *btn, hardwareBtnList) {
+		btn->setBtnState(AeroButton::OFF);
+		btn->update();
+	}
+
+	AeroButton *button = nullptr;
+	if (m_hpsdrHardware >= 0 && m_hpsdrHardware < hardwareBtnList.size()) {
+		button = hardwareBtnList.at(m_hpsdrHardware);
+		button->setBtnState(AeroButton::ON);
+		button->update();
+	}
+
+	switch (m_hpsdrHardware) {
+		case 0:
+			source10MhzExclusiveGroup->show();
+			source122_88MhzExclusiveGroup->show();
+			break;
+		case 1:
+			source10MhzExclusiveGroup->hide();
+			source122_88MhzExclusiveGroup->hide();
+			break;
+	}
+}
+
+void HPSDRWidget::setNumberOfReceivers(int count) {
+	m_numberOfReceivers = count;
+	const bool prev = m_receiverComboBox->blockSignals(true);
+	m_receiverComboBox->setCurrentIndex(count - 1);
+	m_receiverComboBox->blockSignals(prev);
+}
+
+void HPSDRWidget::setFirmwareCheck(bool check) {
+	m_firmwareCheck = check;
+	firmwareCheckBtn->blockSignals(true);
+	if (m_firmwareCheck) {
+		firmwareCheckBtn->setBtnState(AeroButton::ON);
+		firmwareCheckBtn->setText("On");
+	} else {
+		firmwareCheckBtn->setBtnState(AeroButton::OFF);
+		firmwareCheckBtn->setText("Off");
+	}
+	firmwareCheckBtn->blockSignals(false);
+}
+
+void HPSDRWidget::set10MhzSource(int src) {
+	foreach(AeroButton *btn, source10MhzBtnList) {
+		btn->setBtnState(AeroButton::OFF);
+		btn->update();
+	}
+	if (src >= 0 && src < source10MhzBtnList.size()) {
+		source10MhzBtnList.at(src)->setBtnState(AeroButton::ON);
+		source10MhzBtnList.at(src)->update();
+	}
+}
+
+void HPSDRWidget::set122_88MhzSource(int src) {
+	penelope2Btn->blockSignals(true);
+	mercury2Btn->blockSignals(true);
+	if (src == 0) {
+		penelope2Btn->setBtnState(AeroButton::ON);
+		mercury2Btn->setBtnState(AeroButton::OFF);
+	} else {
+		penelope2Btn->setBtnState(AeroButton::OFF);
+		mercury2Btn->setBtnState(AeroButton::ON);
+	}
+	penelope2Btn->blockSignals(false);
+	mercury2Btn->blockSignals(false);
+	penelope2Btn->update();
+	mercury2Btn->update();
+}
+
+void HPSDRWidget::setSampleRate(int rate) {
+	foreach(AeroButton *btn, samplerateBtnList) {
+		btn->setBtnState(AeroButton::OFF);
+		btn->update();
+	}
+	int idx = 0;
+	switch (rate) {
+		case 48000:   idx = 0; break;
+		case 96000:   idx = 1; break;
+		case 192000:  idx = 2; break;
+		case 384000:  idx = 3; break;
+		case 768000:  idx = 4; break;
+		case 1536000: idx = 5; break;
+	}
+	if (idx >= 0 && idx < samplerateBtnList.size()) {
+		samplerateBtnList.at(idx)->setBtnState(AeroButton::ON);
+		samplerateBtnList.at(idx)->update();
+	}
+}
+
+void HPSDRWidget::setMercuryPresence(bool pres) {
+	mercuryPresenceBtn->blockSignals(true);
+	mercuryPresenceBtn->setBtnState(pres ? AeroButton::ON : AeroButton::OFF);
+	mercuryPresenceBtn->blockSignals(false);
+	mercuryPresenceBtn->update();
+}
+
+void HPSDRWidget::setPenelopePresence(bool pres) {
+	penelopePresenceBtn->blockSignals(true);
+	penelopePresenceBtn->setBtnState(pres ? AeroButton::ON : AeroButton::OFF);
+	penelopePresenceBtn->blockSignals(false);
+	penelopePresenceBtn->update();
+}
+
+void HPSDRWidget::setPennyLanePresence(bool pres) {
+	pennyPresenceBtn->blockSignals(true);
+	pennyPresenceBtn->setBtnState(pres ? AeroButton::ON : AeroButton::OFF);
+	pennyPresenceBtn->blockSignals(false);
+	pennyPresenceBtn->update();
+}
+
+void HPSDRWidget::setAlexPresence(bool pres) {
+	alexPresenceBtn->blockSignals(true);
+	alexPresenceBtn->setBtnState(pres ? AeroButton::ON : AeroButton::OFF);
+	alexPresenceBtn->blockSignals(false);
+	alexPresenceBtn->update();
+}
+
+void HPSDRWidget::setExcaliburPresence(bool pres) {
+	excaliburPresenceBtn->blockSignals(true);
+	excaliburPresenceBtn->setBtnState(pres ? AeroButton::ON : AeroButton::OFF);
+	excaliburPresenceBtn->blockSignals(false);
+	excaliburPresenceBtn->update();
+}
+
+void HPSDRWidget::setCurrentMetisCard(const TNetworkDevicecard& card) {
+	updateDetectedBoardLabel(card);
 }
 
 void HPSDRWidget::updateDetectedBoardLabel(TNetworkDevicecard card) {
@@ -311,761 +635,78 @@ void HPSDRWidget::updateDetectedBoardLabel(TNetworkDevicecard card) {
 			.arg(card.protocol));
 }
 
-void HPSDRWidget::createSource10MhzExclusiveGroup() {
-
-	atlasBtn = new AeroButton("Atlas", this);
-	atlasBtn->setRoundness(0);
-	atlasBtn->setFixedSize(btn_width, btn_height);
-	source10MhzBtnList.append(atlasBtn);
-
-	CHECKED_CONNECT(
-		atlasBtn, 
-		&AeroButton::released, 
-		this, 
-		&HPSDRWidget::source10MhzChanged);
-	
-	penelopeBtn = new AeroButton("Penny[Lane]", this);
-	penelopeBtn->setRoundness(0);
-	penelopeBtn->setFixedSize(btn_width, btn_height);
-	source10MhzBtnList.append(penelopeBtn);
-
-	CHECKED_CONNECT(
-		penelopeBtn, 
-		&AeroButton::released, 
-		this, 
-		&HPSDRWidget::source10MhzChanged);
-	
-	mercuryBtn = new AeroButton("Mercury", this);
-	mercuryBtn->setRoundness(0);
-	mercuryBtn->setFixedSize(btn_width, btn_height);
-	source10MhzBtnList.append(mercuryBtn);
-
-	CHECKED_CONNECT(
-		mercuryBtn, 
-		&AeroButton::released, 
-		this, 
-		&HPSDRWidget::source10MhzChanged);
-	
-	
-	sources10Mhz << "Atlas" << "Penelope" << "Mercury";
-
-	switch(set->get10MHzSource()) {
-
-		case 0:
-			atlasBtn->setBtnState(AeroButton::ON);
-			penelopeBtn->setBtnState(AeroButton::OFF);
-			mercuryBtn->setBtnState(AeroButton::OFF);
-			break;
-			
-		case 1:
-			penelopeBtn->setBtnState(AeroButton::ON);
-			atlasBtn->setBtnState(AeroButton::OFF);
-			mercuryBtn->setBtnState(AeroButton::OFF);
-			break;
-
-		case 2:
-			mercuryBtn->setBtnState(AeroButton::ON);
-			atlasBtn->setBtnState(AeroButton::OFF);
-			penelopeBtn->setBtnState(AeroButton::OFF);
-			break;
-
-		case 3:
-			mercuryBtn->setBtnState(AeroButton::OFF);
-			atlasBtn->setBtnState(AeroButton::OFF);
-			penelopeBtn->setBtnState(AeroButton::OFF);
-			break;
-	}
-	
-	QHBoxLayout *hbox1 = new QHBoxLayout();
-	hbox1->setSpacing(4);
-	hbox1->addStretch();
-	hbox1->addWidget(penelopeBtn);
-	hbox1->addWidget(mercuryBtn);
-	
-	QHBoxLayout *hbox2 = new QHBoxLayout();
-	hbox2->setSpacing(4);
-	hbox2->addStretch();
-	hbox2->addWidget(atlasBtn);
-	
-	QVBoxLayout *vbox = new QVBoxLayout();
-	vbox->setSpacing(4);
-	vbox->addSpacing(6);
-	vbox->addLayout(hbox1);
-	vbox->addLayout(hbox2);
-	
-	source10MhzExclusiveGroup = new QGroupBox(tr("10 MHz Clock"), this);
-	source10MhzExclusiveGroup->setMinimumWidth(m_minimumGroupBoxWidth);
-	source10MhzExclusiveGroup->setLayout(vbox);
-	source10MhzExclusiveGroup->setFont(QFont("Arial", 8));
-}
-
-void HPSDRWidget::createSource122_88MhzExclusiveGroup() {
-
-	penelope2Btn = new AeroButton("Penny[Lane]", this);
-	penelope2Btn->setRoundness(0);
-	penelope2Btn->setFixedSize(btn_width, btn_height);
-
-	CHECKED_CONNECT(
-		penelope2Btn, 
-		&AeroButton::clicked, 
-		this, 
-		&HPSDRWidget::source122_88MhzChanged);
-
-	mercury2Btn = new AeroButton("Mercury", this);
-	mercury2Btn->setRoundness(0);
-	mercury2Btn->setFixedSize(btn_width, btn_height);
-
-	CHECKED_CONNECT(
-		mercury2Btn, 
-		&AeroButton::clicked, 
-		this, 
-		&HPSDRWidget::source122_88MhzChanged);
-
-	switch(set->get122_8MHzSource()) {
-
-		case 0:
-			penelope2Btn->setBtnState(AeroButton::ON);
-			mercury2Btn->setBtnState(AeroButton::OFF);
-			break;
-
-		case 1:
-			mercury2Btn->setBtnState(AeroButton::ON);
-			penelope2Btn->setBtnState(AeroButton::OFF);
-			break;
-	}
-	
-	QHBoxLayout *hbox1 = new QHBoxLayout();
-	hbox1->setSpacing(4);
-	hbox1->addStretch();
-	hbox1->addWidget(penelope2Btn);
-	hbox1->addWidget(mercury2Btn);
-	
-	QVBoxLayout *vbox = new QVBoxLayout();
-	vbox->setSpacing(4);
-	vbox->addSpacing(6);
-	vbox->addLayout(hbox1);
-	
-	source122_88MhzExclusiveGroup = new QGroupBox(tr("122.8 MHz Clock"), this);
-	source122_88MhzExclusiveGroup->setMinimumWidth(m_minimumGroupBoxWidth);
-	source122_88MhzExclusiveGroup->setLayout(vbox);
-	source122_88MhzExclusiveGroup->setFont(QFont("Arial", 8));
-}
-
-QGroupBox *HPSDRWidget::sampleRateExclusiveGroup() {
-
-	samplerate48Btn = new AeroButton("48 kHz", this);
-	samplerate48Btn->setRoundness(0);
-	samplerate48Btn->setFixedSize (50, btn_height);
-	samplerateBtnList.append(samplerate48Btn);
-	CHECKED_CONNECT(samplerate48Btn, &AeroButton::released, this, &HPSDRWidget::sampleRateChanged);
-
-	samplerate96Btn = new AeroButton("96 kHz", this);
-	samplerate96Btn->setRoundness(0);
-	samplerate96Btn->setFixedSize (50, btn_height);
-	samplerateBtnList.append(samplerate96Btn);
-	CHECKED_CONNECT(samplerate96Btn, &AeroButton::released, this, &HPSDRWidget::sampleRateChanged);
-
-	samplerate192Btn = new AeroButton("192 kHz", this);
-	samplerate192Btn->setRoundness(0);
-	samplerate192Btn->setFixedSize (50, btn_height);
-	samplerateBtnList.append(samplerate192Btn);
-	CHECKED_CONNECT(samplerate192Btn, &AeroButton::released, this, &HPSDRWidget::sampleRateChanged);
-
-	samplerate384Btn = new AeroButton("384 kHz", this);
-	samplerate384Btn->setRoundness(0);
-	samplerate384Btn->setFixedSize (50, btn_height);
-	//samplerate384Btn->setEnabled(false);
-	samplerateBtnList.append(samplerate384Btn);
-	CHECKED_CONNECT(samplerate384Btn, &AeroButton::released, this, &HPSDRWidget::sampleRateChanged);
-
-    samplerate768Btn = new AeroButton("768 kHz", this);
-    samplerate768Btn->setRoundness(0);
-    samplerate768Btn->setFixedSize (50, btn_height);
-    samplerateBtnList.append(samplerate768Btn);
-    CHECKED_CONNECT(samplerate768Btn, &AeroButton::released, this, &HPSDRWidget::sampleRateChanged);
-
-    samplerate1536Btn = new AeroButton("1.536 MHz", this);
-    samplerate1536Btn->setRoundness(0);
-    samplerate1536Btn->setFixedSize (65, btn_height);
-    samplerateBtnList.append(samplerate1536Btn);
-    CHECKED_CONNECT(samplerate1536Btn, &AeroButton::released, this, &HPSDRWidget::sampleRateChanged);
-
-	switch(set->getSampleRate()) {
-
-		case 48000:
-			samplerate48Btn->setBtnState(AeroButton::ON);
-			samplerate96Btn->setBtnState(AeroButton::OFF);
-			samplerate192Btn->setBtnState(AeroButton::OFF);
-			samplerate384Btn->setBtnState(AeroButton::OFF);
-            samplerate768Btn->setBtnState(AeroButton::OFF);
-            samplerate1536Btn->setBtnState(AeroButton::OFF);
-			break;
-
-		case 96000:
-			samplerate48Btn->setBtnState(AeroButton::OFF);
-			samplerate96Btn->setBtnState(AeroButton::ON);
-			samplerate192Btn->setBtnState(AeroButton::OFF);
-			samplerate384Btn->setBtnState(AeroButton::OFF);
-            samplerate768Btn->setBtnState(AeroButton::OFF);
-            samplerate1536Btn->setBtnState(AeroButton::OFF);
-			break;
-
-		case 192000:
-			samplerate48Btn->setBtnState(AeroButton::OFF);
-			samplerate96Btn->setBtnState(AeroButton::OFF);
-			samplerate192Btn->setBtnState(AeroButton::ON);
-			samplerate384Btn->setBtnState(AeroButton::OFF);
-            samplerate768Btn->setBtnState(AeroButton::OFF);
-            samplerate1536Btn->setBtnState(AeroButton::OFF);
-			break;
-
-		case 384000:
-			samplerate48Btn->setBtnState(AeroButton::OFF);
-			samplerate96Btn->setBtnState(AeroButton::OFF);
-			samplerate192Btn->setBtnState(AeroButton::OFF);
-			samplerate384Btn->setBtnState(AeroButton::ON);
-            samplerate768Btn->setBtnState(AeroButton::OFF);
-            samplerate1536Btn->setBtnState(AeroButton::OFF);
-			break;
-
-        case 768000:
-            samplerate48Btn->setBtnState(AeroButton::OFF);
-            samplerate96Btn->setBtnState(AeroButton::OFF);
-            samplerate192Btn->setBtnState(AeroButton::OFF);
-            samplerate384Btn->setBtnState(AeroButton::OFF);
-            samplerate768Btn->setBtnState(AeroButton::ON);
-            samplerate1536Btn->setBtnState(AeroButton::OFF);
-            break;
-
-        case 1536000:
-            samplerate48Btn->setBtnState(AeroButton::OFF);
-            samplerate96Btn->setBtnState(AeroButton::OFF);
-            samplerate192Btn->setBtnState(AeroButton::OFF);
-            samplerate384Btn->setBtnState(AeroButton::OFF);
-            samplerate768Btn->setBtnState(AeroButton::OFF);
-            samplerate1536Btn->setBtnState(AeroButton::ON);
-            break;
-	}
-
-	QHBoxLayout *hbox = new QHBoxLayout();
-	hbox->setSpacing(4);
-	hbox->addStretch();
-	hbox->addWidget(samplerate48Btn);
-	hbox->addWidget(samplerate96Btn);
-	hbox->addWidget(samplerate192Btn);
-	hbox->addWidget(samplerate384Btn);
-    hbox->addWidget(samplerate768Btn);
-    hbox->addWidget(samplerate1536Btn);
-
-	QVBoxLayout *vbox = new QVBoxLayout();
-	vbox->setSpacing(4);
-	vbox->addSpacing(6);
-	vbox->addLayout(hbox);
-
-	QGroupBox *groupBox = new QGroupBox(tr("Sample Rate"), this);
-    m_sampleRateGroupBox = groupBox;
-	groupBox->setMinimumWidth(m_minimumGroupBoxWidth);
-	groupBox->setLayout(vbox);
-	groupBox->setFont(QFont("Arial", 8));
-
-	return groupBox;
-}
-
-QGroupBox *HPSDRWidget::numberOfReceiversGroup() {
-
-	m_receiverComboBox = new QComboBox(this);
-	m_receiverComboBox->setMinimumContentsLength(4);
-
-	QString str = "%1";
-	for (int i = 0; i < MAX_RECEIVERS; i++)
-		m_receiverComboBox->addItem(str.arg(i+1));
-
-	CHECKED_CONNECT(
-		m_receiverComboBox,
-		&QComboBox::currentIndexChanged,
-		this,
-		&HPSDRWidget::setNumberOfReceivers);
-
-	m_receiversLabel = new QLabel("Receivers:", this);
-    m_receiversLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-
-
-	QHBoxLayout *hbox1 = new QHBoxLayout();
-	hbox1->setSpacing(5);
-	//hbox1->addStretch();
-	hbox1->addWidget(m_receiversLabel);
-	hbox1->addStretch();
-	hbox1->addWidget(m_receiverComboBox);
-	
-	QVBoxLayout *vbox = new QVBoxLayout();
-	vbox->setSpacing(4);
-	vbox->addSpacing(6);
-	vbox->addLayout(hbox1);
-	
-	QGroupBox *groupBox = new QGroupBox(tr("Number of Receivers"), this);
-    m_numberOfReceiversGroupBox = groupBox;
-	groupBox->setMinimumWidth(m_minimumGroupBoxWidth);
-	groupBox->setLayout(vbox);
-	groupBox->setFont(QFont("Arial", 8));
-
-	return groupBox;
-}
-
-// ************************************************************************
-
-void HPSDRWidget::setHPSDRHardware() {
-
-	switch (m_hpsdrHardware) {
-
-		case 0:
-			// HPSDR modules
-			modulesPresenceBtn->setBtnState(AeroButton::ON);
-			hermesPresenceBtn->setBtnState(AeroButton::OFF);
-
-			mercuryPresenceBtn->setEnabled(true);
-			if (set->getMercuryPresence())
-				mercuryPresenceBtn->setBtnState(AeroButton::ON);
-			else
-				mercuryPresenceBtn->setBtnState(AeroButton::OFF);
-
-			penelopePresenceBtn->setEnabled(true);
-			pennyPresenceBtn->setEnabled(true);
-
-			if (set->getPenelopePresence()) {
-
-				penelopePresenceBtn->setBtnState(AeroButton::ON);
-				pennyPresenceBtn->setBtnState(AeroButton::OFF);
-			}
-			else if (set->getPennyLanePresence()) {
-
-				penelopePresenceBtn->setBtnState(AeroButton::OFF);
-				pennyPresenceBtn->setBtnState(AeroButton::ON);
-			}
-			else {
-
-				penelopePresenceBtn->setBtnState(AeroButton::OFF);
-				pennyPresenceBtn->setBtnState(AeroButton::OFF);
-			}
-
-			excaliburPresenceBtn->setEnabled(true);
-			if (set->getExcaliburPresence()) {
-
-				set->set10MhzSource(3); // none
-				mercuryBtn->setBtnState(AeroButton::OFF);
-				atlasBtn->setBtnState(AeroButton::OFF);
-				penelopeBtn->setBtnState(AeroButton::OFF);
-				mercuryBtn->setEnabled(false);
-				penelopeBtn->setEnabled(false);
-				atlasBtn->setEnabled(false);
-
-				excaliburPresenceBtn->setBtnState(AeroButton::ON);
-			}
-			else {
-
-				switch(set->get10MHzSource()) {
-
-					case 0:
-						atlasBtn->setBtnState(AeroButton::ON);
-						penelopeBtn->setBtnState(AeroButton::OFF);
-						mercuryBtn->setBtnState(AeroButton::OFF);
-						break;
-			
-					case 1:
-						penelopeBtn->setBtnState(AeroButton::ON);
-						atlasBtn->setBtnState(AeroButton::OFF);
-						mercuryBtn->setBtnState(AeroButton::OFF);
-						break;
-
-					case 2:
-						mercuryBtn->setBtnState(AeroButton::ON);
-						atlasBtn->setBtnState(AeroButton::OFF);
-						penelopeBtn->setBtnState(AeroButton::OFF);
-						break;
-
-					case 3:
-						mercuryBtn->setBtnState(AeroButton::OFF);
-						atlasBtn->setBtnState(AeroButton::OFF);
-						penelopeBtn->setBtnState(AeroButton::OFF);
-						break;
-				}
-
-				excaliburPresenceBtn->setBtnState(AeroButton::OFF);
-			}
-
-			break;
-
-		case 1:
-			
-			// Hermes
-			modulesPresenceBtn->setBtnState(AeroButton::OFF);
-			hermesPresenceBtn->setBtnState(AeroButton::ON);
-		
-			penelopePresenceBtn->setBtnState(AeroButton::OFF);
-			penelopePresenceBtn->setEnabled(false);
-
-			pennyPresenceBtn->setBtnState(AeroButton::OFF);
-			pennyPresenceBtn->setEnabled(false);
-
-			mercuryPresenceBtn->setBtnState(AeroButton::OFF);
-			mercuryPresenceBtn->setEnabled(false);
-
-			excaliburPresenceBtn->setBtnState(AeroButton::OFF);
-			excaliburPresenceBtn->setEnabled(false);
-
-			set->set10MhzSource(2); // none
-			source10MhzExclusiveGroup->hide();
-			source122_88MhzExclusiveGroup->hide();
-
-			break;
-
-		case 2:
-
-			// Cyclops
-			break;
-	}
-
-	if (set->getAlexPresence())
-		alexPresenceBtn->setBtnState(AeroButton::ON);
-
-    // Enable/disable extended sample rates based on protocol
-    bool isP2 = (set->getCurrentMetisCard().protocol == 2);
-    HPSDR_WIDGET_DEBUG << "setHPSDRHardware: current protocol =" << set->getCurrentMetisCard().protocol << " isP2 =" << isP2;
-    if (samplerate768Btn) samplerate768Btn->setEnabled(isP2);
-    if (samplerate1536Btn) samplerate1536Btn->setEnabled(isP2);
-}
-
-void HPSDRWidget::systemStateChanged(
-	QSDR::_Error err, 
-	QSDR::_HWInterfaceMode hwmode, 
-	QSDR::_ServerMode mode, 
-	QSDR::_DataEngineState state)
-{
-	Q_UNUSED (err)
-
-	if (m_hwInterface != hwmode)
-		m_hwInterface = hwmode;
-
-	//m_oldServerMode = m_serverMode;
-	if (m_serverMode != mode) {
-
-		m_serverMode = mode;
-	}
-		
-	if (m_dataEngineState != state) {
-
-		if (state == QSDR::DataEngineUp)
-			disableButtons();
-		else
-			enableButtons();
-
-		m_dataEngineState = state;
-	}
-
-    // HPSDR-specific controls (hardware selection, clocks) are irrelevant in Soapy mode.
-    const bool isHpsdr = (hwmode == QSDR::Metis || hwmode == QSDR::Hermes);
-    if (m_hpsdrHardwareGroupBox) m_hpsdrHardwareGroupBox->setVisible(isHpsdr);
-    if (source10MhzExclusiveGroup) source10MhzExclusiveGroup->setVisible(isHpsdr);
-    if (source122_88MhzExclusiveGroup) source122_88MhzExclusiveGroup->setVisible(isHpsdr);
-
-    // Enable/disable extended sample rates based on protocol or Soapy mode.
-    // SoapySDRDataSource now supports decimation/pass-through for high rates.
-    bool isP2 = (set->getCurrentMetisCard().protocol == 2);
-    bool soapyOrP2 = (hwmode == QSDR::SoapySDR || isP2);
-    if (samplerate768Btn) samplerate768Btn->setEnabled(soapyOrP2);
-    if (samplerate1536Btn) samplerate1536Btn->setEnabled(soapyOrP2);
-
-	update();
-}
-
 void HPSDRWidget::hpsdrHardwareChanged() {
-
 	AeroButton *button = qobject_cast<AeroButton *>(sender());
 	int btn = hardwareBtnList.indexOf(button);
-
-	foreach(AeroButton *btn, hardwareBtnList) {
-
-		btn->setBtnState(AeroButton::OFF);
-		btn->update();
+	if (btn >= 0) {
+		emit hpsdrHardwareRequested(btn);
 	}
-
-	button->setBtnState(AeroButton::ON);
-	button->update();
-
-	m_hpsdrHardware = btn;
-	set->setHPSDRHardware(m_hpsdrHardware);
-
-	setHPSDRHardware();
-
-	switch (m_hpsdrHardware) {
-
-		case 0:
-			// HPSDR modules
-			source10MhzExclusiveGroup->show();
-			source122_88MhzExclusiveGroup->show();
-
-			m_hwInterface = QSDR::Metis;
-
-			emit messageEvent("[hpsdr]: HPSDR modules chosen.");
-			break;
-
-		case 1:
-			// Hermes
-			source10MhzExclusiveGroup->hide();
-			source122_88MhzExclusiveGroup->hide();
-
-			m_hwInterface = QSDR::Hermes;
-			emit messageEvent("[hpsdr]: Hermes chosen.");
-			break;
-
-		case 2:
-			break;
-	}
-
-	set->setSystemState(
-					QSDR::NoError,
-					m_hwInterface,
-					m_serverMode,
-					m_dataEngineState);
 }
 
 void HPSDRWidget::penelopePresenceChanged() {
-
-	if (penelopePresenceBtn->btnState() == AeroButton::OFF) {
-		
-		if (pennyPresenceBtn->btnState() == AeroButton::ON) {
-
-			set->setPennyLanePresence(false);
-			pennyPresenceBtn->setBtnState(AeroButton::OFF);
-			pennyPresenceBtn->update();
-
-			emit messageEvent("[hpsdr]: PennyLane removed");
-		}
-		set->setPenelopePresence(true);
-		penelopePresenceBtn->setBtnState(AeroButton::ON);
-
-		emit messageEvent("[hpsdr]: Penelope added");
-
-	} else {
-
-		set->setPenelopePresence(false);
-		penelopePresenceBtn->setBtnState(AeroButton::OFF);
-		emit messageEvent("[hpsdr]: Penelope removed.");
-	}
+	bool target = (penelopePresenceBtn->btnState() == AeroButton::OFF);
+	emit penelopePresenceRequested(target);
 }
 
 void HPSDRWidget::pennyPresenceChanged() {
-
-	if (pennyPresenceBtn->btnState() == AeroButton::OFF) {
-		
-		if (penelopePresenceBtn->btnState() == AeroButton::ON) {
-
-			set->setPenelopePresence(false);
-			penelopePresenceBtn->setBtnState(AeroButton::OFF);
-			penelopePresenceBtn->update();
-
-			emit messageEvent("[hpsdr]: Penelope removed");
-		}
-		set->setPennyLanePresence(true);
-		pennyPresenceBtn->setBtnState(AeroButton::ON);
-
-		emit messageEvent("[hpsdr]: PennyLane added");
-
-	} else {
-
-		set->setPennyLanePresence(false);
-		pennyPresenceBtn->setBtnState(AeroButton::OFF);
-		emit messageEvent("[hpsdr]: PennyLane removed.");
-	}
+	bool target = (pennyPresenceBtn->btnState() == AeroButton::OFF);
+	emit pennyLanePresenceRequested(target);
 }
 
 void HPSDRWidget::mercuryPresenceChanged() {
-
-	if (mercuryPresenceBtn->btnState() == AeroButton::OFF) {
-		
-		set->setMercuryPresence(true);
-		mercuryPresenceBtn->setBtnState(AeroButton::ON);
-		emit messageEvent("[hpsdr]: Mercury added.");
-
-	} else {
-
-		set->setMercuryPresence(false);
-		mercuryPresenceBtn->setBtnState(AeroButton::OFF);
-		emit messageEvent("[hpsdr]: Mercury removed.");
-	}
+	bool target = (mercuryPresenceBtn->btnState() == AeroButton::OFF);
+	emit mercuryPresenceRequested(target);
 }
 
 void HPSDRWidget::alexPresenceChanged() {
-
-	if (alexPresenceBtn->btnState() == AeroButton::OFF) {
-		
-		set->setAlexPresence(true);
-		alexPresenceBtn->setBtnState(AeroButton::ON);
-		emit messageEvent("[hpsdr]: Alex added.");
-
-	} else {
-
-		set->setAlexPresence(false);
-		alexPresenceBtn->setBtnState(AeroButton::OFF);
-		emit messageEvent("[hpsdr]: Alex removed.");
-	}
+	bool target = (alexPresenceBtn->btnState() == AeroButton::OFF);
+	emit alexPresenceRequested(target);
 }
 
 void HPSDRWidget::excaliburPresenceChanged() {
-
-	if (excaliburPresenceBtn->btnState() == AeroButton::OFF) {
-		
-		set->set10MhzSource(3); // None
-		
-		mercuryBtn->setBtnState(AeroButton::OFF);
-		atlasBtn->setBtnState(AeroButton::OFF);
-		penelopeBtn->setBtnState(AeroButton::OFF);
-		
-		mercuryBtn->setEnabled(false);
-		penelopeBtn->setEnabled(false);
-		atlasBtn->setEnabled(false);
-
-		set->setExcaliburPresence(true);
-		excaliburPresenceBtn->setBtnState(AeroButton::ON);
-		emit messageEvent("[hpsdr]: Excalibur added.");
-
-	} else {
-
-		set->set10MhzSource(2); // Mercury
-		
-		mercuryBtn->setEnabled(true);
-		penelopeBtn->setEnabled(true);
-		atlasBtn->setEnabled(true);
-
-		mercuryBtn->setBtnState(AeroButton::ON);
-		mercuryBtn->update();
-		atlasBtn->setBtnState(AeroButton::OFF);
-		penelopeBtn->setBtnState(AeroButton::OFF);
-
-		set->setExcaliburPresence(false);
-		excaliburPresenceBtn->setBtnState(AeroButton::OFF);
-		emit messageEvent("[hpsdr]: Excalibur removed.");
-	}
-}
-
-void HPSDRWidget::firmwareCheckChanged() {
-
-	if (firmwareCheckBtn->btnState() == AeroButton::OFF) {
-
-		set->setCheckFirmwareVersion(true);
-		firmwareCheckBtn->setBtnState(AeroButton::ON);
-		firmwareCheckBtn->setText("On");
-
-	} else {
-
-		set->setCheckFirmwareVersion(false);
-		firmwareCheckBtn->setBtnState(AeroButton::OFF);
-		firmwareCheckBtn->setText("Off");
-	}
+	bool target = (excaliburPresenceBtn->btnState() == AeroButton::OFF);
+	emit excaliburPresenceRequested(target);
 }
 
 void HPSDRWidget::source10MhzChanged() {
-
 	AeroButton *button = qobject_cast<AeroButton *>(sender());
 	int btn = source10MhzBtnList.indexOf(button);
-	
-	foreach(AeroButton *btn, source10MhzBtnList) {
-
-		btn->setBtnState(AeroButton::OFF);
-		btn->update();
+	if (btn >= 0) {
+		emit src10MhzRequested(btn);
 	}
-
-	set->set10MhzSource(btn);
-	button->setBtnState(AeroButton::ON);
-	button->update();
-
-	QString msg = "[hpsdr]: 10 MHz source changed to %1";
-	emit messageEvent(msg.arg(sources10Mhz.at(btn)));
 }
 
 void HPSDRWidget::source122_88MhzChanged() {
-	
-	switch (set->get122_8MHzSource()) {
-
-		// penelope 0, mercury 1
-		case 0:
-			penelope2Btn->setBtnState(AeroButton::OFF);
-			penelope2Btn->update();
-
-			set->set122_88MhzSource(1);
-			emit messageEvent("[hpsdr]: 122.88 MHz source changed to Mercury.");
-			mercury2Btn->setBtnState(AeroButton::ON);
-			break;
-			
-		case 1:
-			mercury2Btn->setBtnState(AeroButton::OFF);
-			mercury2Btn->update();
-
-			set->set122_88MhzSource(0);
-			emit messageEvent("[hpsdr]: 122.88 MHz source changed to Penelope.");
-			penelope2Btn->setBtnState(AeroButton::ON);
-			break;
-	}
+    int current = 0;
+    if (penelope2Btn->btnState() == AeroButton::ON) current = 0;
+    else if (mercury2Btn->btnState() == AeroButton::ON) current = 1;
+    int wanted = (current == 0) ? 1 : 0;
+    emit src122_88MhzRequested(wanted);
 }
 
 void HPSDRWidget::sampleRateChanged() {
-
 	AeroButton *button = qobject_cast<AeroButton *>(sender());
 	int btnHit = samplerateBtnList.indexOf(button);
-
-	foreach(AeroButton *btn, samplerateBtnList) {
-
-		btn->setBtnState(AeroButton::OFF);
-		btn->update();
-	}
-
-	button->setBtnState(AeroButton::ON);
-	button->update();
-
+	if (btnHit < 0) return;
+	int rate = 48000;
 	switch (btnHit) {
-
-		case 0:
-			set->setSampleRate(48000);
-			HPSDR_WIDGET_DEBUG << "set sample rate to 48 kHz.";
-			break;
-			
-		case 1:
-			set->setSampleRate(96000);
-			HPSDR_WIDGET_DEBUG << "set sample rate to 96 kHz.";
-			break;
-
-		case 2:
-			set->setSampleRate(192000);
-			HPSDR_WIDGET_DEBUG << "set sample rate to 192 kHz.";
-			break;
-
-		case 3:
-			set->setSampleRate(384000);
-			HPSDR_WIDGET_DEBUG << "set sample rate to 384 kHz.";
-			break;
-
-        case 4:
-            set->setSampleRate(768000);
-            HPSDR_WIDGET_DEBUG << "set sample rate to 768 kHz.";
-            break;
-
-        case 5:
-            set->setSampleRate(1536000);
-            HPSDR_WIDGET_DEBUG << "set sample rate to 1.536 MHz.";
-            break;
+		case 0: rate = 48000;   break;
+		case 1: rate = 96000;   break;
+		case 2: rate = 192000;  break;
+		case 3: rate = 384000;  break;
+		case 4: rate = 768000;  break;
+		case 5: rate = 1536000; break;
 	}
+	emit sampleRateRequested(rate);
 }
 
-void HPSDRWidget::setNumberOfReceivers(int receivers) {
-
-	m_numberOfReceivers = receivers+1;
-	set->setReceivers(m_numberOfReceivers);
+void HPSDRWidget::receiverComboBoxChanged(int index) {
+	emit numberOfReceiversRequested(index + 1);
 }
 
 void HPSDRWidget::disableButtons() {
-
 	modulesPresenceBtn->setEnabled(false);
 	hermesPresenceBtn->setEnabled(false);
-
 	penelopePresenceBtn->setEnabled(false);
 	pennyPresenceBtn->setEnabled(false);
 	mercuryPresenceBtn->setEnabled(false);
@@ -1076,15 +717,12 @@ void HPSDRWidget::disableButtons() {
 	mercuryBtn->setEnabled(false);
 	penelope2Btn->setEnabled(false);
 	mercury2Btn->setEnabled(false);
-
 	m_receiverComboBox->setEnabled(false);
 }
 
 void HPSDRWidget::enableButtons() {
-
 	modulesPresenceBtn->setEnabled(true);
 	hermesPresenceBtn->setEnabled(true);
-
 	penelopePresenceBtn->setEnabled(true);
 	pennyPresenceBtn->setEnabled(true);
 	mercuryPresenceBtn->setEnabled(true);
@@ -1095,6 +733,5 @@ void HPSDRWidget::enableButtons() {
 	mercuryBtn->setEnabled(true);
 	penelope2Btn->setEnabled(true);
 	mercury2Btn->setEnabled(true);
-
 	m_receiverComboBox->setEnabled(true);
 }

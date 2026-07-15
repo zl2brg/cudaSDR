@@ -27,6 +27,8 @@
 #include <QScrollArea>
 
 #include "cusdr_setupwidget.h"
+#include "Controllers/NetworkSettingsController.h"
+#include "Controllers/HpsdrSettingsController.h"
 #ifdef HAVE_SOAPYSDR
 #include "Controllers/RadioSettingsController.h"
 #endif
@@ -47,7 +49,11 @@ cusdr_SetupWidget::cusdr_SetupWidget(RadioModel *model, QWidget *parent)
     setContentsMargins(4, 4, 4, 0);
     setMouseTracking(true);
     m_networkWidget = new NetworkWidget(this);
+    m_networkSettingsController = new NetworkSettingsController(this);
+    m_networkSettingsController->bind(m_networkWidget, set);
     m_hpsdrWidget = new HPSDRWidget(this);
+    m_hpsdrSettingsController = new HpsdrSettingsController(this);
+    m_hpsdrSettingsController->bind(m_hpsdrWidget, set);
     m_alexTabWidget = new AlexTabWidget(this);
     m_extCtrlWidget = new ExtCtrlWidget(this);
     m_txsettingsWidget = new tx_settings_dialog(this);

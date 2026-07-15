@@ -1,38 +1,12 @@
-/**
-* @file cusdr_hpsdrWidget.h
-* @brief Hardware settings widget header file for cuSDR
-* @author Hermann von Hasseln, DL3HVH
-* @version 0.1
-* @date 2010-09-21
-*/
-
-/*
- *   
- *   Copyright 2010, 2011 Hermann von Hasseln, DL3HVH
- *
- *   This program is free software; you can redistribute it and/or modify
- *   it under the terms of the GNU Library General Public License version 2 as
- *   published by the Free Software Foundation
- *
- *   This program is distributed in the hope that it will be useful,
- *   but WITHOUT ANY WARRANTY; without even the implied warranty of
- *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *   GNU General Public License for more details
- *
- *   You should have received a copy of the GNU Library General Public
- *   License along with this program; if not, write to the
- *   Free Software Foundation, Inc.,
- *   51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
- */
- 
 #ifndef _CUSDR_HPSDR_WIDGET_H
 #define _CUSDR_HPSDR_WIDGET_H
 
 #include <QWidget>
 #include <QGroupBox>
+#include <QLabel>
 #include <QSpinBox>
-#include <QComboBox>
 #include <QLineEdit>
+#include <QComboBox>
 #include <QLabel>
 
 #include "Util/cusdr_buttons.h"
@@ -44,28 +18,46 @@
 #   define HPSDR_WIDGET_DEBUG nullDebug()
 #endif
 
-
 class HPSDRWidget : public QWidget {
-
 	Q_OBJECT
 
 public:
 	HPSDRWidget(QWidget *parent = 0);
 	~HPSDRWidget();
 
+	// MVC View Interface Setters
+	void	setHwInterface(QSDR::_HWInterfaceMode mode);
+	void	setHpsdrHardware(int hw);
+	void	setNumberOfReceivers(int count);
+	void	setFirmwareCheck(bool check);
+	void	set10MhzSource(int src);
+	void	set122_88MhzSource(int src);
+	void	setSampleRate(int rate);
+	void	setMercuryPresence(bool pres);
+	void	setPenelopePresence(bool pres);
+	void	setPennyLanePresence(bool pres);
+	void	setAlexPresence(bool pres);
+	void	setExcaliburPresence(bool pres);
+	void	setCurrentMetisCard(const TNetworkDevicecard& card);
 
-public slots:
-	void	hpsdrHardwareChanged();
-	void	penelopePresenceChanged();
-	void	pennyPresenceChanged();
-	void	mercuryPresenceChanged();
-	void	alexPresenceChanged();
-	void	excaliburPresenceChanged();
-	void	source122_88MhzChanged();
+signals:
+	// MVC View Interface Signals
+	void	hwInterfaceRequested(QSDR::_HWInterfaceMode mode);
+	void	hpsdrHardwareRequested(int hw);
+	void	numberOfReceiversRequested(int count);
+	void	firmwareCheckRequested(bool check);
+	void	src10MhzRequested(int src);
+	void	src122_88MhzRequested(int src);
+	void	sampleRateRequested(int rate);
+	void	mercuryPresenceRequested(bool pres);
+	void	penelopePresenceRequested(bool pres);
+	void	pennyLanePresenceRequested(bool pres);
+	void	alexPresenceRequested(bool pres);
+	void	excaliburPresenceRequested(bool pres);
+
+	void	messageEvent(QString message);
 
 private:
-	Settings	*set;
-
 	QGroupBox       *hpsdrHardwareBtnGroup();
 	QGroupBox       *receiversExclusiveBtnGroup();
 	QGroupBox       *source10MhzExclusiveGroup;
@@ -124,28 +116,26 @@ private:
 	int		m_hpsdrHardware;
 	int		m_socketBufferSize;
 
-	void	setupConnections();
 	void	createSource10MhzExclusiveGroup();
 	void	createSource122_88MhzExclusiveGroup();
-
-private slots:
-	void	systemStateChanged(
-					QSDR::_Error err, 
-					QSDR::_HWInterfaceMode hwmode, 
-					QSDR::_ServerMode mode, 
-					QSDR::_DataEngineState state);
-
-	void	setHPSDRHardware();
-	void	updateDetectedBoardLabel(TNetworkDevicecard card);
-	void	source10MhzChanged();
-	void	setNumberOfReceivers(int value);
+	void	hwInterfaceChanged();
 	void	disableButtons();
 	void	enableButtons();
-	void	firmwareCheckChanged();
-	void 	sampleRateChanged();
-	
-signals:
-	void	messageEvent(QString message);
+	void	updateDetectedBoardLabel(TNetworkDevicecard card);
+
+private slots:
+	// Internal UI slots
+	void	setHPSDRHardware();
+	void	source10MhzChanged();
+	void	source122_88MhzChanged();
+	void	sampleRateChanged();
+	void	receiverComboBoxChanged(int index);
+	void	hpsdrHardwareChanged();
+	void	penelopePresenceChanged();
+	void	pennyPresenceChanged();
+	void	mercuryPresenceChanged();
+	void	alexPresenceChanged();
+	void	excaliburPresenceChanged();
 };
 
 #endif // _CUSDR_HPSDR_WIDGET_H

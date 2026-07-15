@@ -38,6 +38,8 @@
 
 
 class RadioModel;
+class NetworkSettingsController;
+class HpsdrSettingsController;
 #ifdef HAVE_SOAPYSDR
 class RadioSettingsController;
 #endif
@@ -78,7 +80,9 @@ private:
     QSDR::_DataEngineState		m_dataEngineState;
 
     HPSDRWidget			*m_hpsdrWidget;
+    HpsdrSettingsController *m_hpsdrSettingsController = nullptr;
     NetworkWidget		*m_networkWidget;
+    NetworkSettingsController *m_networkSettingsController = nullptr;
     AlexTabWidget		*m_alexTabWidget;
     ExtCtrlWidget		*m_extCtrlWidget;
     TransmitTabWidget   *m_transmitTabWidget;

@@ -1,30 +1,3 @@
-/**
-* @file cusdr_networkWidget.h
-* @brief Network settings widget header file for cuSDR
-* @author Hermann von Hasseln, DL3HVH
-* @version 0.1
-* @date 2012-10-24
-*/
-
-/*
- *   
- *   Copyright 2010 - 2012 Hermann von Hasseln, DL3HVH
- *
- *   This program is free software; you can redistribute it and/or modify
- *   it under the terms of the GNU Library General Public License version 2 as
- *   published by the Free Software Foundation
- *
- *   This program is distributed in the hope that it will be useful,
- *   but WITHOUT ANY WARRANTY; without even the implied warranty of
- *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *   GNU General Public License for more details
- *
- *   You should have received a copy of the GNU Library General Public
- *   License along with this program; if not, write to the
- *   Free Software Foundation, Inc.,
- *   51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
- */
- 
 #ifndef _CUSDR_NETWORK_WIDGET_H
 #define _CUSDR_NETWORK_WIDGET_H
 
@@ -35,6 +8,7 @@
 #include <QLineEdit>
 #include <QComboBox>
 #include <QLabel>
+#include <QTabWidget>
 
 #include "Util/cusdr_buttons.h"
 #include "cusdr_settings.h"
@@ -45,27 +19,45 @@
 #   define NETWORK_WIDGET_DEBUG nullDebug()
 #endif
 
-
 class NetworkWidget : public QTabWidget {
-
 	Q_OBJECT
 
 public:
 	NetworkWidget(QWidget *parent = 0);
 	~NetworkWidget();
 
-
-public slots:
-	void	addDeviceNICEntry(QString niName, QString ipAddress);
+	// MVC View Interface Setters
 	void	addNICChangedConnection();
+	void	setHwInterface(QSDR::_HWInterfaceMode mode);
 	void	setSocketBufSize(int size);
-	void	hwInterfaceChanged();
+	void	setManualSocketBufferSize(bool manual);
+	void	setMetisCardsList(const QList<TNetworkDevicecard>& list, const TNetworkDevicecard& active);
+#ifdef HAVE_SOAPYSDR
+	void	setSoapyDevicesList(const QList<TSoapyDevice>& list, const TSoapyDevice& active);
+#endif
+	void	addDeviceNICEntry(QString niName, QString ipAddress);
+	void	setDeviceNIC(int index);
+	void	setCurrentNetworkDevice(TNetworkDevicecard card);
+#ifdef HAVE_SOAPYSDR
+	void    setCurrentSoapyDevice(TSoapyDevice device);
+#endif
+
+signals:
+	// MVC View Interface Signals
+	void	hwInterfaceModeRequested(QSDR::_HWInterfaceMode mode);
+	void	socketBufferSizeRequested(int size);
+	void	manualSocketBufferSizeRequested(bool manual);
+	void	nicInterfaceSelected(int index);
+	void	searchDevicesRequested();
+	void	currentHpsdrDeviceSelected(const TNetworkDevicecard& card);
+#ifdef HAVE_SOAPYSDR
+	void	currentSoapyDeviceSelected(const TSoapyDevice& dev);
+#endif
+
+	void	messageEvent(QString message);
 
 private:
-	Settings	*set;
-
 	QString		m_message;
-
 	QList<TNetworkDevicecard>	m_deviceCards;
 
 	QGroupBox	*hpsdrInterfaceExclusiveBtnGroup();
@@ -102,36 +94,22 @@ private:
 	int		m_numberOfReceivers;
 	int		m_hpsdrHardware;
 	int		m_socketBufferSize;
-    int     m_discoveryPassId;
+	int     m_discoveryPassId;
 
-	void	setupConnections();
 	void	createDeviceNetworkInterfaceGroup();
 	void	createDeviceSearchGroup();
+	void	hwInterfaceChanged();
+	void	disableButtons();
+	void	enableButtons();
 
 private slots:
-	void	systemStateChanged(
-					QSDR::_Error err, 
-					QSDR::_HWInterfaceMode hwmode, 
-					QSDR::_ServerMode mode, 
-					QSDR::_DataEngineState state);
-
+	// Internal UI slots
 	void	interfaceBtnClicked();
 	void	searchBtnClicked();
 	void	socketBufSizeBtnClicked();
-	void	setSocketBufferSize(int value);
-	void	setDeviceNIC(int index);
-	void	setNetworkDeviceList(QList<TNetworkDevicecard> list);
-	void	setCurrentNetworkDevice(TNetworkDevicecard card);
-#ifdef HAVE_SOAPYSDR
-    void    setSoapyDeviceList(const QList<TSoapyDevice> &list);
-    void    setCurrentSoapyDevice(TSoapyDevice device);
-#endif
-    void    deviceSelected(int index);
-	void	disableButtons();
-	void	enableButtons();
-	
-signals:
-	void	messageEvent(QString message);
+	void	onSocketBufferSizeChanged(int index);
+	void	onDeviceNICChanged(int index);
+	void	deviceSelected(int index);
 };
 
 #endif // _CUSDR_NETWORK_WIDGET_H
