@@ -51,12 +51,12 @@ public:
 	void setBtnState(BtnState state)		{ m_state = state; }
 	BtnState btnState() const;
 
-	void setColor(QColor &color)			{ m_color = color; }
-	void setColorOn(QColor &color)			{ m_color_on = color; }
-	void setTextColor(QColor &color)		{ m_textcolor = color; }
-	void setTextOnColor(QColor &color)      { m_onTextColor = color; }
-	void setHighlight(QColor &highlight)	{ m_highlight = highlight; }
-	void setShadow(QColor &shadow)			{ m_shadow = shadow; }
+	void setColor(const QColor &color)			{ m_color = color; }
+	void setColorOn(const QColor &color)			{ m_color_on = color; }
+	void setTextColor(const QColor &color)		{ m_textcolor = color; }
+	void setTextOnColor(const QColor &color)      { m_onTextColor = color; }
+	void setHighlight(const QColor &highlight)	{ m_highlight = highlight; }
+	void setShadow(const QColor &shadow)			{ m_shadow = shadow; }
 	void setGlass(bool glass)				{ m_glass = glass; }
 
 

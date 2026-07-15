@@ -43,6 +43,7 @@ class HpsdrSettingsController;
 class ExtCtrlSettingsController;
 class AlexSettingsController;
 class TransmitSettingsController;
+class DisplaySettingsController;
 #ifdef HAVE_SOAPYSDR
 class RadioSettingsController;
 #endif
@@ -94,6 +95,7 @@ private:
     tx_settings_dialog  *m_txsettingsWidget;
     TransmitSettingsController *m_transmitSettingsController = nullptr;
     DisplayTabWidget    *m_displaytabWidget;
+    DisplaySettingsController *m_displaySettingsController = nullptr;
 #ifdef HAVE_SOAPYSDR
     cusdr_radioSettingsWidget *m_radioSettingsWidget;
     RadioSettingsController   *m_radioSettingsController = nullptr;

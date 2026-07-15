@@ -1,30 +1,3 @@
-/**
-* @file  cusdr_displayWidget.h
-* @brief OpenGL display options widget header file for cuSDR
-* @author Hermann von Hasseln, DL3HVH
-* @version 0.1
-* @date 2011-08-19
-*/
-
-/*
- *   
- *   Copyright 2010, 2011 Hermann von Hasseln, DL3HVH
- *
- *   This program is free software; you can redistribute it and/or modify
- *   it under the terms of the GNU Library General Public License version 2 as
- *   published by the Free Software Foundation
- *
- *   This program is distributed in the hope that it will be useful,
- *   but WITHOUT ANY WARRANTY; without even the implied warranty of
- *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *   GNU General Public License for more details
- *
- *   You should have received a copy of the GNU Library General Public
- *   License along with this program; if not, write to the
- *   Free Software Foundation, Inc.,
- *   51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
- */
- 
 #ifndef _CUSDR_DISPLAY_OPTIONS_WIDGET_H
 #define _CUSDR_DISPLAY_OPTIONS_WIDGET_H
 
@@ -36,34 +9,63 @@
 #include <QLineEdit>
 #include <QLabel>
 #include <QBoxLayout>
+#include <QRadioButton>
 
 #include "Util/cusdr_buttons.h"
 #include "cusdr_settings.h"
 #include "cusdr_fonts.h"
 
-
-#ifdef LOG_DISPLAYOPTIONS_WIDGET
-#   define DISPLAYOPTIONS_DEBUG qDebug().nospace() << "DisplayWidget::\t"
-#else
-#   define DISPLAYOPTIONS_DEBUG nullDebug()
-#endif
-
-
 class RadioModel;
-class DisplayOptionsWidget : public QWidget {
 
+class DisplayOptionsWidget : public QWidget {
 	Q_OBJECT
 
 public:
 	DisplayOptionsWidget(RadioModel *model, QWidget* parent = nullptr);
 	~DisplayOptionsWidget();
 
+	// MVC View Interface Setters
+	void	setFramesPerSecond(int fps);
+	void	setSpectrumAveragingCnt(int avg);
+	void	setWaterfallTime(int val);
+	void	setWaterfallOffsetLo(int val);
+	void	setWaterfallOffsetHi(int val);
+	void	setSMeterHoldTime(int val);
+	void	setCallsign(const QString& callsign);
+	void	setPanadapterMode(PanGraphicsMode mode);
+	void	setWaterfallColorMode(WaterfallColorMode mode);
+	void	setPanAveragingMode(PanAveragingMode mode);
+	void	setPanDetectorMode(PanDetectorMode mode);
+	void	setfftSize(int size);
+	void	setfmsqLevel(int val);
+
+	int		currentReceiver() const { return m_currentReceiver; }
+
+signals:
+	// MVC View Interface Signals
+	void	receiverChanged(int rx);
+	void	framesPerSecondRequested(int rx, int val);
+	void	spectrumAveragingCntRequested(int rx, int val);
+	void	waterfallTimeRequested(int rx, int val);
+	void	waterfallOffsetLoRequested(int rx, int val);
+	void	waterfallOffsetHiRequested(int rx, int val);
+	void	sMeterHoldTimeRequested(int val);
+	void	callsignRequested(const QString& val);
+	void	graphicsStateRequested(int rx, int panadapterMode, int waterColorMode);
+	void	panAveragingModeRequested(int rx, int mode);
+	void	panDetectorModeRequested(int rx, int mode);
+	void	fftSizeRequested(int rx, int size);
+	void	fmsqLevelRequested(int rx, int val);
+
+	void	averagingModeChanged(bool value);
+
 public slots:
 	QSize	sizeHint() const;
 	QSize	minimumSizeHint() const;
+	void	setCurrentReceiver(int rx);
+
 private:
     RadioModel*                             m_radioModel;
-	Settings*					set;
 
 	QSDR::_ServerMode			m_serverMode;
 	QSDR::_HWInterfaceMode		m_hwInterface;
@@ -104,6 +106,7 @@ private:
 
     QSpinBox*				m_waterfallLoOffsetSpinBox;
 	QSpinBox*				m_waterfallHiOffsetSpinBox;
+	QSpinBox*				m_waterfallTimeSpinBox;
 	QSpinBox*				m_sMeterHoldTimeSpinBox;
 
 	QLabel*					m_fpsLabel;
@@ -137,7 +140,9 @@ private:
 	QList<AeroButton* >		m_panadapterBtnList;
 	QList<AeroButton* >		m_wbpanadapterBtnList;
 	QList<AeroButton* >		m_waterfallColorBtnList;
-	
+
+	QList<QRadioButton *>	m_sMeterTypeRadioBtnList;
+
 	int		m_fontHeight;
 	int		m_maxFontWidth;
 
@@ -160,8 +165,6 @@ private:
     int     m_panDetMode;
     int     m_fftSize;
 
-
-    void	setupConnections();
 	void	createFPSGroupBox();
 	void	createPanSpectrumOptions();
 	void	createWidebandPanOptions();
@@ -169,23 +172,8 @@ private:
 	void	createSMeterOptions();
 	void	createCallSignEditor();
 
-	void	setPanadapterMode(int rx);
-	void	setWaterfallColorMode(int rx);
-
 private slots:
-	void	systemStateChanged(
-					QSDR::_Error err, 
-					QSDR::_HWInterfaceMode hwmode, 
-					QSDR::_ServerMode mode, 
-					QSDR::_DataEngineState state);
-
-	void	graphicModeChanged(
-					int rx,
-					PanGraphicsMode panMode,
-					WaterfallColorMode waterfallColorMode);
-
-	void	setCurrentReceiver(int rx);
-	void	setFramesPerSecond(int rx, int value);
+	// Internal UI slots
 	void	panModeChanged();
 	void	wbPanModeChanged();
 	void	waterfallColorChanged();
@@ -197,18 +185,12 @@ private slots:
 	void 	fpsValueChanged(int value);
 	void	averagingFilterCntChanged(int value);
 	void	setWidebandAveragingCnt(int value);
-	void	sampleRateChanged(int value);
 	void	callSignTextChanged(const QString &text);
 	void	callSignChanged();
 	void    panAverageModeChanged(int value);
     void    panDetectorModeChanged(int value);
 	void    fftSizeChanged(int value);
 	void 	sqLevelChanged(int);
-
-signals:
-	void	averagingModeChanged(bool value);
-	//void	showEvent();
-	//void	closeEvent();
 };
 
 #endif // _CUSDR_DISPLAY_OPTIONS_WIDGET_H

@@ -1,39 +1,9 @@
-/**
-* @file  cusdr_displayTabWidget.h
-* @brief Display settings tab widget header file for cuSDR
-* @author Hermann von Hasseln, DL3HVH
-* @version 0.1
-* @date 2012-10-30
-*/
-
-/*
- *   
- *   Copyright 2010 - 2012 Hermann von Hasseln, DL3HVH
- *
- *   This program is free software; you can redistribute it and/or modify
- *   it under the terms of the GNU Library General Public License version 2 as
- *   published by the Free Software Foundation
- *
- *   This program is distributed in the hope that it will be useful,
- *   but WITHOUT ANY WARRANTY; without even the implied warranty of
- *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *   GNU General Public License for more details
- *
- *   You should have received a copy of the GNU Library General Public
- *   License along with this program; if not, write to the
- *   Free Software Foundation, Inc.,
- *   51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
- */
- 
 #ifndef _CUSDR_DISPLAY_TABWIDGET_H
 #define _CUSDR_DISPLAY_TABWIDGET_H
 
-//#include <QWidget>
-//#include <QTabWidget>
-//#include <QGroupBox>
-//#include <QLineEdit>
 #include <QDialog>
 #include <QDockWidget>
+#include <QTabWidget>
 
 #include "Util/cusdr_buttons.h"
 #include "cusdr_settings.h"
@@ -42,20 +12,12 @@
 #include "cusdr_3DOptionsWidget.h"
 #include "GL/cusdr_ogl3DPanel.h"
 
-//#include "cusdr_networkWidget.h"
-//#include "cusdr_transmitTabWidget.h"
-//#include "cusdr_alexTabWidget.h"
-//#include "cusdr_extCtrlWidget.h"
-
-
 class DisplayTabWidget : public QTabWidget {
-
 	Q_OBJECT
 
 public:
 	DisplayTabWidget(RadioModel *model, QWidget *parent = nullptr);
 	~DisplayTabWidget();
-
 
 public slots:
 	QSize	sizeHint() const;
@@ -75,7 +37,6 @@ protected:
 
 private:
     RadioModel*                             m_radioModel;
-	Settings					*set;
 
 	QSDR::_Error				m_error;
 	QSDR::_ServerMode			m_serverMode;
@@ -95,6 +56,7 @@ private:
 
 public:
 	QDockWidget* get3DDockWidget() const { return m_3DDockWidget; }
+	QGL3DPanel* get3DPanel() const { return m_3DPanel; }
 
 private:
 	QString						m_message;
@@ -113,6 +75,7 @@ private slots:
 	void setPennyPresence(bool value);
 	
 signals:
+	void	panel3DCreated(QGL3DPanel *panel);
 	void	showEvent();
 	void	closeEvent();
 	void	messageEvent(QString message);

@@ -1,35 +1,4 @@
-/**
-* @file  cusdr_colorsWidget.cpp
-* @brief OpenGL color options widget class for cuSDR
-* @author Hermann von Hasseln, DL3HVH
-* @version 0.1
-* @date 2011-08-19
-*/
-
-/*
- *   
- *   Copyright 2010, 2011 Hermann von Hasseln, DL3HVH
- *
- *   This program is free software; you can redistribute it and/or modify
- *   it under the terms of the GNU Library General Public License version 2 as
- *   published by the Free Software Foundation
- *
- *   This program is distributed in the hope that it will be useful,
- *   but WITHOUT ANY WARRANTY; without even the implied warranty of
- *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *   GNU General Public License for more details
- *
- *   You should have received a copy of the GNU Library General Public
- *   License along with this program; if not, write to the
- *   Free Software Foundation, Inc.,
- *   51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
- */
-
 #define LOG_COLOROPTIONS_WIDGET
-
-// use: COLOROPTIONS_DEBUG
-
-
 
 #include "cusdr_colorsWidget.h"
 
@@ -41,23 +10,14 @@
 
 ColorOptionsWidget::ColorOptionsWidget(QWidget *parent)
 	: QWidget(parent)
-	, set(Settings::instance())
-	, m_serverMode(set->getCurrentServerMode())
-	, m_hwInterface(set->getHWInterface())
-	, m_dataEngineState(set->getDataEngineState())
-	//, m_panadapterMode(set->getPanadapterMode())
-	//, m_waterColorScheme(set->getWaterfallColorScheme())
 	, m_colorTriangle(new QtColorTriangle(this))
-	, m_antialiased(true)
-	, m_mouseOver(false)
-	, m_minimumWidgetWidth(set->getMinimumWidgetWidth())
-	, m_minimumGroupBoxWidth(set->getMinimumGroupBoxWidth())
+	, m_minimumWidgetWidth(250)
+	, m_minimumGroupBoxWidth(240)
 	, m_btnSpacing(5)
-	, m_currentReceiver(set->getCurrentReceiver())
+	, m_currentReceiver(0)
 	, m_btnChooserHit(0)
-	, m_sampleRate(set->getSampleRate())
+	, m_sampleRate(48000)
 {
-	//setMinimumWidth(m_minimumWidgetWidth);
 	setContentsMargins(4, 0, 4, 0);
 	setMouseTracking(true);
 
@@ -78,615 +38,330 @@ ColorOptionsWidget::ColorOptionsWidget(QWidget *parent)
 	mainLayout->addLayout(hbox1);
 	mainLayout->addStretch();
 	setLayout(mainLayout);
-
-	m_panadapterColors = set->getPanadapterColors();
-	m_oldPanadapterColors = m_panadapterColors;
-
-	setupConnections();
 }
 
 ColorOptionsWidget::~ColorOptionsWidget() {
-
-	// disconnect all signals
-	disconnect(set, nullptr, this, nullptr);
-	disconnect(nullptr, nullptr, nullptr);
+	disconnect(0, 0, 0);
 }
 
 QSize ColorOptionsWidget::sizeHint() const {
-	
 	return {m_minimumWidgetWidth, height()};
 }
 
 QSize ColorOptionsWidget::minimumSizeHint() const {
-
 	return {m_minimumWidgetWidth, height()};
 }
 
-void ColorOptionsWidget::setupConnections() {
-
-	CHECKED_CONNECT(
-		set,
-		SIGNAL(systemStateChanged(
-					QSDR::_Error,
-					QSDR::_HWInterfaceMode,
-					QSDR::_ServerMode,
-					QSDR::_DataEngineState)),
-		this,
-		SLOT(systemStateChanged(
-					QSDR::_Error,
-					QSDR::_HWInterfaceMode,
-					QSDR::_ServerMode,
-					QSDR::_DataEngineState)));
-
-	CHECKED_CONNECT(
-		set, 
-		SIGNAL(graphicModeChanged(
-					int,
-					PanGraphicsMode,
-					WaterfallColorMode)),
-		this, 
-		SLOT(graphicModeChanged(
-					int,
-					PanGraphicsMode,
-					WaterfallColorMode)));
-
-	CHECKED_CONNECT(
-		set, 
-		SIGNAL(currentReceiverChanged(int)),
-		this, 
-		SLOT(setCurrentReceiver(int)));
-
-	CHECKED_CONNECT(
-		set, 
-		SIGNAL(sampleRateChanged(int)), 
-		this, 
-		SLOT(sampleRateChanged(int)));
-
-	CHECKED_CONNECT(
-		m_colorTriangle, 
-		SIGNAL(colorChanged(QColor)), 
-		this, 
-		SLOT(triangleColorChanged(QColor)));
-}
-
-void ColorOptionsWidget::systemStateChanged(
-	QSDR::_Error err, 
-	QSDR::_HWInterfaceMode hwmode, 
-	QSDR::_ServerMode mode, 
-	QSDR::_DataEngineState state)
-{
-	Q_UNUSED (err)
-
-	bool change = false;
-
-	if (m_hwInterface != hwmode) {
-		
-		m_hwInterface = hwmode;
-		//hwInterfaceChanged();
-		change = true;
-	}
-
-	if (m_serverMode != mode) {
-		
-		m_serverMode = mode;
-		change = true;
-	}
-		
-	if (m_dataEngineState != state) {
-
-		m_dataEngineState = state;
-
-		change = true;
-	}
-	if (!change) return;
-
-	update();
-}
-
-void ColorOptionsWidget::graphicModeChanged(
-		int rx,
-		PanGraphicsMode panMode,
-		WaterfallColorMode waterfallColorMode)
-{
-	Q_UNUSED (rx)
-	Q_UNUSED (panMode)
-	Q_UNUSED (waterfallColorMode)
-
-	bool change = false;
-
-	/*if (m_panadapterMode != panMode) {
-		
-		m_panadapterMode = panMode;
-		change = true;
-	}
-
-	if (m_waterColorScheme != waterColorScheme) {
-		
-		m_waterColorScheme = waterColorScheme;
-		change = true;
-	}*/
-
-	if (!change) return;
-
-}
-
 void ColorOptionsWidget::createColorChooserWidget() {
+	m_resetBtn = new AeroButton("Reset", this);
+	m_resetBtn->setRoundness(0);
+	m_resetBtn->setFixedSize (btn_width, btn_height);
+	m_resetBtn->setBtnState(AeroButton::OFF);
 
-	QColor col = set->getPanadapterColors().panCenterLineColor;
+	CHECKED_CONNECT(m_resetBtn, &AeroButton::clicked, this, &ColorOptionsWidget::resetColors);
 
-	m_setPanBackground = new AeroButton("Background", this);
+	m_okBtn = new AeroButton("Save", this);
+	m_okBtn->setRoundness(0);
+	m_okBtn->setFixedSize (btn_width, btn_height);
+	m_okBtn->setBtnState(AeroButton::OFF);
+
+	CHECKED_CONNECT(m_okBtn, &AeroButton::clicked, this, &ColorOptionsWidget::acceptColors);
+
+	m_setPanBackground = new AeroButton("Pan Background", this);
 	m_setPanBackground->setRoundness(0);
-	m_setPanBackground->setFixedSize (btn_width3, btn_height);
-	m_setPanBackground->setColorOn(col);
+	m_setPanBackground->setFixedSize (130, btn_height);
+	m_setPanBackground->setBtnState(AeroButton::OFF);
 	m_changeColorBtnList.append(m_setPanBackground);
 
-	CHECKED_CONNECT(
-		m_setPanBackground, 
-		SIGNAL(clicked()), 
-		this, 
-		SLOT(colorChooserChanged()));
-
-	col = set->getPanadapterColors().waterfallColor;
-
-	m_setWaterfall = new AeroButton("Waterfall", this);
-	m_setWaterfall->setRoundness(0);
-	m_setWaterfall->setFixedSize (btn_width3, btn_height);
-	m_setWaterfall->setColorOn(col);
-	m_changeColorBtnList.append(m_setWaterfall);
-
-	CHECKED_CONNECT(
-		m_setWaterfall, 
-		SIGNAL(clicked()), 
-		this, 
-		SLOT(colorChooserChanged()));
-
-	col = set->getPanadapterColors().panLineColor;
+	m_setPanCenterLine = new AeroButton("Pan Grid Center Line", this);
+	m_setPanCenterLine->setRoundness(0);
+	m_setPanCenterLine->setFixedSize (130, btn_height);
+	m_setPanCenterLine->setBtnState(AeroButton::OFF);
+	m_changeColorBtnList.append(m_setPanCenterLine);
 
 	m_setPanLine = new AeroButton("Pan Line", this);
 	m_setPanLine->setRoundness(0);
-	m_setPanLine->setFixedSize (btn_width3, btn_height);
-	m_setPanLine->setColorOn(col);
+	m_setPanLine->setFixedSize (130, btn_height);
+	m_setPanLine->setBtnState(AeroButton::OFF);
 	m_changeColorBtnList.append(m_setPanLine);
 
-	CHECKED_CONNECT(
-		m_setPanLine, 
-		SIGNAL(clicked()), 
-		this, 
-		SLOT(colorChooserChanged()));
-
-	col = set->getPanadapterColors().panLineFilledColor;
-
-	m_setPanLineFilling = new AeroButton("Pan Filling", this);
+	m_setPanLineFilling = new AeroButton("Pan Line Filling", this);
 	m_setPanLineFilling->setRoundness(0);
-	m_setPanLineFilling->setFixedSize (btn_width3, btn_height);
-	m_setPanLineFilling->setColorOn(col);
+	m_setPanLineFilling->setFixedSize (130, btn_height);
+	m_setPanLineFilling->setBtnState(AeroButton::OFF);
 	m_changeColorBtnList.append(m_setPanLineFilling);
 
-	CHECKED_CONNECT(
-		m_setPanLineFilling, 
-		SIGNAL(clicked()), 
-		this, 
-		SLOT(colorChooserChanged()));
-
-	col = set->getPanadapterColors().panSolidTopColor;
-
-	m_setPanSolidTop = new AeroButton("Solid T", this);
+	m_setPanSolidTop = new AeroButton("Pan Solid Top", this);
 	m_setPanSolidTop->setRoundness(0);
-	m_setPanSolidTop->setFixedSize (btn_width3, btn_height);
-	m_setPanSolidTop->setColorOn(col);
+	m_setPanSolidTop->setFixedSize (130, btn_height);
+	m_setPanSolidTop->setBtnState(AeroButton::OFF);
 	m_changeColorBtnList.append(m_setPanSolidTop);
 
-	CHECKED_CONNECT(
-		m_setPanSolidTop, 
-		SIGNAL(clicked()), 
-		this, 
-		SLOT(colorChooserChanged()));
-
-	col = set->getPanadapterColors().panSolidBottomColor;
-
-	m_setPanSolidBottom = new AeroButton("Solid B", this);
+	m_setPanSolidBottom = new AeroButton("Pan Solid Bottom", this);
 	m_setPanSolidBottom->setRoundness(0);
-	m_setPanSolidBottom->setFixedSize (btn_width3, btn_height);
-	m_setPanSolidBottom->setColorOn(col);
+	m_setPanSolidBottom->setFixedSize (130, btn_height);
+	m_setPanSolidBottom->setBtnState(AeroButton::OFF);
 	m_changeColorBtnList.append(m_setPanSolidBottom);
 
-	CHECKED_CONNECT(
-		m_setPanSolidBottom, 
-		SIGNAL(clicked()), 
-		this, 
-		SLOT(colorChooserChanged()));
+	m_setWaterfall = new AeroButton("Waterfall", this);
+	m_setWaterfall->setRoundness(0);
+	m_setWaterfall->setFixedSize (130, btn_height);
+	m_setWaterfall->setBtnState(AeroButton::OFF);
+	m_changeColorBtnList.append(m_setWaterfall);
 
-	col = set->getPanadapterColors().wideBandLineColor;
-
-	m_setWideBandLine = new AeroButton("Wideband", this);
+	m_setWideBandLine = new AeroButton("Wide Band Line", this);
 	m_setWideBandLine->setRoundness(0);
-	m_setWideBandLine->setFixedSize (btn_width3, btn_height);
-	m_setWideBandLine->setColorOn(col);
+	m_setWideBandLine->setFixedSize (130, btn_height);
+	m_setWideBandLine->setBtnState(AeroButton::OFF);
 	m_changeColorBtnList.append(m_setWideBandLine);
 
-	CHECKED_CONNECT(
-		m_setWideBandLine, 
-		SIGNAL(clicked()), 
-		this, 
-		SLOT(colorChooserChanged()));
-
-	col = set->getPanadapterColors().wideBandFilledColor;
-
-	m_setWideBandFilling = new AeroButton("WB Filling", this);
+	m_setWideBandFilling = new AeroButton("Wide Band Line Filling", this);
 	m_setWideBandFilling->setRoundness(0);
-	m_setWideBandFilling->setFixedSize (btn_width3, btn_height);
-	m_setWideBandFilling->setColorOn(col);
+	m_setWideBandFilling->setFixedSize (130, btn_height);
+	m_setWideBandFilling->setBtnState(AeroButton::OFF);
 	m_changeColorBtnList.append(m_setWideBandFilling);
 
-	CHECKED_CONNECT(
-		m_setWideBandFilling, 
-		SIGNAL(clicked()), 
-		this, 
-		SLOT(colorChooserChanged()));
-
-	col = set->getPanadapterColors().wideBandSolidTopColor;
-
-	m_setWideBandSolidTop = new AeroButton("WB Solid T", this);
+	m_setWideBandSolidTop = new AeroButton("Wide Band Solid Top", this);
 	m_setWideBandSolidTop->setRoundness(0);
-	m_setWideBandSolidTop->setFixedSize (btn_width3, btn_height);
-	m_setWideBandSolidTop->setColorOn(col);
+	m_setWideBandSolidTop->setFixedSize (130, btn_height);
+	m_setWideBandSolidTop->setBtnState(AeroButton::OFF);
 	m_changeColorBtnList.append(m_setWideBandSolidTop);
 
-	CHECKED_CONNECT(
-		m_setWideBandSolidTop, 
-		SIGNAL(clicked()), 
-		this, 
-		SLOT(colorChooserChanged()));
-
-	col = set->getPanadapterColors().wideBandSolidBottomColor;
-
-	m_setWideBandSolidBottom = new AeroButton("WB Solid B", this);
+	m_setWideBandSolidBottom = new AeroButton("Wide Band Solid Bottom", this);
 	m_setWideBandSolidBottom->setRoundness(0);
-	m_setWideBandSolidBottom->setFixedSize (btn_width3, btn_height);
-	m_setWideBandSolidBottom->setColorOn(col);
+	m_setWideBandSolidBottom->setFixedSize (130, btn_height);
+	m_setWideBandSolidBottom->setBtnState(AeroButton::OFF);
 	m_changeColorBtnList.append(m_setWideBandSolidBottom);
 
-	CHECKED_CONNECT(
-		m_setWideBandSolidBottom, 
-		SIGNAL(clicked()), 
-		this, 
-		SLOT(colorChooserChanged()));
-
-	col = set->getPanadapterColors().wideBandSolidBottomColor;
-
-	m_setDistanceLine = new AeroButton("Dist. Line", this);
+	m_setDistanceLine = new AeroButton("Distance Line", this);
 	m_setDistanceLine->setRoundness(0);
-	m_setDistanceLine->setFixedSize (btn_width3, btn_height);
-	m_setDistanceLine->setColorOn(col);
+	m_setDistanceLine->setFixedSize (130, btn_height);
+	m_setDistanceLine->setBtnState(AeroButton::OFF);
 	m_changeColorBtnList.append(m_setDistanceLine);
 
-	CHECKED_CONNECT(
-		m_setDistanceLine, 
-		SIGNAL(clicked()), 
-		this, 
-		SLOT(colorChooserChanged()));
-
-	col = set->getPanadapterColors().wideBandSolidBottomColor;
-
-	m_setDistanceLineFilling = new AeroButton("Dist. Filling", this);
+	m_setDistanceLineFilling = new AeroButton("Distance Line Filling", this);
 	m_setDistanceLineFilling->setRoundness(0);
-	m_setDistanceLineFilling->setFixedSize (btn_width3, btn_height);
-	m_setDistanceLineFilling->setColorOn(col);
+	m_setDistanceLineFilling->setFixedSize (130, btn_height);
+	m_setDistanceLineFilling->setBtnState(AeroButton::OFF);
 	m_changeColorBtnList.append(m_setDistanceLineFilling);
 
-	CHECKED_CONNECT(
-		m_setDistanceLineFilling, 
-		SIGNAL(clicked()), 
-		this, 
-		SLOT(colorChooserChanged()));
-
-	col = set->getPanadapterColors().panCenterLineColor;
-
-	m_setPanCenterLine = new AeroButton("Center", this);
-	m_setPanCenterLine->setRoundness(0);
-	m_setPanCenterLine->setFixedSize (btn_width3, btn_height);
-	m_setPanCenterLine->setColorOn(col);
-	m_changeColorBtnList.append(m_setPanCenterLine);
-
-	CHECKED_CONNECT(
-		m_setPanCenterLine, 
-		SIGNAL(clicked()), 
-		this, 
-		SLOT(colorChooserChanged()));
-
-	col = set->getPanadapterColors().gridLineColor;
-
-	m_setGridLine = new AeroButton("Grid", this);
+	m_setGridLine = new AeroButton("Grid Line", this);
 	m_setGridLine->setRoundness(0);
-	m_setGridLine->setFixedSize (btn_width3, btn_height);
-	m_setGridLine->setColorOn(col);
+	m_setGridLine->setFixedSize (130, btn_height);
+	m_setGridLine->setBtnState(AeroButton::OFF);
 	m_changeColorBtnList.append(m_setGridLine);
 
-	CHECKED_CONNECT(
-		m_setGridLine, 
-		SIGNAL(clicked()), 
-		this, 
-		SLOT(colorChooserChanged()));
-
-	col = set->getPanadapterColors().panFilterColor;
-
-	m_setPanFilter = new AeroButton("RX Filter", this);
+	m_setPanFilter = new AeroButton("Pan Filter", this);
 	m_setPanFilter->setRoundness(0);
-	m_setPanFilter->setFixedSize (btn_width3, btn_height);
-	m_setPanFilter->setColorOn(col);
+	m_setPanFilter->setFixedSize (130, btn_height);
+	m_setPanFilter->setBtnState(AeroButton::OFF);
 	m_changeColorBtnList.append(m_setPanFilter);
 
-	CHECKED_CONNECT(
-		m_setPanFilter,
-		SIGNAL(clicked()),
-		this,
-		SLOT(colorChooserChanged()));
+	foreach(AeroButton *btn, m_changeColorBtnList) {
+		CHECKED_CONNECT(btn, &AeroButton::clicked, this, &ColorOptionsWidget::colorChooserChanged);
+	}
 
+	CHECKED_CONNECT(m_colorTriangle, &QtColorTriangle::colorChanged, this, &ColorOptionsWidget::triangleColorChanged);
 
-	m_setPanBackground->setBtnState(AeroButton::OFF);
-	m_setWaterfall->setBtnState(AeroButton::OFF);
-	m_setPanLine->setBtnState(AeroButton::OFF);
-	m_setPanLineFilling->setBtnState(AeroButton::OFF);
-	m_setPanSolidTop->setBtnState(AeroButton::OFF);
-	m_setPanSolidBottom->setBtnState(AeroButton::OFF);
-	m_setWideBandLine->setBtnState(AeroButton::OFF);
-	m_setWideBandFilling->setBtnState(AeroButton::OFF);
-	m_setWideBandSolidTop->setBtnState(AeroButton::OFF);
-	m_setWideBandSolidBottom->setBtnState(AeroButton::OFF);
-	m_setDistanceLine->setBtnState(AeroButton::OFF);
-	m_setDistanceLineFilling->setBtnState(AeroButton::OFF);
-	m_setPanCenterLine->setBtnState(AeroButton::OFF);
-	m_setGridLine->setBtnState(AeroButton::OFF);
-	m_setPanFilter->setBtnState(AeroButton::OFF);
+	hbox = new QHBoxLayout;
+	hbox->setSpacing(4);
+	hbox->addWidget(m_resetBtn);
+	hbox->addWidget(m_okBtn);
 
-	m_resetBtn = new AeroButton("Reset", this);
-	m_resetBtn->setRoundness(0);
-	//m_resetBtn->setFixedSize (btn_widths, btn_height);
-	m_resetBtn->setFixedSize (btn_width3, btn_height);
-	
-	CHECKED_CONNECT(
-		m_resetBtn, 
-		SIGNAL(clicked()), 
-		this, 
-		SLOT(resetColors()));
+	vbox = new QVBoxLayout;
+	vbox->setSpacing(4);
+	vbox->addWidget(m_colorTriangle);
+	vbox->addLayout(hbox);
 
-	m_okBtn = new AeroButton("OK", this);
-	m_okBtn->setRoundness(0);
-	//m_okBtn->setFixedSize (btn_widths, btn_height);
-	m_okBtn->setFixedSize (btn_width3, btn_height);
-	
-	CHECKED_CONNECT(
-		m_okBtn, 
-		SIGNAL(clicked()), 
-		this, 
-		SLOT(acceptColors()));
+	grid1 = new QGridLayout;
+	grid1->setSpacing(2);
 
-	
-	auto *grid1 = new QGridLayout;
-	grid1->setSpacing(1);
-	grid1->setHorizontalSpacing(1);
-	grid1->setContentsMargins(0, 0, 0, 0);
-	grid1->addWidget(m_colorTriangle, 0, 3, 5, 3);
 	grid1->addWidget(m_setPanBackground, 0, 0);
-	grid1->addWidget(m_setWaterfall, 0, 1);
+	grid1->addWidget(m_setPanCenterLine, 0, 1);
 	grid1->addWidget(m_setPanLine, 1, 0);
 	grid1->addWidget(m_setPanLineFilling, 1, 1);
 	grid1->addWidget(m_setPanSolidTop, 2, 0);
 	grid1->addWidget(m_setPanSolidBottom, 2, 1);
-	grid1->addWidget(m_setWideBandLine, 3, 0);
-	grid1->addWidget(m_setWideBandFilling, 3, 1);
-	grid1->addWidget(m_setWideBandSolidTop, 4, 0);
-	grid1->addWidget(m_setWideBandSolidBottom, 4, 1);
-	grid1->addWidget(m_setDistanceLine, 5, 0);
-	grid1->addWidget(m_setDistanceLineFilling, 5, 1);
-	grid1->addWidget(m_setPanCenterLine, 6, 0);
+	grid1->addWidget(m_setWaterfall, 3, 0);
+	grid1->addWidget(m_setWideBandLine, 3, 1);
+	grid1->addWidget(m_setWideBandFilling, 4, 0);
+	grid1->addWidget(m_setWideBandSolidTop, 4, 1);
+	grid1->addWidget(m_setWideBandSolidBottom, 5, 0);
+	grid1->addWidget(m_setDistanceLine, 5, 1);
+	grid1->addWidget(m_setDistanceLineFilling, 6, 0);
 	grid1->addWidget(m_setGridLine, 6, 1);
 	grid1->addWidget(m_setPanFilter, 7, 0);
-	grid1->addWidget(m_resetBtn, 8, 0);
-	grid1->addWidget(m_okBtn, 8, 1);
-	//grid1->addWidget(m_resetBtn, 7, 3);
-	//grid1->addWidget(m_okBtn, 7, 4);
 
-	auto *hbox1 = new QHBoxLayout;
-	hbox1->setSpacing(4);
-	hbox1->addStretch();
-	hbox1->addWidget(m_resetBtn);
-	hbox1->addWidget(m_okBtn);
-	
-	auto *vbox1 = new QVBoxLayout;
-	vbox1->setSpacing(4);
-	//vbox1->addStretch();
-	vbox1->addWidget(m_colorTriangle);
-	vbox1->addLayout(hbox1);
-	
-	auto *hbox = new QHBoxLayout;
-	hbox->setSpacing(4);
-	hbox->addSpacing(6);
-	hbox->addLayout(grid1);
-	//hbox->addLayout(vbox1);
+	QGridLayout *gridLayout = new QGridLayout;
+	gridLayout->setSpacing(2);
 
-	m_colorChooserWidget = new QGroupBox(tr("Color Chooser"), this);
+	gridLayout->addLayout(vbox, 0, 0, Qt::AlignCenter);
+	gridLayout->addLayout(grid1, 1, 0, Qt::AlignCenter);
+
+	m_colorChooserWidget = new QGroupBox(tr("Spectrum Color Options"), this);
 	m_colorChooserWidget->setMinimumWidth(m_minimumGroupBoxWidth);
-	m_colorChooserWidget->setLayout(hbox);
+	m_colorChooserWidget->setLayout(gridLayout);
 	m_colorChooserWidget->setFont(QFont("Arial", 8));
-    delete vbox1;
+}
+
+void ColorOptionsWidget::setPanadapterColors(const TPanadapterColors& colors) {
+	m_panadapterColors = colors;
+	m_oldPanadapterColors = colors;
+
+	m_setPanBackground->setColorOn(colors.panBackgroundColor);
+	m_setPanCenterLine->setColorOn(colors.panCenterLineColor);
+	m_setPanLine->setColorOn(colors.panLineColor);
+	m_setPanLineFilling->setColorOn(colors.panLineFilledColor);
+	m_setPanSolidTop->setColorOn(colors.panSolidTopColor);
+	m_setPanSolidBottom->setColorOn(colors.panSolidBottomColor);
+	m_setWaterfall->setColorOn(colors.waterfallColor);
+	m_setWideBandLine->setColorOn(colors.wideBandLineColor);
+	m_setWideBandFilling->setColorOn(colors.wideBandFilledColor);
+	m_setWideBandSolidTop->setColorOn(colors.wideBandSolidTopColor);
+	m_setWideBandSolidBottom->setColorOn(colors.wideBandSolidBottomColor);
+	m_setDistanceLine->setColorOn(colors.distanceLineColor);
+	m_setDistanceLineFilling->setColorOn(colors.distanceLineFilledColor);
+	m_setGridLine->setColorOn(colors.gridLineColor);
+	m_setPanFilter->setColorOn(colors.panFilterColor);
+
+	foreach(AeroButton *btn, m_changeColorBtnList) {
+		btn->update();
+	}
 }
 
 void ColorOptionsWidget::colorChooserChanged() {
+	AeroButton *button = qobject_cast<AeroButton *>(sender());
+	int btnHit = m_changeColorBtnList.indexOf(button);
 
-	auto *button = qobject_cast<AeroButton *>(sender());
-	m_btnChooserHit = m_changeColorBtnList.indexOf(button);
+	if (btnHit >= 0) {
+		foreach(AeroButton *btn, m_changeColorBtnList) {
+			btn->setBtnState(AeroButton::OFF);
+			btn->update();
+		}
 
-	foreach(AeroButton *btn, m_changeColorBtnList) {
+		button->setBtnState(AeroButton::ON);
+		button->update();
 
-		btn->setBtnState(AeroButton::OFF);
-		//btn->setColor(QColor(90, 90, 90));
-		btn->update();
+		m_btnChooserHit = btnHit;
+	} else {
+		return;
 	}
 
-	button->setBtnState(AeroButton::ON);
-	button->update();
-
 	switch (m_btnChooserHit) {
-
 		case 0:
-			m_colorTriangle->setColor(set->getPanadapterColors().panBackgroundColor);
+			m_colorTriangle->setColor(m_panadapterColors.panBackgroundColor);
 			break;
-
 		case 1:
-			m_colorTriangle->setColor(set->getPanadapterColors().waterfallColor);
+			m_colorTriangle->setColor(m_panadapterColors.panCenterLineColor);
 			break;
-			
 		case 2:
-			m_colorTriangle->setColor(set->getPanadapterColors().panLineColor);
+			m_colorTriangle->setColor(m_panadapterColors.panLineColor);
 			break;
-
 		case 3:
-			m_colorTriangle->setColor(set->getPanadapterColors().panLineFilledColor);
+			m_colorTriangle->setColor(m_panadapterColors.panLineFilledColor);
 			break;
-
 		case 4:
-			m_colorTriangle->setColor(set->getPanadapterColors().panSolidTopColor);
+			m_colorTriangle->setColor(m_panadapterColors.panSolidTopColor);
 			break;
-
 		case 5:
-			m_colorTriangle->setColor(set->getPanadapterColors().panSolidBottomColor);
+			m_colorTriangle->setColor(m_panadapterColors.panSolidBottomColor);
 			break;
-
 		case 6:
-			m_colorTriangle->setColor(set->getPanadapterColors().wideBandLineColor);
+			m_colorTriangle->setColor(m_panadapterColors.waterfallColor);
 			break;
-
 		case 7:
-			m_colorTriangle->setColor(set->getPanadapterColors().wideBandFilledColor);
+			m_colorTriangle->setColor(m_panadapterColors.wideBandLineColor);
 			break;
-
 		case 8:
-			m_colorTriangle->setColor(set->getPanadapterColors().wideBandSolidTopColor);
+			m_colorTriangle->setColor(m_panadapterColors.wideBandFilledColor);
 			break;
-
 		case 9:
-			m_colorTriangle->setColor(set->getPanadapterColors().wideBandSolidBottomColor);
+			m_colorTriangle->setColor(m_panadapterColors.wideBandSolidTopColor);
 			break;
-
 		case 10:
-			m_colorTriangle->setColor(set->getPanadapterColors().distanceLineColor);
+			m_colorTriangle->setColor(m_panadapterColors.wideBandSolidBottomColor);
 			break;
-
 		case 11:
-			m_colorTriangle->setColor(set->getPanadapterColors().distanceLineFilledColor);
+			m_colorTriangle->setColor(m_panadapterColors.distanceLineColor);
 			break;
-
 		case 12:
-			m_colorTriangle->setColor(set->getPanadapterColors().panCenterLineColor);
+			m_colorTriangle->setColor(m_panadapterColors.distanceLineFilledColor);
 			break;
-
 		case 13:
-			m_colorTriangle->setColor(set->getPanadapterColors().gridLineColor);
+			m_colorTriangle->setColor(m_panadapterColors.gridLineColor);
 			break;
-
 		case 14:
-			m_colorTriangle->setColor(set->getPanadapterColors().panFilterColor);
+			m_colorTriangle->setColor(m_panadapterColors.panFilterColor);
 			break;
 	}
 }
 
 void ColorOptionsWidget::resetColors() {
-
 	m_panadapterColors = m_oldPanadapterColors;
 
 	foreach(AeroButton *btn, m_changeColorBtnList) {
-
 		btn->setBtnState(AeroButton::OFF);
 		btn->update();
 	}
-	set->setPanadapterColors(m_panadapterColors);
+	emit panadapterColorsRequested(m_panadapterColors);
 }
 
 void ColorOptionsWidget::acceptColors() {
-
 	m_oldPanadapterColors = m_panadapterColors;
-	set->setPanadapterColors(m_panadapterColors);
+	emit panadapterColorsRequested(m_panadapterColors);
 }
 
 void ColorOptionsWidget::triangleColorChanged(QColor color) {
-
 	m_currentColor = color;
 	m_changeColorBtnList.at(m_btnChooserHit)->setColorOn(color);
 	m_changeColorBtnList.at(m_btnChooserHit)->update();
 
 	switch (m_btnChooserHit) {
-
 		case 0:
 			m_panadapterColors.panBackgroundColor = color;
 			break;
-
 		case 1:
-			m_panadapterColors.waterfallColor = color;
+			m_panadapterColors.panCenterLineColor = color;
 			break;
-			
 		case 2:
 			m_panadapterColors.panLineColor = color;
 			break;
-
 		case 3:
 			m_panadapterColors.panLineFilledColor = color;
 			break;
-
 		case 4:
 			m_panadapterColors.panSolidTopColor = color;
 			break;
-
 		case 5:
 			m_panadapterColors.panSolidBottomColor = color;
 			break;
-
 		case 6:
+			m_panadapterColors.waterfallColor = color;
+			break;
+		case 7:
 			m_panadapterColors.wideBandLineColor = color;
 			break;
-
-		case 7:
+		case 8:
 			m_panadapterColors.wideBandFilledColor = color;
 			break;
-
-		case 8:
+		case 9:
 			m_panadapterColors.wideBandSolidTopColor = color;
 			break;
-
-		case 9:
+		case 10:
 			m_panadapterColors.wideBandSolidBottomColor = color;
 			break;
-
-		case 10:
+		case 11:
 			m_panadapterColors.distanceLineColor = color;
 			break;
-
-		case 11:
+		case 12:
 			m_panadapterColors.distanceLineFilledColor = color;
 			break;
-
-		case 12:
-			m_panadapterColors.panCenterLineColor = color;
-			break;
-
 		case 13:
 			m_panadapterColors.gridLineColor = color;
 			break;
-
 		case 14:
 			m_panadapterColors.panFilterColor = color;
 			break;
 	}
-	set->setPanadapterColors(m_panadapterColors);
-}
-
-void ColorOptionsWidget::sampleRateChanged(int value) {
-
-	m_sampleRate = value;
-}
-
-void ColorOptionsWidget::setCurrentReceiver(int rx) {
-
-	if (m_currentReceiver == rx) return;
-	m_currentReceiver = rx;
+	emit panadapterColorsRequested(m_panadapterColors);
 }

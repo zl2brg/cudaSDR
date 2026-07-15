@@ -32,6 +32,7 @@
 #include "Controllers/ExtCtrlSettingsController.h"
 #include "Controllers/AlexSettingsController.h"
 #include "Controllers/TransmitSettingsController.h"
+#include "Controllers/DisplaySettingsController.h"
 #ifdef HAVE_SOAPYSDR
 #include "Controllers/RadioSettingsController.h"
 #endif
@@ -67,6 +68,8 @@ cusdr_SetupWidget::cusdr_SetupWidget(RadioModel *model, QWidget *parent)
     m_transmitSettingsController = new TransmitSettingsController(this);
     m_transmitSettingsController->bind(m_txsettingsWidget, set);
     m_displaytabWidget = new DisplayTabWidget(m_radioModel, this);
+    m_displaySettingsController = new DisplaySettingsController(this);
+    m_displaySettingsController->bind(m_displaytabWidget, set);
 #ifdef HAVE_SOAPYSDR
     m_radioSettingsWidget = new cusdr_radioSettingsWidget(this);
     m_radioSettingsController = new RadioSettingsController(this);
