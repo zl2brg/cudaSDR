@@ -116,6 +116,7 @@ set(SOURCES
     ${SRC_DIR}/Controllers/HpsdrSettingsController.cpp
     ${SRC_DIR}/Controllers/ExtCtrlSettingsController.cpp
     ${SRC_DIR}/Controllers/AlexSettingsController.cpp
+    ${SRC_DIR}/Controllers/TransmitSettingsController.cpp
     ${SRC_DIR}/cusdr_settings.cpp
     ${SRC_DIR}/cusdr_hamDatabase.cpp
     ${SRC_DIR}/cusdr_fonts.cpp

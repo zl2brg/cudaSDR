@@ -4,6 +4,7 @@
 #include "QtWDSP/qtwdsp_dspEngine.h"
 #include "AudioEngine/cusdr_audio_input.h"
 #include <QSignalBlocker>
+#include <QDebug>
 
 namespace {
 int findDeviceComboIndex(const QList<QAudioDevice> &devices, const QString &name, int offset)
@@ -19,32 +20,16 @@ int findDeviceComboIndex(const QList<QAudioDevice> &devices, const QString &name
 tx_settings_dialog::tx_settings_dialog(QWidget *parent) :
     QWidget(parent),
     ui(new Ui::tx_settings_dialog),
-    set(Settings::instance()),
     m_codec2ModeCombo(nullptr),
     m_currentReceiver(0)
-
 {
-
-    m_amCarrierLevel = set->getAMCarrierLevel();
-    m_audioCompressionLevel = set->getAudioCompression();
-    qDebug() << "Am carrier level load" << m_amCarrierLevel;
-    qDebug() << "compressionl evel load" << m_audioCompressionLevel;
-
-
-
     setContentsMargins(4, 0, 4, 0);
     ui->setupUi(this);
     this->setWindowFlags(Qt::Window | Qt::FramelessWindowHint);
-    m_currentReceiver = set->getCurrentReceiver();
 
     ui->amCarrierLevel->setSliderPosition(0.5);
-    ui->audioCompression->setSliderPosition(m_audioCompressionLevel);
-    ui->fm_deviation->setValue(int(set->getFMDeveation() / 1000.0));
-
-    // Initial population and signal connection for dynamic updates
-    refreshAudioDevices();
-    connect(AudioDeviceService::instance(), &AudioDeviceService::audioInputsChanged,
-            this, &tx_settings_dialog::refreshAudioDevices);
+    ui->audioCompression->setSliderPosition(0);
+    ui->fm_deviation->setValue(5);
 
     // Digital voice controls are inserted dynamically so older .ui files stay compatible.
     QGroupBox *digitalVoiceGroup = new QGroupBox("Digital Voice", this);
@@ -52,166 +37,190 @@ tx_settings_dialog::tx_settings_dialog(QWidget *parent) :
     QLabel *codec2Label = new QLabel("FreeDV mode", digitalVoiceGroup);
     m_codec2ModeCombo = new QComboBox(this);
     m_codec2ModeCombo->setObjectName("codec2ModeCombo");
-    QList<int> availableModes = set->availableCodec2Modes();
-    for (int mode : availableModes) {
-        m_codec2ModeCombo->addItem(set->getCodec2ModeString(mode), mode);
-    }
 
     digitalVoiceLayout->addWidget(codec2Label);
     digitalVoiceLayout->addWidget(m_codec2ModeCombo);
     ui->verticalLayoutScroll->insertWidget(2, digitalVoiceGroup);
 
-    int currentEngine = set->getFreeDVMode(m_currentReceiver);
-    int engineIndex = m_codec2ModeCombo->findData(currentEngine);
-    if (engineIndex >= 0)
-        m_codec2ModeCombo->setCurrentIndex(engineIndex);
-
-    int currentMode = set->getFreeDVMode(m_currentReceiver);
-    int modeIndex = m_codec2ModeCombo->findData(currentMode);
-    if (modeIndex >= 0) {
-        m_codec2ModeCombo->setCurrentIndex(modeIndex);
-    } else {
-        m_codec2ModeCombo->setCurrentIndex(0); // Default to mode 0
-    }
-    
-    ui->sidetone_freq->setValue(set->getCwSidetoneFreq());
-    ui->sidetone_volume->setValue(set->getCwSidetoneVolume());
-    ui->cw_hangtime->setValue(set->getCwHangTime());
-    ui->KeyerMode->setCurrentIndex(set->getCwKeyerMode());
-    ui->internal_keyer->setChecked(set->isInternalCw());
-    ui->keyer_reverse->setChecked(set->isCwKeyReversed());
-    ui->keyer_spacing->setChecked(set->getCwKeyerSpacing());
-
-    ui->weight->setValue(set->getCwKeyerWeight());
     ui->groupBox->setContentsMargins(2,2,2,2);
-
-
     setContentsMargins(4, 4, 4, 4);
     setWindowOpacity(0.9);
 
- CHECKED_CONNECT(ui->audiodevlist,
-                 SIGNAL(currentIndexChanged(int)),
-                 set,
-                 SLOT(setMicInputDev(int)));
+    // Setup internal and external connections
+    connect(AudioDeviceService::instance(), &AudioDeviceService::audioInputsChanged,
+            this, &tx_settings_dialog::triggerRefreshDevices);
 
- connect(ui->audiodevlist, &QComboBox::currentIndexChanged, this, [this](int index) {
-     if (index == 0)
-         set->setMicInputSourceName("hpsdr-local");
-     else
-         set->setMicInputSourceName(ui->audiodevlist->itemText(index));
- });
+    connect(ui->audiodevlist, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int index) {
+        emit micInputDevChanged(index);
+        if (index == 0)
+            emit micInputSourceNameChanged("hpsdr-local");
+        else
+            emit micInputSourceNameChanged(ui->audiodevlist->itemText(index));
+    });
 
- CHECKED_CONNECT(ui->digitalAudioDevList,
-                 SIGNAL(currentIndexChanged(int)),
-                 set,
-                 SLOT(setDigitalAudioInputDev(int)));
+    connect(ui->digitalAudioDevList, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int index) {
+        emit digitalAudioInputDevChanged(index);
+        if (index == 0)
+            emit digitalInputSourceNameChanged("none");
+        else
+            emit digitalInputSourceNameChanged(ui->digitalAudioDevList->itemText(index));
+    });
 
- connect(ui->digitalAudioDevList, &QComboBox::currentIndexChanged, this, [this](int index) {
-     if (index == 0)
-         set->setDigitalInputSourceName("none");
-     else
-         set->setDigitalInputSourceName(ui->digitalAudioDevList->itemText(index));
- });
+    connect(m_codec2ModeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int index) {
+        if (index >= 0) {
+            int mode = m_codec2ModeCombo->itemData(index).toInt();
+            emit freeDVModeRequested(m_currentReceiver, mode);
+        }
+    });
 
- // Codec2 mode selector
- connect(m_codec2ModeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int index) {
-     if (index >= 0) {
-         int mode = m_codec2ModeCombo->itemData(index).toInt();
-         set->setFreeDVMode(m_currentReceiver, mode);
-         qDebug() << "Codec2 mode changed to:" << mode << set->getCodec2ModeString(mode);
-     }
- });
-
- connect(set, &Settings::currentReceiverChanged, this, [this](int rx) {
-     m_currentReceiver = rx;
-
-     {
-         const QSignalBlocker blocker(m_codec2ModeCombo);
-         const int mode = set->getFreeDVMode(rx);
-         const int modeIndex = m_codec2ModeCombo->findData(mode);
-         if (modeIndex >= 0)
-             m_codec2ModeCombo->setCurrentIndex(modeIndex);
-     }
- });
-
- connect(set, &Settings::freeDVModeChanged, this, [this](int rx, int mode) {
-     if (rx != m_currentReceiver) return;
-     const QSignalBlocker blocker(m_codec2ModeCombo);
-     const int idx = m_codec2ModeCombo->findData(mode);
-     if (idx >= 0)
-         m_codec2ModeCombo->setCurrentIndex(idx);
- });
-
- CHECKED_CONNECT(ui->audioCompression,
-                 SIGNAL(valueChanged(int)),
-                 set,
-                 SLOT(setAudioCompression(int)));
-
- CHECKED_CONNECT(ui->amCarrierLevel,
-                 SIGNAL(valueChanged(int)),
-                 set,
-                 SLOT(setAMCarrierLevel(int)));
-
- CHECKED_CONNECT(ui->fm_deviation,
-                  SIGNAL(valueChanged(int)),
-                   set,
-                 SLOT(setFmDeveation(int)));
-
-
- CHECKED_CONNECT(ui->KeyerMode,
-                  SIGNAL(currentIndexChanged(int)),
-                   set,
-                  SLOT(setCwKeyerMode(int)));
-
- CHECKED_CONNECT(ui->internal_keyer,
-                  SIGNAL(stateChanged(int)),
-                   set,
-                  SLOT(setInternalCw(int)));
-
- CHECKED_CONNECT(ui->keyer_reverse,
-                  SIGNAL(stateChanged(int)),
-                   set,
-                  SLOT(setCwKeyReversed(int)));
-
- CHECKED_CONNECT(ui->keyer_speed,
-                  SIGNAL(valueChanged(int)),
-                   set,
-                  SLOT(setCwKeyerSpeed(int)));
-
- CHECKED_CONNECT(ui->ptt_delay,
-                  SIGNAL(valueChanged(int)),
-                   set,
-                  SLOT(setCwPttDelay(int)));
-
- CHECKED_CONNECT(ui->sidetone_freq,
-                  SIGNAL(valueChanged(int)),
-                   set,
-                  SLOT(setCwSidetoneFreq(int)));
-
-
-    CHECKED_CONNECT(ui->sidetone_volume,
-                    SIGNAL(valueChanged(int)),
-                    set,
-                    SLOT(setCwSidetoneVolume(int)));
-
- CHECKED_CONNECT(ui->cw_hangtime,
-                  SIGNAL(valueChanged(int)),
-                   set,
-                  SLOT(setCwHangTime(int)));
-
-    CHECKED_CONNECT(ui->weight,
-                    SIGNAL(valueChanged(int)),
-                    set,
-                    SLOT(setCwKeyerWeight(int)));
-
-    CHECKED_CONNECT(ui->keyer_spacing,
-                    SIGNAL(stateChanged(int)),
-                    set,
-                    SLOT(setCwKeyerSpacing(int)));
-
+    connect(ui->audioCompression, &QSlider::valueChanged, this, &tx_settings_dialog::audioCompressionRequested);
+    connect(ui->amCarrierLevel, &QSlider::valueChanged, this, &tx_settings_dialog::amCarrierLevelRequested);
+    connect(ui->fm_deviation, &QSpinBox::valueChanged, this, [this](int val) {
+        emit fmDeviationRequested(val * 1000);
+    });
+    connect(ui->KeyerMode, &QComboBox::currentIndexChanged, this, &tx_settings_dialog::cwKeyerModeRequested);
+    connect(ui->internal_keyer, &QCheckBox::stateChanged, this, [this](int state) {
+        emit internalCwRequested(state == Qt::Checked);
+    });
+    connect(ui->keyer_reverse, &QCheckBox::stateChanged, this, [this](int state) {
+        emit cwKeyReversedRequested(state == Qt::Checked);
+    });
+    connect(ui->keyer_spacing, &QCheckBox::stateChanged, this, [this](int state) {
+        emit cwKeyerSpacingRequested(state == Qt::Checked);
+    });
+    connect(ui->keyer_speed, &QSpinBox::valueChanged, this, &tx_settings_dialog::cwKeyerSpeedRequested);
+    connect(ui->ptt_delay, &QSpinBox::valueChanged, this, &tx_settings_dialog::cwPttDelayRequested);
+    connect(ui->sidetone_freq, &QSpinBox::valueChanged, this, &tx_settings_dialog::cwSidetoneFreqRequested);
+    connect(ui->sidetone_volume, &QSpinBox::valueChanged, this, &tx_settings_dialog::cwSidetoneVolumeRequested);
+    connect(ui->cw_hangtime, &QSpinBox::valueChanged, this, &tx_settings_dialog::cwHangTimeRequested);
+    connect(ui->weight, &QSlider::valueChanged, this, &tx_settings_dialog::cwKeyerWeightRequested);
 }
 
-void tx_settings_dialog::refreshAudioDevices()
+tx_settings_dialog::~tx_settings_dialog()
+{
+    delete ui;
+    disconnect(0, 0, 0);
+}
+
+void tx_settings_dialog::setAvailableCodec2Modes(const QList<int>& modes)
+{
+    const QSignalBlocker blocker(m_codec2ModeCombo);
+    m_codec2ModeCombo->clear();
+    for (int mode : modes) {
+        if (m_codec2ModeStringResolver) {
+            m_codec2ModeCombo->addItem(m_codec2ModeStringResolver(mode), mode);
+        } else {
+            m_codec2ModeCombo->addItem(QString::number(mode), mode);
+        }
+    }
+}
+
+void tx_settings_dialog::setCodec2ModeStringResolver(std::function<QString(int)> resolver)
+{
+    m_codec2ModeStringResolver = resolver;
+}
+
+void tx_settings_dialog::setAmCarrierLevel(double level)
+{
+    const QSignalBlocker blocker(ui->amCarrierLevel);
+    ui->amCarrierLevel->setValue(static_cast<int>(level));
+}
+
+void tx_settings_dialog::setAudioCompression(double compression)
+{
+    const QSignalBlocker blocker(ui->audioCompression);
+    ui->audioCompression->setValue(static_cast<int>(compression));
+}
+
+void tx_settings_dialog::setFmDeviation(int dev)
+{
+    const QSignalBlocker blocker(ui->fm_deviation);
+    ui->fm_deviation->setValue(dev / 1000);
+}
+
+void tx_settings_dialog::setCwSidetoneFreq(int freq)
+{
+    const QSignalBlocker blocker(ui->sidetone_freq);
+    ui->sidetone_freq->setValue(freq);
+}
+
+void tx_settings_dialog::setCwSidetoneVolume(int vol)
+{
+    const QSignalBlocker blocker(ui->sidetone_volume);
+    ui->sidetone_volume->setValue(vol);
+}
+
+void tx_settings_dialog::setCwHangTime(int time)
+{
+    const QSignalBlocker blocker(ui->cw_hangtime);
+    ui->cw_hangtime->setValue(time);
+}
+
+void tx_settings_dialog::setCwKeyerMode(int mode)
+{
+    const QSignalBlocker blocker(ui->KeyerMode);
+    ui->KeyerMode->setCurrentIndex(mode);
+}
+
+void tx_settings_dialog::setInternalCw(bool val)
+{
+    const QSignalBlocker blocker(ui->internal_keyer);
+    ui->internal_keyer->setChecked(val);
+}
+
+void tx_settings_dialog::setCwKeyReversed(bool val)
+{
+    const QSignalBlocker blocker(ui->keyer_reverse);
+    ui->keyer_reverse->setChecked(val);
+}
+
+void tx_settings_dialog::setCwKeyerSpacing(bool val)
+{
+    const QSignalBlocker blocker(ui->keyer_spacing);
+    ui->keyer_spacing->setChecked(val);
+}
+
+void tx_settings_dialog::setCwKeyerSpeed(int speed)
+{
+    const QSignalBlocker blocker(ui->keyer_speed);
+    ui->keyer_speed->setValue(speed);
+}
+
+void tx_settings_dialog::setCwPttDelay(int delay)
+{
+    const QSignalBlocker blocker(ui->ptt_delay);
+    ui->ptt_delay->setValue(delay);
+}
+
+void tx_settings_dialog::setCwKeyerWeight(int weight)
+{
+    const QSignalBlocker blocker(ui->weight);
+    ui->weight->setValue(weight);
+}
+
+void tx_settings_dialog::setCurrentReceiver(int rx)
+{
+    m_currentReceiver = rx;
+}
+
+void tx_settings_dialog::setFreeDVMode(int rx, int mode)
+{
+    if (rx != m_currentReceiver) return;
+    const QSignalBlocker blocker(m_codec2ModeCombo);
+    const int idx = m_codec2ModeCombo->findData(mode);
+    if (idx >= 0) {
+        m_codec2ModeCombo->setCurrentIndex(idx);
+    } else {
+        m_codec2ModeCombo->setCurrentIndex(0);
+    }
+}
+
+void tx_settings_dialog::triggerRefreshDevices()
+{
+    emit audioDevicesRefreshRequested();
+}
+
+void tx_settings_dialog::refreshAudioDevices(const QString& savedMicName, const QString& savedDigitalName)
 {
     const QSignalBlocker micBlocker(ui->audiodevlist);
     const QSignalBlocker digBlocker(ui->digitalAudioDevList);
@@ -235,7 +244,6 @@ void tx_settings_dialog::refreshAudioDevices()
     }
     
     if (micIndex < 0) {
-        const QString savedMicName = set->getMicInputSourceName();
         if (savedMicName == "hpsdr-local") {
             micIndex = 0;
         } else {
@@ -249,11 +257,6 @@ void tx_settings_dialog::refreshAudioDevices()
         }
     }
     ui->audiodevlist->setCurrentIndex(micIndex);
-    set->setMicInputDev(micIndex);
-    if (micIndex == 0)
-        set->setMicInputSourceName("hpsdr-local");
-    else
-        set->setMicInputSourceName(ui->audiodevlist->currentText());
 
     // Populate digital audio input device list
     ui->digitalAudioDevList->clear();
@@ -269,7 +272,6 @@ void tx_settings_dialog::refreshAudioDevices()
     }
 
     if (digitalIndex < 0) {
-        const QString savedDigitalName = set->getDigitalInputSourceName();
         if (savedDigitalName == "none") {
             digitalIndex = 0;
         } else {
@@ -283,21 +285,4 @@ void tx_settings_dialog::refreshAudioDevices()
         }
     }
     ui->digitalAudioDevList->setCurrentIndex(digitalIndex);
-    set->setDigitalAudioInputDev(digitalIndex);
-    if (digitalIndex == 0)
-        set->setDigitalInputSourceName("none");
-    else
-        set->setDigitalInputSourceName(ui->digitalAudioDevList->currentText());
 }
-
-
-
-
-
-tx_settings_dialog::~tx_settings_dialog()
-{
-    delete ui;
-    disconnect(set, 0, this, 0);
-    disconnect(0, 0, 0);
-}
-
