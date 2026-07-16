@@ -31,6 +31,7 @@
 #include <QDebug>
 
 #include "cusdr_hpsdrTabWidget.h"
+#include "Controllers/SetupController.h"
 
 
 #define	btn_height		15
@@ -63,21 +64,11 @@ HPSDRTabWidget::HPSDRTabWidget(QWidget *parent)
  //   this->addTab(m_txsettingsWidget, " Tx settings ");
 	setTabEnabled(1, true);
 
-	if (!set->getPenelopePresence() && !set->getPennyLanePresence() && (set->getHWInterface() != QSDR::Hermes)) {
-
-    //	setTabEnabled(2, false);
-		//setTabEnabled(3, false);
-	}
-
-	if (!set->getAlexPresence())
-    //	setTabEnabled(3, false);
-
-	setupConnections();
+	m_setupController = new SetupController(this);
+	m_setupController->bind(this, set);
 }
 
 HPSDRTabWidget::~HPSDRTabWidget() {
-
-	disconnect(set, 0, this, 0);
 	disconnect(0, 0, 0);
 }
 
@@ -91,68 +82,7 @@ QSize HPSDRTabWidget::minimumSizeHint() const {
 	return QSize(m_minimumWidgetWidth, height());
 }
 
-void HPSDRTabWidget::setupConnections() {
 
-	CHECKED_CONNECT(
-		set,
-		&Settings::systemStateChanged,
-		this,
-		&HPSDRTabWidget::systemStateChanged);
-
-	CHECKED_CONNECT(
-		set, 
-		&Settings::alexPresenceChanged,
-		this,
-		&HPSDRTabWidget::setAlexPresence);
-
-	CHECKED_CONNECT(
-		set, 
-		&Settings::penelopePresenceChanged,
-		this,
-		&HPSDRTabWidget::setPennyPresence);
-
-	CHECKED_CONNECT(
-		set, 
-		&Settings::pennyLanePresenceChanged,
-		this,
-		&HPSDRTabWidget::setPennyPresence);
-}
-
-void HPSDRTabWidget::systemStateChanged(
-	/*!<[in] the of the signal. */
-	QSDR::_Error err,					/*!<[in] error state. */
-	QSDR::_HWInterfaceMode hwmode,		/*!<[in] HPSDR interface (Metis, Hermes, none). */
-	QSDR::_ServerMode mode,				/*!<[in] server mode. */
-	QSDR::_DataEngineState state		/*!<[in] data engine state. */
-) {
-	Q_UNUSED (err)
-
-	//	if (m_hwInterface != hwmode)
-		m_hwInterface = hwmode;
-
-	if (m_hwInterface == QSDR::Hermes)
-		setTabEnabled(2, true);
-	else
-		setTabEnabled(2, false);
-
-	if (m_serverMode != mode)
-		m_serverMode = mode;
-
-	if (m_dataEngineState != state)
-		m_dataEngineState = state;
-}
-
-void HPSDRTabWidget::setPennyPresence(bool value) {
-
-	//setTabEnabled(1, value);
-	setTabEnabled(2, value);
-	//setTabEnabled(3, value);
-}
-
-void HPSDRTabWidget::setAlexPresence(bool value) {
-
-	setTabEnabled(3, value);
-}
 
 void HPSDRTabWidget::addNICChangedConnection() {
 

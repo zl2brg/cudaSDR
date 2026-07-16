@@ -43,6 +43,8 @@
 #include "setupwidget.h"
 
 
+class SetupController;
+
 class HPSDRTabWidget : public QTabWidget {
 
 	Q_OBJECT
@@ -80,24 +82,13 @@ private:
 	ExtCtrlWidget		*m_extCtrlWidget;
     TransmitTabWidget   *m_transmitTabWidget;
     tx_settings_dialog  *m_txsettingsWidget;
+    SetupController*    m_setupController = nullptr;
 
 	QString				m_message;
 
 	int		m_minimumWidgetWidth;
 	int		m_minimumGroupBoxWidth;
 
-	void	setupConnections();
-
-private slots:
-	void systemStateChanged(
-		QSDR::_Error err,
-		QSDR::_HWInterfaceMode hwmode,
-		QSDR::_ServerMode mode,
-		QSDR::_DataEngineState state);
-
-	void setAlexPresence(bool value);
-	void setPennyPresence(bool value);
-	
 signals:
 	void	showEvent();
 	void	closeEvent();

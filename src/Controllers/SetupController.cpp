@@ -1,5 +1,6 @@
 #include "SetupController.h"
 #include "UI/cusdr_setupwidget.h"
+#include "cusdr_hpsdrTabWidget.h"
 #include "cusdr_settings.h"
 
 SetupController::SetupController(QObject* parent)
@@ -39,5 +40,46 @@ void SetupController::bind(cusdr_SetupWidget* view, Settings* model)
     connect(m_model, &Settings::pennyLanePresenceChanged, this, [this](bool val) {
         bool hasPennyOrPenelope = m_model->getPenelopePresence() || val;
         m_view->setTabEnabled(2, (m_model->getHWInterface() == QSDR::Hermes) || hasPennyOrPenelope);
+    });
+}
+
+void SetupController::bind(HPSDRTabWidget* view, Settings* model)
+{
+    m_model = model;
+
+    if (!view || !m_model) {
+        return;
+    }
+
+    // Helper to safely set tab enabled
+    auto safeSetTabEnabled = [view](int index, bool enabled) {
+        if (index >= 0 && index < view->count()) {
+            view->setTabEnabled(index, enabled);
+        }
+    };
+
+    // Load initial states
+    bool hasPennyOrPenelope = m_model->getPenelopePresence() || m_model->getPennyLanePresence();
+    safeSetTabEnabled(2, (m_model->getHWInterface() == QSDR::Hermes) || hasPennyOrPenelope);
+    safeSetTabEnabled(3, m_model->getAlexPresence());
+
+    // Connect Model -> View
+    connect(m_model, &Settings::systemStateChanged, this, [this, safeSetTabEnabled](QSDR::_Error, QSDR::_HWInterfaceMode hwmode, QSDR::_ServerMode, QSDR::_DataEngineState) {
+        bool hasPennyOrPenelope = m_model->getPenelopePresence() || m_model->getPennyLanePresence();
+        safeSetTabEnabled(2, (hwmode == QSDR::Hermes) || hasPennyOrPenelope);
+    });
+
+    connect(m_model, &Settings::alexPresenceChanged, this, [safeSetTabEnabled](bool val) {
+        safeSetTabEnabled(3, val);
+    });
+
+    connect(m_model, &Settings::penelopePresenceChanged, this, [this, safeSetTabEnabled](bool val) {
+        bool hasPennyOrPenelope = val || m_model->getPennyLanePresence();
+        safeSetTabEnabled(2, (m_model->getHWInterface() == QSDR::Hermes) || hasPennyOrPenelope);
+    });
+
+    connect(m_model, &Settings::pennyLanePresenceChanged, this, [this, safeSetTabEnabled](bool val) {
+        bool hasPennyOrPenelope = m_model->getPenelopePresence() || val;
+        safeSetTabEnabled(2, (m_model->getHWInterface() == QSDR::Hermes) || hasPennyOrPenelope);
     });
 }
