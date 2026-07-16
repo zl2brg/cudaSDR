@@ -46,6 +46,8 @@
 #include <QOpenGLBuffer>
 #include <QOpenGLVertexArrayObject>
 
+class RadioPopupController;
+
 
 #ifdef LOG_GRAPHICS
 #   define GRAPHICS_DEBUG qDebug().nospace() << "ReceiverPanel::\t"
@@ -100,6 +102,7 @@ private:
 	TFonts						m_fonts;
 
 	RadioPopupWidget*			radioPopup;
+	RadioPopupController*       radioPopupController = nullptr;
 	ADCMode						m_adcMode;
 	AGCMode						m_agcMode;
 	DSPMode						m_dspMode;

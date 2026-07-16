@@ -7,24 +7,6 @@
 * QT6 update ZL2BRG
 */
 
-/*
- *   Copyright 2010-2012 Hermann von Hasseln, DL3HVH
- *
- *   This program is free software; you can redistribute it and/or modify
- *   it under the terms of the GNU Library General Public License version 2 as
- *   published by the Free Software Foundation
- *
- *   This program is distributed in the hope that it will be useful,
- *   but WITHOUT ANY WARRANTY; without even the implied warranty of
- *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *   GNU General Public License for more details
- *
- *   You should have received a copy of the GNU Library General Public
- *   License along with this program; if not, write to the
- *   Free Software Foundation, Inc.,
- *   51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
- */
- 
 #ifndef _CUSDR_RADIO_POPUP_WIDGET_H
 #define _CUSDR_RADIO_POPUP_WIDGET_H
 
@@ -36,8 +18,6 @@
 
 #include <QtWidgets>
 #include <QTabWidget>
-//#include <QGroupBox>
-//#include <QLineEdit>
 #include <QLabel>
 
 #include "Util/cusdr_buttons.h"
@@ -47,8 +27,8 @@
 #include "noisefilterwidget.h"
 
 class SliceModel;
-class RadioPopupWidget : public QWidget {
 
+class RadioPopupWidget : public QWidget {
 	Q_OBJECT
 
 public:
@@ -59,8 +39,55 @@ public:
 	bool getPanGridStatus()		{ return m_panGrid; }
 	bool getPeakHoldStatus()	{ return m_peakHold; }
 
+	// MVC View Interface Setters
+	void setSingleAdcDevice(bool single);
+	void setBandFrequencyList(const QList<THamBandFrequencies>& list);
+	void setHamBand(HamBand band);
+	void setDSPModeList(const QList<DSPMode>& list);
+	void setADCMode(ADCMode mode);
+	void setAGCMode(AGCMode mode);
+	void setDefaultFilterMode(TDefaultFilterMode mode);
+	void setFilterFrequencies(qreal low, qreal high);
+	void setSpectrumAveraging(bool enabled);
+	void setPanGrid(bool enabled);
+	void setPeakHold(bool enabled);
+	void setPanLocked(bool enabled);
+	void setClickVFO(bool enabled);
+	void setHairCross(bool enabled);
+	void setPanadapterMode(PanGraphicsMode mode);
+	void setWaterfallColorMode(WaterfallColorMode mode);
+	void setLastFrequencies(const QList<qint64>& ctrFreqs, const QList<qint64>& vfoFreqs);
+	void setFreeDVMode(int mode);
+	void setFreeDVStatus(bool sync, float snr, quint64 rxFrames, quint64 txFrames);
+	void setAGCShowLines(bool enabled);
+	int getReceiver() const { return m_receiver; }
+
+signals:
+	// MVC View Interface Signals
+	void hamBandRequested(int rx, HamBand band);
+	void vfoFrequencyRequested(int rx, qint64 val);
+	void freeDVModeRequested(int rx, int mode);
+	void dspModeRequested(int rx, DSPMode mode);
+	void filterFrequenciesRequested(int rx, qreal low, qreal high);
+	void adcModeRequested(int rx, ADCMode mode);
+	void agcModeRequested(int rx, AGCMode mode);
+	void agcShowLinesRequested(int rx, bool enabled);
+	void spectrumAveragingRequested(int rx, bool enabled);
+	void panGridRequested(int rx, bool enabled);
+	void peakHoldRequested(int rx, bool enabled);
+	void panLockedRequested(int rx, bool enabled);
+	void clickVFORequested(int rx, bool enabled);
+	void hairCrossRequested(int rx, bool enabled);
+	void graphicsStateRequested(int rx, PanGraphicsMode panMode, WaterfallColorMode waterMode);
+
+	void showEvent();
+	void hideEvent();
+	void closeEvent();
+	void newMessage(QString msg);
+	void midToVfoBtnEvent();
+	void vfoToMidBtnEvent();
+
 public slots:
-	//QSize	sizeHint() const;
 	QSize	minimumSizeHint() const;
 
 	void systemStateChanged(
@@ -85,9 +112,7 @@ protected:
     bool event(QEvent *event);
 
 private:
-	Settings*				set;
     SliceModel*                             m_sliceModel;
-
 
 	CFonts*					fonts;
 	TFonts					m_fonts;
@@ -100,7 +125,6 @@ private:
 	QVBoxLayout*	adcVBox;
 	QVBoxLayout*	modeVBox;
 	QVBoxLayout*	agcVBox;
-	//QVBoxLayout*	mercuryBtnVBox();
 
 	QWidget*		filterAWidget;
 	QWidget*		filterBWidget;
@@ -134,7 +158,6 @@ private:
 	AeroButton*		m_WaterfallSimpleBtn;
 	AeroButton*		m_WaterfallEnhancedBtn;
 
-
     AeroButton*		band2200mBtn;
     AeroButton*		band630mBtn;
     AeroButton*		band160mBtn;
@@ -157,7 +180,6 @@ private:
 	AeroButton*		band10cmBtn;
 	AeroButton*		band5cmBtn;
 	AeroButton*		bandGenBtn;
-	//AeroButton*	bandxxBtn;
 
 	QList<AeroButton *>	bandBtnList;
 
@@ -238,13 +260,9 @@ private:
 	NoiseFilterWidget*	m_noiseFilterWidget;
 	QTabWidget*			m_popupTabWidget;
 
-	//QIcon	agc_left;
-	//QIcon	agc_right;
-
 	QList<DSPMode>		m_dspModeList;
 
 	HamBand				m_hamBand;
-	//DSPMode				m_dspMode;
 	ADCMode				m_adcMode;
 	AGCMode				m_agcMode;
 	TDefaultFilterMode	m_filterMode;
@@ -252,9 +270,9 @@ private:
 	QPoint				m_mouseDownPos;
 	QPoint				m_mouseDownWindowPos;
 
-	//QList<long>			m_lastFrequencyList;
 	QList<qint64>       m_lastCtrFrequencyList;
 	QList<qint64>       m_lastVfoFrequencyList;
+	QList<THamBandFrequencies>  m_bandFrequencyList;
 
 	qint64	m_ctrFrequency;
 	qint64	m_vfoFrequency;
@@ -274,13 +292,12 @@ private:
 	int		m_currentRx;
 	int		current_band;
 	int		current_dsp_mode;
-	bool		m_singleAdcDevice;
+	bool	m_singleAdcDevice;
 	int		m_minimumWidgetWidth;
 	int		m_minimumGroupBoxWidth;
     QTimer* m_closeTimer;
 
 	void setupConnections();
-	void loadReceiverState(int rx);
 	void createBackground(QSize size);
 	void updateAdcAvailability();
 
@@ -300,8 +317,6 @@ private slots:
 	void createFilterBtnWidgetB();
 	void createFilterBtnWidgetC();
 
-	//QLabel *createLabel(const QString &text);
-
 	void avgBtnClicked();
 	void gridBtnClicked();
 	void peakHoldBtnClicked();
@@ -313,33 +328,27 @@ private slots:
 	void panModeChanged();
 	void waterfallModeChanged();
 
+	void bandChangedByBtn();
+	void freeDVModeSelectionChanged(int index);
+	void dspModeChangedByBtn();
+	void adcModeChangedByBtn();
+	void agcModeChangedByBtn();
+	void agcShowLinesChanged();
+	void filterChangedByBtn();
+	void filterGroupChanged(DSPMode mode);
+	void updateFreeDVControls();
+
+	void bandChanged(int rx, bool byButton, HamBand band);
+	void freeDVModeChanged(int rx, int mode);
+	void freeDVStatusChanged(int rx, bool sync, float snr, quint64 rxFrames, quint64 txFrames);
+	void dspModeChanged(int rx, DSPMode mode);
+	void filterChanged(int rx, qreal low, qreal high);
+	void adcModeChanged(int rx, ADCMode mode);
+	void agcModeChanged(int rx, AGCMode mode, bool hang);
+	void loadReceiverState(int rx);
 	void setCurrentReceiver(int value);
 	void ctrFrequencyChanged(int mode, int rx, qint64 frequency);
 	void vfoFrequencyChanged(int mode, int rx, qint64 frequency);
-	void bandChangedByBtn();
-	void bandChanged(int rx, bool byButton, HamBand band);
-	void freeDVModeSelectionChanged(int index);
-	void freeDVModeChanged(int rx, int mode);
-	void freeDVStatusChanged(int rx, bool sync, float snr, quint64 rxFrames, quint64 txFrames);
-	void dspModeChangedByBtn();
-	void dspModeChanged(int rx, DSPMode mode);
-	void adcModeChangedByBtn();
-	void adcModeChanged(int rx, ADCMode mode);
-	void agcModeChangedByBtn();
-	void agcModeChanged(int rx, AGCMode mode, bool hang);
-	void agcShowLinesChanged();
-	void filterChangedByBtn();
-	void filterChanged(int rx, qreal low, qreal high);
-	void filterGroupChanged(DSPMode mode);
-	void updateFreeDVControls();
-	
-signals:
-	void showEvent();
-	void hideEvent();
-	void closeEvent();
-	void newMessage(QString msg);
-	void midToVfoBtnEvent();
-	void vfoToMidBtnEvent();
 };
 
 #endif // _CUSDR_RADIO_POPUP_WIDGET_H

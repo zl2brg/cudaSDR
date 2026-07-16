@@ -118,6 +118,7 @@ set(SOURCES
     ${SRC_DIR}/Controllers/AlexSettingsController.cpp
     ${SRC_DIR}/Controllers/TransmitSettingsController.cpp
     ${SRC_DIR}/Controllers/DisplaySettingsController.cpp
+    ${SRC_DIR}/Controllers/RadioPopupController.cpp
     ${SRC_DIR}/cusdr_settings.cpp
     ${SRC_DIR}/cusdr_hamDatabase.cpp
     ${SRC_DIR}/cusdr_fonts.cpp

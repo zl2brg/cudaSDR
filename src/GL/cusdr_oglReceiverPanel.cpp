@@ -33,6 +33,7 @@
 #include "WaterfallRenderer.h"
 #include "cusdr_glShaders.h"
 #include "cusdr_glDraw.h"
+#include "Controllers/RadioPopupController.h"
 
 #include <QGuiApplication>
 #include <QMatrix4x4>
@@ -181,6 +182,8 @@ QGLReceiverPanel::QGLReceiverPanel(SliceModel *model, QWidget *parent)
 	m_secWaterfallMax = 0.0;
 
 	radioPopup = new RadioPopupWidget(m_sliceModel, this);
+	radioPopupController = new RadioPopupController(this);
+	radioPopupController->bind(radioPopup, m_sliceModel, set);
 
 	fonts = new CFonts(this);
 	m_fonts = fonts->getFonts();

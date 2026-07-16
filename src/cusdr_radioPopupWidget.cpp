@@ -69,14 +69,13 @@ namespace {
 
 RadioPopupWidget::RadioPopupWidget(SliceModel *model, QWidget *parent)
     : QWidget(parent)
-    , set(Settings::instance())
     , m_sliceModel(model)
     , m_sticky(false)
     , m_receiver(model ? model->id() : 0)
-    , m_currentRx(set->getCurrentReceiver())
+    , m_currentRx(0)
     , m_singleAdcDevice(false)
     , m_minimumWidgetWidth(250)
-    , m_minimumGroupBoxWidth(set->getMinimumGroupBoxWidth())
+    , m_minimumGroupBoxWidth(240)
 {
     setWindowFlags(Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
 
@@ -234,7 +233,6 @@ RadioPopupWidget::RadioPopupWidget(SliceModel *model, QWidget *parent)
 }
 
 RadioPopupWidget::~RadioPopupWidget() {
-    disconnect(set, nullptr, this, nullptr);
     disconnect(nullptr, nullptr, nullptr);
     delete m_closeTimer;
 }
@@ -244,22 +242,6 @@ QSize RadioPopupWidget::minimumSizeHint() const {
 }
 
 void RadioPopupWidget::setupConnections() {
-    // NOTE: Using modern, type-safe connect syntax
-    connect(set, &Settings::systemStateChanged, this, &RadioPopupWidget::systemStateChanged);
-    connect(m_sliceModel, &SliceModel::panModeChanged, this,
-            [this](PanGraphicsMode mode) { graphicModeChanged(m_sliceModel->id(), mode, m_waterfallColorMode); });
-    connect(m_sliceModel, &SliceModel::waterfallModeChanged, this,
-            [this](WaterfallColorMode mode) { graphicModeChanged(m_sliceModel->id(), m_panadapterMode, mode); });
-    connect(m_sliceModel, &SliceModel::frequencyChanged, [this](qint64 freq){ vfoFrequencyChanged(0, m_sliceModel->id(), freq); });
-    connect(set, &Settings::hamBandChanged, this, &RadioPopupWidget::bandChanged);
-    connect(m_sliceModel, &SliceModel::dspModeChanged, [this](DSPMode mode){ dspModeChanged(m_sliceModel->id(), mode); });
-    connect(m_sliceModel, &SliceModel::filterChanged, [this](){ filterChanged(m_sliceModel->id(), m_sliceModel->filterLow(), m_sliceModel->filterHigh()); });
-    connect(set, &Settings::freeDVModeChanged, this, &RadioPopupWidget::freeDVModeChanged);
-    connect(set, &Settings::freeDVStatusChanged, this, &RadioPopupWidget::freeDVStatusChanged);
-    connect(set, &Settings::adcModeChanged, this, &RadioPopupWidget::adcModeChanged);
-    connect(m_sliceModel, &SliceModel::agcModeChanged, this,
-            [this](AGCMode mode) { agcModeChanged(m_sliceModel->id(), mode, false); });
-    connect(set, &Settings::filterFrequenciesChanged, this, &RadioPopupWidget::filterChanged);
 }
 
 void RadioPopupWidget::createOptionsBtnGroup() {
@@ -643,13 +625,11 @@ void RadioPopupWidget::createAdcBtnGroup() {
 }
 
 void RadioPopupWidget::updateAdcAvailability() {
-    m_singleAdcDevice = (set->getHWInterface() == QSDR::Hermes) || (set->getHPSDRHardware() == 1);
-
     if (adc2Btn) {
         adc2Btn->setEnabled(!m_singleAdcDevice);
         if (m_singleAdcDevice && m_adcMode == adc2) {
             m_adcMode = adc1;
-            set->setADCMode(m_receiver, adc1);
+            emit adcModeRequested(m_receiver, adc1);
         }
     }
 }
@@ -734,7 +714,7 @@ void RadioPopupWidget::createModeBtnGroup() {
     m_freeDVModeCombo->addItem("FreeDV 1600", 0);
     m_freeDVModeCombo->addItem("FreeDV 700C", 6);
     m_freeDVModeCombo->addItem("FreeDV RADE v1", 100);
-    m_freeDVModeCombo->setCurrentIndex(qMax(0, m_freeDVModeCombo->findData(set->getFreeDVMode(m_receiver))));
+    m_freeDVModeCombo->setCurrentIndex(0);
     connect(m_freeDVModeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &RadioPopupWidget::freeDVModeSelectionChanged);
 
     m_freeDVStatusLabel = new QLabel("FreeDV: inactive (select DRM)", this);
@@ -799,10 +779,7 @@ void RadioPopupWidget::createAgcBtnGroup() {
     showAGCLines->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     connect(showAGCLines, &AeroButton::clicked, this, &RadioPopupWidget::agcShowLinesChanged);
 
-    if (set->getAgcLines(m_receiver))
-        showAGCLines->setBtnState(AeroButton::ON);
-    else
-        showAGCLines->setBtnState(AeroButton::OFF);
+    showAGCLines->setBtnState(AeroButton::OFF);
 
     QHBoxLayout* hbox1 = new QHBoxLayout();
     hbox1->setContentsMargins(0, 0, 0, 0);
@@ -1115,7 +1092,7 @@ void RadioPopupWidget::ctrFrequencyChanged(int mode, int rx, qint64 frequency) {
     if (m_receiver != rx) return;
     m_ctrFrequency = frequency;
 
-    HamBand band = getBandFromFrequency(set->getBandFrequencyList(), frequency);
+    HamBand band = getBandFromFrequency(m_bandFrequencyList, frequency);
     m_lastCtrFrequencyList[static_cast<int>(band)] = m_ctrFrequency;
 }
 
@@ -1125,7 +1102,7 @@ void RadioPopupWidget::vfoFrequencyChanged(int mode, int rx, qint64 frequency) {
     if (m_receiver != rx) return;
     m_vfoFrequency = frequency;
 
-    HamBand band = getBandFromFrequency(set->getBandFrequencyList(), frequency);
+    HamBand band = getBandFromFrequency(m_bandFrequencyList, frequency);
     m_lastVfoFrequencyList[static_cast<int>(band)] = m_vfoFrequency;
 }
 
@@ -1143,10 +1120,10 @@ void RadioPopupWidget::bandChangedByBtn() {
     button->update();
 
     HamBand band = static_cast<HamBand>(btnIndex);
-    set->setHamBand(m_receiver, true, band);
+    emit hamBandRequested(m_receiver, band);
 
     if (btnIndex >= 0 && btnIndex < m_lastVfoFrequencyList.size()) {
-        set->setVFOFrequency(2, m_receiver, m_lastVfoFrequencyList.at(btnIndex));
+        emit vfoFrequencyRequested(m_receiver, m_lastVfoFrequencyList.at(btnIndex));
     }
 }
 
@@ -1171,7 +1148,7 @@ void RadioPopupWidget::freeDVModeSelectionChanged(int index) {
     if (index < 0 || !m_freeDVModeCombo) return;
 
     const int mode = m_freeDVModeCombo->itemData(index).toInt();
-    set->setFreeDVMode(m_receiver, mode);
+    emit freeDVModeRequested(m_receiver, mode);
 }
 
 void RadioPopupWidget::freeDVModeChanged(int rx, int mode) {
@@ -1226,9 +1203,7 @@ void RadioPopupWidget::dspModeChangedByBtn() {
     }
 
     DSPMode mode = static_cast<DSPMode>(btnIndex);
-    set->setDSPMode(m_receiver, mode);
-    m_dspModeList[m_hamBand] = mode;
-    filterGroupChanged(mode);
+    emit dspModeRequested(m_receiver, mode);
 
     button->setBtnState(AeroButton::ON);
     button->update();
@@ -1311,12 +1286,7 @@ void RadioPopupWidget::filterChangedByBtn() {
         else { m_filterLo = 100.0f; m_filterHi = filterWidth + 100.0f; }
     }
     
-    if (m_sliceModel && m_receiver == m_sliceModel->id()) {
-        m_sliceModel->setFilterLow(static_cast<float>(m_filterLo));
-        m_sliceModel->setFilterHigh(static_cast<float>(m_filterHi));
-    } else {
-        set->setRXFilter(m_receiver, m_filterLo, m_filterHi);
-    }
+    emit filterFrequenciesRequested(m_receiver, m_filterLo, m_filterHi);
 }
 
 void RadioPopupWidget::filterChanged(int rx, qreal low, qreal high) {
@@ -1368,6 +1338,7 @@ void RadioPopupWidget::filterChanged(int rx, qreal low, qreal high) {
 void RadioPopupWidget::adcModeChangedByBtn() {
     AeroButton *button = qobject_cast<AeroButton *>(sender());
     int btn = adcModeBtnList.indexOf(button);
+    if (btn == -1) return;
 
     for(AeroButton *b : adcModeBtnList) {
         b->setBtnState(AeroButton::OFF);
@@ -1375,8 +1346,7 @@ void RadioPopupWidget::adcModeChangedByBtn() {
     }
 
     ADCMode newMode = static_cast<ADCMode>(btn);
-    set->setADCMode(m_receiver, newMode);
-    m_adcMode = newMode;
+    emit adcModeRequested(m_receiver, newMode);
 
     button->setBtnState(AeroButton::ON);
     button->update();
@@ -1398,6 +1368,7 @@ void RadioPopupWidget::adcModeChanged(int rx, ADCMode mode) {
 void RadioPopupWidget::agcModeChangedByBtn() {
     AeroButton *button = qobject_cast<AeroButton *>(sender());
     int btn = agcModeBtnList.indexOf(button);
+    if (btn == -1) return;
 
     for(AeroButton *b : agcModeBtnList) {
         b->setBtnState(AeroButton::OFF);
@@ -1405,8 +1376,7 @@ void RadioPopupWidget::agcModeChangedByBtn() {
     }
 
     AGCMode newMode = static_cast<AGCMode>(btn);
-    set->setAGCMode(m_receiver, newMode);
-    m_agcMode = newMode;
+    emit agcModeRequested(m_receiver, newMode);
 
     button->setBtnState(AeroButton::ON);
     button->update();
@@ -1430,89 +1400,77 @@ void RadioPopupWidget::agcModeChanged(int rx, AGCMode mode, bool hang) {
 void RadioPopupWidget::agcShowLinesChanged() {
     if (showAGCLines->btnState() == AeroButton::OFF) {
         showAGCLines->setBtnState(AeroButton::ON);
-        set->setAGCShowLines(m_receiver, true);
+        emit agcShowLinesRequested(m_receiver, true);
     }
     else {
         showAGCLines->setBtnState(AeroButton::OFF);
-        set->setAGCShowLines(m_receiver, false);
+        emit agcShowLinesRequested(m_receiver, false);
     }
 }
 
 void RadioPopupWidget::avgBtnClicked() {
     if (avgBtn->btnState() == AeroButton::OFF) {
         avgBtn->setBtnState(AeroButton::ON);
-        m_spectrumAveraging = true;
-        set->setSpectrumAveraging(m_receiver, true);
+        emit spectrumAveragingRequested(m_receiver, true);
     }
     else {
         avgBtn->setBtnState(AeroButton::OFF);
-        m_spectrumAveraging = false;
-        set->setSpectrumAveraging(m_receiver, false);
+        emit spectrumAveragingRequested(m_receiver, false);
     }
 }
 
 void RadioPopupWidget::gridBtnClicked() {
     if (gridBtn->btnState() == AeroButton::OFF) {
         gridBtn->setBtnState(AeroButton::ON);
-        m_panGrid = true;
-        set->setPanGrid(true, m_receiver);
+        emit panGridRequested(m_receiver, true);
     }
     else {
         gridBtn->setBtnState(AeroButton::OFF);
-        m_panGrid = false;
-        set->setPanGrid(false, m_receiver);
+        emit panGridRequested(m_receiver, false);
     }
 }
 
 void RadioPopupWidget::peakHoldBtnClicked() {
     if (peakHoldBtn->btnState() == AeroButton::OFF) {
         peakHoldBtn->setBtnState(AeroButton::ON);
-        m_peakHold = true;
-        set->setPeakHold(true, m_receiver);
+        emit peakHoldRequested(m_receiver, true);
     }
     else {
         peakHoldBtn->setBtnState(AeroButton::OFF);
-        m_peakHold = false;
-        set->setPeakHold(false, m_receiver);
+        emit peakHoldRequested(m_receiver, false);
     }
 }
 
 void RadioPopupWidget::panLockedBtnClicked() {
     if (lockPanBtn->btnState() == AeroButton::OFF) {
         lockPanBtn->setBtnState(AeroButton::ON);
-        m_panLocked = true;
-        set->setPanLocked(true, m_receiver);
+        emit panLockedRequested(m_receiver, true);
     }
     else {
         lockPanBtn->setBtnState(AeroButton::OFF);
-        m_panLocked = false;
-        set->setPanLocked(false, m_receiver);
+        emit panLockedRequested(m_receiver, false);
     }
 }
 
 void RadioPopupWidget::clickVfoBtnClicked() {
     if (clickVfoBtn->btnState() == AeroButton::OFF) {
         clickVfoBtn->setBtnState(AeroButton::ON);
-        m_clickVFO = true;
-        set->setClickVFO(true, m_receiver);
+        emit clickVFORequested(m_receiver, true);
     }
     else {
         clickVfoBtn->setBtnState(AeroButton::OFF);
-        m_clickVFO = false;
-        set->setClickVFO(false, m_receiver);
+        emit clickVFORequested(m_receiver, false);
     }
 }
 
 void RadioPopupWidget::hairCrossBtnClicked() {
     if (showCrossBtn->btnState() == AeroButton::OFF) {
         showCrossBtn->setBtnState(AeroButton::ON);
-        m_showCross = true;
-        set->setHairCross(true, m_receiver);
+        emit hairCrossRequested(m_receiver, true);
     }
     else {
         showCrossBtn->setBtnState(AeroButton::OFF);
-        m_showCross = false;
-        set->setHairCross(false, m_receiver);
+        emit hairCrossRequested(m_receiver, false);
     }
 }
 
@@ -1525,77 +1483,29 @@ void RadioPopupWidget::vfoToMidBtnClicked() {
 }
 
 void RadioPopupWidget::loadReceiverState(int rx) {
-
-    m_hamBand = set->getCurrentHamBand(rx);
-    m_dspModeList = set->getDSPModeList(rx);
-    m_adcMode = set->getADCMode(rx);
-    m_agcMode = set->getAGCMode(rx);
-    m_filterMode = set->getDefaultFilterMode(rx);
-    m_filterLo = set->getFilterLo(rx);
-    m_filterHi = set->getFilterHi(rx);
-    m_spectrumAveraging = set->getSpectrumAveraging(rx);
-    m_panGrid = set->getPanGridStatus(rx);
-    m_peakHold = set->getPeakHoldStatus(rx);
-    m_panLocked = set->getPanLockedStatus(rx);
-    m_clickVFO = set->getClickVFOStatus(rx);
-    m_showCross = set->getHairCrossStatus(rx);
-    m_panadapterMode = set->getPanadapterMode(rx);
-    m_waterfallColorMode = set->getWaterfallColorMode(rx);
-    m_lastCtrFrequencyList = set->getLastCenterFrequencyList(rx);
-    m_lastVfoFrequencyList = set->getLastVfoFrequencyList(rx);
-
-    // UI should mirror the live slice mode (source of truth for WDSP), not only
-    // the persisted per-band snapshot.
-    const DSPMode liveMode = set->getDSPMode(rx);
-    if (m_hamBand >= 0 && m_hamBand < m_dspModeList.size())
-        m_dspModeList[m_hamBand] = liveMode;
+    Q_UNUSED(rx)
+    m_hamBand = gen;
+    m_dspModeList.clear();
+    for (int i = 0; i < 30; ++i) {
+        m_dspModeList.append(LSB);
+    }
+    m_adcMode = adc1;
+    m_agcMode = _agcMode::agcLONG;
+    m_filterMode = filterLSB;
+    m_filterLo = -2700;
+    m_filterHi = -150;
+    m_spectrumAveraging = false;
+    m_panGrid = true;
+    m_peakHold = false;
+    m_panLocked = false;
+    m_clickVFO = true;
+    m_showCross = false;
+    m_panadapterMode = Line;
+    m_waterfallColorMode = Simple;
 }
 
 void RadioPopupWidget::setCurrentReceiver(int value) {
-    if (m_receiver == value) return;
-    m_receiver = value;
-
-    const HamBand prevBand = m_hamBand;
-    const DSPMode prevBandMode = m_dspModeList.value((int)m_hamBand, LSB);
-    const qreal prevFilterLo = m_filterLo;
-    const qreal prevFilterHi = m_filterHi;
-    loadReceiverState(m_receiver);
-
-    if (m_hamBand != prevBand) {
-        for(AeroButton *btn : bandBtnList) {
-            btn->setBtnState(AeroButton::OFF);
-            btn->update();
-        }
-        AeroButton *button = bandBtnList.at(m_hamBand);
-        button->setBtnState(AeroButton::ON);
-        button->update();
-    }
-
-    const DSPMode dspMode = m_dspModeList.at(m_hamBand);
-    if (dspMode != prevBandMode) {
-        for(AeroButton *btn : dspModeBtnList) {
-            btn->setBtnState(AeroButton::OFF);
-            btn->update();
-        }
-        AeroButton *button = dspModeBtnList.at(dspMode);
-        button->setBtnState(AeroButton::ON);
-        button->update();
-
-        filterGroupChanged(dspMode);
-        filterChanged(m_receiver, m_filterLo, m_filterHi);
-    }
-
-    if (m_filterLo != prevFilterLo || m_filterHi != prevFilterHi) {
-        filterChanged(m_receiver, m_filterLo, m_filterHi);
-    }
-
-    if (m_freeDVModeCombo) {
-        const int idx = m_freeDVModeCombo->findData(set->getFreeDVMode(m_receiver));
-        if (idx >= 0 && idx != m_freeDVModeCombo->currentIndex()) {
-            m_freeDVModeCombo->setCurrentIndex(idx);
-        }
-    }
-    updateFreeDVControls();
+    Q_UNUSED(value)
 }
 
 void RadioPopupWidget::setSticky() {
@@ -1628,8 +1538,7 @@ void RadioPopupWidget::panModeChanged() {
     case 1: m_panadapterMode = PanGraphicsMode::FilledLine; break;
     case 2: m_panadapterMode = PanGraphicsMode::Solid; break;
     }
-    m_sliceModel->setPanMode(m_panadapterMode);
-    m_sliceModel->setWaterfallMode(m_waterfallColorMode);
+    emit graphicsStateRequested(m_receiver, m_panadapterMode, m_waterfallColorMode);
 }
 
 void RadioPopupWidget::waterfallModeChanged() {
@@ -1648,8 +1557,7 @@ void RadioPopupWidget::waterfallModeChanged() {
     case 0: m_waterfallColorMode = WaterfallColorMode::Simple; break;
     case 1: m_waterfallColorMode = WaterfallColorMode::Enhanced; break;
     }
-    m_sliceModel->setPanMode(m_panadapterMode);
-    m_sliceModel->setWaterfallMode(m_waterfallColorMode);
+    emit graphicsStateRequested(m_receiver, m_panadapterMode, m_waterfallColorMode);
 }
 
 // **********************
@@ -1866,4 +1774,239 @@ void RadioPopupWidget::createBackground(QSize size) {
     palette.setBrush(backgroundRole(), QBrush(image));
     setPalette(palette);
     setAutoFillBackground(true);
+}
+
+void RadioPopupWidget::setSingleAdcDevice(bool single) {
+    m_singleAdcDevice = single;
+    if (adc2Btn) {
+        adc2Btn->setEnabled(!single);
+    }
+}
+
+void RadioPopupWidget::setBandFrequencyList(const QList<THamBandFrequencies>& list) {
+    m_bandFrequencyList = list;
+}
+
+void RadioPopupWidget::setHamBand(HamBand band) {
+    m_hamBand = band;
+    for(AeroButton *btn : bandBtnList) {
+        btn->blockSignals(true);
+        btn->setBtnState(AeroButton::OFF);
+        btn->blockSignals(false);
+        btn->update();
+    }
+    if (static_cast<int>(band) >= 0 && static_cast<int>(band) < bandBtnList.size()) {
+        bandBtnList.at(static_cast<int>(band))->blockSignals(true);
+        bandBtnList.at(static_cast<int>(band))->setBtnState(AeroButton::ON);
+        bandBtnList.at(static_cast<int>(band))->blockSignals(false);
+        bandBtnList.at(static_cast<int>(band))->update();
+    }
+    updateFreeDVControls();
+}
+
+void RadioPopupWidget::setDSPModeList(const QList<DSPMode>& list) {
+    m_dspModeList = list;
+}
+
+void RadioPopupWidget::setADCMode(ADCMode mode) {
+    m_adcMode = mode;
+    for(AeroButton *btn : adcModeBtnList) {
+        btn->blockSignals(true);
+        btn->setBtnState(AeroButton::OFF);
+        btn->blockSignals(false);
+        btn->update();
+    }
+    if (static_cast<int>(mode) >= 0 && static_cast<int>(mode) < adcModeBtnList.size()) {
+        adcModeBtnList.at(static_cast<int>(mode))->blockSignals(true);
+        adcModeBtnList.at(static_cast<int>(mode))->setBtnState(AeroButton::ON);
+        adcModeBtnList.at(static_cast<int>(mode))->blockSignals(false);
+        adcModeBtnList.at(static_cast<int>(mode))->update();
+    }
+}
+
+void RadioPopupWidget::setAGCMode(AGCMode mode) {
+    m_agcMode = mode;
+    for(AeroButton *btn : agcModeBtnList) {
+        btn->blockSignals(true);
+        btn->setBtnState(AeroButton::OFF);
+        btn->blockSignals(false);
+        btn->update();
+    }
+    if (static_cast<int>(mode) >= 0 && static_cast<int>(mode) < agcModeBtnList.size()) {
+        agcModeBtnList.at(static_cast<int>(mode))->blockSignals(true);
+        agcModeBtnList.at(static_cast<int>(mode))->setBtnState(AeroButton::ON);
+        agcModeBtnList.at(static_cast<int>(mode))->blockSignals(false);
+        agcModeBtnList.at(static_cast<int>(mode))->update();
+    }
+}
+
+void RadioPopupWidget::setDefaultFilterMode(TDefaultFilterMode mode) {
+    m_filterMode = mode;
+}
+
+void RadioPopupWidget::setFilterFrequencies(qreal low, qreal high) {
+    m_filterLo = low;
+    m_filterHi = high;
+    
+    DSPMode mode = m_dspModeList.value(m_hamBand, LSB);
+    QList<AeroButton *> *activeList = nullptr;
+    int groupIdx = -1;
+
+    if (mode == LSB || mode == USB || mode == DIGU || mode == DIGL) { activeList = &filterBtnListA; groupIdx = 0; }
+    else if (mode == DSB || mode == FMN || mode == AM || mode == SAM) { activeList = &filterBtnListB; groupIdx = 1; }
+    else if (mode == CWL || mode == CWU) { activeList = &filterBtnListC; groupIdx = 2; }
+
+    if (!activeList) return;
+
+    for (AeroButton *btn : *activeList) {
+        btn->blockSignals(true);
+        btn->setBtnState(AeroButton::OFF);
+        btn->blockSignals(false);
+        btn->update();
+    }
+
+    float widths[] = {1000, 1800, 2100, 2400, 2700, 2900, 3300, 3800, 4400, 5000,
+                      2400, 2900, 3100, 4000, 5200, 6600, 8000, 10000, 12000, 16000,
+                      25, 50, 100, 250, 400, 500, 600, 750, 800, 1000};
+    qreal currentWidth = qAbs(high - low);
+    for (int i = 0; i < 10; i++) {
+        if (qAbs(widths[groupIdx * 10 + i] - currentWidth) < 1.0f) {
+            activeList->at(i)->blockSignals(true);
+            activeList->at(i)->setBtnState(AeroButton::ON);
+            activeList->at(i)->blockSignals(false);
+            activeList->at(i)->update();
+            break;
+        }
+    }
+}
+
+void RadioPopupWidget::setSpectrumAveraging(bool enabled) {
+    m_spectrumAveraging = enabled;
+    if (avgBtn) {
+        avgBtn->blockSignals(true);
+        avgBtn->setBtnState(enabled ? AeroButton::ON : AeroButton::OFF);
+        avgBtn->blockSignals(false);
+        avgBtn->update();
+    }
+}
+
+void RadioPopupWidget::setPanGrid(bool enabled) {
+    m_panGrid = enabled;
+    if (gridBtn) {
+        gridBtn->blockSignals(true);
+        gridBtn->setBtnState(enabled ? AeroButton::ON : AeroButton::OFF);
+        gridBtn->blockSignals(false);
+        gridBtn->update();
+    }
+}
+
+void RadioPopupWidget::setPeakHold(bool enabled) {
+    m_peakHold = enabled;
+    if (peakHoldBtn) {
+        peakHoldBtn->blockSignals(true);
+        peakHoldBtn->setBtnState(enabled ? AeroButton::ON : AeroButton::OFF);
+        peakHoldBtn->blockSignals(false);
+        peakHoldBtn->update();
+    }
+}
+
+void RadioPopupWidget::setPanLocked(bool enabled) {
+    m_panLocked = enabled;
+    if (lockPanBtn) {
+        lockPanBtn->blockSignals(true);
+        lockPanBtn->setBtnState(enabled ? AeroButton::ON : AeroButton::OFF);
+        lockPanBtn->blockSignals(false);
+        lockPanBtn->update();
+    }
+}
+
+void RadioPopupWidget::setClickVFO(bool enabled) {
+    m_clickVFO = enabled;
+    if (clickVfoBtn) {
+        clickVfoBtn->blockSignals(true);
+        clickVfoBtn->setBtnState(enabled ? AeroButton::ON : AeroButton::OFF);
+        clickVfoBtn->blockSignals(false);
+        clickVfoBtn->update();
+    }
+}
+
+void RadioPopupWidget::setHairCross(bool enabled) {
+    m_showCross = enabled;
+    if (showCrossBtn) {
+        showCrossBtn->blockSignals(true);
+        showCrossBtn->setBtnState(enabled ? AeroButton::ON : AeroButton::OFF);
+        showCrossBtn->blockSignals(false);
+        showCrossBtn->update();
+    }
+}
+
+void RadioPopupWidget::setPanadapterMode(PanGraphicsMode mode) {
+    m_panadapterMode = mode;
+    for(AeroButton *btn : panadapterBtnList) {
+        btn->blockSignals(true);
+        btn->setBtnState(AeroButton::OFF);
+        btn->blockSignals(false);
+        btn->update();
+    }
+    if (static_cast<int>(mode) >= 0 && static_cast<int>(mode) < panadapterBtnList.size()) {
+        panadapterBtnList.at(static_cast<int>(mode))->blockSignals(true);
+        panadapterBtnList.at(static_cast<int>(mode))->setBtnState(AeroButton::ON);
+        panadapterBtnList.at(static_cast<int>(mode))->blockSignals(false);
+        panadapterBtnList.at(static_cast<int>(mode))->update();
+    }
+}
+
+void RadioPopupWidget::setWaterfallColorMode(WaterfallColorMode mode) {
+    m_waterfallColorMode = mode;
+    for(AeroButton *btn : waterfallBtnList) {
+        btn->blockSignals(true);
+        btn->setBtnState(AeroButton::OFF);
+        btn->blockSignals(false);
+        btn->update();
+    }
+    if (static_cast<int>(mode) >= 0 && static_cast<int>(mode) < waterfallBtnList.size()) {
+        waterfallBtnList.at(static_cast<int>(mode))->blockSignals(true);
+        waterfallBtnList.at(static_cast<int>(mode))->setBtnState(AeroButton::ON);
+        waterfallBtnList.at(static_cast<int>(mode))->blockSignals(false);
+        waterfallBtnList.at(static_cast<int>(mode))->update();
+    }
+}
+
+void RadioPopupWidget::setLastFrequencies(const QList<qint64>& ctrFreqs, const QList<qint64>& vfoFreqs) {
+    m_lastCtrFrequencyList = ctrFreqs;
+    m_lastVfoFrequencyList = vfoFreqs;
+}
+
+void RadioPopupWidget::setFreeDVMode(int mode) {
+    if (m_freeDVModeCombo) {
+        const int idx = m_freeDVModeCombo->findData(mode);
+        if (idx >= 0) {
+            m_freeDVModeCombo->blockSignals(true);
+            m_freeDVModeCombo->setCurrentIndex(idx);
+            m_freeDVModeCombo->blockSignals(false);
+        }
+    }
+}
+
+void RadioPopupWidget::setFreeDVStatus(bool sync, float snr, quint64 rxFrames, quint64 txFrames) {
+    if (!m_freeDVStatusLabel) return;
+    if (sync) {
+        m_freeDVStatusLabel->setText(QString("FreeDV: sync, SNR: %1 dB, rx: %2, tx: %3")
+                                         .arg(snr, 0, 'f', 1)
+                                         .arg(rxFrames)
+                                         .arg(txFrames));
+        m_freeDVStatusLabel->setStyleSheet("color: green; font-weight: bold;");
+    } else {
+        m_freeDVStatusLabel->setText("FreeDV: no sync");
+        m_freeDVStatusLabel->setStyleSheet("");
+    }
+}
+
+void RadioPopupWidget::setAGCShowLines(bool enabled) {
+    if (showAGCLines) {
+        showAGCLines->blockSignals(true);
+        showAGCLines->setBtnState(enabled ? AeroButton::ON : AeroButton::OFF);
+        showAGCLines->blockSignals(false);
+        showAGCLines->update();
+    }
 }
