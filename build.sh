@@ -11,6 +11,12 @@ BUILD_DIR="${BUILD_DIR:-build}"
 BUILD_TYPE="${BUILD_TYPE:-Release}"
 JOBS="${JOBS:-$(nproc)}"
 
+# Initialize and update submodules if running from a git repository
+if [[ -e "$(dirname "$0")/.git" ]]; then
+    echo "==> Initializing and updating git submodules..."
+    git submodule update --init --recursive
+fi
+
 # Common Qt installation prefixes to search
 QT_SEARCH_PATHS=(
     "$HOME/Qt/${REQUIRED_QT_VERSION}/gcc_64"
