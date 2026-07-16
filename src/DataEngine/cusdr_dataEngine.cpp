@@ -2741,7 +2741,6 @@ void DataEngine::setFrequency(int mode, int rx, qint64 frequency) {
 	io.rx_freq_change = rx;
 	if (rx == io.currentReceiver) {
 		io.ccTx.txFrequency = frequency;
-	}
 }
 
 void DataEngine::applySliceDspMode(int rx, DSPMode mode)

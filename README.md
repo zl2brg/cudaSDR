@@ -9,9 +9,12 @@
 - **Modern OpenGL Pipeline**: High-performance rendering using Shaders and VBOs, featuring optimized waterfall scrolling and transparent overlays.
 - **Standardized Foundation**: Unidied networking via `QUdpSocket` and cross-platform threading/monitoring.
 - **High-DPI Support**: Native scaling for 4K and Retina displays.
-- **Advanced DSP**: Integrated WDSP, Protocol 2 support, and FreeDV/Codec2 capabilities.
+- **Advanced DSP**: Integrated WDSP, Protocol 2 support, and FreeDV/Codec2 capabilities - no rade yet.
+- **Soapy Integration underway **
+- AI Development assist from 2025 on
 
-This project is still work in progress.
+
+This project is still work in progress and very much alpha.
 
 ### Credits
 
@@ -27,7 +30,7 @@ This project is still work in progress.
 - C++17 compiler (GCC/Clang)
 - Qt 6.11.x (`Widgets`, `Core`, `Gui`, `Multimedia`, `Network`, `OpenGL`, `OpenGLWidgets`, `WebSockets`, `Test`)
 - FFTW3 (`fftw3`, `fftw3f`)
-- ALSA (`asound`)
+- Liquid DSP
 - OpenGL
 - Optional: Codec2 (enables FreeDV integration)
 
@@ -86,7 +89,6 @@ Protocol and WDSP references are in `Docs/`.
 
 ### Known gaps / TODO
 
-- SoapySDR integration
 - CW polish and validation
 
 
