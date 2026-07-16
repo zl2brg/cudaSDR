@@ -43,6 +43,7 @@
 #include <QScrollArea>
 #include "cusdr_audio_settingsdialog.h"
 #include "cusdr_mainWidget.h"
+#include "Controllers/ServerSettingsController.h"
 #include "UI/DeviceSelectionDialog.h"
 #include "UI/MainWindow/MainWindowUI.h"
 #include "Util/device_identity.h"
@@ -127,6 +128,8 @@ MainWindow::MainWindow(RadioModel *model, QWidget *parent)
 
 	// control widgets
     m_serverWidget = new ServerWidget(this);
+    m_serverSettingsController = new ServerSettingsController(this);
+    m_serverSettingsController->bind(m_serverWidget, set);
     m_hpsdrTabWidget = new cusdr_SetupWidget(m_radioModel, this);
 
 	m_wbDisplay = 0;

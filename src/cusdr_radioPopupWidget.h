@@ -39,6 +39,7 @@ public:
 	bool getPanGridStatus()		{ return m_panGrid; }
 	bool getPeakHoldStatus()	{ return m_peakHold; }
 	AGCOptionsWidget* agcOptionsWidget() const { return m_popupAgcWidget; }
+	NoiseFilterWidget* noiseFilterWidget() const { return m_noiseFilterWidget; }
 
 	// MVC View Interface Setters
 	void setSingleAdcDevice(bool single);

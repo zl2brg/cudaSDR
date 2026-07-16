@@ -44,6 +44,7 @@ class ExtCtrlSettingsController;
 class AlexSettingsController;
 class TransmitSettingsController;
 class DisplaySettingsController;
+class SetupController;
 #ifdef HAVE_SOAPYSDR
 class RadioSettingsController;
 #endif
@@ -100,25 +101,14 @@ private:
     cusdr_radioSettingsWidget *m_radioSettingsWidget;
     RadioSettingsController   *m_radioSettingsController = nullptr;
 #endif
+    SetupController           *m_setupController = nullptr;
 
     QString				m_message;
 
     int		m_minimumWidgetWidth;
     int		m_minimumGroupBoxWidth;
 
-    void	setupConnections();
-
-private slots:
-            void systemStateChanged(
-                    QSDR::_Error err,
-    QSDR::_HWInterfaceMode hwmode,
-            QSDR::_ServerMode mode,
-    QSDR::_DataEngineState state);
-
-    void setAlexPresence(bool value);
-    void setPennyPresence(bool value);
-
-    signals:
+signals:
             void	showEvent();
     void	closeEvent();
     void	messageEvent(QString message);

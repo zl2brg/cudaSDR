@@ -4,27 +4,9 @@
 * @author Hermann von Hasseln, DL3HVH
 * @version 0.1
 * @date 2010-09-21
+* MVC Refactoring ZL2BRG
 */
 
-/*
- *   
- *   Copyright 2010 Hermann von Hasseln, DL3HVH
- *
- *   This program is free software; you can redistribute it and/or modify
- *   it under the terms of the GNU Library General Public License version 2 as
- *   published by the Free Software Foundation
- *
- *   This program is distributed in the hope that it will be useful,
- *   but WITHOUT ANY WARRANTY; without even the implied warranty of
- *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *   GNU General Public License for more details
- *
- *   You should have received a copy of the GNU Library General Public
- *   License along with this program; if not, write to the
- *   Free Software Foundation, Inc.,
- *   51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
- */
- 
 #ifndef _CUSDR_SERVER_WIDGET_H
 #define _CUSDR_SERVER_WIDGET_H
 
@@ -39,37 +21,40 @@
 #include <QCheckBox>
 
 #include "Util/cusdr_buttons.h"
-#include "cusdr_settings.h"
-
-#ifdef LOG_SERVER_WIDGET
-#   define SERVER_WIDGET_DEBUG qDebug().nospace() << "ServerWidget::\t"
-#else
-#   define SERVER_WIDGET_DEBUG nullDebug()
-#endif
-
 
 class ServerWidget : public QWidget {
-
 	Q_OBJECT
 
 public:
 	ServerWidget(QWidget *parent = 0);
 	~ServerWidget();
 
+	// MVC Setters
+	void	addServerNIEntry(QString niName, QString ipAddress);
+	void	setServerNIC(int index);
+	void	setTciServerEnabled(bool enabled);
+	void	setTciServerPort(quint16 port);
+	void	setPorts(quint16 serverPort, quint16 listenPort, quint16 audioPort);
+	void	addNICChangedConnection();
+
+signals:
+	// MVC Signals
+	void	serverNICRequested(int index);
+	void	tciServerEnabledRequested(bool enabled);
+
+	void	showEvent();
+	void	closeEvent();
+	void	messageEvent(QString );
 
 public slots:
 	QSize	sizeHint() const;
 	QSize	minimumSizeHint() const;
-	void	addServerNIEntry(QString niName, QString ipAddress);
-	void	addNICChangedConnection();
 	
 protected:
 	void	closeEvent(QCloseEvent *event);
 	void	showEvent(QShowEvent *event);
 
 private:
-	Settings		*set;
-
 	QStringList		niList;
 	QTableWidget	*serverNITable;
 
@@ -91,6 +76,7 @@ private:
 	QLabel			*labelListenerPortText;
 	QLabel			*labelAudioPortLabel;
 	QLabel			*labelAudioPortText;
+	QLabel			*tciPortLabel;
 
 	QLineEdit		*le_server_address;
 	QLineEdit		*le_server_port;
@@ -99,25 +85,16 @@ private:
 
 	QString			lineedit_style;
 
-	QSDR::_ServerMode		m_serverMode;
-
 	int		m_minimumWidgetWidth;
 	int		m_minimumGroupBoxWidth;
 	int		m_btnSpacing;
 
 	void	createServerNIGroup();
+	void	setupConnections();
 
 private slots:
-	void	setPorts();
-	void	setupConnections();
-	void	portChanged(const QString &text);
-	void	setServerNIC(int index);
-	void	syncTciEnabled(bool enabled);
-	
-signals:
-	void	showEvent();
-	void	closeEvent();
-	void	messageEvent(QString );
+	void	serverNICIndexChanged(int index);
+	void	tciEnabledToggled(bool enabled);
 };
 
 #endif // _CUSDR_SERVER_WIDGET_H

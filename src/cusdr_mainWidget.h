@@ -37,6 +37,7 @@
 
 class WarningDialog;
 class MainWindowUI;
+class ServerSettingsController;
 
 class RadioModel;
 class MainWindow : public QMainWindow {
@@ -204,6 +205,7 @@ private:
 	DataEngine*			m_dataEngine;
 	RadioPopupWidget*	m_radioPopupWidget;
 	ServerWidget*		m_serverWidget;
+	ServerSettingsController* m_serverSettingsController = nullptr;
     QTabWidget*  m_hpsdrTabWidget;
 	DisplayTabWidget*	m_displayTabWidget = NULL;
 	QGLWidebandPanel*	m_wbDisplay;

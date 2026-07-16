@@ -33,6 +33,7 @@
 #include "Controllers/AlexSettingsController.h"
 #include "Controllers/TransmitSettingsController.h"
 #include "Controllers/DisplaySettingsController.h"
+#include "Controllers/SetupController.h"
 #ifdef HAVE_SOAPYSDR
 #include "Controllers/RadioSettingsController.h"
 #endif
@@ -97,20 +98,13 @@ cusdr_SetupWidget::cusdr_SetupWidget(RadioModel *model, QWidget *parent)
         addScrollableTab(radioPage, " Radio ");
 #endif
 
-if (!set->getPenelopePresence() && !set->getPennyLanePresence() && (set->getHWInterface() != QSDR::Hermes)) {
-
-}
-
-if (!set->getAlexPresence())
-
-setupConnections();
+    m_setupController = new SetupController(this);
+    m_setupController->bind(this, set);
 }
 
 cusdr_SetupWidget::~cusdr_SetupWidget()
 {
     delete m_displaytabWidget;
-
-    disconnect(set, 0, this, 0);
     disconnect(0, 0, 0);
 }
 
@@ -125,68 +119,7 @@ QSize cusdr_SetupWidget::minimumSizeHint() const {
     return QSize(m_minimumWidgetWidth, height());
 }
 
-void cusdr_SetupWidget::setupConnections() {
 
-    CHECKED_CONNECT(
-            set,
-            &Settings::systemStateChanged,
-            this,
-            &cusdr_SetupWidget::systemStateChanged);
-
-    CHECKED_CONNECT(
-            set,
-            &Settings::alexPresenceChanged,
-            this,
-            &cusdr_SetupWidget::setAlexPresence);
-
-    CHECKED_CONNECT(
-            set,
-            &Settings::penelopePresenceChanged,
-            this,
-            &cusdr_SetupWidget::setPennyPresence);
-
-    CHECKED_CONNECT(
-            set,
-            &Settings::pennyLanePresenceChanged,
-            this,
-            &cusdr_SetupWidget::setPennyPresence);
-}
-
-void cusdr_SetupWidget::systemStateChanged(
-        /*!<[in] the of the signal. */
-        QSDR::_Error err,					/*!<[in] error state. */
-        QSDR::_HWInterfaceMode hwmode,		/*!<[in] HPSDR interface (Metis, Hermes, none). */
-        QSDR::_ServerMode mode,				/*!<[in] server mode. */
-        QSDR::_DataEngineState state		/*!<[in] data engine state. */
-) {
-    Q_UNUSED (err)
-
-    //    if (m_hwInterface != hwmode)
-        m_hwInterface = hwmode;
-
-    if (m_hwInterface == QSDR::Hermes)
-        setTabEnabled(2, true);
-    else
-        setTabEnabled(2, false);
-
-    if (m_serverMode != mode)
-        m_serverMode = mode;
-
-    if (m_dataEngineState != state)
-        m_dataEngineState = state;
-}
-
-void cusdr_SetupWidget::setPennyPresence(bool value) {
-
-    //setTabEnabled(1, value);
-    setTabEnabled(2, value);
-    //setTabEnabled(3, value);
-}
-
-void cusdr_SetupWidget::setAlexPresence(bool value) {
-
-    setTabEnabled(3, value);
-}
 
 void cusdr_SetupWidget::addNICChangedConnection() {
 

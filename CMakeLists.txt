@@ -119,6 +119,8 @@ set(SOURCES
     ${SRC_DIR}/Controllers/TransmitSettingsController.cpp
     ${SRC_DIR}/Controllers/DisplaySettingsController.cpp
     ${SRC_DIR}/Controllers/RadioPopupController.cpp
+    ${SRC_DIR}/Controllers/ServerSettingsController.cpp
+    ${SRC_DIR}/Controllers/SetupController.cpp
     ${SRC_DIR}/cusdr_settings.cpp
     ${SRC_DIR}/cusdr_hamDatabase.cpp
     ${SRC_DIR}/cusdr_fonts.cpp

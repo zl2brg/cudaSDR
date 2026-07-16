@@ -1,40 +1,7 @@
-/**
-* @file  cusdr_serverWidget.cpp
-* @brief hpsdr server settings widget
-* @author Hermann von Hasseln, DL3HVH
-* @version 0.1
-* @date 2010-09-21
-*/
-
-/*
- *   
- *   Copyright 2010 Hermann von Hasseln, DL3HVH
- *
- *   This program is free software; you can redistribute it and/or modify
- *   it under the terms of the GNU Library General Public License version 2 as
- *   published by the Free Software Foundation
- *
- *   This program is distributed in the hope that it will be useful,
- *   but WITHOUT ANY WARRANTY; without even the implied warranty of
- *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *   GNU General Public License for more details
- *
- *   You should have received a copy of the GNU Library General Public
- *   License along with this program; if not, write to the
- *   Free Software Foundation, Inc.,
- *   51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
- */
-#define LOG_SERVER_WIDGET
-
-//#include <QtGui>
-//#include <QDebug>
-//#include <QScopedPointer>
 #include <QBoxLayout>
-#include <QTableWidget>
-#include <QLabel>
+#include <QHeaderView>
 
 #include "cusdr_serverWidget.h"
-#include "Util/cusdr_tciserver.h"
 
 #define	btn_height		15
 #define	btn_width		80
@@ -42,13 +9,10 @@
 
 ServerWidget::ServerWidget(QWidget *parent) 
 	: QWidget(parent)
-	, set(Settings::instance())
-	, m_serverMode(Settings::instance()->getCurrentServerMode())
-	, m_minimumWidgetWidth(Settings::instance()->getMinimumWidgetWidth())
-	, m_minimumGroupBoxWidth(Settings::instance()->getMinimumGroupBoxWidth())
+	, m_minimumWidgetWidth(250)
+	, m_minimumGroupBoxWidth(240)
 	, m_btnSpacing(5)
 {
-	//setMinimumWidth(m_minimumWidgetWidth);
 	setContentsMargins(4, 0, 4, 0);
 	setMouseTracking(true);
 
@@ -85,61 +49,33 @@ ServerWidget::ServerWidget(QWidget *parent)
 	setLayout(mainLayout);
 
 	setupConnections();
-	setPorts();
 }
 
 ServerWidget::~ServerWidget() {
-
-	// disconnect all signals
-	disconnect(Settings::instance(), 0, this, 0);
-	disconnect(0, 0, 0);
+	disconnect(nullptr, nullptr, nullptr);
 }
 
 QSize ServerWidget::sizeHint() const {
-	
 	return QSize(m_minimumWidgetWidth, height());
 }
 
 QSize ServerWidget::minimumSizeHint() const {
-
 	return QSize(m_minimumWidgetWidth, height());
 }
 
 void ServerWidget::setupConnections() {
-
-	CHECKED_CONNECT(
-		set, 
-		&Settings::newServerNetworkInterface, 
-		this, 
-		&ServerWidget::addServerNIEntry);
-
-	CHECKED_CONNECT(
-		set, 
-		&Settings::serverNICChanged, 
-		this, 
-		&ServerWidget::setServerNIC);
-
-	CHECKED_CONNECT(
-		set,
-		&Settings::tciServerEnabledChanged,
+	connect(
+		serverNetworkInterfaces, 
+		&QComboBox::currentIndexChanged, 
 		this,
-		&ServerWidget::syncTciEnabled);
-
+		&ServerWidget::serverNICIndexChanged);
 }
 
 void ServerWidget::addNICChangedConnection() {
-
-	CHECKED_CONNECT(
-		serverNetworkInterfaces, 
-		&QComboBox::currentIndexChanged, 
-		set,
-		&Settings::setServerNetworkInterface);
 }
 
 void ServerWidget::createServerNIGroup() {
-
 	serverNetworkInterfaces = new QComboBox();
-
 	serverNetworkInterfaces->setMinimumContentsLength(22);
 
 	QHBoxLayout *hbox1 = new QHBoxLayout;
@@ -151,7 +87,6 @@ void ServerWidget::createServerNIGroup() {
 	vbox->addSpacing(5);
 	vbox->addLayout(hbox1);
 	vbox->addSpacing(5);
-	//vbox->addLayout(hbox2);
 	
 	serverNIGroupBox = new QGroupBox(tr("Server network interface"));
 	serverNIGroupBox->setMinimumWidth(m_minimumGroupBoxWidth);
@@ -161,20 +96,15 @@ void ServerWidget::createServerNIGroup() {
 
 void ServerWidget::addServerNIEntry(QString niName, QString ipAddress) {
 	Q_UNUSED(niName)
-
-	//QString item = niName;
 	QString item = ipAddress;
-	//item.append(" (");
-	//item.append(ipAddress);
-	//item.append(")");
+	serverNetworkInterfaces->blockSignals(true);
 	serverNetworkInterfaces->addItem(item);
+	serverNetworkInterfaces->blockSignals(false);
 }
 
 QGroupBox *ServerWidget::portAddressesGroup() {
-
 	portGridBox = new QGridLayout;
 	portGridBox->setVerticalSpacing(3);
-	//portGridBox->setHorizontalSpacing(43);
 
 	labelServerPortLabel = new QLabel("Command Server Port:");
     labelServerPortLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
@@ -200,18 +130,6 @@ QGroupBox *ServerWidget::portAddressesGroup() {
     labelAudioPortText->setFrameStyle(QFrame::Box | QFrame::Raised);
 	portGridBox->addWidget(labelAudioPortText, 2, 1);
 
-	/*le_server_port = new QLineEdit(QString::number(Settings::instance()->serverPort()), this);
-	le_server_port->setFont(font());
-	le_server_port->setFixedSize(50, QFontMetrics(le_server_port->font()).height() + 4);
-	le_server_port->setInputMask("00000;");
-	le_server_port->setMaxLength(7);
-	le_server_port->setStyleSheet(lineedit_style);*/
-	
-	/*QHBoxLayout *hbox1 = new QHBoxLayout;
-	hbox1->setSpacing(1);
-	hbox1->addWidget(le_server_port);
-	hbox1->addStretch();*/
-
 	QVBoxLayout *vbox = new QVBoxLayout;
 	vbox->setSpacing(1);
 	vbox->addLayout(portGridBox);
@@ -225,29 +143,23 @@ QGroupBox *ServerWidget::portAddressesGroup() {
 }
 
 QGroupBox *ServerWidget::tciServerGroup() {
-
 	tciEnableCheckBox = new QCheckBox(tr("Enable TCI server"));
-	tciEnableCheckBox->setChecked(set->getTciServerEnabled());
 	tciEnableCheckBox->setFont(QFont("Arial", 8));
 
-	quint16 tciPort = 50001;
-	if (set->tciServer() && set->tciServer()->port() != 0)
-		tciPort = set->tciServer()->port();
+	tciPortLabel = new QLabel(tr("WebSocket port: 50001"));
+	tciPortLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
 
-	QLabel *portLabel = new QLabel(tr("WebSocket port: %1").arg(tciPort));
-	portLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-
-	CHECKED_CONNECT(
+	connect(
 		tciEnableCheckBox,
 		&QCheckBox::toggled,
-		set,
-		&Settings::setTciServerEnabled);
+		this,
+		&ServerWidget::tciEnabledToggled);
 
 	QVBoxLayout *vbox = new QVBoxLayout;
 	vbox->setSpacing(4);
 	vbox->addSpacing(4);
 	vbox->addWidget(tciEnableCheckBox);
-	vbox->addWidget(portLabel);
+	vbox->addWidget(tciPortLabel);
 	vbox->addSpacing(4);
 
 	QGroupBox *groupBox = new QGroupBox(tr("TCI Server"));
@@ -258,119 +170,45 @@ QGroupBox *ServerWidget::tciServerGroup() {
 	return groupBox;
 }
 
-QGroupBox *ServerWidget::serverPortAddressGroup() {
-
-	le_server_port = new QLineEdit(QString::number(Settings::instance()->getServerPort()), this);
-	le_server_port->setFont(font());
-	le_server_port->setFixedSize(50, QFontMetrics(le_server_port->font()).height() + 4);
-	le_server_port->setInputMask("00000;");
-	le_server_port->setMaxLength(7);
-	
-	QHBoxLayout *hbox1 = new QHBoxLayout;
-	hbox1->setSpacing(1);
-	hbox1->addWidget(le_server_port);
-	hbox1->addStretch();
-
-	QVBoxLayout *vbox = new QVBoxLayout;
-	vbox->setSpacing(1);
-	vbox->addLayout(hbox1);
-
-	QGroupBox *groupBox = new QGroupBox(tr("Command Server port"));
-	groupBox->setLayout(vbox);
-	groupBox->setFont(QFont("Arial", 8));
-
-	return groupBox;
-}
-
-QGroupBox *ServerWidget::listenerPortAddressGroup() {
-
-	le_listener_port = new QLineEdit(QString::number(Settings::instance()->getListenPort()), this);
-	le_listener_port->setFont(font());
-	le_listener_port->setFixedSize(50, le_server_port->height());
-	le_listener_port->setInputMask("00000;");
-	le_listener_port->setMaxLength(7);
-	
-	QHBoxLayout *hbox1 = new QHBoxLayout;
-	hbox1->setSpacing(1);
-	hbox1->addWidget(le_listener_port);
-	hbox1->addStretch();
-
-	QVBoxLayout *vbox = new QVBoxLayout;
-	vbox->setSpacing(1);
-	vbox->addLayout(hbox1);
-
-	QGroupBox *groupBox = new QGroupBox(tr("Listener port"));
-	groupBox->setLayout(vbox);
-	groupBox->setFont(QFont("Arial", 8));
-
-	return groupBox;
-}
-
-QGroupBox *ServerWidget::audioPortAddressGroup() {
-
-	le_audio_port = new QLineEdit(QString::number(Settings::instance()->getAudioPort()), this);
-	le_audio_port->setFont(font());
-	le_audio_port->setFixedSize(50, le_server_port->height());
-	le_audio_port->setInputMask("00000;");
-	le_audio_port->setMaxLength(7);
-	
-	QHBoxLayout *hbox1 = new QHBoxLayout;
-	hbox1->setSpacing(1);
-	hbox1->addWidget(le_audio_port);
-	hbox1->addStretch();
-
-	QVBoxLayout *vbox = new QVBoxLayout;
-	vbox->setSpacing(1);
-	vbox->addLayout(hbox1);
-
-	QGroupBox *groupBox = new QGroupBox(tr("Audio port"));
-	groupBox->setLayout(vbox);
-	groupBox->setFont(QFont("Arial", 8));
-
-	return groupBox;
-}
-
-
- 
-// ***************************************************************
-
 void ServerWidget::setServerNIC(int index) {
-
+	serverNetworkInterfaces->blockSignals(true);
 	serverNetworkInterfaces->setCurrentIndex(index);
+	serverNetworkInterfaces->blockSignals(false);
 }
 
-void ServerWidget::syncTciEnabled(bool enabled) {
-
-	if (tciEnableCheckBox && tciEnableCheckBox->isChecked() != enabled)
+void ServerWidget::setTciServerEnabled(bool enabled) {
+	if (tciEnableCheckBox) {
+		tciEnableCheckBox->blockSignals(true);
 		tciEnableCheckBox->setChecked(enabled);
+		tciEnableCheckBox->blockSignals(false);
+	}
 }
 
-void ServerWidget::setPorts() {
+void ServerWidget::setTciServerPort(quint16 port) {
+	if (tciPortLabel) {
+		tciPortLabel->setText(tr("WebSocket port: %1").arg(port));
+	}
+}
 
-	labelServerPortText->setText(QString::number(Settings::instance()->getServerPort()));
-	labelListenerPortText->setText(QString::number(Settings::instance()->getListenPort()));
-	labelAudioPortText->setText(QString::number(Settings::instance()->getAudioPort()));
+void ServerWidget::setPorts(quint16 serverPort, quint16 listenPort, quint16 audioPort) {
+	labelServerPortText->setText(QString::number(serverPort));
+	labelListenerPortText->setText(QString::number(listenPort));
+	labelAudioPortText->setText(QString::number(audioPort));
 }
 
 void ServerWidget::closeEvent(QCloseEvent *event) {
-
 	emit closeEvent();
 	QWidget::closeEvent(event);
 }
 
 void ServerWidget::showEvent(QShowEvent *event) {
-
-	//emit showEvent();
-	
 	QWidget::showEvent(event);
 }
 
-void ServerWidget::portChanged(const QString &text) {
-
-	bool ok = false;
-	int port = text.toInt(&ok);
-	if (!ok || port < 0 || port >= 65536) return;
-	//Settings::instance()->setServerPort(port_le, port);
+void ServerWidget::serverNICIndexChanged(int index) {
+	emit serverNICRequested(index);
 }
 
-
+void ServerWidget::tciEnabledToggled(bool enabled) {
+	emit tciServerEnabledRequested(enabled);
+}

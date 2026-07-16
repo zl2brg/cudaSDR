@@ -3,6 +3,7 @@
 #include "Models/SliceModel.h"
 #include "cusdr_radioPopupWidget.h"
 #include "cusdr_agcWidget.h"
+#include "UI/noisefilterwidget.h"
 
 RadioPopupController::RadioPopupController(QObject* parent)
     : QObject(parent)
@@ -246,5 +247,71 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
                 agcView->setAGCSlope(val);
             });
         }
+    }
+
+    // NoiseFilterWidget binding
+    NoiseFilterWidget* nfView = m_view->noiseFilterWidget();
+    if (nfView && m_sliceModel) {
+        nfView->setReceiver(rx);
+        nfView->setNrMode(m_sliceModel->nrMode());
+        nfView->setNbMode(m_sliceModel->nbMode());
+        nfView->setNr2GainMethod(m_sliceModel->nr2GainMethod());
+        nfView->setNr2NpeMethod(m_sliceModel->nr2NpeMethod());
+        nfView->setNrAgc(m_sliceModel->nrAgc());
+        nfView->setNr2Ae(m_sliceModel->nr2Ae());
+        nfView->setSnb(m_sliceModel->snb());
+        nfView->setAnf(m_sliceModel->anf());
+
+        // Connect View -> Model (SliceModel)
+        connect(nfView, &NoiseFilterWidget::nrModeRequested, this, [this](int val) {
+            if (m_sliceModel) m_sliceModel->setNrMode(val);
+        });
+        connect(nfView, &NoiseFilterWidget::nbModeRequested, this, [this](int val) {
+            if (m_sliceModel) m_sliceModel->setNbMode(val);
+        });
+        connect(nfView, &NoiseFilterWidget::nr2GainMethodRequested, this, [this](int val) {
+            if (m_sliceModel) m_sliceModel->setNr2GainMethod(val);
+        });
+        connect(nfView, &NoiseFilterWidget::nr2NpeMethodRequested, this, [this](int val) {
+            if (m_sliceModel) m_sliceModel->setNr2NpeMethod(val);
+        });
+        connect(nfView, &NoiseFilterWidget::nrAgcRequested, this, [this](int val) {
+            if (m_sliceModel) m_sliceModel->setNrAgc(val);
+        });
+        connect(nfView, &NoiseFilterWidget::nr2AeRequested, this, [this](bool val) {
+            if (m_sliceModel) m_sliceModel->setNr2Ae(val);
+        });
+        connect(nfView, &NoiseFilterWidget::snbRequested, this, [this](bool val) {
+            if (m_sliceModel) m_sliceModel->setSnb(val);
+        });
+        connect(nfView, &NoiseFilterWidget::anfRequested, this, [this](bool val) {
+            if (m_sliceModel) m_sliceModel->setAnf(val);
+        });
+
+        // Connect Model (SliceModel) -> View
+        connect(m_sliceModel, &SliceModel::nrModeChanged, this, [nfView](int val) {
+            nfView->setNrMode(val);
+        });
+        connect(m_sliceModel, &SliceModel::nbModeChanged, this, [nfView](int val) {
+            nfView->setNbMode(val);
+        });
+        connect(m_sliceModel, &SliceModel::nr2GainMethodChanged, this, [nfView](int val) {
+            nfView->setNr2GainMethod(val);
+        });
+        connect(m_sliceModel, &SliceModel::nr2NpeMethodChanged, this, [nfView](int val) {
+            nfView->setNr2NpeMethod(val);
+        });
+        connect(m_sliceModel, &SliceModel::nrAgcChanged, this, [nfView](int val) {
+            nfView->setNrAgc(val);
+        });
+        connect(m_sliceModel, &SliceModel::nr2AeChanged, this, [nfView](bool val) {
+            nfView->setNr2Ae(val);
+        });
+        connect(m_sliceModel, &SliceModel::snbChanged, this, [nfView](bool val) {
+            nfView->setSnb(val);
+        });
+        connect(m_sliceModel, &SliceModel::anfChanged, this, [nfView](bool val) {
+            nfView->setAnf(val);
+        });
     }
 }
