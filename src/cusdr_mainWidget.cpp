@@ -74,9 +74,9 @@ extern "C" int GetWDSPVersion();
 	- set up connections.
 	- find network connections.
 */
-MainWindow::MainWindow(RadioModel *model, QWidget *parent)
+MainWindow::MainWindow(RadioModel *model, Settings* settingsModel, QWidget *parent)
 	: QMainWindow(parent)
-	, set(Settings::instance())
+	, set(settingsModel)
 	, m_serverMode(set->getCurrentServerMode())
 	, m_hwInterface(set->getHWInterface())
 	, m_dataEngineState(QSDR::DataEngineDown)
@@ -84,7 +84,7 @@ MainWindow::MainWindow(RadioModel *model, QWidget *parent)
         , m_resizePosition(0)
         , m_radioModel(model)
 {
-    ui = new MainWindowUI(this);
+    ui = new MainWindowUI(this, settingsModel);
     setupWidget = new QDialog(this);
     setupWidget->setSizePolicy(QSizePolicy::Maximum,QSizePolicy::Maximum);
 

@@ -306,7 +306,7 @@ int main(int argc, char *argv[]) {
     Settings::instance()->setRadioModel(&radioModel);
     Settings::instance()->syncSlicesWithSettings();
     tciServer.bindSlices(&radioModel);
-    MainWindow mainWindow(&radioModel);
+    MainWindow mainWindow(&radioModel, Settings::instance());
     qDebug() << "Init::\tmain window setup ...";
     mainWindow.setup();
     qDebug() << "Init::\tmain window setup done.";

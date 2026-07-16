@@ -24,7 +24,7 @@ class MainWindowUI : public QObject {
     Q_OBJECT
 
 public:
-    explicit MainWindowUI(MainWindow *mainWindow);
+    explicit MainWindowUI(MainWindow *mainWindow, Settings* settings);
     ~MainWindowUI() override;
 
     void setup();

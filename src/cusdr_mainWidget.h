@@ -47,7 +47,7 @@ class MainWindow : public QMainWindow {
 public:
     RadioModel* radioModel() const { return m_radioModel; }
     
-    explicit MainWindow(RadioModel *model, QWidget *parent = nullptr);
+    explicit MainWindow(RadioModel *model, Settings* settingsModel, QWidget *parent = nullptr);
     ~MainWindow() override;
 
 	void	setup();

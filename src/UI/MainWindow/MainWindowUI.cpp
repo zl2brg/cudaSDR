@@ -4,11 +4,11 @@
 #include <QHBoxLayout>
 #include <QStatusBar>
 
-MainWindowUI::MainWindowUI(MainWindow *mainWindow)
+MainWindowUI::MainWindowUI(MainWindow *mainWindow, Settings *settings)
     : QObject(mainWindow)
     , m_mainWindow(mainWindow)
+    , set(settings)
 {
-    set = Settings::instance();
     CFonts* fonts = new CFonts(this);
     m_fonts = fonts->getFonts();
     m_oglDisplayPanel = nullptr;
