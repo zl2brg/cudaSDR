@@ -20,9 +20,8 @@
 
 Options3DWidget::Options3DWidget(QWidget *parent)
     : QWidget(parent)
-    , set(Settings::instance())
-    , m_minimumWidgetWidth(set->getMinimumWidgetWidth())
-    , m_minimumGroupBoxWidth(set->getMinimumGroupBoxWidth())
+    , m_minimumWidgetWidth(250)
+    , m_minimumGroupBoxWidth(240)
 {
     setMinimumWidth(m_minimumWidgetWidth);
     setMinimumHeight(320);
@@ -60,7 +59,6 @@ Options3DWidget::Options3DWidget(QWidget *parent)
 
 Options3DWidget::~Options3DWidget() {
     disconnect(0, 0, 0);
-    disconnect(set, 0, this, 0);
 }
 
 QSize Options3DWidget::sizeHint() const {

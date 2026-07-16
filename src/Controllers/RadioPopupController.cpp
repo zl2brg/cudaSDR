@@ -2,6 +2,7 @@
 #include "cusdr_settings.h"
 #include "Models/SliceModel.h"
 #include "cusdr_radioPopupWidget.h"
+#include "cusdr_agcWidget.h"
 
 RadioPopupController::RadioPopupController(QObject* parent)
     : QObject(parent)
@@ -141,4 +142,109 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
             m_view->setFilterFrequencies(low, high);
         }
     });
+
+    // AGCOptionsWidget binding
+    AGCOptionsWidget* agcView = m_view->agcOptionsWidget();
+    if (agcView) {
+        agcView->setReceiver(rx);
+        agcView->setAGCMode(m_model->getAGCMode(rx));
+        agcView->setAGCSlope(m_model->getAGCSlope(rx));
+        agcView->setAGCMaximumGain(m_sliceModel ? m_sliceModel->agcMaxGain() : static_cast<int>(m_model->getAGCMaximumGain_dB(rx)));
+        agcView->setAGCAttackTime(static_cast<int>(m_model->getAGCAttackTime(rx) * 1000));
+        agcView->setAGCDecayTime(static_cast<int>(m_model->getAGCDecayTime(rx) * 1000));
+        agcView->setAGCHangTime(static_cast<int>(m_model->getAGCHangTime(rx) * 1000));
+        agcView->setAGCFixedGain(m_sliceModel ? m_sliceModel->agcFixedGain() : static_cast<int>(m_model->getAGCFixedGain_dB(rx)));
+        agcView->setAGCHangThreshold(m_sliceModel ? m_sliceModel->agcHangThreshold() : static_cast<int>(m_model->getAGCHangThreshold(rx)));
+
+        // AGCOptionsWidget View -> Model
+        connect(agcView, &AGCOptionsWidget::agcModeRequested, this, [this](int r, AGCMode mode) {
+            m_model->setAGCMode(r, mode);
+        });
+
+        connect(agcView, &AGCOptionsWidget::agcSlopeRequested, this, [this](int r, int val) {
+            Q_UNUSED(r)
+            if (m_sliceModel) {
+                m_sliceModel->setAgcSlope(val);
+            }
+        });
+
+        connect(agcView, &AGCOptionsWidget::agcMaximumGainRequested, this, [this](int r, int val) {
+            if (m_sliceModel && r == m_sliceModel->id()) {
+                m_sliceModel->setAgcMaxGain(val);
+            } else {
+                m_model->setAGCMaximumGain_dB(r, static_cast<qreal>(val));
+            }
+        });
+
+        connect(agcView, &AGCOptionsWidget::agcFixedGainRequested, this, [this](int r, int val) {
+            if (m_sliceModel && r == m_sliceModel->id()) {
+                m_sliceModel->setAgcFixedGain(val);
+            } else {
+                m_model->setAGCFixedGain_dB(r, static_cast<qreal>(val));
+            }
+        });
+
+        connect(agcView, &AGCOptionsWidget::agcAttackTimeRequested, this, [this](int r, int val) {
+            m_model->setAGCAttackTime(r, val / 1000.0);
+        });
+
+        connect(agcView, &AGCOptionsWidget::agcDecayTimeRequested, this, [this](int r, int val) {
+            m_model->setAGCDecayTime(r, val / 1000.0);
+        });
+
+        connect(agcView, &AGCOptionsWidget::agcHangTimeRequested, this, [this](int r, int val) {
+            m_model->setAGCHangTime(r, val / 1000.0);
+        });
+
+        connect(agcView, &AGCOptionsWidget::agcHangThresholdRequested, this, [this](int r, int val) {
+            if (m_sliceModel && r == m_sliceModel->id()) {
+                m_sliceModel->setAgcHangThreshold(val);
+            } else {
+                m_model->setAGCHangThreshold(r, val);
+            }
+        });
+
+        // AGCOptionsWidget Model -> View
+        connect(m_model, &Settings::agcModeChanged, this, [this, agcView](int r, AGCMode mode) {
+            if (m_view->getReceiver() == r) {
+                agcView->setAGCMode(mode);
+            }
+        });
+
+        connect(m_model, &Settings::agcMaximumGainChanged_dB, this, [this, agcView](int r, qreal val) {
+            if (m_view->getReceiver() == r) {
+                agcView->setAGCMaximumGain(static_cast<int>(val));
+            }
+        });
+
+        connect(m_model, &Settings::agcFixedGainChanged_dB, this, [this, agcView](int r, qreal val) {
+            if (m_view->getReceiver() == r) {
+                agcView->setAGCFixedGain(static_cast<int>(val));
+            }
+        });
+
+        connect(m_model, &Settings::agcHangThresholdSliderChanged, this, [this, agcView](int r, qreal val) {
+            if (m_view->getReceiver() == r) {
+                agcView->setAGCHangThreshold(static_cast<int>(val));
+            }
+        });
+
+        if (m_sliceModel) {
+            connect(m_sliceModel, &SliceModel::agcModeChanged, this, [this, agcView](AGCMode mode) {
+                agcView->setAGCMode(mode);
+            });
+            connect(m_sliceModel, &SliceModel::agcMaxGainChanged, this, [this, agcView](int gain) {
+                agcView->setAGCMaximumGain(gain);
+            });
+            connect(m_sliceModel, &SliceModel::agcFixedGainChanged, this, [this, agcView](int gain) {
+                agcView->setAGCFixedGain(gain);
+            });
+            connect(m_sliceModel, &SliceModel::agcHangThresholdChanged, this, [this, agcView](int val) {
+                agcView->setAGCHangThreshold(val);
+            });
+            connect(m_sliceModel, &SliceModel::agcSlopeChanged, this, [this, agcView](int val) {
+                agcView->setAGCSlope(val);
+            });
+        }
+    }
 }

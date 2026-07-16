@@ -1,29 +1,12 @@
-/**
+/*
 * @file  cusdr_agcWidget.h
 * @brief AGC options widget header file for cuSDR
 * @author Hermann von Hasseln, DL3HVH
 * @version 0.1
 * @date 2012-09-29
+* QT6 update ZL2BRG
 */
 
-/*
- *   Copyright 2012 Hermann von Hasseln, DL3HVH
- *
- *   This program is free software; you can redistribute it and/or modify
- *   it under the terms of the GNU Library General Public License version 2 as
- *   published by the Free Software Foundation
- *
- *   This program is distributed in the hope that it will be useful,
- *   but WITHOUT ANY WARRANTY; without even the implied warranty of
- *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *   GNU General Public License for more details
- *
- *   You should have received a copy of the GNU Library General Public
- *   License along with this program; if not, write to the
- *   Free Software Foundation, Inc.,
- *   51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
- */
- 
 #ifndef _CUSDR_AGC_OPTIONS_WIDGET_H
 #define _CUSDR_AGC_OPTIONS_WIDGET_H
 
@@ -34,34 +17,60 @@
 #include <QSpinBox>
 #include <QLineEdit>
 #include <QLabel>
+#include <QSlider>
 
 #include "Util/cusdr_buttons.h"
 #include "cusdr_settings.h"
 #include "cusdr_fonts.h"
 
-
-class SliceModel;
 class AGCOptionsWidget : public QWidget {
-
 	Q_OBJECT
 
 public:
-	AGCOptionsWidget(SliceModel *model, QWidget *parent = nullptr);
+	AGCOptionsWidget(QWidget *parent = nullptr);
 	~AGCOptionsWidget();
+
+	// MVC Setters
+	void setAGCMode(AGCMode mode);
+	void setAGCSlope(int value);
+	void setAGCMaximumGain(int value);
+	void setAGCAttackTime(int value);
+	void setAGCDecayTime(int value);
+	void setAGCHangTime(int value);
+	void setAGCFixedGain(int value);
+	void setAGCHangThreshold(int value);
+	void setReceiver(int rx) { m_currentReceiver = rx; }
+	int getReceiver() const { return m_currentReceiver; }
+
+signals:
+	// MVC Signals
+	void agcModeRequested(int rx, AGCMode mode);
+	void agcSlopeRequested(int rx, int value);
+	void agcMaximumGainRequested(int rx, int value);
+	void agcAttackTimeRequested(int rx, int value);
+	void agcDecayTimeRequested(int rx, int value);
+	void agcHangTimeRequested(int rx, int value);
+	void agcFixedGainRequested(int rx, int value);
+	void agcHangThresholdRequested(int rx, int value);
+
+	void	showEvent();
+	void	closeEvent();
+	void	messageEvent(QString );
 
 public slots:
 	QSize	sizeHint() const;
 	QSize	minimumSizeHint() const;
 
-private:
-    SliceModel*      m_sliceModel;
-    Settings        *set;
+	void	systemStateChanged(
+					QSDR::_Error err, 
+					QSDR::_HWInterfaceMode hwmode, 
+					QSDR::_ServerMode mode, 
+					QSDR::_DataEngineState state);
 
+private:
 	QSDR::_ServerMode			m_serverMode;
 	QSDR::_HWInterfaceMode		m_hwInterface;
 	QSDR::_DataEngineState		m_dataEngineState;
-	//QSDRGraphics::_Panadapter	m_panadapterMode;
-	//QSDRGraphics::_WfScheme		m_waterColorScheme;
 
 	AGCMode				m_agcMode;
 
@@ -114,35 +123,17 @@ private:
 
 	bool	m_mouseOver;
 
-	//qreal	m_agcSlope;
 	qreal	m_agcMaxGain;
 	qreal	m_agcAttackTime;
 	qreal	m_agcDecayTime;
 	qreal	m_agcHangTime;
 	qreal	m_agcFixedGain;
 
-
-
 	void	setupConnections();
 	void 	createAgcModeBtnGroup();
 	void 	createAgcOptionsGroup();
-//	void	createFPSGroupBox();
-//	void	createPanSpectrumOptions();
-//	void	createWaterfallSpectrumOptions();
-//	void	createSMeterOptions();
-//	void	createColorChooserWidget();
-//	void	createCallSignEditor();
 
 private slots:
-	void	systemStateChanged(
-					QSDR::_Error err, 
-					QSDR::_HWInterfaceMode hwmode, 
-					QSDR::_ServerMode mode, 
-					QSDR::_DataEngineState state);
-
-	void	setCurrentReceiver(int rx);
-	void	sampleRateChanged(int value);
-	void 	agcModeChanged(int rx, AGCMode mode, bool value);
 	void 	agcModeChangedByBtn();
 	void	slopeChanged(int value);
 	void	maxGainChanged(int value);
@@ -151,14 +142,6 @@ private slots:
 	void	hangTimeChanged(int value);
 	void	fixedGainChanged(int value);
 	void	hangThresholdValueChanged(int value);
-	void	setAGCHangThresholdSlider(int rx, qreal value);
-	void	setAGCMaximumGain_dB(int rx, qreal value);
-	void	setAGCFixedGain_dB(int rx, qreal value);
-	
-signals:
-	void	showEvent();
-	void	closeEvent();
-	void	messageEvent(QString );
 };
 
 #endif // _CUSDR_AGC_OPTIONS_WIDGET_H

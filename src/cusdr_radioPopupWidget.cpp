@@ -122,7 +122,7 @@ RadioPopupWidget::RadioPopupWidget(SliceModel *model, QWidget *parent)
     createFilterBtnWidgetB();
     createFilterBtnWidgetC();
 
-    m_popupAgcWidget = new AGCOptionsWidget(m_sliceModel, this);
+    m_popupAgcWidget = new AGCOptionsWidget(this);
     m_noiseFilterWidget = new NoiseFilterWidget(m_sliceModel, this);
 
     m_filterStackedWidget = new QStackedWidget(this);

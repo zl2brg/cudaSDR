@@ -42,27 +42,19 @@
 #define	btn_width2		52
 #define	btn_width3		60
 
-AGCOptionsWidget::AGCOptionsWidget(SliceModel *model, QWidget *parent)
+AGCOptionsWidget::AGCOptionsWidget(QWidget *parent)
 	: QWidget(parent)
-        , m_sliceModel(model)
-	, set(Settings::instance())
-	, m_serverMode(set->getCurrentServerMode())
-	, m_hwInterface(set->getHWInterface())
-	, m_dataEngineState(set->getDataEngineState())
-	//, m_panadapterMode(set->getPanadapterMode())
-	//, m_waterColorScheme(set->getWaterfallColorScheme())
-	, m_minimumWidgetWidth(set->getMinimumWidgetWidth())
-	, m_minimumGroupBoxWidth(set->getMinimumGroupBoxWidth())
+	, m_minimumWidgetWidth(250)
+	, m_minimumGroupBoxWidth(240)
 	, m_btnSpacing(5)
-	, m_currentReceiver(model->id())
-	, m_sampleRate(set->getSampleRate())
+	, m_currentReceiver(0)
+	, m_sampleRate(48000)
 	, m_mouseOver(false)
 {
-	//setMinimumWidth(m_minimumWidgetWidth);
 	setContentsMargins(4, 0, 4, 0);
 	setMouseTracking(true);
 
-	m_agcMode = m_sliceModel ? m_sliceModel->agcMode() : set->getAGCMode(m_currentReceiver);
+	m_agcMode = _agcMode::agcLONG;
 
 	fonts = new CFonts(this);
 	m_fonts = fonts->getFonts();
@@ -92,19 +84,11 @@ AGCOptionsWidget::AGCOptionsWidget(SliceModel *model, QWidget *parent)
 	mainLayout->addStretch();
 	setLayout(mainLayout);
 
-	if (m_sliceModel)
-		agcModeChanged(m_sliceModel->id(), m_sliceModel->agcMode(), false);
-	else
-		agcModeChanged(0, m_agcMode, false);
-
 	setupConnections();
 }
 
 AGCOptionsWidget::~AGCOptionsWidget() {
-
-	// disconnect all signals
-	disconnect(set, 0, this, 0);
-	disconnect(0, 0, 0);
+	disconnect(nullptr, nullptr, nullptr);
 }
 
 QSize AGCOptionsWidget::sizeHint() const {
@@ -118,53 +102,6 @@ QSize AGCOptionsWidget::minimumSizeHint() const {
 }
 
 void AGCOptionsWidget::setupConnections() {
-
-	CHECKED_CONNECT(
-		set,
-		&Settings::systemStateChanged,
-		this,
-		&AGCOptionsWidget::systemStateChanged);
-
-//	CHECKED_CONNECT(
-//		set,
-//		SIGNAL(graphicModeChanged(
-//					//					QSDRGraphics::_Panadapter,
-//					QSDRGraphics::_WaterfallColorScheme)),
-//		this,
-//		SLOT(graphicModeChanged(
-//					//					QSDRGraphics::_Panadapter,
-//					QSDRGraphics::_WaterfallColorScheme)));
-
-	CHECKED_CONNECT(
-		set, 
-		&Settings::currentReceiverChanged,
-		this, 
-		&AGCOptionsWidget::setCurrentReceiver);
-
-	CHECKED_CONNECT(
-		set, 
-		&Settings::sampleRateChanged, 
-		this, 
-		&AGCOptionsWidget::sampleRateChanged);
-
-	if (m_sliceModel) {
-		connect(m_sliceModel, &SliceModel::agcModeChanged, this,
-		        [this](AGCMode mode) { agcModeChanged(m_sliceModel->id(), mode, false); });
-		connect(m_sliceModel, &SliceModel::agcMaxGainChanged, this,
-		        [this](int gain) { setAGCMaximumGain_dB(m_sliceModel->id(), static_cast<qreal>(gain)); });
-		connect(m_sliceModel, &SliceModel::agcFixedGainChanged, this,
-		        [this](int gain) { setAGCFixedGain_dB(m_sliceModel->id(), static_cast<qreal>(gain)); });
-		connect(m_sliceModel, &SliceModel::agcHangThresholdChanged, this,
-		        [this](int value) { setAGCHangThresholdSlider(m_sliceModel->id(), static_cast<qreal>(value)); });
-	} else {
-		CHECKED_CONNECT(set, &Settings::agcModeChanged, this, &AGCOptionsWidget::agcModeChanged);
-		CHECKED_CONNECT(set, &Settings::agcHangThresholdSliderChanged, this,
-		                &AGCOptionsWidget::setAGCHangThresholdSlider);
-		CHECKED_CONNECT(set, &Settings::agcMaximumGainChanged_dB, this,
-		                &AGCOptionsWidget::setAGCMaximumGain_dB);
-		CHECKED_CONNECT(set, &Settings::agcFixedGainChanged_dB, this,
-		                &AGCOptionsWidget::setAGCFixedGain_dB);
-	}
 }
 
 void AGCOptionsWidget::createAgcModeBtnGroup() {
@@ -239,7 +176,7 @@ void AGCOptionsWidget::createAgcOptionsGroup() {
 	m_slopeSpinBox->setMaximum(20);
 	m_slopeSpinBox->setSingleStep(1);
 	m_slopeSpinBox->setMinimumWidth(60);
-	m_slopeSpinBox->setValue(set->getAGCSlope(m_currentReceiver));
+	m_slopeSpinBox->setValue(0);
 
 	CHECKED_CONNECT(
 		m_slopeSpinBox,
@@ -256,7 +193,7 @@ void AGCOptionsWidget::createAgcOptionsGroup() {
 	m_maxGainSpinBox->setMaximum(120);
 	m_maxGainSpinBox->setSingleStep(1);
 	m_maxGainSpinBox->setMinimumWidth(60);
-	m_maxGainSpinBox->setValue(m_sliceModel ? m_sliceModel->agcMaxGain() : set->getAGCMaximumGain_dB(m_currentReceiver));
+	m_maxGainSpinBox->setValue(0);
 
 	CHECKED_CONNECT(
 		m_maxGainSpinBox,
@@ -273,7 +210,7 @@ void AGCOptionsWidget::createAgcOptionsGroup() {
 	m_attackTimeSpinBox->setMaximum(10);
 	m_attackTimeSpinBox->setSingleStep(1);
 	m_attackTimeSpinBox->setMinimumWidth(60);
-	m_attackTimeSpinBox->setValue((int)(set->getAGCAttackTime(m_currentReceiver) * 1000));
+	m_attackTimeSpinBox->setValue(1);
 
 	CHECKED_CONNECT(
 		m_attackTimeSpinBox,
@@ -290,7 +227,7 @@ void AGCOptionsWidget::createAgcOptionsGroup() {
 	m_decayTimeSpinBox->setMaximum(5000);
 	m_decayTimeSpinBox->setSingleStep(1);
 	m_decayTimeSpinBox->setMinimumWidth(60);
-	m_decayTimeSpinBox->setValue((int)(set->getAGCDecayTime(m_currentReceiver) * 1000));
+	m_decayTimeSpinBox->setValue(100);
 
 	CHECKED_CONNECT(
 		m_decayTimeSpinBox,
@@ -307,7 +244,7 @@ void AGCOptionsWidget::createAgcOptionsGroup() {
 	m_hangTimeSpinBox->setMaximum(5000);
 	m_hangTimeSpinBox->setSingleStep(1);
 	m_hangTimeSpinBox->setMinimumWidth(60);
-	m_hangTimeSpinBox->setValue((int)(set->getAGCHangTime(m_currentReceiver) * 1000));
+	m_hangTimeSpinBox->setValue(100);
 
 	CHECKED_CONNECT(
 		m_hangTimeSpinBox,
@@ -348,7 +285,7 @@ void AGCOptionsWidget::createAgcOptionsGroup() {
 	m_fixedGainSpinBox->setMaximum(120);
 	m_fixedGainSpinBox->setSingleStep(1);
 	m_fixedGainSpinBox->setMinimumWidth(60);
-	m_fixedGainSpinBox->setValue(m_sliceModel ? m_sliceModel->agcFixedGain() : (int)set->getAGCFixedGain_dB(m_currentReceiver));
+	m_fixedGainSpinBox->setValue(0);
 
 	CHECKED_CONNECT(
 		m_fixedGainSpinBox,
@@ -453,154 +390,121 @@ void AGCOptionsWidget::systemStateChanged(
 }
 
 void AGCOptionsWidget::agcModeChangedByBtn() {
-
 	AeroButton *button = qobject_cast<AeroButton *>(sender());
 	int btn = agcModeBtnList.indexOf(button);
+	if (btn == -1) return;
 
 	foreach(AeroButton *btn, agcModeBtnList) {
-
 		btn->setBtnState(AeroButton::OFF);
 		btn->update();
 	}
 
-	set->setAGCMode(m_currentReceiver, (AGCMode) btn);
-	m_agcMode = (AGCMode) btn;
+	emit agcModeRequested(m_currentReceiver, (AGCMode) btn);
 
 	button->setBtnState(AeroButton::ON);
 	button->update();
 }
 
-void AGCOptionsWidget::agcModeChanged(int rx, AGCMode mode, bool hang) {
+void AGCOptionsWidget::slopeChanged(int value) {
+	emit agcSlopeRequested(m_currentReceiver, value);
+}
 
-	Q_UNUSED(hang)
+void AGCOptionsWidget::maxGainChanged(int value) {
+	emit agcMaximumGainRequested(m_currentReceiver, value);
+}
 
-	if (m_currentReceiver != rx) return;
+void AGCOptionsWidget::fixedGainChanged(int value) {
+	emit agcFixedGainRequested(m_currentReceiver, value);
+}
+
+void AGCOptionsWidget::attackTimeChanged(int value) {
+	emit agcAttackTimeRequested(m_currentReceiver, value);
+}
+
+void AGCOptionsWidget::decayTimeChanged(int value) {
+	emit agcDecayTimeRequested(m_currentReceiver, value);
+}
+
+void AGCOptionsWidget::hangTimeChanged(int value) {
+	emit agcHangTimeRequested(m_currentReceiver, value);
+}
+
+void AGCOptionsWidget::hangThresholdValueChanged(int value) {
+	QString str = " %1 ";
+	m_hangThresholdValueLabel->setText(str.arg(value, 2, 10, QLatin1Char(' ')));
+	emit agcHangThresholdRequested(m_currentReceiver, value);
+}
+
+void AGCOptionsWidget::setAGCMode(AGCMode mode) {
 	m_agcMode = mode;
 
 	foreach(AeroButton *btn, agcModeBtnList) {
-
+		btn->blockSignals(true);
 		btn->setBtnState(AeroButton::OFF);
+		btn->blockSignals(false);
 		btn->update();
 	}
 
-	agcModeBtnList.at(mode)->setBtnState(AeroButton::ON);
-	agcModeBtnList.at(mode)->update();
+	if (static_cast<int>(mode) >= 0 && static_cast<int>(mode) < agcModeBtnList.size()) {
+		agcModeBtnList.at(mode)->blockSignals(true);
+		agcModeBtnList.at(mode)->setBtnState(AeroButton::ON);
+		agcModeBtnList.at(mode)->blockSignals(false);
+		agcModeBtnList.at(mode)->update();
+	}
 
 	if (mode == (AGCMode) agcUser) {
-
 		m_attackTimeSpinBox->setEnabled(true);
 		m_decayTimeSpinBox->setEnabled(true);
 		m_hangTimeSpinBox->setEnabled(true);
 	}
 	else {
-
 		m_attackTimeSpinBox->setEnabled(false);
 		m_decayTimeSpinBox->setEnabled(false);
 		m_hangTimeSpinBox->setEnabled(false);
 	}
 }
 
-void AGCOptionsWidget::slopeChanged(int value) {
-
-	m_sliceModel->setAgcSlope(value);
+void AGCOptionsWidget::setAGCSlope(int value) {
+	m_slopeSpinBox->blockSignals(true);
+	m_slopeSpinBox->setValue(value);
+	m_slopeSpinBox->blockSignals(false);
 }
 
-void AGCOptionsWidget::maxGainChanged(int value) {
-	if (m_sliceModel) {
-		m_sliceModel->setAgcMaxGain(value);
-		return;
-	}
-	set->setAGCMaximumGain_dB(set->getCurrentReceiver(), static_cast<qreal>(value));
-}
-
-void AGCOptionsWidget::setAGCMaximumGain_dB(int rx, qreal value) {
-
-	Q_UNUSED(rx)
-
+void AGCOptionsWidget::setAGCMaximumGain(int value) {
 	m_maxGainSpinBox->blockSignals(true);
-	m_maxGainSpinBox->setValue((int) value);
+	m_maxGainSpinBox->setValue(value);
 	m_maxGainSpinBox->blockSignals(false);
 }
 
-void AGCOptionsWidget::fixedGainChanged(int value) {
-	if (m_sliceModel) {
-		m_sliceModel->setAgcFixedGain(value);
-		return;
-	}
-	set->setAGCFixedGain_dB(set->getCurrentReceiver(), static_cast<qreal>(value));
+void AGCOptionsWidget::setAGCAttackTime(int value) {
+	m_attackTimeSpinBox->blockSignals(true);
+	m_attackTimeSpinBox->setValue(value);
+	m_attackTimeSpinBox->blockSignals(false);
 }
 
-void AGCOptionsWidget::setAGCFixedGain_dB(int rx, qreal value) {
+void AGCOptionsWidget::setAGCDecayTime(int value) {
+	m_decayTimeSpinBox->blockSignals(true);
+	m_decayTimeSpinBox->setValue(value);
+	m_decayTimeSpinBox->blockSignals(false);
+}
 
-	Q_UNUSED(rx)
+void AGCOptionsWidget::setAGCHangTime(int value) {
+	m_hangTimeSpinBox->blockSignals(true);
+	m_hangTimeSpinBox->setValue(value);
+	m_hangTimeSpinBox->blockSignals(false);
+}
 
+void AGCOptionsWidget::setAGCFixedGain(int value) {
 	m_fixedGainSpinBox->blockSignals(true);
-	m_fixedGainSpinBox->setValue((int) value);
+	m_fixedGainSpinBox->setValue(value);
 	m_fixedGainSpinBox->blockSignals(false);
 }
 
-void AGCOptionsWidget::attackTimeChanged(int value) {
-
-	set->setAGCAttackTime(set->getCurrentReceiver(), value/1000.0);
-}
-
-void AGCOptionsWidget::decayTimeChanged(int value) {
-
-	set->setAGCDecayTime(set->getCurrentReceiver(), value/1000.0);
-}
-
-void AGCOptionsWidget::hangTimeChanged(int value) {
-
-	set->setAGCHangTime(set->getCurrentReceiver(), value/1000.0);
-}
-
-void AGCOptionsWidget::hangThresholdValueChanged(int value) {
-	QString str = " %1 ";
-	m_hangThresholdValueLabel->setText(str.arg(value, 2, 10, QLatin1Char(' ')));
-
-	if (m_sliceModel)
-		m_sliceModel->setAgcHangThreshold(value);
-	else
-		set->setAGCHangThreshold(set->getCurrentReceiver(), value);
-}
-
-void AGCOptionsWidget::setAGCHangThresholdSlider(int rx, qreal value) {
-
-	Q_UNUSED(rx)
-
+void AGCOptionsWidget::setAGCHangThreshold(int value) {
 	m_hangThresholdSlider->blockSignals(true);
-	m_hangThresholdSlider->setValue((int) value);
+	m_hangThresholdSlider->setValue(value);
 	m_hangThresholdSlider->blockSignals(false);
 
 	QString str = " %1 ";
-	m_hangThresholdValueLabel->setText(str.arg((int)value, 2, 10, QLatin1Char(' ')));
-}
-
-void AGCOptionsWidget::sampleRateChanged(int value) {
-
-	m_sampleRate = value;
-	//int currentValue = m_framesPerSecondSpinBox->value();
-
-	//m_framesPerSecondSpinBox->setMaximum(m_sampleRate/1000);
-
-	//if (currentValue > m_sampleRate/1000) {
-
-	//	m_framesPerSecondSpinBox->setValue(m_sampleRate/1000);
-	//	set->setFramesPerSecond(value);
-	//}
-}
-
-void AGCOptionsWidget::setCurrentReceiver(int rx) {
-
-	if (m_currentReceiver == rx) return;
-	m_currentReceiver = rx;
-
-	if (m_sliceModel && m_sliceModel->id() == rx) {
-		agcModeChanged(rx, m_sliceModel->agcMode(), false);
-		setAGCMaximumGain_dB(rx, static_cast<qreal>(m_sliceModel->agcMaxGain()));
-		setAGCFixedGain_dB(rx, static_cast<qreal>(m_sliceModel->agcFixedGain()));
-		setAGCHangThresholdSlider(rx, static_cast<qreal>(m_sliceModel->agcHangThreshold()));
-	} else if (m_agcMode != set->getAGCMode(rx)) {
-		m_agcMode = set->getAGCMode(rx);
-	}
+	m_hangThresholdValueLabel->setText(str.arg(value, 2, 10, QLatin1Char(' ')));
 }

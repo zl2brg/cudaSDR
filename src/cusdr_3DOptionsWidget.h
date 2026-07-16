@@ -1,9 +1,10 @@
-/**
+/*
 * @file  cusdr_3DOptionsWidget.h
 * @brief 3D display options widget header file for cuSDR
 * @author Simon Brown, ZL2BRG
 * @version 0.1
 * @date 2024-12-28
+* QT6 update ZL2BRG
 */
 
 #ifndef _CUSDR_3DOPTIONSWIDGET_H
@@ -17,7 +18,6 @@
 #include <QComboBox>
 #include <QScrollArea>
 
-#include "cusdr_settings.h"
 #include "Util/cusdr_buttons.h"
 
 class Options3DWidget : public QWidget {
@@ -52,8 +52,6 @@ private:
     void createGeneralGroup();
     void createRenderingGroup();
     void createPerformanceGroup();
-
-    Settings* set;
     
     // Groups
     QGroupBox* m_generalGroup;
