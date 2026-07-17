@@ -27,7 +27,7 @@
  */
 
 #define LOG_MAIN
-#define DOCK_WIDTH  400
+#define DOCK_WIDTH  540
 
 #ifdef LOG_NETWORKDIALOG
 #define NETWORKDIALOG_DEBUG qDebug().nospace() << "NetworkDialog::\t"
@@ -483,7 +483,7 @@ void MainWindow::setupLayout() {
 	dock->setObjectName("ServerCtrl");
     dock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
     dock->setFeatures(QDockWidget::DockWidgetFloatable);
-    dock->setMaximumWidth(DOCK_WIDTH);
+    dock->setMaximumWidth(1200);
     dock->setMinimumWidth(DOCK_WIDTH);
     dock->setWidget(m_serverWidget);
     dockWidgetList.append(dock);
@@ -497,7 +497,7 @@ void MainWindow::setupLayout() {
 	dock->setObjectName("HPSDRCtrl");
     dock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
     dock->setFeatures(QDockWidget::DockWidgetClosable | QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetMovable);
-    dock->setMaximumWidth(DOCK_WIDTH);
+    dock->setMaximumWidth(1200);
     dock->setMinimumWidth(DOCK_WIDTH);
 	dock->setWidget(m_hpsdrTabWidget);
 	dockWidgetList.append(dock);
@@ -510,7 +510,7 @@ void MainWindow::setupLayout() {
     rxDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
 //	dock->setFeatures(QDockWidget::NoDockWidgetFeatures);
     rxDock->setFeatures(QDockWidget::DockWidgetClosable | QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetMovable);
-    rxDock->setMaximumWidth(DOCK_WIDTH);
+    rxDock->setMaximumWidth(1200);
     rxDock->setMinimumWidth(DOCK_WIDTH);
 //    rxDock->setWidget(filterwidget);
 //    rxDock->setWidget(m_radioCtrl);

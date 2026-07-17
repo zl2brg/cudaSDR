@@ -149,6 +149,10 @@ void HpsdrSettingsController::bind(HPSDRWidget* view, Settings* model)
         m_view->setSampleRate(rate);
     });
 
+    connect(m_model, &Settings::hpsdrHardwareChanged, this, [this](int hw) {
+        m_view->setHpsdrHardware(hw);
+    });
+
     connect(m_model, &Settings::hpsdrNetworkDeviceChanged, this, [this](const TNetworkDevicecard& card) {
         m_view->setCurrentMetisCard(card);
     });
