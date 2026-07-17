@@ -10,7 +10,8 @@
 - **Standardized Foundation**: Unidied networking via `QUdpSocket` and cross-platform threading/monitoring.
 - **High-DPI Support**: Native scaling for 4K and Retina displays.
 - **Advanced DSP**: Integrated WDSP, Protocol 2 support, and FreeDV/Codec2 capabilities - no rade yet.
-- **Soapy Integration underway **
+- **Experimental Soapy Integration  **
+- ** TCI server **
 - AI Development assist from 2025 on
 
 
