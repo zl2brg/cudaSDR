@@ -51,6 +51,7 @@ cusdr_SetupWidget::cusdr_SetupWidget(RadioModel *model, QWidget *parent)
 , m_minimumWidgetWidth(500)
 , m_minimumGroupBoxWidth(set->getMinimumGroupBoxWidth())
 {
+    setMinimumWidth(520);
     setContentsMargins(4, 4, 4, 0);
     setMouseTracking(true);
     m_networkWidget = new NetworkWidget(this);

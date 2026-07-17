@@ -46,6 +46,7 @@ HPSDRTabWidget::HPSDRTabWidget(QWidget *parent)
 	, m_minimumWidgetWidth(500)
 	, m_minimumGroupBoxWidth(set->getMinimumGroupBoxWidth())
 {
+	setMinimumWidth(520);
 	setContentsMargins(4, 4, 4, 0);
 	setMouseTracking(true);
 
