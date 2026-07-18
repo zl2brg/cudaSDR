@@ -14,7 +14,7 @@
 AlexFilterWidget::AlexFilterWidget(QWidget *parent)
 	: QWidget(parent)
 	, m_frequency(14000000)
-	, m_minimumWidgetWidth(500)
+	, m_minimumWidgetWidth(0)
 	, m_minimumGroupBoxWidth(0)
 	, m_hpfFilters(6)
 	, m_lpfFilters(7)
@@ -29,7 +29,6 @@ AlexFilterWidget::AlexFilterWidget(QWidget *parent)
 	, m_alexConfig(0)
 {
 	setObjectName("AlexFilterWidget");
-	setMinimumWidth(m_minimumWidgetWidth);
 	setContentsMargins(4, 8, 4, 0);
 	setMouseTracking(true);
 

@@ -30,6 +30,25 @@ void HpsdrSettingsController::bind(HPSDRWidget* view, Settings* model)
     m_view->setAlexPresence(m_model->getAlexPresence());
     m_view->setExcaliburPresence(m_model->getExcaliburPresence());
     m_view->setCurrentMetisCard(m_model->getCurrentMetisCard());
+    m_view->setDataEngineRunning(m_model->getDataEngineState() == QSDR::DataEngineUp);
+
+    auto normalizeHermesHardware = [this](int hw) {
+        // Hermes is integrated: clear Atlas-module presence and neutralize 10 MHz source.
+        if (hw != 1)
+            return;
+        if (m_model->getPenelopePresence())
+            m_model->setPenelopePresence(false);
+        if (m_model->getPennyLanePresence())
+            m_model->setPennyLanePresence(false);
+        if (m_model->getMercuryPresence())
+            m_model->setMercuryPresence(false);
+        if (m_model->getExcaliburPresence())
+            m_model->setExcaliburPresence(false);
+        // Pre-MVC used source index 2 when selecting Hermes (clock group hidden).
+        if (m_model->get10MHzSource() != 2)
+            m_model->set10MhzSource(2);
+    };
+    normalizeHermesHardware(m_model->getHPSDRHardware());
 
     // --- 2. View -> Model (User interaction events) ---
     connect(m_view, &HPSDRWidget::hwInterfaceRequested, this, [this](QSDR::_HWInterfaceMode mode) {
@@ -38,10 +57,11 @@ void HpsdrSettingsController::bind(HPSDRWidget* view, Settings* model)
         }
     });
 
-    connect(m_view, &HPSDRWidget::hpsdrHardwareRequested, this, [this](int hw) {
+    connect(m_view, &HPSDRWidget::hpsdrHardwareRequested, this, [this, normalizeHermesHardware](int hw) {
         if (m_model->getHPSDRHardware() != hw) {
             m_model->setHPSDRHardware(hw);
         }
+        normalizeHermesHardware(hw);
     });
 
     connect(m_view, &HPSDRWidget::numberOfReceiversRequested, this, [this](int count) {
@@ -105,8 +125,11 @@ void HpsdrSettingsController::bind(HPSDRWidget* view, Settings* model)
     });
 
     // --- 3. Model -> View (Model update notifications) ---
-    connect(m_model, &Settings::systemStateChanged, this, [this](QSDR::_Error, QSDR::_HWInterfaceMode mode, QSDR::_ServerMode, QSDR::_DataEngineState) {
+    connect(m_model, &Settings::systemStateChanged, this, [this](QSDR::_Error, QSDR::_HWInterfaceMode mode, QSDR::_ServerMode, QSDR::_DataEngineState state) {
         m_view->setHwInterface(mode);
+        // Re-apply device card so 768/1536 enablement tracks protocol after interface changes.
+        m_view->setCurrentMetisCard(m_model->getCurrentMetisCard());
+        m_view->setDataEngineRunning(state == QSDR::DataEngineUp);
     });
 
     connect(m_model, &Settings::numberOfRXChanged, this, [this](int count) {

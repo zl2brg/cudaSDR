@@ -33,7 +33,12 @@ void AlexSettingsController::bind(AlexTabWidget* container, Settings* model)
         });
 
         // Model -> View
+        // setAlexState() emits alexStateChanged (singular) with the full list;
+        // setAlexStates() emits alexStatesChanged. Listen to both.
         connect(m_model, &Settings::alexStatesChanged, this, [this](const QList<int>& states) {
+            m_antennaView->setAlexStates(states);
+        });
+        connect(m_model, &Settings::alexStateChanged, this, [this](HamBand, const QList<int>& states) {
             m_antennaView->setAlexStates(states);
         });
 
@@ -45,6 +50,7 @@ void AlexSettingsController::bind(AlexTabWidget* container, Settings* model)
     // --- Bind Filter View ---
     if (m_filterView) {
         // Initial setup
+        const int currentRx = m_model->getCurrentReceiver();
         m_filterView->setAlexConfig(m_model->getAlexConfig());
         m_filterView->setAlexStates(m_model->getAlexStates());
         m_filterView->setAlexManualState((m_model->getAlexConfig() & 0x01) != 0);
@@ -54,6 +60,8 @@ void AlexSettingsController::bind(AlexTabWidget* container, Settings* model)
             m_model->getLPFLoFrequencies(),
             m_model->getLPFHiFrequencies()
         );
+        m_filterView->setCurrentReceiver(currentRx);
+        m_filterView->setFrequency(0, currentRx, m_model->getVfoFrequency(currentRx));
 
         // View -> Model
         connect(m_filterView, &AlexFilterWidget::manualFilterRequested, this, [this](bool manual) {
@@ -80,8 +88,6 @@ void AlexSettingsController::bind(AlexTabWidget* container, Settings* model)
             m_model->setAlexLPFHiFrequencies(filter, val);
         });
 
-
-
         // Model -> View
         connect(m_model, &Settings::alexManualStateChanged, this, [this](bool manual) {
             m_filterView->setAlexManualState(manual);
@@ -93,6 +99,11 @@ void AlexSettingsController::bind(AlexTabWidget* container, Settings* model)
 
         connect(m_model, &Settings::alexStatesChanged, this, [this](const QList<int>& states) {
             m_filterView->setAlexStates(states);
+        });
+
+        connect(m_model, &Settings::currentReceiverChanged, this, [this](int rx) {
+            m_filterView->setCurrentReceiver(rx);
+            m_filterView->setFrequency(0, rx, m_model->getVfoFrequency(rx));
         });
 
         connect(m_model, &Settings::vfoFrequencyChanged, this, [this](int mode, int rx, qint64 freq) {

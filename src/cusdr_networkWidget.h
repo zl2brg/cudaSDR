@@ -41,6 +41,7 @@ public:
 #ifdef HAVE_SOAPYSDR
 	void    setCurrentSoapyDevice(TSoapyDevice device);
 #endif
+	void	setDataEngineRunning(bool running);
 
 signals:
 	// MVC View Interface Signals

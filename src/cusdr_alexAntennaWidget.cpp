@@ -17,15 +17,14 @@ AlexAntennaWidget::AlexAntennaWidget(QWidget *parent)
 	, m_hwInterface(QSDR::NoInterfaceMode)
 	, m_dataEngineState(QSDR::DataEngineDown)
 	, m_alexConfig(0)
-	, m_numberOfBands(11)
-	, m_minimumWidgetWidth(500)
+	, m_numberOfBands(MAX_BANDS)
+	, m_minimumWidgetWidth(0)
 	, m_minimumGroupBoxWidth(0)
 {
-	setMinimumWidth(m_minimumWidgetWidth);
 	setContentsMargins(4, 8, 4, 0);
 	setMouseTracking(true);
 
-	// Pre-initialize m_alexStates
+	// Pre-initialize m_alexStates to match Settings HamBand indexing (MAX_BANDS).
 	for (int i = 0; i < m_numberOfBands; ++i) {
 		m_alexStates.append(0);
 	}
@@ -62,9 +61,12 @@ void AlexAntennaWidget::createAntennasGroup() {
 	QLabel *emptyLabel3 = new QLabel(" ", this);
 	emptyLabel3->setFrameStyle(QFrame::Box | QFrame::Raised);
 
-	// band names
+	// band names — must match HamBand / Settings alex-state indexing (MAX_BANDS).
 	QStringList bandNames;
-    bandNames << "160 m" << "80 m" << "60 m" << "40 m" << "30 m" << "20 m" << "17 m" << "15 m" << "12 m" << "10 m" << "6 m";
+	bandNames << "2200m" << "630m" << "160 m" << "80 m" << "60 m" << "40 m" << "30 m"
+	          << "20 m" << "17 m" << "15 m" << "12 m" << "10 m" << "6 m" << "2 m"
+	          << "125 cm" << "70 cm" << "33 cm" << "23 cm" << "13 cm" << "10 cm"
+	          << "5 cm" << "gen";
 
 	QList<QLabel *> bandLabelList;
 

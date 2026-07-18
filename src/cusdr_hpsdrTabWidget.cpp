@@ -43,10 +43,9 @@
 HPSDRTabWidget::HPSDRTabWidget(QWidget *parent) 
 	: QTabWidget(parent)
 	, set(Settings::instance())
-	, m_minimumWidgetWidth(500)
+	, m_minimumWidgetWidth(0)
 	, m_minimumGroupBoxWidth(set->getMinimumGroupBoxWidth())
 {
-	setMinimumWidth(520);
 	setContentsMargins(4, 4, 4, 0);
 	setMouseTracking(true);
 
@@ -75,12 +74,12 @@ HPSDRTabWidget::~HPSDRTabWidget() {
 
 QSize HPSDRTabWidget::sizeHint() const {
 	
-	return QSize(m_minimumWidgetWidth, height());
+	return QTabWidget::sizeHint().expandedTo(QSize(420, 0));
 }
 
 QSize HPSDRTabWidget::minimumSizeHint() const {
 
-	return QSize(m_minimumWidgetWidth, height());
+	return QTabWidget::minimumSizeHint().expandedTo(QSize(320, 0));
 }
 
 

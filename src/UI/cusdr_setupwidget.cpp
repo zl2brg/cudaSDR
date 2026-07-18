@@ -48,10 +48,9 @@ cusdr_SetupWidget::cusdr_SetupWidget(RadioModel *model, QWidget *parent)
 : QTabWidget(parent)
     , m_radioModel(model)
 , set(Settings::instance())
-, m_minimumWidgetWidth(500)
+, m_minimumWidgetWidth(0)
 , m_minimumGroupBoxWidth(set->getMinimumGroupBoxWidth())
 {
-    setMinimumWidth(520);
     setContentsMargins(4, 4, 4, 0);
     setMouseTracking(true);
     m_networkWidget = new NetworkWidget(this);
@@ -82,6 +81,9 @@ cusdr_SetupWidget::cusdr_SetupWidget(RadioModel *model, QWidget *parent)
         QScrollArea* scrollArea = new QScrollArea(this);
         scrollArea->setWidget(widget);
         scrollArea->setWidgetResizable(true);
+        scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+        scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+        scrollArea->setSizeAdjustPolicy(QAbstractScrollArea::AdjustToContents);
         scrollArea->setFrameShape(QFrame::NoFrame);
         this->addTab(scrollArea, title);
     };
@@ -112,12 +114,12 @@ cusdr_SetupWidget::~cusdr_SetupWidget()
 
 QSize cusdr_SetupWidget::sizeHint() const {
 
-    return QSize(m_minimumWidgetWidth, height());
+    return QTabWidget::sizeHint().expandedTo(QSize(420, 0));
 }
 
 QSize cusdr_SetupWidget::minimumSizeHint() const {
 
-    return QSize(m_minimumWidgetWidth, height());
+    return QTabWidget::minimumSizeHint().expandedTo(QSize(320, 0));
 }
 
 

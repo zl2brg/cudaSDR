@@ -1090,20 +1090,14 @@ void RadioPopupWidget::ctrFrequencyChanged(int mode, int rx, qint64 frequency) {
     Q_UNUSED (mode)
 
     if (m_receiver != rx) return;
-    m_ctrFrequency = frequency;
-
-    HamBand band = getBandFromFrequency(m_bandFrequencyList, frequency);
-    m_lastCtrFrequencyList[static_cast<int>(band)] = m_ctrFrequency;
+    setCtrFrequency(frequency);
 }
 
 void RadioPopupWidget::vfoFrequencyChanged(int mode, int rx, qint64 frequency) {
     Q_UNUSED (mode)
 
     if (m_receiver != rx) return;
-    m_vfoFrequency = frequency;
-
-    HamBand band = getBandFromFrequency(m_bandFrequencyList, frequency);
-    m_lastVfoFrequencyList[static_cast<int>(band)] = m_vfoFrequency;
+    setVfoFrequency(frequency);
 }
 
 void RadioPopupWidget::bandChangedByBtn() {
@@ -1119,12 +1113,8 @@ void RadioPopupWidget::bandChangedByBtn() {
     button->setBtnState(AeroButton::ON);
     button->update();
 
-    HamBand band = static_cast<HamBand>(btnIndex);
-    emit hamBandRequested(m_receiver, band);
-
-    if (btnIndex >= 0 && btnIndex < m_lastVfoFrequencyList.size()) {
-        emit vfoFrequencyRequested(m_receiver, m_lastVfoFrequencyList.at(btnIndex));
-    }
+    // Controller restores the last VFO for this band from Settings (source of truth).
+    emit hamBandRequested(m_receiver, static_cast<HamBand>(btnIndex));
 }
 
 void RadioPopupWidget::bandChanged(int rx, bool byButton, HamBand band) {
@@ -1212,17 +1202,7 @@ void RadioPopupWidget::dspModeChangedByBtn() {
 
 void RadioPopupWidget::dspModeChanged(int rx, DSPMode mode) {
     if (m_receiver != rx) return;
-    m_dspModeList[m_hamBand] = mode;
-
-    for(AeroButton *btn : dspModeBtnList) {
-        btn->setBtnState(AeroButton::OFF);
-        btn->update();
-    }
-
-    dspModeBtnList.at(mode)->setBtnState(AeroButton::ON);
-    dspModeBtnList.at(mode)->update();
-
-    updateFreeDVControls();
+    setDSPMode(mode);
 }
 
 void RadioPopupWidget::filterGroupChanged(DSPMode mode) {
@@ -1806,6 +1786,57 @@ void RadioPopupWidget::setHamBand(HamBand band) {
 
 void RadioPopupWidget::setDSPModeList(const QList<DSPMode>& list) {
     m_dspModeList = list;
+    if (static_cast<int>(m_hamBand) >= 0 && static_cast<int>(m_hamBand) < m_dspModeList.size()) {
+        setDSPMode(m_dspModeList.at(static_cast<int>(m_hamBand)));
+    }
+}
+
+void RadioPopupWidget::setDSPMode(DSPMode mode) {
+    if (static_cast<int>(m_hamBand) >= 0 && static_cast<int>(m_hamBand) < m_dspModeList.size()) {
+        m_dspModeList[m_hamBand] = mode;
+    }
+
+    for (AeroButton *btn : dspModeBtnList) {
+        btn->blockSignals(true);
+        btn->setBtnState(AeroButton::OFF);
+        btn->blockSignals(false);
+        btn->update();
+    }
+
+    const int modeIdx = static_cast<int>(mode);
+    if (modeIdx >= 0 && modeIdx < dspModeBtnList.size()) {
+        dspModeBtnList.at(modeIdx)->blockSignals(true);
+        dspModeBtnList.at(modeIdx)->setBtnState(AeroButton::ON);
+        dspModeBtnList.at(modeIdx)->blockSignals(false);
+        dspModeBtnList.at(modeIdx)->update();
+    }
+
+    filterGroupChanged(mode);
+    updateFreeDVControls();
+}
+
+void RadioPopupWidget::setCtrFrequency(qint64 frequency) {
+    m_ctrFrequency = frequency;
+    if (m_bandFrequencyList.isEmpty() || m_lastCtrFrequencyList.isEmpty()) {
+        return;
+    }
+    HamBand band = getBandFromFrequency(m_bandFrequencyList, frequency);
+    const int bandIdx = static_cast<int>(band);
+    if (bandIdx >= 0 && bandIdx < m_lastCtrFrequencyList.size()) {
+        m_lastCtrFrequencyList[bandIdx] = m_ctrFrequency;
+    }
+}
+
+void RadioPopupWidget::setVfoFrequency(qint64 frequency) {
+    m_vfoFrequency = frequency;
+    if (m_bandFrequencyList.isEmpty() || m_lastVfoFrequencyList.isEmpty()) {
+        return;
+    }
+    HamBand band = getBandFromFrequency(m_bandFrequencyList, frequency);
+    const int bandIdx = static_cast<int>(band);
+    if (bandIdx >= 0 && bandIdx < m_lastVfoFrequencyList.size()) {
+        m_lastVfoFrequencyList[bandIdx] = m_vfoFrequency;
+    }
 }
 
 void RadioPopupWidget::setADCMode(ADCMode mode) {

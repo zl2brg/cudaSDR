@@ -7,7 +7,7 @@
 
 AlexTabWidget::AlexTabWidget(QWidget *parent)
 	: QTabWidget(parent)
-	, m_minimumWidgetWidth(500)
+	, m_minimumWidgetWidth(0)
 	, m_minimumGroupBoxWidth(0)
 {
 	setContentsMargins(4, 4, 4, 0);
@@ -27,11 +27,11 @@ AlexTabWidget::~AlexTabWidget() {
 }
 
 QSize AlexTabWidget::sizeHint() const {
-	return QSize(m_minimumWidgetWidth, height());
+	return QTabWidget::sizeHint();
 }
 
 QSize AlexTabWidget::minimumSizeHint() const {
-	return QSize(m_minimumWidgetWidth, height());
+	return QTabWidget::minimumSizeHint();
 }
 
 void AlexTabWidget::setupConnections() {

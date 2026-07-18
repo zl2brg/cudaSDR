@@ -14,10 +14,9 @@
 ExtCtrlWidget::ExtCtrlWidget(QWidget *parent)
 	: QWidget(parent)
 	, m_pennyOCEnabled(false)
-	, m_minimumWidgetWidth(500)
+	, m_minimumWidgetWidth(0)
 	, m_minimumGroupBoxWidth(0)
 {
-	setMinimumWidth(m_minimumWidgetWidth);
 	setContentsMargins(4, 8, 4, 0);
 	setMouseTracking(true);
 

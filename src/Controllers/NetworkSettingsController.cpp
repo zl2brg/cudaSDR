@@ -24,6 +24,7 @@ void NetworkSettingsController::bind(NetworkWidget* view, Settings* model)
 #ifdef HAVE_SOAPYSDR
     m_view->setSoapyDevicesList(m_model->getSoapyDeviceList(), m_model->getCurrentSoapyDevice());
 #endif
+    m_view->setDataEngineRunning(m_model->getDataEngineState() == QSDR::DataEngineUp);
 
     // --- 2. View -> Model (User interaction events) ---
     connect(m_view, &NetworkWidget::hwInterfaceModeRequested, this, [this](QSDR::_HWInterfaceMode mode) {
@@ -63,8 +64,9 @@ void NetworkSettingsController::bind(NetworkWidget* view, Settings* model)
 #endif
 
     // --- 3. Model -> View (Model update notifications) ---
-    connect(m_model, &Settings::systemStateChanged, this, [this](QSDR::_Error, QSDR::_HWInterfaceMode mode, QSDR::_ServerMode, QSDR::_DataEngineState) {
+    connect(m_model, &Settings::systemStateChanged, this, [this](QSDR::_Error, QSDR::_HWInterfaceMode mode, QSDR::_ServerMode, QSDR::_DataEngineState state) {
         m_view->setHwInterface(mode);
+        m_view->setDataEngineRunning(state == QSDR::DataEngineUp);
     });
 
     connect(m_model, &Settings::socketBufferSizeChanged, this, [this](int size) {

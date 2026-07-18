@@ -46,6 +46,9 @@ public:
 	void setBandFrequencyList(const QList<THamBandFrequencies>& list);
 	void setHamBand(HamBand band);
 	void setDSPModeList(const QList<DSPMode>& list);
+	void setDSPMode(DSPMode mode);
+	void setCtrFrequency(qint64 frequency);
+	void setVfoFrequency(qint64 frequency);
 	void setADCMode(ADCMode mode);
 	void setAGCMode(AGCMode mode);
 	void setDefaultFilterMode(TDefaultFilterMode mode);

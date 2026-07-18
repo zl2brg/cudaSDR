@@ -27,6 +27,7 @@ public:
 	void	setAlexManualState(bool manual);
 	void	setFrequencies(const QList<long>& hpfLo, const QList<long>& hpfHi, const QList<long>& lpfLo, const QList<long>& lpfHi);
 	void	setFrequency(int mode, int rx, qint64 frequency);
+	void	setCurrentReceiver(int rx);
 
 signals:
 	// MVC View Interface Signals
@@ -121,7 +122,6 @@ private slots:
 	void lpfLoSpinBoxValueChanged(double value);
 	void lpfHiSpinBoxValueChanged(double value);
 
-	void setCurrentReceiver(int rx);
 	void manualFilterBtnClicked();
 	void defaultValuesBtnClicked();
 	void bypassAllHPFBtnClicked();

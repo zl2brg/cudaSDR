@@ -26,8 +26,15 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
     m_view->setSingleAdcDevice((m_model->getHWInterface() == QSDR::Hermes) || (m_model->getHPSDRHardware() == 1));
     m_view->setBandFrequencyList(m_model->getBandFrequencyList());
 
-    m_view->setHamBand(m_model->getCurrentHamBand(rx));
-    m_view->setDSPModeList(m_model->getDSPModeList(rx));
+    const HamBand hamBand = m_model->getCurrentHamBand(rx);
+    QList<DSPMode> dspModes = m_model->getDSPModeList(rx);
+    const DSPMode liveMode = m_model->getDSPMode(rx);
+    if (static_cast<int>(hamBand) >= 0 && static_cast<int>(hamBand) < dspModes.size()) {
+        dspModes[static_cast<int>(hamBand)] = liveMode;
+    }
+    m_view->setDSPModeList(dspModes);
+    m_view->setHamBand(hamBand);
+    m_view->setDSPMode(liveMode);
     m_view->setADCMode(m_model->getADCMode(rx));
     m_view->setAGCMode(m_model->getAGCMode(rx));
     m_view->setDefaultFilterMode(m_model->getDefaultFilterMode(rx));
@@ -41,12 +48,20 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
     m_view->setPanadapterMode(m_model->getPanadapterMode(rx));
     m_view->setWaterfallColorMode(m_model->getWaterfallColorMode(rx));
     m_view->setLastFrequencies(m_model->getLastCenterFrequencyList(rx), m_model->getLastVfoFrequencyList(rx));
+    m_view->setCtrFrequency(m_model->getCtrFrequency(rx));
+    m_view->setVfoFrequency(m_model->getVfoFrequency(rx));
     m_view->setFreeDVMode(m_model->getFreeDVMode(rx));
     m_view->setAGCShowLines(m_model->getAgcLines(rx));
 
     // View -> Model
     connect(m_view, &RadioPopupWidget::hamBandRequested, this, [this](int r, HamBand band) {
         m_model->setHamBand(r, true, band);
+        // Restore last-used VFO for this band from Settings (authoritative), not a stale view cache.
+        const QList<qint64> lasts = m_model->getLastVfoFrequencyList(r);
+        const int bandIdx = static_cast<int>(band);
+        if (bandIdx >= 0 && bandIdx < lasts.size()) {
+            m_model->setVFOFrequency(2, r, lasts.at(bandIdx));
+        }
     });
 
     connect(m_view, &RadioPopupWidget::vfoFrequencyRequested, this, [this](int r, qint64 val) {
@@ -120,6 +135,33 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
         }
     });
 
+    connect(m_model, &Settings::dspModeChanged, this, [this](int r, DSPMode mode) {
+        if (m_view->getReceiver() == r) {
+            m_view->setDSPMode(mode);
+        }
+    });
+
+    connect(m_model, &Settings::ctrFrequencyChanged, this, [this](int mode, int r, qint64 freq) {
+        Q_UNUSED(mode)
+        if (m_view->getReceiver() == r) {
+            m_view->setCtrFrequency(freq);
+        }
+    });
+
+    connect(m_model, &Settings::vfoFrequencyChanged, this, [this](int mode, int r, qint64 freq) {
+        Q_UNUSED(mode)
+        if (m_view->getReceiver() == r) {
+            m_view->setVfoFrequency(freq);
+        }
+    });
+
+    connect(m_model, &Settings::graphicModeChanged, this, [this](int r, PanGraphicsMode panMode, WaterfallColorMode waterMode) {
+        if (m_view->getReceiver() == r) {
+            m_view->setPanadapterMode(panMode);
+            m_view->setWaterfallColorMode(waterMode);
+        }
+    });
+
     connect(m_model, &Settings::freeDVModeChanged, this, [this](int r, int mode) {
         if (m_view->getReceiver() == r) {
             m_view->setFreeDVMode(mode);
@@ -144,6 +186,27 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
         }
     });
 
+    if (m_sliceModel) {
+        connect(m_sliceModel, &SliceModel::dspModeChanged, this, [this](DSPMode mode) {
+            m_view->setDSPMode(mode);
+        });
+        connect(m_sliceModel, &SliceModel::frequencyChanged, this, [this](qint64 freq) {
+            m_view->setVfoFrequency(freq);
+        });
+        connect(m_sliceModel, &SliceModel::centerFrequencyChanged, this, [this](qint64 freq) {
+            m_view->setCtrFrequency(freq);
+        });
+        connect(m_sliceModel, &SliceModel::panModeChanged, this, [this](PanGraphicsMode mode) {
+            m_view->setPanadapterMode(mode);
+        });
+        connect(m_sliceModel, &SliceModel::waterfallModeChanged, this, [this](WaterfallColorMode mode) {
+            m_view->setWaterfallColorMode(mode);
+        });
+        connect(m_sliceModel, &SliceModel::filterChanged, this, [this]() {
+            m_view->setFilterFrequencies(m_sliceModel->filterLow(), m_sliceModel->filterHigh());
+        });
+    }
+
     // AGCOptionsWidget binding
     AGCOptionsWidget* agcView = m_view->agcOptionsWidget();
     if (agcView) {
@@ -163,9 +226,10 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
         });
 
         connect(agcView, &AGCOptionsWidget::agcSlopeRequested, this, [this](int r, int val) {
-            Q_UNUSED(r)
-            if (m_sliceModel) {
+            if (m_sliceModel && r == m_sliceModel->id()) {
                 m_sliceModel->setAgcSlope(val);
+            } else {
+                m_model->setAGCVariableGain_dB(r, static_cast<qreal>(val));
             }
         });
 
@@ -208,6 +272,7 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
         // AGCOptionsWidget Model -> View
         connect(m_model, &Settings::agcModeChanged, this, [this, agcView](int r, AGCMode mode) {
             if (m_view->getReceiver() == r) {
+                m_view->setAGCMode(mode);
                 agcView->setAGCMode(mode);
             }
         });
@@ -232,6 +297,7 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
 
         if (m_sliceModel) {
             connect(m_sliceModel, &SliceModel::agcModeChanged, this, [this, agcView](AGCMode mode) {
+                m_view->setAGCMode(mode);
                 agcView->setAGCMode(mode);
             });
             connect(m_sliceModel, &SliceModel::agcMaxGainChanged, this, [this, agcView](int gain) {

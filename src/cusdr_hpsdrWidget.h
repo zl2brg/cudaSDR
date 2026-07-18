@@ -39,6 +39,7 @@ public:
 	void	setAlexPresence(bool pres);
 	void	setExcaliburPresence(bool pres);
 	void	setCurrentMetisCard(const TNetworkDevicecard& card);
+	void	setDataEngineRunning(bool running);
 
 signals:
 	// MVC View Interface Signals
@@ -122,6 +123,10 @@ private:
 	void	disableButtons();
 	void	enableButtons();
 	void	updateDetectedBoardLabel(TNetworkDevicecard card);
+	void	updateExtendedSampleRates();
+	void	applyHardwarePresenceEnablement();
+
+	int		m_deviceProtocol = 0;
 
 private slots:
 	// Internal UI slots

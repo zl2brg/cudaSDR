@@ -16,13 +16,12 @@ NetworkWidget::NetworkWidget(QWidget *parent)
 	, m_hwInterface(QSDR::NoInterfaceMode)
 	, m_hwInterfaceTemp(QSDR::NoInterfaceMode)
 	, m_dataEngineState(QSDR::DataEngineDown)
-	, m_minimumWidgetWidth(500)
+	, m_minimumWidgetWidth(0)
 	, m_minimumGroupBoxWidth(0)
 	, m_numberOfReceivers(1)
 	, m_hpsdrHardware(0)
     , m_discoveryPassId(0)
 {
-	setMinimumWidth(m_minimumWidgetWidth);
 	setContentsMargins(4, 8, 4, 0);
 	setMouseTracking(true);
     setFont(QFont("Arial",10));
@@ -328,18 +327,35 @@ void NetworkWidget::searchBtnClicked() {
 
 #ifdef HAVE_SOAPYSDR
 void NetworkWidget::setSoapyDevicesList(const QList<TSoapyDevice>& list, const TSoapyDevice& active) {
+    // Append/dedupe only — never clear. Search clears the combo; HPSDR and Soapy
+    // discovery finish at different times and must not wipe each other's results.
+    if (list.isEmpty())
+        return;
+
     const bool prevBlocked = deviceCombo->blockSignals(true);
-    deviceCombo->clear();
-    int activeIdx = -1;
-    for (int i = 0; i < list.size(); ++i) {
-        const TSoapyDevice &dev = list.at(i);
-        deviceCombo->addItem("[Soapy] " + dev.label, QVariant::fromValue(dev));
-        if (sameSoapyDevice(dev, active)) {
-            activeIdx = i;
+    for (const TSoapyDevice& dev : list) {
+        bool exists = false;
+        for (int i = 0; i < deviceCombo->count(); ++i) {
+            const QVariant data = deviceCombo->itemData(i);
+            if (!data.canConvert<TSoapyDevice>())
+                continue;
+            if (sameSoapyDevice(data.value<TSoapyDevice>(), dev)) {
+                exists = true;
+                break;
+            }
         }
+        if (!exists)
+            deviceCombo->addItem("[Soapy] " + dev.label, QVariant::fromValue(dev));
     }
-    if (activeIdx >= 0) {
-        deviceCombo->setCurrentIndex(activeIdx);
+
+    for (int i = 0; i < deviceCombo->count(); ++i) {
+        const QVariant data = deviceCombo->itemData(i);
+        if (!data.canConvert<TSoapyDevice>())
+            continue;
+        if (sameSoapyDevice(data.value<TSoapyDevice>(), active)) {
+            deviceCombo->setCurrentIndex(i);
+            break;
+        }
     }
     deviceCombo->blockSignals(prevBlocked);
 }
@@ -360,18 +376,36 @@ void NetworkWidget::setCurrentSoapyDevice(TSoapyDevice device) {
 #endif
 
 void NetworkWidget::setMetisCardsList(const QList<TNetworkDevicecard>& list, const TNetworkDevicecard& active) {
+    // Append/dedupe only — never clear. A later Soapy list update must not erase
+    // HPSDR discovery results (pre-MVC setNetworkDeviceList behaviour).
+    if (list.isEmpty())
+        return;
+
+    m_deviceCards = list;
     const bool prevBlocked = deviceCombo->blockSignals(true);
-    deviceCombo->clear();
-    int activeIdx = -1;
-    for (int i = 0; i < list.size(); ++i) {
-        const TNetworkDevicecard &device = list.at(i);
-        deviceCombo->addItem("[HPSDR] " + device.ip_address.toString(), QVariant::fromValue(device));
-        if (sameHpsdrDeviceByMac(device, active)) {
-            activeIdx = i;
+    for (const TNetworkDevicecard& device : list) {
+        bool exists = false;
+        for (int i = 0; i < deviceCombo->count(); ++i) {
+            const QVariant data = deviceCombo->itemData(i);
+            if (!data.canConvert<TNetworkDevicecard>())
+                continue;
+            if (sameHpsdrDeviceByMac(data.value<TNetworkDevicecard>(), device)) {
+                exists = true;
+                break;
+            }
         }
+        if (!exists)
+            deviceCombo->addItem("[HPSDR] " + device.ip_address.toString(), QVariant::fromValue(device));
     }
-    if (activeIdx >= 0) {
-        deviceCombo->setCurrentIndex(activeIdx);
+
+    for (int i = 0; i < deviceCombo->count(); ++i) {
+        const QVariant data = deviceCombo->itemData(i);
+        if (!data.canConvert<TNetworkDevicecard>())
+            continue;
+        if (sameHpsdrDeviceByMac(data.value<TNetworkDevicecard>(), active)) {
+            deviceCombo->setCurrentIndex(i);
+            break;
+        }
     }
     deviceCombo->blockSignals(prevBlocked);
 }
@@ -427,6 +461,14 @@ void NetworkWidget::setManualSocketBufferSize(bool manual) {
 	}
 	socketBufSizeBtn->blockSignals(false);
 	socketBufSizeBtn->update();
+}
+
+void NetworkWidget::setDataEngineRunning(bool running) {
+	m_dataEngineState = running ? QSDR::DataEngineUp : QSDR::DataEngineDown;
+	if (running)
+		disableButtons();
+	else
+		enableButtons();
 }
 
 void NetworkWidget::disableButtons() {

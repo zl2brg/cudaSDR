@@ -15,12 +15,11 @@ HPSDRWidget::HPSDRWidget(QWidget *parent)
 	, m_hwInterface(QSDR::NoInterfaceMode)
 	, m_hwInterfaceTemp(QSDR::NoInterfaceMode)
 	, m_dataEngineState(QSDR::DataEngineDown)
-	, m_minimumWidgetWidth(500)
+	, m_minimumWidgetWidth(0)
 	, m_minimumGroupBoxWidth(0)
 	, m_numberOfReceivers(1)
 	, m_hpsdrHardware(0)
 {
-	setMinimumWidth(m_minimumWidgetWidth);
 	setContentsMargins(4, 8, 4, 0);
 	setMouseTracking(true);
 	
@@ -383,25 +382,27 @@ QGroupBox *HPSDRWidget::sampleRateExclusiveGroup() {
     samplerate768Btn->setRoundness(0);
     samplerate768Btn->setFixedSize(btn_width, btn_height);
     samplerate768Btn->setBtnState(AeroButton::OFF);
+    samplerate768Btn->setEnabled(false); // P2 / Soapy only
     samplerateBtnList.append(samplerate768Btn);
 
     CHECKED_CONNECT(
         samplerate768Btn, 
-        &AeroButton::released, 
-        this, 
-        &HPSDRWidget::sampleRateChanged);
+		&AeroButton::released, 
+		this, 
+		&HPSDRWidget::sampleRateChanged);
 
     samplerate1536Btn = new AeroButton("1.536 MHz", this);
     samplerate1536Btn->setRoundness(0);
     samplerate1536Btn->setFixedSize(btn_width, btn_height);
     samplerate1536Btn->setBtnState(AeroButton::OFF);
+    samplerate1536Btn->setEnabled(false); // P2 / Soapy only
     samplerateBtnList.append(samplerate1536Btn);
 
     CHECKED_CONNECT(
         samplerate1536Btn, 
-        &AeroButton::released, 
-        this, 
-        &HPSDRWidget::sampleRateChanged);
+		&AeroButton::released, 
+		this, 
+		&HPSDRWidget::sampleRateChanged);
 
 	QHBoxLayout *hbox1 = new QHBoxLayout();
 	hbox1->setSpacing(4);
@@ -410,8 +411,8 @@ QGroupBox *HPSDRWidget::sampleRateExclusiveGroup() {
 	hbox1->addWidget(samplerate96Btn);
 	hbox1->addWidget(samplerate192Btn);
 	hbox1->addWidget(samplerate384Btn);
-    hbox1->addWidget(samplerate768Btn);
-    hbox1->addWidget(samplerate1536Btn);
+	hbox1->addWidget(samplerate768Btn);
+	hbox1->addWidget(samplerate1536Btn);
 
 	QVBoxLayout *vbox = new QVBoxLayout();
 	vbox->setSpacing(4);
@@ -467,21 +468,20 @@ void HPSDRWidget::setHwInterface(QSDR::_HWInterfaceMode mode) {
 		m_hwInterface = mode;
 		hwInterfaceChanged();
 	}
+	updateExtendedSampleRates();
 	update();
 }
 
 void HPSDRWidget::hwInterfaceChanged() {
-	switch (m_hwInterface) {
-		case QSDR::NoInterfaceMode:
-			break;
-		case QSDR::Metis:
-		case QSDR::Hermes:
-			break;
-#ifdef HAVE_SOAPYSDR
-		case QSDR::SoapySDR:
-			break;
-#endif
-	}
+	// HPSDR-specific controls are irrelevant in Soapy mode.
+	const bool isHpsdr = (m_hwInterface == QSDR::Metis || m_hwInterface == QSDR::Hermes);
+	if (m_hpsdrHardwareGroupBox)
+		m_hpsdrHardwareGroupBox->setVisible(isHpsdr);
+	if (source10MhzExclusiveGroup)
+		source10MhzExclusiveGroup->setVisible(isHpsdr && m_hpsdrHardware == 0);
+	if (source122_88MhzExclusiveGroup)
+		source122_88MhzExclusiveGroup->setVisible(isHpsdr && m_hpsdrHardware == 0);
+
 	m_hwInterfaceTemp = m_hwInterface;
 }
 
@@ -503,16 +503,15 @@ void HPSDRWidget::setHPSDRHardware() {
 		button->update();
 	}
 
-	switch (m_hpsdrHardware) {
-		case 0:
-			source10MhzExclusiveGroup->show();
-			source122_88MhzExclusiveGroup->show();
-			break;
-		case 1:
-			source10MhzExclusiveGroup->hide();
-			source122_88MhzExclusiveGroup->hide();
-			break;
-	}
+	// Atlas modules expose clock-source controls; Hermes/Soapy do not.
+	const bool showClocks =
+		(m_hwInterface == QSDR::Metis || m_hwInterface == QSDR::Hermes) && m_hpsdrHardware == 0;
+	if (source10MhzExclusiveGroup)
+		source10MhzExclusiveGroup->setVisible(showClocks);
+	if (source122_88MhzExclusiveGroup)
+		source122_88MhzExclusiveGroup->setVisible(showClocks);
+
+	applyHardwarePresenceEnablement();
 }
 
 void HPSDRWidget::setNumberOfReceivers(int count) {
@@ -618,7 +617,25 @@ void HPSDRWidget::setExcaliburPresence(bool pres) {
 }
 
 void HPSDRWidget::setCurrentMetisCard(const TNetworkDevicecard& card) {
+	m_deviceProtocol = card.protocol;
 	updateDetectedBoardLabel(card);
+	updateExtendedSampleRates();
+}
+
+void HPSDRWidget::updateExtendedSampleRates() {
+	// 768 / 1536 kHz are Protocol 2 (and Soapy) only — never enable for P1 Metis/Hermes.
+	const bool isP2 = (m_deviceProtocol == 2);
+#ifdef HAVE_SOAPYSDR
+	const bool enabled = (m_hwInterface == QSDR::SoapySDR) || isP2;
+#else
+	const bool enabled = isP2;
+#endif
+	HPSDR_WIDGET_DEBUG << "updateExtendedSampleRates: protocol =" << m_deviceProtocol
+	                   << " hw =" << m_hwInterface << " enabled =" << enabled;
+	if (samplerate768Btn)
+		samplerate768Btn->setEnabled(enabled);
+	if (samplerate1536Btn)
+		samplerate1536Btn->setEnabled(enabled);
 }
 
 void HPSDRWidget::updateDetectedBoardLabel(TNetworkDevicecard card) {
@@ -704,6 +721,14 @@ void HPSDRWidget::receiverComboBoxChanged(int index) {
 	emit numberOfReceiversRequested(index + 1);
 }
 
+void HPSDRWidget::setDataEngineRunning(bool running) {
+	m_dataEngineState = running ? QSDR::DataEngineUp : QSDR::DataEngineDown;
+	if (running)
+		disableButtons();
+	else
+		enableButtons();
+}
+
 void HPSDRWidget::disableButtons() {
 	modulesPresenceBtn->setEnabled(false);
 	hermesPresenceBtn->setEnabled(false);
@@ -723,15 +748,53 @@ void HPSDRWidget::disableButtons() {
 void HPSDRWidget::enableButtons() {
 	modulesPresenceBtn->setEnabled(true);
 	hermesPresenceBtn->setEnabled(true);
-	penelopePresenceBtn->setEnabled(true);
-	pennyPresenceBtn->setEnabled(true);
-	mercuryPresenceBtn->setEnabled(true);
-	excaliburPresenceBtn->setEnabled(true);
 	alexPresenceBtn->setEnabled(true);
-	atlasBtn->setEnabled(true);
-	penelopeBtn->setEnabled(true);
-	mercuryBtn->setEnabled(true);
 	penelope2Btn->setEnabled(true);
 	mercury2Btn->setEnabled(true);
 	m_receiverComboBox->setEnabled(true);
+	applyHardwarePresenceEnablement();
+}
+
+void HPSDRWidget::applyHardwarePresenceEnablement() {
+	// Hermes is integrated — Penelope/PennyLane/Mercury/Excalibur presence N/A.
+	const bool hermes = (m_hpsdrHardware == 1);
+	const bool locked = (m_dataEngineState == QSDR::DataEngineUp);
+
+	if (hermes) {
+		penelopePresenceBtn->blockSignals(true);
+		pennyPresenceBtn->blockSignals(true);
+		mercuryPresenceBtn->blockSignals(true);
+		excaliburPresenceBtn->blockSignals(true);
+
+		penelopePresenceBtn->setBtnState(AeroButton::OFF);
+		pennyPresenceBtn->setBtnState(AeroButton::OFF);
+		mercuryPresenceBtn->setBtnState(AeroButton::OFF);
+		excaliburPresenceBtn->setBtnState(AeroButton::OFF);
+
+		penelopePresenceBtn->blockSignals(false);
+		pennyPresenceBtn->blockSignals(false);
+		mercuryPresenceBtn->blockSignals(false);
+		excaliburPresenceBtn->blockSignals(false);
+
+		penelopePresenceBtn->setEnabled(false);
+		pennyPresenceBtn->setEnabled(false);
+		mercuryPresenceBtn->setEnabled(false);
+		excaliburPresenceBtn->setEnabled(false);
+		atlasBtn->setEnabled(false);
+		penelopeBtn->setEnabled(false);
+		mercuryBtn->setEnabled(false);
+	} else if (!locked) {
+		penelopePresenceBtn->setEnabled(true);
+		pennyPresenceBtn->setEnabled(true);
+		mercuryPresenceBtn->setEnabled(true);
+		excaliburPresenceBtn->setEnabled(true);
+		atlasBtn->setEnabled(true);
+		penelopeBtn->setEnabled(true);
+		mercuryBtn->setEnabled(true);
+	}
+
+	penelopePresenceBtn->update();
+	pennyPresenceBtn->update();
+	mercuryPresenceBtn->update();
+	excaliburPresenceBtn->update();
 }

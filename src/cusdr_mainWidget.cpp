@@ -27,7 +27,7 @@
  */
 
 #define LOG_MAIN
-#define DOCK_WIDTH  540
+#define DOCK_WIDTH  420
 
 #ifdef LOG_NETWORKDIALOG
 #define NETWORKDIALOG_DEBUG qDebug().nospace() << "NetworkDialog::\t"
@@ -867,7 +867,20 @@ void MainWindow::widgetBtnClickedEvent() {
 
 			button->setBtnState(AeroButton::ON);
 			button->update();
-			dockWidgetList.at(on)->show();
+			QDockWidget *dock = dockWidgetList.at(on);
+			dock->show();
+
+			// Size the CUSDR settings dock to the content so pages are fully
+			// visible without dragging the dock edge / horizontal scrollbar.
+			if (dock->objectName() == QLatin1String("HPSDRCtrl") && dock->widget()) {
+				const int chrome = 24;
+				const int need = qBound(DOCK_WIDTH,
+				                       dock->widget()->sizeHint().width() + chrome,
+				                       dock->maximumWidth());
+				if (dock->width() < need) {
+					resizeDocks({dock}, {need}, Qt::Horizontal);
+				}
+			}
 		}
 	}
 }
