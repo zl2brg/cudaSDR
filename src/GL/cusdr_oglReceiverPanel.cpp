@@ -750,10 +750,9 @@ void QGLReceiverPanel::drawPanVerticalScale() {
             }
             m_dBmScaleFBO = new QOpenGLFramebufferObject(width, height);
         }
-        glPushAttrib(GL_VIEWPORT_BIT | GL_TEXTURE_BIT);
-
+        GLint viewport[4];
+        glGetIntegerv(GL_VIEWPORT, viewport);
         glViewport(0, 0, width, height);
-        setProjectionOrthographic(width, height);
 
         m_dBmScaleFBO->bind();
         renderPanVerticalScale();
@@ -762,8 +761,7 @@ void QGLReceiverPanel::drawPanVerticalScale() {
         if (!m_dragDBmScale)
             m_dBmScalePanadapterUpdate = false;
         m_dBmScalePanadapterRenew = false;
-        glPopAttrib();
-        setProjectionOrthographic(size().width(), size().height());
+        glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
     }
 
     drawCachedTexture(m_dBmScalePanRect, m_dBmScaleFBO->texture(), 0.0f);
@@ -873,16 +871,15 @@ void QGLReceiverPanel::drawPanHorizontalScale() {
             m_frequencyScaleFBO = new QOpenGLFramebufferObject(width, height);  // Use logical size
         }
 
-		glPushAttrib(GL_VIEWPORT_BIT | GL_TEXTURE_BIT);
+        GLint viewport[4];
+        glGetIntegerv(GL_VIEWPORT, viewport);
         glViewport(0, 0, width, height);  // Use logical coordinates
-        setProjectionOrthographic(width, height);
-		
+
         m_frequencyScaleFBO->bind();
             renderPanHorizontalScale();
         m_frequencyScaleFBO->release();
 
-		glPopAttrib(); // This restores the viewport and texture state
-        setProjectionOrthographic(size().width(), size().height());
+        glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
         m_freqScalePanadapterUpdate = false;
 		m_freqScalePanadapterRenew = false;
 	}
@@ -1053,9 +1050,9 @@ void QGLReceiverPanel::drawWaterfallVerticalScale() {
             m_secScaleWaterfallFBO = new QOpenGLFramebufferObject(width, height);
         }
 
-        glPushAttrib(GL_VIEWPORT_BIT | GL_TEXTURE_BIT);
+        GLint viewport[4];
+        glGetIntegerv(GL_VIEWPORT, viewport);
         glViewport(0, 0, width, height);
-        setProjectionOrthographic(width, height);
 
         m_secScaleWaterfallFBO->bind();
         renderWaterfallVerticalScale();
@@ -1063,8 +1060,7 @@ void QGLReceiverPanel::drawWaterfallVerticalScale() {
 
         m_secScaleWaterfallUpdate = false;
         m_secScaleWaterfallRenew = false;
-        glPopAttrib();
-        setProjectionOrthographic(size().width(), size().height());
+        glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
     }
 
     if (m_secScaleWaterfallFBO)
