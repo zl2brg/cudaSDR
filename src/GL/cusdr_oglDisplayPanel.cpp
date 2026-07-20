@@ -1551,7 +1551,11 @@ void OGLDisplayPanel::setSMeterValue(int rx, double value) {
         const float offset = (set->getHWInterface() == QSDR::SoapySDR) ? 90.0f : 140.0f;
 		tmp = (float)value + offset;
 
+		// Gate needle math + GL redraw to ~25 FPS. Previously m_sMeterTimer was never
+		// restarted here, so after the first 40 ms every DSP sample forced a full
+		// display-panel swap (expensive under Wayland compositors).
 		if (m_sMeterTimer.elapsed() > 40) {
+			m_sMeterTimer.restart();
 
 			if (tmp < m_sMeterMinValueB) m_sMeterMinValueB = tmp;
 
@@ -1593,18 +1597,17 @@ void OGLDisplayPanel::setSMeterValue(int rx, double value) {
 				}
 			}
 
-		m_sMeterValue = tmp * 0.13f + m_sMeterValue * 0.87f;
+			m_sMeterValue = tmp * 0.13f + m_sMeterValue * 0.87f;
 
 			if (m_sMeterDisplayTime.elapsed() > 200) {
 
-                m_sMeterOrgValue = tmp - 130.0f;
+				m_sMeterOrgValue = tmp - 130.0f;
 
 				m_sMeterDisplayTime.restart();
 			}
-			//m_sMeterOrgValue = value - 37.7f;
 
+			update();
 		}
-		update();
 }
 
 

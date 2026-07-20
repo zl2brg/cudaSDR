@@ -276,9 +276,9 @@ void ModelsTests::testSliceModelProperties() {
     QCOMPARE(slice.sMeterHoldTime(), 2000);
     QCOMPARE(spySMeterHoldTime.count(), 1);
 
-    QCOMPARE(slice.fftSize(), 4096);
-    slice.setFftSize(8192);
-    QCOMPARE(slice.fftSize(), 8192);
+    QCOMPARE(slice.fftSize(), 1);
+    slice.setFftSize(2);
+    QCOMPARE(slice.fftSize(), 2);
     QCOMPARE(spyFftSize.count(), 1);
 
     QCOMPARE(slice.spectrumAveraging(), false);

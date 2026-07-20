@@ -1700,8 +1700,9 @@ void QGLWidebandPanel::timerEvent(QTimerEvent *event) {
             m_panGridRenew = true;
             update();
         }
+        return;
     }
-    update();
+    QOpenGLWidget::timerEvent(event);
 }
  
 //********************************************************************

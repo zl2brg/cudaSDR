@@ -236,7 +236,7 @@ private:
     bool m_snb = false;
     double m_sMeterValue = -140.0;
     int m_sMeterHoldTime = 1000;
-    int m_fftSize = 4096;
+    int m_fftSize = 1; // combo index: 0=2k … 4=32k (see QWDSPEngine::getfftVal)
     bool m_spectrumAveraging = false;
     int m_spectrumAveragingCnt = 5;
     PanAveragingMode m_panAveragingMode = AV_MODE_NONE;

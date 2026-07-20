@@ -1694,6 +1694,9 @@ void MainWindow::closeEvent(
 	if (set->getMainPower())
 		startButtonClickedEvent();
 
+	// Persist last VFO/center frequencies even if the user never toggled main power.
+	set->saveSettings();
+
 	QSettings settings(QCoreApplication::applicationDirPath() +  "/" + m_windowsSettingsFilename, QSettings::IniFormat);
     settings.setValue("geometry", saveGeometry());
     settings.setValue("windowState", saveState());

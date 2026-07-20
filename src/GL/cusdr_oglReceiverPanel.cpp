@@ -3086,7 +3086,11 @@ void QGLReceiverPanel::computeDisplayBins(QVector<float>& buffer, QVector<float>
 	}
 
 	m_waterfallDisplayUpdate = true;
-	if (m_displayTime.elapsed() >= (1000 / m_fps)) {
+	int frameIntervalMs = (m_fps > 0) ? (1000 / m_fps) : 33;
+	// Wayland compositors pay per client frame; keep pan/waterfall at ≤ ~30 FPS there.
+	if (QGuiApplication::platformName().contains(QLatin1String("wayland"), Qt::CaseInsensitive))
+		frameIntervalMs = qMax(frameIntervalMs, 33);
+	if (m_displayTime.elapsed() >= frameIntervalMs) {
 		m_displayTime.restart();
 		update();
 	}

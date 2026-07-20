@@ -143,8 +143,12 @@ int main(int argc, char *argv[]) {
     format.setStencilBufferSize(8);
     format.setVersion(2, 0);
     format.setProfile(QSurfaceFormat::CompatibilityProfile);
-    format.setSwapInterval(0);  // Disable VSync to allow independent update rates
+    // X11 tolerates swapInterval(0); Wayland compositors pay for every unbound client frame.
+    const bool isWayland = QGuiApplication::platformName().contains(QLatin1String("wayland"), Qt::CaseInsensitive);
+    format.setSwapInterval(isWayland ? 1 : 0);
     QSurfaceFormat::setDefaultFormat(format);
+    if (isWayland)
+        qInfo() << "Wayland: enabling GL vsync (swapInterval=1) to reduce compositor CPU";
 
     Settings::instance(&app);
 

@@ -1239,18 +1239,21 @@ int Settings::loadSettings() {
         if ((lvalue < 0) || (lvalue > MAXFREQUENCY)) lvalue = 1800000;
         m_receiverDataList[i].lastVfoFrequencyList << lvalue;
 
+        // Prefer keys under receiverN/; fall back to values already loaded via ReceiverConfig
+        // (including legacy rxN/ migration). Do not hard-default to 3672000 — that wiped
+        // restored frequencies after ReceiverConfig started owning persistence.
         cstr = m_rxStringList.at(i);
         cstr.append("/centerFrequency");
-        lvalue = settings->value(cstr, 3672000).toLongLong();
-        if ((lvalue < 0) || (lvalue > MAXFREQUENCY)) lvalue = 1800000;
+        lvalue = settings->value(cstr, m_receiverDataList[i].ctrFrequency).toLongLong();
+        if ((lvalue < 0) || (lvalue > MAXFREQUENCY)) lvalue = m_receiverDataList[i].ctrFrequency;
         m_receiverDataList[i].ctrFrequency = lvalue;
 
         setCtrFrequency(i, lvalue);
 
         cstr = m_rxStringList.at(i);
         cstr.append("/vfoFrequency");
-        lvalue = settings->value(cstr, 3672000).toLongLong();
-        if ((lvalue < 0) || (lvalue > 50000000)) lvalue = 3600000;
+        lvalue = settings->value(cstr, m_receiverDataList[i].vfoFrequency).toLongLong();
+        if ((lvalue < 0) || (lvalue > MAXFREQUENCY)) lvalue = m_receiverDataList[i].vfoFrequency;
         m_receiverDataList[i].vfoFrequency = lvalue;
 
         setVfoFrequency(i, lvalue);
