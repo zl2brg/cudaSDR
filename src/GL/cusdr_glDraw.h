@@ -236,6 +236,8 @@ inline void renderTexturedQuad(QOpenGLFunctions *gl,
     if (!gl || !prog || !prog->isLinked() || rect.isEmpty() || !texId)
         return;
 
+    Q_UNUSED(z)
+
     gl->glEnable(GL_BLEND);
     gl->glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
