@@ -651,17 +651,15 @@ void QGLDistancePanel::drawPanHorizontalScale() {
             m_frequencyScaleFBO = new QOpenGLFramebufferObject(width, height);
 		}
 
-		glPushAttrib(GL_VIEWPORT_BIT);
-		glViewport(0, 0, width, height);
-		setProjectionOrthographic(width, height);
-		
+        GLint viewport[4];
+        glGetIntegerv(GL_VIEWPORT, viewport);
+        glViewport(0, 0, width, height);
+
 		m_frequencyScaleFBO->bind();
 			renderPanHorizontalScale();
 		m_frequencyScaleFBO->release();
 
-		glPopAttrib();
-		glViewport(0, 0, size().width(), size().height());
-		setProjectionOrthographic(size().width(), size().height());
+        glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
 		
 		m_freqScalePanadapterUpdate = false;
 		m_freqScalePanadapterRenew = false;
@@ -702,17 +700,15 @@ void QGLDistancePanel::drawPanadapterGrid() {
             m_panadapterGridFBO = new QOpenGLFramebufferObject(width, height);
 		}
 
-		glPushAttrib(GL_VIEWPORT_BIT);
-		glViewport(0, 0, width, height);
-		setProjectionOrthographic(width, height);
-		
+        GLint viewport[4];
+        glGetIntegerv(GL_VIEWPORT, viewport);
+        glViewport(0, 0, width, height);
+
 		m_panadapterGridFBO->bind();
 			renderPanadapterGrid();
 		m_panadapterGridFBO->release();
 
-		glPopAttrib();
-		glViewport(0, 0, size().width(), size().height());
-		setProjectionOrthographic(size().width(), size().height());
+        glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
 		
 		m_panGridUpdate = false;
 		m_panGridRenew = false;
