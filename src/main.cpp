@@ -122,6 +122,15 @@ int main(int argc, char *argv[]) {
     qInstallMessageHandler(cuSDRMessageHandler);
 #endif
 #if defined(Q_OS_LINUX)
+    // Make the application display-server agnostic:
+    // Prioritize Wayland if WAYLAND_DISPLAY is set, falling back to X11 (xcb).
+    if (!qEnvironmentVariableIsSet("QT_QPA_PLATFORM")) {
+        if (qEnvironmentVariableIsSet("WAYLAND_DISPLAY")) {
+            qputenv("QT_QPA_PLATFORM", QByteArrayLiteral("wayland;xcb"));
+        } else {
+            qputenv("QT_QPA_PLATFORM", QByteArrayLiteral("xcb"));
+        }
+    }
     // Qt6 multimedia on Linux commonly uses FFmpeg. Allow explicit override,
     // but default to ffmpeg so behavior is predictable across hosts.
     if (!qEnvironmentVariableIsSet("QT_MEDIA_BACKEND")) {
@@ -143,7 +152,11 @@ int main(int argc, char *argv[]) {
     format.setStencilBufferSize(8);
     format.setVersion(2, 0);
     format.setProfile(QSurfaceFormat::CompatibilityProfile);
-    format.setSwapInterval(0);  // Disable VSync to allow independent update rates
+    if (app.platformName() == QLatin1String("wayland")) {
+        format.setSwapInterval(1);  // Enable VSync under Wayland to prevent EGL busy-waiting / high CPU
+    } else {
+        format.setSwapInterval(0);  // Disable VSync on X11 to allow independent update rates
+    }
     QSurfaceFormat::setDefaultFormat(format);
 
     Settings::instance(&app);

@@ -29,11 +29,15 @@ if ! BINARY_PATH="$(find_binary)"; then
     exit 1
 fi
 
-export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-xcb}"
+# Detect display server and dynamically choose best platform with fallbacks
+if [[ -n "${WAYLAND_DISPLAY:-}" ]]; then
+    export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-wayland;xcb}"
+else
+    export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-xcb}"
+fi
 # xcb_glx: best 3D panadapter (desktop GL). xcb_egl: legacy EGL path.
 # 2D pan/waterfall use direct GL and work on either after NoPartialUpdate + pan GL fallback.
 export QT_XCB_GL_INTEGRATION="${QT_XCB_GL_INTEGRATION:-xcb_glx}"
-export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-}"
 
 # --- Qt 6.11.0 Detection Logic ---
 REQUIRED_QT_VERSION="6.11.0"
