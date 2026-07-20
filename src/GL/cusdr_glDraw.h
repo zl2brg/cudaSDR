@@ -17,6 +17,11 @@ struct Vec3Rgb {
     float r = 0, g = 0, b = 0;
 };
 
+struct Vec3Rgba {
+    float x = 0, y = 0, z = 0;
+    float r = 0, g = 0, b = 0, a = 1.0f;
+};
+
 inline void bindVec3ColorAttribs(QOpenGLFunctions *gl, QOpenGLShaderProgram *prog, GLsizei stride)
 {
     const int pos = prog->attributeLocation("position");
@@ -29,6 +34,22 @@ inline void bindVec3ColorAttribs(QOpenGLFunctions *gl, QOpenGLShaderProgram *pro
     if (col >= 0) {
         gl->glEnableVertexAttribArray(GLuint(col));
         gl->glVertexAttribPointer(GLuint(col), 3, GL_FLOAT, GL_FALSE, stride,
+                                  reinterpret_cast<const void *>(3 * sizeof(float)));
+    }
+}
+
+inline void bindVec3ColorRgbaAttribs(QOpenGLFunctions *gl, QOpenGLShaderProgram *prog, GLsizei stride)
+{
+    const int pos = prog->attributeLocation("position");
+    const int col = prog->attributeLocation("color");
+    if (pos >= 0) {
+        gl->glEnableVertexAttribArray(GLuint(pos));
+        gl->glVertexAttribPointer(GLuint(pos), 3, GL_FLOAT, GL_FALSE, stride,
+                                  reinterpret_cast<const void *>(0));
+    }
+    if (col >= 0) {
+        gl->glEnableVertexAttribArray(GLuint(col));
+        gl->glVertexAttribPointer(GLuint(col), 4, GL_FLOAT, GL_FALSE, stride,
                                   reinterpret_cast<const void *>(3 * sizeof(float)));
     }
 }
@@ -63,6 +84,32 @@ inline void drawColoredLines(QOpenGLFunctions *gl,
 
     const GLsizei stride = GLsizei(sizeof(Vec3Rgb));
     bindVec3ColorAttribs(gl, prog, stride);
+    gl->glDrawArrays(GL_LINES, 0, vertexCount);
+    unbindVec3ColorAttribs(gl, prog);
+    vbo.release();
+    prog->release();
+}
+
+inline void drawColoredRgbaLines(QOpenGLFunctions *gl,
+                                 QOpenGLShaderProgram *prog,
+                                 QOpenGLBuffer &vbo,
+                                 const QMatrix4x4 &mvp,
+                                 const Vec3Rgba *verts,
+                                 int vertexCount)
+{
+    if (!gl || !prog || !prog->isLinked() || vertexCount < 2)
+        return;
+
+    prog->bind();
+    const int matrixLoc = prog->uniformLocation("matrix");
+    if (matrixLoc >= 0)
+        prog->setUniformValue(matrixLoc, mvp);
+
+    vbo.bind();
+    vbo.allocate(verts, vertexCount * int(sizeof(Vec3Rgba)));
+
+    const GLsizei stride = GLsizei(sizeof(Vec3Rgba));
+    bindVec3ColorRgbaAttribs(gl, prog, stride);
     gl->glDrawArrays(GL_LINES, 0, vertexCount);
     unbindVec3ColorAttribs(gl, prog);
     vbo.release();
