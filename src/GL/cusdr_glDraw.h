@@ -24,8 +24,11 @@ struct Vec3Rgba {
 
 inline void bindVec3ColorAttribs(QOpenGLFunctions *gl, QOpenGLShaderProgram *prog, GLsizei stride)
 {
-    const int pos = prog->attributeLocation("position");
-    const int col = prog->attributeLocation("color");
+    int pos = prog->attributeLocation("position");
+    if (pos < 0) pos = prog->attributeLocation("a_pos");
+    int col = prog->attributeLocation("color");
+    if (col < 0) col = prog->attributeLocation("a_color");
+
     if (pos >= 0) {
         gl->glEnableVertexAttribArray(GLuint(pos));
         gl->glVertexAttribPointer(GLuint(pos), 3, GL_FLOAT, GL_FALSE, stride,
@@ -40,8 +43,11 @@ inline void bindVec3ColorAttribs(QOpenGLFunctions *gl, QOpenGLShaderProgram *pro
 
 inline void bindVec3ColorRgbaAttribs(QOpenGLFunctions *gl, QOpenGLShaderProgram *prog, GLsizei stride)
 {
-    const int pos = prog->attributeLocation("position");
-    const int col = prog->attributeLocation("color");
+    int pos = prog->attributeLocation("position");
+    if (pos < 0) pos = prog->attributeLocation("a_pos");
+    int col = prog->attributeLocation("color");
+    if (col < 0) col = prog->attributeLocation("a_color");
+
     if (pos >= 0) {
         gl->glEnableVertexAttribArray(GLuint(pos));
         gl->glVertexAttribPointer(GLuint(pos), 3, GL_FLOAT, GL_FALSE, stride,
@@ -56,8 +62,11 @@ inline void bindVec3ColorRgbaAttribs(QOpenGLFunctions *gl, QOpenGLShaderProgram 
 
 inline void unbindVec3ColorAttribs(QOpenGLFunctions *gl, QOpenGLShaderProgram *prog)
 {
-    const int pos = prog->attributeLocation("position");
-    const int col = prog->attributeLocation("color");
+    int pos = prog->attributeLocation("position");
+    if (pos < 0) pos = prog->attributeLocation("a_pos");
+    int col = prog->attributeLocation("color");
+    if (col < 0) col = prog->attributeLocation("a_color");
+
     if (pos >= 0)
         gl->glDisableVertexAttribArray(GLuint(pos));
     if (col >= 0)
@@ -75,7 +84,8 @@ inline void drawColoredLines(QOpenGLFunctions *gl,
         return;
 
     prog->bind();
-    const int matrixLoc = prog->uniformLocation("matrix");
+    int matrixLoc = prog->uniformLocation("matrix");
+    if (matrixLoc < 0) matrixLoc = prog->uniformLocation("u_mvp");
     if (matrixLoc >= 0)
         prog->setUniformValue(matrixLoc, mvp);
 
@@ -101,7 +111,8 @@ inline void drawColoredRgbaLines(QOpenGLFunctions *gl,
         return;
 
     prog->bind();
-    const int matrixLoc = prog->uniformLocation("matrix");
+    int matrixLoc = prog->uniformLocation("matrix");
+    if (matrixLoc < 0) matrixLoc = prog->uniformLocation("u_mvp");
     if (matrixLoc >= 0)
         prog->setUniformValue(matrixLoc, mvp);
 
@@ -144,7 +155,8 @@ inline void drawSolidRect(QOpenGLFunctions *gl,
         return;
 
     prog->bind();
-    const int matrixLoc = prog->uniformLocation("matrix");
+    int matrixLoc = prog->uniformLocation("matrix");
+    if (matrixLoc < 0) matrixLoc = prog->uniformLocation("u_mvp");
     if (matrixLoc >= 0)
         prog->setUniformValue(matrixLoc, mvp);
 
@@ -197,7 +209,8 @@ inline void drawGradientRect(QOpenGLFunctions *gl,
         return;
 
     prog->bind();
-    const int matrixLoc = prog->uniformLocation("matrix");
+    int matrixLoc = prog->uniformLocation("matrix");
+    if (matrixLoc < 0) matrixLoc = prog->uniformLocation("u_mvp");
     if (matrixLoc >= 0)
         prog->setUniformValue(matrixLoc, mvp);
 
@@ -244,15 +257,20 @@ inline void renderTexturedQuad(QOpenGLFunctions *gl,
     };
 
     prog->bind();
-    const int matrixLoc = prog->uniformLocation("matrix");
+    int matrixLoc = prog->uniformLocation("matrix");
+    if (matrixLoc < 0) matrixLoc = prog->uniformLocation("u_mvp");
     if (matrixLoc >= 0)
         prog->setUniformValue(matrixLoc, mvp);
 
     vbo.bind();
     vbo.allocate(quad, int(sizeof(quad)));
 
-    const int posLoc = prog->attributeLocation("position");
-    const int texLoc = prog->attributeLocation("texCoord");
+    int posLoc = prog->attributeLocation("position");
+    if (posLoc < 0) posLoc = prog->attributeLocation("a_pos");
+    int texLoc = prog->attributeLocation("texCoord");
+    if (texLoc < 0) texLoc = prog->attributeLocation("a_texCoord");
+    if (texLoc < 0) texLoc = prog->attributeLocation("texCoord");
+
     const GLsizei stride = GLsizei(sizeof(Vertex));
     if (posLoc >= 0) {
         gl->glEnableVertexAttribArray(GLuint(posLoc));

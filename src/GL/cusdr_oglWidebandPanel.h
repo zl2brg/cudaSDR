@@ -102,6 +102,8 @@ private:
 	QQueue<QVector<float> >		specAv_queue;
 	TWideband					m_widebandOptions;
 
+    void drawPanelRect(const QRect &rect, const QColor &color, float z = 0.0f);
+
     QOpenGLFramebufferObject*		m_frequencyScaleFBO = nullptr;
     QOpenGLFramebufferObject*		m_dBmScaleFBO = nullptr;
     QOpenGLFramebufferObject*		m_gridFBO = nullptr;

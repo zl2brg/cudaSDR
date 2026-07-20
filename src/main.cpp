@@ -150,8 +150,8 @@ int main(int argc, char *argv[]) {
     QSurfaceFormat format;
     format.setDepthBufferSize(24);
     format.setStencilBufferSize(8);
-    format.setVersion(2, 0);
-    format.setProfile(QSurfaceFormat::CompatibilityProfile);
+    format.setVersion(3, 3);
+    format.setProfile(QSurfaceFormat::CoreProfile);
     if (app.platformName() == QLatin1String("wayland")) {
         format.setSwapInterval(1);  // Enable VSync under Wayland to prevent EGL busy-waiting / high CPU
     } else {

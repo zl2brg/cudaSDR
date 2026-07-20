@@ -291,10 +291,18 @@ void QGLWidebandPanel::drawCachedTexture(const QRect &rect, GLuint texId, float 
 {
 	if (rect.isEmpty() || !texId)
 		return;
+	m_vao.bind();
 	if (m_textureProgram && m_textureProgram->isLinked())
 		GlDraw::renderTexturedQuad(this, m_textureProgram, m_vbo, panelProjection(), rect, texId, z);
-	else
-		renderTexture(rect, texId, z);
+}
+
+void QGLWidebandPanel::drawPanelRect(const QRect &rect, const QColor &color, float z)
+{
+	if (rect.isEmpty())
+		return;
+	m_vao.bind();
+	if (m_program && m_program->isLinked())
+		GlDraw::drawSolidRect(this, m_program, m_vbo, panelProjection(), rect, color, z);
 }
 
 void QGLWidebandPanel::paintGL() {
@@ -305,7 +313,7 @@ void QGLWidebandPanel::paintGL() {
 
 		case QSDR::NoServerMode:
 
-            drawGLRect(QRect(0, 0, width()* dpr, height() * dpr), QColor(65, 54, 54));
+            drawPanelRect(QRect(0, 0, width()* dpr, height() * dpr), QColor(65, 54, 54), -5.0f);
 			break;
 
 		case QSDR::SDRMode:
@@ -367,7 +375,25 @@ void QGLWidebandPanel::drawVertexColorArray(GLenum mode, const QVector<float> &d
 	m_vao.bind();
 	m_vbo.bind();
 	m_vbo.allocate(data.constData(), data.size() * (int)sizeof(float));
+
+	if (m_attrPos >= 0) {
+		glEnableVertexAttribArray(m_attrPos);
+		glVertexAttribPointer(m_attrPos, 3, GL_FLOAT, GL_FALSE,
+		                      6 * sizeof(float), reinterpret_cast<void*>(0));
+	}
+	if (m_attrColor >= 0) {
+		glEnableVertexAttribArray(m_attrColor);
+		glVertexAttribPointer(m_attrColor, 3, GL_FLOAT, GL_FALSE,
+		                      6 * sizeof(float), reinterpret_cast<void*>(3 * sizeof(float)));
+	}
+
 	glDrawArrays(mode, 0, vertexCount);
+
+	if (m_attrPos >= 0)
+		glDisableVertexAttribArray(m_attrPos);
+	if (m_attrColor >= 0)
+		glDisableVertexAttribArray(m_attrColor);
+
 	m_vbo.release();
 	m_vao.release();
 }
@@ -460,7 +486,7 @@ void QGLWidebandPanel::drawSpectrum() {
 	}
 	else {
 
-		drawGLRect(m_panRect, QColor(30, 30, 50, 155), -4.0f);
+		drawPanelRect(m_panRect, QColor(30, 30, 50, 155), -4.0f);
 	}
 
 	// set a scissor box
@@ -569,7 +595,7 @@ void QGLWidebandPanel::drawSpectrum() {
 		if (m_program && m_program->isLinked()) {
 			m_program->bind();
 			setMvpOrtho(size().width(), size().height());
-			drawVertexColorArray(GL_QUAD_STRIP, bgData,   2 * vertexArrayLength);
+			drawVertexColorArray(GL_TRIANGLE_STRIP, bgData,   2 * vertexArrayLength);
 			drawVertexColorArray(GL_LINE_STRIP,  lineData, vertexArrayLength);
 			m_program->release();
 		}
@@ -787,7 +813,7 @@ void QGLWidebandPanel::drawSpectrum() {
 //		}
 	
 		QRect rect = QRect(x1, y1, x2-x1, y2);
-		drawGLRect(rect, QColor(160, 235, 255, 80), 0.0f);
+		drawPanelRect(rect, QColor(160, 235, 255, 80), 0.0f);
 
 		// small vertical line
 //		glColor4f(QColor(255, 0, 0, 255));
@@ -1034,7 +1060,9 @@ void QGLWidebandPanel::renderVerticalScale() {
 	int sublen	= m_dBmScale.subPointPositions.length();
 	
 	// draw the scale background
+	painter.setCompositionMode(QPainter::CompositionMode_Source);
 	painter.fillRect(0, 0, width, height, QColor(30, 30, 30, 180));
+	painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
 
     painter.setRenderHint(QPainter::Antialiasing);
     painter.setPen(QPen(QColor(165,193,206),1, Qt::SolidLine, Qt::FlatCap));
@@ -1097,7 +1125,9 @@ void QGLWidebandPanel::renderHorizontalScale() {
 	if (m_upperFrequency >= 1e3) { freqScale = 1e3; fstr = QString("  kHz "); }
 
 	// draw the wide band scale background
+    painter.setCompositionMode(QPainter::CompositionMode_Source);
     painter.fillRect(0, 0, m_freqScaleRect.width(), m_freqScaleRect.height(), QColor(0, 0, 0, 255));
+    painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
 	QRect scaledTextRect(0, textOffset_y, 1, fontHeight);
     scaledTextRect.setWidth(m_fonts.smallFontMetrics->horizontalAdvance(fstr));
     scaledTextRect.moveLeft(m_freqScaleRect.width() - scaledTextRect.width());

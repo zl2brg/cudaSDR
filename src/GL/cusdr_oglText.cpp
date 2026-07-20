@@ -33,6 +33,7 @@
 #include <QOpenGLContext>
 #include <QOpenGLFunctions>
 #include <QOpenGLShaderProgram>
+#include <QOpenGLVertexArrayObject>
 
 const int TEXTURE_SIZE = 1024;
 	
@@ -65,6 +66,7 @@ struct OGLTextPrivate {
 
     QOpenGLShaderProgram *textProgram = nullptr;
     QOpenGLBuffer textVbo;
+    QOpenGLVertexArrayObject textVao;
 
     bool ensureTextProgram();
     void renderTextProjected(const QMatrix4x4 &projection, float x, float y, float z,
@@ -85,6 +87,8 @@ OGLTextPrivate::~OGLTextPrivate() {
     delete textProgram;
     if (textVbo.isCreated())
         textVbo.destroy();
+    if (textVao.isCreated())
+        textVao.destroy();
 }
 
 bool OGLTextPrivate::ensureTextProgram()
@@ -107,6 +111,9 @@ bool OGLTextPrivate::ensureTextProgram()
     if (!textVbo.isCreated()) {
         textVbo.create();
         textVbo.setUsagePattern(QOpenGLBuffer::StreamDraw);
+    }
+    if (!textVao.isCreated()) {
+        textVao.create();
     }
     return true;
 }
@@ -211,6 +218,7 @@ void OGLTextPrivate::renderTextProjected(const QMatrix4x4 &projection,
             { penX, topY, c.s[0], c.t[1] },
         };
 
+        textVao.bind();
         textVbo.bind();
         textVbo.allocate(quad, int(sizeof(quad)));
 
@@ -235,6 +243,7 @@ void OGLTextPrivate::renderTextProjected(const QMatrix4x4 &projection,
         if (texAttr >= 0)
             gl->glDisableVertexAttribArray(GLuint(texAttr));
         textVbo.release();
+        textVao.release();
 
         penX += float(c.advance) * scaleX;
     }

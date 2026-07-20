@@ -529,10 +529,9 @@ void QGLReceiverPanel::drawPanelRect(const QRect &rect, const QColor &color, flo
 {
     if (rect.isEmpty())
         return;
+    m_vao.bind();
     if (m_shaderProgram && m_shaderProgram->isLinked())
         GlDraw::drawSolidRect(this, m_shaderProgram, m_vbo, panelProjection(), rect, color, z);
-    else
-        drawGLRect(rect, color, z);
 }
 
 void QGLReceiverPanel::renderPanelText(OGLText *text, float x, float y, const QString &str)
@@ -554,10 +553,9 @@ void QGLReceiverPanel::drawCachedTexture(const QRect &rect, GLuint texId, float 
 {
     if (rect.isEmpty() || !texId)
         return;
+    m_vao.bind();
     if (m_textureProgram && m_textureProgram->isLinked())
         GlDraw::renderTexturedQuad(this, m_textureProgram, m_vbo, panelProjection(), rect, texId, z);
-    else
-        renderTexture(rect, texId, z);
 }
 
 void QGLReceiverPanel::paintGL() {
@@ -576,7 +574,7 @@ void QGLReceiverPanel::paintGL() {
 
 		case QSDR::NoServerMode:
 
-			drawGLRect(QRect(0, 0, width(), height()), QColor(0, 0, 0));
+			drawPanelRect(QRect(0, 0, width(), height()), QColor(0, 0, 0), -5.0f);
 			break;
 
 		case QSDR::SDRMode:
@@ -804,7 +802,9 @@ void QGLReceiverPanel::renderPanVerticalScale() {
     int sublen = m_dBmScale.subPointPositions.length();
 
     // draw the scale background
+    painter.setCompositionMode(QPainter::CompositionMode_Source);
     painter.fillRect(0, 0, width, height, QColor(30, 30, 30, 180));
+    painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
 
     painter.setPen(QPen(QColor(166, 194, 206), 1, Qt::SolidLine, Qt::FlatCap));
     if (len > 0) {
@@ -1552,7 +1552,9 @@ void QGLReceiverPanel::renderPanHorizontalScale() {
     };
 
 	// Full-width background; ruler positions are plot-relative (see updateFrequencyRuler).
+    painter.setCompositionMode(QPainter::CompositionMode_Source);
     painter.fillRect(0, 0, fullWidth, m_freqScalePanRect.height(), QColor(0, 0, 0, 255));
+    painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
 
     QRect scaledTextRect(0, textOffset_y, 1, m_freqScalePanRect.height());
     scaledTextRect.setWidth(m_fonts.smallFontMetrics->horizontalAdvance(fstr));
@@ -1708,7 +1710,9 @@ void QGLReceiverPanel::renderWaterfallVerticalScale() {
     const int len = m_secScale.mainPointPositions.length();
     const int sublen = m_secScale.subPointPositions.length();
 
+    painter.setCompositionMode(QPainter::CompositionMode_Source);
     painter.fillRect(0, 0, width, height, QColor(40, 40, 40, 180));
+    painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
 
     painter.setPen(QPen(QColor(166, 194, 206), 1, Qt::SolidLine, Qt::FlatCap));
     if (len > 0) {

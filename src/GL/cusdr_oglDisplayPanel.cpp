@@ -1084,6 +1084,7 @@ void OGLDisplayPanel::drawPanelRect(const QRect &rect, const QColor &color, floa
 {
     if (rect.isEmpty())
         return;
+    m_vao.bind();
     if (m_shaderProgram && m_shaderProgram->isLinked())
         GlDraw::drawSolidRect(this, m_shaderProgram, m_vbo, panelProjection(), rect, color, z);
 }
@@ -1096,6 +1097,7 @@ void OGLDisplayPanel::drawPanelGradientRect(const QRect &rect,
 {
     if (rect.isEmpty())
         return;
+    m_vao.bind();
     if (m_shaderProgram && m_shaderProgram->isLinked())
         GlDraw::drawGradientRect(this, m_shaderProgram, m_vbo, panelProjection(), rect, c1, c2, leftToRight, z);
 }
@@ -1105,6 +1107,7 @@ void OGLDisplayPanel::drawSMeterNeedle(const QMatrix4x4 &projection, int x1)
     if (m_sMeterValue <= 0 || !m_shaderProgram || !m_shaderProgram->isLinked())
         return;
 
+    m_vao.bind();
     const float x = float(x1 + int(m_sMeterValue * m_unit));
     const GlDraw::Vec3Rgb needle[2] = {
         { x, float(m_sMeterPosY) - 15.0f, 1.0f, 1.0f, 1.0f, 1.0f },
@@ -1151,11 +1154,11 @@ void OGLDisplayPanel::drawSMeterNeedle(const QMatrix4x4 &projection, int x1)
         glDisable(GL_DEPTH_TEST);
 
         const QRect texRect(smeterX, 0, m_sMeterWidth, height);
-        if (m_textureProgram && m_textureProgram->isLinked())
+        if (m_textureProgram && m_textureProgram->isLinked()) {
+            m_vao.bind();
             GlDraw::renderTexturedQuad(this, m_textureProgram, m_vbo, projection,
                                        texRect, m_smeterFBO->texture(), -2.0f);
-        else
-            renderTexture(texRect, m_smeterFBO->texture(), -2.0f);
+        }
 
         drawSMeterScaleLabels(projection, smeterX);
 
@@ -1190,6 +1193,7 @@ void OGLDisplayPanel::drawSMeterNeedle(const QMatrix4x4 &projection, int x1)
     }
 
 void OGLDisplayPanel::renderSMeterScale() {
+    m_vao.bind();
 	const GLint width = m_sMeterWidth;
 	const GLint height = m_smeterRect.height();
 
