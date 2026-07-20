@@ -325,7 +325,6 @@ private:
 	
 	void	paintSMeter();
 	void	renderSMeterScale();
-	void	renderSMeterB();
 	
 	void	getSelectedDigit(QPoint p);
 	

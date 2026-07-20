@@ -385,116 +385,20 @@ QFontMetrics OGLText::fontMetrics() const {
 void OGLText::renderText(const QMatrix4x4 &projection, float x, float y, const QString &text,
                          const QColor &color)
 {
-    if (GlShaders::isOpenGLES()) {
-        d->renderTextProjected(projection, x, y, 0.0f, text, color);
-        return;
-    }
-    Q_UNUSED(projection)
-    renderText(x, y, text, color);
+    d->renderTextProjected(projection, x, y, 0.0f, text, color);
 }
 
 void OGLText::renderText(const QMatrix4x4 &projection, float x, float y, float z, const QString &text,
                          const QColor &color)
 {
-    if (GlShaders::isOpenGLES()) {
-        d->renderTextProjected(projection, x, y, z, text, color);
-        return;
-    }
-    Q_UNUSED(projection)
-    renderText(x, y, z, text, color);
+    d->renderTextProjected(projection, x, y, z, text, color);
 }
 
-//! Renders text at given x, y.
 void OGLText::renderText(float x, float y, const QString &text, const QColor &color) {
-
-    if (GlShaders::isOpenGLES()) {
-        d->renderTextProjected(d->orthoForCurrentViewport(), x, y, 0.0f, text, color);
-        return;
-    }
-
-    GLint prev_shade_model; glGetIntegerv(GL_SHADE_MODEL, &prev_shade_model);
-
-    glPushAttrib(GL_CURRENT_BIT | GL_ENABLE_BIT | GL_TEXTURE_BIT);
-    glPushMatrix();
-    glEnable(GL_TEXTURE_2D);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glColor4f(color.redF(), color.greenF(), color.blueF(), color.alphaF());
-
-    if (prev_shade_model != GL_FLAT) glShadeModel(GL_FLAT);
-
-    GLuint texture = 0;
-    glTranslatef(x, y, 0);
-
-    for (int i = 0; i < text.length(); ++i) {
-
-        CharData &c = d->createCharacter(text.at(i));
-        if (texture != c.textureId) {
-
-            texture = c.textureId;
-            glBindTexture(GL_TEXTURE_2D, texture);
-        }
-
-        const GLfloat gw = GLfloat(c.pixWidth) / GLfloat(d->dpr > 0 ? d->dpr : 1.0);
-        const GLfloat gh = GLfloat(c.pixHeight) / GLfloat(d->dpr > 0 ? d->dpr : 1.0);
-        glBegin(GL_QUADS);
-			glTexCoord2f(c.s[0], c.t[0]); glVertex2f(0, gh);
-			glTexCoord2f(c.s[1], c.t[0]); glVertex2f(gw, gh);
-			glTexCoord2f(c.s[1], c.t[1]); glVertex2f(gw, 0);
-			glTexCoord2f(c.s[0], c.t[1]); glVertex2f(0, 0);
-        glEnd();
-
-        glTranslatef(GLfloat(c.advance), 0, 0);
-    }
-
-    glShadeModel(prev_shade_model);
-    glPopMatrix();
-    glPopAttrib();
+    d->renderTextProjected(d->orthoForCurrentViewport(), x, y, 0.0f, text, color);
 }
 
 void OGLText::renderText(float x, float y, float z, const QString &text, const QColor &color) {
-
-    if (GlShaders::isOpenGLES()) {
-        d->renderTextProjected(d->orthoForCurrentViewport(), x, y, z, text, color);
-        return;
-    }
-
-    GLint prev_shade_model; glGetIntegerv(GL_SHADE_MODEL, &prev_shade_model);
-
-    glPushAttrib(GL_CURRENT_BIT | GL_ENABLE_BIT | GL_TEXTURE_BIT);
-    glPushMatrix();
-    glEnable(GL_TEXTURE_2D);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glColor4f(color.redF(), color.greenF(), color.blueF(), color.alphaF());
-
-    if (prev_shade_model != GL_FLAT) glShadeModel(GL_FLAT);
-
-    GLuint texture = 0;
-    glTranslatef(x, y, 0);
-    for (int i = 0; i < text.length(); ++i) {
-
-        CharData &c = d->createCharacter(text.at(i));
-        if (texture != c.textureId) {
-
-            texture = c.textureId;
-            glBindTexture(GL_TEXTURE_2D, texture);
-        }
-
-        const GLfloat gw = GLfloat(c.pixWidth) / GLfloat(d->dpr > 0 ? d->dpr : 1.0);
-        const GLfloat gh = GLfloat(c.pixHeight) / GLfloat(d->dpr > 0 ? d->dpr : 1.0);
-        glBegin(GL_QUADS);
-			glTexCoord2f(c.s[0], c.t[0]); glVertex3f(0, gh, z);
-			glTexCoord2f(c.s[1], c.t[0]); glVertex3f(gw, gh, z);
-			glTexCoord2f(c.s[1], c.t[1]); glVertex3f(gw, 0, z);
-			glTexCoord2f(c.s[0], c.t[1]); glVertex3f(0, 0, z);
-        glEnd();
-
-        glTranslatef(GLfloat(c.advance), 0, 0);
-    }
-
-    glShadeModel(prev_shade_model);
-    glPopMatrix();
-    glPopAttrib();
+    d->renderTextProjected(d->orthoForCurrentViewport(), x, y, z, text, color);
 }
 

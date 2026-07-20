@@ -1086,8 +1086,6 @@ void OGLDisplayPanel::drawPanelRect(const QRect &rect, const QColor &color, floa
         return;
     if (m_shaderProgram && m_shaderProgram->isLinked())
         GlDraw::drawSolidRect(this, m_shaderProgram, m_vbo, panelProjection(), rect, color, z);
-    else
-        drawGLRect(rect, color, z);
 }
 
 void OGLDisplayPanel::drawPanelGradientRect(const QRect &rect,
@@ -1100,8 +1098,6 @@ void OGLDisplayPanel::drawPanelGradientRect(const QRect &rect,
         return;
     if (m_shaderProgram && m_shaderProgram->isLinked())
         GlDraw::drawGradientRect(this, m_shaderProgram, m_vbo, panelProjection(), rect, c1, c2, leftToRight, z);
-    else
-        drawGLRect(rect, c1, c2, z, leftToRight);
 }
 
 void OGLDisplayPanel::drawSMeterNeedle(const QMatrix4x4 &projection, int x1)
@@ -1366,178 +1362,7 @@ void OGLDisplayPanel::drawSMeterScaleLabels(const QMatrix4x4 &projection, int xO
 	}
 }
 
-void OGLDisplayPanel::renderSMeterB() {
 
-    //GLint width = m_smeterRect.horizontalAdvance();
-	GLint width = m_sMeterWidth;
-	GLint height = m_smeterRect.height();
-
-	//GLint x1 = m_smeterRect.left();
-	GLint x1 = m_smeterRect.left() + m_sMeterOffset;
-	GLint y1 = m_smeterRect.top();
-	GLint x2 = x1 + width;
-	GLint y2 = y1 + height;
-
-	QFontMetrics fm = m_oglTextNormal->fontMetrics();
-
-	int vertexArrayLength = width/2;
-
-	// draw background
-	if (m_dataEngineState == QSDR::DataEngineUp)
-		drawGLRect(QRect(0, 0, x2-x1, y2-y1), Qt::black, m_bkgColor2, -3.0f, false);
-	else
-		drawGLRect(QRect(0, 0, x2-x1, y2-y1), Qt::black);
-
-	glDisable(GL_MULTISAMPLE);
-	glDisable(GL_LINE_SMOOTH);
-	glLineWidth(1.0f);
-
-	// Draw horizontal lines
-	if (m_dataEngineState == QSDR::DataEngineUp)
-		qglColor(m_activeTextColor);
-	else
-		qglColor(m_inactiveTextColor);
-
-	glBegin(GL_LINES);
-		glVertex3f(0,		m_sMeterPosY, 0.0);
-		glVertex3f(width-1,	m_sMeterPosY, 0.0);
-		glVertex3f(0,		m_sMeterPosY + 12, 0.0);
-		glVertex3f(width-1,	m_sMeterPosY + 12, 0.0);
-	glEnd();
-
-	if (m_dataEngineState == QSDR::DataEngineUp)
-		qglColor(QColor(100, 100, 100));
-	else
-		qglColor(m_inactiveTextColor);
-
-	TGL3float *vertexArray = new TGL3float[width];
-
-	for (int i = 0; i < vertexArrayLength; i++) {
-
-		vertexArray[2*i].x = (GLfloat)(2.0f * i);
-		vertexArray[2*i].y = (GLfloat)(m_sMeterPosY + 3);
-		vertexArray[2*i].z = 0.0;
-
-		vertexArray[2*i+1].x = (GLfloat)(2.0f * i);
-		vertexArray[2*i+1].y = (GLfloat)(m_sMeterPosY + 10);
-		vertexArray[2*i+1].z = 0.0;
-	}
-
-	glEnableClientState(GL_VERTEX_ARRAY);
-				
-	glVertexPointer(3, GL_FLOAT, 0, vertexArray);
-	glDrawArrays(GL_LINES, 0, width);
-	glDisableClientState(GL_VERTEX_ARRAY);
-
-	delete[] vertexArray;
-
-	// Draw the S1..S9 value items
-	//int d;
-    //int markerSpacing = 24; // spacing for the S value items
-	//int markerSpacing = m_sMeterWidth/12.5f; // spacing for the S value items
-	float markerSpacing = qRound(m_sMeterWidth/12.5f); // spacing for the S value items
-	//DISPLAYPANEL_DEBUG << "S markerSpacing:" << markerSpacing;
-
-	QString marker;
-
-	if (m_dataEngineState == QSDR::DataEngineUp)
-		qglColor(m_activeTextColor);
-	else
-		qglColor(m_inactiveTextColor);
-
-	//for (int x = 21, y = 9, z = 0; z < 5; x += markerSpacing, y += markerSpacing, z++) {
-	for (int x = markerSpacing - 3, y = x - markerSpacing/2, z = 0; z < 5; x += markerSpacing, y += markerSpacing, z++) {
-		
-		if (z == 0) marker = "S1";
-		else if (z == 1) marker = "S3";
-		else if (z == 2) marker = "S5";
-		else if (z == 3) marker = "S7";
-		else if (z == 4) marker = "S9";
-		
-		// big ticks
-		glBegin(GL_LINES);
-			glVertex3f(x, m_sMeterPosY + 12, 0.0);
-			glVertex3f(x, m_sMeterPosY + 16, 0.0);
-		glEnd();
-		
-		// small ticks
-		glBegin(GL_LINES);
-			glVertex3f(y, m_sMeterPosY + 12, 0.0);
-			glVertex3f(y, m_sMeterPosY + 15, 0.0);
-		glEnd();
-
-		// S strings
-        //d = fm.horizontalAdvance(marker);
-		m_oglTextNormal->renderText(x-7, m_sMeterPosY + 18, marker);
-	}
-
-	// Draw the S+ value items
-	//markerSpacing = 20;
-	markerSpacing = qRound(m_sMeterWidth/15.0f);
-	//DISPLAYPANEL_DEBUG << "S+ markerSpacing:" << markerSpacing;
-
-	for (int x = 118 + markerSpacing, y = 128 + markerSpacing, z = 0; z < 8; x += markerSpacing, y += 2 * markerSpacing, z++) {
-	//for (int x = next + markerSpacing, y = next + markerSpacing/2, z = 0; z < 8; x += markerSpacing, y += 2 * markerSpacing, z++) {
-		
-		if (m_dataEngineState == QSDR::DataEngineUp)
-			qglColor(m_activeTextColor);
-		else
-			qglColor(m_inactiveTextColor);
-
-		if (z == 0) marker = "+20";
-		else if (z == 1) marker = "+40";
-		else if (z == 2) marker = "+60";
-		else if (z == 3) marker = "+80";
-		
-		// big ticks
-		glBegin(GL_LINES);
-			glVertex3f(x, m_sMeterPosY + 12, 0.0);
-			glVertex3f(x, m_sMeterPosY + 16, 0.0);
-		glEnd();
-		
-		if (m_dataEngineState == QSDR::DataEngineUp)
-			qglColor(QColor(255, 80, 80));
-		else
-			qglColor(QColor(68, 68, 68));
-
-		m_oglTextNormal->renderText(y, m_sMeterPosY + 18, marker);
-	}
-
-	// Draw the dbm items
-	if (m_dataEngineState == QSDR::DataEngineUp)
-			qglColor(m_activeTextColor);
-		else
-			qglColor(m_inactiveTextColor);
-
-	//for (int x = 4, y = 14, z = -130; z < 10; x += markerSpacing, y += markerSpacing, z += 10) {
-	for (int x = markerSpacing - 16, y = x + markerSpacing/2, z = -130; z < 10; x += markerSpacing, y += markerSpacing, z += 10) {
-		
-		marker = QString::number(z, 'f', 0);
-        int d = fm.horizontalAdvance(marker);
-		
-		// big ticks
-		glBegin(GL_LINES);
-			glVertex3f(x, m_sMeterPosY - 4, 0.0);
-			glVertex3f(x, m_sMeterPosY, 0.0);
-		glEnd();
-
-		// small ticks
-		glBegin(GL_LINES);
-			glVertex3f(y, m_sMeterPosY - 2, 0.0);
-			glVertex3f(y, m_sMeterPosY, 0.0);
-		glEnd();
-		
-		if (z == -120 || z == -100 || z == -80 || z == -60 || z == -40 || z == -20) 
-			m_oglTextNormal->renderText(x-d/2-2, m_sMeterPosY - 18, marker);
-
-		if (z == 0) m_oglTextNormal->renderText(x-d/2-1, m_sMeterPosY - 18, marker);
-	}
-
-	renderPanelText(m_oglTextSmallItalic,width - 25, m_sMeterPosY - 16, "dBm");
-
-	glEnable(GL_LINE_SMOOTH);
-	glEnable(GL_MULTISAMPLE);
-}
 
 void OGLDisplayPanel::setSMeterValue(int rx, double value) {
 

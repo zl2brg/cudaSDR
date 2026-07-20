@@ -699,14 +699,6 @@ void QGL3DPanel::renderVerticalScale() {
     }
     
     // Render text labels using 2D overlay (this part is working)
-    glMatrixMode(GL_PROJECTION);
-    glPushMatrix();
-    glLoadIdentity();
-    glOrtho(0, width(), height(), 0, -1, 1);
-    
-    glMatrixMode(GL_MODELVIEW);
-    glPushMatrix();
-    glLoadIdentity();
     
     // Calculate MVP matrix for 3D to screen conversion
     QMatrix4x4 mvpMatrix = m_projectionMatrix * m_viewMatrix * m_modelMatrix;
@@ -732,7 +724,6 @@ void QGL3DPanel::renderVerticalScale() {
             // Only render if on screen
             if (screenX >= -100 && screenX < width() + 100 && screenY >= -100 && screenY < height() + 100) {
                 QString label = QString("%1").arg(db);
-                glColor3f(1.0f, 1.0f, 1.0f);
                 m_oglTextSmall->renderText(screenX, screenY, 1.0f, label);
             }
         }
@@ -747,16 +738,9 @@ void QGL3DPanel::renderVerticalScale() {
         float topScreenY = (1.0f - topNdcPos.y()) * 0.5f * height();
         
         if (topScreenX >= -100 && topScreenX < width() + 100 && topScreenY >= -100 && topScreenY < height() + 100) {
-            glColor3f(1.0f, 1.0f, 1.0f);
             m_oglTextSmall->renderText(topScreenX, topScreenY, 1.0f, "dBm");
         }
     }
-    
-    // Restore matrices
-    glMatrixMode(GL_PROJECTION);
-    glPopMatrix();
-    glMatrixMode(GL_MODELVIEW);
-    glPopMatrix();
 }
 
 void QGL3DPanel::resizeGL(int width, int height) {
@@ -1238,7 +1222,7 @@ QColor QGL3DPanel::amplitudeToColorWithOffset(float amplitude, float offset) {
 }
 
 void QGL3DPanel::qglColor(QColor color) {
-    glColor4f(color.redF(), color.greenF(), color.blueF(), color.alphaF());
+    Q_UNUSED(color)
 }
 
 void QGL3DPanel::onUpdateTimer() {
