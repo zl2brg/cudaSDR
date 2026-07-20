@@ -38,6 +38,11 @@ private:
     QOpenGLShaderProgram* m_shader;
     QOpenGLVertexArrayObject m_vao;
     QOpenGLBuffer m_vbo;
+
+    GLuint m_pboIds[2];
+    int m_pboIndex;
+    int m_prevLine;
+    bool m_pboActive;
 };
 
 #endif // WATERFALLRENDERER_H

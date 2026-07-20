@@ -11,7 +11,12 @@ WaterfallRenderer::WaterfallRenderer()
     , m_updatePending(false)
     , m_shader(nullptr)
     , m_vbo(QOpenGLBuffer::VertexBuffer)
+    , m_pboIndex(0)
+    , m_prevLine(0)
+    , m_pboActive(false)
 {
+    m_pboIds[0] = 0;
+    m_pboIds[1] = 0;
 }
 
 WaterfallRenderer::~WaterfallRenderer() {
@@ -22,10 +27,15 @@ WaterfallRenderer::~WaterfallRenderer() {
     if (m_textureId != 0) {
         // glDeleteTextures(1, &m_textureId);
     }
+    if (m_pboIds[0] != 0) {
+        glDeleteBuffers(2, m_pboIds);
+    }
 }
 
 void WaterfallRenderer::initialize() {
     initializeOpenGLFunctions();
+
+    glGenBuffers(2, m_pboIds);
 
     m_shader = new QOpenGLShaderProgram();
 
@@ -72,11 +82,20 @@ void WaterfallRenderer::setupTexture(int width, int height) {
     blackBuffer.fill(black);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, blackBuffer.data());
     
+    // Allocate PBOs memory for the new width
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, m_pboIds[0]);
+    glBufferData(GL_PIXEL_UNPACK_BUFFER, width * sizeof(TGL_ubyteRGBA), NULL, GL_STREAM_DRAW);
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, m_pboIds[1]);
+    glBufferData(GL_PIXEL_UNPACK_BUFFER, width * sizeof(TGL_ubyteRGBA), NULL, GL_STREAM_DRAW);
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+
     m_currentLine = 0;
     m_lineCnt = 0;
     m_oldWidth = width;
     m_oldHeight = height;
     m_updatePending = false;
+    m_pboIndex = 0;
+    m_pboActive = false;
 }
 
 void WaterfallRenderer::render(const QMatrix4x4& projection, const QRect& rect, const QVarLengthArray<TGL_ubyteRGBA>& pixelData, QSDR::_DataEngineState dataEngineState) {
@@ -96,9 +115,25 @@ void WaterfallRenderer::render(const QMatrix4x4& projection, const QRect& rect, 
 
     if (dataEngineState == QSDR::DataEngineUp && !pixelData.isEmpty() && pixelData.size() >= width) {
         glBindTexture(GL_TEXTURE_2D, m_textureId);
-        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, m_currentLine, width, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixelData.constData());
+
+        if (m_pboActive) {
+            // Unpack from the other PBO (contains previous frame's data)
+            glBindBuffer(GL_PIXEL_UNPACK_BUFFER, m_pboIds[1 - m_pboIndex]);
+            glTexSubImage2D(GL_TEXTURE_2D, 0, 0, m_prevLine, width, 1, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+        }
+
+        // Fill current PBO with the new line's data
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, m_pboIds[m_pboIndex]);
+        glBufferSubData(GL_PIXEL_UNPACK_BUFFER, 0, width * sizeof(TGL_ubyteRGBA), pixelData.constData());
+
+        m_prevLine = m_currentLine;
         m_currentLine = (m_currentLine + 1) % height;
         if (m_lineCnt < height) m_lineCnt++;
+
+        m_pboIndex = 1 - m_pboIndex;
+        m_pboActive = true;
+
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
     }
 
     glEnable(GL_BLEND);
