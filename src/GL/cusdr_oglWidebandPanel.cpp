@@ -860,16 +860,15 @@ void QGLWidebandPanel::drawVerticalScale() {
             m_dBmScaleFBO = new QOpenGLFramebufferObject(width, height);
 		}
 
-		glPushAttrib(GL_VIEWPORT_BIT | GL_TEXTURE_BIT);
+        GLint viewport[4];
+        glGetIntegerv(GL_VIEWPORT, viewport);
         glViewport(0, 0, width, height);
-        setProjectionOrthographic(width, height);
 
 		m_dBmScaleFBO->bind();
 			renderVerticalScale();
 		m_dBmScaleFBO->release();
 
-		glPopAttrib();
-        setProjectionOrthographic(size().width(), size().height());
+        glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
 
 		if (!m_dragDBmScale)
 			m_dBmScaleUpdate = false;
@@ -912,16 +911,15 @@ void QGLWidebandPanel::drawHorizontalScale() {
             m_frequencyScaleFBO = new QOpenGLFramebufferObject(width, height);
         }
 
-		glPushAttrib(GL_VIEWPORT_BIT | GL_TEXTURE_BIT);
+        GLint viewport[4];
+        glGetIntegerv(GL_VIEWPORT, viewport);
         glViewport(0, 0, width, height);
-        setProjectionOrthographic(width, height);
 
 		m_frequencyScaleFBO->bind();
         renderHorizontalScale();
         m_frequencyScaleFBO->release();
 
-		glPopAttrib();
-        setProjectionOrthographic(size().width(), size().height());
+        glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
 
 		m_freqScaleUpdate = false;
 		m_freqScaleRenew = false;
