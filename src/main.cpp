@@ -122,14 +122,13 @@ int main(int argc, char *argv[]) {
     qInstallMessageHandler(cuSDRMessageHandler);
 #endif
 #if defined(Q_OS_LINUX)
-    // Make the application display-server agnostic:
-    // Prioritize Wayland if WAYLAND_DISPLAY is set, falling back to X11 (xcb).
+    // Prefer xcb by default. Native Wayland + NVIDIA frequently fails EGL dri2/vsync
+    // and busy-spins (200%+ CPU). Users can still force Wayland via QT_QPA_PLATFORM.
     if (!qEnvironmentVariableIsSet("QT_QPA_PLATFORM")) {
-        if (qEnvironmentVariableIsSet("WAYLAND_DISPLAY")) {
-            qputenv("QT_QPA_PLATFORM", QByteArrayLiteral("wayland;xcb"));
-        } else {
-            qputenv("QT_QPA_PLATFORM", QByteArrayLiteral("xcb"));
-        }
+        qputenv("QT_QPA_PLATFORM", QByteArrayLiteral("xcb"));
+        if (qEnvironmentVariableIsSet("WAYLAND_DISPLAY"))
+            qInfo() << "Wayland session detected; using QT_QPA_PLATFORM=xcb (XWayland)."
+                    << "Export QT_QPA_PLATFORM=wayland to force native Wayland.";
     }
     // Qt6 multimedia on Linux commonly uses FFmpeg. Allow explicit override,
     // but default to ffmpeg so behavior is predictable across hosts.
@@ -152,12 +151,12 @@ int main(int argc, char *argv[]) {
     format.setStencilBufferSize(8);
     format.setVersion(3, 3);
     format.setProfile(QSurfaceFormat::CoreProfile);
-    if (app.platformName() == QLatin1String("wayland")) {
-        format.setSwapInterval(1);  // Enable VSync under Wayland to prevent EGL busy-waiting / high CPU
-    } else {
-        format.setSwapInterval(0);  // Disable VSync on X11 to allow independent update rates
-    }
+    // Vsync on all platforms: with several QOpenGLWidgets, swapInterval 0 makes the
+    // compositor show mid-clear frames as continuous window flicker.
+    format.setSwapInterval(1);
     QSurfaceFormat::setDefaultFormat(format);
+    qInfo() << "Qt platform:" << app.platformName()
+            << "GL swapInterval:" << format.swapInterval();
 
     Settings::instance(&app);
 
@@ -207,12 +206,12 @@ int main(int argc, char *argv[]) {
     }
 
     // ****************************
-    // check for OpenGL
+    // check for OpenGL 3.3 Core (required by the panadapter / display path)
     splash->showMessage(
         "\n      " +
             Settings::instance()->getTitleStr() + " " +
             Settings::instance()->getVersionStr() +
-            QObject::tr(":    Checking for OpenGL V 2.0 ..."),
+            QObject::tr(":    Checking for OpenGL 3.3 Core ..."),
         Qt::AlignTop | Qt::AlignLeft, Qt::yellow);
         app.processEvents();
     QThread::msleep(1000);
@@ -225,13 +224,17 @@ int main(int argc, char *argv[]) {
     }
 
     QSurfaceFormat surfaceformat = context.format();
-    if (surfaceformat.majorVersion() < 2) {
-        qDebug() << "Init::\tOpenGL found, but appears to be less than OGL v2.0.";
+    const bool hasCore33 =
+        surfaceformat.majorVersion() > 3
+        || (surfaceformat.majorVersion() == 3 && surfaceformat.minorVersion() >= 3);
+    if (!hasCore33) {
+        qDebug() << "Init::\tOpenGL found, but appears to be less than OGL 3.3 Core."
+                 << "Got" << surfaceformat.majorVersion() << "." << surfaceformat.minorVersion();
         splash->showMessage(
             "\n      " +
                 Settings::instance()->getTitleStr() + " " +
                 Settings::instance()->getVersionStr() +
-                QObject::tr(":    found but appears to be less than OGL v2.0"),
+                QObject::tr(":    found but appears to be less than OGL 3.3 Core"),
             Qt::AlignTop | Qt::AlignLeft, Qt::yellow);
             app.processEvents();
             QThread::msleep(1000);
@@ -239,17 +242,17 @@ int main(int argc, char *argv[]) {
 
         QMessageBox::critical(nullptr,
                               QApplication::applicationName(),
-                              QApplication::applicationName() + "    requires OpenGL v2.0 or later to run.",
+                              QApplication::applicationName() + "    requires OpenGL 3.3 Core or later to run.",
                               QMessageBox::Ok);
         return -1;
     }
 
-    qDebug() << "Init::\tOpenGL found.";
+    qDebug() << "Init::\tOpenGL 3.3+ found.";
     splash->showMessage(
         "\n      " +
             Settings::instance()->getTitleStr() + " " +
             Settings::instance()->getVersionStr() +
-            QObject::tr(":    OpenGL found."),
+            QObject::tr(":    OpenGL 3.3 Core found."),
         Qt::AlignTop | Qt::AlignLeft, Qt::yellow);
         app.processEvents();
     QThread::msleep(1000);

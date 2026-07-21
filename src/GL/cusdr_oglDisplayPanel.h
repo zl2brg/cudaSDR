@@ -59,8 +59,9 @@ class OGLDisplayPanel : public QOpenGLWidget, protected QOpenGLFunctions {
 public:
     OGLDisplayPanel(RadioModel *model, QWidget *parent = nullptr);
 	~OGLDisplayPanel();
-    void renderFreqText(QPainter &painter,GLint &x1, GLint  &y1, QFont &font,QFontMetrics  fontMetrics, QColor fontcolor, const QString freqstr, int digit, int digit_pos, int fixed_width = 0);
-    void renderText(QPainter &painter, int x, int y, QFont &font, QColor fontcolor, const QString &text);
+	// Core 3.3: frequency digits must use OGLText — QPainter(this) in paintGL flashes siblings.
+	void renderFreqText(OGLText *text, GLint &x1, GLint y1, const QColor &fontcolor,
+	                    const QString &freqstr, int digit, int digit_pos, int fixed_width = 0);
 
 	QSize minimumSizeHint() const;
 	QSize sizeHint() const;
@@ -200,6 +201,9 @@ private:
     QElapsedTimer		m_sMeterMaxTimer;
     QElapsedTimer		m_sMeterMinTimer;
     QElapsedTimer		m_sMeterDisplayTime;
+    bool				m_repaintPending = false;
+
+	void	scheduleRepaint();
 
 	enum Region {
 

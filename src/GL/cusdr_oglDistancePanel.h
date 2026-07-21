@@ -32,15 +32,16 @@
 #include "cusdr_settings.h"
 #include "cusdr_fonts.h"
 #include "cusdr_oglText.h"
+#include "cusdr_glDraw.h"
 
-//#include <QtOpenGL/QOpenGLWidget>
-//#include <QImage>
-//#include <QFontMetrics>
 #include <QWheelEvent>
+#include <QPainter>
 #include <QOpenGLFunctions>
+#include <QOpenGLPaintDevice>
 #include <QOpenGLShaderProgram>
 #include <QOpenGLBuffer>
 #include <QOpenGLVertexArrayObject>
+#include <QMatrix4x4>
 
 
 
@@ -77,9 +78,20 @@ protected:
     void timerEvent(QTimerEvent *);
 
 private:
-    QOpenGLShaderProgram      *m_shaderProgram;
-    QOpenGLBuffer              m_vbo;
+    QOpenGLShaderProgram      *m_shaderProgram = nullptr;
+    QOpenGLShaderProgram      *m_textureProgram = nullptr;
+    QOpenGLBuffer              m_vbo{QOpenGLBuffer::VertexBuffer};
     QOpenGLVertexArrayObject   m_vao;
+	QPainter                   painter;
+	QColor                     m_glTextColor{Qt::white};
+
+	QMatrix4x4 panelProjection() const;
+	void drawPanelRect(const QRect &rect, const QColor &color, float z = 0.0f);
+	void drawPanelGradientRect(const QRect &rect, const QColor &c1, const QColor &c2,
+	                           bool leftToRight, float z = 0.0f);
+	void drawCachedTexture(const QRect &rect, GLuint texId, float z = 0.0f);
+	void renderPanelText(OGLText *text, float x, float y, const QString &str);
+	void renderPanelText(OGLText *text, float x, float y, float z, const QString &str);
 
 	Settings*	set;
 
@@ -257,11 +269,6 @@ private:
 	GLfloat		m_blueD;
 
 	//******************************************************************
-	//QColor	getWaterfallColorAtPixel(qreal value);
-
-	void	saveGLState();
-	void	restoreGLState();
-
 	// drawing
 	void	paintReceiverDisplay();
 	void	paintChirpWSPRDisplay();

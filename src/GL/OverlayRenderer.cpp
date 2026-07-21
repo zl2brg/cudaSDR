@@ -1,8 +1,14 @@
 #include "OverlayRenderer.h"
 #include "cusdr_glShaders.h"
 #include <QVarLengthArray>
+#include <cmath>
 
 namespace {
+
+struct LineVert {
+	float x, y, z;
+	float r, g, b, a;
+};
 
 void beginOverlayLines(QOpenGLFunctions *gl)
 {
@@ -10,19 +16,39 @@ void beginOverlayLines(QOpenGLFunctions *gl)
     gl->glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     gl->glEnable(GL_BLEND);
     gl->glLineWidth(1.0f);
-#ifndef QT_OPENGL_ES_2
-    gl->glEnable(GL_LINE_STIPPLE);
-    ::glLineStipple(1, 0x5555);
-#endif
 }
 
 void endOverlayLines(QOpenGLFunctions *gl)
 {
-#ifndef QT_OPENGL_ES_2
-    gl->glDisable(GL_LINE_STIPPLE);
-#else
     Q_UNUSED(gl);
-#endif
+}
+
+// Core-profile substitute for glLineStipple / Qt::DotLine.
+void appendDashedSegment(QList<LineVert> *out,
+                         float x1, float y1, float x2, float y2,
+                         float z, float r, float g, float b, float a,
+                         float dash = 3.0f, float gap = 3.0f)
+{
+	const float dx = x2 - x1;
+	const float dy = y2 - y1;
+	const float len = std::sqrt(dx * dx + dy * dy);
+	if (len < 0.5f || !out)
+		return;
+
+	const float ux = dx / len;
+	const float uy = dy / len;
+	float pos = 0.0f;
+	bool draw = true;
+	while (pos < len) {
+		const float seg = draw ? dash : gap;
+		const float next = std::min(pos + seg, len);
+		if (draw) {
+			out->append({ x1 + ux * pos,  y1 + uy * pos,  z, r, g, b, a });
+			out->append({ x1 + ux * next, y1 + uy * next, z, r, g, b, a });
+		}
+		pos = next;
+		draw = !draw;
+	}
 }
 
 } // namespace
@@ -91,28 +117,33 @@ void OverlayRenderer::drawGrid(const QMatrix4x4& projection,
     m_vao.bind();
     m_vbo.bind();
 
-    QList<VertexData> gridData;
+    QList<LineVert> gridData;
     gridData.reserve((freqScale.mainPointPositions.length()
-                      + dBmScale.mainPointPositions.length()) * 2);
+                      + dBmScale.mainPointPositions.length()) * 64);
 
     const int len = freqScale.mainPointPositions.length();
     for (int i = 0; i < len; i++) {
         const float x = float(panRect.left() + freqPlotLeft + freqScale.mainPointPositions.at(i));
         if (x < float(panRect.left() + freqPlotLeft) || x > float(panRect.right()))
             continue;
-        gridData.append({ x, float(panRect.top()),    3.0f, r, g, b, alpha });
-        gridData.append({ x, float(panRect.bottom()), 3.0f, r, g, b, alpha });
+        appendDashedSegment(&gridData,
+                            x, float(panRect.top()),
+                            x, float(panRect.bottom()),
+                            3.0f, r, g, b, alpha);
     }
 
     const int dBmLen = dBmScale.mainPointPositions.length();
     for (int i = 0; i < dBmLen; i++) {
         const float y = float(panRect.top() + dBmScale.mainPointPositions.at(i));
-        gridData.append({ float(panRect.left()),  y, 3.0f, r, g, b, alpha });
-        gridData.append({ float(panRect.right()), y, 3.0f, r, g, b, alpha });
+        appendDashedSegment(&gridData,
+                            float(panRect.left()),  y,
+                            float(panRect.right()), y,
+                            3.0f, r, g, b, alpha);
     }
 
     if (!gridData.isEmpty()) {
-        m_vbo.allocate(gridData.data(), gridData.size() * (int)sizeof(VertexData));
+        static_assert(sizeof(LineVert) == sizeof(VertexData), "grid vertex layout mismatch");
+        m_vbo.allocate(gridData.data(), gridData.size() * (int)sizeof(LineVert));
         m_shader->setAttributeBuffer(0, GL_FLOAT, 0, 3, sizeof(float) * 7);
         m_shader->setAttributeBuffer(1, GL_FLOAT, sizeof(float) * 3, 4, sizeof(float) * 7);
         glDrawArrays(GL_LINES, 0, gridData.size());
@@ -499,9 +530,6 @@ void OverlayRenderer::drawAGCControl(const QMatrix4x4& projection,
     if (!m_shader || !m_shader->isLinked()) return;
 
     beginOverlayLines(this);
-#ifndef QT_OPENGL_ES_2
-    ::glLineStipple(1, 0x0C0C);
-#endif
 
     m_shader->bind();
     m_shader->setUniformValue("matrix", projection);
@@ -550,4 +578,48 @@ void OverlayRenderer::drawAGCControl(const QMatrix4x4& projection,
 	glDisable(GL_SCISSOR_TEST);
     endOverlayLines(this);
     m_shader->release();
+}
+
+void OverlayRenderer::drawFilledRect(const QMatrix4x4& projection,
+                                     const QRect& rect,
+                                     const QColor& topColor,
+                                     const QColor& bottomColor,
+                                     float z)
+{
+	if (!m_shader || !m_shader->isLinked() || rect.isEmpty())
+		return;
+
+	glDisable(GL_DEPTH_TEST);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glEnable(GL_BLEND);
+
+	m_shader->bind();
+	m_shader->setUniformValue("matrix", projection);
+
+	m_vao.bind();
+	m_vbo.bind();
+
+	const float x1 = float(rect.left());
+	const float y1 = float(rect.top());
+	const float x2 = float(rect.left() + rect.width());
+	const float y2 = float(rect.top() + rect.height());
+	const float r1 = topColor.redF(), g1 = topColor.greenF(), b1 = topColor.blueF(), a1 = topColor.alphaF();
+	const float r2 = bottomColor.redF(), g2 = bottomColor.greenF(), b2 = bottomColor.blueF(), a2 = bottomColor.alphaF();
+
+	const VertexData quad[4] = {
+		{ x1, y1, z, r1, g1, b1, a1 },
+		{ x2, y1, z, r1, g1, b1, a1 },
+		{ x1, y2, z, r2, g2, b2, a2 },
+		{ x2, y2, z, r2, g2, b2, a2 },
+	};
+
+	m_vbo.allocate(quad, int(sizeof(quad)));
+	m_shader->enableAttributeArray(0);
+	m_shader->enableAttributeArray(1);
+	m_shader->setAttributeBuffer(0, GL_FLOAT, 0, 3, sizeof(float) * 7);
+	m_shader->setAttributeBuffer(1, GL_FLOAT, sizeof(float) * 3, 4, sizeof(float) * 7);
+	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+
+	m_vao.release();
+	m_shader->release();
 }

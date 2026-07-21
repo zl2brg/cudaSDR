@@ -71,7 +71,7 @@ private:
     };
 
     struct CompositeVertex {
-        float x, y;
+        float x, y, z;
         float u, v;
     };
 

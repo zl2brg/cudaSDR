@@ -1,6 +1,7 @@
 #include "WaterfallRenderer.h"
 #include "cusdr_glShaders.h"
 #include <QDebug>
+#include <QOpenGLContext>
 
 WaterfallRenderer::WaterfallRenderer()
     : m_textureId(0)
@@ -23,12 +24,17 @@ WaterfallRenderer::~WaterfallRenderer() {
     if (m_vao.isCreated()) m_vao.destroy();
     if (m_vbo.isCreated()) m_vbo.destroy();
     if (m_shader) delete m_shader;
-    // Note: Texture deletion handled by setupTexture or assuming context is alive here
-    if (m_textureId != 0) {
-        // glDeleteTextures(1, &m_textureId);
-    }
-    if (m_pboIds[0] != 0) {
-        glDeleteBuffers(2, m_pboIds);
+    // GL object deletion requires a current context; callers must makeCurrent()
+    // before destroying this renderer, or accept that Qt will reclaim context resources.
+    if (QOpenGLContext::currentContext()) {
+        if (m_textureId != 0) {
+            glDeleteTextures(1, &m_textureId);
+            m_textureId = 0;
+        }
+        if (m_pboIds[0] != 0) {
+            glDeleteBuffers(2, m_pboIds);
+            m_pboIds[0] = m_pboIds[1] = 0;
+        }
     }
 }
 
@@ -67,6 +73,15 @@ void WaterfallRenderer::reset() {
 }
 
 void WaterfallRenderer::setupTexture(int width, int height) {
+    // Flush any pending PBO upload before rebuilding the texture/PBOs.
+    if (m_pboActive && m_textureId != 0 && m_oldWidth > 0) {
+        glBindTexture(GL_TEXTURE_2D, m_textureId);
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, m_pboIds[1 - m_pboIndex]);
+        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, m_prevLine, m_oldWidth, 1, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+        m_pboActive = false;
+    }
+
     if (m_textureId != 0) {
         glDeleteTextures(1, &m_textureId);
     }

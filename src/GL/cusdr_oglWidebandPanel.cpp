@@ -78,8 +78,8 @@ QGLWidebandPanel::QGLWidebandPanel(QWidget *parent)
 	setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
     setAutoFillBackground(false);
-	const bool isWayland = QGuiApplication::platformName().contains("wayland", Qt::CaseInsensitive);
-	setUpdateBehavior(isWayland ? QOpenGLWidget::NoPartialUpdate : QOpenGLWidget::PartialUpdate);
+	// Full repaint each frame — PartialUpdate corrupts the pan background under Core GL.
+	setUpdateBehavior(QOpenGLWidget::NoPartialUpdate);
 	
 	setMouseTracking(true);
 	//setFocusPolicy(Qt::StrongFocus);
@@ -306,8 +306,9 @@ void QGLWidebandPanel::drawPanelRect(const QRect &rect, const QColor &color, flo
 }
 
 void QGLWidebandPanel::paintGL() {
-//    f->glClear(GL_COLOR_BUFFER_BIT);
-
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glDisable(GL_DEPTH_TEST);
 
 	switch (m_serverMode) {
 
@@ -454,11 +455,10 @@ void QGLWidebandPanel::drawSpectrum() {
 	yScaleColor = 4.0f / dBmRange;
 
 	yTop = (float) y2;
-	if (m_dataEngineState == QSDR::DataEngineUp)
-		glClear(GL_DEPTH_BUFFER_BIT);
-	else
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	// Color buffer already cleared in paintGL(); only refresh depth if it is enabled later.
+	glClear(GL_DEPTH_BUFFER_BIT);
 
+	glDisable(GL_DEPTH_TEST);
 	glEnable(GL_MULTISAMPLE);
 	glEnable(GL_LINE_SMOOTH);
 
@@ -466,27 +466,30 @@ void QGLWidebandPanel::drawSpectrum() {
 	glEnable(GL_BLEND);
 	glLineWidth(1);
 
-	// draw background
-	if (m_dataEngineState == QSDR::DataEngineUp) {
-
-		// Gradient background via shader (top→bottom, bright→dark)
-		if (m_program && m_program->isLinked()) {
-			m_program->bind();
-			setMvpOrtho(size().width(), size().height());
-			// interleaved: [x, y, z,  r, g, b] × 4  (GL_TRIANGLE_STRIP order TL TR BL BR)
-			QVector<float> bg = {
-				(float)x1,(float)y1,-4.0f, 0.8f*m_bkgRed,0.8f*m_bkgGreen,0.8f*m_bkgBlue,
-				(float)x2,(float)y1,-4.0f, 0.6f*m_bkgRed,0.6f*m_bkgGreen,0.6f*m_bkgBlue,
-				(float)x1,(float)y2,-4.0f, 0.4f*m_bkgRed,0.4f*m_bkgGreen,0.4f*m_bkgBlue,
-				(float)x2,(float)y2,-4.0f, 0.2f*m_bkgRed,0.2f*m_bkgGreen,0.2f*m_bkgBlue,
-			};
-			drawVertexColorArray(GL_TRIANGLE_STRIP, bg, 4);
-			m_program->release();
+	// draw background — match receiver pan (PanadapterRenderer idle/live multipliers)
+	if (m_program && m_program->isLinked()) {
+		m_program->bind();
+		setMvpOrtho(size().width(), size().height());
+		float r1, g1, b1, r2, g2, b2, r3, g3, b3, r4, g4, b4;
+		if (m_dataEngineState == QSDR::DataEngineUp) {
+			r1 = 0.8f * m_bkgRed; g1 = 0.8f * m_bkgGreen; b1 = 0.8f * m_bkgBlue;
+			r2 = 0.6f * m_bkgRed; g2 = 0.6f * m_bkgGreen; b2 = 0.6f * m_bkgBlue;
+			r3 = 0.4f * m_bkgRed; g3 = 0.4f * m_bkgGreen; b3 = 0.4f * m_bkgBlue;
+			r4 = 0.2f * m_bkgRed; g4 = 0.2f * m_bkgGreen; b4 = 0.2f * m_bkgBlue;
+		} else {
+			// Receiver idle uses 0.15× pan background (near-black), not the old (30,30,50) purple.
+			r1 = r2 = r3 = r4 = 0.15f * m_bkgRed;
+			g1 = g2 = g3 = g4 = 0.15f * m_bkgGreen;
+			b1 = b2 = b3 = b4 = 0.15f * m_bkgBlue;
 		}
-	}
-	else {
-
-		drawPanelRect(m_panRect, QColor(30, 30, 50, 155), -4.0f);
+		QVector<float> bg = {
+			(float)x1,(float)y1,-4.0f, r1,g1,b1,
+			(float)x2,(float)y1,-4.0f, r2,g2,b2,
+			(float)x1,(float)y2,-4.0f, r3,g3,b3,
+			(float)x2,(float)y2,-4.0f, r4,g4,b4,
+		};
+		drawVertexColorArray(GL_TRIANGLE_STRIP, bg, 4);
+		m_program->release();
 	}
 
 	// set a scissor box
@@ -812,8 +815,14 @@ void QGLWidebandPanel::drawSpectrum() {
 //			glLineWidth(2);
 //		}
 	
-		QRect rect = QRect(x1, y1, x2-x1, y2);
-		drawPanelRect(rect, QColor(160, 235, 255, 80), 0.0f);
+		QRect rect = QRect(x1, y1, x2 - x1, y2 - y1);
+		if (m_overlayRenderer && rect.isValid()) {
+			// Cyan sample-rate window (alpha was previously dropped by RGB-only drawSolidRect).
+			m_overlayRenderer->drawFilledRect(panelProjection(), rect,
+			                                 QColor(160, 235, 255, 80),
+			                                 QColor(160, 235, 255, 40),
+			                                 0.0f);
+		}
 
 		// small vertical line
 //		glColor4f(QColor(255, 0, 0, 255));
@@ -955,54 +964,50 @@ void QGLWidebandPanel::drawHorizontalScale() {
 }
 
 void QGLWidebandPanel::drawGrid() {
-    if (!m_panRect.isValid()) return;
-	renderGrid();
+    if (!m_panRect.isValid() || !m_overlayRenderer)
+		return;
+
+	// Match receiver panadapter grid colour/alpha (OverlayRenderer draws dotted segments).
+	m_overlayRenderer->drawGrid(panelProjection(),
+	                            m_panRect,
+	                            m_freqScaleRect.isValid() ? m_freqScaleRect : m_panRect,
+	                            m_frequencyScale,
+	                            m_dBmScale,
+	                            0,
+	                            m_redGrid,
+	                            m_greenGrid,
+	                            m_blueGrid,
+	                            1.0f,
+	                            true);
 }
 
 void QGLWidebandPanel::drawCrossHair() {
 
-	QRect rect(0, m_panRect.top(), width(), height() - m_panRect.top());
+	if (!m_overlayRenderer || !m_panRect.isValid())
+		return;
 
-	int x = m_mousePos.x();
-	int y = m_mousePos.y();
+	const QMatrix4x4 projection = panelProjection();
+	m_overlayRenderer->drawCrossHair(projection, m_panRect, m_dBmScaleRect, m_mousePos,
+	                                 float(dpr), height());
 
-    painter.begin(this);
-    painter.setRenderHint(QPainter::Antialiasing);
-    painter.setPen(QPen(QColor(255,255,255,80),2, Qt::SolidLine, Qt::FlatCap));
-	//horizontal line
-    painter.drawLine(rect.left() - 1,y,m_dBmScaleRect.left() - 2,y);
-	//vertical line
-    painter.drawLine(x,rect.top() + 1,x, rect.bottom() - 1);
-    // cross hair
-    painter.setPen(QPen(QColor(255,255,255,180),1,Qt::SolidLine, Qt::FlatCap));
+	if (m_mouseRegion != panRegion || !m_oglTextSmall)
+		return;
 
-    painter.drawLine(x,y-20,x,y + 20);
-    painter.drawLine(x-20,y,x + 20, y);
+	const int x = m_mousePos.x();
+	const int y = m_mousePos.y();
+	const qreal wbRange = qMax<qreal>(1.0, m_widebandMaxFrequency - m_widebandMinFrequency);
+	const qreal unit = (wbRange * m_freqScaleZoomFactor) / qMax(1, m_panRect.width());
+	const qreal frequency = (unit * x) + m_lowerFrequency;
+	const QString fstr = frequencyString(frequency);
 
-    // text only on panadapter
-	if (m_mouseRegion == panRegion) {
-		
-		QString str;
+	const qreal dBm = m_dBmPanMax
+	                  - ((m_dBmPanMax - m_dBmPanMin)
+	                     * ((qreal)(y - m_panRect.top()) / qMax(1, m_panRect.height())));
+	const QString dBstr = QString::number(dBm, 'f', 1) + QStringLiteral(" dBm");
 
-		const qreal wbRange = qMax<qreal>(1.0, m_widebandMaxFrequency - m_widebandMinFrequency);
-		qreal unit = (qreal)((wbRange * m_freqScaleZoomFactor) / m_panRect.width());
-		qreal frequency = (unit * x) + m_lowerFrequency;
-
-		str = frequencyString(frequency);
-		if (x > m_panRect.width() - 85)
-            painter.drawText(x- 90, y - 8,str);
-		else
-            painter.drawText(x + 4, y - 8,str);
-
-		qreal dBm = m_dBmPanMax - ((m_dBmPanMax - m_dBmPanMin) * ((qreal)(y - m_panRect.top()) / m_panRect.height()));
-		str = QString::number(dBm, 'f', 1) + " dBm";
-		if (x > m_panRect.width() - 85)
-            painter.drawText(x- 90, y + 16,str);
-		else
-            painter.drawText(x + 4, y + 16,str);
-	}
-    painter.end();
-
+	const float tx = (x > m_panRect.width() - 85) ? float(x - 90) : float(x + 4);
+	m_oglTextSmall->renderText(projection, tx, float(y - 8), fstr, QColor(255, 255, 255, 200));
+	m_oglTextSmall->renderText(projection, tx, float(y + 16), dBstr, QColor(255, 255, 255, 200));
 }
 
 void QGLWidebandPanel::drawHamBand(
@@ -1010,28 +1015,31 @@ void QGLWidebandPanel::drawHamBand(
 		int hi,
 		const QString &band
 ) {
-    painter.begin(this);
-    painter.beginNativePainting();
-    glEnable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	if (!m_overlayRenderer || m_frequencyUnit <= 0.0 || !m_panRect.isValid())
+		return;
 
-	GLint x1 = (GLint)(m_frequencyUnit * (lo - m_lowerFrequency));
-	GLint x2 = (GLint)(m_frequencyUnit * (hi - m_lowerFrequency));
+	const int x1 = int(m_frequencyUnit * (lo - m_lowerFrequency));
+	const int x2 = int(m_frequencyUnit * (hi - m_lowerFrequency));
+	if (x2 <= x1)
+		return;
 
-	GLint y1 = m_panRect.top();// + 15;
-	GLint y2 = m_panRect.bottom();
-	QRect rect = QRect(x1, y1, x2-x1, y2);
-	QLinearGradient colorGradient = QLinearGradient(x1,y1,x2-x1,y2);
-	colorGradient.setSpread(QGradient::PadSpread);
-	colorGradient.setColorAt(0, QColor((int)(255 * m_bkgRed), (int)(255 * m_bkgGreen), (int)(255 * m_bkgBlue), 80));
-	colorGradient.setColorAt(1, QColor((int)(255 * m_bkgRed), (int)(255 * m_bkgGreen), (int)(255 * m_bkgBlue), 40));
-    painter.endNativePainting();
-    painter.fillRect(rect,colorGradient);
-    int fontWidth = m_fonts.smallFontMetrics->boundingRect(band).width();
-    painter.setPen(QPen(QColor(255,255,255,180)));
-    painter.setFont(m_oglTextNormal->font());
-    painter.drawText((x2 + x1 - fontWidth)/2 , y1 +  m_fonts.smallFontMetrics->height() , band);
-    painter.end();
+	QRect rect(x1, m_panRect.top(), x2 - x1, m_panRect.height());
+	rect = rect.intersected(m_panRect);
+	if (!rect.isValid() || rect.width() < 1)
+		return;
+
+	// Match panadapter filter opacity: panFilterColor alpha × 0.4 (see OverlayRenderer::drawFilter).
+	QColor fill = set->getPanadapterColors().panFilterColor;
+	fill.setAlphaF(fill.alphaF() * 0.4f);
+	m_overlayRenderer->drawFilledRect(panelProjection(), rect, fill, fill, 1.0f);
+
+	if (m_oglTextSmall) {
+		const QFontMetrics fm = m_oglTextSmall->fontMetrics();
+		const int fontWidth = fm.horizontalAdvance(band);
+		const float tx = float((x1 + x2 - fontWidth) / 2);
+		const float ty = float(m_panRect.top() + fm.height());
+		m_oglTextSmall->renderText(panelProjection(), tx, ty, band, QColor(255, 255, 255, 220));
+	}
 }
 
 //************************************************************************
@@ -1229,11 +1237,7 @@ void QGLWidebandPanel::getRegion(QPoint p) {
 
 		m_mouseRegion = panRegion;
 
-		if (m_displayTime.elapsed() >= 50) {
-			
-			m_displayTime.restart();
-            update();
-		}
+		// Spectrum/crosshair frames already refresh; avoid an extra update storm here.
 	}
 	else
 		m_mouseRegion = elsewhere;
@@ -1380,9 +1384,12 @@ void QGLWidebandPanel::mousePressEvent(QMouseEvent* event) {
 			m_dragFreqScale = true;
 		m_dragFreqScaleZoom = (event->button() == Qt::RightButton);
 		
-		if (event->buttons() == Qt::RightButton) setCursor(Qt::SplitHCursor);
-        update();
-
+		if (event->buttons() == Qt::RightButton) {
+			if (cursor().shape() != Qt::SplitHCursor)
+				setCursor(Qt::SplitHCursor);
+		}
+		// Scale drag feedback only — avoid stacking updates with other GL panels.
+		update();
 		return;
 	}
 	else if (m_mouseRegion == dBmScaleRegion) {
@@ -1392,14 +1399,16 @@ void QGLWidebandPanel::mousePressEvent(QMouseEvent* event) {
 
 		if (event->buttons() == Qt::RightButton) {
 
-			setCursor(Qt::SplitVCursor);
+			if (cursor().shape() != Qt::SplitVCursor)
+				setCursor(Qt::SplitVCursor);
 			m_yScaleMouseDownPos = m_dBmScaleRect.topLeft();
 		}
 
 		if (event->buttons() == Qt::LeftButton &&
 			event->modifiers() == Qt::ControlModifier) {
 
-			setCursor(Qt::SplitVCursor);
+			if (cursor().shape() != Qt::SplitVCursor)
+				setCursor(Qt::SplitVCursor);
 
 			m_dBmPanMinOld = m_dBmPanMin;
 			m_dBmPanMaxOld = m_dBmPanMax;
@@ -1407,13 +1416,11 @@ void QGLWidebandPanel::mousePressEvent(QMouseEvent* event) {
 			m_dBmScaleOffset = 0.0;
 			m_calibrate = true;
 		}
-        // ADD THESE:
         setupDisplayRegions(size());
         m_dBmScaleUpdate = true;
         m_freqScaleUpdate = true;
 
         update();
-
 		return;
 	}
 	else if (m_mouseRegion == panRegion) {
@@ -1423,13 +1430,16 @@ void QGLWidebandPanel::mousePressEvent(QMouseEvent* event) {
 			if (m_crossHairCursor) {
 
 				m_crossHairCursor = false;
-				setCursor(Qt::ArrowCursor);
+				if (cursor().shape() != Qt::ArrowCursor)
+					setCursor(Qt::ArrowCursor);
 			}
 			else {
 
 				m_crossHairCursor = true;
-				setCursor(Qt::BlankCursor);
-			}	
+				if (cursor().shape() != Qt::BlankCursor)
+					setCursor(Qt::BlankCursor);
+			}
+			update();
 		}
 		else if (event->buttons() == Qt::LeftButton) {
 			
@@ -1438,15 +1448,13 @@ void QGLWidebandPanel::mousePressEvent(QMouseEvent* event) {
 
 			
 			m_frequency = (long)(1000 * (int)(qRound(m_mousePos.x()/unit + m_lowerFrequency)/1000));
+			// Frequency signals already refresh display/receiver/wideband — do not
+			// add another full NoPartialUpdate clear here (causes click flicker).
 			set->setCtrFrequency(0, m_currentReceiver, m_frequency);
 			set->setVFOFrequency(0, m_currentReceiver, m_frequency);
 		}
-        update();
-
 		return;
 	}
-
-    update();
 }
 
 void QGLWidebandPanel::mouseReleaseEvent(QMouseEvent *event) {
@@ -1460,25 +1468,24 @@ void QGLWidebandPanel::mouseReleaseEvent(QMouseEvent *event) {
 		m_dragFreqScale = false;
 		m_dragFreqScaleZoom = false;
 		m_freqScaleUpdate = true;
-		setCursor(Qt::ArrowCursor);
+		if (cursor().shape() != Qt::ArrowCursor)
+			setCursor(Qt::ArrowCursor);
 		update();
 		return;
 	}
 	else if (m_mouseRegion == dBmScaleRegion) {
 		m_dragDBmScale = false;
 		m_dBmScaleUpdate = true;
-		setCursor(Qt::ArrowCursor);
+		if (cursor().shape() != Qt::ArrowCursor)
+			setCursor(Qt::ArrowCursor);
 		update();
 		return;
 	}
 	else if (m_mouseRegion == panRegion) {
-
 		return;
 	}
 	
 	if (m_calibrate) m_calibrate = false;
-
-    update();
 }
 
 void QGLWidebandPanel::mouseMoveEvent(QMouseEvent* event) {
@@ -1487,16 +1494,19 @@ void QGLWidebandPanel::mouseMoveEvent(QMouseEvent* event) {
 
 	if (event->buttons() == Qt::NoButton) getRegion(pos);
 
+	bool needUpdate = false;
+
 	switch (m_mouseRegion) {
 
 		case panRegion:
 			
-			if (m_crossHairCursor)
-				setCursor(Qt::BlankCursor);
-			else
+			if (m_crossHairCursor) {
+				if (cursor().shape() != Qt::BlankCursor)
+					setCursor(Qt::BlankCursor);
+			} else if (cursor().shape() != Qt::ArrowCursor) {
 				setCursor(Qt::ArrowCursor);
-
-            update();
+			}
+			// Crosshair tracks via spectrum paints (m_panTimer); no mouse-driven update().
 			break;
 
 		case dBmScaleRegion:
@@ -1518,14 +1528,12 @@ void QGLWidebandPanel::mouseMoveEvent(QMouseEvent* event) {
 
 					m_dBmPanMin = newMin;
 					m_dBmPanMax = newMax;
-
-					//set->setWidebanddBmScaleMin(m_dBmPanMin);
-					//set->setWidebanddBmScaleMax(m_dBmPanMax);
 				}
 
 				m_mouseDownPos = pos;
 				m_dBmScaleUpdate = true;
 				m_panGridUpdate = true;
+				needUpdate = true;
 			}
 			else if (event->buttons() == Qt::LeftButton) {
 
@@ -1547,16 +1555,15 @@ void QGLWidebandPanel::mouseMoveEvent(QMouseEvent* event) {
 				m_mouseDownPos = pos;
 				m_dBmScaleUpdate = true;
 				m_panGridUpdate = true;
+				needUpdate = true;
 			}
-			else
-			if (event->buttons() == Qt::RightButton) {
+			else if (event->buttons() == Qt::RightButton) {
 				QPoint dPos = m_mouseDownPos - pos;
 				if (dPos.y() > 0)
 					m_dBmPanDelta = 1.0;
 				else if (dPos.y() < 0)
 					m_dBmPanDelta = -1.0f;
 				
-				//m_dBmPanMin += m_dBmPanDelta;
 				m_dBmPanMax -= m_dBmPanDelta;
 
 				if (qAbs(m_dBmPanMax - m_dBmPanMin) < 10) {
@@ -1573,11 +1580,11 @@ void QGLWidebandPanel::mouseMoveEvent(QMouseEvent* event) {
 				m_mouseDownPos = pos;
 				m_dBmScaleUpdate = true;
 				m_panGridUpdate = true;
+				needUpdate = true;
 			}
-			else
+			else if (cursor().shape() != Qt::ArrowCursor) {
 				setCursor(Qt::ArrowCursor);
-
-            update();
+			}
 			break;
 
 		case freqScaleRegion:
@@ -1605,6 +1612,7 @@ void QGLWidebandPanel::mouseMoveEvent(QMouseEvent* event) {
 					m_mouseDownPos = pos;
                     m_freqScaleUpdate = true;
                     m_panGridUpdate = true;
+					needUpdate = true;
 				}
 				else {
 
@@ -1624,7 +1632,6 @@ void QGLWidebandPanel::mouseMoveEvent(QMouseEvent* event) {
 					m_freqScaleZoomFactor -= 0.005f;
 
 				if (m_freqScaleZoomFactor > 1.0) m_freqScaleZoomFactor = 1.0f;
-				//if (m_freqScaleZoomFactor < 0.24) m_freqScaleZoomFactor = 0.24f;
 				if (m_freqScaleZoomFactor < 0.15) m_freqScaleZoomFactor = 0.15f;
 
 				const qreal wbRange = qMax<qreal>(1.0, m_widebandMaxFrequency - m_widebandMinFrequency);
@@ -1642,35 +1649,21 @@ void QGLWidebandPanel::mouseMoveEvent(QMouseEvent* event) {
 				m_mouseDownPos = pos;
                 m_freqScaleUpdate = true;
                 m_panGridUpdate = true;
-             //   update();
+				needUpdate = true;
 			}
-			else
+			else if (cursor().shape() != Qt::ArrowCursor) {
 				setCursor(Qt::ArrowCursor);
-
-            update();
+			}
 			break;
 
 		case elsewhere:
-			//WBGRAPHICS_DEBUG << "elsewhere";
-
-            update();
 			break;
 	}
 
-	//if (m_oldMouseRegion != m_mouseRegion) update();
-
-	//m_oldMouseRegion = m_mouseRegion;
-		
-	//if (m_displayTime.elapsed() >= 50) {
-
-	//	m_displayTime.restart();
-	//	//updateGL();
-	//	update();
-	//}
-	//setupDisplayRegions(size());
-	//update();
-
-	//locker.unlock();
+	if (needUpdate && m_displayTime.elapsed() >= 33) {
+		m_displayTime.restart();
+		update();
+	}
 }
 
 void QGLWidebandPanel::keyPressEvent(QKeyEvent* event) {
@@ -1728,8 +1721,9 @@ void QGLWidebandPanel::timerEvent(QTimerEvent *event) {
             m_panGridRenew = true;
             update();
         }
+        return;
     }
-    update();
+    QOpenGLWidget::timerEvent(event);
 }
  
 //********************************************************************
@@ -1739,6 +1733,7 @@ void QGLWidebandPanel::setFrequency(int mode, int rx, qint64 freq) {
 	Q_UNUSED (mode)
 
 	if (rx != m_currentReceiver) return;
+	if (m_frequency == freq && m_hwInterface != QSDR::SoapySDR) return;
 	
 	m_frequency = freq;
 	if (m_hwInterface == QSDR::SoapySDR && m_freqScaleZoomFactor >= 0.999f) {
@@ -1753,8 +1748,12 @@ void QGLWidebandPanel::setFrequency(int mode, int rx, qint64 freq) {
 	m_freqScaleUpdate = true;
 	m_panGridUpdate = true;
 
-    //updateGL();
-    update();
+	// Spectrum timer already paints while live. Digit-wheel retunes must not
+	// force NoPartialUpdate clears (Core 3.3 window flash).
+	if (m_dataEngineState != QSDR::DataEngineUp && m_panTimer.elapsed() >= 50) {
+		m_panTimer.restart();
+		update();
+	}
 }
 
 void QGLWidebandPanel::setCurrentReceiver(int value) {
@@ -1889,7 +1888,7 @@ void QGLWidebandPanel::setWidebandSpectrumBuffer(const qVectorFloat &buffer) {
 //	else if (frequencyScale < 1.0)
 //		scaleMult = 0.5;
 
-	if (m_panTimer.elapsed() >= 33) {  // cap at ~30 FPS to reduce Wayland compositor overhead
+	if (m_panTimer.elapsed() >= 50) {  // ~20 FPS — keep below receiver rate to reduce compose thrash
 		m_panTimer.restart();
 		update();
 	}
@@ -2087,6 +2086,6 @@ void QGLWidebandPanel::showEvent(QShowEvent *event) {
 
 void QGLWidebandPanel::qglColor(QColor color)
 {
-	glColor4f(color.redF(), color.greenF(), color.blueF(), color.alphaF());
+	Q_UNUSED(color);
 }
 

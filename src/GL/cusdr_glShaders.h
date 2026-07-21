@@ -127,27 +127,8 @@ inline const char *coloredFragmentSourceVec3()
 
 inline const char *texturedQuadVertexSource()
 {
-    if (isOpenGLES()) {
-        return
-            "attribute vec2 position;\n"
-            "attribute vec2 texCoord;\n"
-            "varying vec2 v_texCoord;\n"
-            "uniform mat4 matrix;\n"
-            "void main() {\n"
-            "   v_texCoord = texCoord;\n"
-            "   gl_Position = matrix * vec4(position, 0.0, 1.0);\n"
-            "}\n";
-    }
-    return
-        "#version 150\n"
-        "in vec2 position;\n"
-        "in vec2 texCoord;\n"
-        "out vec2 v_texCoord;\n"
-        "uniform mat4 matrix;\n"
-        "void main() {\n"
-        "   v_texCoord = texCoord;\n"
-        "   gl_Position = matrix * vec4(position, 0.0, 1.0);\n"
-        "}\n";
+    // Same layout as texturedVertexSource: vec3 position so depth layering works.
+    return texturedVertexSource();
 }
 
 // Wideband panel (a_pos / a_color / u_mvp)

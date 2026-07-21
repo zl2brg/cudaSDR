@@ -149,7 +149,7 @@ QMatrix4x4 OGLTextPrivate::orthoForCurrentViewport() const
 void OGLTextPrivate::renderTextProjected(const QMatrix4x4 &projection,
                                          float x,
                                          float y,
-                                         float /*z*/,
+                                         float z,
                                          const QString &text,
                                          const QColor &color)
 {
@@ -171,10 +171,10 @@ void OGLTextPrivate::renderTextProjected(const QMatrix4x4 &projection,
     const float scaleY = (logicalH > 0.0f) ? float(vp[3]) / logicalH : 1.0f;
 
     QMatrix4x4 pixelProjection;
-    pixelProjection.ortho(0.0f, float(vp[2]), float(vp[3]), 0.0f, -1.0f, 1.0f);
+    pixelProjection.ortho(0.0f, float(vp[2]), float(vp[3]), 0.0f, -5.0f, 5.0f);
 
     struct GlyphVertex {
-        float px, py;
+        float px, py, pz;
         float u, v;
     };
 
@@ -210,12 +210,12 @@ void OGLTextPrivate::renderTextProjected(const QMatrix4x4 &projection,
         const float bottomY = topY + glyphH;
 
         const GlyphVertex quad[6] = {
-            { penX, bottomY, c.s[0], c.t[0] },
-            { penX + glyphW, bottomY, c.s[1], c.t[0] },
-            { penX + glyphW, topY, c.s[1], c.t[1] },
-            { penX, bottomY, c.s[0], c.t[0] },
-            { penX + glyphW, topY, c.s[1], c.t[1] },
-            { penX, topY, c.s[0], c.t[1] },
+            { penX, bottomY, z, c.s[0], c.t[0] },
+            { penX + glyphW, bottomY, z, c.s[1], c.t[0] },
+            { penX + glyphW, topY, z, c.s[1], c.t[1] },
+            { penX, bottomY, z, c.s[0], c.t[0] },
+            { penX + glyphW, topY, z, c.s[1], c.t[1] },
+            { penX, topY, z, c.s[0], c.t[1] },
         };
 
         textVao.bind();
@@ -227,13 +227,13 @@ void OGLTextPrivate::renderTextProjected(const QMatrix4x4 &projection,
         const GLsizei stride = GLsizei(sizeof(GlyphVertex));
         if (posAttr >= 0) {
             gl->glEnableVertexAttribArray(GLuint(posAttr));
-            gl->glVertexAttribPointer(GLuint(posAttr), 2, GL_FLOAT, GL_FALSE, stride,
+            gl->glVertexAttribPointer(GLuint(posAttr), 3, GL_FLOAT, GL_FALSE, stride,
                                       reinterpret_cast<const void *>(0));
         }
         if (texAttr >= 0) {
             gl->glEnableVertexAttribArray(GLuint(texAttr));
             gl->glVertexAttribPointer(GLuint(texAttr), 2, GL_FLOAT, GL_FALSE, stride,
-                                      reinterpret_cast<const void *>(2 * sizeof(float)));
+                                      reinterpret_cast<const void *>(3 * sizeof(float)));
         }
 
         gl->glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -267,9 +267,6 @@ void OGLTextPrivate::allocateTexture() {
     //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-    // select modulate to mix texture with color for shading
-    glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 
     QImage image(TEXTURE_SIZE, TEXTURE_SIZE, QImage::Format_ARGB32);
     image.fill(Qt::transparent);

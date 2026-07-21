@@ -451,10 +451,10 @@ bool PanadapterRenderer::compositeToDefaultFramebuffer(QOpenGLFunctions *gl,
 
     // RHI offscreen image is vertically flipped vs. widget ortho coordinates.
     const CompositeVertex quad[4] = {
-        { float(x1), float(y1), 0.0f, 1.0f },
-        { float(x2), float(y1), 1.0f, 1.0f },
-        { float(x1), float(y2), 0.0f, 0.0f },
-        { float(x2), float(y2), 1.0f, 0.0f },
+        { float(x1), float(y1), 0.0f, 0.0f, 1.0f },
+        { float(x2), float(y1), 0.0f, 1.0f, 1.0f },
+        { float(x1), float(y2), 0.0f, 0.0f, 0.0f },
+        { float(x2), float(y2), 0.0f, 1.0f, 0.0f },
     };
 
     m_compositeProgram->bind();
@@ -463,9 +463,9 @@ bool PanadapterRenderer::compositeToDefaultFramebuffer(QOpenGLFunctions *gl,
     m_compositeVbo.bind();
     m_compositeVbo.allocate(quad, int(sizeof(quad)));
     m_compositeProgram->enableAttributeArray(0);
-    m_compositeProgram->setAttributeBuffer(0, GL_FLOAT, 0, 2, int(sizeof(CompositeVertex)));
+    m_compositeProgram->setAttributeBuffer(0, GL_FLOAT, 0, 3, int(sizeof(CompositeVertex)));
     m_compositeProgram->enableAttributeArray(1);
-    m_compositeProgram->setAttributeBuffer(1, GL_FLOAT, sizeof(float) * 2, 2, int(sizeof(CompositeVertex)));
+    m_compositeProgram->setAttributeBuffer(1, GL_FLOAT, sizeof(float) * 3, 2, int(sizeof(CompositeVertex)));
 
     gl->glActiveTexture(GL_TEXTURE0);
     gl->glBindTexture(GL_TEXTURE_2D, GLuint(nativeTex.object));

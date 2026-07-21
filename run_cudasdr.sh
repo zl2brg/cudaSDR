@@ -29,15 +29,28 @@ if ! BINARY_PATH="$(find_binary)"; then
     exit 1
 fi
 
-# Detect display server and dynamically choose best platform with fallbacks
-if [[ -n "${WAYLAND_DISPLAY:-}" ]]; then
-    export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-wayland;xcb}"
-else
-    export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-xcb}"
+# Display platform:
+# Native Wayland + NVIDIA often busy-spins (libEGL dri2 failures → no real vsync) and
+# can push CPU past 200%. Prefer X11/xcb (XWayland on a Wayland session) unless the
+# user explicitly forces Wayland: QT_QPA_PLATFORM=wayland ./run_cudasdr.sh
+if [[ -z "${QT_QPA_PLATFORM:-}" ]]; then
+    if [[ -n "${WAYLAND_DISPLAY:-}" ]]; then
+        echo "==> Wayland session detected; defaulting QT_QPA_PLATFORM=xcb (XWayland)"
+        echo "    Set QT_QPA_PLATFORM=wayland to force native Wayland (higher CPU risk on NVIDIA)."
+    fi
+    export QT_QPA_PLATFORM=xcb
 fi
 # xcb_glx: best 3D panadapter (desktop GL). xcb_egl: legacy EGL path.
 # 2D pan/waterfall use direct GL and work on either after NoPartialUpdate + pan GL fallback.
 export QT_XCB_GL_INTEGRATION="${QT_XCB_GL_INTEGRATION:-xcb_glx}"
+
+# NVIDIA: steer GL/EGL onto the proprietary vendor path. Without this, Mesa may probe the
+# NVIDIA PCI id, log dri2 failures, and leave a high-CPU fallback path.
+if [[ -e /proc/driver/nvidia/version ]] || lsmod 2>/dev/null | grep -q '^nvidia\b'; then
+    export __GLX_VENDOR_LIBRARY_NAME="${__GLX_VENDOR_LIBRARY_NAME:-nvidia}"
+    export GBM_BACKEND="${GBM_BACKEND:-nvidia-drm}"
+    echo "==> NVIDIA driver detected; using __GLX_VENDOR_LIBRARY_NAME=${__GLX_VENDOR_LIBRARY_NAME} GBM_BACKEND=${GBM_BACKEND}"
+fi
 
 # --- Qt 6.11.0 Detection Logic ---
 REQUIRED_QT_VERSION="6.11.0"
@@ -91,6 +104,9 @@ fi
 echo "Starting cudasdr..."
 echo "  binary: ${BINARY_PATH}"
 echo "  QT_QPA_PLATFORM=${QT_QPA_PLATFORM}"
+echo "  QT_XCB_GL_INTEGRATION=${QT_XCB_GL_INTEGRATION}"
+echo "  __GLX_VENDOR_LIBRARY_NAME=${__GLX_VENDOR_LIBRARY_NAME:-<unset>}"
+echo "  GBM_BACKEND=${GBM_BACKEND:-<unset>}"
 echo "  QT_QPA_PLATFORM_PLUGIN_PATH=${QT_QPA_PLATFORM_PLUGIN_PATH:-<default>}"
 
 exec "${BINARY_PATH}" "$@"

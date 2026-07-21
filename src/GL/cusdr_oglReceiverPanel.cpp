@@ -455,7 +455,6 @@ void QGLReceiverPanel::initializeGL() {
 	//*****************************************************************
 	// default initialization
 
-	glShadeModel(GL_SMOOTH);
 	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 	glPixelStorei(GL_UNPACK_ALIGNMENT, 4); // 4-byte pixel alignment
 	glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
@@ -465,8 +464,6 @@ void QGLReceiverPanel::initializeGL() {
 	glDepthFunc(GL_LESS);
     glEnable(GL_DEPTH_TEST);
 	glDisable(GL_CULL_FACE);
-    
-	glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_MODULATE);
 
     m_waterfallRenderer = new WaterfallRenderer();
     m_waterfallRenderer->initialize();
@@ -506,7 +503,6 @@ void QGLReceiverPanel::ensurePanelViewport()
 {
     const qreal ratio = devicePixelRatioF();
     glViewport(0, 0, GLsizei(qRound(width() * ratio)), GLsizei(qRound(height() * ratio)));
-    setProjectionOrthographic(width(), height());
 }
 
 void QGLReceiverPanel::syncTextDevicePixelRatio()
@@ -562,13 +558,6 @@ void QGLReceiverPanel::paintGL() {
 
     syncTextDevicePixelRatio();
     ensurePanelViewport();
-
-    // Set up fixed function matrices for legacy code and text rendering
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    glOrtho(0, width(), height(), 0, -10, 10);
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
 
 	switch (m_serverMode) {
 
@@ -1307,7 +1296,7 @@ void QGLReceiverPanel::drawVFOControl() {
 		col = m_darkColor;
 	
     m_midToVfoButtonRect = QRect(x1, y1, m_fonts.smallFontMetrics->horizontalAdvance(str) + 5, m_fonts.fontHeightSmallFont + 2);
-	drawGLRect(m_midToVfoButtonRect, col, 2.0f);
+	drawPanelRect(m_midToVfoButtonRect, col, 2.0f);
 	qglColor(QColor(0, 0, 0));
 	m_oglTextSmall->renderFreqText(x1+1, y1-2, 3.0f, str);*/
 
@@ -1327,7 +1316,7 @@ void QGLReceiverPanel::drawVFOControl() {
 		col = m_darkColor;
 
     m_vfoToMidButtonRect = QRect(x1, y1, m_fonts.smallFontMetrics->horizontalAdvance(str) + 5, m_fonts.fontHeightSmallFont + 2);
-	drawGLRect(m_vfoToMidButtonRect, col, 2.0f);
+	drawPanelRect(m_vfoToMidButtonRect, col, 2.0f);
 	qglColor(QColor(0, 0, 0));
 	m_oglTextSmall->renderFreqText(x1+1, y1-2, 3.0f, str);*/
 }
@@ -1364,7 +1353,7 @@ void QGLReceiverPanel::drawReceiverInfo() {
 	int y1 = 3;
 
 	rect = QRect(x1+2, y1, m_fonts.smallFontMetrics->tightBoundingRect(str).width() + 5, m_fonts.fontHeightSmallFont + 2);
-	drawGLRect(rect, col, 2.0f);
+	drawPanelRect(rect, col, 2.0f);
 	qglColor(QColor(0, 0, 0));
 	m_oglTextSmall->renderFreqText(x1+3, y1-2, 3.0f, str);*/
 
@@ -1393,7 +1382,7 @@ void QGLReceiverPanel::drawReceiverInfo() {
 	//y1 = 3;
 
 	//m_agcButtonRect = QRect(x1+2, y1, m_fonts.smallFontMetrics->tightBoundingRect(str).width() + 5, m_fonts.fontHeightSmallFont + 2);
-	//drawGLRect(m_agcButtonRect, col, 2.0f);
+	//drawPanelRect(m_agcButtonRect, col, 2.0f);
 	//qglColor(QColor(0, 0, 0));
 	//m_oglTextSmall->renderFreqText(x1+3, y1-2, 3.0f, str);
 
@@ -1616,60 +1605,62 @@ void QGLReceiverPanel::renderPanHorizontalScale() {
     painter.end();
 }
 
-void QGLReceiverPanel::renderPanadapterGrid() {
-
-
+void QGLReceiverPanel::renderPanadapterGrid()
+{
     // Clear to transparent so only grid lines are visible
-    glClearColor(0.0f, 0.0f, 0.0f, 0.0f);  // Transparent black
+    glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
     glClear(GL_COLOR_BUFFER_BIT);
 
-    // Set up OpenGL state for efficient line rendering
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glDisable(GL_LINE_STIPPLE);  // Try solid lines first for visibility
-    // glEnable(GL_LINE_STIPPLE);
-    // glLineStipple(1, 0x5555);  // Dotted pattern (equivalent to Qt::DotLine)
-    glLineWidth(2.0f);  // Make lines thicker for visibility
-    
-    // Draw all lines in one batch for maximum performance
-    glBegin(GL_LINES);
+    glLineWidth(2.0f);
 
-    // Vertical lines (frequency grid)
+    QVector<GlDraw::Vec3Rgb> verts;
+    verts.reserve((m_frequencyScale.mainPointPositions.length()
+                   + m_dBmScale.mainPointPositions.length()) * 2);
+
+    const float r = m_redGrid;
+    const float g = m_greenGrid;
+    const float b = m_blueGrid;
+
     int len = m_frequencyScale.mainPointPositions.length();
     if (len > 0) {
-        GLint y1 = 0;
-        GLint y2 = m_panRect.height() - 1;  // Use relative height, not absolute bottom
+        const float y1 = 0.0f;
+        const float y2 = float(m_panRect.height() - 1);
 
         for (int i = 0; i < len; i++) {
-            GLint x = m_frequencyScale.mainPointPositions.at(i) - m_panRect.left();  // Convert to relative coordinates
-            if (x >= 0 && x < m_panRect.width()) {  // Only draw if within bounds
-                glVertex2i(x, y1);
-                glVertex2i(x, y2);
+            const float x = float(m_frequencyScale.mainPointPositions.at(i) - m_panRect.left());
+            if (x >= 0.0f && x < float(m_panRect.width())) {
+                verts.append({ x, y1, 0.0f, r, g, b });
+                verts.append({ x, y2, 0.0f, r, g, b });
             }
         }
     }
 
-    // Horizontal lines (dBm grid)
     len = m_dBmScale.mainPointPositions.length();
     if (len > 0) {
-        GLint x1 = 0;
-        GLint x2 = m_panRect.width() - 1;  // Use relative width, not absolute right
+        const float x1 = 0.0f;
+        const float x2 = float(m_panRect.width() - 1);
 
         for (int i = 0; i < len; i++) {
-            GLint y = m_dBmScale.mainPointPositions.at(i) - m_panRect.top();  // Convert to relative coordinates
-            if (y >= 0 && y < m_panRect.height()) {  // Only draw if within bounds
-                glVertex2i(x1, y);
-                glVertex2i(x2, y);
+            const float y = float(m_dBmScale.mainPointPositions.at(i) - m_panRect.top());
+            if (y >= 0.0f && y < float(m_panRect.height())) {
+                verts.append({ x1, y, 0.0f, r, g, b });
+                verts.append({ x2, y, 0.0f, r, g, b });
             }
         }
     }
 
-    glEnd();
-    
-    // Restore OpenGL state
-    glDisable(GL_LINE_STIPPLE);
+    if (!verts.isEmpty() && m_shaderProgram && m_shaderProgram->isLinked()) {
+        QMatrix4x4 projection;
+        projection.ortho(0, m_panRect.width(), m_panRect.height(), 0, -10, 10);
+        m_vao.bind();
+        GlDraw::drawColoredLines(this, m_shaderProgram, m_vbo, projection,
+                                 verts.constData(), verts.size());
+    }
+
     glDisable(GL_BLEND);
-   }
+}
  
 void QGLReceiverPanel::renderWaterfallVerticalScale() {
 
@@ -1945,22 +1936,12 @@ void QGLReceiverPanel::setupDisplayRegions(QSize size) {
 	
 }
 
-void QGLReceiverPanel::saveGLState() {
-
-    glPushAttrib(GL_ALL_ATTRIB_BITS);
-    glMatrixMode(GL_PROJECTION);
-    glPushMatrix();
-    glMatrixMode(GL_MODELVIEW);
-    glPushMatrix();
+void QGLReceiverPanel::saveGLState()
+{
 }
 
-void QGLReceiverPanel::restoreGLState() {
-
-    glMatrixMode(GL_PROJECTION);
-    glPopMatrix();
-    glMatrixMode(GL_MODELVIEW);
-    glPopMatrix();
-    glPopAttrib();
+void QGLReceiverPanel::restoreGLState()
+{
 }
  
 void QGLReceiverPanel::showText(float x, float y, float z = 0.0f, const QString &text = "", bool smallText = true) {
@@ -2080,7 +2061,8 @@ void QGLReceiverPanel::mousePressEvent(QMouseEvent* event) {
 		else if (event->buttons() == Qt::LeftButton && m_clickVFO) {
 
 			m_crossHairCursor = false;
-			setCursor(Qt::OpenHandCursor);
+			if (cursor().shape() != Qt::OpenHandCursor)
+				setCursor(Qt::OpenHandCursor);
 			m_dragMouse = true;
 
 
@@ -2093,7 +2075,8 @@ void QGLReceiverPanel::mousePressEvent(QMouseEvent* event) {
 		else if (event->buttons() == Qt::LeftButton) {
 
 			m_crossHairCursor = false;
-			setCursor(Qt::OpenHandCursor);
+			if (cursor().shape() != Qt::OpenHandCursor)
+				setCursor(Qt::OpenHandCursor);
 			m_dragMouse = true;
 		}
 		else if (event->buttons() == Qt::RightButton) {
@@ -2154,15 +2137,19 @@ void QGLReceiverPanel::mouseReleaseEvent(QMouseEvent *event) {
 		m_dragFreqScale = false;
 		m_dragFreqScaleZoom = false;
 		m_freqScalePanadapterUpdate = true;
-		if (m_crossHair)
-			setCursor(Qt::BlankCursor);
-		else
+		if (m_crossHair) {
+			if (cursor().shape() != Qt::BlankCursor)
+				setCursor(Qt::BlankCursor);
+		} else if (cursor().shape() != Qt::ArrowCursor) {
 			setCursor(Qt::ArrowCursor);
+		}
 		update();
 		return;
 	}
 	//else if (m_mouseRegion == panadapterRegion || m_mouseRegion == waterfallRegion) {
 	//}
+	const bool wasDragging = m_dragMouse || m_highlightFilter
+	                         || m_showFilterLeftBoundary || m_showFilterRightBoundary;
 	m_dragMouse = false;
 	m_dragDBmScale = false;
 	m_dragFreqScale = false;
@@ -2173,11 +2160,15 @@ void QGLReceiverPanel::mouseReleaseEvent(QMouseEvent *event) {
 	m_freqScalePanadapterUpdate = true;
 	m_dBmScalePanadapterUpdate = true;
 	m_crossHairCursor = true;
-	if (m_crossHair)
-		setCursor(Qt::BlankCursor);
-	else
+	if (m_crossHair) {
+		if (cursor().shape() != Qt::BlankCursor)
+			setCursor(Qt::BlankCursor);
+	} else if (cursor().shape() != Qt::ArrowCursor) {
 		setCursor(Qt::ArrowCursor);
-	update();
+	}
+	// Spectrum frames already refresh the pan; only force a paint when ending a drag overlay.
+	if (wasDragging)
+		update();
 }
 
 void QGLReceiverPanel::mouseDoubleClickEvent(QMouseEvent *event) {
@@ -2223,7 +2214,8 @@ void QGLReceiverPanel::mouseMoveEvent(QMouseEvent* event) {
 				break;
 
 			m_crossHairCursor = false;
-			setCursor(Qt::SizeVerCursor);
+			if (cursor().shape() != Qt::SizeVerCursor)
+				setCursor(Qt::SizeVerCursor);
 
 			if (event->buttons() == Qt::LeftButton) {
 
@@ -2240,7 +2232,7 @@ void QGLReceiverPanel::mouseMoveEvent(QMouseEvent* event) {
 					m_agcThresholdNew = m_dBmPanMin+2;
 
 				set->setAGCThreshold_dB(m_receiver, m_agcThresholdNew);
-		//		set->setAGCMaximumGain_dB(m_receiver, m_agcThresholdNew);
+		//		set->setAGCMaximumGain_dB(m_receiver, m_agcMaximumGain_dB);
 			}
 			break;
 
@@ -2251,7 +2243,8 @@ void QGLReceiverPanel::mouseMoveEvent(QMouseEvent* event) {
 				break;
 
 			m_crossHairCursor = false;
-			setCursor(Qt::SizeVerCursor);
+			if (cursor().shape() != Qt::SizeVerCursor)
+				setCursor(Qt::SizeVerCursor);
 
 			if (event->buttons() == Qt::LeftButton) {
 
@@ -2278,7 +2271,8 @@ void QGLReceiverPanel::mouseMoveEvent(QMouseEvent* event) {
 				break;
 
 			m_crossHairCursor = false;
-			setCursor(Qt::SizeVerCursor);
+			if (cursor().shape() != Qt::SizeVerCursor)
+				setCursor(Qt::SizeVerCursor);
 
 			if (event->buttons() == Qt::LeftButton) {
 
@@ -2306,10 +2300,12 @@ void QGLReceiverPanel::mouseMoveEvent(QMouseEvent* event) {
 			if (!m_dragMouse) {
 
 				m_crossHairCursor = true;
-				if (m_crossHair)
-					setCursor(Qt::BlankCursor);
-				else
+				if (m_crossHair) {
+					if (cursor().shape() != Qt::BlankCursor)
+						setCursor(Qt::BlankCursor);
+				} else if (cursor().shape() != Qt::ArrowCursor) {
 					setCursor(Qt::ArrowCursor);
+				}
 			}
 			
 			if (event->buttons() == Qt::LeftButton) {
@@ -2690,11 +2686,9 @@ void QGLReceiverPanel::mouseMoveEvent(QMouseEvent* event) {
 			break;
 	}
 
-	if (m_displayTime.elapsed() >= 100) {
-
-		m_displayTime.restart();
-		update();
-	}
+	// Do not call update() from idle mouse moves. Crosshair/overlays are redrawn on
+	// the next spectrum frame (setSpectrumBuffer). Extra NoPartialUpdate clears here
+	// flash the whole multi-QOpenGLWidget window.
 }
 
 void QGLReceiverPanel::keyPressEvent(QKeyEvent* event) {
@@ -2767,8 +2761,14 @@ void QGLReceiverPanel::setCtrFrequency(int mode, int rx, qint64 freq) {
     if (freqChanged)
         m_freqScalePanadapterUpdate = true;
 
-    if (!m_dragMouse)
+    // Digit-wheel retunes fire ctr+vfo every notch. Extra NoPartialUpdate clears here
+    // flash the window under Core 3.3. While the engine is running, spectrum frames
+    // already repaint; only force a paint when idle (or throttled if somehow needed).
+    if (!m_dragMouse && m_dataEngineState != QSDR::DataEngineUp
+        && m_displayTime.elapsed() >= 33) {
+        m_displayTime.restart();
         update();
+    }
 }
 
 void QGLReceiverPanel::setVFOFrequency(int mode, int rx, qint64 freq) {
@@ -2776,6 +2776,7 @@ void QGLReceiverPanel::setVFOFrequency(int mode, int rx, qint64 freq) {
 	Q_UNUSED(mode)
 	
 	if (m_receiver != rx) return;
+	if (m_vfoFrequency == freq) return;
 
 	m_vfoFrequency = freq;
 	if (m_vfoFrequency > m_centerFrequency + m_sampleRate/2)
@@ -2786,11 +2787,11 @@ void QGLReceiverPanel::setVFOFrequency(int mode, int rx, qint64 freq) {
 	m_deltaFrequency = m_centerFrequency - m_vfoFrequency;
 	m_deltaF = (qreal)(1.0*m_deltaFrequency/m_sampleRate);
 	
-    // Note: Neither grid nor frequency scale need to update for VFO changes
-    // The scale shows center frequency range, not VFO position
-    // m_freqScalePanadapterUpdate = true;
-    // m_panGridUpdate = true;
-    update();
+    // Spectrum frames redraw the VFO/filter; skip NoPartialUpdate clears while live.
+    if (m_dataEngineState != QSDR::DataEngineUp && m_displayTime.elapsed() >= 33) {
+	    m_displayTime.restart();
+	    update();
+    }
 }
 
 void QGLReceiverPanel::setVfoToMidFrequency() {
@@ -2826,9 +2827,16 @@ void QGLReceiverPanel::setFilterFrequencies(int rx, qreal lo, qreal hi) {
 
 void QGLReceiverPanel::setCurrentReceiver(int value) {
 
+	if (m_currentReceiver == value) return;
+
+	const bool wasCurrent = (m_receiver == m_currentReceiver);
+	const bool isCurrent = (m_receiver == value);
 	m_currentReceiver = value;
-	m_panGridUpdate = true;
-	update();
+	// Only panels whose active/inactive styling changes need a redraw.
+	if (wasCurrent || isCurrent) {
+		m_panGridUpdate = true;
+		update();
+	}
 }
 
 void QGLReceiverPanel::freqRulerPositionChanged(int rx, float pos) {
@@ -3086,7 +3094,11 @@ void QGLReceiverPanel::computeDisplayBins(QVector<float>& buffer, QVector<float>
 	}
 
 	m_waterfallDisplayUpdate = true;
-	if (m_displayTime.elapsed() >= (1000 / m_fps)) {
+	// Cap multi-QOpenGLWidget recomposition: uncapped / high FPS makes the whole
+	// window flash as sibling FBOs clear out of sync.
+	int frameIntervalMs = (m_fps > 0) ? (1000 / m_fps) : 33;
+	frameIntervalMs = qMax(frameIntervalMs, 33); // ≤ ~30 FPS
+	if (m_displayTime.elapsed() >= frameIntervalMs) {
 		m_displayTime.restart();
 		update();
 	}
@@ -3535,6 +3547,5 @@ void QGLReceiverPanel::showRadioPopup(bool value) {
 void QGLReceiverPanel::qglColor(QColor color)
 {
     m_glTextColor = color;
-    glColor4f(color.redF(), color.greenF(), color.blueF(), color.alphaF());
 }
 

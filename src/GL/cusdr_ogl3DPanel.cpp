@@ -116,12 +116,14 @@ QGL3DPanel::QGL3DPanel(QWidget *parent, int rx)
     // Set the widget to not share its context even though AA_ShareOpenGLContexts is set
     // This may help with refresh rate while still allowing reparenting
     QSurfaceFormat format = QSurfaceFormat::defaultFormat();
-    format.setSwapInterval(0);  // Disable VSync for this widget specifically
+    const bool isWayland = QGuiApplication::platformName().contains("wayland", Qt::CaseInsensitive);
+    // setSwapInterval(0) breaks presentation on Wayland; only disable VSync elsewhere
+    if (!isWayland)
+        format.setSwapInterval(0);
     setFormat(format);
     
     // Match the 2D receiver panel settings exactly
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    const bool isWayland = QGuiApplication::platformName().contains("wayland", Qt::CaseInsensitive);
     setUpdateBehavior(isWayland ? QOpenGLWidget::NoPartialUpdate : QOpenGLWidget::PartialUpdate);
     setAutoFillBackground(false);
 

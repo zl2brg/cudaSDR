@@ -236,13 +236,11 @@ inline void renderTexturedQuad(QOpenGLFunctions *gl,
     if (!gl || !prog || !prog->isLinked() || rect.isEmpty() || !texId)
         return;
 
-    Q_UNUSED(z)
-
     gl->glEnable(GL_BLEND);
     gl->glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     struct Vertex {
-        float x, y;
+        float x, y, z;
         float u, v;
     };
 
@@ -252,10 +250,10 @@ inline void renderTexturedQuad(QOpenGLFunctions *gl,
     const float y2 = float(rect.top() + rect.height());
 
     const Vertex quad[4] = {
-        { x1, y1, 0.0f, 1.0f },
-        { x2, y1, 1.0f, 1.0f },
-        { x1, y2, 0.0f, 0.0f },
-        { x2, y2, 1.0f, 0.0f },
+        { x1, y1, z, 0.0f, 1.0f },
+        { x2, y1, z, 1.0f, 1.0f },
+        { x1, y2, z, 0.0f, 0.0f },
+        { x2, y2, z, 1.0f, 0.0f },
     };
 
     prog->bind();
@@ -276,13 +274,13 @@ inline void renderTexturedQuad(QOpenGLFunctions *gl,
     const GLsizei stride = GLsizei(sizeof(Vertex));
     if (posLoc >= 0) {
         gl->glEnableVertexAttribArray(GLuint(posLoc));
-        gl->glVertexAttribPointer(GLuint(posLoc), 2, GL_FLOAT, GL_FALSE, stride,
+        gl->glVertexAttribPointer(GLuint(posLoc), 3, GL_FLOAT, GL_FALSE, stride,
                                   reinterpret_cast<const void *>(0));
     }
     if (texLoc >= 0) {
         gl->glEnableVertexAttribArray(GLuint(texLoc));
         gl->glVertexAttribPointer(GLuint(texLoc), 2, GL_FLOAT, GL_FALSE, stride,
-                                  reinterpret_cast<const void *>(2 * sizeof(float)));
+                                  reinterpret_cast<const void *>(3 * sizeof(float)));
     }
 
     gl->glActiveTexture(GL_TEXTURE0);

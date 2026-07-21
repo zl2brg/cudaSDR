@@ -84,6 +84,13 @@ public:
                         // Outputs
                         float& threshPixel, float& hangPixel, float& fixedPixel);
 
+    // Translucent filled rect (optional top→bottom colour gradient).
+    void drawFilledRect(const QMatrix4x4& projection,
+                        const QRect& rect,
+                        const QColor& topColor,
+                        const QColor& bottomColor,
+                        float z = 0.0f);
+
 private:
     struct VertexData {
         float x, y, z;
