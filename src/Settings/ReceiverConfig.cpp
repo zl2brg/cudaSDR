@@ -83,23 +83,32 @@ void ReceiverConfig::save(QJsonObject &json) const {
 }
 
 void ReceiverConfig::loadIni(QSettings *settings) {
-    QString prefix = QString("rx%1").arg(m_id);
+    // Must match Settings::m_rxStringList ("receiver0", …) used by load/saveSettings.
+    QString prefix = QString("receiver%1").arg(m_id);
+    // Legacy prefix from the brief period when ReceiverConfig wrote "rxN/…"
+    QString legacyPrefix = QString("rx%1").arg(m_id);
 
     QString cstr = prefix + "/dspCore";
+    if (!settings->contains(cstr))
+        cstr = legacyPrefix + "/dspCore";
     QString valStr = settings->value(cstr, "qtdsp").toString();
     if (valStr == "qtdsp") {
         setDspCore(QSDR::QtDSP);
     }
 
     cstr = prefix + "/centerFrequency";
+    if (!settings->contains(cstr))
+        cstr = legacyPrefix + "/centerFrequency";
     setCtrFrequency(static_cast<qint64>(settings->value(cstr, 7050000.0).toDouble()));
 
     cstr = prefix + "/vfoFrequency";
+    if (!settings->contains(cstr))
+        cstr = legacyPrefix + "/vfoFrequency";
     setVfoFrequency(static_cast<qint64>(settings->value(cstr, 7050000.0).toDouble()));
 }
 
 void ReceiverConfig::saveIni(QSettings *settings) const {
-    QString prefix = QString("rx%1").arg(m_id);
+    QString prefix = QString("receiver%1").arg(m_id);
 
     QString cstr = prefix + "/dspCore";
     if (m_dspCore == QSDR::QtDSP) {

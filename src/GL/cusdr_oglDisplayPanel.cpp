@@ -1414,7 +1414,7 @@ void OGLDisplayPanel::setSMeterValue(int rx, double value) {
 			}
 		}
 
-		m_sMeterValue = tmp * 0.13f + m_sMeterValue * 0.87f;
+			m_sMeterValue = tmp * 0.13f + m_sMeterValue * 0.87f;
 
 		if (m_sMeterDisplayTime.elapsed() > 200) {
 
