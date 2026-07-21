@@ -103,9 +103,9 @@ QGLWidebandPanel::QGLWidebandPanel(QWidget *parent)
 	
 	m_fonts.smallFont.setBold(true);
 
-	m_oglTextTiny = new OGLText(m_fonts.tinyFont);
-	m_oglTextSmall = new OGLText(m_fonts.smallFont);
-	m_oglTextNormal = new OGLText(m_fonts.normalFont);
+	m_oglTextTiny = new OGLText(m_fonts.tinyFont, dpr);
+	m_oglTextSmall = new OGLText(m_fonts.smallFont, dpr);
+	m_oglTextNormal = new OGLText(m_fonts.normalFont, dpr);
      m_dprPollTimerId = startTimer(1000);
 
 	timer = 0;
@@ -1033,12 +1033,12 @@ void QGLWidebandPanel::drawHamBand(
 	fill.setAlphaF(fill.alphaF() * 0.4f);
 	m_overlayRenderer->drawFilledRect(panelProjection(), rect, fill, fill, 1.0f);
 
-	if (m_oglTextSmall) {
-		const QFontMetrics fm = m_oglTextSmall->fontMetrics();
+	if (m_oglTextNormal) {
+		const QFontMetrics fm = m_oglTextNormal->fontMetrics();
 		const int fontWidth = fm.horizontalAdvance(band);
 		const float tx = float((x1 + x2 - fontWidth) / 2);
 		const float ty = float(m_panRect.top() + fm.height());
-		m_oglTextSmall->renderText(panelProjection(), tx, ty, band, QColor(255, 255, 255, 220));
+		m_oglTextNormal->renderText(panelProjection(), tx, ty, band, QColor(255, 255, 255, 220));
 	}
 }
 
@@ -1711,6 +1711,12 @@ void QGLWidebandPanel::timerEvent(QTimerEvent *event) {
         if (!qFuzzyCompare(currentDpr, dpr)) { // seems like dpr is not updated on the fly.
             qDebug() << "DPR changed! Old:" << dpr << "New:" << currentDpr;
             dpr = currentDpr;
+            if (m_oglTextTiny)
+                m_oglTextTiny->setDevicePixelRatio(dpr);
+            if (m_oglTextSmall)
+                m_oglTextSmall->setDevicePixelRatio(dpr);
+            if (m_oglTextNormal)
+                m_oglTextNormal->setDevicePixelRatio(dpr);
             // Recreate FBOs and update geometry
             if (m_dBmScaleFBO) { delete m_dBmScaleFBO; m_dBmScaleFBO = nullptr; }
             if (m_frequencyScaleFBO) { delete m_frequencyScaleFBO; m_frequencyScaleFBO = nullptr; }
