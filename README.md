@@ -84,6 +84,20 @@ Useful runtime overrides:
 - `BUILD_DIR=build-qtfix-test ./run_cudasdr.sh`
 - `Qt6_DIR=$HOME/Qt/6.11.0/gcc_64/lib/cmake/Qt6 ./run_cudasdr.sh`
 
+### AppImage
+
+Package a portable Linux AppImage (bundles Qt via `linuxdeploy-plugin-qt`):
+
+```bash
+# use an existing Release build
+./scripts/make_appimage.sh
+
+# or build Release, then package
+./scripts/make_appimage.sh --build
+```
+
+The script caches `linuxdeploy` tools under `.tools/`, reuses `~/Downloads/linuxdeploy-*.AppImage` if present, and writes `*.AppImage` into the project root.
+
 ### Docs
 
 Protocol and WDSP references are in `Docs/`.

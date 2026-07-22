@@ -89,6 +89,9 @@ inline Protocol2InitFrameResult protocol2FormatInitFrame(int rx, uint32_t& seq10
 
     pkt[23] = 1;
 
+    // Byte 59: Alex0 enable (bit 0). Without this hpsdrsim ignores Alex bits.
+    pkt[59] = 0x01;
+
     out.datagram = pkt;
     return out;
 }

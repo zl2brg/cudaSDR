@@ -1606,7 +1606,11 @@ void MainWindow::suspendSignal(
 
 
 void MainWindow::showNetworkIODialog() {
-    set->searchDevices();
+	// Formerly this re-ran searchDevices(), which deadlocked Start when >1
+	// HPSDR device was found (findHPSDRDevices held networkIOMutex while this
+	// slot re-entered searchHpsdrNetworkDevices). Device picking belongs in the
+	// Network panel / DeviceSelectionDialog before Start.
+	MAIN_DEBUG << "multiple HPSDR devices present; select one in Network settings before Start";
 }
 
 void MainWindow::showWarningDialog(const QString &str) {

@@ -334,10 +334,15 @@ void CProtocol2::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
                 //   [0] ADC selection  [1-2] sample rate (BE)  [3-4] sync map  [5] sample size
                 // DDC 7 config starts at buffer[59] (= 17 + 6*7).
                 const QList<TReceiver>& rxData = set->getReceiverDataList();
-                for (int ddc = 0; ddc < io->receivers && ddc < rxData.size(); ddc++) {
+                const int fallbackRate = set->getSampleRate() > 0 ? set->getSampleRate()
+                                                                 : (io->samplerate > 0 ? io->samplerate : 48000);
+                for (int ddc = 0; ddc < io->receivers; ddc++) {
                     int base = 17 + 6 * ddc;
+                    int configuredRate = fallbackRate;
+                    if (ddc < rxData.size() && rxData.at(ddc).sampleRate > 0)
+                        configuredRate = rxData.at(ddc).sampleRate;
                     uint16_t ddcRate = 48;
-                    switch (rxData.at(ddc).sampleRate) {
+                    switch (configuredRate) {
                         case 48000:   ddcRate = 48;   break;
                         case 96000:   ddcRate = 96;   break;
                         case 192000:  ddcRate = 192;  break;
@@ -403,15 +408,32 @@ void CProtocol2::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
                 // DDC RX frequencies: 4 bytes each starting at buffer[9 + 4*i]
                 {
                     const QList<qint64>& freqs = set->getCtrFrequencies();
-                    for (int ddc = 0; ddc < io->receivers && ddc < freqs.size(); ddc++) {
-                        uint32_t freq = qToBigEndian((uint32_t)freqs.at(ddc));
+                    for (int ddc = 0; ddc < io->receivers; ddc++) {
+                        qint64 hz = 0;
+                        if (ddc < freqs.size())
+                            hz = freqs.at(ddc);
+                        if (hz <= 0 && ddc < set->getReceiverDataList().size())
+                            hz = set->getReceiverDataList().at(ddc).ctrFrequency;
+                        if (hz <= 0)
+                            hz = 7050000; // last-resort default so sim IQ is not gated
+                        uint32_t freq = qToBigEndian((uint32_t)hz);
                         memcpy(&buffer[9 + 4 * ddc], &freq, 4);
                     }
                 }
 
                 // DUC0 TX frequency (buffer[333-336])
-                uint32_t txfreq = qToBigEndian((uint32_t)set->getCtrFrequencies().at(0));
-                memcpy(&buffer[333], &txfreq, 4);
+                {
+                    qint64 txHz = 0;
+                    const QList<qint64>& freqs = set->getCtrFrequencies();
+                    if (!freqs.isEmpty())
+                        txHz = freqs.at(0);
+                    if (txHz <= 0 && !set->getReceiverDataList().isEmpty())
+                        txHz = set->getReceiverDataList().at(0).ctrFrequency;
+                    if (txHz <= 0)
+                        txHz = 7050000;
+                    uint32_t txfreq = qToBigEndian((uint32_t)txHz);
+                    memcpy(&buffer[333], &txfreq, 4);
+                }
 
                 // DUC0 drive level (buffer[345], scale 0-100 to 0-255)
                 int drive = qBound(0, (int)io->ccTx.drivelevel, 100);

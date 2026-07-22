@@ -30,6 +30,11 @@ windowsSettings.ini
 # Large binary files
 *.jar
 
+# AppImage packaging
+.tools/
+AppDir/
+*.AppImage
+
 # BFG report directory
 ..bfg-report/
 

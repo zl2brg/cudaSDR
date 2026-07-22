@@ -58,9 +58,10 @@ void Protocol2FormatInitTests::rxZeroByteLayoutAndSequenceIncrement() {
         QCOMPARE(static_cast<unsigned char>(first.datagram[i]), 0x00u);
     }
     QCOMPARE(static_cast<unsigned char>(first.datagram[23]), 0x01u);
-    for (int i = 24; i < 60; ++i) {
+    for (int i = 24; i < 59; ++i) {
         QCOMPARE(static_cast<unsigned char>(first.datagram[i]), 0x00u);
     }
+    QCOMPARE(static_cast<unsigned char>(first.datagram[59]), 0x01u); // Alex0 enable
 
     QCOMPARE(seq, 0x01020305u);
 

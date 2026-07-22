@@ -631,26 +631,48 @@ bool DataEngine::findHPSDRDevices() {
 	else {
 
 		emit clearSystemMessageEvent();
-		if (m_hpsdrDevices > 1)
-			set->showNetworkIODialog();
 
 		QList<TNetworkDevicecard> metisList = set->getMetisCardsList();
 		DATA_ENGINE_DEBUG << "found " << metisList.count() << " network device(s)";
-				
+
 		for (int i = 0; i < metisList.count(); i++) {
 
 			DATA_ENGINE_DEBUG 	<< "Device "
 								<< i << " @ "
 								<< qPrintable(metisList.at(i).ip_address.toString())
-								//<< " [" << qPrintable((char *) &metisList.at(i).mac_address) << "]";
 								<< " [" << metisList.at(i).mac_address << "]";
+		}
+
+		// Multiple devices: keep the Network-panel selection if it is still present.
+		// Do NOT call showNetworkIODialog() here — that path re-enters discovery
+		// (searchDevices → searchHpsdrNetworkDevices) while networkIOMutex is held
+		// and deadlocks the UI thread on Start.
+		if (m_hpsdrDevices > 1 && !metisList.isEmpty()) {
+			const TNetworkDevicecard current = set->getCurrentMetisCard();
+			bool currentStillPresent = false;
+			for (const TNetworkDevicecard &card : metisList) {
+				if (QString::fromLatin1(card.mac_address) == QString::fromLatin1(current.mac_address)
+					&& !QString::fromLatin1(current.mac_address).isEmpty()) {
+					currentStillPresent = true;
+					break;
+				}
+			}
+			if (!currentStillPresent) {
+				set->setCurrentHPSDRDevice(metisList.first());
+				DATA_ENGINE_DEBUG << "multiple devices; auto-selected "
+								  << qPrintable(metisList.first().ip_address.toString())
+								  << " [" << metisList.first().mac_address << "]";
+			} else {
+				DATA_ENGINE_DEBUG << "multiple devices; keeping selected "
+								  << qPrintable(current.ip_address.toString())
+								  << " [" << current.mac_address << "]";
+			}
 		}
 
 		io.hpsdrDeviceIPAddress = set->getCurrentMetisCard().ip_address;
 		io.hpsdrDeviceName = set->getCurrentMetisCard().boardName;
 		DATA_ENGINE_DEBUG << "using HPSDR network device at " << qPrintable(io.hpsdrDeviceIPAddress.toString());
 
-		
 		QThread::msleep(100);
 
 		// stop the discovery thread
@@ -1183,25 +1205,32 @@ bool DataEngine::start() {
 	}
 
     if (m_serverMode == QSDR::SDRMode && set->getWidebandData() && m_dataIO) {
-			m_dataIO->networkDeviceStartStop(0x03); // 0x03 for starting the device with wide band data
+			if (set->getCurrentMetisCard().protocol != 2)
+				m_dataIO->networkDeviceStartStop(0x03); // P1: start with wide band data
 			QThread::msleep(100);
 	    }
-    else if (m_dataIO) {
+    else if (m_dataIO && set->getCurrentMetisCard().protocol != 2) {
             DATA_ENGINE_DEBUG << "[START] calling networkDeviceStartStop(0x01) protocol="
                               << (m_protocol ? "valid" : "NULL")
                               << " hwInterface=" << m_hwInterface;
             m_dataIO->networkDeviceStartStop(0x01); // 0x01 for starting the device without wide band data
         }
 
-	// For Protocol 2, keep startup simple and rely on the periodic control timer
-	// to cycle DDC/TX/HP packets continuously, matching the known-good behavior.
+	// Protocol 2: do NOT use formatStartStop() as the first live HP packet.
+	// That datagram zeros DDC frequencies, and hpsdrsim gates IQ until
+	// enable + rate + freq are all non-zero (wideband only needs Run).
+	// Push the full General→DDC→TX→HP setup, then start the control timer.
 	if (set->getCurrentMetisCard().protocol == 2 && m_dataProcessor) {
-		io.rcveIQ_toggle = true;
+		io.rcveIQ_toggle = false;
+		QMetaObject::invokeMethod(
+			m_dataProcessor,
+			&DataProcessor::requestProtocol2ReceiverSetup,
+			Qt::QueuedConnection);
 		QMetaObject::invokeMethod(
 			m_dataProcessor,
 			&DataProcessor::startControlTimer,
-			Qt::BlockingQueuedConnection);
-		DATA_ENGINE_DEBUG << "[P2-START] control timer started";
+			Qt::QueuedConnection);
+		DATA_ENGINE_DEBUG << "[P2-START] queued full receiver setup + control timer";
 	}
 
 	m_networkDeviceRunning = true;
@@ -3248,24 +3277,31 @@ void DataProcessor::requestProtocol2ReceiverSetup() {
 		DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] HP Run=0 sent: bytes=" << hpSentRun0 << " port=" << port;
 	}
 
-	// 4. Assert Run=1 as the final startup packet.
+	// 4. Assert Run=1 with a FULL High Priority packet (frequencies included).
+	// formatStartStop() zeros the rest of the HP payload; hpsdrsim then latches
+	// rxfreq=0 and the RX threads stay gated even after DDC enable/rate arrive.
 	QThread::msleep(5);
 	de->io.rcveIQ_toggle = true;
-	quint16 runPort = DEVICE_PORT;
-	QByteArray runDatagram = de->m_protocol->formatStartStop(1, runPort);
-	qint64 runSent = sendP2Control(runDatagram.constData(), runDatagram.size(), runPort);
+	port = DEVICE_PORT;
+	hpState = 3;
+	memset(p2CmdBuf, 0, sizeof(p2CmdBuf));
+	de->m_protocol->encodeCCBytes(p2CmdBuf, &de->io, hpState, port);
+	if (port != 1027) {
+		DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] unexpected HP Run=1 port" << port << "(expected 1027)";
+		return;
+	}
+	qint64 runSent = sendP2Control((const char*)p2CmdBuf, 1444, port);
 	if (runSent < 0) {
-		DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] final Run=1 send FAILED on port" << runPort << ":" << de->m_controlSocket->errorString();
+		DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] final HP Run=1 send FAILED on port" << port << ":" << de->m_controlSocket->errorString();
 		return;
 	} else {
-		DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] final Run=1 sent: bytes=" << runSent << " port=" << runPort;
+		DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] final HP Run=1 sent: bytes=" << runSent << " port=" << port;
 	}
 
 	// The simulator starts DDC/TX receiver threads only after Run=1 is seen.
-	// Re-send DDC/TX setup in a short burst so newly spawned threads reliably
-	// receive and latch enable/rate config.
-	for (int attempt = 0; attempt < 20; ++attempt) {
-		QThread::msleep(50);
+	// Re-send DDC/TX/HP in a short burst so newly spawned threads latch config.
+	for (int attempt = 0; attempt < 5; ++attempt) {
+		QThread::msleep(20);
 
 		int ddcResendState = 1;
 		port = DEVICE_PORT;
@@ -3275,8 +3311,8 @@ void DataProcessor::requestProtocol2ReceiverSetup() {
 			qint64 ddcSent2 = sendP2Control((const char*)p2CmdBuf, 1444, port);
 			if (ddcSent2 < 0) {
 				DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] post-run DDC send FAILED (attempt" << (attempt + 1) << "):" << de->m_controlSocket->errorString();
-			} else {
-				DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] post-run DDC sent: bytes=" << ddcSent2 << " port=" << port << " attempt=" << (attempt + 1);
+			} else if (attempt == 0) {
+				DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] post-run DDC sent: bytes=" << ddcSent2 << " port=" << port;
 			}
 		}
 
@@ -3285,12 +3321,15 @@ void DataProcessor::requestProtocol2ReceiverSetup() {
 		memset(p2CmdBuf, 0, sizeof(p2CmdBuf));
 		de->m_protocol->encodeCCBytes(p2CmdBuf, &de->io, txResendState, port);
 		if (port == 1026) {
-			qint64 txSent2 = sendP2Control((const char*)p2CmdBuf, 60, port);
-			if (txSent2 < 0) {
-				DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] post-run TX send FAILED (attempt" << (attempt + 1) << "):" << de->m_controlSocket->errorString();
-			} else {
-				DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] post-run TX sent: bytes=" << txSent2 << " port=" << port << " attempt=" << (attempt + 1);
-			}
+			(void)sendP2Control((const char*)p2CmdBuf, 60, port);
+		}
+
+		int hpResendState = 3;
+		port = DEVICE_PORT;
+		memset(p2CmdBuf, 0, sizeof(p2CmdBuf));
+		de->m_protocol->encodeCCBytes(p2CmdBuf, &de->io, hpResendState, port);
+		if (port == 1027) {
+			(void)sendP2Control((const char*)p2CmdBuf, 1444, port);
 		}
 	}
 
