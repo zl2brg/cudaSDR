@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=cudaSDR
+Comment=Qt-based HPSDR / SoapySDR client
+Exec=cudasdr
+Icon=cudasdr
+Categories=HamRadio;AudioVideo;Science;
+Terminal=false
+StartupNotify=true
