@@ -177,6 +177,7 @@ QString RigCtlServer::processCommand(const QString &cmd)
         {"\\get_powerstat",  "_pwr"},
         {"\\chk_vfo",        "_chkvfo"},
         {"\\dump_state",     "_dumpstate"},
+        {"\\get_lock_mode",  "_lock"},
     };
 
     const QString rawOp = parts.at(0);
@@ -188,22 +189,20 @@ QString RigCtlServer::processCommand(const QString &cmd)
         return QString::number(freq) + "\nRPRT 0";
     }
 
-    // --- F / \set_freq <hz> : set frequency ---
+    // --- F / \set_freq [<vfo>] <hz> : set frequency ---
+    // WSJT-X (newer hamlib) sends "F VFOA 14074000"; older clients send "F 14074000".
     if (op == "F") {
-        if (parts.size() < 2) {
-            RIGCTL_WARN << "set_freq: missing frequency argument, cmd was:" << cmd;
+        const auto freqOpt = RigctlProtocol::parseFrequencyHz(parts);
+        if (!freqOpt) {
+            RIGCTL_WARN << "set_freq: missing/invalid frequency, cmd was:" << cmd;
             return "RPRT -1";
         }
-        bool ok = false;
-        qint64 freq = static_cast<qint64>(parts.at(1).toDouble(&ok));
-        RIGCTL_DEBUG << "set_freq: raw arg=" << parts.at(1) << "parsed=" << freq << "ok=" << ok;
-        if (!ok || freq <= 0) {
-            RIGCTL_WARN << "set_freq: invalid frequency value:" << parts.at(1);
-            return "RPRT -1";
-        }
-        qint64 prev = m_settings->getVfoFrequency(0);
-        m_settings->setVFOFrequency(0, 0, freq);
-        RIGCTL_DEBUG << "set_freq: changed" << prev << "->" << freq << "Hz";
+        const qint64 freq = *freqOpt;
+        const qint64 prev = m_settings->getVfoFrequency(0);
+        // Move center with VFO (mode 1) so band changes land in the IF passband.
+        // VFO-only updates leave NCO outside ±sampleRate/2 and the pan clamps them.
+        m_settings->setCtrFrequency(1, 0, freq);
+        RIGCTL_DEBUG << "set_freq: changed" << prev << "->" << freq << "Hz (ctr+vfo)";
         return "RPRT 0";
     }
 
@@ -214,11 +213,12 @@ QString RigCtlServer::processCommand(const QString &cmd)
         return modeStr + "\n3000\nRPRT 0";
     }
 
-    // --- M / \set_mode <mode> [bw] : set mode ---
+    // --- M / \set_mode [<vfo>] <mode> [bw] : set mode ---
     if (op == "M") {
-        if (parts.size() < 2)
+        const QString modeTok = RigctlProtocol::parseModeToken(parts);
+        if (modeTok.isEmpty())
             return "RPRT -1";
-        int dspMode = rigctlModeToDsp(parts.at(1));
+        int dspMode = rigctlModeToDsp(modeTok);
         if (dspMode < 0)
             return "RPRT -1";
         m_settings->setDSPMode(0, static_cast<DSPMode>(dspMode));
@@ -231,14 +231,12 @@ QString RigCtlServer::processCommand(const QString &cmd)
         return QString::number(ptt) + "\nRPRT 0";
     }
 
-    // --- T / \set_ptt <0|1> : set PTT ---
+    // --- T / \set_ptt [<vfo>] <0|1> : set PTT ---
     if (op == "T") {
-        if (parts.size() < 2)
+        const auto pttOpt = RigctlProtocol::parsePttValue(parts);
+        if (!pttOpt)
             return "RPRT -1";
-        bool ok = false;
-        int val = parts.at(1).toInt(&ok);
-        if (!ok)
-            return "RPRT -1";
+        const int val = *pttOpt;
         if (val == 0)
             m_watchdog->stop(); // TX off — no need for watchdog
         m_settings->setRadioState(val ? RadioState::MOX : RadioState::RX);
@@ -317,6 +315,11 @@ QString RigCtlServer::processCommand(const QString &cmd)
 
     // --- \chk_vfo : no per-VFO addressing ---
     if (op == "_chkvfo") {
+        return "0\nRPRT 0";
+    }
+
+    // --- \get_lock_mode : frequency lock (always unlocked) ---
+    if (op == "_lock") {
         return "0\nRPRT 0";
     }
 

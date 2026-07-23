@@ -17,7 +17,11 @@ constexpr int kStreamHeaderBytes = 64;
 constexpr uint32_t kIqStreamType = 0;
 constexpr uint32_t kRxAudioStreamType = 1;
 constexpr uint32_t kTxAudioStreamType = 2;
+constexpr uint32_t kTxChronoStreamType = 3;
 constexpr double kRxAudioRateHz = 48000.0;
+// ExpertSDR / WSJT-X TX_CHRONO block: 2048 float samples = 1024 stereo frames.
+constexpr int kTxChronoSamples = 2048;
+constexpr int kTxChronoStereoFrames = kTxChronoSamples / 2;
 constexpr qint64 kVfoMinHz = 135700;
 constexpr qint64 kVfoMaxHz = 61868000;
 constexpr int kDspSampleSize = 1024; // matches DSP_SAMPLE_SIZE in cusdr_settings.h
@@ -40,9 +44,12 @@ inline bool isValidVfoHz(qint64 freq)
 
 inline QString tciMessage(const QString &name, const QStringList &args = {})
 {
+    // ExpertSDR / WSJT-X parsers match command names case-sensitively on the
+    // lowercase forms (e.g. "start", "protocol"). Always emit lowercase.
+    const QString cmd = name.toLower();
     if (args.isEmpty())
-        return name + ';';
-    return name + ':' + args.join(',') + ';';
+        return cmd + ';';
+    return cmd + ':' + args.join(',') + ';';
 }
 
 inline bool parseBoolArg(const QString &value)
@@ -57,18 +64,18 @@ inline bool parseBoolArg(const QString &value)
 inline QString dspModeToTci(DSPMode mode)
 {
     switch (mode) {
-        case LSB:  return QStringLiteral("LSB");
-        case USB:  return QStringLiteral("USB");
-        case DSB:  return QStringLiteral("DSB");
-        case CWL:  return QStringLiteral("CWL");
-        case CWU:  return QStringLiteral("CW");
-        case FMN:  return QStringLiteral("FM");
-        case AM:   return QStringLiteral("AM");
-        case DIGU: return QStringLiteral("DIGU");
-        case DIGL: return QStringLiteral("DIGL");
-        case SAM:  return QStringLiteral("SAM");
-        case FDV:  return QStringLiteral("FDV");
-        default:   return QStringLiteral("USB");
+        case LSB:  return QStringLiteral("lsb");
+        case USB:  return QStringLiteral("usb");
+        case DSB:  return QStringLiteral("dsb");
+        case CWL:  return QStringLiteral("cwl");
+        case CWU:  return QStringLiteral("cw");
+        case FMN:  return QStringLiteral("fm");
+        case AM:   return QStringLiteral("am");
+        case DIGU: return QStringLiteral("digu");
+        case DIGL: return QStringLiteral("digl");
+        case SAM:  return QStringLiteral("sam");
+        case FDV:  return QStringLiteral("fdv");
+        default:   return QStringLiteral("usb");
     }
 }
 
@@ -300,6 +307,20 @@ inline QByteArray buildTxAudioFrame(const float *monoSamples, int sampleCount, i
     return frame;
 }
 
+/** Header-only TX_CHRONO timing frame. WSJT-X only emits TX audio in response. */
+inline QByteArray buildTxChronoFrame(int receiver = 0, int sampleRate = 48000,
+                                     int lengthSamples = kTxChronoSamples)
+{
+    StreamHeader hdr;
+    hdr.receiver = static_cast<quint32>(receiver);
+    hdr.sampleRate = static_cast<quint32>(sampleRate);
+    hdr.format = kStreamFormatFloat32;
+    hdr.length = static_cast<quint32>(lengthSamples);
+    hdr.streamType = kTxChronoStreamType;
+    hdr.channels = 2;
+    return buildStreamHeader(hdr);
+}
+
 inline bool decodeTxAudioMonoSamples(const QByteArray &payload, int format, int channels,
                                      QVector<double> &outSamples)
 {
@@ -328,6 +349,81 @@ inline bool decodeTxAudioMonoSamples(const QByteArray &payload, int format, int 
     }
 
     return false;
+}
+
+/** True when float32 samples look like ExpertSDR duplicated stereo (L≈R).
+ *  Treating that layout as mono doubles each sample and plays TX at half speed. */
+inline bool isDuplicatedStereoFloat32(const float *samples, int floatCount)
+{
+    if (!samples || floatCount < 4 || (floatCount % 2) != 0)
+        return false;
+
+    const int pairsToCheck = qMin(floatCount / 2, 128);
+    int duplicatedPairs = 0;
+    for (int i = 0; i < pairsToCheck; ++i) {
+        if (qAbs(samples[i * 2] - samples[i * 2 + 1]) < 1.0e-6f)
+            ++duplicatedPairs;
+    }
+    return duplicatedPairs >= (pairsToCheck * 9) / 10;
+}
+
+struct TxAudioFloatLayout {
+    int useFloats = 0;
+    int channels = 1;
+    bool ok = false;
+};
+
+/**
+ * Resolve how many float32 values to decode and as mono vs stereo.
+ *
+ * WSJT-X geometric signature (deterministic — do not inspect sample values):
+ *   format=float32, length>0, payload capacity >= length * sizeof(float) * 2
+ * (e.g. length=2048 → 16384-byte payload). Only the first `length` floats are
+ * live stereo L/R pairs; trailing capacity is unused. Always decode those as
+ * channels=2 → length/2 mono (1024 for length=2048 = 1 DSP block). Sample
+ * content (L≈R, silence) is unreliable on tones/ramps and must not gate this.
+ *
+ * Tight payloads (Android / other ExpertSDR apps: availFloats ≈ length) keep
+ * the prior path with duplicated-stereo detection on the declared float count.
+ */
+inline TxAudioFloatLayout resolveTxAudioFloat32Layout(const float *samples, int availFloats,
+                                                      int headerLength, int headerChannels)
+{
+    TxAudioFloatLayout out;
+    if (!samples || availFloats <= 0)
+        return out;
+
+    const int length = headerLength > 0 ? headerLength : availFloats;
+
+    // WSJT-X oversized capacity: geometry alone decides layout.
+    if (headerLength > 0 && availFloats >= length * 2 && length >= 2 && (length % 2) == 0) {
+        out.useFloats = length;
+        out.channels = 2;
+        out.ok = true;
+        return out;
+    }
+
+    // Tight / non-oversized payload (Android TCI, etc.).
+    int useFloats = availFloats;
+    if (headerLength > 0)
+        useFloats = qMin(length, availFloats);
+    if (useFloats <= 0)
+        return out;
+
+    int channels = 1;
+    if (headerChannels == 1) {
+        channels = 1;
+    } else if (isDuplicatedStereoFloat32(samples, useFloats)
+               || headerChannels >= 2) {
+        channels = 2;
+    } else if ((useFloats % 2) == 0 && useFloats >= 4) {
+        channels = 2;
+    }
+
+    out.useFloats = useFloats;
+    out.channels = channels;
+    out.ok = true;
+    return out;
 }
 
 struct TxAudioChunkResult {

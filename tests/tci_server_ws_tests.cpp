@@ -20,9 +20,11 @@ private slots:
 
     void connectReceivesReadyBurst();
     void trxCommandSetsMoxState();
+    void trxCommandStartsTxChrono();
     void iqStartAdvertisesDistinctSampleRate();
     void txAudioEnqueuedWhileMox();
     void txAudioIgnoredWhileRx();
+    void txAudioWsjtOversizedFrameYieldsOneBlock();
     void vfoOutOfRangeRejected();
     void vfoInRangeAccepted();
     void modulationCommandUpdatesMode();
@@ -33,6 +35,7 @@ private slots:
     void driveCommandClampsLevel();
     void tuneCommandSetsTuneState();
     void audioStartStopGatesRxBinaryStream();
+    void compatStubCommandsAccepted();
 
 private:
     Settings *m_settings = nullptr;
@@ -87,8 +90,8 @@ void TciServerWsTests::init()
     const QUrl url(QStringLiteral("ws://127.0.0.1:%1").arg(m_server->port()));
     m_client.open(url);
     QVERIFY2(waitForConnected(), "WebSocket client failed to connect to TciServer");
-    QVERIFY2(waitForMessageContaining(QStringLiteral("READY")),
-             qPrintable(QStringLiteral("Missing READY in init burst: ") + m_textMessages.join('|')));
+    QVERIFY2(waitForMessageContaining(QStringLiteral("ready;")),
+             qPrintable(QStringLiteral("Missing ready; in init burst: ") + m_textMessages.join('|')));
 }
 
 void TciServerWsTests::cleanup()
@@ -123,9 +126,11 @@ void TciServerWsTests::drainTxQueue()
 
 void TciServerWsTests::connectReceivesReadyBurst()
 {
-    QVERIFY(m_textMessages.join('|').contains(QStringLiteral("DEVICE:cudaSDR")));
-    QVERIFY(m_textMessages.join('|').contains(QStringLiteral("PROTOCOL:1,0,0")));
-    QVERIFY(m_textMessages.join('|').contains(QStringLiteral("AUDIO_SAMPLERATE:48000")));
+    QVERIFY(m_textMessages.join('|').contains(QStringLiteral("device:cudaSDR")));
+    QVERIFY(m_textMessages.join('|').contains(QStringLiteral("protocol:ExpertSDR3,1.5")));
+    QVERIFY(m_textMessages.join('|').contains(QStringLiteral("audio_samplerate:48000")));
+    QVERIFY(m_textMessages.join('|').contains(QStringLiteral("ready;")));
+    QVERIFY(m_textMessages.join('|').contains(QStringLiteral("start;")));
 }
 
 void TciServerWsTests::trxCommandSetsMoxState()
@@ -138,15 +143,43 @@ void TciServerWsTests::trxCommandSetsMoxState()
     QVERIFY(QTest::qWaitFor([this]() { return m_settings->getRadioState() == RadioState::RX; }, 3000));
 }
 
+void TciServerWsTests::trxCommandStartsTxChrono()
+{
+    QSignalSpy binarySpy(&m_client, &QWebSocket::binaryMessageReceived);
+    QVERIFY(binarySpy.isValid());
+
+    m_client.sendTextMessage(QStringLiteral("TRX:0,true;"));
+    QVERIFY(QTest::qWaitFor([this]() { return m_settings->getRadioState() == RadioState::MOX; }, 3000));
+    QVERIFY(QTest::qWaitFor([&binarySpy]() { return binarySpy.count() > 0; }, 3000));
+
+    bool sawChrono = false;
+    for (const QVariantList &args : binarySpy) {
+        const QByteArray frame = args.at(0).toByteArray();
+        StreamHeader hdr;
+        if (!parseStreamHeader(frame, hdr))
+            continue;
+        if (hdr.streamType == kTxChronoStreamType) {
+            QCOMPARE(hdr.length, static_cast<quint32>(kTxChronoSamples));
+            QCOMPARE(frame.size(), kStreamHeaderBytes);
+            sawChrono = true;
+            break;
+        }
+    }
+    QVERIFY2(sawChrono, "Expected TX_CHRONO binary frame after TRX:0,true");
+
+    m_client.sendTextMessage(QStringLiteral("TRX:0,false;"));
+    QVERIFY(QTest::qWaitFor([this]() { return m_settings->getRadioState() == RadioState::RX; }, 3000));
+}
+
 void TciServerWsTests::iqStartAdvertisesDistinctSampleRate()
 {
     m_textMessages.clear();
     m_client.sendTextMessage(QStringLiteral("IQ_START:0,0;"));
-    QVERIFY(waitForMessageContaining(QStringLiteral("IQ_SAMPLERATE:")));
+    QVERIFY(waitForMessageContaining(QStringLiteral("iq_samplerate:")));
 
     QString samplerateLine;
     for (const QString &line : std::as_const(m_textMessages)) {
-        if (line.contains(QStringLiteral("IQ_SAMPLERATE:")))
+        if (line.contains(QStringLiteral("iq_samplerate:")))
             samplerateLine = line;
     }
     QVERIFY(!samplerateLine.isEmpty());
@@ -185,6 +218,41 @@ void TciServerWsTests::txAudioIgnoredWhileRx()
 
     QTest::qWait(200);
     QCOMPARE(m_txQueue.count(), 0);
+}
+
+void TciServerWsTests::txAudioWsjtOversizedFrameYieldsOneBlock()
+{
+    m_client.sendTextMessage(QStringLiteral("TRX:0,true;"));
+    QVERIFY(QTest::qWaitFor([this]() { return m_settings->getRadioState() == RadioState::MOX; }, 3000));
+
+    // WSJT-X layout: hdr.length=2048, payload capacity 16384. L≠R on purpose —
+    // geometry alone must yield one DSP block (1024 mono), not sample matching.
+    constexpr int length = kTxChronoSamples;
+    QVector<float> payload(length * 2, 0.0f);
+    for (int i = 0; i < length / 2; ++i) {
+        payload[i * 2] = 0.25f;
+        payload[i * 2 + 1] = -0.1f;
+    }
+
+    StreamHeader hdr;
+    hdr.receiver = 0;
+    hdr.sampleRate = 48000;
+    hdr.format = kStreamFormatFloat32;
+    hdr.length = static_cast<quint32>(length);
+    hdr.streamType = kTxAudioStreamType;
+    hdr.channels = 2;
+
+    QByteArray frame = buildStreamHeader(hdr);
+    frame.append(reinterpret_cast<const char *>(payload.constData()),
+                 payload.size() * static_cast<int>(sizeof(float)));
+    QCOMPARE(frame.size() - kStreamHeaderBytes, 16384);
+
+    m_client.sendBinaryMessage(frame);
+    QVERIFY(QTest::qWaitFor([this]() { return m_txQueue.count() > 0; }, 3000));
+    QCOMPARE(m_txQueue.count(), 1);
+    const QVector<double> block = m_txQueue.dequeue();
+    QCOMPARE(block.size(), DSP_SAMPLE_SIZE);
+    QVERIFY(qAbs(block.at(0) - 0.25) < 1e-5);
 }
 
 void TciServerWsTests::vfoOutOfRangeRejected()
@@ -305,7 +373,8 @@ void TciServerWsTests::audioStartStopGatesRxBinaryStream()
 
     m_textMessages.clear();
     m_client.sendTextMessage(QStringLiteral("AUDIO_START:0,0;"));
-    QVERIFY(waitForMessageContaining(QStringLiteral("AUDIO_SAMPLERATE:")));
+    QVERIFY(waitForMessageContaining(QStringLiteral("audio_start:")));
+    QVERIFY(waitForMessageContaining(QStringLiteral("audio_samplerate:")));
 
     const QVector<float> stereo = {0.25f, 0.0f, -0.25f, 0.0f};
     m_server->onRxAudioSamples(0, stereo, 48'000);
@@ -322,6 +391,68 @@ void TciServerWsTests::audioStartStopGatesRxBinaryStream()
     m_server->onRxAudioSamples(0, stereo, 48'000);
     QTest::qWait(200);
     QCOMPARE(binarySpy.count(), 0);
+}
+
+void TciServerWsTests::compatStubCommandsAccepted()
+{
+    // Non-WSJT ExpertSDR clients query/set these during handshake; stubs must
+    // reply (or silently accept) so the connection is not filled with warnings.
+    m_settings->setDriveLevel(42);
+    m_textMessages.clear();
+
+    m_client.sendTextMessage(QStringLiteral("sql_enable:0;"));
+    QVERIFY2(waitForMessageContaining(QStringLiteral("sql_enable:0,false;")),
+             qPrintable(m_textMessages.join('|')));
+
+    m_textMessages.clear();
+    m_client.sendTextMessage(QStringLiteral("sql_level:0;"));
+    QVERIFY(waitForMessageContaining(QStringLiteral("sql_level:0,0;")));
+
+    m_textMessages.clear();
+    m_client.sendTextMessage(QStringLiteral("rx_anf_enable:0;"));
+    QVERIFY(waitForMessageContaining(QStringLiteral("rx_anf_enable:0,false;")));
+
+    m_textMessages.clear();
+    m_client.sendTextMessage(QStringLiteral("mon_enable:0,false;"));
+    QVERIFY(waitForMessageContaining(QStringLiteral("mon_enable:0,false;")));
+
+    m_textMessages.clear();
+    m_client.sendTextMessage(QStringLiteral("rx_volume:0,0;"));
+    QVERIFY(waitForMessageContaining(QStringLiteral("rx_volume:0,0;")));
+
+    m_textMessages.clear();
+    m_client.sendTextMessage(QStringLiteral("tune_drive:0;"));
+    QVERIFY(waitForMessageContaining(QStringLiteral("tune_drive:0,42;")));
+
+    m_textMessages.clear();
+    m_client.sendTextMessage(QStringLiteral("rx_nb_enable:0;"));
+    QVERIFY(waitForMessageContaining(QStringLiteral("rx_nb_enable:0,false;")));
+    m_textMessages.clear();
+    m_client.sendTextMessage(QStringLiteral("rx_nb2_enable:0;"));
+    QVERIFY(waitForMessageContaining(QStringLiteral("rx_nb2_enable:0,false;")));
+    m_textMessages.clear();
+    m_client.sendTextMessage(QStringLiteral("rx_bin_enable:0;"));
+    QVERIFY(waitForMessageContaining(QStringLiteral("rx_bin_enable:0,false;")));
+
+    m_textMessages.clear();
+    m_client.sendTextMessage(QStringLiteral("agc_auto_ex:0;"));
+    QVERIFY(waitForMessageContaining(QStringLiteral("agc_auto_ex:0,true;")));
+
+    m_textMessages.clear();
+    m_client.sendTextMessage(QStringLiteral("tx_profiles_ex;"));
+    QVERIFY(waitForMessageContaining(QStringLiteral("tx_profiles_ex:Default;")));
+
+    m_textMessages.clear();
+    m_client.sendTextMessage(QStringLiteral("tx_profile_ex;"));
+    QVERIFY(waitForMessageContaining(QStringLiteral("tx_profile_ex:Default;")));
+
+    m_textMessages.clear();
+    m_client.sendTextMessage(QStringLiteral("tx_stream_audio_buffering:50;"));
+    QVERIFY(waitForMessageContaining(QStringLiteral("tx_stream_audio_buffering:50;")));
+
+    // Silent accept (same as rx_sensors_enable).
+    m_client.sendTextMessage(QStringLiteral("tx_sensors_enable:true;"));
+    QTest::qWait(100);
 }
 
 QTEST_MAIN(TciServerWsTests)

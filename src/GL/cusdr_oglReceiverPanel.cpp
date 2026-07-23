@@ -3458,7 +3458,8 @@ void QGLReceiverPanel::setMouseWheelFreqStep(int rx, qreal step) {
 
 void QGLReceiverPanel::setHamBand(int rx, bool byButton, HamBand band) {
 
-	if (m_receiver != rx || !byButton) return;
+	Q_UNUSED(byButton)
+	if (m_receiver != rx) return;
 
 	m_dBmPanMin = set->getdBmPanScaleMin(m_receiver, band);
 	m_dBmPanMax = set->getdBmPanScaleMax(m_receiver, band);

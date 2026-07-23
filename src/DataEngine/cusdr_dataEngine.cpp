@@ -2771,6 +2771,14 @@ void DataEngine::setFrequency(int mode, int rx, qint64 frequency) {
 	if (rx == io.currentReceiver) {
 		io.ccTx.txFrequency = frequency;
 	}
+
+	// Protocol 2 includes DDC frequencies in the High Priority packet — push one
+	// immediately so CAT/WSJT-X band changes retune without waiting for the cycle.
+	if (set->getCurrentMetisCard().protocol == 2 && m_dataProcessor) {
+		QMetaObject::invokeMethod(m_dataProcessor,
+			&DataProcessor::requestProtocol2HPUpdate,
+			Qt::QueuedConnection);
+	}
 }
 
 void DataEngine::applySliceDspMode(int rx, DSPMode mode)
@@ -3638,13 +3646,18 @@ void DataProcessor::fetch_MicData(){
     AUDIOBUF temp_data;
     // Network TX audio (remote TCI/browser client mic) takes over the TX mic
     // input whenever frames are arriving; the local soundcard mic is the
-    // fallback. Both queues carry DSP_SAMPLE_SIZE mono double blocks.
+    // fallback — except while TCI TX_CHRONO is active, when ExpertSDR-style
+    // clients are the sole mic source and local capture must not leak in.
     QHQueue<AUDIOBUF> *srcQueue = nullptr;
     if (de->m_audioInput) {
         if (de->m_audioInput->m_netAudioInQueue.count() > 0)
             srcQueue = &de->m_audioInput->m_netAudioInQueue;
-        else if (de->m_audioInput->m_faudioInQueue.count() > 0)
-            srcQueue = &de->m_audioInput->m_faudioInQueue;
+        else {
+            const TciServer *tci = set ? set->tciServer() : nullptr;
+            const bool networkMicOnly = tci && tci->isTxChronoActive();
+            if (!networkMicOnly && de->m_audioInput->m_faudioInQueue.count() > 0)
+                srcQueue = &de->m_audioInput->m_faudioInQueue;
+        }
     }
     if (srcQueue)
     {
@@ -4407,16 +4420,15 @@ void DataEngine::radioStateChange(RadioState state) {
 
     if ((state == RadioState::MOX) || (state == RadioState::TUNE)) {
         io.ccTx.mox = true;
-        if (m_audioInput)
+        if (m_audioInput) {
+            m_audioInput->clearTxQueues();
             m_audioInput->Start();
+        }
     } else {
         io.ccTx.mox = false;
         if (m_audioInput) {
             m_audioInput->Stop();
-            // Drop any leftover network mic audio so it can't leak into a
-            // later transmission.
-            while (m_audioInput->m_netAudioInQueue.count() > 0)
-                m_audioInput->m_netAudioInQueue.dequeue();
+            m_audioInput->clearTxQueues();
         }
 #ifdef HAVE_SOAPYSDR
         while (!io.soapy_tx_iq_queue.isEmpty())

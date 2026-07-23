@@ -16,6 +16,11 @@
 #   define TCI_WARN  nullDebug()
 #endif
 
+// Per-command traffic dump. Off by default — enable with CUSDR_TCI_TRACE=1.
+#define TCI_TRACE \
+    if (qEnvironmentVariableIntValue("CUSDR_TCI_TRACE") == 0) {} \
+    else TCI_DEBUG
+
 #include "cusdr_hamDatabase.h"
 #include "Settings/SettingsTypes.h"
 #include "Util/cusdr_queue.h"
@@ -46,6 +51,10 @@ public:
     bool isListening() const;
     quint16 port() const;
     bool hasClients() const { return !m_clients.isEmpty(); }
+
+    /** True while a TCI client is keyed and we are clocking TX_CHRONO.
+     *  During this window TX mic audio must come from the network queue only. */
+    bool isTxChronoActive() const { return m_txChronoClient != nullptr; }
 
     /** Connect to SliceModel S-meter updates (call after RadioModel is ready). */
     void bindSlices(RadioModel *radioModel);
@@ -88,6 +97,13 @@ private:
     void broadcast(const QString &message);
     void sendInitState(QWebSocket *client);
     void handleCommand(QWebSocket *client, const QString &commandLine);
+
+    // WSJT-X / ExpertSDR3 clients only emit TX audio in response to TX_CHRONO
+    // (stream type 3) timing frames. Drive those while a TCI client is keyed.
+    void startTxChrono(QWebSocket *client, int trx);
+    void stopTxChrono();
+    void sendTxChronoFrame(QWebSocket *client);
+    void onTxChronoTick();
 
     struct TciClientState {
         QSet<int> audioEnabledReceivers;
@@ -136,6 +152,9 @@ private:
     DSPMode tciModeToDsp(const QString &mode) const;
 
     bool parseBoolArg(const QString &value) const;
+    /** Parse trx[,bool] enable args. Pure integer single arg = GET for that TRX. */
+    void parseTrxEnableArgs(const QStringList &args, int &enableTrx,
+                            bool &enableValue, bool &hasValue) const;
     int ifOffsetHz(int rx) const;
     double smeterDbmFromRaw(double rawValue) const;
     double smeterDbmForRx(int rx) const;
@@ -146,8 +165,15 @@ private:
 
     // Bound the transmit-mic queue backlog (in DSP blocks) so a client sending
     // TX audio faster than the DSP transmit path drains can never build TX
-    // latency nor block the socket thread. ~48 blocks ≈ 1 s at 48 kHz/1024.
-    static constexpr int kTxAudioMaxQueueBlocks = 48;
+    // latency nor block the socket thread. Keep in sync with TX_MIC_QUEUE_MAX_BLOCKS.
+    static constexpr int kTxAudioMaxQueueBlocks = 16;
+
+    // TX_CHRONO steady-state period matches one WSJT geometric TX reply at 48 kHz:
+    // length=2048 float stereo pairs → 1024 mono samples → 1024/48000 s ≈ 21.3 ms.
+    // Priming burst in startTxChrono() is separate; do not shorten this period.
+    static constexpr qint64 kTxChronoPeriodNs =
+        (static_cast<qint64>(TciProtocol::kTxChronoStereoFrames) * 1000000000LL) / 48000LL;
+    static constexpr int kTxChronoPollMs = 5;
 
     // IQ backpressure threshold (socket bytesToWrite backlog). The panadapter
     // IQ stream is best-effort: it is shed at a very small backlog so it can
@@ -158,6 +184,7 @@ private:
 
     QWebSocketServer *m_server   = nullptr;
     QTimer           *m_watchdog = nullptr;
+    QTimer           *m_txChronoTimer = nullptr;
     QList<QWebSocket *> m_clients;
     QHash<QWebSocket *, TciClientState> m_clientStates;
     Settings         *m_settings = nullptr;
@@ -169,6 +196,12 @@ private:
     // enqueue exactly DSP_SAMPLE_SIZE blocks (matching the local mic path).
     QHQueue<QVector<double>> *m_txAudioQueue = nullptr;
     QVector<double>          m_txAudioResidual;
+    bool                     m_splitEnabled = false;
+
+    QWebSocket   *m_txChronoClient = nullptr;
+    int           m_txChronoTrx = 0;
+    QElapsedTimer m_txChronoClock;
+    qint64        m_txChronoAccumNs = 0;
 };
 
 #endif // CUSDR_TCISERVER_H

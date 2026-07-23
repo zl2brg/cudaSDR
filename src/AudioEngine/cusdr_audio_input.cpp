@@ -7,6 +7,8 @@
 
 TransmitAudioInput::TransmitAudioInput(QObject *parent) 
     : QObject(parent)
+    , m_faudioInQueue(TX_MIC_QUEUE_MAX_BLOCKS)
+    , m_netAudioInQueue(TX_MIC_QUEUE_MAX_BLOCKS)
     , set(Settings::instance())
     , m_audioSource(nullptr)
     , m_audioInputDevice(nullptr)
@@ -268,6 +270,10 @@ bool TransmitAudioInput::Start() {
     if (m_running)
         return true;
 
+    // Drop any backlog so TX starts at the live capture edge, not minutes of
+    // queued mic/digital audio left over from a previous key-up or underrun.
+    clearTxQueues();
+
     // Late-initialize capture path at TX start time. This covers cases where
     // the object was created before HW interface selection settled (e.g. Soapy),
     // which can leave m_audioSource null after constructor-time Setup().
@@ -296,7 +302,10 @@ bool TransmitAudioInput::Start() {
             return false;
         }
     } else {
-        qWarning() << "TransmitAudioInput: Cannot start capture, m_audioSource is NULL. (Device index" << m_deviceIndex << ")";
+        // Digital "None" / HPSDR local mic intentionally leave m_audioSource null;
+        // TX audio then comes from TCI network mic or the Hermes mic path.
+        if (!(m_isDigitalMode && m_digitalDeviceIndex <= 0) && m_deviceIndex != 0)
+            qWarning() << "TransmitAudioInput: Cannot start capture, m_audioSource is NULL. (Device index" << m_deviceIndex << ")";
     }
     m_mutex.unlock();
     return true;
@@ -376,9 +385,16 @@ void TransmitAudioInput::processAudioData(const QByteArray &data)
                                   << " (" << peakDb << " dBFS), headroom=" << headroomDb << " dB";
             }
             
-            m_faudioInQueue.enqueue(chunk);
+            m_faudioInQueue.enqueueDropOldest(chunk);
             emit tx_mic_data_ready();
         }
     }
+}
+
+void TransmitAudioInput::clearTxQueues()
+{
+    m_faudioInQueue.clear();
+    m_netAudioInQueue.clear();
+    m_residualBuffer.clear();
 }
 

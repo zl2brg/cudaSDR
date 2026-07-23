@@ -4,7 +4,11 @@
  *
  * Implements a subset of the TCI text protocol for remote rig control:
  *   VFO, DDS, IF, MODULATION, RX_FILTER_BAND, TRX, DRIVE, TUNE, RX_SMETER,
- *   AUDIO_START/STOP (binary RX audio), START, STOP
+ *   SPLIT_ENABLE / RIT_ENABLE / XIT_ENABLE / MUTE / LOCK (compat no-ops),
+ *   SQL/ANF/NB/BIN/MON/AGC_AUTO_EX / RX_VOLUME / TUNE_DRIVE (compat stubs),
+ *   TX_PROFILES_EX / TX_PROFILE_EX / TX_STREAM_AUDIO_BUFFERING / TX_SENSORS_ENABLE,
+ *   AUDIO_START/STOP (binary RX audio), START, STOP,
+ *   TX_CHRONO (binary type 3) to clock client TX audio during MOX
  *
  * Transport: WebSocket text frames, commands NAME:arg1,arg2;
  * cudaSDR acts as server; clients receive an init burst on connect plus live push updates.
@@ -35,6 +39,7 @@ TciServer::TciServer(QObject *parent)
     , m_server(new QWebSocketServer(QStringLiteral("cudaSDR TCI"),
                                     QWebSocketServer::NonSecureMode, this))
     , m_watchdog(new QTimer(this))
+    , m_txChronoTimer(new QTimer(this))
     , m_settings(Settings::instance())
 {
     qRegisterMetaType<QVector<float>>("QVector<float>");
@@ -44,6 +49,10 @@ TciServer::TciServer(QObject *parent)
     m_watchdog->setSingleShot(true);
     m_watchdog->setInterval(WATCHDOG_TIMEOUT_MS);
     connect(m_watchdog, &QTimer::timeout, this, &TciServer::onWatchdogTimeout);
+
+    m_txChronoTimer->setTimerType(Qt::PreciseTimer);
+    m_txChronoTimer->setInterval(kTxChronoPollMs);
+    connect(m_txChronoTimer, &QTimer::timeout, this, &TciServer::onTxChronoTick);
 
     connect(m_settings, &Settings::vfoFrequencyChanged,
             this, &TciServer::onVfoFrequencyChanged);
@@ -87,10 +96,12 @@ bool TciServer::startListening(quint16 port)
 
 void TciServer::stopListening()
 {
+    stopTxChrono();
     for (QWebSocket *client : std::as_const(m_clients)) {
         client->close();
     }
     m_clients.clear();
+    m_clientStates.clear();
     m_server->close();
     if (m_settings)
         m_settings->setTciIqActive(false);
@@ -111,7 +122,7 @@ void TciServer::sendToClient(QWebSocket *client, const QString &message)
     if (!client || client->state() != QAbstractSocket::ConnectedState)
         return;
 
-    TCI_DEBUG << "TX ->" << client->peerAddress().toString() << message;
+    TCI_TRACE << "TX ->" << client->peerAddress().toString() << message;
     client->sendTextMessage(message);
 }
 
@@ -119,7 +130,7 @@ void TciServer::broadcast(const QString &message)
 {
     if (m_clients.isEmpty())
         return;
-    TCI_DEBUG << "TX *" << message;
+    TCI_TRACE << "TX *" << message;
     for (QWebSocket *client : std::as_const(m_clients))
         sendToClient(client, message);
 }
@@ -197,6 +208,39 @@ bool TciServer::parseBoolArg(const QString &value) const
     return TciProtocol::parseBoolArg(value);
 }
 
+void TciServer::parseTrxEnableArgs(const QStringList &args, int &enableTrx,
+                                   bool &enableValue, bool &hasValue) const
+{
+    enableTrx = 0;
+    enableValue = false;
+    hasValue = false;
+
+    if (args.isEmpty())
+        return;
+
+    if (args.size() == 1) {
+        bool ok = false;
+        const int asInt = args.at(0).toInt(&ok);
+        // Pure integer → query for that TRX; otherwise treat as bool set
+        // (e.g. WSJT-X: split_enable:false / mon_enable:true).
+        if (ok && args.at(0).trimmed() == QString::number(asInt)) {
+            enableTrx = asInt;
+            return;
+        }
+        enableValue = parseBoolArg(args.at(0));
+        hasValue = true;
+        return;
+    }
+
+    bool ok = false;
+    enableTrx = args.at(0).toInt(&ok);
+    if (!ok)
+        enableTrx = 0;
+    // VFO_LOCK:trx,channel,bool — take the last token as the bool.
+    enableValue = parseBoolArg(args.last());
+    hasValue = true;
+}
+
 int TciServer::ifOffsetHz(int rx) const
 {
     return static_cast<int>(m_settings->getVfoFrequency(rx) - m_settings->getCtrFrequency(rx));
@@ -270,16 +314,23 @@ void TciServer::sendInitState(QWebSocket *client)
     const int channelCount = qMax(1, m_settings->getNumberOfReceivers());
     const bool receiveOnly = !m_settings->getTxAllowed();
 
+    // Identity: protocol "ExpertSDR3" sets WSJT-X's ESDR3 flag (command formats
+    // + full TX audio gain). See WSJTX/wsjtx Transceiver/TCITransceiver.cpp.
     sendToClient(client, tciMessage(QStringLiteral("DEVICE"), {QStringLiteral("cudaSDR")}));
-    sendToClient(client, tciMessage(QStringLiteral("PROTOCOL"), {QStringLiteral("1"), QStringLiteral("0"), QStringLiteral("0")}));
+    sendToClient(client, tciMessage(QStringLiteral("PROTOCOL"),
+                                    {QStringLiteral("ExpertSDR3"), QStringLiteral("1.5")}));
     sendToClient(client, tciMessage(QStringLiteral("RECEIVE_ONLY"),
                                     {receiveOnly ? QStringLiteral("true") : QStringLiteral("false")}));
     sendToClient(client, tciMessage(QStringLiteral("TRX_COUNT"), {QString::number(trxCount)}));
+    // Plural form is what WSJT-X / eesdr-tci recognise; keep singular for PDF-spec clients.
+    sendToClient(client, tciMessage(QStringLiteral("CHANNELS_COUNT"), {QString::number(1)}));
     sendToClient(client, tciMessage(QStringLiteral("CHANNEL_COUNT"), {QString::number(channelCount)}));
     sendToClient(client, tciMessage(QStringLiteral("MODULATIONS_LIST"),
-                                    {QStringLiteral("LSB,USB,AM,FM,NFM,DIGU,DIGL,CW,CWL,SAM,FDV")}));
+                                    {QStringLiteral("lsb,usb,am,fm,nfm,digu,digl,cw,cwl,sam,fdv")}));
     sendToClient(client, tciMessage(QStringLiteral("VFO_LIMITS"),
                                     {QString::number(kVfoMinHz), QString::number(kVfoMaxHz)}));
+    sendToClient(client, tciMessage(QStringLiteral("IF_LIMITS"),
+                                    {QStringLiteral("-48000"), QStringLiteral("48000")}));
 
     for (int rx = 0; rx < channelCount; ++rx) {
         sendToClient(client, formatVfo(0, rx, m_settings->getVfoFrequency(rx)));
@@ -291,14 +342,36 @@ void TciServer::sendInitState(QWebSocket *client)
                                                 m_settings->getFilterHi(rx)));
         sendToClient(client, formatRxSMeter(0, rx, smeterDbmForRx(rx)));
     }
+    sendToClient(client, tciMessage(QStringLiteral("RX_ENABLE"),
+                                    {QStringLiteral("0"), QStringLiteral("true")}));
 
     sendToClient(client, formatTrx(0, m_settings->getRadioState()));
     sendToClient(client, formatDrive(0, m_settings->getDriveLevel()));
     sendToClient(client, formatTune(0, m_settings->getRadioState() == RadioState::TUNE));
+    // WSJT-X / ExpertSDR clients expect these enable flags during handshake.
+    sendToClient(client, tciMessage(QStringLiteral("SPLIT_ENABLE"),
+                                    {QStringLiteral("0"),
+                                     m_splitEnabled ? QStringLiteral("true") : QStringLiteral("false")}));
+    sendToClient(client, tciMessage(QStringLiteral("RIT_ENABLE"),
+                                    {QStringLiteral("0"), QStringLiteral("false")}));
+    sendToClient(client, tciMessage(QStringLiteral("XIT_ENABLE"),
+                                    {QStringLiteral("0"), QStringLiteral("false")}));
+    sendToClient(client, tciMessage(QStringLiteral("MUTE"), {QStringLiteral("false")}));
     sendToClient(client, tciMessage(QStringLiteral("AUDIO_SAMPLERATE"), {QStringLiteral("48000")}));
+    sendToClient(client, tciMessage(QStringLiteral("AUDIO_STREAM_SAMPLE_TYPE"), {QStringLiteral("float32")}));
+    sendToClient(client, tciMessage(QStringLiteral("AUDIO_STREAM_CHANNELS"), {QStringLiteral("2")}));
+    sendToClient(client, tciMessage(QStringLiteral("AUDIO_STREAM_SAMPLES"),
+                                    {QString::number(kTxChronoSamples)}));
     sendToClient(client, tciMessage(QStringLiteral("IQ_SAMPLERATE"),
                                     {QString::number(nativeIqSampleRate())}));
+    sendToClient(client, tciMessage(QStringLiteral("TX_PROFILES_EX"),
+                                    {QStringLiteral("Default")}));
     sendToClient(client, tciMessage(QStringLiteral("READY")));
+
+    // WSJT-X do_start() requires a "start;" notification to set _power_, else it
+    // throws "TCI SDR is not switched on" (unless the client option that sends
+    // start itself is enabled). Device START is distinct from IQ_START.
+    sendToClient(client, tciMessage(QStringLiteral("START")));
 }
 
 TciServer::TciClientState *TciServer::clientState(QWebSocket *client)
@@ -434,7 +507,7 @@ void TciServer::onClientTextMessage(const QString &message)
     if (!client)
         return;
 
-    TCI_DEBUG << "RX <-" << client->peerAddress().toString() << message;
+    TCI_TRACE << "RX <-" << client->peerAddress().toString() << message;
 
     const QStringList commands = message.split(';', Qt::SkipEmptyParts);
     for (const QString &rawCommand : commands)
@@ -466,28 +539,99 @@ void TciServer::onClientBinaryMessage(const QByteArray &message)
     if (!m_txAudioQueue)
         return;
 
-    const int channels = (hdr.channels >= 1) ? static_cast<int>(hdr.channels) : 1;
     const QByteArray payload = message.mid(kStreamHeaderBytes);
-    if (!decodeTxAudioMonoSamples(payload, static_cast<int>(hdr.format), channels, m_txAudioResidual))
+    const int payloadBytes = payload.size();
+    if (payloadBytes <= 0)
         return;
+
+    // Decode float32 TX audio. ExpertSDR-family clients send stereo TX (mono
+    // sources as L=R). WSJT-X oversizes the payload (length*8 bytes) and only
+    // fills the first `length` floats — geometry in resolveTxAudioFloat32Layout,
+    // not L≈R sample matching.
+    int channels = 1;
+    int floatsUsed = 0;
+    QByteArray decodePayload = payload;
+    if (hdr.format == kStreamFormatFloat32) {
+        const int availFloats = payloadBytes / static_cast<int>(sizeof(float));
+        if (availFloats <= 0)
+            return;
+
+        const float *samples = reinterpret_cast<const float *>(payload.constData());
+        const TxAudioFloatLayout layout = resolveTxAudioFloat32Layout(
+            samples, availFloats, static_cast<int>(hdr.length), static_cast<int>(hdr.channels));
+        if (!layout.ok || layout.useFloats <= 0)
+            return;
+
+        channels = layout.channels;
+        floatsUsed = layout.useFloats;
+        decodePayload = payload.left(layout.useFloats * static_cast<int>(sizeof(float)));
+    } else if (hdr.channels >= 2) {
+        channels = 2;
+    }
+
+    QVector<double> decoded;
+    if (!decodeTxAudioMonoSamples(decodePayload, static_cast<int>(hdr.format), channels, decoded))
+        return;
+
+    // Integer-factor resample into the 48 kHz TX mic clock when the client
+    // declares a different rate (only the newly decoded samples).
+    const int srcRate = (hdr.sampleRate == 8000 || hdr.sampleRate == 12000
+                         || hdr.sampleRate == 24000 || hdr.sampleRate == 48000)
+                            ? static_cast<int>(hdr.sampleRate)
+                            : 48000;
+    if (srcRate != 48000 && !decoded.isEmpty()) {
+        QVector<double> resampled;
+        if (srcRate < 48000 && (48000 % srcRate) == 0) {
+            const int factor = 48000 / srcRate;
+            resampled.reserve(decoded.size() * factor);
+            for (double s : std::as_const(decoded)) {
+                for (int k = 0; k < factor; ++k)
+                    resampled.append(s);
+            }
+        } else if (srcRate > 48000 && (srcRate % 48000) == 0) {
+            const int factor = srcRate / 48000;
+            resampled.reserve(decoded.size() / factor + 1);
+            for (int i = 0; i + factor - 1 < decoded.size(); i += factor)
+                resampled.append(decoded.at(i));
+        }
+        if (!resampled.isEmpty())
+            decoded = std::move(resampled);
+    }
+
+    m_txAudioResidual.append(decoded);
 
     // Enqueue exactly DSP_SAMPLE_SIZE mono blocks — the same granularity the
     // local soundcard mic uses (fetch_MicData truncates to DSP_SAMPLE_SIZE).
     static quint64 txAudioBlockCounter = 0;
+    static quint64 txAudioDropWarnCounter = 0;
+    const int queueBefore = m_txAudioQueue->count();
     const TxAudioChunkResult chunked = chunkTxAudioResidual(
         m_txAudioResidual,
         DSP_SAMPLE_SIZE,
         kTxAudioMaxQueueBlocks,
-        m_txAudioQueue->count());
+        queueBefore);
     m_txAudioResidual = chunked.residual;
 
     for (const QVector<double> &block : chunked.blocks)
         m_txAudioQueue->enqueue(block);
 
-    if (chunked.droppedBlocks > 0 && (++txAudioBlockCounter % 200) == 1) {
+    if (!chunked.blocks.isEmpty() && (++txAudioBlockCounter % 50) == 1) {
+        TCI_DEBUG << "TX audio from client: enqueued" << chunked.blocks.size()
+                  << "block(s), queue=" << m_txAudioQueue->count()
+                  << "ch=" << channels << "fmt=" << hdr.format
+                  << "rate=" << hdr.sampleRate
+                  << "len=" << hdr.length << "payload=" << payloadBytes
+                  << "floatsUsed=" << floatsUsed
+                  << "monoOut=" << decoded.size();
+    }
+
+    if (chunked.droppedBlocks > 0) {
         // Client is producing faster than the TX path drains — drop to keep
-        // TX latency bounded. Never block the socket thread on the queue.
-        TCI_WARN << "TX audio backlog: dropping client mic block (TX drain slower than input)";
+        // TX latency bounded. Rate-limit the WARN; sustained backlog is noisy.
+        if ((++txAudioDropWarnCounter % 200) == 1) {
+            TCI_WARN << "TX audio backlog: dropping" << chunked.droppedBlocks
+                     << "client mic block(s) (TX drain slower than input)";
+        }
     }
 }
 
@@ -498,6 +642,9 @@ void TciServer::onClientDisconnected()
         return;
 
     TCI_DEBUG << "Client disconnected";
+    if (client == m_txChronoClient)
+        stopTxChrono();
+
     m_clients.removeAll(client);
     m_clientStates.remove(client);
     client->deleteLater();
@@ -547,7 +694,19 @@ void TciServer::handleCommand(QWebSocket *client, const QString &commandLine)
     const int maxRx = qMax(0, m_settings->getNumberOfReceivers() - 1);
     const int rx = qBound(0, channel, maxRx);
 
-    if (name == QLatin1String("START") || name == QLatin1String("IQ_START")) {
+    // Device power (ExpertSDR START/STOP) — not the same as IQ stream control.
+    // WSJT-X sets _power_ only when it receives a "start;" notification.
+    if (name == QLatin1String("START")) {
+        sendToClient(client, tciMessage(QStringLiteral("START")));
+        return;
+    }
+
+    if (name == QLatin1String("STOP")) {
+        sendToClient(client, tciMessage(QStringLiteral("STOP")));
+        return;
+    }
+
+    if (name == QLatin1String("IQ_START")) {
         // Test toggle: set CUSDR_TCI_NO_IQ=1 to refuse IQ subscriptions so the
         // panadapter stream stays off while RX audio keeps running. Lets us
         // isolate whether audio choppiness is caused by the IQ stream.
@@ -568,7 +727,7 @@ void TciServer::handleCommand(QWebSocket *client, const QString &commandLine)
         return;
     }
 
-    if (name == QLatin1String("STOP") || name == QLatin1String("IQ_STOP")) {
+    if (name == QLatin1String("IQ_STOP")) {
         if (TciClientState *state = clientState(client))
             state->iqEnabledReceivers.remove(rx);
         updateIqActiveHint();
@@ -684,9 +843,16 @@ void TciServer::handleCommand(QWebSocket *client, const QString &commandLine)
 
     if (name == QLatin1String("TRX") || name == QLatin1String("TX_ENABLE")) {
         if (args.size() >= 2) {
-            if (parseBoolArg(args.at(1)))
+            const bool txOn = parseBoolArg(args.at(1));
+            if (txOn)
                 m_watchdog->stop();
-            m_settings->setRadioState(parseBoolArg(args.at(1)) ? RadioState::MOX : RadioState::RX);
+            m_settings->setRadioState(txOn ? RadioState::MOX : RadioState::RX);
+            // ExpertSDR3 / WSJT-X only send TX audio after TX_CHRONO clocks.
+            // Third arg may be "tci" / "dax" / omitted — all still need chrono.
+            if (txOn)
+                startTxChrono(client, trx);
+            else if (client == m_txChronoClient)
+                stopTxChrono();
             return;
         }
 
@@ -718,13 +884,156 @@ void TciServer::handleCommand(QWebSocket *client, const QString &commandLine)
         return;
     }
 
+    // Bidirectional enable flags. cudaSDR is single-VFO (no real split/RIT/XIT);
+    // accept and echo so WSJT-X TCI clients stay connected.
+    if (name == QLatin1String("SPLIT_ENABLE")
+        || name == QLatin1String("RIT_ENABLE")
+        || name == QLatin1String("XIT_ENABLE")
+        || name == QLatin1String("MUTE")
+        || name == QLatin1String("LOCK")
+        || name == QLatin1String("VFO_LOCK")) {
+        int enableTrx = 0;
+        bool enableValue = false;
+        bool hasValue = false;
+        parseTrxEnableArgs(args, enableTrx, enableValue, hasValue);
+
+        if (hasValue) {
+            if (name == QLatin1String("SPLIT_ENABLE"))
+                m_splitEnabled = enableValue;
+            // Always echo accepted state (ExpertSDR sync style).
+            if (name == QLatin1String("MUTE")) {
+                broadcast(tciMessage(name, {enableValue ? QStringLiteral("true")
+                                                        : QStringLiteral("false")}));
+            } else if (name == QLatin1String("VFO_LOCK") && args.size() >= 3) {
+                broadcast(tciMessage(name,
+                                     {QString::number(enableTrx),
+                                      args.at(1),
+                                      enableValue ? QStringLiteral("true") : QStringLiteral("false")}));
+            } else {
+                broadcast(tciMessage(name,
+                                     {QString::number(enableTrx),
+                                      enableValue ? QStringLiteral("true") : QStringLiteral("false")}));
+            }
+            return;
+        }
+
+        // Query
+        if (name == QLatin1String("MUTE")) {
+            sendToClient(client, tciMessage(name, {QStringLiteral("false")}));
+        } else if (name == QLatin1String("SPLIT_ENABLE")) {
+            sendToClient(client,
+                         tciMessage(name,
+                                    {QString::number(enableTrx),
+                                     m_splitEnabled ? QStringLiteral("true") : QStringLiteral("false")}));
+        } else {
+            sendToClient(client,
+                         tciMessage(name,
+                                    {QString::number(enableTrx), QStringLiteral("false")}));
+        }
+        return;
+    }
+
+    // DSP / audio enable stubs — ExpertSDR clients query these during handshake.
+    // No real DSP wiring; GET returns defaults, SET echoes so clients stay happy.
+    if (name == QLatin1String("SQL_ENABLE")
+        || name == QLatin1String("RX_ANF_ENABLE")
+        || name == QLatin1String("MON_ENABLE")
+        || name == QLatin1String("RX_NB_ENABLE")
+        || name == QLatin1String("RX_NB2_ENABLE")
+        || name == QLatin1String("RX_BIN_ENABLE")
+        || name == QLatin1String("AGC_AUTO_EX")) {
+        int enableTrx = 0;
+        bool enableValue = false;
+        bool hasValue = false;
+        parseTrxEnableArgs(args, enableTrx, enableValue, hasValue);
+
+        const bool defaultOn = (name == QLatin1String("AGC_AUTO_EX"));
+        if (hasValue) {
+            broadcast(tciMessage(name,
+                                 {QString::number(enableTrx),
+                                  enableValue ? QStringLiteral("true") : QStringLiteral("false")}));
+            return;
+        }
+
+        sendToClient(client,
+                     tciMessage(name,
+                                {QString::number(enableTrx),
+                                 defaultOn ? QStringLiteral("true") : QStringLiteral("false")}));
+        return;
+    }
+
+    if (name == QLatin1String("SQL_LEVEL") || name == QLatin1String("RX_VOLUME")) {
+        // GET: name:trx  → name:trx,0
+        // SET: name:trx,value → echo
+        if (args.size() >= 2) {
+            bool ok = false;
+            const int level = args.at(1).toInt(&ok);
+            if (!ok)
+                return;
+            broadcast(tciMessage(name, {QString::number(trx), QString::number(level)}));
+            return;
+        }
+
+        sendToClient(client, tciMessage(name, {QString::number(trx), QStringLiteral("0")}));
+        return;
+    }
+
+    if (name == QLatin1String("TUNE_DRIVE")) {
+        // Mirror DRIVE. Single pure-int arg is a GET for that TRX (client: tune_drive:0).
+        if (args.size() >= 2) {
+            bool ok = false;
+            const int level = args.at(1).toInt(&ok);
+            if (!ok)
+                return;
+            m_settings->setDriveLevel(qBound(0, level, 100));
+            return;
+        }
+
+        sendToClient(client, tciMessage(QStringLiteral("TUNE_DRIVE"),
+                                        {QString::number(trx),
+                                         QString::number(m_settings->getDriveLevel())}));
+        return;
+    }
+
+    if (name == QLatin1String("TX_PROFILES_EX")) {
+        sendToClient(client, tciMessage(QStringLiteral("TX_PROFILES_EX"),
+                                        {QStringLiteral("Default")}));
+        return;
+    }
+
+    if (name == QLatin1String("TX_PROFILE_EX")) {
+        if (!args.isEmpty() && !args.at(0).trimmed().isEmpty()) {
+            broadcast(tciMessage(QStringLiteral("TX_PROFILE_EX"), {args.at(0).trimmed()}));
+            return;
+        }
+        sendToClient(client, tciMessage(QStringLiteral("TX_PROFILE_EX"),
+                                        {QStringLiteral("Default")}));
+        return;
+    }
+
+    if (name == QLatin1String("TX_STREAM_AUDIO_BUFFERING")) {
+        if (!args.isEmpty()) {
+            bool ok = false;
+            const int ms = args.at(0).toInt(&ok);
+            if (ok)
+                broadcast(tciMessage(QStringLiteral("TX_STREAM_AUDIO_BUFFERING"),
+                                     {QString::number(ms)}));
+            return;
+        }
+        sendToClient(client, tciMessage(QStringLiteral("TX_STREAM_AUDIO_BUFFERING"),
+                                        {QStringLiteral("50")}));
+        return;
+    }
+
     if (name == QLatin1String("RX_SMETER")) {
         sendToClient(client, formatRxSMeter(trx, channel, smeterDbmForRx(rx)));
         return;
     }
 
     // Accept enable command from TCI clients; cudaSDR always pushes S-meter updates.
-    if (name == QLatin1String("RX_SENSORS_ENABLE")) {
+    // TX sensors are likewise accepted (no TX telemetry stream yet).
+    if (name == QLatin1String("RX_SENSORS_ENABLE")
+        || name == QLatin1String("TX_SENSORS_ENABLE")) {
         return;
     }
 
@@ -733,6 +1042,9 @@ void TciServer::handleCommand(QWebSocket *client, const QString &commandLine)
         if (!state)
             return;
         state->audioEnabledReceivers.insert(rx);
+        // WSJT-X sets stream_audio_ only when it receives audio_start:<rx>;
+        // echo the enable so "TCI Audio could not be switched on" is avoided.
+        sendToClient(client, tciMessage(QStringLiteral("AUDIO_START"), {QString::number(rx)}));
         sendToClient(client, tciMessage(QStringLiteral("AUDIO_SAMPLERATE"),
                                         {QString::number(state->audioSampleRate)}));
         return;
@@ -741,6 +1053,7 @@ void TciServer::handleCommand(QWebSocket *client, const QString &commandLine)
     if (name == QLatin1String("AUDIO_STOP") || name == QLatin1String("LINE_OUT_STOP")) {
         if (TciClientState *state = clientState(client))
             state->audioEnabledReceivers.remove(rx);
+        sendToClient(client, tciMessage(QStringLiteral("AUDIO_STOP"), {QString::number(rx)}));
         return;
     }
 
@@ -786,7 +1099,18 @@ void TciServer::handleCommand(QWebSocket *client, const QString &commandLine)
         return;
     }
 
-    TCI_WARN << "Unknown command:" << commandLine;
+    if (name == QLatin1String("QPING") || name == QLatin1String("KEEPALIVE")) {
+        // Client keep-alive / RTT probe. Echo qping with the same timestamp so
+        // latency-aware clients (e.g. TCI Remote) stay happy; keepalive is silent.
+        if (name == QLatin1String("QPING"))
+            sendToClient(client, tciMessage(QStringLiteral("QPING"), args));
+        return;
+    }
+
+    // Newer ExpertSDR clients send many optional verbs we do not implement yet.
+    // Keep at TRACE (CUSDR_TCI_TRACE=1) so they do not spam WARN; real failures
+    // (listen/bind, TX backlog, watchdog) still use TCI_WARN above.
+    TCI_TRACE << "Unknown command:" << commandLine;
 }
 
 void TciServer::onVfoFrequencyChanged(int mode, int rx, qint64 frequency)
@@ -822,6 +1146,67 @@ void TciServer::onRadioStateChanged(RadioState state)
 {
     broadcast(formatTrx(0, state));
     broadcast(formatTune(0, state == RadioState::TUNE));
+    if (state == RadioState::RX)
+        stopTxChrono();
+}
+
+void TciServer::startTxChrono(QWebSocket *client, int trx)
+{
+    if (!client)
+        return;
+    if (m_txChronoClient && m_txChronoClient != client)
+        stopTxChrono();
+
+    m_txChronoClient = client;
+    m_txChronoTrx = trx;
+    m_txChronoAccumNs = 0;
+    m_txChronoClock.start();
+    if (!m_txChronoTimer->isActive())
+        m_txChronoTimer->start();
+    // Kick several frames immediately so the client has chrono credits before
+    // its TX modulator starts (WSJT-X consumes one chrono → one TX audio reply).
+    sendTxChronoFrame(client);
+    sendTxChronoFrame(client);
+    sendTxChronoFrame(client);
+    TCI_DEBUG << "TX_CHRONO started trx=" << trx;
+}
+
+void TciServer::stopTxChrono()
+{
+    if (!m_txChronoTimer->isActive() && !m_txChronoClient)
+        return;
+
+    m_txChronoTimer->stop();
+    m_txChronoClient = nullptr;
+    m_txChronoAccumNs = 0;
+    m_txChronoClock.invalidate();
+    m_txAudioResidual.clear();
+    TCI_DEBUG << "TX_CHRONO stopped";
+}
+
+void TciServer::sendTxChronoFrame(QWebSocket *client)
+{
+    if (!client || client->state() != QAbstractSocket::ConnectedState)
+        return;
+    client->sendBinaryMessage(buildTxChronoFrame(m_txChronoTrx, 48000, kTxChronoSamples));
+}
+
+void TciServer::onTxChronoTick()
+{
+    QWebSocket *client = m_txChronoClient;
+    if (!client || client->state() != QAbstractSocket::ConnectedState) {
+        stopTxChrono();
+        return;
+    }
+    if (!m_txChronoClock.isValid())
+        m_txChronoClock.start();
+
+    m_txChronoAccumNs += m_txChronoClock.nsecsElapsed();
+    m_txChronoClock.restart();
+    while (m_txChronoAccumNs >= kTxChronoPeriodNs) {
+        sendTxChronoFrame(client);
+        m_txChronoAccumNs -= kTxChronoPeriodNs;
+    }
 }
 
 void TciServer::onDriveLevelChanged(int level)

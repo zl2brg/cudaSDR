@@ -15,6 +15,11 @@ private slots:
     void effectiveIqSampleRateHonorsOverride();
     void streamHeaderRoundTrip();
     void buildTxAudioFrameLayout();
+    void buildTxChronoFrameLayout();
+    void duplicatedStereoDetection();
+    void resolveWsjtOversizedTxAudioLayout();
+    void resolveWsjtOversizedIgnoresLrMismatch();
+    void resolveAndroidTightDuplicatedStereoLayout();
     void decodeTxAudioFloat32Mono();
     void decodeTxAudioInt16StereoKeepsLeft();
     void chunkTxAudioResidualProducesDspBlocks();
@@ -33,9 +38,9 @@ private slots:
 
 void TciProtocolUtilsTests::tciMessageFormatting()
 {
-    QCOMPARE(tciMessage(QStringLiteral("READY")), QStringLiteral("READY;"));
+    QCOMPARE(tciMessage(QStringLiteral("READY")), QStringLiteral("ready;"));
     QCOMPARE(tciMessage(QStringLiteral("VFO"), {QStringLiteral("0"), QStringLiteral("1"), QStringLiteral("7050000")}),
-             QStringLiteral("VFO:0,1,7050000;"));
+             QStringLiteral("vfo:0,1,7050000;"));
 }
 
 void TciProtocolUtilsTests::parseBoolArgVariants()
@@ -51,8 +56,8 @@ void TciProtocolUtilsTests::parseBoolArgVariants()
 
 void TciProtocolUtilsTests::dspModeRoundTrip()
 {
-    QCOMPARE(dspModeToTci(USB), QStringLiteral("USB"));
-    QCOMPARE(dspModeToTci(CWU), QStringLiteral("CW"));
+    QCOMPARE(dspModeToTci(USB), QStringLiteral("usb"));
+    QCOMPARE(dspModeToTci(CWU), QStringLiteral("cw"));
     QCOMPARE(tciModeToDsp(QStringLiteral("NFM")), FMN);
     QCOMPARE(tciModeToDsp(QStringLiteral("FREEDV")), FDV);
     QCOMPARE(tciModeToDsp(QStringLiteral("unknown-mode")), USB);
@@ -113,6 +118,136 @@ void TciProtocolUtilsTests::buildTxAudioFrameLayout()
     QCOMPARE(payload[0], 0.25f);
     QCOMPARE(payload[1], -0.5f);
     QCOMPARE(payload[2], 0.75f);
+}
+
+void TciProtocolUtilsTests::buildTxChronoFrameLayout()
+{
+    const QByteArray frame = buildTxChronoFrame(0, 48000, kTxChronoSamples);
+    QCOMPARE(frame.size(), kStreamHeaderBytes);
+
+    StreamHeader hdr;
+    QVERIFY(parseStreamHeader(frame, hdr));
+    QCOMPARE(hdr.streamType, kTxChronoStreamType);
+    QCOMPARE(hdr.format, static_cast<quint32>(kStreamFormatFloat32));
+    QCOMPARE(hdr.channels, 2u);
+    QCOMPARE(hdr.length, static_cast<quint32>(kTxChronoSamples));
+    QCOMPARE(hdr.sampleRate, 48000u);
+    QCOMPARE(hdr.receiver, 0u);
+}
+
+void TciProtocolUtilsTests::duplicatedStereoDetection()
+{
+    // WSJT-X style: L=R pairs must be detected as duplicated stereo.
+    QVector<float> dup(8);
+    for (int i = 0; i < 4; ++i) {
+        dup[i * 2] = 0.1f * static_cast<float>(i + 1);
+        dup[i * 2 + 1] = dup[i * 2];
+    }
+    QVERIFY(isDuplicatedStereoFloat32(dup.constData(), dup.size()));
+
+    // True mono (adjacent samples differ) must not be treated as stereo.
+    QVector<float> mono = {0.1f, 0.2f, 0.3f, 0.4f, 0.5f, 0.6f, 0.7f, 0.8f};
+    QVERIFY(!isDuplicatedStereoFloat32(mono.constData(), mono.size()));
+
+    // Decoding duplicated stereo as channels=2 yields half the floats (correct timebase).
+    QVector<double> out;
+    QVERIFY(decodeTxAudioMonoSamples(
+        QByteArray(reinterpret_cast<const char *>(dup.constData()),
+                   dup.size() * static_cast<int>(sizeof(float))),
+        kStreamFormatFloat32, 2, out));
+    QCOMPARE(out.size(), 4);
+    QVERIFY(qAbs(out.at(0) - 0.1) < 1e-5);
+    QVERIFY(qAbs(out.at(3) - 0.4) < 1e-5);
+}
+
+void TciProtocolUtilsTests::resolveWsjtOversizedTxAudioLayout()
+{
+    // WSJT-X: length=2048, payload capacity 16384 (4096 floats), first 2048 floats
+    // written as L=R pairs, trailing capacity left silent.
+    constexpr int length = kTxChronoSamples; // 2048
+    QVector<float> payload(length * 2, 0.0f);
+    for (int i = 0; i < length / 2; ++i) {
+        const float v = 0.01f * static_cast<float>((i % 50) + 1);
+        payload[i * 2] = v;
+        payload[i * 2 + 1] = v;
+    }
+
+    const TxAudioFloatLayout layout =
+        resolveTxAudioFloat32Layout(payload.constData(), payload.size(), length, 2);
+    QVERIFY(layout.ok);
+    QCOMPARE(layout.useFloats, length);
+    QCOMPARE(layout.channels, 2);
+
+    QVector<double> mono;
+    QVERIFY(decodeTxAudioMonoSamples(
+        QByteArray(reinterpret_cast<const char *>(payload.constData()),
+                   layout.useFloats * static_cast<int>(sizeof(float))),
+        kStreamFormatFloat32, layout.channels, mono));
+    QCOMPARE(mono.size(), length / 2); // 1024 mono samples
+    QCOMPARE(mono.size(), kDspSampleSize);
+
+    const TxAudioChunkResult chunked =
+        chunkTxAudioResidual(mono, kDspSampleSize, /*maxQueueBlocks=*/16, /*currentQueueCount=*/0);
+    QCOMPARE(chunked.blocks.size(), 1);
+    QCOMPARE(chunked.residual.size(), 0);
+    QCOMPARE(chunked.droppedBlocks, 0);
+}
+
+void TciProtocolUtilsTests::resolveWsjtOversizedIgnoresLrMismatch()
+{
+    // Same geometric signature as WSJT, but L≠R (tones/ramps) — must still
+    // yield 1024 mono from geometry alone, not fall through to 2048.
+    constexpr int length = kTxChronoSamples;
+    QVector<float> payload(length * 2, 0.0f);
+    for (int i = 0; i < length / 2; ++i) {
+        payload[i * 2] = 0.1f * static_cast<float>((i % 30) + 1);
+        payload[i * 2 + 1] = -0.05f * static_cast<float>((i % 17) + 1);
+    }
+    // Trailing half deliberately non-silent noise so silence heuristics cannot help.
+    for (int i = length; i < length * 2; ++i)
+        payload[i] = 0.02f * static_cast<float>((i % 11) + 1);
+
+    QVERIFY(!isDuplicatedStereoFloat32(payload.constData(), length));
+
+    const TxAudioFloatLayout layout =
+        resolveTxAudioFloat32Layout(payload.constData(), payload.size(), length, 2);
+    QVERIFY(layout.ok);
+    QCOMPARE(layout.useFloats, length);
+    QCOMPARE(layout.channels, 2);
+
+    QVector<double> mono;
+    QVERIFY(decodeTxAudioMonoSamples(
+        QByteArray(reinterpret_cast<const char *>(payload.constData()),
+                   layout.useFloats * static_cast<int>(sizeof(float))),
+        kStreamFormatFloat32, layout.channels, mono));
+    QCOMPARE(mono.size(), length / 2);
+    QCOMPARE(mono.size(), kDspSampleSize);
+}
+
+void TciProtocolUtilsTests::resolveAndroidTightDuplicatedStereoLayout()
+{
+    // Android / other ExpertSDR apps: tight payload of length floats as L=R
+    // (8192 bytes for length=2048) — must stay at 1024 mono, not regress.
+    constexpr int length = kTxChronoSamples;
+    QVector<float> payload(length);
+    for (int i = 0; i < length / 2; ++i) {
+        const float v = 0.02f * static_cast<float>((i % 40) + 1);
+        payload[i * 2] = v;
+        payload[i * 2 + 1] = v;
+    }
+
+    const TxAudioFloatLayout layout =
+        resolveTxAudioFloat32Layout(payload.constData(), payload.size(), length, 2);
+    QVERIFY(layout.ok);
+    QCOMPARE(layout.useFloats, length);
+    QCOMPARE(layout.channels, 2);
+
+    QVector<double> mono;
+    QVERIFY(decodeTxAudioMonoSamples(
+        QByteArray(reinterpret_cast<const char *>(payload.constData()),
+                   layout.useFloats * static_cast<int>(sizeof(float))),
+        kStreamFormatFloat32, layout.channels, mono));
+    QCOMPARE(mono.size(), length / 2);
 }
 
 void TciProtocolUtilsTests::decodeTxAudioFloat32Mono()

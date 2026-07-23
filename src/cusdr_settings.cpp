@@ -98,7 +98,7 @@ Settings::Settings(QObject *parent)
     m_titleString = "cudaSDR Debug BETA ";
 #endif
 
-    m_versionString = "v6.1.2 - ZL2BRG";
+    m_versionString = "v6.1.3 - ZL2BRG";
 
     qDebug() << qPrintable(m_titleString);
 
@@ -3702,8 +3702,15 @@ void Settings::setVFOFrequency(int mode, int rx, qint64 frequency) {
     locker.unlock();
     if (m_receiverDataList.at(rx).hamBand != band) {
 
-        //m_receiverDataList[rx].ctrFrequency = m_receiverDataList[rx].vfoFrequency;
+        // Capture the live operating mode before switching bands. Per-band
+        // dspModeList entries can be stale (e.g. AM on 15m while DIGU is live);
+        // WSJT-X band hops must not silently report/apply the wrong mode.
+        DSPMode liveMode = m_receiverDataList[rx].dspModeList[m_receiverDataList[rx].hamBand];
+        if (m_radioModel && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx])
+            liveMode = m_radioModel->slices()[rx]->dspMode();
+
         setHamBand(rx, false, band);
+        setDSPMode(rx, liveMode);
     }
 
     switch (mode) {

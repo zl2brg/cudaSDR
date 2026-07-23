@@ -13,6 +13,7 @@
 #include <QIODevice>
 
 #include "cusdr_settings.h"
+#include "Util/cusdr_queue.h"
 
 #ifndef CUDASDR_CUSDR_AUDIO_INPUT_H
 #define CUDASDR_CUSDR_AUDIO_INPUT_H
@@ -20,6 +21,10 @@
 
 #define AUDIO_FRAMESIZE  1024
 #define AUDIO_IN_PACKET_SIZE 4096//2048
+
+// Bound TX mic queues so capture can never build multi-minute latency.
+// 16 blocks × 1024 @ 48 kHz ≈ 341 ms of cushion for scheduling jitter.
+#define TX_MIC_QUEUE_MAX_BLOCKS 16
 
 #define LOG_AUDIO_INPUT
 
@@ -44,6 +49,7 @@ public:
     void Stop();
     bool Start();
     QList<QAudioDevice> getAudioInputDevices() const;
+    void clearTxQueues();
     
 public:
     QStringList paDeviceList;

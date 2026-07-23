@@ -38,6 +38,7 @@ public:
 	QHQueue(int maxSize = 8192)
 		: m_semFree(maxSize)
 		, m_semUsed(0)
+		, m_maxSize(maxSize)
 	{
 	}
 	
@@ -48,6 +49,32 @@ public:
 		m_queue.enqueue(value);
 		m_mutex.unlock();
 		m_semUsed.release(1);
+	}
+
+	/** Non-blocking enqueue. Returns false if the queue is full. */
+	bool tryEnqueue(const T &value) {
+		if (!m_semFree.tryAcquire(1))
+			return false;
+		m_mutex.lock();
+		m_queue.enqueue(value);
+		m_mutex.unlock();
+		m_semUsed.release(1);
+		return true;
+	}
+
+	/** Enqueue, dropping the oldest item if full (never blocks). */
+	void enqueueDropOldest(const T &value) {
+		if (tryEnqueue(value))
+			return;
+		// Drop one oldest slot, then push the new value.
+		if (m_semUsed.tryAcquire(1)) {
+			m_mutex.lock();
+			if (!m_queue.isEmpty())
+				m_queue.dequeue();
+			m_mutex.unlock();
+			m_semFree.release(1);
+		}
+		tryEnqueue(value);
 	}
 
     T dequeue() {
@@ -67,6 +94,7 @@ public:
         T val = m_queue.head();
         m_mutex.unlock();
         m_semUsed.release(1);
+		return val;
     }
 
     bool isEmpty() const {
@@ -84,18 +112,14 @@ public:
         return m_semUsed.available();
     }
 
+	int maxSize() const {
+		return m_maxSize;
+	}
+
 	void release_queue() {
 
 		m_semUsed.release(1);
 	}
-
-	/*void setMaxSize(int maxSize) {
-
-		m_mutex.lock();
-			delete &m_semFree;
-			QSemaphore m_semFree(maxSize);
-		m_mutex.unlock();
-	}*/
 
     T tryHead() {
 
@@ -106,7 +130,7 @@ public:
         m_mutex.lock();
 			T val = m_queue.head();
         m_mutex.unlock();
-        m_semUsed.release();
+        m_semUsed.release(1);
 
         return val;
     }
@@ -120,16 +144,28 @@ public:
         m_mutex.lock();
 			T val = m_queue.dequeue();
         m_mutex.unlock();
-        m_semUsed.release();
+        m_semFree.release(1);
 
         return val;
     }
+
+	/** Discard all queued items without blocking. */
+	void clear() {
+		while (m_semUsed.tryAcquire(1)) {
+			m_mutex.lock();
+			if (!m_queue.isEmpty())
+				m_queue.dequeue();
+			m_mutex.unlock();
+			m_semFree.release(1);
+		}
+	}
 
 private:
     QQueue<T>	m_queue;
     QSemaphore	m_semFree;
     QSemaphore	m_semUsed;
     QMutex		m_mutex;
+	int			m_maxSize;
 };
 
 #endif // CUSDR_QUEUE_H
