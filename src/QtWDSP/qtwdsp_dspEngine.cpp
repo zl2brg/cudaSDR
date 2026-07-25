@@ -404,7 +404,11 @@ void QWDSPEngine::setVolume(float value) {
     }
 
     m_volume = value;
-    SetRXAPanelGain1(m_rx, static_cast<double>(value));
+    // D-STAR: keep discriminator at unity for DSDcc; volume applied to decoded speech later.
+    if (Settings::instance()->getDSPMode(m_rx) == DSTAR)
+        SetRXAPanelGain1(m_rx, 1.0);
+    else
+        SetRXAPanelGain1(m_rx, static_cast<double>(value));
     WDSP_ENGINE_DEBUG << "WDSP volume set to" << value;
 }
 
@@ -420,6 +424,19 @@ void QWDSPEngine::setDSPMode(DSPMode mode) {
 	WDSP_ENGINE_DEBUG << "[RX" << m_rx << "] DSP mode set to" << mode << "(WDSP:" << wdspMode << ")";
 	SetRXAMode(m_rx, wdspMode);
 
+	// D-STAR: calibrated FM deviation + flat discriminator (no analog de-emphasis).
+	if (mode == DSTAR) {
+		SetRXAFMDeviation(m_rx, 3500.0);
+		SetRXAFMDigitalAudio(m_rx, 1);
+		SetRXAFMLimRun(m_rx, 0);
+		SetRXACTCSSRun(m_rx, 0);
+		// Unity panel gain into DSDcc — UI volume must not scale the discriminator.
+		SetRXAPanelGain1(m_rx, 1.0);
+	} else {
+		SetRXAFMDigitalAudio(m_rx, 0);
+		if (wdspMode == FMN)
+			SetRXAFMDeviation(m_rx, 8000.0);
+	}
 }
 
 void QWDSPEngine::setAGCMode(AGCMode agc) {
@@ -603,7 +620,10 @@ void QWDSPEngine::reconfigure() {
     SetDisplayDetectorMode(m_rx, 0, m_PanDetMode);
     SetDisplayAverageMode(m_rx, 0, m_PanAvMode);
     SetRXAFMSQRun(m_rx, 1);
-    SetRXAPanelGain1(m_rx, static_cast<double>(m_volume));
+    if (Settings::instance()->getDSPMode(m_rx) == DSTAR)
+	    SetRXAPanelGain1(m_rx, 1.0);
+    else
+	    SetRXAPanelGain1(m_rx, static_cast<double>(m_volume));
     SetChannelState(m_rx, 1, 0);
 
     WDSP_ENGINE_DEBUG << "[WDSP-CFG] rx=" << m_rx << "reconfigure complete";
@@ -615,9 +635,11 @@ void QWDSPEngine:: setFilter(double low,double high) {
     m_filterHi = high;
 
 
-	if(m_dspmode == FMN) {
-		SetRXAFMDeviation(m_rx, (double)8000.0);
-		}
+	if (m_dspmode == FMN) {
+		const DSPMode appMode = Settings::instance()->getDSPMode(m_rx);
+		// Keep D-STAR on ~±3.5 kHz when filter changes; other FMN stays 8 kHz.
+		SetRXAFMDeviation(m_rx, (appMode == DSTAR) ? 3500.0 : 8000.0);
+	}
 	RXASetPassband(m_rx,low,high);
 	emit setAGCLineValues(m_rx);
     WDSP_ENGINE_DEBUG << "Set Filter:Low  " <<  low << "High " << high;

@@ -386,3 +386,38 @@ void SetRXAFMAFFilter(int channel, double low, double high) {
 
   LeaveCriticalSection(&ch[channel].csDSP);
 }
+
+PORT
+void SetRXAFMDigitalAudio (int channel, int enable) {
+  FMD a = rxa[channel].fmd.p;
+  double* impulse;
+  EnterCriticalSection (&ch[channel].csDSP);
+
+  if (enable) {
+    // Flat discriminator audio for GMSK/D-STAR: no de-emphasis, ~20 Hz–5.5 kHz AF.
+    a->f_low = 20.0;
+    a->f_high = 5500.0;
+    impulse = fir_bandpass (a->nc_de, 0.0, a->rate * 0.45, a->rate, 0, 1, 1.0 / (2.0 * a->size));
+    setImpulse_fircore (a->pde, impulse, 1);
+    _aligned_free (impulse);
+    impulse = fir_bandpass (a->nc_aud, a->f_low, a->f_high, a->rate, 0, 1, a->afgain / (2.0 * a->size));
+    setImpulse_fircore (a->paud, impulse, 1);
+    _aligned_free (impulse);
+    a->sntch_run = 0;
+    SetSNCTCSSRun (a->sntch, 0);
+    a->lim_run = 0;
+  } else {
+    // Restore typical analog FM de-emphasis / AF band.
+    a->f_low = 300.0;
+    a->f_high = 3000.0;
+    impulse = fc_impulse (a->nc_de, a->f_low, a->f_high, +20.0 * log10(a->f_high / a->f_low), 0.0, 1, a->rate,
+                          1.0 / (2.0 * a->size), 0, 0);
+    setImpulse_fircore (a->pde, impulse, 1);
+    _aligned_free (impulse);
+    impulse = fir_bandpass (a->nc_aud, 0.8 * a->f_low, 1.1 * a->f_high, a->rate, 0, 1, a->afgain / (2.0 * a->size));
+    setImpulse_fircore (a->paud, impulse, 1);
+    _aligned_free (impulse);
+  }
+
+  LeaveCriticalSection (&ch[channel].csDSP);
+}

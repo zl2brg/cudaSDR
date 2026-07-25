@@ -535,6 +535,13 @@ void SliceProcessor::dspProcessingCore() {
 #ifdef HAVE_DSDCC
 			if (m_dsdProcessor) {
 				QVector<float> speech = m_dsdProcessor->processSamples(mono.constData(), audioSamplesThisCall);
+				// Discriminator ran at unity gain; apply UI volume to decoded speech only.
+				const float vol = m_sliceModel ? m_sliceModel->volume()
+					: static_cast<float>(set->getMainVolume(m_receiver));
+				if (vol != 1.0f) {
+					for (float &s : speech)
+						s *= vol;
+				}
 				deliverInternalAudio(speech, speech);
 				wroteAudio = true;
 				if ((m_dspCallCount % 50) == 1) {

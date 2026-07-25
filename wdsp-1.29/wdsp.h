@@ -512,6 +512,8 @@ extern void SetRXAFMMPaud (int channel, int mp);
 extern void SetRXAFMLimRun (int channel, int run);
 extern void SetRXAFMLimGain (int channel, double gaindB);
 extern void SetRXAFMAFFilter(int channel, double low, double high);
+/** Flat FM audio path for digital (D-STAR etc.): no de-emphasis, wide AF. */
+extern void SetRXAFMDigitalAudio (int channel, int enable);
 
 //
 // Interfaces from fmmod.c

@@ -36,6 +36,7 @@ private:
 	DSDcc::DSDDecoder *m_decoder = nullptr;
 	bool m_sync = false;
 	bool m_voiceDecode = false;
+	bool m_invertInput = false;
 	QString m_status;
 	std::vector<float> m_outHold; // leftover upsampled audio between calls
 

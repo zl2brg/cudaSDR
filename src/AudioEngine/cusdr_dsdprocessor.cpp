@@ -14,12 +14,22 @@ DsdProcessor::DsdProcessor()
 #ifdef HAVE_DSDCC
 	m_decoder = new DSDcc::DSDDecoder();
 	m_decoder->setQuiet();
-	m_decoder->setDecodeMode(DSDcc::DSDDecoder::DSDDecodeNone, false);
+	// IMPORTANT: DSDDecodeNone only clears other modes when on=true.
+	// Defaults enable DMR/P25/NXDN/etc.; leaving them on causes false sync (e.g. "DMR").
+	m_decoder->setDecodeMode(DSDcc::DSDDecoder::DSDDecodeNone, true);
 	m_decoder->setDecodeMode(DSDcc::DSDDecoder::DSDDecodeDStar, true);
 	m_decoder->setDataRate(DSDcc::DSDDecoder::DSDRate4800);
 	m_decoder->enableAudioOut(true);
+	m_decoder->setAudioGain(1.0f);
+	// SDRangel: matched filter can hurt D-STAR symbol sync on strong signals.
+	m_decoder->enableCosineFiltering(false);
+	m_decoder->setSymbolPLLLock(true);
+	m_decoder->useHPMbelib(true);
 	// Prefer 48 kHz speech out (8 kHz × 6) when mbelib voice path is active.
 	m_decoder->setUpsampling(6);
+	// Optional polarity flip if voice is still garbled with solid DST sync:
+	// CUSDR_DSTAR_INVERT=1
+	m_invertInput = qEnvironmentVariableIntValue("CUSDR_DSTAR_INVERT") != 0;
 #ifdef DSD_USE_MBELIB
 	m_decoder->enableMbelib(true);
 	m_voiceDecode = true;
@@ -84,7 +94,11 @@ QVector<float> DsdProcessor::processSamples(const float *audio48k, int n)
 	}
 
 	for (int i = 0; i < n; ++i) {
-		const float f = std::max(-1.0f, std::min(1.0f, audio48k[i]));
+		// Leave headroom — hard ±1.0 clip into int16 garbles AMBE frames.
+		float f = audio48k[i] * 0.7f;
+		f = std::max(-0.95f, std::min(0.95f, f));
+		if (m_invertInput)
+			f = -f;
 		const short sample = static_cast<short>(f * 32767.0f);
 		m_decoder->run(sample);
 
