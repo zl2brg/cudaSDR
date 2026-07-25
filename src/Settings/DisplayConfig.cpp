@@ -19,9 +19,9 @@ DisplayConfig::DisplayConfig(QObject *parent)
     m_colors.wideBandFilledColor = QColor(137, 172, 62);
     m_colors.wideBandSolidTopColor = QColor(236, 38, 16);
     m_colors.wideBandSolidBottomColor = QColor(232, 134, 29);
-    m_colors.distanceLineColor = QColor(246, 27, 45);
+    m_colors.distanceLineColor = QColor(246, 7, 19);
     m_colors.distanceLineFilledColor = QColor(232, 29, 86);
-    m_colors.panCenterLineColor = QColor(246, 7, 19);
+    m_colors.panCenterLineColor = QColor(80, 180, 240, 180);
     m_colors.gridLineColor = QColor(7, 96, 96);
     m_colors.panFilterColor = QColor(150, 150, 150, 100);
 }
@@ -169,13 +169,13 @@ void DisplayConfig::loadIni(QSettings *settings) {
     color = settings->value("colors/panWideBandSolidBottom", QColor(232, 134, 29)).value<QColor>();
     if (color.isValid()) colors.wideBandSolidBottomColor = color;
 
-    color = settings->value("colors/distanceLine", QColor(246, 27, 45)).value<QColor>();
+    color = settings->value("colors/distanceLine", QColor(246, 7, 19)).value<QColor>();
     if (color.isValid()) colors.distanceLineColor = color;
 
     color = settings->value("colors/distanceLineFilled", QColor(232, 29, 86)).value<QColor>();
     if (color.isValid()) colors.distanceLineFilledColor = color;
 
-    color = settings->value("colors/panCenterLine", QColor(246, 7, 19)).value<QColor>();
+    color = settings->value("colors/panCenterLine", QColor(80, 180, 240, 180)).value<QColor>();
     if (color.isValid()) colors.panCenterLineColor = color;
 
     color = settings->value("colors/gridLine", QColor(7, 96, 96)).value<QColor>();

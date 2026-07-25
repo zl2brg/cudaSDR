@@ -16,6 +16,8 @@ private slots:
     void radioStateUnchangedSkipsSignal();
     void driveLevelChangedAlwaysEmitted();
     void vfoFrequencyChangedOnUpdate();
+    void vfoMode0SetsNcoKeepsCenter();
+    void ctrMode1ClearsStaleNcoWhenVfoUnchanged();
 
 private:
     Settings *m_settings = nullptr;
@@ -84,6 +86,43 @@ void SettingsSignalTests::vfoFrequencyChangedOnUpdate()
     QCOMPARE(spy.at(0).at(0).toInt(), 0);
     QCOMPARE(spy.at(0).at(1).toInt(), 0);
     QCOMPARE(spy.at(0).at(2).value<qint64>(), frequency);
+}
+
+void SettingsSignalTests::vfoMode0SetsNcoKeepsCenter()
+{
+    // Click-to-tune contract: mode 0 moves VFO/NCO only; center/LO stays put.
+    const qint64 center = 14'100'000;
+    const qint64 vfo = 14'105'000;
+    m_settings->setCtrFrequency(0, 0, center);
+    m_settings->setVFOFrequency(0, 0, center);
+
+    QSignalSpy ncoSpy(m_settings, &Settings::ncoFrequencyChanged);
+    QSignalSpy ctrSpy(m_settings, &Settings::ctrFrequencyChanged);
+    m_settings->setVFOFrequency(0, 0, vfo);
+
+    QCOMPARE(m_settings->getCtrFrequency(0), center);
+    QCOMPARE(m_settings->getVfoFrequency(0), vfo);
+    QCOMPARE(m_settings->getReceiverDataList().at(0).ncoFrequency, vfo - center);
+    QCOMPARE(ncoSpy.count(), 1);
+    QCOMPARE(ncoSpy.at(0).at(0).toInt(), 0);
+    QCOMPARE(ncoSpy.at(0).at(1).value<qint64>(), vfo - center);
+    QCOMPARE(ctrSpy.count(), 0);
+}
+
+void SettingsSignalTests::ctrMode1ClearsStaleNcoWhenVfoUnchanged()
+{
+    // After a mode-0 band hop, VFO is already at the dial freq but CTR/NCO are
+    // wrong. Mode 1 must retune CTR and clear NCO even when VFO is unchanged.
+    const qint64 stuckCenter = 14'074'000;
+    const qint64 dial = 7'074'000;
+    m_settings->setCtrFrequency(0, 0, stuckCenter);
+    m_settings->setVFOFrequency(0, 0, dial);
+    QCOMPARE(m_settings->getReceiverDataList().at(0).ncoFrequency, dial - stuckCenter);
+
+    m_settings->setCtrFrequency(1, 0, dial);
+    QCOMPARE(m_settings->getCtrFrequency(0), dial);
+    QCOMPARE(m_settings->getVfoFrequency(0), dial);
+    QCOMPARE(m_settings->getReceiverDataList().at(0).ncoFrequency, 0);
 }
 
 QTEST_MAIN(SettingsSignalTests)

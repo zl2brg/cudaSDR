@@ -2,54 +2,12 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
-			"label": "Configure CMake (Debug)",
-			"type": "shell",
-			"command": "cmake",
-			"args": [
-				"-S",
-				".",
-				"-B",
-				"build",
-				"-DCMAKE_BUILD_TYPE=Debug",
-				"-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
-			],
-			"group": "build",
-			"problemMatcher": [
-				"$gcc"
-			],
-			"isBackground": false,
-			"detail": "Configure CMake project in Debug mode"
-		},
-		{
-			"label": "Configure CMake (Release)",
-			"type": "shell",
-			"command": "cmake",
-			"args": [
-				"-S",
-				".",
-				"-B",
-				"build-release",
-				"-DCMAKE_BUILD_TYPE=Release",
-				"-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
-			],
-			"group": "build",
-			"problemMatcher": [
-				"$gcc"
-			],
-			"isBackground": false,
-			"detail": "Configure CMake project in Release mode"
-		},
-		{
 			"label": "Build Debug",
 			"type": "shell",
-			"command": "cmake",
-			"args": [
-				"--build",
-				"build",
-				"--config",
-				"Debug",
-				"-j4"
-			],
+			"command": "BUILD_TYPE=Debug ./build.sh",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
 			"group": {
 				"kind": "build",
 				"isDefault": true
@@ -58,27 +16,57 @@
 				"$gcc"
 			],
 			"isBackground": false,
-			"dependsOn": "Configure CMake (Debug)",
-			"detail": "Build the project in Debug mode"
+			"detail": "Build Debug via BUILD_TYPE=Debug ./build.sh (Qt 6.11, output: build/cudasdr)"
 		},
 		{
 			"label": "Build Release",
 			"type": "shell",
-			"command": "cmake",
-			"args": [
-				"--build",
-				"build-release",
-				"--config",
-				"Release",
-				"-j4"
-			],
+			"command": "BUILD_TYPE=Release ./build.sh",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
 			"group": "build",
 			"problemMatcher": [
 				"$gcc"
 			],
 			"isBackground": false,
-			"dependsOn": "Configure CMake (Release)",
-			"detail": "Build the project in Release mode"
+			"detail": "Build Release via BUILD_TYPE=Release ./build.sh (Qt 6.11, output: build/cudasdr)"
+		},
+		{
+			"label": "Configure CMake (Debug)",
+			"type": "shell",
+			"command": "cmake",
+			"args": [
+				"--preset",
+				"debug"
+			],
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"group": "build",
+			"problemMatcher": [
+				"$gcc"
+			],
+			"isBackground": false,
+			"detail": "Configure CMake with the debug preset (./build, CMAKE_BUILD_TYPE=Debug)"
+		},
+		{
+			"label": "Configure CMake (Release)",
+			"type": "shell",
+			"command": "cmake",
+			"args": [
+				"--preset",
+				"default"
+			],
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
+			"group": "build",
+			"problemMatcher": [
+				"$gcc"
+			],
+			"isBackground": false,
+			"detail": "Configure CMake with the default preset (./build, CMAKE_BUILD_TYPE=Release)"
 		},
 		{
 			"label": "Clean Build",
@@ -90,6 +78,9 @@
 				"--target",
 				"clean"
 			],
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
 			"group": "build",
 			"problemMatcher": [
 				"$gcc"
@@ -100,20 +91,14 @@
 		{
 			"label": "Run cudasdr",
 			"type": "shell",
-			"command": "./build/cudasdr",
+			"command": "./run_cudasdr.sh",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
 			"group": "test",
 			"isBackground": false,
 			"dependsOn": "Build Debug",
-			"detail": "Run the cudasdr application",
-			"options": {
-				"env": {
-					"QT_QPA_PLATFORM": "xcb",
-					"QT_QPA_PLATFORM_PLUGIN_PATH": "/home/simon/Qt/5.15.2/gcc_64/plugins/platforms",
-					"LD_LIBRARY_PATH": "/home/simon/Qt/5.15.2/gcc_64/lib:${env:LD_LIBRARY_PATH}",
-					"QT_XCB_GL_INTEGRATION": "xcb_egl",
-					"WAYLAND_DISPLAY": ""
-				}
-			},
+			"detail": "Run cudasdr via run_cudasdr.sh (Qt 6.11 env)",
 			"presentation": {
 				"echo": true,
 				"reveal": "always",
@@ -126,14 +111,16 @@
 		{
 			"label": "Full Rebuild Debug",
 			"type": "shell",
-			"command": "rm",
-			"args": [
-				"-rf",
-				"build"
-			],
+			"command": "rm -rf build && BUILD_TYPE=Debug ./build.sh",
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
 			"group": "build",
+			"problemMatcher": [
+				"$gcc"
+			],
 			"isBackground": false,
-			"detail": "Clean and rebuild from scratch"
+			"detail": "Clean build/ and rebuild Debug from scratch"
 		},
 		{
 			"label": "Check Dependencies",
@@ -142,6 +129,9 @@
 			"args": [
 				"build/cudasdr"
 			],
+			"options": {
+				"cwd": "${workspaceFolder}"
+			},
 			"group": "test",
 			"isBackground": false,
 			"dependsOn": "Build Debug",

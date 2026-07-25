@@ -3,6 +3,8 @@
 #include <QSettings>
 
 #include "cusdr_settings.h"
+#include "Models/RadioModel.h"
+#include "Models/SliceModel.h"
 
 class SettingsPersistenceTests : public QObject {
     Q_OBJECT
@@ -16,6 +18,7 @@ private slots:
     void loadEmptyIniFallbacksToDefaults();
     void loadCorruptedAndClampedValues();
     void loadAndSaveAllConfigModules();
+    void savePersistsDBmPanScaleWithSliceModel();
 
 private:
     QTemporaryDir m_tempDir;
@@ -203,6 +206,48 @@ void SettingsPersistenceTests::loadAndSaveAllConfigModules()
     QCOMPARE(m_settings->cwConfig()->internalCw(), 0);
     QCOMPARE(m_settings->hardwareConfig()->source10Mhz(), 2); // mercury
     QCOMPARE(m_settings->receiverConfigs().at(0)->vfoFrequency(), 14200000);
+}
+
+void SettingsPersistenceTests::savePersistsDBmPanScaleWithSliceModel()
+{
+    writeSeedIni();
+    QVERIFY(m_settings->loadSettings() >= 0);
+
+    // Defaults from empty/missing INI keys
+    QCOMPARE(m_settings->getdBmPanScaleMin(0, (HamBand)m40), -120.0);
+    QCOMPARE(m_settings->getdBmPanScaleMax(0, (HamBand)m40), -10.0);
+
+    RadioModel *radio = new RadioModel(m_settings);
+    SliceModel *slice = new SliceModel(0, radio);
+    radio->addSlice(slice);
+    m_settings->setRadioModel(radio);
+    m_settings->syncSlicesWithSettings();
+
+    m_settings->setHamBand(0, false, (HamBand)m40);
+    m_settings->setdBmPanScaleMin(0, -95.5);
+    m_settings->setdBmPanScaleMax(0, 5.0);
+
+    QCOMPARE(slice->dBmPanScaleMin(), -95.5);
+    QCOMPARE(slice->dBmPanScaleMax(), 5.0);
+    QCOMPARE(m_settings->getdBmPanScaleMin(0, (HamBand)m40), -95.5);
+    QCOMPARE(m_settings->getdBmPanScaleMax(0, (HamBand)m40), 5.0);
+
+    QVERIFY(m_settings->saveSettings() >= 0);
+
+    QSettings saved(m_iniPath, QSettings::IniFormat);
+    QCOMPARE(saved.value(QStringLiteral("receiver0/dBmPanScaleMin40m")).toDouble(), -95.5);
+    QCOMPARE(saved.value(QStringLiteral("receiver0/dBmPanScaleMax40m")).toDouble(), 5.0);
+
+    m_settings->setRadioModel(nullptr);
+    delete radio;
+
+    Settings::delete_instance();
+    m_settings = Settings::instance();
+    m_settings->reopenSettingsStorage(m_iniPath);
+    QVERIFY(m_settings->loadSettings() >= 0);
+
+    QCOMPARE(m_settings->getdBmPanScaleMin(0, (HamBand)m40), -95.5);
+    QCOMPARE(m_settings->getdBmPanScaleMax(0, (HamBand)m40), 5.0);
 }
 
 QTEST_MAIN(SettingsPersistenceTests)

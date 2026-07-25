@@ -39,7 +39,7 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
     m_view->setAGCMode(m_model->getAGCMode(rx));
     m_view->setDefaultFilterMode(m_model->getDefaultFilterMode(rx));
     m_view->setFilterFrequencies(m_model->getFilterLo(rx), m_model->getFilterHi(rx));
-    m_view->setSpectrumAveraging(m_model->getSpectrumAveraging(rx));
+    m_view->setSpectrumAveraging(m_model->getPanAveragingMode(rx) != AV_MODE_NONE);
     m_view->setPanGrid(m_model->getPanGridStatus(rx));
     m_view->setPeakHold(m_model->getPeakHoldStatus(rx));
     m_view->setPanLocked(m_model->getPanLockedStatus(rx));
@@ -52,6 +52,10 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
     m_view->setVfoFrequency(m_model->getVfoFrequency(rx));
     m_view->setFreeDVMode(m_model->getFreeDVMode(rx));
     m_view->setAGCShowLines(m_model->getAgcLines(rx));
+
+    m_lastPanAvMode = m_model->getPanAveragingMode(rx);
+    if (m_lastPanAvMode == AV_MODE_NONE)
+        m_lastPanAvMode = AV_MODE_RECURSIVE;
 
     // View -> Model
     connect(m_view, &RadioPopupWidget::hamBandRequested, this, [this](int r, HamBand band) {
@@ -98,7 +102,20 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
     });
 
     connect(m_view, &RadioPopupWidget::spectrumAveragingRequested, this, [this](int r, bool enabled) {
-        m_model->setSpectrumAveraging(r, enabled);
+        // Pan Avg toggles WDSP pan averaging (Display Options "Averaging Mode").
+        if (enabled) {
+            PanAveragingMode mode = m_lastPanAvMode;
+            if (mode == AV_MODE_NONE)
+                mode = AV_MODE_RECURSIVE;
+            m_model->setPanAveragingMode(r, mode);
+            m_model->setSpectrumAveraging(r, true);
+        } else {
+            const PanAveragingMode cur = m_model->getPanAveragingMode(r);
+            if (cur != AV_MODE_NONE)
+                m_lastPanAvMode = cur;
+            m_model->setPanAveragingMode(r, AV_MODE_NONE);
+            m_model->setSpectrumAveraging(r, false);
+        }
     });
 
     connect(m_view, &RadioPopupWidget::panGridRequested, this, [this](int r, bool enabled) {
@@ -204,6 +221,14 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
         });
         connect(m_sliceModel, &SliceModel::filterChanged, this, [this]() {
             m_view->setFilterFrequencies(m_sliceModel->filterLow(), m_sliceModel->filterHigh());
+        });
+        connect(m_sliceModel, &SliceModel::panAveragingModeChanged, this, [this](PanAveragingMode mode) {
+            m_view->setSpectrumAveraging(mode != AV_MODE_NONE);
+            if (mode != AV_MODE_NONE)
+                m_lastPanAvMode = mode;
+        });
+        connect(m_sliceModel, &SliceModel::peakHoldChanged, this, [this](bool enabled) {
+            m_view->setPeakHold(enabled);
         });
     }
 

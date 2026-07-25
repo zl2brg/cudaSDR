@@ -759,26 +759,75 @@ bool DataEngine::getFirmwareVersions() {
 	// For Protocol 1: continue the existing flow (start device to collect FW
 	// version response packets).
 	if (set->getCurrentMetisCard().protocol != 2) {
+		// Discovery may have cached Metis/Hermes board FW. Those values are not
+		// Mercury/Hermes C&C versions from live IQ. Clear them so a stale Metis
+		// discovery version cannot drive checkFirmwareVersions() into a stop()
+		// ~300ms later with a misleading "Mercury FW required" dialog and
+		// "Error: No error" (stop() clears the system error).
+		set->setMercuryVersion(0);
+		set->setPenelopeVersion(0);
+		set->setPennyLaneVersion(0);
+		set->setHermesVersion(0);
+		set->setMetisVersion(0);
+
 		// pre-conditioning
 		if (m_dataIO) {
 			for (int i = 0; i < io.receivers; i++)
 				m_dataIO->sendInitFramesToNetworkDevice(i);
 		}
-		
+
 		if (m_serverMode == QSDR::SDRMode && m_dataIO)
 			m_dataIO->networkDeviceStartStop(0x01);
-		
+
 		m_networkDeviceRunning = true;
 		setSystemState(QSDR::NoError, m_hwInterface, m_serverMode, QSDR::DataEngineUp);
-		QThread::msleep(300);
+
+		// Poll for IQ C&C firmware bytes instead of a single blind sleep.
+		// Historical wait was 300ms; allow a bit longer for slow NICs/Wi‑Fi.
+		const int probeTimeoutMs = 1500;
+		const int pollMs = 50;
+		int waitedMs = 0;
+		while (waitedMs < probeTimeoutMs) {
+			QThread::msleep(pollMs);
+			waitedMs += pollMs;
+			if (set->getMercuryVersion() > 0 || set->getHermesVersion() > 0)
+				break;
+		}
+
+		io.metisFW = set->getMetisVersion();
+		io.mercuryFW = set->getMercuryVersion();
+		io.penelopeFW = set->getPenelopeVersion();
+		io.pennylaneFW = set->getPennyLaneVersion();
+		io.hermesFW = set->getHermesVersion();
+
+		if (io.mercuryFW == 0 && io.hermesFW == 0) {
+			DATA_ENGINE_DEBUG << "no IQ firmware response after" << waitedMs
+							  << "ms (metisFW=" << io.metisFW
+							  << " mercuryFW=" << io.mercuryFW
+							  << " hermesFW=" << io.hermesFW << ")";
+			set->setSystemMessage(
+				"No IQ/firmware response from device after start — check "
+				"network, local interface, firewall, and that nothing else "
+				"owns the radio",
+				10000);
+			// Device was started for the probe; tear it down and keep FirmwareError
+			// (stop() alone would report "No error").
+			stop();
+			setSystemState(QSDR::FirmwareError, m_hwInterface, m_serverMode,
+						   QSDR::DataEngineDown);
+			return false;
+		}
+
+		DATA_ENGINE_DEBUG << "IQ firmware response after" << waitedMs << "ms";
+	} else {
+		io.metisFW = set->getMetisVersion();
+		io.mercuryFW = set->getMercuryVersion();
+		io.penelopeFW = set->getPenelopeVersion();
+		io.pennylaneFW = set->getPennyLaneVersion();
+		io.hermesFW = set->getHermesVersion();
 	}
 
-    io.metisFW = set->getMetisVersion();
-    io.mercuryFW = set->getMercuryVersion();
-    io.penelopeFW = set->getPenelopeVersion();
-    io.pennylaneFW = set->getPennyLaneVersion();
-    io.hermesFW = set->getHermesVersion();
-    io.ccTx.drivelevel = set->get_tx_drivelevel();
+	io.ccTx.drivelevel = set->get_tx_drivelevel();
 	if (set->getFirmwareVersionCheck())
 		return checkFirmwareVersions();
 	else
@@ -1449,8 +1498,17 @@ bool DataEngine::initDataEngine() {
 			}
 			else {
 
-				DATA_ENGINE_DEBUG << "did not get firmware versions!";
-				setSystemState(QSDR::FirmwareError, m_hwInterface, m_serverMode, QSDR::DataEngineDown);
+				DATA_ENGINE_DEBUG << "did not get firmware versions!"
+								 << " metisFW=" << io.metisFW
+								 << " mercuryFW=" << io.mercuryFW
+								 << " hermesFW=" << io.hermesFW;
+				set->setSystemMessage(
+					"No Mercury/Hermes firmware version from device — start aborted",
+					10000);
+				if (m_dataEngineState == QSDR::DataEngineUp)
+					stop();
+				setSystemState(QSDR::FirmwareError, m_hwInterface, m_serverMode,
+							   QSDR::DataEngineDown);
 			}
 		}
 	}
@@ -1907,10 +1965,11 @@ void DataEngine::stopDataIO() {
 
 		m_dataIOThread->quit();
 
-		while (!m_dataIOThread->isFinished()) {
-		
-			DATA_ENGINE_DEBUG << "data IO thread not yet finished...";
-			if (m_dataIOThread->wait(100)) break;
+		// Wait for a clean exit; never delete a still-running QThread (segfault on quit).
+		if (!m_dataIOThread->wait(5000)) {
+			DATA_ENGINE_DEBUG << "data IO thread did not finish within 5s; terminating.";
+			m_dataIOThread->terminate();
+			m_dataIOThread->wait(1000);
 		}
 		m_dataIOThreadRunning = false;
 		

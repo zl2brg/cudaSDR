@@ -74,6 +74,10 @@ public slots:
 
 signals:
     void remoteControlChanged(bool active);
+    /** Request MainWindow to start the data engine (same path as UI Start). */
+    void startRequested();
+    /** Request MainWindow to stop the data engine (same path as UI Stop). */
+    void stopRequested();
 
 private slots:
     void onNewConnection();
@@ -89,6 +93,9 @@ private slots:
     void onFilterFrequenciesChanged(int rx, qreal low, qreal high);
     void onRadioStateChanged(RadioState state);
     void onDriveLevelChanged(int level);
+    void onForwardPowerChanged(qreal watts);
+    void onReversePowerChanged(qreal watts);
+    void onSwrChanged(qreal swr);
     void onSMeterValueChanged(int rx, double rawValue);
     void onTciServerEnabledChanged(bool enabled);
 
@@ -116,7 +123,12 @@ private:
         int iqChannels = 2;
         int iqFormat = 3;             // FLOAT32
         int iqSamplesPerPacket = 512;
-        int iqSampleRate = 48000;     // set to the radio's actual RX rate on each block
+        int iqSampleRate = 48000;     // advertised IQ rate (≤ audio doubled, e.g. 48k→96k)
+
+        // ExpertSDR TX_SENSORS_ENABLE — gate TX power / SWR push updates.
+        bool txSensorsEnabled = false;
+        int txSensorsIntervalMs = 200;
+        qint64 txSensorsLastSendMs = 0;
 
         // Best-effort IQ drop counter (diagnostics). The panadapter IQ stream is
         // shed when the socket write backlog is large so it never builds latency
@@ -147,6 +159,12 @@ private:
     QString formatDrive(int trx, int level) const;
     QString formatTune(int trx, bool enabled) const;
     QString formatRxSMeter(int trx, int channel, double dbm) const;
+    QString formatTxSensors(int trx) const;
+    QString formatTxPower(int trx, qreal watts) const;
+    QString formatTxSwr(int trx, qreal swr) const;
+    void maybeBroadcastTxSensors(bool force = false);
+    void scheduleTxSensorsBroadcast();
+    qreal effectiveSwr() const;
 
     QString dspModeToTci(DSPMode mode) const;
     DSPMode tciModeToDsp(const QString &mode) const;
@@ -202,6 +220,17 @@ private:
     int           m_txChronoTrx = 0;
     QElapsedTimer m_txChronoClock;
     qint64        m_txChronoAccumNs = 0;
+
+    // Last start/stop power state advertised to clients (avoids duplicate
+    // broadcasts when systemStateChanged fires for unrelated field changes).
+    bool m_advertisedPowerOn = false;
+
+    // Cached PA telemetry from RadioTelemetry (Hermes / Alex C&C).
+    qreal m_fwdPowerWatts = 0.0;
+    qreal m_revPowerWatts = 0.0;
+    qreal m_swr = 1.0;
+    bool m_swrValid = false;
+    bool m_txSensorsFlushPending = false;
 };
 
 #endif // CUSDR_TCISERVER_H

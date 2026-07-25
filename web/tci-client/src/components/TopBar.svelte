@@ -48,5 +48,22 @@
     </div>
     <div class="smeter-label mono">{formatSmeter(state.smeterDbm)}</div>
   </div>
-  <input class="conn-input mono" bind:value={wsUrl} disabled={state.connected} spellcheck="false" />
+  {#if state.trx || state.tune}
+    <div class="tx-meters mono" title="Forward power / SWR">
+      <span>{state.txPowerWatts.toFixed(1)} W</span>
+      <span
+        class:swr-ok={state.swr < 1.5}
+        class:swr-warn={state.swr >= 1.5 && state.swr < 2.5}
+        class:swr-bad={state.swr >= 2.5}
+      >SWR {state.swr.toFixed(2)}</span>
+    </div>
+  {/if}
+  <input
+    class="conn-input mono"
+    bind:value={wsUrl}
+    disabled={state.connected}
+    spellcheck="false"
+    title="Default: Vite /tci proxy → cudaSDR plain WS :50001. Or ws://127.0.0.1:50001"
+    placeholder="wss://host:5173/tci"
+  />
 </header>

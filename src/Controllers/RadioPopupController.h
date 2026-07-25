@@ -20,6 +20,7 @@ private:
     RadioPopupWidget* m_view = nullptr;
     SliceModel* m_sliceModel = nullptr;
     Settings* m_model = nullptr;
+    PanAveragingMode m_lastPanAvMode = AV_MODE_RECURSIVE;
 };
 
 #endif // RADIOPOPUPCONTROLLER_H

@@ -3,6 +3,7 @@
 #include "Models/RadioTelemetry.h"
 #include "protocol_boundary_utils.h"
 #include <QtEndian>
+#include <cmath>
 
 CProtocol1::CProtocol1()
     : m_adc_rx1_4(0)
@@ -218,6 +219,14 @@ void CProtocol1::decodeCCBytes(const QByteArray& buffer, THPSDRParameter* io) {
 				io->alexReversePower = (qreal)(io->alexReverseVolts * io->alexReverseVolts / 0.09);
 				if (RadioTelemetry* tel = telemetryFromSettings()) {
 					tel->setReversePower(io->alexReversePower);
+					// Match Protocol2: derive SWR once both Alex fwd/rev are known.
+					if (io->alexForwardPower > 0.001) {
+						qreal rho = sqrt(io->alexReversePower / io->alexForwardPower);
+						if (rho > 0.999) rho = 0.999;
+						tel->setSWR((1.0 + rho) / (1.0 - rho));
+					} else {
+						tel->setSWR(1.0);
+					}
 				}
 			}
 			if (set->getPenelopePresence() || (set->getHWInterface() == QSDR::Hermes)) {

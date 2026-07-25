@@ -7,6 +7,7 @@
  *   SPLIT_ENABLE / RIT_ENABLE / XIT_ENABLE / MUTE / LOCK (compat no-ops),
  *   SQL/ANF/NB/BIN/MON/AGC_AUTO_EX / RX_VOLUME / TUNE_DRIVE (compat stubs),
  *   TX_PROFILES_EX / TX_PROFILE_EX / TX_STREAM_AUDIO_BUFFERING / TX_SENSORS_ENABLE,
+ *   TX_SENSORS / TX_POWER / TX_SWR (PA telemetry from RadioTelemetry),
  *   AUDIO_START/STOP (binary RX audio), START, STOP,
  *   TX_CHRONO (binary type 3) to clock client TX audio during MOX
  *
@@ -20,6 +21,7 @@
 #include "cusdr_hamDatabase.h"
 #include "Settings/SettingsTypes.h"
 #include "Models/RadioModel.h"
+#include "Models/RadioTelemetry.h"
 #include "Models/SliceModel.h"
 
 #include <QWebSocketServer>
@@ -27,8 +29,10 @@
 #include <QHostAddress>
 #include <QStringList>
 #include <QDebug>
+#include <QDateTime>
 #include <QtEndian>
 #include <QMetaType>
+#include <cmath>
 #include <cstring>
 #include <cstdlib>
 
@@ -70,6 +74,22 @@ TciServer::TciServer(QObject *parent)
             this, &TciServer::onDriveLevelChanged);
     connect(m_settings, &Settings::tciServerEnabledChanged,
             this, &TciServer::onTciServerEnabledChanged);
+    connect(m_settings, &Settings::systemStateChanged, this,
+            [this](QSDR::_Error, QSDR::_HWInterfaceMode, QSDR::_ServerMode,
+                   QSDR::_DataEngineState state) {
+        if (state != QSDR::DataEngineUp && state != QSDR::DataEngineDown)
+            return;
+        const bool powerOn = (state == QSDR::DataEngineUp);
+        if (powerOn == m_advertisedPowerOn)
+            return;
+        m_advertisedPowerOn = powerOn;
+        // Keep TCI clients in sync when the user starts/stops from the UI (or
+        // when a TCI START succeeds after the data engine comes up).
+        broadcast(tciMessage(powerOn ? QStringLiteral("START")
+                                     : QStringLiteral("STOP")));
+    });
+
+    m_advertisedPowerOn = (m_settings->getDataEngineState() == QSDR::DataEngineUp);
 }
 
 TciServer::~TciServer()
@@ -97,6 +117,7 @@ bool TciServer::startListening(quint16 port)
 void TciServer::stopListening()
 {
     stopTxChrono();
+    const bool hadClients = !m_clients.isEmpty();
     for (QWebSocket *client : std::as_const(m_clients)) {
         client->close();
     }
@@ -105,6 +126,8 @@ void TciServer::stopListening()
     m_server->close();
     if (m_settings)
         m_settings->setTciIqActive(false);
+    if (hadClients)
+        emit remoteControlChanged(false);
 }
 
 bool TciServer::isListening() const
@@ -191,6 +214,83 @@ QString TciServer::formatRxSMeter(int trx, int channel, double dbm) const
                       {QString::number(trx),
                        QString::number(channel),
                        QString::number(dbm, 'f', 1)});
+}
+
+QString TciServer::formatTxSensors(int trx) const
+{
+    // ExpertSDR: trx, mic_dBm, fwd_W (RMS), peak_W, SWR.
+    // Mic level is not available yet — report 0. Peak falls back to forward.
+    const qreal swr = effectiveSwr();
+    return tciMessage(QStringLiteral("TX_SENSORS"),
+                      {QString::number(trx),
+                       QStringLiteral("0.0"),
+                       QString::number(m_fwdPowerWatts, 'f', 1),
+                       QString::number(m_fwdPowerWatts, 'f', 1),
+                       QString::number(swr, 'f', 2)});
+}
+
+QString TciServer::formatTxPower(int trx, qreal watts) const
+{
+    return tciMessage(QStringLiteral("TX_POWER"),
+                      {QString::number(trx), QString::number(watts, 'f', 1)});
+}
+
+QString TciServer::formatTxSwr(int trx, qreal swr) const
+{
+    return tciMessage(QStringLiteral("TX_SWR"),
+                      {QString::number(trx), QString::number(swr, 'f', 2)});
+}
+
+qreal TciServer::effectiveSwr() const
+{
+    if (m_swrValid)
+        return m_swr;
+    if (m_fwdPowerWatts > 0.001) {
+        const qreal rho = qMin(0.999, std::sqrt(m_revPowerWatts / m_fwdPowerWatts));
+        return (1.0 + rho) / (1.0 - rho);
+    }
+    return 1.0;
+}
+
+void TciServer::maybeBroadcastTxSensors(bool force)
+{
+    if (m_clients.isEmpty() || !m_settings)
+        return;
+
+    const bool transmitting = isTrxActive(m_settings->getRadioState());
+    if (!transmitting && !force)
+        return;
+
+    const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
+    const QString sensors = formatTxSensors(0);
+    const QString power = formatTxPower(0, m_fwdPowerWatts);
+    const QString swr = formatTxSwr(0, effectiveSwr());
+
+    for (QWebSocket *client : std::as_const(m_clients)) {
+        TciClientState *state = clientState(client);
+        if (!state || !state->txSensorsEnabled)
+            continue;
+        if (!force && state->txSensorsLastSendMs > 0
+            && (nowMs - state->txSensorsLastSendMs) < state->txSensorsIntervalMs) {
+            continue;
+        }
+        state->txSensorsLastSendMs = nowMs;
+        sendToClient(client, sensors);
+        sendToClient(client, power);
+        sendToClient(client, swr);
+    }
+}
+
+void TciServer::scheduleTxSensorsBroadcast()
+{
+    // Coalesce forward/reverse/SWR updates that arrive in the same C&C frame.
+    if (m_txSensorsFlushPending)
+        return;
+    m_txSensorsFlushPending = true;
+    QTimer::singleShot(0, this, [this]() {
+        m_txSensorsFlushPending = false;
+        maybeBroadcastTxSensors();
+    });
 }
 
 QString TciServer::dspModeToTci(DSPMode mode) const
@@ -306,6 +406,18 @@ void TciServer::bindSlices(RadioModel *radioModel)
             connect(slice, &SliceModel::sMeterValueChanged, this,
                     [this, rx](double value) { onSMeterValueChanged(rx, value); }));
     }
+
+    if (RadioTelemetry *tel = radioModel->telemetry()) {
+        m_sliceConnections.append(
+            connect(tel, &RadioTelemetry::forwardPowerChanged, this,
+                    &TciServer::onForwardPowerChanged));
+        m_sliceConnections.append(
+            connect(tel, &RadioTelemetry::reversePowerChanged, this,
+                    &TciServer::onReversePowerChanged));
+        m_sliceConnections.append(
+            connect(tel, &RadioTelemetry::swrChanged, this,
+                    &TciServer::onSwrChanged));
+    }
 }
 
 void TciServer::sendInitState(QWebSocket *client)
@@ -368,10 +480,16 @@ void TciServer::sendInitState(QWebSocket *client)
                                     {QStringLiteral("Default")}));
     sendToClient(client, tciMessage(QStringLiteral("READY")));
 
-    // WSJT-X do_start() requires a "start;" notification to set _power_, else it
-    // throws "TCI SDR is not switched on" (unless the client option that sends
-    // start itself is enabled). Device START is distinct from IQ_START.
-    sendToClient(client, tciMessage(QStringLiteral("START")));
+    // Advertise honest device power from data-engine state. Device START/STOP
+    // is distinct from IQ_START. Tradeoff: WSJT-X do_start() sets _power_ from
+    // a "start;" notification (else "TCI SDR is not switched on" unless the
+    // client option that sends start itself / rig_power is enabled). When the
+    // radio is stopped we send "stop;" so clients see real state; start the
+    // engine (UI or TCI START) before expecting WSJT-X without that option.
+    if (m_settings->getDataEngineState() == QSDR::DataEngineUp)
+        sendToClient(client, tciMessage(QStringLiteral("START")));
+    else
+        sendToClient(client, tciMessage(QStringLiteral("STOP")));
 }
 
 TciServer::TciClientState *TciServer::clientState(QWebSocket *client)
@@ -444,6 +562,7 @@ void TciServer::onRxIqSamples(int rx, QVector<float> iqInterleaved, int sampleRa
         if (!state || !state->iqEnabledReceivers.contains(rx))
             continue;
 
+        // Advertise effective (legacy-doubled) rate; send raw DSP samples as-is.
         state->iqSampleRate = effectiveIqSampleRate(sampleRate);
 
         // Panadapter IQ is best-effort and droppable. If the socket already has
@@ -456,10 +575,7 @@ void TciServer::onRxIqSamples(int rx, QVector<float> iqInterleaved, int sampleRa
             continue;
         }
 
-        // Send the radio's actual RX rate as-is (no decimation); the frame
-        // header advertises the rate so the client's FFT scales correctly.
-        sendIqPacket(client, *state, rx, iqInterleaved.constData(),
-                     iqInterleaved.size());
+        sendIqPacket(client, *state, rx, iqInterleaved.constData(), iqInterleaved.size());
     }
 }
 
@@ -695,13 +811,22 @@ void TciServer::handleCommand(QWebSocket *client, const QString &commandLine)
     const int rx = qBound(0, channel, maxRx);
 
     // Device power (ExpertSDR START/STOP) — not the same as IQ stream control.
-    // WSJT-X sets _power_ only when it receives a "start;" notification.
+    // START/STOP request MainWindow (via signals) to start/stop the data engine
+    // like the UI Start/Stop button. "start;" / "stop;" are advertised when the
+    // engine state changes (onSystemStateChanged), and echoed immediately when
+    // already in the requested state.
     if (name == QLatin1String("START")) {
-        sendToClient(client, tciMessage(QStringLiteral("START")));
+        if (m_settings->getDataEngineState() == QSDR::DataEngineUp) {
+            sendToClient(client, tciMessage(QStringLiteral("START")));
+            return;
+        }
+        emit startRequested();
         return;
     }
 
     if (name == QLatin1String("STOP")) {
+        if (m_settings->getDataEngineState() != QSDR::DataEngineDown)
+            emit stopRequested();
         sendToClient(client, tciMessage(QStringLiteral("STOP")));
         return;
     }
@@ -721,7 +846,7 @@ void TciServer::handleCommand(QWebSocket *client, const QString &commandLine)
             return;
         state->iqEnabledReceivers.insert(rx);
         updateIqActiveHint();
-        // Advertise the radio's actual RX rate so the client scales its FFT.
+        // Advertise effective IQ rate (≤ audio doubled, e.g. 48k→96k).
         sendToClient(client, tciMessage(QStringLiteral("IQ_SAMPLERATE"),
                                         {QString::number(nativeIqSampleRate())}));
         return;
@@ -735,8 +860,9 @@ void TciServer::handleCommand(QWebSocket *client, const QString &commandLine)
     }
 
     if (name == QLatin1String("IQ_SAMPLERATE")) {
-        // cudaSDR streams the radio's actual RX rate (no decimation), so a
-        // client-requested rate is ignored; we always report the native rate.
+        // Client-requested rates are ignored. We report the effective
+        // advertised rate (≤ audio doubled, e.g. 48k→96k); binary IQ remains
+        // at the actual DSP sample rate (legacy rate/label mismatch).
         sendToClient(client, tciMessage(QStringLiteral("IQ_SAMPLERATE"),
                                         {QString::number(nativeIqSampleRate())}));
         return;
@@ -777,7 +903,11 @@ void TciServer::handleCommand(QWebSocket *client, const QString &commandLine)
             const qint64 freq = args.at(2).toLongLong(&ok);
             if (!ok || !isValidVfoHz(freq))
                 return;
-            m_settings->setVFOFrequency(0, rx, freq);
+            // WSJT-X / ExpertSDR CAT-style VFO sets the dial frequency. Mode-0
+            // (NCO-only) leaves CTR on the previous band (e.g. 14.074 → 7.074
+            // yields NCO = −7 MHz). Move LO with VFO so digi band hops land
+            // with CTR≈VFO and NCO≈0 — same contract as rigctld set_freq.
+            m_settings->setCtrFrequency(1, rx, freq);
             return;
         }
 
@@ -786,12 +916,17 @@ void TciServer::handleCommand(QWebSocket *client, const QString &commandLine)
     }
 
     if (name == QLatin1String("DDS")) {
-        if (args.size() >= 3) {
+        // Classic TCI is DDS:trx,freq (2 args). ExpertSDR3 / some clients also
+        // send DDS:trx,channel,freq (3 args). Accept either; frequency is last.
+        if (args.size() >= 2) {
             bool ok = false;
-            const qint64 freq = args.at(2).toLongLong(&ok);
+            const qint64 freq = args.last().toLongLong(&ok);
             if (!ok || !isValidVfoHz(freq))
                 return;
+            // Panadapter center only — keep dial VFO, refresh IF/NCO.
+            const qint64 vfo = m_settings->getVfoFrequency(rx);
             m_settings->setCtrFrequency(0, rx, freq);
+            m_settings->setNCOFrequency(true, rx, vfo - freq);
             return;
         }
 
@@ -805,7 +940,8 @@ void TciServer::handleCommand(QWebSocket *client, const QString &commandLine)
             const qint64 offset = args.at(2).toLongLong(&ok);
             if (!ok)
                 return;
-            m_settings->setNCOFrequency(true, rx, offset);
+            // IF is the dial offset from DDS/CTR; keep VFO = CTR + IF.
+            m_settings->setVFOFrequency(0, rx, m_settings->getCtrFrequency(rx) + offset);
             return;
         }
 
@@ -1031,9 +1167,68 @@ void TciServer::handleCommand(QWebSocket *client, const QString &commandLine)
     }
 
     // Accept enable command from TCI clients; cudaSDR always pushes S-meter updates.
-    // TX sensors are likewise accepted (no TX telemetry stream yet).
-    if (name == QLatin1String("RX_SENSORS_ENABLE")
-        || name == QLatin1String("TX_SENSORS_ENABLE")) {
+    // TX_SENSORS_ENABLE gates TX_SENSORS / TX_POWER / TX_SWR push updates.
+    if (name == QLatin1String("RX_SENSORS_ENABLE")) {
+        return;
+    }
+
+    if (name == QLatin1String("TX_SENSORS_ENABLE")) {
+        TciClientState *state = clientState(client);
+        if (!state)
+            return;
+
+        // Forms: tx_sensors_enable:true[ ,interval_ms]
+        //        tx_sensors_enable:0,true[ ,interval_ms]  (trx-prefixed, rare)
+        bool enable = false;
+        int intervalMs = state->txSensorsIntervalMs;
+        if (args.isEmpty()) {
+            return;
+        }
+        if (args.size() == 1) {
+            enable = parseBoolArg(args.at(0));
+        } else {
+            bool firstIsTrx = false;
+            const int asInt = args.at(0).toInt(&firstIsTrx);
+            Q_UNUSED(asInt)
+            if (firstIsTrx && args.at(0).trimmed() == QString::number(asInt)
+                && args.size() >= 2) {
+                enable = parseBoolArg(args.at(1));
+                if (args.size() >= 3) {
+                    bool ok = false;
+                    const int ms = args.at(2).toInt(&ok);
+                    if (ok)
+                        intervalMs = ms;
+                }
+            } else {
+                enable = parseBoolArg(args.at(0));
+                bool ok = false;
+                const int ms = args.at(1).toInt(&ok);
+                if (ok)
+                    intervalMs = ms;
+            }
+        }
+        state->txSensorsEnabled = enable;
+        state->txSensorsIntervalMs = qBound(30, intervalMs, 1000);
+        state->txSensorsLastSendMs = 0;
+        // ExpertSDR pushes TX sensors while transmitting; snapshot only if already TX.
+        if (enable && isTrxActive(m_settings->getRadioState()))
+            maybeBroadcastTxSensors(true);
+        return;
+    }
+
+    if (name == QLatin1String("TX_SENSORS")
+        || name == QLatin1String("TX_POWER")
+        || name == QLatin1String("POWER")
+        || name == QLatin1String("TX_SWR")
+        || name == QLatin1String("SWR")) {
+        // Push-only sensors; honour queries with the last known values.
+        if (name == QLatin1String("TX_SENSORS")) {
+            sendToClient(client, formatTxSensors(trx));
+        } else if (name == QLatin1String("TX_SWR") || name == QLatin1String("SWR")) {
+            sendToClient(client, formatTxSwr(trx, effectiveSwr()));
+        } else {
+            sendToClient(client, formatTxPower(trx, m_fwdPowerWatts));
+        }
         return;
     }
 
@@ -1148,6 +1343,8 @@ void TciServer::onRadioStateChanged(RadioState state)
     broadcast(formatTune(0, state == RadioState::TUNE));
     if (state == RadioState::RX)
         stopTxChrono();
+    else if (isTrxActive(state))
+        maybeBroadcastTxSensors(true);
 }
 
 void TciServer::startTxChrono(QWebSocket *client, int trx)
@@ -1212,6 +1409,26 @@ void TciServer::onTxChronoTick()
 void TciServer::onDriveLevelChanged(int level)
 {
     broadcast(formatDrive(0, level));
+}
+
+void TciServer::onForwardPowerChanged(qreal watts)
+{
+    m_fwdPowerWatts = watts;
+    scheduleTxSensorsBroadcast();
+}
+
+void TciServer::onReversePowerChanged(qreal watts)
+{
+    m_revPowerWatts = watts;
+    if (!m_swrValid)
+        scheduleTxSensorsBroadcast();
+}
+
+void TciServer::onSwrChanged(qreal swr)
+{
+    m_swr = swr;
+    m_swrValid = true;
+    scheduleTxSensorsBroadcast();
 }
 
 void TciServer::onSMeterValueChanged(int rx, double rawValue)

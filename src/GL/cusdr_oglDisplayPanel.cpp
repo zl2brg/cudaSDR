@@ -34,6 +34,7 @@
 #include "cusdr_glShaders.h"
 #include "cusdr_glDraw.h"
 #include "Util/cusdr_rigctlserver.h"
+#include "Util/cusdr_tciserver.h"
 
 #include <QGuiApplication>
 #include <QOpenGLPaintDevice>
@@ -271,6 +272,12 @@ void OGLDisplayPanel::setupConnections() {
 	RigCtlServer *rcs = set->rigCtlServer();
 	if (rcs)
 		connect(rcs, &RigCtlServer::remoteControlChanged, this, &OGLDisplayPanel::setRigCtlStatus);
+
+	TciServer *tci = set->tciServer();
+	if (tci) {
+		connect(tci, &TciServer::remoteControlChanged, this, &OGLDisplayPanel::setTciStatus);
+		setTciStatus(tci->hasClients());
+	}
 }
 
 void OGLDisplayPanel::setupTextstrings() {
@@ -342,6 +349,9 @@ void OGLDisplayPanel::setupTextstrings() {
 
 	m_rigCtlString = QString("RigCtl");
 	m_rigCtlStringWidth = m_oglTextSmall->fontMetrics().horizontalAdvance(m_rigCtlString);
+
+	m_tciString = QString("TCI");
+	m_tciStringWidth = m_oglTextSmall->fontMetrics().horizontalAdvance(m_tciString);
 
 	m_hermesString = QString("Hermes ");
     m_hermesStringWidth = m_oglTextSmall->fontMetrics().horizontalAdvance(m_hermesString);
@@ -816,6 +826,18 @@ void OGLDisplayPanel::paintUpperRegion() {
 		qglColor(QColor(0, 0, 0));
 	}
 	renderPanelText(m_oglTextSmallItalic,x1 + m_blankWidth, y1, m_rigCtlString);
+
+	// TCI status (lit when at least one WebSocket client is connected)
+	x1 += m_rigCtlStringWidth + 2*m_blankWidth + 2;
+	rect = QRect(x1, y1, m_tciStringWidth + 2*m_blankWidth, m_blankHeight);
+	if (m_tciConnected) {
+		drawPanelRect(rect, QColor(56, 242, 115), -2.0f);
+		qglColor(QColor(0, 0, 0));
+	} else {
+		drawPanelRect(rect, QColor(68, 68, 68), -2.0f);
+		qglColor(QColor(0, 0, 0));
+	}
+	renderPanelText(m_oglTextSmallItalic, x1 + m_blankWidth, y1, m_tciString);
 }
 
 void OGLDisplayPanel::paintLowerRegion() {
@@ -1952,6 +1974,13 @@ void OGLDisplayPanel::setRigCtlStatus(bool active) {
 		return;
     m_rigCtlConnected = active;
     scheduleRepaint();
+}
+
+void OGLDisplayPanel::setTciStatus(bool active) {
+	if (m_tciConnected == active)
+		return;
+	m_tciConnected = active;
+	scheduleRepaint();
 }
 
 void OGLDisplayPanel::setSendIQStatus(int value) {

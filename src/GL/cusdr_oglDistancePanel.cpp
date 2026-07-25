@@ -2470,18 +2470,6 @@ void QGLDistancePanel::setPanadapterColors() {
 	m_spectrumColorsChanged = true;
 
 	mutex.lock();
-	/*m_bkgRed   = (GLfloat)(set->getPanadapterColors().panBackgroundColor.red() / 256.0);
-	m_bkgGreen = (GLfloat)(set->getPanadapterColors().panBackgroundColor.green() / 256.0);
-	m_bkgBlue  = (GLfloat)(set->getPanadapterColors().panBackgroundColor.blue() / 256.0);*/
-
-	/*if (m_bkgRed * 1.2 > 1.0) m_bkgRed = 1.0f;
-	if (m_bkgGreen * 1.2 > 1.0) m_bkgGreen = 1.0f;
-	if (m_bkgBlue * 1.2 > 1.0) m_bkgBlue = 1.0f;
-
-	if (m_bkgRed * 1.6 > 1.0) m_bkgRed = 1.0f;
-	if (m_bkgGreen * 1.6 > 1.0) m_bkgGreen = 1.0f;
-	if (m_bkgBlue * 1.6 > 1.0) m_bkgBlue = 1.0f;*/
-
 	m_red	= (GLfloat)(set->getPanadapterColors().panLineColor.red() / 256.0);
 	m_green = (GLfloat)(set->getPanadapterColors().panLineColor.green() / 256.0);
 	m_blue	= (GLfloat)(set->getPanadapterColors().panLineColor.blue() / 256.0);
@@ -2498,7 +2486,12 @@ void QGLDistancePanel::setPanadapterColors() {
 	m_greenSB = (GLfloat)(set->getPanadapterColors().panSolidBottomColor.green() / 256.0);
 	m_blueSB  = (GLfloat)(set->getPanadapterColors().panSolidBottomColor.blue() / 256.0);
 
+	m_redD   = (GLfloat)(set->getPanadapterColors().distanceLineColor.red() / 256.0);
+	m_greenD = (GLfloat)(set->getPanadapterColors().distanceLineColor.green() / 256.0);
+	m_blueD  = (GLfloat)(set->getPanadapterColors().distanceLineColor.blue() / 256.0);
+
 	mutex.unlock();
+	update();
 }
 
 //void QGLDistancePanel::setWaterfallTime(int rx, int value) {

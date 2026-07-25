@@ -46,6 +46,7 @@ public:
                         int centerlineHeight,
                         float deltaF,
                         float zoomFactor,
+                        const QColor& centerColor,
                         const QColor& vfoColor,
                         bool dragMouse,
                         bool panLocked);

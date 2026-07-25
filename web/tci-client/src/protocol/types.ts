@@ -16,6 +16,8 @@ export type RadioState = {
   trx: boolean;
   tune: boolean;
   drive: number;
+  txPowerWatts: number;
+  swr: number;
   iqSampleRate: number;
   audioSampleRate: number;
   rxAudioOn: boolean;
@@ -40,6 +42,8 @@ export const defaultRadioState = (): RadioState => ({
   trx: false,
   tune: false,
   drive: 0,
+  txPowerWatts: 0,
+  swr: 1,
   iqSampleRate: 192_000,
   audioSampleRate: 48_000,
   rxAudioOn: false,

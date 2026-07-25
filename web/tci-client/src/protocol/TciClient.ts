@@ -67,6 +67,7 @@ export class TciClient {
         this.startIqWorker();
         window.setTimeout(() => {
           this.subscribeIq(0);
+          this.send(formatTciCommand('TX_SENSORS_ENABLE', ['true', 200]));
           if (this.state.rxAudioOn) {
             this.subscribeAudio(0);
             this.log('sys', 'RX audio stream requested');
@@ -93,7 +94,10 @@ export class TciClient {
       };
 
       ws.onerror = () => {
-        this.log('err', 'WebSocket error — is cudaSDR TCI enabled on port 50001?');
+        this.log(
+          'err',
+          'WebSocket error — is cudaSDR TCI on :50001? Use Vite /tci proxy or ws://127.0.0.1:50001 (not wss:// to cudaSDR)',
+        );
       };
     } catch (err) {
       this.log('err', `Bad URL: ${(err as Error).message}`);
@@ -347,6 +351,30 @@ export class TciClient {
           if (msg.args.length >= 2) {
             const level = Number(msg.args[1]);
             if (Number.isFinite(level)) this.patchState({ drive: level });
+          }
+          break;
+        case 'TX_SENSORS':
+          if (msg.args.length >= 5) {
+            const fwd = Number(msg.args[2]);
+            const swr = Number(msg.args[4]);
+            const patch: Partial<RadioState> = {};
+            if (Number.isFinite(fwd)) patch.txPowerWatts = fwd;
+            if (Number.isFinite(swr)) patch.swr = swr;
+            if (Object.keys(patch).length) this.patchState(patch);
+          }
+          break;
+        case 'TX_POWER':
+        case 'POWER':
+          if (msg.args.length >= 2) {
+            const watts = Number(msg.args[1]);
+            if (Number.isFinite(watts)) this.patchState({ txPowerWatts: watts });
+          }
+          break;
+        case 'TX_SWR':
+        case 'SWR':
+          if (msg.args.length >= 2) {
+            const swr = Number(msg.args[1]);
+            if (Number.isFinite(swr)) this.patchState({ swr });
           }
           break;
         case 'IQ_SAMPLERATE':

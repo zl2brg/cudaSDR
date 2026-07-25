@@ -90,6 +90,8 @@ QGLReceiverPanel::QGLReceiverPanel(SliceModel *model, QWidget *parent)
 	, m_crossHair(set->getHairCrossStatus(m_receiver))
     , m_crossHairCursor(false)
 	, m_panGrid(set->getPanGridStatus(m_receiver))
+	, m_peakHold(set->getPeakHoldStatus(m_receiver))
+	, m_peakHoldBufferResize(true)
 	, m_filterChanged(true)
 	, m_showFilterLeftBoundary(false)
 	, m_showFilterRightBoundary(false)
@@ -397,6 +399,7 @@ void QGLReceiverPanel::setupConnections() {
         m_dBmPanMin = m_sliceModel->dBmPanScaleMin();
         m_dBmPanMax = m_sliceModel->dBmPanScaleMax();
         m_dBmScalePanadapterUpdate = true;
+        m_peakHoldBufferResize = true;
         update();
     });
 
@@ -700,9 +703,14 @@ void QGLReceiverPanel::drawPanadapter() {
         QMatrix4x4 projection;
         projection.ortho(0, size().width(), size().height(), 0, -10, 10);
         PanadapterRenderer::Colors colors = { m_red, m_green, m_blue, m_redF, m_greenF, m_blueF, m_redST, m_greenST, m_blueST, m_redSB, m_greenSB, m_blueSB, m_bkgRed, m_bkgGreen, m_bkgBlue };
+        const QVector<qreal> emptyPeakHold;
+        const QVector<qreal>& peakHoldBins =
+            (m_peakHold && m_panPeakHoldBins.size() == m_panadapterBins.size())
+                ? m_panPeakHoldBins
+                : emptyPeakHold;
         m_panadapterRenderer->render(this, projection, m_panRect, m_panadapterBins, m_dBmPanMax, m_dBmPanMin,
                                    m_panMode, m_scaleMult, dpr, size().height(), colors, m_dataEngineState,
-                                   (m_receiver == m_currentReceiver));
+                                   (m_receiver == m_currentReceiver), peakHoldBins);
         if (m_panadapterRenderer->usesCompositePass())
             m_panadapterRenderer->compositeToDefaultFramebuffer(this, projection, m_panRect, dpr, size().height());
     }
@@ -942,7 +950,10 @@ void QGLReceiverPanel::drawCenterLine() {
     if (m_overlayRenderer) {
         QMatrix4x4 projection;
         projection.ortho(0, size().width(), size().height(), 0, -10, 10);
-        m_overlayRenderer->drawCenterLine(projection, m_panRect, m_freqScalePanRect, m_waterfallRect, m_displayCenterlineHeight, (float)m_deltaF, displayedZoomFactor(), set->getPanadapterColors().panCenterLineColor, m_dragMouse, m_panLocked);
+        m_overlayRenderer->drawCenterLine(projection, m_panRect, m_freqScalePanRect, m_waterfallRect, m_displayCenterlineHeight, (float)m_deltaF, displayedZoomFactor(),
+                                          set->getPanadapterColors().distanceLineColor,
+                                          set->getPanadapterColors().panCenterLineColor,
+                                          m_dragMouse, m_panLocked);
     }
 }
 
@@ -1852,6 +1863,7 @@ void QGLReceiverPanel::resizeGL(int iWidth, int iHeight) {
     m_panGridRenew = true;
     m_spectrumVertexColorUpdate = true;
     if (m_waterfallRenderer) m_waterfallRenderer->reset();
+    m_peakHoldBufferResize = true;
 
     update();
 
@@ -2065,12 +2077,24 @@ void QGLReceiverPanel::mousePressEvent(QMouseEvent* event) {
 				setCursor(Qt::OpenHandCursor);
 			m_dragMouse = true;
 
+			// Click-to-tune: move VFO/NCO/filter to the clicked frequency while
+			// keeping the panadapter center (LO) fixed. Update local delta
+			// before Settings so the slice→panel callback cannot early-return
+			// with a stale m_deltaF (which left the filter stuck at center).
+			const int dx = m_panRect.width()/2 - m_mousePos.x();
+			const qreal unit = displayedFrequencySpanHz() / m_panRect.width();
+			qint64 clickedFreq = (qint64)(qRound(m_centerFrequency - (unit * dx)));
+			if (clickedFreq > m_centerFrequency + m_sampleRate/2)
+				clickedFreq = m_centerFrequency + m_sampleRate/2;
+			else if (clickedFreq < m_centerFrequency - m_sampleRate/2)
+				clickedFreq = m_centerFrequency - m_sampleRate/2;
 
+			m_vfoFrequency = clickedFreq;
+			m_deltaFrequency = m_centerFrequency - m_vfoFrequency;
+			m_deltaF = (qreal)(1.0 * m_deltaFrequency / m_sampleRate);
 
-            int dx = m_panRect.width()/2 - m_mousePos.x();
-			qreal unit = displayedFrequencySpanHz() / m_panRect.width();
-            m_vfoFrequency = (long)(qRound((m_centerFrequency - (unit * dx))));
-			set->setVFOFrequency(0, m_receiver, m_vfoFrequency);		
+			set->setVFOFrequency(0, m_receiver, m_vfoFrequency);
+			update();
 		}
 		else if (event->buttons() == Qt::LeftButton) {
 
@@ -2758,8 +2782,11 @@ void QGLReceiverPanel::setCtrFrequency(int mode, int rx, qint64 freq) {
     m_deltaFrequency = m_centerFrequency - m_vfoFrequency;
     m_deltaF = (qreal)(1.0 * m_deltaFrequency / m_sampleRate);
 
-    if (freqChanged)
+    if (freqChanged) {
         m_freqScalePanadapterUpdate = true;
+        if (m_peakHold)
+            resetPeakHoldBins();
+    }
 
     // Digit-wheel retunes fire ctr+vfo every notch. Extra NoPartialUpdate clears here
     // flash the window under Core 3.3. While the engine is running, spectrum frames
@@ -2776,17 +2803,22 @@ void QGLReceiverPanel::setVFOFrequency(int mode, int rx, qint64 freq) {
 	Q_UNUSED(mode)
 	
 	if (m_receiver != rx) return;
-	if (m_vfoFrequency == freq) return;
 
-	m_vfoFrequency = freq;
-	if (m_vfoFrequency > m_centerFrequency + m_sampleRate/2)
-		m_vfoFrequency = m_centerFrequency + m_sampleRate/2;
-	else if (m_vfoFrequency < m_centerFrequency - m_sampleRate/2)
-		m_vfoFrequency = m_centerFrequency - m_sampleRate/2;
+	qint64 newFreq = freq;
+	if (newFreq > m_centerFrequency + m_sampleRate/2)
+		newFreq = m_centerFrequency + m_sampleRate/2;
+	else if (newFreq < m_centerFrequency - m_sampleRate/2)
+		newFreq = m_centerFrequency - m_sampleRate/2;
 
+	const bool unchanged = (m_vfoFrequency == newFreq);
+	m_vfoFrequency = newFreq;
+	// Always resync NCO offset display — callers may have pre-assigned
+	// m_vfoFrequency (click-to-tune) before Settings emits frequencyChanged.
 	m_deltaFrequency = m_centerFrequency - m_vfoFrequency;
 	m_deltaF = (qreal)(1.0*m_deltaFrequency/m_sampleRate);
-	
+
+	if (unchanged) return;
+
     // Spectrum frames redraw the VFO/filter; skip NoPartialUpdate clears while live.
     if (m_dataEngineState != QSDR::DataEngineUp && m_displayTime.elapsed() >= 33) {
 	    m_displayTime.restart();
@@ -3040,6 +3072,11 @@ void QGLReceiverPanel::computeDisplayBins(QVector<float>& buffer, QVector<float>
 
 	m_panadapterBins.clear();
 
+	if (m_peakHold && (m_peakHoldBufferResize || m_panPeakHoldBins.size() != m_panSpectrumBinsLength)) {
+		resetPeakHoldBins();
+		m_peakHoldBufferResize = false;
+	}
+
 	for (int i = 0; i < m_panSpectrumBinsLength; i++) {
 		
 		//qreal max;
@@ -3078,6 +3115,10 @@ void QGLReceiverPanel::computeDisplayBins(QVector<float>& buffer, QVector<float>
 			pColor = getWaterfallColorAtPixel(waterfallBuffer.at(idx) - m_dBmPanLogGain);
 		}
 
+		if (m_peakHold && i < m_panPeakHoldBins.size()
+			&& (m_panadapterBins.at(i) > m_panPeakHoldBins.at(i))) {
+			m_panPeakHoldBins[i] = m_panadapterBins.at(i);
+		}
 
 		TGL_ubyteRGBA color;
 		color.red   = (uchar)(pColor.red());
@@ -3326,9 +3367,24 @@ void QGLReceiverPanel::setPanGridStatus(bool value, int rx) {
 }
 
 void QGLReceiverPanel::setPeakHoldStatus(bool value, int rx) {
-	Q_UNUSED(value)
 
 	if (m_receiver != rx) return;
+
+	QMutexLocker locker(&spectrumBufferMutex);
+	if (m_peakHold == value)
+		return;
+
+	m_peakHold = value;
+	resetPeakHoldBins();
+}
+
+void QGLReceiverPanel::resetPeakHoldBins() {
+	m_panPeakHoldBins.clear();
+	if (m_panSpectrumBinsLength > 0) {
+		m_panPeakHoldBins.resize(m_panSpectrumBinsLength);
+		m_panPeakHoldBins.fill(-500.0);
+	}
+	m_peakHoldBufferResize = false;
 }
 
 void QGLReceiverPanel::setPanLockedStatus(bool value, int rx) {
@@ -3365,6 +3421,7 @@ void QGLReceiverPanel::sampleRateChanged(int value) {
 	m_freqScalePanadapterUpdate = true;
 	m_panGridUpdate = true;
 	m_filterChanged = true;
+	m_peakHoldBufferResize = true;
 }
 
 void QGLReceiverPanel::setMercuryAttenuator(HamBand band, int value) {
@@ -3438,6 +3495,7 @@ void QGLReceiverPanel::setdBmScaleMin(int rx, qreal value) {
 
 	m_dBmScalePanadapterUpdate = true;
 	m_panGridUpdate = true;
+	m_peakHoldBufferResize = true;
 }
 
 void QGLReceiverPanel::setdBmScaleMax(int rx, qreal value) {
@@ -3448,6 +3506,7 @@ void QGLReceiverPanel::setdBmScaleMax(int rx, qreal value) {
 
 	m_dBmScalePanadapterUpdate = true;
 	m_panGridUpdate = true;
+	m_peakHoldBufferResize = true;
 }
 
 void QGLReceiverPanel::setMouseWheelFreqStep(int rx, qreal step) {
@@ -3470,6 +3529,7 @@ void QGLReceiverPanel::setHamBand(int rx, bool byButton, HamBand band) {
 
 	m_dBmScalePanadapterUpdate = true;
 	m_panGridUpdate = true;
+	m_peakHoldBufferResize = true;
 }
 
 void QGLReceiverPanel::setADCStatus(int value) {

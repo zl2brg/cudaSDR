@@ -7,9 +7,11 @@
   import { TciClient } from './protocol/TciClient';
   import { defaultRadioState, type RadioState } from './protocol/types';
 
+  // Default via Vite /tci proxy (wss → plain ws://127.0.0.1:50001). Direct
+  // `ws://127.0.0.1:50001` also works from https://localhost (loopback exception).
   let wsUrl =
     typeof window !== 'undefined'
-      ? `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.hostname}:50001`
+      ? `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/tci`
       : 'ws://127.0.0.1:50001';
   let state: RadioState = defaultRadioState();
   let logMessage = 'Ready';

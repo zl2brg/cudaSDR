@@ -41,12 +41,15 @@
 //#include <QtNetwork>
 //#include <QElapsedTimerr>
 #include <QScrollArea>
+#include <QCoreApplication>
+#include <QEventLoop>
 #include "cusdr_audio_settingsdialog.h"
 #include "cusdr_mainWidget.h"
 #include "Controllers/ServerSettingsController.h"
 #include "UI/DeviceSelectionDialog.h"
 #include "UI/MainWindow/MainWindowUI.h"
 #include "Util/device_identity.h"
+#include "Util/cusdr_tciserver.h"
 
 extern "C" int GetWDSPVersion();
 
@@ -144,11 +147,16 @@ MainWindow::MainWindow(RadioModel *model, Settings* settingsModel, QWidget *pare
 */
 MainWindow::~MainWindow() {
     qDebug() <<  "MainWindow delete";
+    m_shuttingDown = true;
+    // closeEvent normally stops/deletes the engine; if we get here without that, stop first.
+    if (m_dataEngine && m_dataEngineState == QSDR::DataEngineUp)
+	    m_dataEngine->stop();
     disconnect(set, 0, this, 0);
     disconnect(0, 0, 0);
     delete fonts;
     // the SDR data engine
     delete  m_dataEngine;
+    m_dataEngine = nullptr;
     // control widgets
     delete m_serverWidget;
     delete m_hpsdrTabWidget;
@@ -196,6 +204,19 @@ void MainWindow::setupConnections() {
 		&Settings::masterSwitchChanged, 
 		this, 
 		&MainWindow::masterSwitchChanged);
+
+	if (TciServer *tci = set->tciServer()) {
+		CHECKED_CONNECT(
+			tci,
+			&TciServer::startRequested,
+			this,
+			&MainWindow::onTciStartRequested);
+		CHECKED_CONNECT(
+			tci,
+			&TciServer::stopRequested,
+			this,
+			&MainWindow::onTciStopRequested);
+	}
 
 	CHECKED_CONNECT(
 	set,
@@ -724,12 +745,56 @@ void MainWindow::clearStatusBarMessage() {
 }
 
 /*!
+	\brief Stop data engine / radio before exit. Uses an explicit stop path
+	(not the Start/Stop toggle) so a UI/state desync cannot start the radio.
+*/
+void MainWindow::ensureEngineStoppedForShutdown()
+{
+	if (!ui || !set)
+		return;
+
+	const bool engineUp = (m_dataEngineState == QSDR::DataEngineUp);
+	const bool powerOn = set->getMainPower();
+	const bool startOn = (ui->startBtn && ui->startBtn->btnState() == AeroButton::ON);
+
+	if (!powerOn && !engineUp && !startOn)
+		return;
+
+	MAIN_DEBUG << "shutdown: stopping radio (power=" << powerOn
+		   << " engineUp=" << engineUp << " startBtnOn=" << startOn << ")";
+
+	if (startOn) {
+		ui->startBtn->setBtnState(AeroButton::OFF);
+		ui->startBtn->setHighlight(QColor(0x91, 0xeb, 0xff));
+		ui->startBtn->setText(QStringLiteral("Start"));
+	}
+
+	if (ui->muteBtn && ui->muteBtn->btnState() == AeroButton::ON) {
+		ui->muteBtn->setBtnState(AeroButton::OFF);
+		ui->muteBtn->update();
+		if (ui->volumeSlider)
+			ui->volumeSlider->setEnabled(true);
+		for (int i = 0; i < set->getNumberOfReceivers(); i++)
+			set->setMainVolume(i, rxVolumeList.at(i));
+	}
+
+	// Prefer the normal power-off path so masterSwitchChanged runs stop().
+	if (powerOn) {
+		set->setMainPower(false);
+	} else if (m_dataEngine && engineUp) {
+		m_dataEngine->stop();
+	}
+
+	// Let queued stop-side signals settle before widgets/engine are deleted.
+	QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+}
+
+/*!
 	\brief closes the application and shut down all engines.
 */
 void MainWindow::closeMainWindow() {
 
-	if (set->getMainPower())
-		startButtonClickedEvent();
+	ensureEngineStoppedForShutdown();
 	close();
 }
  
@@ -920,6 +985,50 @@ void MainWindow::startButtonClickedEvent() {
 			for (int i = 0; i < set->getNumberOfReceivers(); i++)
 				set->setMainVolume(i, rxVolumeList.at(i));
 		}
+	}
+}
+
+/*!
+	\brief TCI START — same data-engine path as the UI Start button.
+*/
+void MainWindow::onTciStartRequested()
+{
+	if (m_dataEngineState == QSDR::DataEngineUp || set->getMainPower())
+		return;
+
+	ui->startBtn->setBtnState(AeroButton::ON);
+
+	QColor col = QColor(180, 0, 0);
+	ui->startBtn->setColorOn(col);
+
+	col = QColor(250, 0, 0);
+	ui->startBtn->setHighlight(col);
+	ui->startBtn->setText("Stop");
+	set->setMainPower(true);
+}
+
+/*!
+	\brief TCI STOP — same data-engine path as the UI Stop button (not app exit).
+*/
+void MainWindow::onTciStopRequested()
+{
+	if (!set->getMainPower() && ui->startBtn->btnState() == AeroButton::OFF)
+		return;
+
+	ui->startBtn->setBtnState(AeroButton::OFF);
+
+	QColor col = QColor(0x91, 0xeb, 0xff);
+	ui->startBtn->setHighlight(col);
+	ui->startBtn->setText("Start");
+	set->setMainPower(false);
+
+	if (ui->muteBtn->btnState() == AeroButton::ON) {
+		ui->muteBtn->setBtnState(AeroButton::OFF);
+		ui->muteBtn->update();
+
+		ui->volumeSlider->setEnabled(true);
+		for (int i = 0; i < set->getNumberOfReceivers(); i++)
+			set->setMainVolume(i, rxVolumeList.at(i));
 	}
 }
 
@@ -1695,8 +1804,17 @@ void MainWindow::resizeEvent(
 void MainWindow::closeEvent(
 		QCloseEvent *event			/*!<[in] event */
 ) {
-	if (set->getMainPower())
-		startButtonClickedEvent();
+	if (m_shuttingDown) {
+		QMainWindow::closeEvent(event);
+		return;
+	}
+	m_shuttingDown = true;
+
+	// Always stop the radio before tearing down OpenGL / engine objects.
+	ensureEngineStoppedForShutdown();
+
+	if (TciServer *tci = set->tciServer())
+		tci->stopListening();
 
 	// Persist last VFO/center frequencies even if the user never toggled main power.
 	set->saveSettings();
@@ -1717,6 +1835,9 @@ void MainWindow::closeEvent(
 	if (m_dataEngine) {
 
 		disconnect(m_dataEngine, 0, 0, 0);
+		// Belt-and-braces: stop again if state raced past the earlier check.
+		if (m_dataEngineState == QSDR::DataEngineUp)
+			m_dataEngine->stop();
 		delete m_dataEngine;
 		m_dataEngine = NULL;
 	}

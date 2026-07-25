@@ -948,6 +948,14 @@ int Settings::loadSettings() {
             m_receiverDataList[i].panGrid = false;
 
         cstr = m_rxStringList.at(i);
+        cstr.append("/peakHold");
+        str = settings->value(cstr, "off").toString();
+        if (str.toLower() == "on")
+            m_receiverDataList[i].peakHold = true;
+        else
+            m_receiverDataList[i].peakHold = false;
+
+        cstr = m_rxStringList.at(i);
         cstr.append("/hairCross");
         str = settings->value(cstr, "off").toString();
         if (str.toLower() == "on")
@@ -1324,7 +1332,6 @@ int Settings::loadSettings() {
             }
         }
 
-        int valueMin, valueMax;
         if (m_receiverDataList[i].dBmPanScaleMinList.length() == MAX_BANDS &&
             m_receiverDataList[i].dBmPanScaleMaxList.length() == MAX_BANDS &&
             m_bandList.length() == MAX_BANDS
@@ -1335,24 +1342,24 @@ int Settings::loadSettings() {
                 cstr.append("/dBmPanScaleMin");
                 cstr.append(m_bandList.at(j).bandString);
 
-                valueMin = settings->value(cstr, -120).toInt();
-                if ((valueMin < -200) || (valueMin > 0)) valueMin = -120;
+                qreal loadedMin = settings->value(cstr, -120.0).toDouble();
+                if ((loadedMin < MINDBM) || (loadedMin > MAXDBM)) loadedMin = -120.0;
 
                 cstr = m_rxStringList.at(i);
                 cstr.append("/dBmPanScaleMax");
                 cstr.append(m_bandList.at(j).bandString);
 
-                valueMax = settings->value(cstr, -10).toInt();
-                if ((valueMax < -200) || (valueMax > 0)) valueMax = -10;
+                qreal loadedMax = settings->value(cstr, -10.0).toDouble();
+                if ((loadedMax < MINDBM) || (loadedMax > MAXDBM)) loadedMax = -10.0;
 
-                if (valueMax <= valueMin) {
+                if (loadedMax <= loadedMin) {
 
-                    valueMin = -120;
-                    valueMax = -10;
+                    loadedMin = -120.0;
+                    loadedMax = -10.0;
                 }
 
-                m_receiverDataList[i].dBmPanScaleMinList[j] = (qreal) (1.0 * valueMin);
-                m_receiverDataList[i].dBmPanScaleMaxList[j] = (qreal) (1.0 * valueMax);
+                m_receiverDataList[i].dBmPanScaleMinList[j] = loadedMin;
+                m_receiverDataList[i].dBmPanScaleMaxList[j] = loadedMax;
             }
         }
     }
@@ -1971,6 +1978,13 @@ int Settings::saveSettings() {
         str = m_rxStringList.at(i);
         str.append("/grid");
         if (m_receiverDataList[i].panGrid)
+            settings->setValue(str, "on");
+        else
+            settings->setValue(str, "off");
+
+        str = m_rxStringList.at(i);
+        str.append("/peakHold");
+        if (m_receiverDataList[i].peakHold)
             settings->setValue(str, "on");
         else
             settings->setValue(str, "off");
@@ -3659,8 +3673,12 @@ void Settings::setCtrFrequency(int mode, int rx, qint64 frequency) {
             break;
 
         case 1:
-
+            // Keep VFO on the LO (NCO 0). setVFOFrequency early-returns when
+            // VFO already equals frequency, which would leave a stale NCO if
+            // CTR was corrected after a mode-0 band hop — clear it explicitly.
             setVFOFrequency(0, rx, frequency);
+            if (m_receiverDataList.at(rx).ncoFrequency != 0)
+                setNCOFrequency(false, rx, 0);
             break;
     }
 
@@ -4697,7 +4715,12 @@ bool Settings::getPanGridStatus(int rx) {
 }
 
 void Settings::setPeakHold(bool value, int rx) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) { m_radioModel->slices()[rx]->setPeakHold(value); return; }
+    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) {
+        m_radioModel->slices()[rx]->setPeakHold(value);
+        QMutexLocker locker(&settingsMutex);
+        m_receiverDataList[rx].peakHold = value;
+        return;
+    }
 
     QMutexLocker locker(&settingsMutex);
 
@@ -4793,24 +4816,38 @@ void Settings::setSMeterHoldTime(int value) {
 }
 
 void Settings::setdBmPanScaleMin(int rx, qreal value) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) { m_radioModel->slices()[rx]->setDBmPanScaleMin(value); return; }
+    if (rx < 0 || rx >= m_receiverDataList.size())
+        return;
+
+    if (m_radioModel && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx])
+        m_radioModel->slices()[rx]->setDBmPanScaleMin(value);
 
     QMutexLocker locker(&settingsMutex);
 
-    HamBand band = m_receiverDataList.at(m_currentReceiver).hamBand;
+    HamBand band = m_receiverDataList.at(rx).hamBand;
+    if (band < 0 || band >= m_receiverDataList[rx].dBmPanScaleMinList.size())
+        return;
     m_receiverDataList[rx].dBmPanScaleMinList[band] = value;
 
+    locker.unlock();
     emit dBmScaleMinChanged(rx, value);
 }
 
 void Settings::setdBmPanScaleMax(int rx, qreal value) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) { m_radioModel->slices()[rx]->setDBmPanScaleMax(value); return; }
+    if (rx < 0 || rx >= m_receiverDataList.size())
+        return;
+
+    if (m_radioModel && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx])
+        m_radioModel->slices()[rx]->setDBmPanScaleMax(value);
 
     QMutexLocker locker(&settingsMutex);
 
-    HamBand band = m_receiverDataList.at(m_currentReceiver).hamBand;
+    HamBand band = m_receiverDataList.at(rx).hamBand;
+    if (band < 0 || band >= m_receiverDataList[rx].dBmPanScaleMaxList.size())
+        return;
     m_receiverDataList[rx].dBmPanScaleMaxList[band] = value;
 
+    locker.unlock();
     emit dBmScaleMaxChanged(rx, value);
 }
 
@@ -4835,7 +4872,12 @@ void Settings::showRadioPopupWidget() {
 }
 
 void Settings::setPanAveragingMode(int rx, PanAveragingMode mode) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) { m_radioModel->slices()[rx]->setPanAveragingMode(mode); return; }
+    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) {
+        m_radioModel->slices()[rx]->setPanAveragingMode(mode);
+        QMutexLocker locker(&settingsMutex);
+        m_receiverDataList[rx].panAvMode = mode;
+        return;
+    }
 
     if (m_receiverDataList.at(rx).panAvMode == mode) return;
 
@@ -5230,8 +5272,14 @@ void Settings::syncSlicesWithSettings() {
         slice->setWaterfallOffsetHi(m_receiverDataList[i].waterfallOffsetHi);
         slice->setPanGrid(m_receiverDataList[i].panGrid);
         slice->setPeakHold(m_receiverDataList[i].peakHold);
-        slice->setDBmPanScaleMin(m_receiverDataList[i].dBmPanScaleMinList.isEmpty() ? -140.0 : m_receiverDataList[i].dBmPanScaleMinList.first());
-        slice->setDBmPanScaleMax(m_receiverDataList[i].dBmPanScaleMaxList.isEmpty() ? -20.0 : m_receiverDataList[i].dBmPanScaleMaxList.first());
+        const qreal dBmMin = (band >= 0 && band < m_receiverDataList[i].dBmPanScaleMinList.size())
+            ? m_receiverDataList[i].dBmPanScaleMinList.at(band)
+            : -120.0;
+        const qreal dBmMax = (band >= 0 && band < m_receiverDataList[i].dBmPanScaleMaxList.size())
+            ? m_receiverDataList[i].dBmPanScaleMaxList.at(band)
+            : -10.0;
+        slice->setDBmPanScaleMin(dBmMin);
+        slice->setDBmPanScaleMax(dBmMax);
         slice->setWaterfallOffsetLo(m_receiverDataList[i].waterfallOffsetLo);
         slice->setWaterfallOffsetHi(m_receiverDataList[i].waterfallOffsetHi);
         slice->setPanGrid(m_receiverDataList[i].panGrid);
@@ -5251,6 +5299,10 @@ void Settings::syncSettingsWithSlices() {
         const HamBand band = m_receiverDataList[i].hamBand;
         if (band >= 0 && band < m_receiverDataList[i].dspModeList.size())
             m_receiverDataList[i].dspModeList[band] = slice->dspMode();
+        if (band >= 0 && band < m_receiverDataList[i].dBmPanScaleMinList.size())
+            m_receiverDataList[i].dBmPanScaleMinList[band] = slice->dBmPanScaleMin();
+        if (band >= 0 && band < m_receiverDataList[i].dBmPanScaleMaxList.size())
+            m_receiverDataList[i].dBmPanScaleMaxList[band] = slice->dBmPanScaleMax();
         m_receiverDataList[i].filterLo = (qreal)slice->filterLow();
         m_receiverDataList[i].filterHi = (qreal)slice->filterHigh();
         m_receiverDataList[i].agcMode = slice->agcMode();

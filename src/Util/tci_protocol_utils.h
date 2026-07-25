@@ -111,6 +111,16 @@ inline bool acceptsTxAudio(RadioState state)
     return state == RadioState::MOX || state == RadioState::TUNE;
 }
 
+/**
+ * Advertised TCI IQ sample rate (IQ_SAMPLERATE / IQ frame header).
+ *
+ * Rates ≤ audioRate are doubled (e.g. 48k → 96k) so third-party clients
+ * (WSJT-X / ExpertSDR) do not mix IQ into the audio path when rates collide.
+ * Force any advertised rate with rateOverride (CUSDR_TCI_IQ_RATE).
+ *
+ * Note: the binary IQ payload remains at the actual DSP sample rate; only the
+ * advertised label / frame header rate is adjusted (legacy rate/label mismatch).
+ */
 inline int effectiveIqSampleRate(int actualRate, int audioRate = static_cast<int>(kRxAudioRateHz),
                                int rateOverride = 0)
 {

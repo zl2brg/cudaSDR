@@ -124,6 +124,7 @@ private:
 	TScale						m_secScale;
 	
 	QVector<qreal>					m_panadapterBins;
+	QVector<qreal>					m_panPeakHoldBins;
 	QVarLengthArray<TGL_ubyteRGBA>	m_waterfallPixel;
 
 	QQueue<QVector<float> >			specAv_queue;
@@ -311,6 +312,8 @@ private:
 	bool		m_crossHair;
 	bool		m_crossHairCursor;
 	bool		m_panGrid;
+	bool		m_peakHold;
+	bool		m_peakHoldBufferResize;
 	bool		m_filterChanged;
 	bool		m_showFilterLeftBoundary;
 	bool		m_showFilterRightBoundary;
@@ -421,6 +424,7 @@ private slots:
 	void	setMidToVfoFrequency();
 	void	setPanGridStatus(bool value, int rx);
 	void	setPeakHoldStatus(bool value, int rx);
+	void	resetPeakHoldBins();
 	void	setPanLockedStatus(bool value, int rx);
 	void	setClickVFOStatus(bool value, int rx);
 	void	setHairCrossStatus(bool value, int rx);

@@ -61,6 +61,8 @@ public slots:
             QSDR::_ServerMode mode,
             QSDR::_DataEngineState state);
 	void	startButtonClickedEvent();
+	void	onTciStartRequested();
+	void	onTciStopRequested();
 	void	widgetBtnClickedEvent();
 	void	wideBandBtnClickedEvent();
 	void    radioStateChange(RadioState state);
@@ -137,6 +139,8 @@ private:
 	void	setAttenuatorButton();
     void    setupActions();
     void    checkStartButtonState();
+	//! Stop the radio/data engine before window teardown (never toggle Start).
+	void	ensureEngineStoppedForShutdown();
 
 
 private:
@@ -223,6 +227,7 @@ private:
 	bool		m_fullScreen;
 	bool		m_mover;
 	bool		m_msgBrowserVisible;
+	bool		m_shuttingDown = false;
 
 	double		m_alpha;
 

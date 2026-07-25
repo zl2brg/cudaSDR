@@ -262,14 +262,15 @@ void PanadapterRenderer::render(QOpenGLFunctions *gl,
                                 int parentHeight,
                                 const Colors& colors,
                                 QSDR::_DataEngineState dataEngineState,
-                                bool isCurrentReceiver)
+                                bool isCurrentReceiver,
+                                const QVector<qreal>& peakHoldBins)
 {
     if (bins.isEmpty() || panRect.width() <= 0 || panRect.height() <= 0)
         return;
 
     if (!m_rhiActive) {
         renderWithOpenGL(projection, panRect, bins, dBmMax, dBmMin, mode, scaleMult, dpr,
-                         parentHeight, colors, dataEngineState, isCurrentReceiver, gl);
+                         parentHeight, colors, dataEngineState, isCurrentReceiver, gl, peakHoldBins);
         return;
     }
 
@@ -280,7 +281,7 @@ void PanadapterRenderer::render(QOpenGLFunctions *gl,
     if (!ensureRenderTarget(pixelSize)) {
         m_rhiActive = false;
         renderWithOpenGL(projection, panRect, bins, dBmMax, dBmMin, mode, scaleMult, dpr,
-                         parentHeight, colors, dataEngineState, isCurrentReceiver, gl);
+                         parentHeight, colors, dataEngineState, isCurrentReceiver, gl, peakHoldBins);
         return;
     }
 
@@ -289,7 +290,7 @@ void PanadapterRenderer::render(QOpenGLFunctions *gl,
         qWarning() << "PanadapterRenderer: beginOffscreenFrame failed, using OpenGL fallback";
         m_rhiActive = false;
         renderWithOpenGL(projection, panRect, bins, dBmMax, dBmMin, mode, scaleMult, dpr,
-                         parentHeight, colors, dataEngineState, isCurrentReceiver, gl);
+                         parentHeight, colors, dataEngineState, isCurrentReceiver, gl, peakHoldBins);
         return;
     }
 
@@ -388,6 +389,20 @@ void PanadapterRenderer::render(QOpenGLFunctions *gl,
     }
     default:
         break;
+    }
+
+    if (peakHoldBins.size() == bins.size()) {
+        m_vertexCache.resize(vertexArrayLength);
+        for (int i = 0; i < vertexArrayLength; ++i) {
+            const float vx = float(x1 + (i / scaleMult));
+            m_vertexCache[i] = {
+                vx,
+                float(yTop - yScale * float(peakHoldBins.at(i))),
+                -0.5f,
+                colors.r, colors.g, colors.b, 1.0f
+            };
+        }
+        drawGeometry(cb, matrix, m_vertexCache.data(), m_vertexCache.size(), linePipeline, vertexArrayLength);
     }
 
     cb->endPass();
@@ -593,7 +608,8 @@ void PanadapterRenderer::renderWithOpenGL(const QMatrix4x4& projection,
                                           const Colors& colors,
                                           QSDR::_DataEngineState dataEngineState,
                                           bool isCurrentReceiver,
-                                          QOpenGLFunctions *gl)
+                                          QOpenGLFunctions *gl,
+                                          const QVector<qreal>& peakHoldBins)
 {
     if (!m_glShader || !m_glShader->isLinked() || !gl)
         return;
@@ -726,6 +742,21 @@ void PanadapterRenderer::renderWithOpenGL(const QMatrix4x4& projection,
     }
     default:
         break;
+    }
+
+    if (peakHoldBins.size() == bins.size()) {
+        m_vertexCache.resize(vertexArrayLength);
+        for (int i = 0; i < vertexArrayLength; ++i) {
+            const float vx = float(x1 + (i / scaleMult));
+            m_vertexCache[i] = {
+                vx,
+                float(yTop - yScale * float(peakHoldBins.at(i))),
+                -0.5f,
+                colors.r, colors.g, colors.b, 1.0f
+            };
+        }
+        updateVBO(int(m_vertexCache.size() * sizeof(VertexData)), m_vertexCache.data());
+        gl->glDrawArrays(GL_LINE_STRIP, 0, vertexArrayLength);
     }
 
     if (posLoc >= 0)

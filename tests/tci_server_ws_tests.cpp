@@ -5,6 +5,8 @@
 #include "Util/cusdr_tciserver.h"
 #include "Util/cusdr_queue.h"
 #include "Util/tci_protocol_utils.h"
+#include "Models/RadioModel.h"
+#include "Models/RadioTelemetry.h"
 #include "cusdr_settings.h"
 
 using namespace TciProtocol;
@@ -27,6 +29,7 @@ private slots:
     void txAudioWsjtOversizedFrameYieldsOneBlock();
     void vfoOutOfRangeRejected();
     void vfoInRangeAccepted();
+    void vfoBandChangeRetunesCenterAndClearsNco();
     void modulationCommandUpdatesMode();
     void iqStartStopTogglesActiveHint();
     void txAudioAccumulatesAcrossFrames();
@@ -36,10 +39,15 @@ private slots:
     void tuneCommandSetsTuneState();
     void audioStartStopGatesRxBinaryStream();
     void compatStubCommandsAccepted();
+    void startStopEmitRequestsAndInitAdvertisesPower();
+    void dataEngineStateChangeBroadcastsStartStop();
+    void txSensorsBroadcastPowerAndSwrWhileTx();
+    void txPowerSwrQueryReturnsCachedValues();
 
 private:
     Settings *m_settings = nullptr;
     TciServer *m_server = nullptr;
+    RadioModel *m_radioModel = nullptr;
     QHQueue<QVector<double>> m_txQueue;
     QWebSocket m_client;
     QStringList m_textMessages;
@@ -58,8 +66,12 @@ void TciServerWsTests::initTestCase()
     m_settings->setCtrFrequency(0, 0, m_baselineVfoHz);
     m_settings->setDSPMode(0, USB);
 
+    m_radioModel = new RadioModel(m_settings);
+    m_settings->setRadioModel(m_radioModel);
+
     m_server = new TciServer();
     m_server->setTransmitAudioQueue(&m_txQueue);
+    m_server->bindSlices(m_radioModel);
     QVERIFY(m_server->startListening(0));
     QVERIFY(m_server->port() > 0);
 }
@@ -72,6 +84,10 @@ void TciServerWsTests::cleanupTestCase()
         delete m_server;
         m_server = nullptr;
     }
+    if (m_settings)
+        m_settings->setRadioModel(nullptr);
+    delete m_radioModel;
+    m_radioModel = nullptr;
     Settings::delete_instance();
     m_settings = nullptr;
 }
@@ -99,6 +115,8 @@ void TciServerWsTests::cleanup()
     m_client.close();
     QVERIFY(QTest::qWaitFor([this]() { return m_client.state() == QAbstractSocket::UnconnectedState; }, 3000));
     m_settings->setRadioState(RadioState::RX);
+    m_settings->setSystemState(QSDR::NoError, m_settings->getHWInterface(),
+                               m_settings->getCurrentServerMode(), QSDR::DataEngineDown);
     drainTxQueue();
 }
 
@@ -130,7 +148,9 @@ void TciServerWsTests::connectReceivesReadyBurst()
     QVERIFY(m_textMessages.join('|').contains(QStringLiteral("protocol:ExpertSDR3,1.5")));
     QVERIFY(m_textMessages.join('|').contains(QStringLiteral("audio_samplerate:48000")));
     QVERIFY(m_textMessages.join('|').contains(QStringLiteral("ready;")));
-    QVERIFY(m_textMessages.join('|').contains(QStringLiteral("start;")));
+    // Engine is down in the unit-test fixture → honest stop; (not start;).
+    QVERIFY(m_textMessages.join('|').contains(QStringLiteral("stop;")));
+    QVERIFY(!m_textMessages.join('|').contains(QStringLiteral("start;")));
 }
 
 void TciServerWsTests::trxCommandSetsMoxState()
@@ -257,9 +277,11 @@ void TciServerWsTests::txAudioWsjtOversizedFrameYieldsOneBlock()
 
 void TciServerWsTests::vfoOutOfRangeRejected()
 {
+    const qint64 before = m_settings->getVfoFrequency(0);
     m_client.sendTextMessage(QStringLiteral("VFO:0,0,1000;"));
     QTest::qWait(100);
-    QCOMPARE(m_settings->getVfoFrequency(0), m_baselineVfoHz);
+    QCOMPARE(m_settings->getVfoFrequency(0), before);
+    QCOMPARE(m_settings->getCtrFrequency(0), before);
 }
 
 void TciServerWsTests::vfoInRangeAccepted()
@@ -268,6 +290,29 @@ void TciServerWsTests::vfoInRangeAccepted()
     m_client.sendTextMessage(QStringLiteral("VFO:0,0,%1;").arg(target));
     QTest::qWait(100);
     QCOMPARE(m_settings->getVfoFrequency(0), target);
+    QCOMPARE(m_settings->getCtrFrequency(0), target);
+    QCOMPARE(m_settings->getReceiverDataList().at(0).ncoFrequency, 0);
+}
+
+void TciServerWsTests::vfoBandChangeRetunesCenterAndClearsNco()
+{
+    // Reproduce WSJT-X digi band hop: CTR stuck on 20m FT8 while VFO moves to
+    // 40m FT8 must not leave NCO = −7 MHz (mode-0 click-to-tune contract).
+    const qint64 ft8_20m = 14'074'000;
+    const qint64 ft8_40m = 7'074'000;
+    m_settings->setCtrFrequency(1, 0, ft8_20m);
+    QCOMPARE(m_settings->getCtrFrequency(0), ft8_20m);
+    QCOMPARE(m_settings->getVfoFrequency(0), ft8_20m);
+    QCOMPARE(m_settings->getReceiverDataList().at(0).ncoFrequency, 0);
+
+    m_client.sendTextMessage(QStringLiteral("VFO:0,0,%1;").arg(ft8_40m));
+    QVERIFY(QTest::qWaitFor([this, ft8_40m]() {
+        return m_settings->getVfoFrequency(0) == ft8_40m
+            && m_settings->getCtrFrequency(0) == ft8_40m;
+    }, 3000));
+    QCOMPARE(m_settings->getVfoFrequency(0), ft8_40m);
+    QCOMPARE(m_settings->getCtrFrequency(0), ft8_40m);
+    QCOMPARE(m_settings->getReceiverDataList().at(0).ncoFrequency, 0);
 }
 
 void TciServerWsTests::modulationCommandUpdatesMode()
@@ -450,9 +495,141 @@ void TciServerWsTests::compatStubCommandsAccepted()
     m_client.sendTextMessage(QStringLiteral("tx_stream_audio_buffering:50;"));
     QVERIFY(waitForMessageContaining(QStringLiteral("tx_stream_audio_buffering:50;")));
 
-    // Silent accept (same as rx_sensors_enable).
-    m_client.sendTextMessage(QStringLiteral("tx_sensors_enable:true;"));
+    // Silent accept for RX sensors; TX sensors enable is handled with push below.
+    m_client.sendTextMessage(QStringLiteral("rx_sensors_enable:true;"));
     QTest::qWait(100);
+}
+
+void TciServerWsTests::startStopEmitRequestsAndInitAdvertisesPower()
+{
+    // START while engine is down → startRequested (no immediate start; echo).
+    QSignalSpy startSpy(m_server, &TciServer::startRequested);
+    QSignalSpy stopSpy(m_server, &TciServer::stopRequested);
+    QVERIFY(startSpy.isValid());
+    QVERIFY(stopSpy.isValid());
+
+    m_textMessages.clear();
+    m_client.sendTextMessage(QStringLiteral("START;"));
+    QVERIFY(QTest::qWaitFor([&startSpy]() { return startSpy.count() >= 1; }, 3000));
+    QCOMPARE(startSpy.count(), 1);
+    // No start; until the data engine actually comes up.
+    QTest::qWait(100);
+    QVERIFY(!m_textMessages.join('|').contains(QStringLiteral("start;")));
+
+    // STOP while already down → echo stop; without stopRequested.
+    m_textMessages.clear();
+    m_client.sendTextMessage(QStringLiteral("STOP;"));
+    QVERIFY2(waitForMessageContaining(QStringLiteral("stop;")),
+             qPrintable(m_textMessages.join('|')));
+    QCOMPARE(stopSpy.count(), 0);
+
+    // Pretend engine is up, then STOP must request stop and echo.
+    m_settings->setSystemState(QSDR::NoError, m_settings->getHWInterface(),
+                               m_settings->getCurrentServerMode(), QSDR::DataEngineUp);
+    // State-change broadcast may deliver start; — drain before STOP.
+    QTest::qWait(100);
+    m_textMessages.clear();
+    stopSpy.clear();
+
+    m_client.sendTextMessage(QStringLiteral("STOP;"));
+    QVERIFY(QTest::qWaitFor([&stopSpy]() { return stopSpy.count() >= 1; }, 3000));
+    QCOMPARE(stopSpy.count(), 1);
+    QVERIFY2(waitForMessageContaining(QStringLiteral("stop;")),
+             qPrintable(m_textMessages.join('|')));
+
+    // START while already up → echo only, no startRequested.
+    m_settings->setSystemState(QSDR::NoError, m_settings->getHWInterface(),
+                               m_settings->getCurrentServerMode(), QSDR::DataEngineUp);
+    QTest::qWait(100);
+    startSpy.clear();
+    m_textMessages.clear();
+    m_client.sendTextMessage(QStringLiteral("START;"));
+    QVERIFY2(waitForMessageContaining(QStringLiteral("start;")),
+             qPrintable(m_textMessages.join('|')));
+    QCOMPARE(startSpy.count(), 0);
+
+    // Restore down for other tests.
+    m_settings->setSystemState(QSDR::NoError, m_settings->getHWInterface(),
+                               m_settings->getCurrentServerMode(), QSDR::DataEngineDown);
+}
+
+void TciServerWsTests::dataEngineStateChangeBroadcastsStartStop()
+{
+    m_textMessages.clear();
+    m_settings->setSystemState(QSDR::NoError, m_settings->getHWInterface(),
+                               m_settings->getCurrentServerMode(), QSDR::DataEngineUp);
+    QVERIFY2(waitForMessageContaining(QStringLiteral("start;")),
+             qPrintable(m_textMessages.join('|')));
+
+    m_textMessages.clear();
+    m_settings->setSystemState(QSDR::NoError, m_settings->getHWInterface(),
+                               m_settings->getCurrentServerMode(), QSDR::DataEngineDown);
+    QVERIFY2(waitForMessageContaining(QStringLiteral("stop;")),
+             qPrintable(m_textMessages.join('|')));
+}
+
+void TciServerWsTests::txSensorsBroadcastPowerAndSwrWhileTx()
+{
+    QVERIFY(m_radioModel && m_radioModel->telemetry());
+
+    m_textMessages.clear();
+    m_client.sendTextMessage(QStringLiteral("tx_sensors_enable:true,50;"));
+    QTest::qWait(50);
+
+    // While RX, telemetry updates must not spam clients.
+    m_radioModel->telemetry()->setForwardPower(12.5);
+    m_radioModel->telemetry()->setSWR(1.4);
+    QTest::qWait(100);
+    QVERIFY(!m_textMessages.join('|').contains(QStringLiteral("tx_sensors:")));
+    QVERIFY(!m_textMessages.join('|').contains(QStringLiteral("tx_power:")));
+    QVERIFY(!m_textMessages.join('|').contains(QStringLiteral("tx_swr:")));
+
+    m_textMessages.clear();
+    m_settings->setRadioState(RadioState::MOX);
+    QVERIFY2(waitForMessageContaining(QStringLiteral("tx_sensors:")),
+             qPrintable(m_textMessages.join('|')));
+    QVERIFY(m_textMessages.join('|').contains(QStringLiteral("tx_power:0,12.5;")));
+    QVERIFY(m_textMessages.join('|').contains(QStringLiteral("tx_swr:0,1.40;")));
+
+    m_textMessages.clear();
+    // Wait past the client interval so the next telemetry push is not throttled.
+    QTest::qWait(60);
+    m_radioModel->telemetry()->setForwardPower(25.0);
+    m_radioModel->telemetry()->setSWR(1.75);
+    QVERIFY2(waitForMessageContaining(QStringLiteral("tx_sensors:0,0.0,25.0,25.0,1.75;")),
+             qPrintable(m_textMessages.join('|')));
+    QVERIFY(m_textMessages.join('|').contains(QStringLiteral("tx_power:0,25.0;")));
+    QVERIFY(m_textMessages.join('|').contains(QStringLiteral("tx_swr:0,1.75;")));
+}
+
+void TciServerWsTests::txPowerSwrQueryReturnsCachedValues()
+{
+    QVERIFY(m_radioModel && m_radioModel->telemetry());
+    m_radioModel->telemetry()->setForwardPower(8.25);
+    m_radioModel->telemetry()->setSWR(1.25);
+    QTest::qWait(50);
+
+    m_textMessages.clear();
+    m_client.sendTextMessage(QStringLiteral("tx_power:0;"));
+    QVERIFY2(waitForMessageContaining(QStringLiteral("tx_power:0,8.3;"))
+                 || waitForMessageContaining(QStringLiteral("tx_power:0,8.2;")),
+             qPrintable(m_textMessages.join('|')));
+
+    m_textMessages.clear();
+    m_client.sendTextMessage(QStringLiteral("tx_swr:0;"));
+    QVERIFY2(waitForMessageContaining(QStringLiteral("tx_swr:0,1.25;")),
+             qPrintable(m_textMessages.join('|')));
+
+    m_textMessages.clear();
+    m_client.sendTextMessage(QStringLiteral("swr:0;"));
+    QVERIFY2(waitForMessageContaining(QStringLiteral("tx_swr:0,1.25;")),
+             qPrintable(m_textMessages.join('|')));
+
+    m_textMessages.clear();
+    m_client.sendTextMessage(QStringLiteral("tx_sensors:0;"));
+    QVERIFY2(waitForMessageContaining(QStringLiteral("tx_sensors:0,0.0,8.3,8.3,1.25;"))
+                 || waitForMessageContaining(QStringLiteral("tx_sensors:0,0.0,8.2,8.2,1.25;")),
+             qPrintable(m_textMessages.join('|')));
 }
 
 QTEST_MAIN(TciServerWsTests)

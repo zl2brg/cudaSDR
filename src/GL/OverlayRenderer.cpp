@@ -252,6 +252,7 @@ void OverlayRenderer::drawCenterLine(const QMatrix4x4& projection,
                                      int centerlineHeight,
                                      float deltaF,
                                      float zoomFactor,
+                                     const QColor& centerColor,
                                      const QColor& vfoColor,
                                      bool dragMouse,
                                      bool panLocked) {
@@ -271,7 +272,7 @@ void OverlayRenderer::drawCenterLine(const QMatrix4x4& projection,
 
         float centerX = (float)panRect.left() + (float)panRect.width() / 2.0f;
         float centerY = (float)(panRect.top() + panRect.height() - 1);
-		QColor centerCol = QColor(80, 180, 240, 180);
+		const QColor centerCol = centerColor.isValid() ? centerColor : QColor(246, 7, 19);
 
         glLineWidth(3.0f);
 
