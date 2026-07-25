@@ -211,7 +211,7 @@ RadioPopupWidget::RadioPopupWidget(SliceModel *model, QWidget *parent)
     if (dspMode == LSB || dspMode == USB || dspMode == DIGU || dspMode == DIGL) {
         m_filterStackedWidget->setCurrentIndex(0);
     }
-    else if (dspMode == DSB || dspMode == FMN || dspMode == AM || dspMode == SAM) {
+    else if (dspMode == DSB || dspMode == FMN || dspMode == AM || dspMode == SAM || dspMode == DSTAR) {
         m_filterStackedWidget->setCurrentIndex(1);
     }
     else if (dspMode == CWL || dspMode == CWU) {
@@ -683,6 +683,11 @@ void RadioPopupWidget::createModeBtnGroup() {
     dspModeBtnList.append(drmBtn);
     connect(drmBtn, &AeroButton::clicked, this, &RadioPopupWidget::dspModeChangedByBtn);
 
+    // Index 12 == DSPMode::DSTAR (RX-only DSDcc).
+    dstarBtn = new AeroButton("DSTAR", this);
+    dspModeBtnList.append(dstarBtn);
+    connect(dstarBtn, &AeroButton::clicked, this, &RadioPopupWidget::dspModeChangedByBtn);
+
     for (AeroButton *btn : dspModeBtnList) {
         btn->setRoundness(0);
         btn->setFixedHeight(btn_height);
@@ -710,6 +715,12 @@ void RadioPopupWidget::createModeBtnGroup() {
     hbox2->addWidget(samBtn);
     hbox2->addWidget(drmBtn);
 
+    QHBoxLayout *hbox3 = new QHBoxLayout();
+    hbox3->setContentsMargins(0, 0, 0, 0);
+    hbox3->setSpacing(0);
+    hbox3->addWidget(dstarBtn);
+    hbox3->addStretch();
+
     m_freeDVModeCombo = new QComboBox(this);
     m_freeDVModeCombo->addItem("FreeDV 1600", 0);
     m_freeDVModeCombo->addItem("FreeDV 700C", 6);
@@ -724,6 +735,7 @@ void RadioPopupWidget::createModeBtnGroup() {
     modeVBox->setSpacing(1);
     modeVBox->addLayout(hbox1);
     modeVBox->addLayout(hbox2);
+    modeVBox->addLayout(hbox3);
     modeVBox->addWidget(m_freeDVModeCombo);
     modeVBox->addWidget(m_freeDVStatusLabel);
 
@@ -1208,7 +1220,7 @@ void RadioPopupWidget::dspModeChanged(int rx, DSPMode mode) {
 void RadioPopupWidget::filterGroupChanged(DSPMode mode) {
     if (mode == LSB || mode == USB || mode == DIGU || mode == DIGL) {
         m_filterStackedWidget->setCurrentIndex(0);
-    } else if (mode == DSB || mode == FMN || mode == AM || mode == SAM) {
+    } else if (mode == DSB || mode == FMN || mode == AM || mode == SAM || mode == DSTAR) {
         m_filterStackedWidget->setCurrentIndex(1);
     } else if (mode == CWL || mode == CWU) {
         m_filterStackedWidget->setCurrentIndex(2);
@@ -1279,7 +1291,7 @@ void RadioPopupWidget::filterChanged(int rx, qreal low, qreal high) {
     int groupIdx = -1;
 
     if (mode == LSB || mode == USB || mode == DIGU || mode == DIGL) { activeList = &filterBtnListA; groupIdx = 0; }
-    else if (mode == DSB || mode == FMN || mode == AM || mode == SAM) { activeList = &filterBtnListB; groupIdx = 1; }
+    else if (mode == DSB || mode == FMN || mode == AM || mode == SAM || mode == DSTAR) { activeList = &filterBtnListB; groupIdx = 1; }
     else if (mode == CWL || mode == CWU) { activeList = &filterBtnListC; groupIdx = 2; }
 
     if (!activeList) return;
@@ -1884,7 +1896,7 @@ void RadioPopupWidget::setFilterFrequencies(qreal low, qreal high) {
     int groupIdx = -1;
 
     if (mode == LSB || mode == USB || mode == DIGU || mode == DIGL) { activeList = &filterBtnListA; groupIdx = 0; }
-    else if (mode == DSB || mode == FMN || mode == AM || mode == SAM) { activeList = &filterBtnListB; groupIdx = 1; }
+    else if (mode == DSB || mode == FMN || mode == AM || mode == SAM || mode == DSTAR) { activeList = &filterBtnListB; groupIdx = 1; }
     else if (mode == CWL || mode == CWU) { activeList = &filterBtnListC; groupIdx = 2; }
 
     if (!activeList) return;

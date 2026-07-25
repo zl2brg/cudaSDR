@@ -1299,6 +1299,8 @@ int Settings::loadSettings() {
                     m_receiverDataList[i].dspModeList[j] = SAM;
                 else if (str == "FDV" || str == "DRM" || str == "FreeDV")
                     m_receiverDataList[i].dspModeList[j] = FDV;
+                else if (str == "DSTAR" || str == "D-STAR" || str == "DV")
+                    m_receiverDataList[i].dspModeList[j] = DSTAR;
                 else
                     m_receiverDataList[i].dspModeList[j] = LSB;
 
@@ -2070,6 +2072,8 @@ int Settings::saveSettings() {
                 settings->setValue(str, "SAM");
             else if (mode == FDV)
                 settings->setValue(str, "FDV");
+            else if (mode == DSTAR)
+                settings->setValue(str, "DSTAR");
         }
 
         for (int j = 0; j < MAX_BANDS; j++) {
@@ -2207,6 +2211,9 @@ QString Settings::getDSPModeString(int mode) {
 
         case 11:
             return QString("FreeDV");
+
+        case 12:
+            return QString("DSTAR");
 
         default:
             return QString("unknown mode");

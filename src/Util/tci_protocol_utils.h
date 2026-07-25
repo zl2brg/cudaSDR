@@ -74,7 +74,8 @@ inline QString dspModeToTci(DSPMode mode)
         case DIGU: return QStringLiteral("digu");
         case DIGL: return QStringLiteral("digl");
         case SAM:  return QStringLiteral("sam");
-        case FDV:  return QStringLiteral("fdv");
+        case FDV:   return QStringLiteral("fdv");
+        case DSTAR: return QStringLiteral("dstar");
         default:   return QStringLiteral("usb");
     }
 }
@@ -98,6 +99,8 @@ inline DSPMode tciModeToDsp(const QString &mode)
     if (m == QLatin1String("DIGL"))   return DIGL;
     if (m == QLatin1String("FDV"))    return FDV;
     if (m == QLatin1String("FREEDV")) return FDV;
+    if (m == QLatin1String("DSTAR") || m == QLatin1String("D-STAR") || m == QLatin1String("DV"))
+        return DSTAR;
     return USB;
 }
 

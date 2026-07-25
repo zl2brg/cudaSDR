@@ -82,17 +82,21 @@ typedef enum _dspMode {
   SPEC,			//  8
   DIGL,			//  9
   SAM,			// 10
-  FDV			// 11
-  //FREEDV        // 12
+  FDV,			// 11
+  DSTAR			// 12  RX-only (DSDcc / mbelib); WDSP path uses FMN
 
 } DSPMode;
 
 // Resolve the logical app mode to the actual WDSP mode.
-// FDV (FreeDV) uses LSB below 10 MHz and USB above; all other modes pass through unchanged.
+// FDV (FreeDV) uses LSB below 10 MHz and USB above.
+// DSTAR uses FMN (GMSK via FM discriminator) for DSDcc input.
+// All other modes pass through unchanged.
 inline DSPMode resolveWDSPMode(DSPMode appMode, qint64 frequency) {
-    return (appMode == FDV)
-        ? (frequency < 10000000L ? LSB : USB)
-        : appMode;
+    if (appMode == FDV)
+        return (frequency < 10000000L ? LSB : USB);
+    if (appMode == DSTAR)
+        return FMN;
+    return appMode;
 }
 
 typedef enum _adcMode {
@@ -127,7 +131,8 @@ typedef enum _defaultFilterMode {
 	filterDIGL,
 	filterSAM,
 	filterFDV,
-	filterFREEDV
+	filterFREEDV,
+	filterDSTAR
 	
 } TDefaultFilterMode;
 
@@ -1306,6 +1311,14 @@ inline QList<TDefaultFilter> getDefaultFilterFrequencies() {
 
 	defaultFilter.dspMode = (DSPMode) FDV;
 	defaultFilter.defaultFilterMode = filterFDV;
+	defaultFilter.filterLo = -6000.0f;
+	defaultFilter.filterHi = 6000.0f;
+
+	defaultFilters << defaultFilter;
+
+	// D-STAR GMSK via FM discriminator — similar width to NFM.
+	defaultFilter.dspMode = (DSPMode) DSTAR;
+	defaultFilter.defaultFilterMode = filterDSTAR;
 	defaultFilter.filterLo = -6000.0f;
 	defaultFilter.filterHi = 6000.0f;
 

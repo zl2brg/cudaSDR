@@ -438,7 +438,7 @@ void TciServer::sendInitState(QWebSocket *client)
     sendToClient(client, tciMessage(QStringLiteral("CHANNELS_COUNT"), {QString::number(1)}));
     sendToClient(client, tciMessage(QStringLiteral("CHANNEL_COUNT"), {QString::number(channelCount)}));
     sendToClient(client, tciMessage(QStringLiteral("MODULATIONS_LIST"),
-                                    {QStringLiteral("lsb,usb,am,fm,nfm,digu,digl,cw,cwl,sam,fdv")}));
+                                    {QStringLiteral("lsb,usb,am,fm,nfm,digu,digl,cw,cwl,sam,fdv,dstar")}));
     sendToClient(client, tciMessage(QStringLiteral("VFO_LIMITS"),
                                     {QString::number(kVfoMinHz), QString::number(kVfoMaxHz)}));
     sendToClient(client, tciMessage(QStringLiteral("IF_LIMITS"),

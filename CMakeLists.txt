@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(cudaSDR LANGUAGES CXX)
+project(cudaSDR LANGUAGES C CXX)
 
 # --- Build parallelism cap ---
 # Detect available cores so builds don't run unbounded. NOTE: the *top-level*
@@ -94,6 +94,62 @@ else()
     set(CODEC2_FOUND FALSE)
 endif()
 
+# --- Optional DSDcc + mbelib (D-STAR / digital voice RX) ---
+# deps/dsdcc = f4exb/dsdcc, deps/mbelib = szechyjs/mbelib (software AMBE).
+# mbelib is built here (not via its own add_subdirectory) so includes/PIC are
+# correct when embedded; upstream mbelib CMake uses PROJECT_SOURCE_DIR.
+option(WITH_DSDCC "Build RX-only DSDcc digital voice support (D-STAR)" ON)
+set(DSDCC_FOUND FALSE)
+if(WITH_DSDCC AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/deps/dsdcc/CMakeLists.txt")
+    set(BUILD_TOOL OFF CACHE BOOL "Build dsdccx CLI tool" FORCE)
+    # DSDcc FindLibMbe lives under deps/dsdcc/cmake/Modules (not top-level).
+    list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/deps/dsdcc/cmake/Modules")
+
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/deps/mbelib/mbelib.h")
+        file(GLOB CUSDR_MBELIB_SOURCES CONFIGURE_DEPENDS
+            "${CMAKE_CURRENT_SOURCE_DIR}/deps/mbelib/*.c")
+        add_library(mbe-shared SHARED ${CUSDR_MBELIB_SOURCES})
+        set_target_properties(mbe-shared PROPERTIES
+            OUTPUT_NAME mbe
+            VERSION 1.3
+            SOVERSION 1
+            POSITION_INDEPENDENT_CODE ON
+            AUTOMOC OFF
+            AUTOUIC OFF
+            AUTORCC OFF)
+        target_include_directories(mbe-shared PUBLIC
+            "${CMAKE_CURRENT_SOURCE_DIR}/deps/mbelib")
+        if(NOT WIN32)
+            target_link_libraries(mbe-shared PUBLIC m)
+        endif()
+        set(USE_MBELIB ON CACHE BOOL "Enable mbelib voice decode in DSDcc" FORCE)
+        set(LIBMBE_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/deps/mbelib" CACHE PATH "mbelib include" FORCE)
+        set(LIBMBE_LIBRARY mbe-shared CACHE STRING "mbelib library target" FORCE)
+        message(STATUS "DSDcc: using bundled deps/mbelib — software AMBE voice decode enabled")
+    else()
+        find_library(MBE_LIBRARY NAMES mbe libmbe)
+        find_path(MBE_INCLUDE_DIR mbelib.h)
+        if(MBE_LIBRARY AND MBE_INCLUDE_DIR)
+            set(USE_MBELIB ON CACHE BOOL "Enable mbelib voice decode in DSDcc" FORCE)
+            set(LIBMBE_LIBRARY ${MBE_LIBRARY} CACHE FILEPATH "mbelib library" FORCE)
+            set(LIBMBE_INCLUDE_DIR ${MBE_INCLUDE_DIR} CACHE PATH "mbelib include" FORCE)
+            message(STATUS "DSDcc: system mbelib found — software AMBE voice decode enabled")
+        else()
+            set(USE_MBELIB OFF CACHE BOOL "Enable mbelib voice decode in DSDcc" FORCE)
+            message(WARNING "DSDcc: mbelib missing — D-STAR framing only. Init submodule: git submodule update --init deps/mbelib")
+        endif()
+    endif()
+
+    add_subdirectory(deps/dsdcc EXCLUDE_FROM_ALL)
+    if(TARGET dsdcc AND TARGET mbe-shared)
+        add_dependencies(dsdcc mbe-shared)
+    endif()
+    set(DSDCC_FOUND TRUE)
+    message(STATUS "DSDcc RX support enabled (deps/dsdcc)")
+elseif(WITH_DSDCC)
+    message(WARNING "WITH_DSDCC=ON but deps/dsdcc missing — run: git submodule update --init deps/dsdcc")
+endif()
+
 # --- Project Configuration ---
 set(SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
 set(WDSP_DIR  ${CMAKE_CURRENT_SOURCE_DIR}/wdsp-1.29)
@@ -133,6 +189,7 @@ set(SOURCES
     ${SRC_DIR}/AudioEngine/cusdr_codec2processor.cpp
     ${SRC_DIR}/AudioEngine/cusdr_freedvprocessor.cpp
     ${SRC_DIR}/AudioEngine/cusdr_radeprocessor.cpp
+    ${SRC_DIR}/AudioEngine/cusdr_dsdprocessor.cpp
 
 #    ${SRC_DIR}/AudioEngine/cusdr_audio_utils.cpp
 #    ${SRC_DIR}/AudioEngine/cusdr_audio_waveform.cpp
@@ -235,6 +292,7 @@ set(HEADERS
     ${SRC_DIR}/AudioEngine/audiooutputmanager.h
     ${SRC_DIR}/AudioEngine/cusdr_codec2processor.h
     ${SRC_DIR}/AudioEngine/cusdr_freedvprocessor.h
+    ${SRC_DIR}/AudioEngine/cusdr_dsdprocessor.h
     ${SRC_DIR}/AudioEngine/cusdr_radeprocessor.h
 
     # Data Engine
@@ -366,6 +424,10 @@ if(CODEC2_FOUND)
     target_include_directories(cudasdr PRIVATE ${CODEC2_INCLUDE_DIR})
 endif()
 
+if(DSDCC_FOUND)
+    target_include_directories(cudasdr PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/deps/dsdcc)
+endif()
+
 # --- Link Libraries ---
 target_link_libraries(cudasdr PRIVATE
     Qt6::Widgets
@@ -395,6 +457,14 @@ endif()
 if(CODEC2_FOUND)
     target_link_libraries(cudasdr PRIVATE ${CODEC2_LIBRARY})
     target_compile_definitions(cudasdr PRIVATE HAVE_CODEC2)
+endif()
+
+if(DSDCC_FOUND)
+    target_link_libraries(cudasdr PRIVATE dsdcc)
+    target_compile_definitions(cudasdr PRIVATE HAVE_DSDCC)
+    if(USE_MBELIB)
+        target_compile_definitions(cudasdr PRIVATE DSD_USE_MBELIB)
+    endif()
 endif()
 
 # --- Compiler Options ---

@@ -45,6 +45,10 @@
 #include "AudioEngine/cusdr_radeprocessor.h"
 #endif
 
+#ifdef HAVE_DSDCC
+#include "AudioEngine/cusdr_dsdprocessor.h"
+#endif
+
 #ifdef LOG_SLICE_PROCESSOR
 #   define SLICE_PROCESSOR_DEBUG qDebug().nospace() << "SliceProcessor::\t"
 #else
@@ -199,6 +203,10 @@ private:
 
 #ifdef HAVE_RADE
 	RadeProcessor* m_radeProcessor = nullptr;
+#endif
+
+#ifdef HAVE_DSDCC
+	DsdProcessor* m_dsdProcessor = nullptr;
 #endif
 
 signals:

@@ -75,6 +75,9 @@ SliceProcessor::SliceProcessor(SliceModel *model, QObject *parent)
 		m_freeDVProcessor = new FreeDVProcessor(m_freeDVMode);
 	}
 #endif
+#ifdef HAVE_DSDCC
+	m_dsdProcessor = new DsdProcessor();
+#endif
 	setupConnections();
     m_displayTime = (int)(1000000.0/set->getFramesPerSecond(m_receiver));
 	m_smeterTime.start();
@@ -101,6 +104,10 @@ SliceProcessor::~SliceProcessor() {
 #ifdef HAVE_RADE
 	delete m_radeProcessor;
 	m_radeProcessor = nullptr;
+#endif
+#ifdef HAVE_DSDCC
+	delete m_dsdProcessor;
+	m_dsdProcessor = nullptr;
 #endif
 }
 
@@ -512,11 +519,36 @@ void SliceProcessor::dspProcessingCore() {
                 m_audioOutput->writeAudio(soundcardStereo);
             emit rxAudioSamples(m_receiver, tciStereo, 48000);
         };
-        if (dspMode != DSPMode::FDV) {
+        if (dspMode != DSPMode::FDV && dspMode != DSPMode::DSTAR) {
 			// Normal analogue modes: pass WDSP audio output straight to soundcard.
             const int n = audioSamplesThisCall;
             deliverInternalAudio(interleaveFromCPX(audioOutputBuf, n),
                                  monoStereoFromCPX(audioOutputBuf, n));
+		}
+		else if (dspMode == DSPMode::DSTAR) {
+			QVector<float> mono(audioSamplesThisCall);
+			const cpx* src = audioOutputBuf.constData();
+			for (int i = 0; i < audioSamplesThisCall; ++i)
+				mono[i] = static_cast<float>(src[i].re);
+
+			bool wroteAudio = false;
+#ifdef HAVE_DSDCC
+			if (m_dsdProcessor) {
+				QVector<float> speech = m_dsdProcessor->processSamples(mono.constData(), audioSamplesThisCall);
+				deliverInternalAudio(speech, speech);
+				wroteAudio = true;
+				if ((m_dspCallCount % 50) == 1) {
+					SLICE_PROCESSOR_DEBUG << m_dsdProcessor->statusText()
+						<< " sync=" << m_dsdProcessor->isSync()
+						<< " voice=" << m_dsdProcessor->hasVoiceDecode();
+				}
+			}
+#endif
+			if (!wroteAudio) {
+				// No DSDcc: mute (do not blast FM discriminator noise as "speech").
+				QVector<float> silence(audioSamplesThisCall * 2, 0.0f);
+				deliverInternalAudio(silence, silence);
+			}
 		}
 		else {
 			QVector<float> mono(audioSamplesThisCall);

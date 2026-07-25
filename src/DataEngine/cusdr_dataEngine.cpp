@@ -3988,11 +3988,11 @@ void DataProcessor::setAudioBuffer(int rx, const CPX &buffer, int buffersize)
 
 	// process the output
 	const DSPMode rxMode = set->getDSPMode(de->io.currentReceiver);
-	const bool muteAnalogRxForCodec2 = (rxMode == FDV);
+	const bool muteAnalogRxForDigital = (rxMode == FDV || rxMode == DSTAR);
     if (tx_index == 0)  get_tx_iqData();
         for (int j = 0; j < buffersize; j++) {
 
-			if (muteAnalogRxForCodec2) {
+			if (muteAnalogRxForDigital) {
 				leftRXSample = 0;
 				rightRXSample = 0;
 			} else {
@@ -4079,11 +4079,11 @@ void DataProcessor::setAudioBuffer_old(int rx, const CPX &buffer, int buffersize
     qint16 rightRXSample;
 	// process the output
 	const DSPMode rxMode = set->getDSPMode(de->io.currentReceiver);
-	const bool muteAnalogRxForCodec2 = (rxMode == FDV);
+	const bool muteAnalogRxForDigital = (rxMode == FDV || rxMode == DSTAR);
     if (tx_index == 0)  get_tx_iqData();
     for (int j = 0; j < buffersize; j++) {
 
-		if (muteAnalogRxForCodec2) {
+		if (muteAnalogRxForDigital) {
 			leftRXSample = 0;
 			rightRXSample = 0;
 		} else {

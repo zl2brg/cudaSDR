@@ -111,6 +111,7 @@ private:
 	AeroButton	*diglBtn;
 	AeroButton	*samBtn;
 	AeroButton	*drmBtn;
+	AeroButton	*dstarBtn = nullptr;
 	QComboBox	*m_freeDVModeCombo;
 	QLabel		*m_freeDVStatusLabel;
 

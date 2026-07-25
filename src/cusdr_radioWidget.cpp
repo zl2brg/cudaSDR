@@ -492,6 +492,13 @@ void RadioWidget::createModeBtnGroup() {
 	dspModeBtnList.append(drmBtn);
 	CHECKED_CONNECT(drmBtn, &AeroButton::clicked, this, &RadioWidget::dspModeChangedByBtn);
 
+	// Must remain index 12 to match DSPMode::DSTAR (RX-only DSDcc path).
+	dstarBtn = new AeroButton("DSTAR", this);
+	dstarBtn->setRoundness(0);
+	dstarBtn->setFixedSize(btn_widths, btn_height);
+	dspModeBtnList.append(dstarBtn);
+	CHECKED_CONNECT(dstarBtn, &AeroButton::clicked, this, &RadioWidget::dspModeChangedByBtn);
+
 	/*foreach(AeroButton *btn, dspModeBtnList) {
 
 		btn->setBtnState(AeroButton::OFF);
@@ -516,6 +523,7 @@ void RadioWidget::createModeBtnGroup() {
 	layout->addWidget(diglBtn, 1, 3);
 	layout->addWidget(samBtn,  1, 4);
 	layout->addWidget(drmBtn,  1, 5);
+	layout->addWidget(dstarBtn, 2, 0);
 
 	QHBoxLayout *hbox1 = new QHBoxLayout();
 	hbox1->setSpacing(4);
@@ -1190,7 +1198,7 @@ void RadioWidget::filterGroupChanged(DSPMode mode) {
     // C-group: Narrow (CWL, CWU)
     
     bool showA = (mode == LSB || mode == USB || mode == DIGU || mode == DIGL);
-    bool showB = (mode == DSB || mode == FMN || mode == AM || mode == SAM);
+    bool showB = (mode == DSB || mode == FMN || mode == AM || mode == SAM || mode == DSTAR);
     bool showC = (mode == CWL || mode == CWU);
 
     filterGroupABox->setVisible(showA);
