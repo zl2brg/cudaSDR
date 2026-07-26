@@ -548,16 +548,18 @@ void OGLDisplayPanel::paintUpperRegion() {
 		rect = QRect(x1, y1, meterWidth, m_blankHeight);
 		drawPanelRect(rect, QColor(35, 35, 35), -2.0f); // Track background
 
-		qreal maxP = (m_fwdPowerWatts > 10.0) ? 100.0 : 10.0;
-		qreal pFrac = qBound(0.0, m_fwdPowerWatts / maxP, 1.0);
-		int fillW = qRound(meterWidth * pFrac);
+		qreal pVal = m_txActive ? qMax(m_fwdPowerWatts, m_fwdPowerWattsSmooth) : 0.0;
+		qreal maxP = (pVal > 10.0) ? 100.0 : 10.0;
+		qreal pFrac = qBound(0.0, pVal / maxP, 1.0);
 
-		if (m_txActive && fillW > 0) {
+		if (m_txActive) {
+			// Base baseline fill of 12% so meter is visibly active on TX even during low modulation, plus live power fill
+			int fillW = qBound(10, qRound(10 + (meterWidth - 10) * pFrac), meterWidth);
 			QRect fillRect(x1, y1, fillW, m_blankHeight);
 			drawPanelRect(fillRect, QColor(56, 242, 115), -1.9f); // Live green bar
 		}
 
-		QString fwdStr = QString("FWD: %1 W").arg(m_fwdPowerWatts, 0, 'f', 1);
+		QString fwdStr = QString("FWD: %1 W").arg(pVal, 0, 'f', 1);
 		int fwdTextWidth = m_oglTextSmall->fontMetrics().horizontalAdvance(fwdStr);
 		int textX = x1 + qMax(2, (meterWidth - fwdTextWidth) / 2);
 
@@ -576,24 +578,31 @@ void OGLDisplayPanel::paintUpperRegion() {
         rect = QRect(x1, y1, swrMeterWidth, m_blankHeight);
         drawPanelRect(rect, QColor(35, 35, 35), -2.0f); // Track background
 
-        qreal swrVal = qMax(1.0, m_swr);
-        qreal swrFrac = qBound(0.0, (swrVal - 1.0) / 2.0, 1.0); // 1.0 SWR = 0%, 3.0 SWR = 100%
-        int fillW = qRound(swrMeterWidth * swrFrac);
+        qreal swrVal = m_txActive ? qMax(1.0, qMax(m_swr, m_swrSmooth)) : 1.0;
+        
+        // SWR scale mapping:
+        // SWR = 1.0 -> 25% meter fill (GOOD Green)
+        // SWR = 1.5 -> 50% meter fill (Green/Yellow transition)
+        // SWR = 2.5 -> 75% meter fill (Yellow/Red transition)
+        // SWR >= 3.0 -> 100% meter fill (Red)
+        qreal swrFrac = 0.25; // Base 25% fill for 1.0:1 SWR when transmitting
+        if (swrVal > 1.0) {
+            swrFrac = qBound(0.25, 0.25 + 0.75 * ((swrVal - 1.0) / 2.0), 1.0);
+        }
 
-        QColor barColor;
-        if (swrVal < 1.5)
-            barColor = QColor(56, 242, 115);  // Green
-        else if (swrVal < 2.5)
+        QColor barColor = QColor(56, 242, 115); // Green default for SWR < 1.5
+        if (swrVal >= 2.5)
+            barColor = QColor(242, 56, 109); // Red
+        else if (swrVal >= 1.5)
             barColor = QColor(255, 255, 50);  // Yellow
-        else
-            barColor = QColor(242, 56, 109);  // Red
 
-        if (m_txActive && fillW > 0) {
+        if (m_txActive) {
+            int fillW = qBound(15, qRound(swrMeterWidth * swrFrac), swrMeterWidth);
             QRect fillRect(x1, y1, fillW, m_blankHeight);
             drawPanelRect(fillRect, barColor, -1.9f);
         }
 
-        QString swrStr = QString("SWR: %1").arg(m_swr, 0, 'f', 1);
+        QString swrStr = QString("SWR: %1").arg(swrVal, 0, 'f', 1);
         int swrTextWidth = m_oglTextSmall->fontMetrics().horizontalAdvance(swrStr);
         int textX = x1 + qMax(2, (swrMeterWidth - swrTextWidth) / 2);
 
@@ -1969,19 +1978,21 @@ void OGLDisplayPanel::scheduleRepaint()
 }
 
 void OGLDisplayPanel::setForwardPower(qreal watts) {
-
-	if (qFuzzyCompare(m_fwdPowerWatts, watts))
-		return;
 	m_fwdPowerWatts = watts;
+	if (watts > m_fwdPowerWattsSmooth)
+		m_fwdPowerWattsSmooth = watts;
+	else
+		m_fwdPowerWattsSmooth = 0.85 * m_fwdPowerWattsSmooth + 0.15 * watts;
 	scheduleRepaint();
 }
 
 void OGLDisplayPanel::setSWR(qreal swr) {
-
-	if (qFuzzyCompare(m_swr, swr))
-		return;
-    m_swr = swr;
-    scheduleRepaint();
+	m_swr = swr;
+	if (swr > m_swrSmooth)
+		m_swrSmooth = swr;
+	else
+		m_swrSmooth = 0.88 * m_swrSmooth + 0.12 * swr;
+	scheduleRepaint();
 }
 
 void OGLDisplayPanel::setRadioState(RadioState state) {

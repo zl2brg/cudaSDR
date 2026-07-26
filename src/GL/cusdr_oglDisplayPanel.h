@@ -253,10 +253,12 @@ private:
 	int		m_adcStatus;
 	int		m_packetLossStatus;
 	qreal	m_fwdPowerWatts = 0.0;
+	qreal	m_fwdPowerWattsSmooth = 0.0;
     bool    m_txActive = false;
     bool    m_rigCtlConnected = false;
     bool    m_tciConnected = false;
     qreal   m_swr = 1.0;
+    qreal   m_swrSmooth = 1.0;
     qreal   m_supplyVolts = 0.0;
     qreal   m_temperature = 0.0;
 	int		m_sendIQStatus;
