@@ -78,6 +78,7 @@ RadioPopupWidget::RadioPopupWidget(SliceModel *model, QWidget *parent)
     , m_minimumGroupBoxWidth(240)
 {
     setWindowFlags(Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
+    connect(qApp, &QCoreApplication::aboutToQuit, this, &QWidget::close);
 
     setMouseTracking(true);
     setContentsMargins(4, 4, 4, 4);
@@ -221,7 +222,7 @@ RadioPopupWidget::RadioPopupWidget(SliceModel *model, QWidget *parent)
     setupConnections();
     m_closeTimer = new QTimer(this);
     m_closeTimer->setSingleShot(true);
-    m_closeTimer->setInterval(35000); // 5 second delay before closing
+    m_closeTimer->setInterval(15000); // 15 second delay before closing
     connect(m_closeTimer, &QTimer::timeout, this, [this]() {
         if (m_sticky) return;
 
@@ -1249,8 +1250,8 @@ void RadioPopupWidget::filterChangedByBtn() {
         filterWidth = qAbs(m_filterHi - m_filterLo);
     } else {
         float widths[] = {1000, 1800, 2100, 2400, 2700, 2900, 3300, 3800, 4400, 5000,
-                          2400, 2900, 3100, 4000, 5200, 6600, 8000, 10000, 12000, 16000,
-                          25, 50, 100, 250, 400, 500, 600, 750, 800, 1000};
+                          16000, 12000, 10000, 8000, 6600, 5200, 4000, 3100, 2900, 2400,
+                          1000, 800, 750, 600, 500, 400, 250, 100, 50, 25};
         filterWidth = widths[groupIdx * 10 + btnIndex];
     }
 

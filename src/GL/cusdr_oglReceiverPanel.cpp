@@ -328,6 +328,13 @@ QGLReceiverPanel::~QGLReceiverPanel() {
 
     while (!specAv_queue.isEmpty())
         specAv_queue.dequeue();
+
+    if (radioPopup) {
+        radioPopup->close();
+        delete radioPopup;
+        radioPopup = nullptr;
+    }
+
     delete fonts;
     delete m_oglTextTiny;
     delete m_oglTextSmall;
