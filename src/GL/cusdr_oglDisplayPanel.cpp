@@ -542,43 +542,68 @@ void OGLDisplayPanel::paintUpperRegion() {
 	// Metis status
 	str = m_metisString;
     x1 += m_packetLossWidth + 2*m_blankWidth + 2;
+	// FWD Power bar graph
 	{
+		int meterWidth = 90;
+		rect = QRect(x1, y1, meterWidth, m_blankHeight);
+		drawPanelRect(rect, QColor(35, 35, 35), -2.0f); // Track background
+
+		qreal maxP = (m_fwdPowerWatts > 10.0) ? 100.0 : 10.0;
+		qreal pFrac = qBound(0.0, m_fwdPowerWatts / maxP, 1.0);
+		int fillW = qRound(meterWidth * pFrac);
+
+		if (m_txActive && fillW > 0) {
+			QRect fillRect(x1, y1, fillW, m_blankHeight);
+			drawPanelRect(fillRect, QColor(56, 242, 115), -1.9f); // Live green bar
+		}
+
 		QString fwdStr = QString("FWD: %1 W").arg(m_fwdPowerWatts, 0, 'f', 1);
-		int fwdWidth = m_oglTextSmall->fontMetrics().horizontalAdvance(fwdStr);
-		rect = QRect(x1, y1, fwdWidth + 2*m_blankWidth, m_blankHeight);
+		int fwdTextWidth = m_oglTextSmall->fontMetrics().horizontalAdvance(fwdStr);
+		int textX = x1 + qMax(2, (meterWidth - fwdTextWidth) / 2);
+
 		if (m_txActive) {
-            drawPanelRect(rect, QColor(56, 242, 115), -2.0f);
-            qglColor(QColor(0, 0, 0));
-        } else {
-            drawPanelRect(rect, QColor(50, 50, 50), -2.0f);
-            qglColor(QColor(100, 100, 100));
-        }
-        renderPanelText(m_oglTextSmallItalic,x1 + m_blankWidth, y1, fwdStr);
-        x1 += fwdWidth + 5*m_blankWidth;
+			qglColor(QColor(255, 255, 255));
+		} else {
+			qglColor(QColor(160, 160, 160));
+		}
+		renderPanelText(m_oglTextSmallItalic, textX, y1, fwdStr);
+		x1 += meterWidth + 3*m_blankWidth;
 	}
 
-    // SWR status
+    // SWR bar graph
     {
+        int swrMeterWidth = 80;
+        rect = QRect(x1, y1, swrMeterWidth, m_blankHeight);
+        drawPanelRect(rect, QColor(35, 35, 35), -2.0f); // Track background
+
+        qreal swrVal = qMax(1.0, m_swr);
+        qreal swrFrac = qBound(0.0, (swrVal - 1.0) / 2.0, 1.0); // 1.0 SWR = 0%, 3.0 SWR = 100%
+        int fillW = qRound(swrMeterWidth * swrFrac);
+
+        QColor barColor;
+        if (swrVal < 1.5)
+            barColor = QColor(56, 242, 115);  // Green
+        else if (swrVal < 2.5)
+            barColor = QColor(255, 255, 50);  // Yellow
+        else
+            barColor = QColor(242, 56, 109);  // Red
+
+        if (m_txActive && fillW > 0) {
+            QRect fillRect(x1, y1, fillW, m_blankHeight);
+            drawPanelRect(fillRect, barColor, -1.9f);
+        }
+
         QString swrStr = QString("SWR: %1").arg(m_swr, 0, 'f', 1);
-        int swrWidth = m_oglTextSmall->fontMetrics().horizontalAdvance(swrStr);
-        rect = QRect(x1, y1, swrWidth + 2*m_blankWidth, m_blankHeight);
+        int swrTextWidth = m_oglTextSmall->fontMetrics().horizontalAdvance(swrStr);
+        int textX = x1 + qMax(2, (swrMeterWidth - swrTextWidth) / 2);
 
         if (m_txActive) {
-            // Transmitting: show live colour-coded SWR
-            if (m_swr < 1.5)
-                drawPanelRect(rect, QColor(56, 242, 115), -2.0f); // Green
-            else if (m_swr < 2.5)
-                drawPanelRect(rect, QColor(255, 255, 50), -2.0f); // Yellow
-            else
-                drawPanelRect(rect, QColor(242, 56, 109), -2.0f); // Red
-            qglColor(QColor(0, 0, 0));
+            qglColor(QColor(255, 255, 255));
         } else {
-            // Receiving: dim grey background
-            drawPanelRect(rect, QColor(50, 50, 50), -2.0f);
-            qglColor(QColor(100, 100, 100));
+            qglColor(QColor(160, 160, 160));
         }
-        renderPanelText(m_oglTextSmallItalic,x1 + m_blankWidth, y1, swrStr);
-        x1 += swrWidth + 5*m_blankWidth;
+        renderPanelText(m_oglTextSmallItalic, textX, y1, swrStr);
+        x1 += swrMeterWidth + 3*m_blankWidth;
     }
 
     // Supply Voltage
