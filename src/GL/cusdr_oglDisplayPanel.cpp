@@ -239,6 +239,11 @@ void OGLDisplayPanel::setupConnections() {
 	connect(set, &Settings::numberOfRXChanged,        this, &OGLDisplayPanel::setReceivers);
 	connect(set, &Settings::currentReceiverChanged,   this, &OGLDisplayPanel::setCurrentReceiver);
 	connect(set, &Settings::mercuryAttenuatorChanged, this, &OGLDisplayPanel::setMercuryAttenuator);
+	connect(set, &Settings::dspModeChanged,           this, [this](int rx, DSPMode mode) {
+		Q_UNUSED(mode);
+		if (rx == m_currentReceiver)
+			update();
+	});
 	connect(set, &Settings::ditherChanged,            this, &OGLDisplayPanel::setDither);
 	connect(set, &Settings::randomChanged,            this, &OGLDisplayPanel::setRandom);
 	connect(set, &Settings::sampleRateChanged,        this, &OGLDisplayPanel::setSampleRate);
@@ -852,10 +857,17 @@ void OGLDisplayPanel::paintLowerRegion() {
 	renderPanelText(m_oglTextSmallItalic,x1 + m_blankWidth, y2, m_AttnString);
 
     x1 += m_AttnWidth + 2*m_blankWidth;
-	if (m_mercuryAttenuator == 1)
-		str = "0 dB";
-	else
-		str = "-20 dB";
+	if (m_mercuryAttenuator == 0) {
+		str = QStringLiteral("0 dB");
+	} else if (m_mercuryAttenuator == 1 || m_mercuryAttenuator == 10 || m_mercuryAttenuator == -10) {
+		str = QStringLiteral("-10 dB");
+	} else if (m_mercuryAttenuator == 2 || m_mercuryAttenuator == 20 || m_mercuryAttenuator == -20) {
+		str = QStringLiteral("-20 dB");
+	} else if (m_mercuryAttenuator == 3 || m_mercuryAttenuator == 30 || m_mercuryAttenuator == -30) {
+		str = QStringLiteral("-30 dB");
+	} else {
+		str = QStringLiteral("%1 dB").arg(m_mercuryAttenuator > 0 ? -m_mercuryAttenuator : m_mercuryAttenuator);
+	}
 
     int attnValueWidth = m_oglTextSmall->fontMetrics().tightBoundingRect(str).width();
 	qglColor(m_activeTextColor);
@@ -1062,14 +1074,15 @@ void OGLDisplayPanel::paintRxRegion() {
 	renderPanelText(m_oglTextNormal, x1, yNormal,
 	                str.arg(set->getValue1000(m_mouseWheelFreqStep, 0, "Hz")));
 
+	const QString dspModeName = set->getDSPModeString(set->getDSPMode(m_currentReceiver));
 	if (set->getRadioState() == RadioState::RX) {
 		qglColor(fontcolor);
 		renderPanelText(m_oglTextBig, x1, yBig,
-		                QStringLiteral("Rx: %1").arg(m_currentReceiver + 1));
+		                QStringLiteral("Rx: %1 %2").arg(m_currentReceiver + 1).arg(dspModeName));
 	} else {
 		qglColor(m_txdigitColor);
 		renderPanelText(m_oglTextBig, x1, yBig,
-		                QStringLiteral("Tx: %1").arg(m_currentReceiver + 1));
+		                QStringLiteral("Tx: %1 %2").arg(m_currentReceiver + 1).arg(dspModeName));
 	}
 
 	if (m_oldFreq != currentFrequency.frequency) {
