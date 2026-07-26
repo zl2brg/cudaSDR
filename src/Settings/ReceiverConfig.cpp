@@ -62,6 +62,13 @@ void ReceiverConfig::setVfoFrequency(qint64 freq) {
     }
 }
 
+void ReceiverConfig::setFilterSlope(int slope) {
+    if (m_filterSlope != slope) {
+        m_filterSlope = slope;
+        emit filterSlopeChanged(m_filterSlope);
+    }
+}
+
 void ReceiverConfig::load(const QJsonObject &json) {
     if (json.contains("dspCore")) m_dspCore = static_cast<QSDR::_DSPCore>(json["dspCore"].toInt());
     if (json.contains("hamBand")) m_hamBand = static_cast<HamBand>(json["hamBand"].toInt());
@@ -70,6 +77,7 @@ void ReceiverConfig::load(const QJsonObject &json) {
     if (json.contains("agcMode")) m_agcMode = static_cast<AGCMode>(json["agcMode"].toInt());
     if (json.contains("ctrFrequency")) m_ctrFrequency = static_cast<qint64>(json["ctrFrequency"].toDouble());
     if (json.contains("vfoFrequency")) m_vfoFrequency = static_cast<qint64>(json["vfoFrequency"].toDouble());
+    if (json.contains("filterSlope")) m_filterSlope = json["filterSlope"].toInt(1);
 }
 
 void ReceiverConfig::save(QJsonObject &json) const {
@@ -80,6 +88,7 @@ void ReceiverConfig::save(QJsonObject &json) const {
     json["agcMode"] = static_cast<int>(m_agcMode);
     json["ctrFrequency"] = static_cast<double>(m_ctrFrequency);
     json["vfoFrequency"] = static_cast<double>(m_vfoFrequency);
+    json["filterSlope"] = m_filterSlope;
 }
 
 void ReceiverConfig::loadIni(QSettings *settings) {
@@ -105,6 +114,11 @@ void ReceiverConfig::loadIni(QSettings *settings) {
     if (!settings->contains(cstr))
         cstr = legacyPrefix + "/vfoFrequency";
     setVfoFrequency(static_cast<qint64>(settings->value(cstr, 7050000.0).toDouble()));
+
+    cstr = prefix + "/filterSlope";
+    if (!settings->contains(cstr))
+        cstr = legacyPrefix + "/filterSlope";
+    setFilterSlope(settings->value(cstr, 1).toInt());
 }
 
 void ReceiverConfig::saveIni(QSettings *settings) const {
@@ -120,4 +134,7 @@ void ReceiverConfig::saveIni(QSettings *settings) const {
 
     cstr = prefix + "/vfoFrequency";
     settings->setValue(cstr, m_vfoFrequency);
+
+    cstr = prefix + "/filterSlope";
+    settings->setValue(cstr, m_filterSlope);
 }

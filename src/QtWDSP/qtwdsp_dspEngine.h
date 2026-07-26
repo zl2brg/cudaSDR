@@ -100,6 +100,7 @@ public slots:
     void setDSPMode(DSPMode mode);
     void setAGCMode(AGCMode mode);
     void setFilter(double low, double high);
+    void setFilterSlope(int rx, int slope);
     void setAGCMaximumGain(qreal);
     void setAGCHangThreshold(int rx, double);
     // void	setAGCHangLeveldBLine(qreal value);
@@ -181,6 +182,7 @@ private:
     int m_nrMode;
     double m_filterLo;
     double m_filterHi;
+    int m_filterSlope;
 
     void ProcessFrequencyShift(CPX &in, CPX &out);
     void setupConnections();

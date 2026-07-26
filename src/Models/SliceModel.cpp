@@ -41,6 +41,12 @@ void SliceModel::setFilterPreset(int preset) {
     emit filterPresetChanged(m_filterPreset);
 }
 
+void SliceModel::setFilterSlope(int slope) {
+    if (m_filterSlope == slope) return;
+    m_filterSlope = slope;
+    emit filterSlopeChanged(m_filterSlope);
+}
+
 void SliceModel::setVolume(float vol) {
     if (m_volume == vol) return;
     m_volume = vol;

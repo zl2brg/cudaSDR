@@ -196,6 +196,7 @@ void QWDSPEngine::setupConnections() {
     connect(m_sliceModel, &SliceModel::agcHangThresholdChanged, this, [this](int thresh){ setAGCHangThreshold(m_rx, (double)thresh); });
     connect(m_sliceModel, &SliceModel::agcSlopeChanged, this, [this](int slope){ setAGCSlope(m_rx, slope); });
     connect(m_sliceModel, &SliceModel::filterChanged, this, [this](){ setFilter((double)m_sliceModel->filterLow(), (double)m_sliceModel->filterHigh()); });
+    connect(m_sliceModel, &SliceModel::filterSlopeChanged, this, [this](int slope){ setFilterSlope(m_rx, slope); });
     connect(m_sliceModel, &SliceModel::dspModeChanged, this, [this](DSPMode mode) { setDSPMode(mode); });
     connect(m_sliceModel, &SliceModel::nbModeChanged, this, [this](int mode){ setNoiseBlankerMode(m_rx, mode); });
     connect(m_sliceModel, &SliceModel::fftSizeChanged, this, [this](int size){ setfftSize(m_rx, size); });
@@ -621,6 +622,15 @@ void QWDSPEngine:: setFilter(double low,double high) {
 	RXASetPassband(m_rx,low,high);
 	emit setAGCLineValues(m_rx);
     WDSP_ENGINE_DEBUG << "Set Filter:Low  " <<  low << "High " << high;
+}
+
+void QWDSPEngine::setFilterSlope(int rx, int slope) {
+    if (m_rx != rx) return;
+    m_filterSlope = slope;
+
+    // Refresh passband filter
+    setFilter(m_filterLo, m_filterHi);
+    WDSP_ENGINE_DEBUG << "Set Filter Slope rx=" << rx << " slope=" << slope;
 }
 
 

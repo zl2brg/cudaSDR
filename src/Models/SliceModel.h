@@ -15,6 +15,7 @@ class SliceModel : public QObject {
     Q_PROPERTY(float filterLow READ filterLow WRITE setFilterLow NOTIFY filterChanged)
     Q_PROPERTY(float filterHigh READ filterHigh WRITE setFilterHigh NOTIFY filterChanged)
     Q_PROPERTY(int filterPreset READ filterPreset WRITE setFilterPreset NOTIFY filterPresetChanged)
+    Q_PROPERTY(int filterSlope READ filterSlope WRITE setFilterSlope NOTIFY filterSlopeChanged)
     Q_PROPERTY(float volume READ volume WRITE setVolume NOTIFY volumeChanged)
     Q_PROPERTY(bool mute READ mute WRITE setMute NOTIFY muteChanged)
     Q_PROPERTY(float pan READ pan WRITE setPan NOTIFY panChanged)
@@ -71,6 +72,9 @@ public:
 
     int filterPreset() const { return m_filterPreset; }
     void setFilterPreset(int preset);
+
+    int filterSlope() const { return m_filterSlope; }
+    void setFilterSlope(int slope);
 
     float volume() const { return m_volume; }
     void setVolume(float vol);
@@ -177,6 +181,7 @@ signals:
     void dspModeChanged(DSPMode mode);
     void filterChanged();
     void filterPresetChanged(int preset);
+    void filterSlopeChanged(int slope);
     void volumeChanged(float vol);
     void muteChanged(bool muted);
     void panChanged(float pan);
@@ -217,6 +222,7 @@ private:
     float m_filterLow = -3050.0f;
     float m_filterHigh = -150.0f;
     int m_filterPreset = 3; // Default to 2.4k
+    int m_filterSlope = 1; // Default to Normal
     float m_volume = 0.5f;
     bool m_mute = false;
     float m_pan = 0.0f;

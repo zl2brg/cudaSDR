@@ -89,6 +89,12 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
         }
     });
 
+    connect(m_view, &RadioPopupWidget::filterSlopeRequested, this, [this](int r, int slope) {
+        if (m_sliceModel && r == m_sliceModel->id()) {
+            m_sliceModel->setFilterSlope(slope);
+        }
+    });
+
     connect(m_view, &RadioPopupWidget::adcModeRequested, this, [this](int r, ADCMode mode) {
         m_model->setADCMode(r, mode);
     });
@@ -221,6 +227,9 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
         });
         connect(m_sliceModel, &SliceModel::filterChanged, this, [this]() {
             m_view->setFilterFrequencies(m_sliceModel->filterLow(), m_sliceModel->filterHigh());
+        });
+        connect(m_sliceModel, &SliceModel::filterSlopeChanged, this, [this](int slope) {
+            m_view->setFilterSlope(slope);
         });
         connect(m_sliceModel, &SliceModel::panAveragingModeChanged, this, [this](PanAveragingMode mode) {
             m_view->setSpectrumAveraging(mode != AV_MODE_NONE);

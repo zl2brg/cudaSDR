@@ -19,6 +19,7 @@ class ReceiverConfig : public QObject {
     Q_PROPERTY(AGCMode agcMode READ agcMode WRITE setAgcMode NOTIFY agcModeChanged)
     Q_PROPERTY(qint64 ctrFrequency READ ctrFrequency WRITE setCtrFrequency NOTIFY ctrFrequencyChanged)
     Q_PROPERTY(qint64 vfoFrequency READ vfoFrequency WRITE setVfoFrequency NOTIFY vfoFrequencyChanged)
+    Q_PROPERTY(int filterSlope READ filterSlope WRITE setFilterSlope NOTIFY filterSlopeChanged)
 
 public:
     explicit ReceiverConfig(int id, QObject *parent = nullptr);
@@ -46,6 +47,9 @@ public:
     qint64 vfoFrequency() const { return m_vfoFrequency; }
     void setVfoFrequency(qint64 freq);
 
+    int filterSlope() const { return m_filterSlope; }
+    void setFilterSlope(int slope);
+
     void load(const QJsonObject &json);
     void save(QJsonObject &json) const;
 
@@ -60,6 +64,7 @@ signals:
     void agcModeChanged(AGCMode mode);
     void ctrFrequencyChanged(qint64 freq);
     void vfoFrequencyChanged(qint64 freq);
+    void filterSlopeChanged(int slope);
 
 private:
     int m_id;
@@ -70,6 +75,7 @@ private:
     AGCMode m_agcMode;
     qint64 m_ctrFrequency;
     qint64 m_vfoFrequency;
+    int m_filterSlope = 1;
 };
 
 #endif // RECEIVERCONFIG_H

@@ -53,6 +53,7 @@ public:
 	void setAGCMode(AGCMode mode);
 	void setDefaultFilterMode(TDefaultFilterMode mode);
 	void setFilterFrequencies(qreal low, qreal high);
+	void setFilterSlope(int slope);
 	void setSpectrumAveraging(bool enabled);
 	void setPanGrid(bool enabled);
 	void setPeakHold(bool enabled);
@@ -74,6 +75,7 @@ signals:
 	void freeDVModeRequested(int rx, int mode);
 	void dspModeRequested(int rx, DSPMode mode);
 	void filterFrequenciesRequested(int rx, qreal low, qreal high);
+	void filterSlopeRequested(int rx, int slope);
 	void adcModeRequested(int rx, ADCMode mode);
 	void agcModeRequested(int rx, AGCMode mode);
 	void agcShowLinesRequested(int rx, bool enabled);
@@ -258,6 +260,28 @@ private:
 	AeroButton*		filter1kBtnC;
 	AeroButton*		filterVar1BtnC;
 	AeroButton*		filterVar2BtnC;
+
+	AeroButton*		slopeSoftBtn;
+	AeroButton*		slopeNormBtn;
+	AeroButton*		slopeSteepBtn;
+	AeroButton*		slopeBrickBtn;
+	QList<AeroButton *>	slopeBtnList;
+	QWidget*		slopeWidget;
+
+	QSlider*		m_varFilterSlider;
+	QLabel*			m_varFilterLabel;
+	QWidget*		m_varFilterContainer;
+
+	int				m_filterSlope;
+	float			m_var1WidthA;
+	float			m_var2WidthA;
+	float			m_var1WidthB;
+	float			m_var2WidthB;
+	float			m_var1WidthC;
+	float			m_var2WidthC;
+
+	float getVarWidth(int groupIdx, int varIndex) const;
+	void setVarWidth(int groupIdx, int varIndex, float width);
 	
 	QLabel*			m_rxLabel;
 
@@ -321,6 +345,7 @@ private slots:
 	void createFilterBtnWidgetA();
 	void createFilterBtnWidgetB();
 	void createFilterBtnWidgetC();
+	void createSlopeBtnGroup();
 
 	void avgBtnClicked();
 	void gridBtnClicked();
@@ -340,6 +365,8 @@ private slots:
 	void agcModeChangedByBtn();
 	void agcShowLinesChanged();
 	void filterChangedByBtn();
+	void filterSlopeChangedByBtn();
+	void varFilterSliderValueChanged(int value);
 	void filterGroupChanged(DSPMode mode);
 	void updateFreeDVControls();
 

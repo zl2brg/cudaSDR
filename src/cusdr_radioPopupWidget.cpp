@@ -71,6 +71,13 @@ RadioPopupWidget::RadioPopupWidget(SliceModel *model, QWidget *parent)
     : QWidget(parent)
     , m_sliceModel(model)
     , m_sticky(false)
+    , m_filterSlope(1)
+    , m_var1WidthA(1800.0f)
+    , m_var2WidthA(4000.0f)
+    , m_var1WidthB(3500.0f)
+    , m_var2WidthB(12000.0f)
+    , m_var1WidthC(150.0f)
+    , m_var2WidthC(800.0f)
     , m_receiver(model ? model->id() : 0)
     , m_currentRx(0)
     , m_singleAdcDevice(false)
@@ -122,6 +129,29 @@ RadioPopupWidget::RadioPopupWidget(SliceModel *model, QWidget *parent)
     createFilterBtnWidgetA();
     createFilterBtnWidgetB();
     createFilterBtnWidgetC();
+    createSlopeBtnGroup();
+
+    m_varFilterLabel = new QLabel("Var 1: 1800 Hz", this);
+    m_varFilterLabel->setFont(m_fonts.smallFont);
+    m_varFilterLabel->setStyleSheet("color: rgba(180, 180, 180, 255);");
+    m_varFilterLabel->setFixedWidth(100);
+
+    m_varFilterSlider = new QSlider(Qt::Horizontal, this);
+    m_varFilterSlider->setFixedHeight(20);
+    m_varFilterSlider->setRange(100, 5000);
+    m_varFilterSlider->setValue(1800);
+    connect(m_varFilterSlider, &QSlider::valueChanged, this, &RadioPopupWidget::varFilterSliderValueChanged);
+
+    QHBoxLayout *varHBox = new QHBoxLayout();
+    varHBox->setContentsMargins(0, 0, 0, 0);
+    varHBox->setSpacing(4);
+    varHBox->addWidget(m_varFilterLabel);
+    varHBox->addWidget(m_varFilterSlider);
+
+    m_varFilterContainer = new QWidget(this);
+    m_varFilterContainer->setContentsMargins(0, 0, 0, 0);
+    m_varFilterContainer->setLayout(varHBox);
+    m_varFilterContainer->setVisible(false);
 
     m_popupAgcWidget = new AGCOptionsWidget(this);
     m_noiseFilterWidget = new NoiseFilterWidget(this);
@@ -160,7 +190,11 @@ RadioPopupWidget::RadioPopupWidget(SliceModel *model, QWidget *parent)
     radioLayout->addLayout(modeVBox);
     radioLayout->addSpacing(8);
     radioLayout->addWidget(m_filterStackedWidget);
-    radioLayout->addSpacing(32);
+    radioLayout->addSpacing(4);
+    radioLayout->addWidget(m_varFilterContainer);
+    radioLayout->addSpacing(4);
+    radioLayout->addWidget(slopeWidget);
+    radioLayout->addSpacing(16);
     radioLayout->addLayout(agcVBox);
     radioLayout->addStretch();
 
@@ -1087,6 +1121,85 @@ void RadioPopupWidget::createFilterBtnWidgetC() {
     filterCWidget->setLayout(vbox);
 }
 
+void RadioPopupWidget::createSlopeBtnGroup() {
+    QLabel *slopeLabel = new QLabel("Filter Slope", this);
+    slopeLabel->setFont(m_fonts.smallFont);
+    slopeLabel->setStyleSheet("color: rgba(180, 180, 180, 255);");
+
+    slopeSoftBtn = new AeroButton("Soft", this);
+    slopeNormBtn = new AeroButton("Norm", this);
+    slopeSteepBtn = new AeroButton("Steep", this);
+    slopeBrickBtn = new AeroButton("Brick", this);
+
+    slopeBtnList.append(slopeSoftBtn);
+    slopeBtnList.append(slopeNormBtn);
+    slopeBtnList.append(slopeSteepBtn);
+    slopeBtnList.append(slopeBrickBtn);
+
+    for (AeroButton *btn : slopeBtnList) {
+        btn->setRoundness(0);
+        btn->setFont(m_fonts.smallFont);
+        btn->setFixedHeight(btn_height);
+        btn->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+        btn->setBtnState(AeroButton::OFF);
+        connect(btn, &AeroButton::clicked, this, &RadioPopupWidget::filterSlopeChangedByBtn);
+    }
+
+    if (m_filterSlope >= 0 && m_filterSlope < slopeBtnList.size()) {
+        slopeBtnList.at(m_filterSlope)->setBtnState(AeroButton::ON);
+    } else {
+        slopeNormBtn->setBtnState(AeroButton::ON);
+    }
+
+    QHBoxLayout *slopeHBox = new QHBoxLayout();
+    slopeHBox->setContentsMargins(0, 0, 0, 0);
+    slopeHBox->setSpacing(0);
+    slopeHBox->addWidget(slopeSoftBtn);
+    slopeHBox->addWidget(slopeNormBtn);
+    slopeHBox->addWidget(slopeSteepBtn);
+    slopeHBox->addWidget(slopeBrickBtn);
+
+    QVBoxLayout *vbox = new QVBoxLayout();
+    vbox->setContentsMargins(0, 0, 0, 0);
+    vbox->setSpacing(2);
+    vbox->addWidget(slopeLabel);
+    vbox->addLayout(slopeHBox);
+
+    slopeWidget = new QWidget(this);
+    slopeWidget->setContentsMargins(0, 0, 0, 0);
+    slopeWidget->setLayout(vbox);
+}
+
+void RadioPopupWidget::filterSlopeChangedByBtn() {
+    AeroButton *button = qobject_cast<AeroButton *>(sender());
+    if (!button) return;
+
+    int idx = slopeBtnList.indexOf(button);
+    if (idx < 0) return;
+
+    for (AeroButton *btn : slopeBtnList) {
+        btn->setBtnState(AeroButton::OFF);
+        btn->update();
+    }
+    button->setBtnState(AeroButton::ON);
+    button->update();
+
+    m_filterSlope = idx;
+    emit filterSlopeRequested(m_receiver, m_filterSlope);
+}
+
+void RadioPopupWidget::setFilterSlope(int slope) {
+    if (slope < 0 || slope >= slopeBtnList.size()) return;
+    m_filterSlope = slope;
+
+    for (AeroButton *btn : slopeBtnList) {
+        btn->setBtnState(AeroButton::OFF);
+        btn->update();
+    }
+    slopeBtnList.at(slope)->setBtnState(AeroButton::ON);
+    slopeBtnList.at(slope)->update();
+}
+
 void RadioPopupWidget::ctrFrequencyChanged(int mode, int rx, qint64 frequency) {
     Q_UNUSED (mode)
 
@@ -1216,6 +1329,66 @@ void RadioPopupWidget::filterGroupChanged(DSPMode mode) {
     }
 }
 
+float RadioPopupWidget::getVarWidth(int groupIdx, int varIndex) const {
+    if (groupIdx == 0) return (varIndex == 10) ? m_var1WidthA : m_var2WidthA;
+    if (groupIdx == 1) return (varIndex == 10) ? m_var1WidthB : m_var2WidthB;
+    if (groupIdx == 2) return (varIndex == 10) ? m_var1WidthC : m_var2WidthC;
+    return 2400.0f;
+}
+
+void RadioPopupWidget::setVarWidth(int groupIdx, int varIndex, float width) {
+    if (groupIdx == 0) {
+        if (varIndex == 10) m_var1WidthA = width; else m_var2WidthA = width;
+    } else if (groupIdx == 1) {
+        if (varIndex == 10) m_var1WidthB = width; else m_var2WidthB = width;
+    } else if (groupIdx == 2) {
+        if (varIndex == 10) m_var1WidthC = width; else m_var2WidthC = width;
+    }
+}
+
+void RadioPopupWidget::varFilterSliderValueChanged(int value) {
+    if (!m_varFilterContainer || !m_varFilterContainer->isVisible()) return;
+
+    DSPMode mode = m_dspModeList.at(m_hamBand);
+    int groupIdx = -1;
+    if (mode == LSB || mode == USB || mode == DIGU || mode == DIGL) groupIdx = 0;
+    else if (mode == DSB || mode == FMN || mode == AM || mode == SAM) groupIdx = 1;
+    else if (mode == CWL || mode == CWU) groupIdx = 2;
+
+    if (groupIdx == -1) return;
+
+    QList<AeroButton *> *activeList = nullptr;
+    if (groupIdx == 0) activeList = &filterBtnListA;
+    else if (groupIdx == 1) activeList = &filterBtnListB;
+    else if (groupIdx == 2) activeList = &filterBtnListC;
+
+    if (!activeList) return;
+
+    int varIndex = -1;
+    if (activeList->at(10)->btnState() == AeroButton::ON) varIndex = 10;
+    else if (activeList->at(11)->btnState() == AeroButton::ON) varIndex = 11;
+
+    if (varIndex == -1) return;
+
+    float filterWidth = static_cast<float>(value);
+    setVarWidth(groupIdx, varIndex, filterWidth);
+
+    m_varFilterLabel->setText(QString("Var %1: %2 Hz").arg(varIndex == 10 ? 1 : 2).arg(value));
+
+    if (groupIdx == 0) { // Group A: SSB/Data
+        if (mode == LSB || mode == DIGL) { m_filterLo = -(filterWidth + 150.0f); m_filterHi = -150.0f; }
+        else { m_filterLo = 150.0f; m_filterHi = filterWidth + 150.0f; }
+    } else if (groupIdx == 1) { // Group B: Wide
+        if (mode == FMN) { m_filterLo = -2000.0f; m_filterHi = 2000.0f; }
+        else { m_filterLo = -filterWidth / 2.0f; m_filterHi = filterWidth / 2.0f; }
+    } else if (groupIdx == 2) { // Group C: CW
+        if (mode == CWL) { m_filterLo = -(filterWidth + 100.0f); m_filterHi = -100.0f; }
+        else { m_filterLo = 100.0f; m_filterHi = filterWidth + 100.0f; }
+    }
+
+    emit filterFrequenciesRequested(m_receiver, m_filterLo, m_filterHi);
+}
+
 void RadioPopupWidget::filterChangedByBtn() {
     AeroButton *button = qobject_cast<AeroButton *>(sender());
     if (!button) return;
@@ -1236,19 +1409,27 @@ void RadioPopupWidget::filterChangedByBtn() {
         btn->setBtnState(AeroButton::OFF);
         btn->update();
     }
-    
 
     button->setBtnState(AeroButton::ON);
     button->update();
 
     qreal filterWidth = 0.0f;
-    if (btnIndex == 10) { // Var 1
-        
-        filterWidth = qAbs(m_filterHi - m_filterLo);
-    } else if (btnIndex == 11) { // Var 2
-        
-        filterWidth = qAbs(m_filterHi - m_filterLo);
+    if (btnIndex == 10 || btnIndex == 11) { // Var 1 or Var 2
+        filterWidth = getVarWidth(groupIdx, btnIndex);
+
+        int minW = 100, maxW = 5000;
+        if (groupIdx == 1) { minW = 1000; maxW = 20000; }
+        else if (groupIdx == 2) { minW = 25; maxW = 1500; }
+
+        m_varFilterSlider->blockSignals(true);
+        m_varFilterSlider->setRange(minW, maxW);
+        m_varFilterSlider->setValue(static_cast<int>(filterWidth));
+        m_varFilterSlider->blockSignals(false);
+
+        m_varFilterLabel->setText(QString("Var %1: %2 Hz").arg(btnIndex == 10 ? 1 : 2).arg(static_cast<int>(filterWidth)));
+        m_varFilterContainer->setVisible(true);
     } else {
+        m_varFilterContainer->setVisible(false);
         float widths[] = {1000, 1800, 2100, 2400, 2700, 2900, 3300, 3800, 4400, 5000,
                           16000, 12000, 10000, 8000, 6600, 5200, 4000, 3100, 2900, 2400,
                           1000, 800, 750, 600, 500, 400, 250, 100, 50, 25};
@@ -1291,9 +1472,10 @@ void RadioPopupWidget::filterChanged(int rx, qreal low, qreal high) {
     }
 
     float widths[] = {1000, 1800, 2100, 2400, 2700, 2900, 3300, 3800, 4400, 5000,
-                      2400, 2900, 3100, 4000, 5200, 6600, 8000, 10000, 12000, 16000,
-                      25, 50, 100, 250, 400, 500, 600, 750, 800, 1000};
+                      16000, 12000, 10000, 8000, 6600, 5200, 4000, 3100, 2900, 2400,
+                      1000, 800, 750, 600, 500, 400, 250, 100, 50, 25};
     
+    bool matchedPreset = false;
     for (int i = 0; i < 10; ++i) {
         float w = widths[groupIdx * 10 + i];
         bool match = false;
@@ -1311,8 +1493,28 @@ void RadioPopupWidget::filterChanged(int rx, qreal low, qreal high) {
         if (match) {
             activeList->at(i)->setBtnState(AeroButton::ON);
             activeList->at(i)->update();
+            matchedPreset = true;
             break;
         }
+    }
+
+    if (!matchedPreset) {
+        // Custom or Var width active
+        int activeVarIdx = 10; // Default to Var 1 if custom width set via spectrum drag
+        activeList->at(activeVarIdx)->setBtnState(AeroButton::ON);
+        activeList->at(activeVarIdx)->update();
+
+        float customW = static_cast<float>(qAbs(m_filterHi - m_filterLo));
+        setVarWidth(groupIdx, activeVarIdx, customW);
+
+        m_varFilterSlider->blockSignals(true);
+        m_varFilterSlider->setValue(static_cast<int>(customW));
+        m_varFilterSlider->blockSignals(false);
+
+        m_varFilterLabel->setText(QString("Var 1: %1 Hz").arg(static_cast<int>(customW)));
+        m_varFilterContainer->setVisible(true);
+    } else {
+        m_varFilterContainer->setVisible(false);
     }
 }
 
