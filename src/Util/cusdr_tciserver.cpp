@@ -17,6 +17,7 @@
 
 #include "cusdr_tciserver.h"
 #include "Util/tci_protocol_utils.h"
+#include "DataEngine/protocol_boundary_utils.h"
 #include "cusdr_settings.h"
 #include "cusdr_hamDatabase.h"
 #include "Settings/SettingsTypes.h"
@@ -245,11 +246,8 @@ qreal TciServer::effectiveSwr() const
 {
     if (m_swrValid)
         return m_swr;
-    if (m_fwdPowerWatts > 0.001) {
-        const qreal rho = qMin(0.999, std::sqrt(m_revPowerWatts / m_fwdPowerWatts));
-        return (1.0 + rho) / (1.0 - rho);
-    }
-    return 1.0;
+    const bool tx = m_settings && acceptsTxAudio(m_settings->getRadioState());
+    return ProtocolBoundaryUtils::swrFromFwdRevWatts(m_fwdPowerWatts, m_revPowerWatts, tx);
 }
 
 void TciServer::maybeBroadcastTxSensors(bool force)

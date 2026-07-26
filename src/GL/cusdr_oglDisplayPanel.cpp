@@ -548,13 +548,17 @@ void OGLDisplayPanel::paintUpperRegion() {
 		rect = QRect(x1, y1, meterWidth, m_blankHeight);
 		drawPanelRect(rect, QColor(35, 35, 35), -2.0f); // Track background
 
-		qreal pVal = m_txActive ? qMax(m_fwdPowerWatts, m_fwdPowerWattsSmooth) : 0.0;
+		// Fills only after real RF in this TX (m_txMetersArmed). Bare m_txActive drew a
+		// permanent green baseline and flickered if MOX/PTT blipped during receive.
+		const bool metersLive = m_txActive && m_txMetersArmed;
+		qreal pVal = metersLive ? m_fwdPowerWattsSmooth : 0.0;
 		qreal maxP = (pVal > 10.0) ? 100.0 : 10.0;
-		qreal pFrac = qBound(0.0, pVal / maxP, 1.0);
+		// Square-root response curve for high sensitivity at low/medium wattages
+		qreal pFrac = qBound(0.0, std::sqrt(pVal / maxP), 1.0);
 
-		if (m_txActive) {
-			// Base baseline fill of 12% so meter is visibly active on TX even during low modulation, plus live power fill
-			int fillW = qBound(10, qRound(10 + (meterWidth - 10) * pFrac), meterWidth);
+		if (metersLive) {
+			// Baseline fill so the meter stays visibly active on TX during SSB valleys.
+			int fillW = qBound(14, qRound(14 + (meterWidth - 14) * pFrac), meterWidth);
 			QRect fillRect(x1, y1, fillW, m_blankHeight);
 			drawPanelRect(fillRect, QColor(56, 242, 115), -1.9f); // Live green bar
 		}
@@ -563,7 +567,7 @@ void OGLDisplayPanel::paintUpperRegion() {
 		int fwdTextWidth = m_oglTextSmall->fontMetrics().horizontalAdvance(fwdStr);
 		int textX = x1 + qMax(2, (meterWidth - fwdTextWidth) / 2);
 
-		if (m_txActive) {
+		if (metersLive) {
 			qglColor(QColor(255, 255, 255));
 		} else {
 			qglColor(QColor(160, 160, 160));
@@ -578,16 +582,18 @@ void OGLDisplayPanel::paintUpperRegion() {
         rect = QRect(x1, y1, swrMeterWidth, m_blankHeight);
         drawPanelRect(rect, QColor(35, 35, 35), -2.0f); // Track background
 
-        qreal swrVal = m_txActive ? qMax(1.0, qMax(m_swr, m_swrSmooth)) : 1.0;
+		const bool metersLive = m_txActive && m_txMetersArmed;
+        // Use the IIR value only — qMax(raw, smooth) made attack follow raw spikes.
+        qreal swrVal = metersLive ? qMax(1.0, m_swrSmooth) : 1.0;
         
         // SWR scale mapping:
-        // SWR = 1.0 -> 25% meter fill (GOOD Green)
-        // SWR = 1.5 -> 50% meter fill (Green/Yellow transition)
-        // SWR = 2.5 -> 75% meter fill (Yellow/Red transition)
+        // SWR = 1.0 -> 30% meter fill (GOOD Green)
+        // SWR = 1.5 -> 55% meter fill (Green/Yellow)
+        // SWR = 2.5 -> 80% meter fill (Yellow/Red)
         // SWR >= 3.0 -> 100% meter fill (Red)
-        qreal swrFrac = 0.25; // Base 25% fill for 1.0:1 SWR when transmitting
+        qreal swrFrac = 0.30;
         if (swrVal > 1.0) {
-            swrFrac = qBound(0.25, 0.25 + 0.75 * ((swrVal - 1.0) / 2.0), 1.0);
+            swrFrac = qBound(0.30, 0.30 + 0.70 * ((swrVal - 1.0) / 2.0), 1.0);
         }
 
         QColor barColor = QColor(56, 242, 115); // Green default for SWR < 1.5
@@ -596,8 +602,8 @@ void OGLDisplayPanel::paintUpperRegion() {
         else if (swrVal >= 1.5)
             barColor = QColor(255, 255, 50);  // Yellow
 
-        if (m_txActive) {
-            int fillW = qBound(15, qRound(swrMeterWidth * swrFrac), swrMeterWidth);
+        if (metersLive) {
+            int fillW = qBound(24, qRound(swrMeterWidth * swrFrac), swrMeterWidth);
             QRect fillRect(x1, y1, fillW, m_blankHeight);
             drawPanelRect(fillRect, barColor, -1.9f);
         }
@@ -606,7 +612,7 @@ void OGLDisplayPanel::paintUpperRegion() {
         int swrTextWidth = m_oglTextSmall->fontMetrics().horizontalAdvance(swrStr);
         int textX = x1 + qMax(2, (swrMeterWidth - swrTextWidth) / 2);
 
-        if (m_txActive) {
+        if (metersLive) {
             qglColor(QColor(255, 255, 255));
         } else {
             qglColor(QColor(160, 160, 160));
@@ -1979,29 +1985,54 @@ void OGLDisplayPanel::scheduleRepaint()
 
 void OGLDisplayPanel::setForwardPower(qreal watts) {
 	m_fwdPowerWatts = watts;
+	if (!m_txActive) {
+		m_fwdPowerWattsSmooth = 0.0;
+		m_txMetersArmed = false;
+		// RX ADC noise must not repaint the strip every C&C frame.
+		return;
+	}
+
+	// Dual-slope IIR smoothing: fast attack (0.5), smooth decay (0.94 / 0.06)
 	if (watts > m_fwdPowerWattsSmooth)
-		m_fwdPowerWattsSmooth = watts;
+		m_fwdPowerWattsSmooth = 0.5 * m_fwdPowerWattsSmooth + 0.5 * watts;
 	else
-		m_fwdPowerWattsSmooth = 0.85 * m_fwdPowerWattsSmooth + 0.15 * watts;
+		m_fwdPowerWattsSmooth = 0.94 * m_fwdPowerWattsSmooth + 0.06 * watts;
+
+	// Ignore PA ADC noise; once armed, keep meters up for SSB valleys until RX.
+	static constexpr qreal kTxMeterPowerFloorW = 0.1;
+	if (!m_txMetersArmed && m_fwdPowerWattsSmooth >= kTxMeterPowerFloorW)
+		m_txMetersArmed = true;
+
 	scheduleRepaint();
 }
 
 void OGLDisplayPanel::setSWR(qreal swr) {
 	m_swr = swr;
+	if (!m_txActive) {
+		m_swrSmooth = 1.0;
+		return;
+	}
+
 	if (swr > m_swrSmooth)
-		m_swrSmooth = swr;
+		m_swrSmooth = 0.5 * m_swrSmooth + 0.5 * swr;
 	else
-		m_swrSmooth = 0.88 * m_swrSmooth + 0.12 * swr;
-	scheduleRepaint();
+		m_swrSmooth = 0.94 * m_swrSmooth + 0.06 * swr;
+
+	if (m_txMetersArmed)
+		scheduleRepaint();
 }
 
 void OGLDisplayPanel::setRadioState(RadioState state) {
-
 	const bool tx = (state == RadioState::MOX || state == RadioState::TUNE);
 	if (m_txActive == tx)
 		return;
-    m_txActive = tx;
-    scheduleRepaint();
+	m_txActive = tx;
+	if (!m_txActive) {
+		m_fwdPowerWattsSmooth = 0.0;
+		m_swrSmooth = 1.0;
+		m_txMetersArmed = false;
+	}
+	scheduleRepaint();
 }
 
 void OGLDisplayPanel::setSupplyVoltage(qreal volts) {

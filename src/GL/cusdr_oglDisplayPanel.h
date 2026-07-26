@@ -255,6 +255,8 @@ private:
 	qreal	m_fwdPowerWatts = 0.0;
 	qreal	m_fwdPowerWattsSmooth = 0.0;
     bool    m_txActive = false;
+    /** Latched once real RF is seen during this TX; avoids green baseline on RX / MOX-with-no-power. */
+    bool    m_txMetersArmed = false;
     bool    m_rigCtlConnected = false;
     bool    m_tciConnected = false;
     qreal   m_swr = 1.0;

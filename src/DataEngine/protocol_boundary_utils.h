@@ -3,6 +3,8 @@
 
 #include <QByteArray>
 #include <QtEndian>
+#include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <cstdint>
 
@@ -136,6 +138,79 @@ constexpr int kPacketTypeP2HighPriorityStatus = 0x05;
 constexpr int kProtocol2IqPacketSize = 1444;
 constexpr int kProtocol2WidebandPacketSize = 1040;
 constexpr int kProtocol2HpStatusPacketSize = 60;
+
+/** HPSDR C&C / P2 status AIN fields are 12-bit values in a 16-bit word. */
+constexpr quint16 kAin12BitMask = 0x0FFFu;
+
+/** Decode big-endian 12-bit AIN from two protocol bytes (avoids signed-char shifts). */
+inline quint16 decodeAin12BitBE(quint8 hi, quint8 lo)
+{
+    return static_cast<quint16>((static_cast<quint16>(hi) << 8) | lo) & kAin12BitMask;
+}
+
+inline quint16 decodeAin12BitBE(const QByteArray& buffer, int hiIndex)
+{
+    return decodeAin12BitBE(static_cast<quint8>(buffer.at(hiIndex)),
+                            static_cast<quint8>(buffer.at(hiIndex + 1)));
+}
+
+/** PA watt-meter bridge constants (pihpsdr / Thetis / hpsdrsim). */
+struct PaBridgeCal {
+    double vref = 3.3;
+    double bridge = 0.09;
+    int adcOffset = 6;
+};
+
+inline PaBridgeCal paBridgeCalForHermes(bool hermes)
+{
+    // Metis/Alex default: 3.3 / 0.09. Hermes / Angelia: 3.3 / 0.095.
+    return hermes ? PaBridgeCal{3.3, 0.095, 6} : PaBridgeCal{3.3, 0.09, 6};
+}
+
+inline double ain12ToVolts(quint16 ain12, double vref = 3.3)
+{
+    return vref * static_cast<double>(ain12) / 4095.0;
+}
+
+/** watts = ((ADC - offset) / 4095 * Vref)^2 / bridge */
+inline double wattsFromAin12(quint16 ain12, const PaBridgeCal& cal)
+{
+    int code = static_cast<int>(ain12) - cal.adcOffset;
+    if (code < 0)
+        code = 0;
+    const double v = (static_cast<double>(code) / 4095.0) * cal.vref;
+    if (cal.bridge <= 0.0)
+        return 0.0;
+    return (v * v) / cal.bridge;
+}
+
+inline double alexBridgeWattsFromVolts(double volts, double bridge = 0.09)
+{
+    if (bridge <= 0.0)
+        return 0.0;
+    return volts * volts / bridge;
+}
+
+/**
+ * SWR from Alex/Hermes fwd & rev watts.
+ * Below \a kMinFwdWattsForSwr the PA ADCs are noise (P1 RX often ~0.02 W) and
+ * rho clamps to 0.999 → SWR ≈ 1999. Require TX + real forward power.
+ */
+constexpr double kMinFwdWattsForSwr = 0.1;
+constexpr double kMaxReportedSwr = 25.0;
+
+inline double swrFromFwdRevWatts(double fwdWatts, double revWatts, bool transmitting)
+{
+    if (!transmitting || !(fwdWatts >= kMinFwdWattsForSwr))
+        return 1.0;
+    if (revWatts < 0.0)
+        revWatts = 0.0;
+    double rho = std::sqrt(revWatts / fwdWatts);
+    if (rho > 0.999)
+        rho = 0.999;
+    const double swr = (1.0 + rho) / (1.0 - rho);
+    return std::min(swr, kMaxReportedSwr);
+}
 
 /** Alex TX LPF auto-select thresholds (Hz) — Protocol 1, C4 byte */
 constexpr long kAlexLpf6mMinHz     = 35600000L; // > this → 6m LPF (0x10)

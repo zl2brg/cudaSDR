@@ -209,29 +209,26 @@ void CProtocol2::decodeCCBytes(const QByteArray& buffer, THPSDRParameter* io) {
     }
 
     // Bytes 6-7: AIN1 — Forward power ADC (Alex0 fwd / Hermes PA fwd, 12-bit, 16-bit BE)
-    uint16_t fwdPwrRaw = ProtocolBoundaryUtils::decode16BitBE(reinterpret_cast<const uchar*>(buffer.constData() + 6));
-    io->ccRx.ain1 = fwdPwrRaw;
-    io->alexForwardVolts = (double)fwdPwrRaw * (3.3 / 4095.0);
+    const auto cal = ProtocolBoundaryUtils::paBridgeCalForHermes(
+        set->getHWInterface() == QSDR::Hermes);
+    io->ccRx.ain1 = ProtocolBoundaryUtils::decodeAin12BitBE(
+        static_cast<quint8>(buffer.at(6)), static_cast<quint8>(buffer.at(7)));
+    io->alexForwardVolts = ProtocolBoundaryUtils::ain12ToVolts(io->ccRx.ain1, cal.vref);
 
     // Bytes 8-9: AIN2 — Reverse power ADC (Alex0 rev / Hermes PA rev, 12-bit, 16-bit BE)
-    uint16_t revPwrRaw = ProtocolBoundaryUtils::decode16BitBE(reinterpret_cast<const uchar*>(buffer.constData() + 8));
-    io->ccRx.ain2 = revPwrRaw;
-    io->alexReverseVolts = (double)revPwrRaw * (3.3 / 4095.0);
-    io->alexForwardPower = io->alexForwardVolts * io->alexForwardVolts / 0.09;
-    io->alexReversePower = io->alexReverseVolts * io->alexReverseVolts / 0.09;
+    io->ccRx.ain2 = ProtocolBoundaryUtils::decodeAin12BitBE(
+        static_cast<quint8>(buffer.at(8)), static_cast<quint8>(buffer.at(9)));
+    io->alexReverseVolts = ProtocolBoundaryUtils::ain12ToVolts(io->ccRx.ain2, cal.vref);
+    io->alexForwardPower = ProtocolBoundaryUtils::wattsFromAin12(io->ccRx.ain1, cal);
+    io->alexReversePower = ProtocolBoundaryUtils::wattsFromAin12(io->ccRx.ain2, cal);
     if (RadioTelemetry* tel = telemetryFromSettings()) {
         tel->setForwardPower(io->alexForwardPower);
         tel->setReversePower(io->alexReversePower);
 
-        // Calculate SWR
-        if (io->alexForwardPower > 0.001) {
-            qreal rho = sqrt(io->alexReversePower / io->alexForwardPower);
-            if (rho > 0.999) rho = 0.999;
-            qreal swr = (1.0 + rho) / (1.0 - rho);
-            tel->setSWR(swr);
-        } else {
-            tel->setSWR(1.0);
-        }
+        const bool tx = set->getRadioState() == RadioState::MOX
+            || set->getRadioState() == RadioState::TUNE;
+        tel->setSWR(ProtocolBoundaryUtils::swrFromFwdRevWatts(
+            io->alexForwardPower, io->alexReversePower, tx));
     }
 
     // Bytes 34-35: Temperature (16-bit BE, degrees C x 100)

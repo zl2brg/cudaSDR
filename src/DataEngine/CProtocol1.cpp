@@ -191,55 +191,61 @@ void CProtocol1::decodeCCBytes(const QByteArray& buffer, THPSDRParameter* io) {
 			}
 			break;
 
-		case 1:
-			if (set->getPenelopePresence() || (set->getHWInterface() == QSDR::Hermes)) {
-				io->ccRx.ain5 = (quint16)((quint16)(buffer.at(1) << 8) + (quint16)buffer.at(2));
-				io->penelopeForwardVolts = (qreal)(3.3 * (qreal)io->ccRx.ain5 / 4095.0);
-				io->penelopeForwardPower = (qreal)(io->penelopeForwardVolts * io->penelopeForwardVolts / 0.09);
+		case 1: {
+			const bool hermes = (set->getHWInterface() == QSDR::Hermes);
+			const auto cal = ProtocolBoundaryUtils::paBridgeCalForHermes(hermes);
+			if (set->getPenelopePresence() || hermes) {
+				io->ccRx.ain5 = ProtocolBoundaryUtils::decodeAin12BitBE(buffer, 1);
+				io->penelopeForwardVolts = ProtocolBoundaryUtils::ain12ToVolts(io->ccRx.ain5, cal.vref);
+				io->penelopeForwardPower = ProtocolBoundaryUtils::wattsFromAin12(io->ccRx.ain5, cal);
 			}
-			if (set->getAlexPresence()) {
-				io->ccRx.ain1 = (quint16)((quint16)(buffer.at(3) << 8) + (quint16)buffer.at(4));
-				io->alexForwardVolts = (qreal)(3.3 * (qreal)io->ccRx.ain1 / 4095.0);
-				io->alexForwardPower = (qreal)(io->alexForwardVolts * io->alexForwardVolts / 0.09);
-				if (RadioTelemetry* tel = telemetryFromSettings()) {
-					tel->setForwardPower(io->alexForwardPower);
-				}
-			} else if (set->getPenelopePresence() || (set->getHWInterface() == QSDR::Hermes)) {
-				// No Alex: report Penelope/Hermes PA forward power from AIN5
-				if (RadioTelemetry* tel = telemetryFromSettings()) {
-					tel->setForwardPower(io->penelopeForwardPower);
-				}
-			}
-            break;
+			// Must mask to 12 bits: unmasked 0xFFFF → ~52.8 V → ~30 kW.
+			io->ccRx.ain1 = ProtocolBoundaryUtils::decodeAin12BitBE(buffer, 3);
+			io->alexForwardVolts = ProtocolBoundaryUtils::ain12ToVolts(io->ccRx.ain1, cal.vref);
+			io->alexForwardPower = ProtocolBoundaryUtils::wattsFromAin12(io->ccRx.ain1, cal);
 
-		case 2:
-			if (set->getAlexPresence()) {
-				io->ccRx.ain2 = (quint16)((quint16)(buffer.at(1) << 8) + (quint16)buffer.at(2));
-				io->alexReverseVolts = (qreal)(3.3 * (qreal)io->ccRx.ain2 / 4095.0);
-				io->alexReversePower = (qreal)(io->alexReverseVolts * io->alexReverseVolts / 0.09);
-				if (RadioTelemetry* tel = telemetryFromSettings()) {
-					tel->setReversePower(io->alexReversePower);
-					// Match Protocol2: derive SWR once both Alex fwd/rev are known.
-					if (io->alexForwardPower > 0.001) {
-						qreal rho = sqrt(io->alexReversePower / io->alexForwardPower);
-						if (rho > 0.999) rho = 0.999;
-						tel->setSWR((1.0 + rho) / (1.0 - rho));
-					} else {
-						tel->setSWR(1.0);
-					}
+			if (RadioTelemetry* tel = telemetryFromSettings()) {
+				// Alex AIN1 when enabled (ANAN-10 etc.). Fall back to AIN5 only if AIN1 is zero (pihpsdr).
+				quint16 fwdCode = 0;
+				if (set->getAlexPresence()) {
+					fwdCode = io->ccRx.ain1;
+					if (fwdCode == 0 && (set->getPenelopePresence() || hermes))
+						fwdCode = io->ccRx.ain5;
+				} else if (set->getPenelopePresence() || hermes) {
+					fwdCode = io->ccRx.ain5;
 				}
-			}
-			if (set->getPenelopePresence() || (set->getHWInterface() == QSDR::Hermes)) {
-				io->ccRx.ain3 = (quint16)((quint16)(buffer.at(3) << 8) + (quint16)buffer.at(4));
-				io->ain3Volts = (qreal)(3.3 * (double)io->ccRx.ain3 / 4095.0);
+				tel->setForwardPower(ProtocolBoundaryUtils::wattsFromAin12(fwdCode, cal));
 			}
 			break;
+		}
+
+		case 2: {
+			const bool hermes = (set->getHWInterface() == QSDR::Hermes);
+			const auto cal = ProtocolBoundaryUtils::paBridgeCalForHermes(hermes);
+			if (set->getAlexPresence()) {
+				io->ccRx.ain2 = ProtocolBoundaryUtils::decodeAin12BitBE(buffer, 1);
+				io->alexReverseVolts = ProtocolBoundaryUtils::ain12ToVolts(io->ccRx.ain2, cal.vref);
+				io->alexReversePower = ProtocolBoundaryUtils::wattsFromAin12(io->ccRx.ain2, cal);
+				if (RadioTelemetry* tel = telemetryFromSettings()) {
+					tel->setReversePower(io->alexReversePower);
+					const bool tx = set->getRadioState() == RadioState::MOX
+						|| set->getRadioState() == RadioState::TUNE;
+					tel->setSWR(ProtocolBoundaryUtils::swrFromFwdRevWatts(
+						io->alexForwardPower, io->alexReversePower, tx));
+				}
+			}
+			if (set->getPenelopePresence() || hermes) {
+				io->ccRx.ain3 = ProtocolBoundaryUtils::decodeAin12BitBE(buffer, 3);
+				io->ain3Volts = ProtocolBoundaryUtils::ain12ToVolts(io->ccRx.ain3, cal.vref);
+			}
+			break;
+		}
 
 		case 3:
 			if (set->getPenelopePresence() || (set->getHWInterface() == QSDR::Hermes)) {
-				io->ccRx.ain4 = (quint16)((quint16)(buffer.at(1) << 8) + (quint16)buffer.at(2));
-				io->ccRx.ain6 = (quint16)((quint16)(buffer.at(3) << 8) + (quint16)buffer.at(4));
-				io->ain4Volts = (qreal)(3.3 * (qreal)io->ccRx.ain4 / 4095.0);
+				io->ccRx.ain4 = ProtocolBoundaryUtils::decodeAin12BitBE(buffer, 1);
+				io->ccRx.ain6 = ProtocolBoundaryUtils::decodeAin12BitBE(buffer, 3);
+				io->ain4Volts = ProtocolBoundaryUtils::ain12ToVolts(io->ccRx.ain4);
 				if (set->getHWInterface() == QSDR::Hermes)
 					io->supplyVolts = (qreal)((qreal)io->ccRx.ain6 / 186.0f);
 			}
