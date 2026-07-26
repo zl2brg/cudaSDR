@@ -344,7 +344,7 @@ void DisplayOptionsWidget::createWidebandPanOptions() {
 	m_wbAvgSlider->setSingleStep(1);
 	m_wbAvgSlider->setRange(1, 1000);
 	m_wbAvgSlider->setValue(m_wbAvgValue);
-	CHECKED_CONNECT(m_wbAvgSlider, &QSlider::valueChanged, this, &DisplayOptionsWidget::setWidebandAveragingCnt);
+	CHECKED_CONNECT(m_wbAvgSlider, &QSlider::valueChanged, this, &DisplayOptionsWidget::wbAveragingFilterCntChanged);
 
 	QString str = "%1 ";
 	m_wbAvgLevelLabel = new QLabel(str.arg(m_wbAvgValue, 2, 10, QLatin1Char(' ')), this);
@@ -523,11 +523,25 @@ void DisplayOptionsWidget::setFramesPerSecond(int fps) {
 
 void DisplayOptionsWidget::setSpectrumAveragingCnt(int avg) {
 	m_avgValue = avg;
-	const QSignalBlocker blocker(m_avgSlider);
-	m_avgSlider->setValue(avg);
-	m_avgLevelLabel->setText(QString("%1 ").arg(avg, 2, 10, QLatin1Char(' ')));
+	if (m_avgSlider) {
+		const QSignalBlocker blocker(m_avgSlider);
+		m_avgSlider->setValue(avg);
+	}
+	if (m_avgLevelLabel) {
+		m_avgLevelLabel->setText(QString("%1 ").arg(m_avgValue, 2, 10, QLatin1Char(' ')));
+	}
 }
 
+void DisplayOptionsWidget::setWidebandAveragingCnt(int val) {
+	m_wbAvgValue = val;
+	if (m_wbAvgSlider) {
+		const QSignalBlocker blocker(m_wbAvgSlider);
+		m_wbAvgSlider->setValue(val);
+	}
+	if (m_wbAvgLevelLabel) {
+		m_wbAvgLevelLabel->setText(QString("%1 ").arg(m_wbAvgValue, 2, 10, QLatin1Char(' ')));
+	}
+}
 void DisplayOptionsWidget::setWaterfallTime(int val) {
 	m_waterfallTime = val;
 	if (m_waterfallTimeSpinBox) {
@@ -705,7 +719,7 @@ void DisplayOptionsWidget::averagingFilterCntChanged(int value) {
 	emit spectrumAveragingCntRequested(m_currentReceiver, value);
 }
 
-void DisplayOptionsWidget::setWidebandAveragingCnt(int value) {
+void DisplayOptionsWidget::wbAveragingFilterCntChanged(int value) {
 	m_wbAvgValue = value;
 	m_wbAvgLevelLabel->setText(QString("%1 ").arg(m_wbAvgValue, 2, 10, QLatin1Char(' ')));
 	emit spectrumAveragingCntRequested(-1, value);

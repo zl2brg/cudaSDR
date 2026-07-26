@@ -27,6 +27,7 @@ public:
 	// MVC View Interface Setters
 	void	setFramesPerSecond(int fps);
 	void	setSpectrumAveragingCnt(int avg);
+	void	setWidebandAveragingCnt(int val);
 	void	setWaterfallTime(int val);
 	void	setWaterfallOffsetLo(int val);
 	void	setWaterfallOffsetHi(int val);
@@ -184,7 +185,7 @@ private slots:
 	void	sMeterHoldTimeChanged(int value);
 	void 	fpsValueChanged(int value);
 	void	averagingFilterCntChanged(int value);
-	void	setWidebandAveragingCnt(int value);
+	void	wbAveragingFilterCntChanged(int value);
 	void	callSignTextChanged(const QString &text);
 	void	callSignChanged();
 	void    panAverageModeChanged(int value);

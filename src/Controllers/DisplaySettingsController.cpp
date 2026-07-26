@@ -44,6 +44,15 @@ void DisplaySettingsController::bind(DisplayTabWidget* container, Settings* mode
         // Load global/shared values
         m_displayView->setSMeterHoldTime(m_model->getSMeterHoldTime());
         m_displayView->setCallsign(m_model->getCallsign());
+        m_displayView->setWidebandAveragingCnt(m_model->getSpectrumAveragingCnt(-1));
+
+        connect(m_model, &Settings::spectrumAveragingCntChanged, this, [this](int rx, int val) {
+            if (rx == -1) {
+                m_displayView->setWidebandAveragingCnt(val);
+            } else if (m_displayView->currentReceiver() == rx) {
+                m_displayView->setSpectrumAveragingCnt(val);
+            }
+        });
 
         // View -> Model
         connect(m_displayView, &DisplayOptionsWidget::receiverChanged, this, [loadReceiverValues](int rx) {

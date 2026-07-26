@@ -84,9 +84,8 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
         if (m_sliceModel && r == m_sliceModel->id()) {
             m_sliceModel->setFilterLow(static_cast<float>(low));
             m_sliceModel->setFilterHigh(static_cast<float>(high));
-        } else {
-            m_model->setRXFilter(r, low, high);
         }
+        m_model->setRXFilter(r, low, high);
     });
 
     connect(m_view, &RadioPopupWidget::filterSlopeRequested, this, [this](int r, int slope) {

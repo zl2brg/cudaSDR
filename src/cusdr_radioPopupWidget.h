@@ -279,6 +279,7 @@ private:
 	float			m_var2WidthB;
 	float			m_var1WidthC;
 	float			m_var2WidthC;
+	int				m_activeFilterIndex;
 
 	float getVarWidth(int groupIdx, int varIndex) const;
 	void setVarWidth(int groupIdx, int varIndex, float width);

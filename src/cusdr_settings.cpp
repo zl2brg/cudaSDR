@@ -674,7 +674,7 @@ int Settings::loadSettings() {
         m_widebandOptions.averaging = true;
 
     value = settings->value("wideband/averagingCnt", 5).toInt();
-    if ((value < 1) || (value > 100)) value = 5;
+    if ((value < 1) || (value > 1000)) value = 5;
     m_widebandOptions.averagingCnt = value;
 
     value = settings->value("wideband/dBmWideBandScaleMin", -140).toInt();

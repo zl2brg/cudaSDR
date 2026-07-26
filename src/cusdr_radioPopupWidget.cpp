@@ -78,6 +78,7 @@ RadioPopupWidget::RadioPopupWidget(SliceModel *model, QWidget *parent)
     , m_var2WidthB(12000.0f)
     , m_var1WidthC(150.0f)
     , m_var2WidthC(800.0f)
+    , m_activeFilterIndex(-1)
     , m_receiver(model ? model->id() : 0)
     , m_currentRx(0)
     , m_singleAdcDevice(false)
@@ -1412,6 +1413,7 @@ void RadioPopupWidget::filterChangedByBtn() {
 
     button->setBtnState(AeroButton::ON);
     button->update();
+    m_activeFilterIndex = btnIndex;
 
     qreal filterWidth = 0.0f;
     if (btnIndex == 10 || btnIndex == 11) { // Var 1 or Var 2
@@ -1471,50 +1473,68 @@ void RadioPopupWidget::filterChanged(int rx, qreal low, qreal high) {
         btn->update();
     }
 
-    float widths[] = {1000, 1800, 2100, 2400, 2700, 2900, 3300, 3800, 4400, 5000,
-                      16000, 12000, 10000, 8000, 6600, 5200, 4000, 3100, 2900, 2400,
-                      1000, 800, 750, 600, 500, 400, 250, 100, 50, 25};
-    
-    bool matchedPreset = false;
-    for (int i = 0; i < 10; ++i) {
-        float w = widths[groupIdx * 10 + i];
-        bool match = false;
-        if (groupIdx == 0) {
-            match = (qAbs(m_filterLo - (-(w + 150.0f))) < 2.0f && qAbs(m_filterHi - (-150.0f)) < 2.0f) ||
-                    (qAbs(m_filterLo - 150.0f) < 2.0f && qAbs(m_filterHi - (w + 150.0f)) < 2.0f);
-        } else if (groupIdx == 1) {
-            if (mode == FMN) match = (qAbs(m_filterLo - (-2000.0f)) < 2.0f && qAbs(m_filterHi - 2000.0f) < 2.0f);
-            else match = (qAbs(m_filterLo - (-w/2.0f)) < 2.0f && qAbs(m_filterHi - w/2.0f) < 2.0f);
-        } else if (groupIdx == 2) {
-            match = (qAbs(m_filterLo - (-(w + 100.0f))) < 2.0f && qAbs(m_filterHi - (-100.0f)) < 2.0f) ||
-                    (qAbs(m_filterLo - 100.0f) < 2.0f && qAbs(m_filterHi - (w + 100.0f)) < 2.0f);
-        }
-        
-        if (match) {
-            activeList->at(i)->setBtnState(AeroButton::ON);
-            activeList->at(i)->update();
-            matchedPreset = true;
-            break;
-        }
-    }
-
-    if (!matchedPreset) {
-        // Custom or Var width active
-        int activeVarIdx = 10; // Default to Var 1 if custom width set via spectrum drag
-        activeList->at(activeVarIdx)->setBtnState(AeroButton::ON);
-        activeList->at(activeVarIdx)->update();
+    if (m_activeFilterIndex == 10 || m_activeFilterIndex == 11) {
+        // Var 1 or Var 2 explicitly active
+        activeList->at(m_activeFilterIndex)->setBtnState(AeroButton::ON);
+        activeList->at(m_activeFilterIndex)->update();
 
         float customW = static_cast<float>(qAbs(m_filterHi - m_filterLo));
-        setVarWidth(groupIdx, activeVarIdx, customW);
+        setVarWidth(groupIdx, m_activeFilterIndex, customW);
+
+        int minW = 100, maxW = 5000;
+        if (groupIdx == 1) { minW = 1000; maxW = 20000; }
+        else if (groupIdx == 2) { minW = 25; maxW = 1500; }
 
         m_varFilterSlider->blockSignals(true);
+        m_varFilterSlider->setRange(minW, maxW);
         m_varFilterSlider->setValue(static_cast<int>(customW));
         m_varFilterSlider->blockSignals(false);
 
-        m_varFilterLabel->setText(QString("Var 1: %1 Hz").arg(static_cast<int>(customW)));
+        m_varFilterLabel->setText(QString("Var %1: %2 Hz").arg(m_activeFilterIndex == 10 ? 1 : 2).arg(static_cast<int>(customW)));
         m_varFilterContainer->setVisible(true);
-    } else {
+    } else if (m_activeFilterIndex >= 0 && m_activeFilterIndex < 10) {
+        // Fixed preset explicitly active
+        activeList->at(m_activeFilterIndex)->setBtnState(AeroButton::ON);
+        activeList->at(m_activeFilterIndex)->update();
         m_varFilterContainer->setVisible(false);
+    } else {
+        // Uninitialized m_activeFilterIndex (-1): match by frequency
+        float widths[] = {1000, 1800, 2100, 2400, 2700, 2900, 3300, 3800, 4400, 5000,
+                          16000, 12000, 10000, 8000, 6600, 5200, 4000, 3100, 2900, 2400,
+                          1000, 800, 750, 600, 500, 400, 250, 100, 50, 25};
+
+        bool matchedPreset = false;
+        for (int i = 0; i < 10; ++i) {
+            float w = widths[groupIdx * 10 + i];
+            bool match = false;
+            if (groupIdx == 0) {
+                match = (qAbs(m_filterLo - (-(w + 150.0f))) < 2.0f && qAbs(m_filterHi - (-150.0f)) < 2.0f) ||
+                        (qAbs(m_filterLo - 150.0f) < 2.0f && qAbs(m_filterHi - (w + 150.0f)) < 2.0f);
+            } else if (groupIdx == 1) {
+                if (mode == FMN) match = (qAbs(m_filterLo - (-2000.0f)) < 2.0f && qAbs(m_filterHi - 2000.0f) < 2.0f);
+                else match = (qAbs(m_filterLo - (-w/2.0f)) < 2.0f && qAbs(m_filterHi - w/2.0f) < 2.0f);
+            } else if (groupIdx == 2) {
+                match = (qAbs(m_filterLo - (-(w + 100.0f))) < 2.0f && qAbs(m_filterHi - (-100.0f)) < 2.0f) ||
+                        (qAbs(m_filterLo - 100.0f) < 2.0f && qAbs(m_filterHi - (w + 100.0f)) < 2.0f);
+            }
+
+            if (match) {
+                m_activeFilterIndex = i;
+                activeList->at(i)->setBtnState(AeroButton::ON);
+                activeList->at(i)->update();
+                matchedPreset = true;
+                break;
+            }
+        }
+
+        if (!matchedPreset) {
+            m_activeFilterIndex = 10;
+            activeList->at(10)->setBtnState(AeroButton::ON);
+            activeList->at(10)->update();
+            m_varFilterContainer->setVisible(true);
+        } else {
+            m_varFilterContainer->setVisible(false);
+        }
     }
 }
 
@@ -2079,39 +2099,7 @@ void RadioPopupWidget::setDefaultFilterMode(TDefaultFilterMode mode) {
 }
 
 void RadioPopupWidget::setFilterFrequencies(qreal low, qreal high) {
-    m_filterLo = low;
-    m_filterHi = high;
-    
-    DSPMode mode = m_dspModeList.value(m_hamBand, LSB);
-    QList<AeroButton *> *activeList = nullptr;
-    int groupIdx = -1;
-
-    if (mode == LSB || mode == USB || mode == DIGU || mode == DIGL) { activeList = &filterBtnListA; groupIdx = 0; }
-    else if (mode == DSB || mode == FMN || mode == AM || mode == SAM) { activeList = &filterBtnListB; groupIdx = 1; }
-    else if (mode == CWL || mode == CWU) { activeList = &filterBtnListC; groupIdx = 2; }
-
-    if (!activeList) return;
-
-    for (AeroButton *btn : *activeList) {
-        btn->blockSignals(true);
-        btn->setBtnState(AeroButton::OFF);
-        btn->blockSignals(false);
-        btn->update();
-    }
-
-    float widths[] = {1000, 1800, 2100, 2400, 2700, 2900, 3300, 3800, 4400, 5000,
-                      2400, 2900, 3100, 4000, 5200, 6600, 8000, 10000, 12000, 16000,
-                      25, 50, 100, 250, 400, 500, 600, 750, 800, 1000};
-    qreal currentWidth = qAbs(high - low);
-    for (int i = 0; i < 10; i++) {
-        if (qAbs(widths[groupIdx * 10 + i] - currentWidth) < 1.0f) {
-            activeList->at(i)->blockSignals(true);
-            activeList->at(i)->setBtnState(AeroButton::ON);
-            activeList->at(i)->blockSignals(false);
-            activeList->at(i)->update();
-            break;
-        }
-    }
+    filterChanged(m_receiver, low, high);
 }
 
 void RadioPopupWidget::setSpectrumAveraging(bool enabled) {
