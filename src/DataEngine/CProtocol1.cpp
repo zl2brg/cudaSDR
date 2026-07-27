@@ -159,33 +159,43 @@ void CProtocol1::decodeCCBytes(const QByteArray& buffer, THPSDRParameter* io) {
 
 			if (m_fwCount < 100)
 			{
+				const unsigned char verMercury = static_cast<unsigned char>(buffer.at(2));
+				const unsigned char verPenny = static_cast<unsigned char>(buffer.at(3));
+				const unsigned char verBoard = static_cast<unsigned char>(buffer.at(4));
+				const bool hermesBoard = (io->hpsdrDeviceName == QLatin1String("Hermes"));
+
 				if (set->getHWInterface() == QSDR::Metis)
 				{
-					if (io->ccRx.devices.mercuryFWVersion != (unsigned char)buffer.at(2))
-					{
-                        io->ccRx.devices.mercuryFWVersion = (unsigned char)buffer.at(2);
-						set->setMercuryVersion(io->ccRx.devices.mercuryFWVersion);
+					// Re-publish into Settings even when io cache already matches —
+					// getFirmwareVersions() zeroes Settings without always matching io.
+					if (verMercury && (io->ccRx.devices.mercuryFWVersion != verMercury
+							   || set->getMercuryVersion() == 0)) {
+						io->ccRx.devices.mercuryFWVersion = verMercury;
+						set->setMercuryVersion(verMercury);
 					}
 
-					if (io->ccRx.devices.penelopeFWVersion != (unsigned char)buffer.at(3))
-					{
-						io->ccRx.devices.penelopeFWVersion = (unsigned char)buffer.at(3);
-						io->ccRx.devices.pennylaneFWVersion = (unsigned char)buffer.at(3);
-						set->setPenelopeVersion(io->ccRx.devices.penelopeFWVersion);
-						set->setPennyLaneVersion(io->ccRx.devices.penelopeFWVersion);
+					if (verPenny && (io->ccRx.devices.penelopeFWVersion != verPenny
+							 || set->getPenelopeVersion() == 0)) {
+						io->ccRx.devices.penelopeFWVersion = verPenny;
+						io->ccRx.devices.pennylaneFWVersion = verPenny;
+						set->setPenelopeVersion(verPenny);
+						set->setPennyLaneVersion(verPenny);
 					}
 
-					if (io->ccRx.devices.metisFWVersion != (unsigned char)buffer.at(4))
-					{
-						io->ccRx.devices.metisFWVersion = (unsigned char)buffer.at(4);
-						set->setMetisVersion(io->ccRx.devices.metisFWVersion);
+					if (verBoard && (io->ccRx.devices.metisFWVersion != verBoard
+							 || set->getMetisVersion() == 0)) {
+						io->ccRx.devices.metisFWVersion = verBoard;
+						set->setMetisVersion(verBoard);
 					}
 				}
-				else if (set->getHWInterface() == QSDR::Hermes) {
-					if (io->ccRx.devices.hermesFWVersion != (unsigned char)buffer.at(4)) {
-						io->ccRx.devices.hermesFWVersion = (unsigned char)buffer.at(4);
-						set->setHermesVersion(io->ccRx.devices.hermesFWVersion);
-					}
+
+				// Hermes / ANAN-10 board FW is always in C4. Publish hermesFW for the
+				// IQ probe even when the UI HW interface is still set to Metis.
+				if ((set->getHWInterface() == QSDR::Hermes || hermesBoard) && verBoard
+					&& (io->ccRx.devices.hermesFWVersion != verBoard
+					    || set->getHermesVersion() == 0)) {
+					io->ccRx.devices.hermesFWVersion = verBoard;
+					set->setHermesVersion(verBoard);
 				}
 				m_fwCount++;
 			}

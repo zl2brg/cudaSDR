@@ -790,7 +790,10 @@ bool DataEngine::getFirmwareVersions() {
 		while (waitedMs < probeTimeoutMs) {
 			QThread::msleep(pollMs);
 			waitedMs += pollMs;
-			if (set->getMercuryVersion() > 0 || set->getHermesVersion() > 0)
+			// Hermes/ANAN boards often report board FW as metisFW when the Metis
+			// C&C decode path is used; any non-zero IQ C&C version means IQ is live.
+			if (set->getMercuryVersion() > 0 || set->getHermesVersion() > 0
+				|| set->getMetisVersion() > 0)
 				break;
 		}
 
@@ -800,7 +803,7 @@ bool DataEngine::getFirmwareVersions() {
 		io.pennylaneFW = set->getPennyLaneVersion();
 		io.hermesFW = set->getHermesVersion();
 
-		if (io.mercuryFW == 0 && io.hermesFW == 0) {
+		if (io.mercuryFW == 0 && io.hermesFW == 0 && io.metisFW == 0) {
 			DATA_ENGINE_DEBUG << "no IQ firmware response after" << waitedMs
 							  << "ms (metisFW=" << io.metisFW
 							  << " mercuryFW=" << io.mercuryFW
@@ -844,16 +847,14 @@ bool DataEngine::getFirmwareVersions() {
 // P2 boards is verified, these checks are likely silently skipped for P2 hardware.
 bool DataEngine::checkFirmwareVersions() {
 
-	if (io.metisFW != 0 &&  io.hpsdrDeviceName == "Hermes") {
+	// C4 board FW is stored as metisFW on the Metis decode path even for Hermes/ANAN.
+	// Only treat a real HW-interface mismatch as fatal — not a non-zero metisFW field.
+	if (m_hwInterface == QSDR::Metis && io.hpsdrDeviceName == "Hermes") {
 
-		stop();
-
-		QString msg = "Metis selected, but Hermes found!";
-    //	set->showWarningDialog(msg);
-		return false;
+		DATA_ENGINE_DEBUG << "HW interface is Metis but board is Hermes/ANAN; continuing (prefer Hermes interface)";
 	}
 
-	if (io.hermesFW != 0 && io.hpsdrDeviceName == "Metis") {
+	if (m_hwInterface == QSDR::Hermes && io.hpsdrDeviceName == "Metis") {
 
 		stop();
 
@@ -1484,7 +1485,7 @@ bool DataEngine::initDataEngine() {
 		
 		if (findHPSDRDevices()) {
 		
-			if (io.mercuryFW > 0 || io.hermesFW > 0) {
+			if (io.mercuryFW > 0 || io.hermesFW > 0 || io.metisFW > 0) {
 
 				DATA_ENGINE_DEBUG << "got firmware versions:";
 				DATA_ENGINE_DEBUG << "	Metis firmware:  " << io.metisFW;
