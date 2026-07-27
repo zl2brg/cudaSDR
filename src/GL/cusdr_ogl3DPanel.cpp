@@ -259,6 +259,7 @@ void QGL3DPanel::updateMeshesForScaleChange() {
                                                 m_spectrumWidth,
                                                 lodLevel,
                                                 m_frequencyScale,
+                                                m_timeScale,
                                                 colorLower,
                                                 colorUpper,
                                                 static_cast<float>(m_dBmPanMin),
@@ -276,6 +277,19 @@ void QGL3DPanel::updateMeshesForScaleChange() {
             slice.vertexBuffer->allocate(meshData.vertices.constData(), byteSize);
         } else {
             slice.vertexBuffer->write(0, meshData.vertices.constData(), byteSize);
+        }
+
+        // Index count can change when timeScale changes ribbon topology.
+        if (slice.indexBuffer && !meshData.indices.isEmpty()) {
+            const int indexBytes = meshData.indices.size() * static_cast<int>(sizeof(unsigned int));
+            slice.indexBuffer->bind();
+            if (slice.indexBuffer->size() != indexBytes) {
+                slice.indexBuffer->allocate(meshData.indices.constData(), indexBytes);
+            } else {
+                slice.indexBuffer->write(0, meshData.indices.constData(), indexBytes);
+            }
+            slice.indexCount = meshData.indexCount;
+            slice.frontRowVertexCount = meshData.frontRowVertexCount;
         }
     }
 
@@ -496,6 +510,12 @@ void QGL3DPanel::paintGL() {
     
     // Clear buffers
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    // Re-assert each frame: shared contexts / other widgets can flip cull/depth.
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LEQUAL);
+    glDepthMask(GL_TRUE);
+    glDisable(GL_CULL_FACE);
     
     // Update camera matrix (this should always work for mouse interaction)
     updateCamera();
@@ -561,11 +581,13 @@ void QGL3DPanel::renderSpectrum3D() {
         slice.vao->bind();
         glDrawElements(GL_TRIANGLES, slice.indexCount, GL_UNSIGNED_INT, 0);
 
-        // Colored ridge along the front row — always shows peak heights/colors when
-        // the surface sheet is edge-on or self-occluded at grazing angles.
+        // Colored ridge along the front row — keep visible at grazing angles
+        // where sheets are edge-on (Core Profile line width may still be 1.0).
         if (slice.frontRowVertexCount > 1) {
+            glDepthMask(GL_FALSE);
             glLineWidth(2.5f);
             glDrawArrays(GL_LINE_STRIP, 0, slice.frontRowVertexCount);
+            glDepthMask(GL_TRUE);
         }
 
         slice.vao->release();
@@ -1317,9 +1339,9 @@ void QGL3DPanel::setFrequencyScale(float scale) {
 }
 
 void QGL3DPanel::setTimeScale(float scale) {
-    m_timeScale = qBound(0.1f, scale, 10.0f); // Reasonable range
-    // Scales are applied in shader, no mesh regeneration needed
-    update(); // Trigger redraw
+    m_timeScale = qBound(0.1f, scale, 10.0f);
+    // Ribbon Z depth is baked into mesh vertices; rebuild so depth matches spacing.
+    updateMeshesForScaleChange();
 }
 
 void QGL3DPanel::setUpdateRate(int intervalMs) {

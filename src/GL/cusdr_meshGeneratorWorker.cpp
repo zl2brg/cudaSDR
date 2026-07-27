@@ -79,6 +79,7 @@ MeshGeneratorWorker::MeshData MeshGeneratorWorker::buildSliceMesh(
     int spectrumWidth,
     int lodLevel,
     float frequencyScale,
+    float timeScale,
     float colorLower,
     float colorUpper,
     float dBmPanMin,
@@ -134,7 +135,11 @@ MeshGeneratorWorker::MeshData MeshGeneratorWorker::buildSliceMesh(
     }
 
     int verticesPerRow = effectiveFreqBins;
-    float zBackEdge = -4.0f;
+    // Must match renderSpectrum3D spacing: (i+1)-(i) = 4.0 * timeScale.
+    // A fixed -4.0 depth with default timeScale=0.2 overlaps ~5 sheets and
+    // depth-tests peaks away depending on orbit angle.
+    const float safeTimeScale = qMax(0.1f, timeScale);
+    float zBackEdge = -4.0f * safeTimeScale;
 
     for (int f = 0; f < effectiveFreqBins; f++) {
         int srcIdx = f * 6;
@@ -152,6 +157,8 @@ MeshGeneratorWorker::MeshData MeshGeneratorWorker::buildSliceMesh(
         int i2 = verticesPerRow + f;
         int i3 = verticesPerRow + f + 1;
 
+        // Single winding only — dual windings caused coplanar z-fighting once
+        // cull was disabled for Core Profile orbit views.
         meshData.indices.append(i0);
         meshData.indices.append(i1);
         meshData.indices.append(i2);
@@ -159,14 +166,6 @@ MeshGeneratorWorker::MeshData MeshGeneratorWorker::buildSliceMesh(
         meshData.indices.append(i1);
         meshData.indices.append(i3);
         meshData.indices.append(i2);
-
-        meshData.indices.append(i0);
-        meshData.indices.append(i2);
-        meshData.indices.append(i1);
-
-        meshData.indices.append(i1);
-        meshData.indices.append(i2);
-        meshData.indices.append(i3);
     }
 
     meshData.frontRowVertexCount = verticesPerRow;
@@ -192,13 +191,13 @@ void MeshGeneratorWorker::run() {
         int spectrumWidth = m_spectrumWidth;
         int lodLevel = m_lodLevel;
         float frequencyScale = m_frequencyScale;
+        float timeScale = m_timeScale;
         float colorLower = m_colorLower;
         float colorUpper = m_colorUpper;
         float dBmPanMin = m_dBmPanMin;
         float dBmPanMax = m_dBmPanMax;
 
         Q_UNUSED(m_timeIndex)
-        Q_UNUSED(m_timeScale)
         Q_UNUSED(m_heightScale)
 
         m_newDataAvailable = false;
@@ -209,6 +208,7 @@ void MeshGeneratorWorker::run() {
                                            spectrumWidth,
                                            lodLevel,
                                            frequencyScale,
+                                           timeScale,
                                            colorLower,
                                            colorUpper,
                                            dBmPanMin,
