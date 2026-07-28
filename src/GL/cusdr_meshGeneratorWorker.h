@@ -50,11 +50,14 @@ public:
                                  float dBmPanMin,
                                  float dBmPanMax);
 
-    // Synchronous mesh build (same logic as worker thread, for scale/color refresh)
+    // Synchronous mesh build (same logic as worker thread, for scale/color refresh).
+    // timeScale must match QGL3DPanel slice spacing (4.0 * timeScale) so ribbons
+    // do not overlap in Z and depth-test-hide peaks at grazing view angles.
     static MeshData buildSliceMesh(const QVector<float>& spectrumData,
                                    int spectrumWidth,
                                    int lodLevel,
                                    float frequencyScale,
+                                   float timeScale,
                                    float colorLower,
                                    float colorUpper,
                                    float dBmPanMin,
