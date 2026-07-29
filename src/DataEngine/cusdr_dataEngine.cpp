@@ -266,7 +266,7 @@ DataEngine::DataEngine(RadioModel *model, QObject *parent)
 	metisFW = 0;
 	hermesFW = 0;
 	mercuryFW = 0;
-    ccTx.use_repeaterOffset = set->get_repeaterMode();
+    txParams().use_repeaterOffset = set->get_repeaterMode();
 
     //m_audioBuffer.resize(0);
     //m_audiobuf.resize(IO_BUFFER_SIZE);
@@ -275,7 +275,33 @@ DataEngine::DataEngine(RadioModel *model, QObject *parent)
 	soapyInputSampleRate = set->getSampleRate();
 	samplerate = set->getSampleRate();
 	m_dataIO->setSampleRate(samplerate);
+	if (m_radioModel)
+		m_radioModel->setSampleRate(samplerate);
 
+}
+
+
+TCCParameterTx& DataEngine::txParams()
+{
+	Q_ASSERT(m_radioModel);
+	return m_radioModel->txParams();
+}
+
+const TCCParameterTx& DataEngine::txParams() const
+{
+	Q_ASSERT(m_radioModel);
+	return m_radioModel->txParams();
+}
+
+int DataEngine::receivers() const
+{
+	return m_radioModel ? m_radioModel->activeReceivers() : 1;
+}
+
+void DataEngine::setReceiversCount(int count)
+{
+	if (m_radioModel)
+		m_radioModel->setActiveReceivers(count);
 }
 
 DataEngine::~DataEngine() {
@@ -754,7 +780,7 @@ bool DataEngine::getFirmwareVersions() {
 		penelopeFW = set->getPenelopeVersion();
 		pennylaneFW = set->getPennyLaneVersion();
 		hermesFW = set->getHermesVersion();
-		ccTx.drivelevel = set->get_tx_drivelevel();
+		txParams().drivelevel = set->get_tx_drivelevel();
 		DATA_ENGINE_DEBUG << "Protocol 2: using discovery firmware, deferring IO start to start()";
 		if (set->getFirmwareVersionCheck())
 			return checkFirmwareVersions();
@@ -793,7 +819,7 @@ bool DataEngine::getFirmwareVersions() {
 
 		// pre-conditioning
 		if (m_dataIO) {
-			for (int i = 0; i < receivers; i++)
+			for (int i = 0; i < receivers(); i++)
 				m_dataIO->sendInitFramesToNetworkDevice(i);
 		}
 
@@ -845,7 +871,7 @@ bool DataEngine::getFirmwareVersions() {
 		DATA_ENGINE_DEBUG << "IQ firmware response after" << waitedMs << "ms";
 	}
 
-	ccTx.drivelevel = set->get_tx_drivelevel();
+	txParams().drivelevel = set->get_tx_drivelevel();
 	if (set->getFirmwareVersionCheck())
 		return checkFirmwareVersions();
 	else
@@ -1263,7 +1289,7 @@ bool DataEngine::start() {
 
 		// pre-conditioning
 	if (m_dataIO) {
-		for (int i = 0; i < receivers; i++) {
+		for (int i = 0; i < receivers(); i++) {
 			m_dataIO->sendInitFramesToNetworkDevice(i);
 		}
 	}
@@ -1582,10 +1608,10 @@ bool DataEngine::initReceivers(int rcvrs) {
 
 	
 	currentReceiver = 0;
-	receivers = rcvrs;
+	setReceiversCount(rcvrs);
 
 	timing = 0;
-	m_configure = receivers + 1;
+	m_configure = receivers() + 1;
 
 	// init cc Rc parameters
 	ccRx.devices.mercuryFWVersion = 0;
@@ -1614,27 +1640,27 @@ bool DataEngine::initReceivers(int rcvrs) {
 	ccRx.mercury4_LT2208 = false;
 
 	// init cc Tx parameters
-	ccTx.currentBand = set->getCurrentHamBand(0);
-	ccTx.mercuryAttenuators = set->getMercuryAttenuators(0);
-	ccTx.mercuryAttenuator = ccTx.mercuryAttenuators.at(ccTx.currentBand);
-	ccTx.dither = set->getMercuryDither();
-	ccTx.random = set->getMercuryRandom();
-	ccTx.duplex = set->getTxFullDuplex() ? 1 : 0;
-	ccTx.mox = false;
-	ccTx.ptt = false;
-	ccTx.alexStates = set->getAlexStates();
-	ccTx.vnaMode = false;
-	ccTx.alexConfig = set->getAlexConfig();
-	ccTx.timeStamp = 0;
-	ccTx.commonMercuryFrequencies = 0;
-	ccTx.pennyOCenabled = set->getPennyOCEnabled();
-	ccTx.rxJ6pinList = set->getRxJ6Pins();
-	ccTx.txJ6pinList = set->getTxJ6Pins();
-	// Protocol 1 TX control (C0/C1..C4 state 1) uses ccTx.txFrequency.
+	txParams().currentBand = set->getCurrentHamBand(0);
+	txParams().mercuryAttenuators = set->getMercuryAttenuators(0);
+	txParams().mercuryAttenuator = txParams().mercuryAttenuators.at(txParams().currentBand);
+	txParams().dither = set->getMercuryDither();
+	txParams().random = set->getMercuryRandom();
+	txParams().duplex = set->getTxFullDuplex() ? 1 : 0;
+	txParams().mox = false;
+	txParams().ptt = false;
+	txParams().alexStates = set->getAlexStates();
+	txParams().vnaMode = false;
+	txParams().alexConfig = set->getAlexConfig();
+	txParams().timeStamp = 0;
+	txParams().commonMercuryFrequencies = 0;
+	txParams().pennyOCenabled = set->getPennyOCEnabled();
+	txParams().rxJ6pinList = set->getRxJ6Pins();
+	txParams().txJ6pinList = set->getTxJ6Pins();
+	// Protocol 1 TX control (C0/C1..C4 state 1) uses txParams().txFrequency.
 	// Keep it initialized to the currently selected receiver center frequency.
-	ccTx.txFrequency = set->getCtrFrequency(set->getCurrentReceiver());
+	txParams().txFrequency = set->getCtrFrequency(set->getCurrentReceiver());
 
-	setAlexConfiguration(ccTx.alexConfig);
+	setAlexConfiguration(txParams().alexConfig);
 
 	rxClass = set->getRxClass();
 	mic_gain = 0.26F;
@@ -1643,15 +1669,6 @@ bool DataEngine::initReceivers(int rcvrs) {
 	clients = 0;
 	sendIQ_toggle = true;
 	rcveIQ_toggle = false;
-	alexForwardVolts = 0.0;
-	alexReverseVolts = 0.0;
-	alexForwardPower = 0.0;
-	alexReversePower = 0.0;
-	penelopeForwardVolts = 0.0;
-	penelopeForwardPower = 0.0;
-	ain3Volts = 0.0;
-	ain4Volts = 0.0;
-	supplyVolts = 0.0f;
 
 
 	//*****************************
@@ -1684,7 +1701,7 @@ bool DataEngine::initReceivers(int rcvrs) {
 	setHPSDRConfig();
 
 	control_out[1] &= 0x03; // 0 0 0 0 0 0 1 1
-	control_out[1] |= ccTx.clockByte;
+	control_out[1] |= txParams().clockByte;
 
 	// set C2
 	//
@@ -1708,13 +1725,13 @@ bool DataEngine::initReceivers(int rcvrs) {
 	// + ------------------------- Alex Rx out (0 = off, 1 = on). Set if Alex Rx Antenna > 00.
 
 	control_out[3] = control_out[3] & 0xFB; // 1 1 1 1 1 0 1 1
-	control_out[3] = control_out[3] | (ccTx.mercuryAttenuator << 2);
+	control_out[3] = control_out[3] | (txParams().mercuryAttenuator << 2);
 
 	control_out[3] = control_out[3] & 0xF7; // 1 1 1 1 0 1 1 1
-	control_out[3] = control_out[3] | (ccTx.dither << 3);
+	control_out[3] = control_out[3] | (txParams().dither << 3);
 
 	control_out[3] = control_out[3] & 0xEF; // 1 1 1 0 1 1 1 1
-	control_out[3] = control_out[3] | (ccTx.random << 4);
+	control_out[3] = control_out[3] | (txParams().random << 4);
 
 	// set C4
 	//
@@ -1730,7 +1747,7 @@ bool DataEngine::initReceivers(int rcvrs) {
 	//			                   Boards, 1 = same frequency to all Mercury boards)
 
 	control_out[4] &= 0x07; // 1 1 0 0 0 1 1 1
-	control_out[4] = (ccTx.duplex << 2) | ((receivers - 1) << 3);
+	control_out[4] = (txParams().duplex << 2) | ((receivers() - 1) << 3);
 
 	if (!m_radioController) {
 		m_radioController = std::make_unique<RadioController>(this);
@@ -1742,7 +1759,7 @@ bool DataEngine::initReceivers(int rcvrs) {
 
 void DataEngine::setHPSDRConfig() {
 
-	ccTx.clockByte = 0x0;
+	txParams().clockByte = 0x0;
 
 	// C1
 	// 0 0 0 0 0 0 0 0
@@ -1761,23 +1778,23 @@ void DataEngine::setHPSDRConfig() {
 		)
 	{
 
-		ccTx.clockByte = MIC_SOURCE_PENELOPE | MERCURY_PRESENT | PENELOPE_PRESENT | MERCURY_122_88MHZ_SOURCE | ATLAS_10MHZ_SOURCE;
+		txParams().clockByte = MIC_SOURCE_PENELOPE | MERCURY_PRESENT | PENELOPE_PRESENT | MERCURY_122_88MHZ_SOURCE | ATLAS_10MHZ_SOURCE;
 	}
 	else if ((set->getPenelopePresence() || set->getPennyLanePresence()) && (set->get10MHzSource() == 1)) {
 		
-		ccTx.clockByte = MIC_SOURCE_PENELOPE | MERCURY_PRESENT | PENELOPE_PRESENT | MERCURY_122_88MHZ_SOURCE | PENELOPE_10MHZ_SOURCE;
+		txParams().clockByte = MIC_SOURCE_PENELOPE | MERCURY_PRESENT | PENELOPE_PRESENT | MERCURY_122_88MHZ_SOURCE | PENELOPE_10MHZ_SOURCE;
 	}
 	else if ((set->getPenelopePresence() || set->getPennyLanePresence()) && (set->get10MHzSource() == 2)) {
 		
-		ccTx.clockByte = MIC_SOURCE_PENELOPE | MERCURY_PRESENT | PENELOPE_PRESENT | MERCURY_122_88MHZ_SOURCE | MERCURY_10MHZ_SOURCE;
+		txParams().clockByte = MIC_SOURCE_PENELOPE | MERCURY_PRESENT | PENELOPE_PRESENT | MERCURY_122_88MHZ_SOURCE | MERCURY_10MHZ_SOURCE;
 	}
 	else if ((set->get10MHzSource() == 0) || set->getExcaliburPresence()) {
 		
-		ccTx.clockByte = MERCURY_PRESENT | MERCURY_122_88MHZ_SOURCE | ATLAS_10MHZ_SOURCE;
+		txParams().clockByte = MERCURY_PRESENT | MERCURY_122_88MHZ_SOURCE | ATLAS_10MHZ_SOURCE;
 	}
 	else {
 		
-		ccTx.clockByte = MERCURY_PRESENT | MERCURY_122_88MHZ_SOURCE | MERCURY_10MHZ_SOURCE;
+		txParams().clockByte = MERCURY_PRESENT | MERCURY_122_88MHZ_SOURCE | MERCURY_10MHZ_SOURCE;
 	}
 }
 
@@ -2460,7 +2477,7 @@ void DataEngine::setCurrentReceiver(int rx) {
 
 	QMutexLocker locker(&mutex);
 	currentReceiver = rx;
-	ccTx.txFrequency = set->getCtrFrequency(rx);
+	txParams().txFrequency = set->getCtrFrequency(rx);
 }
 
 void DataEngine::setFramesPerSecond(int rx, int value) {
@@ -2526,6 +2543,8 @@ void DataEngine::setSampleRate(int value) {
 	}
 	if (applyOk && m_dataIO)
 		m_dataIO->setSampleRate(samplerate);
+	if (applyOk && m_radioModel)
+		m_radioModel->setSampleRate(samplerate);
 
 	shouldRequestP2Update = applyOk && m_protocol && set->getCurrentMetisCard().protocol == 2 && m_dataProcessor;
 
@@ -2556,25 +2575,25 @@ void DataEngine::setMercuryAttenuator(HamBand band, int value) {
 	Q_UNUSED(band)
 
 	QMutexLocker locker(&mutex);
-	ccTx.mercuryAttenuator = value;
+	txParams().mercuryAttenuator = value;
 }
 
 void DataEngine::setMercuryAttenuators(QList<int> attn) {
 
 	QMutexLocker locker(&mutex);
-	ccTx.mercuryAttenuators = attn;
+	txParams().mercuryAttenuators = attn;
 }
 
 void DataEngine::setDither(int value) {
 
 	QMutexLocker locker(&mutex);
-	ccTx.dither = value;
+	txParams().dither = value;
 }
 
 void DataEngine::setRandom(int value) {
 
 	QMutexLocker locker(&mutex);
-	ccTx.random = value;
+	txParams().random = value;
 }
 
 void DataEngine::set10MhzSource(int source) {
@@ -2614,8 +2633,8 @@ void DataEngine::setAlexConfiguration(quint16 conf) {
 
 	{
 		QMutexLocker locker(&mutex);
-		ccTx.alexConfig = conf;
-		DATA_ENGINE_DEBUG << "Alex Configuration = " << ccTx.alexConfig;
+		txParams().alexConfig = conf;
+		DATA_ENGINE_DEBUG << "Alex Configuration = " << txParams().alexConfig;
 	}
 
 	if (set->getCurrentMetisCard().protocol == 2 && m_dataProcessor) {
@@ -2632,8 +2651,8 @@ void DataEngine::setAlexStates(HamBand band, const QList<int> &states) {
 	{
 		QMutexLocker locker(&mutex);
 		qDebug() << "setAlexStates: band=" << band << "states=" << states;
-		ccTx.alexStates = states;
-		DATA_ENGINE_DEBUG << "Alex States = " << ccTx.alexStates;
+		txParams().alexStates = states;
+		DATA_ENGINE_DEBUG << "Alex States = " << txParams().alexStates;
 	}
 
 	if (set->getCurrentMetisCard().protocol == 2 && m_dataProcessor) {
@@ -2646,20 +2665,20 @@ void DataEngine::setAlexStates(HamBand band, const QList<int> &states) {
 void DataEngine::setPennyOCEnabled(bool value) {
 
 	QMutexLocker locker(&mutex);
-	ccTx.pennyOCenabled = value;
+	txParams().pennyOCenabled = value;
 }
 
 void DataEngine::setRxJ6Pins(const QList<int> &list) {
 
 	QMutexLocker locker(&mutex);
-	ccTx.rxJ6pinList = list;
+	txParams().rxJ6pinList = list;
 
 }
 
 void DataEngine::setTxJ6Pins(const QList<int> &list) {
 
 	QMutexLocker locker(&mutex);
-	ccTx.txJ6pinList = list;
+	txParams().txJ6pinList = list;
 }
 
 void DataEngine::setRcveIQSignal(int value) {
@@ -2679,9 +2698,9 @@ void DataEngine::setHwIOVersion(int version) {
 
 void DataEngine::setNumberOfRx(int value) {
 
-	DATA_ENGINE_DEBUG << "[RX-ADD] setNumberOfRx: requested=" << value << "current=" << receivers;
+	DATA_ENGINE_DEBUG << "[RX-ADD] setNumberOfRx: requested=" << value << "current=" << receivers();
 
-	if (receivers == value) {
+	if (receivers() == value) {
 		DATA_ENGINE_DEBUG << "[RX-ADD] receiver count unchanged, no action.";
 		return;
 	}
@@ -2698,7 +2717,7 @@ void DataEngine::setNumberOfRx(int value) {
 
 	{
 	QMutexLocker locker(&mutex);
-	receivers = value;
+	setReceiversCount(value);
 	if (currentReceiver >= value) {
 		DATA_ENGINE_DEBUG << "[RX-ADD] currentReceiver" << currentReceiver << ">= new count, resetting to 0";
 		currentReceiver = 0;
@@ -2847,7 +2866,7 @@ void DataEngine::setHamBand(int rx, bool byBtn, HamBand band) {
 	Q_UNUSED(byBtn)
 
 	QMutexLocker locker(&mutex);
-	ccTx.currentBand = band;
+	txParams().currentBand = band;
 
 	if (set->getCurrentMetisCard().protocol == 2 && m_dataProcessor) {
 		QMetaObject::invokeMethod(m_dataProcessor,
@@ -2862,7 +2881,7 @@ void DataEngine::setFrequency(int mode, int rx, qint64 frequency) {
 
 	rx_freq_change = rx;
 	if (rx == currentReceiver) {
-		ccTx.txFrequency = frequency;
+		txParams().txFrequency = frequency;
 	}
 
 	// Protocol 2 includes DDC frequencies in the High Priority packet — push one
@@ -3732,7 +3751,7 @@ void DataProcessor::send_mic_data() {
     static AUDIOBUF a;
     get_cwsample();
 
-    if ( de->ccTx.mox ||  de->ccTx.ptt ) {
+    if ( de->txParams().mox ||  de->txParams().ptt ) {
 
         fexchange0(TX_ID, a.data(), (double *) m_iq_output_buffer.data(), &error);
         Spectrum0(1, TX_ID, 0, 0, (double *) m_iq_output_buffer.data());
@@ -4085,7 +4104,7 @@ void DataProcessor::setAudioBuffer(int rx, const CPX &buffer, int buffersize)
 					//	de->m_dataIO->writeData();
 					//}
 
-                    if ( de->ccTx.mox ||  de->ccTx.ptt )
+                    if ( de->txParams().mox ||  de->txParams().ptt )
                     {
                         /*
                        int val =   ((de->output_buffer[3]) &0xfe) >> 1;
@@ -4172,7 +4191,7 @@ void DataProcessor::setAudioBuffer_old(int rx, const CPX &buffer, int buffersize
                     //	de->m_dataIO->writeData();
                     //}
 
-                    if ( de->ccTx.mox ||  de->ccTx.ptt )
+                    if ( de->txParams().mox ||  de->txParams().ptt )
                     {
                         /*
                        int val =   ((de->output_buffer[3]) &0xfe) >> 1;
@@ -4357,11 +4376,11 @@ void 	DataEngine::setWbSpectrumAveraging(int rx, int value)
 
 
 void DataEngine::setRepeaterMode(bool mode) {
-        ccTx.use_repeaterOffset = mode;
+        txParams().use_repeaterOffset = mode;
 }
 
 void DataEngine::setTxFullDuplex(bool fullDuplex) {
-    ccTx.duplex = fullDuplex ? 1 : 0;
+    txParams().duplex = fullDuplex ? 1 : 0;
 
 #ifdef HAVE_SOAPYSDR
     if (m_hwInterface != QSDR::SoapySDR)
@@ -4383,7 +4402,7 @@ void DataEngine::setTxFullDuplex(bool fullDuplex) {
 
 void DataEngine::dspModeChanged(int rx, DSPMode mode){
     Q_UNUSED(rx);
-    ccTx.mode = mode;
+    txParams().mode = mode;
     TX.setDSPMode(1,mode);
 }
 
@@ -4517,7 +4536,7 @@ void DataEngine::createAudioInputProcessor() {
 void DataEngine::set_tx_drivelevel(int value){
 
     qDebug() << "Drive level change" << value;
-    ccTx.drivelevel = value;
+    txParams().drivelevel = value;
 
 }
 
@@ -4526,13 +4545,13 @@ void DataEngine::radioStateChange(RadioState state) {
     m_radioState = state;
 
     if ((state == RadioState::MOX) || (state == RadioState::TUNE)) {
-        ccTx.mox = true;
+        txParams().mox = true;
         if (m_audioInput) {
             m_audioInput->clearTxQueues();
             m_audioInput->Start();
         }
     } else {
-        ccTx.mox = false;
+        txParams().mox = false;
         if (m_audioInput) {
             m_audioInput->Stop();
             m_audioInput->clearTxQueues();
@@ -4559,7 +4578,7 @@ void DataEngine::radioStateChange(RadioState state) {
 #endif
 
 	// SliceProcessor::dspProcessing uses m_state for spectrum source.
-	// Soapy full-duplex (ccTx.duplex): stay in RX during MOX so panadapter/audio continue.
+	// Soapy full-duplex (txParams().duplex): stay in RX during MOX so panadapter/audio continue.
 	// Soapy half-duplex: follow MOX/TUNE like HPSDR (RX WDSP path idles without IQ pump).
 	for (int i = 0; i < RX.size(); ++i) {
 		if (RX.at(i)) {

@@ -31,6 +31,12 @@ public:
     void setSendIQ(int value);
     void setRcveIQ(int value);
 
+    qreal forwardPower() const { return m_forwardPower; }
+    qreal reversePower() const { return m_reversePower; }
+    qreal swr() const { return m_swr; }
+    qreal supplyVoltage() const { return m_supplyVoltage; }
+    qreal temperature() const { return m_temperature; }
+
     void setWidebandSpectrumBuffer(const qVectorFloat& buffer);
     void resetWidebandSpectrumBuffer();
     void setWidebandFrequencyRange(qreal lowHz, qreal highHz);
@@ -58,6 +64,11 @@ private:
     SliceModel* sliceForRx(int rx) const;
 
     RadioModel* m_radioModel = nullptr;
+    qreal m_forwardPower = 0;
+    qreal m_reversePower = 0;
+    qreal m_swr = 1.0;
+    qreal m_supplyVoltage = 0;
+    qreal m_temperature = 0;
 };
 
 /** Convenience for DataEngine / protocol code paths that only have Settings. */

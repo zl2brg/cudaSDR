@@ -6,6 +6,7 @@
 #include <QColor>
 #include "SliceModel.h"
 #include "Settings/DisplayConfig.h"
+#include "cusdr_settings.h"
 
 class RadioTelemetry;
 
@@ -14,6 +15,7 @@ class RadioModel : public QObject {
 
     Q_PROPERTY(bool connected READ connected WRITE setConnected NOTIFY connectedChanged)
     Q_PROPERTY(int sampleRate READ sampleRate WRITE setSampleRate NOTIFY sampleRateChanged)
+    Q_PROPERTY(int activeReceivers READ activeReceivers WRITE setActiveReceivers NOTIFY activeReceiversChanged)
     Q_PROPERTY(QString hardwareType READ hardwareType WRITE setHardwareType NOTIFY hardwareTypeChanged)
     Q_PROPERTY(TPanadapterColors colors READ panadapterColors WRITE setPanadapterColors NOTIFY colorsChanged)
 
@@ -27,11 +29,19 @@ public:
     int sampleRate() const { return m_sampleRate; }
     void setSampleRate(int rate);
 
+    /** Hardware DDC count in use (not slices().size(), which is a preallocated pool). */
+    int activeReceivers() const { return m_activeReceivers; }
+    void setActiveReceivers(int count);
+
     QString hardwareType() const { return m_hardwareType; }
     void setHardwareType(const QString &type);
 
     TPanadapterColors panadapterColors() const { return m_colors; }
     void setPanadapterColors(const TPanadapterColors &colors);
+
+    /** Live Protocol 1/2 TX C&C snapshot (Alex, drive, mox/ptt, atten, …). */
+    TCCParameterTx& txParams() { return m_tx; }
+    const TCCParameterTx& txParams() const { return m_tx; }
 
     QList<SliceModel*> slices() const { return m_slices; }
     void addSlice(SliceModel *slice);
@@ -42,14 +52,17 @@ public:
 signals:
     void connectedChanged(bool connected);
     void sampleRateChanged(int rate);
+    void activeReceiversChanged(int count);
     void hardwareTypeChanged(const QString &type);
     void colorsChanged();
 
 private:
     bool m_connected = false;
     int m_sampleRate = 48000;
+    int m_activeReceivers = 1;
     QString m_hardwareType = "Unknown";
     TPanadapterColors m_colors;
+    TCCParameterTx m_tx{};
     QList<SliceModel*> m_slices;
     RadioTelemetry* m_telemetry = nullptr;
 };

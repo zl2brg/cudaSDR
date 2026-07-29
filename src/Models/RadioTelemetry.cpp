@@ -52,26 +52,31 @@ void RadioTelemetry::setPacketLoss(int value)
 
 void RadioTelemetry::setForwardPower(qreal watts)
 {
+    m_forwardPower = watts;
     emit forwardPowerChanged(watts);
 }
 
 void RadioTelemetry::setReversePower(qreal watts)
 {
+    m_reversePower = watts;
     emit reversePowerChanged(watts);
 }
 
 void RadioTelemetry::setSWR(qreal swr)
 {
+    m_swr = swr;
     emit swrChanged(swr);
 }
 
 void RadioTelemetry::setSupplyVoltage(qreal volts)
 {
+    m_supplyVoltage = volts;
     emit supplyVoltageChanged(volts);
 }
 
 void RadioTelemetry::setTemperature(qreal temp)
 {
+    m_temperature = temp;
     emit temperatureChanged(temp);
 }
 

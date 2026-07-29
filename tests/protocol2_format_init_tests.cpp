@@ -45,8 +45,8 @@ void Protocol2FormatInitTests::rxZeroByteLayoutAndSequenceIncrement() {
     QCOMPARE(static_cast<unsigned char>(first.datagram[8]), 0x02u);
     QCOMPARE(static_cast<unsigned char>(first.datagram[9]), 0x04u);
     QCOMPARE(static_cast<unsigned char>(first.datagram[10]), 0x03u);
-    QCOMPARE(static_cast<unsigned char>(first.datagram[11]), 0x00u);
-    QCOMPARE(static_cast<unsigned char>(first.datagram[12]), 0x00u);
+    QCOMPARE(static_cast<unsigned char>(first.datagram[11]), 0x04u); // HP status 1060
+    QCOMPARE(static_cast<unsigned char>(first.datagram[12]), 0x24u);
     QCOMPARE(static_cast<unsigned char>(first.datagram[13]), 0x04u);
     QCOMPARE(static_cast<unsigned char>(first.datagram[14]), 0x04u);
     QCOMPARE(static_cast<unsigned char>(first.datagram[15]), 0x04u);
@@ -54,9 +54,10 @@ void Protocol2FormatInitTests::rxZeroByteLayoutAndSequenceIncrement() {
     QCOMPARE(static_cast<unsigned char>(first.datagram[17]), 0x04u);
     QCOMPARE(static_cast<unsigned char>(first.datagram[18]), 0x0Bu);
 
-    for (int i = 19; i <= 22; ++i) {
-        QCOMPARE(static_cast<unsigned char>(first.datagram[i]), 0x00u);
-    }
+    QCOMPARE(static_cast<unsigned char>(first.datagram[19]), 0x04u); // mic 1061
+    QCOMPARE(static_cast<unsigned char>(first.datagram[20]), 0x25u);
+    QCOMPARE(static_cast<unsigned char>(first.datagram[21]), 0x04u); // wideband 1062
+    QCOMPARE(static_cast<unsigned char>(first.datagram[22]), 0x26u);
     QCOMPARE(static_cast<unsigned char>(first.datagram[23]), 0x01u);
     for (int i = 24; i < 59; ++i) {
         QCOMPARE(static_cast<unsigned char>(first.datagram[i]), 0x00u);

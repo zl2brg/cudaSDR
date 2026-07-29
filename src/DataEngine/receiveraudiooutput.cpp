@@ -3,6 +3,7 @@
 
 #include <QDebug>
 #include <QElapsedTimer>
+#include <QThread>
 
 ReceiverAudioOutput::ReceiverAudioOutput(QObject *parent)
     : QObject(parent)
@@ -24,8 +25,34 @@ ReceiverAudioOutput::~ReceiverAudioOutput()
     stop();
 }
 
+bool ReceiverAudioOutput::onOwnThread() const
+{
+    return QThread::currentThread() == thread();
+}
+
+void ReceiverAudioOutput::scheduleReopen()
+{
+    if (!onOwnThread()) {
+        // QTimer::start() is only legal on the timer's own thread, and the audio
+        // thread must not create or destroy the sink.
+        if (!m_reopenPending) {
+            m_reopenPending = true;
+            QMetaObject::invokeMethod(this, &ReceiverAudioOutput::reopenOutput, Qt::QueuedConnection);
+        }
+        return;
+    }
+    m_reopenPending = true;
+    if (!m_reopenTimer.isActive())
+        m_reopenTimer.start();
+}
+
 void ReceiverAudioOutput::setSampleRate(int rate)
 {
+    if (!onOwnThread()) {
+        QMetaObject::invokeMethod(this, [this, rate] { setSampleRate(rate); }, Qt::QueuedConnection);
+        return;
+    }
+
     QMutexLocker locker(&m_mutex);
     m_sampleRate = rate;
     m_format.setSampleRate(m_sampleRate);
@@ -41,6 +68,11 @@ void ReceiverAudioOutput::setSampleRate(int rate)
 
 void ReceiverAudioOutput::start()
 {
+    if (!onOwnThread()) {
+        QMetaObject::invokeMethod(this, &ReceiverAudioOutput::start, Qt::QueuedConnection);
+        return;
+    }
+
     QMutexLocker locker(&m_mutex);
     m_wantRunning = true;
     if (!m_audioSink)
@@ -53,7 +85,8 @@ void ReceiverAudioOutput::stop()
     QMutexLocker locker(&m_mutex);
     m_wantRunning = false;
     m_reopenPending = false;
-    m_reopenTimer.stop();
+    if (onOwnThread())
+        m_reopenTimer.stop();
     stopLocked();
 }
 
@@ -62,13 +95,13 @@ void ReceiverAudioOutput::writeAudio(const QVector<float>& audioBuffer)
     QMutexLocker locker(&m_mutex);
     if (!isSinkHealthy()) {
         // Drop samples while the sink is gone (e.g. HDMI display sleep).
-        // Hotplug / sink error handlers schedule reopen.
-        if (m_wantRunning && m_audioSink
-            && (m_audioSink->error() != QAudio::NoError
+        // Teardown/reopen must happen on the sink's own thread, so only flag it here.
+        if (m_wantRunning
+            && (!m_audioSink
+                || m_audioSink->error() != QAudio::NoError
                 || m_audioSink->state() == QAudio::StoppedState)) {
-            handleDeviceLostLocked("writeAudio unhealthy sink");
-            if (!m_reopenTimer.isActive())
-                m_reopenTimer.start();
+            markSinkLostLocked("writeAudio unhealthy sink");
+            scheduleReopen();
         }
         return;
     }
@@ -85,9 +118,8 @@ void ReceiverAudioOutput::writeAudio(const QVector<float>& audioBuffer)
 
     const qint64 written = m_device->write(m_pending);
     if (written < 0 || m_audioSink->error() != QAudio::NoError) {
-        handleDeviceLostLocked("write failed");
-        if (!m_reopenTimer.isActive())
-            m_reopenTimer.start();
+        markSinkLostLocked("write failed");
+        scheduleReopen();
         return;
     }
     if (written > 0)
@@ -121,9 +153,7 @@ void ReceiverAudioOutput::onAudioOutputsChanged()
         return;
 
     // Debounce HDMI flicker / multi-fire hotplug notifications.
-    m_reopenPending = true;
-    if (!m_reopenTimer.isActive())
-        m_reopenTimer.start();
+    scheduleReopen();
 }
 
 void ReceiverAudioOutput::onSinkStateChanged(QAudio::State state)
@@ -134,14 +164,17 @@ void ReceiverAudioOutput::onSinkStateChanged(QAudio::State state)
 
     if (state == QAudio::StoppedState && m_audioSink->error() != QAudio::NoError) {
         handleDeviceLostLocked("sink state Stopped with error");
-        m_reopenPending = true;
-        if (!m_reopenTimer.isActive())
-            m_reopenTimer.start();
+        scheduleReopen();
     }
 }
 
 void ReceiverAudioOutput::reopenOutput()
 {
+    if (!onOwnThread()) {
+        QMetaObject::invokeMethod(this, &ReceiverAudioOutput::reopenOutput, Qt::QueuedConnection);
+        return;
+    }
+
     QMutexLocker locker(&m_mutex);
     if (!m_wantRunning) {
         m_reopenPending = false;
@@ -165,6 +198,15 @@ bool ReceiverAudioOutput::isSinkHealthy() const
         return false;
     const QAudio::State st = m_audioSink->state();
     return st == QAudio::ActiveState || st == QAudio::IdleState;
+}
+
+void ReceiverAudioOutput::markSinkLostLocked(const char *reason)
+{
+    if (!m_device && m_reopenPending)
+        return;
+    qWarning() << "Audio: output device lost (" << reason << ") — muting until reopen";
+    m_pending.clear();
+    m_device = nullptr;
 }
 
 void ReceiverAudioOutput::handleDeviceLostLocked(const char *reason)

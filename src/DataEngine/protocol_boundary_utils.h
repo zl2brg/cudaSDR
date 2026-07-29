@@ -30,6 +30,25 @@ inline uint32_t protocol1Sequence(const unsigned char* data) {
            (data[7] & 0xFFu);
 }
 
+/** Standard Port Definitions */
+enum Ports : quint16 {
+    DevicePort = 1024,
+    P2DdcSpecPort = 1025,
+    P2TxSpecPort = 1026,
+    P2HighPriorityPort = 1027,
+    P2AudioPort = 1028,
+    P2DucIqPort = 1029,
+    P2Ddc0Port = 1035,
+    // SDR->PC source ports.  The protocol defaults (HP status 1025, mic 1026,
+    // wideband 1027) are the same numbers as the PC->SDR receive ports, so a
+    // device that binds both ends up with two sockets per port and silently
+    // drops half the config we send it.  Assign these explicitly instead.
+    P2HpStatusSourcePort = 1060,
+    P2MicSourcePort = 1061,
+    P2WidebandSourcePort = 1062,
+    LegacyDataPort = 8886
+};
+
 inline int protocol2PacketTypeForLength(int len) {
     if (len == 1040) return 0x04;   // Wideband
     if (len > 1000) return 0x06;    // IQ data
@@ -80,6 +99,11 @@ inline Protocol2InitFrameResult protocol2FormatInitFrame(int rx, uint32_t& seq10
     quint16 hpPcPort = qToBigEndian(static_cast<quint16>(1027));
     memcpy(pkt.data() + 9, &hpPcPort, 2);
 
+    // SDR->PC source ports, named explicitly so they do not land on the
+    // PC->SDR receive ports (see Ports::P2HpStatusSourcePort).
+    quint16 hpStatusPort = qToBigEndian(static_cast<quint16>(Ports::P2HpStatusSourcePort));
+    memcpy(pkt.data() + 11, &hpStatusPort, 2);
+
     quint16 ddcAudioPort = qToBigEndian(static_cast<quint16>(1028));
     memcpy(pkt.data() + 13, &ddcAudioPort, 2);
 
@@ -88,6 +112,12 @@ inline Protocol2InitFrameResult protocol2FormatInitFrame(int rx, uint32_t& seq10
 
     quint16 ddc0Port = qToBigEndian(static_cast<quint16>(1035));
     memcpy(pkt.data() + 17, &ddc0Port, 2);
+
+    quint16 micPort = qToBigEndian(static_cast<quint16>(Ports::P2MicSourcePort));
+    memcpy(pkt.data() + 19, &micPort, 2);
+
+    quint16 widebandPort = qToBigEndian(static_cast<quint16>(Ports::P2WidebandSourcePort));
+    memcpy(pkt.data() + 21, &widebandPort, 2);
 
     pkt[23] = 1;
 
@@ -115,18 +145,6 @@ inline int32_t decode24BitBE(const unsigned char* p) {
 inline int32_t decode16BitBE(const unsigned char* p) {
     return qFromBigEndian<int16_t>(p);
 }
-
-/** Standard Port Definitions */
-enum Ports : quint16 {
-    DevicePort = 1024,
-    P2DdcSpecPort = 1025,
-    P2TxSpecPort = 1026,
-    P2HighPriorityPort = 1027,
-    P2AudioPort = 1028,
-    P2DucIqPort = 1029,
-    P2Ddc0Port = 1035,
-    LegacyDataPort = 8886
-};
 
 /** Protocol Packet Constants */
 constexpr int kProtocol1HeaderSize = 8;

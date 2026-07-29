@@ -38,6 +38,7 @@
 #include <QThread>
 #include <QDateTime>
 #include <QFile>
+#include <QMutex>
 #include <QTextStream>
 #include <QPixmap>
 #include <QStyle>
@@ -67,6 +68,8 @@ public:
     }
 
     void write(const QString& txt) {
+        // Called from the GUI, data IO, data processor and DSP threads.
+        QMutexLocker locker(&m_mutex);
         if (m_outFile.isOpen()) {
             m_stream << txt << Qt::endl;
         }
@@ -79,12 +82,14 @@ private:
         }
     }
     ~LogManager() {
+        QMutexLocker locker(&m_mutex);
         if (m_outFile.isOpen()) {
             m_stream.flush();
             m_outFile.close();
         }
     }
 
+    QMutex m_mutex;
     QFile m_outFile;
     QTextStream m_stream;
 };

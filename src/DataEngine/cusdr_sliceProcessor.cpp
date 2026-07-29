@@ -60,7 +60,10 @@ SliceProcessor::SliceProcessor(SliceModel *model, QObject *parent)
     newSpectrum.resize(BUFFER_SIZE*4);
 	highResTimer = std::make_unique<HResTimer>();
 #ifdef USE_INTERNAL_AUDIO
-    m_audioOutput = new ReceiverAudioOutput(this);
+	// No parent: the sink must stay on the thread that created it. SliceProcessor is
+	// moved to a DSP thread, which would drag QAudioSink's socket notifiers along and
+	// leave them registered on the wrong event dispatcher across a device change.
+    m_audioOutput = new ReceiverAudioOutput(nullptr);
     m_audioOutput->start();
     m_audioAccumulator.resize(1024 * 2); // Buffer up to 1024 stereo samples
     m_audioAccumulatorFill = 0;

@@ -59,7 +59,7 @@ void CProtocol1::processInputBuffer(const QByteArray& buffer, DataEngine* de, qu
         decodeCCBytes(buffer.mid(3, 5), de);
         s += 5;
 
-        switch (de->receivers)
+        switch (de->receivers())
         {
             case 1: maxSamples = 512-0;  break;
             case 2: maxSamples = 512-0;  break;
@@ -85,7 +85,7 @@ void CProtocol1::processInputBuffer(const QByteArray& buffer, DataEngine* de, qu
         }
 
         const int availableReceivers = de->RX.size();
-        const int activeReceivers = qMin(de->receivers, availableReceivers);
+        const int activeReceivers = qMin(de->receivers(), availableReceivers);
         if (activeReceivers <= 0) {
             return;
         }
@@ -95,7 +95,7 @@ void CProtocol1::processInputBuffer(const QByteArray& buffer, DataEngine* de, qu
         {
             const unsigned char* p = reinterpret_cast<const unsigned char*>(buffer.constData()) + s;
             // extract each of the receivers
-            for (int r = 0; r < de->receivers; r++)
+            for (int r = 0; r < de->receivers(); r++)
             {
                 m_leftSample = ProtocolBoundaryUtils::decode24BitBE(p);
                 p += 3;
@@ -107,7 +107,7 @@ void CProtocol1::processInputBuffer(const QByteArray& buffer, DataEngine* de, qu
                     de->RX[r]->m_rawIQ[m_rxSamples * 2 + 1] = m_rightSample;
                 }
             }
-            s += de->receivers * 6;
+            s += de->receivers() * 6;
 
             m_micSample = ProtocolBoundaryUtils::decode16BitBE(p);
             p += 2;
@@ -208,13 +208,9 @@ void CProtocol1::decodeCCBytes(const QByteArray& buffer, DataEngine* de) {
 			const auto cal = ProtocolBoundaryUtils::paBridgeCalForHermes(hermes);
 			if (set->getPenelopePresence() || hermes) {
 				de->ccRx.ain5 = ProtocolBoundaryUtils::decodeAin12BitBE(buffer, 1);
-				de->penelopeForwardVolts = ProtocolBoundaryUtils::ain12ToVolts(de->ccRx.ain5, cal.vref);
-				de->penelopeForwardPower = ProtocolBoundaryUtils::wattsFromAin12(de->ccRx.ain5, cal);
 			}
 			// Must mask to 12 bits: unmasked 0xFFFF → ~52.8 V → ~30 kW.
 			de->ccRx.ain1 = ProtocolBoundaryUtils::decodeAin12BitBE(buffer, 3);
-			de->alexForwardVolts = ProtocolBoundaryUtils::ain12ToVolts(de->ccRx.ain1, cal.vref);
-			de->alexForwardPower = ProtocolBoundaryUtils::wattsFromAin12(de->ccRx.ain1, cal);
 
 			if (RadioTelemetry* tel = telemetryFromSettings()) {
 				// Alex AIN1 when enabled (ANAN-10 etc.). Fall back to AIN5 only if AIN1 is zero (pihpsdr).
@@ -236,19 +232,17 @@ void CProtocol1::decodeCCBytes(const QByteArray& buffer, DataEngine* de) {
 			const auto cal = ProtocolBoundaryUtils::paBridgeCalForHermes(hermes);
 			if (set->getAlexPresence()) {
 				de->ccRx.ain2 = ProtocolBoundaryUtils::decodeAin12BitBE(buffer, 1);
-				de->alexReverseVolts = ProtocolBoundaryUtils::ain12ToVolts(de->ccRx.ain2, cal.vref);
-				de->alexReversePower = ProtocolBoundaryUtils::wattsFromAin12(de->ccRx.ain2, cal);
+				const qreal reversePower = ProtocolBoundaryUtils::wattsFromAin12(de->ccRx.ain2, cal);
 				if (RadioTelemetry* tel = telemetryFromSettings()) {
-					tel->setReversePower(de->alexReversePower);
+					tel->setReversePower(reversePower);
 					const bool tx = set->getRadioState() == RadioState::MOX
 						|| set->getRadioState() == RadioState::TUNE;
 					tel->setSWR(ProtocolBoundaryUtils::swrFromFwdRevWatts(
-						de->alexForwardPower, de->alexReversePower, tx));
+						tel->forwardPower(), reversePower, tx));
 				}
 			}
 			if (set->getPenelopePresence() || hermes) {
 				de->ccRx.ain3 = ProtocolBoundaryUtils::decodeAin12BitBE(buffer, 3);
-				de->ain3Volts = ProtocolBoundaryUtils::ain12ToVolts(de->ccRx.ain3, cal.vref);
 			}
 			break;
 		}
@@ -257,9 +251,11 @@ void CProtocol1::decodeCCBytes(const QByteArray& buffer, DataEngine* de) {
 			if (set->getPenelopePresence() || (set->getHWInterface() == QSDR::Hermes)) {
 				de->ccRx.ain4 = ProtocolBoundaryUtils::decodeAin12BitBE(buffer, 1);
 				de->ccRx.ain6 = ProtocolBoundaryUtils::decodeAin12BitBE(buffer, 3);
-				de->ain4Volts = ProtocolBoundaryUtils::ain12ToVolts(de->ccRx.ain4);
-				if (set->getHWInterface() == QSDR::Hermes)
-					de->supplyVolts = (qreal)((qreal)de->ccRx.ain6 / 186.0f);
+				if (set->getHWInterface() == QSDR::Hermes) {
+					if (RadioTelemetry* tel = telemetryFromSettings()) {
+						tel->setSupplyVoltage(static_cast<qreal>(de->ccRx.ain6) / 186.0);
+					}
+				}
 			}
 			break;
 	}
@@ -271,6 +267,22 @@ void CProtocol1::encodeCCBytes(unsigned char* buffer, DataEngine* de, RadioModel
     buffer[0] = ProtocolBoundaryUtils::kSyncByte;
     buffer[1] = ProtocolBoundaryUtils::kSyncByte;
     buffer[2] = ProtocolBoundaryUtils::kSyncByte;
+
+    auto sliceDspMode = [de, radioModel]() -> DSPMode {
+        if (radioModel && !radioModel->slices().isEmpty()) {
+            const int rx = de->currentReceiver;
+            if (rx >= 0 && rx < radioModel->slices().size())
+                return radioModel->slices().at(rx)->dspMode();
+            return radioModel->slices().at(0)->dspMode();
+        }
+        return de->txParams().mode;
+    };
+
+    auto sliceTxFrequency = [de, radioModel]() -> long {
+        if (radioModel && !radioModel->slices().isEmpty())
+            return static_cast<long>(radioModel->slices().at(0)->frequency());
+        return static_cast<long>(de->txParams().txFrequency);
+    };
 
     QMutexLocker locker(&de->mutex);
     switch (sendState) {
@@ -307,7 +319,7 @@ void CProtocol1::encodeCCBytes(unsigned char* buffer, DataEngine* de, RadioModel
     		                            : 0)
     		                        : de->speed; // sample rate
     		de->control_out[1] &= 0x03; // 0 0 0 0 0 0 1 1
-    		de->control_out[1] |= de->ccTx.clockByte;
+    		de->control_out[1] |= de->txParams().clockByte;
 
 			   		// set C2
     		//
@@ -317,13 +329,13 @@ void CProtocol1::encodeCCBytes(unsigned char* buffer, DataEngine* de, RadioModel
     		// +---------- +-------------- Open Collector Outputs on Penelope or Hermes (bit 6...bit 0)
 
     		de->control_out[2] = de->rxClass;
-    		if (de->ccTx.pennyOCenabled) {
+    		if (de->txParams().pennyOCenabled) {
     			de->control_out[2] &= 0x1; // 0 0 0 0 0 0 0 1
-    			if (de->ccTx.currentBand != (HamBand) gen) {
-    				if (de->ccTx.mox || de->ccTx.ptt)
-    					de->control_out[2] |= (de->ccTx.txJ6pinList.at(de->ccTx.currentBand) >> 1) << 1;
+    			if (de->txParams().currentBand != (HamBand) gen) {
+    				if (de->txParams().mox || de->txParams().ptt)
+    					de->control_out[2] |= (de->txParams().txJ6pinList.at(de->txParams().currentBand) >> 1) << 1;
     				else
-    					de->control_out[2] |= (de->ccTx.rxJ6pinList.at(de->ccTx.currentBand) >> 1) << 1;
+    					de->control_out[2] |= (de->txParams().rxJ6pinList.at(de->txParams().currentBand) >> 1) << 1;
     			}
     		}
 			// set C3
@@ -337,33 +349,33 @@ void CProtocol1::encodeCCBytes(unsigned char* buffer, DataEngine* de, RadioModel
     		// | + + --------------------- Alex Rx Antenna (00 = none, 01 = Rx1, 10 = Rx2, 11 = XV)
     		// + ------------------------- Alex Rx out (0 = off, 1 = on). Set if Alex Rx Antenna > 00.
     		// alexStates bits [1:0] = RX antenna; bits [4:2] = RX aux (see cusdr_alexAntennaWidget.cpp)
-    		rxAnt = 0x03 & de->ccTx.alexStates.at(de->ccTx.currentBand);
+    		rxAnt = 0x03 & de->txParams().alexStates.at(de->txParams().currentBand);
     		rxOut = (rxAnt > 0) ? 1 : 0;
     		// Bits [1:0]: step attenuator value (0=0dB, 1=10dB, 2=20dB, 3=30dB).
     		// Source: mercuryAttenuator (main-window Attn menu), which overrides any
     		// Alex-att contribution from alexStates bits [8:7] (used when an Alex board
     		// is present).  Both default to 0 so the behaviour is unchanged when neither
     		// is set.
-    		de->control_out[3] = (de->ccTx.alexStates.at(de->ccTx.currentBand) >> 7) & 0x03;
-    		de->control_out[3] |= (de->ccTx.mercuryAttenuator & 0x03);  // step-att at bits [1:0]
+    		de->control_out[3] = (de->txParams().alexStates.at(de->txParams().currentBand) >> 7) & 0x03;
+    		de->control_out[3] |= (de->txParams().mercuryAttenuator & 0x03);  // step-att at bits [1:0]
     		// Bit 2: Preamp/LNA on when no step attenuation and not transmitting.
     		// C3 bit2=1 = preamp on (full sensitivity), bit2=0 = preamp off (-20 dB).
     		de->control_out[3] &= 0xFB; // 1 1 1 1 1 0 1 1 — clear bit 2
-    		bool txActive = de->ccTx.mox || de->ccTx.ptt;
-    		de->control_out[3] |= ((!txActive && de->ccTx.mercuryAttenuator == 0) ? 1 : 0) << 2;
+    		bool txActive = de->txParams().mox || de->txParams().ptt;
+    		de->control_out[3] |= ((!txActive && de->txParams().mercuryAttenuator == 0) ? 1 : 0) << 2;
     		de->control_out[3] &= 0xF7; // 1 1 1 1 0 1 1 1
-    		de->control_out[3] |= (de->ccTx.dither << 3);
+    		de->control_out[3] |= (de->txParams().dither << 3);
     		de->control_out[3] &= 0xEF; // 1 1 1 0 1 1 1 1
-    		de->control_out[3] |= (de->ccTx.random << 4);
+    		de->control_out[3] |= (de->txParams().random << 4);
     		de->control_out[3] &= 0x9F; // 1 0 0 1 1 1 1 1
     		de->control_out[3] |= rxAnt << 5;
     		de->control_out[3] &= 0x7F; // 0 1 1 1 1 1 1 1
     		de->control_out[3] |= rxOut << 7;
 
-            if (de->ccTx.mox || de->ccTx.ptt)
-    			ant = (de->ccTx.alexStates.at(de->ccTx.currentBand) >> 5);
+            if (de->txParams().mox || de->txParams().ptt)
+    			ant = (de->txParams().alexStates.at(de->txParams().currentBand) >> 5);
     		else
-    			ant = de->ccTx.alexStates.at(de->ccTx.currentBand);
+    			ant = de->txParams().alexStates.at(de->txParams().currentBand);
 
 				// set C4
     		//
@@ -380,10 +392,10 @@ void CProtocol1::encodeCCBytes(unsigned char* buffer, DataEngine* de, RadioModel
 
     		de->control_out[4] |= (ant != 0) ? ant-1 : ant;
     		de->control_out[4] &= 0xFB; // 1 1 1 1 1 0 1 1
-    		de->control_out[4] |= de->ccTx.duplex << 2;
+    		de->control_out[4] |= de->txParams().duplex << 2;
     		de->control_out[4] &= 0x07; // 0 0 0 0 0 1 1 1
     		// slices() is preallocated (8); use active receiver count for hardware mux.
-    		int rcvrCount = de->receivers > 0 ? de->receivers : 1;
+    		int rcvrCount = de->receivers() > 0 ? de->receivers() : 1;
     		de->control_out[4] |= (rcvrCount - 1) << 3;
 
     		sendState = 1;
@@ -396,11 +408,7 @@ void CProtocol1::encodeCCBytes(unsigned char* buffer, DataEngine* de, RadioModel
     		// 0 0 0 0 0 0 1 x     C1, C2, C3, C4 NCO Frequency in Hz for Transmitter, Apollo ATU
     		//                     (32 bit binary representation - MSB in C1)
                 de->control_out[0] = 0x2; // C0
-                long txfrequency = de->ccTx.txFrequency;
-                // TX dial frequency = VFO, not panadapter center.
-                if (radioModel && !radioModel->slices().isEmpty()) {
-                    txfrequency = radioModel->slices().at(0)->frequency();
-                }
+                long txfrequency = sliceTxFrequency();
                 de->control_out[1] = (txfrequency >> 24);
                 de->control_out[2] = (txfrequency >> 16);
                 de->control_out[3] = (txfrequency >> 8);
@@ -461,7 +469,7 @@ void CProtocol1::encodeCCBytes(unsigned char* buffer, DataEngine* de, RadioModel
     		// manual 		  0
 
     		de->control_out[0] = 0x12; // 0 0 0 1 0 0 1 0
-            de->control_out[1] = (uchar) de->ccTx.drivelevel; // C1
+            de->control_out[1] = (uchar) de->txParams().drivelevel; // C1
     		de->control_out[2] = 0x10; // C2
     		de->control_out[3] = 0x0; // C3
             de->control_out[4] = 0x0; // C4
@@ -486,24 +494,24 @@ void CProtocol1::encodeCCBytes(unsigned char* buffer, DataEngine* de, RadioModel
 
 
     		de->control_out[3] &= 0xFE; // 1 1 1 1 1 1 1 0
-    		de->control_out[3] |= (de->ccTx.alexConfig & 0x40) >> 6;
+    		de->control_out[3] |= (de->txParams().alexConfig & 0x40) >> 6;
     		de->control_out[3] &= 0xFD; // 1 1 1 1 1 1 0 1
-    		de->control_out[3] |= (de->ccTx.alexConfig & 0x80) >> 6;
+    		de->control_out[3] |= (de->txParams().alexConfig & 0x80) >> 6;
     		de->control_out[3] &= 0xFB; // 1 1 1 1 1 0 1 1
-    		de->control_out[3] |= (de->ccTx.alexConfig & 0x20) >> 3;
+    		de->control_out[3] |= (de->txParams().alexConfig & 0x20) >> 3;
     		de->control_out[3] &= 0xF7; // 1 1 1 1 0 1 1 1
-    		de->control_out[3] |= (de->ccTx.alexConfig & 0x10) >> 1;
+    		de->control_out[3] |= (de->txParams().alexConfig & 0x10) >> 1;
     		de->control_out[3] &= 0xEF; // 1 1 1 0 1 1 1 1
-    		de->control_out[3] |= (de->ccTx.alexConfig & 0x08) << 1;
+    		de->control_out[3] |= (de->txParams().alexConfig & 0x08) << 1;
     		de->control_out[3] &= 0xDF; // 1 1 0 1 1 1 1 1
-    		de->control_out[3] |= (de->ccTx.alexConfig & 0x02) << 4;
+    		de->control_out[3] |= (de->txParams().alexConfig & 0x02) << 4;
     		de->control_out[3] &= 0xBF; // 1 0 1 1 1 1 1 1
-    		de->control_out[3] |= (de->ccTx.alexConfig & 0x04) << 4;
+    		de->control_out[3] |= (de->txParams().alexConfig & 0x04) << 4;
     		de->control_out[3] &= 0x7F; // 0 1 1 1 1 1 1 1
-    		de->control_out[3] |= ((int)de->ccTx.vnaMode) << 7;
+    		de->control_out[3] |= ((int)de->txParams().vnaMode) << 7;
 
-            if (de->ccTx.mox || de->ccTx.ptt) {
-                long txFrequency = de->ccTx.txFrequency;
+            if (de->txParams().mox || de->txParams().ptt) {
+                long txFrequency = sliceTxFrequency();
                 if      (txFrequency > ProtocolBoundaryUtils::kAlexLpf6mMinHz)    { de->control_out[4] = 0x10; }
                 else if (txFrequency > ProtocolBoundaryUtils::kAlexLpf12_10mMinHz) { de->control_out[4] = 0x20; }
                 else if (txFrequency > ProtocolBoundaryUtils::kAlexLpf17_15mMinHz) { de->control_out[4] = 0x40; }
@@ -549,9 +557,9 @@ void CProtocol1::encodeCCBytes(unsigned char* buffer, DataEngine* de, RadioModel
     	de->control_out[2] = m_adc_rx5_8; // C2
     	// C3 bits [4:0]: DDC/ADC input step attenuator (0-31 dB).
     	// During TX force 30 dB to protect the RX front-end.
-    	de->control_out[3] = (de->ccTx.mox || de->ccTx.ptt)
+    	de->control_out[3] = (de->txParams().mox || de->txParams().ptt)
     	    ? 30
-    	    : (uchar)qBound(0, de->ccTx.mercuryAttenuator * 10, 31);
+    	    : (uchar)qBound(0, de->txParams().mercuryAttenuator * 10, 31);
 		de->control_out[4] = m_adc_rx9_16; // C4
         sendState = 5;
     		break;
@@ -559,7 +567,7 @@ void CProtocol1::encodeCCBytes(unsigned char* buffer, DataEngine* de, RadioModel
         case 5:
             de->control_out[0] = 0x1e; // 0 0 0 1 1 1 1 x
             de->control_out[1] = 0x00;
-            if((de->ccTx.mode==DSPMode::CWU || de->ccTx.mode==DSPMode::CWL)  && (set->isInternalCw()) &&!(set->getRadioState() == RadioState::MOX))
+            if((sliceDspMode()==DSPMode::CWU || sliceDspMode()==DSPMode::CWL)  && (set->isInternalCw()) &&!(set->getRadioState() == RadioState::MOX))
             {
                 de->control_out[1]|=0x01;
             }
@@ -588,11 +596,12 @@ void CProtocol1::encodeCCBytes(unsigned char* buffer, DataEngine* de, RadioModel
             sendState = 0;
             break;
     }
-    if ((de->ccTx.mode==DSPMode::CWU || de->ccTx.mode==DSPMode::CWL) )
+    const DSPMode encodeMode = sliceDspMode();
+    if ((encodeMode==DSPMode::CWU || encodeMode==DSPMode::CWL) )
     {
          de->control_out[0] &= ~0x01;
        }
-    else  if (de->ccTx.mox || de->ccTx.ptt) de->control_out[0] |= 0x01;
+    else  if (de->txParams().mox || de->txParams().ptt) de->control_out[0] |= 0x01;
     else de->control_out[0] &= ~0x01;
 
     for (int i = 0; i < 5; i++) {

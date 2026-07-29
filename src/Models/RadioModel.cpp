@@ -24,6 +24,14 @@ void RadioModel::setSampleRate(int rate) {
     emit sampleRateChanged(m_sampleRate);
 }
 
+void RadioModel::setActiveReceivers(int count) {
+    if (count < 1)
+        count = 1;
+    if (m_activeReceivers == count) return;
+    m_activeReceivers = count;
+    emit activeReceiversChanged(m_activeReceivers);
+}
+
 void RadioModel::setHardwareType(const QString &type) {
     if (m_hardwareType == type) return;
     m_hardwareType = type;

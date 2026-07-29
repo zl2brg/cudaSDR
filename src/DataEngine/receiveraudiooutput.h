@@ -30,10 +30,15 @@ private slots:
 
 private:
     bool isSinkHealthy() const;
+    /** Mute without touching the sink; safe from the audio thread. */
+    void markSinkLostLocked(const char *reason);
     void handleDeviceLostLocked(const char *reason);
     void openSinkLocked();
     void startLocked();
     void stopLocked();
+    /** True when the caller may touch the sink; otherwise the call was re-posted. */
+    bool onOwnThread() const;
+    void scheduleReopen();
 
     QAudioSink* m_audioSink = nullptr;
     QIODevice* m_device = nullptr;
