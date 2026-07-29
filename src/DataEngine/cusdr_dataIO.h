@@ -28,6 +28,7 @@
 #define _CUSDR_DATAIO_H
 
 #include "cusdr_settings.h"
+#include "Util/cusdr_queue.h"
 #include "soundout.h"
 
 #ifdef LOG_DATAIO
@@ -37,14 +38,34 @@
 #endif
 
 
+class RadioModel;
+class DataEngine;
+class IHPSDRProtocol;
+
 class DataIO : public QObject {
 
     Q_OBJECT
 
 public:
-    DataIO(THPSDRParameter *ioData = 0);
+    explicit DataIO(QObject* parent = nullptr);
     void set_wbBuffers(int val);
-	~DataIO();
+    void setRadioModel(RadioModel* model) { m_radioModel = model; }
+    void setDataEngine(DataEngine* engine) { m_dataEngine = engine; }
+    void setProtocol(IHPSDRProtocol* protocol) { m_protocol = protocol; }
+    void setSampleRate(int rate) { m_sampleRate = rate; }
+	~DataIO() override;
+
+	// Packet / audio queues and network sync (formerly THPSDRParameter)
+	QByteArray				audioDatagram;
+	QHQueue<TIQPacket>		iq_queue;
+	QHQueue<QByteArray>		au_queue;
+	QHQueue<QByteArray>		wb_queue;
+	QHQueue<QVector<float>> soapy_iq_queue{100};
+	QHQueue<QVector<float>> soapy_tx_iq_queue{100};
+	QList<qreal>			inputBuffer;
+	QMutex					networkIOMutex;
+	QWaitCondition			devicefound;
+	QHostAddress			hpsdrDeviceIPAddress;
 
 public slots:
 	void	stop();
@@ -57,7 +78,7 @@ public slots:
 	void	networkDeviceStartStop(char value);
 	
 private slots:
-	void setSampleRate(int value);
+	void setSampleRateSlot(int value);
 	void setManualSocketBufferSize(bool value);
 	void setSocketBufferSize(int value);
 	void displayDataReceiverSocketError(QAbstractSocket::SocketError error);
@@ -78,13 +99,16 @@ private:
 	QByteArray		m_outDatagram;
 
     QElapsedTimer	m_packetLossTime;
-    QElapsedTimer   m_iqArrivalTimer;     // measures inter-packet gap
-    quint64         m_iqPacketCount = 0;  // total IQ packets received
-    quint64         m_iqDropCount   = 0;  // IQ packets dropped (queue full)
-    double          m_iqGapMax      = 0;  // max inter-packet gap (µs) in current window
-    double          m_iqGapAccum    = 0;  // accumulated gap for mean calculation
+    QElapsedTimer   m_iqArrivalTimer;
+    quint64         m_iqPacketCount = 0;
+    quint64         m_iqDropCount   = 0;
+    double          m_iqGapMax      = 0;
+    double          m_iqGapAccum    = 0;
 
-	THPSDRParameter*	io;
+	DataEngine*			m_dataEngine = nullptr;
+	RadioModel*			m_radioModel = nullptr;
+	IHPSDRProtocol*		m_protocol = nullptr;
+	int					m_sampleRate = 48000;
 
 	bool	m_dataIOSocketOn;
 	bool	m_networkDeviceRunning;

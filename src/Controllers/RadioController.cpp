@@ -43,7 +43,7 @@ void RadioController::bindSlice(SliceModel* slice, DataEngine* engine)
     // (WDSP NCO / filters / mode: SliceModel -> QWDSPEngine directly.)
     m_connections.append(connect(slice, &SliceModel::centerFrequencyChanged, engine,
             [engine, rx](long) {
-                engine->io.rx_freq_change = rx;
+                engine->rx_freq_change = rx;
             }));
 
     // Mode -> TX control bytes (WDSP mode is driven by SliceModel -> QWDSPEngine).

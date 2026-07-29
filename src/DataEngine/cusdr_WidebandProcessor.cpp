@@ -5,9 +5,9 @@
 #include "cusdr_dataEngine.h"
 #include "cusdr_WidebandProcessor.h"
 
-WideBandDataProcessor::WideBandDataProcessor(THPSDRParameter *ioData, QSDR::_ServerMode serverMode, int size)
+WideBandDataProcessor::WideBandDataProcessor(DataEngine *engine, QSDR::_ServerMode serverMode, int size)
 	: QObject()
-	, io(ioData)
+	, m_engine(engine)
 	, set(Settings::instance())
 	, m_serverMode(serverMode)
 	, m_size(size)
@@ -87,7 +87,7 @@ void WideBandDataProcessor::stop() {
 
 void WideBandDataProcessor::processWideBandData() {
 	forever {
-		processWideBandInputBuffer(io->wb_queue.dequeue());
+		processWideBandInputBuffer(m_engine->m_dataIO->wb_queue.dequeue());
 
 		m_mutex.lock();
 		if (m_stopped) {
@@ -101,14 +101,14 @@ void WideBandDataProcessor::processWideBandData() {
 
 void WideBandDataProcessor::processWideBandInputBuffer(const QByteArray &buffer) {
 	int size;
-	if (io->mercuryFW > 32 || io->hermesFW > 11)
+	if (m_engine->mercuryFW > 32 || m_engine->hermesFW > 11)
 		size = 2 * BIGWIDEBANDSIZE;
 	else
 		size = 2 * SMALLWIDEBANDSIZE;
 
 	qint64 length = buffer.length();
 	if (length != size) {
-		WIDEBAND_PROCESSOR_DEBUG << "wrong wide band buffer length: " << length << "size " << size <<  "ver " << io->hermesFW ;
+		WIDEBAND_PROCESSOR_DEBUG << "wrong wide band buffer length: " << length << "size " << size <<  "ver " << m_engine->hermesFW ;
 		return;
 	}
 

@@ -364,7 +364,6 @@ typedef struct _ccParameterTx {
 
 } TCCParameterTx;
 
-class IHPSDRProtocol;
 class RigCtlServer;
 class TciServer;
 
@@ -382,98 +381,6 @@ typedef struct _iqPacket {
 	{}
 
 } TIQPacket;
-
-typedef struct _hpsdrParameter {
-
-	uchar	control_in[5];
-	uchar	control_out[5];
-
-	QByteArray	ccIn;
-	QByteArray	ccOut;
-
-	uchar	output_buffer[IO_BUFFER_SIZE];
-
-
-	qVectorFloat	wbWindow;
-
-
-
-	QByteArray				audioDatagram;
-	
-	QHQueue<TIQPacket>		iq_queue;
-	QHQueue<QByteArray>		au_queue;
-	QHQueue<QByteArray>		wb_queue;
-	QHQueue<QVector<float>> soapy_iq_queue{100};
-	QHQueue<QVector<float>> soapy_tx_iq_queue{100};
-
-	QList<qreal> inputBuffer;
-
-	QList<int> clientList;
-	
-	QMutex mutex;
-	QMutex networkIOMutex;
-
-	QWaitCondition devicefound;
-	//QMutex iqMutex;
-
-	QHostAddress	hpsdrDeviceIPAddress;
-	QString			hpsdrDeviceName;
-
-	TCCParameterRx	ccRx;
-	TCCParameterTx	ccTx;
-
-	int		samplerate;
-	int		soapyInputSampleRate;
-	int		speed;
-
-	int		metisFW;
-	int		hermesFW;
-	int		mercuryFW;
-	int		penelopeFW;
-	int		pennylaneFW;
-
-	int		clients;
-	int		current_client;
-	int		receivers;
-	int		currentReceiver;
-	int		audio_rx;
-	int		timing;
-	
-	int		currentMetisCard;
-
-	//int		hpsdr_10MhzSource;
-	//int		hpsdr_122_88MhzSource;
-	int		mic_source;
-	int		rxClass;
-	int		rx_adc_change;
-	int		rx_freq_change;
-	int		tx_freq_change;
-	
-	float	mic_gain;
-
-
-	qreal	penelopeForwardVolts;
-	qreal	penelopeForwardPower;
-	qreal	alexForwardVolts;
-	qreal	alexForwardPower;
-	qreal	alexReverseVolts;
-	qreal	alexReversePower;
-	qreal	ain3Volts;
-	qreal	ain4Volts;
-	qreal	supplyVolts;
-
-	bool	rcveIQ_toggle;
-	bool	sendIQ_toggle;
-	bool	timeStamp;
-	bool	mute;
-
-
-
-	qint16		audiofileChannels;
-
-    IHPSDRProtocol* protocol = NULL;
-
-} THPSDRParameter;
 
 typedef struct _networkDeviceCard {
     int             protocol;

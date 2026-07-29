@@ -27,12 +27,13 @@
 #define LOG_AUDIO_RECEIVER
 
 #include "cusdr_audioReceiver.h"
+#include "cusdr_dataEngine.h"
 
 
-AudioReceiver::AudioReceiver(THPSDRParameter *ioData)
+AudioReceiver::AudioReceiver(DataEngine *engine)
 	: QObject()
 	, set(Settings::instance())
-	, io(ioData)
+	, m_engine(engine)
 	, m_client(0)
 {
 }
@@ -48,7 +49,7 @@ void AudioReceiver::displayAudioRcvrSocketError(QAbstractSocket::SocketError err
 
 void AudioReceiver::initClient() {
 
-	quint16 port = (quint16) (set->getAudioPort() + (io->audio_rx * 2));
+	quint16 port = (quint16) (set->getAudioPort() + (m_engine->audio_rx * 2));
 
 	QUdpSocket *socket = new QUdpSocket();
 	socket->setSocketOption(QAbstractSocket::LowDelayOption, 1);
@@ -73,7 +74,7 @@ void AudioReceiver::initClient() {
 
 		AUDIO_RECEIVER << "client socket binding successful.";
 		m_message = tr("[server]: listening for rx %1 audio on port %2.");
-		emit messageEvent(m_message.arg(io->audio_rx).arg(port));
+		emit messageEvent(m_message.arg(m_engine->audio_rx).arg(port));
 		
 		//m_dataEngine->clientConnected = true;
 		// need to implement connection in dataEngine !!!!
@@ -98,20 +99,20 @@ void AudioReceiver::readPendingAudioRcvrData() {
 		if (socket->readDatagram(m_datagram.data(), m_datagram.size()) < 0) {
 		
 			AUDIO_RECEIVER << "read client" << m_client << "socket failed.";
-			if (io->rcveIQ_toggle) {  // toggles the rcveIQ signal
+			if (m_engine->rcveIQ_toggle) {  // toggles the rcveIQ signal
 			
 				emit rcveIQEvent(2);
-				io->rcveIQ_toggle = false;
+				m_engine->rcveIQ_toggle = false;
 			}
 		}
 		else {
 
-			io->au_queue.enqueue(m_datagram);
+			m_engine->m_dataIO->au_queue.enqueue(m_datagram);
 				
-			if (!io->rcveIQ_toggle) {  // toggles the rcveIQ signal
+			if (!m_engine->rcveIQ_toggle) {  // toggles the rcveIQ signal
 
 				emit rcveIQEvent(1);
-				io->rcveIQ_toggle = true;
+				m_engine->rcveIQ_toggle = true;
 			}
 		}
 	}

@@ -1,6 +1,8 @@
 #include "CProtocol2.h"
 #include "cusdr_dataEngine.h"
 #include "cusdr_settings.h"
+#include "Models/RadioModel.h"
+#include "Models/SliceModel.h"
 #include "Models/RadioTelemetry.h"
 #include "protocol_boundary_utils.h"
 
@@ -74,11 +76,11 @@ void CProtocol2::processInputBuffer(const QByteArray& buffer, DataEngine* de, qu
         qDebug() << "P2 processInputBuffer call=" << p2ProcessCalls
                  << " size=" << buffer.size()
                  << " sourcePort=" << sourcePort
-                 << " receivers=" << de->io.receivers
+                 << " receivers=" << de->receivers
                  << " rxCount=" << de->RX.count();
     }
 
-    if (de->io.receivers <= 0 || de->RX.isEmpty()) {
+    if (de->receivers <= 0 || de->RX.isEmpty()) {
         if ((p2ProcessCalls % 100) == 1) {
             qDebug() << "P2 processInputBuffer early-return receivers/rx list";
         }
@@ -98,11 +100,11 @@ void CProtocol2::processInputBuffer(const QByteArray& buffer, DataEngine* de, qu
         return;
     }
 
-    if (ddcIndex >= de->io.receivers || ddcIndex >= de->RX.count()) {
+    if (ddcIndex >= de->receivers || ddcIndex >= de->RX.count()) {
         if ((p2ProcessCalls % 100) == 1) {
             qDebug() << "P2 dropping packet for inactive DDC" << ddcIndex
                      << "sourcePort=" << sourcePort
-                     << "receivers=" << de->io.receivers
+                     << "receivers=" << de->receivers
                      << "rxCount=" << de->RX.count();
         }
         return;
@@ -117,7 +119,7 @@ void CProtocol2::processInputBuffer(const QByteArray& buffer, DataEngine* de, qu
     if ((p2RouteLogCount % 500) == 1) {
         P2_ROUTE_DEBUG << "route srcPort=" << sourcePort
                        << " -> ddcIndex=" << ddcIndex
-                       << " receivers=" << de->io.receivers
+                       << " receivers=" << de->receivers
                        << " payload=" << buffer.size();
     }
 
@@ -170,25 +172,25 @@ void CProtocol2::processInputBuffer(const QByteArray& buffer, DataEngine* de, qu
     }
 }
 
-void CProtocol2::decodeCCBytes(const QByteArray& buffer, THPSDRParameter* io) {
+void CProtocol2::decodeCCBytes(const QByteArray& buffer, DataEngine* de) {
     // Protocol 2 High Priority Status Packet (default port 1025, hardware→host)
     // Per spec v4.3 p.45-48:
     if (buffer.size() < 60) return;
 
     Settings* set = Settings::instance();
 
-    io->ccRx.previous_dash = io->ccRx.dash;
-    io->ccRx.previous_dot  = io->ccRx.dot;
+    de->ccRx.previous_dash = de->ccRx.dash;
+    de->ccRx.previous_dot  = de->ccRx.dot;
 
     // Byte 4: [0]=PTT, [1]=Dot, [2]=Dash, [4]=PLL locked, [5]=FIFO empty, [6]=FIFO full
     bool ptt = (buffer.at(4) & 0x01);
-    if (ptt != io->ccRx.ptt) {
-        io->ccRx.ptt = ptt;
+    if (ptt != de->ccRx.ptt) {
+        de->ccRx.ptt = ptt;
         set->setRadioState(ptt ? RadioState::MOX : RadioState::RX);
     }
 
-    io->ccRx.dot  = (buffer.at(4) & 0x02);
-    io->ccRx.dash = (buffer.at(4) & 0x04);
+    de->ccRx.dot  = (buffer.at(4) & 0x02);
+    de->ccRx.dash = (buffer.at(4) & 0x04);
     
     // Additional status in Byte 4
     // bool pllLocked = (buffer.at(4) & 0x10);
@@ -197,10 +199,10 @@ void CProtocol2::decodeCCBytes(const QByteArray& buffer, THPSDRParameter* io) {
 
     // Byte 5: ADC overload bitmask [0]=ADC0 … [7]=ADC7
     uint8_t adcOvld = (uint8_t)buffer.at(5);
-    io->ccRx.mercury1_LT2208 = (adcOvld & 0x01);
-    io->ccRx.mercury2_LT2208 = (adcOvld & 0x02);
-    io->ccRx.mercury3_LT2208 = (adcOvld & 0x04);
-    io->ccRx.mercury4_LT2208 = (adcOvld & 0x08);
+    de->ccRx.mercury1_LT2208 = (adcOvld & 0x01);
+    de->ccRx.mercury2_LT2208 = (adcOvld & 0x02);
+    de->ccRx.mercury3_LT2208 = (adcOvld & 0x04);
+    de->ccRx.mercury4_LT2208 = (adcOvld & 0x08);
 
     if (adcOvld != 0) {
         if (RadioTelemetry* tel = telemetryFromSettings()) {
@@ -211,24 +213,24 @@ void CProtocol2::decodeCCBytes(const QByteArray& buffer, THPSDRParameter* io) {
     // Bytes 6-7: AIN1 — Forward power ADC (Alex0 fwd / Hermes PA fwd, 12-bit, 16-bit BE)
     const auto cal = ProtocolBoundaryUtils::paBridgeCalForHermes(
         set->getHWInterface() == QSDR::Hermes);
-    io->ccRx.ain1 = ProtocolBoundaryUtils::decodeAin12BitBE(
+    de->ccRx.ain1 = ProtocolBoundaryUtils::decodeAin12BitBE(
         static_cast<quint8>(buffer.at(6)), static_cast<quint8>(buffer.at(7)));
-    io->alexForwardVolts = ProtocolBoundaryUtils::ain12ToVolts(io->ccRx.ain1, cal.vref);
+    de->alexForwardVolts = ProtocolBoundaryUtils::ain12ToVolts(de->ccRx.ain1, cal.vref);
 
     // Bytes 8-9: AIN2 — Reverse power ADC (Alex0 rev / Hermes PA rev, 12-bit, 16-bit BE)
-    io->ccRx.ain2 = ProtocolBoundaryUtils::decodeAin12BitBE(
+    de->ccRx.ain2 = ProtocolBoundaryUtils::decodeAin12BitBE(
         static_cast<quint8>(buffer.at(8)), static_cast<quint8>(buffer.at(9)));
-    io->alexReverseVolts = ProtocolBoundaryUtils::ain12ToVolts(io->ccRx.ain2, cal.vref);
-    io->alexForwardPower = ProtocolBoundaryUtils::wattsFromAin12(io->ccRx.ain1, cal);
-    io->alexReversePower = ProtocolBoundaryUtils::wattsFromAin12(io->ccRx.ain2, cal);
+    de->alexReverseVolts = ProtocolBoundaryUtils::ain12ToVolts(de->ccRx.ain2, cal.vref);
+    de->alexForwardPower = ProtocolBoundaryUtils::wattsFromAin12(de->ccRx.ain1, cal);
+    de->alexReversePower = ProtocolBoundaryUtils::wattsFromAin12(de->ccRx.ain2, cal);
     if (RadioTelemetry* tel = telemetryFromSettings()) {
-        tel->setForwardPower(io->alexForwardPower);
-        tel->setReversePower(io->alexReversePower);
+        tel->setForwardPower(de->alexForwardPower);
+        tel->setReversePower(de->alexReversePower);
 
         const bool tx = set->getRadioState() == RadioState::MOX
             || set->getRadioState() == RadioState::TUNE;
         tel->setSWR(ProtocolBoundaryUtils::swrFromFwdRevWatts(
-            io->alexForwardPower, io->alexReversePower, tx));
+            de->alexForwardPower, de->alexReversePower, tx));
     }
 
     // Bytes 34-35: Temperature (16-bit BE, degrees C x 100)
@@ -239,23 +241,23 @@ void CProtocol2::decodeCCBytes(const QByteArray& buffer, THPSDRParameter* io) {
 
     // Bytes 36-37: Supply voltage (16-bit BE, millivolts)
     uint16_t supplyMV = ProtocolBoundaryUtils::decode16BitBE(reinterpret_cast<const uchar*>(buffer.constData() + 36));
-    io->supplyVolts = (double)supplyMV / 1000.0;
-    io->ccRx.ain6 = supplyMV;
+    de->supplyVolts = (double)supplyMV / 1000.0;
+    de->ccRx.ain6 = supplyMV;
     if (RadioTelemetry* tel = telemetryFromSettings()) {
-        tel->setSupplyVoltage(static_cast<qreal>(io->supplyVolts));
+        tel->setSupplyVoltage(static_cast<qreal>(de->supplyVolts));
     }
 
     // Byte 59: IO2,IO4,IO5,IO6,IO8 inputs
     uint8_t inputs = (uint8_t)buffer.at(59);
-    io->ccRx.hermesI01 = !(inputs & 0x01); // Bit 0 is IO2 (active low)
-    io->ccRx.hermesI02 = !(inputs & 0x02); // Bit 1 is IO4
-    io->ccRx.hermesI03 = !(inputs & 0x04); // Bit 2 is IO5
-    io->ccRx.hermesI04 = !(inputs & 0x08); // Bit 3 is IO6
+    de->ccRx.hermesI01 = !(inputs & 0x01); // Bit 0 is IO2 (active low)
+    de->ccRx.hermesI02 = !(inputs & 0x02); // Bit 1 is IO4
+    de->ccRx.hermesI03 = !(inputs & 0x04); // Bit 2 is IO5
+    de->ccRx.hermesI04 = !(inputs & 0x08); // Bit 3 is IO6
 }
 
-void CProtocol2::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& sendState, quint16& port) {
+void CProtocol2::encodeCCBytes(unsigned char* buffer, DataEngine* de, RadioModel* radioModel, int& sendState, quint16& port) {
     Settings* set = Settings::instance();
-    QMutexLocker locker(&io->mutex);
+    QMutexLocker locker(&de->mutex);
     // Protocol 2 High Priority and DDC packets must be 1444 bytes.
     // The provided buffer is already 1444 bytes.
     memset(buffer, 0, ProtocolBoundaryUtils::kProtocol2IqPacketSize);
@@ -320,20 +322,24 @@ void CProtocol2::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
                 // Byte 4: Number of ADCs
                 buffer[4] = 1;
                 // Byte 5: Dither enable per ADC (bit 0 = ADC0)
-                buffer[5] = (uint8_t)(io->ccTx.dither & 0x01);
+                buffer[5] = (uint8_t)(de->ccTx.dither & 0x01);
                 // Byte 6: Random enable per ADC (bit 0 = ADC0)
-                buffer[6] = (uint8_t)(io->ccTx.random & 0x01);
+                buffer[6] = (uint8_t)(de->ccTx.random & 0x01);
 
                 // DDC enable bitmask (byte 7): one bit per DDC (bit 0 = DDC0, bit 1 = DDC1, ...)
-                buffer[7] = (uint8_t)((1 << io->receivers) - 1);
+                // slices() is preallocated (8); never use its size as active RX count.
+                int rcvrCount = de->receivers > 0 ? de->receivers : 1;
+                if (rcvrCount > 8) rcvrCount = 8;
+                buffer[7] = (uint8_t)((1 << rcvrCount) - 1);
 
                 // Configure each DDC: 6 bytes starting at buffer[17 + 6*i]
                 //   [0] ADC selection  [1-2] sample rate (BE)  [3-4] sync map  [5] sample size
                 // DDC 7 config starts at buffer[59] (= 17 + 6*7).
                 const QList<TReceiver>& rxData = set->getReceiverDataList();
-                const int fallbackRate = set->getSampleRate() > 0 ? set->getSampleRate()
-                                                                 : (io->samplerate > 0 ? io->samplerate : 48000);
-                for (int ddc = 0; ddc < io->receivers; ddc++) {
+                const int fallbackRate = (radioModel && radioModel->sampleRate() > 0)
+                                            ? radioModel->sampleRate()
+                                            : (set->getSampleRate() > 0 ? set->getSampleRate() : (de->samplerate > 0 ? de->samplerate : 48000));
+                for (int ddc = 0; ddc < rcvrCount; ddc++) {
                     int base = 17 + 6 * ddc;
                     int configuredRate = fallbackRate;
                     if (ddc < rxData.size() && rxData.at(ddc).sampleRate > 0)
@@ -390,27 +396,32 @@ void CProtocol2::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
         default:
             port = ProtocolBoundaryUtils::Ports::P2HighPriorityPort;
             {
-                
-                // ...existing case 3 body...
                 uint32_t seq = qToBigEndian(m_sequences[ProtocolBoundaryUtils::Ports::P2HighPriorityPort]++);
                 memcpy(buffer, &seq, 4);
 
                 // During startup staging, keep Run low until explicit final
                 // start command is sent by formatStartStop().
-                buffer[4] = io->rcveIQ_toggle ? 0x01 : 0x00;
-                if (io->ccTx.mox || io->ccTx.ptt) {
+                buffer[4] = de->rcveIQ_toggle ? 0x01 : 0x00;
+                if (de->ccTx.mox || de->ccTx.ptt) {
                     buffer[4] |= 0x02; // PTT0
                 }
 
                 // DDC RX frequencies: 4 bytes each starting at buffer[9 + 4*i]
                 {
+                    int rcvrCount = de->receivers > 0 ? de->receivers : 1;
+                    if (rcvrCount > 8) rcvrCount = 8;
                     const QList<qint64>& freqs = set->getCtrFrequencies();
-                    for (int ddc = 0; ddc < io->receivers; ddc++) {
+                    for (int ddc = 0; ddc < rcvrCount; ddc++) {
                         qint64 hz = 0;
-                        if (ddc < freqs.size())
-                            hz = freqs.at(ddc);
-                        if (hz <= 0 && ddc < set->getReceiverDataList().size())
-                            hz = set->getReceiverDataList().at(ddc).ctrFrequency;
+                        // Hardware NCO = panadapter center, not VFO.
+                        if (radioModel && ddc < radioModel->slices().count()) {
+                            hz = radioModel->slices().at(ddc)->centerFrequency();
+                        } else {
+                            if (ddc < freqs.size())
+                                hz = freqs.at(ddc);
+                            if (hz <= 0 && ddc < set->getReceiverDataList().size())
+                                hz = set->getReceiverDataList().at(ddc).ctrFrequency;
+                        }
                         if (hz <= 0)
                             hz = 7050000; // last-resort default so sim IQ is not gated
                         uint32_t freq = qToBigEndian((uint32_t)hz);
@@ -421,35 +432,30 @@ void CProtocol2::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
                 // DUC0 TX frequency (buffer[333-336])
                 {
                     qint64 txHz = 0;
-                    const QList<qint64>& freqs = set->getCtrFrequencies();
-                    if (!freqs.isEmpty())
-                        txHz = freqs.at(0);
-                    if (txHz <= 0 && !set->getReceiverDataList().isEmpty())
-                        txHz = set->getReceiverDataList().at(0).ctrFrequency;
+                    // TX dial = VFO frequency when available.
+                    if (radioModel && !radioModel->slices().isEmpty()) {
+                        txHz = radioModel->slices().at(0)->frequency();
+                    } else {
+                        const QList<qint64>& freqs = set->getCtrFrequencies();
+                        if (!freqs.isEmpty())
+                            txHz = freqs.at(0);
+                        if (txHz <= 0 && !set->getReceiverDataList().isEmpty())
+                            txHz = set->getReceiverDataList().at(0).ctrFrequency;
+                    }
                     if (txHz <= 0)
                         txHz = 7050000;
                     uint32_t txfreq = qToBigEndian((uint32_t)txHz);
                     memcpy(&buffer[333], &txfreq, 4);
+
+                    // DUC0 drive level (buffer[345], scale 0-100 to 0-255)
+                    int drive = qBound(0, (int)de->ccTx.drivelevel, 100);
+                    buffer[345] = (unsigned char)((drive * 255) / 100);
                 }
 
-                // DUC0 drive level (buffer[345], scale 0-100 to 0-255)
-                int drive = qBound(0, (int)io->ccTx.drivelevel, 100);
-                buffer[345] = (unsigned char)((drive * 255) / 100);
-
                 // Alex0 32-bit word (bytes 1432-1435, big-endian)
-                // Bit layout per openHPSDR Ethernet Protocol v4.3 Appendix D (Atlas-based):
-                //   bit  1: 13 MHz HPF       bit 20: 30/20m LPF
-                //   bit  2: 20 MHz HPF       bit 21: 60/40m LPF
-                //   bit  3: 6M Preamp/LNA    bit 22: 80m LPF
-                //   bit  4: 9.5 MHz HPF      bit 23: 160m LPF
-                //   bit  5: 6.5 MHz HPF      bit 27: T/R relay
-                //   bit  6: 1.5 MHz HPF      bit 29: 6m/bypass LPF
-                //   bit 12: HF Bypass        bit 30: 12/10m LPF
-                //   bit 13: 20 dB atten.     bit 31: 17/15m LPF
-                //   bit 14: 10 dB atten.
                 {
                     uint32_t alex0 = 0;
-                    quint16 ac = io->ccTx.alexConfig;
+                    quint16 ac = de->ccTx.alexConfig;
                     // HPF bits (alexConfig bits 1-7)
                     if (ac & 0x0002) alex0 |= (1u << 12);  // bypass all HPFs
                     if (ac & 0x0004) alex0 |= (1u <<  3);  // 6M LNA/preamp
@@ -467,11 +473,11 @@ void CProtocol2::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
                     if (ac & 0x2000) alex0 |= (1u << 30);  // 12/10m LPF
                     if (ac & 0x4000) alex0 |= (1u << 29);  // 6m/bypass LPF
                     // Attenuators: mercuryAttenuator 0=0dB, 1=10dB, 2=20dB, 3=30dB
-                    int att = io->ccTx.mercuryAttenuator & 0x03;
+                    int att = de->ccTx.mercuryAttenuator & 0x03;
                     if (att & 1) alex0 |= (1u << 14);  // 10 dB
                     if (att & 2) alex0 |= (1u << 13);  // 20 dB
                     // T/R relay
-                    bool xmit = io->ccTx.mox || io->ccTx.ptt;
+                    bool xmit = de->ccTx.mox || de->ccTx.ptt;
                     if (xmit) alex0 |= (1u << 27);
                     // Antenna relay (bits 24/25/26) and RX aux input (bits 8-11)
                     // alexStates (per-band): bits[1:0]=RX ANT (1=ANT1,2=ANT2,3=ANT3)
@@ -479,8 +485,8 @@ void CProtocol2::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
                     //                        bits[6:5]=TX ANT (1=ANT1,2=ANT2,3=ANT3)
                     // When RXing: bits 24/25/26 reflect the selected RX antenna.
                     // When TXing: bits 24/25/26 reflect the selected TX antenna.
-                    if (io->ccTx.currentBand >= 0 && io->ccTx.currentBand < io->ccTx.alexStates.size()) {
-                        int state = io->ccTx.alexStates.at(io->ccTx.currentBand);
+                    if (de->ccTx.currentBand >= 0 && de->ccTx.currentBand < de->ccTx.alexStates.size()) {
+                        int state = de->ccTx.alexStates.at(de->ccTx.currentBand);
                         int rxAnt = (state     ) & 0x03;   // bits[1:0]: RX ANT 1=ANT1, 2=ANT2, 3=ANT3
                         int rxAux = (state >> 2) & 0x07;   // bits[4:2]: RX aux 1=Ext1, 2=Ext2, 3=XVTR
                         int txAnt = (state >> 5) & 0x03;   // bits[6:5]: TX ANT 1=ANT1, 2=ANT2, 3=ANT3
@@ -523,17 +529,17 @@ void CProtocol2::encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& 
                            (alex0 & (1u<<29)) ? "6m "   : "",
                            (alex0 & (1u<<27)) ? 1 : 0,
                            (alex0 & (1u<<26)) ? "ANT3" : (alex0 & (1u<<25)) ? "ANT2" : "ANT1",
-                           (io->ccTx.mercuryAttenuator & 2 ? 20 : 0) + (io->ccTx.mercuryAttenuator & 1 ? 10 : 0),
-                           (int)io->ccTx.alexConfig,
-                           (int)io->ccTx.currentBand,
-                           (io->ccTx.currentBand >= 0 && io->ccTx.currentBand < io->ccTx.alexStates.size())
-                               ? (int)io->ccTx.alexStates.at(io->ccTx.currentBand) : -1);
+                           (de->ccTx.mercuryAttenuator & 2 ? 20 : 0) + (de->ccTx.mercuryAttenuator & 1 ? 10 : 0),
+                           (int)de->ccTx.alexConfig,
+                           (int)de->ccTx.currentBand,
+                           (de->ccTx.currentBand >= 0 && de->ccTx.currentBand < de->ccTx.alexStates.size())
+                               ? (int)de->ccTx.alexStates.at(de->ccTx.currentBand) : -1);
 #endif
                 }
                 // Step attenuator 0 (byte 1443): 0-31 dB
                 // During TX force -30 dB to protect the RX front-end.
-                bool txActive = io->ccTx.mox || io->ccTx.ptt;
-                buffer[1443] = txActive ? 30 : (uint8_t)qBound(0, io->ccTx.mercuryAttenuator * 10, 31);
+                bool txActive = de->ccTx.mox || de->ccTx.ptt;
+                buffer[1443] = txActive ? 30 : (uint8_t)qBound(0, de->ccTx.mercuryAttenuator * 10, 31);
             }
             
             sendState = 1; // cycle back to DDC Specific
@@ -551,8 +557,9 @@ QByteArray CProtocol2::formatStartStop(char value, quint16& port) {
     return ProtocolBoundaryUtils::protocol2StartStopDatagram(value, m_sequences[ProtocolBoundaryUtils::Ports::P2HighPriorityPort]++);
 }
 
-QByteArray CProtocol2::formatInitFrame(int rx, THPSDRParameter* io, quint16& port) {
-    Q_UNUSED(io)
+QByteArray CProtocol2::formatInitFrame(int rx, DataEngine* de, RadioModel* radioModel, quint16& port) {
+    Q_UNUSED(de)
+    Q_UNUSED(radioModel)
     // Protocol 2 General Configuration Packet (PC → SDR, port 1024, 60 bytes).
     // Must be sent before setting the Run bit so the device knows which ports
     // to use for each data stream.  sendInitFramesToNetworkDevice() calls us

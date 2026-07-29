@@ -38,6 +38,8 @@
 
 #include "cusdr_settings.h"
 
+class DataEngine;
+
 #ifdef LOG_AUDIO_RECEIVER
 #   define AUDIO_RECEIVER qDebug().nospace() << "AudioReceiver::\t"
 #else
@@ -51,7 +53,7 @@ class AudioReceiver : public QObject {
     Q_OBJECT
 
 public:
-	AudioReceiver(THPSDRParameter *ioData = 0);
+	AudioReceiver(DataEngine *engine = nullptr);
 	~AudioReceiver();
 
 	//int			id;
@@ -68,7 +70,7 @@ private:
 	QString			m_message;
 	QByteArray		m_datagram;
 
-	THPSDRParameter	*io;
+	DataEngine* m_engine;
 	
 	int				m_client;
 	

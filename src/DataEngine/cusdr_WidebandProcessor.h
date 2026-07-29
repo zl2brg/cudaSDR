@@ -8,6 +8,8 @@
 #include "cusdr_settings.h"
 #include "QtWDSP/qtwdsp_dspEngine.h"
 
+class DataEngine;
+
 inline constexpr int NUM_PIXELS = 4096;
 inline constexpr int WIDEBAND_BUFFER_SIZE = 16384;
 inline constexpr int WIDEBAND_DISPLAY_NUMBER = 9;
@@ -19,7 +21,7 @@ class WideBandDataProcessor : public QObject {
 Q_OBJECT
 
 public:
-    explicit WideBandDataProcessor(THPSDRParameter *ioData = nullptr, QSDR::_ServerMode serverMode = QSDR::NoServerMode, int size = 0);
+    explicit WideBandDataProcessor(DataEngine *engine = nullptr, QSDR::_ServerMode serverMode = QSDR::NoServerMode, int size = 0);
     ~WideBandDataProcessor() override;
     void	setWbSpectrumAveraging(int rx, int value);
 
@@ -33,7 +35,7 @@ private slots:
     void 	getSpectrumData();
 
 private:
-    THPSDRParameter*	io;
+    DataEngine* m_engine;
     Settings*			set;
 
     CPX					cpxWBIn;

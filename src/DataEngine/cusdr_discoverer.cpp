@@ -28,6 +28,7 @@
 #define LOG_DISCOVERER
 
 #include "cusdr_discoverer.h"
+#include "cusdr_dataIO.h"
 #include <SoapySDR/Device.hpp>
 #include "Util/cusdr_buttons.h"
 
@@ -46,10 +47,10 @@
 //#define	btn_height		18
 //#define	btn_width		74
 
-Discoverer::Discoverer(THPSDRParameter *ioData)
+Discoverer::Discoverer(DataIO *dataIO)
     : QObject()
 	, set(Settings::instance())
-	, io(ioData)
+	, m_dataIO(dataIO)
 {
 	m_deviceCards = set->getMetisCardsList();
 }
@@ -114,14 +115,14 @@ void Discoverer::initHPSDRDevice() {
 			break;
 		}
 
-		io->networkIOMutex.lock();
+		m_dataIO->networkIOMutex.lock();
 		DISCOVERER_DEBUG << "no device found - trying again...";
-		io->networkIOMutex.unlock();
+		m_dataIO->networkIOMutex.unlock();
 	}
 
-	io->networkIOMutex.lock();
-	io->devicefound.wakeAll();
-	io->networkIOMutex.unlock();
+	m_dataIO->networkIOMutex.lock();
+	m_dataIO->devicefound.wakeAll();
+	m_dataIO->networkIOMutex.unlock();
 }
 
 int Discoverer::findHPSDRDevices() {
@@ -155,9 +156,9 @@ int Discoverer::findHPSDRDevices() {
 */
     connect(&socket, &QAbstractSocket::errorOccurred,
             this, &Discoverer::displayDiscoverySocketError);
-	io->networkIOMutex.lock();
+	m_dataIO->networkIOMutex.lock();
 	DISCOVERER_DEBUG << "using " << qPrintable(QHostAddress(set->getHPSDRDeviceLocalAddr()).toString()) << " for discovery.";
-	io->networkIOMutex.unlock();
+	m_dataIO->networkIOMutex.unlock();
 
 	// clear comboBox entries in the network dialogue
 	set->clearNetworkIOComboBoxEntry();
@@ -167,13 +168,13 @@ int Discoverer::findHPSDRDevices() {
     {
         set->setMetisPort(socket.localPort());
         {
-            QMutexLocker l(&io->networkIOMutex);
+            QMutexLocker l(&m_dataIO->networkIOMutex);
             DISCOVERER_DEBUG << "discovery_socket bound successfully to port " << socket.localPort();
         }
     }
     else {
         {
-            QMutexLocker l(&io->networkIOMutex);
+            QMutexLocker l(&m_dataIO->networkIOMutex);
             DISCOVERER_DEBUG << "discovery_socket bind failed: " << socket.errorString();
         }
         socket.close();
@@ -182,28 +183,28 @@ int Discoverer::findHPSDRDevices() {
 
 	if (socket.writeDatagram(m_findDatagram, QHostAddress::Broadcast, DEVICE_PORT) == 63) {
 
-		io->networkIOMutex.lock();
+		m_dataIO->networkIOMutex.lock();
 		DISCOVERER_DEBUG << "Protocol 1 discovery data sent.";
-		io->networkIOMutex.unlock();
+		m_dataIO->networkIOMutex.unlock();
 	}
 	else {
 
-		io->networkIOMutex.lock();
+		m_dataIO->networkIOMutex.lock();
 		DISCOVERER_DEBUG << "Protocol 1 discovery data not sent.";
-		io->networkIOMutex.unlock();
+		m_dataIO->networkIOMutex.unlock();
 	}
 
 	if (socket.writeDatagram(p2FindDatagram, QHostAddress::Broadcast, DEVICE_PORT) == 60) {
 
-		io->networkIOMutex.lock();
+		m_dataIO->networkIOMutex.lock();
 		DISCOVERER_DEBUG << "Protocol 2 discovery data sent.";
-		io->networkIOMutex.unlock();
+		m_dataIO->networkIOMutex.unlock();
 	}
 	else {
 
-		io->networkIOMutex.lock();
+		m_dataIO->networkIOMutex.lock();
 		DISCOVERER_DEBUG << "Protocol 2 discovery data not sent.";
-		io->networkIOMutex.unlock();
+		m_dataIO->networkIOMutex.unlock();
 	}
 
 
@@ -230,10 +231,10 @@ int Discoverer::findHPSDRDevices() {
 					m_deviceDatagram[3] & 0xFF, m_deviceDatagram[4] & 0xFF, m_deviceDatagram[5] & 0xFF,
 					m_deviceDatagram[6] & 0xFF, m_deviceDatagram[7] & 0xFF, m_deviceDatagram[8] & 0xFF);
 
-				io->networkIOMutex.lock();
+				m_dataIO->networkIOMutex.lock();
 				DISCOVERER_DEBUG << "[P1] Device found at " << qPrintable(mc.ip_address.toString()) << ":" << port << "; Mac addr: [" << mc.mac_address << "]";
 				DISCOVERER_DEBUG << "[P1] Device code version: " << qPrintable(QString::number(m_deviceDatagram.at(9), 16));
-				io->networkIOMutex.unlock();
+				m_dataIO->networkIOMutex.unlock();
 
 				mc.protocol = 1; // Always Protocol 1 for EF FE responses
                 mc.status = 0x02;
@@ -253,9 +254,9 @@ int Discoverer::findHPSDRDevices() {
 			}
 			else if (m_deviceDatagram[2] == (char)0x03) {
 
-				io->networkIOMutex.lock();
+				m_dataIO->networkIOMutex.lock();
 				DISCOVERER_DEBUG << "[P1] Device already sending data - trying to shut down...";
-				io->networkIOMutex.unlock();
+				m_dataIO->networkIOMutex.unlock();
 
 				shutdownHPSDRDevice();
 				clear();
@@ -279,11 +280,11 @@ int Discoverer::findHPSDRDevices() {
                 int num_ddcs = (m_deviceDatagram.size() >= 15) ? (unsigned char)m_deviceDatagram.at(14) : 1;
                 int num_dacs = (m_deviceDatagram.size() >= 16) ? (unsigned char)m_deviceDatagram.at(15) : 1;
 
-				io->networkIOMutex.lock();
+				m_dataIO->networkIOMutex.lock();
 				DISCOVERER_DEBUG << "[P2] Device found at " << qPrintable(mc.ip_address.toString()) << ":" << port 
                                  << "; Mac: [" << mc.mac_address << "] board=" << no << " fw=" << version 
                                  << " receivers=" << num_ddcs;
-				io->networkIOMutex.unlock();
+				m_dataIO->networkIOMutex.unlock();
 
                 mc.sw_version = version;
                 mc.status = status;
@@ -296,9 +297,9 @@ int Discoverer::findHPSDRDevices() {
 				devicesFound += addDevice(mc, no, 2);
 
 				if (status == 0x03) {
-					io->networkIOMutex.lock();
+					m_dataIO->networkIOMutex.lock();
 					DISCOVERER_DEBUG << "[P2] Device already running.";
-					io->networkIOMutex.unlock();
+					m_dataIO->networkIOMutex.unlock();
 				}
 			}
 		}
@@ -308,9 +309,9 @@ int Discoverer::findHPSDRDevices() {
 	if (devicesFound == 1) {
 
 		set->setCurrentHPSDRDevice(m_deviceCards.at(0));
-		io->networkIOMutex.lock();
+		m_dataIO->networkIOMutex.lock();
 		DISCOVERER_DEBUG << "Device selected: " << qPrintable(m_deviceCards.at(0).ip_address.toString());
-		io->networkIOMutex.unlock();
+		m_dataIO->networkIOMutex.unlock();
 	}
 
 	socket.close();
@@ -349,9 +350,9 @@ int Discoverer::addDevice(TNetworkDevicecard &mc, int boardId, int protocol) {
 
 	mc.frequency_max = (boardId == 6) ? 30720000 : 61440000;
 
-	io->networkIOMutex.lock();
+	m_dataIO->networkIOMutex.lock();
 	DISCOVERER_DEBUG << "Board ID: " << boardId << " (" << qPrintable(str) << ") protocol=" << protocol;
-	io->networkIOMutex.unlock();
+	m_dataIO->networkIOMutex.unlock();
 
 	m_deviceCards.append(mc);
 
@@ -365,9 +366,9 @@ int Discoverer::addDevice(TNetworkDevicecard &mc, int boardId, int protocol) {
 
 void Discoverer::displayDiscoverySocketError(QAbstractSocket::SocketError error) {
 
-	io->networkIOMutex.lock();
+	m_dataIO->networkIOMutex.lock();
 	DISCOVERER_DEBUG << "discovery socket error: " << error;
-	io->networkIOMutex.unlock();
+	m_dataIO->networkIOMutex.unlock();
 }
 
 void Discoverer::clear() {

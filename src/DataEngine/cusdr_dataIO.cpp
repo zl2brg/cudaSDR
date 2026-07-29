@@ -43,6 +43,7 @@
 #define LOG_DATAIO
 
 #include "cusdr_dataIO.h"
+#include "cusdr_dataEngine.h"
 #include "Models/RadioTelemetry.h"
 #include "protocol_boundary_utils.h"
 #include "IHPSDRProtocol.h"
@@ -78,11 +79,11 @@ void reportIqSequenceSync(uint32_t sequence, uint32_t& oldSequence, QElapsedTime
 }
 } // namespace
 
-DataIO::DataIO(THPSDRParameter *ioData)
-	: QObject()
+DataIO::DataIO(QObject* parent)
+	: QObject(parent)
 	, set(Settings::instance())
     , m_dataIOSocket(nullptr)
-	, io(ioData)
+	, m_dataEngine(nullptr)
 	, m_dataIOSocketOn(false)
 	, m_networkDeviceRunning(false)
 	, m_setNetworkDeviceHeader(true)
@@ -110,7 +111,7 @@ DataIO::DataIO(THPSDRParameter *ioData)
 	m_packetLossTime.start();
 
 	  connect(set, &Settings::sampleRateChanged, 
-            this, &DataIO::setSampleRate);
+            this, &DataIO::setSampleRateSlot);
 
     connect(set, &Settings::manualSocketBufferChanged, 
             this, &DataIO::setManualSocketBufferSize);
@@ -186,7 +187,7 @@ DataIO::~DataIO() {
 
 void DataIO::stop() {
     {
-        QMutexLocker locker(&io->networkIOMutex);
+        QMutexLocker locker(&networkIOMutex);
         m_stopped = true;
     }
 
@@ -198,10 +199,11 @@ void DataIO::stop() {
 }
 
 void DataIO::initDataReceiverSocket() {
+    m_stopped = false;
 
     QList<quint16> ports = { DEVICE_PORT };
-    if (io->protocol) {
-        ports = io->protocol->getRequiredPorts();
+    if (m_protocol) {
+        ports = m_protocol->getRequiredPorts();
     }
 
     // Close and clear existing extra sockets
@@ -220,10 +222,10 @@ void DataIO::initDataReceiverSocket() {
 		newBufferSize = m_socketBufferSize * 1024;
 	}
     else {
-        newBufferSize = rxSocketBufferSizeForRate(io->samplerate);
+        newBufferSize = rxSocketBufferSizeForRate(m_sampleRate);
     }
 
-    const bool sameHostProtocol2 = isProtocol2(io->protocol) && isLocalAddress(io->hpsdrDeviceIPAddress);
+    const bool sameHostProtocol2 = isProtocol2(m_protocol) && isLocalAddress(hpsdrDeviceIPAddress);
     const QHostAddress bindAddr = sameHostProtocol2
         ? QHostAddress(QHostAddress::AnyIPv4)
         : QHostAddress(set->getHPSDRDeviceLocalAddr());
@@ -265,9 +267,9 @@ socket->setSocketOption(QAbstractSocket::ReceiveBufferSizeSocketOption, newBuffe
 
 void DataIO::readDeviceData() {
     QUdpSocket* socket = qobject_cast<QUdpSocket*>(sender());
-    if (!socket || !io->protocol) return;
+    if (!socket || !m_protocol) return;
 
-    if (isProtocol2(io->protocol)) {
+    if (isProtocol2(m_protocol)) {
         readDeviceDataP2(socket);
     } else {
         readDeviceDataP1(socket);
@@ -281,21 +283,21 @@ void DataIO::readDeviceDataP1(QUdpSocket* socket) {
         QHostAddress Address;
         quint16 Port = 0;
         qint64 size = socket->readDatagram(m_datagram.data(), m_datagram.size(), &Address, &Port);
-        if (!io->protocol || !io->protocol->isPacketValid((const unsigned char*)m_datagram.data(), size)) continue;
+        if (!m_protocol || !m_protocol->isPacketValid((const unsigned char*)m_datagram.data(), size)) continue;
 
-        int type = io->protocol->getPacketType((const unsigned char*)m_datagram.data());
+        int type = m_protocol->getPacketType((const unsigned char*)m_datagram.data());
         if (type == ProtocolBoundaryUtils::kPacketTypeP1IqPrimary || type == ProtocolBoundaryUtils::kPacketTypeP1IqLoopback) { // IQ data (P1 EP6 or EP2 loopback)
-            m_sequence = io->protocol->getSequence((const unsigned char*)m_datagram.data());
+            m_sequence = m_protocol->getSequence((const unsigned char*)m_datagram.data());
             reportIqSequenceSync(m_sequence, m_oldSequence, m_packetLossTime);
             ++m_iqPacketCount;
 
             {
-                const int hdrSize = io->protocol->getHeaderSize();
+                const int hdrSize = m_protocol->getHeaderSize();
                 bool enqueued = false;
                 {
-                    QMutexLocker locker(&io->networkIOMutex);
-                    if (!io->iq_queue.isFull()) {
-                    io->iq_queue.enqueue(TIQPacket(m_datagram.mid(hdrSize, size - hdrSize), 0));
+                    QMutexLocker locker(&networkIOMutex);
+                    if (!iq_queue.isFull()) {
+                    iq_queue.enqueue(TIQPacket(m_datagram.mid(hdrSize, size - hdrSize), 0));
                         enqueued = true;
                     }
                 }
@@ -343,7 +345,7 @@ void DataIO::readDeviceDataP2(QUdpSocket* socket) {
                          << " total=" << p2DatagramsSeen;
         }
 
-        if (!io->protocol || !io->protocol->isPacketValid((const unsigned char*)m_datagram.data(), size)) continue;
+        if (!m_protocol || !m_protocol->isPacketValid((const unsigned char*)m_datagram.data(), size)) continue;
 
         // Protocol 2 simulator may source wideband packets from an ephemeral
         // UDP source port. Classify by packet size first, then by port.
@@ -360,20 +362,27 @@ void DataIO::readDeviceDataP2(QUdpSocket* socket) {
         else if (size >= ProtocolBoundaryUtils::kProtocol2IqPacketSize) { // DDC IQ packet (typically 1444 bytes)
             ++p2IqPacketsSeen;
             ++m_iqPacketCount;
-            m_sequence = io->protocol->getSequence((const unsigned char*)m_datagram.data());
+            m_sequence = m_protocol->getSequence((const unsigned char*)m_datagram.data());
             reportIqSequenceSync(m_sequence, m_oldSequence, m_packetLossTime);
 
             {
                 bool enqueued = false;
-                const int hdrSize = io->protocol->getHeaderSize();
+                const int hdrSize = m_protocol->getHeaderSize();
                 quint16 effectiveSourcePort = Port;
-                if (effectiveSourcePort < ProtocolBoundaryUtils::Ports::P2Ddc0Port || effectiveSourcePort >= (ProtocolBoundaryUtils::Ports::P2Ddc0Port + MAX_RECEIVERS)) {
-                    effectiveSourcePort = m_socketLogicalPorts.value(socket, socket->localPort());
+                if (effectiveSourcePort < ProtocolBoundaryUtils::Ports::P2Ddc0Port
+                    || effectiveSourcePort >= (ProtocolBoundaryUtils::Ports::P2Ddc0Port + MAX_RECEIVERS)) {
+                    // Same-host ephemeral socket: simulator may source IQ from a
+                    // non-1035 port. Map to DDC0 (or logical port if it is a DDC).
+                    const quint16 logical = m_socketLogicalPorts.value(socket, ProtocolBoundaryUtils::Ports::P2Ddc0Port);
+                    effectiveSourcePort = (logical >= ProtocolBoundaryUtils::Ports::P2Ddc0Port
+                                           && logical < (ProtocolBoundaryUtils::Ports::P2Ddc0Port + MAX_RECEIVERS))
+                        ? logical
+                        : ProtocolBoundaryUtils::Ports::P2Ddc0Port;
                 }
                 {
-                    QMutexLocker locker(&io->networkIOMutex);
-                    if (!io->iq_queue.isFull()) {
-                        io->iq_queue.enqueue(TIQPacket(m_datagram.mid(hdrSize, size - hdrSize), effectiveSourcePort));
+                    QMutexLocker locker(&networkIOMutex);
+                    if (!iq_queue.isFull()) {
+                        iq_queue.enqueue(TIQPacket(m_datagram.mid(hdrSize, size - hdrSize), effectiveSourcePort));
                         enqueued = true;
                     }
                 }
@@ -385,7 +394,7 @@ void DataIO::readDeviceDataP2(QUdpSocket* socket) {
                                  << " size=" << size
                                  << " hdr=" << hdrSize
                                  << " payload=" << (size - hdrSize)
-                                 << " queueCount=" << io->iq_queue.count()
+                                 << " queueCount=" << iq_queue.count()
                                  << " iqTotal=" << p2IqPacketsSeen;
                 }
                 if (enqueued) {
@@ -417,7 +426,7 @@ void DataIO::readDeviceDataP2(QUdpSocket* socket) {
                              << " Port=" << Port
                              << " hpTotal=" << p2HpPacketsSeen;
             }
-            io->protocol->decodeCCBytes(m_datagram.left(size), io);
+            m_protocol->decodeCCBytes(m_datagram.left(size), m_dataEngine);
         }
         else {
             if ((p2DatagramsSeen % 500) == 1) {
@@ -431,8 +440,8 @@ void DataIO::readDeviceDataP2(QUdpSocket* socket) {
 }
 
 void DataIO::processWidebandPacket(qint64 size) {
-    if (!io->protocol) return;
-    m_sequenceWideBand = io->protocol->getSequence((const unsigned char*)m_datagram.data());
+    if (!m_protocol) return;
+    m_sequenceWideBand = m_protocol->getSequence((const unsigned char*)m_datagram.data());
 
     // Check for missed packets (skip first packet and ignore wraparound artifacts)
     uint32_t missed = m_sequenceWideBand - m_oldSequenceWideBand;
@@ -467,11 +476,11 @@ void DataIO::processWidebandPacket(qint64 size) {
     }
 
     if (m_sendEP4) {
-        const int hdrSize = io->protocol->getHeaderSize();
+        const int hdrSize = m_protocol->getHeaderSize();
         m_wbDatagram.append(m_datagram.mid(hdrSize, size - hdrSize));
         if (m_wbCount++ == m_wbBuffers) {
             m_sendEP4 = false;
-            io->wb_queue.enqueue(m_wbDatagram);
+            wb_queue.enqueue(m_wbDatagram);
             m_wbDatagram.resize(0);
         }
     }
@@ -479,18 +488,18 @@ void DataIO::processWidebandPacket(qint64 size) {
 
 void DataIO::readData() {
 
-	qint64 length = io->inputBuffer.length();
+	qint64 length = inputBuffer.length();
 	
 	int buffers = qRound((float) length/128);
 
 	DATAIO_DEBUG << "input buffer length " << length << " buffers " << buffers;
 	while (!m_stopped) {
 		for (int i = 0; i < buffers; i++) {
-            QList<qreal> samples = io->inputBuffer.mid(i*128, 128);
+            QList<qreal> samples = inputBuffer.mid(i*128, 128);
             QVector<float> floatSamples;
             floatSamples.reserve(samples.size());
             for (qreal s : samples) floatSamples.append(static_cast<float>(s));
-			io->soapy_iq_queue.enqueue(floatSamples);
+			soapy_iq_queue.enqueue(floatSamples);
 			if (m_stopped) break;
 		}
 	}
@@ -499,20 +508,20 @@ void DataIO::readData() {
 
 void DataIO::sendInitFramesToNetworkDevice(int rx) {
 
-	if (!io->protocol || !m_dataIOSocket) return;
+	if (!m_protocol || !m_dataIOSocket) return;
     quint16 port = DEVICE_PORT;
-    QByteArray initDatagram = io->protocol->formatInitFrame(rx, io, port);
+    QByteArray initDatagram = m_protocol->formatInitFrame(rx, m_dataEngine, m_radioModel, port);
 
     // Protocol 2 returns an empty datagram for rx > 0 (config only needed once).
     if (initDatagram.isEmpty()) return;
 
-	if (m_dataIOSocket->writeDatagram(initDatagram.data(), initDatagram.size(), io->hpsdrDeviceIPAddress, port) < 0) {
+	if (m_dataIOSocket->writeDatagram(initDatagram.data(), initDatagram.size(), hpsdrDeviceIPAddress, port) < 0) {
 
-		{ QMutexLocker l(&io->networkIOMutex); DATAIO_DEBUG << "error sending init data to device: " << qPrintable(m_dataIOSocket->errorString()); }
+		{ QMutexLocker l(&networkIOMutex); DATAIO_DEBUG << "error sending init data to device: " << qPrintable(m_dataIOSocket->errorString()); }
 	}
 	else {
 
-		{ QMutexLocker l(&io->networkIOMutex); DATAIO_DEBUG << "init frames sent to network device. " << rx << " port " << port; }
+		{ QMutexLocker l(&networkIOMutex); DATAIO_DEBUG << "init frames sent to network device. " << rx << " port " << port; }
 	}
 }
 
@@ -520,19 +529,19 @@ void DataIO::networkDeviceStartStop(char value) {
 
 	TNetworkDevicecard metis = set->getCurrentMetisCard();
 
-    if (io->protocol && m_dataIOSocket) {
+    if (m_protocol && m_dataIOSocket) {
         quint16 port = DEVICE_PORT;
-		m_commandDatagram = io->protocol->formatStartStop(value, port);
+		m_commandDatagram = m_protocol->formatStartStop(value, port);
 		if (m_dataIOSocket->writeDatagram(m_commandDatagram, metis.ip_address, port) == m_commandDatagram.size()) {
 
 			if (value != 0) {
 
-				{ QMutexLocker l(&io->networkIOMutex); DATAIO_DEBUG << "sent start command to device at: "<< qPrintable(metis.ip_address.toString()) << " port " << port; }
+				{ QMutexLocker l(&networkIOMutex); DATAIO_DEBUG << "sent start command to device at: "<< qPrintable(metis.ip_address.toString()) << " port " << port; }
 				m_networkDeviceRunning = true;
 			}
 			else {
 
-				{ QMutexLocker l(&io->networkIOMutex); DATAIO_DEBUG << "sent stop command to device at: "<< qPrintable(metis.ip_address.toString()) << " port " << port; }
+				{ QMutexLocker l(&networkIOMutex); DATAIO_DEBUG << "sent stop command to device at: "<< qPrintable(metis.ip_address.toString()) << " port " << port; }
 				m_networkDeviceRunning = false;
 			}
 		}
@@ -573,12 +582,12 @@ void DataIO::sendAudio(u_char *buf) {
 
 void DataIO::writeData() {
 
-    if (!io->protocol || !m_dataIOSocket) return;
+    if (!m_protocol || !m_dataIOSocket) return;
 
     // Protocol 2: formatOutputPacket returns the complete 1444-byte DUC IQ packet.
     // Send it in a single call to port 1029; bypass the P1 two-call toggle.
-    if (isProtocol2(io->protocol)) {
-        QByteArray ducPkt = io->protocol->formatOutputPacket(io->audioDatagram, m_sendSequence);
+    if (isProtocol2(m_protocol)) {
+        QByteArray ducPkt = m_protocol->formatOutputPacket(audioDatagram, m_sendSequence);
         static const quint16 DUC_PORT = 1029;
         if (m_dataIOSocket->writeDatagram(ducPkt,
                                           set->getCurrentMetisCard().ip_address,
@@ -593,12 +602,12 @@ void DataIO::writeData() {
     // second call appends audio and sends the 1032-byte packet.
 	if (m_setNetworkDeviceHeader) {
 
-		m_outDatagram = io->protocol->formatOutputPacket(io->audioDatagram, m_sendSequence);
+		m_outDatagram = m_protocol->formatOutputPacket(audioDatagram, m_sendSequence);
         m_setNetworkDeviceHeader = false;
     }
 	else {
 
-		m_outDatagram += io->audioDatagram;
+		m_outDatagram += audioDatagram;
 		if (m_dataIOSocket->writeDatagram(m_outDatagram, set->getCurrentMetisCard().ip_address, DEVICE_PORT) < 0) {
 			DATAIO_DEBUG << "error sending data to device: " << m_dataIOSocket->errorString();
 		}
@@ -635,7 +644,7 @@ void DataIO::setManualSocketBufferSize(bool value) {
 	m_manualBufferSize = value;
 	int socketBufferSize = 1024 * set->getSocketBufferSize();
 
-	QMutexLocker locker(&io->networkIOMutex);
+	QMutexLocker locker(&networkIOMutex);
     if (m_manualBufferSize) {
         DATAIO_DEBUG << "set data IO socket BufferSize to " << m_socketBufferSize;
     } else {
@@ -655,7 +664,7 @@ void DataIO::setSocketBufferSize(int value) {
 	int socketBufferSize = value * 1024;
 	DATAIO_DEBUG << "m_socketBufferSize = " << value;
 
-	QMutexLocker locker(&io->networkIOMutex);
+	QMutexLocker locker(&networkIOMutex);
     for (auto socket : m_sockets) {
         if (socket && socket->isValid()) {
             socket->setSocketOption(QAbstractSocket::ReceiveBufferSizeSocketOption, socketBufferSize);
@@ -663,11 +672,12 @@ void DataIO::setSocketBufferSize(int value) {
     }
 }
 
-void DataIO::setSampleRate(int value) {
+void DataIO::setSampleRateSlot(int value) {
+	m_sampleRate = value;
 
 	int bufferSize = rxSocketBufferSizeForRate(value);
 	{
-	QMutexLocker locker(&io->networkIOMutex);
+	QMutexLocker locker(&networkIOMutex);
     DATAIO_DEBUG << "socket buffer size set to" << (bufferSize / 1024) << "kB for sample rate" << value;
 
     for (auto socket : m_sockets) {
@@ -687,7 +697,7 @@ void DataIO::setSampleRate(int value) {
 
 
 void DataIO::set_wbBuffers(int val) {
-    if (isProtocol1(io->protocol)) { // Protocol 1
+    if (isProtocol1(m_protocol)) { // Protocol 1
         m_wbBuffers = 31; // 32 packets * 1024 bytes = 32768
     } else {
         m_wbBuffers = val - 1;

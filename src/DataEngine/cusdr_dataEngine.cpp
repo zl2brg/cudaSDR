@@ -242,7 +242,9 @@ DataEngine::DataEngine(RadioModel *model, QObject *parent)
 
 	//currentRx = 0;
 	m_discoverer= nullptr;
-	m_dataIO= nullptr;
+	m_dataIO = new DataIO();
+	m_dataIO->setDataEngine(this);
+	m_dataIO->setRadioModel(m_radioModel);
 #ifdef HAVE_SOAPYSDR
 	m_soapySDRSource = nullptr;
 #endif
@@ -261,16 +263,18 @@ DataEngine::DataEngine(RadioModel *model, QObject *parent)
 	set->setHermesVersion(0);
     setupConnections();
 
-	io.metisFW = 0;
-	io.hermesFW = 0;
-	io.mercuryFW = 0;
-    io.ccTx.use_repeaterOffset = set->get_repeaterMode();
+	metisFW = 0;
+	hermesFW = 0;
+	mercuryFW = 0;
+    ccTx.use_repeaterOffset = set->get_repeaterMode();
 
     //m_audioBuffer.resize(0);
     //m_audiobuf.resize(IO_BUFFER_SIZE);
 
 	m_counter = 0;
-	io.soapyInputSampleRate = set->getSampleRate();
+	soapyInputSampleRate = set->getSampleRate();
+	samplerate = set->getSampleRate();
+	m_dataIO->setSampleRate(samplerate);
 
 }
 
@@ -296,6 +300,9 @@ DataEngine::~DataEngine() {
         m_soapySDRSource = nullptr;
     }
 #endif
+
+    delete m_dataIO;
+    m_dataIO = nullptr;
 }
 
 void DataEngine::setupConnections() {
@@ -564,10 +571,11 @@ bool DataEngine::startDataEngineWithoutConnection() {
 
 	DATA_ENGINE_DEBUG << "no HPSDR-HW interface";
 
-	if (io.inputBuffer.length() > 0) {
+	if (m_dataIO->inputBuffer.length() > 0) {
 
         initReceivers(1);
 		if (!m_dataIO)	createDataIO();
+		if (!m_dataIOThread) createDataIO();
 		if (!m_dataProcessor)	createDataProcessor();
 
 
@@ -603,9 +611,9 @@ bool DataEngine::findHPSDRDevices() {
 	// HPSDR network IO thread
 	if (!startDiscoverer(QThread::NormalPriority)) {
 
-		io.networkIOMutex.lock();
+		m_dataIO->networkIOMutex.lock();
 		DATA_ENGINE_DEBUG << "HPSDR device discovery thread could not be started.";
-		io.networkIOMutex.unlock();
+		m_dataIO->networkIOMutex.unlock();
 		return false;
 	}
 
@@ -613,15 +621,15 @@ bool DataEngine::findHPSDRDevices() {
     // so a queued invocation is required — a direct call would run on the wrong thread).
     QMetaObject::invokeMethod(m_discoverer, "initHPSDRDevice", Qt::QueuedConnection);
 
-	io.networkIOMutex.lock();
+	m_dataIO->networkIOMutex.lock();
 	DATA_ENGINE_DEBUG << "HPSDR network device detection...please wait.";
 	set->setSystemMessage("HPSDR network device detection...please wait", 0);
-	io.devicefound.wait(&io.networkIOMutex);
+	m_dataIO->devicefound.wait(&m_dataIO->networkIOMutex);
 
 	m_hpsdrDevices = set->getHpsdrNetworkDevices();
 	if (m_hpsdrDevices == 0) {
 
-		io.networkIOMutex.unlock();
+		m_dataIO->networkIOMutex.unlock();
 		stopDiscoverer();
 		DATA_ENGINE_DEBUG << "no device found. HPSDR hardware powered? Network connection established?";
 		set->setSystemMessage("no device found. HPSDR hardware powered? Network connection established?", 10000);
@@ -669,14 +677,14 @@ bool DataEngine::findHPSDRDevices() {
 			}
 		}
 
-		io.hpsdrDeviceIPAddress = set->getCurrentMetisCard().ip_address;
-		io.hpsdrDeviceName = set->getCurrentMetisCard().boardName;
-		DATA_ENGINE_DEBUG << "using HPSDR network device at " << qPrintable(io.hpsdrDeviceIPAddress.toString());
+		m_dataIO->hpsdrDeviceIPAddress = set->getCurrentMetisCard().ip_address;
+		hpsdrDeviceName = set->getCurrentMetisCard().boardName;
+		DATA_ENGINE_DEBUG << "using HPSDR network device at " << qPrintable(m_dataIO->hpsdrDeviceIPAddress.toString());
 
 		QThread::msleep(100);
 
 		// stop the discovery thread
-		io.networkIOMutex.unlock();
+		m_dataIO->networkIOMutex.unlock();
 		stopDiscoverer();
 
 		if (getFirmwareVersions()) return true;
@@ -699,7 +707,7 @@ bool DataEngine::getFirmwareVersions() {
 		else
 			m_protocol = std::make_unique<CProtocol1>();
 	}
-	io.protocol = m_protocol.get();
+	if (m_dataIO) m_dataIO->setProtocol(m_protocol.get());
 
 	// init receivers
 	int rcvrs = set->getNumberOfReceivers();
@@ -708,6 +716,7 @@ bool DataEngine::getFirmwareVersions() {
 	if (!initReceivers(rcvrs)) return false;
 
 	if (!m_dataIO) createDataIO();
+	if (!m_dataIOThread) createDataIO();
 		
 	if (!m_dataProcessor) createDataProcessor();
 
@@ -733,6 +742,25 @@ bool DataEngine::getFirmwareVersions() {
 //	for (int i = 0; i < set->getNumberOfReceivers(); i++)
 //		RX.at(i)->setAudioVolume(i, set->getMainVolume());
 
+	const bool isProtocol2 = set->getCurrentMetisCard().protocol == 2;
+
+	// Protocol 2: discovery already provided board FW. Do NOT start DataIO /
+	// DataProcessor here — start() must bind the ephemeral socket and run
+	// P2-RXSETUP on a clean bring-up. Starting IO early then "restarting"
+	// without stop() left sockets alive but DDC IQ never latched.
+	if (isProtocol2) {
+		metisFW = set->getMetisVersion();
+		mercuryFW = set->getMercuryVersion();
+		penelopeFW = set->getPenelopeVersion();
+		pennylaneFW = set->getPennyLaneVersion();
+		hermesFW = set->getHermesVersion();
+		ccTx.drivelevel = set->get_tx_drivelevel();
+		DATA_ENGINE_DEBUG << "Protocol 2: using discovery firmware, deferring IO start to start()";
+		if (set->getFirmwareVersionCheck())
+			return checkFirmwareVersions();
+		return true;
+	}
+
 	// IQ data processing thread
 	if (!startDataProcessor(QThread::HighPriority)) {
 
@@ -750,15 +778,8 @@ bool DataEngine::getFirmwareVersions() {
 	//setSampleRate(set->getSampleRate());
 	QThread::msleep(100);
 
-	// For Protocol 2: do NOT start the network device here.
-	// DSP threads have not been started yet; start() is called by initDataEngine()
-	// immediately after this returns and will launch DSP threads first, then
-	// send the General Packet and Run=1.  Starting IQ streaming before DSP
-	// threads are live causes a BlockingQueuedConnection deadlock in the
-	// DataProcessor, producing persistent fexchange0 -2 errors on first start.
-	// For Protocol 1: continue the existing flow (start device to collect FW
-	// version response packets).
-	if (set->getCurrentMetisCard().protocol != 2) {
+	// Protocol 1: start device to collect FW version response packets.
+	{
 		// Discovery may have cached Metis/Hermes board FW. Those values are not
 		// Mercury/Hermes C&C versions from live IQ. Clear them so a stale Metis
 		// discovery version cannot drive checkFirmwareVersions() into a stop()
@@ -772,7 +793,7 @@ bool DataEngine::getFirmwareVersions() {
 
 		// pre-conditioning
 		if (m_dataIO) {
-			for (int i = 0; i < io.receivers; i++)
+			for (int i = 0; i < receivers; i++)
 				m_dataIO->sendInitFramesToNetworkDevice(i);
 		}
 
@@ -797,17 +818,17 @@ bool DataEngine::getFirmwareVersions() {
 				break;
 		}
 
-		io.metisFW = set->getMetisVersion();
-		io.mercuryFW = set->getMercuryVersion();
-		io.penelopeFW = set->getPenelopeVersion();
-		io.pennylaneFW = set->getPennyLaneVersion();
-		io.hermesFW = set->getHermesVersion();
+		metisFW = set->getMetisVersion();
+		mercuryFW = set->getMercuryVersion();
+		penelopeFW = set->getPenelopeVersion();
+		pennylaneFW = set->getPennyLaneVersion();
+		hermesFW = set->getHermesVersion();
 
-		if (io.mercuryFW == 0 && io.hermesFW == 0 && io.metisFW == 0) {
+		if (mercuryFW == 0 && hermesFW == 0 && metisFW == 0) {
 			DATA_ENGINE_DEBUG << "no IQ firmware response after" << waitedMs
-							  << "ms (metisFW=" << io.metisFW
-							  << " mercuryFW=" << io.mercuryFW
-							  << " hermesFW=" << io.hermesFW << ")";
+							  << "ms (metisFW=" << metisFW
+							  << " mercuryFW=" << mercuryFW
+							  << " hermesFW=" << hermesFW << ")";
 			set->setSystemMessage(
 				"No IQ/firmware response from device after start — check "
 				"network, local interface, firewall, and that nothing else "
@@ -822,15 +843,9 @@ bool DataEngine::getFirmwareVersions() {
 		}
 
 		DATA_ENGINE_DEBUG << "IQ firmware response after" << waitedMs << "ms";
-	} else {
-		io.metisFW = set->getMetisVersion();
-		io.mercuryFW = set->getMercuryVersion();
-		io.penelopeFW = set->getPenelopeVersion();
-		io.pennylaneFW = set->getPennyLaneVersion();
-		io.hermesFW = set->getHermesVersion();
 	}
 
-	io.ccTx.drivelevel = set->get_tx_drivelevel();
+	ccTx.drivelevel = set->get_tx_drivelevel();
 	if (set->getFirmwareVersionCheck())
 		return checkFirmwareVersions();
 	else
@@ -838,10 +853,10 @@ bool DataEngine::getFirmwareVersions() {
 }
 
 // credits go to George Byrkit, K9TRV: the older FW checkings are shamelessly taken from the KISS Konsole!
-// TODO(P2-FIRMWARE): All firmware checks below compare io.hpsdrDeviceName against
+// TODO(P2-FIRMWARE): All firmware checks below compare hpsdrDeviceName against
 // the strings "Metis" and "Hermes".  Protocol 2 hardware reports board type as a
 // numeric board ID in the discovery reply (byte 11), not a name string.  The name
-// assigned to io.hpsdrDeviceName at line 544 comes from MetisCard::boardName which
+// assigned to hpsdrDeviceName at line 544 comes from MetisCard::boardName which
 // is populated during discovery and may not equal "Metis" or "Hermes" for newer P2
 // boards ("Orion", "Orion2", "Angelia", etc.).  Until the board-name mapping for
 // P2 boards is verified, these checks are likely silently skipped for P2 hardware.
@@ -849,12 +864,12 @@ bool DataEngine::checkFirmwareVersions() {
 
 	// C4 board FW is stored as metisFW on the Metis decode path even for Hermes/ANAN.
 	// Only treat a real HW-interface mismatch as fatal — not a non-zero metisFW field.
-	if (m_hwInterface == QSDR::Metis && io.hpsdrDeviceName == "Hermes") {
+	if (m_hwInterface == QSDR::Metis && hpsdrDeviceName == "Hermes") {
 
 		DATA_ENGINE_DEBUG << "HW interface is Metis but board is Hermes/ANAN; continuing (prefer Hermes interface)";
 	}
 
-	if (m_hwInterface == QSDR::Hermes && io.hpsdrDeviceName == "Metis") {
+	if (m_hwInterface == QSDR::Hermes && hpsdrDeviceName == "Metis") {
 
 		stop();
 
@@ -863,7 +878,7 @@ bool DataEngine::checkFirmwareVersions() {
 		return false;
 	}
 
-	if (io.penelopeFW == 0 && (set->getPenelopePresence() || set->getPennyLanePresence())) {
+	if (penelopeFW == 0 && (set->getPenelopePresence() || set->getPennyLanePresence())) {
 
 		stop();
 
@@ -872,7 +887,7 @@ bool DataEngine::checkFirmwareVersions() {
 		return false;
 	}
 
-	if (io.mercuryFW < 27 && set->getNumberOfReceivers() > 4 && io.hpsdrDeviceName == "Metis") {
+	if (mercuryFW < 27 && set->getNumberOfReceivers() > 4 && hpsdrDeviceName == "Metis") {
 
 		stop();
 
@@ -881,15 +896,15 @@ bool DataEngine::checkFirmwareVersions() {
 		return false;
 	}
 
-	if (io.hpsdrDeviceName == "Metis") {
+	if (hpsdrDeviceName == "Metis") {
 
 		QString msg;
-		switch (io.metisFW) {
+		switch (metisFW) {
 
 			case 13:
 				if (((set->getPenelopePresence() || set->getPennyLanePresence()) &&
-					(io.penelopeFW == 13 || io.pennylaneFW == 13)) ||
-					io.mercuryFW != 29)
+					(penelopeFW == 13 || pennylaneFW == 13)) ||
+					mercuryFW != 29)
 				{
 					stop();
 
@@ -901,8 +916,8 @@ bool DataEngine::checkFirmwareVersions() {
 
 			case 14:
 				if (((set->getPenelopePresence() || set->getPennyLanePresence()) &&
-					(io.penelopeFW == 14 || io.pennylaneFW == 14)) ||
-					io.mercuryFW != 29)
+					(penelopeFW == 14 || pennylaneFW == 14)) ||
+					mercuryFW != 29)
 				{
 					stop();
 
@@ -915,8 +930,8 @@ bool DataEngine::checkFirmwareVersions() {
 			case 15:
 
 				if (((set->getPenelopePresence() || set->getPennyLanePresence()) &&
-					(io.penelopeFW == 15 || io.pennylaneFW == 15)) ||
-					io.mercuryFW != 30)
+					(penelopeFW == 15 || pennylaneFW == 15)) ||
+					mercuryFW != 30)
 				{
 					stop();
 
@@ -929,8 +944,8 @@ bool DataEngine::checkFirmwareVersions() {
 			case 16:
 
 				if (((set->getPenelopePresence() || set->getPennyLanePresence()) &&
-					(io.penelopeFW == 16 || io.pennylaneFW == 16)) ||
-					io.mercuryFW != 31)
+					(penelopeFW == 16 || pennylaneFW == 16)) ||
+					mercuryFW != 31)
 				{
 					stop();
 
@@ -944,8 +959,8 @@ bool DataEngine::checkFirmwareVersions() {
 			case 18:
 
 				if (((set->getPenelopePresence() || set->getPennyLanePresence()) &&
-					(io.penelopeFW == 17 || io.pennylaneFW == 17)) ||
-					io.mercuryFW != 32)
+					(penelopeFW == 17 || pennylaneFW == 17)) ||
+					mercuryFW != 32)
 				{
 					stop();
 
@@ -967,9 +982,9 @@ bool DataEngine::checkFirmwareVersions() {
 
 			case 21:
 
-				if ((set->getPenelopePresence() && io.penelopeFW != 17)	||
-					(set->getPennyLanePresence() && io.pennylaneFW != 17)||
-					io.mercuryFW != 33)
+				if ((set->getPenelopePresence() && penelopeFW != 17)	||
+					(set->getPennyLanePresence() && pennylaneFW != 17)||
+					mercuryFW != 33)
 				{
 					stop();
 
@@ -995,9 +1010,9 @@ bool DataEngine::checkFirmwareVersions() {
 
             case 26:
 
-                if ((set->getPenelopePresence() && io.penelopeFW != 18)	||
-                    (set->getPennyLanePresence() && io.pennylaneFW != 18)||
-                    io.mercuryFW != 34)
+                if ((set->getPenelopePresence() && penelopeFW != 18)	||
+                    (set->getPennyLanePresence() && pennylaneFW != 18)||
+                    mercuryFW != 34)
                 {
                     stop();
 
@@ -1018,7 +1033,7 @@ bool DataEngine::checkFirmwareVersions() {
 		}
 	}
 
-	if (io.mercuryFW < 33 && set->getNumberOfReceivers() > 4 && io.hpsdrDeviceName == "Metis") {
+	if (mercuryFW < 33 && set->getNumberOfReceivers() > 4 && hpsdrDeviceName == "Metis") {
 
 		stop();
 
@@ -1027,7 +1042,7 @@ bool DataEngine::checkFirmwareVersions() {
 		return false;
 	}
 
-	if (io.hermesFW < 18 && set->getNumberOfReceivers() > 2 && io.hpsdrDeviceName == "Hermes") {
+	if (hermesFW < 18 && set->getNumberOfReceivers() > 2 && hpsdrDeviceName == "Hermes") {
 
 		stop();
 
@@ -1045,19 +1060,17 @@ bool DataEngine::start() {
 	m_fwCount = 0;
 	m_sendState = 0;
 
-	// Only (re)create the protocol object if DataIO is not already running.
+	// Only (re)create the protocol object if it does not exist yet.
 	// When getFirmwareVersions() precedes start(), it already created the correct
-	// protocol and set io.protocol.  Deleting it here races with the DataIO
-	// thread which may be actively calling methods on io->protocol.
-	if (!m_dataIO) {
-		if (m_hwInterface == QSDR::Metis || m_hwInterface == QSDR::Hermes) {
-			if (set->getCurrentMetisCard().protocol == 2)
-				m_protocol = std::make_unique<CProtocol2>();
-			else
-				m_protocol = std::make_unique<CProtocol1>();
-		}
-		io.protocol = m_protocol.get();
+	// protocol and set it on DataIO. Recreating here races with the DataIO thread.
+	if (!m_protocol && (m_hwInterface == QSDR::Metis || m_hwInterface == QSDR::Hermes)) {
+		if (set->getCurrentMetisCard().protocol == 2)
+			m_protocol = std::make_unique<CProtocol2>();
+		else
+			m_protocol = std::make_unique<CProtocol1>();
 	}
+	if (m_dataIO)
+		m_dataIO->setProtocol(m_protocol.get());
 
 	int rcvrs = set->getNumberOfReceivers();
     if (!m_audioInput) {
@@ -1066,6 +1079,7 @@ bool DataEngine::start() {
     m_audioInput->Setup();
 
 	if (!m_dataIO) createDataIO();
+	if (!m_dataIOThread) createDataIO();
 
 	if (!m_dataProcessor) createDataProcessor();
 
@@ -1107,8 +1121,8 @@ bool DataEngine::start() {
         //		return false;
         //	}
         //
-        //	io.audio_rx = 0;
-        //	io.clientList.append(0);
+        //	audio_rx = 0;
+        //	clientList.append(0);
 
 			//	m_audioProcessorRunning = true;
 			//	setSystemState(
@@ -1187,9 +1201,9 @@ bool DataEngine::start() {
 		if (m_dspThreadList.at(i)->isRunning()) {
 
 			//m_dataProcThreadRunning = true;
-			io.networkIOMutex.lock();
+			m_dataIO->networkIOMutex.lock();
 			DATA_ENGINE_DEBUG << "receiver processor thread started for Rx " << i;
-			io.networkIOMutex.unlock();
+			m_dataIO->networkIOMutex.unlock();
 		}
 		else {
 
@@ -1249,7 +1263,7 @@ bool DataEngine::start() {
 
 		// pre-conditioning
 	if (m_dataIO) {
-		for (int i = 0; i < io.receivers; i++) {
+		for (int i = 0; i < receivers; i++) {
 			m_dataIO->sendInitFramesToNetworkDevice(i);
 		}
 	}
@@ -1271,7 +1285,7 @@ bool DataEngine::start() {
 	// enable + rate + freq are all non-zero (wideband only needs Run).
 	// Push the full General→DDC→TX→HP setup, then start the control timer.
 	if (set->getCurrentMetisCard().protocol == 2 && m_dataProcessor) {
-		io.rcveIQ_toggle = false;
+		rcveIQ_toggle = false;
 		QMetaObject::invokeMethod(
 			m_dataProcessor,
 			&DataProcessor::requestProtocol2ReceiverSetup,
@@ -1330,7 +1344,7 @@ void DataEngine::stop() {
 					stopWideBandDataProcessor();
 
                 m_protocol.reset();
-                io.protocol = nullptr;
+                if (m_dataIO) m_dataIO->setProtocol(nullptr);
 				
 				// clear device list
 				QThread::msleep(100);
@@ -1342,7 +1356,7 @@ void DataEngine::stop() {
 
 				stopDataIO();
 				
-				DATA_ENGINE_DEBUG << "data queue count: " << io.soapy_iq_queue.count();
+				DATA_ENGINE_DEBUG << "data queue count: " << m_dataIO->soapy_iq_queue.count();
 				stopDataProcessor();
                 break;
 
@@ -1355,8 +1369,8 @@ void DataEngine::stop() {
 #endif
         }
 
-		while (!io.au_queue.isEmpty())
-			io.au_queue.dequeue();
+		while (!m_dataIO->au_queue.isEmpty())
+			m_dataIO->au_queue.dequeue();
 
 		// Stop all WDSP channels BEFORE killing DSP threads.
 		// SetChannelState(wait=1) deadlocks if called after the DSP thread is
@@ -1485,14 +1499,14 @@ bool DataEngine::initDataEngine() {
 		
 		if (findHPSDRDevices()) {
 		
-			if (io.mercuryFW > 0 || io.hermesFW > 0 || io.metisFW > 0) {
+			if (mercuryFW > 0 || hermesFW > 0 || metisFW > 0) {
 
 				DATA_ENGINE_DEBUG << "got firmware versions:";
-				DATA_ENGINE_DEBUG << "	Metis firmware:  " << io.metisFW;
-				DATA_ENGINE_DEBUG << "	Mercury firmware:  " << io.mercuryFW;
-				DATA_ENGINE_DEBUG << "	Penelope firmware:  " << io.penelopeFW;
-				DATA_ENGINE_DEBUG << "	Pennylane firmware:  " << io.pennylaneFW;
-				DATA_ENGINE_DEBUG << "	Hermes firmware: " << io.hermesFW;
+				DATA_ENGINE_DEBUG << "	Metis firmware:  " << metisFW;
+				DATA_ENGINE_DEBUG << "	Mercury firmware:  " << mercuryFW;
+				DATA_ENGINE_DEBUG << "	Penelope firmware:  " << penelopeFW;
+				DATA_ENGINE_DEBUG << "	Pennylane firmware:  " << pennylaneFW;
+				DATA_ENGINE_DEBUG << "	Hermes firmware: " << hermesFW;
 				DATA_ENGINE_DEBUG << "stopping and restarting data engine.";
 
 				return start();
@@ -1500,9 +1514,9 @@ bool DataEngine::initDataEngine() {
 			else {
 
 				DATA_ENGINE_DEBUG << "did not get firmware versions!"
-								 << " metisFW=" << io.metisFW
-								 << " mercuryFW=" << io.mercuryFW
-								 << " hermesFW=" << io.hermesFW;
+								 << " metisFW=" << metisFW
+								 << " mercuryFW=" << mercuryFW
+								 << " hermesFW=" << hermesFW;
 				set->setSystemMessage(
 					"No Mercury/Hermes firmware version from device — start aborted",
 					10000);
@@ -1567,85 +1581,83 @@ bool DataEngine::initReceivers(int rcvrs) {
     set->setRxList(RX);
 
 	
-	io.currentReceiver = 0;
-	io.receivers = rcvrs;
+	currentReceiver = 0;
+	receivers = rcvrs;
 
-	io.timing = 0;
-	m_configure = io.receivers + 1;
+	timing = 0;
+	m_configure = receivers + 1;
 
 	// init cc Rc parameters
-	io.ccRx.devices.mercuryFWVersion = 0;
-	io.ccRx.devices.penelopeFWVersion = 0;
-	io.ccRx.devices.pennylaneFWVersion = 0;
-	io.ccRx.devices.hermesFWVersion = 0;
-	io.ccRx.devices.metisFWVersion = 0;
+	ccRx.devices.mercuryFWVersion = 0;
+	ccRx.devices.penelopeFWVersion = 0;
+	ccRx.devices.pennylaneFWVersion = 0;
+	ccRx.devices.hermesFWVersion = 0;
+	ccRx.devices.metisFWVersion = 0;
 
-	io.ccRx.ptt    = false;
-	io.ccRx.dash   = false;
-	io.ccRx.dot    = false;
-	io.ccRx.lt2208 = false;
-	io.ccRx.ain1   = 0;
-	io.ccRx.ain2   = 0;
-	io.ccRx.ain3   = 0;
-	io.ccRx.ain4   = 0;
-	io.ccRx.ain5   = 0;
-	io.ccRx.ain6   = 0;
-	io.ccRx.hermesI01 = false;
-	io.ccRx.hermesI02 = false;
-	io.ccRx.hermesI03 = false;
-	io.ccRx.hermesI04 = false;
-	io.ccRx.mercury1_LT2208 = false;
-	io.ccRx.mercury2_LT2208 = false;
-	io.ccRx.mercury3_LT2208 = false;
-	io.ccRx.mercury4_LT2208 = false;
+	ccRx.ptt    = false;
+	ccRx.dash   = false;
+	ccRx.dot    = false;
+	ccRx.lt2208 = false;
+	ccRx.ain1   = 0;
+	ccRx.ain2   = 0;
+	ccRx.ain3   = 0;
+	ccRx.ain4   = 0;
+	ccRx.ain5   = 0;
+	ccRx.ain6   = 0;
+	ccRx.hermesI01 = false;
+	ccRx.hermesI02 = false;
+	ccRx.hermesI03 = false;
+	ccRx.hermesI04 = false;
+	ccRx.mercury1_LT2208 = false;
+	ccRx.mercury2_LT2208 = false;
+	ccRx.mercury3_LT2208 = false;
+	ccRx.mercury4_LT2208 = false;
 
 	// init cc Tx parameters
-	io.ccTx.currentBand = set->getCurrentHamBand(0);
-	io.ccTx.mercuryAttenuators = set->getMercuryAttenuators(0);
-	io.ccTx.mercuryAttenuator = io.ccTx.mercuryAttenuators.at(io.ccTx.currentBand);
-	io.ccTx.dither = set->getMercuryDither();
-	io.ccTx.random = set->getMercuryRandom();
-	io.ccTx.duplex = set->getTxFullDuplex() ? 1 : 0;
-	io.ccTx.mox = false;
-	io.ccTx.ptt = false;
-	io.ccTx.alexStates = set->getAlexStates();
-	io.ccTx.vnaMode = false;
-	io.ccTx.alexConfig = set->getAlexConfig();
-	io.ccTx.timeStamp = 0;
-	io.ccTx.commonMercuryFrequencies = 0;
-	io.ccTx.pennyOCenabled = set->getPennyOCEnabled();
-	io.ccTx.rxJ6pinList = set->getRxJ6Pins();
-	io.ccTx.txJ6pinList = set->getTxJ6Pins();
+	ccTx.currentBand = set->getCurrentHamBand(0);
+	ccTx.mercuryAttenuators = set->getMercuryAttenuators(0);
+	ccTx.mercuryAttenuator = ccTx.mercuryAttenuators.at(ccTx.currentBand);
+	ccTx.dither = set->getMercuryDither();
+	ccTx.random = set->getMercuryRandom();
+	ccTx.duplex = set->getTxFullDuplex() ? 1 : 0;
+	ccTx.mox = false;
+	ccTx.ptt = false;
+	ccTx.alexStates = set->getAlexStates();
+	ccTx.vnaMode = false;
+	ccTx.alexConfig = set->getAlexConfig();
+	ccTx.timeStamp = 0;
+	ccTx.commonMercuryFrequencies = 0;
+	ccTx.pennyOCenabled = set->getPennyOCEnabled();
+	ccTx.rxJ6pinList = set->getRxJ6Pins();
+	ccTx.txJ6pinList = set->getTxJ6Pins();
 	// Protocol 1 TX control (C0/C1..C4 state 1) uses ccTx.txFrequency.
 	// Keep it initialized to the currently selected receiver center frequency.
-	io.ccTx.txFrequency = set->getCtrFrequency(set->getCurrentReceiver());
+	ccTx.txFrequency = set->getCtrFrequency(set->getCurrentReceiver());
 
-	setAlexConfiguration(io.ccTx.alexConfig);
+	setAlexConfiguration(ccTx.alexConfig);
 
-	io.rxClass = set->getRxClass();
-	io.mic_gain = 0.26F;
-	io.rx_freq_change = -1;
-	io.tx_freq_change = -1;
-	io.clients = 0;
-	io.sendIQ_toggle = true;
-	io.rcveIQ_toggle = false;
-	io.alexForwardVolts = 0.0;
-	io.alexReverseVolts = 0.0;
-	io.alexForwardPower = 0.0;
-	io.alexReversePower = 0.0;
-	io.penelopeForwardVolts = 0.0;
-	io.penelopeForwardPower = 0.0;
-	io.ain3Volts = 0.0;
-	io.ain4Volts = 0.0;
-	io.supplyVolts = 0.0f;
+	rxClass = set->getRxClass();
+	mic_gain = 0.26F;
+	rx_freq_change = -1;
+	tx_freq_change = -1;
+	clients = 0;
+	sendIQ_toggle = true;
+	rcveIQ_toggle = false;
+	alexForwardVolts = 0.0;
+	alexReverseVolts = 0.0;
+	alexForwardPower = 0.0;
+	alexReversePower = 0.0;
+	penelopeForwardVolts = 0.0;
+	penelopeForwardPower = 0.0;
+	ain3Volts = 0.0;
+	ain4Volts = 0.0;
+	supplyVolts = 0.0f;
 
 
 	//*****************************
 	// C&C bytes
 	for (int i = 0; i < 5; i++) {
-
-		io.control_in[i]  = 0x00;
-		io.control_out[i] = 0x00;
+		control_out[i] = 0x00;
 	}
 
 	// C0
@@ -1653,7 +1665,7 @@ bool DataEngine::initReceivers(int rcvrs) {
 	//               |
 	//               +------------ MOX (1 = active, 0 = inactive)
 
-	io.control_out[0] |= MOX_ENABLED;
+	control_out[0] |= MOX_ENABLED;
 
 	// set C1
 	//
@@ -1671,8 +1683,8 @@ bool DataEngine::initReceivers(int rcvrs) {
 	// Bits 7,..,2
 	setHPSDRConfig();
 
-	io.control_out[1] &= 0x03; // 0 0 0 0 0 0 1 1
-	io.control_out[1] |= io.ccTx.clockByte;
+	control_out[1] &= 0x03; // 0 0 0 0 0 0 1 1
+	control_out[1] |= ccTx.clockByte;
 
 	// set C2
 	//
@@ -1681,8 +1693,8 @@ bool DataEngine::initReceivers(int rcvrs) {
 	// |           | +------------ Mode (1 = Class E, 0 = All other modes)
     // +---------- +-------------- Open Collector Outputs on Penelope or Hermes (bit 6...bit 0)
 
-	io.control_out[2] = io.control_out[2] & 0xFE; // 1 1 1 1 1 1 1 0
-	io.control_out[2] = io.control_out[2] | io.rxClass;
+	control_out[2] = control_out[2] & 0xFE; // 1 1 1 1 1 1 1 0
+	control_out[2] = control_out[2] | rxClass;
 
 	// set C3
 	//
@@ -1695,14 +1707,14 @@ bool DataEngine::initReceivers(int rcvrs) {
 	// | + + --------------------- Alex Rx Antenna (00 = none, 01 = Rx1, 10 = Rx2, 11 = XV)
 	// + ------------------------- Alex Rx out (0 = off, 1 = on). Set if Alex Rx Antenna > 00.
 
-	io.control_out[3] = io.control_out[3] & 0xFB; // 1 1 1 1 1 0 1 1
-	io.control_out[3] = io.control_out[3] | (io.ccTx.mercuryAttenuator << 2);
+	control_out[3] = control_out[3] & 0xFB; // 1 1 1 1 1 0 1 1
+	control_out[3] = control_out[3] | (ccTx.mercuryAttenuator << 2);
 
-	io.control_out[3] = io.control_out[3] & 0xF7; // 1 1 1 1 0 1 1 1
-	io.control_out[3] = io.control_out[3] | (io.ccTx.dither << 3);
+	control_out[3] = control_out[3] & 0xF7; // 1 1 1 1 0 1 1 1
+	control_out[3] = control_out[3] | (ccTx.dither << 3);
 
-	io.control_out[3] = io.control_out[3] & 0xEF; // 1 1 1 0 1 1 1 1
-	io.control_out[3] = io.control_out[3] | (io.ccTx.random << 4);
+	control_out[3] = control_out[3] & 0xEF; // 1 1 1 0 1 1 1 1
+	control_out[3] = control_out[3] | (ccTx.random << 4);
 
 	// set C4
 	//
@@ -1717,8 +1729,8 @@ bool DataEngine::initReceivers(int rcvrs) {
 	// +-------------------------- Common Mercury Frequency (0 = independent frequencies to Mercury
 	//			                   Boards, 1 = same frequency to all Mercury boards)
 
-	io.control_out[4] &= 0x07; // 1 1 0 0 0 1 1 1
-	io.control_out[4] = (io.ccTx.duplex << 2) | ((io.receivers - 1) << 3);
+	control_out[4] &= 0x07; // 1 1 0 0 0 1 1 1
+	control_out[4] = (ccTx.duplex << 2) | ((receivers - 1) << 3);
 
 	if (!m_radioController) {
 		m_radioController = std::make_unique<RadioController>(this);
@@ -1730,7 +1742,7 @@ bool DataEngine::initReceivers(int rcvrs) {
 
 void DataEngine::setHPSDRConfig() {
 
-	io.ccTx.clockByte = 0x0;
+	ccTx.clockByte = 0x0;
 
 	// C1
 	// 0 0 0 0 0 0 0 0
@@ -1749,23 +1761,23 @@ void DataEngine::setHPSDRConfig() {
 		)
 	{
 
-		io.ccTx.clockByte = MIC_SOURCE_PENELOPE | MERCURY_PRESENT | PENELOPE_PRESENT | MERCURY_122_88MHZ_SOURCE | ATLAS_10MHZ_SOURCE;
+		ccTx.clockByte = MIC_SOURCE_PENELOPE | MERCURY_PRESENT | PENELOPE_PRESENT | MERCURY_122_88MHZ_SOURCE | ATLAS_10MHZ_SOURCE;
 	}
 	else if ((set->getPenelopePresence() || set->getPennyLanePresence()) && (set->get10MHzSource() == 1)) {
 		
-		io.ccTx.clockByte = MIC_SOURCE_PENELOPE | MERCURY_PRESENT | PENELOPE_PRESENT | MERCURY_122_88MHZ_SOURCE | PENELOPE_10MHZ_SOURCE;
+		ccTx.clockByte = MIC_SOURCE_PENELOPE | MERCURY_PRESENT | PENELOPE_PRESENT | MERCURY_122_88MHZ_SOURCE | PENELOPE_10MHZ_SOURCE;
 	}
 	else if ((set->getPenelopePresence() || set->getPennyLanePresence()) && (set->get10MHzSource() == 2)) {
 		
-		io.ccTx.clockByte = MIC_SOURCE_PENELOPE | MERCURY_PRESENT | PENELOPE_PRESENT | MERCURY_122_88MHZ_SOURCE | MERCURY_10MHZ_SOURCE;
+		ccTx.clockByte = MIC_SOURCE_PENELOPE | MERCURY_PRESENT | PENELOPE_PRESENT | MERCURY_122_88MHZ_SOURCE | MERCURY_10MHZ_SOURCE;
 	}
 	else if ((set->get10MHzSource() == 0) || set->getExcaliburPresence()) {
 		
-		io.ccTx.clockByte = MERCURY_PRESENT | MERCURY_122_88MHZ_SOURCE | ATLAS_10MHZ_SOURCE;
+		ccTx.clockByte = MERCURY_PRESENT | MERCURY_122_88MHZ_SOURCE | ATLAS_10MHZ_SOURCE;
 	}
 	else {
 		
-		io.ccTx.clockByte = MERCURY_PRESENT | MERCURY_122_88MHZ_SOURCE | MERCURY_10MHZ_SOURCE;
+		ccTx.clockByte = MERCURY_PRESENT | MERCURY_122_88MHZ_SOURCE | MERCURY_10MHZ_SOURCE;
 	}
 }
 
@@ -1785,7 +1797,7 @@ void DataEngine::disconnectDSPSlots() {
 
 void DataEngine::createDiscoverer() {
 
-	m_discoverer = new Discoverer(&io);
+	m_discoverer = new Discoverer(m_dataIO);
 
 	m_discoveryThread = new QThreadEx();
 	m_discoverer->moveToThread(m_discoveryThread);
@@ -1802,9 +1814,9 @@ bool DataEngine::startDiscoverer(QThread::Priority prio) {
 	if (m_discoveryThread->isRunning()) {
 					
 		m_discoveryThreadRunning = true;
-		io.networkIOMutex.lock();
+		m_dataIO->networkIOMutex.lock();
         DATA_ENGINE_DEBUG << "HPSDR device discovery thread started.";
-		io.networkIOMutex.unlock();
+		m_dataIO->networkIOMutex.unlock();
 
 		return true;
 	}
@@ -1838,10 +1850,22 @@ void DataEngine::stopDiscoverer() {
 // create, start/stop data receiver
 
 void DataEngine::createDataIO() {
+	if (!m_dataIO) {
+		m_dataIO = new DataIO();
+	}
+	m_dataIO->setDataEngine(this);
+	m_dataIO->setRadioModel(m_radioModel);
+	m_dataIO->setProtocol(m_protocol.get());
+	m_dataIO->setSampleRate(samplerate);
+
+	// Eager ctor creates DataIO for discovery mutex/queues; thread wiring still
+	// happens here. Skip if the IO thread is already set up.
+	if (m_dataIOThread)
+		return;
 
 #ifdef HAVE_SOAPYSDR
     if (m_hwInterface == QSDR::SoapySDR) {
-        m_soapySDRSource = new SoapySDRDataSource(&io);
+        m_soapySDRSource = new SoapySDRDataSource(this);
         m_dataIOThread = new QThreadEx();
         m_soapySDRSource->moveToThread(m_dataIOThread);
 
@@ -1865,14 +1889,9 @@ void DataEngine::createDataIO() {
             connect(m_soapySDRSource, &SoapySDRDataSource::widebandFrequencyRangeReady,
                     tel, &RadioTelemetry::setWidebandFrequencyRange);
         }
-        
-        // We still need DataIO for local soundcard output!
-        m_dataIO = new DataIO(&io);
         return;
     }
 #endif
-
-	m_dataIO = new DataIO(&io);
 
 	switch (m_serverMode) {
 		
@@ -1882,13 +1901,13 @@ void DataEngine::createDataIO() {
 		//case QSDR::InternalDSP:
 		case QSDR::SDRMode:
 
-			io.networkIOMutex.lock();
+			m_dataIO->networkIOMutex.lock();
 			DATA_ENGINE_DEBUG 	<< "configured for "
 								<< qPrintable(QString::number(set->getNumberOfReceivers()))
 								<< " receiver(s) at "
 								<< qPrintable(QString::number(set->getSampleRate()/1000))
 								<< " kHz sample rate";
-			io.networkIOMutex.unlock();
+			m_dataIO->networkIOMutex.unlock();
 //			sendMessage(
 //				m_message.arg(
 //					QString::number(set->getNumberOfReceivers()),
@@ -1931,15 +1950,24 @@ void DataEngine::createDataIO() {
 }
 
 bool DataEngine::startDataIO(QThread::Priority prio) {
+	if (!m_dataIOThread) {
+		DATA_ENGINE_DEBUG << "data IO thread not created; calling createDataIO()";
+		createDataIO();
+	}
+	if (!m_dataIOThread) {
+		DATA_ENGINE_DEBUG << "data IO thread could not be created.";
+		setSystemState(QSDR::DataProcessThreadError, m_hwInterface, m_serverMode, QSDR::DataEngineDown);
+		return false;
+	}
 
 	m_dataIOThread->start(prio);
 
 	if (m_dataIOThread->isRunning()) {
 					
 		m_dataIOThreadRunning = true;
-		io.networkIOMutex.lock();
+		m_dataIO->networkIOMutex.lock();
 		DATA_ENGINE_DEBUG << "data IO thread started.";
-		io.networkIOMutex.unlock();
+		m_dataIO->networkIOMutex.unlock();
 
 		return true;
 	}
@@ -1977,8 +2005,11 @@ void DataEngine::stopDataIO() {
 		delete m_dataIOThread;
         m_dataIOThread = nullptr;
 
-		delete m_dataIO;
-		m_dataIO = nullptr;
+		// Keep DataIO alive for queues/mutex across stop/start and discovery.
+		if (m_dataIO) {
+			m_dataIO->moveToThread(this->thread());
+			m_dataIO->setProtocol(nullptr);
+		}
 
 #ifdef HAVE_SOAPYSDR
         delete m_soapySDRSource;
@@ -2106,9 +2137,9 @@ bool DataEngine::startDataProcessor(QThread::Priority prio) {
 	if (m_dataProcThread->isRunning()) {
 					
 		m_dataProcThreadRunning = true;
-		io.networkIOMutex.lock();
+		m_dataIO->networkIOMutex.lock();
 		DATA_ENGINE_DEBUG << "data processor thread started.";
-		io.networkIOMutex.unlock();
+		m_dataIO->networkIOMutex.unlock();
 
 		return true;
 	}
@@ -2134,8 +2165,8 @@ void DataEngine::stopDataProcessor() {
 		
 		if (m_serverMode == QSDR::SDRMode ) {
 			
-			if (io.iq_queue.isEmpty()) {
-				io.iq_queue.enqueue(TIQPacket(QByteArray(BUFFER_SIZE, 0x0), 0));
+			if (m_dataIO->iq_queue.isEmpty()) {
+				m_dataIO->iq_queue.enqueue(TIQPacket(QByteArray(BUFFER_SIZE, 0x0), 0));
 			}
 		}
 
@@ -2148,8 +2179,8 @@ void DataEngine::stopDataProcessor() {
 
 		if (m_serverMode == QSDR::SDRMode ) {
 
-			while (!io.iq_queue.isEmpty())
-				io.iq_queue.dequeue();
+			while (!m_dataIO->iq_queue.isEmpty())
+				m_dataIO->iq_queue.dequeue();
 
 			DATA_ENGINE_DEBUG << "iq_queue empty.";
 		}
@@ -2187,12 +2218,12 @@ void DataEngine::createWideBandDataProcessor() {
 
 	int size;
 
-	if (io.mercuryFW > 32 || io.hermesFW > 11)
+	if (mercuryFW > 32 || hermesFW > 11)
 		size = BIGWIDEBANDSIZE;
 	else
 		size = SMALLWIDEBANDSIZE;
 	
-	m_wbDataProcessor = new WideBandDataProcessor(&io, m_serverMode, size);
+	m_wbDataProcessor = new WideBandDataProcessor(this, m_serverMode, size);
 
 	connect(set, &Settings::spectrumAveragingCntChanged,
 			this, &DataEngine::setWbSpectrumAveraging);
@@ -2218,9 +2249,9 @@ bool DataEngine::startWideBandDataProcessor(QThread::Priority prio) {
 	if (m_wbDataProcThread->isRunning()) {
 					
 		m_wbDataRcvrThreadRunning = true;
-		io.networkIOMutex.lock();
+		m_dataIO->networkIOMutex.lock();
 		DATA_ENGINE_DEBUG << "wide band data processor thread started.";
-		io.networkIOMutex.unlock();
+		m_dataIO->networkIOMutex.unlock();
 
 		return true;
 	}
@@ -2237,8 +2268,8 @@ void DataEngine::stopWideBandDataProcessor() {
 	if (m_wbDataProcThread->isRunning()) {
 					
 		m_wbDataProcessor->stop();
-		if (io.wb_queue.isEmpty())
-			io.wb_queue.enqueue(m_datagram);
+		if (m_dataIO->wb_queue.isEmpty())
+			m_dataIO->wb_queue.enqueue(m_datagram);
 
 		m_wbDataProcThread->quit();
 		m_wbDataProcThread->wait();
@@ -2260,7 +2291,7 @@ void DataEngine::setWideBandBufferCount()
 	// if we have 4096 * 16 bit = 8 * 1024 raw consecutive ADC samples, m_wbBuffers = 8
 	// we have 16384 * 16 bit = 32 * 1024 raw consecutive ADC samples, m_wbBuffers = 32
 	int wbBuffers = 0;
-	if (io.mercuryFW > 32 || io.hermesFW > 11)
+	if (mercuryFW > 32 || hermesFW > 11)
 		wbBuffers = BIGWIDEBANDSIZE / 512;
 	else
 		wbBuffers = SMALLWIDEBANDSIZE / 512;
@@ -2273,7 +2304,7 @@ void DataEngine::setWideBandBufferCount()
 
 void DataEngine::createAudioReceiver() {
 
-	m_audioReceiver = new AudioReceiver(&io);
+	m_audioReceiver = new AudioReceiver(this);
 
 	connect(m_audioReceiver, &AudioReceiver::rcveIQEvent,
 			this, &DataEngine::setRcveIQSignal);
@@ -2353,7 +2384,7 @@ void DataEngine::systemStateChanged(
 {
 	Q_UNUSED (err)
 
-	QMutexLocker locker(&io.mutex);
+	QMutexLocker locker(&mutex);
 	if (m_hwInterface != hwmode)
 		m_hwInterface = hwmode;
 		
@@ -2370,7 +2401,7 @@ void DataEngine::setSystemState(
 		QSDR::_ServerMode statemode,
 		QSDR::_DataEngineState enginestate)
 {
-	QMutexLocker locker(&io.networkIOMutex);
+	QMutexLocker locker(&m_dataIO->networkIOMutex);
 	set->setSystemState(err, hwmode, statemode, enginestate);
 }
 
@@ -2394,13 +2425,13 @@ void DataEngine::searchHpsdrNetworkDevices() {
 
     QMetaObject::invokeMethod(m_discoverer, "initHPSDRDevice", Qt::QueuedConnection);
 
-	io.networkIOMutex.lock();
-	io.devicefound.wait(&io.networkIOMutex);
+	m_dataIO->networkIOMutex.lock();
+	m_dataIO->devicefound.wait(&m_dataIO->networkIOMutex);
 
 	//m_discoverer->findHPSDRDevices();
 
 	// stop the discovery thread
-	io.networkIOMutex.unlock();
+	m_dataIO->networkIOMutex.unlock();
 	stopDiscoverer();
 }
 
@@ -2421,15 +2452,15 @@ void DataEngine::setHPSDRDeviceNumber(int value) {
 
 void DataEngine::rxListChanged(QList<SliceProcessor *> list) {
 
-	QMutexLocker locker(&io.mutex);
+	QMutexLocker locker(&mutex);
 	RX = list;
 }
 
 void DataEngine::setCurrentReceiver(int rx) {
 
-	QMutexLocker locker(&io.mutex);
-	io.currentReceiver = rx;
-	io.ccTx.txFrequency = set->getCtrFrequency(rx);
+	QMutexLocker locker(&mutex);
+	currentReceiver = rx;
+	ccTx.txFrequency = set->getCtrFrequency(rx);
 }
 
 void DataEngine::setFramesPerSecond(int rx, int value) {
@@ -2437,10 +2468,10 @@ void DataEngine::setFramesPerSecond(int rx, int value) {
 	Q_UNUSED(rx)
 	Q_UNUSED(value)
 
-	/*io.mutex.lock();
+	/*mutex.lock();
 	if (m_fpsList.length() > 0)
 		m_fpsList[rx] = (int)(1000000.0/value);
-	io.mutex.unlock();*/
+	mutex.unlock();*/
 }
 
 void DataEngine::setSampleRate(int value) {
@@ -2454,38 +2485,38 @@ void DataEngine::setSampleRate(int value) {
 
 	bool shouldRequestP2Update = false;
 	{
-	QMutexLocker locker(&io.mutex);
+	QMutexLocker locker(&mutex);
 
 	switch (value) {
 	
 		case 48000:
-			io.samplerate = value;
-			io.speed = 0;
+			samplerate = value;
+			speed = 0;
 			break;
 			
 		case 96000:
-			io.samplerate = value;
-			io.speed = 1;
+			samplerate = value;
+			speed = 1;
 			break;
 			
 		case 192000:
-			io.samplerate = value;
-			io.speed = 2;
+			samplerate = value;
+			speed = 2;
 			break;
 			
 		case 384000:
-			io.samplerate = value;
-			io.speed = 3;
+			samplerate = value;
+			speed = 3;
 			break;
 
         case 768000:
-            io.samplerate = value;
-            io.speed = 4;
+            samplerate = value;
+            speed = 4;
             break;
 
         case 1536000:
-            io.samplerate = value;
-            io.speed = 5;
+            samplerate = value;
+            speed = 5;
             break;
 
 		default:
@@ -2493,12 +2524,14 @@ void DataEngine::setSampleRate(int value) {
 			applyOk = false;
 			break;
 	}
+	if (applyOk && m_dataIO)
+		m_dataIO->setSampleRate(samplerate);
 
 	shouldRequestP2Update = applyOk && m_protocol && set->getCurrentMetisCard().protocol == 2 && m_dataProcessor;
 
-	if (io.samplerate != value) {
+	if (samplerate != value) {
 		DATA_ENGINE_DEBUG << "samplerate apply mismatch: requested=" << value
-		                  << "applied=" << io.samplerate;
+		                  << "applied=" << samplerate;
 	}
 
 	} // QMutexLocker released here
@@ -2522,67 +2555,67 @@ void DataEngine::setMercuryAttenuator(HamBand band, int value) {
 
 	Q_UNUSED(band)
 
-	QMutexLocker locker(&io.mutex);
-	io.ccTx.mercuryAttenuator = value;
+	QMutexLocker locker(&mutex);
+	ccTx.mercuryAttenuator = value;
 }
 
 void DataEngine::setMercuryAttenuators(QList<int> attn) {
 
-	QMutexLocker locker(&io.mutex);
-	io.ccTx.mercuryAttenuators = attn;
+	QMutexLocker locker(&mutex);
+	ccTx.mercuryAttenuators = attn;
 }
 
 void DataEngine::setDither(int value) {
 
-	QMutexLocker locker(&io.mutex);
-	io.ccTx.dither = value;
+	QMutexLocker locker(&mutex);
+	ccTx.dither = value;
 }
 
 void DataEngine::setRandom(int value) {
 
-	QMutexLocker locker(&io.mutex);
-	io.ccTx.random = value;
+	QMutexLocker locker(&mutex);
+	ccTx.random = value;
 }
 
 void DataEngine::set10MhzSource(int source) {
 
-	QMutexLocker locker(&io.mutex);
-	io.control_out[1] = io.control_out[1] & 0xF3;
-	io.control_out[1] = io.control_out[1] | (source << 2);
+	QMutexLocker locker(&mutex);
+	control_out[1] = control_out[1] & 0xF3;
+	control_out[1] = control_out[1] | (source << 2);
 }
 
 void DataEngine::set122_88MhzSource(int source) {
 
-	QMutexLocker locker(&io.mutex);
-	io.control_out[1] = io.control_out[1] & 0xEF;
-	io.control_out[1] = io.control_out[1] | (source << 4);
+	QMutexLocker locker(&mutex);
+	control_out[1] = control_out[1] & 0xEF;
+	control_out[1] = control_out[1] | (source << 4);
 }
 
 void DataEngine::setMicSource( int source) {
 
-	QMutexLocker locker(&io.mutex);
-	io.control_out[1] = io.control_out[1] & 0x7F;
-	io.control_out[1] = io.control_out[1] | (source << 7);
+	QMutexLocker locker(&mutex);
+	control_out[1] = control_out[1] & 0x7F;
+	control_out[1] = control_out[1] | (source << 7);
 }
 
 void DataEngine::setMercuryClass(int value) {
 
-	QMutexLocker locker(&io.mutex);
-	io.rxClass = value;
+	QMutexLocker locker(&mutex);
+	rxClass = value;
 }
 
 void DataEngine::setMercuryTiming(int value) {
 
-	QMutexLocker locker(&io.mutex);
-	io.timing = value;
+	QMutexLocker locker(&mutex);
+	timing = value;
 }
 
 void DataEngine::setAlexConfiguration(quint16 conf) {
 
 	{
-		QMutexLocker locker(&io.mutex);
-		io.ccTx.alexConfig = conf;
-		DATA_ENGINE_DEBUG << "Alex Configuration = " << io.ccTx.alexConfig;
+		QMutexLocker locker(&mutex);
+		ccTx.alexConfig = conf;
+		DATA_ENGINE_DEBUG << "Alex Configuration = " << ccTx.alexConfig;
 	}
 
 	if (set->getCurrentMetisCard().protocol == 2 && m_dataProcessor) {
@@ -2597,10 +2630,10 @@ void DataEngine::setAlexStates(HamBand band, const QList<int> &states) {
 	Q_UNUSED (band)
 
 	{
-		QMutexLocker locker(&io.mutex);
+		QMutexLocker locker(&mutex);
 		qDebug() << "setAlexStates: band=" << band << "states=" << states;
-		io.ccTx.alexStates = states;
-		DATA_ENGINE_DEBUG << "Alex States = " << io.ccTx.alexStates;
+		ccTx.alexStates = states;
+		DATA_ENGINE_DEBUG << "Alex States = " << ccTx.alexStates;
 	}
 
 	if (set->getCurrentMetisCard().protocol == 2 && m_dataProcessor) {
@@ -2612,21 +2645,21 @@ void DataEngine::setAlexStates(HamBand band, const QList<int> &states) {
 
 void DataEngine::setPennyOCEnabled(bool value) {
 
-	QMutexLocker locker(&io.mutex);
-	io.ccTx.pennyOCenabled = value;
+	QMutexLocker locker(&mutex);
+	ccTx.pennyOCenabled = value;
 }
 
 void DataEngine::setRxJ6Pins(const QList<int> &list) {
 
-	QMutexLocker locker(&io.mutex);
-	io.ccTx.rxJ6pinList = list;
+	QMutexLocker locker(&mutex);
+	ccTx.rxJ6pinList = list;
 
 }
 
 void DataEngine::setTxJ6Pins(const QList<int> &list) {
 
-	QMutexLocker locker(&io.mutex);
-	io.ccTx.txJ6pinList = list;
+	QMutexLocker locker(&mutex);
+	ccTx.txJ6pinList = list;
 }
 
 void DataEngine::setRcveIQSignal(int value) {
@@ -2646,9 +2679,9 @@ void DataEngine::setHwIOVersion(int version) {
 
 void DataEngine::setNumberOfRx(int value) {
 
-	DATA_ENGINE_DEBUG << "[RX-ADD] setNumberOfRx: requested=" << value << "current=" << io.receivers;
+	DATA_ENGINE_DEBUG << "[RX-ADD] setNumberOfRx: requested=" << value << "current=" << receivers;
 
-	if (io.receivers == value) {
+	if (receivers == value) {
 		DATA_ENGINE_DEBUG << "[RX-ADD] receiver count unchanged, no action.";
 		return;
 	}
@@ -2664,25 +2697,25 @@ void DataEngine::setNumberOfRx(int value) {
 	}
 
 	{
-	QMutexLocker locker(&io.mutex);
-	io.receivers = value;
-	if (io.currentReceiver >= value) {
-		DATA_ENGINE_DEBUG << "[RX-ADD] currentReceiver" << io.currentReceiver << ">= new count, resetting to 0";
-		io.currentReceiver = 0;
+	QMutexLocker locker(&mutex);
+	receivers = value;
+	if (currentReceiver >= value) {
+		DATA_ENGINE_DEBUG << "[RX-ADD] currentReceiver" << currentReceiver << ">= new count, resetting to 0";
+		currentReceiver = 0;
 	}
 	}
 
-	DATA_ENGINE_DEBUG << "[RX-ADD] flushing IQ queue (" << io.iq_queue.count() << " items) and WB queue (" << io.wb_queue.count() << " items)";
-	while (!io.iq_queue.isEmpty())
-		io.iq_queue.dequeue();
-	while (!io.wb_queue.isEmpty())
-		io.wb_queue.dequeue();
+	DATA_ENGINE_DEBUG << "[RX-ADD] flushing IQ queue (" << m_dataIO->iq_queue.count() << " items) and WB queue (" << m_dataIO->wb_queue.count() << " items)";
+	while (!m_dataIO->iq_queue.isEmpty())
+		m_dataIO->iq_queue.dequeue();
+	while (!m_dataIO->wb_queue.isEmpty())
+		m_dataIO->wb_queue.dequeue();
 
 	if (set->getCurrentReceiver() >= value) {
 		set->setCurrentReceiver(0);
 	}
 
-	DATA_ENGINE_DEBUG << "[RX-ADD] io.receivers set to" << value;
+	DATA_ENGINE_DEBUG << "[RX-ADD] receivers set to" << value;
 
     if (restart) {
 		DATA_ENGINE_DEBUG << "[RX-ADD] restarting engine with" << value << "receiver(s)...";
@@ -2706,12 +2739,12 @@ void DataEngine::setNumberOfRx(int value) {
 
 void DataEngine::setTimeStamp(bool value) {
 
-	if (io.timeStamp == value) return;
+	if (timeStamp == value) return;
 
-	QMutexLocker locker(&io.mutex);
-	io.timeStamp = value;
-	//io.control_out[4] &= 0xc7;
-	//RRK io.control_out[4] |= value << 6;
+	QMutexLocker locker(&mutex);
+	timeStamp = value;
+	//control_out[4] &= 0xc7;
+	//RRK control_out[4] |= value << 6;
 
 	if (value)
 		DATA_ENGINE_DEBUG << "set time stamp on";
@@ -2731,22 +2764,22 @@ void DataEngine::setRxPeerAddress(int rx, QHostAddress address) {
 
 void DataEngine::setRx(int rx) {
 
-	QMutexLocker locker(&io.mutex);
+	QMutexLocker locker(&mutex);
 	RX[rx]->setReceiver(rx);
 }
 
 void DataEngine::setRxClient(int rx, int client) {
 
-	QMutexLocker locker(&io.mutex);
+	QMutexLocker locker(&mutex);
 	RX[rx]->setClient(client);
 }
 
 void DataEngine::setClientConnected(int rx) {
 
-	if (!io.clientList.contains(rx)) {
+	if (!clientList.contains(rx)) {
 
-		io.clientList.append(rx);
-		io.audio_rx = rx;
+		clientList.append(rx);
+		audio_rx = rx;
 
 		m_AudioRcvrThread->quit();
 		m_AudioRcvrThread->wait();
@@ -2754,11 +2787,11 @@ void DataEngine::setClientConnected(int rx) {
 	}
 	else {
 
-		io.sendIQ_toggle = true;
+		sendIQ_toggle = true;
 		// For Protocol 2, clearing rcveIQ_toggle here can immediately drop
 		// the Run bit after startup and prevent RX from ever starting.
 		if (set->getCurrentMetisCard().protocol != 2) {
-			io.rcveIQ_toggle = false;
+			rcveIQ_toggle = false;
 		}
 		m_AudioRcvrThread->start();
 	}
@@ -2792,19 +2825,19 @@ void DataEngine::setClientDisconnected(int client) {
 
 void DataEngine::setAudioReceiver(int rx) {
 
-	QMutexLocker locker(&io.mutex);
+	QMutexLocker locker(&mutex);
 	emit audioRxEvent(rx);
 }
 
 void DataEngine::setIQPort(int rx, int port) {
 
-	QMutexLocker locker(&io.mutex);
+	QMutexLocker locker(&mutex);
 	RX[rx]->setIQPort(port);
 }
 
 void DataEngine::setRxConnectedStatus(int rx, bool value) {
 
-	QMutexLocker locker(&io.mutex);
+	QMutexLocker locker(&mutex);
 	RX[rx]->setConnectedStatus(value);
 }
 
@@ -2813,8 +2846,8 @@ void DataEngine::setHamBand(int rx, bool byBtn, HamBand band) {
 	Q_UNUSED(rx)
 	Q_UNUSED(byBtn)
 
-	QMutexLocker locker(&io.mutex);
-	io.ccTx.currentBand = band;
+	QMutexLocker locker(&mutex);
+	ccTx.currentBand = band;
 
 	if (set->getCurrentMetisCard().protocol == 2 && m_dataProcessor) {
 		QMetaObject::invokeMethod(m_dataProcessor,
@@ -2827,9 +2860,9 @@ void DataEngine::setFrequency(int mode, int rx, qint64 frequency) {
 
 	Q_UNUSED(mode)
 
-	io.rx_freq_change = rx;
-	if (rx == io.currentReceiver) {
-		io.ccTx.txFrequency = frequency;
+	rx_freq_change = rx;
+	if (rx == currentReceiver) {
+		ccTx.txFrequency = frequency;
 	}
 
 	// Protocol 2 includes DDC frequencies in the High Priority packet — push one
@@ -2964,7 +2997,7 @@ void DataProcessor::applyCodec2ToMicBuffer(int sampleCount)
     }
 
 	// Use the selected Codec2 mode directly (0=1600, 1=1400, 2=1300, 3=700C, 4=2400, 5=3200, 6=700D, 100=RADE v1)
-	const int wantedMode = set->getFreeDVMode(de->io.currentReceiver);
+	const int wantedMode = set->getFreeDVMode(de->currentReceiver);
 	if (m_freeDVTxMode != wantedMode) {
 		if (m_freeDVTx) {
 			freedv_close(m_freeDVTx);
@@ -3102,7 +3135,7 @@ void DataProcessor::applyCodec2ToMicBuffer(int sampleCount)
 		}
 
 		if (txFramesThisBlock > 0) {
-			set->addFreeDVTxFrames(de->io.currentReceiver, txFramesThisBlock);
+			set->addFreeDVTxFrames(de->currentReceiver, txFramesThisBlock);
 		}
 
 		if (m_radeTxModemReadPos > 0 && m_radeTxModemReadPos >= m_radeTxModemQueue.size()) {
@@ -3169,7 +3202,7 @@ void DataProcessor::applyCodec2ToMicBuffer(int sampleCount)
 	}
 
 	if (txFramesThisBlock > 0) {
-		set->addFreeDVTxFrames(de->io.currentReceiver, txFramesThisBlock);
+		set->addFreeDVTxFrames(de->currentReceiver, txFramesThisBlock);
 	}
 
 	if (m_freeDVModemReadPos > 0 && m_freeDVModemReadPos * 2 >= m_freeDVModemQueue.size()) {
@@ -3203,18 +3236,18 @@ void DataProcessor::requestProtocol2HPUpdate() {
 	if (!de || !de->m_protocol || !de->m_controlSocket) return;
 	if (de->set->getCurrentMetisCard().protocol != 2) return;
 
-	if (!de->io.rcveIQ_toggle) return; // don't send HP mid-setup (Run not yet asserted)
+	if (!de->rcveIQ_toggle) return; // don't send HP mid-setup (Run not yet asserted)
 
 	unsigned char p2CmdBuf[1444];
 	quint16 port = DEVICE_PORT;
 	int hpState = 3; // High Priority Data Packet
 
 	memset(p2CmdBuf, 0, sizeof(p2CmdBuf));
-	de->m_protocol->encodeCCBytes(p2CmdBuf, &de->io, hpState, port);
+	de->m_protocol->encodeCCBytes(p2CmdBuf, de, de->m_radioModel, hpState, port);
 
 	if (port != 1027) return;
 
-	m_deviceAddress = de->io.hpsdrDeviceIPAddress;
+	m_deviceAddress = de->m_dataIO->hpsdrDeviceIPAddress;
 	qint64 sent = -1;
 	if (de->m_dataIO) {
 		QByteArray dg((const char*)p2CmdBuf, 1444);
@@ -3227,8 +3260,8 @@ void DataProcessor::requestProtocol2HPUpdate() {
 			Q_ARG(QHostAddress, m_deviceAddress),
 			Q_ARG(quint16, port));
 	}
-	if (sent < 0 && de->m_controlSocket) {
-		de->m_controlSocket->writeDatagram((const char*)p2CmdBuf, 1444, m_deviceAddress, port);
+	if (sent < 0) {
+		DATA_PROCESSOR_DEBUG << "P2 HP update send via DataIO failed";
 	}
 }
 
@@ -3241,16 +3274,28 @@ void DataProcessor::requestProtocol2DDCUpdate() {
 	int oneShotState = 1; // DDC Specific packet
 
 	memset(p2CmdBuf, 0, sizeof(p2CmdBuf));
-	de->m_protocol->encodeCCBytes(p2CmdBuf, &de->io, oneShotState, port);
+	de->m_protocol->encodeCCBytes(p2CmdBuf, de, de->m_radioModel, oneShotState, port);
 
 	if (port != 1025) {
 		DATA_PROCESSOR_DEBUG << "P2 rate update produced unexpected control port" << port;
 		return;
 	}
 
-	m_deviceAddress = de->io.hpsdrDeviceIPAddress;
-	if (de->m_controlSocket->writeDatagram((const char*)p2CmdBuf, 1444, m_deviceAddress, port) < 0) {
-		DATA_PROCESSOR_DEBUG << "error sending P2 DDC rate update:" << de->m_controlSocket->errorString();
+	m_deviceAddress = de->m_dataIO->hpsdrDeviceIPAddress;
+	qint64 sent = -1;
+	if (de->m_dataIO) {
+		QByteArray dg((const char*)p2CmdBuf, 1444);
+		QMetaObject::invokeMethod(
+			de->m_dataIO,
+			"sendProtocol2ControlDatagram",
+			Qt::BlockingQueuedConnection,
+			Q_RETURN_ARG(qint64, sent),
+			Q_ARG(QByteArray, dg),
+			Q_ARG(QHostAddress, m_deviceAddress),
+			Q_ARG(quint16, port));
+	}
+	if (sent < 0) {
+		DATA_PROCESSOR_DEBUG << "error sending P2 DDC rate update via DataIO";
 	}
 }
 
@@ -3260,11 +3305,11 @@ void DataProcessor::requestProtocol2ReceiverSetup() {
 
 	DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] enter: controlSocketLocalPort="
 	                    << de->m_controlSocket->localPort()
-	                    << " device=" << de->io.hpsdrDeviceIPAddress;
+	                    << " device=" << de->m_dataIO->hpsdrDeviceIPAddress;
 
 	// Keep Run low during setup staging to avoid early HP assertions from
 	// concurrent control paths; raise it only for the explicit start HP packet.
-	de->io.rcveIQ_toggle = false;
+	de->rcveIQ_toggle = false;
 
     unsigned char p2CmdBuf[1444];
     quint16 port = DEVICE_PORT;
@@ -3273,7 +3318,7 @@ void DataProcessor::requestProtocol2ReceiverSetup() {
 		if (de->m_dataIO) {
 			QByteArray dg(data, len);
 			qint64 sent = -1;
-			QMetaObject::invokeMethod(
+			const bool invoked = QMetaObject::invokeMethod(
 				de->m_dataIO,
 				"sendProtocol2ControlDatagram",
 				Qt::BlockingQueuedConnection,
@@ -3281,30 +3326,34 @@ void DataProcessor::requestProtocol2ReceiverSetup() {
 				Q_ARG(QByteArray, dg),
 				Q_ARG(QHostAddress, m_deviceAddress),
 				Q_ARG(quint16, dstPort));
-			if (sent >= 0) {
+			if (invoked && sent >= 0) {
 				return sent;
 			}
+			DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] DataIO control send failed invoked="
+			                     << invoked << " sent=" << sent
+			                     << " — not falling back to controlSocket (same-host reply port)";
+			return -1;
 		}
-		return de->m_controlSocket->writeDatagram(data, len, m_deviceAddress, dstPort);
+		return -1;
 	};
 
     // 0. Send General packet (port 1024) — must arrive before HP packets so
     //    newhpsdrsim sets alex0_enable=1 (byte 59 bit 0) and processes alex0 bits.
     int genState = 0;
     memset(p2CmdBuf, 0, sizeof(p2CmdBuf));
-    de->m_protocol->encodeCCBytes(p2CmdBuf, &de->io, genState, port);
-    m_deviceAddress = de->io.hpsdrDeviceIPAddress;
+    de->m_protocol->encodeCCBytes(p2CmdBuf, de, de->m_radioModel, genState, port);
+    m_deviceAddress = de->m_dataIO->hpsdrDeviceIPAddress;
     sendP2Control((const char*)p2CmdBuf, 60, port); // General packet is 60 bytes
 
     // 1. Send DDC Specific packet (port 1025) with updated receiver-count/bitmask.
 	int ddcState = 1;
     memset(p2CmdBuf, 0, sizeof(p2CmdBuf));
-    de->m_protocol->encodeCCBytes(p2CmdBuf, &de->io, ddcState, port);
+    de->m_protocol->encodeCCBytes(p2CmdBuf, de, de->m_radioModel, ddcState, port);
     if (port != 1025) {
         DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] unexpected DDC port" << port << "(expected 1025)";
         return;
     }
-    m_deviceAddress = de->io.hpsdrDeviceIPAddress;
+    m_deviceAddress = de->m_dataIO->hpsdrDeviceIPAddress;
 	qint64 ddcSent = sendP2Control((const char*)p2CmdBuf, 1444, port);
 	if (ddcSent < 0) {
         DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] DDC Specific send FAILED:" << de->m_controlSocket->errorString();
@@ -3316,7 +3365,7 @@ void DataProcessor::requestProtocol2ReceiverSetup() {
 	// expect the full DDC+TX+HP setup sequence before honoring Run.
 	int txState = 2;
 	memset(p2CmdBuf, 0, sizeof(p2CmdBuf));
-	de->m_protocol->encodeCCBytes(p2CmdBuf, &de->io, txState, port);
+	de->m_protocol->encodeCCBytes(p2CmdBuf, de, de->m_radioModel, txState, port);
 	if (port != 1026) {
 		DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] unexpected TX port" << port << "(expected 1026)";
 		return;
@@ -3331,9 +3380,9 @@ void DataProcessor::requestProtocol2ReceiverSetup() {
 	// 3. Send High Priority packet with Run=0 first so DDC frequencies are
 	// latched before Run is asserted.
 	int hpState = 3;
-	de->io.rcveIQ_toggle = false;
+	de->rcveIQ_toggle = false;
 	memset(p2CmdBuf, 0, sizeof(p2CmdBuf));
-	de->m_protocol->encodeCCBytes(p2CmdBuf, &de->io, hpState, port);
+	de->m_protocol->encodeCCBytes(p2CmdBuf, de, de->m_radioModel, hpState, port);
 	if (port != 1027) {
 		DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] unexpected HP port" << port << "(expected 1027)";
 		return;
@@ -3349,11 +3398,11 @@ void DataProcessor::requestProtocol2ReceiverSetup() {
 	// formatStartStop() zeros the rest of the HP payload; hpsdrsim then latches
 	// rxfreq=0 and the RX threads stay gated even after DDC enable/rate arrive.
 	QThread::msleep(5);
-	de->io.rcveIQ_toggle = true;
+	de->rcveIQ_toggle = true;
 	port = DEVICE_PORT;
 	hpState = 3;
 	memset(p2CmdBuf, 0, sizeof(p2CmdBuf));
-	de->m_protocol->encodeCCBytes(p2CmdBuf, &de->io, hpState, port);
+	de->m_protocol->encodeCCBytes(p2CmdBuf, de, de->m_radioModel, hpState, port);
 	if (port != 1027) {
 		DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] unexpected HP Run=1 port" << port << "(expected 1027)";
 		return;
@@ -3368,13 +3417,14 @@ void DataProcessor::requestProtocol2ReceiverSetup() {
 
 	// The simulator starts DDC/TX receiver threads only after Run=1 is seen.
 	// Re-send DDC/TX/HP in a short burst so newly spawned threads latch config.
+	QThread::msleep(50); // allow ddc_specific_thread to bind before first post-run DDC
 	for (int attempt = 0; attempt < 5; ++attempt) {
 		QThread::msleep(20);
 
 		int ddcResendState = 1;
 		port = DEVICE_PORT;
 		memset(p2CmdBuf, 0, sizeof(p2CmdBuf));
-		de->m_protocol->encodeCCBytes(p2CmdBuf, &de->io, ddcResendState, port);
+		de->m_protocol->encodeCCBytes(p2CmdBuf, de, de->m_radioModel, ddcResendState, port);
 		if (port == 1025) {
 			qint64 ddcSent2 = sendP2Control((const char*)p2CmdBuf, 1444, port);
 			if (ddcSent2 < 0) {
@@ -3387,7 +3437,7 @@ void DataProcessor::requestProtocol2ReceiverSetup() {
 		int txResendState = 2;
 		port = DEVICE_PORT;
 		memset(p2CmdBuf, 0, sizeof(p2CmdBuf));
-		de->m_protocol->encodeCCBytes(p2CmdBuf, &de->io, txResendState, port);
+		de->m_protocol->encodeCCBytes(p2CmdBuf, de, de->m_radioModel, txResendState, port);
 		if (port == 1026) {
 			(void)sendP2Control((const char*)p2CmdBuf, 60, port);
 		}
@@ -3395,7 +3445,7 @@ void DataProcessor::requestProtocol2ReceiverSetup() {
 		int hpResendState = 3;
 		port = DEVICE_PORT;
 		memset(p2CmdBuf, 0, sizeof(p2CmdBuf));
-		de->m_protocol->encodeCCBytes(p2CmdBuf, &de->io, hpResendState, port);
+		de->m_protocol->encodeCCBytes(p2CmdBuf, de, de->m_radioModel, hpResendState, port);
 		if (port == 1027) {
 			(void)sendP2Control((const char*)p2CmdBuf, 1444, port);
 		}
@@ -3419,10 +3469,10 @@ void DataProcessor::processDeviceData() {
 	DATA_PROCESSOR_DEBUG << "Data Processor thread: " << this->thread();
 	forever {
 
-		TIQPacket packet = de->io.iq_queue.dequeue();
+		TIQPacket packet = de->m_dataIO->iq_queue.dequeue();
 		processInputBuffer(packet.payload, packet.sourcePort);
 
-		if (de->io.iq_queue.isFull()) {
+		if (de->m_dataIO->iq_queue.isFull()) {
 			DATA_PROCESSOR_DEBUG << "IQ queue full!";
 		}
 
@@ -3438,20 +3488,20 @@ void DataProcessor::processDeviceData() {
 void DataProcessor::processInputBuffer(const QByteArray &buffer, quint16 sourcePort) {
     if (de->m_protocol) {
 		de->m_protocol->processInputBuffer(buffer, de, sourcePort);
-        if (de->io.ccRx.dash != de->io.ccRx.previous_dash) emit keyer_event(0, de->io.ccRx.dash);
-        if (de->io.ccRx.dot != de->io.ccRx.previous_dot) emit keyer_event(1, de->io.ccRx.dot);
+        if (de->ccRx.dash != de->ccRx.previous_dash) emit keyer_event(0, de->ccRx.dash);
+        if (de->ccRx.dot != de->ccRx.previous_dot) emit keyer_event(1, de->ccRx.dot);
     }
 }
 
 void DataProcessor::decodeCCBytes(const QByteArray &buffer) {
     if (de->m_protocol) {
-        de->m_protocol->decodeCCBytes(buffer, &de->io);
+        de->m_protocol->decodeCCBytes(buffer, de);
     }
 }
 
 void DataProcessor::setOutputBuffer(int rx, const CPX &buffer) {
 
-    if (rx == de->io.currentReceiver) {
+    if (rx == de->currentReceiver) {
 		processOutputBuffer(buffer);
 
 	}
@@ -3468,9 +3518,9 @@ void DataProcessor::full_txBuffer(){
         case QSDR::Metis:
         case QSDR::Hermes:
 
-            de->io.audioDatagram.resize(IO_BUFFER_SIZE);
-            de->io.audioDatagram = QByteArray::fromRawData((const char *)&de->io.output_buffer, IO_BUFFER_SIZE);
-            de->m_dataIO->sendAudio(de->io.output_buffer); //RRK
+            de->m_dataIO->audioDatagram.resize(IO_BUFFER_SIZE);
+            de->m_dataIO->audioDatagram = QByteArray::fromRawData((const char *)de->output_buffer, IO_BUFFER_SIZE);
+            de->m_dataIO->sendAudio(de->output_buffer); //RRK
             writeData();
             break;
 
@@ -3487,17 +3537,17 @@ void DataProcessor::full_txBuffer(){
 
 void DataProcessor::buffer_tx_data()
 {
-    de->io.output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
-    de->io.output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
-    de->io.output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
-    de->io.output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
+    de->output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
+    de->output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
+    de->output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
+    de->output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
 
 }
 
 void DataProcessor::add_rx_audio_sample() {
         qint16 leftRXSample;
         qint16 rightRXSample;
-		const DSPMode rxMode = set->getDSPMode(de->io.currentReceiver);
+		const DSPMode rxMode = set->getDSPMode(de->currentReceiver);
 		if (rxMode == FDV) {
 			leftRXSample = 0;
 			rightRXSample = 0;
@@ -3505,10 +3555,10 @@ void DataProcessor::add_rx_audio_sample() {
 			leftRXSample = (qint16) (rx_audio_buffer[rx_audio_ptr].re * 32767.0f);
 			rightRXSample = (qint16) (rx_audio_buffer[rx_audio_ptr].im * 32767.0f);
 		}
-        de->io.output_buffer[m_idx++] = leftRXSample >> 8;
-        de->io.output_buffer[m_idx++] = leftRXSample;
-        de->io.output_buffer[m_idx++] = rightRXSample >> 8;
-        de->io.output_buffer[m_idx++] = rightRXSample;
+        de->output_buffer[m_idx++] = leftRXSample >> 8;
+        de->output_buffer[m_idx++] = leftRXSample;
+        de->output_buffer[m_idx++] = rightRXSample >> 8;
+        de->output_buffer[m_idx++] = rightRXSample;
         rx_audio_ptr++;
     }
 
@@ -3526,7 +3576,7 @@ void DataProcessor::send_hpsdr_data(int rx, const CPX &buffer, int buffersize) {
 #endif
 
     // Only send audio for the currently selected receiver.
-    if (rx != de->io.currentReceiver) return;
+    if (rx != de->currentReceiver) return;
 
     rx_audio_ptr = 0;
 /* buffer rx audio */
@@ -3624,14 +3674,14 @@ void DataProcessor::processMicData() {
 
 void DataProcessor::add_mic_sample()
 {
- //    de->io.output_buffer[m_idx++] = 0;
-  //  de->io.output_buffer[m_idx++] = 0;
-  //  de->io.output_buffer[m_idx++] = 0;
-  //  de->io.output_buffer[m_idx++] = 0;
-    de->io.output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
-    de->io.output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
-    de->io.output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
-    de->io.output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
+ //    de->output_buffer[m_idx++] = 0;
+  //  de->output_buffer[m_idx++] = 0;
+  //  de->output_buffer[m_idx++] = 0;
+  //  de->output_buffer[m_idx++] = 0;
+    de->output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
+    de->output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
+    de->output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
+    de->output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
     if (tx_index >= 4096) tx_index = 0;
 }
 
@@ -3682,7 +3732,7 @@ void DataProcessor::send_mic_data() {
     static AUDIOBUF a;
     get_cwsample();
 
-    if ( de->io.ccTx.mox ||  de->io.ccTx.ptt ) {
+    if ( de->ccTx.mox ||  de->ccTx.ptt ) {
 
         fexchange0(TX_ID, a.data(), (double *) m_iq_output_buffer.data(), &error);
         Spectrum0(1, TX_ID, 0, 0, (double *) m_iq_output_buffer.data());
@@ -3763,7 +3813,7 @@ void DataProcessor::fetch_MicData(){
             const QString digitalName = set->getDigitalInputSourceName();
             qDebug().nospace()
                 << "fetch_MicData: Audio queue empty"
-                << " txMode=" << set->getDSPMode(de->io.currentReceiver)
+                << " txMode=" << set->getDSPMode(de->currentReceiver)
                 << " micIndex=" << micIndex
                 << " micSource=\"" << micName << "\""
                 << " digIndex=" << digitalIndex
@@ -3774,7 +3824,7 @@ void DataProcessor::fetch_MicData(){
 
 	// Keep WSJT-X digital-input handling (DIGU/DIGL) separate.
 	// DV routing is only active for the FreeDV mode button (mapped to FDV).
-	const DSPMode txMode = set->getDSPMode(de->io.currentReceiver);
+	const DSPMode txMode = set->getDSPMode(de->currentReceiver);
 	if (txMode == FDV) {
 #ifdef HAVE_CODEC2
 		applyCodec2ToMicBuffer(numSamples);
@@ -3824,7 +3874,7 @@ void DataProcessor::get_tx_iqData(){
                 qWarning() << "TX stream: non-finite samples sanitized"
                            << "mic=" << micNonFinite
                            << "iq=" << iqNonFinite
-                           << "mode=" << set->getDSPMode(de->io.currentReceiver);
+                           << "mode=" << set->getDSPMode(de->currentReceiver);
             }
         }
 
@@ -3832,13 +3882,13 @@ void DataProcessor::get_tx_iqData(){
 
         if (error != 0) {
             qWarning() << "TX stream: fexchange0(TX_ID) error=" << error
-                       << "mode=" << set->getDSPMode(de->io.currentReceiver)
+                       << "mode=" << set->getDSPMode(de->currentReceiver)
                        << "state=" << set->getRadioState();
         }
 
         if (txDiagEnabled() && (++txDiagCounter % 50) == 1) {
             const TxIqStats st = computeTxIqStats(mic_buffer, m_iq_output_buffer);
-            qDebug().nospace() << "[TX-DIAG] mode=" << set->getDSPMode(de->io.currentReceiver)
+            qDebug().nospace() << "[TX-DIAG] mode=" << set->getDSPMode(de->currentReceiver)
                                << " state=" << set->getRadioState()
                                << " micQ=" << (de->m_audioInput ? de->m_audioInput->m_faudioInQueue.count() : -1)
                                << " micRms=" << st.micRms << " micPeak=" << st.micPeak
@@ -3864,7 +3914,7 @@ void DataProcessor::get_tx_iqData(){
             m_tx_iq_Buffer[idx++] = (int)rightTXSample;
         }
 #ifdef HAVE_SOAPYSDR
-        if (m_hwInterface == QSDR::SoapySDR && !de->io.soapy_tx_iq_queue.isFull()) {
+        if (m_hwInterface == QSDR::SoapySDR && !de->m_dataIO->soapy_tx_iq_queue.isFull()) {
             QVector<float> soapyTxIq(DSP_SAMPLE_SIZE * 2);
             for (int j = 0; j < DSP_SAMPLE_SIZE; ++j) {
                 // Negate Q to conjugate the IQ signal, correcting the legacy HPSDR
@@ -3872,7 +3922,7 @@ void DataProcessor::get_tx_iqData(){
                 soapyTxIq[j * 2]     = static_cast<float>(m_iq_output_buffer.at(j).re);
                 soapyTxIq[j * 2 + 1] = static_cast<float>(-m_iq_output_buffer.at(j).im);
             }
-            de->io.soapy_tx_iq_queue.enqueue(soapyTxIq);
+            de->m_dataIO->soapy_tx_iq_queue.enqueue(soapyTxIq);
         }
 #endif
     }
@@ -3902,18 +3952,18 @@ void DataProcessor::publishTxSpectrumForPanadapter() {
         m_txSpectrumSeen = true;
         m_txSpectrumMissCount = 0;
         applyTxPanadapterDisplayOffset(m_txSpectrumBuffer);
-        set->setSpectrumBuffer(de->io.currentReceiver, m_txSpectrumBuffer);
+        set->setSpectrumBuffer(de->currentReceiver, m_txSpectrumBuffer);
         return;
     }
 
     if (m_txSpectrumSeen) {
         // Keep the last valid TX trace visible instead of blanking the pane.
-        set->setSpectrumBuffer(de->io.currentReceiver, m_txSpectrumBuffer);
+        set->setSpectrumBuffer(de->currentReceiver, m_txSpectrumBuffer);
     }
 
     if (txDiagEnabled() && ++m_txSpectrumMissCount % 200 == 1) {
         qDebug() << "TX panadapter: GetPixels miss count=" << m_txSpectrumMissCount
-                 << "mode=" << set->getDSPMode(de->io.currentReceiver)
+                 << "mode=" << set->getDSPMode(de->currentReceiver)
                  << "state=" << set->getRadioState();
     }
 }
@@ -3988,7 +4038,7 @@ void DataProcessor::setAudioBuffer(int rx, const CPX &buffer, int buffersize)
     qint16 rightRXSample;
 
 	// process the output
-	const DSPMode rxMode = set->getDSPMode(de->io.currentReceiver);
+	const DSPMode rxMode = set->getDSPMode(de->currentReceiver);
 	const bool muteAnalogRxForCodec2 = (rxMode == FDV);
     if (tx_index == 0)  get_tx_iqData();
         for (int j = 0; j < buffersize; j++) {
@@ -4001,18 +4051,18 @@ void DataProcessor::setAudioBuffer(int rx, const CPX &buffer, int buffersize)
 				rightRXSample = (qint16)(buffer.at(j).im * 32767.0f);
 			}
 
-            de->io.output_buffer[m_idx++] = leftRXSample  >> 8;
-            de->io.output_buffer[m_idx++] = leftRXSample;
-            de->io.output_buffer[m_idx++] = rightRXSample >> 8;
-            de->io.output_buffer[m_idx++] = rightRXSample;
-            de->io.output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
-            de->io.output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
-            de->io.output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
-            de->io.output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
+            de->output_buffer[m_idx++] = leftRXSample  >> 8;
+            de->output_buffer[m_idx++] = leftRXSample;
+            de->output_buffer[m_idx++] = rightRXSample >> 8;
+            de->output_buffer[m_idx++] = rightRXSample;
+            de->output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
+            de->output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
+            de->output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
+            de->output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
 
             if (tx_index >= 4096) tx_index = 0;
 
- //   qDebug() << "buffer " << de->io.output_buffer[IO_HEADER_SIZE ] << de->io.output_buffer[IO_BUFFER_SIZE - 1] ;
+ //   qDebug() << "buffer " << de->output_buffer[IO_HEADER_SIZE ] << de->output_buffer[IO_BUFFER_SIZE - 1] ;
         if (m_idx == IO_BUFFER_SIZE) {
 
                 //if (de->m_audioBuffer.length() == 1024) {
@@ -4028,28 +4078,28 @@ void DataProcessor::setAudioBuffer(int rx, const CPX &buffer, int buffersize)
 				case QSDR::Metis:
 				case QSDR::Hermes:
 
-					de->io.audioDatagram.resize(IO_BUFFER_SIZE);
-					de->io.audioDatagram = QByteArray::fromRawData((const char *)&de->io.output_buffer, IO_BUFFER_SIZE);
+					de->m_dataIO->audioDatagram.resize(IO_BUFFER_SIZE);
+					de->m_dataIO->audioDatagram = QByteArray::fromRawData((const char *)de->output_buffer, IO_BUFFER_SIZE);
 
 					//if (m_dataIOThreadRunning) {
 					//	de->m_dataIO->writeData();
 					//}
 
-                    if ( de->io.ccTx.mox ||  de->io.ccTx.ptt )
+                    if ( de->ccTx.mox ||  de->ccTx.ptt )
                     {
                         /*
-                       int val =   ((de->io.output_buffer[3]) &0xfe) >> 1;
+                       int val =   ((de->output_buffer[3]) &0xfe) >> 1;
                        qDebug() << "command" << val;
-                       qDebug() << "C[0] " << " " << bin << de->io.output_buffer[3];
-                       qDebug() << "C[1] " << " " << bin <<de->io.output_buffer[4];
-                       qDebug() << "C[2] " << " " << bin <<de->io.output_buffer[5];
-                       qDebug() << "C[3] " << " " << bin <<de->io.output_buffer[6];
+                       qDebug() << "C[0] " << " " << bin << de->output_buffer[3];
+                       qDebug() << "C[1] " << " " << bin <<de->output_buffer[4];
+                       qDebug() << "C[2] " << " " << bin <<de->output_buffer[5];
+                       qDebug() << "C[3] " << " " << bin <<de->output_buffer[6];
                        qDebug() << "\n";
                          */
 
                     }
 
-                    de->m_dataIO->sendAudio(de->io.output_buffer); //RRK
+                    de->m_dataIO->sendAudio(de->output_buffer); //RRK
 
 					writeData();
 					break;
@@ -4079,7 +4129,7 @@ void DataProcessor::setAudioBuffer_old(int rx, const CPX &buffer, int buffersize
     qint16 leftRXSample;
     qint16 rightRXSample;
 	// process the output
-	const DSPMode rxMode = set->getDSPMode(de->io.currentReceiver);
+	const DSPMode rxMode = set->getDSPMode(de->currentReceiver);
 	const bool muteAnalogRxForCodec2 = (rxMode == FDV);
     if (tx_index == 0)  get_tx_iqData();
     for (int j = 0; j < buffersize; j++) {
@@ -4091,14 +4141,14 @@ void DataProcessor::setAudioBuffer_old(int rx, const CPX &buffer, int buffersize
 			leftRXSample  = (qint16)(buffer.at(j).re * 32767.0f);
 			rightRXSample = (qint16)(buffer.at(j).im * 32767.0f);
 		}
-        de->io.output_buffer[m_idx++] = leftRXSample  >> 8;
-        de->io.output_buffer[m_idx++] = leftRXSample;
-        de->io.output_buffer[m_idx++] = rightRXSample >> 8;
-        de->io.output_buffer[m_idx++] = rightRXSample;
-        de->io.output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
-        de->io.output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
-        de->io.output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
-        de->io.output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
+        de->output_buffer[m_idx++] = leftRXSample  >> 8;
+        de->output_buffer[m_idx++] = leftRXSample;
+        de->output_buffer[m_idx++] = rightRXSample >> 8;
+        de->output_buffer[m_idx++] = rightRXSample;
+        de->output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
+        de->output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
+        de->output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
+        de->output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
 
         if (tx_index >= 4096) tx_index = 0;
 
@@ -4106,7 +4156,7 @@ void DataProcessor::setAudioBuffer_old(int rx, const CPX &buffer, int buffersize
 
 
 
-        //   qDebug() << "buffer " << de->io.output_buffer[IO_HEADER_SIZE ] << de->io.output_buffer[IO_BUFFER_SIZE - 1] ;
+        //   qDebug() << "buffer " << de->output_buffer[IO_HEADER_SIZE ] << de->output_buffer[IO_BUFFER_SIZE - 1] ;
         if (m_idx == IO_BUFFER_SIZE) {
             encodeCCBytes();
             switch (m_hwInterface) {
@@ -4114,29 +4164,29 @@ void DataProcessor::setAudioBuffer_old(int rx, const CPX &buffer, int buffersize
                 case QSDR::Metis:
                 case QSDR::Hermes:
 
-                    de->io.audioDatagram.resize(IO_BUFFER_SIZE);
-                    de->io.audioDatagram = QByteArray::fromRawData((const char *)&de->io.output_buffer, IO_BUFFER_SIZE);
+                    de->m_dataIO->audioDatagram.resize(IO_BUFFER_SIZE);
+                    de->m_dataIO->audioDatagram = QByteArray::fromRawData((const char *)de->output_buffer, IO_BUFFER_SIZE);
 
 
                     //if (m_dataIOThreadRunning) {
                     //	de->m_dataIO->writeData();
                     //}
 
-                    if ( de->io.ccTx.mox ||  de->io.ccTx.ptt )
+                    if ( de->ccTx.mox ||  de->ccTx.ptt )
                     {
                         /*
-                       int val =   ((de->io.output_buffer[3]) &0xfe) >> 1;
+                       int val =   ((de->output_buffer[3]) &0xfe) >> 1;
                        qDebug() << "command" << val;
-                       qDebug() << "C[0] " << " " << bin << de->io.output_buffer[3];
-                       qDebug() << "C[1] " << " " << bin <<de->io.output_buffer[4];
-                       qDebug() << "C[2] " << " " << bin <<de->io.output_buffer[5];
-                       qDebug() << "C[3] " << " " << bin <<de->io.output_buffer[6];
+                       qDebug() << "C[0] " << " " << bin << de->output_buffer[3];
+                       qDebug() << "C[1] " << " " << bin <<de->output_buffer[4];
+                       qDebug() << "C[2] " << " " << bin <<de->output_buffer[5];
+                       qDebug() << "C[3] " << " " << bin <<de->output_buffer[6];
                        qDebug() << "\n";
                          */
 
                     }
                     qDebug() << "audio buffer sent";
-                 //   de->m_dataIO->sendAudio(de->io.output_buffer); //RRK
+                 //   de->m_dataIO->sendAudio(de->output_buffer); //RRK
                     writeData();
                     break;
 
@@ -4174,16 +4224,16 @@ void DataProcessor::processOutputBuffer(const CPX &buffer) {
 		leftTXSample = 0;
         rightTXSample = 0;
 
-//    qDebug() << sizeof(de->io.output_buffer);
+//    qDebug() << sizeof(de->output_buffer);
 
-		de->io.output_buffer[m_idx++] = leftRXSample  >> 8;
-        de->io.output_buffer[m_idx++] = leftRXSample;
-        de->io.output_buffer[m_idx++] = rightRXSample >> 8;
-        de->io.output_buffer[m_idx++] = rightRXSample;
-        de->io.output_buffer[m_idx++] = leftTXSample  >> 8;
-        de->io.output_buffer[m_idx++] = leftTXSample;
-        de->io.output_buffer[m_idx++] = rightTXSample >> 8;
-        de->io.output_buffer[m_idx++] = rightTXSample;
+		de->output_buffer[m_idx++] = leftRXSample  >> 8;
+        de->output_buffer[m_idx++] = leftRXSample;
+        de->output_buffer[m_idx++] = rightRXSample >> 8;
+        de->output_buffer[m_idx++] = rightRXSample;
+        de->output_buffer[m_idx++] = leftTXSample  >> 8;
+        de->output_buffer[m_idx++] = leftTXSample;
+        de->output_buffer[m_idx++] = rightTXSample >> 8;
+        de->output_buffer[m_idx++] = rightTXSample;
 
 		if (m_idx == IO_BUFFER_SIZE) {
 
@@ -4200,14 +4250,14 @@ void DataProcessor::processOutputBuffer(const CPX &buffer) {
 				case QSDR::Metis:
 				case QSDR::Hermes:
 
-					de->io.audioDatagram.resize(IO_BUFFER_SIZE);
-					de->io.audioDatagram = QByteArray::fromRawData((const char *)&de->io.output_buffer, IO_BUFFER_SIZE);
+					de->m_dataIO->audioDatagram.resize(IO_BUFFER_SIZE);
+					de->m_dataIO->audioDatagram = QByteArray::fromRawData((const char *)de->output_buffer, IO_BUFFER_SIZE);
 
 					//if (m_dataIOThreadRunning) {
 					//	de->m_dataIO->writeData();
 					//}
 
-                 //   de->m_dataIO->sendAudio(de->io.output_buffer); //RRK
+                 //   de->m_dataIO->sendAudio(de->output_buffer); //RRK
                     writeData();
 					break;
 
@@ -4235,8 +4285,8 @@ void DataProcessor::encodeCCBytes() {
             // still 60 bytes.
             static unsigned char p2CmdBuf[1444];
             memset(p2CmdBuf, 0, sizeof(p2CmdBuf));
-            de->m_protocol->encodeCCBytes(p2CmdBuf, &de->io, m_sendState, port);
-            m_deviceAddress = de->io.hpsdrDeviceIPAddress;
+            de->m_protocol->encodeCCBytes(p2CmdBuf, de, de->m_radioModel, m_sendState, port);
+            m_deviceAddress = de->m_dataIO->hpsdrDeviceIPAddress;
             // Per hpsdrsim packet-length checks:
             //   port 1025 (DDC Specific) : 1444 bytes
             //   port 1026 (DUC Specific) :   60 bytes
@@ -4254,14 +4304,11 @@ void DataProcessor::encodeCCBytes() {
 					Q_ARG(QHostAddress, m_deviceAddress),
 					Q_ARG(quint16, port));
 			}
-			if (sent < 0 && de->m_controlSocket) {
-				sent = de->m_controlSocket->writeDatagram((const char*)p2CmdBuf, sendSize, m_deviceAddress, port);
-			}
 			if (sent < 0) {
-				DATA_PROCESSOR_DEBUG << "error sending control data to device";
+				DATA_PROCESSOR_DEBUG << "error sending control data to device via DataIO";
             }
         } else {
-            de->m_protocol->encodeCCBytes(de->io.output_buffer, &de->io, m_sendState, port);
+            de->m_protocol->encodeCCBytes(de->output_buffer, de, de->m_radioModel, m_sendState, port);
         }
     }
 }
@@ -4273,7 +4320,7 @@ void DataProcessor::writeData() {
     // Protocol 2: formatOutputPacket returns the complete 1444-byte DUC IQ packet.
     // Send it in a single call to port 1029; bypass the P1 two-call toggle.
     if (de->set->getCurrentMetisCard().protocol == 2) {
-        QByteArray ducPkt = de->m_protocol->formatOutputPacket(de->io.audioDatagram, m_sendSequence);
+        QByteArray ducPkt = de->m_protocol->formatOutputPacket(de->m_dataIO->audioDatagram, m_sendSequence);
         if (de->sendSocket->writeDatagram(ducPkt, m_deviceAddress, 1029) < 0) {
             DATA_PROCESSOR_DEBUG << "P2 TX: error sending DUC IQ:" << de->sendSocket->errorString();
         }
@@ -4282,11 +4329,11 @@ void DataProcessor::writeData() {
     }
 
 	if (m_setNetworkDeviceHeader) {
-        m_outDatagram = de->m_protocol->formatOutputPacket(de->io.audioDatagram, m_sendSequence);
+        m_outDatagram = de->m_protocol->formatOutputPacket(de->m_dataIO->audioDatagram, m_sendSequence);
         m_setNetworkDeviceHeader = false;
     }
 	else {
-		m_outDatagram += de->io.audioDatagram;
+		m_outDatagram += de->m_dataIO->audioDatagram;
 
         quint16 dataPort = (de->set->getCurrentMetisCard().protocol == 2) ? 1029 : DEVICE_PORT;
 
@@ -4310,11 +4357,11 @@ void 	DataEngine::setWbSpectrumAveraging(int rx, int value)
 
 
 void DataEngine::setRepeaterMode(bool mode) {
-        io.ccTx.use_repeaterOffset = mode;
+        ccTx.use_repeaterOffset = mode;
 }
 
 void DataEngine::setTxFullDuplex(bool fullDuplex) {
-    io.ccTx.duplex = fullDuplex ? 1 : 0;
+    ccTx.duplex = fullDuplex ? 1 : 0;
 
 #ifdef HAVE_SOAPYSDR
     if (m_hwInterface != QSDR::SoapySDR)
@@ -4336,7 +4383,7 @@ void DataEngine::setTxFullDuplex(bool fullDuplex) {
 
 void DataEngine::dspModeChanged(int rx, DSPMode mode){
     Q_UNUSED(rx);
-    io.ccTx.mode = mode;
+    ccTx.mode = mode;
     TX.setDSPMode(1,mode);
 }
 
@@ -4470,7 +4517,7 @@ void DataEngine::createAudioInputProcessor() {
 void DataEngine::set_tx_drivelevel(int value){
 
     qDebug() << "Drive level change" << value;
-    io.ccTx.drivelevel = value;
+    ccTx.drivelevel = value;
 
 }
 
@@ -4479,20 +4526,20 @@ void DataEngine::radioStateChange(RadioState state) {
     m_radioState = state;
 
     if ((state == RadioState::MOX) || (state == RadioState::TUNE)) {
-        io.ccTx.mox = true;
+        ccTx.mox = true;
         if (m_audioInput) {
             m_audioInput->clearTxQueues();
             m_audioInput->Start();
         }
     } else {
-        io.ccTx.mox = false;
+        ccTx.mox = false;
         if (m_audioInput) {
             m_audioInput->Stop();
             m_audioInput->clearTxQueues();
         }
 #ifdef HAVE_SOAPYSDR
-        while (!io.soapy_tx_iq_queue.isEmpty())
-            io.soapy_tx_iq_queue.dequeue();
+        while (!m_dataIO->soapy_tx_iq_queue.isEmpty())
+            m_dataIO->soapy_tx_iq_queue.dequeue();
 #endif
     }
 
@@ -4530,8 +4577,8 @@ void DataProcessor::processReadData()
 {
 #ifdef HAVE_SOAPYSDR
     if (this->m_hwInterface == QSDR::SoapySDR) {
-        while (!de->io.soapy_iq_queue.isEmpty()) {
-            QVector<float> samples = de->io.soapy_iq_queue.dequeue();
+        while (!de->m_dataIO->soapy_iq_queue.isEmpty()) {
+            QVector<float> samples = de->m_dataIO->soapy_iq_queue.dequeue();
 
             // TCI IQ is now tapped per-receiver in SliceProcessor::dspProcessingCore
             // (covers both HPSDR and SoapySDR) and delivered via a queued signal,
@@ -4541,8 +4588,8 @@ void DataProcessor::processReadData()
             if (rx < de->RX.size() && de->RX[rx]) {
                 int soapyInputRate = 0;
                 {
-                    QMutexLocker lock(&de->io.mutex);
-                    soapyInputRate = de->io.soapyInputSampleRate;
+                    QMutexLocker lock(&de->mutex);
+                    soapyInputRate = de->soapyInputSampleRate;
                 }
                 static int s_lastSoapyInputRate = 0;
                 if (soapyInputRate > 0 && soapyInputRate != s_lastSoapyInputRate) {
@@ -4562,10 +4609,10 @@ void DataProcessor::processReadData()
 
 	static quint64 p2ReadDataPackets = 0;
 	TIQPacket packet;
-    while(!de->io.iq_queue.isEmpty()) {
-	  packet = de->io.iq_queue.dequeue();
+    while(!de->m_dataIO->iq_queue.isEmpty()) {
+	  packet = de->m_dataIO->iq_queue.dequeue();
 	  const QByteArray &buf = packet.payload;
-      if (de->io.protocol && de->io.protocol->getHeaderSize() == METIS_HEADER_SIZE) {
+      if (de->m_protocol.get() && de->m_protocol.get()->getHeaderSize() == METIS_HEADER_SIZE) {
           // Protocol 1: each UDP packet carries two 512-byte frames.
           // The payload (1024 bytes) must be split and processed separately.
 		  processInputBuffer(buf.left(512), 0);
@@ -4578,7 +4625,7 @@ void DataProcessor::processReadData()
 			  DATA_PROCESSOR_DEBUG << "P2 processReadData packet=" << p2ReadDataPackets
 								   << " size=" << buf.size()
 								   << " sourcePort=" << packet.sourcePort
-								   << " iqQueueRemaining=" << de->io.iq_queue.count();
+								   << " iqQueueRemaining=" << de->m_dataIO->iq_queue.count();
 		  }
 		  processInputBuffer(buf, packet.sourcePort);
       }

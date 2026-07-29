@@ -100,7 +100,6 @@ public:
 	~DataEngine() override;
 
 	Settings*			set;
-	THPSDRParameter		io;
     RadioModel*                     m_radioModel;
 
     Transmitter         TX;
@@ -109,6 +108,44 @@ public:
 	QUdpSocket*			sendSocket{};
     QUdpSocket*         m_controlSocket{};
 	DataIO*				m_dataIO;
+
+	// Former THPSDRParameter radio/session state (queues live on DataIO)
+	uchar	control_out[5]{};
+	uchar	output_buffer[IO_BUFFER_SIZE]{};
+	QList<int> clientList;
+	QMutex mutex;
+	QString hpsdrDeviceName;
+	TCCParameterRx ccRx{};
+	TCCParameterTx ccTx{};
+	int		samplerate = 48000;
+	int		soapyInputSampleRate = 48000;
+	int		speed = 0;
+	int		metisFW = 0;
+	int		hermesFW = 0;
+	int		mercuryFW = 0;
+	int		penelopeFW = 0;
+	int		pennylaneFW = 0;
+	int		clients = 0;
+	int		receivers = 1;
+	int		currentReceiver = 0;
+	int		audio_rx = 0;
+	int		timing = 0;
+	int		rxClass = 0;
+	int		rx_freq_change = -1;
+	int		tx_freq_change = -1;
+	float	mic_gain = 1.0f;
+	qreal	penelopeForwardVolts = 0;
+	qreal	penelopeForwardPower = 0;
+	qreal	alexForwardVolts = 0;
+	qreal	alexForwardPower = 0;
+	qreal	alexReverseVolts = 0;
+	qreal	alexReversePower = 0;
+	qreal	ain3Volts = 0;
+	qreal	ain4Volts = 0;
+	qreal	supplyVolts = 0;
+	bool	rcveIQ_toggle = false;
+	bool	sendIQ_toggle = false;
+	bool	timeStamp = false;
 #ifdef HAVE_SOAPYSDR
 	SoapySDRDataSource* m_soapySDRSource;
 #endif

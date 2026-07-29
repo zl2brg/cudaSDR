@@ -3,7 +3,9 @@
 
 #include "IHPSDRProtocol.h"
 #include "protocol_boundary_utils.h"
+#include "cusdr_settings.h"
 #include <QtEndian>
+#include <QMap>
 
 class CProtocol2 : public IHPSDRProtocol {
 public:
@@ -15,11 +17,11 @@ public:
     int getPacketType(const unsigned char* data) override;
 
     void processInputBuffer(const QByteArray& buffer, DataEngine* de, quint16 sourcePort) override;
-    void decodeCCBytes(const QByteArray& buffer, THPSDRParameter* io) override;
-    void encodeCCBytes(unsigned char* buffer, THPSDRParameter* io, int& sendState, quint16& port) override;
+    void decodeCCBytes(const QByteArray& buffer, DataEngine* de) override;
+    void encodeCCBytes(unsigned char* buffer, DataEngine* de, RadioModel* radioModel, int& sendState, quint16& port) override;
 
     QByteArray formatStartStop(char value, quint16& port) override;
-    QByteArray formatInitFrame(int rx, THPSDRParameter* io, quint16& port) override;
+    QByteArray formatInitFrame(int rx, DataEngine* de, RadioModel* radioModel, quint16& port) override;
     QByteArray formatOutputPacket(const QByteArray& audioData, uint32_t& sequence) override;
 
     int getPayloadSize() override { return 1428; } // 1444-byte DDC packet minus 16-byte header

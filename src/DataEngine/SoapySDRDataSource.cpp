@@ -11,6 +11,7 @@
 #include <QDebug>
 #include <QMutexLocker>
 #include <SoapySDR/Errors.hpp>
+#include "cusdr_dataEngine.h"
 #include <algorithm>
 #include <cmath>
 #include <complex>
@@ -391,10 +392,10 @@ bool SoapySDRDataSource::restartTxStream() {
     }
 }
 
-SoapySDRDataSource::SoapySDRDataSource(THPSDRParameter *ioData)
+SoapySDRDataSource::SoapySDRDataSource(DataEngine *engine)
     : QObject(nullptr)
     , set(Settings::instance())
-    , io(ioData)
+    , m_engine(engine)
     , m_device(nullptr)
     , m_rxStream(nullptr)
     , m_txStream(nullptr)
@@ -513,9 +514,9 @@ void SoapySDRDataSource::init() {
         setupResamplers(m_rfSampleRate, m_sampleRate, m_txSampleRate, kTxIqSampleRate);
 
         {
-            QMutexLocker lock(&io->mutex);
+            QMutexLocker lock(&m_engine->mutex);
             // Resampler will output exactly at the DSP rate
-            io->soapyInputSampleRate = m_sampleRate;
+            m_engine->soapyInputSampleRate = m_sampleRate;
         }
 
         // Publish hardware key to Settings so the UI can show appropriate controls
@@ -847,8 +848,8 @@ void SoapySDRDataSource::configureTxSampleRate() {
 }
 
 void SoapySDRDataSource::drainSoapyTxIqQueue() {
-    while (!io->soapy_tx_iq_queue.isEmpty()) {
-        const QVector<float> block = io->soapy_tx_iq_queue.dequeue();
+    while (!m_engine->m_dataIO->soapy_tx_iq_queue.isEmpty()) {
+        const QVector<float> block = m_engine->m_dataIO->soapy_tx_iq_queue.dequeue();
         QMutexLocker lock(&m_txIqMutex);
 
         if (m_txInterp1 && m_txInterp2 && m_txInterpInterBuf && m_txResampOut) {
@@ -973,8 +974,8 @@ void SoapySDRDataSource::runStream() {
                 setupResamplers(m_rfSampleRate, m_sampleRate, m_txSampleRate, kTxIqSampleRate);
 
                 {
-                    QMutexLocker lock(&io->mutex);
-                    io->soapyInputSampleRate = m_sampleRate;
+                    QMutexLocker lock(&m_engine->mutex);
+                    m_engine->soapyInputSampleRate = m_sampleRate;
                 }
                 applyBandwidthForRfRate(m_rfSampleRate);
                 if (m_rxDecim1) { firdecim_crcf_reset(m_rxDecim1); m_rxDecimSurplus1.clear(); }
@@ -1016,8 +1017,8 @@ void SoapySDRDataSource::runStream() {
                     if (m_txInterp2) firinterp_crcf_reset(m_txInterp2);
                     if (m_txResampler) msresamp_crcf_reset(m_txResampler);
                     {
-                        QMutexLocker lock(&io->mutex);
-                        io->soapyInputSampleRate = m_sampleRate;
+                        QMutexLocker lock(&m_engine->mutex);
+                        m_engine->soapyInputSampleRate = m_sampleRate;
                     }
                     applyBandwidthForRfRate(m_rfSampleRate);
                     publishWidebandFrequencyRange();
@@ -1102,7 +1103,7 @@ void SoapySDRDataSource::runStream() {
                         if (!halfDuplexTx) {
                             QVector<float> out(numSamples * 2);
                             std::copy(outBuff.begin(), outBuff.end(), out.begin());
-                            io->soapy_iq_queue.enqueue(out);
+                            m_engine->m_dataIO->soapy_iq_queue.enqueue(out);
                             emit readydata();
                         }
                         outFill = 0;
@@ -1167,7 +1168,7 @@ void SoapySDRDataSource::runStream() {
                 }
 
                 const RadioState currentState = static_cast<RadioState>(m_radioStateValue.load(std::memory_order_acquire));
-                const int txQueueDepth = io->soapy_tx_iq_queue.count();
+                const int txQueueDepth = m_engine->m_dataIO->soapy_tx_iq_queue.count();
                 bool txReady = false;
                 if (currentState == RadioState::TUNE) {
                     const float phaseStep = 2.0f * static_cast<float>(M_PI) * 1000.0f

@@ -19,11 +19,13 @@
 #include "cusdr_settings.h"
 #include "Util/cusdr_queue.h"
 
+class DataEngine;
+
 class SoapySDRDataSource : public QObject {
     Q_OBJECT
 
 public:
-    explicit SoapySDRDataSource(THPSDRParameter *ioData);
+    explicit SoapySDRDataSource(DataEngine *engine);
     ~SoapySDRDataSource();
 
 public slots:
@@ -62,7 +64,7 @@ private:
     void setupResamplers(int rxRfRate, int rxDspRate, int txRfRate, int txDspRate);
 
     Settings* set;
-    THPSDRParameter* io;
+    DataEngine* m_engine;
     SoapySDR::Device* m_device;
     SoapySDR::Stream* m_rxStream;
     SoapySDR::Stream* m_txStream;

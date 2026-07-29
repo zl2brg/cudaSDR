@@ -41,6 +41,8 @@
 
 #include "cusdr_settings.h"
 
+class DataIO;
+
 #ifdef LOG_DISCOVERER
 #   define DISCOVERER_DEBUG qDebug().nospace() << "Discoverer::\t"
 #else
@@ -53,7 +55,7 @@ class Discoverer : public QObject {
     Q_OBJECT
 
 public:
-    Discoverer(THPSDRParameter *ioData = 0);
+    Discoverer(DataIO *dataIO = nullptr);
     ~Discoverer();
 
 	int		findHPSDRDevices();
@@ -70,7 +72,7 @@ private slots:
 
 private:
 	Settings*			set;
-	THPSDRParameter*	io;
+	DataIO* m_dataIO;
     QElapsedTimer   	m_searchTime;
 	
 	QByteArray		m_findDatagram;
