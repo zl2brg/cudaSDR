@@ -205,7 +205,7 @@ void ConfigJsonTests::testAudioConfigJson() {
     config.setDigitalInputSourceName(QStringLiteral("InputDig"));
     config.setMicGain(15.5);
     config.setDriveLevel(50);
-    config.setFmPreemphasis(1);
+    config.setFmPreemphasis(2);
     config.setAmCarrierLevel(0.8);
     config.setAudioCompression(1);
     config.setFmDeviation(4500.0);
@@ -234,7 +234,7 @@ void ConfigJsonTests::testAudioConfigJson() {
     QCOMPARE(json["digitalInputSourceName"].toString(), QStringLiteral("InputDig"));
     QCOMPARE(json["micGain"].toDouble(), 15.5);
     QCOMPARE(json["driveLevel"].toInt(), 50);
-    QCOMPARE(json["fmPreemphasis"].toInt(), 1);
+    QCOMPARE(json["fmPreemphasis"].toInt(), 2);
     QCOMPARE(json["amCarrierLevel"].toDouble(), 0.8);
     QCOMPARE(json["audioCompression"].toInt(), 1);
     QCOMPARE(json["fmDeviation"].toDouble(), 4500.0);
@@ -250,7 +250,7 @@ void ConfigJsonTests::testAudioConfigJson() {
     QCOMPARE(config2.digitalInputSourceName(), QStringLiteral("InputDig"));
     QCOMPARE(config2.micGain(), 15.5);
     QCOMPARE(config2.driveLevel(), 50);
-    QCOMPARE(config2.fmPreemphasis(), 1);
+    QCOMPARE(config2.fmPreemphasis(), 2);
     QCOMPARE(config2.amCarrierLevel(), 0.8);
     QCOMPARE(config2.audioCompression(), 1);
     QCOMPARE(config2.fmDeviation(), 4500.0);

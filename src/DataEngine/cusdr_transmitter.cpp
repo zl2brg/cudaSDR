@@ -90,6 +90,9 @@ void Transmitter::setupConnections() {
     connect(set, &Settings::fmdeveationchanged,
             this, &Transmitter::set_fm_deviation);
 
+    connect(set, &Settings::fmPremphasizechanged,
+            this, [this](double) { applyFmPreEmphasis(); });
+
     connect(set, &Settings::amCarrierlevelchanged,
             this, &Transmitter::transmitter_set_am_carrier_level);
 
@@ -105,7 +108,8 @@ void Transmitter::setupConnections() {
 bool  Transmitter::create_transmitter(int id, int buffer_size, int fft_size, int fps, int width, int height) {
 
     int protocol = ORIGINAL_PROTOCOL;
-    int pre_emphasize =0;
+    // Position 0 = pre-emphasis before FM modulator (WDSP default path).
+    int pre_emphasize = 0;
     int enable_tx_equalizer = 0;
     this->id = id;
     this->dac=0;
@@ -230,6 +234,7 @@ bool  Transmitter::create_transmitter(int id, int buffer_size, int fft_size, int
     SetTXABandpassRun(this->id, 1);
 
     SetTXAFMEmphPosition(this->id,pre_emphasize);
+    applyFmPreEmphasis();
 
     SetTXACFIRRun(this->id, protocol==NEW_PROTOCOL?1:0); // turned on if new protocol
     if(enable_tx_equalizer) {
@@ -239,7 +244,10 @@ bool  Transmitter::create_transmitter(int id, int buffer_size, int fft_size, int
         SetTXAEQRun(this->id, 0);
     }
 
- //   transmitter_set_ctcss(this->id,this->ctcss,this->ctcss_frequency);
+    // WDSP defaults CTCSS ON at 100 Hz / 0.10 — that is the FM TX buzz/subcarrier.
+    // Honor ctcss=0 (off) until the UI is wired.
+    SetTXACTCSSFreq(this->id, this->ctcss_frequency);
+    SetTXACTCSSRun(this->id, this->ctcss ? 1 : 0);
     SetTXAAMSQRun(this->id, 0);
     SetTXAosctrlRun(this->id, 0);
 
@@ -287,6 +295,7 @@ void Transmitter::setDSPMode(int id, DSPMode dspMode) {
     const DSPMode wdspMode = resolveWDSPMode(mode, set->getCtrFrequency(set->getCurrentReceiver()));
     TRANSMITTER_DEBUG << "[TX] DSP mode set to" << dspMode << "(WDSP:" << wdspMode << ")";
     SetTXAMode(this->id, wdspMode);
+    applyFmPreEmphasis(); // SetTXAMode forces pre-emph on for FM; honor user setting.
     auto filter = getFilterFromDSPMode(set->getDefaultFilterList(), wdspMode);
     tx_set_filter(filter.filterLo, filter.filterHi);
 }
@@ -301,6 +310,14 @@ void Transmitter::set_fm_deviation(double level) {
 
 }
 
+void Transmitter::applyFmPreEmphasis()
+{
+    // WDSP SetTXAMode(FM) forces preemph.run=1; re-apply user preference after mode changes.
+    const int run = (set->getFMpreemphesis() != 0.0) ? 1 : 0;
+    SetTXAFMEmphRun(this->id, run);
+    TRANSMITTER_DEBUG << "FM pre-emphasis " << (run ? "on" : "off");
+}
+
 void Transmitter::setRadioState(RadioState state)
 {
     switch(state) {
@@ -311,6 +328,7 @@ void Transmitter::setRadioState(RadioState state)
         tx_set_filter(filter.filterLo, filter.filterHi);
         SetTXAPostGenRun(this->id, 0);
         SetTXAMode(this->id, wdspMode);
+        applyFmPreEmphasis();
         SetTXAPanelGain1(this->id, micSliderToPanelGain(mic_gain));
         SetTXAPanelRun(this->id, 1);
         SetTXABandpassWindow(this->id, 1);
@@ -330,6 +348,7 @@ void Transmitter::setRadioState(RadioState state)
         SetTXAPostGenMode(this->id, 0);
         SetTXAPostGenRun(this->id, 1);
         SetTXAMode(this->id, wdspModeTune);
+        applyFmPreEmphasis();
         SetTXAPanelGain1(this->id, micSliderToPanelGain(mic_gain));
         SetTXAPanelRun(this->id, 1);
         SetTXABandpassWindow(this->id, 1);

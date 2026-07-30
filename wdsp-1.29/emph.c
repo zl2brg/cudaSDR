@@ -110,6 +110,13 @@ void SetTXAFMEmphPosition (int channel, int position) {
 }
 
 PORT
+void SetTXAFMEmphRun (int channel, int run) {
+  EnterCriticalSection (&ch[channel].csDSP);
+  txa[channel].preemph.p->run = run ? 1 : 0;
+  LeaveCriticalSection (&ch[channel].csDSP);
+}
+
+PORT
 void SetTXAFMEmphMP (int channel, int mp) {
   EMPHP a;
   a = txa[channel].preemph.p;

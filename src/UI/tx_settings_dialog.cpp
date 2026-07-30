@@ -78,6 +78,7 @@ tx_settings_dialog::tx_settings_dialog(QWidget *parent) :
     connect(ui->fm_deviation, &QSpinBox::valueChanged, this, [this](int val) {
         emit fmDeviationRequested(val * 1000);
     });
+    connect(ui->fmPre, &QCheckBox::toggled, this, &tx_settings_dialog::fmPreEmphasisRequested);
     connect(ui->KeyerMode, &QComboBox::currentIndexChanged, this, &tx_settings_dialog::cwKeyerModeRequested);
     connect(ui->internal_keyer, &QCheckBox::stateChanged, this, [this](int state) {
         emit internalCwRequested(state == Qt::Checked);
@@ -136,6 +137,12 @@ void tx_settings_dialog::setFmDeviation(int dev)
 {
     const QSignalBlocker blocker(ui->fm_deviation);
     ui->fm_deviation->setValue(dev / 1000);
+}
+
+void tx_settings_dialog::setFmPreEmphasis(bool enabled)
+{
+    const QSignalBlocker blocker(ui->fmPre);
+    ui->fmPre->setChecked(enabled);
 }
 
 void tx_settings_dialog::setCwSidetoneFreq(int freq)

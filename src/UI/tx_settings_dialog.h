@@ -28,6 +28,7 @@ public:
     void setAmCarrierLevel(double level);
     void setAudioCompression(double compression);
     void setFmDeviation(int dev);
+    void setFmPreEmphasis(bool enabled);
     void setCwSidetoneFreq(int freq);
     void setCwSidetoneVolume(int vol);
     void setCwHangTime(int time);
@@ -53,6 +54,7 @@ signals:
     void audioCompressionRequested(int val);
     void amCarrierLevelRequested(int val);
     void fmDeviationRequested(int val);
+    void fmPreEmphasisRequested(bool enabled);
     void cwKeyerModeRequested(int val);
     void internalCwRequested(bool val);
     void cwKeyReversedRequested(bool val);

@@ -11,7 +11,7 @@ AudioConfig::AudioConfig(QObject *parent)
     , m_digitalInputSourceName("")
     , m_micGain(10.0)
     , m_driveLevel(100)
-    , m_fmPreemphasis(0)
+    , m_fmPreemphasis(1)
     , m_amCarrierLevel(0.5)
     , m_audioCompression(0)
     , m_fmDeviation(5000.0)
@@ -156,7 +156,7 @@ void AudioConfig::loadIni(QSettings *settings) {
     setMicGain(settings->value("micGain", 0).toDouble());
     setDriveLevel(SettingsUtils::clampDriveLevel(settings->value("driveLevel", 0).toInt()));
 
-    setFmPreemphasis(settings->value("fm_preemphesize", 0).toInt());
+    setFmPreemphasis(settings->value("fm_preemphesize", 1).toInt());
     setAmCarrierLevel(settings->value("am_carrierlevel", 0.5).toDouble());
     setAudioCompression(settings->value("audiocompression", 0).toInt());
     setFmDeviation(settings->value("fmdeveation", 5000.0).toDouble());

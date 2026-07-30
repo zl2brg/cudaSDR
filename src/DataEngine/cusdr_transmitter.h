@@ -51,6 +51,7 @@ private:
     bool create_transmitter(int id, int buffer_size, int fft_size, int fps, int width, int height);
     void init_analyser(int id);
     void tx_set_filter(double low, double high);
+    void applyFmPreEmphasis();
     long get_CtrFrequency(long rx_frequency, long repeater_offset, bool repeater_mode);
 
     double cw_shape_buffer48[BUFFER_SIZE];

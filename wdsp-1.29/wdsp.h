@@ -460,10 +460,10 @@ extern void SetRXAEMNRtrainT2(int channel, double t2);
 //
 
 extern void SetTXAFMEmphPosition (int channel, int position);
+extern void SetTXAFMEmphRun (int channel, int run);
 extern void SetTXAFMEmphMP (int channel, int mp);
 extern void SetTXAFMEmphNC (int channel, int nc);
 extern void SetTXAFMPreEmphFreqs (int channel, double low, double high);
-extern void SetTXAFMEmphPosition (int channel, int position);
 
 //
 // Interfaces from eq.c
