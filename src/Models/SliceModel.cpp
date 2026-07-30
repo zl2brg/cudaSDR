@@ -5,10 +5,96 @@ SliceModel::SliceModel(int id, QObject *parent)
 {
 }
 
+void SliceModel::writeThroughActiveSlot(qint64 freq)
+{
+    if (m_activeVfo == VfoA) {
+        if (m_vfoAFrequency == freq)
+            return;
+        m_vfoAFrequency = freq;
+        emit vfoAFrequencyChanged(m_vfoAFrequency);
+    } else {
+        if (m_vfoBFrequency == freq)
+            return;
+        m_vfoBFrequency = freq;
+        emit vfoBFrequencyChanged(m_vfoBFrequency);
+    }
+}
+
 void SliceModel::setFrequency(qint64 freq) {
+    writeThroughActiveSlot(freq);
     if (m_frequency == freq) return;
     m_frequency = freq;
     emit frequencyChanged(m_frequency);
+}
+
+void SliceModel::setVfoAFrequency(qint64 freq) {
+    if (m_vfoAFrequency != freq) {
+        m_vfoAFrequency = freq;
+        emit vfoAFrequencyChanged(m_vfoAFrequency);
+    }
+    if (m_activeVfo == VfoA)
+        setFrequency(freq);
+}
+
+void SliceModel::setVfoBFrequency(qint64 freq) {
+    if (m_vfoBFrequency != freq) {
+        m_vfoBFrequency = freq;
+        emit vfoBFrequencyChanged(m_vfoBFrequency);
+    }
+    if (m_activeVfo == VfoB)
+        setFrequency(freq);
+}
+
+void SliceModel::setActiveVfo(ActiveVfo vfo) {
+    if (m_activeVfo == vfo)
+        return;
+    m_activeVfo = vfo;
+    emit activeVfoChanged(m_activeVfo);
+    const qint64 target = (m_activeVfo == VfoA) ? m_vfoAFrequency : m_vfoBFrequency;
+    setFrequency(target);
+}
+
+void SliceModel::copyAtoB() {
+    setVfoBFrequency(m_vfoAFrequency);
+}
+
+void SliceModel::copyBtoA() {
+    setVfoAFrequency(m_vfoBFrequency);
+}
+
+void SliceModel::swapVfos() {
+    const qint64 a = m_vfoAFrequency;
+    const qint64 b = m_vfoBFrequency;
+    if (a == b) {
+        // Still refresh live dial from the active slot (no-op if unchanged).
+        setFrequency((m_activeVfo == VfoA) ? m_vfoAFrequency : m_vfoBFrequency);
+        return;
+    }
+    m_vfoAFrequency = b;
+    m_vfoBFrequency = a;
+    emit vfoAFrequencyChanged(m_vfoAFrequency);
+    emit vfoBFrequencyChanged(m_vfoBFrequency);
+    setFrequency((m_activeVfo == VfoA) ? m_vfoAFrequency : m_vfoBFrequency);
+}
+
+void SliceModel::setVfoMemories(qint64 vfoA, qint64 vfoB, ActiveVfo active) {
+    if (m_vfoAFrequency != vfoA) {
+        m_vfoAFrequency = vfoA;
+        emit vfoAFrequencyChanged(m_vfoAFrequency);
+    }
+    if (m_vfoBFrequency != vfoB) {
+        m_vfoBFrequency = vfoB;
+        emit vfoBFrequencyChanged(m_vfoBFrequency);
+    }
+    if (m_activeVfo != active) {
+        m_activeVfo = active;
+        emit activeVfoChanged(m_activeVfo);
+    }
+    const qint64 target = (m_activeVfo == VfoA) ? m_vfoAFrequency : m_vfoBFrequency;
+    if (m_frequency != target) {
+        m_frequency = target;
+        emit frequencyChanged(m_frequency);
+    }
 }
 
 void SliceModel::setCenterFrequency(qint64 freq) {

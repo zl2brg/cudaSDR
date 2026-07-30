@@ -183,6 +183,8 @@ set(SOURCES
     ${SRC_DIR}/Util/cusdr_painter.cpp
     ${SRC_DIR}/Util/cusdr_rigctlserver.cpp
     ${SRC_DIR}/Util/cusdr_tciserver.cpp
+    ${SRC_DIR}/Util/TciRoutingState.cpp
+    ${SRC_DIR}/Util/TciCommandHandler.cpp
     ${SRC_DIR}/Util/AudioDeviceService.cpp
 
     # Main Widget Classes
@@ -277,6 +279,8 @@ set(HEADERS
     ${SRC_DIR}/Util/cusdr_painter.h
     ${SRC_DIR}/Util/cusdr_rigctlserver.h
     ${SRC_DIR}/Util/cusdr_tciserver.h
+    ${SRC_DIR}/Util/TciRoutingState.h
+    ${SRC_DIR}/Util/TciCommandHandler.h
     ${SRC_DIR}/Util/AudioDeviceService.h
 
     # Main Headers
@@ -493,6 +497,20 @@ if(BUILD_TESTING)
     )
     add_test(NAME tci_protocol_utils_tests COMMAND tci_protocol_utils_tests)
 
+    qt_add_executable(tci_routing_tests
+        tests/tci_routing_tests.cpp
+        ${SRC_DIR}/Util/TciRoutingState.cpp
+        ${SRC_DIR}/Util/TciCommandHandler.cpp
+    )
+    target_include_directories(tci_routing_tests PRIVATE
+        ${SRC_DIR}
+    )
+    target_link_libraries(tci_routing_tests PRIVATE
+        Qt6::Core
+        Qt6::Test
+    )
+    add_test(NAME tci_routing_tests COMMAND tci_routing_tests)
+
     qt_add_executable(display_utils_tests
         tests/display_utils_tests.cpp
     )
@@ -584,6 +602,8 @@ if(BUILD_TESTING)
     qt_add_executable(tci_server_ws_tests
         tests/tci_server_ws_tests.cpp
         ${SRC_DIR}/Util/cusdr_tciserver.cpp
+        ${SRC_DIR}/Util/TciRoutingState.cpp
+        ${SRC_DIR}/Util/TciCommandHandler.cpp
         ${CUDASDR_SETTINGS_TEST_SOURCES}
     )
     target_include_directories(tci_server_ws_tests PRIVATE

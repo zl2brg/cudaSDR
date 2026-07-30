@@ -19,6 +19,7 @@
 #include <QTableWidget>
 #include <QGridLayout>
 #include <QCheckBox>
+#include <QSlider>
 
 #include "Util/cusdr_buttons.h"
 
@@ -34,6 +35,9 @@ public:
 	void	setServerNIC(int index);
 	void	setTciServerEnabled(bool enabled);
 	void	setTciServerPort(quint16 port);
+	void	setTciConnectionStatus(const QString &status);
+	void	setTciRxGain(float gain);
+	void	setTciTxGain(float gain);
 	void	setPorts(quint16 serverPort, quint16 listenPort, quint16 audioPort);
 	void	addNICChangedConnection();
 
@@ -41,6 +45,8 @@ signals:
 	// MVC Signals
 	void	serverNICRequested(int index);
 	void	tciServerEnabledRequested(bool enabled);
+	void	tciRxGainRequested(float gain);
+	void	tciTxGainRequested(float gain);
 
 	void	showEvent();
 	void	closeEvent();
@@ -66,6 +72,11 @@ private:
 	QGroupBox		*serverNIGroupBox;
 
 	QCheckBox		*tciEnableCheckBox;
+	QLabel			*tciStatusLabel;
+	QSlider			*tciRxGainSlider;
+	QSlider			*tciTxGainSlider;
+	QLabel			*tciRxGainValueLabel;
+	QLabel			*tciTxGainValueLabel;
 
 	QGridLayout		*portGridBox;
 	QComboBox		*serverNetworkInterfaces;
@@ -91,10 +102,13 @@ private:
 
 	void	createServerNIGroup();
 	void	setupConnections();
+	void	updateGainValueLabel(QLabel *label, int percent);
 
 private slots:
 	void	serverNICIndexChanged(int index);
 	void	tciEnabledToggled(bool enabled);
+	void	tciRxGainSliderChanged(int value);
+	void	tciTxGainSliderChanged(int value);
 };
 
 #endif // _CUSDR_SERVER_WIDGET_H

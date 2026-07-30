@@ -8,8 +8,18 @@
 class SliceModel : public QObject {
     Q_OBJECT
 
+public:
+    enum ActiveVfo {
+        VfoA = 0,
+        VfoB = 1
+    };
+    Q_ENUM(ActiveVfo)
+
     Q_PROPERTY(int id READ id CONSTANT)
     Q_PROPERTY(qint64 frequency READ frequency WRITE setFrequency NOTIFY frequencyChanged)
+    Q_PROPERTY(qint64 vfoAFrequency READ vfoAFrequency WRITE setVfoAFrequency NOTIFY vfoAFrequencyChanged)
+    Q_PROPERTY(qint64 vfoBFrequency READ vfoBFrequency WRITE setVfoBFrequency NOTIFY vfoBFrequencyChanged)
+    Q_PROPERTY(ActiveVfo activeVfo READ activeVfo WRITE setActiveVfo NOTIFY activeVfoChanged)
     Q_PROPERTY(qint64 centerFrequency READ centerFrequency WRITE setCenterFrequency NOTIFY centerFrequencyChanged)
     Q_PROPERTY(DSPMode dspMode READ dspMode WRITE setDspMode NOTIFY dspModeChanged)
     Q_PROPERTY(float filterLow READ filterLow WRITE setFilterLow NOTIFY filterChanged)
@@ -57,6 +67,22 @@ public:
 
     qint64 frequency() const { return m_frequency; }
     void setFrequency(qint64 freq);
+
+    qint64 vfoAFrequency() const { return m_vfoAFrequency; }
+    void setVfoAFrequency(qint64 freq);
+
+    qint64 vfoBFrequency() const { return m_vfoBFrequency; }
+    void setVfoBFrequency(qint64 freq);
+
+    ActiveVfo activeVfo() const { return m_activeVfo; }
+    void setActiveVfo(ActiveVfo vfo);
+
+    void copyAtoB();
+    void copyBtoA();
+    void swapVfos();
+
+    /** Load A/B/active without intermediate dial side-effects; live frequency follows active. */
+    void setVfoMemories(qint64 vfoA, qint64 vfoB, ActiveVfo active);
 
     qint64 centerFrequency() const { return m_centerFrequency; }
     void setCenterFrequency(qint64 freq);
@@ -177,6 +203,9 @@ public:
 
 signals:
     void frequencyChanged(qint64 freq);
+    void vfoAFrequencyChanged(qint64 freq);
+    void vfoBFrequencyChanged(qint64 freq);
+    void activeVfoChanged(ActiveVfo vfo);
     void centerFrequencyChanged(qint64 freq);
     void dspModeChanged(DSPMode mode);
     void filterChanged();
@@ -215,8 +244,13 @@ signals:
     void activeChanged(bool active);
 
 private:
+    void writeThroughActiveSlot(qint64 freq);
+
     int m_id;
     qint64 m_frequency = 7000000;
+    qint64 m_vfoAFrequency = 7000000;
+    qint64 m_vfoBFrequency = 7000000;
+    ActiveVfo m_activeVfo = VfoA;
     qint64 m_centerFrequency = 7000000;
     DSPMode m_dspMode = LSB;
     float m_filterLow = -3050.0f;

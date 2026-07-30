@@ -7,6 +7,7 @@
 #include "Util/tci_protocol_utils.h"
 #include "Models/RadioModel.h"
 #include "Models/RadioTelemetry.h"
+#include "Models/SliceModel.h"
 #include "cusdr_settings.h"
 
 using namespace TciProtocol;
@@ -43,6 +44,12 @@ private slots:
     void dataEngineStateChangeBroadcastsStartStop();
     void txSensorsBroadcastPowerAndSwrWhileTx();
     void txPowerSwrQueryReturnsCachedValues();
+    void vfoBAllocatesSpareSlice();
+    void vfoBStoresOnRxSliceMemory();
+    void splitEnableUsesVfoBForTxFrequency();
+    void splitFalseNoOpPreservesVfoB();
+    void activeVfoCommandSwitchesDialAndBroadcasts();
+    void localActiveVfoSwitchBroadcastsToClients();
 
 private:
     Settings *m_settings = nullptr;
@@ -67,6 +74,8 @@ void TciServerWsTests::initTestCase()
     m_settings->setDSPMode(0, USB);
 
     m_radioModel = new RadioModel(m_settings);
+    for (int i = 0; i < 8; ++i)
+        m_radioModel->addSlice(new SliceModel(i, m_radioModel));
     m_settings->setRadioModel(m_radioModel);
 
     m_server = new TciServer();
@@ -146,6 +155,7 @@ void TciServerWsTests::connectReceivesReadyBurst()
 {
     QVERIFY(m_textMessages.join('|').contains(QStringLiteral("device:cudaSDR")));
     QVERIFY(m_textMessages.join('|').contains(QStringLiteral("protocol:ExpertSDR3,1.5")));
+    QVERIFY(m_textMessages.join('|').contains(QStringLiteral("channels_count:2")));
     QVERIFY(m_textMessages.join('|').contains(QStringLiteral("audio_samplerate:48000")));
     QVERIFY(m_textMessages.join('|').contains(QStringLiteral("ready;")));
     // Engine is down in the unit-test fixture → honest stop; (not start;).
@@ -630,6 +640,127 @@ void TciServerWsTests::txPowerSwrQueryReturnsCachedValues()
     QVERIFY2(waitForMessageContaining(QStringLiteral("tx_sensors:0,0.0,8.3,8.3,1.25;"))
                  || waitForMessageContaining(QStringLiteral("tx_sensors:0,0.0,8.2,8.2,1.25;")),
              qPrintable(m_textMessages.join('|')));
+}
+
+void TciServerWsTests::vfoBAllocatesSpareSlice()
+{
+    const qint64 vfoB = 7'074'000;
+    m_textMessages.clear();
+    m_client.sendTextMessage(QStringLiteral("VFO:0,1,%1;").arg(vfoB));
+    QVERIFY2(waitForMessageContaining(QStringLiteral("vfo:0,1,%1").arg(vfoB)),
+             qPrintable(m_textMessages.join('|')));
+    QVERIFY(m_radioModel->slices().size() >= 2);
+    QCOMPARE(m_radioModel->slices().at(1)->frequency(), vfoB);
+    QCOMPARE(m_radioModel->slices().at(0)->vfoBFrequency(), vfoB);
+    // Without split, TX still follows VFO-A.
+    QCOMPARE(m_radioModel->txSliceIndex(), -1);
+}
+
+void TciServerWsTests::vfoBStoresOnRxSliceMemory()
+{
+    const qint64 vfoA = m_baselineVfoHz;
+    const qint64 vfoB = 10'136'000;
+    m_client.sendTextMessage(QStringLiteral("VFO:0,0,%1;").arg(vfoA));
+    QVERIFY(QTest::qWaitFor([this, vfoA]() {
+        return m_radioModel->slices().at(0)->vfoAFrequency() == vfoA;
+    }, 3000));
+    m_client.sendTextMessage(QStringLiteral("VFO:0,1,%1;").arg(vfoB));
+    QVERIFY(QTest::qWaitFor([this, vfoB]() {
+        return m_radioModel->slices().at(0)->vfoBFrequency() == vfoB;
+    }, 3000));
+    QCOMPARE(m_radioModel->slices().at(0)->vfoAFrequency(), vfoA);
+    QCOMPARE(m_radioModel->slices().at(0)->activeVfo(), SliceModel::VfoA);
+    QCOMPARE(m_settings->getVfoFrequency(0), vfoA);
+}
+
+void TciServerWsTests::splitEnableUsesVfoBForTxFrequency()
+{
+    const qint64 vfoA = m_baselineVfoHz;
+    const qint64 vfoB = 14'074'000;
+    m_client.sendTextMessage(QStringLiteral("VFO:0,0,%1;").arg(vfoA));
+    QVERIFY(QTest::qWaitFor([this, vfoA]() {
+        return m_settings->getVfoFrequency(0) == vfoA;
+    }, 3000));
+    m_client.sendTextMessage(QStringLiteral("VFO:0,1,%1;").arg(vfoB));
+    QVERIFY(QTest::qWaitFor([this, vfoB]() {
+        return m_radioModel->slices().at(1)->frequency() == vfoB;
+    }, 3000));
+
+    m_textMessages.clear();
+    m_client.sendTextMessage(QStringLiteral("SPLIT_ENABLE:0,true;"));
+    QVERIFY2(waitForMessageContaining(QStringLiteral("split_enable:0,true;")),
+             qPrintable(m_textMessages.join('|')));
+    QCOMPARE(m_radioModel->txSliceIndex(), 1);
+    QCOMPARE(m_radioModel->effectiveTxFrequency(), vfoB);
+
+    m_client.sendTextMessage(QStringLiteral("TRX:0,true;"));
+    QVERIFY(QTest::qWaitFor([this]() { return m_settings->getRadioState() == RadioState::MOX; }, 3000));
+    QCOMPARE(m_radioModel->effectiveTxFrequency(), vfoB);
+    m_client.sendTextMessage(QStringLiteral("TRX:0,false;"));
+    QVERIFY(QTest::qWaitFor([this]() { return m_settings->getRadioState() == RadioState::RX; }, 3000));
+}
+
+void TciServerWsTests::splitFalseNoOpPreservesVfoB()
+{
+    const qint64 vfoB = 10'136'000;
+    m_client.sendTextMessage(QStringLiteral("VFO:0,1,%1;").arg(vfoB));
+    QVERIFY(QTest::qWaitFor([this, vfoB]() {
+        return m_radioModel->slices().at(1)->frequency() == vfoB;
+    }, 3000));
+
+    // WSJT-X sends a steady false before programming VFO-B — must not wipe it.
+    m_client.sendTextMessage(QStringLiteral("SPLIT_ENABLE:0,false;"));
+    QTest::qWait(100);
+    QCOMPARE(m_radioModel->slices().at(1)->frequency(), vfoB);
+}
+
+void TciServerWsTests::activeVfoCommandSwitchesDialAndBroadcasts()
+{
+    const qint64 vfoB = 10'136'000;
+    m_client.sendTextMessage(QStringLiteral("VFO:0,0,%1;").arg(m_baselineVfoHz));
+    QVERIFY(QTest::qWaitFor([this]() {
+        return m_radioModel->slices().at(0)->vfoAFrequency() == m_baselineVfoHz
+               && m_radioModel->slices().at(0)->activeVfo() == SliceModel::VfoA;
+    }, 3000));
+    m_client.sendTextMessage(QStringLiteral("VFO:0,1,%1;").arg(vfoB));
+    QVERIFY(QTest::qWaitFor([this, vfoB]() {
+        return m_radioModel->slices().at(0)->vfoBFrequency() == vfoB;
+    }, 3000));
+
+    m_textMessages.clear();
+    m_client.sendTextMessage(QStringLiteral("ACTIVE_VFO:0,1;"));
+    QVERIFY2(waitForMessageContaining(QStringLiteral("active_vfo:0,1")),
+             qPrintable(m_textMessages.join('|')));
+    QCOMPARE(m_radioModel->slices().at(0)->activeVfo(), SliceModel::VfoB);
+    // The dial and the hardware follow the B memory, out-of-span so recentred.
+    QCOMPARE(m_radioModel->slices().at(0)->frequency(), vfoB);
+    QCOMPARE(m_settings->getVfoFrequency(0), vfoB);
+    QCOMPARE(m_settings->getCtrFrequency(0), vfoB);
+
+    m_textMessages.clear();
+    m_client.sendTextMessage(QStringLiteral("ACTIVE_VFO:0;"));
+    QVERIFY2(waitForMessageContaining(QStringLiteral("active_vfo:0,1")),
+             qPrintable(m_textMessages.join('|')));
+
+    m_client.sendTextMessage(QStringLiteral("ACTIVE_VFO:0,0;"));
+    QVERIFY(QTest::qWaitFor([this]() {
+        return m_radioModel->slices().at(0)->activeVfo() == SliceModel::VfoA;
+    }, 3000));
+    QCOMPARE(m_radioModel->slices().at(0)->frequency(), m_baselineVfoHz);
+}
+
+void TciServerWsTests::localActiveVfoSwitchBroadcastsToClients()
+{
+    const qint64 vfoB = 21'074'000;
+    m_radioModel->slices().at(0)->setVfoBFrequency(vfoB);
+    QVERIFY(waitForMessageContaining(QStringLiteral("vfo:0,1,%1").arg(vfoB)));
+
+    m_textMessages.clear();
+    m_radioModel->slices().at(0)->setActiveVfo(SliceModel::VfoB);
+    QVERIFY2(waitForMessageContaining(QStringLiteral("active_vfo:0,1")),
+             qPrintable(m_textMessages.join('|')));
+
+    m_radioModel->slices().at(0)->setActiveVfo(SliceModel::VfoA);
 }
 
 QTEST_MAIN(TciServerWsTests)

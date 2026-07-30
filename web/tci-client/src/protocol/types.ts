@@ -6,7 +6,16 @@ export type TciMessage = {
 export type RadioState = {
   connected: boolean;
   device: string;
+  /** VFO-A (RX dial) — TCI channel 0 */
   vfoHz: number;
+  /** VFO-B (TX route) — TCI channel 1 */
+  vfoBHz: number;
+  /** Which memory the radio's dial is on (cudaSDR ACTIVE_VFO extension). */
+  activeVfo: 'a' | 'b';
+  /** ExpertSDR split_enable — TX uses VFO-B when true */
+  splitEnabled: boolean;
+  /** From CHANNELS_COUNT in the init burst (expect 2 for VFO-A/B). */
+  channelsCount: number;
   ddsHz: number;
   ifHz: number;
   modulation: string;
@@ -33,6 +42,10 @@ export const defaultRadioState = (): RadioState => ({
   connected: false,
   device: '',
   vfoHz: 14_225_000,
+  vfoBHz: 14_225_000,
+  activeVfo: 'a',
+  splitEnabled: false,
+  channelsCount: 2,
   ddsHz: 14_225_000,
   ifHz: 0,
   modulation: 'USB',

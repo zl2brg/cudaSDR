@@ -238,6 +238,8 @@ int Settings::loadSettings() {
     m_socketBufferSize = m_networkConfig->socketBufferSize();
 
     m_tciServerEnabled = settings->value("network/tci_enabled", true).toBool();
+    m_tciRxGain = qBound(0.0f, settings->value("network/tci_rx_gain", 1.0).toFloat(), 2.0f);
+    m_tciTxGain = qBound(0.0f, settings->value("network/tci_tx_gain", 1.0).toFloat(), 2.0f);
 
     m_lastConnectedDevice.deviceClass = static_cast<DeviceClass>(settings->value("network/lastDeviceClass", DeviceClass_None).toInt());
     m_lastConnectedDevice.deviceType = settings->value("network/lastDeviceType", "").toString();
@@ -705,6 +707,9 @@ int Settings::loadSettings() {
         }
         m_receiverDataList[i].ctrFrequency = m_receiverConfigs[i]->ctrFrequency();
         m_receiverDataList[i].vfoFrequency = m_receiverConfigs[i]->vfoFrequency();
+        m_receiverDataList[i].vfoAFrequency = m_receiverConfigs[i]->vfoAFrequency();
+        m_receiverDataList[i].vfoBFrequency = m_receiverConfigs[i]->vfoBFrequency();
+        m_receiverDataList[i].activeVfo = m_receiverConfigs[i]->activeVfo();
 
         QString cstr = m_rxStringList.at(i);
         cstr.append("/nr");
@@ -1266,6 +1271,40 @@ int Settings::loadSettings() {
 
         setVfoFrequency(i, lvalue);
 
+        cstr = m_rxStringList.at(i);
+        cstr.append("/vfoAFrequency");
+        if (settings->contains(cstr)) {
+            lvalue = settings->value(cstr).toLongLong();
+            if ((lvalue < 0) || (lvalue > MAXFREQUENCY))
+                lvalue = m_receiverDataList[i].vfoFrequency;
+            m_receiverDataList[i].vfoAFrequency = lvalue;
+        } else {
+            m_receiverDataList[i].vfoAFrequency = m_receiverDataList[i].vfoFrequency;
+        }
+
+        cstr = m_rxStringList.at(i);
+        cstr.append("/vfoBFrequency");
+        if (settings->contains(cstr)) {
+            lvalue = settings->value(cstr).toLongLong();
+            if ((lvalue < 0) || (lvalue > MAXFREQUENCY))
+                lvalue = m_receiverDataList[i].vfoFrequency;
+            m_receiverDataList[i].vfoBFrequency = lvalue;
+        } else {
+            m_receiverDataList[i].vfoBFrequency = m_receiverDataList[i].vfoFrequency;
+        }
+
+        cstr = m_rxStringList.at(i);
+        cstr.append("/activeVfo");
+        {
+            const int active = settings->value(cstr, 0).toInt();
+            m_receiverDataList[i].activeVfo = (active == 1) ? 1 : 0;
+            // Live dial follows the active VFO memory.
+            if (m_receiverDataList[i].activeVfo == 1)
+                m_receiverDataList[i].vfoFrequency = m_receiverDataList[i].vfoBFrequency;
+            else
+                m_receiverDataList[i].vfoFrequency = m_receiverDataList[i].vfoAFrequency;
+        }
+
 
         if (m_receiverDataList[i].dspModeList.length() == MAX_BANDS && m_bandList.length() == MAX_BANDS) {
 
@@ -1401,6 +1440,8 @@ int Settings::saveSettings() {
 
     m_networkConfig->saveIni(settings);
     settings->setValue("network/tci_enabled", m_tciServerEnabled);
+    settings->setValue("network/tci_rx_gain", m_tciRxGain);
+    settings->setValue("network/tci_tx_gain", m_tciTxGain);
     settings->setValue("network/lastDeviceClass", static_cast<int>(m_lastConnectedDevice.deviceClass));
     settings->setValue("network/lastDeviceType", m_lastConnectedDevice.deviceType);
     settings->setValue("network/lastDeviceSerial", m_lastConnectedDevice.serialNumber);
@@ -2033,6 +2074,9 @@ int Settings::saveSettings() {
         m_receiverConfigs[i]->setDspCore(m_receiverDataList[i].dspCore);
         m_receiverConfigs[i]->setCtrFrequency(m_receiverDataList[i].ctrFrequency);
         m_receiverConfigs[i]->setVfoFrequency(m_receiverDataList[i].vfoFrequency);
+        m_receiverConfigs[i]->setVfoAFrequency(m_receiverDataList[i].vfoAFrequency);
+        m_receiverConfigs[i]->setVfoBFrequency(m_receiverDataList[i].vfoBFrequency);
+        m_receiverConfigs[i]->setActiveVfo(m_receiverDataList[i].activeVfo);
         m_receiverConfigs[i]->saveIni(settings);
 
         str = m_rxStringList.at(i);
@@ -2916,6 +2960,24 @@ void Settings::setTciServerEnabled(bool enabled) {
     emit tciServerEnabledChanged(m_tciServerEnabled);
 }
 
+void Settings::setTciRxGain(float gain) {
+    const float clamped = qBound(0.0f, gain, 2.0f);
+    if (qAbs(m_tciRxGain - clamped) < 1e-6f)
+        return;
+    m_tciRxGain = clamped;
+    settings->setValue("network/tci_rx_gain", m_tciRxGain);
+    emit tciRxGainChanged(m_tciRxGain);
+}
+
+void Settings::setTciTxGain(float gain) {
+    const float clamped = qBound(0.0f, gain, 2.0f);
+    if (qAbs(m_tciTxGain - clamped) < 1e-6f)
+        return;
+    m_tciTxGain = clamped;
+    settings->setValue("network/tci_tx_gain", m_tciTxGain);
+    emit tciTxGainChanged(m_tciTxGain);
+}
+
 void Settings::setHPSDRWidgetNIC(int index) {
 
     /*QString message = "[server]: HPSDR device network interface set to: %1 (%2).";
@@ -3706,8 +3768,14 @@ void Settings::setVFOFrequency(int mode, int rx, qint64 frequency) {
         return;
 
     // Mirror into MVC slice model; pre-MVC legacy path continues below and remains authoritative
-    if (m_radioModel && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx])
-        m_radioModel->slices()[rx]->setFrequency(frequency);
+    if (m_radioModel && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) {
+        SliceModel *slice = m_radioModel->slices()[rx];
+        slice->setFrequency(frequency);
+        m_receiverDataList[rx].vfoAFrequency = slice->vfoAFrequency();
+        m_receiverDataList[rx].vfoBFrequency = slice->vfoBFrequency();
+        m_receiverDataList[rx].activeVfo =
+            (slice->activeVfo() == SliceModel::VfoB) ? 1 : 0;
+    }
 
     QMutexLocker locker(&settingsMutex);
 
@@ -3765,6 +3833,24 @@ void Settings::setVFOFrequency(int mode, int rx, qint64 frequency) {
     SETTINGS_DEBUG << "nco freq (Rx " << rx << ")" << m_receiverDataList[rx].ncoFrequency ;
     emit ncoFrequencyChanged(rx, m_receiverDataList[rx].ncoFrequency);
 
+}
+
+void Settings::setVfoFrequencyVisible(int rx, qint64 frequency) {
+    if (rx < 0 || rx >= m_receiverDataList.size())
+        return;
+
+    // The panadapter only covers ctr +/- sampleRate/2 and the panel clamps the VFO
+    // cursor to that window, so a jump beyond it would hide the RX filter. Stay on
+    // the current centre while the target is comfortably inside the span.
+    const qint64 halfSpan = getSampleRate() / 2;
+    const qint64 margin = halfSpan - halfSpan / 10;
+    if (halfSpan > 0 && qAbs(frequency - getCtrFrequency(rx)) <= margin) {
+        setVFOFrequency(0, rx, frequency);
+        return;
+    }
+
+    // Out of span: move the LO with the dial (NCO back to zero), as a band change does.
+    setCtrFrequency(1, rx, frequency);
 }
 
 qint64 Settings::getVfoFrequency(int rx) {
@@ -5236,7 +5322,15 @@ void Settings::syncSlicesWithSettings() {
 
         // Frequency / mode / filters / volume / AGC / DSP-display: SliceModel -> runtime (not relayed via Settings).
 
-        slice->setFrequency(m_receiverDataList[i].vfoFrequency);
+        const qint64 vfoA = (m_receiverDataList[i].vfoAFrequency > 0)
+                                ? m_receiverDataList[i].vfoAFrequency
+                                : m_receiverDataList[i].vfoFrequency;
+        const qint64 vfoB = (m_receiverDataList[i].vfoBFrequency > 0)
+                                ? m_receiverDataList[i].vfoBFrequency
+                                : vfoA;
+        const SliceModel::ActiveVfo active =
+            (m_receiverDataList[i].activeVfo == 1) ? SliceModel::VfoB : SliceModel::VfoA;
+        slice->setVfoMemories(vfoA, vfoB, active);
         slice->setCenterFrequency(m_receiverDataList[i].ctrFrequency);
         const HamBand band = m_receiverDataList[i].hamBand;
         DSPMode startupMode = m_receiverDataList[i].dspMode;
@@ -5293,6 +5387,9 @@ void Settings::syncSettingsWithSlices() {
     for (int i = 0; i < m_receiverDataList.size() && i < m_radioModel->slices().size(); ++i) {
         auto slice = m_radioModel->slices().at(i);
         if (!slice) continue;
+        m_receiverDataList[i].vfoAFrequency = slice->vfoAFrequency();
+        m_receiverDataList[i].vfoBFrequency = slice->vfoBFrequency();
+        m_receiverDataList[i].activeVfo = (slice->activeVfo() == SliceModel::VfoB) ? 1 : 0;
         m_receiverDataList[i].vfoFrequency = slice->frequency();
         m_receiverDataList[i].ctrFrequency = slice->centerFrequency();
         m_receiverDataList[i].dspMode = slice->dspMode();

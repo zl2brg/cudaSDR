@@ -121,43 +121,77 @@ export class TciClient {
     this.patchState({ connected: false, fftReady: false, rxAudioOn: false });
   }
 
-  setVfo(hz: number, rx = 0): void {
+  setVfo(hz: number, trx = 0): void {
     this.resetSpectrumAvg();
-    this.send(formatTciCommand('VFO', [0, rx, Math.round(hz)]));
+    // Channel 0 = VFO-A (RX dial).
+    this.send(formatTciCommand('VFO', [trx, 0, Math.round(hz)]));
   }
 
-  setDds(hz: number, rx = 0): void {
-    this.resetSpectrumAvg();
-    this.send(formatTciCommand('DDS', [0, rx, Math.round(hz)]));
+  setVfoB(hz: number, trx = 0): void {
+    // Channel 1 = VFO-B (TX route). Does not move the panadapter.
+    this.send(formatTciCommand('VFO', [trx, 1, Math.round(hz)]));
+    this.patchState({ vfoBHz: Math.max(0, Math.round(hz)) });
   }
 
-  /** Wheel on main frequency readout: step VFO and DDS to the same frequency. */
-  stepMainFrequency(deltaHz: number, rx = 0): void {
+  /**
+   * Switch the radio's dial between the A and B memories. ACTIVE_VFO is a
+   * cudaSDR extension — TCI 1.5 channels only address the memories themselves.
+   */
+  setActiveVfo(which: 'a' | 'b', trx = 0): void {
+    this.resetSpectrumAvg();
+    this.send(formatTciCommand('ACTIVE_VFO', [trx, which === 'b' ? 1 : 0]));
+    this.patchState({ activeVfo: which });
+  }
+
+  /** Copy VFO-A → VFO-B (handy before enabling split). */
+  copyVfoAToB(trx = 0): void {
+    this.setVfoB(this.state.vfoHz, trx);
+  }
+
+  setSplit(enabled: boolean, trx = 0): void {
+    this.send(formatTciCommand('SPLIT_ENABLE', [trx, enabled ? 'true' : 'false']));
+    this.patchState({ splitEnabled: enabled });
+  }
+
+  setDds(hz: number, trx = 0): void {
+    this.resetSpectrumAvg();
+    this.send(formatTciCommand('DDS', [trx, 0, Math.round(hz)]));
+  }
+
+  /** Wheel on main frequency readout: step VFO-A and DDS to the same frequency. */
+  stepMainFrequency(deltaHz: number, trx = 0): void {
     if (!Number.isFinite(deltaHz) || deltaHz === 0) return;
     const newFreq = Math.max(0, Math.round(this.state.vfoHz + deltaHz));
     this.resetSpectrumAvg();
-    this.send(formatTciCommand('VFO', [0, rx, newFreq]));
-    this.send(formatTciCommand('DDS', [0, rx, newFreq]));
+    this.send(formatTciCommand('VFO', [trx, 0, newFreq]));
+    this.send(formatTciCommand('DDS', [trx, 0, newFreq]));
     this.patchState({ vfoHz: newFreq, ddsHz: newFreq });
   }
 
-  /** Drag panadapter: move VFO and DDS together (cudaSDR unpinned pan). */
-  shiftFrequency(deltaHz: number, rx = 0): void {
+  /** Wheel on VFO-B readout. */
+  stepVfoB(deltaHz: number, trx = 0): void {
+    if (!Number.isFinite(deltaHz) || deltaHz === 0) return;
+    const newFreq = Math.max(0, Math.round(this.state.vfoBHz + deltaHz));
+    this.setVfoB(newFreq, trx);
+  }
+
+  /** Drag panadapter: move VFO-A and DDS together (cudaSDR unpinned pan). */
+  shiftFrequency(deltaHz: number, trx = 0): void {
     if (!Number.isFinite(deltaHz) || deltaHz === 0) return;
     this.resetSpectrumAvg();
     const vfo = Math.round(this.state.vfoHz + deltaHz);
     const dds = Math.round(this.state.ddsHz + deltaHz);
-    this.send(formatTciCommand('VFO', [0, rx, vfo]));
-    this.send(formatTciCommand('DDS', [0, rx, dds]));
+    this.send(formatTciCommand('VFO', [trx, 0, vfo]));
+    this.send(formatTciCommand('DDS', [trx, 0, dds]));
     this.patchState({ vfoHz: vfo, ddsHz: dds });
   }
 
-  setModulation(mode: string, rx = 0): void {
-    this.send(formatTciCommand('MODULATION', [rx, mode]));
+  setModulation(mode: string, trx = 0): void {
+    this.send(formatTciCommand('MODULATION', [trx, mode]));
   }
 
-  setFilter(lo: number, hi: number, rx = 0): void {
-    this.send(formatTciCommand('RX_FILTER_BAND', [rx, Math.round(lo), Math.round(hi)]));
+  setFilter(lo: number, hi: number, trx = 0): void {
+    this.send(formatTciCommand('RX_FILTER_BAND', [trx, Math.round(lo), Math.round(hi)]));
   }
 
   setTrx(enabled: boolean): void {
@@ -298,15 +332,45 @@ export class TciClient {
         case 'DEVICE':
           if (msg.args[0]) this.patchState({ device: msg.args[0] });
           break;
+        case 'CHANNELS_COUNT':
+        case 'CHANNEL_COUNT': {
+          // Prefer plural CHANNELS_COUNT (VFO channels). Singular CHANNEL_COUNT
+          // is cudaSDR's RX-count extension — ignore it for VFO topology.
+          if (msg.name === 'CHANNELS_COUNT' && msg.args[0]) {
+            const n = Number(msg.args[0]);
+            if (Number.isFinite(n) && n > 0) this.patchState({ channelsCount: n });
+          }
+          break;
+        }
         case 'VFO':
           if (msg.args.length >= 3) {
+            const channel = Number(msg.args[1]);
             const hz = Number(msg.args[2]);
-            if (Number.isFinite(hz)) this.patchState({ vfoHz: hz });
+            if (!Number.isFinite(hz)) break;
+            if (channel === 1) this.patchState({ vfoBHz: hz });
+            else this.patchState({ vfoHz: hz });
+          }
+          break;
+        case 'ACTIVE_VFO':
+          if (msg.args.length >= 2) {
+            this.patchState({ activeVfo: Number(msg.args[1]) === 1 ? 'b' : 'a' });
+          }
+          break;
+        case 'SPLIT_ENABLE':
+          if (msg.args.length >= 2) {
+            this.patchState({ splitEnabled: msg.args[1].toLowerCase() === 'true' });
+          } else if (msg.args.length === 1) {
+            // Rare bare form split_enable:true
+            const v = msg.args[0].toLowerCase();
+            if (v === 'true' || v === 'false') {
+              this.patchState({ splitEnabled: v === 'true' });
+            }
           }
           break;
         case 'DDS':
-          if (msg.args.length >= 3) {
-            const hz = Number(msg.args[2]);
+          if (msg.args.length >= 2) {
+            // DDS:trx,freq or DDS:trx,channel,freq — frequency is last.
+            const hz = Number(msg.args[msg.args.length - 1]);
             if (Number.isFinite(hz)) this.patchState({ ddsHz: hz });
           }
           break;

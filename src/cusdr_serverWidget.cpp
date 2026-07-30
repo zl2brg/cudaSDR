@@ -149,17 +149,65 @@ QGroupBox *ServerWidget::tciServerGroup() {
 	tciPortLabel = new QLabel(tr("WebSocket port: 50001"));
 	tciPortLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
 
+	tciStatusLabel = new QLabel(tr("Status: Disabled"));
+	tciStatusLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
+
+	tciRxGainSlider = new QSlider(Qt::Horizontal);
+	tciRxGainSlider->setRange(0, 200);
+	tciRxGainSlider->setValue(100);
+	tciRxGainSlider->setTickPosition(QSlider::TicksBelow);
+	tciRxGainSlider->setTickInterval(50);
+
+	tciTxGainSlider = new QSlider(Qt::Horizontal);
+	tciTxGainSlider->setRange(0, 200);
+	tciTxGainSlider->setValue(100);
+	tciTxGainSlider->setTickPosition(QSlider::TicksBelow);
+	tciTxGainSlider->setTickInterval(50);
+
+	tciRxGainValueLabel = new QLabel(tr("100%"));
+	tciTxGainValueLabel = new QLabel(tr("100%"));
+	tciRxGainValueLabel->setMinimumWidth(40);
+	tciTxGainValueLabel->setMinimumWidth(40);
+
+	QLabel *rxGainCaption = new QLabel(tr("RX gain:"));
+	QLabel *txGainCaption = new QLabel(tr("TX gain:"));
+
+	QHBoxLayout *rxGainRow = new QHBoxLayout;
+	rxGainRow->setSpacing(4);
+	rxGainRow->addWidget(rxGainCaption);
+	rxGainRow->addWidget(tciRxGainSlider, 1);
+	rxGainRow->addWidget(tciRxGainValueLabel);
+
+	QHBoxLayout *txGainRow = new QHBoxLayout;
+	txGainRow->setSpacing(4);
+	txGainRow->addWidget(txGainCaption);
+	txGainRow->addWidget(tciTxGainSlider, 1);
+	txGainRow->addWidget(tciTxGainValueLabel);
+
 	connect(
 		tciEnableCheckBox,
 		&QCheckBox::toggled,
 		this,
 		&ServerWidget::tciEnabledToggled);
+	connect(
+		tciRxGainSlider,
+		&QSlider::valueChanged,
+		this,
+		&ServerWidget::tciRxGainSliderChanged);
+	connect(
+		tciTxGainSlider,
+		&QSlider::valueChanged,
+		this,
+		&ServerWidget::tciTxGainSliderChanged);
 
 	QVBoxLayout *vbox = new QVBoxLayout;
 	vbox->setSpacing(4);
 	vbox->addSpacing(4);
 	vbox->addWidget(tciEnableCheckBox);
 	vbox->addWidget(tciPortLabel);
+	vbox->addWidget(tciStatusLabel);
+	vbox->addLayout(rxGainRow);
+	vbox->addLayout(txGainRow);
 	vbox->addSpacing(4);
 
 	QGroupBox *groupBox = new QGroupBox(tr("TCI Server"));
@@ -190,6 +238,36 @@ void ServerWidget::setTciServerPort(quint16 port) {
 	}
 }
 
+void ServerWidget::setTciConnectionStatus(const QString &status) {
+	if (tciStatusLabel)
+		tciStatusLabel->setText(tr("Status: %1").arg(status));
+}
+
+void ServerWidget::updateGainValueLabel(QLabel *label, int percent) {
+	if (label)
+		label->setText(tr("%1%").arg(percent));
+}
+
+void ServerWidget::setTciRxGain(float gain) {
+	if (!tciRxGainSlider)
+		return;
+	const int percent = qBound(0, qRound(gain * 100.0f), 200);
+	tciRxGainSlider->blockSignals(true);
+	tciRxGainSlider->setValue(percent);
+	tciRxGainSlider->blockSignals(false);
+	updateGainValueLabel(tciRxGainValueLabel, percent);
+}
+
+void ServerWidget::setTciTxGain(float gain) {
+	if (!tciTxGainSlider)
+		return;
+	const int percent = qBound(0, qRound(gain * 100.0f), 200);
+	tciTxGainSlider->blockSignals(true);
+	tciTxGainSlider->setValue(percent);
+	tciTxGainSlider->blockSignals(false);
+	updateGainValueLabel(tciTxGainValueLabel, percent);
+}
+
 void ServerWidget::setPorts(quint16 serverPort, quint16 listenPort, quint16 audioPort) {
 	labelServerPortText->setText(QString::number(serverPort));
 	labelListenerPortText->setText(QString::number(listenPort));
@@ -211,4 +289,14 @@ void ServerWidget::serverNICIndexChanged(int index) {
 
 void ServerWidget::tciEnabledToggled(bool enabled) {
 	emit tciServerEnabledRequested(enabled);
+}
+
+void ServerWidget::tciRxGainSliderChanged(int value) {
+	updateGainValueLabel(tciRxGainValueLabel, value);
+	emit tciRxGainRequested(value / 100.0f);
+}
+
+void ServerWidget::tciTxGainSliderChanged(int value) {
+	updateGainValueLabel(tciTxGainValueLabel, value);
+	emit tciTxGainRequested(value / 100.0f);
 }

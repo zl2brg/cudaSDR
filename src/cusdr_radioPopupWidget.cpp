@@ -371,6 +371,47 @@ void RadioPopupWidget::createOptionsBtnGroup() {
 
     connect(vfoToMidBtn, &AeroButton::clicked, this, &RadioPopupWidget::vfoToMidBtnClicked);
 
+    vfoABtn = new AeroButton("VFO A", this);
+    vfoABtn->setRoundness(10);
+    vfoABtn->setFont(m_fonts.smallFont);
+    vfoABtn->setFixedHeight(btn_height);
+    vfoABtn->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    connect(vfoABtn, &AeroButton::clicked, this, &RadioPopupWidget::vfoABtnClicked);
+
+    vfoBBtn = new AeroButton("VFO B", this);
+    vfoBBtn->setRoundness(10);
+    vfoBBtn->setFont(m_fonts.smallFont);
+    vfoBBtn->setFixedHeight(btn_height);
+    vfoBBtn->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    connect(vfoBBtn, &AeroButton::clicked, this, &RadioPopupWidget::vfoBBtnClicked);
+
+    vfoAtoBBtn = new AeroButton("A>B", this);
+    vfoAtoBBtn->setRoundness(10);
+    vfoAtoBBtn->setFont(m_fonts.smallFont);
+    vfoAtoBBtn->setFixedHeight(btn_height);
+    vfoAtoBBtn->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    connect(vfoAtoBBtn, &AeroButton::clicked, this, &RadioPopupWidget::vfoAtoBBtnClicked);
+
+    vfoBtoABtn = new AeroButton("B>A", this);
+    vfoBtoABtn->setRoundness(10);
+    vfoBtoABtn->setFont(m_fonts.smallFont);
+    vfoBtoABtn->setFixedHeight(btn_height);
+    vfoBtoABtn->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    connect(vfoBtoABtn, &AeroButton::clicked, this, &RadioPopupWidget::vfoBtoABtnClicked);
+
+    vfoSwapBtn = new AeroButton("A<>B", this);
+    vfoSwapBtn->setRoundness(10);
+    vfoSwapBtn->setFont(m_fonts.smallFont);
+    vfoSwapBtn->setFixedHeight(btn_height);
+    vfoSwapBtn->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    connect(vfoSwapBtn, &AeroButton::clicked, this, &RadioPopupWidget::vfoSwapBtnClicked);
+
+    if (m_sliceModel) {
+        connect(m_sliceModel, &SliceModel::activeVfoChanged,
+                this, [this](SliceModel::ActiveVfo) { updateActiveVfoButtons(); });
+        updateActiveVfoButtons();
+    }
+
     m_PanLineBtn = new AeroButton("Line", this);
     m_PanLineBtn->setRoundness(10);
     m_PanLineBtn->setFont(m_fonts.smallFont);
@@ -466,6 +507,15 @@ void RadioPopupWidget::createOptionsBtnGroup() {
     hbox3->addWidget(midToVfoBtn);
     hbox3->addWidget(vfoToMidBtn);
 
+    QHBoxLayout* hboxVfo = new QHBoxLayout();
+    hboxVfo->setContentsMargins(0, 0, 0, 0);
+    hboxVfo->setSpacing(0);
+    hboxVfo->addWidget(vfoABtn);
+    hboxVfo->addWidget(vfoBBtn);
+    hboxVfo->addWidget(vfoAtoBBtn);
+    hboxVfo->addWidget(vfoBtoABtn);
+    hboxVfo->addWidget(vfoSwapBtn);
+
     QHBoxLayout* hbox4 = new QHBoxLayout();
     hbox4->setContentsMargins(0, 0, 0, 0);
     hbox4->setSpacing(0);
@@ -484,6 +534,7 @@ void RadioPopupWidget::createOptionsBtnGroup() {
     optionsVBox->addLayout(hbox1);
     optionsVBox->addLayout(hbox2);
     optionsVBox->addLayout(hbox3);
+    optionsVBox->addLayout(hboxVfo);
     optionsVBox->addSpacing(4);
     optionsVBox->addLayout(hbox4);
     optionsVBox->addLayout(hbox5);
@@ -1683,6 +1734,53 @@ void RadioPopupWidget::midToVfoBtnClicked() {
 
 void RadioPopupWidget::vfoToMidBtnClicked() {
     emit vfoToMidBtnEvent();
+}
+
+void RadioPopupWidget::updateActiveVfoButtons() {
+    if (!vfoABtn || !vfoBBtn)
+        return;
+    const bool bActive = m_sliceModel && m_sliceModel->activeVfo() == SliceModel::VfoB;
+    vfoABtn->setBtnState(bActive ? AeroButton::OFF : AeroButton::ON);
+    vfoBBtn->setBtnState(bActive ? AeroButton::ON : AeroButton::OFF);
+}
+
+void RadioPopupWidget::vfoABtnClicked() {
+    if (!m_sliceModel)
+        return;
+    m_sliceModel->setActiveVfo(SliceModel::VfoA);
+    Settings::instance()->setVfoFrequencyVisible(m_receiver, m_sliceModel->frequency());
+    updateActiveVfoButtons();
+}
+
+void RadioPopupWidget::vfoBBtnClicked() {
+    if (!m_sliceModel)
+        return;
+    m_sliceModel->setActiveVfo(SliceModel::VfoB);
+    Settings::instance()->setVfoFrequencyVisible(m_receiver, m_sliceModel->frequency());
+    updateActiveVfoButtons();
+}
+
+void RadioPopupWidget::vfoAtoBBtnClicked() {
+    if (!m_sliceModel)
+        return;
+    m_sliceModel->copyAtoB();
+    if (m_sliceModel->activeVfo() == SliceModel::VfoB)
+        Settings::instance()->setVfoFrequencyVisible(m_receiver, m_sliceModel->frequency());
+}
+
+void RadioPopupWidget::vfoBtoABtnClicked() {
+    if (!m_sliceModel)
+        return;
+    m_sliceModel->copyBtoA();
+    if (m_sliceModel->activeVfo() == SliceModel::VfoA)
+        Settings::instance()->setVfoFrequencyVisible(m_receiver, m_sliceModel->frequency());
+}
+
+void RadioPopupWidget::vfoSwapBtnClicked() {
+    if (!m_sliceModel)
+        return;
+    m_sliceModel->swapVfos();
+    Settings::instance()->setVfoFrequencyVisible(m_receiver, m_sliceModel->frequency());
 }
 
 void RadioPopupWidget::loadReceiverState(int rx) {

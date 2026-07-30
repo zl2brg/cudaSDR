@@ -439,10 +439,10 @@ void CProtocol2::encodeCCBytes(unsigned char* buffer, DataEngine* de, RadioModel
                 // DUC0 TX frequency (buffer[333-336])
                 {
                     qint64 txHz = 0;
-                    // TX dial = VFO frequency when available.
-                    if (radioModel && !radioModel->slices().isEmpty()) {
-                        txHz = radioModel->slices().at(0)->frequency();
-                    } else {
+                    // TX dial = effective TX slice (VFO-B when split) when available.
+                    if (radioModel)
+                        txHz = radioModel->effectiveTxFrequency();
+                    if (txHz <= 0) {
                         const QList<qint64>& freqs = set->getCtrFrequencies();
                         if (!freqs.isEmpty())
                             txHz = freqs.at(0);

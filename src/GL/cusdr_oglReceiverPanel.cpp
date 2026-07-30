@@ -2786,6 +2786,15 @@ void QGLReceiverPanel::setCtrFrequency(int mode, int rx, qint64 freq) {
     const bool freqChanged = (m_centerFrequency != freq);
     m_centerFrequency = freq;
 
+    // Settings emits the VFO change before the centre moves, so a retune that
+    // leaves the old span (VFO A/B switch, CAT band hop) arrives here clamped to
+    // the span it just left. Only that case is recoverable from the dial: re-read
+    // it against the new centre, else the VFO cursor and filter sit off-panel.
+    const qint64 spanLow  = m_centerFrequency - m_sampleRate/2;
+    const qint64 spanHigh = m_centerFrequency + m_sampleRate/2;
+    if (m_vfoFrequency < spanLow || m_vfoFrequency > spanHigh)
+        m_vfoFrequency = qBound(spanLow, set->getVfoFrequency(m_receiver), spanHigh);
+
     m_deltaFrequency = m_centerFrequency - m_vfoFrequency;
     m_deltaF = (qreal)(1.0 * m_deltaFrequency / m_sampleRate);
 

@@ -98,6 +98,8 @@ private:
 
     QMatrix4x4 panelProjection() const;
     void drawPanelRect(const QRect &rect, const QColor &color, float z = 0.0f);
+    void drawPanelRoundedRect(const QRect &rect, const QColor &color, int radius, float z = 0.0f);
+    void drawPanelRoundedRectOutline(const QRect &rect, const QColor &color, int radius, float z = 0.0f);
     void drawPanelGradientRect(const QRect &rect, const QColor &c1, const QColor &c2,
                                bool leftToRight, float z = 0.0f);
     void drawSMeterNeedle(const QMatrix4x4 &projection, int x1);
@@ -129,6 +131,8 @@ private:
 	OGLText		*m_oglTextBigItalic;
 	OGLText		*m_oglTextFreq1;
 	OGLText		*m_oglTextFreq2;
+	OGLText		*m_oglTextFreqInactive1;
+	OGLText		*m_oglTextFreqInactive2;
 	OGLText		*m_oglTextImpact;
 
 	QRect		m_rect;
@@ -171,22 +175,30 @@ private:
 	QString		m_sMeterNumValueString;
 
 	QString		m_bandText;
-    QString     m_f1str;
-    QString     m_f2str;
+	QString     m_f1strA;
+	QString     m_f2strA;
+	QString     m_f1strB;
+	QString     m_f2strB;
 
-	QRegion		m_freg1;
-	QRegion		m_freg10;
-	QRegion		m_freg100;
-	QRegion		m_freg1000;
-	QRegion		m_freg10000;
-	QRegion		m_freg100000;
-	QRegion		m_freg1000000;
-	QRegion		m_freg10000000;
-	QRegion		m_freg100000000;
-	QRegion		m_freg1000000000;
-    QRegion		m_point;
-    QRegion		m_point1;
-    QRegion		m_point2;
+	struct FreqDigitHitRegions {
+		QRegion freg1;
+		QRegion freg10;
+		QRegion freg100;
+		QRegion freg1000;
+		QRegion freg10000;
+		QRegion freg100000;
+		QRegion freg1000000;
+		QRegion freg10000000;
+		QRegion freg100000000;
+		QRegion freg1000000000;
+		QRegion point;
+		QRegion point1;
+		QRegion point2;
+		QRegion label;
+	};
+
+	FreqDigitHitRegions m_hitA;
+	FreqDigitHitRegions m_hitB;
 
 
     QColor      m_txdigitColor;
@@ -234,6 +246,12 @@ private:
 	None,
 	};
 
+	enum DigitVfo {
+		DigitVfoNone = -1,
+		DigitVfoA = 0,
+		DigitVfoB = 1,
+	};
+
 	GLuint	m_sMeterTex;
 	bool	m_smeterUpdate;
 	bool	m_smeterRenew;
@@ -249,6 +267,7 @@ private:
 	int		m_lowerRectY;
 	int		m_upperRectY;
     int		m_digitPosition = None;
+	int		m_digitVfo = DigitVfoNone;
 	int		m_syncStatus;
 	int		m_adcStatus;
 	int		m_packetLossStatus;
@@ -277,7 +296,12 @@ private:
 	int		m_blankWidthf;
 	int		m_blankWidthf1;
 	int		m_blankWidthf2;
+	int		m_blankWidthInactive1;
+	int		m_blankWidthInactive2;
+	int		m_pointStringWidthInactive;
 	int		m_fUnitStringWidth;
+	int		m_fUnitStringWidthInactive;
+	int		m_vfoLabelWidth;
 	int		m_blankHeight;
 	int		m_freqStringLeftPos;
 	int		m_versionStringWidth;
@@ -305,7 +329,8 @@ private:
 	int		m_10MHzWidth;
 	int		m_sMeterDeform;
 	int		m_12288MHzWidth;
-	int		m_freqDigitsPosY;
+	int		m_freqDigitsPosYA;
+	int		m_freqDigitsPosYB;
 	int		m_sMeterPosY;
 	int		m_sMeterHoldTime;
 	int		m_sMeterPrevHoldTimeMax;
@@ -336,7 +361,28 @@ private:
 	
 	void	paintSMeter();
 	void	renderSMeterScale();
-	
+
+	/** GHz.MHz display string (leading zeros blanked) from absolute Hz. */
+	QString	freqMhzDisplayString(qint64 frequencyHz) const;
+	void	splitFreqDisplay(qint64 frequencyHz, QString *f1str, QString *f2str) const;
+
+	void	updateFreqDigitHitRegions(FreqDigitHitRegions &out, int originX, int yBaseline,
+	                                  const QString &f1str, bool large,
+	                                  const QRect &labelRect);
+	void	rebuildAllFreqDigitHitRegions();
+	QRect	vfoLabelRect(int yBaseline) const;
+
+	class SliceModel *currentSlice() const;
+	qint64	vfoMemoryHz(DigitVfo which) const;
+	void	activateDigitVfo(DigitVfo which);
+	void	tuneDigitVfoTo(DigitVfo which, qint64 frequencyHz);
+	bool	hitTestDigit(const FreqDigitHitRegions &regs, const QString &f1str,
+	                     QPoint p, int *digitOut) const;
+
+	void	paintVfoFrequencyRow(DigitVfo which, bool active, int yBaseline, int originX,
+	                             const QString &f1str, const QString &f2str,
+	                             const QColor &fontcolor);
+
 	void	getSelectedDigit(QPoint p);
 	
 private slots:

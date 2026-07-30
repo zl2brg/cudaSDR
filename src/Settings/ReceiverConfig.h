@@ -19,6 +19,9 @@ class ReceiverConfig : public QObject {
     Q_PROPERTY(AGCMode agcMode READ agcMode WRITE setAgcMode NOTIFY agcModeChanged)
     Q_PROPERTY(qint64 ctrFrequency READ ctrFrequency WRITE setCtrFrequency NOTIFY ctrFrequencyChanged)
     Q_PROPERTY(qint64 vfoFrequency READ vfoFrequency WRITE setVfoFrequency NOTIFY vfoFrequencyChanged)
+    Q_PROPERTY(qint64 vfoAFrequency READ vfoAFrequency WRITE setVfoAFrequency NOTIFY vfoAFrequencyChanged)
+    Q_PROPERTY(qint64 vfoBFrequency READ vfoBFrequency WRITE setVfoBFrequency NOTIFY vfoBFrequencyChanged)
+    Q_PROPERTY(int activeVfo READ activeVfo WRITE setActiveVfo NOTIFY activeVfoChanged)
     Q_PROPERTY(int filterSlope READ filterSlope WRITE setFilterSlope NOTIFY filterSlopeChanged)
 
 public:
@@ -47,6 +50,15 @@ public:
     qint64 vfoFrequency() const { return m_vfoFrequency; }
     void setVfoFrequency(qint64 freq);
 
+    qint64 vfoAFrequency() const { return m_vfoAFrequency; }
+    void setVfoAFrequency(qint64 freq);
+
+    qint64 vfoBFrequency() const { return m_vfoBFrequency; }
+    void setVfoBFrequency(qint64 freq);
+
+    int activeVfo() const { return m_activeVfo; }
+    void setActiveVfo(int vfo);
+
     int filterSlope() const { return m_filterSlope; }
     void setFilterSlope(int slope);
 
@@ -64,6 +76,9 @@ signals:
     void agcModeChanged(AGCMode mode);
     void ctrFrequencyChanged(qint64 freq);
     void vfoFrequencyChanged(qint64 freq);
+    void vfoAFrequencyChanged(qint64 freq);
+    void vfoBFrequencyChanged(qint64 freq);
+    void activeVfoChanged(int vfo);
     void filterSlopeChanged(int slope);
 
 private:
@@ -75,6 +90,9 @@ private:
     AGCMode m_agcMode;
     qint64 m_ctrFrequency;
     qint64 m_vfoFrequency;
+    qint64 m_vfoAFrequency;
+    qint64 m_vfoBFrequency;
+    int m_activeVfo = 0;
     int m_filterSlope = 1;
 };
 

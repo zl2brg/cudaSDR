@@ -47,6 +47,16 @@ public:
     void addSlice(SliceModel *slice);
     void removeSlice(SliceModel *slice);
 
+    /**
+     * Slice used for TX dial / Alex LPF when split (TCI VFO-B) is active.
+     * -1 means TX follows the primary RX slice (index 0 / current receiver).
+     */
+    int txSliceIndex() const { return m_txSliceIndex; }
+    void setTxSliceIndex(int index);
+
+    /** Frequency the protocols should encode for TX / Alex. */
+    qint64 effectiveTxFrequency() const;
+
     RadioTelemetry* telemetry() const { return m_telemetry; }
 
 signals:
@@ -55,11 +65,13 @@ signals:
     void activeReceiversChanged(int count);
     void hardwareTypeChanged(const QString &type);
     void colorsChanged();
+    void txSliceIndexChanged(int index);
 
 private:
     bool m_connected = false;
     int m_sampleRate = 48000;
     int m_activeReceivers = 1;
+    int m_txSliceIndex = -1;
     QString m_hardwareType = "Unknown";
     TPanadapterColors m_colors;
     TCCParameterTx m_tx{};

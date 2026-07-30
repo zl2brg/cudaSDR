@@ -50,6 +50,29 @@ void RadioModel::addSlice(SliceModel *slice) {
 
 void RadioModel::removeSlice(SliceModel *slice) {
     if (m_slices.removeOne(slice)) {
+        if (m_txSliceIndex >= 0 && m_txSliceIndex >= m_slices.size()) {
+            m_txSliceIndex = -1;
+            emit txSliceIndexChanged(m_txSliceIndex);
+        }
         slice->deleteLater();
     }
+}
+
+void RadioModel::setTxSliceIndex(int index) {
+    if (index < -1)
+        index = -1;
+    if (index >= m_slices.size())
+        index = -1;
+    if (m_txSliceIndex == index)
+        return;
+    m_txSliceIndex = index;
+    emit txSliceIndexChanged(m_txSliceIndex);
+}
+
+qint64 RadioModel::effectiveTxFrequency() const {
+    if (m_txSliceIndex >= 0 && m_txSliceIndex < m_slices.size() && m_slices.at(m_txSliceIndex))
+        return m_slices.at(m_txSliceIndex)->frequency();
+    if (!m_slices.isEmpty() && m_slices.at(0))
+        return m_slices.at(0)->frequency();
+    return static_cast<qint64>(m_tx.txFrequency);
 }

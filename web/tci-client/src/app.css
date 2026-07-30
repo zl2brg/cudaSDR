@@ -66,6 +66,112 @@ body {
   color: #8b949e;
 }
 
+.vfo-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.vfo-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.vfo-select {
+  width: 36px;
+  min-width: 36px;
+  font-weight: 700;
+  font-size: 16px;
+  border-radius: 6px;
+  border: 1px solid #30363d;
+  background: #21262d;
+  color: #8b949e;
+  cursor: pointer;
+}
+
+.vfo-select.selected {
+  background: #1f6feb;
+  border-color: #1f6feb;
+  color: #fff;
+}
+
+.vfo-select.split-active:not(.selected) {
+  border-color: #79c0ff;
+  color: #79c0ff;
+}
+
+.vfo-panel {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+
+.vfo-panel.selected {
+  border-color: #1f6feb;
+  background: rgba(31, 111, 235, 0.12);
+}
+
+.vfo-label {
+  font-size: 10px;
+  color: #8b949e;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.vfo-b .freq-b {
+  font-size: 20px;
+  color: #8b949e;
+  font-weight: 500;
+}
+
+.vfo-b.selected .freq-b,
+.vfo-b.split-active .freq-b {
+  color: #79c0ff;
+}
+
+.split-tag {
+  color: #79c0ff;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.vfo-tune-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.vfo-tune-bar button {
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+.tune-hint {
+  font-size: 11px;
+  color: #c9d1d9;
+  margin-right: 4px;
+}
+
+.freq-edit {
+  width: 9rem;
+  padding: 4px 6px;
+  border-radius: 4px;
+  border: 1px solid #1f6feb;
+  background: #0d1117;
+  color: #f0c674;
+}
+
+.freq-meta .hint {
+  color: #d29922;
+}
+
 .spacer {
   flex: 1;
 }

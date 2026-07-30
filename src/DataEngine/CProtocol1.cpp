@@ -279,8 +279,8 @@ void CProtocol1::encodeCCBytes(unsigned char* buffer, DataEngine* de, RadioModel
     };
 
     auto sliceTxFrequency = [de, radioModel]() -> long {
-        if (radioModel && !radioModel->slices().isEmpty())
-            return static_cast<long>(radioModel->slices().at(0)->frequency());
+        if (radioModel)
+            return static_cast<long>(radioModel->effectiveTxFrequency());
         return static_cast<long>(de->txParams().txFrequency);
     };
 

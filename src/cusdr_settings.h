@@ -467,6 +467,9 @@ typedef struct _receiver {
 
 	qint64	ctrFrequency;
 	qint64	vfoFrequency;
+	qint64	vfoAFrequency;
+	qint64	vfoBFrequency;
+	int		activeVfo; // 0 = A, 1 = B (SliceModel::ActiveVfo)
 	qint64	ncoFrequency;
 
 	float	freqRulerPosition;
@@ -711,6 +714,8 @@ signals:
 	void newHPSDRDeviceNIC(QString nicName, QString ipAddress);
 	void serverNICChanged(int);
 	void tciServerEnabledChanged(bool enabled);
+	void tciRxGainChanged(float gain);
+	void tciTxGainChanged(float gain);
 	void hpsdrDeviceNICChanged(int);
 	void socketBufferSizeChanged(int value);
 	void manualSocketBufferChanged(bool value);
@@ -1185,6 +1190,10 @@ public slots:
     // tciServerEnabledChanged so the server can be started/stopped at runtime.
     bool        getTciServerEnabled() const { return m_tciServerEnabled; }
     void        setTciServerEnabled(bool enabled);
+    float       getTciRxGain() const { return m_tciRxGain; }
+    void        setTciRxGain(float gain);
+    float       getTciTxGain() const { return m_tciTxGain; }
+    void        setTciTxGain(float gain);
     // Lock-free hint set by TciServer when any client is subscribed to the IQ
     // stream. The DSP thread reads it to skip building/emitting per-block IQ
     // when nobody is listening (avoids the interleave alloc + copy each block).
@@ -1302,6 +1311,9 @@ public slots:
 	void setMaxFrequency(qint64 value);
 	void setVFOFrequency(int mode, int rx, qint64 frequency);
 	void setVfoFrequency(int rx, qint64 frequency);
+	/** Retune the dial, recentring the panadapter only when the target would fall
+	 *  outside the displayed span (VFO A/B switches, memory recalls). */
+	void setVfoFrequencyVisible(int rx, qint64 frequency);
 	qint64 getVfoFrequency(int rx);
 	void setNCOFrequency(bool value, int rx, qint64 frequency);
 		
@@ -1524,6 +1536,8 @@ private:
     RigCtlServer *m_rigCtlServer = nullptr;
     TciServer    *m_tciServer = nullptr;
     bool          m_tciServerEnabled = true;
+    float         m_tciRxGain = 1.0f;
+    float         m_tciTxGain = 1.0f;
     std::atomic<bool> m_tciIqActive{false};
 	bool	m_defaultSkin;
 	bool	m_connected;

@@ -112,6 +112,7 @@ bool TciServer::startListening(quint16 port)
     }
 
     TCI_DEBUG << "Listening on port" << port;
+    emit connectionStatusChanged();
     return true;
 }
 
@@ -129,6 +130,7 @@ void TciServer::stopListening()
         m_settings->setTciIqActive(false);
     if (hadClients)
         emit remoteControlChanged(false);
+    emit connectionStatusChanged();
 }
 
 bool TciServer::isListening() const
@@ -139,6 +141,45 @@ bool TciServer::isListening() const
 quint16 TciServer::port() const
 {
     return m_server->serverPort();
+}
+
+void TciServer::setRxGain(float gain)
+{
+    const float clamped = qBound(0.0f, gain, 2.0f);
+    if (std::abs(m_rxGain - clamped) < 1e-6f)
+        return;
+    m_rxGain = clamped;
+    emit rxGainChanged(m_rxGain);
+}
+
+void TciServer::setTxGain(float gain)
+{
+    const float clamped = qBound(0.0f, gain, 2.0f);
+    if (std::abs(m_txGain - clamped) < 1e-6f)
+        return;
+    m_txGain = clamped;
+    emit txGainChanged(m_txGain);
+}
+
+QString TciServer::connectionStatusText() const
+{
+    if (!m_settings || !m_settings->getTciServerEnabled())
+        return QStringLiteral("Disabled");
+    if (!isListening())
+        return QStringLiteral("Not listening");
+
+    QString text;
+    const int n = m_clients.size();
+    if (n == 0)
+        text = QStringLiteral("Listening — no clients");
+    else if (n == 1)
+        text = QStringLiteral("Connected — 1 client");
+    else
+        text = QStringLiteral("Connected — %1 clients").arg(n);
+
+    if (m_txChronoClient)
+        text += QStringLiteral(" (TX)");
+    return text;
 }
 
 void TciServer::sendToClient(QWebSocket *client, const QString &message)
@@ -163,6 +204,17 @@ QString TciServer::formatVfo(int trx, int channel, qint64 frequency) const
 {
     return tciMessage(QStringLiteral("VFO"),
                       {QString::number(trx), QString::number(channel), QString::number(frequency)});
+}
+
+/**
+ * cudaSDR extension: which VFO memory the RX dial is sitting on. TCI 1.5 has no
+ * verb for this — channel 0/1 only address the two frequency memories — so the
+ * A/B switch would otherwise be local to whichever end the operator touched.
+ */
+QString TciServer::formatActiveVfo(int trx, int channel) const
+{
+    return tciMessage(QStringLiteral("ACTIVE_VFO"),
+                      {QString::number(trx), QString::number(channel)});
 }
 
 QString TciServer::formatDds(int trx, int channel, qint64 frequency) const
@@ -403,6 +455,23 @@ void TciServer::bindSlices(RadioModel *radioModel)
         m_sliceConnections.append(
             connect(slice, &SliceModel::sMeterValueChanged, this,
                     [this, rx](double value) { onSMeterValueChanged(rx, value); }));
+        // Channel 0/1 track the A/B memories (the dial writes through to the
+        // active one), so clients see local A/B edits, copies and swaps.
+        m_sliceConnections.append(
+            connect(slice, &SliceModel::vfoAFrequencyChanged, this,
+                    [this, rx](qint64 hz) {
+                        if (rx == rxSliceIdForTrx(0))
+                            broadcast(formatVfo(0, 0, hz));
+                    }));
+        m_sliceConnections.append(
+            connect(slice, &SliceModel::vfoBFrequencyChanged, this,
+                    [this, rx](qint64 hz) {
+                        if (rx == rxSliceIdForTrx(0))
+                            broadcast(formatVfo(0, 1, hz));
+                    }));
+        m_sliceConnections.append(
+            connect(slice, &SliceModel::activeVfoChanged, this,
+                    [this, rx](SliceModel::ActiveVfo) { onActiveVfoChanged(rx); }));
     }
 
     if (RadioTelemetry *tel = radioModel->telemetry()) {
@@ -421,8 +490,9 @@ void TciServer::bindSlices(RadioModel *radioModel)
 void TciServer::sendInitState(QWebSocket *client)
 {
     const int trxCount = 1;
-    const int channelCount = qMax(1, m_settings->getNumberOfReceivers());
+    const int rxCount = qMax(1, m_settings->getNumberOfReceivers());
     const bool receiveOnly = !m_settings->getTxAllowed();
+    const int rx0 = rxSliceIdForTrx(0);
 
     // Identity: protocol "ExpertSDR3" sets WSJT-X's ESDR3 flag (command formats
     // + full TX audio gain). See WSJTX/wsjtx Transceiver/TCITransceiver.cpp.
@@ -432,9 +502,9 @@ void TciServer::sendInitState(QWebSocket *client)
     sendToClient(client, tciMessage(QStringLiteral("RECEIVE_ONLY"),
                                     {receiveOnly ? QStringLiteral("true") : QStringLiteral("false")}));
     sendToClient(client, tciMessage(QStringLiteral("TRX_COUNT"), {QString::number(trxCount)}));
-    // Plural form is what WSJT-X / eesdr-tci recognise; keep singular for PDF-spec clients.
-    sendToClient(client, tciMessage(QStringLiteral("CHANNELS_COUNT"), {QString::number(1)}));
-    sendToClient(client, tciMessage(QStringLiteral("CHANNEL_COUNT"), {QString::number(channelCount)}));
+    // ExpertSDR / WSJT-X: two VFO channels (A=RX, B=TX route) per TRX.
+    sendToClient(client, tciMessage(QStringLiteral("CHANNELS_COUNT"), {QStringLiteral("2")}));
+    sendToClient(client, tciMessage(QStringLiteral("CHANNEL_COUNT"), {QString::number(rxCount)}));
     sendToClient(client, tciMessage(QStringLiteral("MODULATIONS_LIST"),
                                     {QStringLiteral("lsb,usb,am,fm,nfm,digu,digl,cw,cwl,sam,fdv")}));
     sendToClient(client, tciMessage(QStringLiteral("VFO_LIMITS"),
@@ -442,26 +512,32 @@ void TciServer::sendInitState(QWebSocket *client)
     sendToClient(client, tciMessage(QStringLiteral("IF_LIMITS"),
                                     {QStringLiteral("-48000"), QStringLiteral("48000")}));
 
-    for (int rx = 0; rx < channelCount; ++rx) {
-        sendToClient(client, formatVfo(0, rx, m_settings->getVfoFrequency(rx)));
-        sendToClient(client, formatDds(0, rx, m_settings->getCtrFrequency(rx)));
-        sendToClient(client, formatIf(0, rx, ifOffsetHz(rx)));
-        sendToClient(client, formatModulation(0, m_settings->getDSPMode(rx)));
-        sendToClient(client, formatRxFilterBand(0,
-                                                m_settings->getFilterLo(rx),
-                                                m_settings->getFilterHi(rx)));
-        sendToClient(client, formatRxSMeter(0, rx, smeterDbmForRx(rx)));
+    if (m_radioModel && rx0 >= 0 && rx0 < m_radioModel->slices().size()
+        && m_radioModel->slices().at(rx0)) {
+        sendToClient(client, formatVfo(0, 0, m_radioModel->slices().at(rx0)->vfoAFrequency()));
+        sendToClient(client, formatVfo(0, 1, m_radioModel->slices().at(rx0)->vfoBFrequency()));
+    } else {
+        sendToClient(client, formatVfo(0, 0, m_settings->getVfoFrequency(rx0)));
+        sendToClient(client, formatVfo(0, 1, vfoBFrequencyHz()));
     }
+    sendToClient(client, formatActiveVfo(0, activeVfoChannel(0)));
+    sendToClient(client, formatDds(0, 0, m_settings->getCtrFrequency(rx0)));
+    sendToClient(client, formatIf(0, 0, ifOffsetHz(rx0)));
+    sendToClient(client, formatModulation(0, m_settings->getDSPMode(rx0)));
+    sendToClient(client, formatRxFilterBand(0,
+                                            m_settings->getFilterLo(rx0),
+                                            m_settings->getFilterHi(rx0)));
+    sendToClient(client, formatRxSMeter(0, 0, smeterDbmForRx(rx0)));
     sendToClient(client, tciMessage(QStringLiteral("RX_ENABLE"),
                                     {QStringLiteral("0"), QStringLiteral("true")}));
 
     sendToClient(client, formatTrx(0, m_settings->getRadioState()));
     sendToClient(client, formatDrive(0, m_settings->getDriveLevel()));
     sendToClient(client, formatTune(0, m_settings->getRadioState() == RadioState::TUNE));
-    // WSJT-X / ExpertSDR clients expect these enable flags during handshake.
     sendToClient(client, tciMessage(QStringLiteral("SPLIT_ENABLE"),
                                     {QStringLiteral("0"),
-                                     m_splitEnabled ? QStringLiteral("true") : QStringLiteral("false")}));
+                                     m_routingState.splitRequested() ? QStringLiteral("true")
+                                                                     : QStringLiteral("false")}));
     sendToClient(client, tciMessage(QStringLiteral("RIT_ENABLE"),
                                     {QStringLiteral("0"), QStringLiteral("false")}));
     sendToClient(client, tciMessage(QStringLiteral("XIT_ENABLE"),
@@ -478,12 +554,6 @@ void TciServer::sendInitState(QWebSocket *client)
                                     {QStringLiteral("Default")}));
     sendToClient(client, tciMessage(QStringLiteral("READY")));
 
-    // Advertise honest device power from data-engine state. Device START/STOP
-    // is distinct from IQ_START. Tradeoff: WSJT-X do_start() sets _power_ from
-    // a "start;" notification (else "TCI SDR is not switched on" unless the
-    // client option that sends start itself / rig_power is enabled). When the
-    // radio is stopped we send "stop;" so clients see real state; start the
-    // engine (UI or TCI START) before expecting WSJT-X without that option.
     if (m_settings->getDataEngineState() == QSDR::DataEngineUp)
         sendToClient(client, tciMessage(QStringLiteral("START")));
     else
@@ -530,6 +600,17 @@ void TciServer::onRxAudioSamples(int rx, QVector<float> stereoInterleaved, int s
     if (stereoInterleaved.isEmpty() || !m_settings || !m_settings->getTciServerEnabled())
         return;
 
+    const float *samples = stereoInterleaved.constData();
+    int sampleCount = stereoInterleaved.size();
+    QVector<float> scaled;
+    if (std::abs(m_rxGain - 1.0f) > 1e-6f) {
+        scaled = stereoInterleaved;
+        for (float &s : scaled)
+            s *= m_rxGain;
+        samples = scaled.constData();
+        sampleCount = scaled.size();
+    }
+
     // Send each DSP audio block straight to the socket, in its natural cadence
     // (~21 ms at 48k pan, ~5 ms at 192k) — exactly like the local soundcard
     // path. The client's own jitter buffer absorbs the block granularity. RX
@@ -542,8 +623,7 @@ void TciServer::onRxAudioSamples(int rx, QVector<float> stereoInterleaved, int s
         if (!state || !state->audioEnabledReceivers.contains(rx))
             continue;
 
-        sendAudioPacket(client, *state, rx, stereoInterleaved.constData(),
-                        stereoInterleaved.size());
+        sendAudioPacket(client, *state, rx, samples, sampleCount);
     }
 }
 
@@ -612,6 +692,7 @@ void TciServer::onNewConnection()
         if (wasEmpty) {
             emit remoteControlChanged(true);
         }
+        emit connectionStatusChanged();
     }
 }
 
@@ -712,6 +793,11 @@ void TciServer::onClientBinaryMessage(const QByteArray &message)
             decoded = std::move(resampled);
     }
 
+    if (std::abs(m_txGain - 1.0f) > 1e-6f) {
+        for (double &s : decoded)
+            s *= static_cast<double>(m_txGain);
+    }
+
     m_txAudioResidual.append(decoded);
 
     // Enqueue exactly DSP_SAMPLE_SIZE mono blocks — the same granularity the
@@ -766,11 +852,17 @@ void TciServer::onClientDisconnected()
 
     if (m_clients.isEmpty()) {
         emit remoteControlChanged(false);
+        // Last client gone: drop TCI-created TX designation but keep VFO-B memory.
+        if (m_routingState.ownsRoute())
+            m_routingState.clearTciRoute();
+        m_routingState.setSplitRequested(false);
+        syncTxSliceForSplit();
         if (m_settings->getRadioState() != RadioState::RX) {
             TCI_WARN << "Client disconnected while TX active — watchdog started (30s)";
             m_watchdog->start();
         }
     }
+    emit connectionStatusChanged();
 }
 
 void TciServer::onWatchdogTimeout()
@@ -784,12 +876,382 @@ void TciServer::handleCommand(QWebSocket *client, const QString &commandLine)
     if (commandLine.isEmpty())
         return;
 
-    const int colon = commandLine.indexOf(':');
-    const QString name = (colon >= 0 ? commandLine.left(colon) : commandLine).trimmed().toUpper();
-    QStringList args;
-    if (colon >= 0)
-        args = commandLine.mid(colon + 1).split(',', Qt::KeepEmptyParts);
+    const QString reply = m_commandHandler.handleCommand(commandLine);
+    if (!reply.isEmpty())
+        sendToClient(client, reply);
 
+    applyPendingHandlerEffects(client, m_commandHandler);
+
+    if (m_commandHandler.lastCommandNeedsServer())
+        handleServerCommand(client, m_commandHandler.lastCommandName(),
+                            m_commandHandler.lastCommandArgs());
+}
+
+void TciServer::applyPendingHandlerEffects(QWebSocket *client, TciCommandHandler &handler)
+{
+    const QString note = handler.pendingNotification();
+    if (!note.isEmpty())
+        broadcast(note);
+
+    if (const auto req = handler.takeVfoRequest())
+        handleVfoRequest(client, *req);
+    if (const auto req = handler.takeSplitRequest())
+        handleSplitRequest(client, *req);
+    if (const auto req = handler.takeTrxRequest())
+        handleTrxRequest(client, *req);
+
+    if (const auto req = handler.takeTuneRequest()) {
+        m_settings->setRadioState(req->enabled ? RadioState::TUNE : RadioState::RX);
+    }
+    if (const auto req = handler.takeDriveRequest()) {
+        if (req->isSet)
+            m_settings->setDriveLevel(req->level);
+    }
+    if (const auto req = handler.takeModulationRequest()) {
+        const int rx = rxSliceIdForTrx(req->trx);
+        m_settings->setDSPMode(rx, req->mode);
+    }
+    if (const auto req = handler.takeFilterRequest()) {
+        const int rx = rxSliceIdForTrx(req->trx);
+        m_settings->setRXFilter(rx, req->lo, req->hi);
+    }
+    if (const auto req = handler.takeDdsRequest()) {
+        const int rx = rxSliceIdForTrx(req->trx);
+        const qint64 vfo = m_settings->getVfoFrequency(rx);
+        m_settings->setCtrFrequency(0, rx, req->frequencyHz);
+        m_settings->setNCOFrequency(true, rx, vfo - req->frequencyHz);
+    }
+    if (const auto req = handler.takeIfRequest()) {
+        const int rx = rxSliceIdForTrx(req->trx);
+        m_settings->setVFOFrequency(0, rx, m_settings->getCtrFrequency(rx) + req->offsetHz);
+    }
+    if (const auto req = handler.takeStartStopRequest()) {
+        if (req->start) {
+            if (m_settings->getDataEngineState() == QSDR::DataEngineUp)
+                sendToClient(client, tciMessage(QStringLiteral("START")));
+            else
+                emit startRequested();
+        } else {
+            if (m_settings->getDataEngineState() != QSDR::DataEngineDown)
+                emit stopRequested();
+            sendToClient(client, tciMessage(QStringLiteral("STOP")));
+        }
+    }
+}
+
+QVector<TciSliceEndpoint> TciServer::routingEndpoints() const
+{
+    QVector<TciSliceEndpoint> out;
+    if (!m_radioModel)
+        return out;
+
+    const QList<SliceModel*> slices = m_radioModel->slices();
+    const int active = qBound(1, m_radioModel->activeReceivers(), slices.size());
+    const int designatedTx = m_radioModel->txSliceIndex();
+
+    for (int i = 0; i < active; ++i)
+        out.push_back({i, designatedTx >= 0 && i == designatedTx});
+
+    // Include a TCI-bound VFO-B slice even when it is outside the active DDC set.
+    const int routedTx = m_routingState.txSliceId();
+    if (routedTx >= 0 && routedTx < slices.size()) {
+        bool found = false;
+        for (TciSliceEndpoint &ep : out) {
+            if (ep.sliceId == routedTx) {
+                ep.isTx = (designatedTx == routedTx) || m_routingState.splitRequested();
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            out.push_back({routedTx,
+                           designatedTx == routedTx || m_routingState.splitRequested()});
+        }
+    }
+    return out;
+}
+
+int TciServer::rxSliceIdForTrx(int trx) const
+{
+    Q_UNUSED(trx)
+    // Phase-1: single TCI TRX maps to the current / primary receiver.
+    if (m_settings)
+        return qBound(0, m_settings->getCurrentReceiver(),
+                       qMax(0, m_settings->getNumberOfReceivers() - 1));
+    return 0;
+}
+
+int TciServer::allocateVfoBSlice(int rxSliceId) const
+{
+    if (!m_radioModel)
+        return -1;
+    const int n = m_radioModel->slices().size();
+    // Prefer a spare pool slice (typically index 1) so VFO-B does not steal an
+    // operator's independent active receiver.
+    for (int i = 0; i < n; ++i) {
+        if (i == rxSliceId)
+            continue;
+        if (i >= m_radioModel->activeReceivers())
+            return i;
+    }
+    for (int i = 0; i < n; ++i) {
+        if (i != rxSliceId)
+            return i;
+    }
+    return -1;
+}
+
+void TciServer::syncTxSliceForSplit()
+{
+    if (!m_radioModel)
+        return;
+    if (m_routingState.splitRequested() && m_routingState.txSliceId() >= 0)
+        m_radioModel->setTxSliceIndex(m_routingState.txSliceId());
+    else
+        m_radioModel->setTxSliceIndex(-1);
+    applyEffectiveTxFrequency();
+}
+
+void TciServer::tuneRxVfo(int rx, qint64 frequencyHz)
+{
+    // WSJT-X / ExpertSDR CAT-style VFO sets dial frequency and moves LO with it.
+    m_settings->setCtrFrequency(1, rx, frequencyHz);
+    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size()
+        && m_radioModel->slices().at(rx)) {
+        m_radioModel->slices().at(rx)->setFrequency(frequencyHz);
+        m_radioModel->slices().at(rx)->setCenterFrequency(frequencyHz);
+    }
+    applyEffectiveTxFrequency();
+}
+
+void TciServer::tuneTxVfo(int txSliceId, qint64 frequencyHz)
+{
+    if (!m_radioModel || txSliceId < 0 || txSliceId >= m_radioModel->slices().size())
+        return;
+    SliceModel *slice = m_radioModel->slices().at(txSliceId);
+    if (!slice)
+        return;
+    slice->setFrequency(frequencyHz);
+    // Keep Settings VFO list in sync when the TX slice is also an active RX.
+    if (txSliceId < m_settings->getNumberOfReceivers())
+        m_settings->setVFOFrequency(0, txSliceId, frequencyHz);
+    applyEffectiveTxFrequency();
+    broadcast(formatVfo(0, 1, frequencyHz));
+}
+
+qint64 TciServer::vfoAFrequencyHz(int trx) const
+{
+    if (const SliceModel *slice = rxSliceForTrx(trx))
+        return slice->vfoAFrequency();
+    return m_settings->getVfoFrequency(rxSliceIdForTrx(trx));
+}
+
+qint64 TciServer::vfoBFrequencyHz() const
+{
+    const int rx = rxSliceIdForTrx(0);
+    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size()
+        && m_radioModel->slices().at(rx)) {
+        return m_radioModel->slices().at(rx)->vfoBFrequency();
+    }
+    if (m_radioModel && m_routingState.txSliceId() >= 0
+        && m_routingState.txSliceId() < m_radioModel->slices().size()
+        && m_radioModel->slices().at(m_routingState.txSliceId())) {
+        return m_radioModel->slices().at(m_routingState.txSliceId())->frequency();
+    }
+    return m_settings->getVfoFrequency(rx);
+}
+
+SliceModel *TciServer::rxSliceForTrx(int trx) const
+{
+    if (!m_radioModel)
+        return nullptr;
+    const int rx = rxSliceIdForTrx(trx);
+    if (rx < 0 || rx >= m_radioModel->slices().size())
+        return nullptr;
+    return m_radioModel->slices().at(rx);
+}
+
+int TciServer::activeVfoChannel(int trx) const
+{
+    const SliceModel *slice = rxSliceForTrx(trx);
+    return (slice && slice->activeVfo() == SliceModel::VfoB) ? 1 : 0;
+}
+
+void TciServer::applyActiveVfo(int trx, int channel)
+{
+    SliceModel *slice = rxSliceForTrx(trx);
+    if (!slice)
+        return;
+
+    const SliceModel::ActiveVfo target = (channel == 1) ? SliceModel::VfoB : SliceModel::VfoA;
+    if (slice->activeVfo() == target)
+        return;
+
+    slice->setActiveVfo(target);
+    // Move the hardware with the dial; recentres only if the memory is off-span.
+    m_settings->setVfoFrequencyVisible(slice->id(), slice->frequency());
+    applyEffectiveTxFrequency();
+}
+
+void TciServer::onActiveVfoChanged(int rx)
+{
+    if (rx != rxSliceIdForTrx(0))
+        return;
+    broadcast(formatActiveVfo(0, activeVfoChannel(0)));
+}
+
+void TciServer::applyEffectiveTxFrequency()
+{
+    if (!m_radioModel)
+        return;
+    const qint64 hz = m_radioModel->effectiveTxFrequency();
+    if (hz > 0)
+        m_radioModel->txParams().txFrequency = hz;
+}
+
+void TciServer::handleVfoRequest(QWebSocket *client, const TciCommandHandler::VfoRequest &request)
+{
+    Q_UNUSED(client)
+    const int rxSliceId = rxSliceIdForTrx(request.trx);
+    SliceModel *rxSlice = nullptr;
+    if (m_radioModel && rxSliceId >= 0 && rxSliceId < m_radioModel->slices().size())
+        rxSlice = m_radioModel->slices().at(rxSliceId);
+
+    if (request.channel == 0) {
+        // VFO-A lives on the same RX slice; make A active so dial write-through stays consistent.
+        if (rxSlice) {
+            if (rxSlice->activeVfo() != SliceModel::VfoA)
+                rxSlice->setActiveVfo(SliceModel::VfoA);
+            rxSlice->setVfoAFrequency(request.frequencyHz);
+        }
+        tuneRxVfo(rxSliceId, request.frequencyHz);
+        return;
+    }
+
+    // VFO-B memory on the same RX slice (operator A/B store).
+    if (rxSlice) {
+        rxSlice->setVfoBFrequency(request.frequencyHz);
+        // B is the live dial: the slice write alone moves the display, not the DDC.
+        if (rxSlice->activeVfo() == SliceModel::VfoB)
+            m_settings->setVfoFrequencyVisible(rxSlice->id(), request.frequencyHz);
+    }
+
+    // Digi split path (unchanged): resolve / create a TX route spare slice, then tune it.
+    const TciRoutingState::RouteDecision route =
+        m_routingState.resolveVfoB(rxSliceId, routingEndpoints());
+
+    int txSliceId = route.txSliceId;
+    if (route.action == TciRoutingState::RouteAction::Create
+        || route.action == TciRoutingState::RouteAction::Unavailable) {
+        txSliceId = allocateVfoBSlice(rxSliceId);
+        if (txSliceId < 0) {
+            TCI_WARN << "VFO-B unavailable: no spare slice for trx" << request.trx;
+            broadcast(formatVfo(0, 1, vfoBFrequencyHz()));
+            return;
+        }
+        // Seed from RX dial so an untouched VFO-B is not 0 Hz.
+        if (m_radioModel && m_radioModel->slices().at(txSliceId)
+            && m_radioModel->slices().at(txSliceId)->frequency() <= 0) {
+            qint64 seed = m_settings->getVfoFrequency(rxSliceId);
+            if (rxSlice)
+                seed = rxSlice->vfoBFrequency();
+            m_radioModel->slices().at(txSliceId)->setFrequency(seed);
+        }
+        m_routingState.bindCreatedRoute(rxSliceId, txSliceId);
+    } else if (route.action == TciRoutingState::RouteAction::PromoteExisting
+               || route.action == TciRoutingState::RouteAction::UseExisting) {
+        txSliceId = route.txSliceId;
+        if (route.action == TciRoutingState::RouteAction::PromoteExisting)
+            m_routingState.bindCreatedRoute(rxSliceId, txSliceId);
+    }
+
+    if (txSliceId < 0) {
+        broadcast(formatVfo(0, 1, vfoBFrequencyHz()));
+        return;
+    }
+
+    syncTxSliceForSplit();
+    tuneTxVfo(txSliceId, request.frequencyHz);
+}
+
+void TciServer::handleSplitRequest(QWebSocket *client, const TciCommandHandler::SplitRequest &request)
+{
+    Q_UNUSED(client)
+    const bool wasSplit = m_routingState.splitRequested();
+    const bool changed = m_routingState.setSplitRequested(request.enabled);
+    const QString confirmation = tciMessage(QStringLiteral("SPLIT_ENABLE"),
+                                            {QString::number(request.trx),
+                                             request.enabled ? QStringLiteral("true")
+                                                             : QStringLiteral("false")});
+
+    if (request.enabled) {
+        const int rxSliceId = rxSliceIdForTrx(request.trx);
+        const TciRoutingState::RouteDecision route =
+            m_routingState.resolveVfoB(rxSliceId, routingEndpoints());
+        if (route.action == TciRoutingState::RouteAction::Create
+            || route.action == TciRoutingState::RouteAction::Unavailable) {
+            const int txSliceId = allocateVfoBSlice(rxSliceId);
+            if (txSliceId < 0) {
+                m_routingState.setSplitRequested(false);
+                broadcast(tciMessage(QStringLiteral("SPLIT_ENABLE"),
+                                     {QString::number(request.trx), QStringLiteral("false")}));
+                return;
+            }
+            if (m_radioModel && m_radioModel->slices().at(txSliceId)
+                && m_radioModel->slices().at(txSliceId)->frequency() <= 0) {
+                qint64 seed = m_settings->getVfoFrequency(rxSliceId);
+                if (rxSliceId >= 0 && rxSliceId < m_radioModel->slices().size()
+                    && m_radioModel->slices().at(rxSliceId))
+                    seed = m_radioModel->slices().at(rxSliceId)->vfoBFrequency();
+                m_radioModel->slices().at(txSliceId)->setFrequency(seed);
+            }
+            m_routingState.bindCreatedRoute(rxSliceId, txSliceId);
+        } else if (route.action == TciRoutingState::RouteAction::PromoteExisting) {
+            m_routingState.bindCreatedRoute(rxSliceId, route.txSliceId);
+        }
+        syncTxSliceForSplit();
+        broadcast(confirmation);
+        broadcast(formatVfo(0, 1, vfoBFrequencyHz()));
+        return;
+    }
+
+    // WSJT-X sends a steady split_enable:false before programming VFO-B — do
+    // not discard the route on a no-op. Only reclaim on a true→false edge.
+    if (changed && wasSplit && m_routingState.ownsRoute()) {
+        // Keep the spare-slice frequency (VFO-B memory); just stop using it for TX.
+        m_routingState.clearTciRoute();
+    }
+    syncTxSliceForSplit();
+    broadcast(confirmation);
+}
+
+void TciServer::handleTrxRequest(QWebSocket *client, const TciCommandHandler::TrxRequest &request)
+{
+    if (request.transmitting)
+        m_watchdog->stop();
+
+    const int rxSliceId = rxSliceIdForTrx(request.trx);
+    const int pttSlice = m_routingState.resolvePttSlice(rxSliceId, routingEndpoints());
+    if (request.transmitting && m_routingState.splitRequested() && pttSlice >= 0
+        && m_radioModel) {
+        m_radioModel->setTxSliceIndex(pttSlice);
+        applyEffectiveTxFrequency();
+    } else if (!request.transmitting) {
+        syncTxSliceForSplit();
+    } else {
+        applyEffectiveTxFrequency();
+    }
+
+    m_settings->setRadioState(request.transmitting ? RadioState::MOX : RadioState::RX);
+    if (request.transmitting)
+        startTxChrono(client, request.trx);
+    else if (client == m_txChronoClient)
+        stopTxChrono();
+}
+
+void TciServer::handleServerCommand(QWebSocket *client, const QString &name, const QStringList &args)
+{
+    // Remaining verbs that need per-client stream state or live Settings reads.
     int trx = 0;
     int channel = 0;
     if (!args.isEmpty()) {
@@ -805,34 +1267,57 @@ void TciServer::handleCommand(QWebSocket *client, const QString &commandLine)
             channel = ch;
     }
 
+    // IQ / audio subscriptions: ExpertSDR uses trx as the receiver index.
     const int maxRx = qMax(0, m_settings->getNumberOfReceivers() - 1);
-    const int rx = qBound(0, channel, maxRx);
+    const int rx = qBound(0, trx, maxRx);
 
-    // Device power (ExpertSDR START/STOP) — not the same as IQ stream control.
-    // START/STOP request MainWindow (via signals) to start/stop the data engine
-    // like the UI Start/Stop button. "start;" / "stop;" are advertised when the
-    // engine state changes (onSystemStateChanged), and echoed immediately when
-    // already in the requested state.
-    if (name == QLatin1String("START")) {
-        if (m_settings->getDataEngineState() == QSDR::DataEngineUp) {
-            sendToClient(client, tciMessage(QStringLiteral("START")));
-            return;
-        }
-        emit startRequested();
+    if (name == QLatin1String("vfo")) {
+        if (channel == 1)
+            sendToClient(client, formatVfo(trx, 1, vfoBFrequencyHz()));
+        else
+            sendToClient(client, formatVfo(trx, 0, vfoAFrequencyHz(trx)));
+        return;
+    }
+    if (name == QLatin1String("active_vfo")) {
+        if (args.size() >= 2)
+            applyActiveVfo(trx, channel);
+        else
+            sendToClient(client, formatActiveVfo(trx, activeVfoChannel(trx)));
+        return;
+    }
+    if (name == QLatin1String("dds")) {
+        sendToClient(client, formatDds(trx, channel, m_settings->getCtrFrequency(rxSliceIdForTrx(trx))));
+        return;
+    }
+    if (name == QLatin1String("if")) {
+        sendToClient(client, formatIf(trx, channel, ifOffsetHz(rxSliceIdForTrx(trx))));
+        return;
+    }
+    if (name == QLatin1String("modulation")) {
+        sendToClient(client, formatModulation(trx, m_settings->getDSPMode(rxSliceIdForTrx(trx))));
+        return;
+    }
+    if (name == QLatin1String("rx_filter_band")) {
+        const int r = rxSliceIdForTrx(trx);
+        sendToClient(client, formatRxFilterBand(trx, m_settings->getFilterLo(r), m_settings->getFilterHi(r)));
+        return;
+    }
+    if (name == QLatin1String("trx") || name == QLatin1String("tx_enable")) {
+        sendToClient(client, formatTrx(trx, m_settings->getRadioState()));
+        return;
+    }
+    if (name == QLatin1String("tune")) {
+        sendToClient(client, formatTune(trx, m_settings->getRadioState() == RadioState::TUNE));
+        return;
+    }
+    if (name == QLatin1String("drive") || name == QLatin1String("tune_drive")) {
+        sendToClient(client, tciMessage(name,
+                                        {QString::number(trx),
+                                         QString::number(m_settings->getDriveLevel())}));
         return;
     }
 
-    if (name == QLatin1String("STOP")) {
-        if (m_settings->getDataEngineState() != QSDR::DataEngineDown)
-            emit stopRequested();
-        sendToClient(client, tciMessage(QStringLiteral("STOP")));
-        return;
-    }
-
-    if (name == QLatin1String("IQ_START")) {
-        // Test toggle: set CUSDR_TCI_NO_IQ=1 to refuse IQ subscriptions so the
-        // panadapter stream stays off while RX audio keeps running. Lets us
-        // isolate whether audio choppiness is caused by the IQ stream.
+    if (name == QLatin1String("iq_start")) {
         static const bool iqDisabled = qEnvironmentVariableIntValue("CUSDR_TCI_NO_IQ") != 0;
         if (iqDisabled) {
             TCI_DEBUG << "IQ_START ignored (CUSDR_TCI_NO_IQ set)";
@@ -844,36 +1329,32 @@ void TciServer::handleCommand(QWebSocket *client, const QString &commandLine)
             return;
         state->iqEnabledReceivers.insert(rx);
         updateIqActiveHint();
-        // Advertise effective IQ rate (≤ audio doubled, e.g. 48k→96k).
         sendToClient(client, tciMessage(QStringLiteral("IQ_SAMPLERATE"),
                                         {QString::number(nativeIqSampleRate())}));
         return;
     }
 
-    if (name == QLatin1String("IQ_STOP")) {
+    if (name == QLatin1String("iq_stop")) {
         if (TciClientState *state = clientState(client))
             state->iqEnabledReceivers.remove(rx);
         updateIqActiveHint();
         return;
     }
 
-    if (name == QLatin1String("IQ_SAMPLERATE")) {
-        // Client-requested rates are ignored. We report the effective
-        // advertised rate (≤ audio doubled, e.g. 48k→96k); binary IQ remains
-        // at the actual DSP sample rate (legacy rate/label mismatch).
+    if (name == QLatin1String("iq_samplerate")) {
         sendToClient(client, tciMessage(QStringLiteral("IQ_SAMPLERATE"),
                                         {QString::number(nativeIqSampleRate())}));
         return;
     }
 
-    if (name == QLatin1String("IQ_STREAM_SAMPLE_TYPE")) {
+    if (name == QLatin1String("iq_stream_sample_type")) {
         const QString fmtArg = (args.size() >= 2) ? args.at(1) : (args.isEmpty() ? QString() : args.at(0));
         if (!fmtArg.isEmpty() && clientState(client))
             clientState(client)->iqFormat = parseAudioFormat(fmtArg);
         return;
     }
 
-    if (name == QLatin1String("IQ_STREAM_CHANNELS")) {
+    if (name == QLatin1String("iq_stream_channels")) {
         const QString chArg = (args.size() >= 2) ? args.at(1) : (args.isEmpty() ? QString() : args.at(0));
         if (!chArg.isEmpty()) {
             bool ok = false;
@@ -884,7 +1365,7 @@ void TciServer::handleCommand(QWebSocket *client, const QString &commandLine)
         return;
     }
 
-    if (name == QLatin1String("IQ_STREAM_SAMPLES")) {
+    if (name == QLatin1String("iq_stream_samples")) {
         const QString samplesArg = (args.size() >= 2) ? args.at(1) : (args.isEmpty() ? QString() : args.at(0));
         if (!samplesArg.isEmpty()) {
             bool ok = false;
@@ -895,200 +1376,24 @@ void TciServer::handleCommand(QWebSocket *client, const QString &commandLine)
         return;
     }
 
-    if (name == QLatin1String("VFO")) {
-        if (args.size() >= 3) {
-            bool ok = false;
-            const qint64 freq = args.at(2).toLongLong(&ok);
-            if (!ok || !isValidVfoHz(freq))
-                return;
-            // WSJT-X / ExpertSDR CAT-style VFO sets the dial frequency. Mode-0
-            // (NCO-only) leaves CTR on the previous band (e.g. 14.074 → 7.074
-            // yields NCO = −7 MHz). Move LO with VFO so digi band hops land
-            // with CTR≈VFO and NCO≈0 — same contract as rigctld set_freq.
-            m_settings->setCtrFrequency(1, rx, freq);
-            return;
-        }
-
-        sendToClient(client, formatVfo(trx, channel, m_settings->getVfoFrequency(rx)));
-        return;
-    }
-
-    if (name == QLatin1String("DDS")) {
-        // Classic TCI is DDS:trx,freq (2 args). ExpertSDR3 / some clients also
-        // send DDS:trx,channel,freq (3 args). Accept either; frequency is last.
-        if (args.size() >= 2) {
-            bool ok = false;
-            const qint64 freq = args.last().toLongLong(&ok);
-            if (!ok || !isValidVfoHz(freq))
-                return;
-            // Panadapter center only — keep dial VFO, refresh IF/NCO.
-            const qint64 vfo = m_settings->getVfoFrequency(rx);
-            m_settings->setCtrFrequency(0, rx, freq);
-            m_settings->setNCOFrequency(true, rx, vfo - freq);
-            return;
-        }
-
-        sendToClient(client, formatDds(trx, channel, m_settings->getCtrFrequency(rx)));
-        return;
-    }
-
-    if (name == QLatin1String("IF")) {
-        if (args.size() >= 3) {
-            bool ok = false;
-            const qint64 offset = args.at(2).toLongLong(&ok);
-            if (!ok)
-                return;
-            // IF is the dial offset from DDS/CTR; keep VFO = CTR + IF.
-            m_settings->setVFOFrequency(0, rx, m_settings->getCtrFrequency(rx) + offset);
-            return;
-        }
-
-        sendToClient(client, formatIf(trx, channel, ifOffsetHz(rx)));
-        return;
-    }
-
-    if (name == QLatin1String("MODULATION")) {
-        if (args.size() >= 2 && !args.at(1).trimmed().isEmpty()) {
-            m_settings->setDSPMode(rx, tciModeToDsp(args.at(1)));
-            return;
-        }
-
-        sendToClient(client, formatModulation(trx, m_settings->getDSPMode(rx)));
-        return;
-    }
-
-    if (name == QLatin1String("RX_FILTER_BAND")) {
-        if (args.size() >= 3) {
-            bool okLo = false;
-            bool okHi = false;
-            const qreal lo = args.at(1).toDouble(&okLo);
-            const qreal hi = args.at(2).toDouble(&okHi);
-            if (!okLo || !okHi)
-                return;
-            m_settings->setRXFilter(rx, lo, hi);
-            return;
-        }
-
-        sendToClient(client, formatRxFilterBand(trx,
-                                                m_settings->getFilterLo(rx),
-                                                m_settings->getFilterHi(rx)));
-        return;
-    }
-
-    if (name == QLatin1String("TRX") || name == QLatin1String("TX_ENABLE")) {
-        if (args.size() >= 2) {
-            const bool txOn = parseBoolArg(args.at(1));
-            if (txOn)
-                m_watchdog->stop();
-            m_settings->setRadioState(txOn ? RadioState::MOX : RadioState::RX);
-            // ExpertSDR3 / WSJT-X only send TX audio after TX_CHRONO clocks.
-            // Third arg may be "tci" / "dax" / omitted — all still need chrono.
-            if (txOn)
-                startTxChrono(client, trx);
-            else if (client == m_txChronoClient)
-                stopTxChrono();
-            return;
-        }
-
-        sendToClient(client, formatTrx(trx, m_settings->getRadioState()));
-        return;
-    }
-
-    if (name == QLatin1String("TUNE")) {
-        if (args.size() >= 2) {
-            m_settings->setRadioState(parseBoolArg(args.at(1)) ? RadioState::TUNE : RadioState::RX);
-            return;
-        }
-
-        sendToClient(client, formatTune(trx, m_settings->getRadioState() == RadioState::TUNE));
-        return;
-    }
-
-    if (name == QLatin1String("DRIVE")) {
-        if (args.size() >= 2) {
-            bool ok = false;
-            const int level = args.at(1).toInt(&ok);
-            if (!ok)
-                return;
-            m_settings->setDriveLevel(qBound(0, level, 100));
-            return;
-        }
-
-        sendToClient(client, formatDrive(trx, m_settings->getDriveLevel()));
-        return;
-    }
-
-    // Bidirectional enable flags. cudaSDR is single-VFO (no real split/RIT/XIT);
-    // accept and echo so WSJT-X TCI clients stay connected.
-    if (name == QLatin1String("SPLIT_ENABLE")
-        || name == QLatin1String("RIT_ENABLE")
-        || name == QLatin1String("XIT_ENABLE")
-        || name == QLatin1String("MUTE")
-        || name == QLatin1String("LOCK")
-        || name == QLatin1String("VFO_LOCK")) {
+    if (name == QLatin1String("sql_enable")
+        || name == QLatin1String("rx_anf_enable")
+        || name == QLatin1String("mon_enable")
+        || name == QLatin1String("rx_nb_enable")
+        || name == QLatin1String("rx_nb2_enable")
+        || name == QLatin1String("rx_bin_enable")
+        || name == QLatin1String("agc_auto_ex")) {
         int enableTrx = 0;
         bool enableValue = false;
         bool hasValue = false;
         parseTrxEnableArgs(args, enableTrx, enableValue, hasValue);
-
-        if (hasValue) {
-            if (name == QLatin1String("SPLIT_ENABLE"))
-                m_splitEnabled = enableValue;
-            // Always echo accepted state (ExpertSDR sync style).
-            if (name == QLatin1String("MUTE")) {
-                broadcast(tciMessage(name, {enableValue ? QStringLiteral("true")
-                                                        : QStringLiteral("false")}));
-            } else if (name == QLatin1String("VFO_LOCK") && args.size() >= 3) {
-                broadcast(tciMessage(name,
-                                     {QString::number(enableTrx),
-                                      args.at(1),
-                                      enableValue ? QStringLiteral("true") : QStringLiteral("false")}));
-            } else {
-                broadcast(tciMessage(name,
-                                     {QString::number(enableTrx),
-                                      enableValue ? QStringLiteral("true") : QStringLiteral("false")}));
-            }
-            return;
-        }
-
-        // Query
-        if (name == QLatin1String("MUTE")) {
-            sendToClient(client, tciMessage(name, {QStringLiteral("false")}));
-        } else if (name == QLatin1String("SPLIT_ENABLE")) {
-            sendToClient(client,
-                         tciMessage(name,
-                                    {QString::number(enableTrx),
-                                     m_splitEnabled ? QStringLiteral("true") : QStringLiteral("false")}));
-        } else {
-            sendToClient(client,
-                         tciMessage(name,
-                                    {QString::number(enableTrx), QStringLiteral("false")}));
-        }
-        return;
-    }
-
-    // DSP / audio enable stubs — ExpertSDR clients query these during handshake.
-    // No real DSP wiring; GET returns defaults, SET echoes so clients stay happy.
-    if (name == QLatin1String("SQL_ENABLE")
-        || name == QLatin1String("RX_ANF_ENABLE")
-        || name == QLatin1String("MON_ENABLE")
-        || name == QLatin1String("RX_NB_ENABLE")
-        || name == QLatin1String("RX_NB2_ENABLE")
-        || name == QLatin1String("RX_BIN_ENABLE")
-        || name == QLatin1String("AGC_AUTO_EX")) {
-        int enableTrx = 0;
-        bool enableValue = false;
-        bool hasValue = false;
-        parseTrxEnableArgs(args, enableTrx, enableValue, hasValue);
-
-        const bool defaultOn = (name == QLatin1String("AGC_AUTO_EX"));
+        const bool defaultOn = (name == QLatin1String("agc_auto_ex"));
         if (hasValue) {
             broadcast(tciMessage(name,
                                  {QString::number(enableTrx),
                                   enableValue ? QStringLiteral("true") : QStringLiteral("false")}));
             return;
         }
-
         sendToClient(client,
                      tciMessage(name,
                                 {QString::number(enableTrx),
@@ -1096,9 +1401,7 @@ void TciServer::handleCommand(QWebSocket *client, const QString &commandLine)
         return;
     }
 
-    if (name == QLatin1String("SQL_LEVEL") || name == QLatin1String("RX_VOLUME")) {
-        // GET: name:trx  → name:trx,0
-        // SET: name:trx,value → echo
+    if (name == QLatin1String("sql_level") || name == QLatin1String("rx_volume")) {
         if (args.size() >= 2) {
             bool ok = false;
             const int level = args.at(1).toInt(&ok);
@@ -1107,45 +1410,23 @@ void TciServer::handleCommand(QWebSocket *client, const QString &commandLine)
             broadcast(tciMessage(name, {QString::number(trx), QString::number(level)}));
             return;
         }
-
         sendToClient(client, tciMessage(name, {QString::number(trx), QStringLiteral("0")}));
         return;
     }
 
-    if (name == QLatin1String("TUNE_DRIVE")) {
-        // Mirror DRIVE. Single pure-int arg is a GET for that TRX (client: tune_drive:0).
-        if (args.size() >= 2) {
-            bool ok = false;
-            const int level = args.at(1).toInt(&ok);
-            if (!ok)
-                return;
-            m_settings->setDriveLevel(qBound(0, level, 100));
+    if (name == QLatin1String("tx_profiles_ex")) {
+        sendToClient(client, tciMessage(QStringLiteral("TX_PROFILES_EX"), {QStringLiteral("Default")}));
+        return;
+    }
+    if (name == QLatin1String("tx_profile_ex")) {
+        if (!args.isEmpty() && !args.at(0).isEmpty()) {
+            broadcast(tciMessage(QStringLiteral("TX_PROFILE_EX"), {args.at(0)}));
             return;
         }
-
-        sendToClient(client, tciMessage(QStringLiteral("TUNE_DRIVE"),
-                                        {QString::number(trx),
-                                         QString::number(m_settings->getDriveLevel())}));
+        sendToClient(client, tciMessage(QStringLiteral("TX_PROFILE_EX"), {QStringLiteral("Default")}));
         return;
     }
-
-    if (name == QLatin1String("TX_PROFILES_EX")) {
-        sendToClient(client, tciMessage(QStringLiteral("TX_PROFILES_EX"),
-                                        {QStringLiteral("Default")}));
-        return;
-    }
-
-    if (name == QLatin1String("TX_PROFILE_EX")) {
-        if (!args.isEmpty() && !args.at(0).trimmed().isEmpty()) {
-            broadcast(tciMessage(QStringLiteral("TX_PROFILE_EX"), {args.at(0).trimmed()}));
-            return;
-        }
-        sendToClient(client, tciMessage(QStringLiteral("TX_PROFILE_EX"),
-                                        {QStringLiteral("Default")}));
-        return;
-    }
-
-    if (name == QLatin1String("TX_STREAM_AUDIO_BUFFERING")) {
+    if (name == QLatin1String("tx_stream_audio_buffering")) {
         if (!args.isEmpty()) {
             bool ok = false;
             const int ms = args.at(0).toInt(&ok);
@@ -1159,29 +1440,23 @@ void TciServer::handleCommand(QWebSocket *client, const QString &commandLine)
         return;
     }
 
-    if (name == QLatin1String("RX_SMETER")) {
+    if (name == QLatin1String("rx_smeter")) {
         sendToClient(client, formatRxSMeter(trx, channel, smeterDbmForRx(rx)));
         return;
     }
 
-    // Accept enable command from TCI clients; cudaSDR always pushes S-meter updates.
-    // TX_SENSORS_ENABLE gates TX_SENSORS / TX_POWER / TX_SWR push updates.
-    if (name == QLatin1String("RX_SENSORS_ENABLE")) {
+    if (name == QLatin1String("rx_sensors_enable"))
         return;
-    }
 
-    if (name == QLatin1String("TX_SENSORS_ENABLE")) {
+    if (name == QLatin1String("tx_sensors_enable")) {
         TciClientState *state = clientState(client);
-        if (!state)
+        if (!state || args.isEmpty())
             return;
 
-        // Forms: tx_sensors_enable:true[ ,interval_ms]
-        //        tx_sensors_enable:0,true[ ,interval_ms]  (trx-prefixed, rare)
+        // Forms: tx_sensors_enable:true[,interval_ms]
+        //        tx_sensors_enable:0,true[,interval_ms]
         bool enable = false;
         int intervalMs = state->txSensorsIntervalMs;
-        if (args.isEmpty()) {
-            return;
-        }
         if (args.size() == 1) {
             enable = parseBoolArg(args.at(0));
         } else {
@@ -1208,69 +1483,59 @@ void TciServer::handleCommand(QWebSocket *client, const QString &commandLine)
         state->txSensorsEnabled = enable;
         state->txSensorsIntervalMs = qBound(30, intervalMs, 1000);
         state->txSensorsLastSendMs = 0;
-        // ExpertSDR pushes TX sensors while transmitting; snapshot only if already TX.
         if (enable && isTrxActive(m_settings->getRadioState()))
             maybeBroadcastTxSensors(true);
         return;
     }
 
-    if (name == QLatin1String("TX_SENSORS")
-        || name == QLatin1String("TX_POWER")
-        || name == QLatin1String("POWER")
-        || name == QLatin1String("TX_SWR")
-        || name == QLatin1String("SWR")) {
-        // Push-only sensors; honour queries with the last known values.
-        if (name == QLatin1String("TX_SENSORS")) {
-            sendToClient(client, formatTxSensors(trx));
-        } else if (name == QLatin1String("TX_SWR") || name == QLatin1String("SWR")) {
-            sendToClient(client, formatTxSwr(trx, effectiveSwr()));
-        } else {
-            sendToClient(client, formatTxPower(trx, m_fwdPowerWatts));
-        }
+    if (name == QLatin1String("tx_sensors")) {
+        sendToClient(client, formatTxSensors(trx));
+        return;
+    }
+    if (name == QLatin1String("tx_power")) {
+        sendToClient(client, formatTxPower(trx, m_fwdPowerWatts));
+        return;
+    }
+    if (name == QLatin1String("tx_swr") || name == QLatin1String("swr")) {
+        sendToClient(client, formatTxSwr(trx, effectiveSwr()));
         return;
     }
 
-    if (name == QLatin1String("AUDIO_START") || name == QLatin1String("LINE_OUT_START")) {
+    if (name == QLatin1String("audio_start") || name == QLatin1String("line_out_start")) {
         TciClientState *state = clientState(client);
         if (!state)
             return;
         state->audioEnabledReceivers.insert(rx);
         // WSJT-X sets stream_audio_ only when it receives audio_start:<rx>;
-        // echo the enable so "TCI Audio could not be switched on" is avoided.
         sendToClient(client, tciMessage(QStringLiteral("AUDIO_START"), {QString::number(rx)}));
         sendToClient(client, tciMessage(QStringLiteral("AUDIO_SAMPLERATE"),
                                         {QString::number(state->audioSampleRate)}));
         return;
     }
-
-    if (name == QLatin1String("AUDIO_STOP") || name == QLatin1String("LINE_OUT_STOP")) {
+    if (name == QLatin1String("audio_stop") || name == QLatin1String("line_out_stop")) {
         if (TciClientState *state = clientState(client))
             state->audioEnabledReceivers.remove(rx);
         sendToClient(client, tciMessage(QStringLiteral("AUDIO_STOP"), {QString::number(rx)}));
         return;
     }
-
-    if (name == QLatin1String("AUDIO_SAMPLERATE")) {
-        const QString rateArg = (args.size() >= 2) ? args.at(1) : (args.isEmpty() ? QString() : args.at(0));
-        if (!rateArg.isEmpty()) {
+    if (name == QLatin1String("audio_samplerate")) {
+        if (!args.isEmpty() && clientState(client)) {
             bool ok = false;
-            const int rate = rateArg.toInt(&ok);
-            if (ok && clientState(client))
+            const int rate = args.at(0).toInt(&ok);
+            if (ok && rate > 0)
                 clientState(client)->audioSampleRate = rate;
             return;
         }
         sendToClient(client, tciMessage(QStringLiteral("AUDIO_SAMPLERATE"), {QStringLiteral("48000")}));
         return;
     }
-
-    if (name == QLatin1String("AUDIO_STREAM_SAMPLE_TYPE")) {
+    if (name == QLatin1String("audio_stream_sample_type")) {
         const QString fmtArg = (args.size() >= 2) ? args.at(1) : (args.isEmpty() ? QString() : args.at(0));
         if (!fmtArg.isEmpty() && clientState(client))
             clientState(client)->audioFormat = parseAudioFormat(fmtArg);
         return;
     }
-
-    if (name == QLatin1String("AUDIO_STREAM_CHANNELS")) {
+    if (name == QLatin1String("audio_stream_channels")) {
         const QString chArg = (args.size() >= 2) ? args.at(1) : (args.isEmpty() ? QString() : args.at(0));
         if (!chArg.isEmpty()) {
             bool ok = false;
@@ -1280,8 +1545,7 @@ void TciServer::handleCommand(QWebSocket *client, const QString &commandLine)
         }
         return;
     }
-
-    if (name == QLatin1String("AUDIO_STREAM_SAMPLES")) {
+    if (name == QLatin1String("audio_stream_samples")) {
         const QString samplesArg = (args.size() >= 2) ? args.at(1) : (args.isEmpty() ? QString() : args.at(0));
         if (!samplesArg.isEmpty()) {
             bool ok = false;
@@ -1292,24 +1556,25 @@ void TciServer::handleCommand(QWebSocket *client, const QString &commandLine)
         return;
     }
 
-    if (name == QLatin1String("QPING") || name == QLatin1String("KEEPALIVE")) {
-        // Client keep-alive / RTT probe. Echo qping with the same timestamp so
-        // latency-aware clients (e.g. TCI Remote) stay happy; keepalive is silent.
-        if (name == QLatin1String("QPING"))
+    if (name == QLatin1String("qping") || name == QLatin1String("keepalive")) {
+        if (name == QLatin1String("qping"))
             sendToClient(client, tciMessage(QStringLiteral("QPING"), args));
         return;
     }
 
-    // Newer ExpertSDR clients send many optional verbs we do not implement yet.
-    // Keep at TRACE (CUSDR_TCI_TRACE=1) so they do not spam WARN; real failures
-    // (listen/bind, TX backlog, watchdog) still use TCI_WARN above.
-    TCI_TRACE << "Unknown command:" << commandLine;
+    TCI_TRACE << "Unknown command:" << name << args;
 }
 
 void TciServer::onVfoFrequencyChanged(int mode, int rx, qint64 frequency)
 {
     Q_UNUSED(mode)
-    broadcast(formatVfo(0, rx, frequency));
+    // Slice-bound setups broadcast the A/B memories from the slice signals in
+    // bindSlices; reporting the dial here as well would label a VFO-B retune as
+    // channel 0. This is the pre-MVC fallback.
+    if (rxSliceForTrx(0))
+        return;
+    if (rx == rxSliceIdForTrx(0))
+        broadcast(formatVfo(0, 0, frequency));
 }
 
 void TciServer::onCtrFrequencyChanged(int mode, int rx, qint64 frequency)
@@ -1364,6 +1629,7 @@ void TciServer::startTxChrono(QWebSocket *client, int trx)
     sendTxChronoFrame(client);
     sendTxChronoFrame(client);
     TCI_DEBUG << "TX_CHRONO started trx=" << trx;
+    emit connectionStatusChanged();
 }
 
 void TciServer::stopTxChrono()
@@ -1377,6 +1643,7 @@ void TciServer::stopTxChrono()
     m_txChronoClock.invalidate();
     m_txAudioResidual.clear();
     TCI_DEBUG << "TX_CHRONO stopped";
+    emit connectionStatusChanged();
 }
 
 void TciServer::sendTxChronoFrame(QWebSocket *client)

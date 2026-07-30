@@ -19,6 +19,7 @@ private slots:
 
     // SliceModel tests
     void testSliceModelProperties();
+    void testSliceModelVfoAb();
 
     // RadioTelemetry tests
     void testRadioTelemetrySignals();
@@ -340,6 +341,66 @@ void ModelsTests::testSliceModelProperties() {
     slice.setDBmPanScaleMax(-30.0);
     QCOMPARE(slice.dBmPanScaleMax(), -30.0);
     QCOMPARE(spyPanScale.count(), 2);
+}
+
+void ModelsTests::testSliceModelVfoAb() {
+    SliceModel slice(0);
+    QCOMPARE(slice.activeVfo(), SliceModel::VfoA);
+    QCOMPARE(slice.vfoAFrequency(), slice.frequency());
+    QCOMPARE(slice.vfoBFrequency(), slice.frequency());
+
+    QSignalSpy spyFreq(&slice, &SliceModel::frequencyChanged);
+    QSignalSpy spyA(&slice, &SliceModel::vfoAFrequencyChanged);
+    QSignalSpy spyB(&slice, &SliceModel::vfoBFrequencyChanged);
+    QSignalSpy spyActive(&slice, &SliceModel::activeVfoChanged);
+
+    // Dial write-through updates the active slot (A).
+    slice.setFrequency(14'070'000);
+    QCOMPARE(slice.frequency(), static_cast<qint64>(14'070'000));
+    QCOMPARE(slice.vfoAFrequency(), static_cast<qint64>(14'070'000));
+    QCOMPARE(slice.vfoBFrequency(), static_cast<qint64>(7'000'000));
+    QCOMPARE(spyFreq.count(), 1);
+    QCOMPARE(spyA.count(), 1);
+
+    // Store B without retuning while A is active.
+    slice.setVfoBFrequency(7'074'000);
+    QCOMPARE(slice.vfoBFrequency(), static_cast<qint64>(7'074'000));
+    QCOMPARE(slice.frequency(), static_cast<qint64>(14'070'000));
+    QCOMPARE(spyFreq.count(), 1);
+    QCOMPARE(spyB.count(), 1);
+
+    // Switch to B retunes live dial.
+    slice.setActiveVfo(SliceModel::VfoB);
+    QCOMPARE(slice.activeVfo(), SliceModel::VfoB);
+    QCOMPARE(slice.frequency(), static_cast<qint64>(7'074'000));
+    QCOMPARE(spyActive.count(), 1);
+    QCOMPARE(spyFreq.count(), 2);
+
+    // Dial while B is active updates B only.
+    slice.setFrequency(10'136'000);
+    QCOMPARE(slice.vfoBFrequency(), static_cast<qint64>(10'136'000));
+    QCOMPARE(slice.vfoAFrequency(), static_cast<qint64>(14'070'000));
+
+    slice.copyAtoB();
+    QCOMPARE(slice.vfoBFrequency(), static_cast<qint64>(14'070'000));
+    QCOMPARE(slice.frequency(), static_cast<qint64>(14'070'000));
+
+    slice.setVfoBFrequency(21'074'000);
+    QCOMPARE(slice.frequency(), static_cast<qint64>(21'074'000));
+    slice.copyBtoA();
+    QCOMPARE(slice.vfoAFrequency(), static_cast<qint64>(21'074'000));
+    // Active remains B; live dial already matches B.
+    QCOMPARE(slice.activeVfo(), SliceModel::VfoB);
+    QCOMPARE(slice.frequency(), static_cast<qint64>(21'074'000));
+
+    slice.setVfoMemories(14'070'000, 7'074'000, SliceModel::VfoA);
+    QCOMPARE(slice.frequency(), static_cast<qint64>(14'070'000));
+    QCOMPARE(slice.activeVfo(), SliceModel::VfoA);
+
+    slice.swapVfos();
+    QCOMPARE(slice.vfoAFrequency(), static_cast<qint64>(7'074'000));
+    QCOMPARE(slice.vfoBFrequency(), static_cast<qint64>(14'070'000));
+    QCOMPARE(slice.frequency(), static_cast<qint64>(7'074'000));
 }
 
 void ModelsTests::testRadioTelemetrySignals() {

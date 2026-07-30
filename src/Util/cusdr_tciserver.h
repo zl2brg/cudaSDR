@@ -25,6 +25,8 @@
 #include "Settings/SettingsTypes.h"
 #include "Util/cusdr_queue.h"
 #include "Util/tci_protocol_utils.h"
+#include "Util/TciRoutingState.h"
+#include "Util/TciCommandHandler.h"
 
 #include <QObject>
 #include <QTimer>
@@ -38,6 +40,7 @@ class QWebSocketServer;
 class QWebSocket;
 class Settings;
 class RadioModel;
+class SliceModel;
 
 class TciServer : public QObject {
     Q_OBJECT
@@ -51,10 +54,20 @@ public:
     bool isListening() const;
     quint16 port() const;
     bool hasClients() const { return !m_clients.isEmpty(); }
+    int clientCount() const { return m_clients.size(); }
 
     /** True while a TCI client is keyed and we are clocking TX_CHRONO.
      *  During this window TX mic audio must come from the network queue only. */
     bool isTxChronoActive() const { return m_txChronoClient != nullptr; }
+
+    /** Linear gains applied to TCI RX audio out and TX mic in (1.0 = unity). */
+    float rxGain() const { return m_rxGain; }
+    float txGain() const { return m_txGain; }
+    void setRxGain(float gain);
+    void setTxGain(float gain);
+
+    /** Short status line for the server dialog (listening / clients / TX). */
+    QString connectionStatusText() const;
 
     /** Connect to SliceModel S-meter updates (call after RadioModel is ready). */
     void bindSlices(RadioModel *radioModel);
@@ -74,6 +87,10 @@ public slots:
 
 signals:
     void remoteControlChanged(bool active);
+    /** Listening, client count, or TX-chrono state changed (refresh status UI). */
+    void connectionStatusChanged();
+    void rxGainChanged(float gain);
+    void txGainChanged(float gain);
     /** Request MainWindow to start the data engine (same path as UI Start). */
     void startRequested();
     /** Request MainWindow to stop the data engine (same path as UI Stop). */
@@ -87,6 +104,7 @@ private slots:
     void onWatchdogTimeout();
 
     void onVfoFrequencyChanged(int mode, int rx, qint64 frequency);
+    void onActiveVfoChanged(int rx);
     void onCtrFrequencyChanged(int mode, int rx, qint64 frequency);
     void onNcoFrequencyChanged(int rx, qint64 frequency);
     void onDspModeChanged(int rx, DSPMode mode);
@@ -104,6 +122,25 @@ private:
     void broadcast(const QString &message);
     void sendInitState(QWebSocket *client);
     void handleCommand(QWebSocket *client, const QString &commandLine);
+    void handleServerCommand(QWebSocket *client, const QString &name, const QStringList &args);
+
+    void handleVfoRequest(QWebSocket *client, const TciCommandHandler::VfoRequest &request);
+    void handleSplitRequest(QWebSocket *client, const TciCommandHandler::SplitRequest &request);
+    void handleTrxRequest(QWebSocket *client, const TciCommandHandler::TrxRequest &request);
+    void applyPendingHandlerEffects(QWebSocket *client, TciCommandHandler &handler);
+
+    QVector<TciSliceEndpoint> routingEndpoints() const;
+    int rxSliceIdForTrx(int trx) const;
+    SliceModel *rxSliceForTrx(int trx) const;
+    int activeVfoChannel(int trx) const;
+    void applyActiveVfo(int trx, int channel);
+    int allocateVfoBSlice(int rxSliceId) const;
+    void syncTxSliceForSplit();
+    void tuneRxVfo(int rx, qint64 frequencyHz);
+    void tuneTxVfo(int txSliceId, qint64 frequencyHz);
+    qint64 vfoAFrequencyHz(int trx) const;
+    qint64 vfoBFrequencyHz() const;
+    void applyEffectiveTxFrequency();
 
     // WSJT-X / ExpertSDR3 clients only emit TX audio in response to TX_CHRONO
     // (stream type 3) timing frames. Drive those while a TCI client is keyed.
@@ -151,6 +188,7 @@ private:
     void updateIqActiveHint();
 
     QString formatVfo(int trx, int channel, qint64 frequency) const;
+    QString formatActiveVfo(int trx, int channel) const;
     QString formatDds(int trx, int channel, qint64 frequency) const;
     QString formatIf(int trx, int channel, qint64 offset) const;
     QString formatModulation(int trx, DSPMode mode) const;
@@ -208,13 +246,16 @@ private:
     Settings         *m_settings = nullptr;
     RadioModel       *m_radioModel = nullptr;
     QList<QMetaObject::Connection> m_sliceConnections;
+    float             m_rxGain = 1.0f;
+    float             m_txGain = 1.0f;
 
     // Transmit (mic) audio received from clients. The queue is owned by
     // TransmitAudioInput; the residual accumulates decoded mono samples so we
     // enqueue exactly DSP_SAMPLE_SIZE blocks (matching the local mic path).
     QHQueue<QVector<double>> *m_txAudioQueue = nullptr;
     QVector<double>          m_txAudioResidual;
-    bool                     m_splitEnabled = false;
+    TciRoutingState          m_routingState;
+    TciCommandHandler        m_commandHandler{&m_routingState};
 
     QWebSocket   *m_txChronoClient = nullptr;
     int           m_txChronoTrx = 0;

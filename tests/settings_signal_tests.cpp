@@ -18,6 +18,8 @@ private slots:
     void vfoFrequencyChangedOnUpdate();
     void vfoMode0SetsNcoKeepsCenter();
     void ctrMode1ClearsStaleNcoWhenVfoUnchanged();
+    void visibleRetuneKeepsCenterInsideSpan();
+    void visibleRetuneRecentersOutsideSpan();
 
 private:
     Settings *m_settings = nullptr;
@@ -122,6 +124,38 @@ void SettingsSignalTests::ctrMode1ClearsStaleNcoWhenVfoUnchanged()
     m_settings->setCtrFrequency(1, 0, dial);
     QCOMPARE(m_settings->getCtrFrequency(0), dial);
     QCOMPARE(m_settings->getVfoFrequency(0), dial);
+    QCOMPARE(m_settings->getReceiverDataList().at(0).ncoFrequency, 0);
+}
+
+void SettingsSignalTests::visibleRetuneKeepsCenterInsideSpan()
+{
+    // VFO A/B switch within the displayed span: only the NCO moves, so the
+    // panadapter does not jump under the operator.
+    const qint64 center = 14'100'000;
+    const qint64 target = center + m_settings->getSampleRate() / 4;
+    m_settings->setCtrFrequency(0, 0, center);
+    m_settings->setVFOFrequency(0, 0, center);
+
+    m_settings->setVfoFrequencyVisible(0, target);
+
+    QCOMPARE(m_settings->getCtrFrequency(0), center);
+    QCOMPARE(m_settings->getVfoFrequency(0), target);
+    QCOMPARE(m_settings->getReceiverDataList().at(0).ncoFrequency, target - center);
+}
+
+void SettingsSignalTests::visibleRetuneRecentersOutsideSpan()
+{
+    // A VFO-B memory on another band is off-panel: the LO has to follow, else
+    // the RX filter and cursor are clamped off the edge of the panadapter.
+    const qint64 center = 14'100'000;
+    const qint64 target = 7'074'000;
+    m_settings->setCtrFrequency(0, 0, center);
+    m_settings->setVFOFrequency(0, 0, center);
+
+    m_settings->setVfoFrequencyVisible(0, target);
+
+    QCOMPARE(m_settings->getCtrFrequency(0), target);
+    QCOMPARE(m_settings->getVfoFrequency(0), target);
     QCOMPARE(m_settings->getReceiverDataList().at(0).ncoFrequency, 0);
 }
 

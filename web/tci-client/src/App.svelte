@@ -61,12 +61,41 @@
     client?.stepMainFrequency(deltaHz);
   }
 
+  function onStepVfoB(deltaHz: number) {
+    if (!state.connected) return;
+    client?.stepVfoB(deltaHz);
+  }
+
+  function onSetVfo(hz: number) {
+    if (!state.connected) return;
+    client?.setVfo(hz);
+    client?.setDds(hz);
+  }
+
+  function onSetVfoB(hz: number) {
+    if (!state.connected) return;
+    client?.setVfoB(hz);
+  }
+
+  function onSelectVfo(which: 'a' | 'b') {
+    if (!state.connected) return;
+    client?.setActiveVfo(which);
+  }
+
   function onMox() {
     client?.setTrx(!state.trx);
   }
 
   function onTuneBtn() {
     client?.setTune(!state.tune);
+  }
+
+  function onSplitToggle() {
+    client?.setSplit(!state.splitEnabled);
+  }
+
+  function onCopyVfoAToB() {
+    client?.copyVfoAToB();
   }
 
   function onModeChange(mode: string) {
@@ -103,7 +132,7 @@
 </script>
 
 <div class="app">
-  <TopBar {state} bind:wsUrl {onStepFrequency} />
+  <TopBar {state} bind:wsUrl {onStepFrequency} {onStepVfoB} {onSetVfo} {onSetVfoB} {onSelectVfo} />
   <ControlBar
     {state}
     onConnect={connect}
@@ -118,6 +147,8 @@
     {onRxAudioToggle}
     {onVolumeChange}
     {onMuteToggle}
+    {onSplitToggle}
+    {onCopyVfoAToB}
   />
   <ReceiverPanel {state} {onTune} {onDragTune} onReady={onReceiverReady} />
   <StatusBar connected={state.connected} {wsUrl} {logMessage} {logLevel} />

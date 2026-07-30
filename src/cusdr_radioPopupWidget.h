@@ -155,6 +155,11 @@ private:
 	AeroButton*		showCrossBtn;
 	AeroButton*		midToVfoBtn;
 	AeroButton*		vfoToMidBtn;
+	AeroButton*		vfoABtn;
+	AeroButton*		vfoBBtn;
+	AeroButton*		vfoAtoBBtn;
+	AeroButton*		vfoBtoABtn;
+	AeroButton*		vfoSwapBtn;
 	AeroButton*		avgBtn;
 	AeroButton*		peakHoldBtn;
 	AeroButton*		gridBtn;
@@ -356,6 +361,12 @@ private slots:
 	void hairCrossBtnClicked();
 	void midToVfoBtnClicked();
 	void vfoToMidBtnClicked();
+	void vfoABtnClicked();
+	void vfoBBtnClicked();
+	void vfoAtoBBtnClicked();
+	void vfoBtoABtnClicked();
+	void vfoSwapBtnClicked();
+	void updateActiveVfoButtons();
 	void panModeChanged();
 	void waterfallModeChanged();
 

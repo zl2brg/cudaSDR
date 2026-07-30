@@ -15,6 +15,8 @@
   export let onRxAudioToggle: () => void;
   export let onVolumeChange: (level: number) => void;
   export let onMuteToggle: () => void;
+  export let onSplitToggle: () => void;
+  export let onCopyVfoAToB: () => void;
 </script>
 
 <div class="control-bar">
@@ -41,6 +43,25 @@
     onclick={onRxAudioToggle}
   >
     RX Audio
+  </button>
+
+  <button
+    type="button"
+    class:on={state.splitEnabled}
+    disabled={!state.connected}
+    onclick={onSplitToggle}
+    title="split_enable — TX dial follows VFO-B when on"
+  >
+    Split
+  </button>
+
+  <button
+    type="button"
+    disabled={!state.connected}
+    onclick={onCopyVfoAToB}
+    title="Copy VFO-A → VFO-B"
+  >
+    A→B
   </button>
 
   <button
