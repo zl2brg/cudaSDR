@@ -1949,31 +1949,12 @@ void OGLDisplayPanel::mousePressEvent(QMouseEvent *event) {
 
 	getSelectedDigit(pos);
 
-	if (event->button() == Qt::LeftButton && m_digitVfo != DigitVfoNone
-	    && m_digitPosition == None) {
-		// A/B label click — switch active VFO only.
+	if (event->button() == Qt::LeftButton && m_digitVfo != DigitVfoNone) {
+		// Single click on A or B label/digits — select VFO A or B as active VFO
 		activateDigitVfo(static_cast<DigitVfo>(m_digitVfo));
-		return;
 	}
 
 	if (event->button() == Qt::LeftButton && m_digitPosition != None) {
-		if (m_currentReceiver < 0 || m_currentReceiver >= m_frequencyList.size()) {
-			qWarning() << "OGLDisplayPanel::mousePressEvent invalid receiver index" << m_currentReceiver;
-			return;
-		}
-
-		const DigitVfo which = static_cast<DigitVfo>(m_digitVfo);
-		activateDigitVfo(which);
-		qint64 currentFreq = vfoMemoryHz(which);
-		FrequencyEntryDialog dlg(currentFreq, this);
-		if (dlg.exec() == QDialog::Accepted) {
-			qint64 newFreq = dlg.frequency();
-			if (newFreq < (qint64)set->getMaxFrequency() && newFreq >= 0)
-				tuneDigitVfoTo(which, newFreq);
-		}
-		return;
-	}
-
 		switch (m_digitPosition) {
 
 			case Freq1:
@@ -2061,8 +2042,9 @@ void OGLDisplayPanel::mousePressEvent(QMouseEvent *event) {
                 break;
 
 			case None:
-				return;
+				break;
 		}
+	}
 
 	QWidget::mousePressEvent(event);
 }
@@ -2070,6 +2052,34 @@ void OGLDisplayPanel::mousePressEvent(QMouseEvent *event) {
 void OGLDisplayPanel::mouseReleaseEvent(QMouseEvent *event) {
 
 	Q_UNUSED(event)
+}
+
+void OGLDisplayPanel::mouseDoubleClickEvent(QMouseEvent *event) {
+
+	if (event->button() == Qt::LeftButton) {
+		QPoint pos = event->pos();
+		getSelectedDigit(pos);
+
+		if (m_digitVfo != DigitVfoNone) {
+			if (m_currentReceiver < 0 || m_currentReceiver >= m_frequencyList.size()) {
+				qWarning() << "OGLDisplayPanel::mouseDoubleClickEvent invalid receiver index" << m_currentReceiver;
+				return;
+			}
+
+			const DigitVfo which = static_cast<DigitVfo>(m_digitVfo);
+			activateDigitVfo(which);
+			qint64 currentFreq = vfoMemoryHz(which);
+			FrequencyEntryDialog dlg(currentFreq, this);
+			if (dlg.exec() == QDialog::Accepted) {
+				qint64 newFreq = dlg.frequency();
+				if (newFreq < (qint64)set->getMaxFrequency() && newFreq >= 0)
+					tuneDigitVfoTo(which, newFreq);
+			}
+			return;
+		}
+	}
+
+	QOpenGLWidget::mouseDoubleClickEvent(event);
 }
 
 void OGLDisplayPanel::mouseMoveEvent(QMouseEvent *event) {
