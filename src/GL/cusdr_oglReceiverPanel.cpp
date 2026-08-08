@@ -2016,8 +2016,8 @@ void QGLReceiverPanel::wheelEvent(QWheelEvent* event) {
 			
 				if (m_centerFrequency + delta > set->getMaxFrequency())
 					m_centerFrequency = set->getMaxFrequency();
-				else if (m_centerFrequency + delta < 0)
-					m_centerFrequency = 0;
+				else if (m_centerFrequency + delta < set->getMinFrequency())
+					m_centerFrequency = set->getMinFrequency();
 				else
 					// snap to the frequency step
 					m_centerFrequency = (long)(qRound((m_centerFrequency + delta) / qAbs(freqStep)) * qAbs(freqStep));
@@ -2349,8 +2349,9 @@ void QGLReceiverPanel::mouseMoveEvent(QMouseEvent* event) {
 				long newFrequency = m_centerFrequency + deltaFreq;
 				if (newFrequency > set->getMaxFrequency())
 					newFrequency = set->getMaxFrequency();
-				else
-				if (newFrequency + deltaFreq < 0)
+				else if (newFrequency < set->getMinFrequency())
+					newFrequency = set->getMinFrequency();
+				else if (newFrequency + deltaFreq < 0)
 					newFrequency = 0;
 				else {
 
@@ -2576,8 +2577,9 @@ void QGLReceiverPanel::mouseMoveEvent(QMouseEvent* event) {
 					long newFrequency = m_centerFrequency + deltaFreq;
 					if (newFrequency > set->getMaxFrequency())
 						newFrequency = set->getMaxFrequency();
-					else
-					if (newFrequency + deltaFreq < 0)
+					else if (newFrequency < set->getMinFrequency())
+						newFrequency = set->getMinFrequency();
+					else if (newFrequency + deltaFreq < 0)
 						newFrequency = 0;
 					else {
 					

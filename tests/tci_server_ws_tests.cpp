@@ -427,6 +427,9 @@ void TciServerWsTests::audioStartStopGatesRxBinaryStream()
     QVERIFY(binarySpy.isValid());
 
     m_textMessages.clear();
+    // Pacer emits AUDIO_STREAM_SAMPLES-sized frames; use a tiny size for the gate test.
+    m_client.sendTextMessage(QStringLiteral("AUDIO_STREAM_SAMPLES:4;"));
+    QTest::qWait(50);
     m_client.sendTextMessage(QStringLiteral("AUDIO_START:0,0;"));
     QVERIFY(waitForMessageContaining(QStringLiteral("audio_start:")));
     QVERIFY(waitForMessageContaining(QStringLiteral("audio_samplerate:")));

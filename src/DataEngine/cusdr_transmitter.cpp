@@ -49,7 +49,9 @@ Transmitter::Transmitter(int transmitter)
     , m_bsteps(0)
 {
     Q_UNUSED(transmitter)
-    create_transmitter(TX_ID, DSP_SAMPLE_SIZE, 4096, 10, 2048, 100);
+    // fft_size feeds TXASetNC; keep 2048 so create_fircore does not rebuild
+    // every TX bandpass at 4096 taps (and optional min-phase plans of 16384).
+    create_transmitter(TX_ID, DSP_SAMPLE_SIZE, 2048, 10, 2048, 100);
     setupConnections();
 }
 
@@ -92,6 +94,9 @@ void Transmitter::setupConnections() {
 
     connect(set, &Settings::fmPremphasizechanged,
             this, [this](double) { applyFmPreEmphasis(); });
+
+    connect(set, &Settings::phaseRotatorChanged,
+            this, [this](int) { applyPhaseRotator(); });
 
     connect(set, &Settings::amCarrierlevelchanged,
             this, &Transmitter::transmitter_set_am_carrier_level);
@@ -209,11 +214,11 @@ bool  Transmitter::create_transmitter(int id, int buffer_size, int fft_size, int
     }
     TRANSMITTER_DEBUG << "transmitter: buffers allocated";
 
-    TRANSMITTER_DEBUG << "create_transmitter: OpenChannel id=" << id << " buffer_size=" << buffer_size << " fft_size=2048 sample_rate=" << mic_sample_rate << " dspRate=" << mic_dsp_rate << " outputRate=" << iq_output_rate;
+    TRANSMITTER_DEBUG << "create_transmitter: OpenChannel id=" << id << " buffer_size=" << buffer_size << " fft_size=" << fft_size << " sample_rate=" << mic_sample_rate << " dspRate=" << mic_dsp_rate << " outputRate=" << iq_output_rate;
 
     OpenChannel(this->id,
                 this->buffer_size,
-                2048, // this->fft_size,
+                2048,
                 this->mic_sample_rate,
                 this->mic_dsp_rate,
                 this->iq_output_rate,
@@ -221,7 +226,9 @@ bool  Transmitter::create_transmitter(int id, int buffer_size, int fft_size, int
                 0, // run
                 0.010, 0.025, 0.0, 0.010, 0);
 
-    TXASetNC(this->id, this->fft_size);
+    // create_txa already uses nc = max(2048, dsp_size). Only bump if requested larger.
+    if (this->fft_size > 2048)
+        TXASetNC(this->id, this->fft_size);
     TXASetMP(this->id, this->low_latency);
 
 
@@ -235,6 +242,7 @@ bool  Transmitter::create_transmitter(int id, int buffer_size, int fft_size, int
 
     SetTXAFMEmphPosition(this->id,pre_emphasize);
     applyFmPreEmphasis();
+    applyPhaseRotator();
 
     SetTXACFIRRun(this->id, protocol==NEW_PROTOCOL?1:0); // turned on if new protocol
     if(enable_tx_equalizer) {
@@ -318,6 +326,13 @@ void Transmitter::applyFmPreEmphasis()
     TRANSMITTER_DEBUG << "FM pre-emphasis " << (run ? "on" : "off");
 }
 
+void Transmitter::applyPhaseRotator()
+{
+    const int run = (set->getPhaseRotator() != 0) ? 1 : 0;
+    SetTXAPHROTRun(this->id, run);
+    TRANSMITTER_DEBUG << "Audio Phase Rotator " << (run ? "on" : "off");
+}
+
 void Transmitter::setRadioState(RadioState state)
 {
     switch(state) {
@@ -329,6 +344,7 @@ void Transmitter::setRadioState(RadioState state)
         SetTXAPostGenRun(this->id, 0);
         SetTXAMode(this->id, wdspMode);
         applyFmPreEmphasis();
+        applyPhaseRotator();
         SetTXAPanelGain1(this->id, micSliderToPanelGain(mic_gain));
         SetTXAPanelRun(this->id, 1);
         SetTXABandpassWindow(this->id, 1);
@@ -349,6 +365,7 @@ void Transmitter::setRadioState(RadioState state)
         SetTXAPostGenRun(this->id, 1);
         SetTXAMode(this->id, wdspModeTune);
         applyFmPreEmphasis();
+        applyPhaseRotator();
         SetTXAPanelGain1(this->id, micSliderToPanelGain(mic_gain));
         SetTXAPanelRun(this->id, 1);
         SetTXABandpassWindow(this->id, 1);

@@ -27,6 +27,7 @@ void RadioSettingsController::bind(cusdr_radioSettingsWidget* view, Settings* mo
     m_view->setSoapyTiaGain(m_model->getSoapyTiaGain());
     m_view->setSoapyPgaGain(m_model->getSoapyPgaGain());
     m_view->setSoapyOverallGain(m_model->getSoapyOverallGain());
+    m_view->setOverallGainRange(m_model->getSoapyOverallGainMin(), m_model->getSoapyOverallGainMax());
     m_view->setAntennaList(m_model->getSoapyAntennaList(), m_model->getSoapyRxAntenna());
     m_view->setTxAntennaList(m_model->getSoapyTxAntennaList(), m_model->getSoapyTxAntenna());
     m_view->updateGainGroupVisibility(m_model->getSoapyHardwareKey());
@@ -105,6 +106,15 @@ void RadioSettingsController::bind(cusdr_radioSettingsWidget* view, Settings* mo
 
     connect(m_model, &Settings::soapyHardwareKeyChanged, this, [this](const QString& key) {
         m_view->updateGainGroupVisibility(key);
+    });
+
+    connect(m_model, &Settings::soapyOverallGainRangeChanged, this, [this](int minGain, int maxGain) {
+        m_view->setOverallGainRange(minGain, maxGain);
+        m_view->setSoapyOverallGain(m_model->getSoapyOverallGain());
+    });
+
+    connect(m_model, &Settings::soapyOverallGainChanged, this, [this](int gain) {
+        m_view->setSoapyOverallGain(gain);
     });
 }
 

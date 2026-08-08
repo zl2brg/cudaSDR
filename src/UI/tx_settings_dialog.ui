@@ -115,6 +115,13 @@
         </item>
        </layout>
       </item>
+      <item>
+       <widget class="QCheckBox" name="phaseRotator">
+        <property name="text">
+         <string>Audio Phase Rotator</string>
+        </property>
+       </widget>
+      </item>
      </layout>
     </widget>
    </item>

@@ -725,6 +725,7 @@ signals:
 	void hpsdrNetworkDeviceChanged(TNetworkDevicecard card);
 	void networkDeviceNumberChanged(int value);
 	void maxFrequencyChanged(qint64 value);
+	void minFrequencyChanged(qint64 value);
 	void networkIOComboBoxEntryAdded(QString str);
 	void clearNetworkIOComboBoxEntrySignal();
     void clearDiscoveredDevicesSignal();
@@ -742,6 +743,7 @@ signals:
     void soapyTiaGainChanged(int gain);
     void soapyPgaGainChanged(int gain);
     void soapyOverallGainChanged(int gain);
+    void soapyOverallGainRangeChanged(int minGain, int maxGain);
     void soapyAutoCalibrateChanged(bool enabled);
     void soapyIQBalanceChanged(bool enabled);
 	void serverAddrChanged(QString addr);
@@ -883,6 +885,7 @@ signals:
     void txFullDuplexChanged(bool fullDuplex);
     void repeaterOffsetchanged(double value);
     void fmPremphasizechanged(double value);
+    void phaseRotatorChanged(int value);
     void fmdeveationchanged(double value);
     void amCarrierlevelchanged(double level);
     void audioCompressionchanged(int level);
@@ -982,6 +985,10 @@ public:
     bool        getSoapyIQBalance()     const { return m_soapyIQBalance; }
 	qint64						getMaxFrequency()			{ return m_maxFrequency; }
 	qint64						getMinFrequency()			{ return m_minFrequency; }
+#ifdef HAVE_SOAPYSDR
+    int         getSoapyOverallGainMin() const { return m_soapyOverallGainMin; }
+    int         getSoapyOverallGainMax() const { return m_soapyOverallGainMax; }
+#endif
 	QList<TReceiver>			getReceiverDataList()		{ return m_receiverDataList; }
 	QList<THamBandFrequencies>	getBandFrequencyList()		{ return m_bandList; }
 	QList<THamBandText>			getHamBandTextList()		{ return m_bandTextList; }
@@ -1088,6 +1095,7 @@ public:
     bool    getRepeaterMode()           { return m_repeaterMode; }
     double  getRepeaterOffset()         { return m_repeaterOffset; }
     double  getFMpreemphesis()          { return m_audioConfig->fmPreemphasis(); }
+    int     getPhaseRotator()           { return m_audioConfig->phaseRotator(); }
     double  getFMDeveation()            { return m_audioConfig->fmDeviation(); }
     double  getAMCarrierLevel()         { return m_audioConfig->amCarrierLevel(); }
     double  getAudioCompression()       { return m_audioConfig->audioCompression(); }
@@ -1228,6 +1236,7 @@ public slots:
     void setSoapyTiaGain(int gain);
     void setSoapyPgaGain(int gain);
     void setSoapyOverallGain(int gain);
+    void setSoapyOverallGainRange(int minGain, int maxGain);
     void setSoapyAutoCalibrate(bool enabled);
     void setSoapyIQBalance(bool enabled);
 	void addNetworkIOComboBoxEntry(QString str);
@@ -1309,6 +1318,7 @@ public slots:
 	void setCtrFrequency(int rx, qint64 frequency);
 	qint64 getCtrFrequency(int rx);
 	void setMaxFrequency(qint64 value);
+	void setMinFrequency(qint64 value);
 	void setVFOFrequency(int mode, int rx, qint64 frequency);
 	void setVfoFrequency(int rx, qint64 frequency);
 	/** Retune the dial, recentring the panadapter only when the target would fall
@@ -1409,6 +1419,7 @@ public slots:
     void setAudioCompression(int level);
     void setAMCarrierLevel(int level);
     void setFMPreEmphasize(int level);
+    void setPhaseRotator(int level);
     void setFmDeveation(int level);
 
     void setCwHangTime(int CwHangTime);
@@ -1481,6 +1492,8 @@ private:
     int         m_soapyTiaGain;         // TIA gain in dB
     int         m_soapyPgaGain;         // PGA gain in dB
     int         m_soapyOverallGain;     // aggregate gain (non-LimeSDR)
+    int         m_soapyOverallGainMin = 0;
+    int         m_soapyOverallGainMax = 70;
     bool        m_soapyAutoCalibrate;   // LimeSuite auto-calibration flag
     bool        m_soapyIQBalance;       // IQ balance correction enable
     // Runtime-only (not persisted)

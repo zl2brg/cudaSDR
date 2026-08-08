@@ -26,6 +26,7 @@ public:
     void setSoapyTiaGain(int value);
     void setSoapyPgaGain(int value);
     void setSoapyOverallGain(int value);
+    void setOverallGainRange(int minGain, int maxGain);
     void setAntennaList(const QStringList& list, const QString& active);
     void setTxAntennaList(const QStringList& list, const QString& active);
     void updateGainGroupVisibility(const QString& hardwareKey);

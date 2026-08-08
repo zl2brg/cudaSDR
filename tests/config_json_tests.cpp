@@ -206,6 +206,7 @@ void ConfigJsonTests::testAudioConfigJson() {
     config.setMicGain(15.5);
     config.setDriveLevel(50);
     config.setFmPreemphasis(2);
+    config.setPhaseRotator(0);
     config.setAmCarrierLevel(0.8);
     config.setAudioCompression(1);
     config.setFmDeviation(4500.0);

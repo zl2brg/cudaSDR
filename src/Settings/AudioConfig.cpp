@@ -12,6 +12,7 @@ AudioConfig::AudioConfig(QObject *parent)
     , m_micGain(10.0)
     , m_driveLevel(100)
     , m_fmPreemphasis(1)
+    , m_phaseRotator(1)
     , m_amCarrierLevel(0.5)
     , m_audioCompression(0)
     , m_fmDeviation(5000.0)
@@ -74,6 +75,14 @@ void AudioConfig::setFmPreemphasis(int val) {
     }
 }
 
+void AudioConfig::setPhaseRotator(int val) {
+    int clamped = (val != 0) ? 1 : 0;
+    if (m_phaseRotator != clamped) {
+        m_phaseRotator = clamped;
+        emit phaseRotatorChanged(m_phaseRotator);
+    }
+}
+
 void AudioConfig::setAmCarrierLevel(double level) {
     if (m_amCarrierLevel != level) {
         m_amCarrierLevel = level;
@@ -111,6 +120,7 @@ void AudioConfig::load(const QJsonObject &json) {
     if (json.contains("micGain")) m_micGain = json["micGain"].toDouble();
     if (json.contains("driveLevel")) m_driveLevel = json["driveLevel"].toInt();
     if (json.contains("fmPreemphasis")) m_fmPreemphasis = json["fmPreemphasis"].toInt();
+    if (json.contains("phaseRotator")) m_phaseRotator = json["phaseRotator"].toInt();
     if (json.contains("amCarrierLevel")) m_amCarrierLevel = json["amCarrierLevel"].toDouble();
     if (json.contains("audioCompression")) m_audioCompression = json["audioCompression"].toInt();
     if (json.contains("fmDeviation")) m_fmDeviation = json["fmDeviation"].toDouble();
@@ -126,6 +136,7 @@ void AudioConfig::save(QJsonObject &json) const {
     json["micGain"] = m_micGain;
     json["driveLevel"] = m_driveLevel;
     json["fmPreemphasis"] = m_fmPreemphasis;
+    json["phaseRotator"] = m_phaseRotator;
     json["amCarrierLevel"] = m_amCarrierLevel;
     json["audioCompression"] = m_audioCompression;
     json["fmDeviation"] = m_fmDeviation;
@@ -157,6 +168,7 @@ void AudioConfig::loadIni(QSettings *settings) {
     setDriveLevel(SettingsUtils::clampDriveLevel(settings->value("driveLevel", 0).toInt()));
 
     setFmPreemphasis(settings->value("fm_preemphesize", 1).toInt());
+    setPhaseRotator(settings->value("audio_phase_rotator", 1).toInt());
     setAmCarrierLevel(settings->value("am_carrierlevel", 0.5).toDouble());
     setAudioCompression(settings->value("audiocompression", 0).toInt());
     setFmDeviation(settings->value("fmdeveation", 5000.0).toDouble());
@@ -180,6 +192,7 @@ void AudioConfig::saveIni(QSettings *settings) const {
     settings->setValue("micGain", m_micGain);
     settings->setValue("driveLevel", m_driveLevel);
     settings->setValue("fm_preemphesize", m_fmPreemphasis);
+    settings->setValue("audio_phase_rotator", m_phaseRotator);
     settings->setValue("am_carrierlevel", m_amCarrierLevel);
     settings->setValue("audiocompression", m_audioCompression);
     settings->setValue("fmdeveation", m_fmDeviation);

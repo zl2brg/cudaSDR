@@ -24,6 +24,7 @@ void TransmitSettingsController::bind(tx_settings_dialog* view, Settings* model)
     m_view->setAudioCompression(m_model->getAudioCompression());
     m_view->setFmDeviation(m_model->getFMDeveation());
     m_view->setFmPreEmphasis(m_model->getFMpreemphesis() != 0.0);
+    m_view->setPhaseRotator(m_model->getPhaseRotator() != 0);
     m_view->setCwSidetoneFreq(m_model->getCwSidetoneFreq());
     m_view->setCwSidetoneVolume(m_model->getCwSidetoneVolume());
     m_view->setCwHangTime(m_model->getCwHangTime());
@@ -78,6 +79,10 @@ void TransmitSettingsController::bind(tx_settings_dialog* view, Settings* model)
 
     connect(m_view, &tx_settings_dialog::fmPreEmphasisRequested, this, [this](bool enabled) {
         m_model->setFMPreEmphasize(enabled ? 1 : 0);
+    });
+
+    connect(m_view, &tx_settings_dialog::phaseRotatorRequested, this, [this](bool enabled) {
+        m_model->setPhaseRotator(enabled ? 1 : 0);
     });
 
     connect(m_view, &tx_settings_dialog::cwKeyerModeRequested, this, [this](int val) {

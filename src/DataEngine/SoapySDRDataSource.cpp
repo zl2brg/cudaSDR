@@ -200,6 +200,9 @@ int SoapySDRDataSource::hardwareMinSampleRateHz(const std::string& hwKey, int dr
         return std::max(driverReportedMin, 900001);
     if (key.contains("AIRSPY"))
         return std::max(driverReportedMin, 2500000);
+    // ADALM-Pluto / AD9361: ~2.083 MSPS minimum (61.44 MHz ADC / 32).
+    if (key.contains("PLUTO") || key.contains("AD9361") || key.contains("ADALM"))
+        return std::max(driverReportedMin, 2083334);
     return driverReportedMin;
 }
 
@@ -253,7 +256,7 @@ SoapySDRDataSource::RfRatePlan SoapySDRDataSource::chooseRfSampleRate(int dspRat
     const std::string hwKey = m_device ? m_device->getHardwareKey() : std::string();
     plan.effectiveMinHz = hardwareMinSampleRateHz(hwKey, driverMin);
     if (plan.effectiveMinHz <= 0)
-        plan.effectiveMinHz = 900001; // conservative fallback (RTL-SDR minimum) when the driver reports nothing
+        plan.effectiveMinHz = 1000000; // generic fallback when the driver reports nothing
 
     std::vector<double> candidates;
 
@@ -453,11 +456,17 @@ void SoapySDRDataSource::init() {
         TSoapyDevice selected = set->getCurrentSoapyDevice();
         
         if (!selected.driver.isEmpty()) {
-            args["driver"] = selected.driver.toStdString();
-            if (!selected.serial.isEmpty()) {
-                args["serial"] = selected.serial.toStdString();
+            // Pass the full discovery kwargs (uri/hostname/serial/…) — Pluto often
+            // needs uri=usb:… or hostname=192.168.2.1, not just driver+serial.
+            for (auto it = selected.args.constBegin(); it != selected.args.constEnd(); ++it) {
+                if (!it.key().isEmpty() && !it.value().isEmpty())
+                    args[it.key().toStdString()] = it.value().toStdString();
             }
-            qDebug() << "SoapySDRDataSource: Opening device" << selected.label;
+            args["driver"] = selected.driver.toStdString();
+            if (!selected.serial.isEmpty())
+                args["serial"] = selected.serial.toStdString();
+            qDebug() << "SoapySDRDataSource: Opening device" << selected.label
+                     << "args" << selected.args;
             m_device = SoapySDR::Device::make(args);
         } else {
             auto results = SoapySDR::Device::enumerate();
@@ -485,15 +494,23 @@ void SoapySDRDataSource::init() {
             qDebug() << "SoapySDRDataSource: device has no TX channels (RX-only)";
         }
 
+        // Detect named LO ("RF") before querying range / tuning (Pluto/AD9361).
+        detectRfFrequencyName();
+
         // Query device frequency range before any hardware configuration so we
         // know the valid range even if subsequent calls throw.
         try {
-            SoapySDR::RangeList ranges = m_device->getFrequencyRange(SOAPY_SDR_RX, 0);
+            SoapySDR::RangeList ranges;
+            if (!m_rfFreqName.empty())
+                ranges = m_device->getFrequencyRange(SOAPY_SDR_RX, 0, m_rfFreqName);
+            if (ranges.empty())
+                ranges = m_device->getFrequencyRange(SOAPY_SDR_RX, 0);
             if (!ranges.empty()) {
                 m_minFrequency = static_cast<qint64>(ranges.front().minimum());
                 m_maxFrequency = static_cast<qint64>(ranges.back().maximum());
                 qDebug() << "SoapySDRDataSource: Device freq range"
                          << m_minFrequency / 1.0e6 << "to" << m_maxFrequency / 1.0e6 << "MHz";
+                set->setMinFrequency(m_minFrequency);
                 set->setMaxFrequency(m_maxFrequency);
             }
         } catch (const std::exception &e) {
@@ -523,7 +540,7 @@ void SoapySDRDataSource::init() {
         std::string hwKey = m_device->getHardwareKey();
         set->setSoapyHardwareKey(QString::fromStdString(hwKey));
 
-        // Build and publish antenna list; then select from Settings (with LNAH fallback)
+        // Build and publish antenna list; then select from Settings.
         try {
             std::vector<std::string> antennas = m_device->listAntennas(SOAPY_SDR_RX, 0);
             QStringList antennaQList;
@@ -531,12 +548,14 @@ void SoapySDRDataSource::init() {
             set->setSoapyAntennaList(antennaQList);
             qDebug() << "SoapySDRDataSource: Available antennas:" << antennaQList.join(" ");
 
-            // Pick antenna: prefer stored setting, fall back to LNAH, then first available
+            // Prefer stored setting if still valid; else first reported antenna.
+            // Soft-prefer Lime LNAH only on Lime hardware (not Pluto/others).
             QString wantAntenna = set->getSoapyRxAntenna();
             if (wantAntenna.isEmpty() || !antennaQList.contains(wantAntenna)) {
-                wantAntenna = antennaQList.contains("LNAH") ? "LNAH"
-                            : antennaQList.isEmpty()        ? ""
-                            :                                  antennaQList.first();
+                if (isLimeHardware() && antennaQList.contains(QStringLiteral("LNAH")))
+                    wantAntenna = QStringLiteral("LNAH");
+                else
+                    wantAntenna = antennaQList.isEmpty() ? QString() : antennaQList.first();
                 if (!wantAntenna.isEmpty())
                     set->setSoapyRxAntenna(wantAntenna);
             }
@@ -594,7 +613,21 @@ void SoapySDRDataSource::init() {
         // Gain (Lime auto-cal applied after tune below)
         try {
             if (!isLimeHardware()) {
-                m_device->setGain(SOAPY_SDR_RX, 0, set->getSoapyOverallGain());
+                try {
+                    const SoapySDR::Range rxGainRange = m_device->getGainRange(SOAPY_SDR_RX, 0);
+                    const int gmin = static_cast<int>(std::floor(rxGainRange.minimum()));
+                    const int gmax = static_cast<int>(std::ceil(rxGainRange.maximum()));
+                    if (gmax > gmin)
+                        set->setSoapyOverallGainRange(gmin, gmax);
+                } catch (const std::exception &e) {
+                    qDebug() << "SoapySDRDataSource: getGainRange failed:" << e.what();
+                }
+                int overall = set->getSoapyOverallGain();
+                const int gmin = set->getSoapyOverallGainMin();
+                const int gmax = set->getSoapyOverallGainMax();
+                if (gmax > gmin)
+                    overall = qBound(gmin, overall, gmax);
+                m_device->setGain(SOAPY_SDR_RX, 0, overall);
             } else if (!set->getSoapyAutoCalibrate()) {
                 m_device->setGain(SOAPY_SDR_RX, 0, "LNA", set->getSoapyLnaGain());
                 m_device->setGain(SOAPY_SDR_RX, 0, "TIA", set->getSoapyTiaGain());
@@ -678,11 +711,13 @@ void SoapySDRDataSource::init() {
             vfo = m_maxFrequency;
         qDebug() << "[SoapySDR] init: setting RX center freq to" << vfo / 1.0e6 << "MHz";
         try {
-            m_device->setFrequency(SOAPY_SDR_RX, 0, static_cast<double>(vfo));
-            if (m_txCapable)
-                m_device->setFrequency(SOAPY_SDR_TX, 0, static_cast<double>(vfo));
-            double actual = m_device->getFrequency(SOAPY_SDR_RX, 0);
+            applyHwFrequency(static_cast<double>(vfo), true);
+            double actual = readHwFrequency();
             qDebug() << "[SoapySDR] init: hardware confirmed RX freq" << actual / 1.0e6 << "MHz";
+            if (std::abs(actual - static_cast<double>(vfo)) > 1.0e6) {
+                qWarning() << "[SoapySDR] init: LO readback differs from requested"
+                           << vfo / 1.0e6 << "MHz — will retune after stream start";
+            }
         } catch (const std::exception &e) {
             qCritical() << "[SoapySDR] init: setFrequency(" << vfo / 1.0e6 << "MHz) failed:" << e.what();
             throw;
@@ -695,6 +730,28 @@ void SoapySDRDataSource::init() {
         // TX stream is opened lazily on first MOX/TUNE — do not activate here.
         // Keeping the TX stream inactive during receive prevents LimeSDR from
         // radiating a carrier on the RX frequency.
+
+        // Pluto often ignores pre-stream LO writes and stays at the default 2.4 GHz.
+        try {
+            applyHwFrequency(static_cast<double>(vfo), true);
+            const double actual = readHwFrequency();
+            qDebug() << "[SoapySDR] init: post-stream RX freq" << actual / 1.0e6 << "MHz";
+            if (std::abs(actual - static_cast<double>(vfo)) > 1.0e6) {
+                // Hardware refused the LO (common on stock Pluto below ~325 MHz).
+                // Snap UI to the actual LO so the dial and spectrum agree.
+                const qint64 actualHz = static_cast<qint64>(std::llround(actual));
+                qWarning() << "[SoapySDR] init: snapping VFO to hardware LO"
+                           << actual / 1.0e6 << "MHz (requested" << vfo / 1.0e6 << "MHz)";
+                vfo = actualHz;
+                set->setCtrFrequency(0, 0, actualHz);
+                set->setVFOFrequency(0, 0, actualHz);
+            }
+            m_pendingFreq.store(static_cast<double>(vfo), std::memory_order_relaxed);
+            m_lastKnownVfo = vfo;
+            m_lastTxSetFrequency = vfo;
+        } catch (const std::exception &e) {
+            qWarning() << "[SoapySDR] init: post-stream retune failed:" << e.what();
+        }
 
         if (isLimeHardware())
             applyLimeAutoCalibrate(set->getSoapyAutoCalibrate());
@@ -709,6 +766,12 @@ void SoapySDRDataSource::init() {
         // vfoFrequencyChanged carries (mode, rx, frequency) — adapt with a lambda
         // so the slot receives the correct rx and frequency values.
         connect(set, &Settings::vfoFrequencyChanged, this,
+                [this](int mode, int rx, qint64 frequency) {
+                    Q_UNUSED(mode);
+                    setFrequency(rx, frequency);
+                }, Qt::DirectConnection);
+        // Digit-wheel / pan sometimes move CTR first; Soapy LO must follow CTR too.
+        connect(set, &Settings::ctrFrequencyChanged, this,
                 [this](int mode, int rx, qint64 frequency) {
                     Q_UNUSED(mode);
                     setFrequency(rx, frequency);
@@ -819,12 +882,80 @@ void SoapySDRDataSource::clearTxIqRing() {
     m_txIqRing.clear();
 }
 
+void SoapySDRDataSource::detectRfFrequencyName() {
+    m_rfFreqName.clear();
+    if (!m_device)
+        return;
+    try {
+        const auto names = m_device->listFrequencies(SOAPY_SDR_RX, 0);
+        for (const auto &name : names) {
+            if (name == "RF") {
+                m_rfFreqName = name;
+                qDebug() << "SoapySDRDataSource: using named frequency component \"RF\"";
+                return;
+            }
+        }
+        if (!names.empty()) {
+            QStringList listed;
+            for (const auto &name : names)
+                listed << QString::fromStdString(name);
+            qDebug() << "SoapySDRDataSource: frequency components" << listed
+                     << "(using default setFrequency)";
+        }
+    } catch (const std::exception &e) {
+        qDebug() << "SoapySDRDataSource: listFrequencies unavailable:" << e.what();
+    }
+}
+
+void SoapySDRDataSource::applyHwFrequency(double freqHz, bool setTx) {
+    if (!m_device)
+        return;
+    if (!m_rfFreqName.empty()) {
+        m_device->setFrequency(SOAPY_SDR_RX, 0, m_rfFreqName, freqHz);
+        if (setTx && m_txCapable)
+            m_device->setFrequency(SOAPY_SDR_TX, 0, m_rfFreqName, freqHz);
+    } else {
+        m_device->setFrequency(SOAPY_SDR_RX, 0, freqHz);
+        if (setTx && m_txCapable)
+            m_device->setFrequency(SOAPY_SDR_TX, 0, freqHz);
+    }
+
+    // Pluto's Soapy driver ignores iio write failures — verify LO actually moved.
+    const double actual = readHwFrequency();
+    if (std::abs(actual - freqHz) > 1.0e5) {
+        qWarning() << "SoapySDR: LO did not take"
+                    << freqHz / 1.0e6 << "MHz (readback" << actual / 1.0e6
+                    << "MHz). Stock Pluto often rejects <~325 MHz unless unlocked.";
+    }
+}
+
+double SoapySDRDataSource::readHwFrequency() const {
+    if (!m_device)
+        return 0.0;
+    if (!m_rfFreqName.empty())
+        return m_device->getFrequency(SOAPY_SDR_RX, 0, m_rfFreqName);
+    return m_device->getFrequency(SOAPY_SDR_RX, 0);
+}
+
 void SoapySDRDataSource::configureTxSampleRate() {
     if (!m_device || !m_txCapable)
         return;
 
     const int savedRxRate = m_rfSampleRate;
+    // AD9361 (Pluto) shares one baseband rate — always couple TX to RX RF rate.
+    const QString hwKey = QString::fromStdString(m_device->getHardwareKey()).toUpper();
+    const bool forceCoupled = hwKey.contains(QStringLiteral("PLUTO"))
+        || hwKey.contains(QStringLiteral("AD9361"))
+        || hwKey.contains(QStringLiteral("ADALM"));
     try {
+        if (forceCoupled) {
+            m_txSampleRate = savedRxRate;
+            m_device->setSampleRate(SOAPY_SDR_TX, 0, m_txSampleRate);
+            qDebug() << "SoapySDR TX: Pluto/AD9361 coupled TX rate" << m_txSampleRate
+                     << "Hz (upsample from" << kTxIqSampleRate << "Hz)";
+            return;
+        }
+
         m_txSampleRate = kTxIqSampleRate;
         m_device->setSampleRate(SOAPY_SDR_TX, 0, m_txSampleRate);
         const double rxAfter = m_device->getSampleRate(SOAPY_SDR_RX, 0);
@@ -859,6 +990,13 @@ void SoapySDRDataSource::drainSoapyTxIqQueue() {
             firinterp_crcf_execute_block(m_txInterp1, (liquid_float_complex*)block.data(), n_in,    m_txInterpInterBuf);
             firinterp_crcf_execute_block(m_txInterp2, m_txInterpInterBuf,                  n_inter, m_txResampOut);
             const unsigned int n_out = n_inter * m_txL2;
+            float* outPtr = (float*)m_txResampOut;
+            for (unsigned int i = 0; i < n_out * 2; ++i)
+                m_txIqRing.append(outPtr[i]);
+        } else if (m_txInterp1 && m_txResampOut) {
+            const unsigned int n_in = static_cast<unsigned int>(block.size() / 2);
+            firinterp_crcf_execute_block(m_txInterp1, (liquid_float_complex*)block.data(), n_in, m_txResampOut);
+            const unsigned int n_out = n_in * m_txL1;
             float* outPtr = (float*)m_txResampOut;
             for (unsigned int i = 0; i < n_out * 2; ++i)
                 m_txIqRing.append(outPtr[i]);
@@ -1054,7 +1192,8 @@ void SoapySDRDataSource::runStream() {
             publishWidebandSpectrum(buff.data(), ret);
 
             // --- RX decimation ---
-            // Two-stage polyphase path (integer ratio, no circular buffer) or msresamp fallback.
+            // Two-stage polyphase path (integer ratio, no circular buffer),
+            // single-stage when D is prime, or msresamp fallback.
             unsigned int num_written = 0;
             if (m_rxDecim1 && m_rxDecim2 && m_rxResampOut) {
                 // Stage 1: rfRate → intermediate (decimation by D1)
@@ -1074,6 +1213,16 @@ void SoapySDRDataSource::runStream() {
                                                 m_rxDecimSurplus2.begin() + n2 * static_cast<int>(m_rxD2));
                         num_written = static_cast<unsigned int>(n2);
                     }
+                }
+            } else if (m_rxDecim1 && m_rxResampOut) {
+                const auto* inPtr = reinterpret_cast<liquid_float_complex*>(buff.data());
+                m_rxDecimSurplus1.insert(m_rxDecimSurplus1.end(), inPtr, inPtr + ret);
+                const int n1 = static_cast<int>(m_rxDecimSurplus1.size()) / static_cast<int>(m_rxD1);
+                if (n1 > 0) {
+                    firdecim_crcf_execute_block(m_rxDecim1, m_rxDecimSurplus1.data(), n1, m_rxResampOut);
+                    m_rxDecimSurplus1.erase(m_rxDecimSurplus1.begin(),
+                                            m_rxDecimSurplus1.begin() + n1 * static_cast<int>(m_rxD1));
+                    num_written = static_cast<unsigned int>(n1);
                 }
             } else if (m_rxResampler && m_rxResampIn && m_rxResampOut) {
                 msresamp_crcf_execute(m_rxResampler, (liquid_float_complex*)buff.data(), ret, m_rxResampOut, &num_written);
@@ -1132,11 +1281,9 @@ void SoapySDRDataSource::runStream() {
             if (!m_device)
                 break;
             try {
-                m_device->setFrequency(SOAPY_SDR_RX, 0, freq);
-                if (m_txCapable) {
-                    m_device->setFrequency(SOAPY_SDR_TX, 0, freq);
+                applyHwFrequency(freq, true);
+                if (m_txCapable)
                     m_lastTxSetFrequency = static_cast<qint64>(freq);
-                }
                 publishWidebandFrequencyRange();
             } catch (const std::exception& e) {
                 qWarning() << "SoapySDRDataSource: setFrequency failed:" << e.what();
@@ -1157,7 +1304,7 @@ void SoapySDRDataSource::runStream() {
                         if (targetTxHz <= 0)
                             targetTxHz = set->getCtrFrequency(rx);
                         if (targetTxHz > 0 && std::llabs(targetTxHz - m_lastTxSetFrequency) > 1) {
-                            m_device->setFrequency(SOAPY_SDR_TX, 0, static_cast<double>(targetTxHz));
+                            applyHwFrequency(static_cast<double>(targetTxHz), true);
                             m_lastTxSetFrequency = targetTxHz;
                         }
                     } catch (const std::exception& e) {
@@ -1291,14 +1438,18 @@ void SoapySDRDataSource::setupResamplers(int rxRfRate, int rxDspRate, int txRfRa
     if (m_txResampIn)  { delete[] (float*)m_txResampIn;  m_txResampIn  = nullptr; }
     if (m_txResampOut) { delete[] (float*)m_txResampOut; m_txResampOut = nullptr; }
 
-    // Factor D into two stages: D1 (larger) * D2 (smallest prime factor).
-    // For D=125: D1=25, D2=5.  For non-factorable D: D1=D, D2=1.
+    // Factor D into two stages when both factors are >1 (liquid rejects factor 1).
+    // Primes (e.g. D=2) stay single-stage.
     auto factor2 = [](unsigned int D, unsigned int& D1, unsigned int& D2) {
         D2 = 1;
         for (unsigned int f = 2; f * f <= D; ++f) {
             if (D % f == 0) { D2 = f; break; }
         }
         D1 = D / D2;
+        if (D2 <= 1) {
+            D1 = D;
+            D2 = 0;
+        }
     };
 
     // RX path: rfRate → dspRate
@@ -1306,16 +1457,19 @@ void SoapySDRDataSource::setupResamplers(int rxRfRate, int rxDspRate, int txRfRa
         if (rxRfRate % rxDspRate == 0) {
             const unsigned int D = static_cast<unsigned int>(rxRfRate / rxDspRate);
             factor2(D, m_rxD1, m_rxD2);
-            // m=6 polyphase arms (12 taps each), 60 dB stopband attenuation
             m_rxDecim1 = firdecim_crcf_create_kaiser(m_rxD1, 6, 60.0f);
-            m_rxDecim2 = firdecim_crcf_create_kaiser(m_rxD2, 6, 60.0f);
-            // Intermediate buffer: holds up to ceil((numSamples+D1-1)/D1) samples from stage 1
             const int interSize = 1024 / static_cast<int>(m_rxD1) + 8;
-            m_rxDecimInterBuf = (liquid_float_complex*)new float[interSize * 2];
-            m_rxResampOut     = (liquid_float_complex*)new float[2048 * 2];
-            qDebug() << "SoapySDRDataSource: RX 2-stage firdecim D1=" << m_rxD1
-                     << "D2=" << m_rxD2 << "total=" << D
-                     << "(" << rxRfRate << "->" << rxDspRate << " Hz)";
+            m_rxResampOut = (liquid_float_complex*)new float[2048 * 2];
+            if (m_rxD2 > 1) {
+                m_rxDecim2 = firdecim_crcf_create_kaiser(m_rxD2, 6, 60.0f);
+                m_rxDecimInterBuf = (liquid_float_complex*)new float[interSize * 2];
+                qDebug() << "SoapySDRDataSource: RX 2-stage firdecim D1=" << m_rxD1
+                         << "D2=" << m_rxD2 << "total=" << D
+                         << "(" << rxRfRate << "->" << rxDspRate << " Hz)";
+            } else {
+                qDebug() << "SoapySDRDataSource: RX 1-stage firdecim D=" << m_rxD1
+                         << "(" << rxRfRate << "->" << rxDspRate << " Hz)";
+            }
         } else {
             const float ratio = static_cast<float>(rxDspRate) / static_cast<float>(rxRfRate);
             m_rxResampler = msresamp_crcf_create(ratio, 60.0f);
@@ -1330,20 +1484,30 @@ void SoapySDRDataSource::setupResamplers(int rxRfRate, int rxDspRate, int txRfRa
     if (txRfRate > 0 && txDspRate > 0 && txRfRate > txDspRate) {
         if (txRfRate % txDspRate == 0) {
             const unsigned int L = static_cast<unsigned int>(txRfRate / txDspRate);
-            unsigned int Llarge, Lsmall;
+            unsigned int Llarge = L;
+            unsigned int Lsmall = 0;
             factor2(L, Llarge, Lsmall);
-            // Apply smaller factor first to limit intermediate buffer size
-            m_txL1 = Lsmall;   // e.g. 5  (48k → 240k)
-            m_txL2 = Llarge;   // e.g. 25 (240k → 6M)
-            m_txInterp1 = firinterp_crcf_create_kaiser(m_txL1, 6, 60.0f);
-            m_txInterp2 = firinterp_crcf_create_kaiser(m_txL2, 6, 60.0f);
-            // Intermediate: 1024 * L1 complex samples; output: 1024 * L total
-            m_txInterpInterBuf = (liquid_float_complex*)new float[1024 * m_txL1 * 2 + 128];
-            const int maxOut = 1024 * static_cast<int>(L) + 64;
-            m_txResampOut = (liquid_float_complex*)new float[maxOut * 2];
-            qDebug() << "SoapySDRDataSource: TX 2-stage firinterp L1=" << m_txL1
-                     << "L2=" << m_txL2 << "total=" << L
-                     << "(" << txDspRate << "->" << txRfRate << " Hz)";
+            if (Lsmall > 1) {
+                // Apply smaller factor first to limit intermediate buffer size
+                m_txL1 = Lsmall;
+                m_txL2 = Llarge;
+                m_txInterp1 = firinterp_crcf_create_kaiser(m_txL1, 6, 60.0f);
+                m_txInterp2 = firinterp_crcf_create_kaiser(m_txL2, 6, 60.0f);
+                m_txInterpInterBuf = (liquid_float_complex*)new float[1024 * m_txL1 * 2 + 128];
+                const int maxOut = 1024 * static_cast<int>(L) + 64;
+                m_txResampOut = (liquid_float_complex*)new float[maxOut * 2];
+                qDebug() << "SoapySDRDataSource: TX 2-stage firinterp L1=" << m_txL1
+                         << "L2=" << m_txL2 << "total=" << L
+                         << "(" << txDspRate << "->" << txRfRate << " Hz)";
+            } else {
+                m_txL1 = L;
+                m_txL2 = 0;
+                m_txInterp1 = firinterp_crcf_create_kaiser(m_txL1, 6, 60.0f);
+                const int maxOut = 1024 * static_cast<int>(L) + 64;
+                m_txResampOut = (liquid_float_complex*)new float[maxOut * 2];
+                qDebug() << "SoapySDRDataSource: TX 1-stage firinterp L=" << m_txL1
+                         << "(" << txDspRate << "->" << txRfRate << " Hz)";
+            }
         } else {
             const float ratio = static_cast<float>(txRfRate) / static_cast<float>(txDspRate);
             m_txResampler = msresamp_crcf_create(ratio, 60.0f);

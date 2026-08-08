@@ -52,6 +52,7 @@ private:
     void init_analyser(int id);
     void tx_set_filter(double low, double high);
     void applyFmPreEmphasis();
+    void applyPhaseRotator();
     long get_CtrFrequency(long rx_frequency, long repeater_offset, bool repeater_mode);
 
     double cw_shape_buffer48[BUFFER_SIZE];

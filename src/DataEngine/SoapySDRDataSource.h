@@ -60,6 +60,9 @@ private:
     bool fillTxBufferFromRing(float *txBuff, int numComplexSamples);
     void clearTxIqRing();
     void configureTxSampleRate();
+    void detectRfFrequencyName();
+    void applyHwFrequency(double freqHz, bool setTx);
+    double readHwFrequency() const;
 
     void setupResamplers(int rxRfRate, int rxDspRate, int txRfRate, int txDspRate);
 
@@ -77,6 +80,8 @@ private:
     size_t m_numChannels;
     qint64  m_minFrequency;
     qint64  m_maxFrequency;
+    // Named LO component when present (e.g. Pluto/AD9361 "RF"); empty = default setFrequency.
+    std::string m_rfFreqName;
 
     // Pending hardware changes — written by slots (UI thread via DirectConnection),
     // consumed by runStream() loop so they take effect between readStream() calls.

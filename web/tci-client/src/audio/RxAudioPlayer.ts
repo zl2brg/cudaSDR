@@ -70,28 +70,30 @@ export class RxAudioPlayer {
     const ab = this.ctx.createBuffer(2, frames, rate);
     const L = ab.getChannelData(0);
     const R = ab.getChannelData(1);
-    const fade = Math.min(64, frames >> 2);
+
+    // Do NOT window every packet — fade-in/out on each block AM-modulates at
+    // the packet rate (~21 ms → ~47 Hz buzz) while leaving content pitch intact.
+    // Only a short fade-in when recovering from an underrun avoids a click.
+    const now = this.ctx.currentTime;
+    const recovering = this.nextTime < now;
+    const fadeIn = recovering ? Math.min(64, frames >> 2) : 0;
 
     if (channels === 1) {
       for (let i = 0; i < frames; i++) {
-        let s = 1;
-        if (i < fade) s = i / fade;
-        else if (i >= frames - fade) s = (frames - i) / fade;
-        L[i] = payload[i] * s;
-        R[i] = payload[i] * s;
+        const s = fadeIn > 0 && i < fadeIn ? i / fadeIn : 1;
+        const v = payload[i] * s;
+        L[i] = v;
+        R[i] = v;
       }
     } else {
       for (let i = 0; i < frames; i++) {
-        let s = 1;
-        if (i < fade) s = i / fade;
-        else if (i >= frames - fade) s = (frames - i) / fade;
+        const s = fadeIn > 0 && i < fadeIn ? i / fadeIn : 1;
         L[i] = payload[i * 2] * s;
         R[i] = payload[i * 2 + 1] * s;
       }
     }
 
-    const now = this.ctx.currentTime;
-    if (this.nextTime < now) this.nextTime = now + 0.02;
+    if (recovering) this.nextTime = now + 0.02;
 
     const src = this.ctx.createBufferSource();
     src.buffer = ab;

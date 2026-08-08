@@ -17,6 +17,7 @@ class AudioConfig : public QObject {
     Q_PROPERTY(double micGain READ micGain WRITE setMicGain NOTIFY micGainChanged)
     Q_PROPERTY(int driveLevel READ driveLevel WRITE setDriveLevel NOTIFY driveLevelChanged)
     Q_PROPERTY(int fmPreemphasis READ fmPreemphasis WRITE setFmPreemphasis NOTIFY fmPreemphasisChanged)
+    Q_PROPERTY(int phaseRotator READ phaseRotator WRITE setPhaseRotator NOTIFY phaseRotatorChanged)
     Q_PROPERTY(double amCarrierLevel READ amCarrierLevel WRITE setAmCarrierLevel NOTIFY amCarrierLevelChanged)
     Q_PROPERTY(int audioCompression READ audioCompression WRITE setAudioCompression NOTIFY audioCompressionChanged)
     Q_PROPERTY(double fmDeviation READ fmDeviation WRITE setFmDeviation NOTIFY fmDeviationChanged)
@@ -49,6 +50,9 @@ public:
     int fmPreemphasis() const { return m_fmPreemphasis; }
     void setFmPreemphasis(int val);
 
+    int phaseRotator() const { return m_phaseRotator; }
+    void setPhaseRotator(int val);
+
     double amCarrierLevel() const { return m_amCarrierLevel; }
     void setAmCarrierLevel(double level);
 
@@ -76,6 +80,7 @@ signals:
     void micGainChanged(double gain);
     void driveLevelChanged(int level);
     void fmPreemphasisChanged(int val);
+    void phaseRotatorChanged(int val);
     void amCarrierLevelChanged(double level);
     void audioCompressionChanged(int val);
     void fmDeviationChanged(double dev);
@@ -90,6 +95,7 @@ private:
     double m_micGain;
     int m_driveLevel;
     int m_fmPreemphasis;
+    int m_phaseRotator;
     double m_amCarrierLevel;
     int m_audioCompression;
     double m_fmDeviation;

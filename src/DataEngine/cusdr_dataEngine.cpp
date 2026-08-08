@@ -3935,11 +3935,13 @@ void DataProcessor::get_tx_iqData(){
 #ifdef HAVE_SOAPYSDR
         if (m_hwInterface == QSDR::SoapySDR && !de->m_dataIO->soapy_tx_iq_queue.isFull()) {
             QVector<float> soapyTxIq(DSP_SAMPLE_SIZE * 2);
+            // LimeSDR needs Q conjugation to correct HPSDR-legacy sideband inversion.
+            // Pluto/other Soapy devices should keep native IQ polarity.
+            const bool negateQ = set->getSoapyHardwareKey().contains(QStringLiteral("Lime"), Qt::CaseInsensitive);
             for (int j = 0; j < DSP_SAMPLE_SIZE; ++j) {
-                // Negate Q to conjugate the IQ signal, correcting the legacy HPSDR
-                // sideband inversion (LimeSDR/SoapySDR otherwise transmits LSB as USB).
                 soapyTxIq[j * 2]     = static_cast<float>(m_iq_output_buffer.at(j).re);
-                soapyTxIq[j * 2 + 1] = static_cast<float>(-m_iq_output_buffer.at(j).im);
+                soapyTxIq[j * 2 + 1] = static_cast<float>(
+                    negateQ ? -m_iq_output_buffer.at(j).im : m_iq_output_buffer.at(j).im);
             }
             de->m_dataIO->soapy_tx_iq_queue.enqueue(soapyTxIq);
         }

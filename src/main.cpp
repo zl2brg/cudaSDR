@@ -117,7 +117,25 @@ void cuSDRMessageHandler(QtMsgType type, const QMessageLogContext &context, cons
 }
 
 void load_WDSPWisdom() {
-    WDSPwisdom(Settings::instance()->cfg_dir.toLocal8Bit().data());
+    // WDSPwisdom() concatenates the filename directly onto the directory
+    // string — ensure a trailing separator so plans land in ~/.cudaSDR/
+    // (otherwise the file becomes ~/.cudaSDRwdspWisdom01).
+    QString wisdomDir = Settings::instance()->cfg_dir;
+    if (!wisdomDir.endsWith(QLatin1Char('/')))
+        wisdomDir.append(QLatin1Char('/'));
+
+    const QString newWisdom = wisdomDir + QStringLiteral("wdspWisdom01");
+    if (!QFile::exists(newWisdom)) {
+        // Migrate legacy juxtaposed path from older builds.
+        const QString legacy = Settings::instance()->cfg_dir + QStringLiteral("wdspWisdom01");
+        if (QFile::exists(legacy) && QFile::copy(legacy, newWisdom))
+            qInfo() << "Migrated WDSP wisdom" << legacy << "->" << newWisdom;
+    }
+
+    qInfo() << "Loading WDSP FFT wisdom from" << wisdomDir;
+    const int rebuilt = WDSPwisdom(wisdomDir.toLocal8Bit().data());
+    if (rebuilt)
+        qInfo() << "WDSP FFT wisdom rebuilt (first run or missing wdspWisdom01); subsequent starts will be faster";
 }
 
 int main(int argc, char *argv[]) {
@@ -277,6 +295,11 @@ int main(int argc, char *argv[]) {
 
 
 
+    // FFTW PATIENT plans inside OpenChannel (TX member of DataEngine, RX
+    // channels, etc.) are only cheap once wisdom is imported. MainWindow::setup
+    // constructs DataEngine → Transmitter → OpenChannel, so load wisdom first.
+    load_WDSPWisdom();
+
     // setup main window
     splash->showMessage(
         "\n      " +
@@ -341,9 +364,6 @@ int main(int argc, char *argv[]) {
     QThread::msleep(300);
     splash->finish(&mainWindow);
     delete splash;
-
-    //*************************************************************************
-    load_WDSPWisdom();
 
     mainWindow.show();
     mainWindow.update();

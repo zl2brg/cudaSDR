@@ -175,6 +175,10 @@ bool SliceProcessor::initQtWDSPInterface() {
     }
     SLICE_PROCESSOR_DEBUG << "[RX-ADD] QWDSPEngine constructed for rx=" << m_receiver << "(isValid=true)";
 
+    // Constructor opens with input=dsp=pan; switch to dual-rate (HB → 48 kHz DSP).
+    qtwdsp->setSampleRate(m_samplerate, 48000);
+    setAudioBufferSize();
+
     qtwdsp->setQtDSPStatus(true);
     const float volume = m_sliceModel ? m_sliceModel->volume() : static_cast<float>(set->getMainVolume(m_receiver));
     qtwdsp->setVolume(volume);
@@ -516,7 +520,8 @@ void SliceProcessor::dspProcessingCore() {
             emit rxAudioSamples(m_receiver, tciStereo, 48000);
         };
         if (dspMode != DSPMode::FDV) {
-			// Normal analogue modes: pass WDSP audio output straight to soundcard.
+			// Normal analogue modes: soundcard gets I/Q interleaved; TCI gets
+			// demod audio (I) duplicated to L/R — matches the last good commit.
             const int n = audioSamplesThisCall;
             deliverInternalAudio(interleaveFromCPX(audioOutputBuf, n),
                                  monoStereoFromCPX(audioOutputBuf, n));
@@ -688,12 +693,9 @@ void SliceProcessor::setSampleRate(int value) {
 			m_soapyQueue.dequeue();
 		m_rateTransitionDropBuffers = HIGH_RATE_TRANSITION_DROP_BUFFERS;
 
-        // Dual-Rate Strategy:
-        // We always force 48 kHz DSP for the demodulator/audio path for maximum
-        // stability and correct audio pitch. The user-selected high rate is used
-        // only for the hardware input and waterfall analyzer.
-        const int dspMathRate = 48000;
-        qtwdsp->setSampleRate(m_samplerate, dspMathRate);
+        // WDSP 2.0: HB rsmpin supports pan→48k for all our rates; run filter/demod
+        // at 48 kHz and leave rsmpout off (dsp_rate == out_rate).
+        qtwdsp->setSampleRate(m_samplerate, 48000);
 
     }
 	else

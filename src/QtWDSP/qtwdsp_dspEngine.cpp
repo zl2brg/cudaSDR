@@ -373,22 +373,22 @@ void QWDSPEngine::processDSP(CPX &in, CPX &out) {
     fexchange0(m_rx, reinterpret_cast<double*>(in.data()),
                reinterpret_cast<double*>(out.data()), &error);
     if (error != 0) {
-        if (error == -2) {
-            return;
+        // -2: r2 underrun — out already zeroed. Still deliver the block so
+        // TCI/soundcard keep a steady 48 kHz cadence (gaps buzz worse).
+        if (error != -2) {
+            // Suppress the first-call transient (-20 = ring buffer not yet primed).
+            if (!m_firstExchangeDone) {
+                WDSP_ENGINE_DEBUG << "[WDSP-DSP] rx=" << m_rx
+                                  << "first fexchange0 startup transient error=" << error << "(suppressed)";
+            } else {
+                WDSP_ENGINE_DEBUG << "[WDSP-DSP] rx=" << m_rx << "fexchange0 error=" << error;
+            }
         }
-        // Suppress the first-call transient (-20 = ring buffer not yet primed).
-        // Log subsequent errors at full severity so real problems are visible.
-        if (!m_firstExchangeDone) {
-            WDSP_ENGINE_DEBUG << "[WDSP-DSP] rx=" << m_rx
-                              << "first fexchange0 startup transient error=" << error << "(suppressed)";
-        } else {
-            WDSP_ENGINE_DEBUG << "[WDSP-DSP] rx=" << m_rx << "fexchange0 error=" << error;
-        }
-    } else {
-        m_firstExchangeDone = true;
-        Spectrum0(1, m_rx, 0, 0, reinterpret_cast<double*>(in.data()));
+        return;
     }
 
+    m_firstExchangeDone = true;
+    Spectrum0(1, m_rx, 0, 0, reinterpret_cast<double*>(in.data()));
 }
 
 double QWDSPEngine::getSMeterInstValue() {

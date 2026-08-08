@@ -96,11 +96,11 @@ endif()
 
 # --- Project Configuration ---
 set(SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src)
-set(WDSP_DIR  ${CMAKE_CURRENT_SOURCE_DIR}/wdsp-1.29)
+set(WDSP_DIR  ${CMAKE_CURRENT_SOURCE_DIR}/wdsp-2.00)
 set(WDSP_LIBS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/wdsp-libs)
 
 # --- Add Subdirectories ---
-add_subdirectory(wdsp-1.29)
+add_subdirectory(wdsp-2.00)
 add_subdirectory(deps/freedv-backend)
 
 # --- Define Source Files ---

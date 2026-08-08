@@ -304,7 +304,7 @@ int Settings::loadSettings() {
 
 #ifdef HAVE_SOAPYSDR
     // Always load SoapySDR settings regardless of active hardware mode.
-    m_soapyRxAntenna   = settings->value("SoapySDR/rxAntenna", "LNAH").toString();
+    m_soapyRxAntenna   = settings->value("SoapySDR/rxAntenna", "").toString();
     m_soapyTxAntenna   = settings->value("SoapySDR/txAntenna", "").toString();
     m_soapyLnaGain     = settings->value("SoapySDR/lnaGain", 25).toInt();
     m_soapyTiaGain     = settings->value("SoapySDR/tiaGain", 12).toInt();
@@ -315,6 +315,15 @@ int Settings::loadSettings() {
     m_soapyHardwareKey = "";
     m_soapyAntennaList.clear();
     m_soapyTxAntennaList.clear();
+    // Pluto / network Soapy devices need uri or hostname beyond driver+serial.
+    {
+        const QString uri = settings->value("SoapySDR/uri", "").toString();
+        const QString hostname = settings->value("SoapySDR/hostname", "").toString();
+        if (!uri.isEmpty())
+            m_currentSoapyDevice.args.insert(QStringLiteral("uri"), uri);
+        if (!hostname.isEmpty())
+            m_currentSoapyDevice.args.insert(QStringLiteral("hostname"), hostname);
+    }
 #endif
 
     str = settings->value("hpsdr/checkfw", "true").toString();
@@ -1519,6 +1528,8 @@ int Settings::saveSettings() {
     settings->setValue("SoapySDR/label",       m_currentSoapyDevice.label);
     settings->setValue("SoapySDR/driver",      m_currentSoapyDevice.driver);
     settings->setValue("SoapySDR/serial",      m_currentSoapyDevice.serial);
+    settings->setValue("SoapySDR/uri",         m_currentSoapyDevice.args.value(QStringLiteral("uri")));
+    settings->setValue("SoapySDR/hostname",    m_currentSoapyDevice.args.value(QStringLiteral("hostname")));
     settings->setValue("SoapySDR/rxAntenna",   m_soapyRxAntenna);
     settings->setValue("SoapySDR/txAntenna",   m_soapyTxAntenna);
     settings->setValue("SoapySDR/lnaGain",     m_soapyLnaGain);
@@ -2739,6 +2750,13 @@ void Settings::setMaxFrequency(qint64 value) {
     emit maxFrequencyChanged(m_maxFrequency);
 }
 
+void Settings::setMinFrequency(qint64 value) {
+
+    if (m_minFrequency == value) return;
+    m_minFrequency = value;
+    emit minFrequencyChanged(m_minFrequency);
+}
+
 void Settings::setCurrentHPSDRDevice(TNetworkDevicecard card) {
 
     m_currentHPSDRDevice = card;
@@ -2832,6 +2850,20 @@ void Settings::setSoapyOverallGain(int gain) {
         m_soapyOverallGain = gain;
         emit soapyOverallGainChanged(gain);
     }
+}
+
+void Settings::setSoapyOverallGainRange(int minGain, int maxGain) {
+    if (maxGain < minGain)
+        qSwap(minGain, maxGain);
+    if (m_soapyOverallGainMin == minGain && m_soapyOverallGainMax == maxGain)
+        return;
+    m_soapyOverallGainMin = minGain;
+    m_soapyOverallGainMax = maxGain;
+    if (m_soapyOverallGain < minGain || m_soapyOverallGain > maxGain) {
+        m_soapyOverallGain = qBound(minGain, m_soapyOverallGain, maxGain);
+        emit soapyOverallGainChanged(m_soapyOverallGain);
+    }
+    emit soapyOverallGainRangeChanged(minGain, maxGain);
 }
 
 void Settings::setSoapyAutoCalibrate(bool enabled) {
@@ -3805,9 +3837,14 @@ void Settings::setVFOFrequency(int mode, int rx, qint64 frequency) {
 
 #ifdef HAVE_SOAPYSDR
             if (m_hwInterface == QSDR::SoapySDR) {
-                // SoapySDR hardware tunes directly to VFO; keep center = VFO so NCO stays 0
+                // SoapySDR hardware tunes directly to VFO; keep center = VFO so NCO stays 0.
+                // Emit ctrFrequencyChanged so panadapter/digits follow the LO (silent
+                // CTR updates left the display clamped to the old span).
+                const bool ctrChanged = (m_receiverDataList[rx].ctrFrequency != frequency);
                 m_receiverDataList[rx].ctrFrequency = frequency;
                 m_receiverDataList[rx].ncoFrequency = 0;
+                if (ctrChanged)
+                    emit ctrFrequencyChanged(0, rx, frequency);
             } else
 #endif
             {
@@ -5241,6 +5278,12 @@ void Settings::setFMPreEmphasize(int value)
 {
     m_audioConfig->setFmPreemphasis(value);
     emit fmPremphasizechanged(value);
+}
+
+void Settings::setPhaseRotator(int value)
+{
+    m_audioConfig->setPhaseRotator(value);
+    emit phaseRotatorChanged(value);
 }
 
 void Settings::setFmDeveation(int value)

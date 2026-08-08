@@ -116,6 +116,19 @@ void cusdr_radioSettingsWidget::setSoapyOverallGain(int value)
     ui->overallGainSpinBox->blockSignals(false);
 }
 
+void cusdr_radioSettingsWidget::setOverallGainRange(int minGain, int maxGain)
+{
+    if (maxGain < minGain)
+        qSwap(minGain, maxGain);
+    ui->overallGainSlider->blockSignals(true);
+    ui->overallGainSpinBox->blockSignals(true);
+    ui->overallGainSlider->setRange(minGain, maxGain);
+    ui->overallGainSpinBox->setRange(minGain, maxGain);
+    ui->overallGainSlider->blockSignals(false);
+    ui->overallGainSpinBox->blockSignals(false);
+    ui->overallGainLabel->setText(QStringLiteral("Gain (%1–%2 dB):").arg(minGain).arg(maxGain));
+}
+
 void cusdr_radioSettingsWidget::setAntennaList(const QStringList& list, const QString& active)
 {
     ui->antennaCombo->blockSignals(true);
