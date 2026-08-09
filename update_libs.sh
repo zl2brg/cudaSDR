@@ -22,7 +22,7 @@ for arg in "$@"; do
   [ "$arg" = "reinstall" ] && REINSTALL=1
 done
 
-echo "Build all requirements for WDSP 1.29 with NR3 and NR4 support"
+echo "Build all requirements for WDSP 2.00 with NR3 and NR4 support"
 echo ""
 echo "This Script $SCRIPT_NAME is running under OS $OS_TYPE"
 

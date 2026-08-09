@@ -57,6 +57,6 @@ Check items off as they land. See also the Cursor plan
 ## Housekeeping
 
 - [ ] Fix stale HB / dual-rate comments in `cusdr_sliceProcessor.cpp` and RXA.
-- [ ] Update docs that still say `wdsp-1.29` (e.g. `Docs/codebase_architecture.md`).
+- [x] Update docs that still say `wdsp-1.29` (e.g. `Docs/codebase_architecture.md`).
 - [ ] Keep wisdom-before-`OpenChannel` and reduced create-time EQ defaults when
       adding more EQ UI.

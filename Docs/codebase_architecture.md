@@ -20,7 +20,7 @@ flowchart TB
   end
 
   subgraph dsp["Bundled DSP"]
-    WDSP[wdsp-1.29/]
+    WDSP[wdsp-2.00/]
     WLIB[wdsp-libs/]
   end
 
@@ -154,7 +154,7 @@ sequenceDiagram
 | `src/UI/MainWindow/` | MainWindow UI decomposition (`MainWindowUI`) |
 | `src/UI/` | Smaller dialogs and embedded widgets |
 | `src/Util/` | Rig control, splash, CPU monitor, timers |
-| `wdsp-1.29/` | Upstream-style WDSP sources |
+| `wdsp-2.00/` | Bundled WDSP 2.0 sources (NR0V) |
 | `wdsp-libs/` | Prebuilt / vendored libs (e.g. rnnoise, specbleach) |
 | `tests/` | CMake `BUILD_TESTING` unit tests |
 | `hpsdrsim/` | Simulator companion project |

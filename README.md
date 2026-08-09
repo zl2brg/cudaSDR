@@ -9,7 +9,7 @@
 - **Modern OpenGL Pipeline**: High-performance rendering using Shaders and VBOs, featuring optimized waterfall scrolling and transparent overlays.
 - **Standardized Foundation**: Unidied networking via `QUdpSocket` and cross-platform threading/monitoring.
 - **High-DPI Support**: Native scaling for 4K and Retina displays.
-- **Advanced DSP**: Integrated WDSP, Protocol 2 support, and FreeDV/Codec2 capabilities - no rade yet.
+- **Advanced DSP**: Integrated **WDSP 2.0** (NURBS EQ/CFC, NR1–NR4, EMNR post2), Protocol 2 support, and FreeDV/Codec2 capabilities - no rade yet.
 - **Experimental Soapy Integration  **
 - ** TCI server **
 - AI Development assist from 2025 on
@@ -33,6 +33,7 @@ This project is still work in progress and very much alpha.
 - FFTW3 (`fftw3`, `fftw3f`)
 - Liquid DSP
 - OpenGL
+- Bundled `wdsp-2.00/` (WDSP 2.0 by NR0V; built via CMake — do not use the removed `wdsp-1.29` tree)
 - Optional: Codec2 (enables FreeDV integration)
 
 ### Build
