@@ -82,6 +82,16 @@ void ReceiverAudioOutput::start()
 
 void ReceiverAudioOutput::stop()
 {
+    if (!onOwnThread()) {
+        // Sink/notifiers live on this object's thread; never stop/delete cross-thread
+        // (Qt FFmpeg/Pulse idle callbacks then hit a null endpoint → segfault).
+        if (thread() && thread()->isRunning()) {
+            QMetaObject::invokeMethod(this, [this] { stop(); }, Qt::BlockingQueuedConnection);
+            return;
+        }
+        // Owning thread already gone — best-effort local teardown.
+    }
+
     QMutexLocker locker(&m_mutex);
     m_wantRunning = false;
     m_reopenPending = false;
@@ -92,14 +102,22 @@ void ReceiverAudioOutput::stop()
 
 void ReceiverAudioOutput::writeAudio(const QVector<float>& audioBuffer)
 {
+    // QAudioSink / Pulse require I/O on the sink's thread. DSP runs elsewhere.
+    if (!onOwnThread()) {
+        const QVector<float> copy = audioBuffer;
+        QMetaObject::invokeMethod(this, [this, copy] { writeAudio(copy); }, Qt::QueuedConnection);
+        return;
+    }
+
     QMutexLocker locker(&m_mutex);
+    if (!m_wantRunning)
+        return;
     if (!isSinkHealthy()) {
         // Drop samples while the sink is gone (e.g. HDMI display sleep).
         // Teardown/reopen must happen on the sink's own thread, so only flag it here.
-        if (m_wantRunning
-            && (!m_audioSink
-                || m_audioSink->error() != QAudio::NoError
-                || m_audioSink->state() == QAudio::StoppedState)) {
+        if (!m_audioSink
+            || m_audioSink->error() != QAudio::NoError
+            || m_audioSink->state() == QAudio::StoppedState) {
             markSinkLostLocked("writeAudio unhealthy sink");
             scheduleReopen();
         }
@@ -218,6 +236,7 @@ void ReceiverAudioOutput::handleDeviceLostLocked(const char *reason)
         // Disconnect before stop/delete so we don't recurse through stateChanged.
         disconnect(m_audioSink, nullptr, this, nullptr);
         m_audioSink->stop();
+        m_audioSink->setParent(nullptr);
         m_audioSink->deleteLater();
         m_audioSink = nullptr;
     }
@@ -277,7 +296,10 @@ void ReceiverAudioOutput::stopLocked()
     if (m_audioSink) {
         disconnect(m_audioSink, nullptr, this, nullptr);
         m_audioSink->stop();
-        delete m_audioSink;
+        // Unparent + deleteLater: sync delete races platform stream idle callbacks
+        // (QPlatformAudioEndpointBase::updateStreamIdle with this=nullptr).
+        m_audioSink->setParent(nullptr);
+        m_audioSink->deleteLater();
         m_audioSink = nullptr;
     }
 }

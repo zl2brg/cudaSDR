@@ -360,6 +360,13 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
         nfView->setNr2Ae(m_sliceModel->nr2Ae());
         nfView->setSnb(m_sliceModel->snb());
         nfView->setAnf(m_sliceModel->anf());
+        if (m_model) {
+            nfView->setEmnrPost2Enabled(m_model->getEmnrPost2Enabled());
+            nfView->setEmnrPost2Factor(m_model->getEmnrPost2Factor());
+            nfView->setEmnrPost2Nlevel(m_model->getEmnrPost2Nlevel());
+            nfView->setEmnrPost2Taper(m_model->getEmnrPost2Taper());
+            nfView->setEmnrPost2Rate(m_model->getEmnrPost2Rate());
+        }
 
         // Connect View -> Model (SliceModel)
         connect(nfView, &NoiseFilterWidget::nrModeRequested, this, [this](int val) {
@@ -385,6 +392,21 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
         });
         connect(nfView, &NoiseFilterWidget::anfRequested, this, [this](bool val) {
             if (m_sliceModel) m_sliceModel->setAnf(val);
+        });
+        connect(nfView, &NoiseFilterWidget::emnrPost2EnabledRequested, this, [this](bool enabled) {
+            if (m_model) m_model->setEmnrPost2Enabled(enabled);
+        });
+        connect(nfView, &NoiseFilterWidget::emnrPost2FactorRequested, this, [this](double pct) {
+            if (m_model) m_model->setEmnrPost2Factor(pct);
+        });
+        connect(nfView, &NoiseFilterWidget::emnrPost2NlevelRequested, this, [this](double pct) {
+            if (m_model) m_model->setEmnrPost2Nlevel(pct);
+        });
+        connect(nfView, &NoiseFilterWidget::emnrPost2TaperRequested, this, [this](double pct) {
+            if (m_model) m_model->setEmnrPost2Taper(pct);
+        });
+        connect(nfView, &NoiseFilterWidget::emnrPost2RateRequested, this, [this](double seconds) {
+            if (m_model) m_model->setEmnrPost2Rate(seconds);
         });
 
         // Connect Model (SliceModel) -> View
@@ -412,5 +434,14 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
         connect(m_sliceModel, &SliceModel::anfChanged, this, [nfView](bool val) {
             nfView->setAnf(val);
         });
+        if (m_model) {
+            connect(m_model, &Settings::emnrPost2Changed, this, [this, nfView]() {
+                nfView->setEmnrPost2Enabled(m_model->getEmnrPost2Enabled());
+                nfView->setEmnrPost2Factor(m_model->getEmnrPost2Factor());
+                nfView->setEmnrPost2Nlevel(m_model->getEmnrPost2Nlevel());
+                nfView->setEmnrPost2Taper(m_model->getEmnrPost2Taper());
+                nfView->setEmnrPost2Rate(m_model->getEmnrPost2Rate());
+            });
+        }
     }
 }

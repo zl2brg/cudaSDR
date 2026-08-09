@@ -1347,6 +1347,8 @@ int Settings::loadSettings() {
                     m_receiverDataList[i].dspModeList[j] = SAM;
                 else if (str == "FDV" || str == "DRM" || str == "FreeDV")
                     m_receiverDataList[i].dspModeList[j] = FDV;
+                else if (str == "WBFM" || str == "WFM")
+                    m_receiverDataList[i].dspModeList[j] = FMN; // legacy; WBFM removed
                 else
                     m_receiverDataList[i].dspModeList[j] = LSB;
 
@@ -5284,6 +5286,148 @@ void Settings::setPhaseRotator(int value)
 {
     m_audioConfig->setPhaseRotator(value);
     emit phaseRotatorChanged(value);
+}
+
+void Settings::setPhaseRotatorAuto(bool enabled)
+{
+    m_audioConfig->setPhaseRotatorAuto(enabled);
+    emit phaseRotatorAutoChanged(m_audioConfig->phaseRotatorAuto());
+}
+
+void Settings::requestPhaseRotatorAutoReset()
+{
+    emit phaseRotatorAutoResetRequested();
+}
+
+void Settings::setPhaseRotatorStatus(const QString &status)
+{
+    emit phaseRotatorStatusChanged(status);
+}
+
+void Settings::setCtcssToneHz(int hz)
+{
+    m_audioConfig->setCtcssToneHz(hz);
+    emit ctcssToneHzChanged(m_audioConfig->ctcssToneHz());
+}
+
+void Settings::setRxEqEnabled(bool enabled)
+{
+    m_audioConfig->setRxEqEnabled(enabled);
+    emit rxEqChanged();
+}
+
+void Settings::setRxEqBands(const QVector<int> &bands)
+{
+    m_audioConfig->setRxEqBands(bands);
+    emit rxEqChanged();
+}
+
+void Settings::setRxEqBand(int index, int gainDb)
+{
+    m_audioConfig->setRxEqBand(index, gainDb);
+    emit rxEqChanged();
+}
+
+void Settings::setTxEqEnabled(bool enabled)
+{
+    m_audioConfig->setTxEqEnabled(enabled);
+    emit txEqChanged();
+}
+
+void Settings::setTxEqBands(const QVector<int> &bands)
+{
+    m_audioConfig->setTxEqBands(bands);
+    emit txEqChanged();
+}
+
+void Settings::setTxEqBand(int index, int gainDb)
+{
+    m_audioConfig->setTxEqBand(index, gainDb);
+    emit txEqChanged();
+}
+
+void Settings::setRxEqCurveDeg(int deg)
+{
+    m_audioConfig->setRxEqCurveDeg(deg);
+    emit rxEqChanged();
+}
+
+void Settings::setTxEqCurveDeg(int deg)
+{
+    m_audioConfig->setTxEqCurveDeg(deg);
+    emit txEqChanged();
+}
+
+void Settings::setCfcEnabled(bool enabled)
+{
+    m_audioConfig->setCfcEnabled(enabled);
+    emit cfcChanged();
+}
+
+void Settings::setCfcPeqEnabled(bool enabled)
+{
+    m_audioConfig->setCfcPeqEnabled(enabled);
+    emit cfcChanged();
+}
+
+void Settings::setCfcPrecomp(double db)
+{
+    m_audioConfig->setCfcPrecomp(db);
+    emit cfcChanged();
+}
+
+void Settings::setCfcPrePeq(double db)
+{
+    m_audioConfig->setCfcPrePeq(db);
+    emit cfcChanged();
+}
+
+void Settings::setCfcCurveDeg(int deg)
+{
+    m_audioConfig->setCfcCurveDeg(deg);
+    emit cfcChanged();
+}
+
+void Settings::setCfcLevel(int index, double db)
+{
+    m_audioConfig->setCfcLevel(index, db);
+    emit cfcChanged();
+}
+
+void Settings::setCfcPostBand(int index, double db)
+{
+    m_audioConfig->setCfcPost(index, db);
+    emit cfcChanged();
+}
+
+void Settings::setEmnrPost2Enabled(bool enabled)
+{
+    m_audioConfig->setEmnrPost2Enabled(enabled);
+    emit emnrPost2Changed();
+}
+
+void Settings::setEmnrPost2Factor(double pct)
+{
+    m_audioConfig->setEmnrPost2Factor(pct);
+    emit emnrPost2Changed();
+}
+
+void Settings::setEmnrPost2Nlevel(double pct)
+{
+    m_audioConfig->setEmnrPost2Nlevel(pct);
+    emit emnrPost2Changed();
+}
+
+void Settings::setEmnrPost2Taper(double pct)
+{
+    m_audioConfig->setEmnrPost2Taper(pct);
+    emit emnrPost2Changed();
+}
+
+void Settings::setEmnrPost2Rate(double seconds)
+{
+    m_audioConfig->setEmnrPost2Rate(seconds);
+    emit emnrPost2Changed();
 }
 
 void Settings::setFmDeveation(int value)

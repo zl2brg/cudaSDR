@@ -69,8 +69,11 @@ struct _rxa {
     SHIFT p;
   } shift;
   struct {
+    HBResampler p;
+  } rsmpin;
+  struct {
     RESAMPLE p;
-  } rsmpin, rsmpout;
+  } rsmpout;
   struct {
     GEN p;
   } gen0;

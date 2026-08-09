@@ -27,6 +27,7 @@
  */
 
 #include "cusdr_radioPopupWidget.h"
+#include "UI/eq_curve_plot.h"
 #include <QGuiApplication>
 #include <QScreen>
 #include <QEnterEvent>
@@ -36,10 +37,13 @@
 #include <QLabel>
 #include <QStackedWidget>
 #include <QCheckBox>
+#include <QSpinBox>
 #include <QPainter>
 #include <QSizeGrip>
 #include <QCoreApplication>
 #include <QSettings>
+#include <QSignalBlocker>
+#include <wdsp.h>
 
 #define LOG_RADIOPOPUP
 // use: RADIOPOPUP_DEBUG
@@ -766,11 +770,11 @@ void RadioPopupWidget::createModeBtnGroup() {
     dspModeBtnList.append(samBtn);
     connect(samBtn, &AeroButton::clicked, this, &RadioPopupWidget::dspModeChangedByBtn);
 
-    drmBtn = new AeroButton("FreeDV", this);
-    dspModeBtnList.append(drmBtn);
-    connect(drmBtn, &AeroButton::clicked, this, &RadioPopupWidget::dspModeChangedByBtn);
+	drmBtn = new AeroButton("FreeDV", this);
+	dspModeBtnList.append(drmBtn);
+	connect(drmBtn, &AeroButton::clicked, this, &RadioPopupWidget::dspModeChangedByBtn);
 
-    for (AeroButton *btn : dspModeBtnList) {
+	for (AeroButton *btn : dspModeBtnList) {
         btn->setRoundness(0);
         btn->setFixedHeight(btn_height);
         btn->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
@@ -813,6 +817,64 @@ void RadioPopupWidget::createModeBtnGroup() {
     modeVBox->addLayout(hbox2);
     modeVBox->addWidget(m_freeDVModeCombo);
     modeVBox->addWidget(m_freeDVStatusLabel);
+
+    QHBoxLayout *rxEqTop = new QHBoxLayout();
+    m_rxEqEnable = new QCheckBox(QStringLiteral("RX EQ"), this);
+    m_rxEqEnable->setChecked(Settings::instance()->getRxEqEnabled());
+    connect(m_rxEqEnable, &QCheckBox::toggled, this, [](bool on) {
+        Settings::instance()->setRxEqEnabled(on);
+    });
+    m_rxEqCurveDeg = new QSpinBox(this);
+    m_rxEqCurveDeg->setRange(0, 3);
+    m_rxEqCurveDeg->setPrefix(QStringLiteral("NURBS "));
+    m_rxEqCurveDeg->setToolTip(QStringLiteral("0 = classic linear; 1–3 = NURBS degree"));
+    m_rxEqCurveDeg->setValue(Settings::instance()->getRxEqCurveDeg());
+    connect(m_rxEqCurveDeg, QOverload<int>::of(&QSpinBox::valueChanged), this, [](int deg) {
+        Settings::instance()->setRxEqCurveDeg(deg);
+    });
+    rxEqTop->addWidget(m_rxEqEnable);
+    rxEqTop->addStretch();
+    rxEqTop->addWidget(m_rxEqCurveDeg);
+    modeVBox->addLayout(rxEqTop);
+
+    static const char *const kRxEqLabels[] = {
+        "Pre", "32", "63", "125", "250", "500", "1k", "2k", "4k", "8k", "16k"
+    };
+    QHBoxLayout *eqRow = new QHBoxLayout();
+    eqRow->setSpacing(2);
+    const QVector<int> bands = Settings::instance()->getRxEqBands();
+    for (int i = 0; i < 11; ++i) {
+        QVBoxLayout *col = new QVBoxLayout();
+        QLabel *lab = new QLabel(QString::fromLatin1(kRxEqLabels[i]), this);
+        lab->setAlignment(Qt::AlignHCenter);
+        QSlider *slider = new QSlider(Qt::Vertical, this);
+        slider->setRange(-12, 12);
+        slider->setValue(i < bands.size() ? bands.at(i) : 0);
+        slider->setFixedHeight(72);
+        slider->setToolTip(QStringLiteral("%1 Hz gain (dB)").arg(QString::fromLatin1(kRxEqLabels[i])));
+        connect(slider, &QSlider::valueChanged, this, [i](int value) {
+            Settings::instance()->setRxEqBand(i, value);
+        });
+        m_rxEqSliders.append(slider);
+        col->addWidget(lab);
+        col->addWidget(slider);
+        eqRow->addLayout(col);
+    }
+    modeVBox->addLayout(eqRow);
+
+    m_rxEqPlot = new EqCurvePlot(this);
+    modeVBox->addWidget(m_rxEqPlot);
+    auto refreshRxEqPlot = [this]() {
+        if (!m_rxEqPlot)
+            return;
+        // RX channel may not exist yet at popup construction time.
+        QVector<double> X(AudioConfig::kEqDrawPoints, 0.0);
+        QVector<double> Y(AudioConfig::kEqDrawPoints, 0.0);
+        GetRXAEQDraw(m_receiver, X.data(), Y.data());
+        m_rxEqPlot->setCurve(X, Y);
+    };
+    connect(Settings::instance(), &Settings::rxEqChanged, this, refreshRxEqPlot);
+    // Do not call GetRXAEQDraw here — OpenChannel for this RX happens later.
 
     updateFreeDVControls();
 }
@@ -1939,6 +2001,12 @@ void RadioPopupWidget::closeEvent(QCloseEvent *event) {
 
 void RadioPopupWidget::showEvent(QShowEvent *event) {
     m_closeTimer->start();
+    if (m_rxEqPlot) {
+        QVector<double> X(AudioConfig::kEqDrawPoints, 0.0);
+        QVector<double> Y(AudioConfig::kEqDrawPoints, 0.0);
+        GetRXAEQDraw(m_receiver, X.data(), Y.data());
+        m_rxEqPlot->setCurve(X, Y);
+    }
     QWidget::showEvent(event);
 }
 

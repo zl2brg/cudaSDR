@@ -1398,6 +1398,12 @@ void DataEngine::stop() {
 		while (!m_dataIO->au_queue.isEmpty())
 			m_dataIO->au_queue.dequeue();
 
+		// Mark slices stopped so DSP workers drop out of writeAudio ASAP.
+		for (const auto &rx : RX) {
+			if (rx)
+				rx->stop();
+		}
+
 		// Stop all WDSP channels BEFORE killing DSP threads.
 		// SetChannelState(wait=1) deadlocks if called after the DSP thread is
 		// dead (nobody calls fexchange0 to release the internal semaphore).
@@ -1421,10 +1427,15 @@ void DataEngine::stop() {
 		qDeleteAll(m_dspThreadList.begin(), m_dspThreadList.end());
 		m_dspThreadList.clear();
 
+		// Now safe: no DSP thread is writing into QAudioSink anymore.
+		for (const auto &rx : RX) {
+			if (rx)
+				rx->stopAudio();
+		}
+
 		// clear receiver list
         for (const auto &rx : RX) {
 
-            rx->stop();
 			rx->setConnectedStatus(false);
 			disconnectDSPSlots();
 
@@ -3972,7 +3983,7 @@ void DataProcessor::publishTxSpectrumForPanadapter() {
     if (flag) {
         m_txSpectrumSeen = true;
         m_txSpectrumMissCount = 0;
-        applyTxPanadapterDisplayOffset(m_txSpectrumBuffer);
+        prepareTxPanadapterSpectrum(m_txSpectrumBuffer, set->getSampleRate());
         set->setSpectrumBuffer(de->currentReceiver, m_txSpectrumBuffer);
         return;
     }

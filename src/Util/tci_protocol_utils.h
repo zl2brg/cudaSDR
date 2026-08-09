@@ -91,6 +91,8 @@ inline DSPMode tciModeToDsp(const QString &mode)
     if (m == QLatin1String("FM"))     return FMN;
     if (m == QLatin1String("NFM"))    return FMN;
     if (m == QLatin1String("FMN"))    return FMN;
+    if (m == QLatin1String("WFM") || m == QLatin1String("WBFM"))
+        return FMN; // legacy wide-FM mode removed
     if (m == QLatin1String("AM"))     return AM;
     if (m == QLatin1String("AMS"))    return SAM;
     if (m == QLatin1String("SAM"))    return SAM;

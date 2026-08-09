@@ -175,15 +175,15 @@ bool SliceProcessor::initQtWDSPInterface() {
     }
     SLICE_PROCESSOR_DEBUG << "[RX-ADD] QWDSPEngine constructed for rx=" << m_receiver << "(isValid=true)";
 
-    // Constructor opens with input=dsp=pan; switch to dual-rate (HB → 48 kHz DSP).
-    qtwdsp->setSampleRate(m_samplerate, 48000);
+    // Dual-rate: HB → 48 kHz DSP demod rate.
+    const DSPMode mode = m_sliceModel ? m_sliceModel->dspMode() : set->getDSPMode(m_receiver);
+    qtwdsp->setSampleRate(m_samplerate, QWDSPEngine::preferredDspRate(mode, m_samplerate));
     setAudioBufferSize();
 
     qtwdsp->setQtDSPStatus(true);
     const float volume = m_sliceModel ? m_sliceModel->volume() : static_cast<float>(set->getMainVolume(m_receiver));
     qtwdsp->setVolume(volume);
 
-    const DSPMode mode = m_sliceModel ? m_sliceModel->dspMode() : set->getDSPMode(m_receiver);
     SLICE_PROCESSOR_DEBUG << "[RX-ADD] rx=" << m_receiver << "set DSP mode to:" << set->getDSPModeString(mode);
 
     qtwdsp->setDSPMode(mode);
@@ -320,6 +320,15 @@ void SliceProcessor::stop() {
 	m_mutex.unlock();
 }
 
+void SliceProcessor::stopAudio()
+{
+#ifdef USE_INTERNAL_AUDIO
+	// Call only after DSP threads have stopped writing.
+	if (m_audioOutput)
+		m_audioOutput->stop();
+#endif
+}
+
 void SliceProcessor::dspProcessingSoapy() {
     // Flag is already set to true by trySetSoapyDspPending() in processReadData.
     
@@ -412,6 +421,12 @@ void SliceProcessor::dspProcessing(const QVector<int32_t> &rawIQ) {
 }
 
 void SliceProcessor::dspProcessingCore() {
+    {
+        QMutexLocker locker(&m_mutex);
+        if (m_stopped)
+            return;
+    }
+
     int spectrumDataReady;
     bool txPixelsRequested = false;
 
@@ -455,7 +470,7 @@ void SliceProcessor::dspProcessingCore() {
                 txPixelsRequested = true;
 				GetPixels(TX_ID, 0, qtwdsp->spectrumBuffer.data(), &spectrumDataReady);
 				if (spectrumDataReady)
-					applyTxPanadapterDisplayOffset(qtwdsp->spectrumBuffer);
+					prepareTxPanadapterSpectrum(qtwdsp->spectrumBuffer, m_samplerate);
 				else
 					GetPixels(m_receiver, 0, qtwdsp->spectrumBuffer.data(), &spectrumDataReady);
 			}
@@ -467,7 +482,7 @@ void SliceProcessor::dspProcessingCore() {
             txPixelsRequested = true;
 			GetPixels(TX_ID, 0, qtwdsp->spectrumBuffer.data(), &spectrumDataReady);
 			if (spectrumDataReady)
-				applyTxPanadapterDisplayOffset(qtwdsp->spectrumBuffer);
+				prepareTxPanadapterSpectrum(qtwdsp->spectrumBuffer, m_samplerate);
 			else
 				GetPixels(m_receiver, 0, qtwdsp->spectrumBuffer.data(), &spectrumDataReady);
 		}
@@ -693,9 +708,9 @@ void SliceProcessor::setSampleRate(int value) {
 			m_soapyQueue.dequeue();
 		m_rateTransitionDropBuffers = HIGH_RATE_TRANSITION_DROP_BUFFERS;
 
-        // WDSP 2.0: HB rsmpin supports pan→48k for all our rates; run filter/demod
-        // at 48 kHz and leave rsmpout off (dsp_rate == out_rate).
-        qtwdsp->setSampleRate(m_samplerate, 48000);
+        // Dual-rate: HB rsmpin → 48 kHz DSP demod rate.
+        const DSPMode mode = m_sliceModel ? m_sliceModel->dspMode() : set->getDSPMode(m_receiver);
+        qtwdsp->setSampleRate(m_samplerate, QWDSPEngine::preferredDspRate(mode, m_samplerate));
 
     }
 	else

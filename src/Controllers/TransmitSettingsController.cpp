@@ -25,6 +25,19 @@ void TransmitSettingsController::bind(tx_settings_dialog* view, Settings* model)
     m_view->setFmDeviation(m_model->getFMDeveation());
     m_view->setFmPreEmphasis(m_model->getFMpreemphesis() != 0.0);
     m_view->setPhaseRotator(m_model->getPhaseRotator() != 0);
+    m_view->setPhaseRotatorAuto(m_model->getPhaseRotatorAuto());
+    m_view->setTxEqEnabled(m_model->getTxEqEnabled());
+    m_view->setTxEqBands(m_model->getTxEqBands());
+    m_view->setTxEqCurveDeg(m_model->getTxEqCurveDeg());
+    m_view->setCfcEnabled(m_model->getCfcEnabled());
+    m_view->setCfcPeqEnabled(m_model->getCfcPeqEnabled());
+    m_view->setCfcPrecomp(m_model->getCfcPrecomp());
+    m_view->setCfcPrePeq(m_model->getCfcPrePeq());
+    m_view->setCfcCurveDeg(m_model->getCfcCurveDeg());
+    m_view->setCfcLevels(m_model->getCfcLevels());
+    m_view->setCfcPost(m_model->getCfcPost());
+    m_view->refreshEqCurvePlots();
+    m_view->setCtcssToneHz(m_model->getCtcssToneHz());
     m_view->setCwSidetoneFreq(m_model->getCwSidetoneFreq());
     m_view->setCwSidetoneVolume(m_model->getCwSidetoneVolume());
     m_view->setCwHangTime(m_model->getCwHangTime());
@@ -85,6 +98,52 @@ void TransmitSettingsController::bind(tx_settings_dialog* view, Settings* model)
         m_model->setPhaseRotator(enabled ? 1 : 0);
     });
 
+    connect(m_view, &tx_settings_dialog::phaseRotatorAutoRequested, this, [this](bool enabled) {
+        m_model->setPhaseRotatorAuto(enabled);
+    });
+
+    connect(m_view, &tx_settings_dialog::phaseRotatorAutoResetRequested, this, [this]() {
+        m_model->requestPhaseRotatorAutoReset();
+    });
+
+    connect(m_view, &tx_settings_dialog::txEqEnabledRequested, this, [this](bool enabled) {
+        m_model->setTxEqEnabled(enabled);
+    });
+
+    connect(m_view, &tx_settings_dialog::txEqBandRequested, this, [this](int index, int gainDb) {
+        m_model->setTxEqBand(index, gainDb);
+    });
+
+    connect(m_view, &tx_settings_dialog::txEqCurveDegRequested, this, [this](int deg) {
+        m_model->setTxEqCurveDeg(deg);
+    });
+
+    connect(m_view, &tx_settings_dialog::cfcEnabledRequested, this, [this](bool enabled) {
+        m_model->setCfcEnabled(enabled);
+    });
+    connect(m_view, &tx_settings_dialog::cfcPeqEnabledRequested, this, [this](bool enabled) {
+        m_model->setCfcPeqEnabled(enabled);
+    });
+    connect(m_view, &tx_settings_dialog::cfcPrecompRequested, this, [this](double db) {
+        m_model->setCfcPrecomp(db);
+    });
+    connect(m_view, &tx_settings_dialog::cfcPrePeqRequested, this, [this](double db) {
+        m_model->setCfcPrePeq(db);
+    });
+    connect(m_view, &tx_settings_dialog::cfcCurveDegRequested, this, [this](int deg) {
+        m_model->setCfcCurveDeg(deg);
+    });
+    connect(m_view, &tx_settings_dialog::cfcLevelRequested, this, [this](int index, double db) {
+        m_model->setCfcLevel(index, db);
+    });
+    connect(m_view, &tx_settings_dialog::cfcPostRequested, this, [this](int index, double db) {
+        m_model->setCfcPostBand(index, db);
+    });
+
+    connect(m_view, &tx_settings_dialog::ctcssToneHzRequested, this, [this](int hz) {
+        m_model->setCtcssToneHz(hz);
+    });
+
     connect(m_view, &tx_settings_dialog::cwKeyerModeRequested, this, [this](int val) {
         m_model->setCwKeyerMode(val);
     });
@@ -127,6 +186,36 @@ void TransmitSettingsController::bind(tx_settings_dialog* view, Settings* model)
 
     connect(m_model, &Settings::fmPremphasizechanged, this, [this](double value) {
         m_view->setFmPreEmphasis(value != 0.0);
+    });
+
+    connect(m_model, &Settings::phaseRotatorChanged, this, [this](int value) {
+        m_view->setPhaseRotator(value != 0);
+    });
+
+    connect(m_model, &Settings::phaseRotatorAutoChanged, this, [this](bool enabled) {
+        m_view->setPhaseRotatorAuto(enabled);
+    });
+
+    connect(m_model, &Settings::phaseRotatorStatusChanged, this, [this](const QString &status) {
+        m_view->setPhaseRotatorStatus(status);
+    });
+
+    connect(m_model, &Settings::txEqChanged, this, [this]() {
+        m_view->setTxEqEnabled(m_model->getTxEqEnabled());
+        m_view->setTxEqBands(m_model->getTxEqBands());
+        m_view->setTxEqCurveDeg(m_model->getTxEqCurveDeg());
+        m_view->refreshEqCurvePlots();
+    });
+
+    connect(m_model, &Settings::cfcChanged, this, [this]() {
+        m_view->setCfcEnabled(m_model->getCfcEnabled());
+        m_view->setCfcPeqEnabled(m_model->getCfcPeqEnabled());
+        m_view->setCfcPrecomp(m_model->getCfcPrecomp());
+        m_view->setCfcPrePeq(m_model->getCfcPrePeq());
+        m_view->setCfcCurveDeg(m_model->getCfcCurveDeg());
+        m_view->setCfcLevels(m_model->getCfcLevels());
+        m_view->setCfcPost(m_model->getCfcPost());
+        m_view->refreshEqCurvePlots();
     });
 
     // --- Model -> View ---

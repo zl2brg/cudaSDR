@@ -320,7 +320,13 @@
          <number>1000</number>
         </property>
         <property name="singleStep">
-         <number>100</number>
+         <number>1</number>
+        </property>
+        <property name="specialValueText">
+         <string>Off</string>
+        </property>
+        <property name="toolTip">
+         <string>CTCSS tone frequency in Hz. 0 = off.</string>
         </property>
        </widget>
       </item>

@@ -68,6 +68,8 @@ private:
     void setupAudioSource();
     void processAudioData(const QByteArray &data);
     void stopHardware(); // stop device without clearing m_txActive
+    bool isTransmitting() const;
+    bool shouldCaptureWhileTx() const;
     
 private slots:
     void MicInputChanged(int source);

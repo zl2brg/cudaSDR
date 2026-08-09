@@ -64,6 +64,16 @@
          <string>NR2</string>
         </property>
        </item>
+       <item>
+        <property name="text">
+         <string>NR3</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>NR4</string>
+        </property>
+       </item>
       </widget>
      </item>
     </layout>

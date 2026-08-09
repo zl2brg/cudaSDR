@@ -2,6 +2,9 @@
 #define NOISEFILTERWIDGET_H
 
 #include <QWidget>
+#include <QCheckBox>
+#include <QDoubleSpinBox>
+#include <QGroupBox>
 #include "cusdr_settings.h"
 #include "Util/cusdr_buttons.h"
 #include "cusdr_fonts.h"
@@ -27,6 +30,11 @@ public:
     void setNr2Ae(bool value);
     void setSnb(bool value);
     void setAnf(bool value);
+    void setEmnrPost2Enabled(bool enabled);
+    void setEmnrPost2Factor(double pct);
+    void setEmnrPost2Nlevel(double pct);
+    void setEmnrPost2Taper(double pct);
+    void setEmnrPost2Rate(double seconds);
     void setReceiver(int rx) { m_rx = rx; }
     int getReceiver() const { return m_rx; }
 
@@ -40,6 +48,11 @@ signals:
     void nr2AeRequested(bool value);
     void snbRequested(bool value);
     void anfRequested(bool value);
+    void emnrPost2EnabledRequested(bool enabled);
+    void emnrPost2FactorRequested(double pct);
+    void emnrPost2NlevelRequested(double pct);
+    void emnrPost2TaperRequested(double pct);
+    void emnrPost2RateRequested(double seconds);
 
 public slots:
     void	systemStateChanged(
@@ -77,7 +90,15 @@ private:
     int		m_currentReceiver;
     bool	m_mouseOver;
 
+    QGroupBox*      m_post2Group = nullptr;
+    QCheckBox*      m_post2Enable = nullptr;
+    QDoubleSpinBox* m_post2Factor = nullptr;
+    QDoubleSpinBox* m_post2Nlevel = nullptr;
+    QDoubleSpinBox* m_post2Taper = nullptr;
+    QDoubleSpinBox* m_post2Rate = nullptr;
+
     void	setupConnections();
+    void	updateNr2ControlsEnabled(bool enabled);
 };
 
 #endif // NOISEFILTERWIDGET_H

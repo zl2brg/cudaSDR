@@ -211,6 +211,20 @@ void ConfigJsonTests::testAudioConfigJson() {
     config.setAudioCompression(1);
     config.setFmDeviation(4500.0);
     config.setMainVolume(0.5f);
+    config.setRxEqCurveDeg(2);
+    config.setTxEqCurveDeg(3);
+    config.setCfcEnabled(true);
+    config.setCfcPeqEnabled(true);
+    config.setCfcPrecomp(4.5);
+    config.setCfcPrePeq(-6.0);
+    config.setCfcCurveDeg(2);
+    config.setCfcLevel(2, 5.0);
+    config.setCfcPost(3, -2.0);
+    config.setEmnrPost2Enabled(true);
+    config.setEmnrPost2Factor(20.0);
+    config.setEmnrPost2Nlevel(18.0);
+    config.setEmnrPost2Taper(10.0);
+    config.setEmnrPost2Rate(3.5);
 
     QCOMPARE(spyMicSrc.count(), 1);
     QCOMPARE(spyMicDev.count(), 1);
@@ -240,6 +254,18 @@ void ConfigJsonTests::testAudioConfigJson() {
     QCOMPARE(json["audioCompression"].toInt(), 1);
     QCOMPARE(json["fmDeviation"].toDouble(), 4500.0);
     QCOMPARE(json["mainVolume"].toDouble(), 0.5);
+    QCOMPARE(json["rxEqCurveDeg"].toInt(), 2);
+    QCOMPARE(json["txEqCurveDeg"].toInt(), 3);
+    QCOMPARE(json["cfcEnabled"].toBool(), true);
+    QCOMPARE(json["cfcPeqEnabled"].toBool(), true);
+    QCOMPARE(json["cfcPrecomp"].toDouble(), 4.5);
+    QCOMPARE(json["cfcPrePeq"].toDouble(), -6.0);
+    QCOMPARE(json["cfcCurveDeg"].toInt(), 2);
+    QCOMPARE(json["emnrPost2Enabled"].toBool(), true);
+    QCOMPARE(json["emnrPost2Factor"].toDouble(), 20.0);
+    QCOMPARE(json["emnrPost2Nlevel"].toDouble(), 18.0);
+    QCOMPARE(json["emnrPost2Taper"].toDouble(), 10.0);
+    QCOMPARE(json["emnrPost2Rate"].toDouble(), 3.5);
 
     AudioConfig config2;
     config2.load(json);
@@ -256,6 +282,20 @@ void ConfigJsonTests::testAudioConfigJson() {
     QCOMPARE(config2.audioCompression(), 1);
     QCOMPARE(config2.fmDeviation(), 4500.0);
     QCOMPARE(config2.mainVolume(), 0.5f);
+    QCOMPARE(config2.rxEqCurveDeg(), 2);
+    QCOMPARE(config2.txEqCurveDeg(), 3);
+    QCOMPARE(config2.cfcEnabled(), true);
+    QCOMPARE(config2.cfcPeqEnabled(), true);
+    QCOMPARE(config2.cfcPrecomp(), 4.5);
+    QCOMPARE(config2.cfcPrePeq(), -6.0);
+    QCOMPARE(config2.cfcCurveDeg(), 2);
+    QCOMPARE(config2.cfcLevels().value(2), 5.0);
+    QCOMPARE(config2.cfcPost().value(3), -2.0);
+    QCOMPARE(config2.emnrPost2Enabled(), true);
+    QCOMPARE(config2.emnrPost2Factor(), 20.0);
+    QCOMPARE(config2.emnrPost2Nlevel(), 18.0);
+    QCOMPARE(config2.emnrPost2Taper(), 10.0);
+    QCOMPARE(config2.emnrPost2Rate(), 3.5);
 }
 
 void ConfigJsonTests::testCWConfigJson() {

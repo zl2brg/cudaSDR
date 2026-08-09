@@ -49,6 +49,9 @@ Transmitter::Transmitter(int transmitter)
     , m_bsteps(0)
 {
     Q_UNUSED(transmitter)
+    m_phrotStatusTimer = new QTimer(this);
+    m_phrotStatusTimer->setInterval(500);
+    connect(m_phrotStatusTimer, &QTimer::timeout, this, &Transmitter::updatePhaseRotatorStatus);
     // fft_size feeds TXASetNC; keep 2048 so create_fircore does not rebuild
     // every TX bandpass at 4096 taps (and optional min-phase plans of 16384).
     create_transmitter(TX_ID, DSP_SAMPLE_SIZE, 2048, 10, 2048, 100);
@@ -98,6 +101,21 @@ void Transmitter::setupConnections() {
     connect(set, &Settings::phaseRotatorChanged,
             this, [this](int) { applyPhaseRotator(); });
 
+    connect(set, &Settings::phaseRotatorAutoChanged,
+            this, [this](bool) { applyPhaseRotator(); });
+
+    connect(set, &Settings::phaseRotatorAutoResetRequested,
+            this, [this]() { SetTXAPHROTAutoReset(this->id); });
+
+    connect(set, &Settings::txEqChanged,
+            this, [this]() { applyTxEq(); });
+
+    connect(set, &Settings::cfcChanged,
+            this, [this]() { applyCfc(); });
+
+    connect(set, &Settings::ctcssToneHzChanged,
+            this, [this](int) { applyCtcss(); });
+
     connect(set, &Settings::amCarrierlevelchanged,
             this, &Transmitter::transmitter_set_am_carrier_level);
 
@@ -115,7 +133,6 @@ bool  Transmitter::create_transmitter(int id, int buffer_size, int fft_size, int
     int protocol = ORIGINAL_PROTOCOL;
     // Position 0 = pre-emphasis before FM modulator (WDSP default path).
     int pre_emphasize = 0;
-    int enable_tx_equalizer = 0;
     this->id = id;
     this->dac=0;
     this->buffer_size=buffer_size;
@@ -243,19 +260,13 @@ bool  Transmitter::create_transmitter(int id, int buffer_size, int fft_size, int
     SetTXAFMEmphPosition(this->id,pre_emphasize);
     applyFmPreEmphasis();
     applyPhaseRotator();
+    applyTxEq();
+    applyCfc();
 
     SetTXACFIRRun(this->id, protocol==NEW_PROTOCOL?1:0); // turned on if new protocol
-    if(enable_tx_equalizer) {
-        SetTXAGrphEQ(this->id, tx_equalizer);
-        SetTXAEQRun(this->id, 1);
-    } else {
-        SetTXAEQRun(this->id, 0);
-    }
 
-    // WDSP defaults CTCSS ON at 100 Hz / 0.10 — that is the FM TX buzz/subcarrier.
-    // Honor ctcss=0 (off) until the UI is wired.
-    SetTXACTCSSFreq(this->id, this->ctcss_frequency);
-    SetTXACTCSSRun(this->id, this->ctcss ? 1 : 0);
+    // WDSP defaults CTCSS ON at 100 Hz — apply persisted UI setting (0 Hz = off).
+    applyCtcss();
     SetTXAAMSQRun(this->id, 0);
     SetTXAosctrlRun(this->id, 0);
 
@@ -329,8 +340,102 @@ void Transmitter::applyFmPreEmphasis()
 void Transmitter::applyPhaseRotator()
 {
     const int run = (set->getPhaseRotator() != 0) ? 1 : 0;
+    const int autoMode = (run && set->getPhaseRotatorAuto()) ? 1 : 0;
     SetTXAPHROTRun(this->id, run);
-    TRANSMITTER_DEBUG << "Audio Phase Rotator " << (run ? "on" : "off");
+    SetTXAPHROTAutoMode(this->id, autoMode);
+    syncPhaseRotatorTimer();
+    TRANSMITTER_DEBUG << "Audio Phase Rotator " << (run ? "on" : "off")
+                      << " auto=" << (autoMode ? "on" : "off");
+}
+
+void Transmitter::applyTxEq()
+{
+    const bool enabled = set->getTxEqEnabled();
+    if (enabled) {
+        const QVector<int> bands = set->getTxEqBands();
+        int txeq[11];
+        for (int i = 0; i < 11; ++i)
+            txeq[i] = (i < bands.size()) ? bands.at(i) : 0;
+        // GrphEQ10 loads F/G; Curve selects linear (deg=0) or NURBS.
+        SetTXAGrphEQ10(this->id, txeq);
+        SetTXAEQCurve(this->id, set->getTxEqCurveDeg(), 0, 0);
+        SetTXAEQRun(this->id, 1);
+    } else {
+        SetTXAEQRun(this->id, 0);
+    }
+    TRANSMITTER_DEBUG << "TX EQ " << (enabled ? "on" : "off")
+                      << " curveDeg=" << set->getTxEqCurveDeg();
+}
+
+void Transmitter::applyCfc()
+{
+    const bool run = set->getCfcEnabled();
+    const bool peq = set->getCfcPeqEnabled();
+    const QVector<double> freqs = set->getCfcFreqs();
+    const QVector<double> levels = set->getCfcLevels();
+    const QVector<double> post = set->getCfcPost();
+    const int n = qMin(freqs.size(), qMin(levels.size(), post.size()));
+    if (n > 0) {
+        QVector<double> F = freqs.mid(0, n);
+        QVector<double> G = levels.mid(0, n);
+        QVector<double> E = post.mid(0, n);
+        SetTXACFCOMPprofile(this->id, n, F.data(), G.data(), E.data());
+    }
+    SetTXACFCOMPPrecomp(this->id, set->getCfcPrecomp());
+    SetTXACFCOMPPrePeq(this->id, set->getCfcPrePeq());
+    const int deg = set->getCfcCurveDeg();
+    SetTXACFCOMPCompCurve(this->id, deg, 0, 0);
+    SetTXACFCOMPPeqCurve(this->id, deg, 0, 0);
+    // Post-EQ requires compressor run; force CFC on when only Peq is requested.
+    SetTXACFCOMPRun(this->id, (run || peq) ? 1 : 0);
+    SetTXACFCOMPPeqRun(this->id, peq ? 1 : 0);
+    TRANSMITTER_DEBUG << "TX CFC run=" << (run || peq) << " peq=" << peq
+                      << " precomp=" << set->getCfcPrecomp()
+                      << " prepeq=" << set->getCfcPrePeq()
+                      << " curveDeg=" << deg;
+}
+
+void Transmitter::syncPhaseRotatorTimer()
+{
+    if (!m_phrotStatusTimer)
+        return;
+    const bool run = set->getPhaseRotator() != 0;
+    const bool autoMode = set->getPhaseRotatorAuto();
+    if (run && autoMode)
+        m_phrotStatusTimer->start();
+    else {
+        m_phrotStatusTimer->stop();
+        if (!run)
+            set->setPhaseRotatorStatus(QString());
+    }
+}
+
+void Transmitter::updatePhaseRotatorStatus()
+{
+    if (set->getPhaseRotator() == 0 || !set->getPhaseRotatorAuto())
+        return;
+    double in_pos = 0, in_neg = 0, in_ratio = 0;
+    double out_pos = 0, out_neg = 0, out_ratio = 0;
+    double current_fc = 0, auto_step = 0;
+    GetTXAPHROTAsymmetry(this->id,
+                         &in_pos, &in_neg, &in_ratio,
+                         &out_pos, &out_neg, &out_ratio,
+                         &current_fc, &auto_step);
+    set->setPhaseRotatorStatus(
+        QStringLiteral("Asym %1 → %2  fc %3 Hz")
+            .arg(in_ratio, 0, 'f', 2)
+            .arg(out_ratio, 0, 'f', 2)
+            .arg(current_fc, 0, 'f', 0));
+}
+
+void Transmitter::applyCtcss()
+{
+    const int hz = set->getCtcssToneHz();
+    this->ctcss_frequency = static_cast<double>(hz);
+    this->ctcss = (hz > 0) ? 1 : 0;
+    SetTXACTCSSFreq(this->id, this->ctcss_frequency);
+    SetTXACTCSSRun(this->id, this->ctcss);
+    TRANSMITTER_DEBUG << "CTCSS" << (this->ctcss ? "on" : "off") << "freq" << this->ctcss_frequency;
 }
 
 void Transmitter::setRadioState(RadioState state)

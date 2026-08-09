@@ -1,5 +1,8 @@
 #include <QtTest/QtTest>
 
+#include <algorithm>
+#include <iterator>
+
 #include "Util/display_utils.h"
 
 using namespace DisplayUtils;
@@ -10,6 +13,8 @@ class DisplayUtilsTests : public QObject {
 private slots:
     void appliesFixedDbOffset();
     void emptySpectrumIsNoOp();
+    void remapsTxSpectrumOntoWiderPan();
+    void equalRatesSkipRemap();
 };
 
 void DisplayUtilsTests::appliesFixedDbOffset()
@@ -26,6 +31,37 @@ void DisplayUtilsTests::emptySpectrumIsNoOp()
     QVector<float> spectrum;
     applyTxPanadapterDisplayOffset(spectrum);
     QVERIFY(spectrum.isEmpty());
+    prepareTxPanadapterSpectrum(spectrum, 192000);
+    QVERIFY(spectrum.isEmpty());
+}
+
+void DisplayUtilsTests::remapsTxSpectrumOntoWiderPan()
+{
+    // 8-bin TX spectrum: energy only in the centre two bins (~±1/8 of ±txNyquist).
+    QVector<float> spectrum(8, -100.0f);
+    spectrum[3] = -10.0f;
+    spectrum[4] = -10.0f;
+
+    prepareTxPanadapterSpectrum(spectrum, 192000, 48000);
+
+    // TX span is 1/4 of the pan → centre two of eight bins land near pan centre.
+    QCOMPARE(spectrum.size(), 8);
+    QVERIFY(spectrum.at(0) < -100.0f); // floor + offset
+    QVERIFY(spectrum.at(7) < -100.0f);
+    // Peak should sit near the middle quarter, not at the outer edges.
+    const int peakIdx = static_cast<int>(
+        std::distance(spectrum.cbegin(), std::max_element(spectrum.cbegin(), spectrum.cend())));
+    QVERIFY(peakIdx >= 2 && peakIdx <= 5);
+    QCOMPARE(spectrum.at(peakIdx), -10.0f + kTxPanadapterDisplayDbOffset);
+}
+
+void DisplayUtilsTests::equalRatesSkipRemap()
+{
+    QVector<float> spectrum { -80.0f, -10.0f, -80.0f };
+    prepareTxPanadapterSpectrum(spectrum, 48000, 48000);
+    QCOMPARE(spectrum.at(0), -80.0f + kTxPanadapterDisplayDbOffset);
+    QCOMPARE(spectrum.at(1), -10.0f + kTxPanadapterDisplayDbOffset);
+    QCOMPARE(spectrum.at(2), -80.0f + kTxPanadapterDisplayDbOffset);
 }
 
 QTEST_APPLESS_MAIN(DisplayUtilsTests)

@@ -122,6 +122,16 @@ void calc_compG(CFCOMP a) {
       a->comp[i] = exp2(M_LN2_10 * 0.05 * (frac * a->gp[j + 1] + (1.0 - frac) * a->gp[j]));
       a->cfc_gain[i] = a->precomplin * a->comp[i];
     }
+    // Populate NURBS draw buffers so GetTXACFCOMPCompDraw works at deg=0.
+    if (bg && bg->Xs && bg->Ys && bg->upts > 1) {
+      for (i = 0, j = 0; i < bg->upts; i++) {
+        f = ((double)i / (double)(bg->upts - 1)) * fmax;
+        while (f >= a->fpG[j + 1] && j < a->nfreqsG) { j++; }
+        frac = (f - a->fpG[j]) / (a->fpG[j + 1] - a->fpG[j]);
+        bg->Xs[i] = f;
+        bg->Ys[i] = frac * a->gp[j + 1] + (1.0 - frac) * a->gp[j];
+      }
+    }
   } else {
     int low = 0, high = 0;
     double g_low  = exp2(M_LN2_10 * 0.05 * a->gp[0]);
@@ -195,6 +205,16 @@ void calc_compE(CFCOMP a) {
       while (f >= a->fpE[j + 1] && j < a->nfreqsE) { j++; }
       frac = (f - a->fpE[j]) / (a->fpE[j + 1] - a->fpE[j]);
       a->peq[i] = exp2(M_LN2_10 * 0.05 * (frac * a->ep[j + 1] + (1.0 - frac) * a->ep[j]));
+    }
+    // Populate NURBS draw buffers so GetTXACFCOMPPeqDraw works at deg=0.
+    if (be && be->Xs && be->Ys && be->upts > 1) {
+      for (i = 0, j = 0; i < be->upts; i++) {
+        f = ((double)i / (double)(be->upts - 1)) * fmax;
+        while (f >= a->fpE[j + 1] && j < a->nfreqsE) { j++; }
+        frac = (f - a->fpE[j]) / (a->fpE[j + 1] - a->fpE[j]);
+        be->Xs[i] = f;
+        be->Ys[i] = frac * a->ep[j + 1] + (1.0 - frac) * a->ep[j];
+      }
     }
   } else {
     int low = 0, high = 0;
@@ -673,7 +693,9 @@ void SetTXACFCOMPCompWeights(int channel, int nfreq, double *weights) {
 PORT
 void GetTXACFCOMPCompDraw(int channel, double *X, double *Y) {
   CFCOMP a = txa[channel].cfcomp.p;
+  if (!a || !a->png || !X || !Y) return;
   NURBS b = a->png;
+  if (!b->Xs || !b->Ys || b->upts <= 0) return;
   EnterCriticalSection(&ch[channel].csDSP);
   memcpy(X, b->Xs, b->upts * sizeof(double));
   memcpy(Y, b->Ys, b->upts * sizeof(double));
@@ -713,7 +735,9 @@ void SetTXACFCOMPPeqWeights(int channel, int nfreq, double *weights) {
 PORT
 void GetTXACFCOMPPeqDraw(int channel, double *X, double *Y) {
   CFCOMP a = txa[channel].cfcomp.p;
+  if (!a || !a->pne || !X || !Y) return;
   NURBS b = a->pne;
+  if (!b->Xs || !b->Ys || b->upts <= 0) return;
   EnterCriticalSection(&ch[channel].csDSP);
   memcpy(X, b->Xs, b->upts * sizeof(double));
   memcpy(Y, b->Ys, b->upts * sizeof(double));

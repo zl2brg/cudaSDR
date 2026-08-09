@@ -1146,7 +1146,7 @@ void OGLDisplayPanel::paintRxRegion() {
 	renderPanelText(m_oglTextNormal, metaX, yNormal,
 	                str.arg(set->getValue1000(m_mouseWheelFreqStep, 0, "Hz")));
 
-	const QString dspModeName = set->getDSPModeString(set->getDSPMode(m_currentReceiver));
+	QString dspModeName = set->getDSPModeString(set->getDSPMode(m_currentReceiver));
 	if (set->getRadioState() == RadioState::RX) {
 		qglColor(fontcolor);
 		renderPanelText(m_oglTextBig, metaX, yBig,

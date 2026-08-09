@@ -498,7 +498,9 @@ void SetRXAEQWeights (int channel, int nfreq, double *weights) {
 PORT
 void GetRXAEQDraw (int channel, double *X, double *Y) {
   EQP a = rxa[channel].eqp.p;
+  if (!a || !a->peqimp || !a->peqimp->pnurbs || !X || !Y) return;
   NURBS b = a->peqimp->pnurbs;
+  if (!b->Xs || !b->Ys || b->upts <= 0) return;
   EnterCriticalSection (&a->csEQ);
   memcpy (X, b->Xs, b->upts * sizeof(double));
   memcpy (Y, b->Ys, b->upts * sizeof(double));
@@ -698,7 +700,9 @@ void SetTXAEQWeights (int channel, int nfreq, double *weights) {
 PORT
 void GetTXAEQDraw (int channel, double *X, double *Y) {
   EQP a = txa[channel].eqp.p;
+  if (!a || !a->peqimp || !a->peqimp->pnurbs || !X || !Y) return;
   NURBS b = a->peqimp->pnurbs;
+  if (!b->Xs || !b->Ys || b->upts <= 0) return;
   EnterCriticalSection (&a->csEQ);
   memcpy(X, b->Xs, b->upts * sizeof(double));
   memcpy(Y, b->Ys, b->upts * sizeof(double));

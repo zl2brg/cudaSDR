@@ -27,6 +27,8 @@
 #include "QtWDSP/qtwdsp_dspEngine.h"
 #include "cusdr_hamDatabase.h"
 
+#include <QTimer>
+
 #define LOG_TRANSMITTER
 
 #ifdef LOG_TRANSMITTER
@@ -53,6 +55,11 @@ private:
     void tx_set_filter(double low, double high);
     void applyFmPreEmphasis();
     void applyPhaseRotator();
+    void applyTxEq();
+    void applyCfc();
+    void applyCtcss();
+    void updatePhaseRotatorStatus();
+    void syncPhaseRotatorTimer();
     long get_CtrFrequency(long rx_frequency, long repeater_offset, bool repeater_mode);
 
     double cw_shape_buffer48[BUFFER_SIZE];
@@ -75,9 +82,8 @@ private slots:
 
 private:
     Settings*   set;
+    QTimer*     m_phrotStatusTimer = nullptr;
     int id;
-    int enable_tx_equalizer;
-    int tx_equalizer[4];
     int mic_sample_rate;
     long m_asteps;
     long m_bsteps;

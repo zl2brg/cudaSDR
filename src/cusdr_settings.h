@@ -271,6 +271,10 @@ constexpr float kTxPanadapterDisplayDbOffset = DisplayUtils::kTxPanadapterDispla
 inline void applyTxPanadapterDisplayOffset(qVectorFloat &spectrum) {
     DisplayUtils::applyTxPanadapterDisplayOffset(spectrum);
 }
+inline void prepareTxPanadapterSpectrum(qVectorFloat &spectrum, int panSampleRate,
+                                        int txAnalyzerRate = DisplayUtils::kTxAnalyzerSampleRate) {
+    DisplayUtils::prepareTxPanadapterSpectrum(spectrum, panSampleRate, txAnalyzerRate);
+}
 typedef QVector<double> qVectorDouble;
 
 typedef struct _frequency {
@@ -886,6 +890,14 @@ signals:
     void repeaterOffsetchanged(double value);
     void fmPremphasizechanged(double value);
     void phaseRotatorChanged(int value);
+    void phaseRotatorAutoChanged(bool enabled);
+    void phaseRotatorAutoResetRequested();
+    void phaseRotatorStatusChanged(const QString &status);
+    void ctcssToneHzChanged(int hz);
+    void rxEqChanged();
+    void txEqChanged();
+    void cfcChanged();
+    void emnrPost2Changed();
     void fmdeveationchanged(double value);
     void amCarrierlevelchanged(double level);
     void audioCompressionchanged(int level);
@@ -1096,6 +1108,27 @@ public:
     double  getRepeaterOffset()         { return m_repeaterOffset; }
     double  getFMpreemphesis()          { return m_audioConfig->fmPreemphasis(); }
     int     getPhaseRotator()           { return m_audioConfig->phaseRotator(); }
+    bool    getPhaseRotatorAuto()       { return m_audioConfig->phaseRotatorAuto(); }
+    int     getCtcssToneHz()            { return m_audioConfig->ctcssToneHz(); }
+    bool    getRxEqEnabled()            { return m_audioConfig->rxEqEnabled(); }
+    QVector<int> getRxEqBands()         { return m_audioConfig->rxEqBands(); }
+    int     getRxEqCurveDeg()           { return m_audioConfig->rxEqCurveDeg(); }
+    bool    getTxEqEnabled()            { return m_audioConfig->txEqEnabled(); }
+    QVector<int> getTxEqBands()         { return m_audioConfig->txEqBands(); }
+    int     getTxEqCurveDeg()           { return m_audioConfig->txEqCurveDeg(); }
+    bool    getCfcEnabled()             { return m_audioConfig->cfcEnabled(); }
+    bool    getCfcPeqEnabled()          { return m_audioConfig->cfcPeqEnabled(); }
+    double  getCfcPrecomp()             { return m_audioConfig->cfcPrecomp(); }
+    double  getCfcPrePeq()              { return m_audioConfig->cfcPrePeq(); }
+    int     getCfcCurveDeg()            { return m_audioConfig->cfcCurveDeg(); }
+    QVector<double> getCfcFreqs()       { return m_audioConfig->cfcFreqs(); }
+    QVector<double> getCfcLevels()      { return m_audioConfig->cfcLevels(); }
+    QVector<double> getCfcPost()        { return m_audioConfig->cfcPost(); }
+    bool    getEmnrPost2Enabled()       { return m_audioConfig->emnrPost2Enabled(); }
+    double  getEmnrPost2Factor()        { return m_audioConfig->emnrPost2Factor(); }
+    double  getEmnrPost2Nlevel()        { return m_audioConfig->emnrPost2Nlevel(); }
+    double  getEmnrPost2Taper()         { return m_audioConfig->emnrPost2Taper(); }
+    double  getEmnrPost2Rate()          { return m_audioConfig->emnrPost2Rate(); }
     double  getFMDeveation()            { return m_audioConfig->fmDeviation(); }
     double  getAMCarrierLevel()         { return m_audioConfig->amCarrierLevel(); }
     double  getAudioCompression()       { return m_audioConfig->audioCompression(); }
@@ -1420,6 +1453,30 @@ public slots:
     void setAMCarrierLevel(int level);
     void setFMPreEmphasize(int level);
     void setPhaseRotator(int level);
+    void setPhaseRotatorAuto(bool enabled);
+    void requestPhaseRotatorAutoReset();
+    void setPhaseRotatorStatus(const QString &status);
+    void setCtcssToneHz(int hz);
+    void setRxEqEnabled(bool enabled);
+    void setRxEqBands(const QVector<int> &bands);
+    void setRxEqBand(int index, int gainDb);
+    void setRxEqCurveDeg(int deg);
+    void setTxEqEnabled(bool enabled);
+    void setTxEqBands(const QVector<int> &bands);
+    void setTxEqBand(int index, int gainDb);
+    void setTxEqCurveDeg(int deg);
+    void setCfcEnabled(bool enabled);
+    void setCfcPeqEnabled(bool enabled);
+    void setCfcPrecomp(double db);
+    void setCfcPrePeq(double db);
+    void setCfcCurveDeg(int deg);
+    void setCfcLevel(int index, double db);
+    void setCfcPostBand(int index, double db);
+    void setEmnrPost2Enabled(bool enabled);
+    void setEmnrPost2Factor(double pct);
+    void setEmnrPost2Nlevel(double pct);
+    void setEmnrPost2Taper(double pct);
+    void setEmnrPost2Rate(double seconds);
     void setFmDeveation(int level);
 
     void setCwHangTime(int CwHangTime);

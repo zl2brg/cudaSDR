@@ -206,10 +206,10 @@ void TransmitAudioInput::MicInputChanged(int value) {
     if (!m_isDigitalMode) {
         stopHardware();
         Setup();
-        // For Soapy, index 0 falls back to default host capture in Setup().
-        if (m_deviceIndex > 0 || set->getHWInterface() == QSDR::SoapySDR)
+        // Re-arm capture only while transmitting — never leave the mic open on RX.
+        if (shouldCaptureWhileTx() && isTransmitting())
             Start();
-        else
+        else if (m_deviceIndex == 0 && set->getHWInterface() != QSDR::SoapySDR)
             AUDIO_INPUT_DEBUG << "Local HPSDR Mic Mode selected";
     }
 }
@@ -221,7 +221,7 @@ void TransmitAudioInput::DigitalAudioInputChanged(int index) {
     if (m_isDigitalMode) {
         stopHardware();
         Setup();
-        if (m_digitalDeviceIndex > 0)
+        if (shouldCaptureWhileTx() && isTransmitting())
             Start();
     }
 }
@@ -238,12 +238,24 @@ void TransmitAudioInput::dspModeChanged(int rx, DSPMode mode) {
 
     stopHardware();
     Setup();
-    // Start if the active mode has a valid device
-    const bool shouldStart = m_isDigitalMode
-                                 ? (m_digitalDeviceIndex > 0)
-                                 : (m_deviceIndex > 0 || set->getHWInterface() == QSDR::SoapySDR);
-    if (shouldStart)
+    if (shouldCaptureWhileTx() && isTransmitting())
         Start();
+}
+
+bool TransmitAudioInput::isTransmitting() const
+{
+    if (!set)
+        return false;
+    const RadioState state = set->getRadioState();
+    return state == RadioState::MOX || state == RadioState::TUNE;
+}
+
+bool TransmitAudioInput::shouldCaptureWhileTx() const
+{
+    if (m_isDigitalMode)
+        return m_digitalDeviceIndex > 0;
+    // Soapy has no HPSDR mic path — index 0 uses the host default input.
+    return m_deviceIndex > 0 || set->getHWInterface() == QSDR::SoapySDR;
 }
 
 void TransmitAudioInput::stopHardware() {

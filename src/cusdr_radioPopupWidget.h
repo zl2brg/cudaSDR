@@ -19,6 +19,7 @@
 #include <QtWidgets>
 #include <QTabWidget>
 #include <QLabel>
+#include <QSpinBox>
 
 #include "Util/cusdr_buttons.h"
 #include "cusdr_settings.h"
@@ -209,6 +210,10 @@ private:
 	AeroButton*		drmBtn;
 	QComboBox*		m_freeDVModeCombo;
 	QLabel*			m_freeDVStatusLabel;
+	QCheckBox*		m_rxEqEnable = nullptr;
+	QSpinBox*		m_rxEqCurveDeg = nullptr;
+	class EqCurvePlot*	m_rxEqPlot = nullptr;
+	QList<QSlider*>	m_rxEqSliders;
 
 	QList<AeroButton *>	dspModeBtnList;
 

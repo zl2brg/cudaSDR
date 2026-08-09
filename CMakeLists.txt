@@ -210,6 +210,7 @@ set(SOURCES
     ${SRC_DIR}/cusdr_transmitOptionsWidget.cpp
     ${SRC_DIR}/cusdr_transmitPAWidget.cpp
     ${SRC_DIR}/UI/noisefilterwidget.cpp
+    ${SRC_DIR}/UI/eq_curve_plot.cpp
     ${SRC_DIR}/UI/tx_settings_dialog.cpp
     ${SRC_DIR}/UI/cusdr_setupwidget.cpp
     ${SRC_DIR}/UI/FrequencyEntryDialog.cpp
@@ -250,6 +251,7 @@ set(HEADERS
     ${SRC_DIR}/cusdr_hpsdrWidget.h
     ${SRC_DIR}/cusdr_networkWidget.h
     ${SRC_DIR}/UI/noisefilterwidget.h
+    ${SRC_DIR}/UI/eq_curve_plot.h
     ${SRC_DIR}/UI/tx_settings_dialog.h
     ${SRC_DIR}/UI/cusdr_setupwidget.h
     ${SRC_DIR}/UI/FrequencyEntryDialog.h

@@ -41,18 +41,13 @@ void create_rxa(int channel) {
                                  rxa[channel].inbuff,              // pointer to output buffer
                                  ch[channel].in_rate,              // samplerate
                                  0.0);                     // amount to shift (Hz)
-  // resample to dsp rate for main processing (polyphase — same as 1.29).
-  // WDSP 2.0's HB rsmpin correlated with TCI web-client RX audio buzz.
-  rxa[channel].rsmpin.p = create_resample(
-                                  0,                        // run - turned ON below if needed
-                                  ch[channel].dsp_insize,             // input buffer size
-                                  rxa[channel].inbuff,              // pointer to input buffer
-                                  rxa[channel].midbuff,             // pointer to output buffer
-                                  ch[channel].in_rate,              // input samplerate
-                                  ch[channel].dsp_rate,             // output samplerate
-                                  0.0,                      // select cutoff automatically
-                                  0,                        // select ncoef automatically
-                                  1.0);                     // gain
+  // input resampler (HB; run auto-selected for supported pan→dsp rate pairs)
+  rxa[channel].rsmpin.p = create_HBResampler(
+                                  ch[channel].in_rate,
+                                  ch[channel].dsp_rate,
+                                  ch[channel].dsp_insize,
+                                  (complex_t *)(void *)rxa[channel].inbuff,
+                                  (complex_t *)(void *)rxa[channel].midbuff);
   // signal generator
   rxa[channel].gen0.p = create_gen(
                                 0,                        // run
@@ -564,7 +559,7 @@ void destroy_rxa(int channel) {
   destroy_notchdb(rxa[channel].ndb.p);
   destroy_meter(rxa[channel].adcmeter.p);
   destroy_gen(rxa[channel].gen0.p);
-  destroy_resample(rxa[channel].rsmpin.p);
+  destroy_HBResampler(rxa[channel].rsmpin.p);
   destroy_shift(rxa[channel].shift.p);
   _aligned_free(rxa[channel].midbuff);
   _aligned_free(rxa[channel].outbuff);
@@ -576,7 +571,7 @@ void flush_rxa(int channel) {
   memset(rxa[channel].outbuff, 0, 1 * ch[channel].dsp_outsize * sizeof(complex));
   memset(rxa[channel].midbuff, 0, 2 * ch[channel].dsp_size    * sizeof(complex));
   flush_shift(rxa[channel].shift.p);
-  flush_resample(rxa[channel].rsmpin.p);
+  flush_HBResampler(rxa[channel].rsmpin.p);
   flush_gen(rxa[channel].gen0.p);
   flush_meter(rxa[channel].adcmeter.p);
   flush_nbp(rxa[channel].nbp0.p);
@@ -610,7 +605,7 @@ void flush_rxa(int channel) {
 
 void xrxa(int channel) {
   xshift(rxa[channel].shift.p);
-  xresample(rxa[channel].rsmpin.p);
+  xHBResampler(rxa[channel].rsmpin.p);
   xgen(rxa[channel].gen0.p);
   xmeter(rxa[channel].adcmeter.p);
   xbpsnbain(rxa[channel].bpsnba.p, 0);
@@ -663,9 +658,10 @@ void setInputSamplerate_rxa(int channel) {
   setSize_shift(rxa[channel].shift.p, ch[channel].dsp_insize);
   setSamplerate_shift(rxa[channel].shift.p, ch[channel].in_rate);
   // input resampler
-  setBuffers_resample(rxa[channel].rsmpin.p, rxa[channel].inbuff, rxa[channel].midbuff);
-  setSize_resample(rxa[channel].rsmpin.p, ch[channel].dsp_insize);
-  setInRate_resample(rxa[channel].rsmpin.p, ch[channel].in_rate);
+  setBuffers_HBResampler(rxa[channel].rsmpin.p, (complex_t *)(void *)rxa[channel].inbuff,
+                         (complex_t *)(void *)rxa[channel].midbuff);
+  setSize_HBResampler(rxa[channel].rsmpin.p, ch[channel].dsp_insize);
+  setInRate_HBResampler(rxa[channel].rsmpin.p, ch[channel].in_rate);
   RXAResCheck(channel);
 }
 
@@ -689,9 +685,10 @@ void setDSPSamplerate_rxa(int channel) {
   setBuffers_shift(rxa[channel].shift.p, rxa[channel].inbuff, rxa[channel].inbuff);
   setSize_shift(rxa[channel].shift.p, ch[channel].dsp_insize);
   // input resampler
-  setBuffers_resample(rxa[channel].rsmpin.p, rxa[channel].inbuff, rxa[channel].midbuff);
-  setSize_resample(rxa[channel].rsmpin.p, ch[channel].dsp_insize);
-  setOutRate_resample(rxa[channel].rsmpin.p, ch[channel].dsp_rate);
+  setBuffers_HBResampler(rxa[channel].rsmpin.p, (complex_t *)(void *)rxa[channel].inbuff,
+                         (complex_t *)(void *)rxa[channel].midbuff);
+  setSize_HBResampler(rxa[channel].rsmpin.p, ch[channel].dsp_insize);
+  setOutRate_HBResampler(rxa[channel].rsmpin.p, ch[channel].dsp_rate);
   // dsp_rate blocks
   setSamplerate_gen(rxa[channel].gen0.p, ch[channel].dsp_rate);
   setSamplerate_meter(rxa[channel].adcmeter.p, ch[channel].dsp_rate);
@@ -742,8 +739,9 @@ void setDSPBuffsize_rxa(int channel) {
   setBuffers_shift(rxa[channel].shift.p, rxa[channel].inbuff, rxa[channel].inbuff);
   setSize_shift(rxa[channel].shift.p, ch[channel].dsp_insize);
   // input resampler
-  setBuffers_resample(rxa[channel].rsmpin.p, rxa[channel].inbuff, rxa[channel].midbuff);
-  setSize_resample(rxa[channel].rsmpin.p, ch[channel].dsp_insize);
+  setBuffers_HBResampler(rxa[channel].rsmpin.p, (complex_t *)(void *)rxa[channel].inbuff,
+                         (complex_t *)(void *)rxa[channel].midbuff);
+  setSize_HBResampler(rxa[channel].rsmpin.p, ch[channel].dsp_insize);
   // dsp_size blocks
   setBuffers_gen(rxa[channel].gen0.p, rxa[channel].midbuff, rxa[channel].midbuff);
   setSize_gen(rxa[channel].gen0.p, ch[channel].dsp_size);
@@ -863,12 +861,8 @@ void SetRXAMode(int channel, int mode) {
 }
 
 void RXAResCheck(int channel) {
-  // turn OFF/ON resamplers depending upon whether they're needed
-  RESAMPLE a = rxa[channel].rsmpin.p;
-  if (ch[channel].in_rate  != ch[channel].dsp_rate) { a->run = 1; }
-  else { a->run = 0; }
-
-  a = rxa[channel].rsmpout.p;
+  // HBResampler (rsmpin) turns OFF/ON automatically for supported rate pairs.
+  RESAMPLE a = rxa[channel].rsmpout.p;
   if (ch[channel].dsp_rate != ch[channel].out_rate) { a->run = 1; }
   else { a->run = 0; }
 }

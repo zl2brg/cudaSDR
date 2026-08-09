@@ -71,6 +71,10 @@ QWDSPEngine::QWDSPEngine(SliceModel *model, QObject *parent, int size)
     , m_inputSampleRate(set->getSampleRate())
 	, m_fftMultiplier(1)
 	, m_volume(0.0f)
+	, m_nr(0)
+	, m_nr2(0)
+	, m_nr3(0)
+	, m_nr4(0)
     , m_filterLo(-4000.0)
     , m_filterHi(4000.0)
 {
@@ -128,6 +132,8 @@ QWDSPEngine::QWDSPEngine(SliceModel *model, QObject *parent, int size)
     const DSPMode startupWdspMode = resolveWDSPMode(startupMode, centerFrequencyHz());
     m_dspmode = startupWdspMode;
     SetRXAMode(m_rx, startupWdspMode);
+    applyRxEq();
+    applyEmnrPost2();
     const double startupFilterLo = set->getFilterLo(m_rx);
     const double startupFilterHi = set->getFilterHi(m_rx);
     if (startupFilterLo < startupFilterHi) {
@@ -236,7 +242,10 @@ void QWDSPEngine::setupConnections() {
     connect(set, &Settings::fmsqLevelChanged,
             this, &QWDSPEngine::setfmsqLevel);
 
-
+    connect(set, &Settings::rxEqChanged,
+            this, [this]() { applyRxEq(); });
+    connect(set, &Settings::emnrPost2Changed,
+            this, [this]() { applyEmnrPost2(); });
 
 
 
@@ -420,7 +429,39 @@ void QWDSPEngine::setDSPMode(DSPMode mode) {
 	m_dspmode = wdspMode;
 	WDSP_ENGINE_DEBUG << "[RX" << m_rx << "] DSP mode set to" << mode << "(WDSP:" << wdspMode << ")";
 	SetRXAMode(m_rx, wdspMode);
+	SetRXAPanelRun(m_rx, 1);
+	SetRXAFMSQRun(m_rx, 1);
+	setFilterMode(m_rx);
+	applyRxEq();
 
+	const int inRate = m_inputSampleRate > 0 ? m_inputSampleRate : 48000;
+	const int targetDsp = preferredDspRate(mode, inRate);
+	if (m_samplerate != targetDsp && m_inputSampleRate > 0)
+		setSampleRate(m_inputSampleRate, targetDsp);
+}
+
+void QWDSPEngine::applyRxEq()
+{
+	if (!set)
+		return;
+	const QVector<int> bands = set->getRxEqBands();
+	int rxeq[11];
+	for (int i = 0; i < 11; ++i)
+		rxeq[i] = (i < bands.size()) ? bands.at(i) : 0;
+	SetRXAGrphEQ10(m_rx, rxeq);
+	SetRXAEQCurve(m_rx, set->getRxEqCurveDeg(), 0, 0);
+	SetRXAEQRun(m_rx, set->getRxEqEnabled() ? 1 : 0);
+}
+
+void QWDSPEngine::applyEmnrPost2()
+{
+	if (!set)
+		return;
+	SetRXAEMNRpost2Factor(m_rx, set->getEmnrPost2Factor());
+	SetRXAEMNRpost2Nlevel(m_rx, set->getEmnrPost2Nlevel());
+	SetRXAEMNRpost2Taper(m_rx, static_cast<int>(set->getEmnrPost2Taper()));
+	SetRXAEMNRpost2Rate(m_rx, set->getEmnrPost2Rate());
+	SetRXAEMNRpost2Run(m_rx, set->getEmnrPost2Enabled() ? 1 : 0);
 }
 
 void QWDSPEngine::setAGCMode(AGCMode agc) {
@@ -545,7 +586,15 @@ void QWDSPEngine::setAGCHangTime(int value) {
 
 
 void QWDSPEngine::setSampleRate(int value) {
-    setSampleRate(value, value);
+    setSampleRate(value, preferredDspRate(m_dspmode, value));
+}
+
+int QWDSPEngine::preferredDspRate(DSPMode mode, int inputRate)
+{
+	Q_UNUSED(mode);
+	Q_UNUSED(inputRate);
+	// Dual-rate HB → 48 kHz DSP; audio out stays 48 kHz.
+	return 48000;
 }
 
 void QWDSPEngine::setSampleRate(int inputRate, int dspRate) {
@@ -558,11 +607,14 @@ void QWDSPEngine::setSampleRate(int inputRate, int dspRate) {
 }
 
 void QWDSPEngine::setInputSampleRate(int value) {
-    if (value <= 0 || m_inputSampleRate == value)
+    if (value <= 0)
         return;
 
-    m_inputSampleRate = value;
-    reconfigure();
+    const int targetDsp = preferredDspRate(m_dspmode, value);
+    if (m_inputSampleRate == value && m_samplerate == targetDsp)
+        return;
+
+    setSampleRate(value, targetDsp);
 }
 
 void QWDSPEngine::reconfigure() {
@@ -588,6 +640,10 @@ void QWDSPEngine::reconfigure() {
     SetRXAMode(m_rx, m_dspmode);
     setFilter(m_filterLo, m_filterHi);
     setFilterMode(m_rx);
+    applyRxEq();
+    applyEmnrPost2();
+    SetRXAFMSQRun(m_rx, 1);
+    SetRXAPanelRun(m_rx, 1);
 
     int analyzerResult;
     WDSP_ENGINE_DEBUG << "[WDSP-CFG] rx=" << m_rx << "-> XCreateAnalyzer";
@@ -603,7 +659,6 @@ void QWDSPEngine::reconfigure() {
     SetDisplayNumAverage(m_rx, 0, m_display_average);
     SetDisplayDetectorMode(m_rx, 0, m_PanDetMode);
     SetDisplayAverageMode(m_rx, 0, m_PanAvMode);
-    SetRXAFMSQRun(m_rx, 1);
     SetRXAPanelGain1(m_rx, static_cast<double>(m_volume));
     SetChannelState(m_rx, 1, 0);
 
@@ -819,20 +874,22 @@ void QWDSPEngine::setFilterMode(int rx) {
 			break;
 	}
 
+	m_nr = m_nr2 = m_nr3 = m_nr4 = 0;
 	switch (m_nrMode) {
-
 		case 0:
-			m_nr = m_nr2 = 0;
 			break;
 		case 1:
 			m_nr = 1;
-			m_nr2 = 0;
 			break;
 		case 2:
-			m_nr = 0;
 			m_nr2 = 1;
 			break;
-
+		case 3:
+			m_nr3 = 1;
+			break;
+		case 4:
+			m_nr4 = 1;
+			break;
 		default:
 			WDSP_ENGINE_DEBUG <<  "invalid nr mode" <<  m_nrMode;
 			break;
@@ -844,16 +901,24 @@ void QWDSPEngine::setFilterMode(int rx) {
 	SetRXAEMNRgainMethod(m_rx,m_nr2_gain_method);
 	SetEXTANBRun(rx, m_nb);
  	SetEXTNOBRun(rx, m_nb2);
+	// Exactly one NR engine (or none); disable others first to avoid overlap.
+	SetRXAANRRun(rx, 0);
+	SetRXAEMNRRun(rx, 0);
+	SetRXARNNRRun(rx, 0);
+	SetRXASBNRRun(rx, 0);
   	SetRXAANRRun(rx, m_nr);
   	SetRXAEMNRRun(rx, m_nr2);
+	SetRXARNNRRun(rx, m_nr3);
+	SetRXASBNRRun(rx, m_nr4);
   	SetRXAANFRun(rx, m_anf);
   	SetRXASNBARun(rx, m_snb);
     WDSP_ENGINE_DEBUG <<  "nb mode" <<  m_nb;
     WDSP_ENGINE_DEBUG <<  "nb2mode" <<  m_nb2;
-    WDSP_ENGINE_DEBUG <<  "nf mode" <<  m_nr;
-    WDSP_ENGINE_DEBUG <<  "nr2 mode" <<  m_nr2;
+    WDSP_ENGINE_DEBUG <<  "nr mode" <<  m_nrMode
+                      << " nr1=" << m_nr << " nr2=" << m_nr2
+                      << " nr3=" << m_nr3 << " nr4=" << m_nr4;
     WDSP_ENGINE_DEBUG <<  "anf mode" <<  m_anf;
-    WDSP_ENGINE_DEBUG <<  "snb mode" <<  m_anf;
+    WDSP_ENGINE_DEBUG <<  "snb mode" <<  m_snb;
 }
 
 void QWDSPEngine::setNoiseBlankerMode(int rx, int nb) {

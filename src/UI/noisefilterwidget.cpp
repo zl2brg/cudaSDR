@@ -1,6 +1,9 @@
 #include "noisefilterwidget.h"
 #include "ui_noisefilterwidget.h"
 #include <QSignalBlocker>
+#include <QHBoxLayout>
+#include <QVBoxLayout>
+#include <QLabel>
 
 #define btn_height              15
 #define btn_width               70
@@ -52,8 +55,48 @@ NoiseFilterWidget::NoiseFilterWidget(QWidget *parent)
     ui->preAGCCheckBox->setFont(QFont("Arial", 8));
 
     ui->nr2aeCheckBox->setFont(QFont("Arial", 8));
+
+    // EMNR post2 (NR2 advanced) — added in code so older .ui stays compatible.
+    m_post2Group = new QGroupBox(QStringLiteral("NR2 Post2"), this);
+    QVBoxLayout *post2Layout = new QVBoxLayout(m_post2Group);
+    m_post2Enable = new QCheckBox(QStringLiteral("Enable Post2"), m_post2Group);
+    post2Layout->addWidget(m_post2Enable);
+
+    auto makePctSpin = [this](const QString &prefix) {
+        QDoubleSpinBox *sb = new QDoubleSpinBox(m_post2Group);
+        sb->setRange(0.0, 100.0);
+        sb->setDecimals(0);
+        sb->setSuffix(QStringLiteral(" %"));
+        sb->setPrefix(prefix);
+        return sb;
+    };
+    m_post2Factor = makePctSpin(QStringLiteral("Factor "));
+    m_post2Nlevel = makePctSpin(QStringLiteral("Nlevel "));
+    m_post2Taper = makePctSpin(QStringLiteral("Taper "));
+    m_post2Rate = new QDoubleSpinBox(m_post2Group);
+    m_post2Rate->setRange(0.2, 30.0);
+    m_post2Rate->setDecimals(1);
+    m_post2Rate->setSingleStep(0.5);
+    m_post2Rate->setSuffix(QStringLiteral(" s"));
+    m_post2Rate->setPrefix(QStringLiteral("Rate "));
+    post2Layout->addWidget(m_post2Factor);
+    post2Layout->addWidget(m_post2Nlevel);
+    post2Layout->addWidget(m_post2Taper);
+    post2Layout->addWidget(m_post2Rate);
+    ui->verticalLayout->addWidget(m_post2Group);
+
+    connect(m_post2Enable, &QCheckBox::toggled, this, &NoiseFilterWidget::emnrPost2EnabledRequested);
+    connect(m_post2Factor, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+            this, &NoiseFilterWidget::emnrPost2FactorRequested);
+    connect(m_post2Nlevel, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+            this, &NoiseFilterWidget::emnrPost2NlevelRequested);
+    connect(m_post2Taper, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+            this, &NoiseFilterWidget::emnrPost2TaperRequested);
+    connect(m_post2Rate, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+            this, &NoiseFilterWidget::emnrPost2RateRequested);
     
     setupConnections();
+    updateNr2ControlsEnabled(ui->nrModeComboBox->currentIndex() == 2);
     setMouseTracking(true);
     setContentsMargins(4, 4, 4, 4);
     setWindowOpacity(0.9);
@@ -95,6 +138,7 @@ void NoiseFilterWidget::nbModeChanged(int value) {
 }
 
 void NoiseFilterWidget::nfModeChanged(int value){
+    updateNr2ControlsEnabled(value == 2);
     emit nrModeRequested(value);
 }
 
@@ -137,6 +181,17 @@ void NoiseFilterWidget::postAgcChanged(bool value) {
 void NoiseFilterWidget::setNrMode(int value) {
     QSignalBlocker blocker(ui->nrModeComboBox);
     ui->nrModeComboBox->setCurrentIndex(value);
+    updateNr2ControlsEnabled(value == 2);
+}
+
+void NoiseFilterWidget::updateNr2ControlsEnabled(bool enabled) {
+    ui->nr2GainComboBox->setEnabled(enabled);
+    ui->nr2aeCheckBox->setEnabled(enabled);
+    ui->label_3->setEnabled(enabled);
+    ui->frame_4->setEnabled(enabled);
+    ui->frame_5->setEnabled(enabled);
+    if (m_post2Group)
+        m_post2Group->setEnabled(enabled);
 }
 
 void NoiseFilterWidget::setNbMode(int value) {
@@ -176,4 +231,44 @@ void NoiseFilterWidget::setSnb(bool value) {
 void NoiseFilterWidget::setAnf(bool value) {
     QSignalBlocker blocker(ui->anfCheckBox);
     ui->anfCheckBox->setChecked(value);
+}
+
+void NoiseFilterWidget::setEmnrPost2Enabled(bool enabled)
+{
+    if (!m_post2Enable)
+        return;
+    const QSignalBlocker blocker(m_post2Enable);
+    m_post2Enable->setChecked(enabled);
+}
+
+void NoiseFilterWidget::setEmnrPost2Factor(double pct)
+{
+    if (!m_post2Factor)
+        return;
+    const QSignalBlocker blocker(m_post2Factor);
+    m_post2Factor->setValue(pct);
+}
+
+void NoiseFilterWidget::setEmnrPost2Nlevel(double pct)
+{
+    if (!m_post2Nlevel)
+        return;
+    const QSignalBlocker blocker(m_post2Nlevel);
+    m_post2Nlevel->setValue(pct);
+}
+
+void NoiseFilterWidget::setEmnrPost2Taper(double pct)
+{
+    if (!m_post2Taper)
+        return;
+    const QSignalBlocker blocker(m_post2Taper);
+    m_post2Taper->setValue(pct);
+}
+
+void NoiseFilterWidget::setEmnrPost2Rate(double seconds)
+{
+    if (!m_post2Rate)
+        return;
+    const QSignalBlocker blocker(m_post2Rate);
+    m_post2Rate->setValue(seconds);
 }

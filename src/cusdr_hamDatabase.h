@@ -82,8 +82,7 @@ typedef enum _dspMode {
   SPEC,			//  8
   DIGL,			//  9
   SAM,			// 10
-  FDV			// 11
-  //FREEDV        // 12
+  FDV			// 11  (app FreeDV; resolveWDSPMode remaps to LSB/USB)
 
 } DSPMode;
 

@@ -94,10 +94,14 @@ public slots:
     void setInputSampleRate(int value);
     void setSampleRate(int value);
     void setSampleRate(int inputRate, int dspRate);
+    /** DSP demod rate for dual-rate HB (normally 48 kHz). */
+    static int preferredDspRate(DSPMode mode, int inputRate);
     void setSampleSize(int rx, int size);
     void setQtDSPStatus(bool value);
     void setVolume(float value);
     void setDSPMode(DSPMode mode);
+    void applyRxEq();
+    void applyEmnrPost2();
     void setAGCMode(AGCMode mode);
     void setFilter(double low, double high);
     void setFilterSlope(int rx, int slope);
@@ -172,6 +176,8 @@ private:
     int m_nb2;
     int m_nr;
     int m_nr2;
+    int m_nr3;
+    int m_nr4;
     int m_anf;
     int m_snb;
     int m_nr_agc;

@@ -1,8 +1,10 @@
 #include "Util/AudioDeviceService.h"
 #include "tx_settings_dialog.h"
 #include "ui_tx_settings_dialog.h"
+#include "eq_curve_plot.h"
 #include "QtWDSP/qtwdsp_dspEngine.h"
 #include "AudioEngine/cusdr_audio_input.h"
+#include "cusdr_settings.h"
 #include <QSignalBlocker>
 #include <QDebug>
 
@@ -80,6 +82,154 @@ tx_settings_dialog::tx_settings_dialog(QWidget *parent) :
     });
     connect(ui->fmPre, &QCheckBox::toggled, this, &tx_settings_dialog::fmPreEmphasisRequested);
     connect(ui->phaseRotator, &QCheckBox::toggled, this, &tx_settings_dialog::phaseRotatorRequested);
+
+    // Phase-rotator auto-cal + TX EQ (added in code so older .ui stays compatible).
+    m_phaseRotatorAuto = new QCheckBox(QStringLiteral("Phrot Auto-Cal"), this);
+    m_phaseRotatorReset = new QPushButton(QStringLiteral("Reset Auto"), this);
+    m_phaseRotatorStatus = new QLabel(this);
+    m_phaseRotatorStatus->setWordWrap(true);
+    m_phaseRotatorStatus->setStyleSheet(QStringLiteral("color: gray;"));
+    QHBoxLayout *phrotRow = new QHBoxLayout();
+    phrotRow->addWidget(m_phaseRotatorAuto);
+    phrotRow->addWidget(m_phaseRotatorReset);
+    ui->verticalLayout_4->addLayout(phrotRow);
+    ui->verticalLayout_4->addWidget(m_phaseRotatorStatus);
+    connect(m_phaseRotatorAuto, &QCheckBox::toggled, this, &tx_settings_dialog::phaseRotatorAutoRequested);
+    connect(m_phaseRotatorReset, &QPushButton::clicked, this, &tx_settings_dialog::phaseRotatorAutoResetRequested);
+
+    QGroupBox *txEqGroup = new QGroupBox(QStringLiteral("TX Equalizer"), this);
+    QVBoxLayout *txEqLayout = new QVBoxLayout(txEqGroup);
+    QHBoxLayout *txEqTop = new QHBoxLayout();
+    m_txEqEnable = new QCheckBox(QStringLiteral("TX EQ"), txEqGroup);
+    m_txEqCurveDeg = new QSpinBox(txEqGroup);
+    m_txEqCurveDeg->setRange(0, 3);
+    m_txEqCurveDeg->setPrefix(QStringLiteral("NURBS "));
+    m_txEqCurveDeg->setToolTip(QStringLiteral("0 = classic linear; 1–3 = NURBS degree"));
+    txEqTop->addWidget(m_txEqEnable);
+    txEqTop->addStretch();
+    txEqTop->addWidget(m_txEqCurveDeg);
+    txEqLayout->addLayout(txEqTop);
+    static const char *const kTxEqLabels[] = {
+        "Pre", "32", "63", "125", "250", "500", "1k", "2k", "4k", "8k", "16k"
+    };
+    QHBoxLayout *eqRow = new QHBoxLayout();
+    eqRow->setSpacing(2);
+    for (int i = 0; i < 11; ++i) {
+        QVBoxLayout *col = new QVBoxLayout();
+        QLabel *lab = new QLabel(QString::fromLatin1(kTxEqLabels[i]), txEqGroup);
+        lab->setAlignment(Qt::AlignHCenter);
+        QSlider *slider = new QSlider(Qt::Vertical, txEqGroup);
+        slider->setRange(-12, 12);
+        slider->setValue(0);
+        slider->setFixedHeight(72);
+        connect(slider, &QSlider::valueChanged, this, [this, i](int value) {
+            emit txEqBandRequested(i, value);
+        });
+        m_txEqSliders.append(slider);
+        col->addWidget(lab);
+        col->addWidget(slider);
+        eqRow->addLayout(col);
+    }
+    txEqLayout->addLayout(eqRow);
+    m_txEqPlot = new EqCurvePlot(txEqGroup);
+    txEqLayout->addWidget(m_txEqPlot);
+    ui->verticalLayoutScroll->insertWidget(1, txEqGroup);
+    connect(m_txEqEnable, &QCheckBox::toggled, this, &tx_settings_dialog::txEqEnabledRequested);
+    connect(m_txEqCurveDeg, QOverload<int>::of(&QSpinBox::valueChanged),
+            this, &tx_settings_dialog::txEqCurveDegRequested);
+
+    // Continuous Frequency Compressor (CFC) + post-EQ
+    QGroupBox *cfcGroup = new QGroupBox(QStringLiteral("TX CFC"), this);
+    QVBoxLayout *cfcLayout = new QVBoxLayout(cfcGroup);
+    QHBoxLayout *cfcTop = new QHBoxLayout();
+    m_cfcEnable = new QCheckBox(QStringLiteral("CFC"), cfcGroup);
+    m_cfcPeqEnable = new QCheckBox(QStringLiteral("Post EQ"), cfcGroup);
+    m_cfcCurveDeg = new QSpinBox(cfcGroup);
+    m_cfcCurveDeg->setRange(0, 3);
+    m_cfcCurveDeg->setPrefix(QStringLiteral("NURBS "));
+    cfcTop->addWidget(m_cfcEnable);
+    cfcTop->addWidget(m_cfcPeqEnable);
+    cfcTop->addStretch();
+    cfcTop->addWidget(m_cfcCurveDeg);
+    cfcLayout->addLayout(cfcTop);
+
+    QHBoxLayout *cfcPre = new QHBoxLayout();
+    m_cfcPrecomp = new QDoubleSpinBox(cfcGroup);
+    m_cfcPrecomp->setRange(-20.0, 20.0);
+    m_cfcPrecomp->setDecimals(1);
+    m_cfcPrecomp->setSuffix(QStringLiteral(" dB"));
+    m_cfcPrecomp->setPrefix(QStringLiteral("Pre "));
+    m_cfcPrePeq = new QDoubleSpinBox(cfcGroup);
+    m_cfcPrePeq->setRange(-20.0, 20.0);
+    m_cfcPrePeq->setDecimals(1);
+    m_cfcPrePeq->setSuffix(QStringLiteral(" dB"));
+    m_cfcPrePeq->setPrefix(QStringLiteral("Peq "));
+    cfcPre->addWidget(m_cfcPrecomp);
+    cfcPre->addWidget(m_cfcPrePeq);
+    cfcLayout->addLayout(cfcPre);
+
+    static const char *const kCfcLabels[] = {
+        "50", "150", "300", "500", "750", "1k2", "1k7", "2k3", "2k8", "3k1"
+    };
+    QHBoxLayout *cfcLvlRow = new QHBoxLayout();
+    cfcLvlRow->setSpacing(2);
+    for (int i = 0; i < 10; ++i) {
+        QVBoxLayout *col = new QVBoxLayout();
+        QLabel *lab = new QLabel(QString::fromLatin1(kCfcLabels[i]), cfcGroup);
+        lab->setAlignment(Qt::AlignHCenter);
+        QSlider *slider = new QSlider(Qt::Vertical, cfcGroup);
+        slider->setRange(-16, 16);
+        slider->setValue(0);
+        slider->setFixedHeight(64);
+        slider->setToolTip(QStringLiteral("CFC level %1 Hz (dB)").arg(QString::fromLatin1(kCfcLabels[i])));
+        connect(slider, &QSlider::valueChanged, this, [this, i](int value) {
+            emit cfcLevelRequested(i, static_cast<double>(value));
+        });
+        m_cfcLevelSliders.append(slider);
+        col->addWidget(lab);
+        col->addWidget(slider);
+        cfcLvlRow->addLayout(col);
+    }
+    cfcLayout->addWidget(new QLabel(QStringLiteral("Comp levels"), cfcGroup));
+    cfcLayout->addLayout(cfcLvlRow);
+
+    QHBoxLayout *cfcPostRow = new QHBoxLayout();
+    cfcPostRow->setSpacing(2);
+    for (int i = 0; i < 10; ++i) {
+        QVBoxLayout *col = new QVBoxLayout();
+        QSlider *slider = new QSlider(Qt::Vertical, cfcGroup);
+        slider->setRange(-16, 16);
+        slider->setValue(0);
+        slider->setFixedHeight(48);
+        slider->setToolTip(QStringLiteral("Post EQ %1 Hz (dB)").arg(QString::fromLatin1(kCfcLabels[i])));
+        connect(slider, &QSlider::valueChanged, this, [this, i](int value) {
+            emit cfcPostRequested(i, static_cast<double>(value));
+        });
+        m_cfcPostSliders.append(slider);
+        col->addWidget(slider);
+        cfcPostRow->addLayout(col);
+    }
+    cfcLayout->addWidget(new QLabel(QStringLiteral("Post EQ levels"), cfcGroup));
+    cfcLayout->addLayout(cfcPostRow);
+
+    m_cfcCompPlot = new EqCurvePlot(cfcGroup);
+    m_cfcPeqPlot = new EqCurvePlot(cfcGroup);
+    cfcLayout->addWidget(new QLabel(QStringLiteral("Comp curve"), cfcGroup));
+    cfcLayout->addWidget(m_cfcCompPlot);
+    cfcLayout->addWidget(new QLabel(QStringLiteral("Post EQ curve"), cfcGroup));
+    cfcLayout->addWidget(m_cfcPeqPlot);
+    ui->verticalLayoutScroll->insertWidget(2, cfcGroup);
+
+    connect(m_cfcEnable, &QCheckBox::toggled, this, &tx_settings_dialog::cfcEnabledRequested);
+    connect(m_cfcPeqEnable, &QCheckBox::toggled, this, &tx_settings_dialog::cfcPeqEnabledRequested);
+    connect(m_cfcPrecomp, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+            this, &tx_settings_dialog::cfcPrecompRequested);
+    connect(m_cfcPrePeq, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+            this, &tx_settings_dialog::cfcPrePeqRequested);
+    connect(m_cfcCurveDeg, QOverload<int>::of(&QSpinBox::valueChanged),
+            this, &tx_settings_dialog::cfcCurveDegRequested);
+
+    connect(ui->ctcss_tone, QOverload<int>::of(&QSpinBox::valueChanged), this, &tx_settings_dialog::ctcssToneHzRequested);
     connect(ui->KeyerMode, &QComboBox::currentIndexChanged, this, &tx_settings_dialog::cwKeyerModeRequested);
     connect(ui->internal_keyer, &QCheckBox::stateChanged, this, [this](int state) {
         emit internalCwRequested(state == Qt::Checked);
@@ -150,6 +300,128 @@ void tx_settings_dialog::setPhaseRotator(bool enabled)
 {
     const QSignalBlocker blocker(ui->phaseRotator);
     ui->phaseRotator->setChecked(enabled);
+    if (m_phaseRotatorAuto)
+        m_phaseRotatorAuto->setEnabled(enabled);
+    if (m_phaseRotatorReset)
+        m_phaseRotatorReset->setEnabled(enabled);
+}
+
+void tx_settings_dialog::setPhaseRotatorAuto(bool enabled)
+{
+    if (!m_phaseRotatorAuto)
+        return;
+    const QSignalBlocker blocker(m_phaseRotatorAuto);
+    m_phaseRotatorAuto->setChecked(enabled);
+}
+
+void tx_settings_dialog::setPhaseRotatorStatus(const QString &status)
+{
+    if (m_phaseRotatorStatus)
+        m_phaseRotatorStatus->setText(status);
+}
+
+void tx_settings_dialog::setTxEqEnabled(bool enabled)
+{
+    if (!m_txEqEnable)
+        return;
+    const QSignalBlocker blocker(m_txEqEnable);
+    m_txEqEnable->setChecked(enabled);
+}
+
+void tx_settings_dialog::setTxEqBands(const QVector<int> &bands)
+{
+    for (int i = 0; i < m_txEqSliders.size(); ++i) {
+        const QSignalBlocker blocker(m_txEqSliders.at(i));
+        m_txEqSliders.at(i)->setValue(i < bands.size() ? bands.at(i) : 0);
+    }
+}
+
+void tx_settings_dialog::setTxEqCurveDeg(int deg)
+{
+    if (!m_txEqCurveDeg)
+        return;
+    const QSignalBlocker blocker(m_txEqCurveDeg);
+    m_txEqCurveDeg->setValue(deg);
+}
+
+void tx_settings_dialog::setCfcEnabled(bool enabled)
+{
+    if (!m_cfcEnable)
+        return;
+    const QSignalBlocker blocker(m_cfcEnable);
+    m_cfcEnable->setChecked(enabled);
+}
+
+void tx_settings_dialog::setCfcPeqEnabled(bool enabled)
+{
+    if (!m_cfcPeqEnable)
+        return;
+    const QSignalBlocker blocker(m_cfcPeqEnable);
+    m_cfcPeqEnable->setChecked(enabled);
+}
+
+void tx_settings_dialog::setCfcPrecomp(double db)
+{
+    if (!m_cfcPrecomp)
+        return;
+    const QSignalBlocker blocker(m_cfcPrecomp);
+    m_cfcPrecomp->setValue(db);
+}
+
+void tx_settings_dialog::setCfcPrePeq(double db)
+{
+    if (!m_cfcPrePeq)
+        return;
+    const QSignalBlocker blocker(m_cfcPrePeq);
+    m_cfcPrePeq->setValue(db);
+}
+
+void tx_settings_dialog::setCfcCurveDeg(int deg)
+{
+    if (!m_cfcCurveDeg)
+        return;
+    const QSignalBlocker blocker(m_cfcCurveDeg);
+    m_cfcCurveDeg->setValue(deg);
+}
+
+void tx_settings_dialog::setCfcLevels(const QVector<double> &levels)
+{
+    for (int i = 0; i < m_cfcLevelSliders.size(); ++i) {
+        const QSignalBlocker blocker(m_cfcLevelSliders.at(i));
+        m_cfcLevelSliders.at(i)->setValue(i < levels.size() ? qRound(levels.at(i)) : 0);
+    }
+}
+
+void tx_settings_dialog::setCfcPost(const QVector<double> &post)
+{
+    for (int i = 0; i < m_cfcPostSliders.size(); ++i) {
+        const QSignalBlocker blocker(m_cfcPostSliders.at(i));
+        m_cfcPostSliders.at(i)->setValue(i < post.size() ? qRound(post.at(i)) : 0);
+    }
+}
+
+void tx_settings_dialog::refreshEqCurvePlots()
+{
+    QVector<double> X(AudioConfig::kEqDrawPoints, 0.0);
+    QVector<double> Y(AudioConfig::kEqDrawPoints, 0.0);
+    if (m_txEqPlot) {
+        GetTXAEQDraw(TX_ID, X.data(), Y.data());
+        m_txEqPlot->setCurve(X, Y);
+    }
+    if (m_cfcCompPlot) {
+        GetTXACFCOMPCompDraw(TX_ID, X.data(), Y.data());
+        m_cfcCompPlot->setCurve(X, Y);
+    }
+    if (m_cfcPeqPlot) {
+        GetTXACFCOMPPeqDraw(TX_ID, X.data(), Y.data());
+        m_cfcPeqPlot->setCurve(X, Y);
+    }
+}
+
+void tx_settings_dialog::setCtcssToneHz(int hz)
+{
+    const QSignalBlocker blocker(ui->ctcss_tone);
+    ui->ctcss_tone->setValue(hz);
 }
 
 void tx_settings_dialog::setCwSidetoneFreq(int freq)

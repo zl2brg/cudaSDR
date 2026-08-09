@@ -122,6 +122,8 @@ public slots:
 	void	dspProcessing();
     void    dspProcessing(const QVector<int32_t> &rawIQ);
 	void	stop();
+	/** Tear down QAudioSink after DSP writers have stopped. */
+	void	stopAudio();
 
 private slots:
 	void	setSystemState(

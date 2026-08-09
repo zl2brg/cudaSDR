@@ -1179,8 +1179,10 @@ void RadioWidget::dspModeChanged(int rx, DSPMode mode) {
 		btn->update();
 	}
 
-	dspModeBtnList.at(mode)->setBtnState(AeroButton::ON);
-	dspModeBtnList.at(mode)->update();
+	if (mode >= 0 && mode < dspModeBtnList.size()) {
+		dspModeBtnList.at(mode)->setBtnState(AeroButton::ON);
+		dspModeBtnList.at(mode)->update();
+	}
 	updateFreeDVControls();
 }
 
