@@ -1,0 +1,323 @@
+{
+  "name": "IARU Region 3 digimode spots",
+  "description": "FT8/WSPR/FT4/JS8 and activity markers from AetherSDR iaru-region3.json spots. Used with SDR-Band-Plans allocation bars.",
+  "version": 1,
+  "spots": [
+    {
+      "freq": 1.836,
+      "label": "CW QRP CoA"
+    },
+    {
+      "freq": 1.8366,
+      "label": "WSPR"
+    },
+    {
+      "freq": 1.84,
+      "label": "FT8"
+    },
+    {
+      "freq": 1.842,
+      "label": "JS8Call"
+    },
+    {
+      "freq": 3.56,
+      "label": "CW QRP CoA"
+    },
+    {
+      "freq": 3.5686,
+      "label": "WSPR"
+    },
+    {
+      "freq": 3.573,
+      "label": "FT8"
+    },
+    {
+      "freq": 3.575,
+      "label": "FT4"
+    },
+    {
+      "freq": 3.578,
+      "label": "JS8Call"
+    },
+    {
+      "freq": 3.6,
+      "label": "Emergency CoA"
+    },
+    {
+      "freq": 3.69,
+      "label": "Digital Voice / SSB QRP CoA"
+    },
+    {
+      "freq": 3.735,
+      "label": "Image CoA"
+    },
+    {
+      "freq": 3.795,
+      "label": "DX Phone CoA"
+    },
+    {
+      "freq": 3.845,
+      "label": "Image CoA"
+    },
+    {
+      "freq": 7.03,
+      "label": "CW QRP CoA"
+    },
+    {
+      "freq": 7.0386,
+      "label": "WSPR"
+    },
+    {
+      "freq": 7.0475,
+      "label": "FT4"
+    },
+    {
+      "freq": 7.07,
+      "label": "Digital Voice CoA"
+    },
+    {
+      "freq": 7.074,
+      "label": "FT8"
+    },
+    {
+      "freq": 7.078,
+      "label": "JS8Call"
+    },
+    {
+      "freq": 7.09,
+      "label": "SSB QRP CoA"
+    },
+    {
+      "freq": 7.095,
+      "label": "DX Phone CoA"
+    },
+    {
+      "freq": 7.11,
+      "label": "Emergency CoA"
+    },
+    {
+      "freq": 7.165,
+      "label": "Image CoA"
+    },
+    {
+      "freq": 10.116,
+      "label": "CW QRP CoA"
+    },
+    {
+      "freq": 10.13,
+      "label": "JS8Call"
+    },
+    {
+      "freq": 10.136,
+      "label": "FT8"
+    },
+    {
+      "freq": 10.1387,
+      "label": "WSPR"
+    },
+    {
+      "freq": 10.14,
+      "label": "FT4"
+    },
+    {
+      "freq": 14.06,
+      "label": "CW QRP CoA"
+    },
+    {
+      "freq": 14.074,
+      "label": "FT8"
+    },
+    {
+      "freq": 14.078,
+      "label": "JS8Call"
+    },
+    {
+      "freq": 14.08,
+      "label": "FT4"
+    },
+    {
+      "freq": 14.0956,
+      "label": "WSPR"
+    },
+    {
+      "freq": 14.1,
+      "label": "IBP/NCDXF beacons"
+    },
+    {
+      "freq": 14.13,
+      "label": "Digital Voice CoA"
+    },
+    {
+      "freq": 14.195,
+      "label": "DX priority"
+    },
+    {
+      "freq": 14.23,
+      "label": "Image CoA"
+    },
+    {
+      "freq": 14.285,
+      "label": "SSB QRP CoA"
+    },
+    {
+      "freq": 14.3,
+      "label": "Emergency CoA"
+    },
+    {
+      "freq": 18.086,
+      "label": "CW QRP CoA"
+    },
+    {
+      "freq": 18.1,
+      "label": "FT8"
+    },
+    {
+      "freq": 18.104,
+      "label": "FT4 / JS8Call"
+    },
+    {
+      "freq": 18.1046,
+      "label": "WSPR"
+    },
+    {
+      "freq": 18.11,
+      "label": "IBP/NCDXF beacons"
+    },
+    {
+      "freq": 18.13,
+      "label": "SSB QRP CoA"
+    },
+    {
+      "freq": 18.16,
+      "label": "Digital Voice / Emergency CoA"
+    },
+    {
+      "freq": 21.06,
+      "label": "CW QRP CoA"
+    },
+    {
+      "freq": 21.074,
+      "label": "FT8"
+    },
+    {
+      "freq": 21.078,
+      "label": "JS8Call"
+    },
+    {
+      "freq": 21.0946,
+      "label": "WSPR"
+    },
+    {
+      "freq": 21.14,
+      "label": "FT4"
+    },
+    {
+      "freq": 21.15,
+      "label": "IBP/NCDXF beacons"
+    },
+    {
+      "freq": 21.18,
+      "label": "Digital Voice CoA"
+    },
+    {
+      "freq": 21.295,
+      "label": "DX priority"
+    },
+    {
+      "freq": 21.34,
+      "label": "Image CoA"
+    },
+    {
+      "freq": 21.36,
+      "label": "Emergency CoA"
+    },
+    {
+      "freq": 24.906,
+      "label": "CW QRP CoA"
+    },
+    {
+      "freq": 24.915,
+      "label": "FT8"
+    },
+    {
+      "freq": 24.919,
+      "label": "FT4"
+    },
+    {
+      "freq": 24.9246,
+      "label": "WSPR"
+    },
+    {
+      "freq": 24.93,
+      "label": "IBP/NCDXF beacons"
+    },
+    {
+      "freq": 24.95,
+      "label": "SSB QRP CoA"
+    },
+    {
+      "freq": 24.96,
+      "label": "Digital Voice CoA"
+    },
+    {
+      "freq": 28.055,
+      "label": "CW QRS CoA"
+    },
+    {
+      "freq": 28.074,
+      "label": "FT8"
+    },
+    {
+      "freq": 28.078,
+      "label": "JS8Call"
+    },
+    {
+      "freq": 28.1246,
+      "label": "WSPR"
+    },
+    {
+      "freq": 28.18,
+      "label": "FT4"
+    },
+    {
+      "freq": 28.2,
+      "label": "IBP/NCDXF beacons"
+    },
+    {
+      "freq": 28.33,
+      "label": "Digital Voice CoA"
+    },
+    {
+      "freq": 28.36,
+      "label": "SSB QRP CoA"
+    },
+    {
+      "freq": 28.495,
+      "label": "DX Phone CoA"
+    },
+    {
+      "freq": 28.68,
+      "label": "Image CoA"
+    },
+    {
+      "freq": 29.6,
+      "label": "FM calling channel"
+    },
+    {
+      "freq": 50.11,
+      "label": "DX calling CoA"
+    },
+    {
+      "freq": 50.2936,
+      "label": "WSPR"
+    },
+    {
+      "freq": 50.313,
+      "label": "FT8"
+    },
+    {
+      "freq": 50.318,
+      "label": "FT4 / JS8Call"
+    }
+  ]
+}

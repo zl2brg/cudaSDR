@@ -152,6 +152,7 @@ private:
     qreal m_panelDpr;
 
 	QRect						m_panRect;
+	QRect						m_bandPlanRect;
 	QRect						m_dBmScalePanRect;
 	QRect						m_freqScalePanRect;
 	QRect						m_waterfallRect;
@@ -373,6 +374,7 @@ private:
 	void	paint3DPanadapterMode();
 
 	void	drawPanadapter();
+	void	drawBandPlanStrip();
 	void 	drawPanVerticalScale();
 	void 	drawPanHorizontalScale();
 	void 	drawPanadapterGrid();

@@ -1,4 +1,5 @@
 #include "Models/RadioModel.h"
+#include "Models/BandPlanManager.h"
 #include "Models/RadioTelemetry.h"
 #include "Models/SliceModel.h"
 /**
@@ -37,6 +38,7 @@
 
 #include <QGuiApplication>
 #include <QMatrix4x4>
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 
@@ -622,6 +624,7 @@ void QGLReceiverPanel::paintReceiverDisplay() {
         updateDBmRuler();
 
     drawPanadapter();
+    drawBandPlanStrip();
 
     glDisable(GL_DEPTH_TEST);
     drawPanHorizontalScale();
@@ -673,6 +676,120 @@ void QGLReceiverPanel::paintReceiverDisplay() {
 }
 
 void QGLReceiverPanel::paint3DPanadapterMode() {
+}
+
+void QGLReceiverPanel::drawBandPlanStrip()
+{
+	RadioModel *radioModel = qobject_cast<RadioModel *>(m_sliceModel ? m_sliceModel->parent() : nullptr);
+	BandPlanManager *plan = radioModel ? radioModel->bandPlan() : nullptr;
+	if (!plan || plan->isEmpty())
+		return;
+
+	const qreal span = displayedFrequencySpanHz();
+	if (span <= 0.0 || !m_panRect.isValid())
+		return;
+
+	ensurePanelViewport();
+
+	const qint64 loHz = qint64(qreal(m_centerFrequency) - span / 2.0);
+	const qint64 hiHz = qint64(qreal(m_centerFrequency) + span / 2.0);
+	QVector<BandSpot> spots = plan->spotsInSpan(loHz, hiHz);
+	if (spots.isEmpty())
+		return;
+
+	// When zoomed way out, thin labels to digimode / time / beacon markers.
+	if (span > 1.5e6 && spots.size() > 16) {
+		QVector<BandSpot> priority;
+		priority.reserve(spots.size());
+		for (const BandSpot &s : spots) {
+			const QString &l = s.label;
+			if (l.contains(QLatin1String("FT8"))
+			    || l.contains(QLatin1String("FT4"))
+			    || l.contains(QLatin1String("WSPR"))
+			    || l.contains(QLatin1String("JS8"))
+			    || l.contains(QLatin1String("PSK"))
+			    || l.contains(QLatin1String("IBP"))
+			    || l.contains(QLatin1String("WWV"))
+			    || l.contains(QLatin1String("WWVH"))
+			    || l.contains(QLatin1String("CHU"))
+			    || l.contains(QLatin1String("beacon"), Qt::CaseInsensitive))
+				priority.append(s);
+		}
+		if (!priority.isEmpty())
+			spots = priority;
+	}
+
+	OGLText *spotText = m_oglTextNormal ? m_oglTextNormal
+	                                    : (m_oglTextSmall ? m_oglTextSmall : m_oglTextTiny);
+	if (!spotText)
+		return;
+
+	glDisable(GL_DEPTH_TEST);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glEnable(GL_BLEND);
+
+	const int left = m_panRect.left();
+	const int right = m_panRect.right();
+	const int baseY = m_panRect.bottom(); // sit just above the frequency ruler
+	const qreal pxPerHz = qreal(m_panRect.width()) / span;
+
+	auto freqToX = [&](qint64 freqHz) -> int {
+		return left + qRound((qreal(freqHz) - qreal(m_centerFrequency) + span / 2.0) * pxPerHz);
+	};
+
+	auto spotColor = [](const QString &label) -> QColor {
+		if (label.contains(QLatin1String("FT8")))
+			return QColor(90, 200, 130);
+		if (label.contains(QLatin1String("FT4")))
+			return QColor(130, 190, 230);
+		if (label.contains(QLatin1String("WSPR")))
+			return QColor(230, 170, 70);
+		if (label.contains(QLatin1String("JS8")))
+			return QColor(190, 150, 230);
+		if (label.contains(QLatin1String("IBP")) || label.contains(QLatin1String("beacon"), Qt::CaseInsensitive))
+			return QColor(110, 210, 210);
+		return QColor(200, 205, 215);
+	};
+
+	const int textH = spotText->fontMetrics().height();
+	const int lanePitch = textH + 3;
+	int lane = 0;
+	int lastLabelRight[3] = { left - 1000, left - 1000, left - 1000 };
+
+	for (const BandSpot &spot : spots) {
+		const int x = freqToX(spot.freqHz);
+		if (x < left || x > right)
+			continue;
+
+		const QColor col = spotColor(spot.label);
+		const int textW = spotText->fontMetrics().horizontalAdvance(spot.label);
+
+		// Pick the first staggered lane that doesn't overlap the previous label.
+		int chosen = 0;
+		for (; chosen < 3; ++chosen) {
+			if (x - 2 >= lastLabelRight[chosen] + 6)
+				break;
+		}
+		if (chosen >= 3)
+			chosen = lane % 3;
+		lane = chosen + 1;
+		lastLabelRight[chosen] = x - 2 + textW + 8;
+
+		// Labels grow upward from the frequency ruler.
+		const int labelY = baseY - (chosen + 1) * lanePitch;
+		if (labelY < m_panRect.top() + 2)
+			continue;
+
+		const int labelX = qBound(left, x - 2, right - textW - 6);
+		drawPanelRect(QRect(x, labelY, 1, baseY - labelY), QColor(col.red(), col.green(), col.blue(), 140), -1.25f);
+		drawPanelRect(QRect(x - 2, baseY - 3, 5, 5), col, -1.2f);
+		drawPanelRect(QRect(labelX, labelY, textW + 6, textH + 1), QColor(8, 10, 14, 190), -1.15f);
+
+		m_glTextColor = QColor(0, 0, 0, 160);
+		renderPanelText(spotText, float(labelX + 4), float(labelY + 1), -1.1f, spot.label);
+		m_glTextColor = col;
+		renderPanelText(spotText, float(labelX + 3), float(labelY), -1.05f, spot.label);
+	}
 }
 
 void QGLReceiverPanel::drawPanadapter() {
@@ -1895,6 +2012,9 @@ void QGLReceiverPanel::setupDisplayRegions(QSize size) {
 			size.width(),
 			m_freqScalePanRect.top() - m_displayTop);
 
+	// Frequency markers (DX spots) are drawn above the ruler inside m_panRect.
+	m_bandPlanRect = QRect();
+
 
 	if (m_panRect.height() != m_oldPanRectHeight) {
 
@@ -1910,11 +2030,8 @@ void QGLReceiverPanel::setupDisplayRegions(QSize size) {
 	m_waterfallRect = QRect(
 			m_freqScalePanRect.left(), 
 			m_freqScalePanRect.top() + m_freqScalePanRect.height(),
-			//m_freqScalePanRect.top(),
 			m_freqScalePanRect.width(),
-			//size.height() - m_displayTop - m_freqScalePanRect.top() - m_freqScalePanRect.height());
 			size.height() - m_freqScalePanRect.top() - m_freqScalePanRect.height());
-			//size.height() - m_freqScalePanRect.top());	
 			
 	if (m_waterfallRenderer) m_waterfallRenderer->reset();
 
@@ -1925,7 +2042,7 @@ void QGLReceiverPanel::setupDisplayRegions(QSize size) {
 	
 	m_dBmScalePanRect = QRect(
 						m_panRect.left(), 
-						m_displayTop, 
+						m_panRect.top(), 
 						45, 
 						m_panRect.height());
 

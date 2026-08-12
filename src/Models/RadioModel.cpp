@@ -1,10 +1,26 @@
 #include "RadioModel.h"
 #include "RadioTelemetry.h"
+#include "BandPlanManager.h"
+
+#include <QDebug>
 
 RadioModel::RadioModel(QObject *parent)
     : QObject(parent)
     , m_telemetry(new RadioTelemetry(this, this))
+    , m_bandPlan(new BandPlanManager(this))
 {
+    // Allocation bars: SDR-Band-Plans International (CC0).
+    // Spot markers: KiwiSDR default DX labels (LGPL/GPL project data) plus
+    // Region 3 digimode dial freqs (fills FT8/FT4 gaps in the Kiwi set).
+    if (!m_bandPlan->loadFromResource(QStringLiteral(":/bandplans/international.xml")))
+        qWarning() << "RadioModel: failed to load international band plan resource";
+    if (!m_bandPlan->loadKiwiDxFromResource(QStringLiteral(":/bandplans/kiwi-dx.json")))
+        qWarning() << "RadioModel: failed to load Kiwi DX label database";
+    {
+        BandPlanManager digi;
+        if (digi.loadSpotsFromResource(QStringLiteral(":/bandplans/digimode-spots.json")))
+            m_bandPlan->mergeSpots(digi.spots());
+    }
 }
 
 RadioModel::~RadioModel()

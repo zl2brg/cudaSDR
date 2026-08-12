@@ -9,6 +9,7 @@
 #include "cusdr_settings.h"
 
 class RadioTelemetry;
+class BandPlanManager;
 
 class RadioModel : public QObject {
     Q_OBJECT
@@ -58,6 +59,7 @@ public:
     qint64 effectiveTxFrequency() const;
 
     RadioTelemetry* telemetry() const { return m_telemetry; }
+    BandPlanManager* bandPlan() const { return m_bandPlan; }
 
 signals:
     void connectedChanged(bool connected);
@@ -77,6 +79,7 @@ private:
     TCCParameterTx m_tx{};
     QList<SliceModel*> m_slices;
     RadioTelemetry* m_telemetry = nullptr;
+    BandPlanManager* m_bandPlan = nullptr;
 };
 
 #endif // RADIOMODEL_H

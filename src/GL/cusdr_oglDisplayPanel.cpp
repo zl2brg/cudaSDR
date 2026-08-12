@@ -1,6 +1,7 @@
 #include "Models/RadioModel.h"
 #include "Models/RadioTelemetry.h"
 #include "Models/SliceModel.h"
+#include "Models/BandPlanManager.h"
 /**
 * @file  cusdr_oglDisplayPanel.cpp
 * @brief Display panel class for cuSDR
@@ -1159,7 +1160,15 @@ void OGLDisplayPanel::paintRxRegion() {
 
 	const qint64 activeFreq = bActive ? freqB : freqA;
 	if (m_oldFreq != activeFreq) {
-		m_bandText = getHamBandTextString(set->getHamBandTextList(), false, activeFreq);
+		QString planLabel;
+		if (m_radioModel && m_radioModel->bandPlan())
+			planLabel = m_radioModel->bandPlan()->labelAt(activeFreq);
+		if (!planLabel.isEmpty()) {
+			const int pipe = planLabel.indexOf(QLatin1Char('|'));
+			m_bandText = (pipe >= 0) ? planLabel.left(pipe).trimmed() : planLabel;
+		} else {
+			m_bandText = getHamBandTextString(set->getHamBandTextList(), false, activeFreq);
+		}
 		m_oldFreq = activeFreq;
 	}
 

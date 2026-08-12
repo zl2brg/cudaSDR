@@ -4,6 +4,7 @@
 #include "Models/RadioModel.h"
 #include "Models/SliceModel.h"
 #include "Models/RadioTelemetry.h"
+#include "Models/BandPlanManager.h"
 #include "cusdr_settings.h"
 
 class ModelsTests : public QObject {
@@ -25,6 +26,8 @@ private slots:
     void testRadioTelemetrySignals();
     void testRadioTelemetrySMeter();
     void testTelemetryFromSettings();
+
+    void testBandPlanManagerLoadsInternational();
 };
 
 void ModelsTests::initTestCase() {
@@ -521,6 +524,47 @@ void ModelsTests::testTelemetryFromSettings() {
     // Clean up settings to avoid leakage
     settings->setRadioModel(nullptr);
     delete radio;
+}
+
+void ModelsTests::testBandPlanManagerLoadsInternational() {
+    BandPlanManager mgr;
+    const QByteArray xml =
+        "<?xml version=\"1.0\"?>"
+        "<ArrayOfRangeEntry>"
+        "<RangeEntry minFrequency=\"7000000\" maxFrequency=\"7040000\" mode=\"CW\" step=\"10\" color=\"50FF0000\">40m CW</RangeEntry>"
+        "<RangeEntry minFrequency=\"7040000\" maxFrequency=\"7200000\" mode=\"LSB\" step=\"10\" color=\"50FF8000\">40m Phone</RangeEntry>"
+        "</ArrayOfRangeEntry>";
+    QVERIFY(mgr.loadFromData(xml));
+    QCOMPARE(mgr.ranges().size(), 2);
+    QCOMPARE(mgr.labelAt(7010000), QStringLiteral("40m CW"));
+    QCOMPARE(mgr.labelAt(7100000), QStringLiteral("40m Phone"));
+    QVERIFY(mgr.labelAt(6000000).isEmpty());
+
+    const QVector<BandRange> mid = mgr.rangesInSpan(7030000, 7050000);
+    QCOMPARE(mid.size(), 2);
+
+    const QByteArray kiwi =
+        "{\"dx\":["
+        "[14095.6,\"USB\",\"WSPR\",\"\",{\"SB\":1}],"
+        "[10000.0,\"AM\",\"WWV%20/%20WWVH\",\"time%20signals\",{\"WL\":1}]"
+        "]}";
+    QVERIFY(mgr.loadKiwiDxFromData(kiwi));
+    QCOMPARE(mgr.spots().size(), 2);
+    QCOMPARE(mgr.spots().at(0).freqHz, 10000000LL);
+    QCOMPARE(mgr.spots().at(0).label, QStringLiteral("WWV / WWVH"));
+    QCOMPARE(mgr.spots().at(1).label, QStringLiteral("WSPR"));
+
+    const QByteArray spotsJson =
+        "{\"spots\":["
+        "{\"freq\":14.074,\"label\":\"FT8\"},"
+        "{\"freq\":14.0956,\"label\":\"WSPR\"}"
+        "]}";
+    BandPlanManager digi;
+    QVERIFY(digi.loadSpotsFromData(spotsJson));
+    mgr.mergeSpots(digi.spots());
+    // WSPR near-dupe skipped; FT8 added.
+    QCOMPARE(mgr.spots().size(), 3);
+    QCOMPARE(mgr.spotsInSpan(14070000, 14100000).size(), 2);
 }
 
 QTEST_MAIN(ModelsTests)

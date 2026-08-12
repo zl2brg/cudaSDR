@@ -110,6 +110,7 @@ set(SOURCES
     ${SRC_DIR}/Models/SliceModel.cpp
     ${SRC_DIR}/Models/RadioModel.cpp
     ${SRC_DIR}/Models/RadioTelemetry.cpp
+    ${SRC_DIR}/Models/BandPlanManager.cpp
     ${SRC_DIR}/Controllers/RadioController.cpp
     ${SRC_DIR}/Controllers/RadioSettingsController.cpp
     ${SRC_DIR}/Controllers/NetworkSettingsController.cpp
@@ -445,6 +446,7 @@ if(BUILD_TESTING)
         ${SRC_DIR}/Models/RadioModel.cpp
         ${SRC_DIR}/Models/SliceModel.cpp
         ${SRC_DIR}/Models/RadioTelemetry.cpp
+        ${SRC_DIR}/Models/BandPlanManager.cpp
     )
 
     qt_add_executable(protocol_boundary_tests

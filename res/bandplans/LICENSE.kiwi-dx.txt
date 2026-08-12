@@ -1,0 +1,10 @@
+KiwiSDR DX label database (dist.dx.json)
+========================================
+
+Source: unix_env/kiwi.config/dist.dx.json from the KiwiSDR / Beagle_SDR_GPS
+project (https://github.com/jks-prv/Beagle_SDR_GPS), Copyright John Seamons
+ZL/KF6VO and contributors.
+
+KiwiSDR uses a mix of GPL and LGPL licenses. This data file is redistributed
+here with attribution under those project terms. See the upstream repository
+for full licence text.

@@ -33,5 +33,8 @@
         <file>img/cusdr4.png</file>
         <file>img/hpsdr4.png</file>
         <file>cusdr_stylesheet.qss</file>
+        <file alias="bandplans/international.xml">bandplans/international.xml</file>
+        <file alias="bandplans/digimode-spots.json">bandplans/digimode-spots.json</file>
+        <file alias="bandplans/kiwi-dx.json">bandplans/kiwi-dx.json</file>
     </qresource>
 </RCC>
