@@ -62,12 +62,13 @@ QT_SEARCH_PATHS=(
     "/usr/lib/qt6"
 )
 
+version_satisfies_requirement() {
+    [[ -n "$1" ]] || return 1
+    [[ "$(printf '%s\n%s\n' "$1" "${REQUIRED_QT_VERSION}" | sort -V | head -n 1)" == "${REQUIRED_QT_VERSION}" ]]
+}
+
 find_qt() {
     local prefix version
-    version_satisfies_requirement() {
-        [[ -n "$1" ]] || return 1
-        [[ "$(printf '%s\n%s\n' "$1" "${REQUIRED_QT_VERSION}" | sort -V | head -n 1)" == "${REQUIRED_QT_VERSION}" ]]
-    }
     _qt_version_from_prefix() {
         local p="$1"
         grep -oP '_qt_package_version "\K[^"]+' \

@@ -56,12 +56,13 @@ done
 log() { printf '==> %s\n' "$*"; }
 die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 
+version_satisfies_requirement() {
+    [[ -n "$1" ]] || return 1
+    [[ "$(printf '%s\n%s\n' "$1" "${REQUIRED_QT_VERSION}" | sort -V | head -n 1)" == "${REQUIRED_QT_VERSION}" ]]
+}
+
 find_qt_prefix() {
     local prefix version candidate
-    version_satisfies_requirement() {
-        [[ -n "$1" ]] || return 1
-        [[ "$(printf '%s\n%s\n' "$1" "${REQUIRED_QT_VERSION}" | sort -V | head -n 1)" == "${REQUIRED_QT_VERSION}" ]]
-    }
     _qt_version_from_prefix() {
         local p="$1"
         grep -oP '_qt_package_version "\K[^"]+' \

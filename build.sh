@@ -26,13 +26,13 @@ QT_SEARCH_PATHS=(
     "/usr/lib/qt6"
 )
 
+version_satisfies_requirement() {
+    [[ -n "$1" ]] || return 1
+    [[ "$(printf '%s\n%s\n' "$1" "${REQUIRED_QT_VERSION}" | sort -V | head -n 1)" == "${REQUIRED_QT_VERSION}" ]]
+}
+
 find_qt() {
     local prefix version cmake_dir qmake_bin
-
-    version_satisfies_requirement() {
-        [[ -n "$1" ]] || return 1
-        [[ "$(printf '%s\n%s\n' "$1" "${REQUIRED_QT_VERSION}" | sort -V | head -n 1)" == "${REQUIRED_QT_VERSION}" ]]
-    }
 
     # Helper: extract version from Qt6Targets.cmake (where Qt actually stores it)
     _qt_version_from_prefix() {
@@ -90,7 +90,7 @@ else
     echo
     echo "Please install Qt ${REQUIRED_QT_VERSION}+ and either:"
     echo "  - Set Qt6_DIR to the Qt6 cmake directory, e.g.:"
-    echo "      export Qt6_DIR=\$HOME/Qt/${REQUIRED_QT_VERSION}/gcc_64/lib/cmake/Qt6"
+    echo "      export Qt6_DIR=\$HOME/Qt/<version>/gcc_64/lib/cmake/Qt6"
     echo "  - Or add the Qt bin directory to PATH"
     exit 1
 fi
