@@ -20,40 +20,23 @@ jobs:
           sudo apt-get install -y \
             build-essential \
             cmake \
-            libqt5gui5 \
-            libqt5core5a \
-            qt5-qmake \
-            qtbase5-dev \
+            qt6-base-dev \
+            qt6-multimedia-dev \
+            qt6-opengl-dev \
+            qt6-websockets-dev \
             libpulse-dev \
             libfftw3-dev \
             libusb-1.0-0-dev \
-            appimage-builder
+            python3-pil
 
-      - name: Build project
+      - name: Build and package AppImage
         run: |
-          mkdir build
-          cd build
-          cmake ..
-          make -j$(nproc)
-
-      - name: Create AppImage
-        run: |
-          mkdir -p AppDir/usr/bin
-          mkdir -p AppDir/usr/lib
-          
-          # Copy built binaries and libraries
-          cp build/cudaSDR AppDir/usr/bin/ || true
-          find build -name "*.so*" -exec cp {} AppDir/usr/lib/ \;
-          
-          # Download and run appimagetool
-          wget https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
-          chmod +x appimagetool-x86_64.AppImage
-          
-          ./appimagetool-x86_64.AppImage AppDir cudaSDR-${{ github.ref_name }}-x86_64.AppImage
+          chmod +x ./scripts/make_appimage.sh
+          ./scripts/make_appimage.sh --build
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          files: cudaSDR-${{ github.ref_name }}-x86_64.AppImage
+          files: cudaSDR-*-x86_64.AppImage
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
