@@ -27,7 +27,6 @@ jobs:
             cmake \
             qt6-base-dev \
             qt6-multimedia-dev \
-            qt6-opengl-dev \
             qt6-websockets-dev \
             libpulse-dev \
             libfftw3-dev \
