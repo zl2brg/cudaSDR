@@ -8,7 +8,12 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    
+
+    env:
+      # Allow AppImages (linuxdeploy, appimage-builder tool) to run inside the
+      # GitHub Actions AppArmor sandbox without requiring FUSE kernel support.
+      APPIMAGE_EXTRACT_AND_RUN: "1"
+
     steps:
       - uses: actions/checkout@v4
         with:
@@ -27,12 +32,22 @@ jobs:
             libpulse-dev \
             libfftw3-dev \
             libusb-1.0-0-dev \
-            python3-pil
+            python3-pil \
+            libfuse2 \
+            elfutils \
+            patchelf \
+            squashfs-tools
+          pip install appimage-builder
 
-      - name: Build and package AppImage
+      - name: Build project
         run: |
-          chmod +x ./scripts/make_appimage.sh
-          ./scripts/make_appimage.sh --build
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
+          cmake --build build -j$(nproc)
+          DESTDIR="$PWD/AppDir" cmake --install build
+
+      - name: Create AppImage
+        run: |
+          appimage-builder --recipe packaging/AppImageBuilder.yml --skip-tests
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
