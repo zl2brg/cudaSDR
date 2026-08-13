@@ -3,7 +3,7 @@ set -euo pipefail
 
 # ---------------------------------------------------------------------------
 # Build script for cudaSDR
-# Detects Qt 6.11.0 and runs CMake
+# Detects Qt 6.11+ and runs CMake
 # ---------------------------------------------------------------------------
 
 REQUIRED_QT_VERSION="6.11.0"
@@ -29,6 +29,11 @@ QT_SEARCH_PATHS=(
 find_qt() {
     local prefix version cmake_dir qmake_bin
 
+    version_satisfies_requirement() {
+        [[ -n "$1" ]] || return 1
+        [[ "$(printf '%s\n%s\n' "$1" "${REQUIRED_QT_VERSION}" | sort -V | head -n 1)" == "${REQUIRED_QT_VERSION}" ]]
+    }
+
     # Helper: extract version from Qt6Targets.cmake (where Qt actually stores it)
     _qt_version_from_prefix() {
         local p="$1"
@@ -42,7 +47,7 @@ find_qt() {
         for candidate in "${Qt6_DIR}" "${Qt6_DIR}/../../.."; do
             candidate=$(realpath -m "${candidate}" 2>/dev/null || echo "${candidate}")
             version=$(_qt_version_from_prefix "${candidate}")
-            if [[ "${version}" == "${REQUIRED_QT_VERSION}" ]]; then
+            if version_satisfies_requirement "${version}"; then
                 echo "${candidate}"
                 return 0
             fi
@@ -54,7 +59,7 @@ find_qt() {
         cmake_dir="${prefix}/lib/cmake/Qt6"
         if [[ -f "${cmake_dir}/Qt6Config.cmake" ]]; then
             version=$(_qt_version_from_prefix "${prefix}")
-            if [[ "${version}" == "${REQUIRED_QT_VERSION}" ]]; then
+            if version_satisfies_requirement "${version}"; then
                 echo "${prefix}"
                 return 0
             fi
@@ -65,7 +70,7 @@ find_qt() {
     for qmake_bin in qmake6 qmake; do
         if command -v "${qmake_bin}" &>/dev/null; then
             version=$("${qmake_bin}" -query QT_VERSION 2>/dev/null || true)
-            if [[ "${version}" == "${REQUIRED_QT_VERSION}" ]]; then
+            if version_satisfies_requirement "${version}"; then
                 echo "$("${qmake_bin}" -query QT_INSTALL_PREFIX)"
                 return 0
             fi
@@ -75,15 +80,15 @@ find_qt() {
     return 1
 }
 
-echo "==> Searching for Qt ${REQUIRED_QT_VERSION}..."
+echo "==> Searching for Qt ${REQUIRED_QT_VERSION}+..."
 
 QT_PREFIX=""
 if QT_PREFIX=$(find_qt); then
-    echo "==> Found Qt ${REQUIRED_QT_VERSION} at: ${QT_PREFIX}"
+    echo "==> Found Qt ${REQUIRED_QT_VERSION}+ at: ${QT_PREFIX}"
 else
-    echo "ERROR: Qt ${REQUIRED_QT_VERSION} not found."
+    echo "ERROR: Qt ${REQUIRED_QT_VERSION}+ not found."
     echo
-    echo "Please install Qt ${REQUIRED_QT_VERSION} and either:"
+    echo "Please install Qt ${REQUIRED_QT_VERSION}+ and either:"
     echo "  - Set Qt6_DIR to the Qt6 cmake directory, e.g.:"
     echo "      export Qt6_DIR=\$HOME/Qt/${REQUIRED_QT_VERSION}/gcc_64/lib/cmake/Qt6"
     echo "  - Or add the Qt bin directory to PATH"

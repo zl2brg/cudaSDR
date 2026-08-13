@@ -52,7 +52,7 @@ if [[ -e /proc/driver/nvidia/version ]] || lsmod 2>/dev/null | grep -q '^nvidia\
     echo "==> NVIDIA driver detected; using __GLX_VENDOR_LIBRARY_NAME=${__GLX_VENDOR_LIBRARY_NAME} GBM_BACKEND=${GBM_BACKEND}"
 fi
 
-# --- Qt 6.11.0 Detection Logic ---
+# --- Qt 6.11+ Detection Logic ---
 REQUIRED_QT_VERSION="6.11.0"
 QT_SEARCH_PATHS=(
     "$HOME/Qt/${REQUIRED_QT_VERSION}/gcc_64"
@@ -64,6 +64,10 @@ QT_SEARCH_PATHS=(
 
 find_qt() {
     local prefix version
+    version_satisfies_requirement() {
+        [[ -n "$1" ]] || return 1
+        [[ "$(printf '%s\n%s\n' "$1" "${REQUIRED_QT_VERSION}" | sort -V | head -n 1)" == "${REQUIRED_QT_VERSION}" ]]
+    }
     _qt_version_from_prefix() {
         local p="$1"
         grep -oP '_qt_package_version "\K[^"]+' \
@@ -74,7 +78,7 @@ find_qt() {
         for candidate in "${Qt6_DIR}" "${Qt6_DIR}/../../.."; do
             candidate=$(realpath -m "${candidate}" 2>/dev/null || echo "${candidate}")
             version=$(_qt_version_from_prefix "${candidate}")
-            if [[ "${version}" == "${REQUIRED_QT_VERSION}" ]]; then
+            if version_satisfies_requirement "${version}"; then
                 echo "${candidate}"
                 return 0
             fi
@@ -84,7 +88,7 @@ find_qt() {
     for prefix in "${QT_SEARCH_PATHS[@]}"; do
         if [[ -f "${prefix}/lib/cmake/Qt6/Qt6Config.cmake" ]]; then
             version=$(_qt_version_from_prefix "${prefix}")
-            if [[ "${version}" == "${REQUIRED_QT_VERSION}" ]]; then
+            if version_satisfies_requirement "${version}"; then
                 echo "${prefix}"
                 return 0
             fi
@@ -94,11 +98,11 @@ find_qt() {
 }
 
 if QT_PREFIX=$(find_qt); then
-    echo "==> Using Qt ${REQUIRED_QT_VERSION} at: ${QT_PREFIX}"
+    echo "==> Using Qt ${REQUIRED_QT_VERSION}+ at: ${QT_PREFIX}"
     export QT_QPA_PLATFORM_PLUGIN_PATH="${QT_PREFIX}/plugins"
     export LD_LIBRARY_PATH="${QT_PREFIX}/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
 else
-    echo "WARNING: Qt ${REQUIRED_QT_VERSION} not found. Launch might fail due to library conflicts."
+    echo "WARNING: Qt ${REQUIRED_QT_VERSION}+ not found. Launch might fail due to library conflicts."
 fi
 
 echo "Starting cudasdr..."

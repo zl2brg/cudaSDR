@@ -52,7 +52,7 @@ if(CUDASDR_ENABLE_COVERAGE)
 endif()
 
 # --- Find Dependencies ---
-find_package(Qt6 6.11.0 REQUIRED COMPONENTS Widgets Core Gui GuiPrivate ShaderTools Multimedia Network OpenGL OpenGLWidgets WebSockets Test)
+find_package(Qt6 6.11 REQUIRED COMPONENTS Widgets Core Gui GuiPrivate ShaderTools Multimedia Network OpenGL OpenGLWidgets WebSockets Test)
 message(STATUS "Using Qt ${Qt6_VERSION} from ${Qt6_DIR}")
 find_package(PkgConfig REQUIRED)
 find_package(OpenGL REQUIRED)

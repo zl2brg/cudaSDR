@@ -58,6 +58,10 @@ die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 
 find_qt_prefix() {
     local prefix version candidate
+    version_satisfies_requirement() {
+        [[ -n "$1" ]] || return 1
+        [[ "$(printf '%s\n%s\n' "$1" "${REQUIRED_QT_VERSION}" | sort -V | head -n 1)" == "${REQUIRED_QT_VERSION}" ]]
+    }
     _qt_version_from_prefix() {
         local p="$1"
         grep -oP '_qt_package_version "\K[^"]+' \
@@ -68,7 +72,7 @@ find_qt_prefix() {
         for candidate in "${Qt6_DIR}" "${Qt6_DIR}/../../.."; do
             candidate=$(realpath -m "${candidate}" 2>/dev/null || echo "${candidate}")
             version=$(_qt_version_from_prefix "${candidate}")
-            if [[ "${version}" == "${REQUIRED_QT_VERSION}" ]]; then
+            if version_satisfies_requirement "${version}"; then
                 echo "${candidate}"
                 return 0
             fi
@@ -84,7 +88,7 @@ find_qt_prefix() {
     do
         if [[ -f "${prefix}/lib/cmake/Qt6/Qt6Config.cmake" ]]; then
             version=$(_qt_version_from_prefix "${prefix}")
-            if [[ "${version}" == "${REQUIRED_QT_VERSION}" ]]; then
+            if version_satisfies_requirement "${version}"; then
                 echo "${prefix}"
                 return 0
             fi
@@ -140,7 +144,7 @@ log "Using binary: ${BINARY}"
 
 QT_PREFIX=""
 if QT_PREFIX=$(find_qt_prefix); then
-    log "Using Qt ${REQUIRED_QT_VERSION} at: ${QT_PREFIX}"
+    log "Using Qt ${REQUIRED_QT_VERSION}+ at: ${QT_PREFIX}"
     export PATH="${QT_PREFIX}/bin:${PATH}"
     export LD_LIBRARY_PATH="${QT_PREFIX}/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}"
     if [[ -z "${QMAKE:-}" ]]; then
@@ -151,7 +155,7 @@ if QT_PREFIX=$(find_qt_prefix); then
         fi
     fi
 else
-    log "WARNING: Qt ${REQUIRED_QT_VERSION} not found via usual paths; relying on QMAKE/PATH"
+    log "WARNING: Qt ${REQUIRED_QT_VERSION}+ not found via usual paths; relying on QMAKE/PATH"
 fi
 
 if [[ -z "${QMAKE:-}" ]]; then
@@ -160,7 +164,7 @@ if [[ -z "${QMAKE:-}" ]]; then
     elif command -v qmake6 >/dev/null 2>&1; then
         export QMAKE="$(command -v qmake6)"
     else
-        die "qmake not found. Set QMAKE to your Qt ${REQUIRED_QT_VERSION} qmake."
+        die "qmake not found. Set QMAKE to your Qt ${REQUIRED_QT_VERSION}+ qmake."
     fi
 fi
 log "QMAKE=${QMAKE}"

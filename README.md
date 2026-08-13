@@ -29,7 +29,7 @@ This project is still work in progress and very much alpha.
 - Linux
 - CMake 3.16+
 - C++17 compiler (GCC/Clang)
-- Qt 6.11.x (`Widgets`, `Core`, `Gui`, `Multimedia`, `Network`, `OpenGL`, `OpenGLWidgets`, `WebSockets`, `Test`)
+- Qt 6.11+ (`Widgets`, `Core`, `Gui`, `Multimedia`, `Network`, `OpenGL`, `OpenGLWidgets`, `WebSockets`, `Test`)
 - FFTW3 (`fftw3`, `fftw3f`)
 - Liquid DSP
 - OpenGL
@@ -106,7 +106,6 @@ Protocol and WDSP references are in `Docs/`.
 ### Known gaps / TODO
 
 - CW polish and validation
-
 
 
 
