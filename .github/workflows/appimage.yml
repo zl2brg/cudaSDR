@@ -1,0 +1,79 @@
+name: AppImage
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  appimage:
+    name: Build AppImage (Ubuntu 24.04 container)
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Submodule URL is rewritten to HTTPS inside ci_appimage.sh.
+          # For a private freedv-backend, set secrets.GH_PAT (repo scope).
+          submodules: false
+          fetch-depth: 0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build CI image (cached Qt 6.11 layer)
+        uses: docker/build-push-action@v6
+        with:
+          context: packaging
+          file: packaging/Dockerfile
+          push: false
+          load: true
+          tags: cudasdr-ci:24.04
+          cache-from: type=gha,scope=cudasdr-ci-24.04
+          cache-to: type=gha,mode=max,scope=cudasdr-ci-24.04
+
+      - name: Build AppImage in container
+        env:
+          # Optional: PAT if https://github.com/zl2brg/freedv-backend is private
+          GH_TOKEN: ${{ secrets.GH_PAT || github.token }}
+          GITHUB_TOKEN: ${{ secrets.GH_PAT || github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          # Help git clone HTTPS submodules with the token when needed.
+          git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
+          docker run --rm \
+            -e JOBS="$(nproc)" \
+            -e BUILD_DIR=build-ci \
+            -e OUTPUT_DIR=/out \
+            -e APPIMAGE_EXTRACT_AND_RUN=1 \
+            -e GH_TOKEN \
+            -e GITHUB_TOKEN \
+            -v "$PWD:/src:rw" \
+            -v "$PWD/out:/out:rw" \
+            -w /src \
+            cudasdr-ci:24.04 \
+            ./scripts/ci_appimage.sh
+          ls -lh out/*.AppImage
+
+      - name: Upload AppImage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cudasdr-appimage-x86_64
+          path: out/*.AppImage
+          if-no-files-found: error
+
+      - name: Attach AppImage to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release upload "${GITHUB_REF_NAME}" out/*.AppImage --clobber
