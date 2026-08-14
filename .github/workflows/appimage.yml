@@ -69,6 +69,8 @@ jobs:
           if-no-files-found: error
 
       - name: Attach AppImage to GitHub Release
+        # Keep this from failing the job: the AppImage artifact is already uploaded.
+        continue-on-error: true
         if: startsWith(github.ref, 'refs/tags/')
         env:
           GH_TOKEN: ${{ github.token }}
@@ -81,3 +83,4 @@ jobs:
               --generate-notes
           fi
           gh release upload "${GITHUB_REF_NAME}" out/*.AppImage --clobber
+          echo "Attached AppImage to release ${GITHUB_REF_NAME}"
