@@ -20,9 +20,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          # Submodule URL is rewritten to HTTPS inside ci_appimage.sh.
-          # For a private freedv-backend, set secrets.GH_PAT (repo scope).
-          submodules: false
+          # HTTPS URL is in .gitmodules. Use GH_PAT if freedv-backend is private.
+          submodules: recursive
+          token: ${{ secrets.GH_PAT || github.token }}
           fetch-depth: 0
 
       - name: Set up Docker Buildx
@@ -41,14 +41,12 @@ jobs:
 
       - name: Build AppImage in container
         env:
-          # Optional: PAT if https://github.com/zl2brg/freedv-backend is private
           GH_TOKEN: ${{ secrets.GH_PAT || github.token }}
           GITHUB_TOKEN: ${{ secrets.GH_PAT || github.token }}
         run: |
           set -euo pipefail
           mkdir -p out
-          # Help git clone HTTPS submodules with the token when needed.
-          git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
+          test -f deps/freedv-backend/CMakeLists.txt
           docker run --rm \
             -e JOBS="$(nproc)" \
             -e BUILD_DIR=build-ci \

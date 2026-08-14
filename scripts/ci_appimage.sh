@@ -35,32 +35,38 @@ log "Qt: ${QT_PREFIX} (qmake=$("${QMAKE}" -query QT_VERSION))"
 git config --global --add safe.directory "${ROOT}"
 git config --global --add safe.directory '*'
 
-# Force GitHub submodules over HTTPS (no ssh binary / keys in CI containers).
-# Use --add so multiple insteadOf prefixes are kept (plain assignment overwrites).
-git config --global --add url."https://github.com/".insteadOf "ssh://git@github.com/"
-git config --global --add url."https://github.com/".insteadOf "git@github.com:"
+TOKEN="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
 
-# Optional token for private https://github.com/... clones (e.g. freedv-backend).
-if [[ -n "${GH_TOKEN:-${GITHUB_TOKEN:-}}" ]]; then
-    TOKEN="${GH_TOKEN:-${GITHUB_TOKEN}}"
-    git config --global --add url."https://x-access-token:${TOKEN}@github.com/".insteadOf "https://github.com/"
-fi
+# Never use `git submodule update` here: .gitmodules / local gitlink history may
+# still point at ssh:// and the container has no ssh client. Clone via HTTPS.
+ensure_freedv_backend() {
+	local path="deps/freedv-backend"
+	local https_url="https://github.com/zl2brg/freedv-backend.git"
+	local clone_url="${https_url}"
+	local commit=""
 
-if [[ -e .git ]]; then
-    if [[ -f .gitmodules ]]; then
-        # Belt-and-suspenders: rewrite any remaining SSH submodule URLs in-tree.
-        sed -i 's|ssh://git@github.com/|https://github.com/|g' .gitmodules
-        sed -i 's|git@github.com:|https://github.com/|g' .gitmodules
-        git submodule sync --recursive || true
-    fi
-    # If the submodule was previously registered with an SSH URL in .git/config:
-    if [[ -d .git/modules/deps/freedv-backend ]] || git config -f .git/config --get submodule.deps/freedv-backend.url >/dev/null 2>&1; then
-        git config -f .git/config submodule.deps/freedv-backend.url \
-            https://github.com/zl2brg/freedv-backend.git || true
-    fi
-    log "Updating git submodules..."
-    git submodule update --init --recursive
-fi
+	if [[ -n "${TOKEN}" ]]; then
+		clone_url="https://x-access-token:${TOKEN}@github.com/zl2brg/freedv-backend.git"
+	fi
+
+	if [[ -f "${path}/CMakeLists.txt" ]]; then
+		log "Using existing ${path}"
+		return 0
+	fi
+
+	[[ -e .git ]] || die "${path} missing and /src is not a git checkout"
+
+	commit="$(git ls-tree HEAD "${path}" | awk '{print $3}')"
+	[[ -n "${commit}" ]] || die "No gitlink commit found for ${path}"
+
+	log "Cloning ${path} via HTTPS @ ${commit}..."
+	rm -rf "${path}"
+	mkdir -p "$(dirname "${path}")"
+	git clone --no-checkout "${clone_url}" "${path}"
+	git -C "${path}" checkout --force "${commit}"
+}
+
+ensure_freedv_backend
 
 log "Configuring (${BUILD_TYPE}) in ${BUILD_DIR}..."
 cmake \
