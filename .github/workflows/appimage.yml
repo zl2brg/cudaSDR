@@ -1,0 +1,86 @@
+name: AppImage
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  appimage:
+    name: Build AppImage (Ubuntu 24.04 container)
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # HTTPS URL is in .gitmodules. Use GH_PAT if freedv-backend is private.
+          submodules: recursive
+          token: ${{ secrets.GH_PAT || github.token }}
+          fetch-depth: 0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build CI image (cached Qt 6.11 layer)
+        uses: docker/build-push-action@v6
+        with:
+          context: packaging
+          file: packaging/Dockerfile
+          push: false
+          load: true
+          tags: cudasdr-ci:24.04
+          cache-from: type=gha,scope=cudasdr-ci-24.04
+          cache-to: type=gha,mode=max,scope=cudasdr-ci-24.04
+
+      - name: Build AppImage in container
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT || github.token }}
+          GITHUB_TOKEN: ${{ secrets.GH_PAT || github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          test -f deps/freedv-backend/CMakeLists.txt
+          docker run --rm \
+            -e JOBS="$(nproc)" \
+            -e BUILD_DIR=build-ci \
+            -e OUTPUT_DIR=/out \
+            -e APPIMAGE_EXTRACT_AND_RUN=1 \
+            -e GH_TOKEN \
+            -e GITHUB_TOKEN \
+            -v "$PWD:/src:rw" \
+            -v "$PWD/out:/out:rw" \
+            -w /src \
+            cudasdr-ci:24.04 \
+            ./scripts/ci_appimage.sh
+          ls -lh out/*.AppImage
+
+      - name: Upload AppImage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cudasdr-appimage-x86_64
+          path: out/*.AppImage
+          if-no-files-found: error
+
+      - name: Attach AppImage to GitHub Release
+        # Keep this from failing the job: the AppImage artifact is already uploaded.
+        continue-on-error: true
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # Pushing a tag does not create a Release; create one if needed.
+          if ! gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            gh release create "${GITHUB_REF_NAME}" \
+              --title "${GITHUB_REF_NAME}" \
+              --generate-notes
+          fi
+          gh release upload "${GITHUB_REF_NAME}" out/*.AppImage --clobber
+          echo "Attached AppImage to release ${GITHUB_REF_NAME}"

@@ -32,7 +32,10 @@ windowsSettings.ini
 
 # AppImage packaging
 .tools/
+.tools-ci/
 AppDir/
+AppDir-ci/
+out/
 *.AppImage
 
 # BFG report directory

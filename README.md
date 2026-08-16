@@ -87,17 +87,41 @@ Useful runtime overrides:
 
 ### AppImage
 
-Package a portable Linux AppImage (bundles Qt via `linuxdeploy-plugin-qt`):
+Portable Linux builds use **Ubuntu 24.04 + Qt 6.11 inside Docker** — the same path
+locally and on GitHub Actions. Qt is downloaded into the image with `aqtinstall`
+(no host Qt mount).
+
+#### Local (matches GHA)
 
 ```bash
-# use an existing Release build
-./scripts/make_appimage.sh
+# First run builds the image (Qt download, cached thereafter) then packages.
+./scripts/docker_appimage.sh
 
-# or build Release, then package
+# Reuse an existing image
+./scripts/docker_appimage.sh --no-build-image
+```
+
+AppImages land in `./out/`.
+
+#### Host packaging (optional)
+
+If you already have a Release build and Qt 6.11 on the host:
+
+```bash
+./scripts/make_appimage.sh
 ./scripts/make_appimage.sh --build
 ```
 
-The script caches `linuxdeploy` tools under `.tools/`, reuses `~/Downloads/linuxdeploy-*.AppImage` if present, and writes `*.AppImage` into the project root.
+#### GitHub Actions
+
+Workflow: `.github/workflows/appimage.yml`
+
+- Triggers: `workflow_dispatch`, tags `v*`
+- Builds `packaging/Dockerfile`, runs `scripts/ci_appimage.sh`, uploads the AppImage
+- On `v*` tags, attaches the AppImage to the GitHub Release
+
+If `deps/freedv-backend` is private, add a repo secret `GH_PAT` with `repo` scope
+so the HTTPS submodule clone works.
 
 ### Docs
 
