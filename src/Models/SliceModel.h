@@ -59,6 +59,11 @@ public:
     Q_PROPERTY(double dBmPanScaleMin READ dBmPanScaleMin WRITE setDBmPanScaleMin NOTIFY panScaleChanged)
     Q_PROPERTY(double dBmPanScaleMax READ dBmPanScaleMax WRITE setDBmPanScaleMax NOTIFY panScaleChanged)
     Q_PROPERTY(bool active READ active WRITE setActive NOTIFY activeChanged)
+    Q_PROPERTY(QString cwDecodedText READ cwDecodedText WRITE setCwDecodedText NOTIFY cwDecodedTextChanged)
+    Q_PROPERTY(int cwWpm READ cwWpm WRITE setCwWpm NOTIFY cwWpmChanged)
+    Q_PROPERTY(bool cwToneActive READ cwToneActive WRITE setCwToneActive NOTIFY cwToneActiveChanged)
+    Q_PROPERTY(bool cwDecodeEnabled READ cwDecodeEnabled WRITE setCwDecodeEnabled NOTIFY cwDecodeEnabledChanged)
+    Q_PROPERTY(int cwTrackedPitch READ cwTrackedPitch WRITE setCwTrackedPitch NOTIFY cwTrackedPitchChanged)
 
 public:
     explicit SliceModel(int id, QObject *parent = nullptr);
@@ -106,7 +111,7 @@ public:
     void setVolume(float vol);
 
     bool mute() const { return m_mute; }
-    void setMute(bool muted);
+    void setMute(bool mute);
 
     float pan() const { return m_pan; }
     void setPan(float pan);
@@ -142,19 +147,19 @@ public:
     void setNr2NpeMethod(int method);
 
     bool nr2Ae() const { return m_nr2Ae; }
-    void setNr2Ae(bool enabled);
+    void setNr2Ae(bool ae);
 
     int nrAgc() const { return m_nrAgc; }
-    void setNrAgc(int mode);
+    void setNrAgc(int agc);
 
     bool anf() const { return m_anf; }
-    void setAnf(bool enabled);
+    void setAnf(bool anf);
 
     bool snb() const { return m_snb; }
-    void setSnb(bool enabled);
+    void setSnb(bool snb);
 
     double sMeterValue() const { return m_sMeterValue; }
-    void setSMeterValue(double value);
+    void setSMeterValue(double val);
 
     int sMeterHoldTime() const { return m_sMeterHoldTime; }
     void setSMeterHoldTime(int time);
@@ -181,10 +186,10 @@ public:
     void setWaterfallMode(WaterfallColorMode mode);
 
     int waterfallOffsetLo() const { return m_waterfallOffsetLo; }
-    void setWaterfallOffsetLo(int offset);
+    void setWaterfallOffsetLo(int val);
 
     int waterfallOffsetHi() const { return m_waterfallOffsetHi; }
-    void setWaterfallOffsetHi(int offset);
+    void setWaterfallOffsetHi(int val);
 
     bool panGrid() const { return m_panGrid; }
     void setPanGrid(bool enabled);
@@ -201,18 +206,33 @@ public:
     bool active() const { return m_active; }
     void setActive(bool active);
 
+    QString cwDecodedText() const { return m_cwDecodedText; }
+    void setCwDecodedText(const QString &text);
+
+    int cwWpm() const { return m_cwWpm; }
+    void setCwWpm(int wpm);
+
+    bool cwToneActive() const { return m_cwToneActive; }
+    void setCwToneActive(bool active);
+
+    bool cwDecodeEnabled() const { return m_cwDecodeEnabled; }
+    void setCwDecodeEnabled(bool enabled);
+
+    int cwTrackedPitch() const { return m_cwTrackedPitch; }
+    void setCwTrackedPitch(int pitch);
+
 signals:
     void frequencyChanged(qint64 freq);
     void vfoAFrequencyChanged(qint64 freq);
     void vfoBFrequencyChanged(qint64 freq);
-    void activeVfoChanged(ActiveVfo vfo);
+    void activeVfoChanged(SliceModel::ActiveVfo vfo);
     void centerFrequencyChanged(qint64 freq);
     void dspModeChanged(DSPMode mode);
     void filterChanged();
     void filterPresetChanged(int preset);
     void filterSlopeChanged(int slope);
     void volumeChanged(float vol);
-    void muteChanged(bool muted);
+    void muteChanged(bool mute);
     void panChanged(float pan);
     void agcModeChanged(AGCMode mode);
     void agcGainChanged(int gain);
@@ -224,8 +244,8 @@ signals:
     void nrModeChanged(int mode);
     void nr2GainMethodChanged(int method);
     void nr2NpeMethodChanged(int method);
-    void nr2AeChanged(bool enabled);
-    void nrAgcChanged(int mode);
+    void nr2AeChanged(bool ae);
+    void nrAgcChanged(int agc);
     void anfChanged(bool enabled);
     void snbChanged(bool enabled);
     void sMeterValueChanged(double value);
@@ -242,6 +262,11 @@ signals:
     void peakHoldChanged(bool enabled);
     void panScaleChanged();
     void activeChanged(bool active);
+    void cwDecodedTextChanged(const QString &text);
+    void cwWpmChanged(int wpm);
+    void cwToneActiveChanged(bool active);
+    void cwDecodeEnabledChanged(bool enabled);
+    void cwTrackedPitchChanged(int pitch);
 
 private:
     void writeThroughActiveSlot(qint64 freq);
@@ -290,6 +315,11 @@ private:
     double m_dBmPanScaleMin = -140.0;
     double m_dBmPanScaleMax = -20.0;
     bool m_active = false;
+    QString m_cwDecodedText;
+    int m_cwWpm = 20;
+    bool m_cwToneActive = false;
+    bool m_cwDecodeEnabled = true;
+    int m_cwTrackedPitch = 700;
 };
 
 #endif // SLICEMODEL_H

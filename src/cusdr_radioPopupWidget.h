@@ -67,6 +67,8 @@ public:
 	void setFreeDVMode(int mode);
 	void setFreeDVStatus(bool sync, float snr, quint64 rxFrames, quint64 txFrames);
 	void setAGCShowLines(bool enabled);
+	void setDxCluster(bool enabled);
+	void setCwDecodeEnabled(bool enabled);
 	int getReceiver() const { return m_receiver; }
 
 signals:
@@ -87,6 +89,8 @@ signals:
 	void clickVFORequested(int rx, bool enabled);
 	void hairCrossRequested(int rx, bool enabled);
 	void graphicsStateRequested(int rx, PanGraphicsMode panMode, WaterfallColorMode waterMode);
+	void dxClusterRequested(bool enabled);
+	void cwDecodeRequested(bool enabled);
 
 	void showEvent();
 	void hideEvent();
@@ -170,6 +174,8 @@ private:
 	AeroButton*		m_PanSolidBtn;
 	AeroButton*		m_WaterfallSimpleBtn;
 	AeroButton*		m_WaterfallEnhancedBtn;
+	QCheckBox*		m_cwDecodeCheckBox = nullptr;
+	QCheckBox*		m_dxClusterCheckBox = nullptr;
 
     AeroButton*		band2200mBtn;
     AeroButton*		band630mBtn;

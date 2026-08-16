@@ -33,7 +33,7 @@ private:
 
     quint8  m_adc_rx1_4, m_adc_rx5_8, m_adc_rx9_16;
     quint8  m_new_adc_rx1_4, m_new_adc_rx5_8, m_new_adc_rx9_16;
-    int     m_firstTimeRxInit;
+    int     m_rxFreqRoundRobin;
     int     m_rxSamples;
     int     m_fwCount;
 

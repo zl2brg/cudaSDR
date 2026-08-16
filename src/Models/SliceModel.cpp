@@ -330,3 +330,33 @@ void SliceModel::setActive(bool active) {
     m_active = active;
     emit activeChanged(m_active);
 }
+
+void SliceModel::setCwDecodedText(const QString &text) {
+    if (m_cwDecodedText == text) return;
+    m_cwDecodedText = text;
+    emit cwDecodedTextChanged(m_cwDecodedText);
+}
+
+void SliceModel::setCwWpm(int wpm) {
+    if (m_cwWpm == wpm) return;
+    m_cwWpm = wpm;
+    emit cwWpmChanged(m_cwWpm);
+}
+
+void SliceModel::setCwToneActive(bool active) {
+    if (m_cwToneActive == active) return;
+    m_cwToneActive = active;
+    emit cwToneActiveChanged(m_cwToneActive);
+}
+
+void SliceModel::setCwDecodeEnabled(bool enabled) {
+    if (m_cwDecodeEnabled == enabled) return;
+    m_cwDecodeEnabled = enabled;
+    emit cwDecodeEnabledChanged(m_cwDecodeEnabled);
+}
+
+void SliceModel::setCwTrackedPitch(int pitch) {
+    if (m_cwTrackedPitch == pitch) return;
+    m_cwTrackedPitch = pitch;
+    emit cwTrackedPitchChanged(m_cwTrackedPitch);
+}

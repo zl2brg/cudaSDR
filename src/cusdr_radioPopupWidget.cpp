@@ -533,6 +533,29 @@ void RadioPopupWidget::createOptionsBtnGroup() {
     hbox5->addWidget(m_WaterfallSimpleBtn);
     hbox5->addWidget(m_WaterfallEnhancedBtn);
 
+    m_cwDecodeCheckBox = new QCheckBox(tr("CW Decode"), this);
+    m_cwDecodeCheckBox->setFont(m_fonts.smallFont);
+    m_cwDecodeCheckBox->setStyleSheet("color: rgba(220, 220, 220, 255);");
+    m_cwDecodeCheckBox->setToolTip(tr("Enable/disable Morse code decoding and tone line in CW mode"));
+    m_cwDecodeCheckBox->setChecked(true);
+    connect(m_cwDecodeCheckBox, &QCheckBox::clicked, this, [this](bool checked) {
+        emit cwDecodeRequested(checked);
+    });
+
+    m_dxClusterCheckBox = new QCheckBox(tr("DX Cluster (RBN)"), this);
+    m_dxClusterCheckBox->setFont(m_fonts.smallFont);
+    m_dxClusterCheckBox->setStyleSheet("color: rgba(220, 220, 220, 255);");
+    m_dxClusterCheckBox->setToolTip(tr("Connect to Reverse Beacon Network (RBN) / Telnet DX Cluster for live spots"));
+    connect(m_dxClusterCheckBox, &QCheckBox::clicked, this, [this](bool checked) {
+        emit dxClusterRequested(checked);
+    });
+
+    QHBoxLayout* hboxDx = new QHBoxLayout();
+    hboxDx->setContentsMargins(4, 2, 4, 2);
+    hboxDx->setSpacing(6);
+    hboxDx->addWidget(m_cwDecodeCheckBox);
+    hboxDx->addWidget(m_dxClusterCheckBox);
+
     optionsVBox = new QVBoxLayout;
     optionsVBox->setSpacing(1);
     optionsVBox->addLayout(hbox1);
@@ -542,6 +565,8 @@ void RadioPopupWidget::createOptionsBtnGroup() {
     optionsVBox->addSpacing(4);
     optionsVBox->addLayout(hbox4);
     optionsVBox->addLayout(hbox5);
+    optionsVBox->addSpacing(4);
+    optionsVBox->addLayout(hboxDx);
 }
 
 void RadioPopupWidget::createBandBtnGroup() {
@@ -2325,6 +2350,20 @@ void RadioPopupWidget::setHairCross(bool enabled) {
         showCrossBtn->setBtnState(enabled ? AeroButton::ON : AeroButton::OFF);
         showCrossBtn->blockSignals(false);
         showCrossBtn->update();
+    }
+}
+
+void RadioPopupWidget::setDxCluster(bool enabled) {
+    if (m_dxClusterCheckBox) {
+        const QSignalBlocker blocker(m_dxClusterCheckBox);
+        m_dxClusterCheckBox->setChecked(enabled);
+    }
+}
+
+void RadioPopupWidget::setCwDecodeEnabled(bool enabled) {
+    if (m_cwDecodeCheckBox) {
+        const QSignalBlocker blocker(m_cwDecodeCheckBox);
+        m_cwDecodeCheckBox->setChecked(enabled);
     }
 }
 

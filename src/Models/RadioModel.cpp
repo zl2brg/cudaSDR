@@ -1,13 +1,17 @@
 #include "RadioModel.h"
 #include "RadioTelemetry.h"
 #include "BandPlanManager.h"
+#include "Util/DxClusterClient.h"
 
 #include <QDebug>
+#include <QTimer>
 
 RadioModel::RadioModel(QObject *parent)
     : QObject(parent)
     , m_telemetry(new RadioTelemetry(this, this))
     , m_bandPlan(new BandPlanManager(this))
+    , m_dxClusterClient(new DxClusterClient(this))
+    , m_spotPruneTimer(new QTimer(this))
 {
     // Allocation bars: SDR-Band-Plans International (CC0).
     // Spot markers: KiwiSDR default DX labels (LGPL/GPL project data) plus
@@ -17,10 +21,32 @@ RadioModel::RadioModel(QObject *parent)
     if (!m_bandPlan->loadKiwiDxFromResource(QStringLiteral(":/bandplans/kiwi-dx.json")))
         qWarning() << "RadioModel: failed to load Kiwi DX label database";
     {
+        BandPlanManager eibi;
+        if (eibi.loadEiBiCsvFromResource(QStringLiteral(":/bandplans/eibi.csv")))
+            m_bandPlan->mergeSpots(eibi.spots());
+        else
+            qWarning() << "RadioModel: failed to load EiBi schedule database";
+    }
+    {
         BandPlanManager digi;
         if (digi.loadSpotsFromResource(QStringLiteral(":/bandplans/digimode-spots.json")))
             m_bandPlan->mergeSpots(digi.spots());
     }
+
+    // Connect DX Cluster & RBN spots to the panadapter spot manager
+    connect(m_dxClusterClient, &DxClusterClient::spotReceived,
+            this, [this](qint64 freqHz, const QString &dxCall, const QString &mode,
+                         int snr, int wpm, const QString &spotter, const QString &comment) {
+        if (m_bandPlan)
+            m_bandPlan->addSpotMarker(freqHz, dxCall, mode, snr, wpm, spotter, comment);
+    });
+
+    // Prune expired dynamic DX spots periodically (every 30 seconds)
+    connect(m_spotPruneTimer, &QTimer::timeout, this, [this]() {
+        if (m_bandPlan)
+            m_bandPlan->pruneExpiredSpots();
+    });
+    m_spotPruneTimer->start(30000);
 }
 
 RadioModel::~RadioModel()

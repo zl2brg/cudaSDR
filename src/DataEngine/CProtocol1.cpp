@@ -14,7 +14,7 @@ CProtocol1::CProtocol1()
     , m_new_adc_rx1_4(0)
     , m_new_adc_rx5_8(0)
     , m_new_adc_rx9_16(0)
-    , m_firstTimeRxInit(0)
+    , m_rxFreqRoundRobin(0)
     , m_rxSamples(0)
     , m_fwCount(0)
 {
@@ -391,8 +391,13 @@ void CProtocol1::encodeCCBytes(unsigned char* buffer, DataEngine* de, RadioModel
     		//			                   Boards, 1 = same frequency to all Mercury boards)
 
     		de->control_out[4] |= (ant != 0) ? ant-1 : ant;
-    		de->control_out[4] &= 0xFB; // 1 1 1 1 1 0 1 1
-    		de->control_out[4] |= de->txParams().duplex << 2;
+    		// Always force FPGA duplex ON for Protocol 1 (same as pihpsdr).
+    		// With duplex off, Hermes/HL2 locks RX LO to the TX NCO. Click-VFO /
+    		// CTUN keeps pan centre fixed while TX tracks VFO, so the spectrum
+    		// drifts by −NCO (e.g. WWV at 10.000 appears at 9.996 after a
+    		// +4 kHz click). UI "full duplex" is for Soapy RX-during-TX only.
+    		de->control_out[4] &= 0xFB; // clear duplex bit
+    		de->control_out[4] |= (1 << 2);
     		de->control_out[4] &= 0x07; // 0 0 0 0 0 1 1 1
     		// slices() is preallocated (8); use active receiver count for hardware mux.
     		int rcvrCount = de->receivers() > 0 ? de->receivers() : 1;
@@ -421,26 +426,34 @@ void CProtocol1::encodeCCBytes(unsigned char* buffer, DataEngine* de, RadioModel
     	case 2:
             {
 			// C0 = 0 0 0 0 0 1 0 x … Receiver NCO — must be panadapter CENTER frequency.
-    		if (m_firstTimeRxInit) {
-    			m_firstTimeRxInit -= 1;
-    			de->rx_freq_change = m_firstTimeRxInit;
-    		}
-            if (de->rx_freq_change >= 0) {
-                int rxIdx = de->rx_freq_change;
-                const QList<qint64> freqs = set->getCtrFrequencies();
-                qint64 freq = 7050000;
-                if (radioModel && rxIdx >= 0 && rxIdx < radioModel->slices().count()) {
-                    freq = radioModel->slices().at(rxIdx)->centerFrequency();
-                } else if (rxIdx >= 0 && rxIdx < freqs.count()) {
-                    freq = freqs.at(rxIdx);
-                }
-                de->control_out[0] = (rxIdx + 2) << 1;
-                de->control_out[1] = (freq >> 24) & 0xFF;
-                de->control_out[2] = (freq >> 16) & 0xFF;
-                de->control_out[3] = (freq >> 8) & 0xFF;
-                de->control_out[4] = freq & 0xFF;
-                de->rx_freq_change = -1;
-            }
+			// Always refresh (pihpsdr-style). Sending only on change left the
+			// previous C&C bytes in place (often the TX/VFO command) and never
+			// re-pinned the LO after duplex-off drift.
+			int rcvrCount = de->receivers() > 0 ? de->receivers() : 1;
+			if (rcvrCount > 7)
+				rcvrCount = 7;
+
+			int rxIdx = 0;
+			if (de->rx_freq_change >= 0 && de->rx_freq_change < rcvrCount) {
+				rxIdx = de->rx_freq_change;
+				de->rx_freq_change = -1;
+			} else {
+				rxIdx = m_rxFreqRoundRobin;
+				m_rxFreqRoundRobin = (m_rxFreqRoundRobin + 1) % rcvrCount;
+			}
+
+			const QList<qint64> freqs = set->getCtrFrequencies();
+			qint64 freq = 7050000;
+			if (radioModel && rxIdx >= 0 && rxIdx < radioModel->slices().count()) {
+				freq = radioModel->slices().at(rxIdx)->centerFrequency();
+			} else if (rxIdx >= 0 && rxIdx < freqs.count()) {
+				freq = freqs.at(rxIdx);
+			}
+			de->control_out[0] = (rxIdx + 2) << 1;
+			de->control_out[1] = (freq >> 24) & 0xFF;
+			de->control_out[2] = (freq >> 16) & 0xFF;
+			de->control_out[3] = (freq >> 8) & 0xFF;
+			de->control_out[4] = freq & 0xFF;
             }
     		sendState = 3;
     		break;

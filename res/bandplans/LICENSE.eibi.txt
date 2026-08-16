@@ -1,0 +1,8 @@
+EiBi Shortwave Schedules (sked-*.csv / eibi.csv)
+Compiled and maintained by Eike Bierwirth (eibispace.de).
+
+This frequency schedule data is provided as a public service for the shortwave listening (SWL),
+amateur radio, and software-defined radio (SDR) communities.
+
+Website: http://www.eibispace.de/
+E-Mail: info@eibispace.de

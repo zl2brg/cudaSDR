@@ -1758,7 +1758,8 @@ bool DataEngine::initReceivers(int rcvrs) {
 	//			                   Boards, 1 = same frequency to all Mercury boards)
 
 	control_out[4] &= 0x07; // 1 1 0 0 0 1 1 1
-	control_out[4] = (txParams().duplex << 2) | ((receivers() - 1) << 3);
+	// Protocol 1 FPGA duplex must stay on for independent RX/TX NCOs (CTUN).
+	control_out[4] = (1 << 2) | ((receivers() - 1) << 3);
 
 	if (!m_radioController) {
 		m_radioController = std::make_unique<RadioController>(this);
@@ -4393,6 +4394,8 @@ void DataEngine::setRepeaterMode(bool mode) {
 }
 
 void DataEngine::setTxFullDuplex(bool fullDuplex) {
+    // Soapy / host-side RX-during-TX preference. Protocol 1 FPGA duplex is
+    // forced ON in CProtocol1::encodeCCBytes (CTUN needs independent RX/TX NCOs).
     txParams().duplex = fullDuplex ? 1 : 0;
 
 #ifdef HAVE_SOAPYSDR

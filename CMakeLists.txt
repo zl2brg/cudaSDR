@@ -134,6 +134,7 @@ set(SOURCES
     ${SRC_DIR}/AudioEngine/cusdr_codec2processor.cpp
     ${SRC_DIR}/AudioEngine/cusdr_freedvprocessor.cpp
     ${SRC_DIR}/AudioEngine/cusdr_radeprocessor.cpp
+    ${SRC_DIR}/AudioEngine/CwDecoder.cpp
 
 #    ${SRC_DIR}/AudioEngine/cusdr_audio_utils.cpp
 #    ${SRC_DIR}/AudioEngine/cusdr_audio_waveform.cpp
@@ -187,6 +188,7 @@ set(SOURCES
     ${SRC_DIR}/Util/TciRoutingState.cpp
     ${SRC_DIR}/Util/TciCommandHandler.cpp
     ${SRC_DIR}/Util/AudioDeviceService.cpp
+    ${SRC_DIR}/Util/DxClusterClient.cpp
 
     # Main Widget Classes
     ${SRC_DIR}/cusdr_alexAntennaWidget.cpp
@@ -240,6 +242,7 @@ set(HEADERS
     ${SRC_DIR}/AudioEngine/cusdr_codec2processor.h
     ${SRC_DIR}/AudioEngine/cusdr_freedvprocessor.h
     ${SRC_DIR}/AudioEngine/cusdr_radeprocessor.h
+    ${SRC_DIR}/AudioEngine/CwDecoder.h
 
     # Data Engine
     ${SRC_DIR}/DataEngine/cusdr_dataIO.h
@@ -285,6 +288,7 @@ set(HEADERS
     ${SRC_DIR}/Util/TciRoutingState.h
     ${SRC_DIR}/Util/TciCommandHandler.h
     ${SRC_DIR}/Util/AudioDeviceService.h
+    ${SRC_DIR}/Util/DxClusterClient.h
 
     # Main Headers
     ${SRC_DIR}/cusdr_settings.h
@@ -447,6 +451,7 @@ if(BUILD_TESTING)
         ${SRC_DIR}/Models/SliceModel.cpp
         ${SRC_DIR}/Models/RadioTelemetry.cpp
         ${SRC_DIR}/Models/BandPlanManager.cpp
+        ${SRC_DIR}/Util/DxClusterClient.cpp
     )
 
     qt_add_executable(protocol_boundary_tests
@@ -553,6 +558,7 @@ if(BUILD_TESTING)
 
     qt_add_executable(ham_database_utils_tests
         tests/ham_database_utils_tests.cpp
+        ${SRC_DIR}/cusdr_hamDatabase.cpp
     )
     target_include_directories(ham_database_utils_tests PRIVATE
         ${SRC_DIR}
@@ -576,6 +582,7 @@ if(BUILD_TESTING)
         Qt6::Widgets
         Qt6::Network
         Qt6::Multimedia
+        Qt6::WebSockets
         Qt6::Test
     )
     add_test(NAME settings_persistence_tests COMMAND settings_persistence_tests)
@@ -596,6 +603,7 @@ if(BUILD_TESTING)
         Qt6::Widgets
         Qt6::Network
         Qt6::Multimedia
+        Qt6::WebSockets
         Qt6::Test
     )
     add_test(NAME settings_signal_tests COMMAND settings_signal_tests)
@@ -640,6 +648,7 @@ if(BUILD_TESTING)
         Qt6::Widgets
         Qt6::Network
         Qt6::Multimedia
+        Qt6::WebSockets
         Qt6::Test
     )
     add_test(NAME models_tests COMMAND models_tests)
@@ -668,6 +677,43 @@ if(BUILD_TESTING)
     )
     add_test(NAME config_json_tests COMMAND config_json_tests)
     set_tests_properties(config_json_tests PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    )
+
+    qt_add_executable(dx_cluster_tests
+        tests/dx_cluster_tests.cpp
+        ${SRC_DIR}/Util/DxClusterClient.cpp
+        ${SRC_DIR}/Models/BandPlanManager.cpp
+    )
+    target_include_directories(dx_cluster_tests PRIVATE
+        ${SRC_DIR}
+    )
+    target_link_libraries(dx_cluster_tests PRIVATE
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Widgets
+        Qt6::Network
+        Qt6::WebSockets
+        Qt6::Test
+    )
+    add_test(NAME dx_cluster_tests COMMAND dx_cluster_tests)
+    set_tests_properties(dx_cluster_tests PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    )
+
+    qt_add_executable(cw_decoder_tests
+        tests/cw_decoder_tests.cpp
+        ${SRC_DIR}/AudioEngine/CwDecoder.cpp
+    )
+    target_include_directories(cw_decoder_tests PRIVATE
+        ${SRC_DIR}
+    )
+    target_link_libraries(cw_decoder_tests PRIVATE
+        Qt6::Core
+        Qt6::Test
+    )
+    add_test(NAME cw_decoder_tests COMMAND cw_decoder_tests)
+    set_tests_properties(cw_decoder_tests PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
     )
 endif()

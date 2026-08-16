@@ -61,6 +61,27 @@ bool BandPlanManager::loadKiwiDxFromData(const QByteArray &json)
 	return loadKiwiDxJson(json);
 }
 
+bool BandPlanManager::loadEiBiCsvFromResource(const QString &resourcePath)
+{
+	QFile file(resourcePath);
+	if (!file.open(QIODevice::ReadOnly))
+		return false;
+	return loadEiBiCsv(file.readAll());
+}
+
+bool BandPlanManager::loadEiBiCsvFromFile(const QString &filePath)
+{
+	QFile file(filePath);
+	if (!file.open(QIODevice::ReadOnly))
+		return false;
+	return loadEiBiCsv(file.readAll());
+}
+
+bool BandPlanManager::loadEiBiCsvFromData(const QByteArray &csv)
+{
+	return loadEiBiCsv(csv);
+}
+
 bool BandPlanManager::loadXml(const QByteArray &xml)
 {
 	QXmlStreamReader reader(xml);
@@ -172,26 +193,203 @@ bool BandPlanManager::loadKiwiDxJson(const QByteArray &json)
 	return !m_spots.isEmpty();
 }
 
+bool BandPlanManager::loadEiBiCsv(const QByteArray &csv)
+{
+	if (csv.isEmpty())
+		return false;
+
+	QVector<BandSpot> loaded;
+	loaded.reserve(10000);
+
+	const QString text = QString::fromUtf8(csv);
+	const QStringList lines = text.split(QLatin1Char('\n'));
+
+	for (const QString &rawLine : lines) {
+		const QString line = rawLine.trimmed();
+		if (line.isEmpty() || line.startsWith(QLatin1Char('#')) || line.startsWith(QLatin1String("kHz"), Qt::CaseInsensitive))
+			continue;
+
+		const QStringList parts = line.split(QLatin1Char(';'));
+		if (parts.size() < 5)
+			continue;
+
+		bool ok = false;
+		const double kHz = parts.at(0).trimmed().toDouble(&ok);
+		if (!ok || kHz <= 0.0)
+			continue;
+
+		const QString timeStr = parts.size() > 1 ? parts.at(1).trimmed() : QString();
+		const QString days = parts.size() > 2 ? parts.at(2).trimmed() : QString();
+		const QString itu = parts.size() > 3 ? parts.at(3).trimmed() : QString();
+		const QString station = parts.size() > 4 ? parts.at(4).trimmed() : QString();
+		const QString lang = parts.size() > 5 ? parts.at(5).trimmed() : QString();
+		const QString target = parts.size() > 6 ? parts.at(6).trimmed() : QString();
+
+		if (station.isEmpty())
+			continue;
+
+		BandSpot spot;
+		spot.freqHz = qRound64(kHz * 1000.0);
+		spot.itu = itu;
+		spot.lang = lang;
+		spot.target = target;
+		spot.timeUtc = timeStr;
+		spot.days = days;
+
+		// Parse time range HHMM-HHMM
+		if (timeStr.size() >= 9 && timeStr.contains(QLatin1Char('-'))) {
+			const QStringList tParts = timeStr.split(QLatin1Char('-'));
+			if (tParts.size() == 2) {
+				const QString &s = tParts[0].trimmed();
+				const QString &e = tParts[1].trimmed();
+				if (s.size() == 4 && e.size() == 4) {
+					bool sH_ok = false, sM_ok = false, eH_ok = false, eM_ok = false;
+					const int sh = s.left(2).toInt(&sH_ok);
+					const int sm = s.right(2).toInt(&sM_ok);
+					const int eh = e.left(2).toInt(&eH_ok);
+					const int em = e.right(2).toInt(&eM_ok);
+					if (sH_ok && sM_ok && eH_ok && eM_ok) {
+						if (s == QLatin1String("0000") && (e == QLatin1String("2400") || e == QLatin1String("0000"))) {
+							spot.startMin = -1;
+							spot.endMin = -1;
+						} else {
+							spot.startMin = sh * 60 + sm;
+							spot.endMin = eh * 60 + em;
+						}
+					}
+				}
+			}
+		}
+
+		QString label = station;
+		if (!lang.isEmpty()) {
+			if (lang.startsWith(QLatin1Char('-')))
+				label += QLatin1Char(' ') + lang;
+			else
+				label += QStringLiteral(" [") + lang + QStringLiteral("]");
+		}
+		spot.label = label;
+
+		loaded.append(spot);
+	}
+
+	if (loaded.isEmpty())
+		return false;
+
+	std::sort(loaded.begin(), loaded.end(),
+	          [](const BandSpot &a, const BandSpot &b) { return a.freqHz < b.freqHz; });
+
+	m_spots = std::move(loaded);
+	emit planChanged();
+	return !m_spots.isEmpty();
+}
+
 void BandPlanManager::mergeSpots(const QVector<BandSpot> &extra, qint64 nearHz)
 {
 	if (extra.isEmpty())
 		return;
 
 	for (const BandSpot &s : extra) {
-		bool near = false;
+		bool exists = false;
 		for (const BandSpot &existing : m_spots) {
 			if (qAbs(existing.freqHz - s.freqHz) <= nearHz) {
-				near = true;
-				break;
+				if (existing.label.compare(s.label, Qt::CaseInsensitive) == 0) {
+					exists = true;
+					break;
+				}
 			}
 		}
-		if (!near)
+		if (!exists)
 			m_spots.append(s);
 	}
 
 	std::sort(m_spots.begin(), m_spots.end(),
 	          [](const BandSpot &a, const BandSpot &b) { return a.freqHz < b.freqHz; });
 	emit planChanged();
+}
+
+void BandPlanManager::addSpotMarker(qint64 freqHz, const QString &callsign, const QString &mode,
+                                   int snr, int wpm, const QString &spotter,
+                                   const QString &comment, int ttlSec)
+{
+	if (freqHz <= 0 || callsign.trimmed().isEmpty())
+		return;
+
+	const qint64 nowSec = QDateTime::currentSecsSinceEpoch();
+
+	BandSpot spot;
+	spot.freqHz = freqHz;
+	spot.mode = mode.toUpper().trimmed();
+	spot.snr = snr;
+	spot.wpm = wpm;
+	spot.spotter = spotter.trimmed();
+	spot.target = comment.trimmed();
+	spot.timestampSec = nowSec;
+	spot.ttlSec = ttlSec > 0 ? ttlSec : 900; // default 15 minutes
+
+	// Compose concise display label
+	QString label = callsign.trimmed().toUpper();
+	QStringList details;
+	if (!spot.mode.isEmpty())
+		details << spot.mode;
+	if (wpm > 0)
+		details << QStringLiteral("%1wpm").arg(wpm);
+	if (snr != 0)
+		details << QStringLiteral("%1%2dB").arg(snr > 0 ? "+" : "").arg(snr);
+
+	if (!details.isEmpty())
+		label += QStringLiteral(" [") + details.join(QLatin1Char(' ')) + QStringLiteral("]");
+
+	spot.label = label;
+
+	// Check if this spot / callsign already exists near this frequency (within 100 Hz)
+	bool updated = false;
+	for (BandSpot &existing : m_spots) {
+		if (existing.ttlSec > 0 && qAbs(existing.freqHz - freqHz) <= 100) {
+			if (existing.label.startsWith(callsign, Qt::CaseInsensitive)) {
+				existing = spot;
+				updated = true;
+				break;
+			}
+		}
+	}
+
+	if (!updated) {
+		m_spots.append(spot);
+		std::sort(m_spots.begin(), m_spots.end(),
+		          [](const BandSpot &a, const BandSpot &b) { return a.freqHz < b.freqHz; });
+	}
+
+	emit planChanged();
+}
+
+bool BandPlanManager::pruneExpiredSpots(qint64 currentSec)
+{
+	if (currentSec <= 0)
+		currentSec = QDateTime::currentSecsSinceEpoch();
+
+	const int initialSize = m_spots.size();
+	m_spots.erase(
+		std::remove_if(m_spots.begin(), m_spots.end(),
+		               [currentSec](const BandSpot &s) { return s.isExpired(currentSec); }),
+		m_spots.end());
+
+	const bool removed = (m_spots.size() != initialSize);
+	if (removed)
+		emit planChanged();
+	return removed;
+}
+
+void BandPlanManager::clearDynamicSpots()
+{
+	const int initialSize = m_spots.size();
+	m_spots.erase(
+		std::remove_if(m_spots.begin(), m_spots.end(),
+		               [](const BandSpot &s) { return s.ttlSec > 0; }),
+		m_spots.end());
+
+	if (m_spots.size() != initialSize)
+		emit planChanged();
 }
 
 QString BandPlanManager::urlDecode(const QString &s)
@@ -228,17 +426,23 @@ QVector<BandRange> BandPlanManager::rangesInSpan(qint64 loHz, qint64 hiHz) const
 	return out;
 }
 
-QVector<BandSpot> BandPlanManager::spotsInSpan(qint64 loHz, qint64 hiHz) const
+QVector<BandSpot> BandPlanManager::spotsInSpan(qint64 loHz, qint64 hiHz, int utcMinOfDay, int dayOfWeek) const
 {
 	QVector<BandSpot> out;
 	if (hiHz <= loHz || m_spots.isEmpty())
 		return out;
+
+	const qint64 nowSec = QDateTime::currentSecsSinceEpoch();
 
 	for (const BandSpot &s : m_spots) {
 		if (s.freqHz < loHz)
 			continue;
 		if (s.freqHz > hiHz)
 			break;
+		if (s.isExpired(nowSec))
+			continue;
+		if (utcMinOfDay >= 0 && !s.isActiveAt(utcMinOfDay, dayOfWeek))
+			continue;
 		out.append(s);
 	}
 	return out;

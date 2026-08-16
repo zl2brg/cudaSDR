@@ -36,5 +36,6 @@
         <file alias="bandplans/international.xml">bandplans/international.xml</file>
         <file alias="bandplans/digimode-spots.json">bandplans/digimode-spots.json</file>
         <file alias="bandplans/kiwi-dx.json">bandplans/kiwi-dx.json</file>
+        <file alias="bandplans/eibi.csv">bandplans/eibi.csv</file>
     </qresource>
 </RCC>

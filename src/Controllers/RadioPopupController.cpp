@@ -1,6 +1,9 @@
 #include "RadioPopupController.h"
 #include "cusdr_settings.h"
 #include "Models/SliceModel.h"
+#include "Models/RadioModel.h"
+#include "Models/BandPlanManager.h"
+#include "Util/DxClusterClient.h"
 #include "cusdr_radioPopupWidget.h"
 #include "cusdr_agcWidget.h"
 #include "UI/noisefilterwidget.h"
@@ -146,6 +149,46 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
     connect(m_view, &RadioPopupWidget::graphicsStateRequested, this, [this](int r, PanGraphicsMode panMode, WaterfallColorMode waterMode) {
         m_model->setGraphicsState(r, panMode, waterMode);
     });
+
+    RadioModel* radioModel = qobject_cast<RadioModel*>(m_sliceModel ? m_sliceModel->parent() : nullptr);
+    if (radioModel && radioModel->dxClusterClient()) {
+        DxClusterClient* client = radioModel->dxClusterClient();
+        m_view->setDxCluster(client->isConnected() || client->state() == DxClusterClient::Connecting || client->state() == DxClusterClient::WaitingForLogin);
+
+        connect(m_view, &RadioPopupWidget::dxClusterRequested, this, [client, radioModel, this](bool enabled) {
+            if (enabled) {
+                QString call = m_model ? m_model->getCallsign() : QString();
+                if (call.trimmed().isEmpty() || call == QStringLiteral("Your Call sign"))
+                    call = QStringLiteral("ZL2BRG");
+                client->connectTelnet(QStringLiteral("telnet.reversebeacon.net"), 7000, call);
+            } else {
+                client->disconnectFromCluster();
+                if (radioModel && radioModel->bandPlan()) {
+                    radioModel->bandPlan()->clearDynamicSpots();
+                }
+            }
+        });
+
+        connect(client, &DxClusterClient::stateChanged, this, [this](DxClusterClient::State state) {
+            if (m_view) {
+                m_view->setDxCluster(state == DxClusterClient::Connected ||
+                                     state == DxClusterClient::Connecting ||
+                                     state == DxClusterClient::WaitingForLogin);
+            }
+        });
+    }
+
+    if (m_sliceModel) {
+        m_view->setCwDecodeEnabled(m_sliceModel->cwDecodeEnabled());
+        connect(m_view, &RadioPopupWidget::cwDecodeRequested, this, [this](bool enabled) {
+            if (m_sliceModel)
+                m_sliceModel->setCwDecodeEnabled(enabled);
+        });
+        connect(m_sliceModel, &SliceModel::cwDecodeEnabledChanged, this, [this](bool enabled) {
+            if (m_view)
+                m_view->setCwDecodeEnabled(enabled);
+        });
+    }
 
     // Model -> View
     connect(m_model, &Settings::systemStateChanged, m_view, &RadioPopupWidget::systemStateChanged);

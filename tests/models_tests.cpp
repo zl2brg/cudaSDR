@@ -565,6 +565,48 @@ void ModelsTests::testBandPlanManagerLoadsInternational() {
     // WSPR near-dupe skipped; FT8 added.
     QCOMPARE(mgr.spots().size(), 3);
     QCOMPARE(mgr.spotsInSpan(14070000, 14100000).size(), 2);
+
+    // Test EiBi CSV loading
+    const QByteArray eibiCsv =
+        "kHz:75;Time(UTC):93;Days:59;ITU:49;Station:201;Lng:49;Target:62;Remarks:135;P:35;Start:60;Stop:60;\n"
+        "1010;0000-2400;;CAN;CFRX Toronto, CFRB 1010;E;NAm;t;1;;\n"
+        "7200;1100-1300;;CHN;China Radio Int.;K;FE;cc;1;;\n"
+        "15400;2200-0200;1-5;G;BBC World Service;E;NAm;wo;1;;\n";
+    BandPlanManager eibiMgr;
+    QVERIFY(eibiMgr.loadEiBiCsvFromData(eibiCsv));
+    QCOMPARE(eibiMgr.spots().size(), 3);
+
+    const BandSpot &spot0 = eibiMgr.spots().at(0);
+    QCOMPARE(spot0.freqHz, 1010000LL);
+    QCOMPARE(spot0.label, QStringLiteral("CFRX Toronto, CFRB 1010 [E]"));
+    QCOMPARE(spot0.itu, QStringLiteral("CAN"));
+    QCOMPARE(spot0.lang, QStringLiteral("E"));
+    QCOMPARE(spot0.startMin, -1);
+    QCOMPARE(spot0.endMin, -1);
+    QVERIFY(spot0.isActiveAt(600)); // 24/7 active
+
+    const BandSpot &spot1 = eibiMgr.spots().at(1);
+    QCOMPARE(spot1.freqHz, 7200000LL);
+    QCOMPARE(spot1.label, QStringLiteral("China Radio Int. [K]"));
+    QCOMPARE(spot1.startMin, 11 * 60);
+    QCOMPARE(spot1.endMin, 13 * 60);
+    QVERIFY(spot1.isActiveAt(12 * 60)); // 12:00 UTC is active
+    QVERIFY(!spot1.isActiveAt(14 * 60)); // 14:00 UTC is inactive
+
+    const BandSpot &spot2 = eibiMgr.spots().at(2);
+    QCOMPARE(spot2.freqHz, 15400000LL);
+    QCOMPARE(spot2.label, QStringLiteral("BBC World Service [E]"));
+    QCOMPARE(spot2.startMin, 22 * 60);
+    QCOMPARE(spot2.endMin, 2 * 60);
+    QVERIFY(spot2.isActiveAt(23 * 60, 3)); // 23:00 UTC Wednesday (day 3) is active
+    QVERIFY(spot2.isActiveAt(1 * 60, 4));  // 01:00 UTC Thursday (day 4) is active
+    QVERIFY(!spot2.isActiveAt(23 * 60, 6)); // Saturday (day 6) is inactive due to 1-5 day constraint
+    QVERIFY(!spot2.isActiveAt(12 * 60, 2)); // 12:00 UTC is inactive
+
+    // Test spotsInSpan with time filtering
+    QCOMPARE(eibiMgr.spotsInSpan(1000000, 20000000).size(), 3); // All 3 when unfiltered
+    QCOMPARE(eibiMgr.spotsInSpan(1000000, 20000000, 12 * 60, 2).size(), 2); // 1010 kHz (24/7) + 7200 kHz (active 12:00)
+    QCOMPARE(eibiMgr.spotsInSpan(1000000, 20000000, 14 * 60, 2).size(), 1); // 1010 kHz (24/7) only
 }
 
 QTEST_MAIN(ModelsTests)

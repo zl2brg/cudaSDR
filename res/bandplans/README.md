@@ -15,6 +15,11 @@ ships under those terms — keep attribution if redistributing.
 FT4, JS8, …) from AetherSDR `iaru-region3.json` spots. Merged on top of the
 Kiwi set so FT8 etc. still appear where the stock Kiwi DB is sparse.
 
+`eibi.csv` — EiBi shortwave broadcast and utility schedule database
+(from [eibispace.de](http://www.eibispace.de/), by Eike Bierwirth).
+Frequencies in kHz with UTC time schedules, language, target, and ITU country codes.
+Free for community SDR use (`LICENSE.eibi.txt`).
+
 ## Runtime mix
 - Coloured strip = SDR-Band-Plans ranges  
-- Hanging labels = Kiwi DX + digimode merge
+- Hanging labels = Kiwi DX + EiBi schedules + digimode merge

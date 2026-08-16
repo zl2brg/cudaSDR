@@ -78,6 +78,46 @@ SliceProcessor::SliceProcessor(SliceModel *model, QObject *parent)
 		m_freeDVProcessor = new FreeDVProcessor(m_freeDVMode);
 	}
 #endif
+	m_cwDecoder = new CwDecoder(m_receiver, this);
+	m_cwDecoder->setPitch(set->getCwSidetoneFreq());
+	if (m_sliceModel) {
+		connect(m_cwDecoder, &CwDecoder::textUpdated,
+				m_sliceModel, [this](int rx, const QString &text) {
+			if (m_sliceModel && m_sliceModel->id() == rx)
+				m_sliceModel->setCwDecodedText(text);
+		});
+		connect(m_cwDecoder, &CwDecoder::wpmChanged,
+				m_sliceModel, [this](int rx, int wpm) {
+			if (m_sliceModel && m_sliceModel->id() == rx)
+				m_sliceModel->setCwWpm(wpm);
+		});
+		connect(m_cwDecoder, &CwDecoder::toneStatusChanged,
+				m_sliceModel, [this](int rx, bool active, float snrDb) {
+			Q_UNUSED(snrDb)
+			if (m_sliceModel && m_sliceModel->id() == rx)
+				m_sliceModel->setCwToneActive(active);
+		});
+		connect(m_cwDecoder, &CwDecoder::trackedPitchChanged,
+				m_sliceModel, [this](int rx, int pitch) {
+			if (m_sliceModel && m_sliceModel->id() == rx)
+				m_sliceModel->setCwTrackedPitch(pitch);
+		});
+		connect(m_sliceModel, &SliceModel::cwDecodedTextChanged,
+				this, [this](const QString &text) {
+			if (text.isEmpty() && m_cwDecoder)
+				m_cwDecoder->clearText();
+		});
+		connect(m_sliceModel, &SliceModel::cwDecodeEnabledChanged,
+				this, [this](bool enabled) {
+			if (m_cwDecoder) {
+				m_cwDecoder->setEnabled(enabled);
+				if (!enabled)
+					m_cwDecoder->clearText();
+			}
+		});
+	}
+	connect(set, &Settings::CwSidetoneFreqChanged, m_cwDecoder, &CwDecoder::setPitch);
+
 	setupConnections();
     m_displayTime = (int)(1000000.0/set->getFramesPerSecond(m_receiver));
 	m_smeterTime.start();
@@ -540,6 +580,14 @@ void SliceProcessor::dspProcessingCore() {
             const int n = audioSamplesThisCall;
             deliverInternalAudio(interleaveFromCPX(audioOutputBuf, n),
                                  monoStereoFromCPX(audioOutputBuf, n));
+
+            if (m_cwDecoder && m_cwDecoder->isEnabled() && (dspMode == DSPMode::CWL || dspMode == DSPMode::CWU)) {
+                QVector<float> mono(n);
+                const cpx* src = audioOutputBuf.constData();
+                for (int i = 0; i < n; ++i)
+                    mono[i] = static_cast<float>(src[i].re);
+                m_cwDecoder->processAudio(mono.constData(), n, 48000);
+            }
 		}
 		else {
 			QVector<float> mono(audioSamplesThisCall);

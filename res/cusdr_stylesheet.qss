@@ -21,6 +21,15 @@ QDialog {
     background-color: rgba(60, 60, 60, 255);
 }
 
+/* ===== QToolTip ===== */
+QToolTip {
+    background-color: rgba(20, 24, 30, 245);
+    color: rgba(235, 245, 255, 255);
+    border: 1px solid rgba(72, 168, 198, 220);
+    border-radius: 3px;
+    padding: 4px 6px;
+}
+
 /* ===== QGroupBox ===== */
 QGroupBox {
     color: rgba(166, 196, 208, 255);

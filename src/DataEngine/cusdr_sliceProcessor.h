@@ -45,6 +45,8 @@
 #include "AudioEngine/cusdr_radeprocessor.h"
 #endif
 
+#include "AudioEngine/CwDecoder.h"
+
 #ifdef LOG_SLICE_PROCESSOR
 #   define SLICE_PROCESSOR_DEBUG qDebug().nospace() << "SliceProcessor::\t"
 #else
@@ -202,6 +204,11 @@ private:
 #ifdef HAVE_RADE
 	RadeProcessor* m_radeProcessor = nullptr;
 #endif
+
+	CwDecoder* m_cwDecoder = nullptr;
+
+public:
+	CwDecoder* cwDecoder() const { return m_cwDecoder; }
 
 signals:
 	void	messageEvent(QString msg);

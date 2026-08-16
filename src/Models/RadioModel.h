@@ -10,6 +10,7 @@
 
 class RadioTelemetry;
 class BandPlanManager;
+class DxClusterClient;
 
 class RadioModel : public QObject {
     Q_OBJECT
@@ -60,6 +61,7 @@ public:
 
     RadioTelemetry* telemetry() const { return m_telemetry; }
     BandPlanManager* bandPlan() const { return m_bandPlan; }
+    DxClusterClient* dxClusterClient() const { return m_dxClusterClient; }
 
 signals:
     void connectedChanged(bool connected);
@@ -80,6 +82,8 @@ private:
     QList<SliceModel*> m_slices;
     RadioTelemetry* m_telemetry = nullptr;
     BandPlanManager* m_bandPlan = nullptr;
+    DxClusterClient* m_dxClusterClient = nullptr;
+    QTimer* m_spotPruneTimer = nullptr;
 };
 
 #endif // RADIOMODEL_H

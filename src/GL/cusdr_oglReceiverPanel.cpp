@@ -375,6 +375,9 @@ void QGLReceiverPanel::setupConnections() {
         if (RadioTelemetry* tel = radioModel->telemetry()) {
             connect(tel, &RadioTelemetry::adcOverflowChanged, this, &QGLReceiverPanel::setADCStatus);
         }
+        if (BandPlanManager* plan = radioModel->bandPlan()) {
+            connect(plan, &BandPlanManager::planChanged, this, qOverload<>(&QGLReceiverPanel::update));
+        }
     }
     connect(set, &Settings::panLockedStatusChanged,      this, &QGLReceiverPanel::setPanLockedStatus);
     connect(set, &Settings::clickVFOStatusChanged,       this, &QGLReceiverPanel::setClickVFOStatus);
@@ -411,6 +414,11 @@ void QGLReceiverPanel::setupConnections() {
         m_peakHoldBufferResize = true;
         update();
     });
+
+    connect(m_sliceModel, &SliceModel::cwDecodedTextChanged, this, qOverload<>(&QGLReceiverPanel::update));
+    connect(m_sliceModel, &SliceModel::cwToneActiveChanged, this, qOverload<>(&QGLReceiverPanel::update));
+    connect(m_sliceModel, &SliceModel::cwDecodeEnabledChanged, this, qOverload<>(&QGLReceiverPanel::update));
+    connect(m_sliceModel, &SliceModel::cwTrackedPitchChanged, this, qOverload<>(&QGLReceiverPanel::update));
 
 	connect(radioPopup, &RadioPopupWidget::vfoToMidBtnEvent, this, &QGLReceiverPanel::setVfoToMidFrequency);
 	connect(radioPopup, &RadioPopupWidget::midToVfoBtnEvent, this, &QGLReceiverPanel::setMidToVfoFrequency);
@@ -641,6 +649,7 @@ void QGLReceiverPanel::paintReceiverDisplay() {
         ensurePanelViewport();
         drawVFOControl();
         drawReceiverInfo();
+        drawCwDecoderHUD();
 	}
 
 	if (m_waterfallRect.height() > 10) {
@@ -693,7 +702,12 @@ void QGLReceiverPanel::drawBandPlanStrip()
 
 	const qint64 loHz = qint64(qreal(m_centerFrequency) - span / 2.0);
 	const qint64 hiHz = qint64(qreal(m_centerFrequency) + span / 2.0);
-	QVector<BandSpot> spots = plan->spotsInSpan(loHz, hiHz);
+
+	const QDateTime nowUtc = QDateTime::currentDateTimeUtc();
+	const int utcMinOfDay = nowUtc.time().hour() * 60 + nowUtc.time().minute();
+	const int dayOfWeek = nowUtc.date().dayOfWeek();
+
+	QVector<BandSpot> spots = plan->spotsInSpan(loHz, hiHz, utcMinOfDay, dayOfWeek);
 	if (spots.isEmpty())
 		return;
 
@@ -746,6 +760,12 @@ void QGLReceiverPanel::drawBandPlanStrip()
 			return QColor(230, 170, 70);
 		if (label.contains(QLatin1String("JS8")))
 			return QColor(190, 150, 230);
+		if (label.contains(QLatin1String("[CW"), Qt::CaseInsensitive) || label.endsWith(QLatin1String("CW")))
+			return QColor(255, 215, 0); // Gold for CW RBN spots
+		if (label.contains(QLatin1String("[SSB"), Qt::CaseInsensitive) || label.contains(QLatin1String("[USB"), Qt::CaseInsensitive) || label.contains(QLatin1String("[LSB"), Qt::CaseInsensitive))
+			return QColor(80, 190, 245); // Sky blue for SSB spots
+		if (label.contains(QLatin1String("[RTTY"), Qt::CaseInsensitive) || label.contains(QLatin1String("RTTY")))
+			return QColor(245, 90, 180); // Magenta for RTTY spots
 		if (label.contains(QLatin1String("IBP")) || label.contains(QLatin1String("beacon"), Qt::CaseInsensitive))
 			return QColor(110, 210, 210);
 		return QColor(200, 205, 215);
@@ -1023,14 +1043,17 @@ void QGLReceiverPanel::updateFrequencyRuler()
         return;
 
     const int fullWidth = m_freqScalePanRect.width();
-    const int panOffset = qRound(m_deltaF * qreal(fullWidth) / displayedZoomFactor());
 
     const qreal lowerFreq = qreal(m_centerFrequency) - freqSpan / 2;
     const qreal upperFreq = qreal(m_centerFrequency) + freqSpan / 2;
 
+    // Ruler must stay locked to the panadapter centre (hardware LO). Do not
+    // offset by m_deltaF / VFO-NCO: the spectrum is LO-relative, and shifting
+    // the scale with click-VFO made a signal at centre read as centre−Δf
+    // (e.g. click +4 kHz → peak labelled centre−4 kHz).
     const qreal plotLo = lowerFreq + qreal(plotLeft) * freqSpan / qreal(fullWidth);
     const qreal plotFreqSpan = upperFreq - plotLo;
-    const qreal visibleLo = plotLo + qreal(panOffset) * plotFreqSpan / qreal(plotWidth);
+    const qreal visibleLo = plotLo;
     const qreal visibleHi = visibleLo + plotFreqSpan;
     const qreal unit = qreal(plotWidth) / plotFreqSpan;
     const int fontMaxWidth = m_fonts.smallFontMetrics->boundingRect(QStringLiteral("000.000.0")).width();
@@ -1608,6 +1631,176 @@ void QGLReceiverPanel::drawReceiverInfo() {
     }
 }
 
+void QGLReceiverPanel::drawCwDecoderHUD() {
+    const DSPMode mode = m_sliceModel ? m_sliceModel->dspMode() : m_dspMode;
+    const DSPMode setMode = static_cast<DSPMode>(set->getDSPMode(m_receiver));
+    const bool isCw = (mode == DSPMode::CWL || mode == DSPMode::CWU ||
+                       m_dspMode == DSPMode::CWL || m_dspMode == DSPMode::CWU ||
+                       setMode == DSPMode::CWL || setMode == DSPMode::CWU);
+    if (!isCw || (m_sliceModel && !m_sliceModel->cwDecodeEnabled())) {
+        m_cwTextRect = QRect();
+        return;
+    }
+
+    const QString text = m_sliceModel ? m_sliceModel->cwDecodedText() : QString();
+    const int wpm = m_sliceModel ? m_sliceModel->cwWpm() : 20;
+    const bool toneOn = m_sliceModel ? m_sliceModel->cwToneActive() : false;
+
+    ensurePanelViewport();
+
+    // 1. Calculate the exact target CW tone frequency (+pitch for CWU, -pitch for CWL)
+    const int cwPitch = set->getCwSidetoneFreq();
+    const int trackedPitch = m_sliceModel ? m_sliceModel->cwTrackedPitch() : cwPitch;
+    const qint64 vfoFreq = m_sliceModel ? m_sliceModel->frequency() : m_vfoFrequency;
+    const qint64 centerFreq = m_sliceModel ? m_sliceModel->centerFrequency() : m_centerFrequency;
+
+    // Tracked tone frequency for the dynamic green marker line
+    const qint64 targetToneFreq = (mode == DSPMode::CWL) ? (vfoFreq - trackedPitch) : (vfoFreq + trackedPitch);
+    // Nominal center frequency for steady, non-jittering text box placement
+    const qint64 nominalToneFreq = (mode == DSPMode::CWL) ? (vfoFreq - cwPitch) : (vfoFreq + cwPitch);
+
+    // 2. Compute screen X positions
+    const float zoomFactor = displayedZoomFactor();
+    const float sampleRate = (m_sampleRate > 0) ? (float)m_sampleRate : 48000.0f;
+    const float targetDeltaF = (float)(targetToneFreq - centerFreq) / sampleRate;
+    const float nominalDeltaF = (float)(nominalToneFreq - centerFreq) / sampleRate;
+
+    const float cwX = (float)m_panRect.left() + ((float)m_panRect.width() / 2.0f) + (targetDeltaF * (float)m_panRect.width() / zoomFactor);
+    const float nominalX = (float)m_panRect.left() + ((float)m_panRect.width() / 2.0f) + (nominalDeltaF * (float)m_panRect.width() / zoomFactor);
+
+    const int panLeft = m_panRect.left();
+    const int panRight = m_panRect.right();
+    const int panTop = m_panRect.top();
+    const int panBottom = m_panRect.bottom();
+
+    const bool lineVisible = (cwX >= (float)panLeft && cwX <= (float)panRight);
+
+    const int badgeH = m_fonts.fontHeightNormalFont + 6;
+    const QString badgeText = (toneOn && std::abs(trackedPitch - cwPitch) > 6)
+        ? QStringLiteral("CW %1W %2H").arg(wpm > 0 ? wpm : 20).arg(trackedPitch)
+        : QStringLiteral("CW %1 WPM").arg(wpm > 0 ? wpm : 20);
+    // Fixed constant badge width to prevent horizontal jitter
+    const int badgeW = m_oglTextSmall->fontMetrics().horizontalAdvance(QStringLiteral("CW 99W 9999H")) + 16;
+
+    QString displayStr = text;
+    if (displayStr.isEmpty()) {
+        displayStr = (toneOn && std::abs(trackedPitch - cwPitch) > 6)
+            ? QStringLiteral("<%1Hz CW>").arg(trackedPitch)
+            : QStringLiteral("<%1Hz CW>").arg(cwPitch);
+    }
+
+    const int maxChars = 40;
+    const int maxTextW = m_oglTextNormal 
+        ? qMax(280, m_oglTextNormal->fontMetrics().averageCharWidth() * maxChars + 24)
+        : 320;
+    const int defaultBoxW = badgeW + maxTextW + 14;
+
+    // Determine CW Box coordinates: custom user-dragged or default anchored position
+    int textX = qRound(nominalX) + 6;
+    int textY = panTop + (m_panRect.height() / 2) - (badgeH / 2);
+
+    if (m_hasCustomCwBoxPos) {
+        textX = m_cwBoxPos.x();
+        textY = m_cwBoxPos.y();
+    } else if (textX + defaultBoxW > panRight) {
+        // Shift to left of nominal line if near right panadapter border
+        textX = qRound(nominalX) - 6 - defaultBoxW;
+    }
+
+    textX = qBound(panLeft + 4, textX, panRight - 80);
+    textY = qBound(panTop + 4, textY, panBottom - badgeH - 4);
+
+    const int availableW = panRight - textX - 8;
+    if (availableW > 60) {
+        const int textAvailableW = qBound(20, availableW - badgeW - 10, maxTextW);
+        QString trimmedText = displayStr;
+        if (trimmedText.length() > maxChars) {
+            trimmedText = trimmedText.right(maxChars);
+        }
+        while (!trimmedText.isEmpty() && m_oglTextNormal->fontMetrics().horizontalAdvance(trimmedText) > textAvailableW) {
+            trimmedText.remove(0, 1);
+        }
+
+        const int totalW = badgeW + (trimmedText.isEmpty() ? 0 : m_oglTextNormal->fontMetrics().horizontalAdvance(trimmedText) + 8) + 6;
+        m_cwTextRect = QRect(textX, textY, totalW, badgeH);
+
+        const int boxMidY = textY + (badgeH / 2);
+        const int boxLeftX = textX;
+        const int boxRightX = textX + totalW;
+
+        // Dynamic pitch marker color (glowing green on tone, soft emerald when idle)
+        const QColor lineColor = toneOn ? QColor(50, 240, 130, 230) : QColor(35, 170, 110, 140);
+
+        if (lineVisible) {
+            const int lineX = qRound(cwX);
+
+            // Find the spectrum curve/peak Y coordinate at lineX
+            int signalPeakY = panBottom - 12;
+            const int relX = lineX - panLeft;
+            if (!m_panadapterBins.isEmpty() && relX >= 0 && relX < m_panadapterBins.size()) {
+                const qreal dBmRange = qMax(10.0, m_dBmPanMax - m_dBmPanMin);
+                const qreal yScale = (qreal)m_panRect.height() / dBmRange;
+
+                // Sample a 3-bin window around the line to find the local peak Y
+                qreal maxBinVal = m_panadapterBins.at(relX);
+                if (relX > 0) maxBinVal = qMax(maxBinVal, m_panadapterBins.at(relX - 1));
+                if (relX < m_panadapterBins.size() - 1) maxBinVal = qMax(maxBinVal, m_panadapterBins.at(relX + 1));
+
+                const int curveY = panBottom - qRound(yScale * maxBinVal);
+                signalPeakY = qBound(panTop + 10, curveY, panBottom - 4);
+            }
+
+            // Downward arrow tip stops 8px above the spectrum peak
+            const int arrowTipY = qBound(panTop + 16, signalPeakY - 8, panBottom - 6);
+
+            // 1. Vertical Arrow Shaft extending from box level down to arrow tip
+            if (boxMidY < arrowTipY - 6) {
+                drawPanelRect(QRect(lineX - 1, boxMidY, 2, arrowTipY - 6 - boxMidY), lineColor, 3.5f);
+            } else if (boxMidY > arrowTipY + 6) {
+                drawPanelRect(QRect(lineX - 1, arrowTipY + 6, 2, boxMidY - (arrowTipY + 6)), lineColor, 3.5f);
+            }
+
+            // 2. Downward Arrowhead pointing directly at the CW RF peak (at lineX, arrowTipY)
+            drawPanelRect(QRect(lineX - 4, arrowTipY - 6, 9, 2), lineColor, 3.6f);
+            drawPanelRect(QRect(lineX - 3, arrowTipY - 4, 7, 2), lineColor, 3.6f);
+            drawPanelRect(QRect(lineX - 2, arrowTipY - 2, 5, 2), lineColor, 3.6f);
+            drawPanelRect(QRect(lineX - 1, arrowTipY,     3, 2), lineColor, 3.6f);
+
+            // 3. Horizontal Green Guide / Leader Line extending to the LHS of the CW display box
+            if (boxLeftX > lineX) {
+                // Box is to the right of the signal: leader line extends from lineX to boxLeftX
+                drawPanelRect(QRect(lineX, boxMidY - 1, qMax(1, boxLeftX - lineX), 2), lineColor, 3.5f);
+            } else if (boxRightX < lineX) {
+                // Box is to the left of the signal: leader line extends from boxRightX to lineX
+                drawPanelRect(QRect(boxRightX, boxMidY - 1, qMax(1, lineX - boxRightX), 2), lineColor, 3.5f);
+            }
+            // Small guide pip at the attachment point on the LHS of the box
+            drawPanelRect(QRect(boxLeftX - 3, boxMidY - 2, 4, 4), lineColor, 3.6f);
+        }
+
+        // Background container (stable dark slate)
+        drawPanelRect(m_cwTextRect, QColor(10, 14, 20, 215), 3.4f);
+
+        // WPM Badge (stable dark badge)
+        drawPanelRect(QRect(textX + 2, textY + 2, badgeW, badgeH - 4), QColor(28, 38, 48, 230), 3.5f);
+
+        // Tone indicator dot (lights green on active mark tone)
+        drawPanelRect(QRect(textX + 5, textY + (badgeH / 2) - 2, 5, 5),
+                      toneOn ? QColor(60, 240, 130) : QColor(90, 110, 130), 3.6f);
+
+        m_glTextColor = Qt::white;
+        renderPanelText(m_oglTextSmall, float(textX + 14), float(textY + 3), 3.6f, badgeText);
+
+        // Decoded text in high-contrast gold
+        if (!trimmedText.isEmpty()) {
+            m_glTextColor = text.isEmpty() ? QColor(130, 160, 180, 190) : QColor(255, 235, 130, 255);
+            renderPanelText(m_oglTextNormal, float(textX + badgeW + 6), float(textY + 2), 3.6f, trimmedText);
+        }
+    } else {
+        m_cwTextRect = QRect();
+    }
+}
+
 void QGLReceiverPanel::drawAGCControl() {
     if (m_overlayRenderer) {
         QMatrix4x4 projection;
@@ -2166,11 +2359,79 @@ void QGLReceiverPanel::wheelEvent(QWheelEvent* event) {
 
 void QGLReceiverPanel::mousePressEvent(QMouseEvent* event) {
 	
+	// Right-click on decoded CW text box erases the text
+	if (event->button() == Qt::RightButton) {
+		if (m_cwTextRect.isValid() && m_cwTextRect.contains(event->pos())) {
+			if (m_sliceModel) {
+				m_sliceModel->setCwDecodedText(QString());
+			}
+			update();
+			event->accept();
+			return;
+		}
+	}
+
+	// Left-click on decoded CW text box starts movable dragging
+	if (event->button() == Qt::LeftButton && m_cwTextRect.isValid() && m_cwTextRect.contains(event->pos())) {
+		m_dragCwText = true;
+		m_cwDragStartMouse = event->pos();
+		if (!m_hasCustomCwBoxPos) {
+			m_cwBoxPos = m_cwTextRect.topLeft();
+			m_hasCustomCwBoxPos = true;
+		}
+		setCursor(Qt::ClosedHandCursor);
+		event->accept();
+		return;
+	}
+
 	//GRAPHICS_DEBUG << "mousePressEvent";
 	m_mousePos = event->pos();
 	m_mouseDownPos = m_mousePos;
 
 	getRegion(m_mousePos);
+
+	// Click-to-tune (Click-VFO or Shift+Click) on panadapter or waterfall
+	if (event->button() == Qt::LeftButton && (m_clickVFO || (event->modifiers() & Qt::ShiftModifier))) {
+		if (m_panRect.contains(m_mousePos) || m_waterfallRect.contains(m_mousePos)) {
+			m_dragMouse = false;
+			m_highlightFilter = false;
+
+			if (m_receiver != set->getCurrentReceiver()) {
+				set->setCurrentReceiver(m_receiver);
+			}
+
+			const int dx = m_panRect.width()/2 - m_mousePos.x();
+			const qreal unit = displayedFrequencySpanHz() / m_panRect.width();
+			qint64 clickedFreq = (qint64)(qRound(m_centerFrequency - (unit * dx)));
+
+			const DSPMode mode = m_sliceModel ? m_sliceModel->dspMode() : m_dspMode;
+			const bool isCw = (mode == DSPMode::CWL || mode == DSPMode::CWU);
+			const int cwPitch = set->getCwSidetoneFreq();
+
+			// Auto-snap to nearest peak within ~25 pixels if clicking near a CW carrier or with Shift key
+			bool peakFound = false;
+			const qint64 peakRf = findPeakFrequencyNear(clickedFreq, qMax(600, qRound(unit * 25.0)), &peakFound);
+
+			qint64 newVfo = clickedFreq;
+			if (peakFound && isCw) {
+				// Zero-beat snap for CW
+				newVfo = (mode == DSPMode::CWL) ? (peakRf + cwPitch) : (peakRf - cwPitch);
+			} else if (peakFound && (event->modifiers() & Qt::ShiftModifier)) {
+				newVfo = peakRf;
+			}
+
+			newVfo = qBound(m_centerFrequency - m_sampleRate/2, newVfo, m_centerFrequency + m_sampleRate/2);
+
+			m_vfoFrequency = newVfo;
+			m_deltaFrequency = m_centerFrequency - m_vfoFrequency;
+			m_deltaF = (qreal)(1.0 * m_deltaFrequency / m_sampleRate);
+
+			set->setVFOFrequency(0, m_receiver, m_vfoFrequency);
+			update();
+			event->accept();
+			return;
+		}
+	}
 
 	if (m_mouseRegion == agcButtonRegion) {
 
@@ -2193,32 +2454,6 @@ void QGLReceiverPanel::mousePressEvent(QMouseEvent* event) {
 		if (event->buttons() == Qt::LeftButton && m_receiver != set->getCurrentReceiver()) {
 
 			set->setCurrentReceiver(m_receiver);
-		}
-		else if (event->buttons() == Qt::LeftButton && m_clickVFO) {
-
-			m_crossHairCursor = false;
-			if (cursor().shape() != Qt::OpenHandCursor)
-				setCursor(Qt::OpenHandCursor);
-			m_dragMouse = true;
-
-			// Click-to-tune: move VFO/NCO/filter to the clicked frequency while
-			// keeping the panadapter center (LO) fixed. Update local delta
-			// before Settings so the slice→panel callback cannot early-return
-			// with a stale m_deltaF (which left the filter stuck at center).
-			const int dx = m_panRect.width()/2 - m_mousePos.x();
-			const qreal unit = displayedFrequencySpanHz() / m_panRect.width();
-			qint64 clickedFreq = (qint64)(qRound(m_centerFrequency - (unit * dx)));
-			if (clickedFreq > m_centerFrequency + m_sampleRate/2)
-				clickedFreq = m_centerFrequency + m_sampleRate/2;
-			else if (clickedFreq < m_centerFrequency - m_sampleRate/2)
-				clickedFreq = m_centerFrequency - m_sampleRate/2;
-
-			m_vfoFrequency = clickedFreq;
-			m_deltaFrequency = m_centerFrequency - m_vfoFrequency;
-			m_deltaF = (qreal)(1.0 * m_deltaFrequency / m_sampleRate);
-
-			set->setVFOFrequency(0, m_receiver, m_vfoFrequency);
-			update();
 		}
 		else if (event->buttons() == Qt::LeftButton) {
 
@@ -2274,6 +2509,15 @@ void QGLReceiverPanel::mousePressEvent(QMouseEvent* event) {
 
 void QGLReceiverPanel::mouseReleaseEvent(QMouseEvent *event) {
 
+	if (m_dragCwText) {
+		m_dragCwText = false;
+		if (cursor().shape() != Qt::ArrowCursor)
+			setCursor(Qt::ArrowCursor);
+		update();
+		event->accept();
+		return;
+	}
+
 	//GRAPHICS_DEBUG << "mouseReleaseEvent";
 	m_mousePos = event->pos();
 	m_mouseDownPos = m_mousePos;
@@ -2321,21 +2565,45 @@ void QGLReceiverPanel::mouseReleaseEvent(QMouseEvent *event) {
 
 void QGLReceiverPanel::mouseDoubleClickEvent(QMouseEvent *event) {
 
-	//GRAPHICS_DEBUG << "mouseDoubleClickEvent";
 	m_mousePos = event->pos();
 	m_mouseDownPos = m_mousePos;
 
 	getRegion(m_mousePos);
 
-	if (m_mouseRegion == panadapterRegion) {
+	if (m_mouseRegion == panadapterRegion || m_mouseRegion == waterfallRegion) {
 
-		if (event->buttons() == Qt::LeftButton) {
+		if (event->button() == Qt::LeftButton) {
 
-			//set->showRadioPopupWidget();
-//			if (!band160mBtn->isVisible())
-//				band160mBtn->show();
-//			else
-//				band160mBtn->hide();
+			const int dx = m_panRect.width()/2 - m_mousePos.x();
+			const qreal unit = displayedFrequencySpanHz() / m_panRect.width();
+			qint64 clickedFreq = (qint64)(qRound(m_centerFrequency - (unit * dx)));
+
+			const DSPMode mode = m_sliceModel ? m_sliceModel->dspMode() : m_dspMode;
+			const bool isCw = (mode == DSPMode::CWL || mode == DSPMode::CWU);
+			const int cwPitch = set->getCwSidetoneFreq();
+
+			// Auto-snap to nearest spectral peak within ±35 pixels
+			bool peakFound = false;
+			const qint64 peakRf = findPeakFrequencyNear(clickedFreq, qMax(800, qRound(unit * 35.0)), &peakFound);
+
+			qint64 newVfo = clickedFreq;
+			if (peakFound && isCw) {
+				// Zero-beat snap for CW
+				newVfo = (mode == DSPMode::CWL) ? (peakRf + cwPitch) : (peakRf - cwPitch);
+			} else if (peakFound) {
+				newVfo = peakRf;
+			}
+
+			newVfo = qBound(m_centerFrequency - m_sampleRate/2, newVfo, m_centerFrequency + m_sampleRate/2);
+
+			m_vfoFrequency = newVfo;
+			m_deltaFrequency = m_centerFrequency - m_vfoFrequency;
+			m_deltaF = (qreal)(1.0 * m_deltaFrequency / m_sampleRate);
+
+			set->setVFOFrequency(0, m_receiver, m_vfoFrequency);
+			update();
+			event->accept();
+			return;
 		}
 	}
 }
@@ -2343,7 +2611,26 @@ void QGLReceiverPanel::mouseDoubleClickEvent(QMouseEvent *event) {
 void QGLReceiverPanel::mouseMoveEvent(QMouseEvent* event) {
 	m_mousePos = event->pos();
 
-    if (event->buttons() == Qt::NoButton) getRegion(m_mousePos);
+	if (m_dragCwText && (event->buttons() & Qt::LeftButton)) {
+		const QPoint delta = event->pos() - m_cwDragStartMouse;
+		m_cwDragStartMouse = event->pos();
+		m_cwBoxPos += delta;
+		const int w = m_cwTextRect.width() > 0 ? m_cwTextRect.width() : 200;
+		const int h = m_cwTextRect.height() > 0 ? m_cwTextRect.height() : 24;
+		m_cwBoxPos.setX(qBound(m_panRect.left() + 4, m_cwBoxPos.x(), m_panRect.right() - w - 4));
+		m_cwBoxPos.setY(qBound(m_panRect.top() + 4, m_cwBoxPos.y(), m_panRect.bottom() - h - 4));
+		update();
+		event->accept();
+		return;
+	}
+
+	if (event->buttons() == Qt::NoButton) {
+		getRegion(m_mousePos);
+		if (m_cwTextRect.isValid() && m_cwTextRect.contains(m_mousePos)) {
+			if (cursor().shape() != Qt::OpenHandCursor)
+				setCursor(Qt::OpenHandCursor);
+		}
+	}
 	
 	switch (m_mouseRegion) {
 
@@ -2456,7 +2743,10 @@ void QGLReceiverPanel::mouseMoveEvent(QMouseEvent* event) {
 				}
 			}
 			
-			if (event->buttons() == Qt::LeftButton) {
+			// Click-VFO sets m_dragMouse=false and returns from press; ignore
+			// LeftButton moves until a real pan drag starts, or the centre
+			// retunes from sub-pixel jitter between click and release.
+			if (m_dragMouse && (event->buttons() == Qt::LeftButton)) {
 
                 QPoint dPos = m_mouseDownPos - m_mousePos;
 				
@@ -2954,6 +3244,10 @@ void QGLReceiverPanel::setVFOFrequency(int mode, int rx, qint64 freq) {
 
 	if (unchanged) return;
 
+	// Refresh the frequency-scale FBO so any previously baked VFO panOffset
+	// (removed above) cannot leave stale labels under the spectrum.
+	m_freqScalePanadapterUpdate = true;
+
     // Spectrum frames redraw the VFO/filter; skip NoPartialUpdate clears while live.
     if (m_dataEngineState != QSDR::DataEngineUp && m_displayTime.elapsed() >= 33) {
 	    m_displayTime.restart();
@@ -3064,6 +3358,62 @@ void QGLReceiverPanel::recomputeDisplayBinsFromCache()
 	} else {
 		computeDisplayBins(specBuf, waterBuf);
 	}
+}
+
+qint64 QGLReceiverPanel::findPeakFrequencyNear(qint64 targetFreq, int searchRadiusHz, bool *found) const
+{
+	if (found) *found = false;
+	if (m_cachedSpectrumBuffer.size() < 256 || m_sampleRate <= 0)
+		return targetFreq;
+
+	const int N = m_cachedSpectrumBuffer.size();
+	const double hzPerBin = static_cast<double>(m_sampleRate) / static_cast<double>(N);
+	const double targetBin = (static_cast<double>(N) / 2.0) + (static_cast<double>(targetFreq - m_centerFrequency) / hzPerBin);
+	const int radiusBins = qBound(3, static_cast<int>(std::ceil(searchRadiusHz / hzPerBin)), N / 4);
+
+	const int minBin = qBound(2, static_cast<int>(std::floor(targetBin - radiusBins)), N - 3);
+	const int maxBin = qBound(2, static_cast<int>(std::ceil(targetBin + radiusBins)), N - 3);
+
+	if (minBin >= maxBin)
+		return targetFreq;
+
+	int bestBin = -1;
+	float maxVal = -999.0f;
+	float meanVal = 0.0f;
+
+	for (int k = minBin; k <= maxBin; ++k) {
+		const float val = m_cachedSpectrumBuffer.at(k);
+		meanVal += val;
+		if (val > maxVal) {
+			maxVal = val;
+			bestBin = k;
+		}
+	}
+	meanVal /= static_cast<float>(maxBin - minBin + 1);
+
+	// Ensure it is a distinct local peak (at least 2.5 dB above local neighborhood mean)
+	if (bestBin > minBin && bestBin < maxBin && (maxVal - meanVal) >= 2.5f) {
+		const float y1 = m_cachedSpectrumBuffer.at(bestBin - 1);
+		const float y2 = m_cachedSpectrumBuffer.at(bestBin);
+		const float y3 = m_cachedSpectrumBuffer.at(bestBin + 1);
+
+		if (y2 >= y1 && y2 >= y3) {
+			const float denom = 2.0f * (y1 - 2.0f * y2 + y3);
+			float delta = 0.0f;
+			if (std::abs(denom) > 1e-6f) {
+				delta = (y1 - y3) / denom;
+				delta = qBound(-0.5f, delta, 0.5f);
+			}
+
+			const double refinedBin = static_cast<double>(bestBin) + delta;
+			const qint64 peakHz = m_centerFrequency + qRound64((refinedBin - (static_cast<double>(N) / 2.0)) * hzPerBin);
+
+			if (found) *found = true;
+			return peakHz;
+		}
+	}
+
+	return targetFreq;
 }
 
 void QGLReceiverPanel::computeDisplayBins(QVector<float>& buffer, QVector<float>& waterfallBuffer) {

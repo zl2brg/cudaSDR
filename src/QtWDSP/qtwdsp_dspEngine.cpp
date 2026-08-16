@@ -397,6 +397,8 @@ void QWDSPEngine::processDSP(CPX &in, CPX &out) {
     }
 
     m_firstExchangeDone = true;
+    // Panadapter taps the RF input buffer. fexchange0 only copies `in` into the
+    // WDSP ring; the RXA NCO shift runs on a separate buffer, so this stays LO-relative.
     Spectrum0(1, m_rx, 0, 0, reinterpret_cast<double*>(in.data()));
 }
 

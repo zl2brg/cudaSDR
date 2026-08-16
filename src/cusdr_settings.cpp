@@ -3840,11 +3840,16 @@ void Settings::setVFOFrequency(int mode, int rx, qint64 frequency) {
 #ifdef HAVE_SOAPYSDR
             if (m_hwInterface == QSDR::SoapySDR) {
                 // SoapySDR hardware tunes directly to VFO; keep center = VFO so NCO stays 0.
-                // Emit ctrFrequencyChanged so panadapter/digits follow the LO (silent
-                // CTR updates left the display clamped to the old span).
+                // Update SliceModel as well: the panadapter follows
+                // SliceModel::centerFrequencyChanged, not Settings::ctrFrequencyChanged.
+                // Without that, click-VFO retunes the LO while the frequency ruler stays
+                // on the old centre and signals appear shifted by the click offset.
                 const bool ctrChanged = (m_receiverDataList[rx].ctrFrequency != frequency);
                 m_receiverDataList[rx].ctrFrequency = frequency;
                 m_receiverDataList[rx].ncoFrequency = 0;
+                m_receiverDataList[rx].lastCenterFrequencyList[(int) band] = frequency;
+                if (m_radioModel && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx])
+                    m_radioModel->slices()[rx]->setCenterFrequency(frequency);
                 if (ctrChanged)
                     emit ctrFrequencyChanged(0, rx, frequency);
             } else

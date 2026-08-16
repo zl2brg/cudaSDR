@@ -163,6 +163,11 @@ private:
 	QRect						m_vfoToMidButtonRect;
 	QRect						m_midToVfoButtonRect;
 	QRect						m_clickVFOButtonRect;
+	QRect						m_cwTextRect;
+	bool						m_dragCwText = false;
+	QPoint						m_cwDragStartMouse;
+	bool						m_hasCustomCwBoxPos = false;
+	QPoint						m_cwBoxPos;
 	
 	OGLText*					m_oglTextTiny;
 	OGLText*					m_oglTextSmall;
@@ -386,6 +391,7 @@ private:
 	void 	drawReceiverInfo();
 	void	drawAGCControl();
 	void	drawVFOControl();
+	void	drawCwDecoderHUD();
 
 	void 	updateFrequencyRuler();
 	void 	updateDBmRuler();
@@ -398,6 +404,7 @@ private:
 	//void	computeDisplayBins(QVector<float> &buffer);
 	void	computeDisplayBins(QVector<float>& panBuffer, QVector<float>& waterfallBuffer);
 	void	recomputeDisplayBinsFromCache();
+	qint64	findPeakFrequencyNear(qint64 targetFreq, int searchRadiusHz, bool *found = nullptr) const;
 	void 	showText(float x, float y, float z, const QString &text, bool smallText);
 	void	showRadioPopup(bool value);
 
