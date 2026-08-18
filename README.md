@@ -1,6 +1,6 @@
 ## cudaSDR
 
-`cudaSDR` is a Qt-based SDR client forked from N1GP's cudaSDR work, with ongoing modernization and protocol work.
+`cudaSDR` was originally written by Hermann von Hasseln (DL1HVH/DL3HVH). Modernised and maintained by Simon Eatough (ZL2BRG/G4GVQ). It is a Qt-based SDR with ongoing modernization and protocol work.
 
 ### Current status
 
