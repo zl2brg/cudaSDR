@@ -215,7 +215,7 @@ bool SliceProcessor::initQtWDSPInterface() {
     }
     SLICE_PROCESSOR_DEBUG << "[RX-ADD] QWDSPEngine constructed for rx=" << m_receiver << "(isValid=true)";
 
-    // Dual-rate: HB → 48 kHz DSP demod rate.
+    // Channel already opened dual-rate (pan → 48 kHz DSP). No-op if rates match.
     const DSPMode mode = m_sliceModel ? m_sliceModel->dspMode() : set->getDSPMode(m_receiver);
     qtwdsp->setSampleRate(m_samplerate, QWDSPEngine::preferredDspRate(mode, m_samplerate));
     setAudioBufferSize();

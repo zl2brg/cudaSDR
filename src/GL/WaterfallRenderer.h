@@ -17,7 +17,7 @@ public:
     ~WaterfallRenderer();
 
     void initialize();
-    void render(const QMatrix4x4& projection, const QRect& rect, const QVarLengthArray<TGL_ubyteRGBA>& pixelData, QSDR::_DataEngineState dataEngineState);
+    void render(const QMatrix4x4& projection, const QRect& rect, const QVarLengthArray<TGL_ubyteRGBA>& pixelData, QSDR::_DataEngineState dataEngineState, float dpr);
     void reset();
 
 private:
@@ -33,7 +33,9 @@ private:
     int m_lineCnt;
     int m_oldWidth;
     int m_oldHeight;
+    float m_oldDpr;
     bool m_updatePending;
+    QVector<TGL_ubyteRGBA> m_textureBuffer;
 
     QOpenGLShaderProgram* m_shader;
     QOpenGLVertexArrayObject m_vao;

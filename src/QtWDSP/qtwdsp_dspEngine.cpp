@@ -67,10 +67,13 @@ QWDSPEngine::QWDSPEngine(SliceModel *model, QObject *parent, int size)
 	, m_firstExchangeDone(false)
 	, m_rx(model ? model->id() : 0)
 	, m_size(size)
-	, m_samplerate(set->getSampleRate())
-    , m_inputSampleRate(set->getSampleRate())
+	, m_samplerate(48000)
+    , m_inputSampleRate(set ? set->getSampleRate() : 48000)
+	, m_ncoFrequency(0)
 	, m_fftMultiplier(1)
 	, m_volume(0.0f)
+	, m_agcThreshold(0.0)
+	, m_agcHangLevel(0.0)
 	, m_nr(0)
 	, m_nr2(0)
 	, m_nr3(0)
@@ -95,8 +98,12 @@ QWDSPEngine::QWDSPEngine(SliceModel *model, QObject *parent, int size)
     m_averageCount = set->getSpectrumAveragingCnt(m_rx);
     m_PanAvMode = set->getPanAveragingMode(m_rx);
     m_PanDetMode = set->getPanDetectorMode(m_rx);
+    m_agcMode = m_sliceModel ? m_sliceModel->agcMode() : set->getAGCMode(m_rx);
     m_agcSlope = set->getAGCSlope(m_rx);
     m_agcMaximumGain = set->getAGCMaximumGain_dB(m_rx);
+    m_agcHangThreshold = set->getAGCHangThreshold(m_rx);
+    m_agcAttackTime = static_cast<int>(set->getAGCAttackTime(m_rx));
+    m_agcDecayTime = static_cast<int>(set->getAGCDecayTime(m_rx));
     spectrumBuffer.resize(QWDSPEngine_BUFFER_SIZE * 4);
     // spectrumBuffer.resize(BUFFER_SIZE * 4);
     m_fftSize = getfftVal(set->getfftSize(m_rx));
@@ -109,28 +116,36 @@ QWDSPEngine::QWDSPEngine(SliceModel *model, QObject *parent, int size)
     m_anf = set->getAnf(m_rx);
     m_snb = set->getSnb(m_rx);
 
-    setNCOFrequency(m_rx, 0);
+    if (m_inputSampleRate <= 0)
+        m_inputSampleRate = 48000;
+    const DSPMode startupMode = currentDspMode();
+    const DSPMode startupWdspMode = resolveWDSPMode(startupMode, centerFrequencyHz());
+    m_dspmode = startupWdspMode;
+    m_samplerate = preferredDspRate(m_dspmode, m_inputSampleRate);
+    if (m_sliceModel)
+        m_ncoFrequency = static_cast<long>(m_sliceModel->frequency() - m_sliceModel->centerFrequency());
+    else
+        m_ncoFrequency = static_cast<long>(set->getVfoFrequency(m_rx) - set->getCtrFrequency(m_rx));
+
     WDSP_ENGINE_DEBUG << "init DSPEngine with size: " << m_size;
     QThread::msleep(100);
 
     setupConnections();
 
     WDSP_ENGINE_DEBUG << "[WDSP-INIT] rx=" << m_rx << "size=" << m_size << "inputRate=" << m_inputSampleRate << "dspRate=" << m_samplerate << "-> calling OpenChannel";
-    OpenChannel(m_rx, m_size, 2048, m_inputSampleRate, m_samplerate, 48000, 0, 0, 0.010, 0.025, 0.0, 0.010, 0);
+    // dsp_size == in_size so 48 kHz fexchange0 is 1:1 (avoids -2 underruns).
+    OpenChannel(m_rx, m_size, m_size, m_inputSampleRate, m_samplerate, 48000, 0, 0, 0.010, 0.025, 0.0, 0.010, 0);
     WDSP_ENGINE_DEBUG << "[WDSP-INIT] rx=" << m_rx << "OpenChannel done -> create_anbEXT";
     create_anbEXT(m_rx, 1, size, m_inputSampleRate, 0.0001, 0.0001, 0.0001, 0.05, 20);
     WDSP_ENGINE_DEBUG << "[WDSP-INIT] rx=" << m_rx << "create_anbEXT done -> create_nobEXT";
     create_nobEXT(m_rx, 1, 0, size, m_inputSampleRate, 0.0001, 0.0001, 0.0001, 0.05, 20);
     WDSP_ENGINE_DEBUG << "[WDSP-INIT] rx=" << m_rx << "create_nobEXT done";
     
-    qDebug() << "[WDSP-INIT] rx=" << m_rx << "RXASetNC(" << m_fftSize << ")";
-    RXASetNC(m_rx, m_fftSize);
+    qDebug() << "[WDSP-INIT] rx=" << m_rx << "RXASetNC(4096)";
+    RXASetNC(m_rx, 4096);
 
     setFilterMode(m_rx);
     SetRXAFMDeviation(m_rx, 8000.0);
-    const DSPMode startupMode = currentDspMode();
-    const DSPMode startupWdspMode = resolveWDSPMode(startupMode, centerFrequencyHz());
-    m_dspmode = startupWdspMode;
     SetRXAMode(m_rx, startupWdspMode);
     applyRxEq();
     applyEmnrPost2();
@@ -142,13 +157,14 @@ QWDSPEngine::QWDSPEngine(SliceModel *model, QObject *parent, int size)
         const auto filter = getFilterFromDSPMode(set->getDefaultFilterList(), startupWdspMode);
         setFilter(filter.filterLo, filter.filterHi);
     }
-    RXASetNC(m_rx, 4096);
+    applyNco();
+    applyAgc();
     SetRXAPanelRun(m_rx, 1);
     SetRXAPanelSelect(m_rx, 3);
     
     int analyzerResult;
     WDSP_ENGINE_DEBUG << "[WDSP-INIT] rx=" << m_rx << "-> XCreateAnalyzer";
-    XCreateAnalyzer(m_rx, &analyzerResult, 32768, 1, 1, const_cast<char*>(""));
+    XCreateAnalyzer(m_rx, &analyzerResult, 262144, 1, 1, const_cast<char*>(""));
     if (analyzerResult != 0) {
         qWarning() << "[WDSP-INIT] XCreateAnalyzer id=" << m_rx << "failed:" << analyzerResult;
     } else {
@@ -467,6 +483,7 @@ void QWDSPEngine::applyEmnrPost2()
 }
 
 void QWDSPEngine::setAGCMode(AGCMode agc) {
+		m_agcMode = agc;
 		SetRXAAGCMode(m_rx, agc);
 		//SetRXAAGCThresh(rx->id, agc_thresh_point, 4096.0, rx->sample_rate);
 		SetRXAAGCSlope(m_rx,m_agcSlope);
@@ -566,6 +583,7 @@ void QWDSPEngine::setAGCLineValues(int rx) {
 
 void QWDSPEngine::setAGCHangLevel(double level) {
 
+	m_agcHangLevel = level;
 	SetRXAAGCHangLevel(m_rx,level);
 	WDSP_ENGINE_DEBUG << "Set AGC line value" << level;
 
@@ -574,6 +592,7 @@ void QWDSPEngine::setAGCHangLevel(double level) {
 
 void QWDSPEngine::setAGCThreshold(double threshold) {
 
+	m_agcThreshold = threshold;
 	SetRXAAGCThresh(m_rx,threshold,2048,this->m_samplerate);
 	emit setAGCLineValues(m_rx);
 	WDSP_ENGINE_DEBUG << "Set AGC threshold " << threshold;
@@ -633,24 +652,26 @@ void QWDSPEngine::reconfigure() {
 
     // Re-open and re-initialize
     WDSP_ENGINE_DEBUG << "[WDSP-CFG] rx=" << m_rx << "-> OpenChannel";
-    OpenChannel(m_rx, m_size, 2048, m_inputSampleRate, m_samplerate, 48000, 0, 0, 0.010, 0.025, 0.0, 0.010, 0);
+    OpenChannel(m_rx, m_size, m_size, m_inputSampleRate, m_samplerate, 48000, 0, 0, 0.010, 0.025, 0.0, 0.010, 0);
     
     create_anbEXT(m_rx, 1, m_size, m_inputSampleRate, 0.0001, 0.0001, 0.0001, 0.05, 20);
     create_nobEXT(m_rx, 1, 0, m_size, m_inputSampleRate, 0.0001, 0.0001, 0.0001, 0.05, 20);
 
-    RXASetNC(m_rx, m_fftSize);
+    RXASetNC(m_rx, 4096);
     SetRXAMode(m_rx, m_dspmode);
     setFilter(m_filterLo, m_filterHi);
     setFilterMode(m_rx);
     applyRxEq();
     applyEmnrPost2();
+    applyNco();
+    applyAgc();
     SetRXAFMSQRun(m_rx, 1);
     SetRXAPanelRun(m_rx, 1);
+    SetRXAPanelSelect(m_rx, 3);
 
     int analyzerResult;
     WDSP_ENGINE_DEBUG << "[WDSP-CFG] rx=" << m_rx << "-> XCreateAnalyzer";
-    // Use a conservative but sufficient size for slice analyzers
-    XCreateAnalyzer(m_rx, &analyzerResult, 32768, 1, 1, const_cast<char*>(""));
+    XCreateAnalyzer(m_rx, &analyzerResult, 262144, 1, 1, const_cast<char*>(""));
     if (analyzerResult != 0) {
         qWarning() << "[WDSP-CFG] XCreateAnalyzer id=" << m_rx << "failed:" << analyzerResult;
     }
@@ -691,21 +712,37 @@ void QWDSPEngine::setFilterSlope(int rx, int slope) {
 }
 
 
-void QWDSPEngine::setNCOFrequency(int rx, long ncoFreq) {
+void QWDSPEngine::applyNco() {
+	if (m_ncoFrequency == 0) {
+		SetRXAShiftFreq(m_rx, 0.0);
+		RXANBPSetShiftFrequency(m_rx, 0.0);
+		SetRXAShiftRun(m_rx, 0);
+	} else {
+		SetRXAShiftFreq(m_rx, static_cast<double>(m_ncoFrequency));
+		RXANBPSetShiftFrequency(m_rx, static_cast<double>(m_ncoFrequency));
+		SetRXAShiftRun(m_rx, 1);
+	}
+}
 
-	if (getQtDSPStatus() == 0 ) return;
+void QWDSPEngine::applyAgc() {
+	const double thresh = m_agcThreshold;
+	const double hang = m_agcHangLevel;
+	setAGCMode(m_agcMode);
+	SetRXAAGCTop(m_rx, static_cast<double>(m_agcMaximumGain));
+	if (thresh != 0.0)
+		SetRXAAGCThresh(m_rx, thresh, 2048, static_cast<double>(m_samplerate));
+	if (hang != 0.0)
+		SetRXAAGCHangLevel(m_rx, hang);
+}
+
+void QWDSPEngine::setNCOFrequency(int rx, long ncoFreq) {
 
 	if (m_rx != rx) return;
 
-	if(ncoFreq==0) {
-		SetRXAShiftFreq(m_rx, (double)ncoFreq);
-		RXANBPSetShiftFrequency(m_rx, (double)ncoFreq);
-		SetRXAShiftRun(m_rx, 0);
-	} else {
-		SetRXAShiftFreq(m_rx, (double)ncoFreq);
-		RXANBPSetShiftFrequency(m_rx, (double)ncoFreq);
-		SetRXAShiftRun(m_rx, 1);
-	}
+	m_ncoFrequency = ncoFreq;
+	if (getQtDSPStatus() == 0) return;
+
+	applyNco();
 }
 
 void QWDSPEngine::setSampleSize(int rx, int size) {
@@ -743,20 +780,17 @@ void QWDSPEngine::init_analyzer(int refreshrate) {
     constexpr double span_min_freq = 0.0;
     constexpr double span_max_freq = 0.0;
 
-    const int max_w = fft_size + static_cast<int>(
-        std::min(keep_time * refreshrate, 
-                keep_time * static_cast<double>(fft_size) * static_cast<double>(refreshrate))
-    );
+    const int max_w = fft_size + qMax(4 * m_size, static_cast<int>(keep_time * static_cast<double>(m_inputSampleRate)));
 
-    const int overlap = static_cast<int>(
+    const int overlap = qBound(0, static_cast<int>(
         std::max(0.0, std::ceil(fft_size - static_cast<double>(m_inputSampleRate) / static_cast<double>(refreshrate)))
-    );
+    ), fft_size - 1);
 
-    qDebug() << "SetAnalyzer id=" << m_rx << "buffer_size=" << m_size 
+    qDebug() << "SetAnalyzer id=" << m_rx << "buffer_size=" << m_size
              << "overlap=" << overlap << "fft=" << m_fftSize;
 
     SetAnalyzer(m_rx, n_pixout, spur_elimination_ffts, data_type, 
-                const_cast<int*>(flp), fft_size, 1024, window_type, kaiser_pi, 
+                const_cast<int*>(flp), fft_size, m_size, window_type, kaiser_pi, 
                 overlap, clip, span_clip_l, span_clip_h, pixels, stitches, 
                 calibration_data_set, span_min_freq, span_max_freq, max_w);
 }

@@ -155,6 +155,7 @@ private:
     int m_spectrumSize;
     int m_samplerate;
     int m_inputSampleRate;
+    long m_ncoFrequency;
     int m_fftMultiplier;
     int m_fftSize;
     int m_refreshrate;
@@ -192,6 +193,8 @@ private:
 
     void ProcessFrequencyShift(CPX &in, CPX &out);
     void setupConnections();
+    void applyNco();
+    void applyAgc();
     long centerFrequencyHz() const;
     DSPMode currentDspMode() const;
     void updateFreeDvSideband(qint64 frequency);

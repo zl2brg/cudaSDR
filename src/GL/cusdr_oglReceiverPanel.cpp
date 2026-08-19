@@ -1164,8 +1164,22 @@ void QGLReceiverPanel::drawWaterfall() {
     if (!m_waterfallRenderer || m_waterfallRect.isEmpty())
         return;
 
+    const float dpr = (float)devicePixelRatioF();
+    const int x1 = m_waterfallRect.left();
+    const int y1 = m_waterfallRect.top();
+    const int x2 = x1 + m_waterfallRect.width();
+    const int y2 = y1 + m_waterfallRect.height();
+    const int panelHeight = size().height();
+
+    glScissor(int(x1 * dpr), int((panelHeight - y2) * dpr),
+              int((x2 - x1) * dpr), int(m_waterfallRect.height() * dpr));
+    glEnable(GL_SCISSOR_TEST);
+    glDisable(GL_MULTISAMPLE);
+
     glDisable(GL_DEPTH_TEST);
-    m_waterfallRenderer->render(panelProjection(), m_waterfallRect, m_waterfallPixel, m_dataEngineState);
+    m_waterfallRenderer->render(panelProjection(), m_waterfallRect, m_waterfallPixel, m_dataEngineState, dpr);
+
+    glDisable(GL_SCISSOR_TEST);
 }
 
 void QGLReceiverPanel::drawWaterfallVerticalScale() {
@@ -3324,7 +3338,6 @@ void QGLReceiverPanel::setSpectrumBuffer(int rx, const qVectorFloat& buffer) {
 	QVector<float> waterBuf(m_spectrumSize);
 	waterBuf = buffer;
 
-
 	if (m_dataEngineState == QSDR::DataEngineUp) {
 
 		if (m_spectrumAveraging) {
@@ -3564,25 +3577,27 @@ void QGLReceiverPanel::computeDisplayBins(QVector<float>& buffer, QVector<float>
 
 	for (int i = 0; i < m_panSpectrumBinsLength; i++) {
 		
-		//qreal max;
-		idx = 0;
 		lIdx = (int)qFloor((qreal)(i * m_panScale / m_scaleMult));
 		rIdx = (int)qFloor((qreal)(i * m_panScale / m_scaleMult) + m_panScale / m_scaleMult);
-					
-		// max value; later we try mean value also!
-		localMax = -10000.0F;
+		if (rIdx <= lIdx)
+			rIdx = lIdx + 1;
 
-		for (int j = lIdx; j < rIdx; j++) {
+		lIdx = qBound(0, lIdx, buffer.size() - 1);
+		rIdx = qBound(lIdx + 1, rIdx, buffer.size());
 
+		idx = lIdx;
+		localMax = buffer.at(lIdx);
+
+		for (int j = lIdx + 1; j < rIdx; j++) {
 			if (buffer.at(j) > localMax) {
+				localMax = buffer.at(j);
 				idx = j;
 			}
 		}
 
-
 		// shift the beginning of the bins by half of the difference between
 		// full spectrum size and reduced spectrum size due to zooming
-		idx += deltaSampleSize/2;
+		idx = qBound(0, idx + deltaSampleSize/2, buffer.size() - 1);
 
 		QColor pColor;
 
@@ -3829,6 +3844,8 @@ void QGLReceiverPanel::setSpectrumAveraging(int rx, bool value) {
 	QMutexLocker locker(&spectrumBufferMutex);
 	if (m_spectrumAveraging != value)
 		m_spectrumAveraging = value;
+	while (!specAv_queue.isEmpty())
+		specAv_queue.dequeue();
 }
 
 void QGLReceiverPanel::setSpectrumAveragingCnt(int value) {

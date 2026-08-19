@@ -2,6 +2,21 @@
 #include "cusdr_glShaders.h"
 #include <QDebug>
 #include <QOpenGLContext>
+#include <QtMath>
+
+namespace {
+
+void expandPixelRow(const TGL_ubyteRGBA* logical, int logicalWidth,
+                    TGL_ubyteRGBA* devRow, int devWidth, qreal dpr)
+{
+    const qreal ratio = qMax<qreal>(1.0, dpr);
+    for (int x = 0; x < devWidth; ++x) {
+        const int lx = qBound(0, int(qFloor(x / ratio)), logicalWidth - 1);
+        devRow[x] = logical[lx];
+    }
+}
+
+} // namespace
 
 WaterfallRenderer::WaterfallRenderer()
     : m_textureId(0)
@@ -9,6 +24,7 @@ WaterfallRenderer::WaterfallRenderer()
     , m_lineCnt(0)
     , m_oldWidth(0)
     , m_oldHeight(0)
+    , m_oldDpr(0.0f)
     , m_updatePending(false)
     , m_shader(nullptr)
     , m_vbo(QOpenGLBuffer::VertexBuffer)
@@ -73,15 +89,6 @@ void WaterfallRenderer::reset() {
 }
 
 void WaterfallRenderer::setupTexture(int width, int height) {
-    // Flush any pending PBO upload before rebuilding the texture/PBOs.
-    if (m_pboActive && m_textureId != 0 && m_oldWidth > 0) {
-        glBindTexture(GL_TEXTURE_2D, m_textureId);
-        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, m_pboIds[1 - m_pboIndex]);
-        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, m_prevLine, m_oldWidth, 1, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
-        m_pboActive = false;
-    }
-
     if (m_textureId != 0) {
         glDeleteTextures(1, &m_textureId);
     }
@@ -95,15 +102,9 @@ void WaterfallRenderer::setupTexture(int width, int height) {
     QVector<TGL_ubyteRGBA> blackBuffer(width * height);
     TGL_ubyteRGBA black; black.red = 0; black.green = 0; black.blue = 0; black.alpha = 255;
     blackBuffer.fill(black);
+    m_textureBuffer = blackBuffer;
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, blackBuffer.data());
     
-    // Allocate PBOs memory for the new width
-    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, m_pboIds[0]);
-    glBufferData(GL_PIXEL_UNPACK_BUFFER, width * sizeof(TGL_ubyteRGBA), NULL, GL_STREAM_DRAW);
-    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, m_pboIds[1]);
-    glBufferData(GL_PIXEL_UNPACK_BUFFER, width * sizeof(TGL_ubyteRGBA), NULL, GL_STREAM_DRAW);
-    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
-
     m_currentLine = 0;
     m_lineCnt = 0;
     m_oldWidth = width;
@@ -113,42 +114,52 @@ void WaterfallRenderer::setupTexture(int width, int height) {
     m_pboActive = false;
 }
 
-void WaterfallRenderer::render(const QMatrix4x4& projection, const QRect& rect, const QVarLengthArray<TGL_ubyteRGBA>& pixelData, QSDR::_DataEngineState dataEngineState) {
+void WaterfallRenderer::render(const QMatrix4x4& projection, const QRect& rect, const QVarLengthArray<TGL_ubyteRGBA>& pixelData, QSDR::_DataEngineState dataEngineState, float dpr) {
     if (rect.isEmpty() || !m_shader || !m_shader->isLinked())
         return;
 
-    int width = rect.width();
-    int height = rect.height();
+    const int logicalWidth = rect.width();
+    const int logicalHeight = rect.height();
+    const int texWidth = qMax(1, int(qRound(logicalWidth * dpr)));
+    const int texHeight = qMax(1, int(qRound(logicalHeight * dpr)));
+    const qreal ratio = qMax<qreal>(1.0, dpr);
+
     float top = (float)rect.top();
     float left = (float)rect.left();
-    float right = left + (float)width;
-    float bottom = top + (float)height;
+    float right = left + (float)logicalWidth;
+    float bottom = top + (float)logicalHeight;
 
-    if (m_textureId == 0 || m_oldWidth != width || m_oldHeight != height || m_updatePending) {
-        setupTexture(width, height);
+    if (m_textureId == 0 || m_oldWidth != texWidth || m_oldHeight != texHeight
+        || !qFuzzyCompare(m_oldDpr, dpr) || m_updatePending) {
+        setupTexture(texWidth, texHeight);
+        m_oldDpr = dpr;
     }
 
-    if (dataEngineState == QSDR::DataEngineUp && !pixelData.isEmpty() && pixelData.size() >= width) {
+    if (dataEngineState == QSDR::DataEngineUp && !pixelData.isEmpty() && pixelData.size() >= logicalWidth) {
         glBindTexture(GL_TEXTURE_2D, m_textureId);
-
-        if (m_pboActive) {
-            // Unpack from the other PBO (contains previous frame's data)
-            glBindBuffer(GL_PIXEL_UNPACK_BUFFER, m_pboIds[1 - m_pboIndex]);
-            glTexSubImage2D(GL_TEXTURE_2D, 0, 0, m_prevLine, width, 1, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+        if (m_textureBuffer.size() != texWidth * texHeight) {
+            TGL_ubyteRGBA black; black.red = 0; black.green = 0; black.blue = 0; black.alpha = 255;
+            m_textureBuffer.resize(texWidth * texHeight);
+            m_textureBuffer.fill(black);
         }
 
-        // Fill current PBO with the new line's data
-        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, m_pboIds[m_pboIndex]);
-        glBufferSubData(GL_PIXEL_UNPACK_BUFFER, 0, width * sizeof(TGL_ubyteRGBA), pixelData.constData());
+        QVector<TGL_ubyteRGBA> devRow(texWidth);
+        expandPixelRow(pixelData.constData(), logicalWidth, devRow.data(), texWidth, ratio);
 
-        m_prevLine = m_currentLine;
-        m_currentLine = (m_currentLine + 1) % height;
-        if (m_lineCnt < height) m_lineCnt++;
+        // Store history at device-pixel resolution so each spectrum row maps 1:1
+        // to a device pixel row when the DPR-scaled viewport is used.
+        if (texHeight > 1) {
+            memmove(m_textureBuffer.data() + texWidth,
+                    m_textureBuffer.constData(),
+                    static_cast<size_t>(texWidth) * static_cast<size_t>(texHeight - 1) * sizeof(TGL_ubyteRGBA));
+        }
+        memcpy(m_textureBuffer.data(),
+               devRow.constData(),
+               static_cast<size_t>(texWidth) * sizeof(TGL_ubyteRGBA));
 
-        m_pboIndex = 1 - m_pboIndex;
-        m_pboActive = true;
-
-        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, texWidth, texHeight, GL_RGBA, GL_UNSIGNED_BYTE, m_textureBuffer.constData());
+        m_currentLine = 0;
+        if (m_lineCnt < texHeight) m_lineCnt++;
     }
 
     glEnable(GL_BLEND);
@@ -167,46 +178,21 @@ void WaterfallRenderer::render(const QMatrix4x4& projection, const QRect& rect, 
     if (texUniform >= 0)
         m_shader->setUniformValue(texUniform, 0);
 
-    float v0 = (float)m_currentLine / height;
-    
-    // We draw the waterfall using two quads to handle the wrap-around texture.
-    // Quad 1: Top part of display (showing the latest lines)
-    // Quad 2: Bottom part of display (showing older lines)
-    
-    float splitY = top + (float)(m_currentLine + 1);
-    if (dataEngineState != QSDR::DataEngineUp) {
-        splitY = top + (float)((m_currentLine + height) % height);
-    }
+    VertexData vertices[6];
+    vertices[0] = { left,  top,    -3.0f, 0.0f, 0.0f };
+    vertices[1] = { right, top,    -3.0f, 1.0f, 0.0f };
+    vertices[2] = { left,  bottom, -3.0f, 0.0f, 1.0f };
+    vertices[3] = { right, top,    -3.0f, 1.0f, 0.0f };
+    vertices[4] = { right, bottom, -3.0f, 1.0f, 1.0f };
+    vertices[5] = { left,  bottom, -3.0f, 0.0f, 1.0f };
 
-    VertexData vertices[12]; // 2 quads * 6 vertices (triangles)
-    
-    float h1 = (float)(m_currentLine + 1) / height;
-
-    // Quad 1 (Top to current line)
-    // Maps texture from currentLine (v0) up to the beginning of texture (0)
-    vertices[0] = { left,  top,    -3.0f, 0.0f, v0 };
-    vertices[1] = { right, top,    -3.0f, 1.0f, v0 };
-    vertices[2] = { left,  splitY, -3.0f, 0.0f, 0.0f };
-    vertices[3] = { right, top,    -3.0f, 1.0f, v0 };
-    vertices[4] = { right, splitY, -3.0f, 1.0f, 0.0f };
-    vertices[5] = { left,  splitY, -3.0f, 0.0f, 0.0f };
-
-    // Quad 2 (current line to bottom)
-    // Maps texture from end of texture (1) down to currentLine + 1 (h1)
-    vertices[6]  = { left,  splitY, -3.0f, 0.0f, 1.0f };
-    vertices[7]  = { right, splitY, -3.0f, 1.0f, 1.0f };
-    vertices[8]  = { left,  bottom, -3.0f, 0.0f, h1 };
-    vertices[9]  = { right, splitY, -3.0f, 1.0f, 1.0f };
-    vertices[10] = { right, bottom, -3.0f, 1.0f, h1 };
-    vertices[11] = { left,  bottom, -3.0f, 0.0f, h1 };
-
-    m_vbo.allocate(vertices, 12 * sizeof(VertexData));
+    m_vbo.allocate(vertices, 6 * sizeof(VertexData));
     m_shader->enableAttributeArray(0);
     m_shader->enableAttributeArray(1);
     m_shader->setAttributeBuffer(0, GL_FLOAT, 0, 3, sizeof(float) * 5);
     m_shader->setAttributeBuffer(1, GL_FLOAT, sizeof(float) * 3, 2, sizeof(float) * 5);
 
-    glDrawArrays(GL_TRIANGLES, 0, 12);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
 
     m_shader->disableAttributeArray(0);
     m_shader->disableAttributeArray(1);

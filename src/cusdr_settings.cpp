@@ -98,7 +98,7 @@ Settings::Settings(QObject *parent)
     m_titleString = "cudaSDR Debug BETA ";
 #endif
 
-    m_versionString = "v6.1.3 - ZL2BRG";
+    m_versionString = "v6.2.0 - ZL2BRG";
 
     qDebug() << qPrintable(m_titleString);
 
