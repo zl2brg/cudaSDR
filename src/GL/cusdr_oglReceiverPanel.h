@@ -37,6 +37,7 @@
 #include "WaterfallRenderer.h"
 #include "PanadapterRenderer.h"
 #include "OverlayRenderer.h"
+#include "cusdr_spectrumBinWorker.h"
 
 #include <QWheelEvent>
 #include <QOpenGLWidget>
@@ -127,7 +128,7 @@ private:
 	
 	QVector<qreal>					m_panadapterBins;
 	QVector<qreal>					m_panPeakHoldBins;
-	QVarLengthArray<TGL_ubyteRGBA>	m_waterfallPixel;
+	QVarLengthArray<float>			m_waterfallPixel;
 
 	QQueue<QVector<float> >			specAv_queue;
 
@@ -196,6 +197,7 @@ private:
 	QMutex						mutex;
 	QMutex						spectrumBufferMutex;
 	QVector<float>				m_cachedSpectrumBuffer;
+	QVector<float>				m_coalescedSpectrum;
     qreal                       dpr;
     QPainter                    painter;
 	enum Region {
@@ -259,6 +261,9 @@ private:
     WaterfallRenderer* m_waterfallRenderer;
     PanadapterRenderer* m_panadapterRenderer;
     OverlayRenderer* m_overlayRenderer;
+    SpectrumBinWorker* m_spectrumBinWorker = nullptr;
+    quint64 m_spectrumBinGeneration = 0;
+    quint64 m_spectrumBinAppliedGeneration = 0;
 
     int			m_bigHeight;
 	int			m_bigWidth;
@@ -274,7 +279,6 @@ private:
 	int			m_waterfallAlpha;
 	int			m_waterfallOffsetLo;
 	int			m_waterfallOffsetHi;
-	int			m_waterfallColorRange;
 	int			m_freqRulerDisplayWidth;
 	int			m_displayTop;
 	int			m_dBmPanLogGain;
@@ -314,6 +318,7 @@ private:
 	bool		m_panGridRenew;
 	bool		m_panGridUpdate;
 	bool		m_waterfallDisplayUpdate;
+	bool		m_spectrumDirty;
 	bool		m_spectrumColorsChanged;
 	bool		m_spectrumAveraging;
 	//bool		m_spectrumAveragingOld;
@@ -371,8 +376,6 @@ private:
 	//******************************************************************
 	void	setupConnections();
 
-	QColor	getWaterfallColorAtPixel(qreal value);
-
 	void	saveGLState();
 	void	restoreGLState();
 
@@ -406,11 +409,17 @@ private:
 	//void	computeDisplayBins(QVector<float> &buffer);
 	void	computeDisplayBins(QVector<float>& panBuffer, QVector<float>& waterfallBuffer);
 	void	recomputeDisplayBinsFromCache();
+	void	coalesceIncomingSpectrum(const QVector<float>& buffer);
+	void	resetCoalescedSpectrum();
+	void	scheduleSpectrumBinning();
+	void	applyPanBinResult(const DisplayUtils::PanBinResult& bins);
+	void	requestThrottledUpdate();
 	qint64	findPeakFrequencyNear(qint64 targetFreq, int searchRadiusHz, bool *found = nullptr) const;
 	void 	showText(float x, float y, float z, const QString &text, bool smallText);
 	void	showRadioPopup(bool value);
 
 private slots:
+	void	onSpectrumBinsReady(SpectrumBinWorker::Result result);
 	void	systemStateChanged(
 					QSDR::_Error err, 
 					QSDR::_HWInterfaceMode hwmode, 

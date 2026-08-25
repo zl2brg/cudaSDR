@@ -48,7 +48,8 @@ public:
                 const Colors& colors,
                 QSDR::_DataEngineState dataEngineState,
                 bool isCurrentReceiver,
-                const QVector<qreal>& peakHoldBins = {});
+                const QVector<qreal>& peakHoldBins = {},
+                bool scaleColorByLevel = false);
 
     void renderIdleBackground(QOpenGLFunctions *gl,
                               const QMatrix4x4& projection,
@@ -97,7 +98,8 @@ private:
                           QSDR::_DataEngineState dataEngineState,
                           bool isCurrentReceiver,
                           QOpenGLFunctions *gl,
-                          const QVector<qreal>& peakHoldBins = {});
+                          const QVector<qreal>& peakHoldBins = {},
+                          bool scaleColorByLevel = false);
 
     bool m_rhiActive = false;
     std::unique_ptr<QRhi> m_rhi;

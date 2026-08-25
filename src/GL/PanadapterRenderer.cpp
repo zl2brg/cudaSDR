@@ -6,6 +6,7 @@
 #include <QOpenGLContext>
 #include <QDebug>
 #include <QtGui/rhi/qrhi_platform.h>
+#include <tuple>
 
 namespace {
 
@@ -263,14 +264,16 @@ void PanadapterRenderer::render(QOpenGLFunctions *gl,
                                 const Colors& colors,
                                 QSDR::_DataEngineState dataEngineState,
                                 bool isCurrentReceiver,
-                                const QVector<qreal>& peakHoldBins)
+                                const QVector<qreal>& peakHoldBins,
+                                bool scaleColorByLevel)
 {
     if (bins.isEmpty() || panRect.width() <= 0 || panRect.height() <= 0)
         return;
 
     if (!m_rhiActive) {
         renderWithOpenGL(projection, panRect, bins, dBmMax, dBmMin, mode, scaleMult, dpr,
-                         parentHeight, colors, dataEngineState, isCurrentReceiver, gl, peakHoldBins);
+                         parentHeight, colors, dataEngineState, isCurrentReceiver, gl,
+                         peakHoldBins, scaleColorByLevel);
         return;
     }
 
@@ -281,7 +284,8 @@ void PanadapterRenderer::render(QOpenGLFunctions *gl,
     if (!ensureRenderTarget(pixelSize)) {
         m_rhiActive = false;
         renderWithOpenGL(projection, panRect, bins, dBmMax, dBmMin, mode, scaleMult, dpr,
-                         parentHeight, colors, dataEngineState, isCurrentReceiver, gl, peakHoldBins);
+                         parentHeight, colors, dataEngineState, isCurrentReceiver, gl,
+                         peakHoldBins, scaleColorByLevel);
         return;
     }
 
@@ -290,7 +294,8 @@ void PanadapterRenderer::render(QOpenGLFunctions *gl,
         qWarning() << "PanadapterRenderer: beginOffscreenFrame failed, using OpenGL fallback";
         m_rhiActive = false;
         renderWithOpenGL(projection, panRect, bins, dBmMax, dBmMin, mode, scaleMult, dpr,
-                         parentHeight, colors, dataEngineState, isCurrentReceiver, gl, peakHoldBins);
+                         parentHeight, colors, dataEngineState, isCurrentReceiver, gl,
+                         peakHoldBins, scaleColorByLevel);
         return;
     }
 
@@ -315,7 +320,16 @@ void PanadapterRenderer::render(QOpenGLFunctions *gl,
     }
 
     const float yScale = panRect.height() / float(dBmRange);
+    // Legacy wideband/pan brightness: colour scales with height above dBmMin (4×/range).
+    const float yScaleColor = 4.0f / float(dBmRange);
     const float yTop = float(y2);
+
+    auto lineRgb = [&](float binVal, float baseR, float baseG, float baseB) {
+        if (!scaleColorByLevel)
+            return std::tuple<float, float, float>{ baseR, baseG, baseB };
+        const float s = yScaleColor * binVal;
+        return std::tuple<float, float, float>{ baseR * s, baseG * s, baseB * s };
+    };
 
     float r1, g1, b1, r2, g2, b2, r3, g3, b3, r4, g4, b4;
     const float a = 1.0f;
@@ -362,7 +376,9 @@ void PanadapterRenderer::render(QOpenGLFunctions *gl,
         m_vertexCache.resize(vertexArrayLength);
         for (int i = 0; i < vertexArrayLength; ++i) {
             const float vx = float(x1 + (i / scaleMult));
-            m_vertexCache[i] = { vx, float(yTop - yScale * float(bins.at(i))), -1.0f, colors.r, colors.g, colors.b, 1.0f };
+            const float bin = float(bins.at(i));
+            const auto [cr, cg, cb_] = lineRgb(bin, colors.r, colors.g, colors.b);
+            m_vertexCache[i] = { vx, float(yTop - yScale * bin), -1.0f, cr, cg, cb_, 1.0f };
         }
         drawGeometry(cb, matrix, m_vertexCache.data(), m_vertexCache.size(), linePipeline, vertexArrayLength);
         break;
@@ -371,7 +387,9 @@ void PanadapterRenderer::render(QOpenGLFunctions *gl,
         m_vertexCache.resize(vertexArrayLength);
         for (int i = 0; i < vertexArrayLength; ++i) {
             const float vx = float(x1 + (i / scaleMult));
-            m_vertexCache[i] = { vx, float(yTop - yScale * float(bins.at(i))), -1.0f, colors.r, colors.g, colors.b, 1.0f };
+            const float bin = float(bins.at(i));
+            const auto [cr, cg, cb_] = lineRgb(bin, colors.r, colors.g, colors.b);
+            m_vertexCache[i] = { vx, float(yTop - yScale * bin), -1.0f, cr, cg, cb_, 1.0f };
         }
         drawGeometry(cb, matrix, m_vertexCache.data(), m_vertexCache.size(), linePipeline, vertexArrayLength);
         break;
@@ -395,12 +413,9 @@ void PanadapterRenderer::render(QOpenGLFunctions *gl,
         m_vertexCache.resize(vertexArrayLength);
         for (int i = 0; i < vertexArrayLength; ++i) {
             const float vx = float(x1 + (i / scaleMult));
-            m_vertexCache[i] = {
-                vx,
-                float(yTop - yScale * float(peakHoldBins.at(i))),
-                -0.5f,
-                colors.r, colors.g, colors.b, 1.0f
-            };
+            const float bin = float(peakHoldBins.at(i));
+            const auto [cr, cg, cb_] = lineRgb(bin, colors.r, colors.g, colors.b);
+            m_vertexCache[i] = { vx, float(yTop - yScale * bin), -0.5f, cr, cg, cb_, 1.0f };
         }
         drawGeometry(cb, matrix, m_vertexCache.data(), m_vertexCache.size(), linePipeline, vertexArrayLength);
     }
@@ -609,7 +624,8 @@ void PanadapterRenderer::renderWithOpenGL(const QMatrix4x4& projection,
                                           QSDR::_DataEngineState dataEngineState,
                                           bool isCurrentReceiver,
                                           QOpenGLFunctions *gl,
-                                          const QVector<qreal>& peakHoldBins)
+                                          const QVector<qreal>& peakHoldBins,
+                                          bool scaleColorByLevel)
 {
     if (!m_glShader || !m_glShader->isLinked() || !gl)
         return;
@@ -636,7 +652,15 @@ void PanadapterRenderer::renderWithOpenGL(const QMatrix4x4& projection,
     }
 
     const float yScale = panRect.height() / float(dBmRange);
+    const float yScaleColor = 4.0f / float(dBmRange);
     const float yTop = float(y2);
+
+    auto lineRgb = [&](float binVal, float baseR, float baseG, float baseB) {
+        if (!scaleColorByLevel)
+            return std::tuple<float, float, float>{ baseR, baseG, baseB };
+        const float s = yScaleColor * binVal;
+        return std::tuple<float, float, float>{ baseR * s, baseG * s, baseB * s };
+    };
 
     m_glShader->bind();
     const int matrixLoc = m_glShader->uniformLocation("matrix");
@@ -712,7 +736,9 @@ void PanadapterRenderer::renderWithOpenGL(const QMatrix4x4& projection,
         m_vertexCache.resize(vertexArrayLength);
         for (int i = 0; i < vertexArrayLength; ++i) {
             const float vx = float(x1 + (i / scaleMult));
-            m_vertexCache[i] = { vx, float(yTop - yScale * float(bins.at(i))), -1.0f, colors.r, colors.g, colors.b, 1.0f };
+            const float bin = float(bins.at(i));
+            const auto [cr, cg, cb_] = lineRgb(bin, colors.r, colors.g, colors.b);
+            m_vertexCache[i] = { vx, float(yTop - yScale * bin), -1.0f, cr, cg, cb_, 1.0f };
         }
         updateVBO(int(m_vertexCache.size() * sizeof(VertexData)), m_vertexCache.data());
         gl->glDrawArrays(GL_LINE_STRIP, 0, vertexArrayLength);
@@ -722,7 +748,9 @@ void PanadapterRenderer::renderWithOpenGL(const QMatrix4x4& projection,
         m_vertexCache.resize(vertexArrayLength);
         for (int i = 0; i < vertexArrayLength; ++i) {
             const float vx = float(x1 + (i / scaleMult));
-            m_vertexCache[i] = { vx, float(yTop - yScale * float(bins.at(i))), -1.0f, colors.r, colors.g, colors.b, 1.0f };
+            const float bin = float(bins.at(i));
+            const auto [cr, cg, cb_] = lineRgb(bin, colors.r, colors.g, colors.b);
+            m_vertexCache[i] = { vx, float(yTop - yScale * bin), -1.0f, cr, cg, cb_, 1.0f };
         }
         updateVBO(int(m_vertexCache.size() * sizeof(VertexData)), m_vertexCache.data());
         gl->glDrawArrays(GL_LINE_STRIP, 0, vertexArrayLength);
@@ -748,12 +776,9 @@ void PanadapterRenderer::renderWithOpenGL(const QMatrix4x4& projection,
         m_vertexCache.resize(vertexArrayLength);
         for (int i = 0; i < vertexArrayLength; ++i) {
             const float vx = float(x1 + (i / scaleMult));
-            m_vertexCache[i] = {
-                vx,
-                float(yTop - yScale * float(peakHoldBins.at(i))),
-                -0.5f,
-                colors.r, colors.g, colors.b, 1.0f
-            };
+            const float bin = float(peakHoldBins.at(i));
+            const auto [cr, cg, cb_] = lineRgb(bin, colors.r, colors.g, colors.b);
+            m_vertexCache[i] = { vx, float(yTop - yScale * bin), -0.5f, cr, cg, cb_, 1.0f };
         }
         updateVBO(int(m_vertexCache.size() * sizeof(VertexData)), m_vertexCache.data());
         gl->glDrawArrays(GL_LINE_STRIP, 0, vertexArrayLength);

@@ -15,6 +15,9 @@ private slots:
     void emptySpectrumIsNoOp();
     void remapsTxSpectrumOntoWiderPan();
     void equalRatesSkipRemap();
+    void binPanadapterRejectsEmptyInputs();
+    void binPanadapterSelectsPeakInBin();
+    void binPanadapterAppliesAttenuatorOffset();
 };
 
 void DisplayUtilsTests::appliesFixedDbOffset()
@@ -62,6 +65,66 @@ void DisplayUtilsTests::equalRatesSkipRemap()
     QCOMPARE(spectrum.at(0), -80.0f + kTxPanadapterDisplayDbOffset);
     QCOMPARE(spectrum.at(1), -10.0f + kTxPanadapterDisplayDbOffset);
     QCOMPARE(spectrum.at(2), -80.0f + kTxPanadapterDisplayDbOffset);
+}
+
+void DisplayUtilsTests::binPanadapterRejectsEmptyInputs()
+{
+    PanBinParams params;
+    params.spectrumSize = 8;
+    params.panPixelCount = 4;
+    QCOMPARE(binPanadapterSpectrum({}, {}, params).panBins.size(), 0);
+
+    QVector<float> shortBuf(4, -90.0f);
+    QCOMPARE(binPanadapterSpectrum(shortBuf, shortBuf, params).panBins.size(), 0);
+}
+
+void DisplayUtilsTests::binPanadapterSelectsPeakInBin()
+{
+    // Full-zoom (fftMult=1, zoom=1): sampleSize == spectrumSize → one FFT bin per
+    // display region; max-hold must pick the loudest bin in each pan column.
+    constexpr int N = 8;
+    QVector<float> spectrum(N, -100.0f);
+    spectrum[3] = -20.0f;
+
+    PanBinParams params;
+    params.spectrumSize = N;
+    params.panPixelCount = 4;
+    params.fftMult = 1.0;
+    params.freqScaleZoomFactor = 1.0;
+    params.dBmPanMin = -140.0;
+    params.dBmPanLogGain = 0.0;
+
+    const PanBinResult out = binPanadapterSpectrum(spectrum, spectrum, params);
+    QVERIFY(out.panSpectrumBinsLength > 0);
+    QVERIFY(!out.panBins.isEmpty());
+    QVERIFY(!out.waterfallPixels.isEmpty());
+
+    const qreal expected = -20.0 - params.dBmPanMin - params.dBmPanLogGain;
+    const qreal peak = *std::max_element(out.panBins.cbegin(), out.panBins.cend());
+    QCOMPARE(peak, expected);
+}
+
+void DisplayUtilsTests::binPanadapterAppliesAttenuatorOffset()
+{
+    constexpr int N = 8;
+    QVector<float> spectrum(N, -80.0f);
+
+    PanBinParams params;
+    params.spectrumSize = N;
+    params.panPixelCount = 4;
+    params.fftMult = 1.0;
+    params.freqScaleZoomFactor = 1.0;
+    params.dBmPanMin = -140.0;
+    params.dBmPanLogGain = 0.0;
+    params.mercuryAttenuator = true;
+
+    const PanBinResult withAtt = binPanadapterSpectrum(spectrum, spectrum, params);
+    params.mercuryAttenuator = false;
+    const PanBinResult withoutAtt = binPanadapterSpectrum(spectrum, spectrum, params);
+
+    QVERIFY(!withAtt.panBins.isEmpty());
+    QVERIFY(!withoutAtt.panBins.isEmpty());
+    QCOMPARE(withAtt.panBins.at(0), withoutAtt.panBins.at(0) - 20.0);
 }
 
 QTEST_APPLESS_MAIN(DisplayUtilsTests)

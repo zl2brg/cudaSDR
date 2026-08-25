@@ -32,6 +32,7 @@
 #include "Controllers/ExtCtrlSettingsController.h"
 #include "Controllers/AlexSettingsController.h"
 #include "Controllers/TransmitSettingsController.h"
+#include "cusdr_transmitOptionsWidget.h"
 #include "Controllers/DisplaySettingsController.h"
 #include "Controllers/SetupController.h"
 #ifdef HAVE_SOAPYSDR
@@ -68,6 +69,10 @@ cusdr_SetupWidget::cusdr_SetupWidget(RadioModel *model, QWidget *parent)
     m_txsettingsWidget = new tx_settings_dialog(this);
     m_transmitSettingsController = new TransmitSettingsController(this);
     m_transmitSettingsController->bind(m_txsettingsWidget, m_radioModel ? m_radioModel->transmit() : nullptr, set);
+    m_transmitTabWidget = new TransmitTabWidget(this);
+    m_transmitSettingsController->bindOptions(
+        m_transmitTabWidget->findChild<TransmitOptionsWidget*>(),
+        m_radioModel ? m_radioModel->transmit() : nullptr);
     m_displaytabWidget = new DisplayTabWidget(m_radioModel, this);
     m_displaySettingsController = new DisplaySettingsController(this);
     m_displaySettingsController->bind(m_displaytabWidget, m_radioModel, set);
@@ -93,6 +98,7 @@ cusdr_SetupWidget::cusdr_SetupWidget(RadioModel *model, QWidget *parent)
     addScrollableTab(m_extCtrlWidget, " Ext Ctrl ");
     addScrollableTab(m_alexTabWidget, " Alex ");
     addScrollableTab(m_txsettingsWidget, " Tx Settings ");
+    addScrollableTab(m_transmitTabWidget, " Tx Options ");
     // DisplayTabWidget has its own tabs (incl. 3D View) and internal scroll areas — do not wrap in QScrollArea
     // or the tab bar scrolls away with the first tab's content.
     this->addTab(m_displaytabWidget, tr(" Display Ctrl"));

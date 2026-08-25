@@ -97,6 +97,7 @@ QGLReceiverPanel::QGLReceiverPanel(SliceModel *model, QWidget *parent)
 	, m_filterChanged(true)
 	, m_showFilterLeftBoundary(false)
 	, m_showFilterRightBoundary(false)
+	, m_mercuryAttenuator(0)
 	, m_highlightFilter(false)
 	, m_dragMouse(false)
 	, m_dragDBmScale(false)
@@ -157,6 +158,12 @@ QGLReceiverPanel::QGLReceiverPanel(SliceModel *model, QWidget *parent)
 		m_dBmPanMax = set->getdBmPanScaleMax(m_receiver, band);
 	}
 	m_mouseWheelFreqStep = set->getMouseWheelFreqStep(m_receiver);
+	{
+		const HamBand band = set->getCurrentHamBand(m_receiver);
+		const QList<int> attns = set->getMercuryAttenuators(m_receiver);
+		const int bandIndex = int(band);
+		m_mercuryAttenuator = (bandIndex >= 0 && bandIndex < attns.size()) ? attns.at(bandIndex) : 0;
+	}
 	m_adcMode = set->getADCMode(m_receiver);
 	m_dspModeString = set->getDSPModeString(set->getDSPMode(m_receiver));
 	m_agcHangEnabled = set->getHangEnabled(m_receiver);
@@ -180,6 +187,7 @@ QGLReceiverPanel::QGLReceiverPanel(SliceModel *model, QWidget *parent)
 	m_secScaleWaterfallUpdate = true;
 	m_secScaleWaterfallRenew = true;
 	m_waterfallDisplayUpdate = true;
+	m_spectrumDirty = false;
 	m_filterWidth = qAbs((int)(m_filterUpperFrequency - m_filterLowerFrequency));
 	m_adcModeString = set->getADCModeString(m_receiver);
 	m_agcModeString = set->getAGCModeString(m_receiver);
@@ -213,6 +221,11 @@ QGLReceiverPanel::QGLReceiverPanel(SliceModel *model, QWidget *parent)
     m_vbo = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
 
 	setupConnections();
+
+	m_spectrumBinWorker = new SpectrumBinWorker(this);
+	CHECKED_CONNECT(m_spectrumBinWorker, &SpectrumBinWorker::binsReady,
+	                this, &QGLReceiverPanel::onSpectrumBinsReady);
+	m_spectrumBinWorker->start(QThread::LowPriority);
 
 	m_displayTime.start();
 	m_resizeTime.start();
@@ -259,7 +272,6 @@ QGLReceiverPanel::QGLReceiverPanel(SliceModel *model, QWidget *parent)
 	m_waterfallLoColor = QColor(0, 0, 0, m_waterfallAlpha);
 	m_waterfallHiColor = QColor(192, 124, 255, m_waterfallAlpha);
 	m_waterfallMidColor = set->getPanadapterColors().waterfallColor.toRgb();
-	m_waterfallColorRange = (int)(m_dBmPanMax - m_dBmPanMin);
 
     m_frequencyScaleFBO = nullptr;
     m_dBmScaleFBO = nullptr;
@@ -282,6 +294,13 @@ QGLReceiverPanel::~QGLReceiverPanel() {
 
     qDebug() << "rx panel destructor" << m_receiver;
     disconnect(set, 0, this, 0);
+
+    if (m_spectrumBinWorker) {
+        disconnect(m_spectrumBinWorker, nullptr, this, nullptr);
+        m_spectrumBinWorker->stop();
+        m_spectrumBinWorker->wait(1000);
+        m_spectrumBinWorker = nullptr;
+    }
 
     if (m_shaderProgram) {
         delete m_shaderProgram;
@@ -635,6 +654,9 @@ void QGLReceiverPanel::paintReceiverDisplay() {
         updateFrequencyRuler();
     if (m_dBmScalePanRect.isValid())
         updateDBmRuler();
+
+    // Spectrum binning runs on SpectrumBinWorker; paint only draws the latest snapshot.
+    scheduleSpectrumBinning();
 
     drawPanadapter();
     drawBandPlanStrip();
@@ -1184,7 +1206,17 @@ void QGLReceiverPanel::drawWaterfall() {
     glDisable(GL_MULTISAMPLE);
 
     glDisable(GL_DEPTH_TEST);
-    m_waterfallRenderer->render(panelProjection(), m_waterfallRect, m_waterfallPixel, m_dataEngineState, dpr);
+    WaterfallMapping mapping;
+    mapping.lowerThreshold = float(m_dBmPanMin) - float(m_waterfallOffsetLo);
+    mapping.upperThreshold = float(m_dBmPanMax) + float(m_waterfallOffsetHi);
+    mapping.colorRange = float(qAbs(m_dBmPanMax - m_dBmPanMin));
+    mapping.mode = m_waterfallMode;
+    mapping.lo = m_waterfallLoColor;
+    mapping.mid = m_waterfallMidColor;
+    mapping.hi = m_waterfallHiColor;
+    mapping.alpha = float(m_waterfallAlpha) / 255.0f;
+    m_waterfallRenderer->render(panelProjection(), m_waterfallRect, m_waterfallPixel,
+                                m_dataEngineState, dpr, m_waterfallDisplayUpdate, mapping);
 
     glDisable(GL_SCISSOR_TEST);
 }
@@ -3343,25 +3375,137 @@ void QGLReceiverPanel::setSpectrumBuffer(int rx, const qVectorFloat& buffer) {
 	else
 		m_cachedSpectrumBuffer.clear();
 
-	QVector<float> specBuf(m_spectrumSize);
-	QVector<float> waterBuf(m_spectrumSize);
-	waterBuf = buffer;
+	if (m_dataEngineState != QSDR::DataEngineUp || buffer.size() < m_spectrumSize)
+		return;
 
-	if (m_dataEngineState == QSDR::DataEngineUp) {
+	if (m_spectrumAveraging)
+		spectrumBufferMutex.lock();
+	coalesceIncomingSpectrum(buffer);
+	if (m_spectrumAveraging)
+		spectrumBufferMutex.unlock();
 
-		if (m_spectrumAveraging) {
-	
-			spectrumBufferMutex.lock();
-			specBuf = buffer;
-			computeDisplayBins(specBuf, waterBuf);
-			spectrumBufferMutex.unlock();
+	// Do not schedule the worker here — that drains coalesce every FFT and
+	// reintroduces TX/RX flicker. Bin once per display frame (paint / onReady).
+	requestThrottledUpdate();
+}
+
+void QGLReceiverPanel::coalesceIncomingSpectrum(const QVector<float>& buffer)
+{
+	const int n = m_spectrumSize;
+	if (buffer.size() < n)
+		return;
+
+	if (!m_spectrumDirty || m_coalescedSpectrum.size() != n) {
+		m_coalescedSpectrum.resize(n);
+		for (int i = 0; i < n; ++i)
+			m_coalescedSpectrum[i] = buffer.at(i);
+	} else {
+		for (int i = 0; i < n; ++i) {
+			const float v = buffer.at(i);
+			if (v > m_coalescedSpectrum[i])
+				m_coalescedSpectrum[i] = v;
 		}
-		else {
+	}
+	m_spectrumDirty = true;
+}
 
-			specBuf = buffer;
-			if (m_dataEngineState == QSDR::DataEngineUp)
-				computeDisplayBins(specBuf, waterBuf);
-		}
+void QGLReceiverPanel::resetCoalescedSpectrum()
+{
+	m_coalescedSpectrum.clear();
+	m_spectrumDirty = false;
+}
+
+void QGLReceiverPanel::scheduleSpectrumBinning()
+{
+	if (!m_spectrumBinWorker || !m_spectrumDirty || m_dataEngineState != QSDR::DataEngineUp)
+		return;
+	if (m_coalescedSpectrum.size() < m_spectrumSize)
+		return;
+	if (m_panRectWidth <= 0 || !m_panRect.isValid())
+		return;
+
+	SpectrumBinWorker::Request req;
+	if (m_spectrumAveraging)
+		spectrumBufferMutex.lock();
+	req.spectrum = m_coalescedSpectrum;
+	resetCoalescedSpectrum();
+	if (m_spectrumAveraging)
+		spectrumBufferMutex.unlock();
+
+	req.params.spectrumSize = m_spectrumSize;
+	req.params.panPixelCount = static_cast<int>(m_panRectWidth);
+	req.params.fftMult = m_fftMult;
+	req.params.freqScaleZoomFactor = m_freqScaleZoomFactor;
+	req.params.dBmPanMin = m_dBmPanMin;
+	req.params.dBmPanLogGain = m_dBmPanLogGain;
+	req.params.mercuryAttenuator = (m_mercuryAttenuator != 0);
+	req.params.peakHold = m_peakHold;
+	if (m_peakHold) {
+		req.peakHoldBins.resize(m_panPeakHoldBins.size());
+		for (int i = 0; i < m_panPeakHoldBins.size(); ++i)
+			req.peakHoldBins[i] = static_cast<float>(m_panPeakHoldBins.at(i));
+	}
+	req.generation = ++m_spectrumBinGeneration;
+	m_spectrumBinWorker->submit(req);
+}
+
+void QGLReceiverPanel::onSpectrumBinsReady(SpectrumBinWorker::Result result)
+{
+	if (result.generation < m_spectrumBinAppliedGeneration)
+		return;
+	m_spectrumBinAppliedGeneration = result.generation;
+	applyPanBinResult(result.bins);
+
+	// Pick up frames that coalesced while the worker was busy.
+	if (m_spectrumDirty)
+		scheduleSpectrumBinning();
+
+	requestThrottledUpdate();
+}
+
+void QGLReceiverPanel::applyPanBinResult(const DisplayUtils::PanBinResult& bins)
+{
+	if (bins.panBins.isEmpty())
+		return;
+
+	const qreal scaleMultOld = m_scaleMult;
+	m_sampleSize = bins.sampleSize;
+	m_panScale = bins.panScale;
+	m_scaleMult = bins.scaleMult;
+	m_panSpectrumBinsLength = bins.panSpectrumBinsLength;
+	m_panadapterBins = bins.panBins;
+
+	if (scaleMultOld != m_scaleMult && m_waterfallRenderer)
+		m_waterfallRenderer->reset();
+
+	m_waterfallPixel.clear();
+	m_waterfallPixel.resize(bins.waterfallPixels.size());
+	for (int i = 0; i < bins.waterfallPixels.size(); ++i)
+		m_waterfallPixel[i] = bins.waterfallPixels.at(i);
+
+	if (bins.peakHoldBins.size() == bins.panSpectrumBinsLength) {
+		m_panPeakHoldBins.resize(bins.peakHoldBins.size());
+		for (int i = 0; i < bins.peakHoldBins.size(); ++i)
+			m_panPeakHoldBins[i] = bins.peakHoldBins.at(i);
+		m_peakHoldBufferResize = false;
+	}
+
+	if (m_sampleSize != m_oldSampleSize) {
+		GRAPHICS_DEBUG << "m_panSpectrumBinsLength = " << m_panSpectrumBinsLength;
+		GRAPHICS_DEBUG << "m_sampleSize =            " << m_sampleSize;
+		m_oldSampleSize = m_sampleSize;
+	}
+
+	m_waterfallDisplayUpdate = true;
+}
+
+void QGLReceiverPanel::requestThrottledUpdate()
+{
+	int frameIntervalMs = (m_fps > 0) ? (1000 / m_fps) : 33;
+	frameIntervalMs = qMax(frameIntervalMs, 33); // ≤ ~30 FPS
+	if (m_displayTime.elapsed() >= frameIntervalMs) {
+		m_displayTime.restart();
+		update();
 	}
 }
 
@@ -3369,6 +3513,8 @@ void QGLReceiverPanel::recomputeDisplayBinsFromCache()
 {
 	if (m_dataEngineState != QSDR::DataEngineUp || m_cachedSpectrumBuffer.size() < m_spectrumSize)
 		return;
+
+	resetCoalescedSpectrum();
 
 	QVector<float> specBuf = m_cachedSpectrumBuffer;
 	QVector<float> waterBuf = m_cachedSpectrumBuffer;
@@ -3443,347 +3589,108 @@ void QGLReceiverPanel::computeDisplayBins(QVector<float>& buffer, QVector<float>
 	if (buffer.size() < m_spectrumSize || waterfallBuffer.size() < m_spectrumSize)
 		return;
 
-	//int m_sampleSize = 0;
-	int deltaSampleSize = 0;
-	int idx = 0;
-	int lIdx = 0;
-	int rIdx = 0;
-	qreal localMax;
+	m_sampleSize = (int)floor(m_fftMult * m_spectrumSize * m_freqScaleZoomFactor);
 
-		m_sampleSize = (int)floor(m_fftMult * m_spectrumSize * m_freqScaleZoomFactor);
-		deltaSampleSize = m_spectrumSize - m_sampleSize;
-	//	qDebug() << "m_ssamplesdize" << m_sampleSize << deltaSampleSize << m_fftMult;
-			
+	// fftMult escalation only works when the engine is down (setSampleSize/setSpectrumSize
+	// are no-ops while the engine is running). Skip escalation while running to avoid
+	// cascading that corrupts m_fftMult and m_freqScaleZoomFactor.
+	if (m_dataEngineState != QSDR::DataEngineUp) {
 
-		// fftMult escalation only works when the engine is down (setSampleSize/setSpectrumSize
-		// are no-ops while the engine is running). Skip escalation while running to avoid
-		// cascading that corrupts m_fftMult and m_freqScaleZoomFactor.
-		if (m_dataEngineState != QSDR::DataEngineUp) {
+		if (m_sampleSize < 2048) {
 
-			if (m_sampleSize < 2048) {
+			if (m_fftMult == 1) {
 
-				if (m_fftMult == 1) {
-
-					GRAPHICS_DEBUG << "set sample size to 8192";
-					set->setSampleSize(m_receiver, 8192);
-					m_dBmPanLogGain += 6;
-					m_fftMult = 2;
-					return;
-				}
-				else if (m_fftMult == 2) {
-
-					GRAPHICS_DEBUG << "set sample size to 16384";
-					set->setSampleSize(m_receiver, 16384);
-					m_dBmPanLogGain += 6;
-					m_fftMult = 4;
-					return;
-				}
-				else if (m_fftMult == 4) {
-
-					GRAPHICS_DEBUG << "set sample size to 32768";
-					set->setSampleSize(m_receiver, 32768);
-					m_dBmPanLogGain += 6;
-					m_fftMult = 8;
-					return;
-				}
-				else if (m_fftMult == 8) {
-
-					GRAPHICS_DEBUG << "set sample size to 65536";
-					set->setSampleSize(m_receiver, 65536);
-					m_dBmPanLogGain += 6;
-					m_fftMult = 16;
-					return;
-				}
+				GRAPHICS_DEBUG << "set sample size to 8192";
+				set->setSampleSize(m_receiver, 8192);
+				m_dBmPanLogGain += 6;
+				m_fftMult = 2;
+				return;
 			}
-			else if (m_sampleSize > 4096) {
+			else if (m_fftMult == 2) {
 
-				if (m_fftMult == 2) {
-
-					GRAPHICS_DEBUG << "set sample size to 4096";
-					set->setSampleSize(m_receiver, 4096);
-					m_dBmPanLogGain -= 6;
-					m_fftMult = 1;
-					return;
-				}
-				else if (m_fftMult == 4) {
-
-					GRAPHICS_DEBUG << "set sample size to 8192";
-					set->setSampleSize(m_receiver, 8192);
-					m_dBmPanLogGain -= 6;
-					m_fftMult = 2;
-					return;
-				}
-				else if (m_fftMult == 8) {
-
-					GRAPHICS_DEBUG << "set sample size to 16384";
-					set->setSampleSize(m_receiver, 16384);
-					m_dBmPanLogGain -= 6;
-					m_fftMult = 4;
-					return;
-				}
-				else if (m_fftMult == 16) {
-
-					GRAPHICS_DEBUG << "set sample size to 32768";
-					set->setSampleSize(m_receiver, 32768);
-					m_dBmPanLogGain -= 6;
-					m_fftMult = 8;
-					return;
-				}
+				GRAPHICS_DEBUG << "set sample size to 16384";
+				set->setSampleSize(m_receiver, 16384);
+				m_dBmPanLogGain += 6;
+				m_fftMult = 4;
+				return;
 			}
+			else if (m_fftMult == 4) {
 
-		} // end engine-down-only escalation
+				GRAPHICS_DEBUG << "set sample size to 32768";
+				set->setSampleSize(m_receiver, 32768);
+				m_dBmPanLogGain += 6;
+				m_fftMult = 8;
+				return;
+			}
+			else if (m_fftMult == 8) {
+
+				GRAPHICS_DEBUG << "set sample size to 65536";
+				set->setSampleSize(m_receiver, 65536);
+				m_dBmPanLogGain += 6;
+				m_fftMult = 16;
+				return;
+			}
+		}
+		else if (m_sampleSize > 4096) {
+
+			if (m_fftMult == 2) {
+
+				GRAPHICS_DEBUG << "set sample size to 4096";
+				set->setSampleSize(m_receiver, 4096);
+				m_dBmPanLogGain -= 6;
+				m_fftMult = 1;
+				return;
+			}
+			else if (m_fftMult == 4) {
+
+				GRAPHICS_DEBUG << "set sample size to 8192";
+				set->setSampleSize(m_receiver, 8192);
+				m_dBmPanLogGain -= 6;
+				m_fftMult = 2;
+				return;
+			}
+			else if (m_fftMult == 8) {
+
+				GRAPHICS_DEBUG << "set sample size to 16384";
+				set->setSampleSize(m_receiver, 16384);
+				m_dBmPanLogGain -= 6;
+				m_fftMult = 4;
+				return;
+			}
+			else if (m_fftMult == 16) {
+
+				GRAPHICS_DEBUG << "set sample size to 32768";
+				set->setSampleSize(m_receiver, 32768);
+				m_dBmPanLogGain -= 6;
+				m_fftMult = 8;
+				return;
+			}
+		}
+
+	} // end engine-down-only escalation
 
 	if (m_panRectWidth <= 0 || !m_panRect.isValid())
 		return;
 
-	m_panScale = (qreal)(1.0 * m_sampleSize / m_panRectWidth);
-	m_scaleMultOld = m_scaleMult;
+	DisplayUtils::PanBinParams params;
+	params.spectrumSize = m_spectrumSize;
+	params.panPixelCount = static_cast<int>(m_panRectWidth);
+	params.fftMult = m_fftMult;
+	params.freqScaleZoomFactor = m_freqScaleZoomFactor;
+	params.dBmPanMin = m_dBmPanMin;
+	params.dBmPanLogGain = m_dBmPanLogGain;
+	params.mercuryAttenuator = (m_mercuryAttenuator != 0);
+	params.peakHold = m_peakHold;
 
-	if (m_panScale < 0.125) {
-		m_scaleMult = 0.0625;
-	}
-	else if (m_panScale < 0.25) {
-		m_scaleMult = 0.125;
-	}
-	else if (m_panScale < 0.5) {
-		m_scaleMult = 0.25;
-	}
-	else if (m_panScale < 1.0) {
-		m_scaleMult = 0.5;
-	}
-	else {
-		m_scaleMult = 1.0;
+	QVector<float> peakHoldIn;
+	if (m_peakHold) {
+		peakHoldIn.resize(m_panPeakHoldBins.size());
+		for (int i = 0; i < m_panPeakHoldBins.size(); ++i)
+			peakHoldIn[i] = static_cast<float>(m_panPeakHoldBins.at(i));
 	}
 
-	const int panPixelCount = qBound(0, static_cast<int>(m_panRectWidth), 16384);
-	m_panSpectrumBinsLength = qBound(0, static_cast<GLint>(m_scaleMult * m_panRectWidth), panPixelCount);
-//	qDebug() << "m_panSpectrumBinsLength =" << m_panSpectrumBinsLength;
-	if (m_sampleSize != m_oldSampleSize) {
-	
-		GRAPHICS_DEBUG << "m_panSpectrumBinsLength = " << m_panSpectrumBinsLength;
-		GRAPHICS_DEBUG << "m_sampleSize =            " << m_sampleSize;
-		GRAPHICS_DEBUG << "deltaSampleSize =         " << deltaSampleSize;
-		GRAPHICS_DEBUG << "";
-
-		m_oldSampleSize = m_sampleSize;
-	}
-
-	if (m_scaleMultOld != m_scaleMult) {
-
-		if (m_waterfallRenderer) m_waterfallRenderer->reset();
-	}
-
-	m_waterfallPixel.clear();
-	if (panPixelCount > 0)
-		m_waterfallPixel.resize(panPixelCount);
-
-	m_panadapterBins.clear();
-
-	if (m_peakHold && (m_peakHoldBufferResize || m_panPeakHoldBins.size() != m_panSpectrumBinsLength)) {
-		resetPeakHoldBins();
-		m_peakHoldBufferResize = false;
-	}
-
-	for (int i = 0; i < m_panSpectrumBinsLength; i++) {
-		
-		lIdx = (int)qFloor((qreal)(i * m_panScale / m_scaleMult));
-		rIdx = (int)qFloor((qreal)(i * m_panScale / m_scaleMult) + m_panScale / m_scaleMult);
-		if (rIdx <= lIdx)
-			rIdx = lIdx + 1;
-
-		lIdx = qBound(0, lIdx, buffer.size() - 1);
-		rIdx = qBound(lIdx + 1, rIdx, buffer.size());
-
-		idx = lIdx;
-		localMax = buffer.at(lIdx);
-
-		for (int j = lIdx + 1; j < rIdx; j++) {
-			if (buffer.at(j) > localMax) {
-				localMax = buffer.at(j);
-				idx = j;
-			}
-		}
-
-		// shift the beginning of the bins by half of the difference between
-		// full spectrum size and reduced spectrum size due to zooming
-		idx = qBound(0, idx + deltaSampleSize/2, buffer.size() - 1);
-
-		QColor pColor;
-
-//		if (buffer.at(idx) < -120)
-//		{
-//			val = -120 - buffer.at(idx);
-//			qDebug() << "calc " << buffer.at(idx) << "val  " << val;
-//		}
-		if (m_mercuryAttenuator) {
-			m_panadapterBins << buffer.at(idx) - m_dBmPanMin - m_dBmPanLogGain - 20.0f;
-			pColor = getWaterfallColorAtPixel(waterfallBuffer.at(idx) - m_dBmPanLogGain - 20.0f);
-		}
-		else {
-			m_panadapterBins << buffer.at(idx) - m_dBmPanMin - m_dBmPanLogGain;
-			pColor = getWaterfallColorAtPixel(waterfallBuffer.at(idx) - m_dBmPanLogGain);
-		}
-
-		if (m_peakHold && i < m_panPeakHoldBins.size()
-			&& (m_panadapterBins.at(i) > m_panPeakHoldBins.at(i))) {
-			m_panPeakHoldBins[i] = m_panadapterBins.at(i);
-		}
-
-		TGL_ubyteRGBA color;
-		color.red   = (uchar)(pColor.red());
-		color.green = (uchar)(pColor.green());
-		color.blue  = (uchar)(pColor.blue());
-		color.alpha = 255;
-		
-		const int span = qMax(1, static_cast<int>(1.0 / m_scaleMult));
-		for (int j = 0; j < span; j++) {
-			const int wfIndex = static_cast<int>(i / m_scaleMult) + j;
-			if (wfIndex >= 0 && wfIndex < m_waterfallPixel.size())
-				m_waterfallPixel[wfIndex] = color;
-		}
-	}
-
-	m_waterfallDisplayUpdate = true;
-	// Cap multi-QOpenGLWidget recomposition: uncapped / high FPS makes the whole
-	// window flash as sibling FBOs clear out of sync.
-	int frameIntervalMs = (m_fps > 0) ? (1000 / m_fps) : 33;
-	frameIntervalMs = qMax(frameIntervalMs, 33); // ≤ ~30 FPS
-	if (m_displayTime.elapsed() >= frameIntervalMs) {
-		m_displayTime.restart();
-		update();
-	}
-}
-
-// get waterfall colors - taken from PowerSDR/KISS Konsole
-QColor QGLReceiverPanel::getWaterfallColorAtPixel(qreal value) {
-
-	QColor color;
-	//int r = 0; int g = 0; int b = 0;
-	int r, g, b;
-	int lowerThreshold = (int)m_dBmPanMin - m_waterfallOffsetLo;
-	int upperThreshold = (int)m_dBmPanMax + m_waterfallOffsetHi;
-
-	float offset;
-	float globalRange;
-	float localRange;
-	float percent;
-	
-	switch (m_waterfallMode) {
-
-		case (WaterfallColorMode) Simple:
-
-			if (value <= lowerThreshold)
-				color = m_waterfallLoColor;
-			else 
-			if (value >= upperThreshold)
-					color = QColor(255, 255, 255);//m_waterfallHiColor;
-			else {
-
-				percent = (value - lowerThreshold) / (upperThreshold - lowerThreshold);
-				if (percent <= 0.5)	{ // use a gradient between low and mid colors
-				
-					percent *= 2;
-
-					r = (int)((1 - percent) * m_waterfallLoColor.red()   + percent * m_waterfallMidColor.red());
-					g = (int)((1 - percent) * m_waterfallLoColor.green() + percent * m_waterfallMidColor.green());
-					b = (int)((1 - percent) * m_waterfallLoColor.blue()  + percent * m_waterfallMidColor.blue());
-				}
-				else {	// use a gradient between mid and high colors
-
-					percent = (float)(percent - 0.5) * 2;
-
-					r = (int)((1 - percent) * m_waterfallMidColor.red()   + percent * 255);//m_waterfallHiColor.red());
-					g = (int)((1 - percent) * m_waterfallMidColor.green() + percent * 255);//m_waterfallHiColor.green());
-					b = (int)((1 - percent) * m_waterfallMidColor.blue()  + percent * 255);//m_waterfallHiColor.blue());
-				}
-
-				if (r > 255) r = 255;
-				if (g > 255) g = 255;
-				if (b > 255) b = 255;
-				color = QColor(r, g, b, m_waterfallAlpha);
-			}
-
-			break;
-
-		case (WaterfallColorMode) Enhanced:
-
-			if (value <= lowerThreshold)
-				color = m_waterfallLoColor;
-			else 
-			if (value >= upperThreshold)
-					color = m_waterfallHiColor;
-			else {
-
-				offset = value - lowerThreshold;
-				globalRange = offset / m_waterfallColorRange; // value from 0.0 to 1.0 where 1.0 is high and 0.0 is low.
-                if (globalRange < (float)2/9) { // background to blue
-
-					localRange = globalRange / ((float)2/9);
-					r = (int)((1.0 - localRange) * m_waterfallLoColor.red());
-					g = (int)((1.0 - localRange) * m_waterfallLoColor.green());
-					b = (int)(m_waterfallLoColor.blue() + localRange * (255 - m_waterfallLoColor.blue()));
-				}
-				else 
-				if (globalRange < (float)3/9) { // blue to blue-green
-
-					localRange = (globalRange - (float)2/9) / ((float)1/9);
-					r = 0;
-					g = (int)(localRange * 255);
-					b = 255;
-				}
-				else 
-				if (globalRange < (float)4/9) { // blue-green to green
-
-					localRange = (globalRange - (float)3/9) / ((float)1/9);
-					r = 0;
-					g = 255;
-					b = (int)((1.0 - localRange) * 255);
-				}
-				else 
-				if (globalRange < (float)5/9) { // green to red-green
-
-					localRange = (globalRange - (float)4/9) / ((float)1/9);
-					r = (int)(localRange * 255);
-					g = 255;
-					b = 0;
-				}
-				else 
-				if (globalRange < (float)7/9) { // red-green to red
-
-					localRange = (globalRange - (float)5/9) / ((float)2/9);
-					r = 255;
-					g = (int)((1.0 - localRange) * 255);
-					b = 0;
-				}
-				else 
-				if (globalRange < (float)8/9) { // red to red-blue
-
-					localRange = (globalRange - (float)7/9) / ((float)1/9);
-					r = 255;
-					g = 0;
-					b = (int)(localRange * 255);
-				}
-				else { // red-blue to purple end
-
-					localRange = (globalRange - (float)8/9) / ((float)1/9);
-					r = (int)((0.75 + 0.25 * (1.0 - localRange)) * 255);
-					g = (int)(localRange * 255 * 0.5);
-					b = 255;
-				}
-
-                if (r > 255) r = 255;
-				if (g > 255) g = 255;
-				if (b > 255) b = 255;
-				if (r < 0) r = 0;
-				if (g < 0) g = 0;
-				if (b < 0) b = 0;
-				color = QColor(r, g, b, m_waterfallAlpha);
-			}
-
-			break;
-	}
-	
-	return color;
+	applyPanBinResult(DisplayUtils::binPanadapterSpectrum(
+		buffer, waterfallBuffer, params, peakHoldIn));
 }
 
 void QGLReceiverPanel::setFramesPerSecond(int rx, int value) {
@@ -3815,6 +3722,9 @@ void QGLReceiverPanel::systemStateChanged(
 		m_cachedSpectrumBuffer.clear();
 		m_panadapterBins.clear();
 		m_waterfallPixel.clear();
+		resetCoalescedSpectrum();
+		// Drop in-flight worker results that would otherwise re-apply after teardown.
+		m_spectrumBinAppliedGeneration = ++m_spectrumBinGeneration;
 		m_waterfallDisplayUpdate = true;
 		update();
 	}
@@ -3844,6 +3754,8 @@ void QGLReceiverPanel::graphicModeChanged(
 
 	if (m_waterfallMode != waterfallColorMode)
 		m_waterfallMode = waterfallColorMode;
+
+	update();
 }
 
 void QGLReceiverPanel::setSpectrumAveraging(int rx, bool value) {
@@ -3989,6 +3901,7 @@ void QGLReceiverPanel::setWaterfallOffesetLo(int rx, int value) {
 	if (m_receiver != rx) return;
 
 	m_waterfallOffsetLo = value;
+	update();
 }
 
 void QGLReceiverPanel::setWaterfallOffesetHi(int rx, int value) {
@@ -3996,6 +3909,7 @@ void QGLReceiverPanel::setWaterfallOffesetHi(int rx, int value) {
 	if (m_receiver != rx) return;
 
 	m_waterfallOffsetHi = value;
+	update();
 }
 
 void QGLReceiverPanel::setdBmScaleMin(int rx, qreal value) {
@@ -4007,6 +3921,7 @@ void QGLReceiverPanel::setdBmScaleMin(int rx, qreal value) {
 	m_dBmScalePanadapterUpdate = true;
 	m_panGridUpdate = true;
 	m_peakHoldBufferResize = true;
+	update();
 }
 
 void QGLReceiverPanel::setdBmScaleMax(int rx, qreal value) {
@@ -4018,6 +3933,7 @@ void QGLReceiverPanel::setdBmScaleMax(int rx, qreal value) {
 	m_dBmScalePanadapterUpdate = true;
 	m_panGridUpdate = true;
 	m_peakHoldBufferResize = true;
+	update();
 }
 
 void QGLReceiverPanel::setMouseWheelFreqStep(int rx, qreal step) {

@@ -104,6 +104,13 @@ AlexFilterWidget::~AlexFilterWidget() {
 
 void AlexFilterWidget::setAlexConfig(quint16 config) {
 	m_alexConfig = config;
+	bypassAll = (config & 0x02) != 0;
+	lowNoise6m = (config & 0x04) != 0;
+	hpf1_5MHz = (config & 0x08) != 0;
+	hpf6_5MHz = (config & 0x10) != 0;
+	hpf9_5MHz = (config & 0x20) != 0;
+	hpf13MHz = (config & 0x40) != 0;
+	hpf20MHz = (config & 0x80) != 0;
 }
 
 void AlexFilterWidget::setAlexStates(const QList<int>& states) {
@@ -593,7 +600,7 @@ void AlexFilterWidget::bypassAllHPFBtnClicked() {
 	hpf1_5MHz = false;
 
 	m_alexConfig &= 0xFF01;
-	m_alexConfig |= 0x80;
+	m_alexConfig |= 0x02; // bypass all HPFs (Settings / P1 / P2 canonical)
 	emit alexConfigurationRequested(m_alexConfig);
 }
 
@@ -607,7 +614,7 @@ void AlexFilterWidget::lowNoise6mAmpBtnClicked() {
 	hpf1_5MHz = false;
 
 	m_alexConfig &= 0xFF01;
-	m_alexConfig |= 0x40;
+	m_alexConfig |= 0x04; // 6m LNA
 	emit alexConfigurationRequested(m_alexConfig);
 }
 
@@ -621,7 +628,7 @@ void AlexFilterWidget::hpf20MHzBtnClicked() {
 	hpf1_5MHz = false;
 
 	m_alexConfig &= 0xFF01;
-	m_alexConfig |= 0x20;
+	m_alexConfig |= 0x80; // 20 MHz HPF
 	emit alexConfigurationRequested(m_alexConfig);
 }
 
@@ -635,7 +642,7 @@ void AlexFilterWidget::hpf13MHzBtnClicked() {
 	hpf1_5MHz = false;
 
 	m_alexConfig &= 0xFF01;
-	m_alexConfig |= 0x10;
+	m_alexConfig |= 0x40; // 13 MHz HPF
 	emit alexConfigurationRequested(m_alexConfig);
 }
 
@@ -649,7 +656,7 @@ void AlexFilterWidget::hpf9_5MHzBtnClicked() {
 	hpf1_5MHz = false;
 
 	m_alexConfig &= 0xFF01;
-	m_alexConfig |= 0x08;
+	m_alexConfig |= 0x20; // 9.5 MHz HPF
 	emit alexConfigurationRequested(m_alexConfig);
 }
 
@@ -663,7 +670,7 @@ void AlexFilterWidget::hpf6_5MHzBtnClicked() {
 	hpf1_5MHz = false;
 
 	m_alexConfig &= 0xFF01;
-	m_alexConfig |= 0x04;
+	m_alexConfig |= 0x10; // 6.5 MHz HPF
 	emit alexConfigurationRequested(m_alexConfig);
 }
 
@@ -677,6 +684,6 @@ void AlexFilterWidget::hpf1_5MHzBtnClicked() {
 	hpf1_5MHz = true;
 
 	m_alexConfig &= 0xFF01;
-	m_alexConfig |= 0x02;
+	m_alexConfig |= 0x08; // 1.5 MHz HPF
 	emit alexConfigurationRequested(m_alexConfig);
 }

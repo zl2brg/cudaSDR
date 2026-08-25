@@ -327,12 +327,12 @@ void ModelsTests::testSliceModelProperties() {
     QCOMPARE(slice.waterfallMode(), Enhanced);
     QCOMPARE(spyWaterfallMode.count(), 1);
 
-    QCOMPARE(slice.waterfallOffsetLo(), -120);
+    QCOMPARE(slice.waterfallOffsetLo(), -5);
     slice.setWaterfallOffsetLo(-110);
     QCOMPARE(slice.waterfallOffsetLo(), -110);
     QCOMPARE(spyWaterfallOffset.count(), 1);
 
-    QCOMPARE(slice.waterfallOffsetHi(), -60);
+    QCOMPARE(slice.waterfallOffsetHi(), 20);
     slice.setWaterfallOffsetHi(-50);
     QCOMPARE(slice.waterfallOffsetHi(), -50);
     QCOMPARE(spyWaterfallOffset.count(), 2);

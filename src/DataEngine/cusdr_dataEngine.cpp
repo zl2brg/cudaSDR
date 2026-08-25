@@ -1,6 +1,7 @@
 #include "Models/RadioModel.h"
 #include "Models/RadioTelemetry.h"
 #include "Models/SliceModel.h"
+#include "Models/TransmitModel.h"
 #if defined(__clang__)
 #pragma clang diagnostic push
 #endif
@@ -527,67 +528,36 @@ void DataEngine::setupConnections() {
             this,
             &DataEngine::setTxFullDuplex);
 
-
-    // connect(set, &Settings::dspModeChanged, this, &DataEngine::dspModeChanged);
-
-
-    CHECKED_CONNECT(
-            set,
-            &Settings::CwHangTimeChanged,
-            this,
-            &DataEngine::CwHangTimeChanged);
-
-    CHECKED_CONNECT(
-            set,
-            &Settings::CwSidetoneFreqChanged,
-            this,
-            &DataEngine::CwSidetoneFreqChanged);
-
-
-    connect(set, &Settings::CwKeyReversedChanged, this, &DataEngine::CwKeyReversedChanged);
-
-    CHECKED_CONNECT(
-            set,
-            &Settings::CwKeyerModeChanged,
-            this,
-            &DataEngine::CwKeyerModeChanged);
-
-    CHECKED_CONNECT(
-               set,
-               &Settings::InternalCwChanged,
-               this,
-               &DataEngine::InternalCwChanged);
-
-    CHECKED_CONNECT(
-               set,
-               &Settings::CwKeyerSpeedChanged,
-               this,
-               &DataEngine::CwKeyerSpeedChanged);
-
-
-    CHECKED_CONNECT(
-               set,
-               &Settings::CwPttDelayChanged,
-               this,
-               &DataEngine::CwPttDelayChanged);
-
-    CHECKED_CONNECT(
-               set,
-               &Settings::CwSidetoneVolumeChanged,
-               this,
-               &DataEngine::CwSidetoneVolumeChanged);
-
-    CHECKED_CONNECT(
-            set,
-            &Settings::CwKeyerWeightChanged,
-            this,
-            &DataEngine::CwKeyerWeightChanged);
-
-    CHECKED_CONNECT(
-            set,
-            &Settings::CwKeyerSpacingChanged,
-                    this,
-            &DataEngine::CwKeyerSpacingChanged);
+    // CW / TX DSP live on TransmitModel; Settings getters forward there.
+    if (TransmitModel* tx = m_radioModel ? m_radioModel->transmit() : nullptr) {
+        connect(tx, &TransmitModel::cwHangTimeChanged, this, &DataEngine::CwHangTimeChanged);
+        connect(tx, &TransmitModel::cwSidetoneFreqChanged, this, &DataEngine::CwSidetoneFreqChanged);
+        connect(tx, &TransmitModel::cwKeyReversedChanged, this, [this](bool rev) {
+            CwKeyReversedChanged(rev ? 1 : 0);
+        });
+        connect(tx, &TransmitModel::cwKeyerModeChanged, this, &DataEngine::CwKeyerModeChanged);
+        connect(tx, &TransmitModel::internalCwChanged, this, [this](bool on) {
+            InternalCwChanged(on ? 1 : 0);
+        });
+        connect(tx, &TransmitModel::cwKeyerSpeedChanged, this, &DataEngine::CwKeyerSpeedChanged);
+        connect(tx, &TransmitModel::cwPttDelayChanged, this, &DataEngine::CwPttDelayChanged);
+        connect(tx, &TransmitModel::cwSidetoneVolumeChanged, this, &DataEngine::CwSidetoneVolumeChanged);
+        connect(tx, &TransmitModel::cwKeyerWeightChanged, this, &DataEngine::CwKeyerWeightChanged);
+        connect(tx, &TransmitModel::cwKeyerSpacingChanged, this, [this](bool on) {
+            CwKeyerSpacingChanged(on ? 1 : 0);
+        });
+    } else {
+        CHECKED_CONNECT(set, &Settings::CwHangTimeChanged, this, &DataEngine::CwHangTimeChanged);
+        CHECKED_CONNECT(set, &Settings::CwSidetoneFreqChanged, this, &DataEngine::CwSidetoneFreqChanged);
+        connect(set, &Settings::CwKeyReversedChanged, this, &DataEngine::CwKeyReversedChanged);
+        CHECKED_CONNECT(set, &Settings::CwKeyerModeChanged, this, &DataEngine::CwKeyerModeChanged);
+        CHECKED_CONNECT(set, &Settings::InternalCwChanged, this, &DataEngine::InternalCwChanged);
+        CHECKED_CONNECT(set, &Settings::CwKeyerSpeedChanged, this, &DataEngine::CwKeyerSpeedChanged);
+        CHECKED_CONNECT(set, &Settings::CwPttDelayChanged, this, &DataEngine::CwPttDelayChanged);
+        CHECKED_CONNECT(set, &Settings::CwSidetoneVolumeChanged, this, &DataEngine::CwSidetoneVolumeChanged);
+        CHECKED_CONNECT(set, &Settings::CwKeyerWeightChanged, this, &DataEngine::CwKeyerWeightChanged);
+        CHECKED_CONNECT(set, &Settings::CwKeyerSpacingChanged, this, &DataEngine::CwKeyerSpacingChanged);
+    }
 
 
 }

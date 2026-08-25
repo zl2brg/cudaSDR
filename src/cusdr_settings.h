@@ -612,6 +612,7 @@ protected:
 // Settings class
 
 class RadioModel;
+class TransmitModel;
 class SliceModel;
 class Settings : public QObject {
 
@@ -620,6 +621,7 @@ class Settings : public QObject {
 public:
     void setRadioModel(RadioModel* model) { m_radioModel = model; }
     RadioModel* radioModel() const { return m_radioModel; }
+    TransmitModel* transmitModel() const;
     SliceModel* sliceModel(int rx) const;
     void syncSlicesWithSettings();
     void syncSettingsWithSlices();
@@ -1109,32 +1111,32 @@ public:
     int     getDriveLevel()             { return m_audioConfig->driveLevel(); }
     bool    getRepeaterMode()           { return m_repeaterMode; }
     double  getRepeaterOffset()         { return m_repeaterOffset; }
-    double  getFMpreemphesis()          { return m_audioConfig->fmPreemphasis(); }
-    int     getPhaseRotator()           { return m_audioConfig->phaseRotator(); }
-    bool    getPhaseRotatorAuto()       { return m_audioConfig->phaseRotatorAuto(); }
-    int     getCtcssToneHz()            { return m_audioConfig->ctcssToneHz(); }
+    double  getFMpreemphesis() const;
+    int     getPhaseRotator() const;
+    bool    getPhaseRotatorAuto() const;
+    int     getCtcssToneHz() const;
     bool    getRxEqEnabled()            { return m_audioConfig->rxEqEnabled(); }
     QVector<int> getRxEqBands()         { return m_audioConfig->rxEqBands(); }
     int     getRxEqCurveDeg()           { return m_audioConfig->rxEqCurveDeg(); }
-    bool    getTxEqEnabled()            { return m_audioConfig->txEqEnabled(); }
-    QVector<int> getTxEqBands()         { return m_audioConfig->txEqBands(); }
-    int     getTxEqCurveDeg()           { return m_audioConfig->txEqCurveDeg(); }
-    bool    getCfcEnabled()             { return m_audioConfig->cfcEnabled(); }
-    bool    getCfcPeqEnabled()          { return m_audioConfig->cfcPeqEnabled(); }
-    double  getCfcPrecomp()             { return m_audioConfig->cfcPrecomp(); }
-    double  getCfcPrePeq()              { return m_audioConfig->cfcPrePeq(); }
-    int     getCfcCurveDeg()            { return m_audioConfig->cfcCurveDeg(); }
+    bool    getTxEqEnabled() const;
+    QVector<int> getTxEqBands() const;
+    int     getTxEqCurveDeg() const;
+    bool    getCfcEnabled() const;
+    bool    getCfcPeqEnabled() const;
+    double  getCfcPrecomp() const;
+    double  getCfcPrePeq() const;
+    int     getCfcCurveDeg() const;
     QVector<double> getCfcFreqs()       { return m_audioConfig->cfcFreqs(); }
-    QVector<double> getCfcLevels()      { return m_audioConfig->cfcLevels(); }
-    QVector<double> getCfcPost()        { return m_audioConfig->cfcPost(); }
+    QVector<double> getCfcLevels() const;
+    QVector<double> getCfcPost() const;
     bool    getEmnrPost2Enabled()       { return m_audioConfig->emnrPost2Enabled(); }
     double  getEmnrPost2Factor()        { return m_audioConfig->emnrPost2Factor(); }
     double  getEmnrPost2Nlevel()        { return m_audioConfig->emnrPost2Nlevel(); }
     double  getEmnrPost2Taper()         { return m_audioConfig->emnrPost2Taper(); }
     double  getEmnrPost2Rate()          { return m_audioConfig->emnrPost2Rate(); }
-    double  getFMDeveation()            { return m_audioConfig->fmDeviation(); }
-    double  getAMCarrierLevel()         { return m_audioConfig->amCarrierLevel(); }
-    double  getAudioCompression()       { return m_audioConfig->audioCompression(); }
+    double  getFMDeveation() const;
+    double  getAMCarrierLevel() const;
+    double  getAudioCompression() const;
 
 	qreal	getMainVolume(int rx);
 	qreal	getMouseWheelFreqStep(int rx);// { return m_mouseWheelFreqStep; }
@@ -1509,16 +1511,16 @@ public slots:
 
 
 public:
-    bool isInternalCw() const { return m_cwConfig->internalCw() > 0; }
-    int getCwKeyerSpeed() const { return m_cwConfig->keyerSpeed(); }
-    int getCwKeyerMode() const { return m_cwConfig->keyerMode(); }
-    int isCwKeyReversed() const { return m_cwConfig->keyReversed(); }
-    int getCwSidetoneFreq() const { return m_cwConfig->sidetoneFreq(); }
-    int getCwSidetoneVolume() const { return m_cwConfig->sidetoneVolume(); }
-    int getCwPttDelay() const { return m_cwConfig->pttDelay(); }
-    int getCwHangTime() const { return m_cwConfig->hangTime(); }
-    int getCwKeyerWeight() const { return m_cwConfig->keyerWeight(); }
-    int getCwKeyerSpacing() const { return m_cwConfig->keyerSpacing(); }
+    bool isInternalCw() const;
+    int getCwKeyerSpeed() const;
+    int getCwKeyerMode() const;
+    int isCwKeyReversed() const;
+    int getCwSidetoneFreq() const;
+    int getCwSidetoneVolume() const;
+    int getCwPttDelay() const;
+    int getCwHangTime() const;
+    int getCwKeyerWeight() const;
+    int getCwKeyerSpacing() const;
 
 
 

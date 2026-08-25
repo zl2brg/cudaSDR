@@ -53,6 +53,7 @@ public:
         , m_target(target)
         , m_minIntervalMs(qMax(1, minIntervalMs))
     {
+        setObjectName(QStringLiteral("__wayland_frame_throttle__"));
         target->installEventFilter(this);
     }
 

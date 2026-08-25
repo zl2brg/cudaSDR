@@ -49,6 +49,8 @@ public:
 	TransmitOptionsWidget(QWidget *parent = 0);
 	~TransmitOptionsWidget();
 
+	void setAmCarrierLevel(int percent);
+	void setAudioCompression(int level);
 
 public slots:
 	
@@ -105,6 +107,8 @@ signals:
 	void	showEvent();
 	void	closeEvent();
 	void	messageEvent(QString message);
+	void	amCarrierLevelRequested(int percent);
+	void	audioCompressionRequested(int level);
 };
 
 #endif // _CUSDR_TRANSMIT_OPTIONS_WIDGET_H

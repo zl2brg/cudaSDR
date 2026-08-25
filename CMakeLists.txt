@@ -166,6 +166,7 @@ set(SOURCES
     ${SRC_DIR}/GL/cusdr_oglDistancePanel.cpp
     ${SRC_DIR}/GL/cusdr_oglInfo.cpp
     ${SRC_DIR}/GL/cusdr_oglReceiverPanel.cpp
+    ${SRC_DIR}/GL/cusdr_spectrumBinWorker.cpp
     ${SRC_DIR}/GL/cusdr_oglText.cpp
     ${SRC_DIR}/GL/cusdr_oglWidebandPanel.cpp
     ${SRC_DIR}/GL/cusdr_ogl3DPanel.cpp
@@ -268,6 +269,7 @@ set(HEADERS
     ${SRC_DIR}/GL/cusdr_oglDistancePanel.h
     ${SRC_DIR}/GL/cusdr_oglInfo.h
     ${SRC_DIR}/GL/cusdr_oglReceiverPanel.h
+    ${SRC_DIR}/GL/cusdr_spectrumBinWorker.h
     ${SRC_DIR}/GL/cusdr_oglText.h
     ${SRC_DIR}/GL/cusdr_oglUtils.h
     ${SRC_DIR}/GL/cusdr_ogl3DPanel.h
@@ -467,6 +469,18 @@ if(BUILD_TESTING)
         Qt6::Test
     )
     add_test(NAME protocol_boundary_tests COMMAND protocol_boundary_tests)
+
+    qt_add_executable(alex_encoding_tests
+        tests/alex_encoding_tests.cpp
+    )
+    target_include_directories(alex_encoding_tests PRIVATE
+        ${SRC_DIR}
+    )
+    target_link_libraries(alex_encoding_tests PRIVATE
+        Qt6::Core
+        Qt6::Test
+    )
+    add_test(NAME alex_encoding_tests COMMAND alex_encoding_tests)
 
     qt_add_executable(protocol2_format_init_tests
         tests/protocol2_format_init_tests.cpp
@@ -718,4 +732,33 @@ if(BUILD_TESTING)
     set_tests_properties(cw_decoder_tests PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
     )
+
+    # Convenience target: build every unit test without the full cudasdr app.
+    add_custom_target(build_tests DEPENDS
+        protocol_boundary_tests
+        alex_encoding_tests
+        protocol2_format_init_tests
+        device_identity_tests
+        tci_protocol_utils_tests
+        tci_routing_tests
+        display_utils_tests
+        rigctl_protocol_utils_tests
+        settings_utils_tests
+        ham_database_utils_tests
+        settings_persistence_tests
+        settings_signal_tests
+        tci_server_ws_tests
+        models_tests
+        config_json_tests
+        dx_cluster_tests
+        cw_decoder_tests
+    )
+
+    # Headless Qt for any test that links Gui/Widgets (CI has no display).
+    get_property(_cudasdr_tests DIRECTORY PROPERTY TESTS)
+    if(_cudasdr_tests)
+        set_tests_properties(${_cudasdr_tests} PROPERTIES
+            ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        )
+    endif()
 endif()

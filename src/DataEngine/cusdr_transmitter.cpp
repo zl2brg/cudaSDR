@@ -27,6 +27,7 @@
 #define NEW_PROTOCOL 1
 
 #include "cusdr_transmitter.h"
+#include "Models/RadioModel.h"
 
 namespace {
 double micSliderToPanelGain(const double sliderValue)
@@ -40,11 +41,17 @@ int compressionSliderToDb(const int sliderValue)
 {
     return qBound(0, sliderValue, 20);
 }
+
+double amCarrierPercentToLevel(int percent)
+{
+    return qBound(0, percent, 100) / 100.0;
+}
 }
 
 Transmitter::Transmitter(int transmitter)
     : QObject()
     , set(Settings::instance())
+    , m_txModel(set->radioModel() ? set->radioModel()->transmit() : nullptr)
     , m_asteps(0)
     , m_bsteps(0)
 {
@@ -92,37 +99,43 @@ void Transmitter::setupConnections() {
     connect(set, &Settings::radioStateChanged,
             this, &Transmitter::setRadioState);
 
-    connect(set, &Settings::fmdeveationchanged,
-            this, &Transmitter::set_fm_deviation);
-
-    connect(set, &Settings::fmPremphasizechanged,
-            this, [this](double) { applyFmPreEmphasis(); });
-
-    connect(set, &Settings::phaseRotatorChanged,
-            this, [this](int) { applyPhaseRotator(); });
-
-    connect(set, &Settings::phaseRotatorAutoChanged,
-            this, [this](bool) { applyPhaseRotator(); });
-
-    connect(set, &Settings::phaseRotatorAutoResetRequested,
-            this, [this]() { SetTXAPHROTAutoReset(this->id); });
-
-    connect(set, &Settings::txEqChanged,
-            this, [this]() { applyTxEq(); });
-
-    connect(set, &Settings::cfcChanged,
-            this, [this]() { applyCfc(); });
-
-    connect(set, &Settings::ctcssToneHzChanged,
-            this, [this](int) { applyCtcss(); });
-
-    connect(set, &Settings::amCarrierlevelchanged,
-            this, &Transmitter::transmitter_set_am_carrier_level);
-
+    // Mic gain still lives on Settings (main-window slider).
     connect(set, &Settings::micInputLevelChanged,
             this, &Transmitter::transmitter_set_mic_level);
 
-    connect(set, &Settings::audioCompressionchanged,
+    if (!m_txModel)
+        return;
+
+    connect(m_txModel, &TransmitModel::fmDeviationChanged,
+            this, [this](int hz) { set_fm_deviation(static_cast<double>(hz)); });
+
+    connect(m_txModel, &TransmitModel::fmPreEmphasisChanged,
+            this, [this](bool) { applyFmPreEmphasis(); });
+
+    connect(m_txModel, &TransmitModel::phaseRotatorChanged,
+            this, [this](bool) { applyPhaseRotator(); });
+
+    connect(m_txModel, &TransmitModel::phaseRotatorAutoChanged,
+            this, [this](bool) { applyPhaseRotator(); });
+
+    connect(m_txModel, &TransmitModel::phaseRotatorAutoResetRequested,
+            this, [this]() { SetTXAPHROTAutoReset(this->id); });
+
+    connect(m_txModel, &TransmitModel::txEqChanged,
+            this, [this]() { applyTxEq(); });
+
+    connect(m_txModel, &TransmitModel::cfcChanged,
+            this, [this]() { applyCfc(); });
+
+    connect(m_txModel, &TransmitModel::ctcssToneHzChanged,
+            this, [this](int) { applyCtcss(); });
+
+    connect(m_txModel, &TransmitModel::amCarrierLevelChanged,
+            this, [this](int percent) {
+                transmitter_set_am_carrier_level(amCarrierPercentToLevel(percent));
+            });
+
+    connect(m_txModel, &TransmitModel::audioCompressionChanged,
             this, &Transmitter::transmitter_set_audio_compression);
 }
 
@@ -210,7 +223,8 @@ bool  Transmitter::create_transmitter(int id, int buffer_size, int fft_size, int
     this->tune_use_drive=0;
 
     this->compressor=0;
-    this->compressor_level=set->getAudioCompression();
+    this->compressor_level = m_txModel ? m_txModel->audioCompression()
+                                       : set->getAudioCompression();
 
     this->local_microphone=0;
 
@@ -296,9 +310,16 @@ bool  Transmitter::create_transmitter(int id, int buffer_size, int fft_size, int
     SetTXAPanelGain1(this->id, micSliderToPanelGain(initialMicLevel));
     SetTXAPanelRun(this->id, 1);
 
-    SetTXAFMDeviation(this->id, set->getFMDeveation());
-    SetTXAAMCarrierLevel(this->id, 0.5);
-    transmitter_set_audio_compression(set->getAudioCompression());
+    const int fmDev = m_txModel ? m_txModel->fmDeviation()
+                                : static_cast<int>(set->getFMDeveation());
+    SetTXAFMDeviation(this->id, fmDev);
+    const int amPercent = m_txModel ? m_txModel->amCarrierLevel()
+                                    : qRound(set->getAMCarrierLevel() <= 1.0
+                                                 ? set->getAMCarrierLevel() * 100.0
+                                                 : set->getAMCarrierLevel());
+    SetTXAAMCarrierLevel(this->id, amCarrierPercentToLevel(amPercent));
+    transmitter_set_audio_compression(m_txModel ? m_txModel->audioCompression()
+                                                : static_cast<int>(set->getAudioCompression()));
     XCreateAnalyzer(this->id, &rc, 262144, 1, 1, const_cast<char*>(""));
     if (rc != 0) {
         fprintf(stderr, "XCreateAnalyzer id=%d failed: %d\n",this->id,rc);
@@ -332,15 +353,21 @@ void Transmitter::set_fm_deviation(double level) {
 void Transmitter::applyFmPreEmphasis()
 {
     // WDSP SetTXAMode(FM) forces preemph.run=1; re-apply user preference after mode changes.
-    const int run = (set->getFMpreemphesis() != 0.0) ? 1 : 0;
+    const bool enabled = m_txModel ? m_txModel->fmPreEmphasis()
+                                   : (set->getFMpreemphesis() != 0.0);
+    const int run = enabled ? 1 : 0;
     SetTXAFMEmphRun(this->id, run);
     TRANSMITTER_DEBUG << "FM pre-emphasis " << (run ? "on" : "off");
 }
 
 void Transmitter::applyPhaseRotator()
 {
-    const int run = (set->getPhaseRotator() != 0) ? 1 : 0;
-    const int autoMode = (run && set->getPhaseRotatorAuto()) ? 1 : 0;
+    const bool enabled = m_txModel ? m_txModel->phaseRotator()
+                                   : (set->getPhaseRotator() != 0);
+    const bool autoOn = m_txModel ? m_txModel->phaseRotatorAuto()
+                                  : set->getPhaseRotatorAuto();
+    const int run = enabled ? 1 : 0;
+    const int autoMode = (run && autoOn) ? 1 : 0;
     SetTXAPHROTRun(this->id, run);
     SetTXAPHROTAutoMode(this->id, autoMode);
     syncPhaseRotatorTimer();
@@ -350,30 +377,34 @@ void Transmitter::applyPhaseRotator()
 
 void Transmitter::applyTxEq()
 {
-    const bool enabled = set->getTxEqEnabled();
+    const bool enabled = m_txModel ? m_txModel->txEqEnabled() : set->getTxEqEnabled();
+    const int curveDeg = m_txModel ? m_txModel->txEqCurveDeg() : set->getTxEqCurveDeg();
     if (enabled) {
-        const QVector<int> bands = set->getTxEqBands();
+        const QVector<int> bands = m_txModel ? m_txModel->txEqBands() : set->getTxEqBands();
         int txeq[11];
         for (int i = 0; i < 11; ++i)
             txeq[i] = (i < bands.size()) ? bands.at(i) : 0;
         // GrphEQ10 loads F/G; Curve selects linear (deg=0) or NURBS.
         SetTXAGrphEQ10(this->id, txeq);
-        SetTXAEQCurve(this->id, set->getTxEqCurveDeg(), 0, 0);
+        SetTXAEQCurve(this->id, curveDeg, 0, 0);
         SetTXAEQRun(this->id, 1);
     } else {
         SetTXAEQRun(this->id, 0);
     }
     TRANSMITTER_DEBUG << "TX EQ " << (enabled ? "on" : "off")
-                      << " curveDeg=" << set->getTxEqCurveDeg();
+                      << " curveDeg=" << curveDeg;
 }
 
 void Transmitter::applyCfc()
 {
-    const bool run = set->getCfcEnabled();
-    const bool peq = set->getCfcPeqEnabled();
-    const QVector<double> freqs = set->getCfcFreqs();
-    const QVector<double> levels = set->getCfcLevels();
-    const QVector<double> post = set->getCfcPost();
+    const bool run = m_txModel ? m_txModel->cfcEnabled() : set->getCfcEnabled();
+    const bool peq = m_txModel ? m_txModel->cfcPeqEnabled() : set->getCfcPeqEnabled();
+    const QVector<double> freqs = set->getCfcFreqs(); // frequencies stay on Settings
+    const QVector<double> levels = m_txModel ? m_txModel->cfcLevels() : set->getCfcLevels();
+    const QVector<double> post = m_txModel ? m_txModel->cfcPost() : set->getCfcPost();
+    const double precomp = m_txModel ? m_txModel->cfcPrecomp() : set->getCfcPrecomp();
+    const double prePeq = m_txModel ? m_txModel->cfcPrePeq() : set->getCfcPrePeq();
+    const int deg = m_txModel ? m_txModel->cfcCurveDeg() : set->getCfcCurveDeg();
     const int n = qMin(freqs.size(), qMin(levels.size(), post.size()));
     if (n > 0) {
         QVector<double> F = freqs.mid(0, n);
@@ -381,17 +412,16 @@ void Transmitter::applyCfc()
         QVector<double> E = post.mid(0, n);
         SetTXACFCOMPprofile(this->id, n, F.data(), G.data(), E.data());
     }
-    SetTXACFCOMPPrecomp(this->id, set->getCfcPrecomp());
-    SetTXACFCOMPPrePeq(this->id, set->getCfcPrePeq());
-    const int deg = set->getCfcCurveDeg();
+    SetTXACFCOMPPrecomp(this->id, precomp);
+    SetTXACFCOMPPrePeq(this->id, prePeq);
     SetTXACFCOMPCompCurve(this->id, deg, 0, 0);
     SetTXACFCOMPPeqCurve(this->id, deg, 0, 0);
     // Post-EQ requires compressor run; force CFC on when only Peq is requested.
     SetTXACFCOMPRun(this->id, (run || peq) ? 1 : 0);
     SetTXACFCOMPPeqRun(this->id, peq ? 1 : 0);
     TRANSMITTER_DEBUG << "TX CFC run=" << (run || peq) << " peq=" << peq
-                      << " precomp=" << set->getCfcPrecomp()
-                      << " prepeq=" << set->getCfcPrePeq()
+                      << " precomp=" << precomp
+                      << " prepeq=" << prePeq
                       << " curveDeg=" << deg;
 }
 
@@ -399,20 +429,30 @@ void Transmitter::syncPhaseRotatorTimer()
 {
     if (!m_phrotStatusTimer)
         return;
-    const bool run = set->getPhaseRotator() != 0;
-    const bool autoMode = set->getPhaseRotatorAuto();
+    const bool run = m_txModel ? m_txModel->phaseRotator()
+                               : (set->getPhaseRotator() != 0);
+    const bool autoMode = m_txModel ? m_txModel->phaseRotatorAuto()
+                                    : set->getPhaseRotatorAuto();
     if (run && autoMode)
         m_phrotStatusTimer->start();
     else {
         m_phrotStatusTimer->stop();
-        if (!run)
-            set->setPhaseRotatorStatus(QString());
+        if (!run) {
+            if (m_txModel)
+                m_txModel->setPhaseRotatorStatus(QString());
+            else
+                set->setPhaseRotatorStatus(QString());
+        }
     }
 }
 
 void Transmitter::updatePhaseRotatorStatus()
 {
-    if (set->getPhaseRotator() == 0 || !set->getPhaseRotatorAuto())
+    const bool run = m_txModel ? m_txModel->phaseRotator()
+                               : (set->getPhaseRotator() != 0);
+    const bool autoMode = m_txModel ? m_txModel->phaseRotatorAuto()
+                                    : set->getPhaseRotatorAuto();
+    if (!run || !autoMode)
         return;
     double in_pos = 0, in_neg = 0, in_ratio = 0;
     double out_pos = 0, out_neg = 0, out_ratio = 0;
@@ -421,16 +461,20 @@ void Transmitter::updatePhaseRotatorStatus()
                          &in_pos, &in_neg, &in_ratio,
                          &out_pos, &out_neg, &out_ratio,
                          &current_fc, &auto_step);
-    set->setPhaseRotatorStatus(
+    const QString status =
         QStringLiteral("Asym %1 → %2  fc %3 Hz")
             .arg(in_ratio, 0, 'f', 2)
             .arg(out_ratio, 0, 'f', 2)
-            .arg(current_fc, 0, 'f', 0));
+            .arg(current_fc, 0, 'f', 0);
+    if (m_txModel)
+        m_txModel->setPhaseRotatorStatus(status);
+    else
+        set->setPhaseRotatorStatus(status);
 }
 
 void Transmitter::applyCtcss()
 {
-    const int hz = set->getCtcssToneHz();
+    const int hz = m_txModel ? m_txModel->ctcssToneHz() : set->getCtcssToneHz();
     this->ctcss_frequency = static_cast<double>(hz);
     this->ctcss = (hz > 0) ? 1 : 0;
     SetTXACTCSSFreq(this->id, this->ctcss_frequency);

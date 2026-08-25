@@ -64,6 +64,7 @@ QGLWidebandPanel::QGLWidebandPanel(QWidget *parent)
 		//, m_panGrid(set->getPanGridStatus(0))
 		, m_panGrid(true)
 		, m_calibrate(false)
+		, m_mercuryAttenuator(0)
 		, m_panSpectrumBinsLength(0)
 		, m_snapMouse(3)
 		, m_currentReceiver(set->getCurrentReceiver())
@@ -165,6 +166,11 @@ QGLWidebandPanel::~QGLWidebandPanel() {
 	while (!specAv_queue.isEmpty())
 		specAv_queue.dequeue();
 
+	if (m_panadapterRenderer) {
+		m_panadapterRenderer->release();
+		delete m_panadapterRenderer;
+		m_panadapterRenderer = nullptr;
+	}
 
     delete m_oglTextTiny;
     delete m_oglTextSmall;
@@ -281,6 +287,11 @@ void QGLWidebandPanel::initializeGL() {
 
 	m_overlayRenderer = new OverlayRenderer();
 	m_overlayRenderer->initialize(nullptr);
+
+	// Own shader (WB uses a_pos/a_color); reuse vertex cache / RHI path like RX pan.
+	m_panadapterRenderer = new PanadapterRenderer();
+	if (!m_panadapterRenderer->initialize(context(), nullptr))
+		qWarning() << "PanadapterRenderer init failed for wideband panel";
 }
 
 QMatrix4x4 QGLWidebandPanel::panelProjection() const
@@ -378,7 +389,13 @@ void QGLWidebandPanel::drawVertexColorArray(GLenum mode, const QVector<float> &d
 	if (vertexCount <= 0 || data.size() < vertexCount * 6) return;
 	m_vao.bind();
 	m_vbo.bind();
-	m_vbo.allocate(data.constData(), data.size() * (int)sizeof(float));
+	const int bytes = data.size() * (int)sizeof(float);
+	if (bytes > m_vboCapacityBytes) {
+		m_vbo.allocate(data.constData(), bytes);
+		m_vboCapacityBytes = bytes;
+	} else {
+		m_vbo.write(0, data.constData(), bytes);
+	}
 
 	if (m_attrPos >= 0) {
 		glEnableVertexAttribArray(m_attrPos);
@@ -403,32 +420,25 @@ void QGLWidebandPanel::drawVertexColorArray(GLenum mode, const QVector<float> &d
 }
 
 //************************************************************************
-void QGLWidebandPanel::drawSpectrum() {
+void QGLWidebandPanel::rebuildWidebandPanBins(const QVector<float>& spectrum)
+{
+	m_widebandPanSpectrumBins.clear();
+	m_wbScaleMult = 1.0;
 
-
-    GLint width  = m_panRect.width();
-    GLint height = m_panRect.height() ;
-    GLint x1 = m_panRect.left();
-    GLint y1 = m_panRect.top();
-	GLint x2 = x1 + width;
-	GLint y2 = y1 + height;
-
-	GLint vertexArrayLength = 0;
-
-	// x scale
-	int idx = 0;
-	int lIdx = 0;
-	int rIdx = 0;
-	int deltaIdx = 0;
-
-	qreal scaleMult = 1.0;
+	const GLint width = m_panRect.width();
+	if (width <= 0 || spectrum.isEmpty() || m_wbSpectrumBufferLength <= 0)
+		return;
 
 	m_scaledBufferSize = qFloor(m_wbSpectrumBufferLength * m_freqScaleZoomFactor);
+	if (m_scaledBufferSize <= 0)
+		return;
+
 	const qreal wbRange = qMax<qreal>(1.0, m_widebandMaxFrequency - m_widebandMinFrequency);
-	deltaIdx = qFloor((qreal)(m_wbSpectrumBufferLength * ((m_lowerFrequency - m_widebandMinFrequency) / wbRange)));
-	
+	const int deltaIdx = qFloor((qreal)(m_wbSpectrumBufferLength
+	                                    * ((m_lowerFrequency - m_widebandMinFrequency) / wbRange)));
+
 	qreal frequencyScale = (qreal)(1.0f * m_scaledBufferSize / width);
-	
+	qreal scaleMult = 1.0;
 	if (frequencyScale < 0.125)
 		scaleMult = 0.0625;
 	else if (frequencyScale < 0.25)
@@ -437,407 +447,124 @@ void QGLWidebandPanel::drawSpectrum() {
 		scaleMult = 0.25;
 	else if (frequencyScale < 1.0)
 		scaleMult = 0.5;
-	
-	qreal scale = frequencyScale / scaleMult;
 
-	// y scale
-	float yScale;
-	float yScaleColor;
-	float yTop;
-	float localMax;
+	const qreal scale = frequencyScale / scaleMult;
+	const int vertexArrayLength = (GLint)(scaleMult * width);
+	if (vertexArrayLength <= 0)
+		return;
 
-	//qreal dBmRange = qAbs(m_dBmPanMax - m_dBmPanMin);
-	qreal dBmRange;
+	const qreal dBmMin = m_calibrate ? m_dBmPanMinOld : m_dBmPanMin;
+	const int n = spectrum.size();
 
-	if (m_calibrate)
-		dBmRange = qAbs(m_dBmPanMaxOld - m_dBmPanMinOld);
-	else
-		dBmRange = qAbs(m_dBmPanMax - m_dBmPanMin);
+	m_wbScaleMult = scaleMult;
+	m_widebandPanSpectrumBins.resize(vertexArrayLength);
 
-	yScale = height / dBmRange;
-	yScaleColor = 4.0f / dBmRange;
+	for (int i = 0; i < vertexArrayLength; ++i) {
+		int lIdx = (int)floor((qreal)(i * scale));
+		int rIdx = (int)floor((qreal)(i * scale) + scale);
+		if (rIdx <= lIdx)
+			rIdx = lIdx + 1;
 
-	yTop = (float) y2;
-	// Color buffer already cleared in paintGL(); only refresh depth if it is enabled later.
+		float localMax = -10000.0f;
+		int idx = lIdx;
+		for (int j = lIdx; j < rIdx; ++j) {
+			if (j < 0 || j >= n)
+				continue;
+			if (spectrum.at(j) > localMax) {
+				localMax = spectrum.at(j);
+				idx = j;
+			}
+		}
+		idx += deltaIdx;
+
+		qreal yvalue = 0.0;
+		if (idx >= 0 && idx < n && idx < m_wbSpectrumBufferLength)
+			yvalue = spectrum.at(idx) - dBmMin - m_dBmPanLogGain;
+		if (m_mercuryAttenuator)
+			yvalue -= 20.0;
+
+		m_widebandPanSpectrumBins[i] = yvalue;
+	}
+}
+
+void QGLWidebandPanel::drawSpectrum() {
+
+	const GLint width  = m_panRect.width();
+	const GLint height = m_panRect.height();
+	if (width <= 0 || height <= 0)
+		return;
+
 	glClear(GL_DEPTH_BUFFER_BIT);
-
 	glDisable(GL_DEPTH_TEST);
 	glEnable(GL_MULTISAMPLE);
 	glEnable(GL_LINE_SMOOTH);
-
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glEnable(GL_BLEND);
 	glLineWidth(1);
 
-	// draw background — match receiver pan (PanadapterRenderer idle/live multipliers)
-	if (m_program && m_program->isLinked()) {
-		m_program->bind();
-		setMvpOrtho(size().width(), size().height());
-		float r1, g1, b1, r2, g2, b2, r3, g3, b3, r4, g4, b4;
-		if (m_dataEngineState == QSDR::DataEngineUp) {
-			r1 = 0.8f * m_bkgRed; g1 = 0.8f * m_bkgGreen; b1 = 0.8f * m_bkgBlue;
-			r2 = 0.6f * m_bkgRed; g2 = 0.6f * m_bkgGreen; b2 = 0.6f * m_bkgBlue;
-			r3 = 0.4f * m_bkgRed; g3 = 0.4f * m_bkgGreen; b3 = 0.4f * m_bkgBlue;
-			r4 = 0.2f * m_bkgRed; g4 = 0.2f * m_bkgGreen; b4 = 0.2f * m_bkgBlue;
-		} else {
-			// Receiver idle uses 0.15× pan background (near-black), not the old (30,30,50) purple.
-			r1 = r2 = r3 = r4 = 0.15f * m_bkgRed;
-			g1 = g2 = g3 = g4 = 0.15f * m_bkgGreen;
-			b1 = b2 = b3 = b4 = 0.15f * m_bkgBlue;
-		}
-		QVector<float> bg = {
-			(float)x1,(float)y1,-4.0f, r1,g1,b1,
-			(float)x2,(float)y1,-4.0f, r2,g2,b2,
-			(float)x1,(float)y2,-4.0f, r3,g3,b3,
-			(float)x2,(float)y2,-4.0f, r4,g4,b4,
-		};
-		drawVertexColorArray(GL_TRIANGLE_STRIP, bg, 4);
-		m_program->release();
+	const float dprF = float(devicePixelRatio());
+	QMatrix4x4 projection;
+	projection.ortho(0, size().width(), size().height(), 0, -10, 10);
+	PanadapterRenderer::Colors colors = {
+		m_r, m_g, m_b,
+		m_rf, m_gf, m_bf,
+		m_redST, m_greenST, m_blueST,
+		m_redSB, m_greenSB, m_blueSB,
+		m_bkgRed, m_bkgGreen, m_bkgBlue
+	};
+
+	const bool showSpectrum = (m_dataEngineState == QSDR::DataEngineUp
+	                           && m_wbSpectrumBufferLength > 0);
+
+	if (!showSpectrum) {
+		if (m_panadapterRenderer)
+			m_panadapterRenderer->renderIdleBackground(this, projection, m_panRect, dprF,
+			                                           size().height(), colors, m_dataEngineState, true);
+		glDisable(GL_BLEND);
+		glDisable(GL_LINE_SMOOTH);
+		return;
 	}
 
-	// set a scissor box
-	glScissor((int)(x1 * dpr), (int)((size().height() - y2) * dpr), (int)((x2 - x1) * dpr), (int)(height * dpr));
-    glEnable(GL_SCISSOR_TEST);
-
-	// set up the vertex arrays
-	vertexArrayLength = (GLint)(scaleMult * width);
-	//WBGRAPHICS_DEBUG << "vertexArrayLength: " << vertexArrayLength;
-
-	TGL3float *vertexArray = new TGL3float[vertexArrayLength];
-	TGL3float *vertexColorArray = new TGL3float[vertexArrayLength];
-
-	TGL3float *vertexArrayBg = new TGL3float[2*vertexArrayLength];
-	TGL3float *vertexColorArrayBg = new TGL3float[2*vertexArrayLength];
-
-	switch (m_panMode) {
-
-		case (PanGraphicsMode) FilledLine: {
-			
-			for (int i = 0; i < vertexArrayLength; i++) {
-
-				idx = 0;
-				lIdx = (int)floor((qreal)(i * scale));
-				rIdx = (int)floor((qreal)(i * scale) + scale);
-
-				// max value; later we try mean value also!
-				localMax = -10000.0F;
-				for (int j = lIdx; j < rIdx; j++) {
-					if (m_wbSpectrumBuffer.at(j) > localMax) {
-
-						localMax = m_wbSpectrumBuffer.at(j);
-						idx = j;
-					}
-				}
-				idx += deltaIdx;
-
-				mutex.lock();
-
-				vertexColorArrayBg[2*i].x = m_rf;
-				vertexColorArrayBg[2*i].y = m_gf;
-				vertexColorArrayBg[2*i].z = m_bf;
-
-				vertexColorArrayBg[2*i+1].x = 0.3 * m_rf;
-				vertexColorArrayBg[2*i+1].y = 0.3 * m_gf;
-				vertexColorArrayBg[2*i+1].z = 0.3 * m_bf;
-
-				qreal yvalue = 0;
-				if (idx < m_wbSpectrumBufferLength)
-					yvalue = m_wbSpectrumBuffer.at(idx) - m_dBmPanMin;
-
-				vertexColorArray[i].x = m_r * (yScaleColor * yvalue);
-				vertexColorArray[i].y = m_g * (yScaleColor * yvalue);
-				vertexColorArray[i].z = m_b * (yScaleColor * yvalue);
-				
-				if (idx < m_wbSpectrumBufferLength)
-					yvalue = m_wbSpectrumBuffer.at(idx) - m_dBmPanMin - m_dBmPanLogGain;
-
-				if (m_mercuryAttenuator)
-					yvalue -= 20.0f;
-
-				vertexArrayBg[2*i].x = (GLfloat)(i/scaleMult);
-				vertexArrayBg[2*i].y = (GLfloat)(yTop - yScale * yvalue);
-				vertexArrayBg[2*i].z = -2.5;
-
-				vertexArrayBg[2*i+1].x = (GLfloat)(i/scaleMult);
-				vertexArrayBg[2*i+1].y = (GLfloat)yTop;
-				vertexArrayBg[2*i+1].z = -2.5;
-
-				vertexArray[i].x = (GLfloat)(i/scaleMult);
-				vertexArray[i].y = (GLfloat)(yTop - yScale * yvalue);
-				vertexArray[i].z = -1.0;
-
-				mutex.unlock();
-			}
-	
-			// Build interleaved [x,y,z,r,g,b] arrays and draw via shader
-		QVector<float> bgData(2 * vertexArrayLength * 6);
-		QVector<float> lineData(vertexArrayLength * 6);
-
-		for (int i = 0; i < vertexArrayLength; i++) {
-			// background fill strip (two vertices per column: top of spectrum → bottom)
-			bgData[12*i+0]  = vertexArrayBg[2*i].x;
-			bgData[12*i+1]  = vertexArrayBg[2*i].y;
-			bgData[12*i+2]  = vertexArrayBg[2*i].z;
-			bgData[12*i+3]  = vertexColorArrayBg[2*i].x;
-			bgData[12*i+4]  = vertexColorArrayBg[2*i].y;
-			bgData[12*i+5]  = vertexColorArrayBg[2*i].z;
-
-			bgData[12*i+6]  = vertexArrayBg[2*i+1].x;
-			bgData[12*i+7]  = vertexArrayBg[2*i+1].y;
-			bgData[12*i+8]  = vertexArrayBg[2*i+1].z;
-			bgData[12*i+9]  = vertexColorArrayBg[2*i+1].x;
-			bgData[12*i+10] = vertexColorArrayBg[2*i+1].y;
-			bgData[12*i+11] = vertexColorArrayBg[2*i+1].z;
-
-			// spectrum line
-			lineData[6*i+0] = vertexArray[i].x;
-			lineData[6*i+1] = vertexArray[i].y;
-			lineData[6*i+2] = vertexArray[i].z;
-			lineData[6*i+3] = vertexColorArray[i].x;
-			lineData[6*i+4] = vertexColorArray[i].y;
-			lineData[6*i+5] = vertexColorArray[i].z;
-		}
-
-		if (m_program && m_program->isLinked()) {
-			m_program->bind();
-			setMvpOrtho(size().width(), size().height());
-			drawVertexColorArray(GL_TRIANGLE_STRIP, bgData,   2 * vertexArrayLength);
-			drawVertexColorArray(GL_LINE_STRIP,  lineData, vertexArrayLength);
-			m_program->release();
-		}
-
-			delete[] vertexArray;
-			delete[] vertexColorArray;
-			delete[] vertexArrayBg;
-			delete[] vertexColorArrayBg;
-
-			break;
-		} // case FilledLine
-
-		case (PanGraphicsMode) Line: {
-
-			for (int i = 0; i < vertexArrayLength; i++) {
-
-				lIdx = (int)floor((qreal)(i * scale));
-				rIdx = (int)floor((qreal)(i * scale) + scale);
-
-				// max value; later we try mean value also!
-				localMax = -10000.0F;
-				for (int j = lIdx; j < rIdx; j++) {
-					if (m_wbSpectrumBuffer.at(j) > localMax) {
-
-						localMax = m_wbSpectrumBuffer.at(j);
-						idx = j;
-					}
-				}
-				idx += deltaIdx;
-
-				mutex.lock();
-
-				qreal yvalue = 0;
-				if (idx < m_wbSpectrumBufferLength)
-					yvalue = m_wbSpectrumBuffer.at(idx) - m_dBmPanMin;
-
-				vertexColorArray[i].x = m_r	* (yScaleColor * yvalue);
-				vertexColorArray[i].y = m_g * (yScaleColor * yvalue);
-				vertexColorArray[i].z = m_b * (yScaleColor * yvalue);
-
-				if (idx < m_wbSpectrumBufferLength) {
-
-					if (m_calibrate)
-						yvalue = m_wbSpectrumBuffer.at(idx) - m_dBmPanMinOld - m_dBmPanLogGain;
-					else
-						yvalue = m_wbSpectrumBuffer.at(idx) - m_dBmPanMin - m_dBmPanLogGain;
-				}
-
-				if (m_mercuryAttenuator) yvalue -= 20.0f;
-
-				vertexArray[i].x = (GLfloat)(i/scaleMult);
-				vertexArray[i].y = (GLfloat)(yTop - yScale * yvalue);
-				vertexArray[i].z = -1.0;
-
-				mutex.unlock();
-			}
-		
-			// Build interleaved line data and draw via shader
-		QVector<float> lineData(vertexArrayLength * 6);
-		for (int i = 0; i < vertexArrayLength; i++) {
-			lineData[6*i+0] = vertexArray[i].x;
-			lineData[6*i+1] = vertexArray[i].y;
-			lineData[6*i+2] = vertexArray[i].z;
-			lineData[6*i+3] = vertexColorArray[i].x;
-			lineData[6*i+4] = vertexColorArray[i].y;
-			lineData[6*i+5] = vertexColorArray[i].z;
-		}
-		if (m_program && m_program->isLinked()) {
-			m_program->bind();
-			setMvpOrtho(size().width(), size().height());
-			drawVertexColorArray(GL_LINE_STRIP, lineData, vertexArrayLength);
-			m_program->release();
-		}
-
-			delete[] vertexArray;
-			delete[] vertexColorArray;
-			delete[] vertexArrayBg;
-			delete[] vertexColorArrayBg;
-			
-			break;
-		} // case Line
-
-
-		case (PanGraphicsMode) Solid: {
-
-			glDisable(GL_MULTISAMPLE);
-			glDisable(GL_LINE_SMOOTH);
-
-			mutex.lock();
-			for (int i = 0; i < vertexArrayLength; i++) {
-			
-				lIdx = qFloor((qreal)(i * scale));
-				rIdx = qFloor((qreal)(i * scale) + scale);
-
-				// max value
-				localMax = -10000.0F;
-				for (int j = lIdx; j < rIdx; j++) {
-
-					if (m_wbSpectrumBuffer.at(j) > localMax) {
-
-						localMax = m_wbSpectrumBuffer.at(j);
-						idx = j;
-					}
-				}
-				//qreal mean = m_wbSpectrumBuffer.at(lIdx + deltaIdx);
-				//int len = rIdx - lIdx;
-				//WBGRAPHICS_DEBUG << "leftIdx = " << lIdx << " rightIdx = " << rIdx << " length = " << len;
-				//for (int j = lIdx+1; j < len; j++) {
-
-				//	mean += m_wbSpectrumBuffer.at(j);
-				//}
-				//if (len > 0) mean /= len;
-
-				idx += deltaIdx;
-
-				//mutex.lock();
-				vertexColorArrayBg[2*i].x = m_redST;
-				vertexColorArrayBg[2*i].y = m_greenST;
-				vertexColorArrayBg[2*i].z = m_blueST;
-								
-				vertexColorArrayBg[2*i+1].x = m_redSB;
-				vertexColorArrayBg[2*i+1].y = m_greenSB;
-				vertexColorArrayBg[2*i+1].z = m_blueSB;
-
-				qreal yvalue = 0;
-				if (idx < m_wbSpectrumBufferLength)
-					yvalue = m_wbSpectrumBuffer.at(idx) - m_dBmPanMin - m_dBmPanLogGain;
-					//yvalue = mean - m_dBmPanMin - m_dBmPanLogGain;
-
-				if (m_mercuryAttenuator)
-					yvalue -= 20.0;
-
-				vertexArrayBg[2*i].x = (GLfloat)(i/scaleMult);
-				vertexArrayBg[2*i].y = (GLfloat)(yTop - yScale * yvalue);
-				vertexArrayBg[2*i].z = -2.0f;
-
-				vertexArrayBg[2*i+1].x = (GLfloat)(i/scaleMult);
-				vertexArrayBg[2*i+1].y = (GLfloat)yTop;
-				vertexArrayBg[2*i+1].z = -2.0f;
-
-				//mutex.unlock();
-			}
-			mutex.unlock();
-
-			// Build interleaved solid-fill strip data and draw via shader
-		QVector<float> bgData(2 * vertexArrayLength * 6);
-		for (int i = 0; i < vertexArrayLength; i++) {
-			bgData[12*i+0]  = vertexArrayBg[2*i].x;
-			bgData[12*i+1]  = vertexArrayBg[2*i].y;
-			bgData[12*i+2]  = vertexArrayBg[2*i].z;
-			bgData[12*i+3]  = vertexColorArrayBg[2*i].x;
-			bgData[12*i+4]  = vertexColorArrayBg[2*i].y;
-			bgData[12*i+5]  = vertexColorArrayBg[2*i].z;
-
-			bgData[12*i+6]  = vertexArrayBg[2*i+1].x;
-			bgData[12*i+7]  = vertexArrayBg[2*i+1].y;
-			bgData[12*i+8]  = vertexArrayBg[2*i+1].z;
-			bgData[12*i+9]  = vertexColorArrayBg[2*i+1].x;
-			bgData[12*i+10] = vertexColorArrayBg[2*i+1].y;
-			bgData[12*i+11] = vertexColorArrayBg[2*i+1].z;
-		}
-		if (m_program && m_program->isLinked()) {
-			m_program->bind();
-			setMvpOrtho(size().width(), size().height());
-			drawVertexColorArray(GL_LINES, bgData, 2 * vertexArrayLength);
-			m_program->release();
-		}
-
-			delete[] vertexArray;
-			delete[] vertexColorArray;
-			delete[] vertexArrayBg;
-			delete[] vertexColorArrayBg;
-
-			break;
-		} // case Solid
+	// One lock: copy latest averaged spectrum, then bin/draw lock-free.
+	{
+		QMutexLocker lock(&mutex);
+		m_wbSpectrumSnapshot = m_wbSpectrumBuffer;
 	}
-	glDisable(GL_SCISSOR_TEST);
 
-	// draw a rectangle for the panadapter frequency region
-	if (m_dataEngineState == QSDR::DataEngineUp && !m_calibrate) {
+	rebuildWidebandPanBins(m_wbSpectrumSnapshot);
 
-		y1 = m_panRect.top() + 15;
-		y2 = m_panRect.height() - 15;
-		
-		//m_frequencySpan = (m_upperFrequency - m_lowerFrequency) * m_freqScaleZoomFactor;
-		//m_frequencyUnit = (qreal)(m_freqScaleRect.width() / m_frequencySpan);
+	const qreal dBmMin = m_calibrate ? m_dBmPanMinOld : m_dBmPanMin;
+	const qreal dBmMax = m_calibrate ? m_dBmPanMaxOld : m_dBmPanMax;
 
-		//int centerFreq = (int)(m_frequencyUnit * (m_frequency - m_lowerFrequency));
-		//int deltaF = (int)(m_frequencyUnit * (float)m_sampleRate/2);
-		//int linePos = centerFreq;
+	if (m_panadapterRenderer && !m_widebandPanSpectrumBins.isEmpty()) {
+		m_panadapterRenderer->render(this, projection, m_panRect, m_widebandPanSpectrumBins,
+		                             dBmMax, dBmMin, m_panMode, float(m_wbScaleMult), dprF,
+		                             size().height(), colors, m_dataEngineState, true,
+		                             {}, true /* scaleColorByLevel: match legacy WB brightness */);
+		if (m_panadapterRenderer->usesCompositePass())
+			m_panadapterRenderer->compositeToDefaultFramebuffer(this, projection, m_panRect,
+			                                                    dprF, size().height());
+	}
 
-		int centerFreq = (int)(m_frequencyUnit * (m_frequency - m_lowerFrequency));
-		int deltaF = (int)(m_frequencyUnit * (float)m_sampleRate/2);
-		//int linePos = centerFreq;
+	// Sample-rate window overlay (RX span marker on the wideband display).
+	if (!m_calibrate) {
+		const int y1 = m_panRect.top() + 15;
+		const int y2 = m_panRect.height() - 15;
+		const int centerFreq = (int)(m_frequencyUnit * (m_frequency - m_lowerFrequency));
+		const int deltaF = (int)(m_frequencyUnit * (float)m_sampleRate / 2);
+		const int x1 = centerFreq - deltaF;
+		const int x2 = centerFreq + deltaF;
 
-	
-		x1 = (GLint)(centerFreq - deltaF);
-		x2 = (GLint)(centerFreq + deltaF);
-
-//		int dist = qAbs(x2-x1);
-//		if (dist < 2) {
-//
-//			x2 = x1 + 1;
-//			linePos = x1;
-//			glLineWidth(2);
-//		}
-//		else if (dist%2 == 0) {
-//
-//			glLineWidth(1);
-//		}
-//		else if (dist%2 == 1) {
-//
-//			linePos -= 1;
-//			glLineWidth(2);
-//		}
-	
-		QRect rect = QRect(x1, y1, x2 - x1, y2 - y1);
+		const QRect rect = QRect(x1, y1, x2 - x1, y2 - y1);
 		if (m_overlayRenderer && rect.isValid()) {
-			// Cyan sample-rate window (alpha was previously dropped by RGB-only drawSolidRect).
 			m_overlayRenderer->drawFilledRect(panelProjection(), rect,
 			                                 QColor(160, 235, 255, 80),
 			                                 QColor(160, 235, 255, 40),
 			                                 0.0f);
 		}
-
-		// small vertical line
-//		glColor4f(QColor(255, 0, 0, 255));
-//		glBegin(GL_LINES);
-//			glVertex3f(centerFreq, y2 + 15, 4.0f);
-//			glVertex3f(centerFreq, y2 + 30, 4.0f);
-//		glEnd();
-
 		glLineWidth(1);
 	}
 
-	//glDisable(GL_SCISSOR_TEST);
 	glDisable(GL_BLEND);
 	glDisable(GL_LINE_SMOOTH);
 }
@@ -1923,10 +1650,13 @@ void QGLWidebandPanel::setWidebandFrequencyRange(qreal lowHz, qreal highHz) {
 
 void QGLWidebandPanel::resetWidebandSpectrumBuffer() {
 
+	QMutexLocker lock(&mutex);
 	specAv_queue.clear();
 	m_wbAverageAccum.clear();
 	m_wbSpectrumBuffer.resize(BIGWIDEBANDSIZE / 2);
 	m_wbSpectrumBuffer.fill(-1000.0f);
+	m_wbSpectrumBufferLength = m_wbSpectrumBuffer.size();
+	m_widebandPanSpectrumBins.clear();
 }
 
 void QGLWidebandPanel::systemStateChanged(
@@ -1956,7 +1686,11 @@ void QGLWidebandPanel::systemStateChanged(
 		return;
 	else {
 
-		m_wbSpectrumBuffer.fill(-10000.0);
+		{
+			QMutexLocker lock(&mutex);
+			m_wbSpectrumBuffer.fill(-10000.0);
+			m_widebandPanSpectrumBins.clear();
+		}
 		//memset(&m_wbSpectrumBuffer, -10000, 4 * BUFFER_SIZE * sizeof(float));
 		m_serverMode = mode;
 	}

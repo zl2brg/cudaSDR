@@ -23,6 +23,7 @@
 
 
 #include "cusdr_settings.h"
+#include "Models/TransmitModel.h"
 #include "Util/cusdr_highResTimer.h"
 #include "QtWDSP/qtwdsp_dspEngine.h"
 #include "cusdr_hamDatabase.h"
@@ -83,6 +84,7 @@ private slots:
 
 private:
     Settings*   set;
+    TransmitModel* m_txModel = nullptr;
     QTimer*     m_phrotStatusTimer = nullptr;
     int id;
     int mic_sample_rate;

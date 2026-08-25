@@ -502,30 +502,31 @@ void SliceProcessor::dspProcessingCore() {
 
       if (highResTimer->getElapsedTimeInMicroSec() >= getDisplayDelay()) {
 
+		const bool transmitting = set->is_transmitting() || (m_state != RadioState::RX);
+
+		if (transmitting) {
 #ifdef HAVE_SOAPYSDR
-		if (set->getHWInterface() == QSDR::SoapySDR && set->is_transmitting()) {
-			if (!set->getTxFullDuplex()) {
+			if (set->getHWInterface() == QSDR::SoapySDR && !set->getTxFullDuplex()) {
 				// Half duplex: TX panadapter updated from get_tx_iqData() (RX DSP idle).
 				spectrumDataReady = 0;
-			} else {
-                txPixelsRequested = true;
-				GetPixels(TX_ID, 0, qtwdsp->spectrumBuffer.data(), &spectrumDataReady);
-				if (spectrumDataReady)
-					prepareTxPanadapterSpectrum(qtwdsp->spectrumBuffer, m_samplerate);
-				else
-					GetPixels(m_receiver, 0, qtwdsp->spectrumBuffer.data(), &spectrumDataReady);
-			}
-		} else
+			} else
 #endif
-		if (m_state == RadioState::RX) {
-			GetPixels(m_receiver, 0, qtwdsp->spectrumBuffer.data(), &spectrumDataReady);
+			{
+				txPixelsRequested = true;
+				GetPixels(TX_ID, 0, qtwdsp->spectrumBuffer.data(), &spectrumDataReady);
+				if (spectrumDataReady) {
+					prepareTxPanadapterSpectrum(qtwdsp->spectrumBuffer, m_samplerate);
+					m_lastTxSpectrum = qtwdsp->spectrumBuffer;
+					m_haveLastTxSpectrum = true;
+				} else if (m_haveLastTxSpectrum) {
+					// Hold last TX frame — do not fall back to RX (causes TX/blank flicker).
+					qtwdsp->spectrumBuffer = m_lastTxSpectrum;
+					spectrumDataReady = 1;
+				}
+			}
 		} else {
-            txPixelsRequested = true;
-			GetPixels(TX_ID, 0, qtwdsp->spectrumBuffer.data(), &spectrumDataReady);
-			if (spectrumDataReady)
-				prepareTxPanadapterSpectrum(qtwdsp->spectrumBuffer, m_samplerate);
-			else
-				GetPixels(m_receiver, 0, qtwdsp->spectrumBuffer.data(), &spectrumDataReady);
+			m_haveLastTxSpectrum = false;
+			GetPixels(m_receiver, 0, qtwdsp->spectrumBuffer.data(), &spectrumDataReady);
 		}
 
         if (spectrumDataReady) {
@@ -538,7 +539,8 @@ void SliceProcessor::dspProcessingCore() {
             qDebug().nospace() << "[TX-PAN-DIAG] rx=" << m_receiver
                                << " mode=" << (m_sliceModel ? m_sliceModel->dspMode() : set->getDSPMode(m_receiver))
                                << " state=" << m_state
-                               << " txPixels=" << (spectrumDataReady ? "yes" : "no");
+                               << " txPixels=" << (spectrumDataReady ? "yes" : "no")
+                               << " held=" << m_haveLastTxSpectrum;
         }
         highResTimer->start();
     }

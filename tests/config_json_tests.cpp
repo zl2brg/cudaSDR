@@ -300,8 +300,8 @@ void ConfigJsonTests::testAudioConfigJson() {
 
 void ConfigJsonTests::testCWConfigJson() {
     CWConfig config;
-    QCOMPARE(config.internalCw(), 0);
-    QCOMPARE(config.keyerSpeed(), 12);
+    QCOMPARE(config.internalCw(), 1);
+    QCOMPARE(config.keyerSpeed(), 20);
 
     QSignalSpy spyInternalCw(&config, &CWConfig::internalCwChanged);
     QSignalSpy spyKeyReversed(&config, &CWConfig::keyReversedChanged);
@@ -314,11 +314,11 @@ void ConfigJsonTests::testCWConfigJson() {
     QSignalSpy spyHangTime(&config, &CWConfig::hangTimeChanged);
     QSignalSpy spyKeyerWeight(&config, &CWConfig::keyerWeightChanged);
 
-    config.setInternalCw(1);
+    config.setInternalCw(0);
     config.setKeyReversed(1);
     config.setKeyerSpacing(1);
-    config.setKeyerSpeed(20);
-    config.setKeyerMode(2);
+    config.setKeyerSpeed(18);
+    config.setKeyerMode(1);
     config.setSidetoneVolume(80);
     config.setSidetoneFreq(800);
     config.setPttDelay(50);
@@ -339,11 +339,11 @@ void ConfigJsonTests::testCWConfigJson() {
     QJsonObject json;
     config.save(json);
 
-    QCOMPARE(json["internalCw"].toInt(), 1);
+    QCOMPARE(json["internalCw"].toInt(), 0);
     QCOMPARE(json["keyReversed"].toInt(), 1);
     QCOMPARE(json["keyerSpacing"].toInt(), 1);
-    QCOMPARE(json["keyerSpeed"].toInt(), 20);
-    QCOMPARE(json["keyerMode"].toInt(), 2);
+    QCOMPARE(json["keyerSpeed"].toInt(), 18);
+    QCOMPARE(json["keyerMode"].toInt(), 1);
     QCOMPARE(json["sidetoneVolume"].toInt(), 80);
     QCOMPARE(json["sidetoneFreq"].toInt(), 800);
     QCOMPARE(json["pttDelay"].toInt(), 50);
@@ -353,11 +353,11 @@ void ConfigJsonTests::testCWConfigJson() {
     CWConfig config2;
     config2.load(json);
 
-    QCOMPARE(config2.internalCw(), 1);
+    QCOMPARE(config2.internalCw(), 0);
     QCOMPARE(config2.keyReversed(), 1);
     QCOMPARE(config2.keyerSpacing(), 1);
-    QCOMPARE(config2.keyerSpeed(), 20);
-    QCOMPARE(config2.keyerMode(), 2);
+    QCOMPARE(config2.keyerSpeed(), 18);
+    QCOMPARE(config2.keyerMode(), 1);
     QCOMPARE(config2.sidetoneVolume(), 80);
     QCOMPARE(config2.sidetoneFreq(), 800);
     QCOMPARE(config2.pttDelay(), 50);

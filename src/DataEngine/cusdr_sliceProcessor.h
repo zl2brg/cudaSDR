@@ -199,6 +199,11 @@ private:
     int     m_rateTransitionDropBuffers;
     QMutex  m_dspMutex;
 
+    // Last good TX analyzer frame — never fall back to RX pixels during TX
+    // (GetPixels(TX_ID) often misses; RX fallback caused pan flicker).
+    QVector<float> m_lastTxSpectrum;
+    bool m_haveLastTxSpectrum = false;
+
 #ifdef HAVE_SOAPYSDR
     double  m_soapyDcAvgI = 0.0;
     double  m_soapyDcAvgQ = 0.0;

@@ -308,8 +308,8 @@ private:
     PanGraphicsMode m_panMode = FilledLine;
     PanDetectorMode m_panDetectorMode = DET_MODE_PEAK;
     WaterfallColorMode m_waterfallMode = Simple;
-    int m_waterfallOffsetLo = -120;
-    int m_waterfallOffsetHi = -60;
+    int m_waterfallOffsetLo = -5;
+    int m_waterfallOffsetHi = 20;
     bool m_panGrid = true;
     bool m_peakHold = false;
     double m_dBmPanScaleMin = -140.0;
