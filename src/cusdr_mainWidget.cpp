@@ -1885,8 +1885,7 @@ void MainWindow::showEvent(
 	QWidget::showEvent(event);
 	if (isNativeWaylandPlatform()) {
 		if (QWindow *win = windowHandle()) {
-			if (!win->findChild<WaylandFrameThrottle *>())
-				new WaylandFrameThrottle(win, 16);
+			installWaylandFrameThrottle(win, 16);
 		}
 	}
 }
@@ -2186,5 +2185,4 @@ void MainWindow::clearDiscoveredDevices() {
     m_discoveryTimer.stop();
     m_discoveryTimer.start(2500);
 }
-
 

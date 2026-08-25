@@ -92,6 +92,17 @@ private:
     bool m_deferred = false;
 };
 
+inline void installWaylandFrameThrottle(QObject *target, int minIntervalMs)
+{
+    if (!target)
+        return;
+    static constexpr auto kThrottleInstalledProperty = "cudasdr_wayland_frame_throttle";
+    if (target->property(kThrottleInstalledProperty).toBool())
+        return;
+    target->setProperty(kThrottleInstalledProperty, true);
+    new WaylandFrameThrottle(target, minIntervalMs);
+}
+
 // NVIDIA EGL on native Wayland busy-waits in eglSwapBuffers when swapInterval is 1
 // (~250% CPU). Window flicker is handled by opaque surfaces + FBO restore, not vsync.
 inline void disableVSyncOnNativeWayland(QOpenGLWidget *widget)
@@ -101,8 +112,7 @@ inline void disableVSyncOnNativeWayland(QOpenGLWidget *widget)
     QSurfaceFormat fmt = QSurfaceFormat::defaultFormat();
     fmt.setSwapInterval(0);
     widget->setFormat(fmt);
-    if (!widget->findChild<WaylandFrameThrottle *>())
-        new WaylandFrameThrottle(widget, 33);
+    installWaylandFrameThrottle(widget, 33);
 }
 
 #define GL_CLAMP_TO_EDGE	0x812F
