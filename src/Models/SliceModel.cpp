@@ -241,6 +241,12 @@ void SliceModel::setSMeterValue(double value) {
     emit sMeterValueChanged(m_sMeterValue);
 }
 
+void SliceModel::setSMeterPeakValue(double value) {
+    if (m_sMeterPeakValue == value) return;
+    m_sMeterPeakValue = value;
+    emit sMeterPeakValueChanged(m_sMeterPeakValue);
+}
+
 void SliceModel::setSMeterHoldTime(int time) {
     if (m_sMeterHoldTime == time) return;
     m_sMeterHoldTime = time;

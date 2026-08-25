@@ -556,9 +556,15 @@ void SliceProcessor::dspProcessingCore() {
         }
 #endif
 
-        if (m_smeterTime.elapsed() > 200) {
+        if (m_smeterTime.elapsed() >= 25) {
             m_sMeterValue = qtwdsp->getSMeterInstValue();
+            m_sMeterPeakValue = qtwdsp->getSMeterPeakValue();
+            if (m_sliceModel) {
+                m_sliceModel->setSMeterValue(m_sMeterValue);
+                m_sliceModel->setSMeterPeakValue(m_sMeterPeakValue);
+            }
             emit sMeterValueChanged(m_receiver, m_sMeterValue);
+            emit sMeterPeakValueChanged(m_receiver, m_sMeterPeakValue);
             m_smeterTime.restart();
         }
 #ifdef USE_INTERNAL_AUDIO

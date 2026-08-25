@@ -419,9 +419,11 @@ void QWDSPEngine::processDSP(CPX &in, CPX &out) {
 }
 
 double QWDSPEngine::getSMeterInstValue() {
+    return GetRXAMeter(m_rx, RXA_S_AV);
+}
 
-    return  GetRXAMeter(m_rx,RXA_S_AV);
-
+double QWDSPEngine::getSMeterPeakValue() {
+    return GetRXAMeter(m_rx, RXA_S_PK);
 }
 
 void QWDSPEngine::setVolume(float value) {

@@ -73,6 +73,7 @@ public:
     void processDSP(CPX &in, CPX &out);
 
     double getSMeterInstValue();
+    double getSMeterPeakValue();
     void init_analyzer(int refreshrate);
     void calcDisplayAveraging();
     void reconfigure();

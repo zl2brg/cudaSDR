@@ -166,7 +166,8 @@ private:
 	double				m_dspTimeMax = 0.0;
 	double				m_dspTimeAccum = 0.0;
 	quint64				m_dspCallCount = 0;
-	double				m_sMeterValue;
+	double				m_sMeterValue = -140.0;
+	double				m_sMeterPeakValue = -140.0;
 
 	volatile bool	m_stopped;
 
@@ -229,6 +230,7 @@ signals:
 	void	messageEvent(QString msg);
 	void	spectrumBufferChanged(int rx, const qVectorFloat& buffer);
 	void	sMeterValueChanged(int rx, double value);
+	void	sMeterPeakValueChanged(int rx, double value);
 	void	outputBufferSignal(int rx, const CPX &buffer);
 	void	audioBufferSignal(int rx, const CPX &buffer, int);
 	void	rxAudioSamples(int rx, QVector<float> stereoInterleaved, int sampleRate);

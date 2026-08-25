@@ -352,6 +352,10 @@ private:
 	float	m_sMeterMinValueA;
 	float	m_sMeterMaxValueB;
 	float	m_sMeterMinValueB;
+	float	m_sMeterAvgValList[MAX_RECEIVERS];
+	float	m_sMeterPeakValList[MAX_RECEIVERS];
+	float	m_sMeterHoldMaxList[MAX_RECEIVERS];
+	float	m_sMeterHoldMinList[MAX_RECEIVERS];
 
 	//*************************
 	void	setupConnections();
@@ -426,6 +430,7 @@ private slots:
 	void	setMouseWheelFreqStep(int rx, qreal value);
 
 	void	setSMeterValue(int rx, double value);
+	void	setSMeterPeakValue(int rx, double value);
 	void	setSMeterHoldTime(int value);
 	void	updateSyncStatus();
 	void	updateADCStatus();

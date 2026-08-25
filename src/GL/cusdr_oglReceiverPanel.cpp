@@ -438,6 +438,7 @@ void QGLReceiverPanel::setupConnections() {
 
     connect(m_sliceModel, &SliceModel::cwDecodedTextChanged, this, qOverload<>(&QGLReceiverPanel::update));
     connect(m_sliceModel, &SliceModel::cwToneActiveChanged, this, qOverload<>(&QGLReceiverPanel::update));
+    connect(m_sliceModel, &SliceModel::sMeterValueChanged, this, qOverload<>(&QGLReceiverPanel::update));
     connect(m_sliceModel, &SliceModel::cwDecodeEnabledChanged, this, qOverload<>(&QGLReceiverPanel::update));
     connect(m_sliceModel, &SliceModel::cwTrackedPitchChanged, this, qOverload<>(&QGLReceiverPanel::update));
 
@@ -1647,6 +1648,23 @@ void QGLReceiverPanel::drawReceiverInfo() {
         drawRxBadge(x1, y1, m_dspModeString, colDSP);
         drawRxBadge(x1, y1, m_agcModeString, colAGC);
         drawRxBadge(x1, y1, m_adcModeString, colADC);
+
+        if (m_sliceModel && m_dataEngineState == QSDR::DataEngineUp) {
+            const double sVal = m_sliceModel->sMeterValue();
+            QString sUnit;
+            QColor sBg;
+            if (sVal >= -73.0) {
+                const int over = qRound(sVal - (-73.0));
+                sUnit = (over > 0) ? QStringLiteral("S9+%1").arg(over) : QStringLiteral("S9");
+                sBg = (over >= 40) ? QColor(242, 56, 109, 220) :
+                      (over >= 10) ? QColor(255, 180, 40, 220) : QColor(56, 242, 115, 220);
+            } else {
+                const int s = qBound(0, static_cast<int>(9.0 + (sVal - (-73.0)) / 6.0 + 0.5), 9);
+                sUnit = QStringLiteral("S%1").arg(s);
+                sBg = QColor(40, 160, 90, 220);
+            }
+            drawRxBadge(x1, y1, sUnit, sBg);
+        }
 
 		TFrequency f;
 		f.freqMHz = (int)(m_vfoFrequency / 1000);

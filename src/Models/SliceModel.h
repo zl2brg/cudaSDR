@@ -44,6 +44,7 @@ public:
     Q_PROPERTY(bool anf READ anf WRITE setAnf NOTIFY anfChanged)
     Q_PROPERTY(bool snb READ snb WRITE setSnb NOTIFY snbChanged)
     Q_PROPERTY(double sMeterValue READ sMeterValue WRITE setSMeterValue NOTIFY sMeterValueChanged)
+    Q_PROPERTY(double sMeterPeakValue READ sMeterPeakValue WRITE setSMeterPeakValue NOTIFY sMeterPeakValueChanged)
     Q_PROPERTY(int sMeterHoldTime READ sMeterHoldTime WRITE setSMeterHoldTime NOTIFY sMeterHoldTimeChanged)
     Q_PROPERTY(int fftSize READ fftSize WRITE setFftSize NOTIFY fftSizeChanged)
     Q_PROPERTY(bool spectrumAveraging READ spectrumAveraging WRITE setSpectrumAveraging NOTIFY spectrumAveragingChanged)
@@ -161,6 +162,9 @@ public:
     double sMeterValue() const { return m_sMeterValue; }
     void setSMeterValue(double val);
 
+    double sMeterPeakValue() const { return m_sMeterPeakValue; }
+    void setSMeterPeakValue(double val);
+
     int sMeterHoldTime() const { return m_sMeterHoldTime; }
     void setSMeterHoldTime(int time);
 
@@ -249,6 +253,7 @@ signals:
     void anfChanged(bool enabled);
     void snbChanged(bool enabled);
     void sMeterValueChanged(double value);
+    void sMeterPeakValueChanged(double value);
     void sMeterHoldTimeChanged(int time);
     void fftSizeChanged(int size);
     void spectrumAveragingChanged(bool enabled);
@@ -300,6 +305,7 @@ private:
     bool m_anf = false;
     bool m_snb = false;
     double m_sMeterValue = -140.0;
+    double m_sMeterPeakValue = -140.0;
     int m_sMeterHoldTime = 1000;
     int m_fftSize = 1; // combo index: 0=2k … 4=32k (see QWDSPEngine::getfftVal)
     bool m_spectrumAveraging = false;

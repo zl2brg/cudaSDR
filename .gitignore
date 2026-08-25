@@ -43,6 +43,9 @@ out/
 
 Source/
 cudaSDR.log
+*.log
+.qtcreator/
+qtbuild/
 
 # TCI web client
 web/tci-client/node_modules/

@@ -104,6 +104,12 @@ OGLDisplayPanel::OGLDisplayPanel(RadioModel *model, QWidget *parent)
     , m_sMeterMaxValueB(-1000.0f)
     , m_sMeterMinValueB(1000.0f)
 {
+    for (int i = 0; i < MAX_RECEIVERS; i++) {
+        m_sMeterAvgValList[i] = 0.0f;
+        m_sMeterPeakValList[i] = 0.0f;
+        m_sMeterHoldMaxList[i] = 0.0f;
+        m_sMeterHoldMinList[i] = 0.0f;
+    }
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     setAutoFillBackground(false);
     setAttribute(Qt::WA_OpaquePaintEvent);
@@ -295,6 +301,7 @@ void OGLDisplayPanel::setupConnections() {
 	connect(set, &Settings::mouseWheelFreqStepChanged,this, &OGLDisplayPanel::setMouseWheelFreqStep);
         for (auto slice : m_radioModel->slices()) {
             connect(slice, &SliceModel::sMeterValueChanged, this, [this, slice](double value){ this->setSMeterValue(slice->id(), value); });
+            connect(slice, &SliceModel::sMeterPeakValueChanged, this, [this, slice](double value){ this->setSMeterPeakValue(slice->id(), value); });
             connect(slice, &SliceModel::sMeterHoldTimeChanged, this, &OGLDisplayPanel::setSMeterHoldTime);
             connect(slice, &SliceModel::frequencyChanged, this, [this, slice](long freq){ this->setFrequency(0, slice->id(), freq); });
             connect(slice, &SliceModel::vfoAFrequencyChanged, this, [this](qint64){ scheduleRepaint(); });
@@ -1332,14 +1339,26 @@ void OGLDisplayPanel::drawSMeterNeedle(const QMatrix4x4 &projection, int x1)
         return;
 
     m_vao.bind();
+
+    // Main signal needle (bright white)
     const float x = float(x1 + int(m_sMeterValue * m_unit));
     const GlDraw::Vec3Rgb needle[2] = {
         { x, float(m_sMeterPosY) - 15.0f, 1.0f, 1.0f, 1.0f, 1.0f },
-        { x, float(m_sMeterPosY) + 28.0f, 1.0f, 1.0f, 1.0f, 1.0f },
+        { x, float(m_sMeterPosY) + 26.0f, 1.0f, 1.0f, 1.0f, 1.0f },
     };
 
     glLineWidth(2.0f);
     GlDraw::drawColoredLines(this, m_shaderProgram, m_vbo, projection, needle, 2);
+
+    // Peak hold needle (amber/red pip at top of scale)
+    if (m_sMeterMaxValueB > m_sMeterValue + 0.5f) {
+        const float xPeak = float(x1 + int(m_sMeterMaxValueB * m_unit));
+        const GlDraw::Vec3Rgb peakNeedle[2] = {
+            { xPeak, float(m_sMeterPosY) - 15.0f, 1.0f, 0.4f, 0.4f, 1.0f },
+            { xPeak, float(m_sMeterPosY) + 12.0f, 1.0f, 0.4f, 0.4f, 1.0f },
+        };
+        GlDraw::drawColoredLines(this, m_shaderProgram, m_vbo, projection, peakNeedle, 2);
+    }
 }
 
     void OGLDisplayPanel::paintSMeter() {
@@ -1392,28 +1411,44 @@ void OGLDisplayPanel::drawSMeterNeedle(const QMatrix4x4 &projection, int x1)
 
         if (m_dataEngineState == QSDR::DataEngineUp) {
 
-            glLineWidth(1);
-            int min = (int)(m_sMeterMinValueB * m_unit);
-            int max = (int)(m_sMeterMaxValueB * m_unit);
-            min += min % 2;
-            max += max % 2;
-
             // Text rendering above releases its VAO; Core 3.3 requires a bound VAO
             // before any draw — without this the level bar is a silent no-op.
             m_vao.bind();
             glDisable(GL_DEPTH_TEST);
 
-            // Original guard is min > 0 (not max > min): early DSP readings map near
-            // tmp≈0 and would otherwise fill a yellow bar from the left edge to the needle.
-            QRect bar(x1 + min, m_sMeterPosY + 4, max - min, 5);
-            if (min > 0 && m_shaderProgram && m_shaderProgram->isLinked())
+            // Signal level bar filled from baseline (left) to current S-meter value
+            const int barWidth = int(m_sMeterValue * m_unit);
+            if (barWidth > 0 && m_shaderProgram && m_shaderProgram->isLinked()) {
+                const QRect bar(x1, m_sMeterPosY + 3, barWidth, 6);
+                const QColor cLeft(40, 180, 100);
+                const QColor cRight = (m_sMeterValue > 97.0f) ? QColor(255, 50, 50) :
+                                      (m_sMeterValue > 67.0f) ? QColor(255, 200, 50) : QColor(56, 242, 115);
                 GlDraw::drawGradientRect(this, m_shaderProgram, m_vbo, projection, bar,
-                                         QColor(255, 50, 50), QColor(255, 255, 50), true, 1.0f);
+                                         cLeft, cRight, true, 1.0f);
+            }
 
             drawSMeterNeedle(projection, x1);
 
             qglColor(m_activeTextColor);
             m_sMeterNumValueString = QString::number(m_sMeterOrgValue, 'f', 1);
+
+            // Calculate standard S-Unit display string
+            QString sUnitStr;
+            QColor sUnitColor;
+            if (m_sMeterOrgValue >= -73.0) {
+                const int over = qRound(m_sMeterOrgValue - (-73.0));
+                sUnitStr = (over > 0) ? QStringLiteral("S9+%1").arg(over) : QStringLiteral("S9");
+                sUnitColor = (over >= 40) ? QColor(255, 60, 60) :
+                             (over >= 10) ? QColor(255, 200, 50) : QColor(255, 255, 255);
+            } else {
+                const int s = qBound(0, static_cast<int>(9.0 + (m_sMeterOrgValue - (-73.0)) / 6.0 + 0.5), 9);
+                sUnitStr = QStringLiteral("S%1").arg(s);
+                sUnitColor = QColor(56, 242, 115);
+            }
+
+            const QString rxBadge = QStringLiteral("RX%1").arg(m_currentReceiver + 1);
+            m_oglTextSmall->renderText(projection, x1 + m_sMeterWidth - 195, 8, rxBadge, m_activeTextColor);
+            m_oglTextBig->renderText(projection, x1 + m_sMeterWidth - 148, 2, sUnitStr, sUnitColor);
             m_oglTextBig->renderText(projection, x1 + m_sMeterWidth - 85, 2, m_sMeterNumValueString, Qt::white);
             m_oglTextNormal->renderText(projection, x1 + m_sMeterWidth - 28, 9, QStringLiteral("dBm"), m_activeTextColor);
         }
@@ -1489,44 +1524,86 @@ void OGLDisplayPanel::renderSMeterScale() {
 		const float tr = tickCol.redF(), tg = tickCol.greenF(), tb = tickCol.blueF();
 
 		QVector<GlDraw::Vec3Rgb> tickLines;
-		tickLines.reserve(52);
-		for (int i = 1, z = -120; z < 10; i++, z += 10) {
-			const float xMajor = float(10 * i * m_unit);
-			const float xMinor = float((10 * i - 5) * m_unit);
+		tickLines.reserve(64);
+		for (int z = -130; z <= 0; z += 10) {
+			const float xMajor = float((z - (-140)) * m_unit);
+			const float xMinor = float((z - (-140) - 5) * m_unit);
 			tickLines.append({ xMajor, posY - 4.0f, 0.0f, tr, tg, tb });
 			tickLines.append({ xMajor, posY, 0.0f, tr, tg, tb });
-			tickLines.append({ xMinor, posY - 2.0f, 0.0f, tr, tg, tb });
-			tickLines.append({ xMinor, posY, 0.0f, tr, tg, tb });
+			if (z > -130) {
+				tickLines.append({ xMinor, posY - 2.0f, 0.0f, tr, tg, tb });
+				tickLines.append({ xMinor, posY, 0.0f, tr, tg, tb });
+			}
 		}
 		GlDraw::drawColoredLines(this, m_shaderProgram, m_vbo, projection,
 		                         tickLines.constData(), tickLines.size());
 
+		// IARU HF Standard S-unit tick marks relative to -140 dBm baseline:
+		// S1=-121dBm(19), S2=-115dBm(25), S3=-109dBm(31), S4=-103dBm(37), S5=-97dBm(43),
+		// S6=-91dBm(49), S7=-85dBm(55), S8=-79dBm(61), S9=-73dBm(67),
+		// +10=-63dBm(77), +20=-53dBm(87), +30=-43dBm(97), +40=-33dBm(107), +50=-23dBm(117), +60=-13dBm(127)
+		struct SMark {
+			int dbFromBase;
+			int colorZone; // 0 = green (S1..S9), 1 = yellow (+10..+30), 2 = red (+40..+60)
+			bool isMajor;
+		};
+		static const SMark sMarks[] = {
+			{ 19, 0, true },   // S1
+			{ 25, 0, false },  // S2
+			{ 31, 0, true },   // S3
+			{ 37, 0, false },  // S4
+			{ 43, 0, true },   // S5
+			{ 49, 0, false },  // S6
+			{ 55, 0, true },   // S7
+			{ 61, 0, false },  // S8
+			{ 67, 0, true },   // S9
+			{ 77, 1, false },  // +10
+			{ 87, 1, true },   // +20
+			{ 97, 1, false },  // +30
+			{ 107, 2, true },  // +40
+			{ 117, 2, false }, // +50
+			{ 127, 2, true }   // +60
+		};
+
 		QVector<GlDraw::Vec3Rgb> sUnitLines;
-		sUnitLines.reserve(40);
+		sUnitLines.reserve(48);
 		auto appendLine = [&](float x, float y1, float y2, float lr, float lg, float lb) {
 			sUnitLines.append({ x, y1, 0.0f, lr, lg, lb });
 			sUnitLines.append({ x, y2, 0.0f, lr, lg, lb });
 		};
 
-		for (int i = 0; i < 17; ++i) {
-			if (i < 10) {
-				const float x = float((6 * i + 3) * m_unit);
-				appendLine(x, posY + 12.0f, posY + 17.0f, r, g, b);
-			} else {
-				float lr, lg, lb;
-				if (m_dataEngineState == QSDR::DataEngineUp) {
-					lr = 1.0f; lg = 80.0f / 255.0f; lb = 80.0f / 255.0f;
+		for (const auto &mark : sMarks) {
+			const float x = float(mark.dbFromBase * m_unit);
+			float lr, lg, lb;
+			if (m_dataEngineState == QSDR::DataEngineUp) {
+				if (mark.colorZone == 0) {
+					lr = 56.0f / 255.0f; lg = 242.0f / 255.0f; lb = 115.0f / 255.0f;
+				} else if (mark.colorZone == 1) {
+					lr = 255.0f / 255.0f; lg = 200.0f / 255.0f; lb = 50.0f / 255.0f;
 				} else {
-					lr = m_inactiveTextColor.redF();
-					lg = m_inactiveTextColor.greenF();
-					lb = m_inactiveTextColor.blueF();
+					lr = 255.0f / 255.0f; lg = 60.0f / 255.0f; lb = 60.0f / 255.0f;
 				}
-				const float x = float((10 * i - 33) * m_unit);
-				appendLine(x, posY + 12.0f, posY + 17.0f, lr, lg, lb);
+			} else {
+				lr = m_inactiveTextColor.redF();
+				lg = m_inactiveTextColor.greenF();
+				lb = m_inactiveTextColor.blueF();
 			}
+			const float tickH = mark.isMajor ? 6.0f : 4.0f;
+			appendLine(x, posY + 12.0f, posY + 12.0f + tickH, lr, lg, lb);
 		}
-		sUnitLines.append({ float(57 * m_unit + 1), posY + 12.0f, 0.0f, r, g, b });
-		sUnitLines.append({ float(width - 1), posY + 12.0f, 0.0f, r, g, b });
+
+		// Colored bottom guide rails
+		if (m_dataEngineState == QSDR::DataEngineUp) {
+			// Green line: 0 to S9 (67 dB)
+			sUnitLines.append({ 0.0f, posY + 12.0f, 0.0f, 56.0f / 255.0f, 242.0f / 255.0f, 115.0f / 255.0f });
+			sUnitLines.append({ float(67 * m_unit), posY + 12.0f, 0.0f, 56.0f / 255.0f, 242.0f / 255.0f, 115.0f / 255.0f });
+			// Yellow line: S9 to +30 dB (97 dB)
+			sUnitLines.append({ float(67 * m_unit), posY + 12.0f, 0.0f, 255.0f / 255.0f, 200.0f / 255.0f, 50.0f / 255.0f });
+			sUnitLines.append({ float(97 * m_unit), posY + 12.0f, 0.0f, 255.0f / 255.0f, 200.0f / 255.0f, 50.0f / 255.0f });
+			// Red line: +30 dB to end
+			sUnitLines.append({ float(97 * m_unit), posY + 12.0f, 0.0f, 255.0f / 255.0f, 60.0f / 255.0f, 60.0f / 255.0f });
+			sUnitLines.append({ float(width - 1), posY + 12.0f, 0.0f, 255.0f / 255.0f, 60.0f / 255.0f, 60.0f / 255.0f });
+		}
 
 		GlDraw::drawColoredLines(this, m_shaderProgram, m_vbo, projection,
 		                         sUnitLines.constData(), sUnitLines.size());
@@ -1545,125 +1622,103 @@ void OGLDisplayPanel::drawSMeterScaleLabels(const QMatrix4x4 &projection, int xO
 {
 	const QFontMetrics fm = m_oglTextNormal->fontMetrics();
 
-	QString marker;
-	for (int i = 1, z = -120; z < 10; i++, z += 10) {
-		marker = QString::number(z, 'f', 0);
+	// Top dBm labels (-120 to 0 dBm)
+	for (int z = -120; z <= 0; z += 20) {
+		const int dbFromBase = z - (-140);
+		QString marker = QString::number(z);
 		const int d = fm.horizontalAdvance(marker);
-		const int x = xOffset + int(10 * i * m_unit) - d / 2 - 2;
-
-		if (z == -120 || z == -100 || z == -80 || z == -60 || z == -40 || z == -20)
-			m_oglTextNormal->renderText(projection, float(x), float(m_sMeterPosY - 18), marker, m_activeTextColor);
-
-		if (m_sMeterWidth > 500) {
-			if (z == -110 || z == -90 || z == -70 || z == -50 || z == -30 || z == -10)
-				m_oglTextNormal->renderText(projection, float(x), float(m_sMeterPosY - 18), marker, m_activeTextColor);
-		}
-
-		if (m_sMeterWidth > 400 && z == 0)
-			m_oglTextNormal->renderText(projection, float(xOffset + int(10 * i * m_unit) - d / 2),
-			                            float(m_sMeterPosY - 18), marker, m_activeTextColor);
+		const int x = xOffset + int(dbFromBase * m_unit) - d / 2;
+		m_oglTextNormal->renderText(projection, float(x), float(m_sMeterPosY - 18), marker, m_activeTextColor);
 	}
 
 	m_oglTextSmallItalic->renderText(projection, float(xOffset + m_sMeterWidth - 25),
 	                                 float(m_sMeterPosY - 16), QStringLiteral("dBm"), m_activeTextColor);
 
-	for (int i = 0; i < 17; ++i) {
-		if (i < 10) {
-			marker = QStringLiteral("S1");
-			const int d = fm.horizontalAdvance(marker);
-			const float x = float(xOffset + int((6 * (i + 1) - d / 2 + 1) * m_unit));
+	// Bottom S-Unit labels placed at accurate IARU calibrated positions
+	struct SLabel {
+		int dbFromBase;
+		const char *text;
+		QColor color;
+	};
+	static const SLabel sLabels[] = {
+		{ 19, "S1", QColor(56, 242, 115) },
+		{ 31, "S3", QColor(56, 242, 115) },
+		{ 43, "S5", QColor(56, 242, 115) },
+		{ 55, "S7", QColor(56, 242, 115) },
+		{ 67, "S9", QColor(255, 255, 255) },
+		{ 87, "+20", QColor(255, 200, 50) },
+		{ 107, "+40", QColor(255, 80, 80) },
+		{ 127, "+60", QColor(255, 80, 80) }
+	};
 
-			if (i == 1)
-				m_oglTextNormal->renderText(projection, x, float(m_sMeterPosY + 18), marker, m_activeTextColor);
-			else if (i == 3)
-				m_oglTextNormal->renderText(projection, x, float(m_sMeterPosY + 18), QStringLiteral("S3"), m_activeTextColor);
-			else if (i == 5)
-				m_oglTextNormal->renderText(projection, x, float(m_sMeterPosY + 18), QStringLiteral("S5"), m_activeTextColor);
-			else if (i == 7)
-				m_oglTextNormal->renderText(projection, x, float(m_sMeterPosY + 18), QStringLiteral("S7"), m_activeTextColor);
-			else if (i == 9)
-				m_oglTextNormal->renderText(projection, x, float(m_sMeterPosY + 18), QStringLiteral("S9"), m_activeTextColor);
-		} else {
-			const int idx = xOffset + int((10 * i - 33) * m_unit);
-			marker = QStringLiteral("+20");
-			const int d = fm.horizontalAdvance(marker);
-
-			if (i == 11)
-				m_oglTextNormal->renderText(projection, float(idx - d / 2 - 2), float(m_sMeterPosY + 18), marker, m_activeTextColor);
-			else if (i == 13)
-				m_oglTextNormal->renderText(projection, float(idx - d / 2 - 2), float(m_sMeterPosY + 18), QStringLiteral("+40"), m_activeTextColor);
-			else if (i == 15)
-				m_oglTextNormal->renderText(projection, float(idx - d / 2 - 2), float(m_sMeterPosY + 18), QStringLiteral("+60"), m_activeTextColor);
-		}
+	for (const auto &lbl : sLabels) {
+		QString marker = QString::fromLatin1(lbl.text);
+		const int d = fm.horizontalAdvance(marker);
+		const float x = float(xOffset + int(lbl.dbFromBase * m_unit) - d / 2);
+		const QColor c = (m_dataEngineState == QSDR::DataEngineUp) ? lbl.color : m_inactiveTextColor;
+		m_oglTextNormal->renderText(projection, x, float(m_sMeterPosY + 18), marker, c);
 	}
 }
 
 
 
 void OGLDisplayPanel::setSMeterValue(int rx, double value) {
+	if (rx < 0 || rx >= MAX_RECEIVERS)
+		return;
 
-	Q_UNUSED(rx)
-		float tmp;
+	const float offset = (set->getHWInterface() == QSDR::SoapySDR) ? 90.0f : 140.0f;
+	const float tmp = (float)value + offset;
 
-        // Automatic offset alignment: HPSDR (Hermes/Metis) hardware uses a +140dB offset
-        // to convert WDSP's raw dB values to dBm. Generic SoapySDR hardware (like RTL-SDR)
-        // typically has a much lower noise floor relative to full scale.
-        // A +90dB offset aligns the S-Meter with the visual Panadapter floor for Soapy mode.
-        const float offset = (set->getHWInterface() == QSDR::SoapySDR) ? 90.0f : 140.0f;
-		tmp = (float)value + offset;
+	// Fast-attack, smooth-decay analog meter ballistics per receiver
+	if (tmp > m_sMeterAvgValList[rx]) {
+		m_sMeterAvgValList[rx] = tmp * 0.80f + m_sMeterAvgValList[rx] * 0.20f;
+	} else {
+		m_sMeterAvgValList[rx] = tmp * 0.15f + m_sMeterAvgValList[rx] * 0.85f;
+	}
 
-		// Hold/needle track at full DSP rate; only the GL redraw is gated.
-		if (tmp < m_sMeterMinValueB) m_sMeterMinValueB = tmp;
+	if (rx == m_currentReceiver) {
+		m_sMeterValue = m_sMeterAvgValList[rx];
+		if (m_sMeterDisplayTime.elapsed() > 60) {
+			m_sMeterOrgValue = (set->getHWInterface() == QSDR::SoapySDR) ? (tmp - 90.0f) : (tmp - 140.0f);
+			m_sMeterDisplayTime.restart();
+		}
+		scheduleRepaint();
+	}
+}
 
-		if (tmp > m_sMeterMaxValueB) m_sMeterMaxValueB = tmp;
+void OGLDisplayPanel::setSMeterPeakValue(int rx, double value) {
+	if (rx < 0 || rx >= MAX_RECEIVERS)
+		return;
 
-		int elapsedTimeMax = m_sMeterMaxTimer.elapsed();
+	const float offset = (set->getHWInterface() == QSDR::SoapySDR) ? 90.0f : 140.0f;
+	const float tmp = (float)value + offset;
+	m_sMeterPeakValList[rx] = tmp;
+
+	if (tmp > m_sMeterHoldMaxList[rx]) {
+		m_sMeterHoldMaxList[rx] = tmp;
+		if (rx == m_currentReceiver) {
+			m_sMeterMaxTimer.restart();
+			m_sMeterPrevHoldTimeMax = 0;
+		}
+	}
+
+	if (rx == m_currentReceiver) {
+		const int elapsedTimeMax = m_sMeterMaxTimer.elapsed();
 		if (elapsedTimeMax > m_sMeterHoldTime) {
-
 			if (m_sMeterPrevHoldTimeMax <= 0)
 				m_sMeterPrevHoldTimeMax = m_sMeterHoldTime;
 
-			// slowly reduce the peak hold level (taken from SDRMAX3 by (c) Cathy Moss)
-			m_sMeterMaxValueB -= (float)(elapsedTimeMax - m_sMeterPrevHoldTimeMax) / 15;
+			m_sMeterHoldMaxList[rx] -= (float)(elapsedTimeMax - m_sMeterPrevHoldTimeMax) / 15.0f;
 			m_sMeterPrevHoldTimeMax = elapsedTimeMax;
 
-			if ((qRound(m_sMeterMaxValueB) <= qRound(tmp)) || (m_sMeterMaxValueB <= tmp)) {
-
-				m_sMeterMaxValueB = tmp;
+			if (m_sMeterHoldMaxList[rx] <= tmp) {
+				m_sMeterHoldMaxList[rx] = tmp;
 				m_sMeterMaxTimer.restart();
 				m_sMeterPrevHoldTimeMax = 0;
 			}
 		}
-
-		int elapsedTimeMin = m_sMeterMinTimer.elapsed();
-		if (elapsedTimeMin > m_sMeterHoldTime) {
-
-			if (m_sMeterPrevHoldTimeMin <= 0)
-				m_sMeterPrevHoldTimeMin = m_sMeterHoldTime;
-
-			// slowly increase the minimum hold level (taken from SDRMAX3 by (c) Cathy Moss)
-			m_sMeterMinValueB += (float)(elapsedTimeMin - m_sMeterPrevHoldTimeMin) / 15;
-			m_sMeterPrevHoldTimeMin = elapsedTimeMin;
-
-			if ((qRound(m_sMeterMinValueB) >= qRound(tmp)) || (m_sMeterMinValueB >= tmp)) {
-
-				m_sMeterMinValueB = tmp;
-				m_sMeterMinTimer.restart();
-				m_sMeterPrevHoldTimeMin = 0;
-			}
-		}
-
-			m_sMeterValue = tmp * 0.13f + m_sMeterValue * 0.87f;
-
-		if (m_sMeterDisplayTime.elapsed() > 200) {
-
-			m_sMeterOrgValue = tmp - 130.0f;
-
-			m_sMeterDisplayTime.restart();
-		}
-
-	// Gate paints via shared scheduleRepaint coalescer (~20 FPS).
-	scheduleRepaint();
+		m_sMeterMaxValueB = m_sMeterHoldMaxList[rx];
+	}
 }
 
 
@@ -2417,6 +2472,13 @@ void OGLDisplayPanel::setCurrentReceiver(int value) {
 	}
 
 	m_currentReceiver = value;
+	if (value < MAX_RECEIVERS) {
+		m_sMeterValue = m_sMeterAvgValList[value];
+		m_sMeterMaxValueB = m_sMeterHoldMaxList[value];
+		const float offset = (set->getHWInterface() == QSDR::SoapySDR) ? 90.0f : 140.0f;
+		m_sMeterOrgValue = (m_sMeterValue > 0.0f) ? (m_sMeterValue - offset) : -140.0f;
+	}
+	scheduleRepaint();
 }
 
 void OGLDisplayPanel::setFrequency(int mode,int rx, qint64 freq) {
