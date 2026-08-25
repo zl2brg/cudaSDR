@@ -113,8 +113,10 @@ QGLReceiverPanel::QGLReceiverPanel(SliceModel *model, QWidget *parent)
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 	// Full repaint each frame — PartialUpdate corrupts pan/waterfall on desktop GLX.
 	setUpdateBehavior(QOpenGLWidget::NoPartialUpdate);
-	//setAutoBufferSwap(true);
 	setAutoFillBackground(false);
+	setAttribute(Qt::WA_OpaquePaintEvent);
+	setAttribute(Qt::WA_NoSystemBackground);
+	disableVSyncOnNativeWayland(this);
 
 	setMouseTracking(true);
 	setFocusPolicy(Qt::StrongFocus);
@@ -475,7 +477,7 @@ void QGLReceiverPanel::initializeGL() {
 	//*****************************************************************
 	// default initialization
 
-	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glPixelStorei(GL_UNPACK_ALIGNMENT, 4); // 4-byte pixel alignment
 	glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
     glHint(GL_POLYGON_SMOOTH_HINT, GL_NICEST);
@@ -521,6 +523,7 @@ float QGLReceiverPanel::displayedZoomFactor() const
 
 void QGLReceiverPanel::ensurePanelViewport()
 {
+    QOpenGLFramebufferObject::bindDefault();
     const qreal ratio = devicePixelRatioF();
     glViewport(0, 0, GLsizei(qRound(width() * ratio)), GLsizei(qRound(height() * ratio)));
 }
@@ -575,6 +578,8 @@ void QGLReceiverPanel::drawCachedTexture(const QRect &rect, GLuint texId, float 
 }
 
 void QGLReceiverPanel::paintGL() {
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     syncTextDevicePixelRatio();
     ensurePanelViewport();
@@ -896,6 +901,7 @@ void QGLReceiverPanel::drawPanVerticalScale() {
         m_dBmScaleFBO->bind();
         renderPanVerticalScale();
         m_dBmScaleFBO->release();
+        QOpenGLFramebufferObject::bindDefault();
 
         if (!m_dragDBmScale)
             m_dBmScalePanadapterUpdate = false;
@@ -1017,8 +1023,9 @@ void QGLReceiverPanel::drawPanHorizontalScale() {
         glViewport(0, 0, width, height);  // Use logical coordinates
 
         m_frequencyScaleFBO->bind();
-            renderPanHorizontalScale();
+        renderPanHorizontalScale();
         m_frequencyScaleFBO->release();
+        QOpenGLFramebufferObject::bindDefault();
 
         glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
         m_freqScalePanadapterUpdate = false;
@@ -1218,6 +1225,7 @@ void QGLReceiverPanel::drawWaterfallVerticalScale() {
         m_secScaleWaterfallFBO->bind();
         renderWaterfallVerticalScale();
         m_secScaleWaterfallFBO->release();
+        QOpenGLFramebufferObject::bindDefault();
 
         m_secScaleWaterfallUpdate = false;
         m_secScaleWaterfallRenew = false;
@@ -1949,9 +1957,10 @@ void QGLReceiverPanel::renderPanHorizontalScale() {
 
 void QGLReceiverPanel::renderPanadapterGrid()
 {
-    // Clear to transparent so only grid lines are visible
+    // Overlay FBO: transparent clear so only grid lines composite over the panadapter.
     glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
     glClear(GL_COLOR_BUFFER_BIT);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -2310,7 +2319,7 @@ void QGLReceiverPanel::enterEvent(QEnterEvent *event) {
 	QOpenGLWidget::enterEvent(event);
 }
 
-void QGLReceiverPanel::leaveEvent(QEnterEvent *event) {
+void QGLReceiverPanel::leaveEvent(QEvent *event) {
 
 	m_mousePos = QPoint(-100, -100);
 	m_mouseRegion = elsewhere;

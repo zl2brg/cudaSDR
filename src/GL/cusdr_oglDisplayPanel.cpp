@@ -106,10 +106,11 @@ OGLDisplayPanel::OGLDisplayPanel(RadioModel *model, QWidget *parent)
 {
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     setAutoFillBackground(false);
+    setAttribute(Qt::WA_OpaquePaintEvent);
+    setAttribute(Qt::WA_NoSystemBackground);
     setMouseTracking(true);
-	// PartialUpdate is fine once paintRxRegion no longer uses QPainter(this).
-	// NoPartialUpdate + Hermes telemetry was the Core-only ~2–3 Hz window flash.
-	setUpdateBehavior(QOpenGLWidget::PartialUpdate);
+    setUpdateBehavior(QOpenGLWidget::PartialUpdate);
+    disableVSyncOnNativeWayland(this);
         m_freqStringLeftPos = 20;
         setupDisplayRegions(size());
         dpr = devicePixelRatioF();
@@ -1368,6 +1369,7 @@ void OGLDisplayPanel::drawSMeterNeedle(const QMatrix4x4 &projection, int x1)
             m_smeterFBO->bind();
             renderSMeterScale();
             m_smeterFBO->release();
+            QOpenGLFramebufferObject::bindDefault();
             m_smeterUpdate = false;
         }
 

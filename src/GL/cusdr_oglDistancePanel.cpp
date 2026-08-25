@@ -75,6 +75,12 @@ QGLDistancePanel::QGLDistancePanel(QWidget *parent)
     m_textureProgram = nullptr;
     m_vbo = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
 
+	setUpdateBehavior(QOpenGLWidget::NoPartialUpdate);
+	setAutoFillBackground(false);
+	setAttribute(Qt::WA_OpaquePaintEvent);
+	setAttribute(Qt::WA_NoSystemBackground);
+	disableVSyncOnNativeWayland(this);
+
 	setMouseTracking(true);
 	setFocusPolicy(Qt::StrongFocus);
 
@@ -361,7 +367,7 @@ void QGLDistancePanel::initializeGL() {
         qCritical() << "Distance panel texture shader link failed:" << m_textureProgram->log();
     }
 
-	glClearColor(0.0f, 0.0f, 0.0f, 0.5f);
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
 	glDepthFunc(GL_LESS);
     glEnable(GL_DEPTH_TEST);
@@ -654,6 +660,7 @@ void QGLDistancePanel::drawPanVerticalScale() {
 		m_dBmScaleFBO->bind();
 			renderPanVerticalScale();
 		m_dBmScaleFBO->release();
+		QOpenGLFramebufferObject::bindDefault();
 
 		glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
 		
@@ -695,6 +702,7 @@ void QGLDistancePanel::drawPanHorizontalScale() {
 		m_frequencyScaleFBO->bind();
 			renderPanHorizontalScale();
 		m_frequencyScaleFBO->release();
+		QOpenGLFramebufferObject::bindDefault();
 
         glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
 		
@@ -737,6 +745,7 @@ void QGLDistancePanel::drawPanadapterGrid() {
 		m_panadapterGridFBO->bind();
 			renderPanadapterGrid();
 		m_panadapterGridFBO->release();
+		QOpenGLFramebufferObject::bindDefault();
 
         glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
 		
@@ -1333,7 +1342,10 @@ void QGLDistancePanel::renderPanHorizontalScale() {
 
 void QGLDistancePanel::renderPanadapterGrid() {
 
+	// Overlay FBO: transparent clear so only grid lines composite over the panadapter.
+	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     if (!m_shaderProgram || !m_shaderProgram->isLinked()) return;
 
 	glLineWidth(1.0f);
@@ -1599,7 +1611,7 @@ void QGLDistancePanel::enterEvent(QEnterEvent *event) {
 	QOpenGLWidget::enterEvent(event);
 }
 
-void QGLDistancePanel::leaveEvent(QEnterEvent *event) {
+void QGLDistancePanel::leaveEvent(QEvent *event) {
 
 	m_mousePos = QPoint(-1, -1);
 	m_mouseRegion = elsewhere;

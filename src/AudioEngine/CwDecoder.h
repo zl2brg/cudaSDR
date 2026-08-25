@@ -110,6 +110,7 @@ private:
     // Decimation accumulator for 48kHz -> 8kHz
     int m_decimFactor = 6;
     int m_decimCounter = 0;
+    float m_decimAccum = 0.0f;
 
     // Auto Pitch Tracker State
     bool m_autoTrack = true;

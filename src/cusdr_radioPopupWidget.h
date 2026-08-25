@@ -20,6 +20,7 @@
 #include <QTabWidget>
 #include <QLabel>
 #include <QSpinBox>
+#include <QElapsedTimer>
 
 #include "Util/cusdr_buttons.h"
 #include "cusdr_settings.h"
@@ -27,9 +28,12 @@
 #include "cusdr_agcWidget.h"
 #include "noisefilterwidget.h"
 
-class SliceModel;
+#include <QDockWidget>
 
-class RadioPopupWidget : public QWidget {
+class SliceModel;
+class DisplayOptionsWidget;
+
+class RadioPopupWidget : public QDockWidget {
 	Q_OBJECT
 
 public:
@@ -41,6 +45,7 @@ public:
 	bool getPeakHoldStatus()	{ return m_peakHold; }
 	AGCOptionsWidget* agcOptionsWidget() const { return m_popupAgcWidget; }
 	NoiseFilterWidget* noiseFilterWidget() const { return m_noiseFilterWidget; }
+	DisplayOptionsWidget* displayOptionsWidget() const { return m_popupDisplayWidget; }
 
 	// MVC View Interface Setters
 	void setSingleAdcDevice(bool single);
@@ -100,7 +105,8 @@ signals:
 	void vfoToMidBtnEvent();
 
 public slots:
-	QSize	minimumSizeHint() const;
+	QSize	minimumSizeHint() const override;
+	QSize	sizeHint() const override;
 
 	void systemStateChanged(
 			QSDR::_Error err, 
@@ -111,19 +117,39 @@ public slots:
 	bool showPopupWidget(QPoint position);
 		
 protected:
-	void showEvent(QShowEvent *event);
-	void hideEvent(QHideEvent *event);
-	void closeEvent(QCloseEvent *event);
-	void paintEvent(QPaintEvent *event);
-	void resizeEvent(QResizeEvent *event);
-	void mousePressEvent(QMouseEvent *event);
-	void mouseMoveEvent(QMouseEvent *event);
-	void mouseReleaseEvent(QMouseEvent *event);
-    void enterEvent(QEnterEvent *event);
-    void leaveEvent(QEnterEvent *event);
-    bool event(QEvent *event);
+	void showEvent(QShowEvent *event) override;
+	void hideEvent(QHideEvent *event) override;
+	void closeEvent(QCloseEvent *event) override;
+	void paintEvent(QPaintEvent *event) override;
+	void resizeEvent(QResizeEvent *event) override;
+	void moveEvent(QMoveEvent *event) override;
+	void mousePressEvent(QMouseEvent *event) override;
+	void mouseMoveEvent(QMouseEvent *event) override;
+	void mouseReleaseEvent(QMouseEvent *event) override;
+    void enterEvent(QEnterEvent *event) override;
+    void leaveEvent(QEvent *event) override;
+    bool event(QEvent *event) override;
+    bool eventFilter(QObject *watched, QEvent *event) override;
 
 private:
+    QMainWindow* getMainWindow() const;
+    void restartInactivityTimer();
+    bool handleTitleBarMouseEvent(QEvent *event);
+    void beginTitleDrag(const QPoint &globalPos);
+    void updateTitleDrag(const QPoint &globalPos);
+    void endTitleDrag(const QPoint &globalPos);
+    void cancelTitleDrag();
+    void dragFloatingWindowTo(const QPoint &globalPos);
+    Qt::DockWidgetArea dockDropAreaAt(const QPoint &globalPos) const;
+    void updateDockDropPreview(const QPoint &globalPos);
+    void hideDockDropPreview();
+    void setDockHoverHighlight(bool on);
+    void commitDockDrop();
+    void dockToArea(Qt::DockWidgetArea area);
+    void dockToNearestSide();
+    void dockLeft();
+    void dockRight();
+    void floatPopup();
     SliceModel*                             m_sliceModel;
 
 	CFonts*					fonts;
@@ -304,6 +330,7 @@ private:
 
 	AGCOptionsWidget*	m_popupAgcWidget;
 	NoiseFilterWidget*	m_noiseFilterWidget;
+	DisplayOptionsWidget*	m_popupDisplayWidget = nullptr;
 	QTabWidget*			m_popupTabWidget;
 
 	QList<DSPMode>		m_dspModeList;
@@ -341,7 +368,16 @@ private:
 	bool	m_singleAdcDevice;
 	int		m_minimumWidgetWidth;
 	int		m_minimumGroupBoxWidth;
-    QTimer* m_closeTimer;
+    QTimer*         m_inactivityPollTimer = nullptr;
+    QElapsedTimer   m_lastActivityTimer;
+    QPoint          m_lastMousePos;
+    bool            m_userDocked = false;
+    QWidget*        m_titleBar = nullptr;
+    Qt::DockWidgetArea m_pendingDockArea = Qt::NoDockWidgetArea;
+    bool            m_titleDragging = false;
+    bool            m_ncDrag = false;
+    bool            m_placingPopup = false;
+    QTimer*         m_snapCommitTimer = nullptr;
 
 	void setupConnections();
 	void createBackground(QSize size);

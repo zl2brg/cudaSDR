@@ -78,8 +78,11 @@ QGLWidebandPanel::QGLWidebandPanel(QWidget *parent)
 	setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
     setAutoFillBackground(false);
+	setAttribute(Qt::WA_OpaquePaintEvent);
+	setAttribute(Qt::WA_NoSystemBackground);
 	// Full repaint each frame — PartialUpdate corrupts the pan background under Core GL.
 	setUpdateBehavior(QOpenGLWidget::NoPartialUpdate);
+	disableVSyncOnNativeWayland(this);
 	
 	setMouseTracking(true);
 	//setFocusPolicy(Qt::StrongFocus);
@@ -227,7 +230,7 @@ void QGLWidebandPanel::initializeGL() {
 	if (!isValid()) return;
 	initializeOpenGLFunctions();
 
-	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
 	glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
 	glHint(GL_POLYGON_SMOOTH_HINT, GL_NICEST);
@@ -902,6 +905,7 @@ void QGLWidebandPanel::drawVerticalScale() {
 		m_dBmScaleFBO->bind();
 			renderVerticalScale();
 		m_dBmScaleFBO->release();
+		QOpenGLFramebufferObject::bindDefault();
 
         glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
 
@@ -953,6 +957,7 @@ void QGLWidebandPanel::drawHorizontalScale() {
 		m_frequencyScaleFBO->bind();
         renderHorizontalScale();
         m_frequencyScaleFBO->release();
+        QOpenGLFramebufferObject::bindDefault();
 
         glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
 
@@ -1326,7 +1331,7 @@ void QGLWidebandPanel::enterEvent(QEnterEvent *event) {
 	QOpenGLWidget::enterEvent(event);
 }
 
-void QGLWidebandPanel::leaveEvent(QEnterEvent *event) {
+void QGLWidebandPanel::leaveEvent(QEvent *event) {
 	m_mousePos = QPoint(-1, -1);
 	m_mouseRegion = elsewhere;
     update();

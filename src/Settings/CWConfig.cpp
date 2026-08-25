@@ -3,16 +3,16 @@
 
 CWConfig::CWConfig(QObject *parent)
     : QObject(parent)
-    , m_internal_cw(0)
+    , m_internal_cw(1)
     , m_key_reversed(0)
     , m_keyer_spacing(0)
-    , m_keyer_speed(12)
-    , m_keyer_mode(0)
+    , m_keyer_speed(20)
+    , m_keyer_mode(2) // Mode B default for paddles
     , m_sidetone_volume(64)
-    , m_sidetone_freq(1000)
+    , m_sidetone_freq(700)
     , m_ptt_delay(32)
     , m_hang_time(32)
-    , m_keyer_weight(20)
+    , m_keyer_weight(50) // standard 1:3 PARIS weight
 {}
 
 void CWConfig::setInternalCw(int val) {
@@ -114,7 +114,7 @@ void CWConfig::save(QJsonObject &json) const {
 void CWConfig::loadIni(QSettings *settings) {
     QString str;
 
-    str = settings->value("cw/internal", "off").toString();
+    str = settings->value("cw/internal", "on").toString();
     setInternalCw(str.toLower() == "on" ? 1 : 0);
 
     str = settings->value("cw/key_reversed", "off").toString();
@@ -123,13 +123,13 @@ void CWConfig::loadIni(QSettings *settings) {
     str = settings->value("cw/key_spacing", "off").toString();
     setKeyerSpacing(str.toLower() == "on" ? 1 : 0);
 
-    setKeyerSpeed(settings->value("cw/keyer_speed", 12).toInt());
-    setKeyerMode(settings->value("cw/keyer_mode", 0).toInt());
-    setSidetoneVolume(settings->value("cw/sidetone_volume", 10).toInt());
+    setKeyerSpeed(settings->value("cw/keyer_speed", 20).toInt());
+    setKeyerMode(settings->value("cw/keyer_mode", 2).toInt());
+    setSidetoneVolume(settings->value("cw/sidetone_volume", 64).toInt());
     setSidetoneFreq(settings->value("cw/sidetone_freq", 700).toInt());
     setPttDelay(settings->value("cw/ptt_delay", 32).toInt());
     setHangTime(settings->value("cw/hang_time", 32).toInt());
-    setKeyerWeight(settings->value("cw/keyer_weight", 20).toInt());
+    setKeyerWeight(settings->value("cw/keyer_weight", 50).toInt());
 }
 
 void CWConfig::saveIni(QSettings *settings) const {

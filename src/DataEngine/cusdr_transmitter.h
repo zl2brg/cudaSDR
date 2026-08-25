@@ -46,6 +46,7 @@ public:
     ~Transmitter() override;
      double getNextInternalSideToneSample();
      double getNextSideToneSample();
+     void setSidetoneFrequency(double hz) { cw_keyer_sidetone_frequency = hz; }
 
 
 private:

@@ -3,6 +3,7 @@
 
 #include "Models/RadioModel.h"
 #include "Models/SliceModel.h"
+#include "Models/TransmitModel.h"
 #include "Models/RadioTelemetry.h"
 #include "Models/BandPlanManager.h"
 #include "cusdr_settings.h"
@@ -17,10 +18,15 @@ private slots:
     // RadioModel tests
     void testRadioModelProperties();
     void testRadioModelSlices();
+    void testRadioModelTransmit();
 
     // SliceModel tests
     void testSliceModelProperties();
     void testSliceModelVfoAb();
+
+    // TransmitModel tests
+    void testTransmitModelProperties();
+    void testTransmitSettingsSync();
 
     // RadioTelemetry tests
     void testRadioTelemetrySignals();
@@ -124,6 +130,7 @@ void ModelsTests::testSliceModelProperties() {
     QCOMPARE(slice.nrMode(), 0);
     QCOMPARE(slice.anf(), false);
     QCOMPARE(slice.snb(), false);
+    QCOMPARE(slice.cwDecodeEnabled(), false);
     QCOMPARE(slice.sMeterValue(), -140.0);
     QCOMPARE(slice.active(), false);
 
@@ -133,6 +140,7 @@ void ModelsTests::testSliceModelProperties() {
     QSignalSpy spyFilter(&slice, &SliceModel::filterChanged);
     QSignalSpy spyVol(&slice, &SliceModel::volumeChanged);
     QSignalSpy spyMute(&slice, &SliceModel::muteChanged);
+    QSignalSpy spyCwDecode(&slice, &SliceModel::cwDecodeEnabledChanged);
     QSignalSpy spyPan(&slice, &SliceModel::panChanged);
     QSignalSpy spyAgc(&slice, &SliceModel::agcModeChanged);
     QSignalSpy spyNb(&slice, &SliceModel::nbModeChanged);
@@ -193,6 +201,10 @@ void ModelsTests::testSliceModelProperties() {
     slice.setSnb(true);
     QCOMPARE(slice.snb(), true);
     QCOMPARE(spySnb.count(), 1);
+
+    slice.setCwDecodeEnabled(true);
+    QCOMPARE(slice.cwDecodeEnabled(), true);
+    QCOMPARE(spyCwDecode.count(), 1);
 
     slice.setSMeterValue(-73.0);
     QCOMPARE(slice.sMeterValue(), -73.0);
@@ -404,6 +416,117 @@ void ModelsTests::testSliceModelVfoAb() {
     QCOMPARE(slice.vfoAFrequency(), static_cast<qint64>(7'074'000));
     QCOMPARE(slice.vfoBFrequency(), static_cast<qint64>(14'070'000));
     QCOMPARE(slice.frequency(), static_cast<qint64>(7'074'000));
+}
+
+void ModelsTests::testRadioModelTransmit() {
+    RadioModel radio;
+    QVERIFY(radio.transmit() != nullptr);
+
+    TransmitModel* tx = radio.transmit();
+    QCOMPARE(tx->amCarrierLevel(), 100);
+    QCOMPARE(tx->audioCompression(), 0);
+    QCOMPARE(tx->fmDeviation(), 5000);
+    QCOMPARE(tx->internalCw(), true);
+    QCOMPARE(tx->cwKeyerSpeed(), 20);
+}
+
+void ModelsTests::testTransmitModelProperties() {
+    TransmitModel tx;
+
+    QSignalSpy spyAm(&tx, &TransmitModel::amCarrierLevelChanged);
+    QSignalSpy spyComp(&tx, &TransmitModel::audioCompressionChanged);
+    QSignalSpy spyDev(&tx, &TransmitModel::fmDeviationChanged);
+    QSignalSpy spyPre(&tx, &TransmitModel::fmPreEmphasisChanged);
+    QSignalSpy spyRot(&tx, &TransmitModel::phaseRotatorChanged);
+    QSignalSpy spyRotAuto(&tx, &TransmitModel::phaseRotatorAutoChanged);
+    QSignalSpy spyCtcss(&tx, &TransmitModel::ctcssToneHzChanged);
+    QSignalSpy spyEq(&tx, &TransmitModel::txEqChanged);
+    QSignalSpy spyCfc(&tx, &TransmitModel::cfcChanged);
+    QSignalSpy spyMicDev(&tx, &TransmitModel::micInputDevChanged);
+    QSignalSpy spyMicName(&tx, &TransmitModel::micInputSourceNameChanged);
+    QSignalSpy spyCwSpeed(&tx, &TransmitModel::cwKeyerSpeedChanged);
+
+    tx.setAmCarrierLevel(80);
+    QCOMPARE(tx.amCarrierLevel(), 80);
+    QCOMPARE(spyAm.count(), 1);
+
+    tx.setAudioCompression(3);
+    QCOMPARE(tx.audioCompression(), 3);
+    QCOMPARE(spyComp.count(), 1);
+
+    tx.setFmDeviation(2500);
+    QCOMPARE(tx.fmDeviation(), 2500);
+    QCOMPARE(spyDev.count(), 1);
+
+    tx.setFmPreEmphasis(true);
+    QCOMPARE(tx.fmPreEmphasis(), true);
+    QCOMPARE(spyPre.count(), 1);
+
+    tx.setPhaseRotator(true);
+    QCOMPARE(tx.phaseRotator(), true);
+    QCOMPARE(spyRot.count(), 1);
+
+    tx.setPhaseRotatorAuto(true);
+    QCOMPARE(tx.phaseRotatorAuto(), true);
+    QCOMPARE(spyRotAuto.count(), 1);
+
+    tx.setCtcssToneHz(100);
+    QCOMPARE(tx.ctcssToneHz(), 100);
+    QCOMPARE(spyCtcss.count(), 1);
+
+    tx.setTxEqEnabled(true);
+    QCOMPARE(tx.txEqEnabled(), true);
+    QCOMPARE(spyEq.count(), 1);
+
+    tx.setTxEqBand(2, 6);
+    QCOMPARE(tx.txEqBands().at(2), 6);
+    QCOMPARE(spyEq.count(), 2);
+
+    tx.setCfcEnabled(true);
+    QCOMPARE(tx.cfcEnabled(), true);
+    QCOMPARE(spyCfc.count(), 1);
+
+    tx.setCfcPrecomp(3.5);
+    QCOMPARE(tx.cfcPrecomp(), 3.5);
+    QCOMPARE(spyCfc.count(), 2);
+
+    tx.setMicInputDev(1);
+    QCOMPARE(tx.micInputDev(), 1);
+    QCOMPARE(spyMicDev.count(), 1);
+
+    tx.setMicInputSourceName(QStringLiteral("hw:0,0"));
+    QCOMPARE(tx.micInputSourceName(), QStringLiteral("hw:0,0"));
+    QCOMPARE(spyMicName.count(), 1);
+
+    tx.setCwKeyerSpeed(25);
+    QCOMPARE(tx.cwKeyerSpeed(), 25);
+    QCOMPARE(spyCwSpeed.count(), 1);
+}
+
+void ModelsTests::testTransmitSettingsSync() {
+    Settings* settings = Settings::instance();
+    RadioModel radio;
+    settings->setRadioModel(&radio);
+
+    settings->setAudioCompression(5);
+    settings->setCwKeyerSpeed(28);
+
+    settings->syncTransmitWithSettings();
+
+    TransmitModel* tx = radio.transmit();
+    QVERIFY(tx != nullptr);
+    QCOMPARE(tx->audioCompression(), 5);
+    QCOMPARE(tx->cwKeyerSpeed(), 28);
+
+    tx->setAudioCompression(7);
+    tx->setCwKeyerSpeed(30);
+
+    settings->syncSettingsWithTransmit();
+
+    QCOMPARE(settings->getAudioCompression(), 7);
+    QCOMPARE(settings->getCwKeyerSpeed(), 30);
+
+    settings->setRadioModel(nullptr);
 }
 
 void ModelsTests::testRadioTelemetrySignals() {

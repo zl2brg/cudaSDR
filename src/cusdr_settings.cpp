@@ -32,6 +32,7 @@
 #include "Models/RadioModel.h"
 #include "Models/RadioTelemetry.h"
 #include "Models/SliceModel.h"
+#include "Models/TransmitModel.h"
 #include "Util/settings_utils.h"
 
 using namespace SettingsUtils;
@@ -978,6 +979,14 @@ int Settings::loadSettings() {
             m_receiverDataList[i].hairCross = false;
 
         cstr = m_rxStringList.at(i);
+        cstr.append("/cwDecode");
+        str = settings->value(cstr, "off").toString();
+        if (str.toLower() == "on" || str.toLower() == "true")
+            m_receiverDataList[i].cwDecode = true;
+        else
+            m_receiverDataList[i].cwDecode = false;
+
+        cstr = m_rxStringList.at(i);
         cstr.append("/panLocked");
         str = settings->value(cstr, "off").toString();
         if (str.toLower() == "on")
@@ -1426,6 +1435,7 @@ int Settings::loadSettings() {
 
 int Settings::saveSettings() {
     syncSettingsWithSlices();
+    syncSettingsWithTransmit();
 
     QString str;
     //QList<QString> bandList = HamBandStrings();
@@ -2046,6 +2056,13 @@ int Settings::saveSettings() {
         str = m_rxStringList.at(i);
         str.append("/hairCross");
         if (m_receiverDataList[i].hairCross)
+            settings->setValue(str, "on");
+        else
+            settings->setValue(str, "off");
+
+        str = m_rxStringList.at(i);
+        str.append("/cwDecode");
+        if (m_receiverDataList[i].cwDecode)
             settings->setValue(str, "on");
         else
             settings->setValue(str, "off");
@@ -5219,6 +5236,23 @@ void Settings::setAnf(int rx, bool value) {
     emit(anfChanged(rx, value));
 }
 
+bool Settings::getCwDecode(int rx) {
+    if (SliceModel* slice = sliceModel(rx))
+        return slice->cwDecodeEnabled();
+    if (rx < 0 || rx >= m_receiverDataList.size())
+        return false;
+    return m_receiverDataList[rx].cwDecode;
+}
+
+void Settings::setCwDecode(int rx, bool value) {
+    if (rx >= 0 && rx < m_receiverDataList.size()) {
+        m_receiverDataList[rx].cwDecode = value;
+    }
+    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) {
+        m_radioModel->slices()[rx]->setCwDecodeEnabled(value);
+    }
+}
+
 
 void Settings::getConfigPath() {
     cfg_dir = QStandardPaths::writableLocation(QStandardPaths::HomeLocation).append("/.cudaSDR");
@@ -5570,6 +5604,7 @@ void Settings::syncSlicesWithSettings() {
         slice->setWaterfallOffsetHi(m_receiverDataList[i].waterfallOffsetHi);
         slice->setPanGrid(m_receiverDataList[i].panGrid);
         slice->setPeakHold(m_receiverDataList[i].peakHold);
+        slice->setCwDecodeEnabled(m_receiverDataList[i].cwDecode);
     }
 }
 
@@ -5620,5 +5655,90 @@ void Settings::syncSettingsWithSlices() {
         m_receiverDataList[i].waterfallOffsetHi = slice->waterfallOffsetHi();
         m_receiverDataList[i].panGrid = slice->panGrid();
         m_receiverDataList[i].peakHold = slice->peakHold();
+        m_receiverDataList[i].cwDecode = slice->cwDecodeEnabled();
     }
+}
+
+void Settings::syncTransmitWithSettings() {
+    if (!m_radioModel)
+        return;
+
+    TransmitModel* tx = m_radioModel->transmit();
+    if (!tx)
+        return;
+
+    tx->setAmCarrierLevel(static_cast<int>(m_audioConfig->amCarrierLevel()));
+    tx->setAudioCompression(m_audioConfig->audioCompression());
+    tx->setFmDeviation(static_cast<int>(m_audioConfig->fmDeviation()));
+    tx->setFmPreEmphasis(m_audioConfig->fmPreemphasis() != 0);
+    tx->setPhaseRotator(m_audioConfig->phaseRotator() != 0);
+    tx->setPhaseRotatorAuto(m_audioConfig->phaseRotatorAuto());
+    tx->setCtcssToneHz(m_audioConfig->ctcssToneHz());
+    tx->setTxEqEnabled(m_audioConfig->txEqEnabled());
+    tx->setTxEqBands(m_audioConfig->txEqBands());
+    tx->setTxEqCurveDeg(m_audioConfig->txEqCurveDeg());
+    tx->setCfcEnabled(m_audioConfig->cfcEnabled());
+    tx->setCfcPeqEnabled(m_audioConfig->cfcPeqEnabled());
+    tx->setCfcPrecomp(m_audioConfig->cfcPrecomp());
+    tx->setCfcPrePeq(m_audioConfig->cfcPrePeq());
+    tx->setCfcCurveDeg(m_audioConfig->cfcCurveDeg());
+    tx->setCfcLevels(m_audioConfig->cfcLevels());
+    tx->setCfcPost(m_audioConfig->cfcPost());
+    tx->setMicInputDev(m_audioConfig->micInputDev());
+    tx->setMicInputSourceName(m_audioConfig->micInputSourceName());
+    tx->setDigitalAudioInputDev(m_audioConfig->digitalAudioInputDev());
+    tx->setDigitalInputSourceName(m_audioConfig->digitalInputSourceName());
+    tx->setCwKeyerMode(m_cwConfig->keyerMode());
+    tx->setInternalCw(m_cwConfig->internalCw() > 0);
+    tx->setCwKeyReversed(m_cwConfig->keyReversed() > 0);
+    tx->setCwKeyerSpacing(m_cwConfig->keyerSpacing() > 0);
+    tx->setCwKeyerSpeed(m_cwConfig->keyerSpeed());
+    tx->setCwPttDelay(m_cwConfig->pttDelay());
+    tx->setCwSidetoneFreq(m_cwConfig->sidetoneFreq());
+    tx->setCwSidetoneVolume(m_cwConfig->sidetoneVolume());
+    tx->setCwHangTime(m_cwConfig->hangTime());
+    tx->setCwKeyerWeight(m_cwConfig->keyerWeight());
+}
+
+void Settings::syncSettingsWithTransmit() {
+    if (!m_radioModel)
+        return;
+
+    const TransmitModel* tx = m_radioModel->transmit();
+    if (!tx)
+        return;
+
+    m_audioConfig->setAmCarrierLevel(tx->amCarrierLevel());
+    m_audioConfig->setAudioCompression(tx->audioCompression());
+    m_audioConfig->setFmDeviation(tx->fmDeviation());
+    m_audioConfig->setFmPreemphasis(tx->fmPreEmphasis() ? 1 : 0);
+    m_audioConfig->setPhaseRotator(tx->phaseRotator() ? 1 : 0);
+    m_audioConfig->setPhaseRotatorAuto(tx->phaseRotatorAuto());
+    m_audioConfig->setCtcssToneHz(tx->ctcssToneHz());
+    m_audioConfig->setTxEqEnabled(tx->txEqEnabled());
+    m_audioConfig->setTxEqBands(tx->txEqBands());
+    m_audioConfig->setTxEqCurveDeg(tx->txEqCurveDeg());
+    m_audioConfig->setCfcEnabled(tx->cfcEnabled());
+    m_audioConfig->setCfcPeqEnabled(tx->cfcPeqEnabled());
+    m_audioConfig->setCfcPrecomp(tx->cfcPrecomp());
+    m_audioConfig->setCfcPrePeq(tx->cfcPrePeq());
+    m_audioConfig->setCfcCurveDeg(tx->cfcCurveDeg());
+    for (int i = 0; i < tx->cfcLevels().size(); ++i)
+        m_audioConfig->setCfcLevel(i, tx->cfcLevels().at(i));
+    for (int i = 0; i < tx->cfcPost().size(); ++i)
+        m_audioConfig->setCfcPost(i, tx->cfcPost().at(i));
+    m_audioConfig->setMicInputDev(tx->micInputDev());
+    m_audioConfig->setMicInputSourceName(tx->micInputSourceName());
+    m_audioConfig->setDigitalAudioInputDev(tx->digitalAudioInputDev());
+    m_audioConfig->setDigitalInputSourceName(tx->digitalInputSourceName());
+    m_cwConfig->setKeyerMode(tx->cwKeyerMode());
+    m_cwConfig->setInternalCw(tx->internalCw() ? 1 : 0);
+    m_cwConfig->setKeyReversed(tx->cwKeyReversed() ? 1 : 0);
+    m_cwConfig->setKeyerSpacing(tx->cwKeyerSpacing() ? 1 : 0);
+    m_cwConfig->setKeyerSpeed(tx->cwKeyerSpeed());
+    m_cwConfig->setPttDelay(tx->cwPttDelay());
+    m_cwConfig->setSidetoneFreq(tx->cwSidetoneFreq());
+    m_cwConfig->setSidetoneVolume(tx->cwSidetoneVolume());
+    m_cwConfig->setHangTime(tx->cwHangTime());
+    m_cwConfig->setKeyerWeight(tx->cwKeyerWeight());
 }

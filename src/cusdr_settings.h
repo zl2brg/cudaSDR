@@ -510,6 +510,7 @@ typedef struct _receiver {
     bool     nr2_ae;
 	bool	anf;
 	bool	snb;
+	bool	cwDecode;
 } TReceiver;
 
 typedef struct _wideband {
@@ -622,6 +623,8 @@ public:
     SliceModel* sliceModel(int rx) const;
     void syncSlicesWithSettings();
     void syncSettingsWithSlices();
+    void syncTransmitWithSettings();
+    void syncSettingsWithTransmit();
 public:
 	static Settings *instance(QObject *parent = nullptr) {
 
@@ -1152,6 +1155,7 @@ public:
     bool    getNr2ae(int rx);
     bool    getSnb(int rx);
     bool    getAnf(int rx);
+    bool    getCwDecode(int rx);
     int     getnbMode(int rx);
     int     getnrMode(int rx);
 
@@ -1446,6 +1450,7 @@ public slots:
     void setNR2Ae(int rx, bool value);
     void setAnf(int rx, bool value);
     void setSnb(int rx, bool value);
+    void setCwDecode(int rx, bool value);
     void setRepeaterMode(bool mode);
     void setTxFullDuplex(bool fullDuplex);
     void setRepeaterOffset(int offset);

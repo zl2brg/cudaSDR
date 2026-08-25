@@ -3,6 +3,8 @@
 #include "cusdr_displayTabWidget.h"
 #include "cusdr_displayWidget.h"
 #include "cusdr_colorsWidget.h"
+#include "Models/RadioModel.h"
+#include "Models/SliceModel.h"
 
 DisplaySettingsController::DisplaySettingsController(QObject* parent)
     : QObject(parent)
@@ -11,7 +13,13 @@ DisplaySettingsController::DisplaySettingsController(QObject* parent)
 
 void DisplaySettingsController::bind(DisplayTabWidget* container, Settings* model)
 {
+    bind(container, nullptr, model);
+}
+
+void DisplaySettingsController::bind(DisplayTabWidget* container, RadioModel* radioModel, Settings* model)
+{
     m_container = container;
+    m_radioModel = radioModel;
     m_model = model;
 
     if (!m_container || !m_model) {
@@ -23,18 +31,26 @@ void DisplaySettingsController::bind(DisplayTabWidget* container, Settings* mode
 
     // --- Bind DisplayOptionsWidget ---
     if (m_displayView) {
+        auto getSlice = [this](int rx) -> SliceModel* {
+            if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size()) {
+                return m_radioModel->slices().at(rx);
+            }
+            return nullptr;
+        };
+
         // Initial setup helper to load values for a receiver
-        auto loadReceiverValues = [this](int rx) {
+        auto loadReceiverValues = [this, getSlice](int rx) {
+            SliceModel* slice = getSlice(rx);
             m_displayView->setFramesPerSecond(m_model->getFramesPerSecond(rx));
-            m_displayView->setSpectrumAveragingCnt(m_model->getSpectrumAveragingCnt(rx));
+            m_displayView->setSpectrumAveragingCnt(slice ? slice->spectrumAveragingCnt() : m_model->getSpectrumAveragingCnt(rx));
             m_displayView->setWaterfallTime(5); // default placeholder as Settings has no getter for this stub
-            m_displayView->setWaterfallOffsetLo(m_model->getWaterfallOffsetLo(rx));
-            m_displayView->setWaterfallOffsetHi(m_model->getWaterfallOffsetHi(rx));
-            m_displayView->setPanadapterMode(m_model->getPanadapterMode(rx));
-            m_displayView->setWaterfallColorMode(m_model->getWaterfallColorMode(rx));
-            m_displayView->setPanAveragingMode(m_model->getPanAveragingMode(rx));
-            m_displayView->setPanDetectorMode(m_model->getPanDetectorMode(rx));
-            m_displayView->setfftSize(m_model->getfftSize(rx));
+            m_displayView->setWaterfallOffsetLo(slice ? slice->waterfallOffsetLo() : m_model->getWaterfallOffsetLo(rx));
+            m_displayView->setWaterfallOffsetHi(slice ? slice->waterfallOffsetHi() : m_model->getWaterfallOffsetHi(rx));
+            m_displayView->setPanadapterMode(slice ? slice->panMode() : m_model->getPanadapterMode(rx));
+            m_displayView->setWaterfallColorMode(slice ? slice->waterfallMode() : m_model->getWaterfallColorMode(rx));
+            m_displayView->setPanAveragingMode(slice ? slice->panAveragingMode() : m_model->getPanAveragingMode(rx));
+            m_displayView->setPanDetectorMode(slice ? slice->panDetectorMode() : m_model->getPanDetectorMode(rx));
+            m_displayView->setfftSize(slice ? slice->fftSize() : m_model->getfftSize(rx));
             m_displayView->setfmsqLevel(80); // default placeholder as Settings has no getter for this stub
         };
 
@@ -63,7 +79,10 @@ void DisplaySettingsController::bind(DisplayTabWidget* container, Settings* mode
             m_model->setFramesPerSecond(rx, val);
         });
 
-        connect(m_displayView, &DisplayOptionsWidget::spectrumAveragingCntRequested, this, [this](int rx, int val) {
+        connect(m_displayView, &DisplayOptionsWidget::spectrumAveragingCntRequested, this, [this, getSlice](int rx, int val) {
+            if (SliceModel* slice = getSlice(rx)) {
+                slice->setSpectrumAveragingCnt(val);
+            }
             m_model->setSpectrumAveragingCnt(rx, val);
         });
 
@@ -71,11 +90,17 @@ void DisplaySettingsController::bind(DisplayTabWidget* container, Settings* mode
             m_model->setWaterfallTime(rx, val);
         });
 
-        connect(m_displayView, &DisplayOptionsWidget::waterfallOffsetLoRequested, this, [this](int rx, int val) {
+        connect(m_displayView, &DisplayOptionsWidget::waterfallOffsetLoRequested, this, [this, getSlice](int rx, int val) {
+            if (SliceModel* slice = getSlice(rx)) {
+                slice->setWaterfallOffsetLo(val);
+            }
             m_model->setWaterfallOffesetLo(rx, val);
         });
 
-        connect(m_displayView, &DisplayOptionsWidget::waterfallOffsetHiRequested, this, [this](int rx, int val) {
+        connect(m_displayView, &DisplayOptionsWidget::waterfallOffsetHiRequested, this, [this, getSlice](int rx, int val) {
+            if (SliceModel* slice = getSlice(rx)) {
+                slice->setWaterfallOffsetHi(val);
+            }
             m_model->setWaterfallOffesetHi(rx, val);
         });
 
@@ -87,19 +112,32 @@ void DisplaySettingsController::bind(DisplayTabWidget* container, Settings* mode
             m_model->setCallsign(val);
         });
 
-        connect(m_displayView, &DisplayOptionsWidget::graphicsStateRequested, this, [this](int rx, int panadapterMode, int waterColorMode) {
+        connect(m_displayView, &DisplayOptionsWidget::graphicsStateRequested, this, [this, getSlice](int rx, int panadapterMode, int waterColorMode) {
+            if (SliceModel* slice = getSlice(rx)) {
+                slice->setPanMode(static_cast<PanGraphicsMode>(panadapterMode));
+                slice->setWaterfallMode(static_cast<WaterfallColorMode>(waterColorMode));
+            }
             m_model->setGraphicsState(rx, static_cast<PanGraphicsMode>(panadapterMode), static_cast<WaterfallColorMode>(waterColorMode));
         });
 
-        connect(m_displayView, &DisplayOptionsWidget::panAveragingModeRequested, this, [this](int rx, int mode) {
+        connect(m_displayView, &DisplayOptionsWidget::panAveragingModeRequested, this, [this, getSlice](int rx, int mode) {
+            if (SliceModel* slice = getSlice(rx)) {
+                slice->setPanAveragingMode(static_cast<PanAveragingMode>(mode));
+            }
             m_model->setPanAveragingMode(rx, static_cast<PanAveragingMode>(mode));
         });
 
-        connect(m_displayView, &DisplayOptionsWidget::panDetectorModeRequested, this, [this](int rx, int mode) {
+        connect(m_displayView, &DisplayOptionsWidget::panDetectorModeRequested, this, [this, getSlice](int rx, int mode) {
+            if (SliceModel* slice = getSlice(rx)) {
+                slice->setPanDetectorMode(static_cast<PanDetectorMode>(mode));
+            }
             m_model->setPanDetectorMode(rx, static_cast<PanDetectorMode>(mode));
         });
 
-        connect(m_displayView, &DisplayOptionsWidget::fftSizeRequested, this, [this](int rx, int size) {
+        connect(m_displayView, &DisplayOptionsWidget::fftSizeRequested, this, [this, getSlice](int rx, int size) {
+            if (SliceModel* slice = getSlice(rx)) {
+                slice->setFftSize(size);
+            }
             m_model->setfftSize(rx, size);
         });
 
@@ -111,10 +149,20 @@ void DisplaySettingsController::bind(DisplayTabWidget* container, Settings* mode
     // --- Bind ColorOptionsWidget ---
     if (m_colorView) {
         // Initial setup
-        m_colorView->setPanadapterColors(m_model->getPanadapterColors());
+        m_colorView->setPanadapterColors(m_radioModel ? m_radioModel->panadapterColors() : m_model->getPanadapterColors());
+
+        // Model -> View (RadioModel colors)
+        if (m_radioModel) {
+            connect(m_radioModel, &RadioModel::colorsChanged, this, [this]() {
+                m_colorView->setPanadapterColors(m_radioModel->panadapterColors());
+            });
+        }
 
         // View -> Model
         connect(m_colorView, &ColorOptionsWidget::panadapterColorsRequested, this, [this](const TPanadapterColors& colors) {
+            if (m_radioModel) {
+                m_radioModel->setPanadapterColors(colors);
+            }
             m_model->setPanadapterColors(colors);
         });
     }

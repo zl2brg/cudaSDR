@@ -65,6 +65,8 @@ public:
     QGLReceiverPanel(SliceModel *model, QWidget *parent = nullptr);
 	~QGLReceiverPanel();
 
+	RadioPopupWidget* getRadioPopupWidget() const { return radioPopup; }
+
 public slots:
 	QSize minimumSizeHint() const;
 	QSize sizeHint() const;
@@ -80,8 +82,8 @@ protected:
     void resizeGL(int iWidth, int iHeight);
     void paintGL();
     
-	void enterEvent(QEnterEvent *event);
-	void leaveEvent(QEnterEvent *event);
+	void enterEvent(QEnterEvent *event) override;
+	void leaveEvent(QEvent *event) override;
 	void mousePressEvent(QMouseEvent *event);
 	void mouseDoubleClickEvent(QMouseEvent *event);
 	void mouseReleaseEvent(QMouseEvent *event);

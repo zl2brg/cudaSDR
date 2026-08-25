@@ -179,8 +179,8 @@ void CProtocol2::decodeCCBytes(const QByteArray& buffer, DataEngine* de) {
 
     Settings* set = Settings::instance();
 
-    de->ccRx.previous_dash = de->ccRx.dash;
-    de->ccRx.previous_dot  = de->ccRx.dot;
+    const bool prev_dash = de->ccRx.dash;
+    const bool prev_dot  = de->ccRx.dot;
 
     // Byte 4: [0]=PTT, [1]=Dot, [2]=Dash, [4]=PLL locked, [5]=FIFO empty, [6]=FIFO full
     bool ptt = (buffer.at(4) & 0x01);
@@ -191,6 +191,14 @@ void CProtocol2::decodeCCBytes(const QByteArray& buffer, DataEngine* de) {
 
     de->ccRx.dot  = (buffer.at(4) & 0x02);
     de->ccRx.dash = (buffer.at(4) & 0x04);
+    de->ccRx.previous_dash = prev_dash;
+    de->ccRx.previous_dot  = prev_dot;
+
+    // Internal/FPGA keyer reads paddles directly; only feed software iambic when external.
+    if (de && de->dataProcessor() && !set->isInternalCw()) {
+        if (de->ccRx.dash != prev_dash) emit de->dataProcessor()->keyer_event(0, de->ccRx.dash ? 1 : 0);
+        if (de->ccRx.dot != prev_dot)   emit de->dataProcessor()->keyer_event(1, de->ccRx.dot ? 1 : 0);
+    }
     
     // Additional status in Byte 4
     // bool pllLocked = (buffer.at(4) & 0x10);
@@ -258,6 +266,16 @@ void CProtocol2::encodeCCBytes(unsigned char* buffer, DataEngine* de, RadioModel
     // Protocol 2 High Priority and DDC packets must be 1444 bytes.
     // The provided buffer is already 1444 bytes.
     memset(buffer, 0, ProtocolBoundaryUtils::kProtocol2IqPacketSize);
+
+    auto sliceDspMode = [de, radioModel]() -> DSPMode {
+        if (radioModel && !radioModel->slices().isEmpty()) {
+            const int rx = de->currentReceiver;
+            if (rx >= 0 && rx < radioModel->slices().size())
+                return radioModel->slices().at(rx)->dspMode();
+            return radioModel->slices().at(0)->dspMode();
+        }
+        return de->txParams().mode;
+    };
 
     switch (sendState) {
         case 0: // General Packet (Port 1024) — sent once at startup
@@ -380,10 +398,23 @@ void CProtocol2::encodeCCBytes(unsigned char* buffer, DataEngine* de, RadioModel
                 memcpy(buffer, &seq, 4);
                 buffer[4] = 1; // Number of DACs
                 
-                // DUC 0 settings
-                buffer[5] = 0x00; 
-                if (set->isInternalCw()) buffer[5] |= 0x02; // CW bit
-                if (set->getCwKeyerMode() > 0) buffer[5] |= 0x08; // Iambic bit (rough mapping)
+                // DUC 0 CW keyer flags (piHPSDR / OpenHPSDR P2 TX-specific byte 5).
+                buffer[5] = 0x00;
+                const DSPMode encodeMode = sliceDspMode();
+                if ((encodeMode == DSPMode::CWU || encodeMode == DSPMode::CWL) && set->isInternalCw()) {
+                    buffer[5] |= 0x02; // internal CW keyer enable
+                    if (set->isCwKeyReversed())
+                        buffer[5] |= 0x04;
+                    switch (set->getCwKeyerMode()) {
+                    case 1: buffer[5] |= 0x08; break; // iambic A
+                    case 2: buffer[5] |= 0x28; break; // iambic B (0x08 | 0x20)
+                    default: break; // straight / bug
+                    }
+                    if (set->getCwSidetoneVolume() > 0)
+                        buffer[5] |= 0x10;
+                    if (set->getCwKeyerSpacing())
+                        buffer[5] |= 0x40;
+                }
                 
                 buffer[6] = (unsigned char)set->getCwSidetoneVolume();
                 

@@ -318,7 +318,7 @@ private:
     QString m_cwDecodedText;
     int m_cwWpm = 20;
     bool m_cwToneActive = false;
-    bool m_cwDecodeEnabled = true;
+    bool m_cwDecodeEnabled = false;
     int m_cwTrackedPitch = 700;
 };
 

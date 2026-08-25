@@ -28,12 +28,81 @@
 #define _CUSDR_OPENGLTYPES_H
 
 #include <QOpenGLWidget>
-//#include <QList>
-//#include <QRect>
-//#include <QColor>
-//#include <QVarLengthArray>
+#include <QGuiApplication>
 #include <QOpenGLFramebufferObject>
+#include <QSurfaceFormat>
+#include <QElapsedTimer>
+#include <QEvent>
+#include <QTimer>
+#include <QWindow>
 #include <QtCore/qmath.h>
+
+inline bool isNativeWaylandPlatform()
+{
+    return QGuiApplication::platformName().contains(QLatin1String("wayland"), Qt::CaseInsensitive);
+}
+
+// NVIDIA EGL on native Wayland either busy-waits in eglSwapBuffers (swapInterval 1)
+// or lets the event loop paint unbound (swapInterval 0, ~300% CPU). Sleep on a
+// QTimer instead of using the driver as a frame clock.
+class WaylandFrameThrottle : public QObject {
+public:
+    explicit WaylandFrameThrottle(QObject *target, int minIntervalMs = 33)
+        : QObject(target)
+        , m_target(target)
+        , m_minIntervalMs(qMax(1, minIntervalMs))
+    {
+        target->installEventFilter(this);
+    }
+
+    bool eventFilter(QObject *, QEvent *event) override
+    {
+        const QEvent::Type t = event->type();
+        if (t == QEvent::Resize || t == QEvent::Show) {
+            m_timer.invalidate();
+            m_deferred = false;
+            return false;
+        }
+        if (t != QEvent::Paint && t != QEvent::UpdateRequest)
+            return false;
+        if (m_timer.isValid() && m_timer.elapsed() < m_minIntervalMs) {
+            if (!m_deferred) {
+                m_deferred = true;
+                const int delay = m_minIntervalMs - static_cast<int>(m_timer.elapsed());
+                QTimer::singleShot(qMax(0, delay), this, [this]() {
+                    m_deferred = false;
+                    m_timer.invalidate();
+                    if (auto *w = qobject_cast<QWidget *>(m_target))
+                        w->update();
+                    else if (auto *win = qobject_cast<QWindow *>(m_target))
+                        win->requestUpdate();
+                });
+            }
+            return true;
+        }
+        m_timer.restart();
+        return false;
+    }
+
+private:
+    QObject *m_target;
+    QElapsedTimer m_timer;
+    int m_minIntervalMs;
+    bool m_deferred = false;
+};
+
+// NVIDIA EGL on native Wayland busy-waits in eglSwapBuffers when swapInterval is 1
+// (~250% CPU). Window flicker is handled by opaque surfaces + FBO restore, not vsync.
+inline void disableVSyncOnNativeWayland(QOpenGLWidget *widget)
+{
+    if (!widget || !isNativeWaylandPlatform())
+        return;
+    QSurfaceFormat fmt = QSurfaceFormat::defaultFormat();
+    fmt.setSwapInterval(0);
+    widget->setFormat(fmt);
+    if (!widget->findChild<WaylandFrameThrottle *>())
+        new WaylandFrameThrottle(widget, 33);
+}
 
 #define GL_CLAMP_TO_EDGE	0x812F
 

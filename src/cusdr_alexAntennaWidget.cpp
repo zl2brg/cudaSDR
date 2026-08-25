@@ -282,7 +282,7 @@ void AlexAntennaWidget::antBtnClicked() {
 		}
 	}
 
-	if (btnHit >= 0) {
+	if (btnHit >= 0 && btnHit < m_alexStates.size()) {
 		int nextState = m_alexStates.at(btnHit);
 		nextState &= 0x1FC;
 		nextState |= antenna;
@@ -311,7 +311,7 @@ void AlexAntennaWidget::rxAuxBtnClicked() {
 		return;
 	}
 
-	if (btnHit >= 0) {
+	if (btnHit >= 0 && btnHit < m_alexStates.size()) {
 		int nextState = m_alexStates.at(btnHit);
 		nextState &= 0x1E3;
 		if (button->btnState() == AeroButton::OFF) {
@@ -342,7 +342,7 @@ void AlexAntennaWidget::txAntBtnClicked() {
 		return;
 	}
 
-	if (btnHit >= 0) {
+	if (btnHit >= 0 && btnHit < m_alexStates.size()) {
 		int nextState = m_alexStates.at(btnHit);
 		nextState &= 0x19F;
 		nextState |= antenna << 5;

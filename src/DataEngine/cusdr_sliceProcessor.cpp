@@ -31,6 +31,7 @@
 // use: SLICE_PROCESSOR_DEBUG
 
 #include "cusdr_sliceProcessor.h"
+#include <cmath>
 
 namespace {
 constexpr int HIGH_RATE_TRANSITION_DROP_BUFFERS = 12;
@@ -578,6 +579,44 @@ void SliceProcessor::dspProcessingCore() {
 			// Normal analogue modes: soundcard gets I/Q interleaved; TCI gets
 			// demod audio (I) duplicated to L/R — matches the last good commit.
             const int n = audioSamplesThisCall;
+
+            // CW sidetone with QSK mute: while keying, replace RX audio with the
+            // sidetone so the latency-delayed received signal doesn't clash.
+            if ((dspMode == DSPMode::CWU || dspMode == DSPMode::CWL) && !set->isInternalCw()) {
+                const int vol = set->getCwSidetoneVolume();
+                const double freqHz = static_cast<double>(set->getCwSidetoneFreq());
+                const double phaseInc = 2.0 * M_PI * freqHz / 48000.0;
+                const double gain = vol / 127.0;
+                cpx* buf = audioOutputBuf.data();
+                for (int i = 0; i < n; ++i) {
+                    // Element shaping: ramp follows the raw paddle state.
+                    // This gives distinct shaped dit/dah elements in the sidetone audio.
+                    const bool keyActive = (m_cwKeyActive.load() != 0);
+                    if (keyActive) {
+                        if (m_sidetoneShape < 250) ++m_sidetoneShape;
+                    } else if (m_sidetoneShape > 0) {
+                        --m_sidetoneShape;
+                    }
+
+                    // RX mute: decrement hold counter each sample.
+                    // Refreshed by cwKeyDown(1) so it spans all inter-element gaps.
+                    // Falls to zero ~2 sec after the last key-up, reopening the receiver.
+                    int hold = m_cwMuteHold.load();
+                    if (hold > 0) m_cwMuteHold.store(hold - 1);
+                    const bool rxMuted = (hold > 0);
+
+                    if (rxMuted) {
+                        // Mute RX audio completely while keying (including inter-element gaps).
+                        const double ramp = m_sidetoneShape / 250.0;
+                        const double s = (vol > 0 && m_sidetoneShape > 0) ? gain * ramp * std::sin(m_sidetonePhase) : 0.0;
+                        buf[i].re = static_cast<float>(s);
+                        buf[i].im = static_cast<float>(s);
+                    }
+                    m_sidetonePhase += phaseInc;
+                    if (m_sidetonePhase >= 2.0 * M_PI) m_sidetonePhase -= 2.0 * M_PI;
+                }
+            }
+
             deliverInternalAudio(interleaveFromCPX(audioOutputBuf, n),
                                  monoStereoFromCPX(audioOutputBuf, n));
 
@@ -855,4 +894,17 @@ void SliceProcessor::setBSPort(int value) {
 void SliceProcessor::setConnectedStatus(bool value) {
 
 	m_connected = value;
+}
+
+void SliceProcessor::cwKeyDown(int state)
+{
+    m_cwKeyActive.store(state ? 1 : 0);
+    if (state) {
+        // Refresh the mute-hold countdown on every key-down.
+        // 2 * word-space at 5 wpm = 2 * 7 * 240ms = 3360ms = ~161280 samples.
+        // Use a generous 96000 (2 sec) — the next key-down refreshes it before expiry.
+        m_cwMuteHold.store(96000);
+    }
+    // On key-up we leave m_cwMuteHold running so RX stays muted through inter-element
+    // gaps. It expires naturally if no new key-down arrives within ~2 seconds.
 }

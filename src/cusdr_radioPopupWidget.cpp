@@ -38,11 +38,13 @@
 #include <QStackedWidget>
 #include <QCheckBox>
 #include <QSpinBox>
+#include <QGroupBox>
 #include <QPainter>
 #include <QSizeGrip>
-#include <QCoreApplication>
-#include <QSettings>
 #include <QSignalBlocker>
+#include <QScrollArea>
+#include <QMoveEvent>
+#include "cusdr_displayWidget.h"
 #include <wdsp.h>
 
 #define LOG_RADIOPOPUP
@@ -72,7 +74,7 @@ namespace {
 
 
 RadioPopupWidget::RadioPopupWidget(SliceModel *model, QWidget *parent)
-    : QWidget(parent)
+    : QDockWidget(parent)
     , m_sliceModel(model)
     , m_sticky(false)
     , m_filterSlope(1)
@@ -89,13 +91,17 @@ RadioPopupWidget::RadioPopupWidget(SliceModel *model, QWidget *parent)
     , m_minimumWidgetWidth(250)
     , m_minimumGroupBoxWidth(240)
 {
-    setWindowFlags(Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint);
+    setObjectName(QString("RadioPopupRx%1").arg(m_receiver + 1));
+    setWindowTitle(tr("Rx %1 Radio").arg(m_receiver + 1));
+    setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
+    setFeatures(QDockWidget::DockWidgetClosable | QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetMovable);
+    hide();
+    setFloating(true);
+    hide();
+
     connect(qApp, &QCoreApplication::aboutToQuit, this, &QWidget::close);
 
     setMouseTracking(true);
-    setContentsMargins(4, 4, 4, 4);
-    setWindowOpacity(0.9);
-
     setFocusPolicy(Qt::StrongFocus);
 
     setStyleSheet(
@@ -160,6 +166,14 @@ RadioPopupWidget::RadioPopupWidget(SliceModel *model, QWidget *parent)
 
     m_popupAgcWidget = new AGCOptionsWidget(this);
     m_noiseFilterWidget = new NoiseFilterWidget(this);
+    m_popupDisplayWidget = new DisplayOptionsWidget(nullptr, this);
+
+    QScrollArea *dispScroll = new QScrollArea(this);
+    dispScroll->setWidget(m_popupDisplayWidget);
+    dispScroll->setWidgetResizable(true);
+    dispScroll->setFrameShape(QFrame::NoFrame);
+    dispScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    dispScroll->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
 
     m_filterStackedWidget = new QStackedWidget(this);
     m_filterStackedWidget->setContentsMargins(0, 0, 0, 0);
@@ -172,13 +186,36 @@ RadioPopupWidget::RadioPopupWidget(SliceModel *model, QWidget *parent)
     QString rxStr = tr(" Rx %1 ");
     QLabel* rxLabel = new QLabel(rxStr.arg(m_receiver + 1));
     rxLabel->setStyleSheet("background-color: rgba(40, 40, 40, 255);");
+    rxLabel->setAttribute(Qt::WA_TransparentForMouseEvents);
 
-    QHBoxLayout* title = new QHBoxLayout();
-    title->setContentsMargins(0, 0, 0, 0);
-    title->setSpacing(0);
+    AeroButton *closeBtn = new AeroButton("X", this);
+    closeBtn->setRoundness(0);
+    closeBtn->setGlass(false);
+    closeBtn->setColor(QColor(35, 35, 35));
+    closeBtn->setHighlight(QColor(120, 120, 120));
+    closeBtn->setColorOn(QColor(160, 100, 100));
+    closeBtn->setFixedSize(btn_height1 + 6, btn_height1);
+    closeBtn->setToolTip(tr("Close"));
+    connect(closeBtn, &AeroButton::clicked, this, &QWidget::close);
+
+    m_titleBar = new QWidget(this);
+    m_titleBar->setObjectName(QStringLiteral("RadioPopupTitleBar"));
+    m_titleBar->setCursor(Qt::OpenHandCursor);
+    m_titleBar->setFixedHeight(26);
+    m_titleBar->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    m_titleBar->setToolTip(tr("Drag to the left or right side of the window to dock"));
+    m_titleBar->setStyleSheet(
+        "QWidget#RadioPopupTitleBar { background-color: rgb(56, 62, 70); }");
+    m_titleBar->installEventFilter(this);
+
+    QHBoxLayout* title = new QHBoxLayout(m_titleBar);
+    title->setContentsMargins(4, 2, 4, 2);
+    title->setSpacing(4);
     title->addWidget(rxLabel);
     title->addStretch();
     title->addWidget(stickyBtn);
+    title->addWidget(closeBtn);
+    setTitleBarWidget(m_titleBar);
 
     // "Radio" tab — existing controls
     QWidget *radioTabPage = new QWidget(this);
@@ -194,6 +231,9 @@ RadioPopupWidget::RadioPopupWidget(SliceModel *model, QWidget *parent)
     radioLayout->addSpacing(8);
     radioLayout->addLayout(modeVBox);
     radioLayout->addSpacing(8);
+    QLabel *filterLabel = new QLabel(tr("Filter bandwidth"), radioTabPage);
+    filterLabel->setStyleSheet(QStringLiteral("color: #999; padding-top: 4px;"));
+    radioLayout->addWidget(filterLabel);
     radioLayout->addWidget(m_filterStackedWidget);
     radioLayout->addSpacing(4);
     radioLayout->addWidget(m_varFilterContainer);
@@ -207,6 +247,7 @@ RadioPopupWidget::RadioPopupWidget(SliceModel *model, QWidget *parent)
     m_popupTabWidget->addTab(radioTabPage, " Radio ");
     m_popupTabWidget->addTab(m_noiseFilterWidget, " Noise Filter ");
     m_popupTabWidget->addTab(m_popupAgcWidget, " AGC ");
+    m_popupTabWidget->addTab(dispScroll, " Display ");
 
     QSizeGrip *sizeGrip = new QSizeGrip(this);
     sizeGrip->setFixedSize(18, 18);
@@ -227,15 +268,15 @@ RadioPopupWidget::RadioPopupWidget(SliceModel *model, QWidget *parent)
     gripRow->addStretch();
     gripRow->addWidget(sizeGrip);
 
-    QVBoxLayout *mainLayout = new QVBoxLayout;
+    QWidget *contentWidget = new QWidget(this);
+    QVBoxLayout *mainLayout = new QVBoxLayout(contentWidget);
     mainLayout->setSpacing(0);
-    mainLayout->setContentsMargins(0,0,0,0);
-    mainLayout->addLayout(title);
-    mainLayout->addSpacing(4);
+    mainLayout->setContentsMargins(4, 4, 4, 4);
     mainLayout->addWidget(m_popupTabWidget);
     mainLayout->addLayout(gripRow);
+    contentWidget->setLayout(mainLayout);
 
-    setLayout(mainLayout);
+    setWidget(contentWidget);
     setMinimumWidth(m_minimumWidgetWidth);
 
     // setup values from settings.ini
@@ -259,26 +300,86 @@ RadioPopupWidget::RadioPopupWidget(SliceModel *model, QWidget *parent)
     }
 
     setupConnections();
-    m_closeTimer = new QTimer(this);
-    m_closeTimer->setSingleShot(true);
-    m_closeTimer->setInterval(15000); // 15 second delay before closing
-    connect(m_closeTimer, &QTimer::timeout, this, [this]() {
-        if (m_sticky) return;
 
-        QWidget *hovered = QApplication::widgetAt(QCursor::pos());
-        if (hovered == this || (hovered && isAncestorOf(hovered))) return;
-
-        close();
+    connect(this, &QDockWidget::topLevelChanged, this, [this](bool topLevel) {
+        m_userDocked = !topLevel;
+        hideDockDropPreview();
+        if (m_snapCommitTimer)
+            m_snapCommitTimer->stop();
+        if (topLevel) {
+            restartInactivityTimer();
+        } else {
+            if (m_inactivityPollTimer) {
+                m_inactivityPollTimer->stop();
+            }
+        }
     });
+
+    m_inactivityPollTimer = new QTimer(this);
+    m_inactivityPollTimer->setInterval(500); // Check every 500 ms
+    connect(m_inactivityPollTimer, &QTimer::timeout, this, [this]() {
+        if (!isVisible() || m_sticky || !isFloating() || m_titleDragging || m_ncDrag) return;
+
+        const QPoint currentPos = QCursor::pos();
+        const bool mouseInsidePopup = rect().contains(mapFromGlobal(currentPos));
+
+        if (mouseInsidePopup) {
+            if ((currentPos - m_lastMousePos).manhattanLength() > 2) {
+                // User is actively moving mouse inside this popup
+                m_lastMousePos = currentPos;
+                m_lastActivityTimer.restart();
+                return;
+            }
+            // If user is actively holding a mouse button inside the popup, postpone
+            if (QApplication::mouseButtons() != Qt::NoButton) {
+                m_lastActivityTimer.restart();
+                return;
+            }
+        }
+
+        if (m_lastActivityTimer.hasExpired(15000)) {
+            close();
+            hide();
+        }
+    });
+
+    m_snapCommitTimer = new QTimer(this);
+    m_snapCommitTimer->setSingleShot(true);
+    m_snapCommitTimer->setInterval(180);
+    connect(m_snapCommitTimer, &QTimer::timeout, this, [this]() {
+        if (!isVisible() || !isFloating() || m_titleDragging)
+            return;
+        if (m_pendingDockArea == Qt::NoDockWidgetArea)
+            return;
+        commitDockDrop();
+    });
+
+    qApp->installEventFilter(this);
 }
 
 RadioPopupWidget::~RadioPopupWidget() {
+    cancelTitleDrag();
+    hideDockDropPreview();
+    if (qApp) {
+        qApp->removeEventFilter(this);
+    }
     disconnect(nullptr, nullptr, nullptr);
-    delete m_closeTimer;
+    if (m_inactivityPollTimer) {
+        m_inactivityPollTimer->stop();
+        delete m_inactivityPollTimer;
+        m_inactivityPollTimer = nullptr;
+    }
 }
 
 QSize RadioPopupWidget::minimumSizeHint() const {
-    return QSize(m_minimumWidgetWidth, height());
+    return QSize(m_minimumWidgetWidth, QDockWidget::minimumSizeHint().height());
+}
+
+QSize RadioPopupWidget::sizeHint() const {
+    const int w = qMax(m_minimumWidgetWidth, s_lastRadioPopupWidth);
+    QSize sh = QDockWidget::sizeHint();
+    sh.setWidth(w);
+    return sh;
 }
 
 void RadioPopupWidget::setupConnections() {
@@ -537,7 +638,7 @@ void RadioPopupWidget::createOptionsBtnGroup() {
     m_cwDecodeCheckBox->setFont(m_fonts.smallFont);
     m_cwDecodeCheckBox->setStyleSheet("color: rgba(220, 220, 220, 255);");
     m_cwDecodeCheckBox->setToolTip(tr("Enable/disable Morse code decoding and tone line in CW mode"));
-    m_cwDecodeCheckBox->setChecked(true);
+    m_cwDecodeCheckBox->setChecked(m_sliceModel ? m_sliceModel->cwDecodeEnabled() : false);
     connect(m_cwDecodeCheckBox, &QCheckBox::clicked, this, [this](bool checked) {
         emit cwDecodeRequested(checked);
     });
@@ -843,13 +944,16 @@ void RadioPopupWidget::createModeBtnGroup() {
     modeVBox->addWidget(m_freeDVModeCombo);
     modeVBox->addWidget(m_freeDVStatusLabel);
 
+    QGroupBox *rxEqGroup = new QGroupBox(QStringLiteral("RX Equalizer"), this);
+    QVBoxLayout *rxEqLayout = new QVBoxLayout(rxEqGroup);
+    rxEqLayout->setContentsMargins(6, 4, 6, 6);
     QHBoxLayout *rxEqTop = new QHBoxLayout();
-    m_rxEqEnable = new QCheckBox(QStringLiteral("RX EQ"), this);
+    m_rxEqEnable = new QCheckBox(QStringLiteral("Enable"), rxEqGroup);
     m_rxEqEnable->setChecked(Settings::instance()->getRxEqEnabled());
     connect(m_rxEqEnable, &QCheckBox::toggled, this, [](bool on) {
         Settings::instance()->setRxEqEnabled(on);
     });
-    m_rxEqCurveDeg = new QSpinBox(this);
+    m_rxEqCurveDeg = new QSpinBox(rxEqGroup);
     m_rxEqCurveDeg->setRange(0, 3);
     m_rxEqCurveDeg->setPrefix(QStringLiteral("NURBS "));
     m_rxEqCurveDeg->setToolTip(QStringLiteral("0 = classic linear; 1–3 = NURBS degree"));
@@ -860,35 +964,41 @@ void RadioPopupWidget::createModeBtnGroup() {
     rxEqTop->addWidget(m_rxEqEnable);
     rxEqTop->addStretch();
     rxEqTop->addWidget(m_rxEqCurveDeg);
-    modeVBox->addLayout(rxEqTop);
+    rxEqLayout->addLayout(rxEqTop);
 
-    static const char *const kRxEqLabels[] = {
-        "Pre", "32", "63", "125", "250", "500", "1k", "2k", "4k", "8k", "16k"
-    };
     QHBoxLayout *eqRow = new QHBoxLayout();
     eqRow->setSpacing(2);
     const QVector<int> bands = Settings::instance()->getRxEqBands();
-    for (int i = 0; i < 11; ++i) {
+    for (int i = 0; i < EqCurvePlot::kBandSliderCount; ++i) {
         QVBoxLayout *col = new QVBoxLayout();
-        QLabel *lab = new QLabel(QString::fromLatin1(kRxEqLabels[i]), this);
+        const QString labelText = (i == 0)
+            ? QStringLiteral("Pre")
+            : QString::fromLatin1(EqCurvePlot::bandLabel(i - 1));
+        QLabel *lab = new QLabel(labelText, rxEqGroup);
         lab->setAlignment(Qt::AlignHCenter);
-        QSlider *slider = new QSlider(Qt::Vertical, this);
+        if (i == 0)
+            lab->setMinimumWidth(32);
+        QSlider *slider = new QSlider(Qt::Vertical, rxEqGroup);
         slider->setRange(-12, 12);
         slider->setValue(i < bands.size() ? bands.at(i) : 0);
         slider->setFixedHeight(72);
-        slider->setToolTip(QStringLiteral("%1 Hz gain (dB)").arg(QString::fromLatin1(kRxEqLabels[i])));
+        slider->setToolTip(i == 0
+            ? QStringLiteral("Preamp gain (dB)")
+            : QStringLiteral("%1 Hz gain (dB)").arg(labelText));
         connect(slider, &QSlider::valueChanged, this, [i](int value) {
             Settings::instance()->setRxEqBand(i, value);
         });
         m_rxEqSliders.append(slider);
         col->addWidget(lab);
-        col->addWidget(slider);
+        col->addWidget(slider, 0, Qt::AlignHCenter);
         eqRow->addLayout(col);
     }
-    modeVBox->addLayout(eqRow);
+    rxEqLayout->addLayout(eqRow);
 
-    m_rxEqPlot = new EqCurvePlot(this);
-    modeVBox->addWidget(m_rxEqPlot);
+    m_rxEqPlot = new EqCurvePlot(rxEqGroup);
+    rxEqLayout->addWidget(m_rxEqPlot);
+    modeVBox->addWidget(rxEqGroup);
+
     auto refreshRxEqPlot = [this]() {
         if (!m_rxEqPlot)
             return;
@@ -896,7 +1006,9 @@ void RadioPopupWidget::createModeBtnGroup() {
         QVector<double> X(AudioConfig::kEqDrawPoints, 0.0);
         QVector<double> Y(AudioConfig::kEqDrawPoints, 0.0);
         GetRXAEQDraw(m_receiver, X.data(), Y.data());
-        m_rxEqPlot->setCurve(X, Y);
+        const QVector<int> rxBands = Settings::instance()->getRxEqBands();
+        const double preamp = rxBands.isEmpty() ? 0.0 : static_cast<double>(rxBands.at(0));
+        m_rxEqPlot->setBandEqCurve(X, Y, preamp);
     };
     connect(Settings::instance(), &Settings::rxEqChanged, this, refreshRxEqPlot);
     // Do not call GetRXAEQDraw here — OpenChannel for this RX happens later.
@@ -1901,11 +2013,15 @@ void RadioPopupWidget::setSticky() {
         stickyBtn->setBtnState(AeroButton::ON);
         stickyBtn->setText("Unlock");
         m_sticky = true;
+        if (m_inactivityPollTimer) m_inactivityPollTimer->stop();
     }
     else {
         stickyBtn->setBtnState(AeroButton::OFF);
         stickyBtn->setText("Lock");
         m_sticky = false;
+        m_lastMousePos = QCursor::pos();
+        m_lastActivityTimer.restart();
+        if (m_inactivityPollTimer) m_inactivityPollTimer->start();
     }
 }
 
@@ -1950,38 +2066,50 @@ void RadioPopupWidget::waterfallModeChanged() {
 
 // **********************
 bool RadioPopupWidget::showPopupWidget(QPoint position) {
+    if (m_userDocked && !isFloating()) {
+        show();
+        raise();
+        return true;
+    }
+
+    setFloating(true);
+    show();
+
     if (s_lastRadioPopupWidth < 0)
         s_lastRadioPopupWidth = loadSavedPopupWidth();
 
     const bool hasStoredWidth = (s_lastRadioPopupWidth > 0);
-    show();
+    int targetWidth = hasStoredWidth ? s_lastRadioPopupWidth : m_minimumWidgetWidth;
+    if (targetWidth < m_minimumWidgetWidth) targetWidth = m_minimumWidgetWidth;
+    resize(targetWidth, height());
 
-    if (hasStoredWidth) {
-        int targetWidth = s_lastRadioPopupWidth;
-        if (targetWidth < m_minimumWidgetWidth) targetWidth = m_minimumWidgetWidth;
-        resize(targetWidth, height());
-    }
-    else {
-        const int side = qMax(height(), m_minimumWidgetWidth);
-        resize(side, side);
-        s_lastRadioPopupWidth = side;
-    }
-
-    // NOTE: Using QGuiApplication::primaryScreen() instead of obsolete QDesktopWidget
     QRect desktopRect = QGuiApplication::primaryScreen()->availableGeometry();
 
-    position.setX(position.x() - frameGeometry().width() / 2);
-    position.setY(position.y() - frameGeometry().height() / 2);
+    QPoint targetPos = position;
+    targetPos.setX(targetPos.x() - frameGeometry().width() / 2);
+    targetPos.setY(targetPos.y() - frameGeometry().height() / 2);
 
-    move(position);
+    if (targetPos.x() + frameGeometry().width() > desktopRect.right())
+        targetPos.setX(desktopRect.right() - frameGeometry().width());
+    if (targetPos.y() + frameGeometry().height() > desktopRect.bottom())
+        targetPos.setY(desktopRect.bottom() - frameGeometry().height());
+    if (targetPos.x() < desktopRect.left())
+        targetPos.setX(desktopRect.left());
+    if (targetPos.y() < desktopRect.top())
+        targetPos.setY(desktopRect.top());
 
-    // stop us being lost off the edge of the screen
-    if (frameGeometry().right() > desktopRect.right()) move(QPoint(desktopRect.right() - frameGeometry().width(), frameGeometry().top()));
-    if (frameGeometry().bottom() > desktopRect.bottom()) move(QPoint(frameGeometry().left(), desktopRect.bottom() - frameGeometry().height()));
-    if (frameGeometry().left() < desktopRect.left()) move(QPoint(desktopRect.left(), frameGeometry().top()));
-    if (frameGeometry().top() < desktopRect.top()) move(QPoint(frameGeometry().left(), desktopRect.top()));
-
+    m_placingPopup = true;
+    move(targetPos);
+    m_placingPopup = false;
+    raise();
+    activateWindow();
     setFocus();
+
+    m_lastMousePos = QCursor::pos();
+    m_lastActivityTimer.restart();
+    if (m_inactivityPollTimer && !m_sticky)
+        m_inactivityPollTimer->start();
+
     return true;
 }
 
@@ -2019,100 +2147,190 @@ void RadioPopupWidget::graphicModeChanged(
     update();
 }
 
+void RadioPopupWidget::restartInactivityTimer() {
+    m_lastMousePos = QCursor::pos();
+    m_lastActivityTimer.restart();
+    if (isFloating() && !m_sticky && m_inactivityPollTimer && !m_inactivityPollTimer->isActive()) {
+        m_inactivityPollTimer->start();
+    }
+}
+
+bool RadioPopupWidget::eventFilter(QObject *watched, QEvent *event) {
+    if (m_titleDragging) {
+        switch (event->type()) {
+        case QEvent::MouseMove:
+            updateTitleDrag(QCursor::pos());
+            return true;
+        case QEvent::MouseButtonRelease:
+            if (static_cast<QMouseEvent *>(event)->button() == Qt::LeftButton) {
+                endTitleDrag(QCursor::pos());
+                return true;
+            }
+            break;
+        default:
+            break;
+        }
+    }
+
+    if (watched == m_titleBar && handleTitleBarMouseEvent(event))
+        return true;
+
+    if (isVisible() && isFloating() && !m_sticky) {
+        if (watched == this || (watched->isWidgetType() && isAncestorOf(static_cast<QWidget*>(watched)))) {
+            switch (event->type()) {
+            case QEvent::MouseButtonPress:
+            case QEvent::MouseButtonRelease:
+            case QEvent::Wheel:
+            case QEvent::KeyPress:
+            case QEvent::KeyRelease:
+                m_lastActivityTimer.restart();
+                break;
+            case QEvent::MouseMove: {
+                const QPoint currentPos = QCursor::pos();
+                if ((currentPos - m_lastMousePos).manhattanLength() > 2) {
+                    m_lastMousePos = currentPos;
+                    m_lastActivityTimer.restart();
+                }
+                break;
+            }
+            default:
+                break;
+            }
+        }
+    }
+    return QDockWidget::eventFilter(watched, event);
+}
+
 void RadioPopupWidget::closeEvent(QCloseEvent *event) {
+    cancelTitleDrag();
+    hideDockDropPreview();
+    if (m_inactivityPollTimer) m_inactivityPollTimer->stop();
     emit closeEvent();
-    QWidget::closeEvent(event);
+    QDockWidget::closeEvent(event);
 }
 
 void RadioPopupWidget::showEvent(QShowEvent *event) {
-    m_closeTimer->start();
+    restartInactivityTimer();
     if (m_rxEqPlot) {
         QVector<double> X(AudioConfig::kEqDrawPoints, 0.0);
         QVector<double> Y(AudioConfig::kEqDrawPoints, 0.0);
         GetRXAEQDraw(m_receiver, X.data(), Y.data());
-        m_rxEqPlot->setCurve(X, Y);
+        const QVector<int> rxBands = Settings::instance()->getRxEqBands();
+        const double preamp = rxBands.isEmpty() ? 0.0 : static_cast<double>(rxBands.at(0));
+        m_rxEqPlot->setBandEqCurve(X, Y, preamp);
     }
-    QWidget::showEvent(event);
+    QDockWidget::showEvent(event);
 }
 
 void RadioPopupWidget::hideEvent(QHideEvent *event) {
-    QWidget::hideEvent(event);
+    if (!m_titleDragging) {
+        cancelTitleDrag();
+        hideDockDropPreview();
+        if (m_inactivityPollTimer) m_inactivityPollTimer->stop();
+    }
+    QDockWidget::hideEvent(event);
 }
 
 void RadioPopupWidget::paintEvent(QPaintEvent *event) {
-    QWidget::paintEvent(event);
+    QDockWidget::paintEvent(event);
 }
 
 void RadioPopupWidget::resizeEvent(QResizeEvent *event) {
     s_lastRadioPopupWidth = width();
     savePopupWidth(s_lastRadioPopupWidth);
     createBackground(event->size());
-    QWidget::resizeEvent(event);
+    QDockWidget::resizeEvent(event);
+}
+
+void RadioPopupWidget::moveEvent(QMoveEvent *event) {
+    QDockWidget::moveEvent(event);
+    if (m_placingPopup || !isFloating() || !isVisible())
+        return;
+
+    // Native window-title drags (Linux WM) never set m_titleDragging / m_ncDrag,
+    // so the overlay has to follow the floating window itself.
+    updateDockDropPreview(QCursor::pos());
+    if (m_snapCommitTimer) {
+        if (m_pendingDockArea != Qt::NoDockWidgetArea && !m_titleDragging)
+            m_snapCommitTimer->start();
+        else
+            m_snapCommitTimer->stop();
+    }
 }
 
 void RadioPopupWidget::mousePressEvent(QMouseEvent *event) {
-    m_closeTimer->start();
-    m_mouseDownPos = QCursor::pos();
-    m_mouseDownWindowPos = pos();
-    QWidget::mousePressEvent(event);
+    m_lastMousePos = QCursor::pos();
+    m_lastActivityTimer.restart();
+    QDockWidget::mousePressEvent(event);
 }
 
 void RadioPopupWidget::mouseMoveEvent(QMouseEvent *event) {
-    m_closeTimer->start();
-    if (event->buttons() == Qt::LeftButton) {
-        QPoint delta = QCursor::pos() - m_mouseDownPos;
-        QPoint new_pos = m_mouseDownWindowPos + delta;
-
-        // NOTE: Using QGuiApplication::primaryScreen() instead of obsolete QDesktopWidget
-        QRect desktopRect = QGuiApplication::primaryScreen()->availableGeometry();
-        QRect new_rect(QPoint(0, 0), size());
-        new_rect.moveTopLeft(new_pos);
-
-        // stop us being lost off the edge of the screen
-        if (new_rect.right() > desktopRect.right()) new_rect.moveLeft(desktopRect.right() - (new_rect.width() - 1));
-        if (new_rect.bottom() > desktopRect.bottom()) new_rect.moveTop(desktopRect.bottom() - (new_rect.height() - 1));
-        if (new_rect.left() < desktopRect.left()) new_rect.moveLeft(desktopRect.left());
-        if (new_rect.top() < desktopRect.top()) new_rect.moveTop(desktopRect.top());
-
-        move(new_rect.topLeft());
+    const QPoint currentPos = QCursor::pos();
+    if ((currentPos - m_lastMousePos).manhattanLength() > 2) {
+        m_lastMousePos = currentPos;
+        m_lastActivityTimer.restart();
     }
-    QWidget::mouseMoveEvent(event);
+    QDockWidget::mouseMoveEvent(event);
 }
 
 void RadioPopupWidget::mouseReleaseEvent(QMouseEvent *event) {
-    m_closeTimer->start();
-    QWidget::mouseReleaseEvent(event);
+    m_lastMousePos = QCursor::pos();
+    m_lastActivityTimer.restart();
+    QDockWidget::mouseReleaseEvent(event);
 }
 
 void RadioPopupWidget::enterEvent(QEnterEvent *event) {
-    // Stop the timer if the user moves the mouse back over the widget
-    m_closeTimer->stop();
-    QWidget::enterEvent(event);
+    const QPoint currentPos = QCursor::pos();
+    if ((currentPos - m_lastMousePos).manhattanLength() > 2) {
+        m_lastMousePos = currentPos;
+        m_lastActivityTimer.restart();
+    }
+    QDockWidget::enterEvent(event);
 }
 
-void RadioPopupWidget::leaveEvent(QEnterEvent *event) {
-    if (!m_sticky) {
-        // Start the countdown to close the widget
-        m_closeTimer->start();
-    }
-    QWidget::leaveEvent(event);
+void RadioPopupWidget::leaveEvent(QEvent *event) {
+    QDockWidget::leaveEvent(event);
 }
 
 
 bool RadioPopupWidget::event(QEvent *event) {
-        switch (event->type())
-        {
-        // When the user presses or drags the window frame,
-        // just stop the auto-close timer.
-        case QEvent::NonClientAreaMouseButtonPress:
-        case QEvent::NonClientAreaMouseMove:
-            m_closeTimer->stop();
-            break;
+    switch (event->type())
+    {
+    case QEvent::NonClientAreaMouseButtonPress:
+        m_lastActivityTimer.restart();
+        if (isFloating() && isVisible())
+            m_ncDrag = true;
+        break;
 
-        default:
-            break;
+    case QEvent::NonClientAreaMouseMove:
+        m_lastActivityTimer.restart();
+        if (m_ncDrag && isFloating())
+            updateDockDropPreview(QCursor::pos());
+        break;
+
+    case QEvent::NonClientAreaMouseButtonRelease:
+        m_lastActivityTimer.restart();
+        if (m_ncDrag) {
+            m_ncDrag = false;
+            updateDockDropPreview(QCursor::pos());
+            commitDockDrop();
         }
-    return QWidget::event(event);
+        break;
+
+    case QEvent::NonClientAreaMouseButtonDblClick:
+        m_lastActivityTimer.restart();
+        if (isFloating()) {
+            if (m_snapCommitTimer)
+                m_snapCommitTimer->stop();
+            dockToNearestSide();
+            return true;
+        }
+        break;
+
+    default:
+        break;
+    }
+    return QDockWidget::event(event);
 }
 
 void RadioPopupWidget::createBackground(QSize size) {
@@ -2437,3 +2655,272 @@ void RadioPopupWidget::setAGCShowLines(bool enabled) {
         showAGCLines->update();
     }
 }
+
+QMainWindow* RadioPopupWidget::getMainWindow() const {
+    QWidget *w = parentWidget();
+    while (w) {
+        if (QMainWindow *mw = qobject_cast<QMainWindow*>(w)) {
+            if (!qobject_cast<QMainWindow*>(mw->parentWidget()))
+                return mw;
+        }
+        w = w->parentWidget();
+    }
+    for (QWidget *top : QApplication::topLevelWidgets()) {
+        if (QMainWindow *mw = qobject_cast<QMainWindow*>(top)) {
+            return mw;
+        }
+    }
+    return nullptr;
+}
+
+bool RadioPopupWidget::handleTitleBarMouseEvent(QEvent *event) {
+    switch (event->type()) {
+    case QEvent::MouseButtonDblClick: {
+        auto *me = static_cast<QMouseEvent *>(event);
+        if (me->button() == Qt::LeftButton) {
+            cancelTitleDrag();
+            dockToNearestSide();
+            return true;
+        }
+        break;
+    }
+    case QEvent::MouseButtonPress: {
+        auto *me = static_cast<QMouseEvent *>(event);
+        if (me->button() == Qt::LeftButton) {
+            beginTitleDrag(me->globalPosition().toPoint());
+            return true;
+        }
+        break;
+    }
+    case QEvent::MouseMove: {
+        if (m_titleDragging) {
+            auto *me = static_cast<QMouseEvent *>(event);
+            updateTitleDrag(me->globalPosition().toPoint());
+            return true;
+        }
+        break;
+    }
+    case QEvent::MouseButtonRelease: {
+        auto *me = static_cast<QMouseEvent *>(event);
+        if (me->button() == Qt::LeftButton && m_titleDragging) {
+            endTitleDrag(me->globalPosition().toPoint());
+            return true;
+        }
+        break;
+    }
+    default:
+        break;
+    }
+    return false;
+}
+
+void RadioPopupWidget::beginTitleDrag(const QPoint &globalPos) {
+    m_titleDragging = true;
+    m_mouseDownPos = globalPos;
+    m_mouseDownWindowPos = globalPos - mapToGlobal(QPoint(0, 0));
+    if (m_snapCommitTimer)
+        m_snapCommitTimer->stop();
+    if (m_titleBar) {
+        m_titleBar->setCursor(Qt::ClosedHandCursor);
+        m_titleBar->grabMouse();
+    }
+    restartInactivityTimer();
+}
+
+void RadioPopupWidget::dragFloatingWindowTo(const QPoint &globalPos) {
+    const QPoint dest = globalPos - m_mouseDownWindowPos;
+    m_placingPopup = true;
+    move(dest);
+    m_placingPopup = false;
+}
+
+void RadioPopupWidget::updateTitleDrag(const QPoint &globalPos) {
+    if (!m_titleDragging)
+        return;
+
+    if (!isFloating()) {
+        if ((globalPos - m_mouseDownPos).manhattanLength() < QApplication::startDragDistance())
+            return;
+
+        const QSize sz = size();
+        m_placingPopup = true;
+        setFloating(true);
+        resize(sz);
+        show();
+        raise();
+        dragFloatingWindowTo(globalPos);
+        m_placingPopup = false;
+
+        grabMouse();
+        if (m_titleBar)
+            m_titleBar->grabMouse();
+
+        QTimer::singleShot(0, this, [this]() {
+            if (!m_titleDragging || !isFloating())
+                return;
+            dragFloatingWindowTo(QCursor::pos());
+            grabMouse();
+            if (m_titleBar)
+                m_titleBar->grabMouse();
+        });
+    } else {
+        dragFloatingWindowTo(globalPos);
+    }
+
+    updateDockDropPreview(globalPos);
+    restartInactivityTimer();
+}
+
+void RadioPopupWidget::endTitleDrag(const QPoint &globalPos) {
+    if (m_titleBar) {
+        m_titleBar->releaseMouse();
+        m_titleBar->setCursor(Qt::OpenHandCursor);
+    }
+    releaseMouse();
+    m_titleDragging = false;
+    if (m_snapCommitTimer)
+        m_snapCommitTimer->stop();
+
+    if ((globalPos - m_mouseDownPos).manhattanLength() < QApplication::startDragDistance()) {
+        hideDockDropPreview();
+        restartInactivityTimer();
+        return;
+    }
+
+    updateDockDropPreview(globalPos);
+    commitDockDrop();
+    restartInactivityTimer();
+}
+
+void RadioPopupWidget::cancelTitleDrag() {
+    if (!m_titleDragging)
+        return;
+    if (m_titleBar) {
+        m_titleBar->releaseMouse();
+        m_titleBar->setCursor(Qt::OpenHandCursor);
+    }
+    releaseMouse();
+    m_titleDragging = false;
+    m_ncDrag = false;
+    if (m_snapCommitTimer)
+        m_snapCommitTimer->stop();
+    hideDockDropPreview();
+}
+
+Qt::DockWidgetArea RadioPopupWidget::dockDropAreaAt(const QPoint &globalPos) const {
+    QMainWindow *mw = getMainWindow();
+    if (!mw || !isFloating())
+        return Qt::NoDockWidgetArea;
+
+    const QRect mwGeo(mw->mapToGlobal(QPoint(0, 0)), mw->size());
+    const QRect popupGeo = frameGeometry();
+    const QRect hitBounds = mwGeo.adjusted(-120, -40, 120, 40);
+    if (!popupGeo.intersects(hitBounds) && !hitBounds.contains(globalPos))
+        return Qt::NoDockWidgetArea;
+
+    const int edge = qMax(140, mwGeo.width() / 5);
+    const int x = globalPos.x();
+    if (x < mwGeo.left() + edge)
+        return Qt::LeftDockWidgetArea;
+    if (x > mwGeo.right() - edge)
+        return Qt::RightDockWidgetArea;
+
+    if (qAbs(popupGeo.left() - mwGeo.left()) <= 48 && popupGeo.intersects(mwGeo))
+        return Qt::LeftDockWidgetArea;
+    if (qAbs(popupGeo.right() - mwGeo.right()) <= 48 && popupGeo.intersects(mwGeo))
+        return Qt::RightDockWidgetArea;
+
+    return Qt::NoDockWidgetArea;
+}
+
+void RadioPopupWidget::updateDockDropPreview(const QPoint &globalPos) {
+    m_pendingDockArea = dockDropAreaAt(globalPos);
+    setDockHoverHighlight(m_pendingDockArea != Qt::NoDockWidgetArea);
+}
+
+void RadioPopupWidget::hideDockDropPreview() {
+    m_pendingDockArea = Qt::NoDockWidgetArea;
+    setDockHoverHighlight(false);
+}
+
+void RadioPopupWidget::setDockHoverHighlight(bool on) {
+    if (!m_titleBar)
+        return;
+    m_titleBar->setStyleSheet(on
+        ? QStringLiteral("QWidget#RadioPopupTitleBar { background-color: rgb(45, 122, 148); }")
+        : QStringLiteral("QWidget#RadioPopupTitleBar { background-color: rgb(56, 62, 70); }"));
+}
+
+void RadioPopupWidget::commitDockDrop() {
+    const Qt::DockWidgetArea area = m_pendingDockArea;
+    hideDockDropPreview();
+    m_ncDrag = false;
+    if (area == Qt::LeftDockWidgetArea || area == Qt::RightDockWidgetArea)
+        dockToArea(area);
+}
+
+void RadioPopupWidget::dockToArea(Qt::DockWidgetArea area) {
+    QMainWindow *mw = getMainWindow();
+    if (!mw || (area != Qt::LeftDockWidgetArea && area != Qt::RightDockWidgetArea))
+        return;
+
+    m_userDocked = true;
+    if (m_inactivityPollTimer)
+        m_inactivityPollTimer->stop();
+    if (m_snapCommitTimer)
+        m_snapCommitTimer->stop();
+
+    const int dockW = qMax(m_minimumWidgetWidth, isFloating() ? width() : qMax(width(), s_lastRadioPopupWidth));
+
+    // Unfloat first. setFloating(false) restores the last dock site, which is
+    // Right because the popup is registered there at startup. addDockWidget
+    // after that is what actually pins Left vs Right.
+    if (isFloating())
+        setFloating(false);
+
+    mw->addDockWidget(area, this);
+    if (isFloating() || mw->dockWidgetArea(this) != area) {
+        setFloating(false);
+        mw->addDockWidget(area, this);
+    }
+
+    mw->resizeDocks({this}, {dockW}, Qt::Horizontal);
+    show();
+    raise();
+    QTimer::singleShot(0, this, [this, dockW]() {
+        QMainWindow *mainWin = getMainWindow();
+        if (mainWin && !isFloating())
+            mainWin->resizeDocks({this}, {dockW}, Qt::Horizontal);
+    });
+}
+
+void RadioPopupWidget::dockLeft() {
+    dockToArea(Qt::LeftDockWidgetArea);
+}
+
+void RadioPopupWidget::dockRight() {
+    dockToArea(Qt::RightDockWidgetArea);
+}
+
+void RadioPopupWidget::dockToNearestSide() {
+    QMainWindow *mw = getMainWindow();
+    if (!mw) {
+        dockRight();
+        return;
+    }
+
+    const QRect mwGeo(mw->mapToGlobal(QPoint(0, 0)), mw->size());
+    const QRect popupGeo = frameGeometry();
+    const int leftDist = qAbs(popupGeo.center().x() - mwGeo.left());
+    const int rightDist = qAbs(popupGeo.center().x() - mwGeo.right());
+    dockToArea(leftDist <= rightDist ? Qt::LeftDockWidgetArea : Qt::RightDockWidgetArea);
+}
+
+void RadioPopupWidget::floatPopup() {
+    m_userDocked = false;
+    setFloating(true);
+    show();
+    raise();
+    restartInactivityTimer();
+}
+

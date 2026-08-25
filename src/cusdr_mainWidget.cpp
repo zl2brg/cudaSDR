@@ -43,6 +43,7 @@
 #include <QScrollArea>
 #include <QCoreApplication>
 #include <QEventLoop>
+#include <QWindow>
 #include "cusdr_audio_settingsdialog.h"
 #include "cusdr_mainWidget.h"
 #include "Controllers/ServerSettingsController.h"
@@ -50,6 +51,7 @@
 #include "UI/MainWindow/MainWindowUI.h"
 #include "Util/device_identity.h"
 #include "Util/cusdr_tciserver.h"
+#include "cusdr_radioPopupWidget.h"
 
 extern "C" int GetWDSPVersion();
 
@@ -110,7 +112,7 @@ MainWindow::MainWindow(RadioModel *model, Settings* settingsModel, QWidget *pare
 	restoreState(settings.value("windowState").toByteArray());
 
 	// Dock windows options
-	setDockOptions(QMainWindow::AnimatedDocks | QMainWindow::AllowNestedDocks);
+	setDockOptions(QMainWindow::AnimatedDocks | QMainWindow::AllowNestedDocks | QMainWindow::AllowTabbedDocks | QMainWindow::GroupedDragging);
 	setMinimumSize(QSize(window_width1, window_height1));
 
 	m_oldSampleRate = set->getSampleRate();
@@ -471,10 +473,6 @@ void MainWindow::setup() {
 void MainWindow::cusdr_setup()
 {
     setupWidget->show();
-  //bandwidget->show();
-    rxDock->show();
-  //miniModeWidget->show();
-
 }
 
 
@@ -495,7 +493,7 @@ void MainWindow::setupLayout() {
 
 	centralwidget = new QMainWindow(this);
 	centralwidget->setWindowFlags(Qt::Widget);
-	centralwidget->setDockOptions(QMainWindow::AnimatedDocks | QMainWindow::AllowNestedDocks);
+	centralwidget->setDockOptions(QMainWindow::AnimatedDocks | QMainWindow::AllowNestedDocks | QMainWindow::AllowTabbedDocks | QMainWindow::GroupedDragging);
 	centralwidget->setContextMenuPolicy(Qt::NoContextMenu);  //setStyleSheet(set->getMenuStyle());
     
 
@@ -525,20 +523,6 @@ void MainWindow::setupLayout() {
 
     addDockWidget(Qt::RightDockWidgetArea, dock);
 	dock->hide();
-
-    rxDock = new QDockWidget(tr("Band Ctrl"), this);
-    rxDock->setObjectName("bBandWidget");
-    rxDock->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
-//	dock->setFeatures(QDockWidget::NoDockWidgetFeatures);
-    rxDock->setFeatures(QDockWidget::DockWidgetClosable | QDockWidget::DockWidgetFloatable | QDockWidget::DockWidgetMovable);
-    rxDock->setMaximumWidth(1200);
-    rxDock->setMinimumWidth(DOCK_WIDTH);
-//    rxDock->setWidget(filterwidget);
-//    rxDock->setWidget(m_radioCtrl);
-    dockWidgetList.append(rxDock);
-
-    addDockWidget(Qt::LeftDockWidgetArea, rxDock);
-    rxDock->hide();
 
 
 	// receiver and wideband panel docks;
@@ -600,6 +584,18 @@ void MainWindow::setupLayout() {
 					m_3DPanDock->hide();
 				}
 			}
+		}
+	}
+
+	// Register RadioPopup dock widgets for each receiver panel
+	for (int i = 0; i < rxWidgetList.size(); ++i) {
+		QGLReceiverPanel* rxPanel = rxWidgetList.at(i);
+		if (rxPanel && rxPanel->getRadioPopupWidget()) {
+			RadioPopupWidget* popup = rxPanel->getRadioPopupWidget();
+			popup->hide();
+			popup->setFloating(true);
+			addDockWidget(Qt::RightDockWidgetArea, popup);
+			popup->hide();
 		}
 	}
 
@@ -1887,6 +1883,12 @@ void MainWindow::showEvent(
 		QShowEvent *event			/*!<[in] event */
 ) {
 	QWidget::showEvent(event);
+	if (isNativeWaylandPlatform()) {
+		if (QWindow *win = windowHandle()) {
+			if (!win->findChild<WaylandFrameThrottle *>())
+				new WaylandFrameThrottle(win, 16);
+		}
+	}
 }
  
 /*!

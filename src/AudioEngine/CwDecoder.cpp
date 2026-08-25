@@ -69,6 +69,7 @@ void CwDecoder::reset()
     m_charPending = false;
     m_wordSpacePending = false;
     m_decimCounter = 0;
+    m_decimAccum = 0.0f;
     m_pitchEstimCounter = 0;
     m_ringIdx = 0;
     std::fill(std::begin(m_ringBuffer), std::end(m_ringBuffer), 0.0f);
@@ -78,10 +79,10 @@ void CwDecoder::updateBiquadCoefficients()
 {
     const float fs = 8000.0f;
 
-    // 1. Narrow Detection Filter at m_trackedPitchHz (Q = 7.0, ~100 Hz BW)
+    // 1. Narrow Detection Filter at m_trackedPitchHz (Q = 6.0, ~115 Hz BW for stable tone detection)
     const float fNarrow = qBound(300.0f, m_trackedPitchHz, 1500.0f);
     m_lastFilterPitchHz = fNarrow;
-    const float qNarrow = 7.0f;
+    const float qNarrow = 6.0f;
 
     const float w0 = 2.0f * M_PI * fNarrow / fs;
     const float alpha = std::sin(w0) / (2.0f * qNarrow);
@@ -108,8 +109,9 @@ void CwDecoder::updateBiquadCoefficients()
     m_wbA1 = (-2.0f * cosW0Wb) / a0Wb;
     m_wbA2 = (1.0f - alphaWb) / a0Wb;
 
-    // Envelope low-pass filter coefficient for tau = 12ms at 8000Hz (dt = 0.125ms)
-    m_envAlpha = 1.0f - std::exp(-0.125f / 12.0f);
+    // Fast envelope low-pass filter coefficient for tau = 4.0ms at 8000Hz (dt = 0.125ms)
+    // Ensures accurate pulse edge detection without truncating dits at high WPM
+    m_envAlpha = 1.0f - std::exp(-0.125f / 4.0f);
 }
 
 void CwDecoder::estimateTonePitch()
@@ -117,13 +119,13 @@ void CwDecoder::estimateTonePitch()
     if (!m_autoTrack)
         return;
 
-    // Compute autocorrelation on wideband ring buffer (length = 32, lags 7..22)
+    // Compute autocorrelation on wideband ring buffer (length = 48, lags 7..22)
     // At 8000 Hz: lag 7 = 1142 Hz, lag 22 = 363 Hz
     float maxCorr = 0.0f;
     int bestLag = -1;
     float energy0 = 1e-6f;
 
-    for (int i = 0; i < 32; ++i) {
+    for (int i = 0; i < 48; ++i) {
         const float s0 = m_ringBuffer[(m_ringIdx - i) & 63];
         energy0 += s0 * s0;
     }
@@ -131,8 +133,8 @@ void CwDecoder::estimateTonePitch()
     if (energy0 < 0.00003f) {
         // Signal too weak in wideband passband: slowly drift back towards nominal
         if (std::abs(m_trackedPitchHz - static_cast<float>(m_pitchHz)) > 1.0f) {
-            m_trackedPitchHz += 0.008f * (static_cast<float>(m_pitchHz) - m_trackedPitchHz);
-            if (std::abs(m_trackedPitchHz - m_lastFilterPitchHz) >= 2.0f) {
+            m_trackedPitchHz += 0.005f * (static_cast<float>(m_pitchHz) - m_trackedPitchHz);
+            if (std::abs(m_trackedPitchHz - m_lastFilterPitchHz) >= 4.0f) {
                 updateBiquadCoefficients();
                 emit trackedPitchChanged(m_rxId, qRound(m_trackedPitchHz));
             }
@@ -143,7 +145,7 @@ void CwDecoder::estimateTonePitch()
     float corr[24] = {0.0f};
     for (int lag = 7; lag <= 22; ++lag) {
         float r = 0.0f;
-        for (int i = 0; i < 32; ++i) {
+        for (int i = 0; i < 48; ++i) {
             const float s0 = m_ringBuffer[(m_ringIdx - i) & 63];
             const float sLag = m_ringBuffer[(m_ringIdx - i - lag) & 63];
             r += s0 * sLag;
@@ -155,8 +157,8 @@ void CwDecoder::estimateTonePitch()
         }
     }
 
-    // Correlation threshold check (normalized autocorrelation > 0.40)
-    if (bestLag >= 8 && bestLag <= 21 && (maxCorr / energy0) > 0.40f) {
+    // Correlation threshold check (normalized autocorrelation > 0.45)
+    if (bestLag >= 8 && bestLag <= 21 && (maxCorr / energy0) > 0.45f) {
         // 3-point parabolic interpolation for sub-sample lag
         const float alpha = corr[bestLag - 1];
         const float beta = corr[bestLag];
@@ -171,15 +173,15 @@ void CwDecoder::estimateTonePitch()
         const float refinedLag = static_cast<float>(bestLag) + delta;
         const float detectedFreq = 8000.0f / refinedLag;
 
-        // Verify frequency is within ±220 Hz of nominal pitch
-        const float minFreq = static_cast<float>(m_pitchHz) - 220.0f;
-        const float maxFreq = static_cast<float>(m_pitchHz) + 220.0f;
+        // Verify frequency is within ±200 Hz of nominal pitch
+        const float minFreq = static_cast<float>(m_pitchHz) - 200.0f;
+        const float maxFreq = static_cast<float>(m_pitchHz) + 200.0f;
 
         if (detectedFreq >= minFreq && detectedFreq <= maxFreq) {
-            // Adaptive pitch smoothing
-            m_trackedPitchHz += 0.15f * (detectedFreq - m_trackedPitchHz);
+            // Smooth adaptive pitch tracking with hysteresis to prevent filter transient clicks
+            m_trackedPitchHz += 0.05f * (detectedFreq - m_trackedPitchHz);
 
-            if (std::abs(m_trackedPitchHz - m_lastFilterPitchHz) >= 2.0f) {
+            if (std::abs(m_trackedPitchHz - m_lastFilterPitchHz) >= 4.0f) {
                 updateBiquadCoefficients();
                 emit trackedPitchChanged(m_rxId, qRound(m_trackedPitchHz));
             }
@@ -197,10 +199,12 @@ void CwDecoder::processAudio(const float *samples, int count, int sampleRate)
     const float dtMs = (1000.0f * static_cast<float>(m_decimFactor)) / static_cast<float>(m_sampleRate);
 
     for (int i = 0; i < count; ++i) {
+        m_decimAccum += samples[i];
         if (++m_decimCounter >= m_decimFactor) {
+            // Anti-aliased decimated audio sample
+            const float inSample = m_decimAccum / static_cast<float>(m_decimFactor);
+            m_decimAccum = 0.0f;
             m_decimCounter = 0;
-
-            const float inSample = samples[i];
 
             // 1. Wideband filter & ring buffer for pitch estimation
             const float wbOut = m_wbB0 * inSample + m_wbB1 * m_wbX1 + m_wbB2 * m_wbX2 - m_wbA1 * m_wbY1 - m_wbA2 * m_wbY2;
@@ -212,8 +216,8 @@ void CwDecoder::processAudio(const float *samples, int count, int sampleRate)
             m_ringIdx = (m_ringIdx + 1) & 63;
             m_ringBuffer[m_ringIdx] = wbOut;
 
-            // Pitch estimation every 32 decimated samples (~4 ms)
-            if (++m_pitchEstimCounter >= 32) {
+            // Pitch estimation every 48 decimated samples (~6 ms)
+            if (++m_pitchEstimCounter >= 48) {
                 m_pitchEstimCounter = 0;
                 estimateTonePitch();
             }
@@ -258,9 +262,9 @@ void CwDecoder::processEnvelope(float env, float dtMs)
     const float snrLinear = m_peakLevel / m_noiseLevel;
     m_currentSnrDb = 20.0f * std::log10(std::max(1.0f, snrLinear));
 
-    // Schmitt-trigger hysteresis thresholds with higher noise immunity
-    const float highThreshold = m_noiseLevel + 0.45f * dynamicRange;
-    const float lowThreshold = m_noiseLevel + 0.20f * dynamicRange;
+    // Balanced Schmitt-trigger hysteresis thresholds around 50% midpoint for accurate pulse widths
+    const float highThreshold = m_noiseLevel + 0.55f * dynamicRange;
+    const float lowThreshold = m_noiseLevel + 0.35f * dynamicRange;
 
     // Minimum SNR required to trigger (rejects noise spikes)
     const bool validSignal = (m_currentSnrDb >= m_minSnrDb);
@@ -294,14 +298,14 @@ void CwDecoder::processEnvelope(float env, float dtMs)
         }
         m_spaceDurationMs += dtMs;
 
-        // Check for character completion (inter-character space >= 1.8 * dit)
-        if (m_charPending && m_spaceDurationMs >= (1.8f * m_ditMs)) {
+        // Check for character completion (inter-character space >= 2.3 * dit for natural operator timing)
+        if (m_charPending && m_spaceDurationMs >= (2.3f * m_ditMs)) {
             decodeCurrentSymbol();
             m_charPending = false;
         }
 
-        // Check for word completion (inter-word space >= 4.5 * dit)
-        if (m_wordSpacePending && m_spaceDurationMs >= (4.5f * m_ditMs)) {
+        // Check for word completion (inter-word space >= 5.0 * dit)
+        if (m_wordSpacePending && m_spaceDurationMs >= (5.0f * m_ditMs)) {
             if (!m_recentText.isEmpty() && !m_recentText.endsWith(QLatin1Char(' '))) {
                 m_recentText.append(QLatin1Char(' '));
                 if (m_recentText.length() > 256)
@@ -316,29 +320,29 @@ void CwDecoder::processEnvelope(float env, float dtMs)
 
 void CwDecoder::onMarkCompleted(float durationMs)
 {
-    // Glitch / Key click rejection (< 15 ms is likely a click or noise spike)
-    if (durationMs < 15.0f || m_currentSnrDb < m_minSnrDb)
+    // Glitch / Key click rejection (< 12 ms is noise spike; 50 WPM dit is 24 ms)
+    if (durationMs < 12.0f)
         return;
 
-    // Dit vs Dah Decision Threshold: 1.8 * dit length
-    const float ditThreshold = 1.8f * m_ditMs;
+    // Dit vs Dah Decision Threshold (1.95 * dit length)
+    const float ditThreshold = 1.95f * m_ditMs;
 
     if (durationMs < ditThreshold) {
         // DIT ('.')
         m_symbolAccumulator.append(QLatin1Char('.'));
-        // Smooth dit length adaptation (15% weight)
-        m_ditMs = 0.85f * m_ditMs + 0.15f * durationMs;
+        // Smooth dit length adaptation (10% weight)
+        m_ditMs = 0.90f * m_ditMs + 0.10f * durationMs;
     } else {
         // DAH ('-')
         m_symbolAccumulator.append(QLatin1Char('-'));
-        // Dah is 3 * dit length, adapt estimated dit
+        // Dah is 3 * dit length; adapt estimated dit (6% weight to avoid over-reacting to operator swing)
         const float estimatedDit = durationMs / 3.0f;
-        m_ditMs = 0.85f * m_ditMs + 0.15f * estimatedDit;
+        m_ditMs = 0.94f * m_ditMs + 0.06f * estimatedDit;
     }
 
-    // Clamp dit length to realistic speeds: 8 WPM (150 ms) to 50 WPM (24 ms)
-    m_ditMs = qBound(24.0f, m_ditMs, 150.0f);
-    m_currentWpm = qRound(1200.0f / m_ditMs);
+    // Clamp dit length to realistic speeds: 8 WPM (150 ms) to 60 WPM (20 ms)
+    m_ditMs = qBound(20.0f, m_ditMs, 150.0f);
+    m_currentWpm = qBound(8, qRound(1200.0f / m_ditMs), 60);
 
     m_charPending = true;
     m_wordSpacePending = true;

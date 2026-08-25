@@ -1,6 +1,7 @@
 #include "RadioModel.h"
 #include "RadioTelemetry.h"
 #include "BandPlanManager.h"
+#include "TransmitModel.h"
 #include "Util/DxClusterClient.h"
 
 #include <QDebug>
@@ -11,6 +12,7 @@ RadioModel::RadioModel(QObject *parent)
     , m_telemetry(new RadioTelemetry(this, this))
     , m_bandPlan(new BandPlanManager(this))
     , m_dxClusterClient(new DxClusterClient(this))
+    , m_transmit(new TransmitModel(this))
     , m_spotPruneTimer(new QTimer(this))
 {
     // Allocation bars: SDR-Band-Plans International (CC0).
@@ -112,9 +114,27 @@ void RadioModel::setTxSliceIndex(int index) {
 }
 
 qint64 RadioModel::effectiveTxFrequency() const {
+    qint64 freq;
     if (m_txSliceIndex >= 0 && m_txSliceIndex < m_slices.size() && m_slices.at(m_txSliceIndex))
-        return m_slices.at(m_txSliceIndex)->frequency();
-    if (!m_slices.isEmpty() && m_slices.at(0))
-        return m_slices.at(0)->frequency();
-    return static_cast<qint64>(m_tx.txFrequency);
+        freq = m_slices.at(m_txSliceIndex)->frequency();
+    else if (!m_slices.isEmpty() && m_slices.at(0))
+        freq = m_slices.at(0)->frequency();
+    else
+        freq = static_cast<qint64>(m_tx.txFrequency);
+
+    // In CW modes apply the sidetone offset so the TX carrier falls inside
+    // the RX passband and is audible through the receiver without a separate
+    // sidetone mix.  CWU: TX above dial; CWL: TX below dial.
+    const SliceModel* slice = (m_txSliceIndex >= 0 && m_txSliceIndex < m_slices.size())
+                              ? m_slices.at(m_txSliceIndex)
+                              : (!m_slices.isEmpty() ? m_slices.at(0) : nullptr);
+    if (slice) {
+        const DSPMode mode = slice->dspMode();
+        if (mode == DSPMode::CWU || mode == DSPMode::CWL) {
+            Settings* set = Settings::instance();
+            const qint64 offset = set ? static_cast<qint64>(set->getCwSidetoneFreq()) : 700LL;
+            freq += (mode == DSPMode::CWU) ? offset : -offset;
+        }
+    }
+    return freq;
 }

@@ -127,6 +127,9 @@ public slots:
 	/** Tear down QAudioSink after DSP writers have stopped. */
 	void	stopAudio();
 
+public slots:
+    void cwKeyDown(int state);
+
 private slots:
 	void	setSystemState(
 					QSDR::_Error err, 
@@ -183,6 +186,13 @@ private:
 	quint64				m_soapyQueueDropCount = 0;
 
     int 	m_audiobuffersize;
+
+    // Host CW sidetone state (m_cwKeyActive: raw paddle state for element shaping;
+    // m_cwMuteHold: countdown keeping RX muted across inter-element gaps and post-word)
+    std::atomic<int> m_cwKeyActive{0};
+    std::atomic<int> m_cwMuteHold{0};
+    int     m_sidetoneShape = 0;
+    double  m_sidetonePhase = 0.0;
 
 	bool	m_connected;
     std::atomic<bool> m_soapyDspPending;

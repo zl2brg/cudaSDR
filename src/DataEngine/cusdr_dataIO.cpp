@@ -426,7 +426,10 @@ void DataIO::readDeviceDataP2(QUdpSocket* socket) {
                              << " Port=" << Port
                              << " hpTotal=" << p2HpPacketsSeen;
             }
-            m_protocol->decodeCCBytes(m_datagram.left(size), m_dataEngine);
+            if (m_dataEngine)
+                m_dataEngine->decodeCCBytes(m_datagram.left(size));
+            else if (m_protocol)
+                m_protocol->decodeCCBytes(m_datagram.left(size), m_dataEngine);
         }
         else {
             if ((p2DatagramsSeen % 500) == 1) {

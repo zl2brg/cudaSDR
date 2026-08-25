@@ -132,12 +132,21 @@ void CProtocol1::processInputBuffer(const QByteArray& buffer, DataEngine* de, qu
 
 void CProtocol1::decodeCCBytes(const QByteArray& buffer, DataEngine* de) {
     Settings* set = Settings::instance();
-    de->ccRx.previous_dash = de->ccRx.dash;
-    de->ccRx.previous_dot = de->ccRx.dot;
+    const bool prev_dash = de->ccRx.dash;
+    const bool prev_dot = de->ccRx.dot;
 	de->ccRx.ptt    = (bool)((buffer.at(0) & 0x01) == 0x01);
 	de->ccRx.dash   = (bool)((buffer.at(0) & 0x02) == 0x02);
 	de->ccRx.dot    = (bool)((buffer.at(0) & 0x04) == 0x04);
+	de->ccRx.previous_dash = prev_dash;
+	de->ccRx.previous_dot = prev_dot;
 	de->ccRx.lt2208 = (bool)((buffer.at(1) & 0x01) == 0x01);
+
+    // Always feed the iambic thread — it drives host sidetone via cw_sidetone_down.
+    // When internal keyer is ON the iambic key_down only sets cw_sidetone_down, not cw_key_down.
+    if (de && de->dataProcessor()) {
+        if (de->ccRx.dash != prev_dash) emit de->dataProcessor()->keyer_event(0, de->ccRx.dash ? 1 : 0);
+        if (de->ccRx.dot != prev_dot)   emit de->dataProcessor()->keyer_event(1, de->ccRx.dot ? 1 : 0);
+    }
 
 	de->ccRx.roundRobin = (uchar)(buffer.at(0) >> 3);
 	
@@ -580,10 +589,8 @@ void CProtocol1::encodeCCBytes(unsigned char* buffer, DataEngine* de, RadioModel
         case 5:
             de->control_out[0] = 0x1e; // 0 0 0 1 1 1 1 x
             de->control_out[1] = 0x00;
-            if((sliceDspMode()==DSPMode::CWU || sliceDspMode()==DSPMode::CWL)  && (set->isInternalCw()) &&!(set->getRadioState() == RadioState::MOX))
-            {
-                de->control_out[1]|=0x01;
-            }
+            if ((sliceDspMode() == DSPMode::CWU || sliceDspMode() == DSPMode::CWL) && set->isInternalCw())
+                de->control_out[1] |= 0x01;
             de->control_out[2] = (set->getCwSidetoneVolume() & 0xff); //cw sidetone level
             de->control_out[3] = (set->getCwPttDelay() & 0xff); // ptt delay
             de->control_out[4] = 0x0;
@@ -591,30 +598,42 @@ void CProtocol1::encodeCCBytes(unsigned char* buffer, DataEngine* de, RadioModel
             break;
 
         case 6:
-            de->control_out[0] = 0x20; // 0 0 0 1 1 1 1 x
-            de->control_out[1] = (set->getCwHangTime() >> 2) & 0xff; // cw hang time bits 9:2
-            de->control_out[2] = (set->getCwHangTime() & 0x03); //cw hang time 1:0
-            de->control_out[3] = (set->getCwSidetoneFreq() >> 4) & 0x3f; // cw sidetone frequnecy 11:4y
-            de->control_out[4] = (set->getCwSidetoneFreq() & 0x0f) ; // cw sidetone frequency 3:0;
+            de->control_out[0] = 0x20;
+            de->control_out[1] = (set->getCwHangTime() >> 2) & 0xff;
+            de->control_out[2] = (set->getCwHangTime() & 0x03);
+            de->control_out[3] = (set->getCwSidetoneFreq() >> 4) & 0x3f;
+            de->control_out[4] = (set->getCwSidetoneFreq() & 0x0f);
             sendState = 7;
             break;
 
         case 7:
-            de->control_out[0] = 0x16; // 0 0 0 1 1 1 1 x
+            de->control_out[0] = 0x16;
             de->control_out[1] = 0;
             de->control_out[2] = (set->isCwKeyReversed()) << 6;
             de->control_out[3] = (set->getCwKeyerSpeed() & 0x3f);
             de->control_out[3]  |= ((set->getCwKeyerMode()  & 0x03) << 6);
-            de->control_out[4] = (set->getCwKeyerWeight() & 0x7f);
+            de->control_out[4] = (set->getCwKeyerWeight() & 0x7f)
+                | (set->getCwKeyerSpacing() ? 0x80 : 0);
             sendState = 0;
             break;
     }
     const DSPMode encodeMode = sliceDspMode();
-    if ((encodeMode==DSPMode::CWU || encodeMode==DSPMode::CWL) )
-    {
-         de->control_out[0] &= ~0x01;
-       }
-    else  if (de->txParams().mox || de->txParams().ptt) de->control_out[0] |= 0x01;
+    if ((encodeMode == DSPMode::CWU || encodeMode == DSPMode::CWL)) {
+        if (set->isInternalCw()) {
+            // Internal CW: FPGA keys RF; host MOX only for manual PTT/MOX.
+            if (de->txParams().mox || de->txParams().ptt)
+                de->control_out[0] |= 0x01;
+            else
+                de->control_out[0] &= ~0x01;
+        } else {
+            // Software CW: assert MOX while iambic key line is down.
+            if (de->txParams().mox || de->txParams().ptt || de->cw_key_down > 0)
+                de->control_out[0] |= 0x01;
+            else
+                de->control_out[0] &= ~0x01;
+        }
+    }
+    else if (de->txParams().mox || de->txParams().ptt) de->control_out[0] |= 0x01;
     else de->control_out[0] &= ~0x01;
 
     for (int i = 0; i < 5; i++) {

@@ -202,7 +202,6 @@ DataEngine::DataEngine(RadioModel *model, QObject *parent)
 	, m_cw_ptt_delay(set->getCwPttDelay())
 	, m_cw_hang_time(set->getCwHangTime())
 	, m_cw_sidetone_freq(set->getCwSidetoneFreq())
-    , m_radioState(RadioState::RX)
 	, m_serverMode(set->getCurrentServerMode())
 	, m_hwInterface(set->getHWInterface())
 	, m_dataEngineState(QSDR::DataEngineDown)
@@ -210,8 +209,6 @@ DataEngine::DataEngine(RadioModel *model, QObject *parent)
 	, m_restart(false)
 	, m_networkDeviceRunning(false)
 	, m_soundFileLoaded(false)
-	//, m_wbSpectrumAveraging(set->getSpectrumAveraging())
-	//, m_wbSpectrumAveraging(true)
     , m_discoveryThreadRunning(false)
 	, m_dataIOThreadRunning(false)
     , m_dataProcThreadRunning(false)
@@ -237,6 +234,10 @@ DataEngine::DataEngine(RadioModel *model, QObject *parent)
 	qRegisterMetaType<QAbstractSocket::SocketError>();
 
 	this->setObjectName(QString::fromUtf8("dataEngine"));
+
+    cw_key_down = 0;
+    cw_sidetone_down = 0;
+    TX.setSidetoneFrequency(static_cast<double>(m_cw_sidetone_freq));
 
 	m_clientConnected = false;
 
@@ -1606,6 +1607,10 @@ bool DataEngine::initReceivers(int rcvrs) {
             }
          //   connect(rx.get(), &SliceProcessor::outputBufferSignal, m_dataProcessor, &DataProcessor::setOutputBuffer);
 
+            if (m_cwIO) {
+                connect(m_cwIO, &iambic::key_down,
+                        rx, &SliceProcessor::cwKeyDown, Qt::DirectConnection);
+            }
 
 			m_dspThreadList.append(thread);
 			RX.append(rx);
@@ -1617,7 +1622,6 @@ bool DataEngine::initReceivers(int rcvrs) {
     }
     set->setRxList(RX);
 
-	
 	currentReceiver = 0;
 	setReceiversCount(rcvrs);
 
@@ -3519,8 +3523,6 @@ void DataProcessor::processDeviceData() {
 void DataProcessor::processInputBuffer(const QByteArray &buffer, quint16 sourcePort) {
     if (de->m_protocol) {
 		de->m_protocol->processInputBuffer(buffer, de, sourcePort);
-        if (de->ccRx.dash != de->ccRx.previous_dash) emit keyer_event(0, de->ccRx.dash);
-        if (de->ccRx.dot != de->ccRx.previous_dot) emit keyer_event(1, de->ccRx.dot);
     }
 }
 
@@ -3586,6 +3588,23 @@ void DataProcessor::add_rx_audio_sample() {
 			leftRXSample = (qint16) (rx_audio_buffer[rx_audio_ptr].re * 32767.0f);
 			rightRXSample = (qint16) (rx_audio_buffer[rx_audio_ptr].im * 32767.0f);
 		}
+
+        // Host CW sidetone — zero latency, mixed directly into the RX audio stream.
+        if (de->cw_sidetone_down > 0) {
+            if (m_sidetoneShape < RAMPLEN) ++m_sidetoneShape;
+            --de->cw_sidetone_down;
+        } else if (m_sidetoneShape > 0) {
+            --m_sidetoneShape;
+        }
+        if (m_sidetoneShape > 0) {
+            const double sidevol = de->m_cw_sidetone_volume * (32767.0 / 127.0);
+            const double tone = sidevol * cwramp48[m_sidetoneShape]
+                                * de->TX.getNextInternalSideToneSample();
+            const qint16 st = static_cast<qint16>(qBound(-32768.0, tone, 32767.0));
+            leftRXSample  = static_cast<qint16>(qBound(-32768, (int)leftRXSample  + st, 32767));
+            rightRXSample = static_cast<qint16>(qBound(-32768, (int)rightRXSample + st, 32767));
+        }
+
         de->output_buffer[m_idx++] = leftRXSample >> 8;
         de->output_buffer[m_idx++] = leftRXSample;
         de->output_buffer[m_idx++] = rightRXSample >> 8;
@@ -3619,7 +3638,11 @@ void DataProcessor::send_hpsdr_data(int rx, const CPX &buffer, int buffersize) {
 
     if (set->is_transmitting()) {
         if (!tx_index) get_tx_iqData();
-    } else memset(&m_tx_iq_Buffer, 0x0, sizeof(m_tx_iq_Buffer));
+    } else if (p1SoftwareCwActive() && de->cw_key_down > 0) {
+        if (!tx_index) get_tx_iqData();
+    } else {
+        memset(&m_tx_iq_Buffer, 0x0, sizeof(m_tx_iq_Buffer));
+    }
         while (rx_audio_ptr  <   buffersize) {
         add_rx_audio_sample();
         add_mic_sample();
@@ -3714,6 +3737,42 @@ void DataProcessor::add_mic_sample()
     de->output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
     de->output_buffer[m_idx++] = m_tx_iq_Buffer[tx_index++];
     if (tx_index >= 4096) tx_index = 0;
+}
+
+bool DataProcessor::p1SoftwareCwActive() const
+{
+    if (!set || !de)
+        return false;
+    if (set->getCurrentMetisCard().protocol == 2)
+        return false;
+    if (m_hwInterface != QSDR::Metis && m_hwInterface != QSDR::Hermes)
+        return false;
+    const DSPMode txMode = set->getDSPMode(de->currentReceiver);
+    return (txMode == DSPMode::CWU || txMode == DSPMode::CWL) && !set->isInternalCw();
+}
+
+void DataProcessor::fillP1CwTxIqBuffer()
+{
+    const double gain = 32767.0 * (static_cast<double>(de->txParams().drivelevel) / 255.0);
+    int idx = 0;
+    for (int j = 0; j < DSP_SAMPLE_SIZE; ++j) {
+        if (de->cw_key_down > 0) {
+            if (m_cwShape < RAMPLEN)
+                ++m_cwShape;
+            --de->cw_key_down;
+        } else if (m_cwShape > 0) {
+            --m_cwShape;
+        }
+
+        const double ramp = cwramp48[m_cwShape];
+        const long isample = 0;
+        const long qsample = static_cast<long>(floor(gain * ramp + 0.5));
+
+        m_tx_iq_Buffer[idx++] = static_cast<uchar>((isample >> 8) & 0xff);
+        m_tx_iq_Buffer[idx++] = static_cast<uchar>(isample & 0xff);
+        m_tx_iq_Buffer[idx++] = static_cast<uchar>((qsample >> 8) & 0xff);
+        m_tx_iq_Buffer[idx++] = static_cast<uchar>(qsample & 0xff);
+    }
 }
 
 /* cw code from pihpsdr */
@@ -3884,6 +3943,11 @@ void DataProcessor::get_tx_iqData(){
             mic_buffer[i] = 0.0;
             ++micNonFinite;
         }
+    }
+
+    if (p1SoftwareCwActive() && (set->is_transmitting() || de->cw_key_down > 0)) {
+        fillP1CwTxIqBuffer();
+        return;
     }
 
     if (set->is_transmitting()) {
@@ -4073,7 +4137,10 @@ void DataProcessor::setAudioBuffer(int rx, const CPX &buffer, int buffersize)
 	// process the output
 	const DSPMode rxMode = set->getDSPMode(de->currentReceiver);
 	const bool muteAnalogRxForCodec2 = (rxMode == FDV);
-    if (tx_index == 0)  get_tx_iqData();
+    if (tx_index == 0) {
+        if (set->is_transmitting() || (p1SoftwareCwActive() && de->cw_key_down > 0))
+            get_tx_iqData();
+    }
         for (int j = 0; j < buffersize; j++) {
 
 			if (muteAnalogRxForCodec2) {
@@ -4164,7 +4231,10 @@ void DataProcessor::setAudioBuffer_old(int rx, const CPX &buffer, int buffersize
 	// process the output
 	const DSPMode rxMode = set->getDSPMode(de->currentReceiver);
 	const bool muteAnalogRxForCodec2 = (rxMode == FDV);
-    if (tx_index == 0)  get_tx_iqData();
+    if (tx_index == 0) {
+        if (set->is_transmitting() || (p1SoftwareCwActive() && de->cw_key_down > 0))
+            get_tx_iqData();
+    }
     for (int j = 0; j < buffersize; j++) {
 
 		if (muteAnalogRxForCodec2) {
@@ -4430,7 +4500,7 @@ m_cw_hang_time = CwHangTime;
 void DataEngine::CwSidetoneFreqChanged(int CwSidetoneFreq)
 {
     m_cw_sidetone_freq = CwSidetoneFreq;
-
+    TX.setSidetoneFrequency(static_cast<double>(CwSidetoneFreq));
 }
 
 void DataEngine::CwKeyReversedChanged(int CwKeyReversed)
@@ -4534,19 +4604,26 @@ void DataEngine::createAudioInputProcessor() {
 
     connect(m_dataProcessor, &DataProcessor::keyer_event,
             m_cwIO, &iambic::keyer_event, Qt::DirectConnection);
+    connect(m_cwIO, &iambic::key_down,
+            m_dataProcessor, &DataProcessor::key_down, Qt::DirectConnection);
 
-/*
-    CHECKED_CONNECT_OPT(
-            m_dataProcessor,
-            SIGNAL(keyer_event(
-                    int,int)),
-            m_dataProcessor,
-            SLOT(key_down_test(
-                    int,int)), Qt::DirectConnection);
+    // Connect to any SliceProcessors already in RX list (e.g. SoapySDR path
+    // where initReceivers runs before createAudioInputProcessor).
+    for (SliceProcessor* rx : qAsConst(RX)) {
+        if (rx) {
+            connect(m_cwIO, &iambic::key_down,
+                    rx, &SliceProcessor::cwKeyDown, Qt::DirectConnection);
+        }
+    }
 
-*/
-   //         m_cwIO->Start();
+    m_cwIO->Start();
+}
 
+void DataEngine::decodeCCBytes(const QByteArray &buffer) {
+    if (m_dataProcessor)
+        m_dataProcessor->decodeCCBytes(buffer);
+    else if (m_protocol)
+        m_protocol->decodeCCBytes(buffer, this);
 }
 
 void DataEngine::set_tx_drivelevel(int value){
@@ -4676,11 +4753,15 @@ void DataProcessor::processReadData()
 #include <complex>
 
 void DataProcessor::key_down(int state) {
-    qDebug() << "Key Down" << state;
+    // cw_sidetone_down drives host sidetone regardless of internal/software mode.
     if (state) {
-        de->cw_key_down = 960000;    // up to 20 sec
+        de->cw_sidetone_down = 960000;
     } else {
-        de->cw_key_down = 0;
+        de->cw_sidetone_down = 0;
+    }
+    // cw_key_down drives software TX envelope — only needed when not using internal keyer.
+    if (!set->isInternalCw()) {
+        de->cw_key_down = de->cw_sidetone_down;
     }
 }
 

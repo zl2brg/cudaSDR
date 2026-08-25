@@ -109,6 +109,7 @@ set(SOURCES
     ${SRC_DIR}/main.cpp
     ${SRC_DIR}/Models/SliceModel.cpp
     ${SRC_DIR}/Models/RadioModel.cpp
+    ${SRC_DIR}/Models/TransmitModel.cpp
     ${SRC_DIR}/Models/RadioTelemetry.cpp
     ${SRC_DIR}/Models/BandPlanManager.cpp
     ${SRC_DIR}/Controllers/RadioController.cpp
@@ -449,6 +450,7 @@ if(BUILD_TESTING)
         ${SRC_DIR}/Settings/ReceiverConfig.cpp
         ${SRC_DIR}/Models/RadioModel.cpp
         ${SRC_DIR}/Models/SliceModel.cpp
+        ${SRC_DIR}/Models/TransmitModel.cpp
         ${SRC_DIR}/Models/RadioTelemetry.cpp
         ${SRC_DIR}/Models/BandPlanManager.cpp
         ${SRC_DIR}/Util/DxClusterClient.cpp

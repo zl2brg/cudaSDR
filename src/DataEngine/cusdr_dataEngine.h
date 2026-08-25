@@ -142,6 +142,8 @@ public:
 	/** Active DDC count owned by RadioModel (not slices().size()). */
 	int receivers() const;
 	void setReceiversCount(int count);
+    DataProcessor* dataProcessor() const { return m_dataProcessor; }
+    void decodeCCBytes(const QByteArray &buffer);
 #ifdef HAVE_SOAPYSDR
 	SoapySDRDataSource* m_soapySDRSource;
 #endif
@@ -160,6 +162,7 @@ public:
     int                 m_cw_hang_time;
     int                 m_cw_sidetone_freq;
     int                 cw_key_down;
+    int                 cw_sidetone_down;  // key-down counter for host sidetone (always active)
     RadioState          m_radioState;
 
     QFile           *file{};
@@ -432,6 +435,8 @@ public:
     int tx_index =0;
     double get_cwsample();
     void add_rx_audio_sample();
+    void fillP1CwTxIqBuffer();
+    bool p1SoftwareCwActive() const;
 
 	~DataProcessor() override;
 
@@ -451,19 +456,19 @@ public slots:
     void    send_hpsdr_data(int rx, const CPX &buffer, int buffersize);
     void    startSoapyTxIqTimer(int intervalMs);
     void    stopSoapyTxIqTimer();
+	void	decodeCCBytes(const QByteArray &buffer);
+    void    key_down(int);
 
 private slots:
     void    pumpSoapyTxIqTimer();
 	void	initDataProcessorSocket();
 	void    processInputBuffer(const QByteArray &buffer, quint16 sourcePort);
 	void	processOutputBuffer(const CPX &buffer);
-	void	decodeCCBytes(const QByteArray &buffer);
 	void	encodeCCBytes();
 	void 	setAudioBuffer(int rx, const CPX &buffer, int buffersize);
     void 	setAudioBuffer_old(int rx, const CPX &buffer, int buffersize);
 	void	writeData();
     void    buffer_tx_data();
-    void    key_down(int);
     void    key_down_test(int,int);
 
 public:
@@ -490,6 +495,8 @@ private:
 	QString			m_message;
     float           tx_mic_data[DSP_SAMPLE_SIZE];
     double          cw_shape_buffer[DSP_SAMPLE_SIZE * 2];
+    int             m_cwShape = 0;
+    int             m_sidetoneShape = 0;  // ramp for host sidetone (internal + software CW)
 
 
     QElapsedTimer	m_SyncChangedTime;

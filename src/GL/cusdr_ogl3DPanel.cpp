@@ -114,15 +114,17 @@ QGL3DPanel::QGL3DPanel(QWidget *parent, int rx)
 
     // Match the 2D receiver panel settings exactly
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-    const bool isWayland = QGuiApplication::platformName().contains("wayland", Qt::CaseInsensitive);
-    // Keep X11 uncapped for responsiveness; inherit vsync on Wayland (see main.cpp).
-    if (!isWayland) {
-        QSurfaceFormat format = QSurfaceFormat::defaultFormat();
-        format.setSwapInterval(0);
-        setFormat(format);
-    }
+    const bool isWayland = isNativeWaylandPlatform();
+    // Uncapped on every platform: X11 for camera responsiveness, Wayland to avoid
+    // NVIDIA eglSwapBuffers busy-wait. Flicker is handled by opaque surfaces + FBO restore.
+    QSurfaceFormat format = QSurfaceFormat::defaultFormat();
+    format.setSwapInterval(0);
+    setFormat(format);
+    disableVSyncOnNativeWayland(this);
     setUpdateBehavior(isWayland ? QOpenGLWidget::NoPartialUpdate : QOpenGLWidget::PartialUpdate);
     setAutoFillBackground(false);
+    setAttribute(Qt::WA_OpaquePaintEvent);
+    setAttribute(Qt::WA_NoSystemBackground);
 
     // Don't use a timer - make it fully data-driven like the 2D receiver panel
     // The 2D panel doesn't use any recurring timer, only updates when data arrives

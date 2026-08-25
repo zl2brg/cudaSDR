@@ -45,6 +45,9 @@
 #include <QScreen>
 #include <QSurfaceFormat>
 #include <QOpenGLContext>
+#include <QOpenGLFunctions>
+#include <QOffscreenSurface>
+#include <QByteArray>
 #include <QElapsedTimer>
 #include <QLoggingCategory> // NOTE: Added for the updated message handler
 
@@ -138,6 +141,44 @@ void load_WDSPWisdom() {
         qInfo() << "WDSP FFT wisdom rebuilt (first run or missing wdspWisdom01); subsequent starts will be faster";
 }
 
+static bool requestingNativeWayland(int argc, char **argv)
+{
+    const QByteArray env = qgetenv("QT_QPA_PLATFORM");
+    if (env.contains("wayland"))
+        return true;
+    for (int i = 1; i < argc; ++i) {
+        const QByteArray arg(argv[i]);
+        if (arg == "-platform" || arg == "--platform") {
+            if (i + 1 < argc && QByteArray(argv[i + 1]).contains("wayland"))
+                return true;
+        } else if (arg.startsWith("-platform=") || arg.startsWith("--platform=")) {
+            if (arg.contains("wayland"))
+                return true;
+        }
+    }
+    return false;
+}
+
+static void preferNvidiaEglForNativeWayland()
+{
+    const QString nvidiaIcd = QStringLiteral("/usr/share/glvnd/egl_vendor.d/10_nvidia.json");
+    if (!qEnvironmentVariableIsSet("__EGL_VENDOR_LIBRARY_FILENAMES") && QFile::exists(nvidiaIcd)) {
+        // Stop Mesa libEGL from probing the NVIDIA node (dri2 screen fails,
+        // driver (null), then a software fallback can silently eat 300% CPU).
+        qputenv("__EGL_VENDOR_LIBRARY_FILENAMES", nvidiaIcd.toUtf8());
+        qInfo() << "Native Wayland: pinning EGL vendor to NVIDIA" << nvidiaIcd;
+    }
+    if (!qEnvironmentVariableIsSet("GBM_BACKEND"))
+        qputenv("GBM_BACKEND", QByteArrayLiteral("nvidia-drm"));
+}
+
+static bool isSoftwareOpenGLRenderer(const QByteArray &renderer)
+{
+    const QByteArray r = renderer.toLower();
+    return r.contains("llvmpipe") || r.contains("softpipe")
+        || r.contains("swrast") || r.contains("software rasterizer");
+}
+
 int main(int argc, char *argv[]) {
 
 #ifndef DEBUG
@@ -153,6 +194,9 @@ int main(int argc, char *argv[]) {
             qInfo() << "Wayland session detected; using QT_QPA_PLATFORM=xcb (XWayland)."
                     << "Export QT_QPA_PLATFORM=wayland to force native Wayland.";
     }
+    // NVIDIA GLX/EGL often busy-spins waiting for vsync. usleep instead of a spin.
+    if (!qEnvironmentVariableIsSet("__GL_YIELD"))
+        qputenv("__GL_YIELD", QByteArrayLiteral("USLEEP"));
     // Qt6 multimedia on Linux commonly uses FFmpeg. Allow explicit override,
     // but default to ffmpeg so behavior is predictable across hosts.
     if (!qEnvironmentVariableIsSet("QT_MEDIA_BACKEND")) {
@@ -163,23 +207,33 @@ int main(int argc, char *argv[]) {
     }
 #endif
     QApplication::setHighDpiScaleFactorRoundingPolicy(Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
-    // Temporarily disable shared contexts to test if this is causing the refresh issue
     QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
-    
-    QApplication app(argc, argv);
-    app.setAttribute(Qt::AA_DontCreateNativeWidgetSiblings);
-    
+
     QSurfaceFormat format;
     format.setDepthBufferSize(24);
     format.setStencilBufferSize(8);
+    format.setAlphaBufferSize(0); // opaque surfaces: Wayland must not blend this window with whatever is underneath
     format.setVersion(3, 3);
     format.setProfile(QSurfaceFormat::CoreProfile);
-    // Vsync on all platforms: with several QOpenGLWidgets, swapInterval 0 makes the
-    // compositor show mid-clear frames as continuous window flicker.
-    format.setSwapInterval(1);
+    // Native Wayland + NVIDIA busy-waits in eglSwapBuffers when vsync is on (~250% CPU).
+    // Flicker is handled by opaque surfaces + restoring the QOpenGLWidget FBO after
+    // QOpenGLFramebufferObject::release(), so swapInterval(0) is safe on Wayland.
+    const bool nativeWayland = requestingNativeWayland(argc, argv);
+    if (nativeWayland)
+        preferNvidiaEglForNativeWayland();
+    format.setSwapInterval(nativeWayland ? 0 : 1);
     QSurfaceFormat::setDefaultFormat(format);
+
+    QApplication app(argc, argv);
+    app.setAttribute(Qt::AA_DontCreateNativeWidgetSiblings);
+
     qInfo() << "Qt platform:" << app.platformName()
             << "GL swapInterval:" << format.swapInterval();
+    if (app.platformName().contains(QLatin1String("wayland"), Qt::CaseInsensitive)
+            && format.swapInterval() != 0) {
+        qWarning() << "Native Wayland with vsync on: NVIDIA EGL may busy-wait (~250% CPU)."
+                   << "GL widgets will request swapInterval(0).";
+    }
 
     Settings::instance(&app);
 
@@ -271,6 +325,31 @@ int main(int argc, char *argv[]) {
     }
 
     qDebug() << "Init::\tOpenGL 3.3+ found.";
+
+    QOffscreenSurface probeSurface;
+    probeSurface.setFormat(context.format());
+    probeSurface.create();
+    QByteArray glRenderer;
+    if (probeSurface.isValid() && context.makeCurrent(&probeSurface)) {
+        QOpenGLFunctions *gl = context.functions();
+        const char *vendor = reinterpret_cast<const char *>(gl->glGetString(GL_VENDOR));
+        const char *renderer = reinterpret_cast<const char *>(gl->glGetString(GL_RENDERER));
+        const char *version = reinterpret_cast<const char *>(gl->glGetString(GL_VERSION));
+        glRenderer = renderer ? QByteArray(renderer) : QByteArray();
+        qInfo() << "Init::\tGL vendor:" << (vendor ? vendor : "?")
+                << "renderer:" << (renderer ? renderer : "?")
+                << "version:" << (version ? version : "?");
+        context.doneCurrent();
+    } else {
+        qWarning() << "Init::\tcould not make probe context current; GL renderer unknown.";
+    }
+    if (app.platformName().contains(QLatin1String("wayland"), Qt::CaseInsensitive)
+            && isSoftwareOpenGLRenderer(glRenderer)) {
+        qWarning() << "Init::\tnative Wayland is using a software OpenGL renderer."
+                   << "That typically follows Mesa 'egl: failed to create dri2 screen' on NVIDIA"
+                   << "and will pin several CPU cores. Use the default XWayland path"
+                   << "(unset QT_QPA_PLATFORM) or install NVIDIA EGL/Wayland (libnvidia-egl-wayland).";
+    }
     splash->showMessage(
         "\n      " +
             Settings::instance()->getTitleStr() + " " +
@@ -349,6 +428,7 @@ int main(int argc, char *argv[]) {
     for (int i = 0; i < 8; ++i) radioModel.addSlice(new SliceModel(i, &radioModel));
     Settings::instance()->setRadioModel(&radioModel);
     Settings::instance()->syncSlicesWithSettings();
+    Settings::instance()->syncTransmitWithSettings();
     tciServer.bindSlices(&radioModel);
     MainWindow mainWindow(&radioModel, Settings::instance());
     qDebug() << "Init::\tmain window setup ...";

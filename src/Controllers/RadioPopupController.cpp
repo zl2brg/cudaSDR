@@ -7,6 +7,7 @@
 #include "cusdr_radioPopupWidget.h"
 #include "cusdr_agcWidget.h"
 #include "UI/noisefilterwidget.h"
+#include "cusdr_displayWidget.h"
 
 RadioPopupController::RadioPopupController(QObject* parent)
     : QObject(parent)
@@ -181,12 +182,17 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
     if (m_sliceModel) {
         m_view->setCwDecodeEnabled(m_sliceModel->cwDecodeEnabled());
         connect(m_view, &RadioPopupWidget::cwDecodeRequested, this, [this](bool enabled) {
-            if (m_sliceModel)
+            if (m_sliceModel) {
                 m_sliceModel->setCwDecodeEnabled(enabled);
+                if (m_model)
+                    m_model->setCwDecode(m_sliceModel->id(), enabled);
+            }
         });
         connect(m_sliceModel, &SliceModel::cwDecodeEnabledChanged, this, [this](bool enabled) {
             if (m_view)
                 m_view->setCwDecodeEnabled(enabled);
+            if (m_model && m_sliceModel)
+                m_model->setCwDecode(m_sliceModel->id(), enabled);
         });
     }
 
@@ -484,6 +490,136 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
                 nfView->setEmnrPost2Nlevel(m_model->getEmnrPost2Nlevel());
                 nfView->setEmnrPost2Taper(m_model->getEmnrPost2Taper());
                 nfView->setEmnrPost2Rate(m_model->getEmnrPost2Rate());
+            });
+        }
+    }
+
+    // DisplayOptionsWidget binding (Spectrum & Display DSP controls)
+    DisplayOptionsWidget* dispView = m_view->displayOptionsWidget();
+    if (dispView && m_sliceModel) {
+        dispView->setCurrentReceiver(rx);
+        dispView->setFramesPerSecond(m_model ? m_model->getFramesPerSecond(rx) : 30);
+        dispView->setSpectrumAveragingCnt(m_sliceModel->spectrumAveragingCnt());
+        dispView->setWaterfallOffsetLo(m_sliceModel->waterfallOffsetLo());
+        dispView->setWaterfallOffsetHi(m_sliceModel->waterfallOffsetHi());
+        dispView->setPanadapterMode(m_sliceModel->panMode());
+        dispView->setWaterfallColorMode(m_sliceModel->waterfallMode());
+        dispView->setPanAveragingMode(m_sliceModel->panAveragingMode());
+        dispView->setPanDetectorMode(m_sliceModel->panDetectorMode());
+        dispView->setfftSize(m_sliceModel->fftSize());
+        if (m_model) {
+            dispView->setSMeterHoldTime(m_model->getSMeterHoldTime());
+            dispView->setCallsign(m_model->getCallsign());
+            dispView->setWidebandAveragingCnt(m_model->getSpectrumAveragingCnt(-1));
+        }
+
+        // View -> Model
+        connect(dispView, &DisplayOptionsWidget::framesPerSecondRequested, this, [this](int r, int val) {
+            if (m_model) m_model->setFramesPerSecond(r, val);
+        });
+
+        connect(dispView, &DisplayOptionsWidget::spectrumAveragingCntRequested, this, [this](int r, int val) {
+            if (r == -1) {
+                if (m_model) m_model->setSpectrumAveragingCnt(-1, val);
+            } else if (m_sliceModel) {
+                m_sliceModel->setSpectrumAveragingCnt(val);
+                if (m_model) m_model->setSpectrumAveragingCnt(r, val);
+            }
+        });
+
+        connect(dispView, &DisplayOptionsWidget::waterfallTimeRequested, this, [this](int r, int val) {
+            if (m_model) m_model->setWaterfallTime(r, val);
+        });
+
+        connect(dispView, &DisplayOptionsWidget::waterfallOffsetLoRequested, this, [this](int r, int val) {
+            if (m_sliceModel) {
+                m_sliceModel->setWaterfallOffsetLo(val);
+                if (m_model) m_model->setWaterfallOffesetLo(r, val);
+            }
+        });
+
+        connect(dispView, &DisplayOptionsWidget::waterfallOffsetHiRequested, this, [this](int r, int val) {
+            if (m_sliceModel) {
+                m_sliceModel->setWaterfallOffsetHi(val);
+                if (m_model) m_model->setWaterfallOffesetHi(r, val);
+            }
+        });
+
+        connect(dispView, &DisplayOptionsWidget::sMeterHoldTimeRequested, this, [this](int val) {
+            if (m_model) m_model->setSMeterHoldTime(val);
+        });
+
+        connect(dispView, &DisplayOptionsWidget::callsignRequested, this, [this](const QString& val) {
+            if (m_model) m_model->setCallsign(val);
+        });
+
+        connect(dispView, &DisplayOptionsWidget::graphicsStateRequested, this, [this](int r, int panadapterMode, int waterColorMode) {
+            if (r >= 0 && m_sliceModel) {
+                m_sliceModel->setPanMode(static_cast<PanGraphicsMode>(panadapterMode));
+                m_sliceModel->setWaterfallMode(static_cast<WaterfallColorMode>(waterColorMode));
+                if (m_model) m_model->setGraphicsState(r, static_cast<PanGraphicsMode>(panadapterMode), static_cast<WaterfallColorMode>(waterColorMode));
+            } else if (r == -1 && m_model) {
+                m_model->setGraphicsState(-1, static_cast<PanGraphicsMode>(panadapterMode), static_cast<WaterfallColorMode>(waterColorMode));
+            }
+        });
+
+        connect(dispView, &DisplayOptionsWidget::panAveragingModeRequested, this, [this](int r, int mode) {
+            if (m_sliceModel) {
+                m_sliceModel->setPanAveragingMode(static_cast<PanAveragingMode>(mode));
+                if (m_model) m_model->setPanAveragingMode(r, static_cast<PanAveragingMode>(mode));
+            }
+        });
+
+        connect(dispView, &DisplayOptionsWidget::panDetectorModeRequested, this, [this](int r, int mode) {
+            if (m_sliceModel) {
+                m_sliceModel->setPanDetectorMode(static_cast<PanDetectorMode>(mode));
+                if (m_model) m_model->setPanDetectorMode(r, static_cast<PanDetectorMode>(mode));
+            }
+        });
+
+        connect(dispView, &DisplayOptionsWidget::fftSizeRequested, this, [this](int r, int size) {
+            if (m_sliceModel) {
+                m_sliceModel->setFftSize(size);
+                if (m_model) m_model->setfftSize(r, size);
+            }
+        });
+
+        connect(dispView, &DisplayOptionsWidget::fmsqLevelRequested, this, [this](int r, int val) {
+            if (m_model) m_model->setfmsqLevel(r, val);
+        });
+
+        // Model (SliceModel) -> View
+        connect(m_sliceModel, &SliceModel::spectrumAveragingCntChanged, this, [dispView](int val) {
+            dispView->setSpectrumAveragingCnt(val);
+        });
+        connect(m_sliceModel, &SliceModel::waterfallOffsetChanged, this, [this, dispView]() {
+            if (m_sliceModel) {
+                dispView->setWaterfallOffsetLo(m_sliceModel->waterfallOffsetLo());
+                dispView->setWaterfallOffsetHi(m_sliceModel->waterfallOffsetHi());
+            }
+        });
+        connect(m_sliceModel, &SliceModel::panModeChanged, this, [dispView](PanGraphicsMode mode) {
+            dispView->setPanadapterMode(mode);
+        });
+        connect(m_sliceModel, &SliceModel::waterfallModeChanged, this, [dispView](WaterfallColorMode mode) {
+            dispView->setWaterfallColorMode(mode);
+        });
+        connect(m_sliceModel, &SliceModel::panAveragingModeChanged, this, [dispView](PanAveragingMode mode) {
+            dispView->setPanAveragingMode(mode);
+        });
+        connect(m_sliceModel, &SliceModel::panDetectorModeChanged, this, [dispView](PanDetectorMode mode) {
+            dispView->setPanDetectorMode(mode);
+        });
+        connect(m_sliceModel, &SliceModel::fftSizeChanged, this, [dispView](int size) {
+            dispView->setfftSize(size);
+        });
+        if (m_model) {
+            connect(m_model, &Settings::spectrumAveragingCntChanged, this, [this, dispView](int r, int val) {
+                if (r == -1) {
+                    dispView->setWidebandAveragingCnt(val);
+                } else if (dispView->currentReceiver() == r) {
+                    dispView->setSpectrumAveragingCnt(val);
+                }
             });
         }
     }

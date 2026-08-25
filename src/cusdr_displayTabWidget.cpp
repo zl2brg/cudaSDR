@@ -26,17 +26,14 @@ DisplayTabWidget::DisplayTabWidget(RadioModel *model, QWidget *parent)
 	setUsesScrollButtons(true);
 	tabBar()->setExpanding(false);
 	
-	m_displayWidget = new DisplayOptionsWidget(m_radioModel, this);
 	m_colorWidget = new ColorOptionsWidget(this);
 	m_3DWidget = new Options3DWidget(this);
 
-	this->addTab(m_displayWidget, " Display ");
 	this->addTab(m_colorWidget, " Colors ");
 	this->addTab(m_3DWidget, " 3D View ");
 
 	setTabEnabled(0, true);
 	setTabEnabled(1, true);
-	setTabEnabled(2, true);
 	setupConnections();
 }
 
@@ -49,7 +46,6 @@ DisplayTabWidget::~DisplayTabWidget() {
 
     disconnect(0, 0, 0);
     
-    delete m_displayWidget;
     delete m_colorWidget;
     delete m_3DWidget;
 }

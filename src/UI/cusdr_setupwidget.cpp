@@ -61,16 +61,16 @@ cusdr_SetupWidget::cusdr_SetupWidget(RadioModel *model, QWidget *parent)
     m_hpsdrSettingsController->bind(m_hpsdrWidget, set);
     m_alexTabWidget = new AlexTabWidget(this);
     m_alexSettingsController = new AlexSettingsController(this);
-    m_alexSettingsController->bind(m_alexTabWidget, set);
+    m_alexSettingsController->bind(m_alexTabWidget, m_radioModel, set);
     m_extCtrlWidget = new ExtCtrlWidget(this);
     m_extCtrlSettingsController = new ExtCtrlSettingsController(this);
-    m_extCtrlSettingsController->bind(m_extCtrlWidget, set);
+    m_extCtrlSettingsController->bind(m_extCtrlWidget, m_radioModel, set);
     m_txsettingsWidget = new tx_settings_dialog(this);
     m_transmitSettingsController = new TransmitSettingsController(this);
-    m_transmitSettingsController->bind(m_txsettingsWidget, set);
+    m_transmitSettingsController->bind(m_txsettingsWidget, m_radioModel ? m_radioModel->transmit() : nullptr, set);
     m_displaytabWidget = new DisplayTabWidget(m_radioModel, this);
     m_displaySettingsController = new DisplaySettingsController(this);
-    m_displaySettingsController->bind(m_displaytabWidget, set);
+    m_displaySettingsController->bind(m_displaytabWidget, m_radioModel, set);
 #ifdef HAVE_SOAPYSDR
     m_radioSettingsWidget = new cusdr_radioSettingsWidget(this);
     m_radioSettingsController = new RadioSettingsController(this);

@@ -1,315 +1,320 @@
 #include "cusdr_iambic.h"
-//
-// Created by Simon Eatough, ZL2BRG on 24/03/22
-//
+#include <time.h>
+#include <QtGlobal>
+#include <QDebug>
 
-#include <QThread>
+iambic::iambic(QObject *parent)
+    : QThread(parent)
+    , m_settings(Settings::instance())
+{
+    if (m_settings) {
+        m_cwKeyerMode = m_settings->getCwKeyerMode();
+        m_cwKeyerSpeed = m_settings->getCwKeyerSpeed();
+        m_cwKeyerWeight = m_settings->getCwKeyerWeight();
+        m_cwKeyerSpacing = m_settings->getCwKeyerSpacing();
+        m_cwKeysReversed = m_settings->isCwKeyReversed();
+        m_cwHangTime = m_settings->getCwHangTime();
 
-#define KEYER_STRAIGHT 0
-#define KEYER_MODE_A 1
-#define KEYER_MODE_B 2
-#define NSEC_PER_SEC   1000000000
+        connect(m_settings, &Settings::CwKeyerModeChanged, this, &iambic::setKeyerMode);
+        connect(m_settings, &Settings::CwKeyerSpeedChanged, this, &iambic::setKeyerSpeed);
+        connect(m_settings, &Settings::CwKeyerWeightChanged, this, &iambic::setKeyerWeight);
+        connect(m_settings, &Settings::CwKeyerSpacingChanged, this, &iambic::setKeyerSpacing);
+        connect(m_settings, &Settings::CwKeyReversedChanged, this, &iambic::setKeyReversed);
+        connect(m_settings, &Settings::CwHangTimeChanged, this, &iambic::setHangTime);
+    }
+    updateLengths();
+    setupPointers();
+}
 
-#define LOG_CW_ENGINE
-#ifdef LOG_CW_ENGINE
-#define CW_ENGINE_DEBUG qDebug().nospace() << "CW Engine::\t"
-#else
-#   define CW_ENGINE_DEBUG nullDebug()
-#endif
+iambic::~iambic() {
+    Stop();
+}
 
-int cw_keyer_spacing=10;
+void iambic::Start() {
+    start(QThread::TimeCriticalPriority);
+}
 
-void iambic::keyer_event(int left, int state) {
-    if (left) {
-        // left paddle hit or released
-        kcwl = state;
-        if (state) *kmeml=1;  // trigger dot/dash memory
+void iambic::Stop() {
+    {
+        QMutexLocker locker(&m_mutex);
+        m_threadQuit = true;
+        m_waitCond.wakeAll();
+    }
+    wait(500);
+}
+
+void iambic::updateLengths() {
+    const int spd = qBound(1, m_cwKeyerSpeed, 100);
+    m_dotLengthMs = 1200 / spd;
+    const int wt = qBound(10, m_cwKeyerWeight, 90);
+    m_dashLengthMs = (m_dotLengthMs * 3 * wt) / 50;
+}
+
+void iambic::setupPointers() {
+    // keyer_event: channel 0 -> kcwr (dash line), channel 1 -> kcwl (dot line).
+    if (m_cwKeysReversed) {
+        m_kdot = &m_kcwr;
+        m_kdash = &m_kcwl;
+        m_kmemLeft = &m_dashMemory;
+        m_kmemRight = &m_dotMemory;
     } else {
-        // right paddle hit or released
-        kcwr = state;
-        if (state) *kmemr=1;  // trigger dot/dash memory
+        m_kdot = &m_kcwl;
+        m_kdash = &m_kcwr;
+        m_kmemLeft = &m_dotMemory;
+        m_kmemRight = &m_dashMemory;
+    }
+}
+
+void iambic::setKeyerMode(int mode) {
+    QMutexLocker locker(&m_mutex);
+    m_cwKeyerMode = mode;
+}
+
+void iambic::setKeyerSpeed(int wpm) {
+    QMutexLocker locker(&m_mutex);
+    m_cwKeyerSpeed = wpm;
+    updateLengths();
+}
+
+void iambic::setKeyerWeight(int weight) {
+    QMutexLocker locker(&m_mutex);
+    m_cwKeyerWeight = weight;
+    updateLengths();
+}
+
+void iambic::setKeyReversed(int reversed) {
+    QMutexLocker locker(&m_mutex);
+    m_cwKeysReversed = (reversed != 0);
+    setupPointers();
+}
+
+void iambic::setHangTime(int hangTime) {
+    QMutexLocker locker(&m_mutex);
+    m_cwHangTime = hangTime;
+}
+
+void iambic::setKeyerSpacing(int spacing) {
+    QMutexLocker locker(&m_mutex);
+    m_cwKeyerSpacing = spacing;
+}
+
+void iambic::keyer_event(int channel, int state) {
+    QMutexLocker locker(&m_mutex);
+    if (channel) {
+        m_kcwl = state;
+        if (state && m_kmemLeft) *m_kmemLeft = 1;
+    } else {
+        m_kcwr = state;
+        if (state && m_kmemRight) *m_kmemRight = 1;
     }
     if (state) {
-        cw_event = true;
+        m_cwEvent = true;
+        m_waitCond.wakeOne();
     }
-
 }
 
-iambic::iambic(QObject *parent) : QThread(parent)
-  , set(Settings::instance())
-{
-radioState = set->getRadioState();
-txmode = set->getDSPMode(0);
-    dot_length = 1200 / cw_keyer_speed;
-    // will be 3 * dot length at standard weight
-    dash_length = (dot_length * 3 * cw_keyer_weight) / 50;
-
-    bool cw_keys_reversed = 0;
-    if (cw_keys_reversed) {
-        kdot  = &kcwr;
-        kdash = &kcwl;
-        kmemr = &dot_memory;
-        kmeml = &dash_memory;
-    } else {
-        kdot  = &kcwl;
-        kdash = &kcwr;
-        kmeml = &dot_memory;
-        kmemr = &dash_memory;
-    }
-
+void iambic::set_keyer_out(int state) {
+    emit key_down(state);
 }
 
+void iambic::run() {
+    const int checkIntervalUs = 1000; // 1 ms sampling resolution during delays
+    int kdelay = 0;
+    m_cwvox = 0;
 
+    while (!m_threadQuit) {
+        {
+            QMutexLocker locker(&m_mutex);
+            while (!m_threadQuit && !m_cwEvent && m_kcwl == 0 && m_kcwr == 0 && m_dotMemory == 0 && m_dashMemory == 0 && m_cwvox == 0) {
+                m_waitCond.wait(&m_mutex);
+            }
+            m_cwEvent = false;
+        }
 
+        if (m_threadQuit) break;
 
-iambic::~iambic(){
-Stop();
-}
+        m_keyState = CHECK;
 
-void iambic::Start(){
-   qDebug() << "Start";
-  start(QThread::TimeCriticalPriority);
-}
+        while (m_keyState != EXITLOOP || m_cwvox > 0) {
+            if (m_threadQuit) break;
 
-
-
-void  iambic::Stop(){
-
-    m_ThreadQuit = true;
-    msleep(100);
-
-}
-
-
-void iambic::run()
-{
-        struct timespec loop_delay;
-        int interval = 1000000; // 1 ms
-        int kdelay;
-        bool cw_breakin = false;
-        bool enforce_cw_vox = false;
-        cwvox=0;
-        while(!m_ThreadQuit) {
-
-            if (cw_event) {
-                cw_event = false;
-                if (!kcwl && !kcwr) continue;
-                // check mode: to not induce RX/TX transition if not in CW mode
-                if (radioState != MOX && cw_breakin && (txmode == CWU || txmode == CWL)) {
-                    // Wait for mox, that is, wait for WDSP shutting down the RX and
-                    // firing up the TX. This induces a small delay when hitting the key for
-                    // the first time, but excludes that the first dot is swallowed.
-                    // Note: if out-of-band, mox will never come, therefore
-                    // give up after 200 msec.
-                    int wait_ms = 200;
-              //      while ((radioState != MOX || cw_not_ready) && i-- > 0) usleep(1000L);
-                //    cwvox = (int) cw_keyer_hang_time;
-                    Q_UNUSED(wait_ms)
-                }
-                // Trigger VOX if CAT CW was active and we have interrupted it by hitting a key
-                if (enforce_cw_vox) cwvox = (int) cw_keyer_hang_time;
-
-                key_state = CHECK;
-
-                while (key_state != EXITLOOP || cwvox > 0) {
-                    //
-                    // if key_state == EXITLOOP and cwvox == 0, then
-                    // just leave the while-loop without removing MOX
-                    //
-                    // re-trigger VOX if *not* busy-spinning
-                    if (cwvox > 0 && key_state != EXITLOOP && key_state != CHECK) cwvox = (int) cw_keyer_hang_time;
-                    switch (key_state) {
-
-                        case EXITLOOP:
-                            // If we arrive here, cwvox is greater than zero, since key_state==EXITLOOP
-                            // AND cwvox==0 leaves the outer "while" loop.
-                            cwvox--;
-                            // If CW-vox still hanging, continue "busy-spinning"
-                            if (cwvox == 0) {
-                                // we have just reduced cwvox from 1 to 0.
-                                ext_mox_update();
-                            } else {
-                                key_state = CHECK;
-                            }
-                            break;
-
-                        case CHECK: // check for key press
-                            key_state = EXITLOOP;  // default next state
-                            // Do not decrement cwvox until zero here, otherwise
-                            // we won't enter the code 10 lines above that de-activates MOX.
-                            if (cwvox > 1) cwvox--;
-                            if (cw_keyer_mode == KEYER_STRAIGHT) {       // Straight/External key or bug
-                                if (*kdash) {                  // send manual dashes
-                                    set_keyer_out(1);
-                                    clock_gettime(CLOCK_MONOTONIC, &loop_delay);
-                                    // wait until dash is released. Check once a milli-sec
-                                    while (*kdash) {
-
-
-                                        loop_delay.tv_nsec += interval;
-                                        while (loop_delay.tv_nsec >= NSEC_PER_SEC) {
-                                            loop_delay.tv_nsec -= NSEC_PER_SEC;
-                                            loop_delay.tv_sec++;
-                                        }
-                                        clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &loop_delay, NULL);
-                                       //msleep(1);
-                                    }
-
-                                // dash released.
-                                set_keyer_out(0);
-                                // since we stay in CHECK mode, re-trigger cwvox here
-                                cwvox = cw_keyer_hang_time;
-                                }
-                                if (*kdot) {
-                                    // "bug" mode: dot key activates automatic dots
-                                    key_state = SENDDOT;
-                                }
-                            }
-                                // end of KEYER_STRAIGHT case
-                             else {
-                                // Paddle
-                                // If both following if-statements are true, which one should win?
-                                // I think a "simultaneous squeeze" means a dot-dash sequence, since in
-                                // a dash-dot sequence there is a larger time window to hit the dot.
-                                if (*kdash) key_state = SENDDASH;
-                                if (*kdot) key_state = SENDDOT;
-                            }
-                            break;
-
-                        case SENDDOT:
-                            dash_memory = 0;
-                            dash_held = *kdash;
-                            set_keyer_out(1);
-                            // Wait one dot length, then key-up
-                            clock_gettime(CLOCK_MONOTONIC, &loop_delay);
-                            // Wait one dot length, then key-up
-                            loop_delay.tv_nsec += 1000000 * dot_length;
-                            while (loop_delay.tv_nsec >= NSEC_PER_SEC) {
-                                loop_delay.tv_nsec -= NSEC_PER_SEC;
-                                loop_delay.tv_sec++;
-                            }
-                            clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &loop_delay, NULL);
-                            set_keyer_out(0);
-                            key_state = DOTDELAY;       // add inter-character spacing of one dot length
-                            kdelay = 0;
-                            break;
-
-                        case DOTDELAY:
-                            kdelay++;
-            if (kdelay > dot_length) {
-                                if (cw_keyer_mode == KEYER_STRAIGHT) {
-                                    // bug mode: continue sending dots or exit, depending on current dot key status
-                                    key_state = EXITLOOP;
-                                    if (*kdot) key_state = SENDDOT;
-                                    // end of bug/straight case
-                                } else {
-//
-//                  DL1YCF:
-//                  This is my understanding where MODE A comes in:
-//                  If at the end of the delay, BOTH keys are
-//                  released, then do not start the next element.
-//                  However, if  the dash has been hit DURING the preceeding
-//                  dot, produce a dash in either case
-//
-                                    if (cw_keyer_mode == KEYER_MODE_A && !*kdot && !*kdash) dash_held = 0;
-
-                                    if (dash_memory || *kdash || dash_held)
-                                        key_state = SENDDASH;
-                                    else if (*kdot)                                 // dot still held, so send a dot
-                                        key_state = SENDDOT;
-                                    else if (cw_keyer_spacing) {
-                                        dot_memory = dash_memory = 0;
-                                        key_state = LETTERSPACE;
-                                        kdelay = 0;
-                                    } else
-                                        key_state = EXITLOOP;
-                                    // end of iambic case
-                                }
-                            }
-                            break;
-
-                        case SENDDASH:
-                            dot_memory = 0;
-                            dot_held = *kdot;  // remember if dot is still held at beginning of the dash
-                            set_keyer_out(1);
-                            clock_gettime(CLOCK_MONOTONIC, &loop_delay);
-                            // Wait one dash length and then key-up
-                            loop_delay.tv_nsec += 1000000L * dash_length;
-                            while (loop_delay.tv_nsec >= NSEC_PER_SEC) {
-                                loop_delay.tv_nsec -= NSEC_PER_SEC;
-                                loop_delay.tv_sec++;
-                            }
-                            clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME,  &loop_delay, NULL);
-                            set_keyer_out(0);
-                            key_state = DASHDELAY;       // add inter-character spacing of one dot length
-                            kdelay = 0;
-                            // do not fall through, update VOX at beginning of loop
-                            break;
-
-                        case DASHDELAY:
-                            // we never arrive here in STRAIGHT/BUG mode
-                            kdelay++;
-                            if (kdelay > dot_length) {
-//
-//                  DL1YCF:
-//                  This is my understanding where MODE A comes in:
-//                  If at the end of the dash delay, BOTH keys are
-//                  released, then do not start the next element.
-//                  However, if  the dot has been hit DURING the preceeding
-//                  dash, produce a dot in either case
-//
-                                if (cw_keyer_mode == KEYER_MODE_A && !*kdot && !*kdash) dot_held = 0;
-                                if (dot_memory || *kdot || dot_held)
-                                    key_state = SENDDOT;
-                                else if (*kdash)
-                                    key_state = SENDDASH;
-                                else if (cw_keyer_spacing) {
-                                    dot_memory = dash_memory = 0;
-                                    key_state = LETTERSPACE;
-                                    kdelay = 0;
-                                } else key_state = EXITLOOP;
-                            }
-                            break;
-
-                        case LETTERSPACE:
-                            // Add letter space (3 x dot delay) to end of character and check if a paddle is pressed during this time.
-                            // Actually add 2 x dot_length since we already have a dot delay at the end of the character.
-                            kdelay++;
-                            if (kdelay > 2 * dot_length) {
-                                if (dot_memory)         // check if a dot or dash paddle was pressed during the delay.
-                                    key_state = SENDDOT;
-                                else if (dash_memory)
-                                    key_state = SENDDASH;
-                                else key_state = EXITLOOP;   // no memories set so restart
-                            }
-                            break;
-
-                        default:
-                            fprintf(stderr, "KEYER THREAD: unknown state=%d", (int) key_state);
-                            key_state = EXITLOOP;
-                    }
-
-                }
-
-
+            if (m_cwvox > 0 && m_keyState != EXITLOOP && m_keyState != CHECK) {
+                m_cwvox = m_cwHangTime;
             }
 
-//        CW_ENGINE_DEBUG <<  "CW running";
+            switch (m_keyState) {
+            case EXITLOOP:
+                if (m_cwvox > 0) {
+                    m_cwvox--;
+                    if (m_cwvox == 0) {
+                        // Hang time expired
+                    } else {
+                        struct timespec ts = {0, checkIntervalUs * 1000};
+                        nanosleep(&ts, nullptr);
+                        if (*m_kdot || *m_kdash || m_dotMemory || m_dashMemory) {
+                            m_keyState = CHECK;
+                        }
+                    }
+                }
+                break;
 
+            case CHECK:
+                m_keyState = EXITLOOP;
+                if (m_cwvox > 1) m_cwvox--;
+
+                if (m_cwKeyerMode == KEYER_STRAIGHT) {
+                    // Straight / Bug mode
+                    if (*m_kdash) {
+                        set_keyer_out(1);
+                        while (*m_kdash && !m_threadQuit) {
+                            struct timespec ts = {0, checkIntervalUs * 1000};
+                            nanosleep(&ts, nullptr);
+                        }
+                        set_keyer_out(0);
+                        m_cwvox = m_cwHangTime;
+                    }
+                    if (*m_kdot) {
+                        m_keyState = SENDDOT;
+                    }
+                } else {
+                    // Iambic Paddle (Mode A, Mode B, Ultimatic)
+                    if (m_dotMemory || *m_kdot) {
+                        m_keyState = SENDDOT;
+                    } else if (m_dashMemory || *m_kdash) {
+                        m_keyState = SENDDASH;
+                    }
+                }
+                break;
+
+            case SENDDOT: {
+                m_dotMemory = 0;
+                m_dashHeld = *m_kdash;
+                set_keyer_out(1);
+
+                int remainingMs = m_dotLengthMs;
+                while (remainingMs > 0 && !m_threadQuit) {
+                    int sleepMs = qMin(remainingMs, 2);
+                    struct timespec ts = {0, sleepMs * 1000000};
+                    nanosleep(&ts, nullptr);
+                    remainingMs -= sleepMs;
+                    if (*m_kdash) m_dashMemory = 1;
+                }
+
+                set_keyer_out(0);
+                m_keyState = DOTDELAY;
+                kdelay = 0;
+                break;
+            }
+
+            case DOTDELAY: {
+                int remainingMs = m_dotLengthMs;
+                while (remainingMs > 0 && !m_threadQuit) {
+                    int sleepMs = qMin(remainingMs, 2);
+                    struct timespec ts = {0, sleepMs * 1000000};
+                    nanosleep(&ts, nullptr);
+                    remainingMs -= sleepMs;
+                    if (*m_kdash) m_dashMemory = 1;
+                    if (*m_kdot) m_dotMemory = 1;
+                }
+
+                if (m_cwKeyerMode == KEYER_STRAIGHT) {
+                    m_keyState = (*m_kdot) ? SENDDOT : EXITLOOP;
+                } else {
+                    if (m_cwKeyerMode == KEYER_MODE_A && !*m_kdot && !*m_kdash) {
+                        m_dashHeld = 0;
+                    }
+
+                    if (m_dashMemory || *m_kdash || m_dashHeld) {
+                        m_dashHeld = 0;
+                        m_keyState = SENDDASH;
+                    } else if (*m_kdot || m_dotMemory) {
+                        m_keyState = SENDDOT;
+                    } else if (m_cwKeyerSpacing > 0) {
+                        m_dotMemory = m_dashMemory = 0;
+                        m_keyState = LETTERSPACE;
+                        kdelay = 0;
+                    } else {
+                        m_keyState = EXITLOOP;
+                    }
+                }
+                break;
+            }
+
+            case SENDDASH: {
+                m_dashMemory = 0;
+                m_dotHeld = *m_kdot;
+                set_keyer_out(1);
+
+                int remainingMs = m_dashLengthMs;
+                while (remainingMs > 0 && !m_threadQuit) {
+                    int sleepMs = qMin(remainingMs, 2);
+                    struct timespec ts = {0, sleepMs * 1000000};
+                    nanosleep(&ts, nullptr);
+                    remainingMs -= sleepMs;
+                    if (*m_kdot) m_dotMemory = 1;
+                }
+
+                set_keyer_out(0);
+                m_keyState = DASHDELAY;
+                kdelay = 0;
+                break;
+            }
+
+            case DASHDELAY: {
+                int remainingMs = m_dotLengthMs;
+                while (remainingMs > 0 && !m_threadQuit) {
+                    int sleepMs = qMin(remainingMs, 2);
+                    struct timespec ts = {0, sleepMs * 1000000};
+                    nanosleep(&ts, nullptr);
+                    remainingMs -= sleepMs;
+                    if (*m_kdot) m_dotMemory = 1;
+                    if (*m_kdash) m_dashMemory = 1;
+                }
+
+                if (m_cwKeyerMode == KEYER_MODE_A && !*m_kdot && !*m_kdash) {
+                    m_dotHeld = 0;
+                }
+
+                if (m_dotMemory || *m_kdot || m_dotHeld) {
+                    m_dotHeld = 0;
+                    m_keyState = SENDDOT;
+                } else if (*m_kdash || m_dashMemory) {
+                    m_keyState = SENDDASH;
+                } else if (m_cwKeyerSpacing > 0) {
+                    m_dotMemory = m_dashMemory = 0;
+                    m_keyState = LETTERSPACE;
+                    kdelay = 0;
+                } else {
+                    m_keyState = EXITLOOP;
+                }
+                break;
+            }
+
+            case LETTERSPACE: {
+                int remainingMs = 2 * m_dotLengthMs;
+                while (remainingMs > 0 && !m_threadQuit) {
+                    int sleepMs = qMin(remainingMs, 2);
+                    struct timespec ts = {0, sleepMs * 1000000};
+                    nanosleep(&ts, nullptr);
+                    remainingMs -= sleepMs;
+                    if (*m_kdot) m_dotMemory = 1;
+                    if (*m_kdash) m_dashMemory = 1;
+                }
+
+                if (m_dotMemory || *m_kdot) {
+                    m_keyState = SENDDOT;
+                } else if (m_dashMemory || *m_kdash) {
+                    m_keyState = SENDDASH;
+                } else {
+                    m_keyState = EXITLOOP;
+                }
+                break;
+            }
+
+            default:
+                m_keyState = EXITLOOP;
+                break;
+            }
+        }
     }
-
-}
-
-
-
-int iambic::get_tx_mode() {
-    return 0;
-}
-
-void iambic::ext_mox_update() {
-
-}
-
-void iambic::set_keyer_out(int i) {
-    emit key_down(i);
 }

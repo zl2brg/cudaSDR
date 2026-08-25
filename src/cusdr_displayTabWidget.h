@@ -43,7 +43,6 @@ private:
 	QSDR::_HWInterfaceMode		m_hwInterface;
 	QSDR::_DataEngineState		m_dataEngineState;
 
-	DisplayOptionsWidget		*m_displayWidget;
 	ColorOptionsWidget			*m_colorWidget;
 	Options3DWidget				*m_3DWidget;
 	

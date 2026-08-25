@@ -5,13 +5,12 @@
 //
 
 #include <QObject>
-#include <QList>
-#include "QMutex"
-#include "stdint.h"
+#include <QThread>
+#include <QMutex>
+#include <QWaitCondition>
 #include "cusdr_settings.h"
 
-
-enum {
+enum KeyerState {
     CHECK = 0,
     SENDDOT,
     SENDDASH,
@@ -21,67 +20,71 @@ enum {
     EXITLOOP
 };
 
+enum KeyerMode {
+    KEYER_STRAIGHT = 0,
+    KEYER_MODE_A = 1,
+    KEYER_MODE_B = 2,
+    KEYER_ULTIMATIC = 3
+};
+
 class iambic : public QThread
 {
     Q_OBJECT
 public:
-    explicit  iambic(QObject *parent = NULL);
-    ~iambic();
-    void Setup();
+    explicit iambic(QObject *parent = nullptr);
+    ~iambic() override;
     void Stop();
     void Start();
-    void run();
-    public:
-
-
-    private:
-    Settings		*set;
-
-        bool m_BlockingMode = false;
-        volatile bool m_ThreadQuit = false;
-        bool m_Startup = false;
-        volatile bool m_running = false;
-        volatile bool cw_event = false;
-        int dot_memory = 0;
-        int dash_memory = 0;
-        int dot_held = 0;
-        int dash_held = 0;
-        int key_state = 0;
-        int dot_length = 1000;
-        int dash_length = 0;
-        volatile int kcwl = 0;
-        volatile int kcwr = 0;
-
-        volatile int *kdot;
-        volatile int *kdash;
-        volatile int *kmemr;
-        volatile int *kmeml;
-        RadioState radioState;
-        DSPMode txmode;
-        volatile int cwvox;
-        int cw_keyer_hang_time=10;
-        int cw_keyer_mode;
-        int cw_keyer_speed = 12;
-        int cw_keyer_weight = 50;
-
-public:
+    void run() override;
 
 signals:
-    void key_down(int count);
+    void key_down(int state);
 
 public slots:
-    void keyer_event(int left, int state);
+    /** Channel 0 = dash line, channel 1 = dot line (HPSDR ccRx convention). */
+    void keyer_event(int channel, int state);
+    void setKeyerMode(int mode);
+    void setKeyerSpeed(int wpm);
+    void setKeyerWeight(int weight);
+    void setKeyReversed(int reversed);
+    void setHangTime(int hangTime);
+    void setKeyerSpacing(int spacing);
 
-    private slots:
+private:
+    void updateLengths();
+    void setupPointers();
+    void set_keyer_out(int state);
 
-    int get_tx_mode();
+    Settings*           m_settings;
+    QMutex              m_mutex;
+    QWaitCondition      m_waitCond;
 
-    void ext_mox_update();
+    volatile bool       m_threadQuit = false;
+    volatile bool       m_cwEvent = false;
 
-    void set_keyer_out(int i);
+    int                 m_dotMemory = 0;
+    int                 m_dashMemory = 0;
+    int                 m_dotHeld = 0;
+    int                 m_dashHeld = 0;
+    int                 m_keyState = CHECK;
+    int                 m_dotLengthMs = 60;
+    int                 m_dashLengthMs = 180;
+
+    volatile int        m_kcwl = 0;
+    volatile int        m_kcwr = 0;
+
+    volatile int*       m_kdot = nullptr;
+    volatile int*       m_kdash = nullptr;
+    int*                m_kmemLeft = nullptr;
+    int*                m_kmemRight = nullptr;
+
+    int                 m_cwHangTime = 10;
+    int                 m_cwKeyerMode = KEYER_MODE_B;
+    int                 m_cwKeyerSpeed = 20;
+    int                 m_cwKeyerWeight = 50;
+    int                 m_cwKeyerSpacing = 0;
+    bool                m_cwKeysReversed = false;
+    volatile int        m_cwvox = 0;
 };
-
-
-
 
 #endif // CWENGINE_H

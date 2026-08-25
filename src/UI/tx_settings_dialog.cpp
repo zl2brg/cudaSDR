@@ -99,8 +99,9 @@ tx_settings_dialog::tx_settings_dialog(QWidget *parent) :
 
     QGroupBox *txEqGroup = new QGroupBox(QStringLiteral("TX Equalizer"), this);
     QVBoxLayout *txEqLayout = new QVBoxLayout(txEqGroup);
+    txEqLayout->setContentsMargins(6, 4, 6, 6);
     QHBoxLayout *txEqTop = new QHBoxLayout();
-    m_txEqEnable = new QCheckBox(QStringLiteral("TX EQ"), txEqGroup);
+    m_txEqEnable = new QCheckBox(QStringLiteral("Enable"), txEqGroup);
     m_txEqCurveDeg = new QSpinBox(txEqGroup);
     m_txEqCurveDeg->setRange(0, 3);
     m_txEqCurveDeg->setPrefix(QStringLiteral("NURBS "));
@@ -109,25 +110,30 @@ tx_settings_dialog::tx_settings_dialog(QWidget *parent) :
     txEqTop->addStretch();
     txEqTop->addWidget(m_txEqCurveDeg);
     txEqLayout->addLayout(txEqTop);
-    static const char *const kTxEqLabels[] = {
-        "Pre", "32", "63", "125", "250", "500", "1k", "2k", "4k", "8k", "16k"
-    };
     QHBoxLayout *eqRow = new QHBoxLayout();
     eqRow->setSpacing(2);
-    for (int i = 0; i < 11; ++i) {
+    for (int i = 0; i < EqCurvePlot::kBandSliderCount; ++i) {
         QVBoxLayout *col = new QVBoxLayout();
-        QLabel *lab = new QLabel(QString::fromLatin1(kTxEqLabels[i]), txEqGroup);
+        const QString labelText = (i == 0)
+            ? QStringLiteral("Pre")
+            : QString::fromLatin1(EqCurvePlot::bandLabel(i - 1));
+        QLabel *lab = new QLabel(labelText, txEqGroup);
         lab->setAlignment(Qt::AlignHCenter);
+        if (i == 0)
+            lab->setMinimumWidth(32);
         QSlider *slider = new QSlider(Qt::Vertical, txEqGroup);
         slider->setRange(-12, 12);
         slider->setValue(0);
         slider->setFixedHeight(72);
+        slider->setToolTip(i == 0
+            ? QStringLiteral("Preamp gain (dB)")
+            : QStringLiteral("%1 Hz gain (dB)").arg(labelText));
         connect(slider, &QSlider::valueChanged, this, [this, i](int value) {
             emit txEqBandRequested(i, value);
         });
         m_txEqSliders.append(slider);
         col->addWidget(lab);
-        col->addWidget(slider);
+        col->addWidget(slider, 0, Qt::AlignHCenter);
         eqRow->addLayout(col);
     }
     txEqLayout->addLayout(eqRow);
@@ -406,7 +412,8 @@ void tx_settings_dialog::refreshEqCurvePlots()
     QVector<double> Y(AudioConfig::kEqDrawPoints, 0.0);
     if (m_txEqPlot) {
         GetTXAEQDraw(TX_ID, X.data(), Y.data());
-        m_txEqPlot->setCurve(X, Y);
+        const double preamp = m_txEqSliders.isEmpty() ? 0.0 : static_cast<double>(m_txEqSliders.at(0)->value());
+        m_txEqPlot->setBandEqCurve(X, Y, preamp);
     }
     if (m_cfcCompPlot) {
         GetTXACFCOMPCompDraw(TX_ID, X.data(), Y.data());
