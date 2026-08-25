@@ -358,7 +358,8 @@ void CProtocol1::encodeCCBytes(unsigned char* buffer, DataEngine* de, RadioModel
     		// | + + --------------------- Alex Rx Antenna (00 = none, 01 = Rx1, 10 = Rx2, 11 = XV)
     		// + ------------------------- Alex Rx out (0 = off, 1 = on). Set if Alex Rx Antenna > 00.
     		// alexStates bits [1:0] = RX antenna; bits [4:2] = RX aux (see cusdr_alexAntennaWidget.cpp)
-    		rxAnt = 0x03 & de->txParams().alexStates.at(de->txParams().currentBand);
+    		rxAnt = ProtocolBoundaryUtils::protocol1AlexRxAntennaBits(
+    		    de->txParams().alexStates.at(de->txParams().currentBand));
     		rxOut = (rxAnt > 0) ? 1 : 0;
     		// Bits [1:0]: step attenuator value (0=0dB, 1=10dB, 2=20dB, 3=30dB).
     		// Source: mercuryAttenuator (main-window Attn menu), which overrides any
@@ -381,10 +382,10 @@ void CProtocol1::encodeCCBytes(unsigned char* buffer, DataEngine* de, RadioModel
     		de->control_out[3] &= 0x7F; // 0 1 1 1 1 1 1 1
     		de->control_out[3] |= rxOut << 7;
 
-            if (de->txParams().mox || de->txParams().ptt)
-    			ant = (de->txParams().alexStates.at(de->txParams().currentBand) >> 5);
-    		else
-    			ant = de->txParams().alexStates.at(de->txParams().currentBand);
+    		// C4 Tx relay: RX Ant while receiving, TX Ant while transmitting (P2 policy).
+    		ant = ProtocolBoundaryUtils::protocol1AlexAntennaRelayBits(
+    		    de->txParams().alexStates.at(de->txParams().currentBand),
+    		    de->txParams().mox || de->txParams().ptt);
 
 				// set C4
     		//
@@ -399,7 +400,7 @@ void CProtocol1::encodeCCBytes(unsigned char* buffer, DataEngine* de, RadioModel
     		// +-------------------------- Common Mercury Frequency (0 = independent frequencies to Mercury
     		//			                   Boards, 1 = same frequency to all Mercury boards)
 
-    		de->control_out[4] |= (ant != 0) ? ant-1 : ant;
+    		de->control_out[4] |= ant;
     		// Always force FPGA duplex ON for Protocol 1 (same as pihpsdr).
     		// With duplex off, Hermes/HL2 locks RX LO to the TX NCO. Click-VFO /
     		// CTUN keeps pan centre fixed while TX tracks VFO, so the spectrum
@@ -496,9 +497,12 @@ void CProtocol1::encodeCCBytes(unsigned char* buffer, DataEngine* de, RadioModel
     		de->control_out[3] = 0x0; // C3
             de->control_out[4] = 0x0; // C4
 
-    		// Protocol 1 TX LPF should follow TX frequency (master branch behavior).
-    		// Keep C2 bit 6 cleared (auto filter select).
-    		de->control_out[2] &= 0xBF; // 1 0 1 1 1 1 1 1
+    		// C2 bit 6: manual HPF/LPF filter select. Hardware ignores C3/C4
+    		// filter bits unless this is set when alexConfig bit 0 is on.
+    		if (ProtocolBoundaryUtils::protocol1AlexManualFilterSelect(de->txParams().alexConfig))
+    			de->control_out[2] |= 0x40;
+    		else
+    			de->control_out[2] &= 0xBF;
 
 
 			// C3
@@ -515,33 +519,16 @@ void CProtocol1::encodeCCBytes(unsigned char* buffer, DataEngine* de, RadioModel
     		// *Only valid when Alex - manual HPF/LPF filter select is enabled
 
 
-    		de->control_out[3] &= 0xFE; // 1 1 1 1 1 1 1 0
-    		de->control_out[3] |= (de->txParams().alexConfig & 0x40) >> 6;
-    		de->control_out[3] &= 0xFD; // 1 1 1 1 1 1 0 1
-    		de->control_out[3] |= (de->txParams().alexConfig & 0x80) >> 6;
-    		de->control_out[3] &= 0xFB; // 1 1 1 1 1 0 1 1
-    		de->control_out[3] |= (de->txParams().alexConfig & 0x20) >> 3;
-    		de->control_out[3] &= 0xF7; // 1 1 1 1 0 1 1 1
-    		de->control_out[3] |= (de->txParams().alexConfig & 0x10) >> 1;
-    		de->control_out[3] &= 0xEF; // 1 1 1 0 1 1 1 1
-    		de->control_out[3] |= (de->txParams().alexConfig & 0x08) << 1;
-    		de->control_out[3] &= 0xDF; // 1 1 0 1 1 1 1 1
-    		de->control_out[3] |= (de->txParams().alexConfig & 0x02) << 4;
-    		de->control_out[3] &= 0xBF; // 1 0 1 1 1 1 1 1
-    		de->control_out[3] |= (de->txParams().alexConfig & 0x04) << 4;
-    		de->control_out[3] &= 0x7F; // 0 1 1 1 1 1 1 1
+    		de->control_out[3] = ProtocolBoundaryUtils::protocol1AlexManualHpfByte(
+    		    de->txParams().alexConfig);
     		de->control_out[3] |= ((int)de->txParams().vnaMode) << 7;
 
-            if (de->txParams().mox || de->txParams().ptt) {
-                long txFrequency = sliceTxFrequency();
-                if      (txFrequency > ProtocolBoundaryUtils::kAlexLpf6mMinHz)    { de->control_out[4] = 0x10; }
-                else if (txFrequency > ProtocolBoundaryUtils::kAlexLpf12_10mMinHz) { de->control_out[4] = 0x20; }
-                else if (txFrequency > ProtocolBoundaryUtils::kAlexLpf17_15mMinHz) { de->control_out[4] = 0x40; }
-                else if (txFrequency > ProtocolBoundaryUtils::kAlexLpf30_20mMinHz) { de->control_out[4] = 0x01; }
-                else if (txFrequency > ProtocolBoundaryUtils::kAlexLpf60_40mMinHz) { de->control_out[4] = 0x02; }
-                else if (txFrequency > ProtocolBoundaryUtils::kAlexLpf80mMinHz)    { de->control_out[4] = 0x04; }
-                else                                            { de->control_out[4] = 0x08; }
-            } else de->control_out[4] = 0;
+			// C4 LPF bits (manual from alexConfig, else auto by TX frequency while TXing)
+    		{
+    			const bool transmitting = de->txParams().mox || de->txParams().ptt;
+    			de->control_out[4] = ProtocolBoundaryUtils::protocol1AlexC4LpfByte(
+    			    de->txParams().alexConfig, sliceTxFrequency(), transmitting);
+    		}
 
 		m_new_adc_rx1_4 = m_new_adc_rx5_8 = m_new_adc_rx9_16 = 0;
 		for (int i = 0; i < set->getNumberOfReceivers(); i++) {

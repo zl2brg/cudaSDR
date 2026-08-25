@@ -31,6 +31,7 @@
 //#include <QDebug>
 #include <QBoxLayout>
 #include <QLabel>
+#include <QSignalBlocker>
 
 #include "cusdr_transmitOptionsWidget.h"
 
@@ -132,7 +133,22 @@ TransmitOptionsWidget::~TransmitOptionsWidget() {
 }
 
 void TransmitOptionsWidget::setupConnections() {
+	CHECKED_CONNECT(amCarrierLevelSlider, &QSlider::valueChanged,
+	                this, &TransmitOptionsWidget::amCarrierLevelRequested);
+	CHECKED_CONNECT(amCompressionSlider, &QSlider::valueChanged,
+	                this, &TransmitOptionsWidget::audioCompressionRequested);
+}
 
+void TransmitOptionsWidget::setAmCarrierLevel(int percent)
+{
+	const QSignalBlocker blocker(amCarrierLevelSlider);
+	amCarrierLevelSlider->setValue(qBound(1, percent, 100));
+}
+
+void TransmitOptionsWidget::setAudioCompression(int level)
+{
+	const QSignalBlocker blocker(amCompressionSlider);
+	amCompressionSlider->setValue(qBound(1, level, 100));
 }
 
 void TransmitOptionsWidget::createAMSettingsGroup(){

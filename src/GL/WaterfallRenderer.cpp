@@ -2,6 +2,7 @@
 #include "cusdr_glShaders.h"
 #include <QDebug>
 #include <QOpenGLContext>
+#include <QSurfaceFormat>
 #include <QtMath>
 
 #ifndef GL_RED
@@ -9,6 +10,9 @@
 #endif
 #ifndef GL_R32F
 #define GL_R32F 0x822E
+#endif
+#ifndef GL_RGBA8
+#define GL_RGBA8 0x8058
 #endif
 
 namespace {
@@ -119,6 +123,8 @@ WaterfallRenderer::WaterfallRenderer()
     , m_oldHeight(0)
     , m_oldDpr(0.0f)
     , m_updatePending(false)
+    , m_hasTexStorage(false)
+    , m_glTexStorage2D(nullptr)
     , m_shader(nullptr)
     , m_vbo(QOpenGLBuffer::VertexBuffer)
     , m_pboIndex(0)
@@ -148,8 +154,49 @@ WaterfallRenderer::~WaterfallRenderer() {
     }
 }
 
+void WaterfallRenderer::resolveTexStorage()
+{
+    m_hasTexStorage = false;
+    m_glTexStorage2D = nullptr;
+
+    QOpenGLContext *ctx = QOpenGLContext::currentContext();
+    if (!ctx)
+        return;
+
+    const QSurfaceFormat fmt = ctx->format();
+    const int major = fmt.majorVersion();
+    const int minor = fmt.minorVersion();
+    const bool gl42 = major > 4 || (major == 4 && minor >= 2);
+    const bool es30 = ctx->isOpenGLES() && major >= 3;
+    if (!gl42 && !es30
+        && !ctx->hasExtension(QByteArrayLiteral("GL_ARB_texture_storage"))
+        && !ctx->hasExtension(QByteArrayLiteral("GL_EXT_texture_storage")))
+        return;
+
+    m_glTexStorage2D = reinterpret_cast<TexStorage2DFn>(ctx->getProcAddress("glTexStorage2D"));
+    if (!m_glTexStorage2D)
+        m_glTexStorage2D = reinterpret_cast<TexStorage2DFn>(ctx->getProcAddress("glTexStorage2DEXT"));
+    m_hasTexStorage = m_glTexStorage2D != nullptr;
+    if (m_hasTexStorage)
+        qDebug() << "WaterfallRenderer: using immutable texture storage";
+}
+
+void WaterfallRenderer::allocateTexture2D(GLenum internalFormat, int width, int height,
+                                          GLenum uploadFormat, GLenum uploadType, const void *pixels)
+{
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+    if (m_hasTexStorage && m_glTexStorage2D) {
+        m_glTexStorage2D(GL_TEXTURE_2D, 1, internalFormat, width, height);
+        if (pixels)
+            glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, width, height, uploadFormat, uploadType, pixels);
+        return;
+    }
+    glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, width, height, 0, uploadFormat, uploadType, pixels);
+}
+
 void WaterfallRenderer::initialize() {
     initializeOpenGLFunctions();
+    resolveTexStorage();
 
     m_shader = new QOpenGLShaderProgram();
 
@@ -190,8 +237,7 @@ void WaterfallRenderer::initialize() {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     QVector<TGL_ubyteRGBA> lut(kPaletteLutSize);
     lut.fill(packRgb(0, 0, 0));
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, kPaletteLutSize, 1, 0,
-                 GL_RGBA, GL_UNSIGNED_BYTE, lut.constData());
+    allocateTexture2D(GL_RGBA8, kPaletteLutSize, 1, GL_RGBA, GL_UNSIGNED_BYTE, lut.constData());
     glBindTexture(GL_TEXTURE_2D, 0);
 }
 
@@ -249,7 +295,7 @@ void WaterfallRenderer::setupTexture(int width, int height) {
     m_devRow.resize(width);
 
     QVector<float> quiet(width * height, kEmptyDbm);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, width, height, 0, GL_RED, GL_FLOAT, quiet.constData());
+    allocateTexture2D(GL_R32F, width, height, GL_RED, GL_FLOAT, quiet.constData());
 
     m_headLine = 0;
     m_oldWidth = width;

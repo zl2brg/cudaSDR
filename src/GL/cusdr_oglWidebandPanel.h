@@ -32,6 +32,7 @@
 #include "cusdr_fonts.h"
 #include "cusdr_oglText.h"
 #include "OverlayRenderer.h"
+#include "PanadapterRenderer.h"
 #include "cusdr_glDraw.h"
 #include <QEvent>
 //#include <QPixmap>
@@ -99,6 +100,8 @@ private:
 	WaterfallColorMode			m_waterfallMode;
 	
 	QVector<qreal>				m_widebandPanSpectrumBins;
+	qVectorFloat				m_wbSpectrumSnapshot;
+	qreal						m_wbScaleMult = 1.0;
 	QQueue<QVector<float> >		specAv_queue;
 	TWideband					m_widebandOptions;
 
@@ -112,8 +115,10 @@ private:
     QOpenGLShaderProgram*		m_program = nullptr;
     QOpenGLShaderProgram*		m_textureProgram = nullptr;
     OverlayRenderer*			m_overlayRenderer = nullptr;
+    PanadapterRenderer*			m_panadapterRenderer = nullptr;
     QOpenGLVertexArrayObject	m_vao;
     QOpenGLBuffer				m_vbo{QOpenGLBuffer::VertexBuffer};
+    int							m_vboCapacityBytes = 0;
     int							m_attrPos   = -1;
     int							m_attrColor = -1;
     int							m_uniformMvp = -1;
@@ -263,6 +268,7 @@ private:
 	//void computeDisplayBins(const float* panBuffer);
 
 	void drawSpectrum();
+	void rebuildWidebandPanBins(const QVector<float>& spectrum);
 	void drawVerticalScale();
 	void drawHorizontalScale();
 	void drawGrid();

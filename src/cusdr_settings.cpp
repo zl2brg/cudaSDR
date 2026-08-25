@@ -5667,7 +5667,12 @@ void Settings::syncTransmitWithSettings() {
     if (!tx)
         return;
 
-    tx->setAmCarrierLevel(static_cast<int>(m_audioConfig->amCarrierLevel()));
+    // AudioConfig stores AM carrier as 0..1; TransmitModel uses percent 0..100.
+    const double amStored = m_audioConfig->amCarrierLevel();
+    const int amPercent = (amStored <= 1.0)
+        ? qRound(amStored * 100.0)
+        : qRound(amStored);
+    tx->setAmCarrierLevel(amPercent > 0 ? amPercent : 50);
     tx->setAudioCompression(m_audioConfig->audioCompression());
     tx->setFmDeviation(static_cast<int>(m_audioConfig->fmDeviation()));
     tx->setFmPreEmphasis(m_audioConfig->fmPreemphasis() != 0);
@@ -5708,7 +5713,7 @@ void Settings::syncSettingsWithTransmit() {
     if (!tx)
         return;
 
-    m_audioConfig->setAmCarrierLevel(tx->amCarrierLevel());
+    m_audioConfig->setAmCarrierLevel(tx->amCarrierLevel() / 100.0);
     m_audioConfig->setAudioCompression(tx->audioCompression());
     m_audioConfig->setFmDeviation(tx->fmDeviation());
     m_audioConfig->setFmPreemphasis(tx->fmPreEmphasis() ? 1 : 0);
@@ -5741,4 +5746,200 @@ void Settings::syncSettingsWithTransmit() {
     m_cwConfig->setSidetoneVolume(tx->cwSidetoneVolume());
     m_cwConfig->setHangTime(tx->cwHangTime());
     m_cwConfig->setKeyerWeight(tx->cwKeyerWeight());
+}
+
+TransmitModel* Settings::transmitModel() const
+{
+    return m_radioModel ? m_radioModel->transmit() : nullptr;
+}
+
+double Settings::getFMpreemphesis() const
+{
+    if (const TransmitModel* tx = transmitModel())
+        return tx->fmPreEmphasis() ? 1.0 : 0.0;
+    return m_audioConfig->fmPreemphasis();
+}
+
+int Settings::getPhaseRotator() const
+{
+    if (const TransmitModel* tx = transmitModel())
+        return tx->phaseRotator() ? 1 : 0;
+    return m_audioConfig->phaseRotator();
+}
+
+bool Settings::getPhaseRotatorAuto() const
+{
+    if (const TransmitModel* tx = transmitModel())
+        return tx->phaseRotatorAuto();
+    return m_audioConfig->phaseRotatorAuto();
+}
+
+int Settings::getCtcssToneHz() const
+{
+    if (const TransmitModel* tx = transmitModel())
+        return tx->ctcssToneHz();
+    return m_audioConfig->ctcssToneHz();
+}
+
+bool Settings::getTxEqEnabled() const
+{
+    if (const TransmitModel* tx = transmitModel())
+        return tx->txEqEnabled();
+    return m_audioConfig->txEqEnabled();
+}
+
+QVector<int> Settings::getTxEqBands() const
+{
+    if (const TransmitModel* tx = transmitModel())
+        return tx->txEqBands();
+    return m_audioConfig->txEqBands();
+}
+
+int Settings::getTxEqCurveDeg() const
+{
+    if (const TransmitModel* tx = transmitModel())
+        return tx->txEqCurveDeg();
+    return m_audioConfig->txEqCurveDeg();
+}
+
+bool Settings::getCfcEnabled() const
+{
+    if (const TransmitModel* tx = transmitModel())
+        return tx->cfcEnabled();
+    return m_audioConfig->cfcEnabled();
+}
+
+bool Settings::getCfcPeqEnabled() const
+{
+    if (const TransmitModel* tx = transmitModel())
+        return tx->cfcPeqEnabled();
+    return m_audioConfig->cfcPeqEnabled();
+}
+
+double Settings::getCfcPrecomp() const
+{
+    if (const TransmitModel* tx = transmitModel())
+        return tx->cfcPrecomp();
+    return m_audioConfig->cfcPrecomp();
+}
+
+double Settings::getCfcPrePeq() const
+{
+    if (const TransmitModel* tx = transmitModel())
+        return tx->cfcPrePeq();
+    return m_audioConfig->cfcPrePeq();
+}
+
+int Settings::getCfcCurveDeg() const
+{
+    if (const TransmitModel* tx = transmitModel())
+        return tx->cfcCurveDeg();
+    return m_audioConfig->cfcCurveDeg();
+}
+
+QVector<double> Settings::getCfcLevels() const
+{
+    if (const TransmitModel* tx = transmitModel())
+        return tx->cfcLevels();
+    return m_audioConfig->cfcLevels();
+}
+
+QVector<double> Settings::getCfcPost() const
+{
+    if (const TransmitModel* tx = transmitModel())
+        return tx->cfcPost();
+    return m_audioConfig->cfcPost();
+}
+
+double Settings::getFMDeveation() const
+{
+    if (const TransmitModel* tx = transmitModel())
+        return tx->fmDeviation();
+    return m_audioConfig->fmDeviation();
+}
+
+double Settings::getAMCarrierLevel() const
+{
+    // Returned as percent 0..100 for UI / TransmitModel consumers.
+    if (const TransmitModel* tx = transmitModel())
+        return tx->amCarrierLevel();
+    const double stored = m_audioConfig->amCarrierLevel();
+    return (stored <= 1.0) ? stored * 100.0 : stored;
+}
+
+double Settings::getAudioCompression() const
+{
+    if (const TransmitModel* tx = transmitModel())
+        return tx->audioCompression();
+    return m_audioConfig->audioCompression();
+}
+
+bool Settings::isInternalCw() const
+{
+    if (const TransmitModel* tx = transmitModel())
+        return tx->internalCw();
+    return m_cwConfig->internalCw() > 0;
+}
+
+int Settings::getCwKeyerSpeed() const
+{
+    if (const TransmitModel* tx = transmitModel())
+        return tx->cwKeyerSpeed();
+    return m_cwConfig->keyerSpeed();
+}
+
+int Settings::getCwKeyerMode() const
+{
+    if (const TransmitModel* tx = transmitModel())
+        return tx->cwKeyerMode();
+    return m_cwConfig->keyerMode();
+}
+
+int Settings::isCwKeyReversed() const
+{
+    if (const TransmitModel* tx = transmitModel())
+        return tx->cwKeyReversed() ? 1 : 0;
+    return m_cwConfig->keyReversed();
+}
+
+int Settings::getCwSidetoneFreq() const
+{
+    if (const TransmitModel* tx = transmitModel())
+        return tx->cwSidetoneFreq();
+    return m_cwConfig->sidetoneFreq();
+}
+
+int Settings::getCwSidetoneVolume() const
+{
+    if (const TransmitModel* tx = transmitModel())
+        return tx->cwSidetoneVolume();
+    return m_cwConfig->sidetoneVolume();
+}
+
+int Settings::getCwPttDelay() const
+{
+    if (const TransmitModel* tx = transmitModel())
+        return tx->cwPttDelay();
+    return m_cwConfig->pttDelay();
+}
+
+int Settings::getCwHangTime() const
+{
+    if (const TransmitModel* tx = transmitModel())
+        return tx->cwHangTime();
+    return m_cwConfig->hangTime();
+}
+
+int Settings::getCwKeyerWeight() const
+{
+    if (const TransmitModel* tx = transmitModel())
+        return tx->cwKeyerWeight();
+    return m_cwConfig->keyerWeight();
+}
+
+int Settings::getCwKeyerSpacing() const
+{
+    if (const TransmitModel* tx = transmitModel())
+        return tx->cwKeyerSpacing() ? 1 : 0;
+    return m_cwConfig->keyerSpacing();
 }

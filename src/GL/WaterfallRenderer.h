@@ -43,6 +43,12 @@ private:
     void setupTexture(int width, int height);
     void uploadNewRow(const float* logical, int logicalWidth, int texWidth, int texHeight, qreal dpr);
     void ensurePaletteLUT(const WaterfallMapping& mapping);
+    void resolveTexStorage();
+    void allocateTexture2D(GLenum internalFormat, int width, int height,
+                           GLenum uploadFormat, GLenum uploadType, const void *pixels);
+
+    using TexStorage2DFn = void (*)(GLenum target, GLsizei levels, GLenum internalformat,
+                                    GLsizei width, GLsizei height);
 
     GLuint m_textureId;
     GLuint m_lutId;
@@ -51,6 +57,8 @@ private:
     int m_oldHeight;
     float m_oldDpr;
     bool m_updatePending;
+    bool m_hasTexStorage;
+    TexStorage2DFn m_glTexStorage2D;
 
     QOpenGLShaderProgram* m_shader;
     QOpenGLVertexArrayObject m_vao;

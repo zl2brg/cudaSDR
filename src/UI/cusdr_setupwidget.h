@@ -92,7 +92,7 @@ private:
     AlexSettingsController *m_alexSettingsController = nullptr;
     ExtCtrlWidget		*m_extCtrlWidget;
     ExtCtrlSettingsController *m_extCtrlSettingsController = nullptr;
-    TransmitTabWidget   *m_transmitTabWidget;
+    TransmitTabWidget   *m_transmitTabWidget = nullptr;
     tx_settings_dialog  *m_txsettingsWidget;
     TransmitSettingsController *m_transmitSettingsController = nullptr;
     DisplayTabWidget    *m_displaytabWidget;

@@ -1,0 +1,56 @@
+name: Unit tests
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  ctest:
+    name: ctest (Ubuntu 24.04 container)
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # HTTPS URL is in .gitmodules. Use GH_PAT if freedv-backend is private.
+          submodules: recursive
+          token: ${{ secrets.GH_PAT || github.token }}
+          fetch-depth: 0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build CI image (cached Qt 6.11 layer)
+        uses: docker/build-push-action@v6
+        with:
+          context: packaging
+          file: packaging/Dockerfile
+          push: false
+          load: true
+          tags: cudasdr-ci:24.04
+          cache-from: type=gha,scope=cudasdr-ci-24.04
+          cache-to: type=gha,mode=max,scope=cudasdr-ci-24.04
+
+      - name: Configure, build tests, and run ctest
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT || github.token }}
+          GITHUB_TOKEN: ${{ secrets.GH_PAT || github.token }}
+        run: |
+          set -euo pipefail
+          test -f deps/freedv-backend/CMakeLists.txt
+          docker run --rm \
+            -e JOBS="$(nproc)" \
+            -e BUILD_DIR=build-ci-tests \
+            -e QT_QPA_PLATFORM=offscreen \
+            -e GH_TOKEN \
+            -e GITHUB_TOKEN \
+            -v "$PWD:/src:rw" \
+            -w /src \
+            cudasdr-ci:24.04 \
+            ./scripts/ci_ctest.sh

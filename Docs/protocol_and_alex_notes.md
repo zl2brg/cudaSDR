@@ -1,6 +1,9 @@
 # Protocol 1, USB documentation, and Alex filtering notes
 
-Saved from technical discussion (2026-05-01). Source: `USB_protocol_V1.59.pdf` (text via `pdftotext`), `src/DataEngine/CProtocol1.cpp`, related UI/settings.
+Saved from technical discussion (2026-05-01); updated 2026-08-25 for Protocol 1
+Alex encoding helpers and regression tests. Source: `USB_protocol_V1.59.pdf`
+(text via `pdftotext`), `src/DataEngine/CProtocol1.cpp`,
+`src/DataEngine/protocol_boundary_utils.h`, related UI/settings.
 
 ---
 
@@ -39,32 +42,42 @@ The **inner 512-byte HPSDR frame** matches the USB document’s semantics. It is
 ### Two settings blobs
 
 **`alexConfig` (`quint16`, `Settings::getAlexConfig()`)**  
-Bitfield for **filter paths**: `0x01` manual HPF/LPF; `0x02` bypass all HPFs; `0x04` 6 m LNA; `0x08`…`0x80` HPF lines; `0x100`…`0x4000` LPF lines. Documented in `cusdr_settings.cpp`, `cusdr_alexFilterWidget.cpp`, `cusdr_mainWidget.cpp`.
+Bitfield for **filter paths** (canonical layout in Settings load/save and Protocol 2):
+
+| Bit | Meaning |
+|-----|---------|
+| `0x0001` | Manual HPF/LPF select |
+| `0x0002` | Bypass all HPFs |
+| `0x0004` | 6 m LNA |
+| `0x0008`…`0x0080` | HPF 1.5 / 6.5 / 9.5 / 13 / 20 MHz |
+| `0x0100`…`0x4000` | LPF 160 … 6 m |
 
 **`alexStates` (per-band `int`, `Settings::getAlexStates()`)**  
-Per Ham band: **RX antenna** `[1:0]`, **RX aux** `[4:2]`, **TX antenna** `[6:5]`, **Alex attenuator** `[8:7]` (see `cusdr_mainWidget.cpp` `m_alexAttnState = 0x03 & (m_alexStates[...] >> 7)` and `cusdr_alexAntennaWidget.cpp` decode).
+Per Ham band: **RX antenna** `[1:0]`, **RX aux** `[4:2]`, **TX antenna** `[6:5]`, **Alex attenuator** `[8:7]`.
 
-DataEngine copies both into `io.ccTx` (`cusdr_dataEngine.cpp` ~1353–1355).
+DataEngine copies both into TX params for encode.
 
 ### Protocol 1: where bits are sent
 
-**`encodeCCBytes` case 0** (general `C0` frame, `CProtocol1.cpp`):  
-Builds **C3** including Alex attenuator from `alexStates >> 7`, then dither/random/preamp, then **Alex RX antenna / RX out** from a variable `rxAnt` derived as:
+Pure packing helpers live in `protocol_boundary_utils.h` and are covered by
+`tests/alex_encoding_tests.cpp`.
 
-```cpp
-rxAnt = 0x07 & (io->ccTx.alexStates.at(io->ccTx.currentBand) >> 2);
-```
-
-The UI defines **RX antenna as `state & 0x03`**, but this uses **`(state >> 2) & 0x07`**, i.e. **RX aux**, not RX antenna. Likely **bug** if Alex RX path on air does not match the antenna widget.
+**`encodeCCBytes` case 0** (general `C0` frame):  
+- **C3 RX antenna field**: `protocol1AlexRxAntennaBits(state)` = `state & 0x03`.
+- **C4 antenna relay**: `protocol1AlexAntennaRelayBits(state, transmitting)` — same policy as Protocol 2: **RX Ant** `[1:0]` while receiving, **TX Ant** `[6:5]` while MOX/PTT; mapped to wire `0=Tx1,1=Tx2,2=Tx3`. Attenuator bits must not leak into the relay field.
 
 **`encodeCCBytes` case 3** (`C0 = 0x12`):  
-Maps **`alexConfig` bits `0x02`–`0x80`** into **C3** (HPF / bypass / 6 m LNA) when manual control applies. For **C4**: if MOX/PTT, sets **TX LPF from TX frequency only** (thresholds in `CProtocol1.h`); if not TX, **`control_out[4] = 0`**. The **`alexConfig` manual LPF bits (`0x100`–`0x4000`) are not merged into C4** in this path. Comments above **case 4** still describe Alex LPF, but **case 4** currently sends **ADC assignment / step attenuator** (`0x1C`), not manual Alex LPF — comments may be stale. **Risk**: manual LPF from the Alex filter panel may not reach hardware on **Protocol 1** as expected.
+- **C2 bit 6**: set when `alexConfig & 0x01` (manual). Hardware ignores C3/C4 filter bits unless this is set.
+- **C3**: `protocol1AlexManualHpfByte(alexConfig)` + VNA in bit 7.
+- **C4**: `protocol1AlexC4LpfByte(...)` — manual LPF from `alexConfig` bits `0x100`–`0x4000`; if manual but no LPF bit is set while transmitting, fall back to frequency auto-select; auto mode uses TX frequency only while MOX/PTT.
 
-**Protocol 2** maps `alexConfig` HPF/LPF into a wide `alex0` word (`CProtocol2.cpp` ~418–436).
+**Case 4** (`C0 = 0x1C`) is ADC assignment / Mercury step attenuator, **not** Alex LPF (comments above that case describe historical LPF layout).
 
-### UI vs manual mode
+**Protocol 2** maps the same `alexConfig` HPF/LPF layout into the Alex0 word (`CProtocol2.cpp`).
 
-Main-window Alex button toggles **`alexConfig` bit `0x01`** (`alexBtnClickedEvent` → `setAlexToManual`). Filter auto/manual logic in `AlexFilterWidget` depends on that bit. Protocol text: HPF/LPF bits are only meaningful when **manual** is enabled.
+### UI
+
+`AlexFilterWidget` HPF buttons must write the **Settings-canonical** bits above (not a C3-wire mirror). `setAlexConfig` syncs local LED bools from that bitfield.
 
 ---
 
@@ -73,6 +86,7 @@ Main-window Alex button toggles **`alexConfig` bit `0x01`** (`alexBtnClickedEven
 | Area | Files |
 |------|--------|
 | P1 encode/decode | `src/DataEngine/CProtocol1.cpp`, `CProtocol1.h`, `protocol_boundary_utils.h` |
+| Alex packing tests | `tests/alex_encoding_tests.cpp` |
 | RX split 512+512 | `src/DataEngine/cusdr_dataEngine.cpp` (`processReadData`) |
 | Alex UI / config | `src/cusdr_alexFilterWidget.cpp`, `cusdr_alexAntennaWidget.cpp`, `cusdr_mainWidget.cpp` |
 | Settings persistence | `src/cusdr_settings.cpp`, `cusdr_settings.h` |
