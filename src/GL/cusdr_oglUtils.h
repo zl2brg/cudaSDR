@@ -96,7 +96,7 @@ inline void installWaylandFrameThrottle(QObject *target, int minIntervalMs)
 {
     if (!target)
         return;
-    static constexpr auto kThrottleInstalledProperty = "_cudasdr_wayland_frame_throttle";
+    static constexpr auto kThrottleInstalledProperty = "cudasdr_wayland_frame_throttle";
     if (target->property(kThrottleInstalledProperty).toBool())
         return;
     target->setProperty(kThrottleInstalledProperty, true);
