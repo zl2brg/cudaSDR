@@ -46,6 +46,7 @@ inline bool isNativeWaylandPlatform()
 // or lets the event loop paint unbound (swapInterval 0, ~300% CPU). Sleep on a
 // QTimer instead of using the driver as a frame clock.
 class WaylandFrameThrottle : public QObject {
+    Q_OBJECT
 public:
     explicit WaylandFrameThrottle(QObject *target, int minIntervalMs = 33)
         : QObject(target)
