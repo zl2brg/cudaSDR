@@ -52,6 +52,7 @@ public:
         , m_target(target)
         , m_minIntervalMs(qMax(1, minIntervalMs))
     {
+        setObjectName(QStringLiteral("__wayland_frame_throttle__"));
         target->installEventFilter(this);
     }
 
@@ -100,8 +101,11 @@ inline void disableVSyncOnNativeWayland(QOpenGLWidget *widget)
     QSurfaceFormat fmt = QSurfaceFormat::defaultFormat();
     fmt.setSwapInterval(0);
     widget->setFormat(fmt);
-    if (!widget->findChild<WaylandFrameThrottle *>())
-        new WaylandFrameThrottle(widget, 33);
+    for (QObject *child : widget->children()) {
+        if (child->objectName() == QLatin1String("__wayland_frame_throttle__"))
+            return;
+    }
+    new WaylandFrameThrottle(widget, 33);
 }
 
 #define GL_CLAMP_TO_EDGE	0x812F

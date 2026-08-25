@@ -259,7 +259,6 @@ QGLReceiverPanel::QGLReceiverPanel(SliceModel *model, QWidget *parent)
 	m_waterfallLoColor = QColor(0, 0, 0, m_waterfallAlpha);
 	m_waterfallHiColor = QColor(192, 124, 255, m_waterfallAlpha);
 	m_waterfallMidColor = set->getPanadapterColors().waterfallColor.toRgb();
-	m_waterfallColorRange = (int)(m_dBmPanMax - m_dBmPanMin);
 
     m_frequencyScaleFBO = nullptr;
     m_dBmScaleFBO = nullptr;
@@ -1184,7 +1183,17 @@ void QGLReceiverPanel::drawWaterfall() {
     glDisable(GL_MULTISAMPLE);
 
     glDisable(GL_DEPTH_TEST);
-    m_waterfallRenderer->render(panelProjection(), m_waterfallRect, m_waterfallPixel, m_dataEngineState, dpr);
+    WaterfallMapping mapping;
+    mapping.lowerThreshold = float(m_dBmPanMin) - float(m_waterfallOffsetLo);
+    mapping.upperThreshold = float(m_dBmPanMax) + float(m_waterfallOffsetHi);
+    mapping.colorRange = float(qAbs(m_dBmPanMax - m_dBmPanMin));
+    mapping.mode = m_waterfallMode;
+    mapping.lo = m_waterfallLoColor;
+    mapping.mid = m_waterfallMidColor;
+    mapping.hi = m_waterfallHiColor;
+    mapping.alpha = float(m_waterfallAlpha) / 255.0f;
+    m_waterfallRenderer->render(panelProjection(), m_waterfallRect, m_waterfallPixel,
+                                m_dataEngineState, dpr, m_waterfallDisplayUpdate, mapping);
 
     glDisable(GL_SCISSOR_TEST);
 }
@@ -3608,20 +3617,14 @@ void QGLReceiverPanel::computeDisplayBins(QVector<float>& buffer, QVector<float>
 		// full spectrum size and reduced spectrum size due to zooming
 		idx = qBound(0, idx + deltaSampleSize/2, buffer.size() - 1);
 
-		QColor pColor;
-
-//		if (buffer.at(idx) < -120)
-//		{
-//			val = -120 - buffer.at(idx);
-//			qDebug() << "calc " << buffer.at(idx) << "val  " << val;
-//		}
+		float waterfallDbm;
 		if (m_mercuryAttenuator) {
 			m_panadapterBins << buffer.at(idx) - m_dBmPanMin - m_dBmPanLogGain - 20.0f;
-			pColor = getWaterfallColorAtPixel(waterfallBuffer.at(idx) - m_dBmPanLogGain - 20.0f);
+			waterfallDbm = float(waterfallBuffer.at(idx) - m_dBmPanLogGain - 20.0f);
 		}
 		else {
 			m_panadapterBins << buffer.at(idx) - m_dBmPanMin - m_dBmPanLogGain;
-			pColor = getWaterfallColorAtPixel(waterfallBuffer.at(idx) - m_dBmPanLogGain);
+			waterfallDbm = float(waterfallBuffer.at(idx) - m_dBmPanLogGain);
 		}
 
 		if (m_peakHold && i < m_panPeakHoldBins.size()
@@ -3629,17 +3632,11 @@ void QGLReceiverPanel::computeDisplayBins(QVector<float>& buffer, QVector<float>
 			m_panPeakHoldBins[i] = m_panadapterBins.at(i);
 		}
 
-		TGL_ubyteRGBA color;
-		color.red   = (uchar)(pColor.red());
-		color.green = (uchar)(pColor.green());
-		color.blue  = (uchar)(pColor.blue());
-		color.alpha = 255;
-		
 		const int span = qMax(1, static_cast<int>(1.0 / m_scaleMult));
 		for (int j = 0; j < span; j++) {
 			const int wfIndex = static_cast<int>(i / m_scaleMult) + j;
 			if (wfIndex >= 0 && wfIndex < m_waterfallPixel.size())
-				m_waterfallPixel[wfIndex] = color;
+				m_waterfallPixel[wfIndex] = waterfallDbm;
 		}
 	}
 
@@ -3652,138 +3649,6 @@ void QGLReceiverPanel::computeDisplayBins(QVector<float>& buffer, QVector<float>
 		m_displayTime.restart();
 		update();
 	}
-}
-
-// get waterfall colors - taken from PowerSDR/KISS Konsole
-QColor QGLReceiverPanel::getWaterfallColorAtPixel(qreal value) {
-
-	QColor color;
-	//int r = 0; int g = 0; int b = 0;
-	int r, g, b;
-	int lowerThreshold = (int)m_dBmPanMin - m_waterfallOffsetLo;
-	int upperThreshold = (int)m_dBmPanMax + m_waterfallOffsetHi;
-
-	float offset;
-	float globalRange;
-	float localRange;
-	float percent;
-	
-	switch (m_waterfallMode) {
-
-		case (WaterfallColorMode) Simple:
-
-			if (value <= lowerThreshold)
-				color = m_waterfallLoColor;
-			else 
-			if (value >= upperThreshold)
-					color = QColor(255, 255, 255);//m_waterfallHiColor;
-			else {
-
-				percent = (value - lowerThreshold) / (upperThreshold - lowerThreshold);
-				if (percent <= 0.5)	{ // use a gradient between low and mid colors
-				
-					percent *= 2;
-
-					r = (int)((1 - percent) * m_waterfallLoColor.red()   + percent * m_waterfallMidColor.red());
-					g = (int)((1 - percent) * m_waterfallLoColor.green() + percent * m_waterfallMidColor.green());
-					b = (int)((1 - percent) * m_waterfallLoColor.blue()  + percent * m_waterfallMidColor.blue());
-				}
-				else {	// use a gradient between mid and high colors
-
-					percent = (float)(percent - 0.5) * 2;
-
-					r = (int)((1 - percent) * m_waterfallMidColor.red()   + percent * 255);//m_waterfallHiColor.red());
-					g = (int)((1 - percent) * m_waterfallMidColor.green() + percent * 255);//m_waterfallHiColor.green());
-					b = (int)((1 - percent) * m_waterfallMidColor.blue()  + percent * 255);//m_waterfallHiColor.blue());
-				}
-
-				if (r > 255) r = 255;
-				if (g > 255) g = 255;
-				if (b > 255) b = 255;
-				color = QColor(r, g, b, m_waterfallAlpha);
-			}
-
-			break;
-
-		case (WaterfallColorMode) Enhanced:
-
-			if (value <= lowerThreshold)
-				color = m_waterfallLoColor;
-			else 
-			if (value >= upperThreshold)
-					color = m_waterfallHiColor;
-			else {
-
-				offset = value - lowerThreshold;
-				globalRange = offset / m_waterfallColorRange; // value from 0.0 to 1.0 where 1.0 is high and 0.0 is low.
-                if (globalRange < (float)2/9) { // background to blue
-
-					localRange = globalRange / ((float)2/9);
-					r = (int)((1.0 - localRange) * m_waterfallLoColor.red());
-					g = (int)((1.0 - localRange) * m_waterfallLoColor.green());
-					b = (int)(m_waterfallLoColor.blue() + localRange * (255 - m_waterfallLoColor.blue()));
-				}
-				else 
-				if (globalRange < (float)3/9) { // blue to blue-green
-
-					localRange = (globalRange - (float)2/9) / ((float)1/9);
-					r = 0;
-					g = (int)(localRange * 255);
-					b = 255;
-				}
-				else 
-				if (globalRange < (float)4/9) { // blue-green to green
-
-					localRange = (globalRange - (float)3/9) / ((float)1/9);
-					r = 0;
-					g = 255;
-					b = (int)((1.0 - localRange) * 255);
-				}
-				else 
-				if (globalRange < (float)5/9) { // green to red-green
-
-					localRange = (globalRange - (float)4/9) / ((float)1/9);
-					r = (int)(localRange * 255);
-					g = 255;
-					b = 0;
-				}
-				else 
-				if (globalRange < (float)7/9) { // red-green to red
-
-					localRange = (globalRange - (float)5/9) / ((float)2/9);
-					r = 255;
-					g = (int)((1.0 - localRange) * 255);
-					b = 0;
-				}
-				else 
-				if (globalRange < (float)8/9) { // red to red-blue
-
-					localRange = (globalRange - (float)7/9) / ((float)1/9);
-					r = 255;
-					g = 0;
-					b = (int)(localRange * 255);
-				}
-				else { // red-blue to purple end
-
-					localRange = (globalRange - (float)8/9) / ((float)1/9);
-					r = (int)((0.75 + 0.25 * (1.0 - localRange)) * 255);
-					g = (int)(localRange * 255 * 0.5);
-					b = 255;
-				}
-
-                if (r > 255) r = 255;
-				if (g > 255) g = 255;
-				if (b > 255) b = 255;
-				if (r < 0) r = 0;
-				if (g < 0) g = 0;
-				if (b < 0) b = 0;
-				color = QColor(r, g, b, m_waterfallAlpha);
-			}
-
-			break;
-	}
-	
-	return color;
 }
 
 void QGLReceiverPanel::setFramesPerSecond(int rx, int value) {
@@ -3844,6 +3709,8 @@ void QGLReceiverPanel::graphicModeChanged(
 
 	if (m_waterfallMode != waterfallColorMode)
 		m_waterfallMode = waterfallColorMode;
+
+	update();
 }
 
 void QGLReceiverPanel::setSpectrumAveraging(int rx, bool value) {
@@ -3989,6 +3856,7 @@ void QGLReceiverPanel::setWaterfallOffesetLo(int rx, int value) {
 	if (m_receiver != rx) return;
 
 	m_waterfallOffsetLo = value;
+	update();
 }
 
 void QGLReceiverPanel::setWaterfallOffesetHi(int rx, int value) {
@@ -3996,6 +3864,7 @@ void QGLReceiverPanel::setWaterfallOffesetHi(int rx, int value) {
 	if (m_receiver != rx) return;
 
 	m_waterfallOffsetHi = value;
+	update();
 }
 
 void QGLReceiverPanel::setdBmScaleMin(int rx, qreal value) {
@@ -4007,6 +3876,7 @@ void QGLReceiverPanel::setdBmScaleMin(int rx, qreal value) {
 	m_dBmScalePanadapterUpdate = true;
 	m_panGridUpdate = true;
 	m_peakHoldBufferResize = true;
+	update();
 }
 
 void QGLReceiverPanel::setdBmScaleMax(int rx, qreal value) {
@@ -4018,6 +3888,7 @@ void QGLReceiverPanel::setdBmScaleMax(int rx, qreal value) {
 	m_dBmScalePanadapterUpdate = true;
 	m_panGridUpdate = true;
 	m_peakHoldBufferResize = true;
+	update();
 }
 
 void QGLReceiverPanel::setMouseWheelFreqStep(int rx, qreal step) {

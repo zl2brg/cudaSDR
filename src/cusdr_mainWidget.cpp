@@ -1885,7 +1885,14 @@ void MainWindow::showEvent(
 	QWidget::showEvent(event);
 	if (isNativeWaylandPlatform()) {
 		if (QWindow *win = windowHandle()) {
-			if (!win->findChild<WaylandFrameThrottle *>())
+			bool hasThrottle = false;
+			for (QObject *child : win->children()) {
+				if (child->objectName() == QLatin1String("__wayland_frame_throttle__")) {
+					hasThrottle = true;
+					break;
+				}
+			}
+			if (!hasThrottle)
 				new WaylandFrameThrottle(win, 16);
 		}
 	}

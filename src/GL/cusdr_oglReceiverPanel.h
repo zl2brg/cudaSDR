@@ -127,7 +127,7 @@ private:
 	
 	QVector<qreal>					m_panadapterBins;
 	QVector<qreal>					m_panPeakHoldBins;
-	QVarLengthArray<TGL_ubyteRGBA>	m_waterfallPixel;
+	QVarLengthArray<float>			m_waterfallPixel;
 
 	QQueue<QVector<float> >			specAv_queue;
 
@@ -274,7 +274,6 @@ private:
 	int			m_waterfallAlpha;
 	int			m_waterfallOffsetLo;
 	int			m_waterfallOffsetHi;
-	int			m_waterfallColorRange;
 	int			m_freqRulerDisplayWidth;
 	int			m_displayTop;
 	int			m_dBmPanLogGain;
@@ -370,8 +369,6 @@ private:
 
 	//******************************************************************
 	void	setupConnections();
-
-	QColor	getWaterfallColorAtPixel(qreal value);
 
 	void	saveGLState();
 	void	restoreGLState();

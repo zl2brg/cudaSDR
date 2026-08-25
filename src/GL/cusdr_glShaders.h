@@ -176,25 +176,47 @@ inline const char *widebandFragmentSource()
         "}\n";
 }
 
-inline QString waterfallFragmentSource(const char *samplerName)
+inline QString waterfallFragmentSource(const char *samplerName, const char *lutName)
 {
     if (isOpenGLES()) {
         return QString(
             "precision mediump float;\n"
             "varying vec2 v_texCoord;\n"
             "uniform sampler2D %1;\n"
+            "uniform sampler2D %2;\n"
+            "uniform float lowerThreshold;\n"
+            "uniform float upperThreshold;\n"
+            "uniform float colorRange;\n"
+            "uniform int paletteMode;\n"
+            "uniform float alpha;\n"
             "void main() {\n"
-            "   gl_FragColor = texture2D(%1, v_texCoord);\n"
-            "}\n").arg(samplerName);
+            "   float dbm = texture2D(%1, v_texCoord).r;\n"
+            "   float span = (paletteMode == 1) ? max(colorRange, 0.001)\n"
+            "                                  : max(upperThreshold - lowerThreshold, 0.001);\n"
+            "   float t = clamp((dbm - lowerThreshold) / span, 0.0, 1.0);\n"
+            "   vec4 c = texture2D(%2, vec2(t, 0.5));\n"
+            "   gl_FragColor = vec4(c.rgb, c.a * alpha);\n"
+            "}\n").arg(samplerName, lutName);
     }
     return QString(
         "#version 150\n"
         "in vec2 v_texCoord;\n"
         "out vec4 fragColor;\n"
         "uniform sampler2D %1;\n"
+        "uniform sampler2D %2;\n"
+        "uniform float lowerThreshold;\n"
+        "uniform float upperThreshold;\n"
+        "uniform float colorRange;\n"
+        "uniform int paletteMode;\n"
+        "uniform float alpha;\n"
         "void main() {\n"
-        "   fragColor = texture(%1, v_texCoord);\n"
-        "}\n").arg(samplerName);
+        "   float dbm = texture(%1, v_texCoord).r;\n"
+        "   float span = (paletteMode == 1) ? max(colorRange, 0.001)\n"
+        "                                  : max(upperThreshold - lowerThreshold, 0.001);\n"
+        "   float t = clamp((dbm - lowerThreshold) / span, 0.0, 1.0);\n"
+        "   vec4 c = texture(%2, vec2(t, 0.5));\n"
+        "   fragColor = vec4(c.rgb, c.a * alpha);\n"
+        "}\n").arg(samplerName, lutName);
 }
 
 inline QString texturedFragmentSource(const char *samplerName)
