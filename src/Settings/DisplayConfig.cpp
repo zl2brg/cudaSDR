@@ -70,28 +70,30 @@ QColor DisplayConfig::stringToColor(const QString &str, const QColor &def) {
 }
 
 void DisplayConfig::load(const QJsonObject &json) {
-    if (json.contains("spectrumSize")) m_spectrumSize = json["spectrumSize"].toInt();
-    if (json.contains("dBmDistScaleMin")) m_dBmDistScaleMin = json["dBmDistScaleMin"].toDouble();
-    if (json.contains("dBmDistScaleMax")) m_dBmDistScaleMax = json["dBmDistScaleMax"].toDouble();
-    if (json.contains("sMeterHoldTime")) m_sMeterHoldTime = json["sMeterHoldTime"].toInt();
+    if (json.contains("spectrumSize")) setSpectrumSize(json["spectrumSize"].toInt());
+    if (json.contains("dBmDistScaleMin")) setdBmDistScaleMin(json["dBmDistScaleMin"].toDouble());
+    if (json.contains("dBmDistScaleMax")) setdBmDistScaleMax(json["dBmDistScaleMax"].toDouble());
+    if (json.contains("sMeterHoldTime")) setSMeterHoldTime(json["sMeterHoldTime"].toInt());
 
     if (json.contains("colors")) {
         QJsonObject colors = json["colors"].toObject();
-        if (colors.contains("panBackground")) m_colors.panBackgroundColor = stringToColor(colors["panBackground"].toString(), m_colors.panBackgroundColor);
-        if (colors.contains("waterfall")) m_colors.waterfallColor = stringToColor(colors["waterfall"].toString(), m_colors.waterfallColor);
-        if (colors.contains("panLine")) m_colors.panLineColor = stringToColor(colors["panLine"].toString(), m_colors.panLineColor);
-        if (colors.contains("panLineFilled")) m_colors.panLineFilledColor = stringToColor(colors["panLineFilled"].toString(), m_colors.panLineFilledColor);
-        if (colors.contains("panSolidTop")) m_colors.panSolidTopColor = stringToColor(colors["panSolidTop"].toString(), m_colors.panSolidTopColor);
-        if (colors.contains("panSolidBottom")) m_colors.panSolidBottomColor = stringToColor(colors["panSolidBottom"].toString(), m_colors.panSolidBottomColor);
-        if (colors.contains("wideBandLine")) m_colors.wideBandLineColor = stringToColor(colors["wideBandLine"].toString(), m_colors.wideBandLineColor);
-        if (colors.contains("wideBandFilled")) m_colors.wideBandFilledColor = stringToColor(colors["wideBandFilled"].toString(), m_colors.wideBandFilledColor);
-        if (colors.contains("wideBandSolidTop")) m_colors.wideBandSolidTopColor = stringToColor(colors["wideBandSolidTop"].toString(), m_colors.wideBandSolidTopColor);
-        if (colors.contains("wideBandSolidBottom")) m_colors.wideBandSolidBottomColor = stringToColor(colors["wideBandSolidBottom"].toString(), m_colors.wideBandSolidBottomColor);
-        if (colors.contains("distanceLine")) m_colors.distanceLineColor = stringToColor(colors["distanceLine"].toString(), m_colors.distanceLineColor);
-        if (colors.contains("distanceLineFilled")) m_colors.distanceLineFilledColor = stringToColor(colors["distanceLineFilled"].toString(), m_colors.distanceLineFilledColor);
-        if (colors.contains("panCenterLine")) m_colors.panCenterLineColor = stringToColor(colors["panCenterLine"].toString(), m_colors.panCenterLineColor);
-        if (colors.contains("gridLine")) m_colors.gridLineColor = stringToColor(colors["gridLine"].toString(), m_colors.gridLineColor);
-        if (colors.contains("panFilter")) m_colors.panFilterColor = stringToColor(colors["panFilter"].toString(), m_colors.panFilterColor);
+        TPanadapterColors next = m_colors;
+        if (colors.contains("panBackground")) next.panBackgroundColor = stringToColor(colors["panBackground"].toString(), next.panBackgroundColor);
+        if (colors.contains("waterfall")) next.waterfallColor = stringToColor(colors["waterfall"].toString(), next.waterfallColor);
+        if (colors.contains("panLine")) next.panLineColor = stringToColor(colors["panLine"].toString(), next.panLineColor);
+        if (colors.contains("panLineFilled")) next.panLineFilledColor = stringToColor(colors["panLineFilled"].toString(), next.panLineFilledColor);
+        if (colors.contains("panSolidTop")) next.panSolidTopColor = stringToColor(colors["panSolidTop"].toString(), next.panSolidTopColor);
+        if (colors.contains("panSolidBottom")) next.panSolidBottomColor = stringToColor(colors["panSolidBottom"].toString(), next.panSolidBottomColor);
+        if (colors.contains("wideBandLine")) next.wideBandLineColor = stringToColor(colors["wideBandLine"].toString(), next.wideBandLineColor);
+        if (colors.contains("wideBandFilled")) next.wideBandFilledColor = stringToColor(colors["wideBandFilled"].toString(), next.wideBandFilledColor);
+        if (colors.contains("wideBandSolidTop")) next.wideBandSolidTopColor = stringToColor(colors["wideBandSolidTop"].toString(), next.wideBandSolidTopColor);
+        if (colors.contains("wideBandSolidBottom")) next.wideBandSolidBottomColor = stringToColor(colors["wideBandSolidBottom"].toString(), next.wideBandSolidBottomColor);
+        if (colors.contains("distanceLine")) next.distanceLineColor = stringToColor(colors["distanceLine"].toString(), next.distanceLineColor);
+        if (colors.contains("distanceLineFilled")) next.distanceLineFilledColor = stringToColor(colors["distanceLineFilled"].toString(), next.distanceLineFilledColor);
+        if (colors.contains("panCenterLine")) next.panCenterLineColor = stringToColor(colors["panCenterLine"].toString(), next.panCenterLineColor);
+        if (colors.contains("gridLine")) next.gridLineColor = stringToColor(colors["gridLine"].toString(), next.gridLineColor);
+        if (colors.contains("panFilter")) next.panFilterColor = stringToColor(colors["panFilter"].toString(), next.panFilterColor);
+        setPanadapterColors(next);
     }
 }
 

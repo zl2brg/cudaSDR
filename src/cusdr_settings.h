@@ -39,6 +39,10 @@
 #include <QAudioFormat>
 #include <qaudiodevice.h>
 #include <QMap>
+#include <QReadWriteLock>
+#include <QJsonObject>
+#include <QJsonDocument>
+#include <QJsonArray>
 #include <atomic>
 
 #include "cusdr_hamDatabase.h"
@@ -52,20 +56,14 @@
 #include "Settings/AudioConfig.h"
 #include "Settings/CWConfig.h"
 #include "Settings/ReceiverConfig.h"
+#include "Settings/AlexConfig.h"
+#include "Settings/TransmitConfig.h"
+#include "Settings/FreeDVConfig.h"
+#include "Settings/WindowConfig.h"
+#include "Settings/TciConfig.h"
+#include "Settings/SoapyConfig.h"
 #include "Util/cusdr_queue.h"
 #include "Util/display_utils.h"
-
-typedef struct _TSoapyDevice {
-    QString driver;
-    QString hardware;
-    QString name;
-    QString serial;
-    QString label;
-    QMap<QString, QString> args;
-} TSoapyDevice;
-
-Q_DECLARE_METATYPE (TSoapyDevice)
-Q_DECLARE_METATYPE (QList<TSoapyDevice>)
 
 
 // test for OpenCL
@@ -653,6 +651,12 @@ public:
     HardwareConfig *hardwareConfig() const { return m_hardwareConfig; }
     AudioConfig *audioConfig() const { return m_audioConfig; }
     CWConfig *cwConfig() const { return m_cwConfig; }
+    AlexConfig *alexConfig() const { return m_alexConfigObj; }
+    TransmitConfig *transmitConfig() const { return m_transmitConfig; }
+    FreeDVConfig *freeDVConfig() const { return m_freeDVConfig; }
+    WindowConfig *windowConfig() const { return m_windowConfig; }
+    TciConfig *tciConfig() const { return m_tciConfig; }
+    SoapyConfig *soapyConfig() const { return m_soapyConfig; }
     QList<ReceiverConfig*> receiverConfigs() const { return m_receiverConfigs; }
 
 	virtual ~Settings() override;
@@ -673,6 +677,12 @@ private:
     HardwareConfig      *m_hardwareConfig;
     AudioConfig         *m_audioConfig;
     CWConfig            *m_cwConfig;
+    AlexConfig          *m_alexConfigObj;
+    TransmitConfig      *m_transmitConfig;
+    FreeDVConfig        *m_freeDVConfig;
+    WindowConfig        *m_windowConfig;
+    TciConfig           *m_tciConfig;
+    SoapyConfig         *m_soapyConfig;
     QList<ReceiverConfig*> m_receiverConfigs;
 
 signals:
@@ -930,6 +940,11 @@ public:
     void	debugSystemState();
 	int 	loadSettings();
 	int 	saveSettings();
+    QJsonObject toJson() const;
+    bool fromJson(const QJsonObject &root);
+    bool saveJson(const QString &filePath = QString()) const;
+    bool loadJson(const QString &filePath = QString());
+    QString defaultJsonConfigPath() const;
 	/** Point settings storage at an absolute .ini path (primarily for tests). */
 	void    reopenSettingsStorage(const QString &absoluteIniPath);
 	QSDR::_ServerMode			getCurrentServerMode();
@@ -984,44 +999,42 @@ public:
 	quint16 getAudioPort();
 	quint16	getMetisPort();
 
-	TNetworkDevicecard			getCurrentMetisCard()		{ return m_currentHPSDRDevice; }
-    TSDRDevice                  getLastConnectedDevice()    { return m_lastConnectedDevice; }
-	QList<TNetworkDevicecard>	getMetisCardsList()			{ return m_metisCards; }
-    TSoapyDevice                getCurrentSoapyDevice()     { return m_currentSoapyDevice; }
-    QList<TSoapyDevice>         getSoapyDeviceList()        { return m_soapyDevices; }
-    QString     getSoapyRxAntenna()     const { return m_soapyRxAntenna; }
-    QStringList getSoapyAntennaList()   const { return m_soapyAntennaList; }
-    QString     getSoapyTxAntenna()     const { return m_soapyTxAntenna; }
-    QStringList getSoapyTxAntennaList() const { return m_soapyTxAntennaList; }
-    QString     getSoapyHardwareKey()   const { return m_soapyHardwareKey; }
-    int         getSoapyLnaGain()       const { return m_soapyLnaGain; }
-    int         getSoapyTiaGain()       const { return m_soapyTiaGain; }
-    int         getSoapyPgaGain()       const { return m_soapyPgaGain; }
-    int         getSoapyOverallGain()   const { return m_soapyOverallGain; }
-    bool        getSoapyAutoCalibrate() const { return m_soapyAutoCalibrate; }
-    bool        getSoapyIQBalance()     const { return m_soapyIQBalance; }
-	qint64						getMaxFrequency()			{ return m_maxFrequency; }
-	qint64						getMinFrequency()			{ return m_minFrequency; }
-#ifdef HAVE_SOAPYSDR
-    int         getSoapyOverallGainMin() const { return m_soapyOverallGainMin; }
-    int         getSoapyOverallGainMax() const { return m_soapyOverallGainMax; }
-#endif
-	QList<TReceiver>			getReceiverDataList()		{ return m_receiverDataList; }
-	QList<THamBandFrequencies>	getBandFrequencyList()		{ return m_bandList; }
-	QList<THamBandText>			getHamBandTextList()		{ return m_bandTextList; }
-	QList<TDefaultFilter>		getDefaultFilterList()		{ return m_defaultFilterList; }
+	TNetworkDevicecard			getCurrentMetisCard()		{ QReadLocker locker(&m_dataRwLock); return m_currentHPSDRDevice; }
+    TSDRDevice                  getLastConnectedDevice()    { QReadLocker locker(&m_dataRwLock); return m_lastConnectedDevice; }
+	QList<TNetworkDevicecard>	getMetisCardsList()			{ QReadLocker locker(&m_dataRwLock); return m_metisCards; }
+    TSoapyDevice                getCurrentSoapyDevice()     { return m_soapyConfig->currentDevice(); }
+    QList<TSoapyDevice>         getSoapyDeviceList()        { return m_soapyConfig->deviceList(); }
+    QString     getSoapyRxAntenna()     const { return m_soapyConfig->rxAntenna(); }
+    QStringList getSoapyAntennaList()   const { return m_soapyConfig->antennaList(); }
+    QString     getSoapyTxAntenna()     const { return m_soapyConfig->txAntenna(); }
+    QStringList getSoapyTxAntennaList() const { return m_soapyConfig->txAntennaList(); }
+    QString     getSoapyHardwareKey()   const { return m_soapyConfig->hardwareKey(); }
+    int         getSoapyLnaGain()       const { return m_soapyConfig->lnaGain(); }
+    int         getSoapyTiaGain()       const { return m_soapyConfig->tiaGain(); }
+    int         getSoapyPgaGain()       const { return m_soapyConfig->pgaGain(); }
+    int         getSoapyOverallGain()   const { return m_soapyConfig->overallGain(); }
+    bool        getSoapyAutoCalibrate() const { return m_soapyConfig->autoCalibrate(); }
+    bool        getSoapyIQBalance()     const { return m_soapyConfig->iqBalance(); }
+	qint64						getMaxFrequency()			{ return m_maxFrequency.load(); }
+	qint64						getMinFrequency()			{ return m_minFrequency.load(); }
+    int         getSoapyOverallGainMin() const { return m_soapyConfig->overallGainMin(); }
+    int         getSoapyOverallGainMax() const { return m_soapyConfig->overallGainMax(); }
+	QList<TReceiver>			getReceiverDataList()		{ QReadLocker locker(&m_dataRwLock); return m_receiverDataList; }
+	QList<THamBandFrequencies>	getBandFrequencyList()		{ QReadLocker locker(&m_dataRwLock); return m_bandList; }
+	QList<THamBandText>			getHamBandTextList()		{ QReadLocker locker(&m_dataRwLock); return m_bandTextList; }
+	QList<TDefaultFilter>		getDefaultFilterList()		{ QReadLocker locker(&m_dataRwLock); return m_defaultFilterList; }
 	TDefaultFilterMode			getCurrentFilterMode()		{ return m_filterMode; }
-	quint16						getAlexConfig()				{ return m_alexConfig; }
-	QList<int>					getAlexStates()				{ return m_alexStates; }
-	QList<long>					getHPFLoFrequencies()		{ return m_HPFLoFrequencyList; }
-	QList<long>					getHPFHiFrequencies()		{ return m_HPFHiFrequencyList; }
-	QList<long>					getLPFLoFrequencies()		{ return m_LPFLoFrequencyList; }
-	QList<long>					getLPFHiFrequencies()		{ return m_LPFHiFrequencyList; }
-	QList<int>					getRxJ6Pins()				{ return m_rxJ6pinList; }
-	QList<int>					getTxJ6Pins()				{ return m_txJ6pinList; }
-    int                         get_tx_drivelevel()         { return m_audioConfig->driveLevel(); }
+	quint16						getAlexConfig()				{ return m_alexConfigObj->alexConfig(); }
+	QList<int>					getAlexStates()				{ return m_alexConfigObj->alexStates(); }
+	QList<long>					getHPFLoFrequencies()		{ return m_alexConfigObj->hpfLoFrequencies(); }
+	QList<long>					getHPFHiFrequencies()		{ return m_alexConfigObj->hpfHiFrequencies(); }
+	QList<long>					getLPFLoFrequencies()		{ return m_alexConfigObj->lpfLoFrequencies(); }
+	QList<long>					getLPFHiFrequencies()		{ return m_alexConfigObj->lpfHiFrequencies(); }
+	QList<int>					getRxJ6Pins()				{ QReadLocker locker(&m_dataRwLock); return m_rxJ6pinList; }
+	QList<int>					getTxJ6Pins()				{ QReadLocker locker(&m_dataRwLock); return m_txJ6pinList; }
+    int                         get_tx_drivelevel()         { return m_transmitConfig->driveLevel(); }
     bool                        get_repeaterMode()          {return m_repeaterMode; }
-    bool                        getTxFullDuplex() const     { return m_txFullDuplex; }
+    bool                        getTxFullDuplex() const     { return m_transmitConfig->txFullDuplex(); }
     int							getFramesPerSecond(int rx);
 	QString						getDSPModeString(int mode);
     DSPMode                     getDSPMode(int rx);
@@ -1066,7 +1079,7 @@ public:
 	bool getExcaliburPresence()		{ return m_devices.excaliburPresence; }
 	bool getMetisPresence()			{ return m_devices.metisPresence; }
 	int  getMetisVersion()			{ return m_devices.metisFWVersion; }
-	int  getSocketBufferSize()		{ return m_socketBufferSize; }
+	int  getSocketBufferSize()		{ return m_networkConfig->socketBufferSize(); }
 	bool getManualSocketBufferSize() { return m_manualSocketBufferSize; }
 	bool getFirmwareVersionCheck()	{ return m_checkFirmwareVersions; }
 
@@ -1100,17 +1113,17 @@ public:
     int     getMercuryRandom()			{ return m_mercuryRandom; }
     int     get10MHzSource()			{ return m_hardwareConfig->source10Mhz(); }
     int     get122_8MHzSource()			{ return m_hardwareConfig->source122_88Mhz(); }
-    int     getMicSource()				{ return m_audioConfig->micSource(); }
+    int     getMicSource()				{ return m_transmitConfig->micSource(); }
     int     getRxClass()				{ return m_RxClass; }
     int     getRxTiming()				{ return m_RxTiming; }
-    int     getMicInputDev()            { return m_audioConfig->micInputDev(); }
-    int     getDigitalAudioInputDev()   { return m_audioConfig->digitalAudioInputDev(); }
-	QString getMicInputSourceName()     { return m_audioConfig->micInputSourceName(); }
-	QString getDigitalInputSourceName() { return m_audioConfig->digitalInputSourceName(); }
-    int     getMicInputLevel()          { return m_audioConfig->micGain(); }
-    int     getDriveLevel()             { return m_audioConfig->driveLevel(); }
+    int     getMicInputDev()            { return m_transmitConfig->micInputDev(); }
+    int     getDigitalAudioInputDev()   { return m_transmitConfig->digitalAudioInputDev(); }
+	QString getMicInputSourceName()     { return m_transmitConfig->micInputSourceName(); }
+	QString getDigitalInputSourceName() { return m_transmitConfig->digitalInputSourceName(); }
+    int     getMicInputLevel()          { return static_cast<int>(m_transmitConfig->micGain()); }
+    int     getDriveLevel()             { return m_transmitConfig->driveLevel(); }
     bool    getRepeaterMode()           { return m_repeaterMode; }
-    double  getRepeaterOffset()         { return m_repeaterOffset; }
+    double  getRepeaterOffset()         { return m_transmitConfig->repeaterOffset(); }
     double  getFMpreemphesis() const;
     int     getPhaseRotator() const;
     bool    getPhaseRotatorAuto() const;
@@ -1126,7 +1139,7 @@ public:
     double  getCfcPrecomp() const;
     double  getCfcPrePeq() const;
     int     getCfcCurveDeg() const;
-    QVector<double> getCfcFreqs()       { return m_audioConfig->cfcFreqs(); }
+    QVector<double> getCfcFreqs()       { return m_transmitConfig->cfcFreqs(); }
     QVector<double> getCfcLevels() const;
     QVector<double> getCfcPost() const;
     bool    getEmnrPost2Enabled()       { return m_audioConfig->emnrPost2Enabled(); }
@@ -1235,11 +1248,11 @@ public slots:
     TciServer  *tciServer() const { return m_tciServer; }
     // TCI WebSocket server enable/disable (persisted). Emits
     // tciServerEnabledChanged so the server can be started/stopped at runtime.
-    bool        getTciServerEnabled() const { return m_tciServerEnabled; }
+    bool        getTciServerEnabled() const { return m_tciConfig->serverEnabled(); }
     void        setTciServerEnabled(bool enabled);
-    float       getTciRxGain() const { return m_tciRxGain; }
+    float       getTciRxGain() const { return m_tciConfig->rxGain(); }
     void        setTciRxGain(float gain);
-    float       getTciTxGain() const { return m_tciTxGain; }
+    float       getTciTxGain() const { return m_tciConfig->txGain(); }
     void        setTciTxGain(float gain);
     // Lock-free hint set by TciServer when any client is subscribed to the IQ
     // stream. The DSP thread reads it to skip building/emitting per-block IQ
@@ -1534,10 +1547,12 @@ public:
 private slots:
 
 private:
-	QSDR::_Error				m_systemError;
-	QSDR::_ServerMode			m_serverMode;
-	QSDR::_HWInterfaceMode		m_hwInterface;
-	QSDR::_DataEngineState		m_dataEngineState;
+    mutable QReadWriteLock      m_dataRwLock;
+
+	std::atomic<QSDR::_Error>				m_systemError{QSDR::NoError};
+	std::atomic<QSDR::_ServerMode>			m_serverMode{QSDR::SDRMode};
+	std::atomic<QSDR::_HWInterfaceMode>		m_hwInterface{QSDR::NoInterfaceMode};
+	std::atomic<QSDR::_DataEngineState>		m_dataEngineState{QSDR::DataEngineDown};
 
 //	QAudio::Mode	m_audioMode;
     QAudio::State	m_audioState;
@@ -1547,31 +1562,10 @@ private:
 	TDefaultFilterMode			m_filterMode;
 	TNetworkDevicecard			m_currentHPSDRDevice;
     TSDRDevice                  m_lastConnectedDevice;
-#ifdef HAVE_SOAPYSDR
-    TSoapyDevice                m_currentSoapyDevice;
-    // SoapySDR radio parameters (persisted)
-    QString     m_soapyRxAntenna;       // selected antenna name
-    QString     m_soapyTxAntenna;       // selected TX antenna name
-    int         m_soapyLnaGain;         // LNA gain in dB
-    int         m_soapyTiaGain;         // TIA gain in dB
-    int         m_soapyPgaGain;         // PGA gain in dB
-    int         m_soapyOverallGain;     // aggregate gain (non-LimeSDR)
-    int         m_soapyOverallGainMin = 0;
-    int         m_soapyOverallGainMax = 70;
-    bool        m_soapyAutoCalibrate;   // LimeSuite auto-calibration flag
-    bool        m_soapyIQBalance;       // IQ balance correction enable
-    // Runtime-only (not persisted)
-    QStringList m_soapyAntennaList;
-    QStringList m_soapyTxAntennaList;
-    QString     m_soapyHardwareKey;
-#endif
 	TTransmitter				m_transmitter;
 	TWideband					m_widebandOptions;
 
 	QList<TNetworkDevicecard>	m_metisCards;
-#ifdef HAVE_SOAPYSDR
-    QList<TSoapyDevice>         m_soapyDevices;
-#endif
 	QList<TReceiver>			m_receiverDataList;
 	QList<TReceiver>			pam_receiverDataList;
 	QList<THamBandFrequencies>	m_bandList;
@@ -1579,18 +1573,11 @@ private:
 	QList<TDefaultFilter>		m_defaultFilterList;
 	//QList<QCLDevice>			m_clDevices;
 	QList<QString>				m_rxStringList;
-	QList<int>					m_alexStates;
-	QList<long>					m_HPFLoFrequencyList;
-	QList<long>					m_HPFHiFrequencyList;
-	QList<long>					m_LPFLoFrequencyList;
-	QList<long>					m_LPFHiFrequencyList;
 	QList<int>					m_rxJ6pinList;
 	QList<int>					m_txJ6pinList;
 
 	QString			m_titleString;
 	QString			m_versionString;
-	QString			m_serverAddress;
-	QString			m_hpsdrDeviceLocalAddr;
 	QString			m_callsignString;
 	QString			settingsFilename;
 
@@ -1600,76 +1587,61 @@ private:
 	QHostAddress	m_hostAddress;
 
 
-	quint16		m_serverPort;
-	quint16		m_listenerPort;
-	quint16		m_audioPort;
-	quint16		m_metisPort;
-	quint16		m_alexConfig;
-
 	bool	setLoaded;
 
-	bool	m_mainPower;
-    RadioState m_radioState = RadioState::RX;
+	std::atomic<bool>	m_mainPower{false};
+    std::atomic<RadioState> m_radioState{RadioState::RX};
     RigCtlServer *m_rigCtlServer = nullptr;
     TciServer    *m_tciServer = nullptr;
-    bool          m_tciServerEnabled = true;
-    float         m_tciRxGain = 1.0f;
-    float         m_tciTxGain = 1.0f;
-    std::atomic<bool> m_tciIqActive{false};
-	bool	m_defaultSkin;
-	bool	m_connected;
-	bool	m_clientConnected;
-	bool	m_pboFound;
-	bool	m_fboFound;
-	bool	m_manualSocketBufferSize;
-	bool	m_pennyOCEnabled;
+    std::atomic<bool>          m_tciIqActive{false};
+	std::atomic<bool>	m_defaultSkin{true};
+	std::atomic<bool>	m_connected{false};
+	std::atomic<bool>	m_clientConnected{false};
+	std::atomic<bool>	m_pboFound{false};
+	std::atomic<bool>	m_fboFound{false};
+	std::atomic<bool>	m_manualSocketBufferSize{false};
+	std::atomic<bool>	m_pennyOCEnabled{false};
 
 	//bool	main_mute;
-	bool	m_checkFirmwareVersions;
-	bool	m_specAveraging;
-	bool	m_panGrid;
-	bool	m_peakHold;
-	bool	m_packetsToggle;
+	std::atomic<bool>	m_checkFirmwareVersions{true};
+	std::atomic<bool>	m_specAveraging{false};
+	std::atomic<bool>	m_panGrid{true};
+	std::atomic<bool>	m_peakHold{false};
+	std::atomic<bool>	m_packetsToggle{true};
 
-	bool	m_frequencyRx1onRx2;
-	bool	m_radioPopupVisible;
+	std::atomic<bool>	m_frequencyRx1onRx2{false};
+	std::atomic<bool>	m_radioPopupVisible{false};
 
-	qint64	m_maxFrequency;
-	qint64	m_minFrequency;
+	std::atomic<qint64>	m_maxFrequency{MAXFREQUENCY};
+	std::atomic<qint64>	m_minFrequency{0};
 
-	int		m_hpsdrHardware;
-	int		m_hpsdrNetworkDevices;
-	int		m_NetworkInterfacesNo;
-	int		m_socketBufferSize;
-	int		m_clientNoConnected;
-	int		m_minimumWidgetWidth;
-	int		m_minimumGroupBoxWidth;
+	std::atomic<int>		m_hpsdrHardware{0};
+	std::atomic<int>		m_hpsdrNetworkDevices{0};
+	std::atomic<int>		m_NetworkInterfacesNo{0};
+	std::atomic<int>		m_clientNoConnected{0};
 
-	int		m_mercuryReceivers;
-    int		m_currentReceiver = 0;
-	int		m_sampleRate;
-	int		m_mercurySpeed;
+	std::atomic<int>		m_mercuryReceivers{1};
+    std::atomic<int>		m_currentReceiver{0};
+	std::atomic<int>		m_sampleRate{48000};
+	std::atomic<int>		m_mercurySpeed{0};
 
-	int		m_mercuryAttenuator;
-	int		m_mercuryDither;
-	int		m_mercuryRandom;
+	std::atomic<int>		m_mercuryAttenuator{0};
+	std::atomic<int>		m_mercuryDither{0};
+	std::atomic<int>		m_mercuryRandom{0};
 
-	int		m_outputSampleIncrement;
-	int		m_RxClass;
-	int		m_RxTiming;
+	std::atomic<int>		m_outputSampleIncrement{0};
+	std::atomic<int>		m_RxClass{0};
+	std::atomic<int>		m_RxTiming{0};
 
-	int		m_framesPerSecond;
-	int		m_multiRxView;
+	std::atomic<int>		m_framesPerSecond{15};
 
-	QList<int>				m_freeDVModeList;
 	QList<bool>			m_freeDVSyncList;
 	QList<float>		m_freeDVSnrList;
 	QList<quint64>		m_freeDVRxFramesList;
 	QList<quint64>		m_freeDVTxFramesList;
 
 	//int		m_wbBuffers;
-    bool    m_repeaterMode;
-    bool    m_txFullDuplex = true;
+    std::atomic<bool>    m_repeaterMode{false};
 
 	long freq1;
 	
@@ -1680,7 +1652,6 @@ private:
 	qreal	m_filterFrequencyHigh;
 
 
-    double  m_repeaterOffset;
     bool    m_use_repeaterOffset;
 
 

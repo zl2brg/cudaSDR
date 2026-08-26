@@ -28,6 +28,8 @@
 #define LOG_SETTINGS
 
 #include <QStandardPaths>
+#include <QSaveFile>
+#include <QJsonParseError>
 #include "cusdr_settings.h"
 #include "Models/RadioModel.h"
 #include "Models/RadioTelemetry.h"
@@ -55,6 +57,12 @@ Settings::Settings(QObject *parent)
     m_hardwareConfig = new HardwareConfig(this);
     m_audioConfig = new AudioConfig(this);
     m_cwConfig = new CWConfig(this);
+    m_alexConfigObj = new AlexConfig(this);
+    m_transmitConfig = new TransmitConfig(this);
+    m_freeDVConfig = new FreeDVConfig(this);
+    m_windowConfig = new WindowConfig(this);
+    m_tciConfig = new TciConfig(this);
+    m_soapyConfig = new SoapyConfig(this);
 
     connect(m_displayConfig, &DisplayConfig::spectrumSizeChanged, this, &Settings::spectrumSizeChanged);
     connect(m_displayConfig, &DisplayConfig::sMeterHoldTimeChanged, this, &Settings::sMeterHoldTimeChanged);
@@ -140,34 +148,12 @@ Settings::Settings(QObject *parent)
 
                 // Initialize FreeDV/Codec2 mode list with default mode 0 (FREEDV_MODE_1600, 1600 bps)
                 // Available modes: 0=1600bps, 1=1400bps, 2=1300bps, 3=700C bps, 4=2400bps, 5=3200bps
-                m_freeDVModeList << 0; // FREEDV_MODE_1600
                 m_freeDVSyncList << false;
                 m_freeDVSnrList << 0.0f;
                 m_freeDVRxFramesList << 0;
                 m_freeDVTxFramesList << 0;
 
       }
-
-    // Alex parameter configurations
-    m_alexConfig = 0;
-
-    for (int i = 0; i < 6; i++) {
-
-        m_HPFLoFrequencyList.append((long) 0);
-        m_HPFHiFrequencyList.append((long) 0);
-    }
-
-    for (int i = 0; i < 7; i++) {
-
-        m_LPFLoFrequencyList.append((long) 0);
-        m_LPFHiFrequencyList.append((long) 0);
-    }
-
-    // init alex states
-    for (int i = 0; i < MAX_BANDS; i++) {
-
-        m_alexStates << 0;
-    }
 
     // Rx, Tx J6 pins list
     // Bands: 160m, 80m, 60m, 40m, 30m, 20m, 17m, 15m, 12m, 10m, 6m
@@ -218,29 +204,11 @@ int Settings::loadSettings() {
     m_callsignString = str;
 
     // Window settings
-    value = settings->value("window/minimumWidgetWidth", 300).toInt();
-    m_minimumWidgetWidth = clampMinimumWidgetWidth(value);
-
-    value = settings->value("window/minimumGroupBoxWidth", 250).toInt();
-    m_minimumGroupBoxWidth = clampMinimumGroupBoxWidth(value, m_minimumWidgetWidth);
-
-    value = settings->value("window/multiRxView", 0).toInt();
-    m_multiRxView = clampMultiRxView(value);
-
+    m_windowConfig->loadIni(settings);
 
     // network settings
     m_networkConfig->loadIni(settings);
-    m_serverAddress = m_networkConfig->serverAddress();
-    m_hpsdrDeviceLocalAddr = m_networkConfig->localAddress();
-    m_serverPort = m_networkConfig->serverPort();
-    m_listenerPort = m_networkConfig->listenPort();
-    m_audioPort = m_networkConfig->audioPort();
-    m_metisPort = m_networkConfig->metisPort();
-    m_socketBufferSize = m_networkConfig->socketBufferSize();
-
-    m_tciServerEnabled = settings->value("network/tci_enabled", true).toBool();
-    m_tciRxGain = qBound(0.0f, settings->value("network/tci_rx_gain", 1.0).toFloat(), 2.0f);
-    m_tciTxGain = qBound(0.0f, settings->value("network/tci_tx_gain", 1.0).toFloat(), 2.0f);
+    m_tciConfig->loadIni(settings);
 
     m_lastConnectedDevice.deviceClass = static_cast<DeviceClass>(settings->value("network/lastDeviceClass", DeviceClass_None).toInt());
     m_lastConnectedDevice.deviceType = settings->value("network/lastDeviceType", "").toString();
@@ -298,34 +266,9 @@ int Settings::loadSettings() {
     } else if (m_hpsdrHardware == 2) {
 
         m_hwInterface = QSDR::SoapySDR;
-        m_currentSoapyDevice.label = settings->value("SoapySDR/label", "").toString();
-        m_currentSoapyDevice.driver = settings->value("SoapySDR/driver", "").toString();
-        m_currentSoapyDevice.serial = settings->value("SoapySDR/serial", "").toString();
     }
 
-#ifdef HAVE_SOAPYSDR
-    // Always load SoapySDR settings regardless of active hardware mode.
-    m_soapyRxAntenna   = settings->value("SoapySDR/rxAntenna", "").toString();
-    m_soapyTxAntenna   = settings->value("SoapySDR/txAntenna", "").toString();
-    m_soapyLnaGain     = settings->value("SoapySDR/lnaGain", 25).toInt();
-    m_soapyTiaGain     = settings->value("SoapySDR/tiaGain", 12).toInt();
-    m_soapyPgaGain     = settings->value("SoapySDR/pgaGain", 12).toInt();
-    m_soapyOverallGain = settings->value("SoapySDR/overallGain", 60).toInt();
-    m_soapyAutoCalibrate = settings->value("SoapySDR/autoCalibrate", false).toBool();
-    m_soapyIQBalance     = settings->value("SoapySDR/iqBalance",      true).toBool();
-    m_soapyHardwareKey = "";
-    m_soapyAntennaList.clear();
-    m_soapyTxAntennaList.clear();
-    // Pluto / network Soapy devices need uri or hostname beyond driver+serial.
-    {
-        const QString uri = settings->value("SoapySDR/uri", "").toString();
-        const QString hostname = settings->value("SoapySDR/hostname", "").toString();
-        if (!uri.isEmpty())
-            m_currentSoapyDevice.args.insert(QStringLiteral("uri"), uri);
-        if (!hostname.isEmpty())
-            m_currentSoapyDevice.args.insert(QStringLiteral("hostname"), hostname);
-    }
-#endif
+    m_soapyConfig->loadIni(settings);
 
     str = settings->value("hpsdr/checkfw", "true").toString();
     m_hardwareConfig->setCheckFirmwareVersions(str == "true");
@@ -352,9 +295,9 @@ int Settings::loadSettings() {
     m_hardwareConfig->loadIni(settings);
 
     m_audioConfig->loadIni(settings);
-
-    m_repeaterOffset =  settings->value("repeater_offset",0).toDouble();
-    m_txFullDuplex = settings->value("radio/txFullDuplex", true).toBool();
+    m_alexConfigObj->loadIni(settings);
+    m_transmitConfig->loadIni(settings);
+    m_freeDVConfig->loadIni(settings);
 
     m_cwConfig->loadIni(settings);
 
@@ -391,238 +334,17 @@ int Settings::loadSettings() {
 //	m_mouseWheelFreqStep = (double)value;
 
     //******************************************************************
-    // Alexiares data settings
-    // m_alexConfig (qint16):
-    //
-    // 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
-    //   | | | | | | | | | | | | | | |
-    //   | | | | | | | | | | | | | | +-----Alex   - manual HPF/LPF filter select (0 = disable, 1 = enable)
-    //   | | | | | | | | | | | | | +------ Alex   -	Bypass all HPFs   (0 = disable, 1 = enable)*
-    //   | | | | | | | | | | | | +-------- Alex   -	6M low noise amplifier (0 = disable, 1 = enable)*
-    //   | | | | | | | | | | | +---------- Alex   -	select 1.5MHz HPF (0 = disable, 1 = enable)*
-    //   | | | | | | | | | | +------------ Alex   -	select 6.5MHz HPF (0 = disable, 1 = enable)*
-    //   | | | | | | | | | +-------------- Alex   -	select 9.5MHz HPF (0 = disable, 1 = enable)*
-    //   | | | | | | | | +---------------- Alex   -	select 13MHz  HPF (0 = disable, 1 = enable)*
-    //   | | | | | | | +------------------ Alex   -	select 20MHz  HPF (0 = disable, 1 = enable)*
-    //   | | | | | | +-------------------- Alex   - select 160m   LPF (0 = disable, 1 = enable)*
-    //   | | | | | +---------------------- Alex   - select 80m    LPF (0 = disable, 1 = enable)*
-    //   | | | | +------------------------ Alex   - select 60/40m LPF (0 = disable, 1 = enable)*
-    //   | | | +-------------------------- Alex   - select 30/20m LPF (0 = disable, 1 = enable)*
-    //   | | +---------------------------- Alex   - select 17/15m LPF (0 = disable, 1 = enable)*
-    //   | +------------------------------ Alex   - select 12/10m LPF (0 = disable, 1 = enable)*
-    //   +-------------------------------- Alex   - select 6m     LPF (0 = disable, 1 = enable)*
-
-    m_alexConfig = 0;
-    double fLo;
-    double fHi;
-
-    str = settings->value("alex/manual", "off").toString();
-    if (str.toLower() == "on")
-        m_alexConfig |= 0x01;
-
-    str = settings->value("alex/bypassAll", "off").toString();
-    if (str.toLower() == "on")
-        m_alexConfig |= 0x02;
-
-    str = settings->value("alex/amp6m", "off").toString();
-    if (str.toLower() == "on")
-        m_alexConfig |= 0x04;
-
-    fLo = settings->value("alex/amp6mLo", 50000000).toDouble();
-    if ((fLo < 49000000) || (fLo > 52500000)) fLo = 50000000;
-
-    fHi = settings->value("alex/amp6mHi", 54000000).toDouble();
-    if ((fHi < 52500000) || (fHi > 55000000)) fHi = 54000000;
-
-    m_HPFLoFrequencyList[5] = (long) fLo;
-    m_HPFHiFrequencyList[5] = (long) fHi;
-
-
-    str = settings->value("alex/hpf1_5MHz", "off").toString();
-    if (str.toLower() == "on")
-        m_alexConfig |= 0x08;
-
-    fLo = settings->value("alex/hpf1_5MHzLo", 1500000).toDouble();
-    if ((fLo < 0) || (fLo > 2000000)) fLo = 1500000;
-
-    fHi = settings->value("alex/hpf1_5MHzHi", 5500000).toDouble();
-    if ((fHi < 1600000) || (fHi > 6000000)) fHi = 5500000;
-
-    m_HPFLoFrequencyList[0] = (long) fLo;
-    m_HPFHiFrequencyList[0] = (long) fHi;
-
-
-    str = settings->value("alex/hpf6_5MHz", "off").toString();
-    if (str.toLower() == "on")
-        m_alexConfig |= 0x10;
-
-    fLo = settings->value("alex/hpf6_5MHzLo", 7000000).toDouble();
-    if ((fLo < 6000000) || (fLo > 8000000)) fLo = 7000000;
-
-    fHi = settings->value("alex/hpf6_5MHzHi", 7300000).toDouble();
-    if ((fHi < 7000000) || (fHi > 9500000)) fHi = 7300000;
-
-    m_HPFLoFrequencyList[1] = (long) fLo;
-    m_HPFHiFrequencyList[1] = (long) fHi;
-
-
-    str = settings->value("alex/hpf9_5MHz", "off").toString();
-    if (str.toLower() == "on")
-        m_alexConfig |= 0x20;
-
-    fLo = settings->value("alex/hpf9_5MHzLo", 10100000).toDouble();
-    if ((fLo < 9000000) || (fLo > 11000000)) fLo = 10100000;
-
-    fHi = settings->value("alex/hpf9_5MHzHi", 10150000).toDouble();
-    if ((fHi < 10000000) || (fHi > 13000000)) fHi = 10150000;
-
-    m_HPFLoFrequencyList[2] = (long) fLo;
-    m_HPFHiFrequencyList[2] = (long) fHi;
-
-
-    str = settings->value("alex/hpf13MHz", "off").toString();
-    if (str.toLower() == "on")
-        m_alexConfig |= 0x40;
-
-    fLo = settings->value("alex/hpf13MHzLo", 14000000).toDouble();
-    if ((fLo < 12000000) || (fLo > 15000000)) fLo = 14000000;
-
-    fHi = settings->value("alex/hpf13MHzHi", 18168000).toDouble();
-    if ((fHi < 13700000) || (fHi > 19000000)) fHi = 18168000;
-
-    m_HPFLoFrequencyList[3] = (long) fLo;
-    m_HPFHiFrequencyList[3] = (long) fHi;
-
-
-    str = settings->value("alex/hpf20MHz", "off").toString();
-    if (str.toLower() == "on")
-        m_alexConfig |= 0x80;
-
-    fLo = settings->value("alex/hpf20MHzLo", 21000000).toDouble();
-    if ((fLo < 18000000) || (fLo > 25000000)) fLo = 21000000;
-
-    fHi = settings->value("alex/hpf20MHzHi", 29700000).toDouble();
-    if ((fHi < 25000000) || (fHi > 32000000)) fHi = 29700000;
-
-    m_HPFLoFrequencyList[4] = (long) fLo;
-    m_HPFHiFrequencyList[4] = (long) fHi;
-
-
-    str = settings->value("alex/lpf160m", "off").toString();
-    if (str.toLower() == "on")
-        m_alexConfig |= 0x100;
-
-    fLo = settings->value("alex/lpf160mLo", 1800000).toDouble();
-    if ((fLo < 0) || (fLo > 1900000)) fLo = 1800000;
-
-    fHi = settings->value("alex/lpf160mHi", 2000000).toDouble();
-    if ((fHi < 1000000) || (fHi > 3000000)) fHi = 2000000;
-
-    m_LPFLoFrequencyList[0] = (long) fLo;
-    m_LPFHiFrequencyList[0] = (long) fHi;
-
-
-    str = settings->value("alex/lpf80m", "off").toString();
-    if (str.toLower() == "on")
-        m_alexConfig |= 0x200;
-
-    fLo = settings->value("alex/lpf80mLo", 3500000).toDouble();
-    if ((fLo < 2000000) || (fLo > 4000000)) fLo = 3500000;
-
-    fHi = settings->value("alex/lpf80mHi", 4000000).toDouble();
-    if ((fHi < 2000000) || (fHi > 5000000)) fHi = 4000000;
-
-    m_LPFLoFrequencyList[1] = (long) fLo;
-    m_LPFHiFrequencyList[1] = (long) fHi;
-
-
-    str = settings->value("alex/lpf60_40m", "off").toString();
-    if (str.toLower() == "on")
-        m_alexConfig |= 0x400;
-
-    fLo = settings->value("alex/lpf60_40mLo", 5330000).toDouble();
-    if ((fLo < 5000000) || (fLo > 11000000)) fLo = 5330000;
-
-    fHi = settings->value("alex/lpf60_40mHi", 7300000).toDouble();
-    if ((fHi < 5000000) || (fHi > 8000000)) fHi = 7300000;
-
-    m_LPFLoFrequencyList[2] = (long) fLo;
-    m_LPFHiFrequencyList[2] = (long) fHi;
-
-
-    str = settings->value("alex/lpf30_20m", "off").toString();
-    if (str.toLower() == "on")
-        m_alexConfig |= 0x800;
-
-    fLo = settings->value("alex/lpf30_20mLo", 10100000).toDouble();
-    if ((fLo < 9000000) || (fLo > 15000000)) fLo = 10100000;
-
-    fHi = settings->value("alex/lpf30_20mHi", 14350000).toDouble();
-    if ((fHi < 9000000) || (fHi > 15000000)) fHi = 14350000;
-
-    m_LPFLoFrequencyList[3] = (long) fLo;
-    m_LPFHiFrequencyList[3] = (long) fHi;
-
-
-    str = settings->value("alex/lpf17_15m", "off").toString();
-    if (str.toLower() == "on")
-        m_alexConfig |= 0x1000;
-
-    fLo = settings->value("alex/lpf17_15mLo", 18068000).toDouble();
-    if ((fLo < 17000000) || (fLo > 22000000)) fLo = 18068000;
-
-    fHi = settings->value("alex/lpf17_15mHi", 21450000).toDouble();
-    if ((fHi < 17000000) || (fHi > 22000000)) fHi = 21450000;
-
-    m_LPFLoFrequencyList[4] = (long) fLo;
-    m_LPFHiFrequencyList[4] = (long) fHi;
-
-
-    str = settings->value("alex/lpf12_10m", "off").toString();
-    if (str.toLower() == "on")
-        m_alexConfig |= 0x2000;
-
-    fLo = settings->value("alex/lpf12_10mLo", 24890000).toDouble();
-    if ((fLo < 23000000) || (fLo > 30000000)) fLo = 24890000;
-
-    fHi = settings->value("alex/lpf12_10mHi", 29700000).toDouble();
-    if ((fHi < 23000000) || (fHi > 30000000)) fHi = 29700000;
-
-    m_LPFLoFrequencyList[5] = (long) fLo;
-    m_LPFHiFrequencyList[5] = (long) fHi;
-
-
-    str = settings->value("alex/lpf6m", "off").toString();
-    if (str.toLower() == "on")
-        m_alexConfig |= 0x4000;
-
-    fLo = settings->value("alex/lpf6mLo", 50000000).toDouble();
-    if ((fLo < 30000000) || (fLo > 52000000)) fLo = 50000000;
-
-    fHi = settings->value("alex/lpf6mHi", 54000000).toDouble();
-    if ((fHi < 52000000) || (fHi > 66000000)) fHi = 54000000;
-
-    m_LPFLoFrequencyList[6] = (long) fLo;
-    m_LPFHiFrequencyList[6] = (long) fHi;
-
-
-    SETTINGS_DEBUG << "Alex config: " << m_alexConfig;
-
-    if (m_alexStates.length() == MAX_BANDS && m_bandList.length() == MAX_BANDS) {
-
-        for (int i = 0; i < MAX_BANDS; i++) {
-
-            str = "alex/state";
-            str.append(m_bandList.at(i).bandString);
-
-            value = settings->value(str, 33).toInt();
-            setAlexState(i, value);
-        }
+    // Alexiares per-band antenna state (mask/freqs already in AlexConfig::loadIni)
+    {
+        QStringList bandKeys;
+        for (const auto &b : m_bandList)
+            bandKeys << b.bandString;
+        m_alexConfigObj->loadStates(settings, bandKeys);
+        emit alexStatesChanged(m_alexConfigObj->alexStates());
     }
 
     //******************************************************************
     // Penny open collector settings
-
     str = settings->value("penny/OCenabled", "off").toString();
     if (str.toLower() == "on")
         m_pennyOCEnabled = true;
@@ -1446,28 +1168,16 @@ int Settings::saveSettings() {
     settings->setValue("user/callSign", m_callsignString);
 
     // window settings
-    settings->setValue("window/minimumWidgetWidth", m_minimumWidgetWidth);
-    settings->setValue("window/minimumGroupBoxWidth", m_minimumGroupBoxWidth);
-    settings->setValue("window/multiRxView", m_multiRxView);
+    m_windowConfig->saveIni(settings);
 
     // network settings
-    m_networkConfig->setServerAddress(m_serverAddress);
-    m_networkConfig->setLocalAddress(m_hpsdrDeviceLocalAddr);
-    m_networkConfig->setServerPort(m_serverPort);
-    m_networkConfig->setListenPort(m_listenerPort);
-    m_networkConfig->setAudioPort(m_audioPort);
-    m_networkConfig->setMetisPort(m_metisPort);
-    m_networkConfig->setSocketBufferSize(m_socketBufferSize);
-
     m_networkConfig->saveIni(settings);
-    settings->setValue("network/tci_enabled", m_tciServerEnabled);
-    settings->setValue("network/tci_rx_gain", m_tciRxGain);
-    settings->setValue("network/tci_tx_gain", m_tciTxGain);
+    m_tciConfig->saveIni(settings);
     settings->setValue("network/lastDeviceClass", static_cast<int>(m_lastConnectedDevice.deviceClass));
     settings->setValue("network/lastDeviceType", m_lastConnectedDevice.deviceType);
     settings->setValue("network/lastDeviceSerial", m_lastConnectedDevice.serialNumber);
     settings->setValue("network/lastDeviceLabel", m_lastConnectedDevice.label);
-    settings->setValue("hpsdr/receivers", m_mercuryReceivers);
+    settings->setValue("hpsdr/receivers", m_mercuryReceivers.load());
 
 
     // HPSDR hardware
@@ -1534,23 +1244,7 @@ int Settings::saveSettings() {
             break;
     }
 
-#ifdef HAVE_SOAPYSDR
-    // Always save SoapySDR settings regardless of active hardware mode,
-    // so they persist when switching back to SoapySDR.
-    settings->setValue("SoapySDR/label",       m_currentSoapyDevice.label);
-    settings->setValue("SoapySDR/driver",      m_currentSoapyDevice.driver);
-    settings->setValue("SoapySDR/serial",      m_currentSoapyDevice.serial);
-    settings->setValue("SoapySDR/uri",         m_currentSoapyDevice.args.value(QStringLiteral("uri")));
-    settings->setValue("SoapySDR/hostname",    m_currentSoapyDevice.args.value(QStringLiteral("hostname")));
-    settings->setValue("SoapySDR/rxAntenna",   m_soapyRxAntenna);
-    settings->setValue("SoapySDR/txAntenna",   m_soapyTxAntenna);
-    settings->setValue("SoapySDR/lnaGain",     m_soapyLnaGain);
-    settings->setValue("SoapySDR/tiaGain",     m_soapyTiaGain);
-    settings->setValue("SoapySDR/pgaGain",     m_soapyPgaGain);
-    settings->setValue("SoapySDR/overallGain", m_soapyOverallGain);
-    settings->setValue("SoapySDR/autoCalibrate", m_soapyAutoCalibrate);
-    settings->setValue("SoapySDR/iqBalance",   m_soapyIQBalance);
-#endif
+    m_soapyConfig->saveIni(settings);
 
     if (devices.alexPresence)
         settings->setValue("hpsdr/alex", "true");
@@ -1614,14 +1308,15 @@ int Settings::saveSettings() {
     m_audioConfig->saveIni(settings);
 
 
-    settings->setValue("server/class", m_RxClass);
-    settings->setValue("server/timing", m_RxTiming);
-
-    settings->setValue("repeater_offset",m_repeaterOffset);
-    settings->setValue("radio/txFullDuplex", m_txFullDuplex);
+    settings->setValue("server/class", m_RxClass.load());
+    settings->setValue("server/timing", m_RxTiming.load());
     // CW settings
-
     m_cwConfig->saveIni(settings);
+
+    // Alexiares, Transmit, FreeDV configs
+    m_alexConfigObj->saveIni(settings);
+    m_transmitConfig->saveIni(settings);
+    m_freeDVConfig->saveIni(settings);
 
 
 
@@ -1633,164 +1328,12 @@ int Settings::saveSettings() {
 
     //settings->setValue("server/mouseWheelFreqStep", m_mouseWheelFreqStep);
 
-    //******************************************************************
-    // Alexiares data settings
-
-    // m_alexConfig (qint16)
-    //
-    // 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
-    //   | | | | | | | | | | | | | | |
-    //   | | | | | | | | | | | | | | +-----Alex   - manual HPF/LPF filter select (0 = disable, 1 = enable)
-    //   | | | | | | | | | | | | | +------ Alex   -	Bypass all HPFs   (0 = disable, 1 = enable)*
-    //   | | | | | | | | | | | | +-------- Alex   -	6M low noise amplifier (0 = disable, 1 = enable)*
-    //   | | | | | | | | | | | +---------- Alex   -	select 1.5MHz HPF (0 = disable, 1 = enable)*
-    //   | | | | | | | | | | +------------ Alex   -	select 6.5MHz HPF (0 = disable, 1 = enable)*
-    //   | | | | | | | | | +-------------- Alex   -	select 9.5MHz HPF (0 = disable, 1 = enable)*
-    //   | | | | | | | | +---------------- Alex   -	select 13MHz  HPF (0 = disable, 1 = enable)*
-    //   | | | | | | | +------------------ Alex   -	select 20MHz  HPF (0 = disable, 1 = enable)*
-    //   | | | | | | +-------------------- Alex   - select 160m   LPF (0 = disable, 1 = enable)*
-    //   | | | | | +---------------------- Alex   - select 80m    LPF (0 = disable, 1 = enable)*
-    //   | | | | +------------------------ Alex   - select 60/40m LPF (0 = disable, 1 = enable)*
-    //   | | | +-------------------------- Alex   - select 30/20m LPF (0 = disable, 1 = enable)*
-    //   | | +---------------------------- Alex   - select 17/15m LPF (0 = disable, 1 = enable)*
-    //   | +------------------------------ Alex   - select 12/10m LPF (0 = disable, 1 = enable)*
-    //   +-------------------------------- Alex   - select 6m     LPF (0 = disable, 1 = enable)*
-
-    if (m_alexConfig & 0x01)
-        settings->setValue("alex/manual", "on");
-    else
-        settings->setValue("alex/manual", "off");
-
-    if (m_alexConfig & 0x02)
-        settings->setValue("alex/bypassAll", "on");
-    else
-        settings->setValue("alex/bypassAll", "off");
-
-    if (m_alexConfig & 0x04)
-        settings->setValue("alex/amp6m", "on");
-    else
-        settings->setValue("alex/amp6m", "off");
-
-    settings->setValue("alex/amp6mLo", (int) m_HPFLoFrequencyList.at(5));
-    settings->setValue("alex/amp6mHi", (int) m_HPFHiFrequencyList.at(5));
-
-    if (m_alexConfig & 0x08)
-        settings->setValue("alex/hpf1_5MHz", "on");
-    else
-        settings->setValue("alex/hpf1_5MHz", "off");
-
-    settings->setValue("alex/hpf1_5MHzLo", (int) m_HPFLoFrequencyList.at(0));
-    settings->setValue("alex/hpf1_5MHzHi", (int) m_HPFHiFrequencyList.at(0));
-
-    if (m_alexConfig & 0x10)
-        settings->setValue("alex/hpf6_5MHz", "on");
-    else
-        settings->setValue("alex/hpf6_5MHz", "off");
-
-    settings->setValue("alex/hpf6_5MHzLo", (int) m_HPFLoFrequencyList.at(1));
-    settings->setValue("alex/hpf6_5MHzHi", (int) m_HPFHiFrequencyList.at(1));
-
-    if (m_alexConfig & 0x20)
-        settings->setValue("alex/hpf9_5MHz", "on");
-    else
-        settings->setValue("alex/hpf9_5MHz", "off");
-
-    settings->setValue("alex/hpf9_5MHzLo", (int) m_HPFLoFrequencyList.at(2));
-    settings->setValue("alex/hpf9_5MHzHi", (int) m_HPFHiFrequencyList.at(2));
-
-    if (m_alexConfig & 0x40)
-        settings->setValue("alex/hpf13MHz", "on");
-    else
-        settings->setValue("alex/hpf13MHz", "off");
-
-    settings->setValue("alex/hpf13MHzLo", (int) m_HPFLoFrequencyList.at(3));
-    settings->setValue("alex/hpf13MHzHi", (int) m_HPFHiFrequencyList.at(3));
-
-    if (m_alexConfig & 0x80)
-        settings->setValue("alex/hpf20MHz", "on");
-    else
-        settings->setValue("alex/hpf20MHz", "off");
-
-    settings->setValue("alex/hpf20MHzLo", (int) m_HPFLoFrequencyList.at(4));
-    settings->setValue("alex/hpf20MHzHi", (int) m_HPFHiFrequencyList.at(4));
-
-    if (m_alexConfig & 0x100)
-        settings->setValue("alex/lpf160m", "on");
-    else
-        settings->setValue("alex/lpf160m", "off");
-
-    settings->setValue("alex/lpf160mLo", (int) m_LPFLoFrequencyList.at(0));
-    settings->setValue("alex/lpf160mHi", (int) m_LPFHiFrequencyList.at(0));
-
-    if (m_alexConfig & 0x200)
-        settings->setValue("alex/lpf80m", "on");
-    else
-        settings->setValue("alex/lpf80m", "off");
-
-    settings->setValue("alex/lpf80mLo", (int) m_LPFLoFrequencyList.at(1));
-    settings->setValue("alex/lpf80mHi", (int) m_LPFHiFrequencyList.at(1));
-
-    if (m_alexConfig & 0x400)
-        settings->setValue("alex/lpf60_40m", "on");
-    else
-        settings->setValue("alex/lpf60_40m", "off");
-
-    settings->setValue("alex/lpf60_40mLo", (int) m_LPFLoFrequencyList.at(2));
-    settings->setValue("alex/lpf60_40mHi", (int) m_LPFHiFrequencyList.at(2));
-
-    if (m_alexConfig & 0x800)
-        settings->setValue("alex/lpf30_20m", "on");
-    else
-        settings->setValue("alex/lpf30_20m", "off");
-
-    settings->setValue("alex/lpf30_20mLo", (int) m_LPFLoFrequencyList.at(3));
-    settings->setValue("alex/lpf30_20mHi", (int) m_LPFHiFrequencyList.at(3));
-
-    if (m_alexConfig & 0x1000)
-        settings->setValue("alex/lpf17_15m", "on");
-    else
-        settings->setValue("alex/lpf17_15m", "off");
-
-    settings->setValue("alex/lpf17_15mLo", (int) m_LPFLoFrequencyList.at(4));
-    settings->setValue("alex/lpf17_15mHi", (int) m_LPFHiFrequencyList.at(4));
-
-    if (m_alexConfig & 0x2000)
-        settings->setValue("alex/lpf12_10m", "on");
-    else
-        settings->setValue("alex/lpf12_10m", "off");
-
-    settings->setValue("alex/lpf12_10mLo", (int) m_LPFLoFrequencyList.at(5));
-    settings->setValue("alex/lpf12_10mHi", (int) m_LPFHiFrequencyList.at(5));
-
-    if (m_alexConfig & 0x4000)
-        settings->setValue("alex/lpf6m", "on");
-    else
-        settings->setValue("alex/lpf6m", "off");
-
-    settings->setValue("alex/lpf6mLo", (int) m_LPFLoFrequencyList.at(6));
-    settings->setValue("alex/lpf6mHi", (int) m_LPFHiFrequencyList.at(6));
-
-
-    //***********************************************************************
-    for (int i = 0; i < MAX_BANDS; i++) {
-
-        str = "alex/state";
-        str.append(m_bandList.at(i).bandString);
-
-        settings->setValue(str, m_alexStates.at(i));
+    {
+        QStringList bandKeys;
+        for (const auto &b : m_bandList)
+            bandKeys << b.bandString;
+        m_alexConfigObj->saveStates(settings, bandKeys);
     }
-
-    if (m_alexStates.length() == MAX_BANDS && m_bandList.length() == MAX_BANDS) {
-
-        for (int i = 0; i < MAX_BANDS - 1; i++) {
-
-            str = "alex/state";
-            str.append(m_bandList.at(i).bandString);
-
-            settings->setValue(str, m_alexStates.at(i));
-        }
-    }
-
 
     //******************************************************************
     // Penny open collector settings
@@ -2188,6 +1731,7 @@ int Settings::saveSettings() {
 
     m_displayConfig->saveIni(settings);
 
+    settings->sync();
     SETTINGS_DEBUG << "save settings done.";
     return 0;
 }
@@ -2200,6 +1744,218 @@ void Settings::reopenSettingsStorage(const QString &absoluteIniPath)
     }
     settingsFilename = QFileInfo(absoluteIniPath).fileName();
     settings = new QSettings(absoluteIniPath, QSettings::IniFormat);
+}
+
+QString Settings::defaultJsonConfigPath() const
+{
+    if (settings) {
+        QFileInfo fi(settings->fileName());
+        return fi.absolutePath() + "/" + fi.completeBaseName() + ".json";
+    }
+    return QCoreApplication::applicationDirPath() + "/settings.json";
+}
+
+QJsonObject Settings::toJson() const
+{
+    const_cast<Settings*>(this)->syncSettingsWithSlices();
+    const_cast<Settings*>(this)->syncSettingsWithTransmit();
+
+    QJsonObject root;
+    root["schemaVersion"] = 1;
+    root["generator"] = const_cast<Settings*>(this)->getTitleStr();
+    root["version"] = const_cast<Settings*>(this)->getVersionStr();
+    root["saved"] = QDateTime::currentDateTime().toString(Qt::ISODate);
+    root["callsign"] = m_callsignString;
+
+    // Window settings
+    QJsonObject windowObj;
+    m_windowConfig->save(windowObj);
+    root["window"] = windowObj;
+
+    // Sub-configs
+    QJsonObject netObj;
+    m_networkConfig->save(netObj);
+    root["network"] = netObj;
+
+    QJsonObject hwObj;
+    m_hardwareConfig->save(hwObj);
+    root["hardware"] = hwObj;
+
+    QJsonObject audioObj;
+    m_audioConfig->save(audioObj);
+    root["audio"] = audioObj;
+
+    QJsonObject displayObj;
+    m_displayConfig->save(displayObj);
+    root["display"] = displayObj;
+
+    QJsonObject cwObj;
+    m_cwConfig->save(cwObj);
+    root["cw"] = cwObj;
+
+    QJsonObject alexObj;
+    m_alexConfigObj->save(alexObj);
+    root["alex"] = alexObj;
+
+    QJsonObject txObj;
+    m_transmitConfig->save(txObj);
+    root["transmit"] = txObj;
+
+    QJsonObject freeDvObj;
+    m_freeDVConfig->save(freeDvObj);
+    root["freedv"] = freeDvObj;
+
+    // Receivers
+    QJsonArray rxArray;
+    for (int i = 0; i < m_receiverConfigs.size(); ++i) {
+        QJsonObject rxObj;
+        m_receiverConfigs[i]->save(rxObj);
+        rxArray.append(rxObj);
+    }
+    root["receivers"] = rxArray;
+
+    QJsonObject soapyObj;
+    m_soapyConfig->save(soapyObj);
+    root["soapy"] = soapyObj;
+
+    QJsonObject tciObj;
+    m_tciConfig->save(tciObj);
+    root["tci"] = tciObj;
+
+    QJsonObject serverObj;
+    serverObj["class"] = m_RxClass.load();
+    serverObj["timing"] = m_RxTiming.load();
+    serverObj["repeaterOffset"] = m_transmitConfig->repeaterOffset();
+    serverObj["txFullDuplex"] = m_transmitConfig->txFullDuplex();
+    root["server"] = serverObj;
+
+    return root;
+}
+
+bool Settings::fromJson(const QJsonObject &root)
+{
+    if (root.isEmpty())
+        return false;
+
+    // Schema version check
+    const int version = root.value("schemaVersion").toInt(1);
+    if (version < 1)
+        return false;
+
+    if (root.contains("callsign")) {
+        setCallsign(root["callsign"].toString());
+    }
+
+    if (root.contains("window") && root["window"].isObject()) {
+        m_windowConfig->load(root["window"].toObject());
+    }
+
+    if (root.contains("network") && root["network"].isObject()) {
+        m_networkConfig->load(root["network"].toObject());
+    }
+
+    if (root.contains("hardware") && root["hardware"].isObject()) {
+        m_hardwareConfig->load(root["hardware"].toObject());
+        m_hpsdrHardware.store(m_hardwareConfig->hpsdrHardware());
+        m_devices = m_hardwareConfig->devices();
+        m_checkFirmwareVersions.store(m_hardwareConfig->checkFirmwareVersions());
+    }
+
+    if (root.contains("audio") && root["audio"].isObject()) {
+        m_audioConfig->load(root["audio"].toObject());
+    }
+
+    if (root.contains("display") && root["display"].isObject()) {
+        m_displayConfig->load(root["display"].toObject());
+    }
+
+    if (root.contains("cw") && root["cw"].isObject()) {
+        m_cwConfig->load(root["cw"].toObject());
+    }
+
+    if (root.contains("alex") && root["alex"].isObject()) {
+        m_alexConfigObj->load(root["alex"].toObject());
+    }
+
+    if (root.contains("transmit") && root["transmit"].isObject()) {
+        m_transmitConfig->load(root["transmit"].toObject());
+    }
+
+    if (root.contains("freedv") && root["freedv"].isObject()) {
+        m_freeDVConfig->load(root["freedv"].toObject());
+    }
+
+    if (root.contains("receivers") && root["receivers"].isArray()) {
+        const QJsonArray rxArray = root["receivers"].toArray();
+        for (int i = 0; i < rxArray.size() && i < m_receiverConfigs.size(); ++i) {
+            if (rxArray[i].isObject()) {
+                m_receiverConfigs[i]->load(rxArray[i].toObject());
+                // Sync legacy receiverDataList entry
+                m_receiverDataList[i].dspCore = m_receiverConfigs[i]->dspCore();
+                m_receiverDataList[i].ctrFrequency = m_receiverConfigs[i]->ctrFrequency();
+                m_receiverDataList[i].vfoFrequency = m_receiverConfigs[i]->vfoFrequency();
+                m_receiverDataList[i].vfoAFrequency = m_receiverConfigs[i]->vfoAFrequency();
+                m_receiverDataList[i].vfoBFrequency = m_receiverConfigs[i]->vfoBFrequency();
+                m_receiverDataList[i].activeVfo = m_receiverConfigs[i]->activeVfo();
+            }
+        }
+    }
+
+    if (root.contains("soapy") && root["soapy"].isObject()) {
+        m_soapyConfig->load(root["soapy"].toObject());
+    }
+
+    if (root.contains("tci") && root["tci"].isObject()) {
+        m_tciConfig->load(root["tci"].toObject());
+    }
+
+    if (root.contains("server") && root["server"].isObject()) {
+        const QJsonObject serverObj = root["server"].toObject();
+        if (serverObj.contains("class"))
+            m_RxClass.store(serverObj["class"].toInt());
+        if (serverObj.contains("timing"))
+            m_RxTiming.store(serverObj["timing"].toInt());
+        if (serverObj.contains("repeaterOffset"))
+            m_transmitConfig->setRepeaterOffset(serverObj["repeaterOffset"].toDouble());
+        if (serverObj.contains("txFullDuplex"))
+            m_transmitConfig->setTxFullDuplex(serverObj["txFullDuplex"].toBool());
+    }
+
+    // Hydrate active models if present
+    syncSlicesWithSettings();
+    syncTransmitWithSettings();
+
+    setLoaded = true;
+    return true;
+}
+
+bool Settings::saveJson(const QString &filePath) const
+{
+    const QString target = filePath.isEmpty() ? defaultJsonConfigPath() : filePath;
+    QSaveFile file(target);
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        qWarning() << "Failed to open config file for saving JSON:" << target << file.errorString();
+        return false;
+    }
+    const QJsonDocument doc(toJson());
+    file.write(doc.toJson(QJsonDocument::Indented));
+    return file.commit();
+}
+
+bool Settings::loadJson(const QString &filePath)
+{
+    const QString target = filePath.isEmpty() ? defaultJsonConfigPath() : filePath;
+    QFile file(target);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        return false;
+    }
+    QJsonParseError parseError;
+    const QJsonDocument doc = QJsonDocument::fromJson(file.readAll(), &parseError);
+    if (parseError.error != QJsonParseError::NoError || !doc.isObject()) {
+        qWarning() << "JSON parse error in config file:" << target << parseError.errorString();
+        return false;
+    }
+    return fromJson(doc.object());
 }
 
 //void Settings::setMainWindowsState() {
@@ -2373,12 +2129,12 @@ QString Settings::getValue1024(
 
 int Settings::getMinimumWidgetWidth() {
 
-    return m_minimumWidgetWidth;
+    return m_windowConfig->minimumWidgetWidth();
 }
 
 int Settings::getMinimumGroupBoxWidth() {
 
-    return m_minimumGroupBoxWidth;
+    return m_windowConfig->minimumGroupBoxWidth();
 }
 
 void Settings::debugSystemState() {
@@ -2714,26 +2470,28 @@ void Settings::setMultiRxView(int view) {
 
     QMutexLocker locker(&settingsMutex);
 
-    if (m_multiRxView == view) return;
-    m_multiRxView = view;
+    const int previous = m_windowConfig->multiRxView();
+    m_windowConfig->setMultiRxView(view);
+    const int next = m_windowConfig->multiRxView();
+    if (previous == next) return;
 
     locker.unlock();
-    emit multiRxViewChanged(m_multiRxView);
+    emit multiRxViewChanged(next);
 }
 
 int Settings::getMultiRxView() {
 
-    return m_multiRxView;
+    return m_windowConfig->multiRxView();
 }
 
 void Settings::setMetisCardList(QList<TNetworkDevicecard> list) {
-
-    QMutexLocker locker(&settingsMutex);
-
-    m_metisCards = list;
-
-    locker.unlock();
-    emit metisCardListChanged(m_metisCards);
+    QList<TNetworkDevicecard> copy;
+    {
+        QWriteLocker locker(&m_dataRwLock);
+        m_metisCards = list;
+        copy = m_metisCards;
+    }
+    emit metisCardListChanged(copy);
 }
 
 void Settings::searchHpsdrNetworkDevices() {
@@ -2756,57 +2514,62 @@ void Settings::searchDevices() {
 }
 
 void Settings::clearMetisCardList() {
-
+    QWriteLocker locker(&m_dataRwLock);
     m_metisCards.clear();
-
-    //emit metisCardListChanged(m_metisCards);
 }
 
 void Settings::setMaxFrequency(qint64 value) {
 
-    if (m_maxFrequency == value) return;
-    m_maxFrequency = value;
-    emit maxFrequencyChanged(m_maxFrequency);
+    if (m_maxFrequency.load() == value) return;
+    m_maxFrequency.store(value);
+    emit maxFrequencyChanged(value);
 }
 
 void Settings::setMinFrequency(qint64 value) {
 
-    if (m_minFrequency == value) return;
-    m_minFrequency = value;
-    emit minFrequencyChanged(m_minFrequency);
+    if (m_minFrequency.load() == value) return;
+    m_minFrequency.store(value);
+    emit minFrequencyChanged(value);
 }
 
 void Settings::setCurrentHPSDRDevice(TNetworkDevicecard card) {
+    {
+        QWriteLocker locker(&m_dataRwLock);
+        m_currentHPSDRDevice = card;
+        m_lastConnectedDevice.deviceClass = DeviceClass_HPSDR;
+        m_lastConnectedDevice.deviceType = card.boardName;
+        m_lastConnectedDevice.serialNumber = QString::fromLatin1(card.mac_address);
+        m_lastConnectedDevice.label = card.boardName;
 
-    m_currentHPSDRDevice = card;
-    m_lastConnectedDevice.deviceClass = DeviceClass_HPSDR;
-    m_lastConnectedDevice.deviceType = card.boardName;
-    m_lastConnectedDevice.serialNumber = QString::fromLatin1(card.mac_address);
-    m_lastConnectedDevice.label = card.boardName;
-
-    if (card.frequency_max > 0) {
-        m_maxFrequency = static_cast<qint64>(card.frequency_max);
-        m_minFrequency = static_cast<qint64>(card.frequency_min);
-        emit maxFrequencyChanged(m_maxFrequency);
+        if (card.frequency_max > 0) {
+            m_maxFrequency.store(static_cast<qint64>(card.frequency_max));
+            m_minFrequency.store(static_cast<qint64>(card.frequency_min));
+        }
     }
 
-    emit hpsdrNetworkDeviceChanged(m_currentHPSDRDevice);
+    if (card.frequency_max > 0) {
+        emit maxFrequencyChanged(m_maxFrequency.load());
+    }
+
+    emit hpsdrNetworkDeviceChanged(card);
     saveSettings();
 }
 
-#ifdef HAVE_SOAPYSDR
 void Settings::setSoapyDeviceList(QList<TSoapyDevice> list) {
-    m_soapyDevices = list;
-    emit soapyDeviceListChanged(m_soapyDevices);
+    m_soapyConfig->setDeviceList(list);
+    emit soapyDeviceListChanged(m_soapyConfig->deviceList());
 }
 
 void Settings::setCurrentSoapyDevice(TSoapyDevice device) {
-    m_currentSoapyDevice = device;
-    m_lastConnectedDevice.deviceClass = DeviceClass_SoapySDR;
-    m_lastConnectedDevice.deviceType = device.driver;
-    m_lastConnectedDevice.serialNumber = device.serial;
-    m_lastConnectedDevice.label = device.label;
-    emit soapyDeviceChanged(m_currentSoapyDevice);
+    m_soapyConfig->setCurrentDevice(device);
+    {
+        QWriteLocker locker(&m_dataRwLock);
+        m_lastConnectedDevice.deviceClass = DeviceClass_SoapySDR;
+        m_lastConnectedDevice.deviceType = device.driver;
+        m_lastConnectedDevice.serialNumber = device.serial;
+        m_lastConnectedDevice.label = device.label;
+    }
+    emit soapyDeviceChanged(device);
     saveSettings();
 }
 
@@ -2815,91 +2578,88 @@ void Settings::setSoapyMessage(QString message) {
 }
 
 void Settings::setSoapyAntennaList(const QStringList &list) {
-    m_soapyAntennaList = list;
+    m_soapyConfig->setAntennaList(list);
     emit soapyAntennaListChanged(list);
 }
 
 void Settings::setSoapyTxAntennaList(const QStringList &list) {
-    m_soapyTxAntennaList = list;
+    m_soapyConfig->setTxAntennaList(list);
     emit soapyTxAntennaListChanged(list);
 }
 
 void Settings::setSoapyHardwareKey(const QString &key) {
-    m_soapyHardwareKey = key;
+    m_soapyConfig->setHardwareKey(key);
     emit soapyHardwareKeyChanged(key);
 }
 
 void Settings::setSoapyRxAntenna(const QString &antenna) {
-    if (m_soapyRxAntenna != antenna) {
-        m_soapyRxAntenna = antenna;
-        emit soapyRxAntennaChanged(antenna);
-    }
+    if (m_soapyConfig->rxAntenna() == antenna)
+        return;
+    m_soapyConfig->setRxAntenna(antenna);
+    emit soapyRxAntennaChanged(antenna);
 }
 
 void Settings::setSoapyTxAntenna(const QString &antenna) {
-    if (m_soapyTxAntenna != antenna) {
-        m_soapyTxAntenna = antenna;
-        emit soapyTxAntennaChanged(antenna);
-    }
+    if (m_soapyConfig->txAntenna() == antenna)
+        return;
+    m_soapyConfig->setTxAntenna(antenna);
+    emit soapyTxAntennaChanged(antenna);
 }
 
 void Settings::setSoapyLnaGain(int gain) {
-    if (m_soapyLnaGain != gain) {
-        m_soapyLnaGain = gain;
-        emit soapyLnaGainChanged(gain);
-    }
+    if (m_soapyConfig->lnaGain() == gain)
+        return;
+    m_soapyConfig->setLnaGain(gain);
+    emit soapyLnaGainChanged(gain);
 }
 
 void Settings::setSoapyTiaGain(int gain) {
-    if (m_soapyTiaGain != gain) {
-        m_soapyTiaGain = gain;
-        emit soapyTiaGainChanged(gain);
-    }
+    if (m_soapyConfig->tiaGain() == gain)
+        return;
+    m_soapyConfig->setTiaGain(gain);
+    emit soapyTiaGainChanged(gain);
 }
 
 void Settings::setSoapyPgaGain(int gain) {
-    if (m_soapyPgaGain != gain) {
-        m_soapyPgaGain = gain;
-        emit soapyPgaGainChanged(gain);
-    }
+    if (m_soapyConfig->pgaGain() == gain)
+        return;
+    m_soapyConfig->setPgaGain(gain);
+    emit soapyPgaGainChanged(gain);
 }
 
 void Settings::setSoapyOverallGain(int gain) {
-    if (m_soapyOverallGain != gain) {
-        m_soapyOverallGain = gain;
-        emit soapyOverallGainChanged(gain);
-    }
+    if (m_soapyConfig->overallGain() == gain)
+        return;
+    m_soapyConfig->setOverallGain(gain);
+    emit soapyOverallGainChanged(gain);
 }
 
 void Settings::setSoapyOverallGainRange(int minGain, int maxGain) {
-    if (maxGain < minGain)
-        qSwap(minGain, maxGain);
-    if (m_soapyOverallGainMin == minGain && m_soapyOverallGainMax == maxGain)
+    const int prevMin = m_soapyConfig->overallGainMin();
+    const int prevMax = m_soapyConfig->overallGainMax();
+    const int prevGain = m_soapyConfig->overallGain();
+    m_soapyConfig->setOverallGainRange(minGain, maxGain);
+    if (prevMin == m_soapyConfig->overallGainMin() && prevMax == m_soapyConfig->overallGainMax())
         return;
-    m_soapyOverallGainMin = minGain;
-    m_soapyOverallGainMax = maxGain;
-    if (m_soapyOverallGain < minGain || m_soapyOverallGain > maxGain) {
-        m_soapyOverallGain = qBound(minGain, m_soapyOverallGain, maxGain);
-        emit soapyOverallGainChanged(m_soapyOverallGain);
-    }
-    emit soapyOverallGainRangeChanged(minGain, maxGain);
+    if (prevGain != m_soapyConfig->overallGain())
+        emit soapyOverallGainChanged(m_soapyConfig->overallGain());
+    emit soapyOverallGainRangeChanged(m_soapyConfig->overallGainMin(), m_soapyConfig->overallGainMax());
 }
 
 void Settings::setSoapyAutoCalibrate(bool enabled) {
-    if (m_soapyAutoCalibrate != enabled) {
-        m_soapyAutoCalibrate = enabled;
-        emit soapyAutoCalibrateChanged(enabled);
-        saveSettings();
-    }
+    if (m_soapyConfig->autoCalibrate() == enabled)
+        return;
+    m_soapyConfig->setAutoCalibrate(enabled);
+    emit soapyAutoCalibrateChanged(enabled);
+    saveSettings();
 }
 
 void Settings::setSoapyIQBalance(bool enabled) {
-    if (m_soapyIQBalance != enabled) {
-        m_soapyIQBalance = enabled;
-        emit soapyIQBalanceChanged(enabled);
-    }
+    if (m_soapyConfig->iqBalance() == enabled)
+        return;
+    m_soapyConfig->setIqBalance(enabled);
+    emit soapyIQBalanceChanged(enabled);
 }
-#endif
 
 void Settings::setHPSDRDeviceNumber(int value) {
 
@@ -3005,28 +2765,30 @@ void Settings::setServerWidgetNIC(int index) {
 
 void Settings::setTciServerEnabled(bool enabled) {
 
-    if (m_tciServerEnabled == enabled) return;
-    m_tciServerEnabled = enabled;
-    settings->setValue("network/tci_enabled", m_tciServerEnabled);
-    emit tciServerEnabledChanged(m_tciServerEnabled);
+    if (m_tciConfig->serverEnabled() == enabled) return;
+    m_tciConfig->setServerEnabled(enabled);
+    settings->setValue("network/tci_enabled", enabled);
+    emit tciServerEnabledChanged(enabled);
 }
 
 void Settings::setTciRxGain(float gain) {
-    const float clamped = qBound(0.0f, gain, 2.0f);
-    if (qAbs(m_tciRxGain - clamped) < 1e-6f)
+    const float previous = m_tciConfig->rxGain();
+    m_tciConfig->setRxGain(gain);
+    const float clamped = m_tciConfig->rxGain();
+    if (qAbs(previous - clamped) < 1e-6f)
         return;
-    m_tciRxGain = clamped;
-    settings->setValue("network/tci_rx_gain", m_tciRxGain);
-    emit tciRxGainChanged(m_tciRxGain);
+    settings->setValue("network/tci_rx_gain", clamped);
+    emit tciRxGainChanged(clamped);
 }
 
 void Settings::setTciTxGain(float gain) {
-    const float clamped = qBound(0.0f, gain, 2.0f);
-    if (qAbs(m_tciTxGain - clamped) < 1e-6f)
+    const float previous = m_tciConfig->txGain();
+    m_tciConfig->setTxGain(gain);
+    const float clamped = m_tciConfig->txGain();
+    if (qAbs(previous - clamped) < 1e-6f)
         return;
-    m_tciTxGain = clamped;
-    settings->setValue("network/tci_tx_gain", m_tciTxGain);
-    emit tciTxGainChanged(m_tciTxGain);
+    settings->setValue("network/tci_tx_gain", clamped);
+    emit tciTxGainChanged(clamped);
 }
 
 void Settings::setHPSDRWidgetNIC(int index) {
@@ -3043,89 +2805,79 @@ void Settings::setHPSDRWidgetNIC(int index) {
 void Settings::setServerAddr(QString addr) {
 
     QMutexLocker locker(&settingsMutex);
-
-    m_serverAddress = addr;
-
+    m_networkConfig->setServerAddress(addr);
     locker.unlock();
-    emit serverAddrChanged(m_serverAddress);
+    emit serverAddrChanged(m_networkConfig->serverAddress());
 }
 
 QString Settings::getServerAddr() {
 
-    return m_serverAddress;
+    return m_networkConfig->serverAddress();
 }
 
 void Settings::setHPSDRDeviceLocalAddr(QString addr) {
 
     QMutexLocker locker(&settingsMutex);
-
-    m_hpsdrDeviceLocalAddr = addr;
-
+    m_networkConfig->setLocalAddress(addr);
     locker.unlock();
-    emit hpsdrDeviceLocalAddrChanged(m_hpsdrDeviceLocalAddr);
+    emit hpsdrDeviceLocalAddrChanged(m_networkConfig->localAddress());
 }
 
 QString Settings::getHPSDRDeviceLocalAddr() {
 
-    return m_hpsdrDeviceLocalAddr;
+    return m_networkConfig->localAddress();
 }
 
 void Settings::setServerPort(quint16 port) {
 
     QMutexLocker locker(&settingsMutex);
-
-    m_serverPort = port;
-
+    m_networkConfig->setServerPort(port);
     locker.unlock();
-    emit serverPortChanged(m_serverPort);
+    emit serverPortChanged(m_networkConfig->serverPort());
 }
 
 quint16 Settings::getServerPort() {
 
-    return m_serverPort;
+    return m_networkConfig->serverPort();
 }
 
 void Settings::setListenPort(quint16 port) {
 
     QMutexLocker locker(&settingsMutex);
-
-    m_listenerPort = port;
-
+    m_networkConfig->setListenPort(port);
     locker.unlock();
-    emit listenPortChanged(m_listenerPort);
+    emit listenPortChanged(m_networkConfig->listenPort());
 }
 
 quint16 Settings::getListenPort() {
 
-    return m_listenerPort;
+    return m_networkConfig->listenPort();
 }
 
 void Settings::setAudioPort(quint16 port) {
 
     QMutexLocker locker(&settingsMutex);
-    m_audioPort = port;
+    m_networkConfig->setAudioPort(port);
     locker.unlock();
-
-    emit audioPortChanged(m_audioPort);
+    emit audioPortChanged(m_networkConfig->audioPort());
 }
 
 quint16 Settings::getAudioPort() {
 
-    return m_audioPort;
+    return m_networkConfig->audioPort();
 }
 
 void Settings::setMetisPort(quint16 port) {
 
     QMutexLocker locker(&settingsMutex);
-    m_metisPort = port;
+    m_networkConfig->setMetisPort(port);
     locker.unlock();
-
-    emit metisPortChanged(m_metisPort);
+    emit metisPortChanged(m_networkConfig->metisPort());
 }
 
 quint16 Settings::getMetisPort() {
 
-    return m_metisPort;
+    return m_networkConfig->metisPort();
 }
 
 void Settings::setClientConnected(bool value) {
@@ -3182,9 +2934,8 @@ void Settings::setRxConnectedStatus(int rx, bool value) {
 
 void Settings::setSocketBufferSize(int value) {
 
-    m_socketBufferSize = value;
-    //SETTINGS_DEBUG << "m_socketBufferSize = " << value;
-    emit socketBufferSizeChanged(value);
+    m_networkConfig->setSocketBufferSize(value);
+    emit socketBufferSizeChanged(m_networkConfig->socketBufferSize());
 }
 
 void Settings::setManualSocketBufferSize(bool value) {
@@ -3635,35 +3386,35 @@ void Settings::set122_88MhzSource(int source) {
 }
 
 void Settings::setMicSource(int source) {
-    m_audioConfig->setMicSource(source);
+    m_transmitConfig->setMicSource(source);
     emit micSourceChanged(source);
 }
 
 void Settings::setMicInputDev(int index) {
-    m_audioConfig->setMicInputDev(index);
+    m_transmitConfig->setMicInputDev(index);
     emit micInputChanged(index);
 }
 
 void Settings::setMicInputSourceName(const QString &name) {
-    m_audioConfig->setMicInputSourceName(name);
+    m_transmitConfig->setMicInputSourceName(name);
 }
 
 void Settings::setDigitalInputSourceName(const QString &name) {
-    m_audioConfig->setDigitalInputSourceName(name);
+    m_transmitConfig->setDigitalInputSourceName(name);
 }
 
 void Settings::setDigitalAudioInputDev(int index) {
-    m_audioConfig->setDigitalAudioInputDev(index);
+    m_transmitConfig->setDigitalAudioInputDev(index);
     emit digitalAudioInputChanged(index);
 }
 
 void Settings::setMicInputLevel(int level) {
-    m_audioConfig->setMicGain(level);
+    m_transmitConfig->setMicGain(level);
     emit micInputLevelChanged(level);
 }
 
 void Settings::setDriveLevel(int level) {
-    m_audioConfig->setDriveLevel(level);
+    m_transmitConfig->setDriveLevel(level);
     emit driveLevelChanged(clampDriveLevel(level));
 }
 
@@ -3984,9 +3735,7 @@ void Settings::setDSPMode(int rx, DSPMode mode) {
 }
 
 int Settings::getFreeDVMode(int rx) {
-
-	if (rx < 0 || rx >= m_freeDVModeList.size()) return 0;
-	return m_freeDVModeList.at(rx);
+	return m_freeDVConfig->rxMode(rx);
 }
 
 QString Settings::getCodec2ModeString(int mode) {
@@ -4373,14 +4122,16 @@ void Settings::addFreeDVTxFrames(int rx, quint64 txFrames) {
 
 void Settings::setFreeDVMode(int rx, int mode) {
 
-    if (rx < 0 || rx >= m_freeDVModeList.size()) return;
-    if (m_freeDVModeList[rx] == mode) return;
+    if (rx < 0 || rx >= FreeDVConfig::kMaxReceivers) return;
+    if (m_freeDVConfig->rxMode(rx) == mode) return;
 
-    m_freeDVModeList[rx] = mode;
-    m_freeDVSyncList[rx] = false;
-    m_freeDVSnrList[rx] = 0.0f;
-    m_freeDVRxFramesList[rx] = 0;
-    m_freeDVTxFramesList[rx] = 0;
+    m_freeDVConfig->setRxMode(rx, mode);
+    if (rx < m_freeDVSyncList.size()) {
+        m_freeDVSyncList[rx] = false;
+        m_freeDVSnrList[rx] = 0.0f;
+        m_freeDVRxFramesList[rx] = 0;
+        m_freeDVTxFramesList[rx] = 0;
+    }
 
     emit freeDVModeChanged(rx, mode);
     emit freeDVStatusChanged(rx, false, 0.0f, 0, 0);
@@ -4474,29 +4225,29 @@ int Settings::getFFTMultiplicator(int rx) {
 void Settings::setAlexConfiguration(quint16 conf) {
 
     QMutexLocker locker(&settingsMutex);
-    m_alexConfig = conf;
-
-    emit alexConfigurationChanged(m_alexConfig);
+    m_alexConfigObj->setAlexConfig(conf);
+    locker.unlock();
+    emit alexConfigurationChanged(m_alexConfigObj->alexConfig());
 }
 
 void Settings::setAlexHPFLoFrequencies(int filter, long value) {
 
-    m_HPFLoFrequencyList[filter] = value;
+    m_alexConfigObj->setHpfLoFrequency(filter, value);
 }
 
 void Settings::setAlexHPFHiFrequencies(int filter, long value) {
 
-    m_HPFHiFrequencyList[filter] = value;
+    m_alexConfigObj->setHpfHiFrequency(filter, value);
 }
 
 void Settings::setAlexLPFLoFrequencies(int filter, long value) {
 
-    m_LPFLoFrequencyList[filter] = value;
+    m_alexConfigObj->setLpfLoFrequency(filter, value);
 }
 
 void Settings::setAlexLPFHiFrequencies(int filter, long value) {
 
-    m_LPFHiFrequencyList[filter] = value;
+    m_alexConfigObj->setLpfHiFrequency(filter, value);
 }
 
 /*
@@ -4511,20 +4262,15 @@ void Settings::setAlexLPFHiFrequencies(int filter, long value) {
  */
 void Settings::setAlexState(int pos, int value) {
 
-    if (m_alexStates.length() != MAX_BANDS)
+    if (pos < 0 || pos >= MAX_BANDS)
         return;
-    else {
 
-        if (m_alexStates.at(pos) == value)
-            return;
+    const int state = checkAlexState(value);
+    if (m_alexConfigObj->alexStates().value(pos) == state)
+        return;
 
-        int state = checkAlexState(value);
-        //qDebug() << "alex state at pos: " << pos <<" = " << state;
-
-        m_alexStates.replace(pos, state);
-
-        emit alexStateChanged((HamBand) pos, m_alexStates);
-    }
+    m_alexConfigObj->setAlexState(pos, state);
+    emit alexStateChanged((HamBand) pos, m_alexConfigObj->alexStates());
 }
 
 void Settings::setAlexState(int value) {
@@ -4536,41 +4282,21 @@ void Settings::setAlexState(int value) {
 
 void Settings::setAlexStates(const QList<int> &states) {
 
-    if (m_alexStates == states) return;
+    if (m_alexConfigObj->alexStates() == states) return;
 
-    m_alexStates = states;
-
-    emit alexStatesChanged(m_alexStates);
+    m_alexConfigObj->setAlexStates(states);
+    emit alexStatesChanged(m_alexConfigObj->alexStates());
 }
 
 // check Alex state - adapted from KISS Konsole, (c) George Byrkit, K9TRV
 int Settings::checkAlexState(int state) {
-
-    if ((state & 0x3) == 0) {
-
-        // if rx antenna selector is 0, set it to 1
-        state |= 1;
-    }
-
-    if (((state >> 5) & 0x3) == 0) {
-
-        // if tx antenna selector is 0, set it to 1
-        state |= 33;
-    }
-    return state;
+    return AlexConfig::normalizedState(state);
 }
 
 void Settings::setAlexToManual(bool value) {
 
-    quint16 newAlexConfig = 0;
-    {
-        QMutexLocker locker(&settingsMutex);
-        if (value)
-            m_alexConfig |= 0x01;
-        else
-            m_alexConfig &= 0xFFFE;
-        newAlexConfig = m_alexConfig;
-    }
+    m_alexConfigObj->setManualFilterSelect(value);
+    const quint16 newAlexConfig = m_alexConfigObj->alexConfig();
 
     // Emit after releasing settingsMutex to avoid re-entrant deadlocks/crashes
     // when connected slots call back into Settings mutators.
@@ -5303,34 +5029,38 @@ void Settings::setRepeaterMode(bool mode){
 }
 
 void Settings::setTxFullDuplex(bool fullDuplex) {
-    if (m_txFullDuplex != fullDuplex) {
-        m_txFullDuplex = fullDuplex;
-        emit txFullDuplexChanged(fullDuplex);
-    }
+    m_transmitConfig->setTxFullDuplex(fullDuplex);
+    emit txFullDuplexChanged(m_transmitConfig->txFullDuplex());
 }
 
 void Settings::setRepeaterOffset(int offset)
 {
-m_repeaterOffset = (double)offset;
- emit repeaterOffsetchanged(offset);
+    m_transmitConfig->setRepeaterOffset(static_cast<double>(offset));
+    emit repeaterOffsetchanged(offset);
 }
 
 void Settings::setFMPreEmphasize(int value)
 {
-    m_audioConfig->setFmPreemphasis(value);
+    m_transmitConfig->setFmPreemphasis(value);
+    if (TransmitModel* tx = transmitModel())
+        tx->setFmPreEmphasis(value != 0);
     emit fmPremphasizechanged(value);
 }
 
 void Settings::setPhaseRotator(int value)
 {
-    m_audioConfig->setPhaseRotator(value);
+    m_transmitConfig->setPhaseRotator(value);
+    if (TransmitModel* tx = transmitModel())
+        tx->setPhaseRotator(value != 0);
     emit phaseRotatorChanged(value);
 }
 
 void Settings::setPhaseRotatorAuto(bool enabled)
 {
-    m_audioConfig->setPhaseRotatorAuto(enabled);
-    emit phaseRotatorAutoChanged(m_audioConfig->phaseRotatorAuto());
+    m_transmitConfig->setPhaseRotatorAuto(enabled);
+    if (TransmitModel* tx = transmitModel())
+        tx->setPhaseRotatorAuto(enabled);
+    emit phaseRotatorAutoChanged(m_transmitConfig->phaseRotatorAuto());
 }
 
 void Settings::requestPhaseRotatorAutoReset()
@@ -5340,13 +5070,18 @@ void Settings::requestPhaseRotatorAutoReset()
 
 void Settings::setPhaseRotatorStatus(const QString &status)
 {
+    m_transmitConfig->setPhaseRotatorStatus(status);
+    if (TransmitModel* tx = transmitModel())
+        tx->setPhaseRotatorStatus(status);
     emit phaseRotatorStatusChanged(status);
 }
 
 void Settings::setCtcssToneHz(int hz)
 {
-    m_audioConfig->setCtcssToneHz(hz);
-    emit ctcssToneHzChanged(m_audioConfig->ctcssToneHz());
+    m_transmitConfig->setCtcssToneHz(hz);
+    if (TransmitModel* tx = transmitModel())
+        tx->setCtcssToneHz(m_transmitConfig->ctcssToneHz());
+    emit ctcssToneHzChanged(m_transmitConfig->ctcssToneHz());
 }
 
 void Settings::setRxEqEnabled(bool enabled)
@@ -5369,19 +5104,25 @@ void Settings::setRxEqBand(int index, int gainDb)
 
 void Settings::setTxEqEnabled(bool enabled)
 {
-    m_audioConfig->setTxEqEnabled(enabled);
+    m_transmitConfig->setTxEqEnabled(enabled);
+    if (TransmitModel* tx = transmitModel())
+        tx->setTxEqEnabled(enabled);
     emit txEqChanged();
 }
 
 void Settings::setTxEqBands(const QVector<int> &bands)
 {
-    m_audioConfig->setTxEqBands(bands);
+    m_transmitConfig->setTxEqBands(bands);
+    if (TransmitModel* tx = transmitModel())
+        tx->setTxEqBands(m_transmitConfig->txEqBands());
     emit txEqChanged();
 }
 
 void Settings::setTxEqBand(int index, int gainDb)
 {
-    m_audioConfig->setTxEqBand(index, gainDb);
+    m_transmitConfig->setTxEqBand(index, gainDb);
+    if (TransmitModel* tx = transmitModel())
+        tx->setTxEqBand(index, gainDb);
     emit txEqChanged();
 }
 
@@ -5393,49 +5134,65 @@ void Settings::setRxEqCurveDeg(int deg)
 
 void Settings::setTxEqCurveDeg(int deg)
 {
-    m_audioConfig->setTxEqCurveDeg(deg);
+    m_transmitConfig->setTxEqCurveDeg(deg);
+    if (TransmitModel* tx = transmitModel())
+        tx->setTxEqCurveDeg(m_transmitConfig->txEqCurveDeg());
     emit txEqChanged();
 }
 
 void Settings::setCfcEnabled(bool enabled)
 {
-    m_audioConfig->setCfcEnabled(enabled);
+    m_transmitConfig->setCfcEnabled(enabled);
+    if (TransmitModel* tx = transmitModel())
+        tx->setCfcEnabled(enabled);
     emit cfcChanged();
 }
 
 void Settings::setCfcPeqEnabled(bool enabled)
 {
-    m_audioConfig->setCfcPeqEnabled(enabled);
+    m_transmitConfig->setCfcPeqEnabled(enabled);
+    if (TransmitModel* tx = transmitModel())
+        tx->setCfcPeqEnabled(enabled);
     emit cfcChanged();
 }
 
 void Settings::setCfcPrecomp(double db)
 {
-    m_audioConfig->setCfcPrecomp(db);
+    m_transmitConfig->setCfcPrecomp(db);
+    if (TransmitModel* tx = transmitModel())
+        tx->setCfcPrecomp(m_transmitConfig->cfcPrecomp());
     emit cfcChanged();
 }
 
 void Settings::setCfcPrePeq(double db)
 {
-    m_audioConfig->setCfcPrePeq(db);
+    m_transmitConfig->setCfcPrePeq(db);
+    if (TransmitModel* tx = transmitModel())
+        tx->setCfcPrePeq(m_transmitConfig->cfcPrePeq());
     emit cfcChanged();
 }
 
 void Settings::setCfcCurveDeg(int deg)
 {
-    m_audioConfig->setCfcCurveDeg(deg);
+    m_transmitConfig->setCfcCurveDeg(deg);
+    if (TransmitModel* tx = transmitModel())
+        tx->setCfcCurveDeg(m_transmitConfig->cfcCurveDeg());
     emit cfcChanged();
 }
 
 void Settings::setCfcLevel(int index, double db)
 {
-    m_audioConfig->setCfcLevel(index, db);
+    m_transmitConfig->setCfcLevel(index, db);
+    if (TransmitModel* tx = transmitModel())
+        tx->setCfcLevel(index, db);
     emit cfcChanged();
 }
 
 void Settings::setCfcPostBand(int index, double db)
 {
-    m_audioConfig->setCfcPost(index, db);
+    m_transmitConfig->setCfcPostBand(index, db);
+    if (TransmitModel* tx = transmitModel())
+        tx->setCfcPostBand(index, db);
     emit cfcChanged();
 }
 
@@ -5471,19 +5228,24 @@ void Settings::setEmnrPost2Rate(double seconds)
 
 void Settings::setFmDeveation(int value)
 {
-    m_audioConfig->setFmDeviation(value);
+    m_transmitConfig->setFmDeviation(value);
+    if (TransmitModel* tx = transmitModel())
+        tx->setFmDeviation(value);
     emit fmdeveationchanged(value);
 }
 
 void Settings::setAMCarrierLevel(int level)
 {
-    qDebug() << "set Am carrier level" << level;
-    m_audioConfig->setAmCarrierLevel(level);
+    m_transmitConfig->setAmCarrierLevel(level / 100.0);
+    if (TransmitModel* tx = transmitModel())
+        tx->setAmCarrierLevel(level);
     emit amCarrierlevelchanged(level);
 }
 
 void Settings::setAudioCompression(int level){
-    m_audioConfig->setAudioCompression(level);
+    m_transmitConfig->setAudioCompression(level);
+    if (TransmitModel* tx = transmitModel())
+        tx->setAudioCompression(level);
     emit audioCompressionchanged(level);
 }
 
@@ -5667,32 +5429,33 @@ void Settings::syncTransmitWithSettings() {
     if (!tx)
         return;
 
-    // AudioConfig stores AM carrier as 0..1; TransmitModel uses percent 0..100.
-    const double amStored = m_audioConfig->amCarrierLevel();
+    // TransmitConfig stores AM carrier as 0..1; TransmitModel uses percent 0..100.
+    const double amStored = m_transmitConfig->amCarrierLevel();
     const int amPercent = (amStored <= 1.0)
         ? qRound(amStored * 100.0)
         : qRound(amStored);
     tx->setAmCarrierLevel(amPercent > 0 ? amPercent : 50);
-    tx->setAudioCompression(m_audioConfig->audioCompression());
-    tx->setFmDeviation(static_cast<int>(m_audioConfig->fmDeviation()));
-    tx->setFmPreEmphasis(m_audioConfig->fmPreemphasis() != 0);
-    tx->setPhaseRotator(m_audioConfig->phaseRotator() != 0);
-    tx->setPhaseRotatorAuto(m_audioConfig->phaseRotatorAuto());
-    tx->setCtcssToneHz(m_audioConfig->ctcssToneHz());
-    tx->setTxEqEnabled(m_audioConfig->txEqEnabled());
-    tx->setTxEqBands(m_audioConfig->txEqBands());
-    tx->setTxEqCurveDeg(m_audioConfig->txEqCurveDeg());
-    tx->setCfcEnabled(m_audioConfig->cfcEnabled());
-    tx->setCfcPeqEnabled(m_audioConfig->cfcPeqEnabled());
-    tx->setCfcPrecomp(m_audioConfig->cfcPrecomp());
-    tx->setCfcPrePeq(m_audioConfig->cfcPrePeq());
-    tx->setCfcCurveDeg(m_audioConfig->cfcCurveDeg());
-    tx->setCfcLevels(m_audioConfig->cfcLevels());
-    tx->setCfcPost(m_audioConfig->cfcPost());
-    tx->setMicInputDev(m_audioConfig->micInputDev());
-    tx->setMicInputSourceName(m_audioConfig->micInputSourceName());
-    tx->setDigitalAudioInputDev(m_audioConfig->digitalAudioInputDev());
-    tx->setDigitalInputSourceName(m_audioConfig->digitalInputSourceName());
+    tx->setAudioCompression(m_transmitConfig->audioCompression());
+    tx->setFmDeviation(static_cast<int>(m_transmitConfig->fmDeviation()));
+    tx->setFmPreEmphasis(m_transmitConfig->fmPreemphasis() != 0);
+    tx->setPhaseRotator(m_transmitConfig->phaseRotator() != 0);
+    tx->setPhaseRotatorAuto(m_transmitConfig->phaseRotatorAuto());
+    tx->setPhaseRotatorStatus(m_transmitConfig->phaseRotatorStatus());
+    tx->setCtcssToneHz(m_transmitConfig->ctcssToneHz());
+    tx->setTxEqEnabled(m_transmitConfig->txEqEnabled());
+    tx->setTxEqBands(m_transmitConfig->txEqBands());
+    tx->setTxEqCurveDeg(m_transmitConfig->txEqCurveDeg());
+    tx->setCfcEnabled(m_transmitConfig->cfcEnabled());
+    tx->setCfcPeqEnabled(m_transmitConfig->cfcPeqEnabled());
+    tx->setCfcPrecomp(m_transmitConfig->cfcPrecomp());
+    tx->setCfcPrePeq(m_transmitConfig->cfcPrePeq());
+    tx->setCfcCurveDeg(m_transmitConfig->cfcCurveDeg());
+    tx->setCfcLevels(m_transmitConfig->cfcLevels());
+    tx->setCfcPost(m_transmitConfig->cfcPost());
+    tx->setMicInputDev(m_transmitConfig->micInputDev());
+    tx->setMicInputSourceName(m_transmitConfig->micInputSourceName());
+    tx->setDigitalAudioInputDev(m_transmitConfig->digitalAudioInputDev());
+    tx->setDigitalInputSourceName(m_transmitConfig->digitalInputSourceName());
     tx->setCwKeyerMode(m_cwConfig->keyerMode());
     tx->setInternalCw(m_cwConfig->internalCw() > 0);
     tx->setCwKeyReversed(m_cwConfig->keyReversed() > 0);
@@ -5713,29 +5476,30 @@ void Settings::syncSettingsWithTransmit() {
     if (!tx)
         return;
 
-    m_audioConfig->setAmCarrierLevel(tx->amCarrierLevel() / 100.0);
-    m_audioConfig->setAudioCompression(tx->audioCompression());
-    m_audioConfig->setFmDeviation(tx->fmDeviation());
-    m_audioConfig->setFmPreemphasis(tx->fmPreEmphasis() ? 1 : 0);
-    m_audioConfig->setPhaseRotator(tx->phaseRotator() ? 1 : 0);
-    m_audioConfig->setPhaseRotatorAuto(tx->phaseRotatorAuto());
-    m_audioConfig->setCtcssToneHz(tx->ctcssToneHz());
-    m_audioConfig->setTxEqEnabled(tx->txEqEnabled());
-    m_audioConfig->setTxEqBands(tx->txEqBands());
-    m_audioConfig->setTxEqCurveDeg(tx->txEqCurveDeg());
-    m_audioConfig->setCfcEnabled(tx->cfcEnabled());
-    m_audioConfig->setCfcPeqEnabled(tx->cfcPeqEnabled());
-    m_audioConfig->setCfcPrecomp(tx->cfcPrecomp());
-    m_audioConfig->setCfcPrePeq(tx->cfcPrePeq());
-    m_audioConfig->setCfcCurveDeg(tx->cfcCurveDeg());
+    m_transmitConfig->setAmCarrierLevel(tx->amCarrierLevel() / 100.0);
+    m_transmitConfig->setAudioCompression(tx->audioCompression());
+    m_transmitConfig->setFmDeviation(tx->fmDeviation());
+    m_transmitConfig->setFmPreemphasis(tx->fmPreEmphasis() ? 1 : 0);
+    m_transmitConfig->setPhaseRotator(tx->phaseRotator() ? 1 : 0);
+    m_transmitConfig->setPhaseRotatorAuto(tx->phaseRotatorAuto());
+    m_transmitConfig->setPhaseRotatorStatus(tx->phaseRotatorStatus());
+    m_transmitConfig->setCtcssToneHz(tx->ctcssToneHz());
+    m_transmitConfig->setTxEqEnabled(tx->txEqEnabled());
+    m_transmitConfig->setTxEqBands(tx->txEqBands());
+    m_transmitConfig->setTxEqCurveDeg(tx->txEqCurveDeg());
+    m_transmitConfig->setCfcEnabled(tx->cfcEnabled());
+    m_transmitConfig->setCfcPeqEnabled(tx->cfcPeqEnabled());
+    m_transmitConfig->setCfcPrecomp(tx->cfcPrecomp());
+    m_transmitConfig->setCfcPrePeq(tx->cfcPrePeq());
+    m_transmitConfig->setCfcCurveDeg(tx->cfcCurveDeg());
     for (int i = 0; i < tx->cfcLevels().size(); ++i)
-        m_audioConfig->setCfcLevel(i, tx->cfcLevels().at(i));
+        m_transmitConfig->setCfcLevel(i, tx->cfcLevels().at(i));
     for (int i = 0; i < tx->cfcPost().size(); ++i)
-        m_audioConfig->setCfcPost(i, tx->cfcPost().at(i));
-    m_audioConfig->setMicInputDev(tx->micInputDev());
-    m_audioConfig->setMicInputSourceName(tx->micInputSourceName());
-    m_audioConfig->setDigitalAudioInputDev(tx->digitalAudioInputDev());
-    m_audioConfig->setDigitalInputSourceName(tx->digitalInputSourceName());
+        m_transmitConfig->setCfcPostBand(i, tx->cfcPost().at(i));
+    m_transmitConfig->setMicInputDev(tx->micInputDev());
+    m_transmitConfig->setMicInputSourceName(tx->micInputSourceName());
+    m_transmitConfig->setDigitalAudioInputDev(tx->digitalAudioInputDev());
+    m_transmitConfig->setDigitalInputSourceName(tx->digitalInputSourceName());
     m_cwConfig->setKeyerMode(tx->cwKeyerMode());
     m_cwConfig->setInternalCw(tx->internalCw() ? 1 : 0);
     m_cwConfig->setKeyReversed(tx->cwKeyReversed() ? 1 : 0);
@@ -5757,105 +5521,105 @@ double Settings::getFMpreemphesis() const
 {
     if (const TransmitModel* tx = transmitModel())
         return tx->fmPreEmphasis() ? 1.0 : 0.0;
-    return m_audioConfig->fmPreemphasis();
+    return m_transmitConfig->fmPreemphasis();
 }
 
 int Settings::getPhaseRotator() const
 {
     if (const TransmitModel* tx = transmitModel())
         return tx->phaseRotator() ? 1 : 0;
-    return m_audioConfig->phaseRotator();
+    return m_transmitConfig->phaseRotator();
 }
 
 bool Settings::getPhaseRotatorAuto() const
 {
     if (const TransmitModel* tx = transmitModel())
         return tx->phaseRotatorAuto();
-    return m_audioConfig->phaseRotatorAuto();
+    return m_transmitConfig->phaseRotatorAuto();
 }
 
 int Settings::getCtcssToneHz() const
 {
     if (const TransmitModel* tx = transmitModel())
         return tx->ctcssToneHz();
-    return m_audioConfig->ctcssToneHz();
+    return m_transmitConfig->ctcssToneHz();
 }
 
 bool Settings::getTxEqEnabled() const
 {
     if (const TransmitModel* tx = transmitModel())
         return tx->txEqEnabled();
-    return m_audioConfig->txEqEnabled();
+    return m_transmitConfig->txEqEnabled();
 }
 
 QVector<int> Settings::getTxEqBands() const
 {
     if (const TransmitModel* tx = transmitModel())
         return tx->txEqBands();
-    return m_audioConfig->txEqBands();
+    return m_transmitConfig->txEqBands();
 }
 
 int Settings::getTxEqCurveDeg() const
 {
     if (const TransmitModel* tx = transmitModel())
         return tx->txEqCurveDeg();
-    return m_audioConfig->txEqCurveDeg();
+    return m_transmitConfig->txEqCurveDeg();
 }
 
 bool Settings::getCfcEnabled() const
 {
     if (const TransmitModel* tx = transmitModel())
         return tx->cfcEnabled();
-    return m_audioConfig->cfcEnabled();
+    return m_transmitConfig->cfcEnabled();
 }
 
 bool Settings::getCfcPeqEnabled() const
 {
     if (const TransmitModel* tx = transmitModel())
         return tx->cfcPeqEnabled();
-    return m_audioConfig->cfcPeqEnabled();
+    return m_transmitConfig->cfcPeqEnabled();
 }
 
 double Settings::getCfcPrecomp() const
 {
     if (const TransmitModel* tx = transmitModel())
         return tx->cfcPrecomp();
-    return m_audioConfig->cfcPrecomp();
+    return m_transmitConfig->cfcPrecomp();
 }
 
 double Settings::getCfcPrePeq() const
 {
     if (const TransmitModel* tx = transmitModel())
         return tx->cfcPrePeq();
-    return m_audioConfig->cfcPrePeq();
+    return m_transmitConfig->cfcPrePeq();
 }
 
 int Settings::getCfcCurveDeg() const
 {
     if (const TransmitModel* tx = transmitModel())
         return tx->cfcCurveDeg();
-    return m_audioConfig->cfcCurveDeg();
+    return m_transmitConfig->cfcCurveDeg();
 }
 
 QVector<double> Settings::getCfcLevels() const
 {
     if (const TransmitModel* tx = transmitModel())
         return tx->cfcLevels();
-    return m_audioConfig->cfcLevels();
+    return m_transmitConfig->cfcLevels();
 }
 
 QVector<double> Settings::getCfcPost() const
 {
     if (const TransmitModel* tx = transmitModel())
         return tx->cfcPost();
-    return m_audioConfig->cfcPost();
+    return m_transmitConfig->cfcPost();
 }
 
 double Settings::getFMDeveation() const
 {
     if (const TransmitModel* tx = transmitModel())
         return tx->fmDeviation();
-    return m_audioConfig->fmDeviation();
+    return m_transmitConfig->fmDeviation();
 }
 
 double Settings::getAMCarrierLevel() const
@@ -5863,7 +5627,7 @@ double Settings::getAMCarrierLevel() const
     // Returned as percent 0..100 for UI / TransmitModel consumers.
     if (const TransmitModel* tx = transmitModel())
         return tx->amCarrierLevel();
-    const double stored = m_audioConfig->amCarrierLevel();
+    const double stored = m_transmitConfig->amCarrierLevel();
     return (stored <= 1.0) ? stored * 100.0 : stored;
 }
 
@@ -5871,7 +5635,7 @@ double Settings::getAudioCompression() const
 {
     if (const TransmitModel* tx = transmitModel())
         return tx->audioCompression();
-    return m_audioConfig->audioCompression();
+    return m_transmitConfig->audioCompression();
 }
 
 bool Settings::isInternalCw() const

@@ -1,14 +1,28 @@
 #include <QtTest/QtTest>
 #include <QSignalSpy>
 #include <QJsonObject>
+#include <QJsonArray>
 #include <QColor>
 
+#include <QTemporaryFile>
+#include <QTemporaryDir>
+
+#include "cusdr_settings.h"
+#include "Models/RadioModel.h"
+#include "Models/SliceModel.h"
+#include "Models/TransmitModel.h"
 #include "Settings/DisplayConfig.h"
 #include "Settings/ReceiverConfig.h"
 #include "Settings/NetworkConfig.h"
 #include "Settings/AudioConfig.h"
 #include "Settings/CWConfig.h"
 #include "Settings/HardwareConfig.h"
+#include "Settings/AlexConfig.h"
+#include "Settings/TransmitConfig.h"
+#include "Settings/FreeDVConfig.h"
+#include "Settings/WindowConfig.h"
+#include "Settings/TciConfig.h"
+#include "Settings/SoapyConfig.h"
 
 class ConfigJsonTests : public QObject {
     Q_OBJECT
@@ -20,6 +34,17 @@ private slots:
     void testAudioConfigJson();
     void testCWConfigJson();
     void testHardwareConfigJson();
+    void testAlexConfigJson();
+    void testTransmitConfigJson();
+    void testFreeDVConfigJson();
+    void testWindowConfigJson();
+    void testTciConfigJson();
+    void testSoapyConfigJson();
+    void testSettingsFullJsonRoundtrip();
+    void testFromJsonGettersMatchConfigObjects();
+    void testSettingsSaveAndLoadJsonFile();
+    void testSettingsJsonSchemaValidation();
+    void testSettingsJsonModelHydration();
 };
 
 void ConfigJsonTests::testDisplayConfigJson() {
@@ -182,115 +207,43 @@ void ConfigJsonTests::testNetworkConfigJson() {
 
 void ConfigJsonTests::testAudioConfigJson() {
     AudioConfig config;
-    QCOMPARE(config.micSource(), 1);
-    QCOMPARE(config.micGain(), 10.0);
+    QCOMPARE(config.mainVolume(), 0.1f);
+    QCOMPARE(config.rxEqEnabled(), false);
 
-    QSignalSpy spyMicSrc(&config, &AudioConfig::micSourceChanged);
-    QSignalSpy spyMicDev(&config, &AudioConfig::micInputDevChanged);
-    QSignalSpy spyDigDev(&config, &AudioConfig::digitalAudioInputDevChanged);
-    QSignalSpy spyMicName(&config, &AudioConfig::micInputSourceNameChanged);
-    QSignalSpy spyDigName(&config, &AudioConfig::digitalInputSourceNameChanged);
-    QSignalSpy spyMicGain(&config, &AudioConfig::micGainChanged);
-    QSignalSpy spyDrive(&config, &AudioConfig::driveLevelChanged);
-    QSignalSpy spyPreemp(&config, &AudioConfig::fmPreemphasisChanged);
-    QSignalSpy spyCarrier(&config, &AudioConfig::amCarrierLevelChanged);
-    QSignalSpy spyCompress(&config, &AudioConfig::audioCompressionChanged);
-    QSignalSpy spyDevia(&config, &AudioConfig::fmDeviationChanged);
     QSignalSpy spyVol(&config, &AudioConfig::mainVolumeChanged);
+    QSignalSpy spyRxEq(&config, &AudioConfig::rxEqEnabledChanged);
+    QSignalSpy spyEmnr(&config, &AudioConfig::emnrPost2Changed);
 
-    config.setMicSource(2);
-    config.setMicInputDev(1);
-    config.setDigitalAudioInputDev(2);
-    config.setMicInputSourceName(QStringLiteral("InputMic"));
-    config.setDigitalInputSourceName(QStringLiteral("InputDig"));
-    config.setMicGain(15.5);
-    config.setDriveLevel(50);
-    config.setFmPreemphasis(2);
-    config.setPhaseRotator(0);
-    config.setAmCarrierLevel(0.8);
-    config.setAudioCompression(1);
-    config.setFmDeviation(4500.0);
     config.setMainVolume(0.5f);
+    config.setRxEqEnabled(true);
     config.setRxEqCurveDeg(2);
-    config.setTxEqCurveDeg(3);
-    config.setCfcEnabled(true);
-    config.setCfcPeqEnabled(true);
-    config.setCfcPrecomp(4.5);
-    config.setCfcPrePeq(-6.0);
-    config.setCfcCurveDeg(2);
-    config.setCfcLevel(2, 5.0);
-    config.setCfcPost(3, -2.0);
     config.setEmnrPost2Enabled(true);
     config.setEmnrPost2Factor(20.0);
     config.setEmnrPost2Nlevel(18.0);
     config.setEmnrPost2Taper(10.0);
     config.setEmnrPost2Rate(3.5);
 
-    QCOMPARE(spyMicSrc.count(), 1);
-    QCOMPARE(spyMicDev.count(), 1);
-    QCOMPARE(spyDigDev.count(), 1);
-    QCOMPARE(spyMicName.count(), 1);
-    QCOMPARE(spyDigName.count(), 1);
-    QCOMPARE(spyMicGain.count(), 1);
-    QCOMPARE(spyDrive.count(), 1);
-    QCOMPARE(spyPreemp.count(), 1);
-    QCOMPARE(spyCarrier.count(), 1);
-    QCOMPARE(spyCompress.count(), 1);
-    QCOMPARE(spyDevia.count(), 1);
     QCOMPARE(spyVol.count(), 1);
+    QCOMPARE(spyRxEq.count(), 1);
+    QCOMPARE(spyEmnr.count(), 5);
 
     QJsonObject json;
     config.save(json);
 
-    QCOMPARE(json["micSource"].toInt(), 2);
-    QCOMPARE(json["micInputDev"].toInt(), 1);
-    QCOMPARE(json["digitalAudioInputDev"].toInt(), 2);
-    QCOMPARE(json["micInputSourceName"].toString(), QStringLiteral("InputMic"));
-    QCOMPARE(json["digitalInputSourceName"].toString(), QStringLiteral("InputDig"));
-    QCOMPARE(json["micGain"].toDouble(), 15.5);
-    QCOMPARE(json["driveLevel"].toInt(), 50);
-    QCOMPARE(json["fmPreemphasis"].toInt(), 2);
-    QCOMPARE(json["amCarrierLevel"].toDouble(), 0.8);
-    QCOMPARE(json["audioCompression"].toInt(), 1);
-    QCOMPARE(json["fmDeviation"].toDouble(), 4500.0);
     QCOMPARE(json["mainVolume"].toDouble(), 0.5);
+    QCOMPARE(json["rxEqEnabled"].toBool(), true);
     QCOMPARE(json["rxEqCurveDeg"].toInt(), 2);
-    QCOMPARE(json["txEqCurveDeg"].toInt(), 3);
-    QCOMPARE(json["cfcEnabled"].toBool(), true);
-    QCOMPARE(json["cfcPeqEnabled"].toBool(), true);
-    QCOMPARE(json["cfcPrecomp"].toDouble(), 4.5);
-    QCOMPARE(json["cfcPrePeq"].toDouble(), -6.0);
-    QCOMPARE(json["cfcCurveDeg"].toInt(), 2);
     QCOMPARE(json["emnrPost2Enabled"].toBool(), true);
     QCOMPARE(json["emnrPost2Factor"].toDouble(), 20.0);
-    QCOMPARE(json["emnrPost2Nlevel"].toDouble(), 18.0);
-    QCOMPARE(json["emnrPost2Taper"].toDouble(), 10.0);
-    QCOMPARE(json["emnrPost2Rate"].toDouble(), 3.5);
+    QVERIFY(!json.contains("driveLevel"));
+    QVERIFY(!json.contains("micSource"));
 
     AudioConfig config2;
     config2.load(json);
 
-    QCOMPARE(config2.micSource(), 2);
-    QCOMPARE(config2.micInputDev(), 1);
-    QCOMPARE(config2.digitalAudioInputDev(), 2);
-    QCOMPARE(config2.micInputSourceName(), QStringLiteral("InputMic"));
-    QCOMPARE(config2.digitalInputSourceName(), QStringLiteral("InputDig"));
-    QCOMPARE(config2.micGain(), 15.5);
-    QCOMPARE(config2.driveLevel(), 50);
-    QCOMPARE(config2.fmPreemphasis(), 2);
-    QCOMPARE(config2.amCarrierLevel(), 0.8);
-    QCOMPARE(config2.audioCompression(), 1);
-    QCOMPARE(config2.fmDeviation(), 4500.0);
     QCOMPARE(config2.mainVolume(), 0.5f);
+    QCOMPARE(config2.rxEqEnabled(), true);
     QCOMPARE(config2.rxEqCurveDeg(), 2);
-    QCOMPARE(config2.txEqCurveDeg(), 3);
-    QCOMPARE(config2.cfcEnabled(), true);
-    QCOMPARE(config2.cfcPeqEnabled(), true);
-    QCOMPARE(config2.cfcPrecomp(), 4.5);
-    QCOMPARE(config2.cfcPrePeq(), -6.0);
-    QCOMPARE(config2.cfcCurveDeg(), 2);
-    QCOMPARE(config2.cfcLevels().value(2), 5.0);
-    QCOMPARE(config2.cfcPost().value(3), -2.0);
     QCOMPARE(config2.emnrPost2Enabled(), true);
     QCOMPARE(config2.emnrPost2Factor(), 20.0);
     QCOMPARE(config2.emnrPost2Nlevel(), 18.0);
@@ -438,6 +391,450 @@ void ConfigJsonTests::testHardwareConfigJson() {
     QCOMPARE(config2.devices().alexPresence, true);
     QCOMPARE(config2.devices().hermesPresence, true);
     QCOMPARE(config2.devices().metisPresence, true);
+}
+
+void ConfigJsonTests::testAlexConfigJson() {
+    AlexConfig config;
+    QCOMPARE(config.manualFilterSelect(), false);
+    QCOMPARE(config.attenuation(), 0);
+
+    QSignalSpy spyManual(&config, &AlexConfig::manualFilterSelectChanged);
+    QSignalSpy spyBypass(&config, &AlexConfig::bypassAllChanged);
+    QSignalSpy spyAmp6m(&config, &AlexConfig::amp6mChanged);
+    QSignalSpy spyHpf15(&config, &AlexConfig::hpf1_5MHzChanged);
+    QSignalSpy spyAttn(&config, &AlexConfig::attenuationChanged);
+
+    config.setManualFilterSelect(true);
+    config.setBypassAll(true);
+    config.setAmp6m(true);
+    config.setHpf1_5MHz(true);
+    config.setAttenuation(2);
+    config.setHpfLoFrequency(0, 1600000L);
+    config.setHpfHiFrequency(0, 5600000L);
+    config.setLpfLoFrequency(0, 1850000L);
+    const quint16 lpfBits = 0x4100; // LPF 160m + LPF 6m
+    config.setAlexConfig(static_cast<quint16>(config.alexConfig() | lpfBits));
+    QList<int> states;
+    states << 33 << 34;
+    config.setAlexStates(states);
+
+    QCOMPARE(spyManual.count(), 1);
+    QCOMPARE(spyBypass.count(), 1);
+    QCOMPARE(spyAmp6m.count(), 1);
+    QCOMPARE(spyHpf15.count(), 1);
+    QCOMPARE(spyAttn.count(), 1);
+
+    QJsonObject json;
+    config.save(json);
+
+    QCOMPARE(json["manualFilterSelect"].toBool(), true);
+    QCOMPARE(json["bypassAll"].toBool(), true);
+    QCOMPARE(json["amp6m"].toBool(), true);
+    QCOMPARE(json["hpf1_5MHz"].toBool(), true);
+    QCOMPARE(json["attenuation"].toInt(), 2);
+    QCOMPARE(json["alexConfig"].toInt(), 0x410F);
+    QCOMPARE(json["lpf160m"].toBool(), true);
+    QCOMPARE(json["lpf6m"].toBool(), true);
+    QVERIFY(json.contains("alexStates"));
+
+    AlexConfig config2;
+    config2.load(json);
+
+    QCOMPARE(config2.manualFilterSelect(), true);
+    QCOMPARE(config2.bypassAll(), true);
+    QCOMPARE(config2.amp6m(), true);
+    QCOMPARE(config2.hpf1_5MHz(), true);
+    QCOMPARE(config2.attenuation(), 2);
+    QCOMPARE(config2.hpfLoFrequencies().value(0), 1600000L);
+    QCOMPARE(config2.hpfHiFrequencies().value(0), 5600000L);
+    QCOMPARE(config2.lpfLoFrequencies().value(0), 1850000L);
+    QCOMPARE(config2.alexConfig(), static_cast<quint16>(0x410F));
+    QVERIFY((config2.alexConfig() & 0x4100) == 0x4100);
+    QCOMPARE(config2.lpf160m(), true);
+    QCOMPARE(config2.lpf6m(), true);
+    QCOMPARE(config2.alexStates().size(), AlexConfig::kAlexStateCount);
+    QCOMPARE(config2.alexStates().value(0), 33);
+    QCOMPARE(config2.alexStates().value(1), 34);
+}
+
+void ConfigJsonTests::testTransmitConfigJson() {
+    TransmitConfig config;
+    QCOMPARE(config.micSource(), 1);
+    QCOMPARE(config.driveLevel(), 100);
+    QCOMPARE(config.fmDeviation(), 5000.0);
+    QCOMPARE(config.cfcFreqs().size(), TransmitConfig::kCfcBands);
+    QCOMPARE(config.cfcFreqs().value(0), 50.0);
+    QCOMPARE(config.cfcFreqs().value(9), 3100.0);
+
+    QSignalSpy spyMicSrc(&config, &TransmitConfig::micSourceChanged);
+    QSignalSpy spyDrive(&config, &TransmitConfig::driveLevelChanged);
+    QSignalSpy spyTune(&config, &TransmitConfig::tunePowerChanged);
+    QSignalSpy spyPa(&config, &TransmitConfig::paEnabledChanged);
+    QSignalSpy spyCarrier(&config, &TransmitConfig::amCarrierLevelChanged);
+    QSignalSpy spyCompress(&config, &TransmitConfig::audioCompressionChanged);
+    QSignalSpy spyDevia(&config, &TransmitConfig::fmDeviationChanged);
+    QSignalSpy spyCtcss(&config, &TransmitConfig::ctcssToneHzChanged);
+
+    config.setMicSource(2);
+    config.setDriveLevel(80);
+    config.setTunePower(15);
+    config.setPaEnabled(false);
+    config.setAmCarrierLevel(0.75);
+    config.setAudioCompression(1);
+    config.setFmDeviation(3000.0);
+    config.setCtcssToneHz(100);
+    config.setTxEqEnabled(true);
+    config.setTxEqBand(0, 3);
+    config.setCfcEnabled(true);
+    config.setCfcLevel(1, 4.0);
+
+    QCOMPARE(spyMicSrc.count(), 1);
+    QCOMPARE(spyDrive.count(), 1);
+    QCOMPARE(spyTune.count(), 1);
+    QCOMPARE(spyPa.count(), 1);
+    QCOMPARE(spyCarrier.count(), 1);
+    QCOMPARE(spyCompress.count(), 1);
+    QCOMPARE(spyDevia.count(), 1);
+    QCOMPARE(spyCtcss.count(), 1);
+
+    QJsonObject json;
+    config.save(json);
+
+    QCOMPARE(json["micSource"].toInt(), 2);
+    QCOMPARE(json["driveLevel"].toInt(), 80);
+    QCOMPARE(json["tunePower"].toInt(), 15);
+    QCOMPARE(json["paEnabled"].toBool(), false);
+    QCOMPARE(json["amCarrierLevel"].toDouble(), 0.75);
+    QCOMPARE(json["audioCompression"].toInt(), 1);
+    QCOMPARE(json["fmDeviation"].toDouble(), 3000.0);
+    QCOMPARE(json["ctcssToneHz"].toInt(), 100);
+    QCOMPARE(json["txEqEnabled"].toBool(), true);
+    QCOMPARE(json["cfcEnabled"].toBool(), true);
+
+    TransmitConfig config2;
+    config2.load(json);
+
+    QCOMPARE(config2.micSource(), 2);
+    QCOMPARE(config2.driveLevel(), 80);
+    QCOMPARE(config2.tunePower(), 15);
+    QCOMPARE(config2.paEnabled(), false);
+    QCOMPARE(config2.amCarrierLevel(), 0.75);
+    QCOMPARE(config2.audioCompression(), 1);
+    QCOMPARE(config2.fmDeviation(), 3000.0);
+    QCOMPARE(config2.ctcssToneHz(), 100);
+    QCOMPARE(config2.txEqEnabled(), true);
+    QCOMPARE(config2.txEqBands().value(0), 3);
+    QCOMPARE(config2.cfcEnabled(), true);
+    QCOMPARE(config2.cfcLevels().value(1), 4.0);
+}
+
+void ConfigJsonTests::testFreeDVConfigJson() {
+    FreeDVConfig config;
+    QCOMPARE(config.defaultMode(), 0);
+    QCOMPARE(config.sqThreshold(), 0.0f);
+
+    QSignalSpy spyMode(&config, &FreeDVConfig::defaultModeChanged);
+    QSignalSpy spySq(&config, &FreeDVConfig::sqThresholdChanged);
+    QSignalSpy spyAuto(&config, &FreeDVConfig::autoSyncChanged);
+
+    config.setDefaultMode(3); // 700C / 2400
+    config.setSqThreshold(2.5f);
+    config.setAutoSync(false);
+    config.setRxMode(1, 4);
+
+    QCOMPARE(spyMode.count(), 1);
+    QCOMPARE(spySq.count(), 1);
+    QCOMPARE(spyAuto.count(), 1);
+
+    QJsonObject json;
+    config.save(json);
+
+    QCOMPARE(json["defaultMode"].toInt(), 3);
+    QCOMPARE(json["sqThreshold"].toDouble(), 2.5);
+    QCOMPARE(json["autoSync"].toBool(), false);
+
+    FreeDVConfig config2;
+    config2.load(json);
+
+    QCOMPARE(config2.defaultMode(), 3);
+    QCOMPARE(config2.sqThreshold(), 2.5f);
+    QCOMPARE(config2.autoSync(), false);
+    QCOMPARE(config2.rxMode(1), 4);
+}
+
+void ConfigJsonTests::testWindowConfigJson() {
+    WindowConfig config;
+    QCOMPARE(config.minimumWidgetWidth(), 300);
+    QCOMPARE(config.minimumGroupBoxWidth(), 250);
+    QCOMPARE(config.multiRxView(), 0);
+
+    config.setMinimumWidgetWidth(280);
+    config.setMinimumGroupBoxWidth(240);
+    config.setMultiRxView(2);
+
+    QJsonObject json;
+    config.save(json);
+    QCOMPARE(json["minimumWidgetWidth"].toInt(), 280);
+    QCOMPARE(json["minimumGroupBoxWidth"].toInt(), 240);
+    QCOMPARE(json["multiRxView"].toInt(), 2);
+
+    WindowConfig loaded;
+    loaded.load(json);
+    QCOMPARE(loaded.minimumWidgetWidth(), 280);
+    QCOMPARE(loaded.minimumGroupBoxWidth(), 240);
+    QCOMPARE(loaded.multiRxView(), 2);
+
+    loaded.setMinimumWidgetWidth(100);
+    loaded.setMultiRxView(9);
+    QCOMPARE(loaded.minimumWidgetWidth(), 300);
+    QCOMPARE(loaded.multiRxView(), 0);
+}
+
+void ConfigJsonTests::testTciConfigJson() {
+    TciConfig config;
+    QCOMPARE(config.serverEnabled(), true);
+    QCOMPARE(config.rxGain(), 1.0f);
+    QCOMPARE(config.txGain(), 1.0f);
+
+    config.setServerEnabled(false);
+    config.setRxGain(1.5f);
+    config.setTxGain(0.25f);
+
+    QJsonObject json;
+    config.save(json);
+    QCOMPARE(json["enabled"].toBool(), false);
+    QCOMPARE(json["rxGain"].toDouble(), 1.5);
+    QCOMPARE(json["txGain"].toDouble(), 0.25);
+
+    TciConfig loaded;
+    loaded.load(json);
+    QCOMPARE(loaded.serverEnabled(), false);
+    QCOMPARE(loaded.rxGain(), 1.5f);
+    QCOMPARE(loaded.txGain(), 0.25f);
+
+    loaded.setRxGain(5.0f);
+    QCOMPARE(loaded.rxGain(), 2.0f);
+}
+
+void ConfigJsonTests::testSoapyConfigJson() {
+    SoapyConfig config;
+    config.setRxAntenna(QStringLiteral("LNAW"));
+    config.setTxAntenna(QStringLiteral("BAND1"));
+    config.setLnaGain(18);
+    config.setTiaGain(9);
+    config.setPgaGain(6);
+    config.setOverallGain(42);
+    config.setAutoCalibrate(true);
+    config.setIqBalance(false);
+
+    QJsonObject json;
+    config.save(json);
+    QCOMPARE(json["rxAntenna"].toString(), QStringLiteral("LNAW"));
+    QCOMPARE(json["txAntenna"].toString(), QStringLiteral("BAND1"));
+    QCOMPARE(json["lnaGain"].toInt(), 18);
+    QCOMPARE(json["overallGain"].toInt(), 42);
+    QCOMPARE(json["autoCalibrate"].toBool(), true);
+    QCOMPARE(json["iqBalance"].toBool(), false);
+
+    SoapyConfig loaded;
+    loaded.load(json);
+    QCOMPARE(loaded.rxAntenna(), QStringLiteral("LNAW"));
+    QCOMPARE(loaded.txAntenna(), QStringLiteral("BAND1"));
+    QCOMPARE(loaded.lnaGain(), 18);
+    QCOMPARE(loaded.tiaGain(), 9);
+    QCOMPARE(loaded.pgaGain(), 6);
+    QCOMPARE(loaded.overallGain(), 42);
+    QCOMPARE(loaded.autoCalibrate(), true);
+    QCOMPARE(loaded.iqBalance(), false);
+}
+
+void ConfigJsonTests::testSettingsFullJsonRoundtrip() {
+    Settings::delete_instance();
+    Settings* settings = Settings::instance();
+
+    settings->setCallsign(QStringLiteral("ZL2BRG"));
+    settings->setServerAddr(QStringLiteral("192.168.1.100"));
+    settings->setServerPort(50000);
+    settings->setDriveLevel(75);
+    settings->setAlexConfiguration(0x410F);
+    settings->setAlexState(0, 34);
+    settings->setFreeDVMode(0, 2);
+    settings->cwConfig()->setKeyerSpeed(26);
+    settings->transmitConfig()->setAudioCompression(4);
+    settings->freeDVConfig()->setDefaultMode(2);
+    settings->setMultiRxView(1);
+    settings->setTciServerEnabled(false);
+    settings->setTciRxGain(1.25f);
+    settings->setSoapyRxAntenna(QStringLiteral("RX2"));
+    settings->setSoapyLnaGain(22);
+
+    const QJsonObject json = settings->toJson();
+    QCOMPARE(json["schemaVersion"].toInt(), 1);
+    QCOMPARE(json["callsign"].toString(), QStringLiteral("ZL2BRG"));
+    QCOMPARE(json["network"].toObject()["serverAddress"].toString(), QStringLiteral("192.168.1.100"));
+    QCOMPARE(json["network"].toObject()["serverPort"].toInt(), 50000);
+    QCOMPARE(json["transmit"].toObject()["driveLevel"].toInt(), 75);
+    QCOMPARE(json["alex"].toObject()["alexConfig"].toInt(), 0x410F);
+    QCOMPARE(json["cw"].toObject()["keyerSpeed"].toInt(), 26);
+    QCOMPARE(json["transmit"].toObject()["audioCompression"].toInt(), 4);
+    QCOMPARE(json["freedv"].toObject()["defaultMode"].toInt(), 2);
+
+    // Reset settings and reload from JSON
+    Settings::delete_instance();
+    Settings* settings2 = Settings::instance();
+    QVERIFY(settings2->fromJson(json));
+
+    QCOMPARE(settings2->getCallsign(), QStringLiteral("ZL2BRG"));
+    QCOMPARE(settings2->networkConfig()->serverAddress(), QStringLiteral("192.168.1.100"));
+    QCOMPARE(settings2->networkConfig()->serverPort(), 50000);
+    QCOMPARE(settings2->getServerPort(), static_cast<quint16>(50000));
+    QCOMPARE(settings2->getServerPort(), settings2->networkConfig()->serverPort());
+    QCOMPARE(settings2->getDriveLevel(), 75);
+    QCOMPARE(settings2->getDriveLevel(), settings2->transmitConfig()->driveLevel());
+    QCOMPARE(settings2->getAlexConfig(), static_cast<quint16>(0x410F));
+    QCOMPARE(settings2->getAlexConfig(), settings2->alexConfig()->alexConfig());
+    QCOMPARE(settings2->getAlexStates().value(0), 34);
+    QCOMPARE(settings2->getAlexStates(), settings2->alexConfig()->alexStates());
+    QCOMPARE(settings2->cwConfig()->keyerSpeed(), 26);
+    QCOMPARE(settings2->transmitConfig()->audioCompression(), 4);
+    QCOMPARE(settings2->freeDVConfig()->defaultMode(), 2);
+    QCOMPARE(settings2->getFreeDVMode(0), 2);
+    QCOMPARE(settings2->getFreeDVMode(0), settings2->freeDVConfig()->rxMode(0));
+    QCOMPARE(settings2->getMinimumWidgetWidth(), settings2->windowConfig()->minimumWidgetWidth());
+    QCOMPARE(settings2->getMultiRxView(), 1);
+    QCOMPARE(settings2->getMultiRxView(), settings2->windowConfig()->multiRxView());
+    QCOMPARE(settings2->getTciServerEnabled(), false);
+    QCOMPARE(settings2->getTciServerEnabled(), settings2->tciConfig()->serverEnabled());
+    QCOMPARE(settings2->getTciRxGain(), 1.25f);
+    QCOMPARE(settings2->getTciRxGain(), settings2->tciConfig()->rxGain());
+    QCOMPARE(settings2->getSoapyRxAntenna(), QStringLiteral("RX2"));
+    QCOMPARE(settings2->getSoapyRxAntenna(), settings2->soapyConfig()->rxAntenna());
+    QCOMPARE(settings2->getSoapyLnaGain(), 22);
+    QCOMPARE(settings2->getSoapyLnaGain(), settings2->soapyConfig()->lnaGain());
+
+    Settings::delete_instance();
+}
+
+void ConfigJsonTests::testFromJsonGettersMatchConfigObjects() {
+    Settings::delete_instance();
+    Settings *settings = Settings::instance();
+
+    settings->setAlexConfiguration(0x410F);
+    settings->setDriveLevel(75);
+    settings->setServerPort(50000);
+    settings->setFreeDVMode(0, 2);
+    settings->setMultiRxView(2);
+    settings->setTciTxGain(0.5f);
+    settings->setSoapyOverallGain(55);
+
+    const QJsonObject json = settings->toJson();
+    Settings::delete_instance();
+
+    Settings *loaded = Settings::instance();
+    QVERIFY(loaded->fromJson(json));
+
+    QCOMPARE(loaded->getAlexConfig(), loaded->alexConfig()->alexConfig());
+    QCOMPARE(loaded->getAlexConfig(), static_cast<quint16>(0x410F));
+    QCOMPARE(loaded->getDriveLevel(), loaded->transmitConfig()->driveLevel());
+    QCOMPARE(loaded->getDriveLevel(), 75);
+    QCOMPARE(loaded->get_tx_drivelevel(), loaded->transmitConfig()->driveLevel());
+    QCOMPARE(loaded->getServerPort(), loaded->networkConfig()->serverPort());
+    QCOMPARE(loaded->getServerPort(), static_cast<quint16>(50000));
+    QCOMPARE(loaded->getFreeDVMode(0), loaded->freeDVConfig()->rxMode(0));
+    QCOMPARE(loaded->getFreeDVMode(0), 2);
+    QCOMPARE(loaded->getMinimumWidgetWidth(), loaded->windowConfig()->minimumWidgetWidth());
+    QCOMPARE(loaded->getMultiRxView(), loaded->windowConfig()->multiRxView());
+    QCOMPARE(loaded->getMultiRxView(), 2);
+    QCOMPARE(loaded->getTciTxGain(), loaded->tciConfig()->txGain());
+    QCOMPARE(loaded->getTciTxGain(), 0.5f);
+    QCOMPARE(loaded->getSoapyOverallGain(), loaded->soapyConfig()->overallGain());
+    QCOMPARE(loaded->getSoapyOverallGain(), 55);
+
+    Settings::delete_instance();
+}
+
+void ConfigJsonTests::testSettingsSaveAndLoadJsonFile() {
+    Settings::delete_instance();
+    Settings* settings = Settings::instance();
+
+    settings->setCallsign(QStringLiteral("W1AW"));
+    settings->transmitConfig()->setFmDeviation(3500);
+
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+    const QString jsonPath = tempDir.filePath("test_config.json");
+
+    QVERIFY(settings->saveJson(jsonPath));
+    QVERIFY(QFile::exists(jsonPath));
+
+    Settings::delete_instance();
+    Settings* settings2 = Settings::instance();
+    QVERIFY(settings2->loadJson(jsonPath));
+
+    QCOMPARE(settings2->getCallsign(), QStringLiteral("W1AW"));
+    QCOMPARE(settings2->transmitConfig()->fmDeviation(), 3500);
+
+    Settings::delete_instance();
+}
+
+void ConfigJsonTests::testSettingsJsonSchemaValidation() {
+    Settings::delete_instance();
+    Settings* settings = Settings::instance();
+
+    // Empty JSON should fail gracefully
+    QJsonObject emptyObj;
+    QVERIFY(!settings->fromJson(emptyObj));
+
+    // Invalid schemaVersion should fail
+    QJsonObject invalidVersionObj;
+    invalidVersionObj["schemaVersion"] = 0;
+    QVERIFY(!settings->fromJson(invalidVersionObj));
+
+    // Partial JSON with valid version should succeed using defaults
+    QJsonObject partialObj;
+    partialObj["schemaVersion"] = 1;
+    partialObj["callsign"] = QStringLiteral("DX1TEST");
+    QVERIFY(settings->fromJson(partialObj));
+    QCOMPARE(settings->getCallsign(), QStringLiteral("DX1TEST"));
+
+    Settings::delete_instance();
+}
+
+void ConfigJsonTests::testSettingsJsonModelHydration() {
+    Settings::delete_instance();
+    Settings* settings = Settings::instance();
+
+    RadioModel radio;
+    auto *slice0 = new SliceModel(0, &radio);
+    radio.addSlice(slice0);
+    settings->setRadioModel(&radio);
+
+    QJsonObject json = settings->toJson();
+    QJsonObject netObj = json["network"].toObject();
+    netObj["serverPort"] = 45000;
+    json["network"] = netObj;
+
+    QJsonObject txObj = json["transmit"].toObject();
+    txObj["audioCompression"] = 8;
+    json["transmit"] = txObj;
+
+    QJsonArray rxArray = json["receivers"].toArray();
+    if (!rxArray.isEmpty()) {
+        QJsonObject rx0 = rxArray[0].toObject();
+        rx0["vfoFrequency"] = 14200000;
+        rx0["vfoAFrequency"] = 14200000;
+        rxArray[0] = rx0;
+    }
+    json["receivers"] = rxArray;
+
+    QVERIFY(settings->fromJson(json));
+
+    // Verify models were hydrated
+    QCOMPARE(radio.transmit()->audioCompression(), 8);
+    QCOMPARE(slice0->vfoAFrequency(), static_cast<qint64>(14200000));
+
+    settings->setRadioModel(nullptr);
+    Settings::delete_instance();
 }
 
 QTEST_MAIN(ConfigJsonTests)

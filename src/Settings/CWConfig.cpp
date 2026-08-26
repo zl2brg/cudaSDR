@@ -1,5 +1,6 @@
 #include "CWConfig.h"
 #include <QSettings>
+#include "Util/settings_utils.h"
 
 CWConfig::CWConfig(QObject *parent)
     : QObject(parent)
@@ -112,16 +113,9 @@ void CWConfig::save(QJsonObject &json) const {
 }
 
 void CWConfig::loadIni(QSettings *settings) {
-    QString str;
-
-    str = settings->value("cw/internal", "on").toString();
-    setInternalCw(str.toLower() == "on" ? 1 : 0);
-
-    str = settings->value("cw/key_reversed", "off").toString();
-    setKeyReversed(str.toLower() == "on" ? 1 : 0);
-
-    str = settings->value("cw/key_spacing", "off").toString();
-    setKeyerSpacing(str.toLower() == "on" ? 1 : 0);
+    setInternalCw(SettingsUtils::iniOn(settings, QStringLiteral("cw/internal"), QStringLiteral("on")) ? 1 : 0);
+    setKeyReversed(SettingsUtils::iniOn(settings, QStringLiteral("cw/key_reversed")) ? 1 : 0);
+    setKeyerSpacing(SettingsUtils::iniOn(settings, QStringLiteral("cw/key_spacing")) ? 1 : 0);
 
     setKeyerSpeed(settings->value("cw/keyer_speed", 20).toInt());
     setKeyerMode(settings->value("cw/keyer_mode", 2).toInt());
@@ -133,9 +127,9 @@ void CWConfig::loadIni(QSettings *settings) {
 }
 
 void CWConfig::saveIni(QSettings *settings) const {
-    settings->setValue("cw/internal", m_internal_cw == 1 ? "on" : "off");
-    settings->setValue("cw/key_reversed", m_key_reversed == 1 ? "on" : "off");
-    settings->setValue("cw/key_spacing", m_keyer_spacing == 1 ? "on" : "off");
+    SettingsUtils::setIniOn(settings, QStringLiteral("cw/internal"), m_internal_cw == 1);
+    SettingsUtils::setIniOn(settings, QStringLiteral("cw/key_reversed"), m_key_reversed == 1);
+    SettingsUtils::setIniOn(settings, QStringLiteral("cw/key_spacing"), m_keyer_spacing == 1);
     settings->setValue("cw/keyer_speed", m_keyer_speed);
     settings->setValue("cw/keyer_mode", m_keyer_mode);
     settings->setValue("cw/sidetone_volume", m_sidetone_volume);

@@ -63,13 +63,13 @@ void NetworkConfig::setSocketBufferSize(int size) {
 }
 
 void NetworkConfig::load(const QJsonObject &json) {
-    if (json.contains("serverAddress")) m_serverAddress = json["serverAddress"].toString();
-    if (json.contains("localAddress")) m_localAddress = json["localAddress"].toString();
-    if (json.contains("serverPort")) m_serverPort = static_cast<quint16>(json["serverPort"].toInt());
-    if (json.contains("listenPort")) m_listenPort = static_cast<quint16>(json["listenPort"].toInt());
-    if (json.contains("audioPort")) m_audioPort = static_cast<quint16>(json["audioPort"].toInt());
-    if (json.contains("metisPort")) m_metisPort = static_cast<quint16>(json["metisPort"].toInt());
-    if (json.contains("socketBufferSize")) m_socketBufferSize = json["socketBufferSize"].toInt();
+    if (json.contains("serverAddress")) setServerAddress(json["serverAddress"].toString());
+    if (json.contains("localAddress")) setLocalAddress(json["localAddress"].toString());
+    if (json.contains("serverPort")) setServerPort(static_cast<quint16>(json["serverPort"].toInt()));
+    if (json.contains("listenPort")) setListenPort(static_cast<quint16>(json["listenPort"].toInt()));
+    if (json.contains("audioPort")) setAudioPort(static_cast<quint16>(json["audioPort"].toInt()));
+    if (json.contains("metisPort")) setMetisPort(static_cast<quint16>(json["metisPort"].toInt()));
+    if (json.contains("socketBufferSize")) setSocketBufferSize(json["socketBufferSize"].toInt());
 }
 
 void NetworkConfig::save(QJsonObject &json) const {

@@ -226,6 +226,12 @@ set(SOURCES
     ${SRC_DIR}/Settings/AudioConfig.cpp
     ${SRC_DIR}/Settings/CWConfig.cpp
     ${SRC_DIR}/Settings/ReceiverConfig.cpp
+    ${SRC_DIR}/Settings/AlexConfig.cpp
+    ${SRC_DIR}/Settings/TransmitConfig.cpp
+    ${SRC_DIR}/Settings/FreeDVConfig.cpp
+    ${SRC_DIR}/Settings/WindowConfig.cpp
+    ${SRC_DIR}/Settings/TciConfig.cpp
+    ${SRC_DIR}/Settings/SoapyConfig.cpp
     ${SRC_DIR}/UI/MainWindow/MainWindowUI.cpp
     ${SRC_DIR}/GL/WaterfallRenderer.cpp
     ${SRC_DIR}/GL/PanadapterRenderer.cpp
@@ -301,6 +307,12 @@ set(HEADERS
     ${SRC_DIR}/Settings/AudioConfig.h
     ${SRC_DIR}/Settings/CWConfig.h
     ${SRC_DIR}/Settings/ReceiverConfig.h
+    ${SRC_DIR}/Settings/AlexConfig.h
+    ${SRC_DIR}/Settings/TransmitConfig.h
+    ${SRC_DIR}/Settings/FreeDVConfig.h
+    ${SRC_DIR}/Settings/WindowConfig.h
+    ${SRC_DIR}/Settings/TciConfig.h
+    ${SRC_DIR}/Settings/SoapyConfig.h
     ${SRC_DIR}/UI/MainWindow/MainWindowUI.h
     ${SRC_DIR}/GL/WaterfallRenderer.h
     ${SRC_DIR}/GL/PanadapterRenderer.h
@@ -450,6 +462,12 @@ if(BUILD_TESTING)
         ${SRC_DIR}/Settings/AudioConfig.cpp
         ${SRC_DIR}/Settings/CWConfig.cpp
         ${SRC_DIR}/Settings/ReceiverConfig.cpp
+        ${SRC_DIR}/Settings/AlexConfig.cpp
+        ${SRC_DIR}/Settings/TransmitConfig.cpp
+        ${SRC_DIR}/Settings/FreeDVConfig.cpp
+        ${SRC_DIR}/Settings/WindowConfig.cpp
+        ${SRC_DIR}/Settings/TciConfig.cpp
+        ${SRC_DIR}/Settings/SoapyConfig.cpp
         ${SRC_DIR}/Models/RadioModel.cpp
         ${SRC_DIR}/Models/SliceModel.cpp
         ${SRC_DIR}/Models/TransmitModel.cpp
@@ -674,12 +692,7 @@ if(BUILD_TESTING)
 
     qt_add_executable(config_json_tests
         tests/config_json_tests.cpp
-        ${SRC_DIR}/Settings/DisplayConfig.cpp
-        ${SRC_DIR}/Settings/ReceiverConfig.cpp
-        ${SRC_DIR}/Settings/NetworkConfig.cpp
-        ${SRC_DIR}/Settings/AudioConfig.cpp
-        ${SRC_DIR}/Settings/CWConfig.cpp
-        ${SRC_DIR}/Settings/HardwareConfig.cpp
+        ${CUDASDR_SETTINGS_TEST_SOURCES}
     )
     target_include_directories(config_json_tests PRIVATE
         ${SRC_DIR}
@@ -689,6 +702,8 @@ if(BUILD_TESTING)
         Qt6::Gui
         Qt6::Widgets
         Qt6::Network
+        Qt6::Multimedia
+        Qt6::WebSockets
         Qt6::Test
     )
     add_test(NAME config_json_tests COMMAND config_json_tests)

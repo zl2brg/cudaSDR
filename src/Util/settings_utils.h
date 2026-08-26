@@ -4,7 +4,14 @@
 #include "Settings/SettingsTypes.h"
 #include "cusdr_hamDatabase.h"
 
+#include <QJsonArray>
+#include <QJsonObject>
+#include <QJsonValue>
+#include <QSettings>
 #include <QString>
+#include <QVector>
+#include <algorithm>
+#include <type_traits>
 
 namespace SettingsUtils {
 
@@ -95,6 +102,114 @@ inline QString stripSurroundingQuotes(QString value)
     while (value.endsWith(QLatin1Char('"')))
         value = value.left(value.length() - 1).trimmed();
     return value;
+}
+
+inline int clampBoundedInt(int value, int lo, int hi)
+{
+    return qBound(lo, value, hi);
+}
+
+inline double clampBoundedDouble(double value, double lo, double hi)
+{
+    return qBound(lo, value, hi);
+}
+
+inline int clampEqDeg(int deg)
+{
+    return clampBoundedInt(deg, 0, 8);
+}
+
+inline int clampEqBandDb(int db)
+{
+    return clampBoundedInt(db, -12, 12);
+}
+
+inline double clampDb(double value, double lo, double hi)
+{
+    return clampBoundedDouble(value, lo, hi);
+}
+
+inline long clampFreq(double value, double lo, double hi, double fallback)
+{
+    if (value < lo || value > hi)
+        return static_cast<long>(fallback);
+    return static_cast<long>(value);
+}
+
+inline float clampTciGain(float gain)
+{
+    return qBound(0.0f, gain, 2.0f);
+}
+
+inline bool iniOn(const QSettings *settings, const QString &key,
+                  const QString &defaultValue = QStringLiteral("off"))
+{
+    return settings->value(key, defaultValue).toString().compare(
+               QLatin1String("on"), Qt::CaseInsensitive) == 0;
+}
+
+inline void setIniOn(QSettings *settings, const QString &key, bool on)
+{
+    settings->setValue(key, on ? QStringLiteral("on") : QStringLiteral("off"));
+}
+
+template<typename T>
+inline T jsonValueAs(const QJsonValue &value);
+
+template<>
+inline int jsonValueAs<int>(const QJsonValue &value)
+{
+    return value.toInt();
+}
+
+template<>
+inline double jsonValueAs<double>(const QJsonValue &value)
+{
+    return value.toDouble();
+}
+
+template<>
+inline long jsonValueAs<long>(const QJsonValue &value)
+{
+    return static_cast<long>(value.toDouble());
+}
+
+template<typename T, typename Setter>
+void applyJsonArray(const QJsonObject &json, const QString &key, int maxCount, Setter setter)
+{
+    if (!json.contains(key) || !json.value(key).isArray() || maxCount <= 0)
+        return;
+    const QJsonArray arr = json.value(key).toArray();
+    const int n = std::min(static_cast<int>(arr.size()), maxCount);
+    for (int i = 0; i < n; ++i)
+        setter(i, jsonValueAs<T>(arr.at(i)));
+}
+
+template<typename T>
+QVector<T> jsonArrayToVector(const QJsonObject &json, const QString &key, int count, T fill = T{})
+{
+    QVector<T> out(count, fill);
+    if (!json.contains(key) || !json.value(key).isArray() || count <= 0)
+        return out;
+    const QJsonArray arr = json.value(key).toArray();
+    const int n = std::min(static_cast<int>(arr.size()), count);
+    for (int i = 0; i < n; ++i)
+        out[i] = jsonValueAs<T>(arr.at(i));
+    return out;
+}
+
+template<typename Container>
+QJsonArray toJsonArray(const Container &values)
+{
+    QJsonArray arr;
+    for (const auto &v : values) {
+        using T = std::decay_t<decltype(v)>;
+        if constexpr (std::is_floating_point_v<T> || std::is_same_v<T, long> || std::is_same_v<T, qint64>)
+            arr.append(static_cast<double>(v));
+        else
+            arr.append(static_cast<int>(v));
+    }
+    return arr;
 }
 
 } // namespace SettingsUtils
