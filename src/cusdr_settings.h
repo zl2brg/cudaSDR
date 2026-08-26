@@ -472,6 +472,7 @@ typedef struct _receiver {
 	qint64	vfoAFrequency;
 	qint64	vfoBFrequency;
 	int		activeVfo; // 0 = A, 1 = B (SliceModel::ActiveVfo)
+	int		filterSlope; // SliceModel filter slope (0 Soft …); residual until Slice exists
 	qint64	ncoFrequency;
 
 	float	freqRulerPosition;

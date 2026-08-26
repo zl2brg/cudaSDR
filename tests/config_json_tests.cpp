@@ -151,6 +151,26 @@ void ConfigJsonTests::testReceiverConfigJson() {
     QCOMPARE(config2.agcMode(), agcSLOW);
     QCOMPARE(config2.ctrFrequency(), static_cast<qint64>(3500000));
     QCOMPARE(config2.vfoFrequency(), static_cast<qint64>(3600000));
+
+    config2.setFilterSlope(2);
+    TReceiver rx{};
+    rx.dspModeList = QList<DSPMode>() << LSB << USB << LSB; // enough slots for m80
+    while (rx.dspModeList.size() < MAX_BANDS)
+        rx.dspModeList << USB;
+    config2.applyTo(rx);
+    QCOMPARE(rx.ctrFrequency, static_cast<qint64>(3500000));
+    QCOMPARE(rx.vfoFrequency, static_cast<qint64>(3600000));
+    QCOMPARE(rx.hamBand, m80);
+    QCOMPARE(rx.dspMode, LSB);
+    QCOMPARE(rx.filterSlope, 2);
+    QCOMPARE(rx.dspModeList.value(m80), LSB);
+
+    rx.vfoFrequency = 3700000;
+    rx.filterSlope = 0;
+    ReceiverConfig config3(3);
+    config3.fromReceiver(rx);
+    QCOMPARE(config3.vfoFrequency(), static_cast<qint64>(3700000));
+    QCOMPARE(config3.filterSlope(), 0);
 }
 
 void ConfigJsonTests::testNetworkConfigJson() {
@@ -726,6 +746,8 @@ void ConfigJsonTests::testFromJsonGettersMatchConfigObjects() {
     settings->setMultiRxView(2);
     settings->setTciTxGain(0.5f);
     settings->setSoapyOverallGain(55);
+    settings->setVfoFrequency(0, 14150000);
+    settings->setCtrFrequency(0, 14100000);
 
     const QJsonObject json = settings->toJson();
     Settings::delete_instance();
@@ -749,6 +771,13 @@ void ConfigJsonTests::testFromJsonGettersMatchConfigObjects() {
     QCOMPARE(loaded->getTciTxGain(), 0.5f);
     QCOMPARE(loaded->getSoapyOverallGain(), loaded->soapyConfig()->overallGain());
     QCOMPARE(loaded->getSoapyOverallGain(), 55);
+    QCOMPARE(loaded->getVfoFrequency(0), static_cast<qint64>(14150000));
+    QCOMPARE(loaded->getCtrFrequency(0), static_cast<qint64>(14100000));
+    QCOMPARE(loaded->getVfoFrequency(0), loaded->getReceiverDataList().at(0).vfoFrequency);
+    QCOMPARE(loaded->getCtrFrequency(0), loaded->getReceiverDataList().at(0).ctrFrequency);
+    loaded->receiverConfigs().at(0)->fromReceiver(loaded->getReceiverDataList().at(0));
+    QCOMPARE(loaded->receiverConfigs().at(0)->vfoFrequency(), loaded->getVfoFrequency(0));
+    QCOMPARE(loaded->receiverConfigs().at(0)->ctrFrequency(), loaded->getCtrFrequency(0));
 
     Settings::delete_instance();
 }
@@ -823,15 +852,23 @@ void ConfigJsonTests::testSettingsJsonModelHydration() {
         QJsonObject rx0 = rxArray[0].toObject();
         rx0["vfoFrequency"] = 14200000;
         rx0["vfoAFrequency"] = 14200000;
+        rx0["ctrFrequency"] = 14180000;
+        rx0["filterSlope"] = 2;
+        rx0["agcMode"] = static_cast<int>(agcSLOW);
         rxArray[0] = rx0;
     }
     json["receivers"] = rxArray;
 
     QVERIFY(settings->fromJson(json));
 
-    // Verify models were hydrated
     QCOMPARE(radio.transmit()->audioCompression(), 8);
     QCOMPARE(slice0->vfoAFrequency(), static_cast<qint64>(14200000));
+    QCOMPARE(slice0->frequency(), static_cast<qint64>(14200000));
+    QCOMPARE(slice0->centerFrequency(), static_cast<qint64>(14180000));
+    QCOMPARE(slice0->filterSlope(), 2);
+    QCOMPARE(slice0->agcMode(), agcSLOW);
+    QCOMPARE(settings->getVfoFrequency(0), slice0->frequency());
+    QCOMPARE(settings->getCtrFrequency(0), slice0->centerFrequency());
 
     settings->setRadioModel(nullptr);
     Settings::delete_instance();

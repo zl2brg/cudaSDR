@@ -127,6 +127,7 @@ Settings::Settings(QObject *parent)
         m_receiverDataList[i].agcHangThreshold = 0.0;
         m_receiverDataList[i].peakHold = false;
         m_receiverDataList[i].fftFactor = 1;
+        m_receiverDataList[i].filterSlope = 1;
         m_receiverDataList[i].nr = 0;
         m_receiverDataList[i].nbMode = 0;
         m_receiverDataList[i].anf = false;
@@ -433,15 +434,10 @@ int Settings::loadSettings() {
     for (int i = 0; i < MAX_RECEIVERS; i++) {
 
         m_receiverConfigs[i]->loadIni(settings);
-        m_receiverDataList[i].dspCore = m_receiverConfigs[i]->dspCore();
+        m_receiverConfigs[i]->applyTo(m_receiverDataList[i]);
         if (m_receiverDataList[i].dspCore == QSDR::QtDSP) {
             setSpectrumSize(4096);
         }
-        m_receiverDataList[i].ctrFrequency = m_receiverConfigs[i]->ctrFrequency();
-        m_receiverDataList[i].vfoFrequency = m_receiverConfigs[i]->vfoFrequency();
-        m_receiverDataList[i].vfoAFrequency = m_receiverConfigs[i]->vfoAFrequency();
-        m_receiverDataList[i].vfoBFrequency = m_receiverConfigs[i]->vfoBFrequency();
-        m_receiverDataList[i].activeVfo = m_receiverConfigs[i]->activeVfo();
 
         QString cstr = m_rxStringList.at(i);
         cstr.append("/nr");
@@ -1644,12 +1640,7 @@ int Settings::saveSettings() {
             settings->setValue(str,  m_receiverDataList[i].lastVfoFrequencyList.at(j));
         }
 
-        m_receiverConfigs[i]->setDspCore(m_receiverDataList[i].dspCore);
-        m_receiverConfigs[i]->setCtrFrequency(m_receiverDataList[i].ctrFrequency);
-        m_receiverConfigs[i]->setVfoFrequency(m_receiverDataList[i].vfoFrequency);
-        m_receiverConfigs[i]->setVfoAFrequency(m_receiverDataList[i].vfoAFrequency);
-        m_receiverConfigs[i]->setVfoBFrequency(m_receiverDataList[i].vfoBFrequency);
-        m_receiverConfigs[i]->setActiveVfo(m_receiverDataList[i].activeVfo);
+        m_receiverConfigs[i]->fromReceiver(m_receiverDataList[i]);
         m_receiverConfigs[i]->saveIni(settings);
 
         str = m_rxStringList.at(i);
@@ -1805,9 +1796,10 @@ QJsonObject Settings::toJson() const
     m_freeDVConfig->save(freeDvObj);
     root["freedv"] = freeDvObj;
 
-    // Receivers
+    // Receivers — DTO populated from TReceiver after syncSettingsWithSlices
     QJsonArray rxArray;
-    for (int i = 0; i < m_receiverConfigs.size(); ++i) {
+    for (int i = 0; i < m_receiverConfigs.size() && i < m_receiverDataList.size(); ++i) {
+        m_receiverConfigs[i]->fromReceiver(m_receiverDataList[i]);
         QJsonObject rxObj;
         m_receiverConfigs[i]->save(rxObj);
         rxArray.append(rxObj);
@@ -1887,16 +1879,10 @@ bool Settings::fromJson(const QJsonObject &root)
 
     if (root.contains("receivers") && root["receivers"].isArray()) {
         const QJsonArray rxArray = root["receivers"].toArray();
-        for (int i = 0; i < rxArray.size() && i < m_receiverConfigs.size(); ++i) {
+        for (int i = 0; i < rxArray.size() && i < m_receiverConfigs.size() && i < m_receiverDataList.size(); ++i) {
             if (rxArray[i].isObject()) {
                 m_receiverConfigs[i]->load(rxArray[i].toObject());
-                // Sync legacy receiverDataList entry
-                m_receiverDataList[i].dspCore = m_receiverConfigs[i]->dspCore();
-                m_receiverDataList[i].ctrFrequency = m_receiverConfigs[i]->ctrFrequency();
-                m_receiverDataList[i].vfoFrequency = m_receiverConfigs[i]->vfoFrequency();
-                m_receiverDataList[i].vfoAFrequency = m_receiverConfigs[i]->vfoAFrequency();
-                m_receiverDataList[i].vfoBFrequency = m_receiverConfigs[i]->vfoBFrequency();
-                m_receiverDataList[i].activeVfo = m_receiverConfigs[i]->activeVfo();
+                m_receiverConfigs[i]->applyTo(m_receiverDataList[i]);
             }
         }
     }
@@ -3501,19 +3487,7 @@ void Settings::setCtrFrequency(int rx, qint64 frequency) {
 }
 
 void Settings::setVfoFrequency(int rx, qint64 frequency) {
-
-    QMutexLocker locker(&settingsMutex);
-
-    HamBand band = getBandFromFrequency(m_bandList, frequency);
-
-    m_receiverDataList[rx].vfoFrequency = frequency;
-    m_receiverDataList[rx].hamBand = band;
-    m_receiverDataList[rx].lastHamBand = band;
-    m_receiverDataList[rx].lastVfoFrequencyList[(int) band] = frequency;
-
-    m_receiverDataList[rx].ncoFrequency = frequency - m_receiverDataList.at(rx).ctrFrequency;
- //   setDSPMode(rx,m_receiverDataList[rx].dspModeList[band]);
-    SETTINGS_DEBUG << "set vfo freq (Rx " << rx << ") " << m_receiverDataList[rx].ctrFrequency;
+    setVFOFrequency(0, rx, frequency);
 }
 
 void Settings::setCtrFrequency(int mode, int rx, qint64 frequency) {
@@ -3583,6 +3557,10 @@ void Settings::setVFOFrequency(int mode, int rx, qint64 frequency) {
 
     if (m_receiverDataList.at(rx).vfoFrequency == frequency) return;
     m_receiverDataList[rx].vfoFrequency = frequency;
+    if (m_receiverDataList[rx].activeVfo == 1)
+        m_receiverDataList[rx].vfoBFrequency = frequency;
+    else
+        m_receiverDataList[rx].vfoAFrequency = frequency;
     SETTINGS_DEBUG << "vfo freq (Rx " << rx << ") " << m_receiverDataList[rx].vfoFrequency;
     HamBand band = getBandFromFrequency(m_bandList, frequency);
     m_receiverDataList[rx].lastVfoFrequencyList[(int) band] = frequency;
@@ -5327,6 +5305,7 @@ void Settings::syncSlicesWithSettings() {
         slice->setDspMode(startupMode);
         slice->setFilterLow((float)m_receiverDataList[i].filterLo);
         slice->setFilterHigh((float)m_receiverDataList[i].filterHi);
+        slice->setFilterSlope(m_receiverDataList[i].filterSlope);
         slice->setAgcMode(m_receiverDataList[i].agcMode);
         slice->setAgcGain((int)m_receiverDataList[i].acgGain);
         slice->setAgcMaxGain(m_receiverDataList[i].agcMaximumGain_dB);
@@ -5391,6 +5370,7 @@ void Settings::syncSettingsWithSlices() {
             m_receiverDataList[i].dBmPanScaleMaxList[band] = slice->dBmPanScaleMax();
         m_receiverDataList[i].filterLo = (qreal)slice->filterLow();
         m_receiverDataList[i].filterHi = (qreal)slice->filterHigh();
+        m_receiverDataList[i].filterSlope = slice->filterSlope();
         m_receiverDataList[i].agcMode = slice->agcMode();
         m_receiverDataList[i].acgGain = (qreal)slice->agcGain();
         m_receiverDataList[i].agcMaximumGain_dB = slice->agcMaxGain();

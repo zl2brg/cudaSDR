@@ -3,12 +3,20 @@
 
 #include <QObject>
 #include <QJsonObject>
-#include <QJsonArray>
 #include "SettingsTypes.h"
 #include "cusdr_hamDatabase.h"
 
 class QSettings;
+struct _receiver;
+typedef struct _receiver TReceiver;
 
+/**
+ * Ephemeral persistence DTO for a subset of per-receiver fields.
+ *
+ * Not a live runtime store: DSP/UI use SliceModel (and TReceiver for residual
+ * fields). Load paths parse into this DTO then applyTo(TReceiver); save paths
+ * populate from TReceiver (after syncSettingsWithSlices) then write.
+ */
 class ReceiverConfig : public QObject {
     Q_OBJECT
     Q_PROPERTY(int id READ id CONSTANT)
@@ -61,6 +69,11 @@ public:
 
     int filterSlope() const { return m_filterSlope; }
     void setFilterSlope(int slope);
+
+    /** Push DTO fields into the residual TReceiver channel (not a live copy). */
+    void applyTo(TReceiver &rx) const;
+    /** Populate DTO from TReceiver after syncSettingsWithSlices(). */
+    void fromReceiver(const TReceiver &rx);
 
     void load(const QJsonObject &json);
     void save(QJsonObject &json) const;

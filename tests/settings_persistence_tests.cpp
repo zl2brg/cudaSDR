@@ -223,6 +223,7 @@ void SettingsPersistenceTests::loadAndSaveAllConfigModules()
         seed.setValue(QStringLiteral("receiver0/dspCore"), QStringLiteral("qtdsp"));
         seed.setValue(QStringLiteral("receiver0/centerFrequency"), 14100000.0);
         seed.setValue(QStringLiteral("receiver0/vfoFrequency"), 14150000.0);
+        seed.setValue(QStringLiteral("receiver0/filterSlope"), 2);
         seed.setValue(QStringLiteral("rx0/dspCore"), QStringLiteral("qtdsp"));
         seed.setValue(QStringLiteral("rx0/centerFrequency"), 14100000.0);
         seed.setValue(QStringLiteral("rx0/vfoFrequency"), 14150000.0);
@@ -266,9 +267,13 @@ void SettingsPersistenceTests::loadAndSaveAllConfigModules()
     QCOMPARE(m_settings->hardwareConfig()->source122_88Mhz(), 0); // penelope
 
     // Verify Receiver Config
+    QCOMPARE(m_settings->getVfoFrequency(0), static_cast<qint64>(14150000));
+    QCOMPARE(m_settings->getCtrFrequency(0), static_cast<qint64>(14100000));
+    QCOMPARE(m_settings->getVfoFrequency(0), m_settings->getReceiverDataList().at(0).vfoFrequency);
     QCOMPARE(m_settings->receiverConfigs().at(0)->dspCore(), QSDR::QtDSP);
     QCOMPARE(m_settings->receiverConfigs().at(0)->ctrFrequency(), 14100000);
     QCOMPARE(m_settings->receiverConfigs().at(0)->vfoFrequency(), 14150000);
+    QCOMPARE(m_settings->getReceiverDataList().at(0).filterSlope, 2);
 
     QCOMPARE(m_settings->getAlexConfig(), static_cast<quint16>(0x4101));
     QCOMPARE(m_settings->getAlexConfig(), m_settings->alexConfig()->alexConfig());
@@ -309,7 +314,9 @@ void SettingsPersistenceTests::loadAndSaveAllConfigModules()
     QCOMPARE(m_settings->transmitConfig()->micSource(), 1); // penelope
     QCOMPARE(m_settings->cwConfig()->internalCw(), 0);
     QCOMPARE(m_settings->hardwareConfig()->source10Mhz(), 2); // mercury
+    QCOMPARE(m_settings->getVfoFrequency(0), static_cast<qint64>(14200000));
     QCOMPARE(m_settings->receiverConfigs().at(0)->vfoFrequency(), 14200000);
+    QCOMPARE(m_settings->receiverConfigs().at(0)->vfoFrequency(), m_settings->getVfoFrequency(0));
     QCOMPARE(m_settings->getAlexConfig(), static_cast<quint16>(0x410F));
     QCOMPARE(m_settings->getAlexConfig(), m_settings->alexConfig()->alexConfig());
     QCOMPARE(m_settings->getServerAddr(), QStringLiteral("10.0.0.8"));
@@ -410,6 +417,10 @@ void SettingsPersistenceTests::saveDoesNotWriteConflictingDuplicateIniKeys()
              m_settings->soapyConfig()->lnaGain());
     QCOMPARE(saved.value(QStringLiteral("SoapySDR/lnaGain")).toInt(),
              m_settings->getSoapyLnaGain());
+    QCOMPARE(saved.value(QStringLiteral("receiver0/vfoFrequency")).toLongLong(),
+             m_settings->getVfoFrequency(0));
+    QCOMPARE(saved.value(QStringLiteral("receiver0/filterSlope")).toInt(),
+             m_settings->getReceiverDataList().at(0).filterSlope);
 
     const auto network = dumpConfigIni([&](QSettings *s) { m_settings->networkConfig()->saveIni(s); });
     const auto audio = dumpConfigIni([&](QSettings *s) { m_settings->audioConfig()->saveIni(s); });
@@ -422,6 +433,12 @@ void SettingsPersistenceTests::saveDoesNotWriteConflictingDuplicateIniKeys()
     const auto window = dumpConfigIni([&](QSettings *s) { m_settings->windowConfig()->saveIni(s); });
     const auto tci = dumpConfigIni([&](QSettings *s) { m_settings->tciConfig()->saveIni(s); });
     const auto soapy = dumpConfigIni([&](QSettings *s) { m_settings->soapyConfig()->saveIni(s); });
+    QMap<QString, QVariant> receivers;
+    for (ReceiverConfig *rx : m_settings->receiverConfigs()) {
+        const auto dumped = dumpConfigIni([&](QSettings *s) { rx->saveIni(s); });
+        for (auto it = dumped.constBegin(); it != dumped.constEnd(); ++it)
+            receivers.insert(it.key(), it.value());
+    }
 
     const QList<QPair<QString, QMap<QString, QVariant>>> modules = {
         {QStringLiteral("NetworkConfig"), network},
@@ -435,6 +452,7 @@ void SettingsPersistenceTests::saveDoesNotWriteConflictingDuplicateIniKeys()
         {QStringLiteral("WindowConfig"), window},
         {QStringLiteral("TciConfig"), tci},
         {QStringLiteral("SoapyConfig"), soapy},
+        {QStringLiteral("ReceiverConfig"), receivers},
     };
     for (int i = 0; i < modules.size(); ++i) {
         for (int j = i + 1; j < modules.size(); ++j)
