@@ -37,6 +37,9 @@
 #include "WaterfallRenderer.h"
 #include "PanadapterRenderer.h"
 #include "OverlayRenderer.h"
+#include "GridRenderer.h"
+#include "TraceRenderer.h"
+#include "HudRenderer.h"
 #include "cusdr_spectrumBinWorker.h"
 
 #include <QWheelEvent>
@@ -61,6 +64,10 @@ class SliceModel;
 class QGLReceiverPanel : public QOpenGLWidget, protected QOpenGLFunctions {
 
     Q_OBJECT
+
+	friend class GridRenderer;
+	friend class TraceRenderer;
+	friend class HudRenderer;
 
 public:
     QGLReceiverPanel(SliceModel *model, QWidget *parent = nullptr);
@@ -132,10 +139,6 @@ private:
 
 	QQueue<QVector<float> >			specAv_queue;
 
-	QOpenGLFramebufferObject*	m_frequencyScaleFBO;
-	QOpenGLFramebufferObject*	m_dBmScaleFBO;
-	QOpenGLFramebufferObject*	m_secScaleWaterfallFBO;
-
     QOpenGLShaderProgram      *m_shaderProgram;
     QOpenGLShaderProgram      *m_textureProgram;
     QOpenGLBuffer              m_vbo;
@@ -194,12 +197,11 @@ private:
 	QColor						m_gridColor;
 	QColor						m_darkColor;
 	
-	QMutex						mutex;
+    QMutex						mutex;
 	QMutex						spectrumBufferMutex;
 	QVector<float>				m_cachedSpectrumBuffer;
 	QVector<float>				m_coalescedSpectrum;
     qreal                       dpr;
-    QPainter                    painter;
 	enum Region {
 
 		freqScalePanadapterRegion,
@@ -261,6 +263,9 @@ private:
     WaterfallRenderer* m_waterfallRenderer;
     PanadapterRenderer* m_panadapterRenderer;
     OverlayRenderer* m_overlayRenderer;
+    GridRenderer* m_gridRenderer;
+    TraceRenderer* m_traceRenderer;
+    HudRenderer* m_hudRenderer;
     SpectrumBinWorker* m_spectrumBinWorker = nullptr;
     quint64 m_spectrumBinGeneration = 0;
     quint64 m_spectrumBinAppliedGeneration = 0;
@@ -400,10 +405,6 @@ private:
 
 	void 	updateFrequencyRuler();
 	void 	updateDBmRuler();
-	void 	renderPanVerticalScale();
-	void 	renderPanHorizontalScale();
-	void 	renderPanadapterGrid();
-	void 	renderWaterfallVerticalScale();
 
 	//void	computeDisplayBins(const QVector<float>& panBuffer, const float* waterfallBuffer);
 	//void	computeDisplayBins(QVector<float> &buffer);

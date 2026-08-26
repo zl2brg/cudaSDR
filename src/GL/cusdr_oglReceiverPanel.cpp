@@ -32,6 +32,9 @@
 
 #include "cusdr_oglReceiverPanel.h"
 #include "WaterfallRenderer.h"
+#include "GridRenderer.h"
+#include "TraceRenderer.h"
+#include "HudRenderer.h"
 #include "cusdr_glShaders.h"
 #include "cusdr_glDraw.h"
 #include "Controllers/RadioPopupController.h"
@@ -62,6 +65,9 @@ QGLReceiverPanel::QGLReceiverPanel(SliceModel *model, QWidget *parent)
 	, m_waterfallRenderer(nullptr)
 	, m_panadapterRenderer(nullptr)
 	, m_overlayRenderer(nullptr)
+	, m_gridRenderer(nullptr)
+	, m_traceRenderer(nullptr)
+	, m_hudRenderer(nullptr)
 	, m_bigHeight(0)
 	, m_glTextColor(Qt::white)
 	, m_panelDpr(devicePixelRatioF())
@@ -273,11 +279,6 @@ QGLReceiverPanel::QGLReceiverPanel(SliceModel *model, QWidget *parent)
 	m_waterfallHiColor = QColor(192, 124, 255, m_waterfallAlpha);
 	m_waterfallMidColor = set->getPanadapterColors().waterfallColor.toRgb();
 
-    m_frequencyScaleFBO = nullptr;
-    m_dBmScaleFBO = nullptr;
-    m_secScaleWaterfallFBO = nullptr;
-
-
 	m_haircrossOffsetRight = 30;
 	m_haircrossOffsetLeft = 116;
 	m_haircrossMaxRight = 110;
@@ -288,6 +289,9 @@ QGLReceiverPanel::QGLReceiverPanel(SliceModel *model, QWidget *parent)
 	else
 		m_scale = 1.0f;
 
+	m_gridRenderer = new GridRenderer(this);
+	m_traceRenderer = new TraceRenderer(this);
+	m_hudRenderer = new HudRenderer(this);
 }
 
 QGLReceiverPanel::~QGLReceiverPanel() {
@@ -320,23 +324,17 @@ QGLReceiverPanel::~QGLReceiverPanel() {
         m_vbo.destroy();
     }
 	
-	if (m_frequencyScaleFBO) {
-
-		delete m_frequencyScaleFBO;
-        m_frequencyScaleFBO = nullptr;
+	if (m_gridRenderer) {
+		delete m_gridRenderer;
+		m_gridRenderer = nullptr;
 	}
-
-	if (m_dBmScaleFBO) {
-
-		delete m_dBmScaleFBO;
-        m_dBmScaleFBO = nullptr;
+	if (m_traceRenderer) {
+		delete m_traceRenderer;
+		m_traceRenderer = nullptr;
 	}
-
-
-	if (m_secScaleWaterfallFBO) {
-
-		delete m_secScaleWaterfallFBO;
-	m_secScaleWaterfallFBO = nullptr;
+	if (m_hudRenderer) {
+		delete m_hudRenderer;
+		m_hudRenderer = nullptr;
 	}
 
 	if (m_waterfallRenderer) {
@@ -347,6 +345,11 @@ QGLReceiverPanel::~QGLReceiverPanel() {
     if (m_panadapterRenderer) {
         delete m_panadapterRenderer;
         m_panadapterRenderer = nullptr;
+    }
+
+    if (m_overlayRenderer) {
+        delete m_overlayRenderer;
+        m_overlayRenderer = nullptr;
     }
 
     while (!specAv_queue.isEmpty())
@@ -517,6 +520,13 @@ void QGLReceiverPanel::initializeGL() {
 
     m_overlayRenderer = new OverlayRenderer();
     m_overlayRenderer->initialize(m_shaderProgram);
+
+    if (!m_gridRenderer)
+        m_gridRenderer = new GridRenderer(this);
+    if (!m_traceRenderer)
+        m_traceRenderer = new TraceRenderer(this);
+    if (!m_hudRenderer)
+        m_hudRenderer = new HudRenderer(this);
 }
 
 QMatrix4x4 QGLReceiverPanel::panelProjection() const
@@ -649,29 +659,33 @@ void QGLReceiverPanel::paintReceiverDisplay() {
 		
 		m_filterChanged = false;
 	}
-	//m_displayTime.restart();
 
+    // Spectrum binning runs on SpectrumBinWorker; paint only draws the latest snapshot.
+    scheduleSpectrumBinning();
+
+    // --- Grid: update rulers ---
     if (m_freqScalePanRect.isValid())
         updateFrequencyRuler();
     if (m_dBmScalePanRect.isValid())
         updateDBmRuler();
 
-    // Spectrum binning runs on SpectrumBinWorker; paint only draws the latest snapshot.
-    scheduleSpectrumBinning();
-
+    // --- Trace: panadapter + band plan ---
     drawPanadapter();
     drawBandPlanStrip();
 
+    // --- Grid: scales + grid lines ---
     glDisable(GL_DEPTH_TEST);
     drawPanHorizontalScale();
     drawPanVerticalScale();
     drawPanadapterGrid();
 
+    // --- Overlay: AGC geometry (+ HUD AGC labels) ---
 	if (m_dataEngineState == QSDR::DataEngineUp && m_showAGCLines && (m_receiver == m_currentReceiver)) {
         ensurePanelViewport();
 		drawAGCControl();
     }
 
+    // --- HUD: VFO / receiver info / CW ---
 	if (m_panRect.width() > 300 && m_panRect.height() > 80) {
 
         ensurePanelViewport();
@@ -680,6 +694,7 @@ void QGLReceiverPanel::paintReceiverDisplay() {
         drawCwDecoderHUD();
 	}
 
+    // --- Trace: waterfall; Overlay: centerline/filter; Grid: waterfall scale ---
 	if (m_waterfallRect.height() > 10) {
         ensurePanelViewport();
         drawWaterfall();
@@ -697,6 +712,7 @@ void QGLReceiverPanel::paintReceiverDisplay() {
     if (m_waterfallDisplayUpdate)
         m_waterfallDisplayUpdate = false;
 
+    // --- HUD: crosshair ---
 	if (m_crossHair) {
 
 		if (m_mouseRegion != freqScalePanadapterRegion && 
@@ -717,423 +733,43 @@ void QGLReceiverPanel::paint3DPanadapterMode() {
 
 void QGLReceiverPanel::drawBandPlanStrip()
 {
-	RadioModel *radioModel = qobject_cast<RadioModel *>(m_sliceModel ? m_sliceModel->parent() : nullptr);
-	BandPlanManager *plan = radioModel ? radioModel->bandPlan() : nullptr;
-	if (!plan || plan->isEmpty())
-		return;
-
-	const qreal span = displayedFrequencySpanHz();
-	if (span <= 0.0 || !m_panRect.isValid())
-		return;
-
-	ensurePanelViewport();
-
-	const qint64 loHz = qint64(qreal(m_centerFrequency) - span / 2.0);
-	const qint64 hiHz = qint64(qreal(m_centerFrequency) + span / 2.0);
-
-	const QDateTime nowUtc = QDateTime::currentDateTimeUtc();
-	const int utcMinOfDay = nowUtc.time().hour() * 60 + nowUtc.time().minute();
-	const int dayOfWeek = nowUtc.date().dayOfWeek();
-
-	QVector<BandSpot> spots = plan->spotsInSpan(loHz, hiHz, utcMinOfDay, dayOfWeek);
-	if (spots.isEmpty())
-		return;
-
-	// When zoomed way out, thin labels to digimode / time / beacon markers.
-	if (span > 1.5e6 && spots.size() > 16) {
-		QVector<BandSpot> priority;
-		priority.reserve(spots.size());
-		for (const BandSpot &s : spots) {
-			const QString &l = s.label;
-			if (l.contains(QLatin1String("FT8"))
-			    || l.contains(QLatin1String("FT4"))
-			    || l.contains(QLatin1String("WSPR"))
-			    || l.contains(QLatin1String("JS8"))
-			    || l.contains(QLatin1String("PSK"))
-			    || l.contains(QLatin1String("IBP"))
-			    || l.contains(QLatin1String("WWV"))
-			    || l.contains(QLatin1String("WWVH"))
-			    || l.contains(QLatin1String("CHU"))
-			    || l.contains(QLatin1String("beacon"), Qt::CaseInsensitive))
-				priority.append(s);
-		}
-		if (!priority.isEmpty())
-			spots = priority;
-	}
-
-	OGLText *spotText = m_oglTextNormal ? m_oglTextNormal
-	                                    : (m_oglTextSmall ? m_oglTextSmall : m_oglTextTiny);
-	if (!spotText)
-		return;
-
-	glDisable(GL_DEPTH_TEST);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	glEnable(GL_BLEND);
-
-	const int left = m_panRect.left();
-	const int right = m_panRect.right();
-	const int baseY = m_panRect.bottom(); // sit just above the frequency ruler
-	const qreal pxPerHz = qreal(m_panRect.width()) / span;
-
-	auto freqToX = [&](qint64 freqHz) -> int {
-		return left + qRound((qreal(freqHz) - qreal(m_centerFrequency) + span / 2.0) * pxPerHz);
-	};
-
-	auto spotColor = [](const QString &label) -> QColor {
-		if (label.contains(QLatin1String("FT8")))
-			return QColor(90, 200, 130);
-		if (label.contains(QLatin1String("FT4")))
-			return QColor(130, 190, 230);
-		if (label.contains(QLatin1String("WSPR")))
-			return QColor(230, 170, 70);
-		if (label.contains(QLatin1String("JS8")))
-			return QColor(190, 150, 230);
-		if (label.contains(QLatin1String("[CW"), Qt::CaseInsensitive) || label.endsWith(QLatin1String("CW")))
-			return QColor(255, 215, 0); // Gold for CW RBN spots
-		if (label.contains(QLatin1String("[SSB"), Qt::CaseInsensitive) || label.contains(QLatin1String("[USB"), Qt::CaseInsensitive) || label.contains(QLatin1String("[LSB"), Qt::CaseInsensitive))
-			return QColor(80, 190, 245); // Sky blue for SSB spots
-		if (label.contains(QLatin1String("[RTTY"), Qt::CaseInsensitive) || label.contains(QLatin1String("RTTY")))
-			return QColor(245, 90, 180); // Magenta for RTTY spots
-		if (label.contains(QLatin1String("IBP")) || label.contains(QLatin1String("beacon"), Qt::CaseInsensitive))
-			return QColor(110, 210, 210);
-		return QColor(200, 205, 215);
-	};
-
-	const int textH = spotText->fontMetrics().height();
-	const int lanePitch = textH + 3;
-	int lane = 0;
-	int lastLabelRight[3] = { left - 1000, left - 1000, left - 1000 };
-
-	for (const BandSpot &spot : spots) {
-		const int x = freqToX(spot.freqHz);
-		if (x < left || x > right)
-			continue;
-
-		const QColor col = spotColor(spot.label);
-		const int textW = spotText->fontMetrics().horizontalAdvance(spot.label);
-
-		// Pick the first staggered lane that doesn't overlap the previous label.
-		int chosen = 0;
-		for (; chosen < 3; ++chosen) {
-			if (x - 2 >= lastLabelRight[chosen] + 6)
-				break;
-		}
-		if (chosen >= 3)
-			chosen = lane % 3;
-		lane = chosen + 1;
-		lastLabelRight[chosen] = x - 2 + textW + 8;
-
-		// Labels grow upward from the frequency ruler.
-		const int labelY = baseY - (chosen + 1) * lanePitch;
-		if (labelY < m_panRect.top() + 2)
-			continue;
-
-		const int labelX = qBound(left, x - 2, right - textW - 6);
-		drawPanelRect(QRect(x, labelY, 1, baseY - labelY), QColor(col.red(), col.green(), col.blue(), 140), -1.25f);
-		drawPanelRect(QRect(x - 2, baseY - 3, 5, 5), col, -1.2f);
-		drawPanelRect(QRect(labelX, labelY, textW + 6, textH + 1), QColor(8, 10, 14, 190), -1.15f);
-
-		m_glTextColor = QColor(0, 0, 0, 160);
-		renderPanelText(spotText, float(labelX + 4), float(labelY + 1), -1.1f, spot.label);
-		m_glTextColor = col;
-		renderPanelText(spotText, float(labelX + 3), float(labelY), -1.05f, spot.label);
-	}
+	if (m_traceRenderer)
+		m_traceRenderer->drawBandPlanStrip();
 }
 
 void QGLReceiverPanel::drawPanadapter() {
-
-    const bool showSpectrum = (m_dataEngineState == QSDR::DataEngineUp && !m_panadapterBins.isEmpty());
-
-    if (!showSpectrum) {
-        if (m_dataEngineState != QSDR::DataEngineUp)
-            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-        if (m_panadapterRenderer && m_panRect.isValid()) {
-            float dpr = (float)devicePixelRatio();
-            QMatrix4x4 projection;
-            projection.ortho(0, size().width(), size().height(), 0, -10, 10);
-            PanadapterRenderer::Colors colors = { m_red, m_green, m_blue, m_redF, m_greenF, m_blueF, m_redST, m_greenST, m_blueST, m_redSB, m_greenSB, m_blueSB, m_bkgRed, m_bkgGreen, m_bkgBlue };
-            m_panadapterRenderer->renderIdleBackground(this, projection, m_panRect, dpr, size().height(), colors, m_dataEngineState, (m_receiver == m_currentReceiver));
-        }
-        return;
-    }
-
-    if (m_dataEngineState == QSDR::DataEngineUp)
-        glClear(GL_DEPTH_BUFFER_BIT);
-    else
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-    glEnable(GL_MULTISAMPLE);
-    glEnable(GL_LINE_SMOOTH);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glEnable(GL_BLEND);
-    glDisable(GL_DEPTH_TEST);
-    glLineWidth(1);
-
-    if (m_panadapterRenderer) {
-        float dpr = (float)devicePixelRatio();
-        QMatrix4x4 projection;
-        projection.ortho(0, size().width(), size().height(), 0, -10, 10);
-        PanadapterRenderer::Colors colors = { m_red, m_green, m_blue, m_redF, m_greenF, m_blueF, m_redST, m_greenST, m_blueST, m_redSB, m_greenSB, m_blueSB, m_bkgRed, m_bkgGreen, m_bkgBlue };
-        const QVector<qreal> emptyPeakHold;
-        const QVector<qreal>& peakHoldBins =
-            (m_peakHold && m_panPeakHoldBins.size() == m_panadapterBins.size())
-                ? m_panPeakHoldBins
-                : emptyPeakHold;
-        m_panadapterRenderer->render(this, projection, m_panRect, m_panadapterBins, m_dBmPanMax, m_dBmPanMin,
-                                   m_panMode, m_scaleMult, dpr, size().height(), colors, m_dataEngineState,
-                                   (m_receiver == m_currentReceiver), peakHoldBins);
-        if (m_panadapterRenderer->usesCompositePass())
-            m_panadapterRenderer->compositeToDefaultFramebuffer(this, projection, m_panRect, dpr, size().height());
-    }
-
-    glEnable(GL_DEPTH_TEST);
+    if (m_traceRenderer)
+        m_traceRenderer->drawPanadapter();
 }
 
 void QGLReceiverPanel::drawPanVerticalScale() {
-
-    if (!m_dBmScalePanRect.isValid()) return;
-
-    // Use logical dimensions for consistent rendering
-    int width = m_dBmScalePanRect.width();
-    int height = m_dBmScalePanRect.height();
-    
-    // Safety check for valid dimensions
-    if (width <= 0 || height <= 0) return;
-
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glEnable(GL_BLEND);
-
-    const bool regenDBmScale = !m_dBmScaleFBO || m_dBmScalePanadapterRenew
-                               || (m_dBmScalePanadapterUpdate && !m_dragDBmScale);
-
-    const qreal dpr = devicePixelRatioF();
-    const int devWidth = qMax(1, int(qRound(width * dpr)));
-    const int devHeight = qMax(1, int(qRound(height * dpr)));
-
-    if (regenDBmScale) {
-        if (!m_dBmScaleFBO || m_dBmScaleFBO->size() != QSize(devWidth, devHeight) || m_dBmScalePanadapterRenew) {
-            if (m_dBmScaleFBO) {
-                delete m_dBmScaleFBO;
-                m_dBmScaleFBO = nullptr;
-            }
-            m_dBmScaleFBO = new QOpenGLFramebufferObject(devWidth, devHeight);
-        }
-        GLint viewport[4];
-        glGetIntegerv(GL_VIEWPORT, viewport);
-        glViewport(0, 0, devWidth, devHeight);
-
-        m_dBmScaleFBO->bind();
-        renderPanVerticalScale();
-        m_dBmScaleFBO->release();
-        QOpenGLFramebufferObject::bindDefault();
-
-        if (!m_dragDBmScale)
-            m_dBmScalePanadapterUpdate = false;
-        m_dBmScalePanadapterRenew = false;
-        glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
-    }
-
-    drawCachedTexture(m_dBmScalePanRect, m_dBmScaleFBO->texture(), 0.0f);
-
-    if (m_dragDBmScale && m_overlayRenderer && m_dBmScaleFBO) {
-        QMatrix4x4 projection;
-        projection.ortho(0, size().width(), size().height(), 0, -10, 10);
-        const float alpha = (m_receiver == m_currentReceiver) ? 1.0f : 0.8f;
-        m_overlayRenderer->drawDBmScaleTicks(projection, m_dBmScalePanRect, m_dBmScale,
-                                            m_redGrid, m_greenGrid, m_blueGrid, alpha);
-    }
+    if (m_gridRenderer)
+        m_gridRenderer->drawPanVerticalScale();
 }
 
 
-void QGLReceiverPanel::renderPanVerticalScale() {
-    if (!m_dBmScaleFBO)
-        return;
 
-    const qreal dpr = devicePixelRatioF();
-    QOpenGLPaintDevice paintDevice(m_dBmScaleFBO->size());
-    paintDevice.setDevicePixelRatio(dpr);
-
-    painter.begin(&paintDevice);
-    painter.setRenderHint(QPainter::Antialiasing, true);
-    painter.setRenderHint(QPainter::TextAntialiasing, true);
-    painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
-
-    const int width = m_dBmScalePanRect.width();
-    const int height = m_dBmScalePanRect.height();
-
-    // Background panel
-    painter.setCompositionMode(QPainter::CompositionMode_Source);
-    painter.fillRect(0, 0, width, height, QColor(14, 18, 24, 210));
-    painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
-
-    // Right border
-    painter.setPen(QPen(QColor(45, 60, 75), 1.0));
-    painter.drawLine(width - 1, 0, width - 1, height);
-
-    const int len = m_dBmScale.mainPointPositions.length();
-    const int sublen = m_dBmScale.subPointPositions.length();
-
-    // Minor ticks
-    if (sublen > 0) {
-        painter.setPen(QPen(QColor(90, 125, 145), 1.0));
-        for (int i = 0; i < sublen; i++) {
-            const int y = m_dBmScale.subPointPositions.at(i);
-            painter.drawLine(width - 1, y, width - 3, y);
-        }
-    }
-
-    // Major ticks
-    if (len > 0) {
-        painter.setPen(QPen(QColor(160, 195, 215), 1.0));
-        for (int i = 0; i < len; i++) {
-            const int y = m_dBmScale.mainPointPositions.at(i);
-            painter.drawLine(width - 1, y, width - 6, y);
-        }
-    }
-
-    // Numbers
-    QFont font = m_smallSize ? m_fonts.smallFont : m_fonts.bigFont1;
-    painter.setFont(font);
-    QFontMetrics fm(font);
-    const int fontHeight = fm.height();
-
-    painter.setPen(QPen(QColor(200, 225, 240)));
-
-    if (len > 0) {
-        for (int i = 0; i < len; i++) {
-            const int y = m_dBmScale.mainPointPositions.at(i);
-            const qreal val = m_dBmScale.mainPoints.at(i);
-            const QString str = (qAbs(val - qRound(val)) < 0.05) ? QString::number(qRound(val)) : QString::number(val, 'f', 1);
-
-            const QRectF textRect(2, y - fontHeight / 2.0, width - 9, fontHeight);
-            if (textRect.top() >= 2 && textRect.bottom() <= (height - 18)) {
-                painter.drawText(textRect, Qt::AlignRight | Qt::AlignVCenter, str);
-            }
-        }
-    }
-
-    // Unit label "dBm" at bottom
-    const QRectF unitRect(2, height - 16, width - 4, 14);
-    painter.setFont(m_fonts.smallFont);
-    painter.setPen(QPen(QColor(255, 90, 130)));
-    painter.drawText(unitRect, Qt::AlignCenter, QStringLiteral("dBm"));
-
-    painter.end();
-}
 
 void QGLReceiverPanel::drawPanHorizontalScale() {
-
-	if (!m_freqScalePanRect.isValid()) return;
-
-    int width = m_freqScalePanRect.width();
-    int height = m_freqScalePanRect.height();
-    
-    // Safety check for valid dimensions
-    if (width <= 0 || height <= 0) return;
-
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	glEnable(GL_BLEND);
-
-    const qreal dpr = devicePixelRatioF();
-    const int devWidth = qMax(1, int(qRound(width * dpr)));
-    const int devHeight = qMax(1, int(qRound(height * dpr)));
-
-    const bool regenFreqScale = !m_frequencyScaleFBO || m_frequencyScaleFBO->size() != QSize(devWidth, devHeight)
-                                || m_freqScalePanadapterRenew
-                                || m_freqScalePanadapterUpdate
-                                || m_dragMouse
-                                || (m_dragFreqScale && !m_dragFreqScaleZoom);
-
-    if (regenFreqScale) {
-        if (!m_frequencyScaleFBO || m_frequencyScaleFBO->size() != QSize(devWidth, devHeight) || m_freqScalePanadapterRenew) {
-            if (m_frequencyScaleFBO) {
-                delete m_frequencyScaleFBO;
-                m_frequencyScaleFBO = nullptr;
-            }
-            m_frequencyScaleFBO = new QOpenGLFramebufferObject(devWidth, devHeight);
-        }
-
-        GLint viewport[4];
-        glGetIntegerv(GL_VIEWPORT, viewport);
-        glViewport(0, 0, devWidth, devHeight);
-
-        m_frequencyScaleFBO->bind();
-        renderPanHorizontalScale();
-        m_frequencyScaleFBO->release();
-        QOpenGLFramebufferObject::bindDefault();
-
-        glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
-        m_freqScalePanadapterUpdate = false;
-        m_freqScalePanadapterRenew = false;
-    }
-
-    drawCachedTexture(m_freqScalePanRect, m_frequencyScaleFBO->texture(), 0.0f);
+    if (m_gridRenderer)
+        m_gridRenderer->drawPanHorizontalScale();
 }
 
 void QGLReceiverPanel::updateFrequencyRuler()
 {
-    if (!m_freqScalePanRect.isValid())
-        return;
-
-    const qreal freqSpan = displayedFrequencySpanHz();
-    if (freqSpan <= 0)
-        return;
-
-    const int plotLeft = m_dBmScalePanRect.isValid() ? m_dBmScalePanRect.width() : 0;
-    const int plotWidth = m_freqScalePanRect.width() - plotLeft;
-    if (plotWidth <= 0)
-        return;
-
-    const int fullWidth = m_freqScalePanRect.width();
-
-    const qreal lowerFreq = qreal(m_centerFrequency) - freqSpan / 2;
-    const qreal upperFreq = qreal(m_centerFrequency) + freqSpan / 2;
-
-    // Ruler must stay locked to the panadapter centre (hardware LO). Do not
-    // offset by m_deltaF / VFO-NCO: the spectrum is LO-relative, and shifting
-    // the scale with click-VFO made a signal at centre read as centre−Δf
-    // (e.g. click +4 kHz → peak labelled centre−4 kHz).
-    const qreal plotLo = lowerFreq + qreal(plotLeft) * freqSpan / qreal(fullWidth);
-    const qreal plotFreqSpan = upperFreq - plotLo;
-    const qreal visibleLo = plotLo;
-    const qreal visibleHi = visibleLo + plotFreqSpan;
-    const qreal unit = qreal(plotWidth) / plotFreqSpan;
-    const int fontMaxWidth = m_fonts.smallFontMetrics->boundingRect(QStringLiteral("000.000.0")).width();
-
-    const QRect plotRect(0, 0, plotWidth, m_freqScalePanRect.height());
-    m_frequencyScale = getXRuler(plotRect, fontMaxWidth, unit, visibleLo, visibleHi);
+    if (m_gridRenderer)
+        m_gridRenderer->updateFrequencyRuler();
 }
 
 void QGLReceiverPanel::updateDBmRuler()
 {
-    if (!m_dBmScalePanRect.isValid())
-        return;
-
-    const qreal dBmRange = qAbs(m_dBmPanMax - m_dBmPanMin);
-    if (dBmRange <= 0)
-        return;
-
-    int spacing = 7;
-    int fontHeight;
-    if (m_smallSize)
-        fontHeight = m_fonts.smallFontMetrics->tightBoundingRect(QStringLiteral(".0dBm")).height() + spacing;
-    else
-        fontHeight = m_fonts.bigFont1Metrics->tightBoundingRect(QStringLiteral(".0dBm")).height() + spacing;
-
-    const qreal unit = qreal(m_dBmScalePanRect.height()) / dBmRange;
-    m_dBmScale = getYRuler2(m_dBmScalePanRect, fontHeight, unit, m_dBmPanMin, m_dBmPanMax);
+    if (m_gridRenderer)
+        m_gridRenderer->updateDBmRuler();
 }
 
 void QGLReceiverPanel::drawPanadapterGrid() {
-    if (m_overlayRenderer) {
-        QMatrix4x4 projection;
-        projection.ortho(0, size().width(), size().height(), 0, -10, 10);
-        float alpha = (m_receiver == m_currentReceiver) ? 1.0f : 0.8f;
-        m_overlayRenderer->drawGrid(projection, m_panRect, m_freqScalePanRect, m_frequencyScale, m_dBmScale,
-                                  m_dBmScalePanRect.width(),
-                                  m_redGrid, m_greenGrid, m_blueGrid, alpha, m_panGrid);
-    }
+    if (m_gridRenderer)
+        m_gridRenderer->drawPanadapterGrid();
 }
 
 void QGLReceiverPanel::drawCenterLine() {
@@ -1159,735 +795,38 @@ void QGLReceiverPanel::drawPanFilter() {
         m_filterRect = QRect(m_filterLeft, m_filterTop, m_filterRight - m_filterLeft, m_filterBottom - m_filterTop);
     }
 
-    ensurePanelViewport();
-    // Re-render text using the original logic which is already texture-based
-    if (m_showFilterLeftBoundary) {
-		QString str1 = QString("Filter Lo");
-		QString str2 = frequencyString(m_filterLowerFrequency, true);
-		m_glTextColor = QColor(0, 0, 0, 255);
-		if (m_smallSize) {
-			renderPanelText(m_oglTextSmall, m_filterLeft + 5, m_filterTop + 44, 4.0f, str1);
-			renderPanelText(m_oglTextSmall, m_filterLeft + 5, m_filterTop + 64, 4.0f, str2);
-		} else {
-			renderPanelText(m_oglTextBig1, m_filterLeft + 5, m_filterTop + 44, 4.0f, str1);
-			renderPanelText(m_oglTextBig1, m_filterLeft + 5, m_filterTop + 64, 4.0f, str2);
-		}
-		m_glTextColor = QColor(255, 255, 255, 255);
-		if (m_smallSize) {
-			renderPanelText(m_oglTextSmall, m_filterLeft + 3, m_filterTop + 42, 5.0f, str1);
-			renderPanelText(m_oglTextSmall, m_filterLeft + 3, m_filterTop + 62, 5.0f, str2);
-		} else {
-			renderPanelText(m_oglTextBig1, m_filterLeft + 3, m_filterTop + 42, 5.0f, str1);
-			renderPanelText(m_oglTextBig1, m_filterLeft + 3, m_filterTop + 62, 5.0f, str2);
-		}
-    }
-    if (m_showFilterRightBoundary) {
-		QString str1 = QString("Filter Hi");
-		QString str2 = frequencyString(m_filterUpperFrequency, true);
-		m_glTextColor = QColor(0, 0, 0, 255);
-		if (m_smallSize) {
-			renderPanelText(m_oglTextSmall, m_filterRight + 5, m_filterTop + 44, 4.0f, str1);
-			renderPanelText(m_oglTextSmall, m_filterRight + 5, m_filterTop + 64, 4.0f, str2);
-		} else {
-			renderPanelText(m_oglTextBig1, m_filterRight + 5, m_filterTop + 44, 4.0f, str1);
-			renderPanelText(m_oglTextBig1, m_filterRight + 5, m_filterTop + 64, 4.0f, str2);
-		}
-		m_glTextColor = QColor(255, 255, 255, 255);
-		if (m_smallSize) {
-			renderPanelText(m_oglTextSmall, m_filterRight + 3, m_filterTop + 42, 5.0f, str1);
-			renderPanelText(m_oglTextSmall, m_filterRight + 3, m_filterTop + 62, 5.0f, str2);
-		} else {
-			renderPanelText(m_oglTextBig1, m_filterRight + 3, m_filterTop + 42, 5.0f, str1);
-			renderPanelText(m_oglTextBig1, m_filterRight + 3, m_filterTop + 62, 5.0f, str2);
-		}
-    }
+    if (m_hudRenderer)
+        m_hudRenderer->drawFilterLabels();
 }
 
 void QGLReceiverPanel::drawWaterfall() {
-    if (!m_waterfallRenderer || m_waterfallRect.isEmpty())
-        return;
-
-    const float dpr = (float)devicePixelRatioF();
-    const int x1 = m_waterfallRect.left();
-    const int y1 = m_waterfallRect.top();
-    const int x2 = x1 + m_waterfallRect.width();
-    const int y2 = y1 + m_waterfallRect.height();
-    const int panelHeight = size().height();
-
-    glScissor(int(x1 * dpr), int((panelHeight - y2) * dpr),
-              int((x2 - x1) * dpr), int(m_waterfallRect.height() * dpr));
-    glEnable(GL_SCISSOR_TEST);
-    glDisable(GL_MULTISAMPLE);
-
-    glDisable(GL_DEPTH_TEST);
-    WaterfallMapping mapping;
-    mapping.lowerThreshold = float(m_dBmPanMin) - float(m_waterfallOffsetLo);
-    mapping.upperThreshold = float(m_dBmPanMax) + float(m_waterfallOffsetHi);
-    mapping.colorRange = float(qAbs(m_dBmPanMax - m_dBmPanMin));
-    mapping.mode = m_waterfallMode;
-    mapping.lo = m_waterfallLoColor;
-    mapping.mid = m_waterfallMidColor;
-    mapping.hi = m_waterfallHiColor;
-    mapping.alpha = float(m_waterfallAlpha) / 255.0f;
-    m_waterfallRenderer->render(panelProjection(), m_waterfallRect, m_waterfallPixel,
-                                m_dataEngineState, dpr, m_waterfallDisplayUpdate, mapping);
-
-    glDisable(GL_SCISSOR_TEST);
+    if (m_traceRenderer)
+        m_traceRenderer->drawWaterfall();
 }
 
 void QGLReceiverPanel::drawWaterfallVerticalScale() {
-
-    if (!m_secScaleWaterfallRect.isValid())
-        return;
-
-    const int width = m_secScaleWaterfallRect.width();
-    const int height = m_secScaleWaterfallRect.height();
-
-    if (width <= 0 || height <= 0 || width > 1000 || height > 10000)
-        return;
-
-    if (m_resizeTime.elapsed() < 500 && (width > size().width() || height > size().height()))
-        return;
-
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glEnable(GL_BLEND);
-
-    const qreal dpr = devicePixelRatioF();
-    const int devWidth = qMax(1, int(qRound(width * dpr)));
-    const int devHeight = qMax(1, int(qRound(height * dpr)));
-
-    const bool regenSecScale = !m_secScaleWaterfallFBO || m_secScaleWaterfallFBO->size() != QSize(devWidth, devHeight)
-                               || m_secScaleWaterfallRenew || m_secScaleWaterfallUpdate;
-
-    if (regenSecScale) {
-        if (!m_secScaleWaterfallFBO || m_secScaleWaterfallFBO->size() != QSize(devWidth, devHeight) || m_secScaleWaterfallRenew) {
-            if (m_secScaleWaterfallFBO) {
-                delete m_secScaleWaterfallFBO;
-                m_secScaleWaterfallFBO = nullptr;
-            }
-            m_secScaleWaterfallFBO = new QOpenGLFramebufferObject(devWidth, devHeight);
-        }
-
-        GLint viewport[4];
-        glGetIntegerv(GL_VIEWPORT, viewport);
-        glViewport(0, 0, devWidth, devHeight);
-
-        m_secScaleWaterfallFBO->bind();
-        renderWaterfallVerticalScale();
-        m_secScaleWaterfallFBO->release();
-        QOpenGLFramebufferObject::bindDefault();
-
-        m_secScaleWaterfallUpdate = false;
-        m_secScaleWaterfallRenew = false;
-        glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
-    }
-
-    if (m_secScaleWaterfallFBO)
-        drawCachedTexture(m_secScaleWaterfallRect, m_secScaleWaterfallFBO->texture(), 4.0f);
+    if (m_gridRenderer)
+        m_gridRenderer->drawWaterfallVerticalScale();
 }
 
 void QGLReceiverPanel::drawCrossHair() {
-    if (!m_overlayRenderer) return;
-
-    ensurePanelViewport();
-
-    int mouseX = m_mousePos.x();
-    int mouseY = m_mousePos.y();
-    const int textOffset = 20;
-    const int spacing = 6;
-
-    QMatrix4x4 projection;
-    projection.ortho(0, size().width(), size().height(), 0, -10, 10);
-    m_overlayRenderer->drawCrossHair(projection, m_panRect, m_dBmScalePanRect, m_mousePos,
-                                     (float)devicePixelRatioF(), size().height());
-
-    // text	
-    QString dFstr;
-    QString fstr;
-    QString dBstr;
-
-    int dx = m_panRect.width()/2 - mouseX;
-    qreal unit = displayedFrequencySpanHz() / m_panRect.width();
-    qreal df = unit * dx;
-    qreal frequency = m_centerFrequency - df;
-    
-    dFstr = frequencyString(m_deltaFrequency - df, true);
-    fstr = frequencyString(frequency);
-
-    qreal dBm = glPixelTodBm(m_panRect, m_dBmPanMax, m_dBmPanMin, mouseY);
-    dBstr = QString::number(dBm, 'f', 1) + " dBm";
-
-    int rectWidth;
-    int fontHeight;
-    if (m_smallSize) {
-        rectWidth = m_fonts.smallFontMetrics->boundingRect(fstr).width();
-        fontHeight = m_fonts.smallFontMetrics->tightBoundingRect("0").height() + spacing;
-    } else {
-        rectWidth = m_fonts.bigFont1Metrics->horizontalAdvance(fstr);
-        fontHeight = m_fonts.bigFont1Metrics->tightBoundingRect("0").height() + spacing;
-    }
-
-    m_haircrossMaxRight = rectWidth + textOffset;
-    m_smallSize ? m_haircrossMinTop = 40 : m_haircrossMinTop = 60;
-
-    int tx, ty;
-    if (mouseX > m_panRect.width() - m_haircrossMaxRight) {
-        tx = mouseX - m_haircrossMaxRight;
-        if (mouseY > m_haircrossMinTop)
-            ty = m_smallSize ? mouseY - 42 : mouseY - 62;
-        else
-            ty = m_smallSize ? mouseY + 10 : mouseY + 30;
-    } else {
-        tx = mouseX + textOffset;
-        if (mouseY > m_haircrossMinTop)
-            ty = m_smallSize ? mouseY - 42 : mouseY - 62;
-        else
-            ty = m_smallSize ? mouseY + 10 : mouseY + 30;
-    }
-
-    m_glTextColor = QColor(200, 200, 200, 255);
-    if (m_smallSize) {
-        renderPanelText(m_oglTextSmall, tx, ty, 5.0f, dFstr);
-        renderPanelText(m_oglTextSmall, tx, ty + fontHeight, 5.0f, fstr);
-    } else {
-        renderPanelText(m_oglTextBig1, tx, ty, 5.0f, dFstr);
-        renderPanelText(m_oglTextBig1, tx, ty + fontHeight, 5.0f, fstr);
-    }
-
-    if (m_mouseRegion == panadapterRegion) {
-        if (m_smallSize)
-            renderPanelText(m_oglTextSmall, tx, ty + 2 * fontHeight, 5.0f, dBstr);
-        else
-            renderPanelText(m_oglTextBig1, tx, ty + 2 * fontHeight, 5.0f, dBstr);
-    }
-
-    if (m_oldMousePosX != mouseX) {
-        m_bandText = getHamBandTextString(set->getHamBandTextList(), true, frequency);
-        m_oldMousePosX = mouseX;
-    }
-
-    m_glTextColor = QColor(239, 209, 110, 255);
-    if (m_smallSize)
-        renderPanelText(m_oglTextSmall, tx, ty + 4 * fontHeight, 5.0f, m_bandText);
-    else
-        renderPanelText(m_oglTextBig1, tx, ty + 5 * fontHeight, 5.0f, m_bandText);
+    if (m_hudRenderer)
+        m_hudRenderer->drawCrossHair();
 }
 
 void QGLReceiverPanel::drawVFOControl() {
-
-	// lock Panadapter
-	QString str = "PAN LOCKED";
-	int x1 = m_dBmScalePanRect.right() + 5;
-	int y1 = 3;
-
-	if (m_panLocked) {
-		
-		if (m_dataEngineState == QSDR::DataEngineUp) {
-				
-			m_glTextColor = QColor(0, 0, 0, 255);
-			renderPanelText(m_oglTextSmall, x1 + 3, y1, 0.0f, str);
-			m_glTextColor = QColor(255, 170, 90, 200);
-			renderPanelText(m_oglTextSmall, x1 + 1, y1 - 2, 1.0f, str);
-		}
-		else {
-
-			m_glTextColor = QColor(0, 0, 0, 255);
-			renderPanelText(m_oglTextSmall, x1 + 3, y1, 0.0f, str);
-			m_glTextColor = QColor(150, 150, 150, 100);
-			renderPanelText(m_oglTextSmall, x1 + 1, y1 - 2, 1.0f, str);
-		}
-	}
-	
-	// click VFO
-    x1 += m_fonts.smallFontMetrics->horizontalAdvance(str) + 12;
-	str = "CLICK VFO";
-
-	if (m_clickVFO) {
-
-		if (m_dataEngineState == QSDR::DataEngineUp) {
-				
-			m_glTextColor = QColor(0, 0, 0, 255);
-			renderPanelText(m_oglTextSmall, x1 + 3, y1, 0.0f, str);
-			m_glTextColor = QColor(255, 170, 90, 200);
-			renderPanelText(m_oglTextSmall, x1 + 1, y1 - 2, 1.0f, str);
-		}
-		else {
-
-			m_glTextColor = QColor(0, 0, 0, 255);
-			renderPanelText(m_oglTextSmall, x1 + 3, y1, 0.0f, str);
-			m_glTextColor = QColor(150, 150, 150, 100);
-			renderPanelText(m_oglTextSmall, x1 + 1, y1 - 2, 1.0f, str);
-		}
-	}
-
-	// FFT size
-		str = "sample size: %1";
-        x1 = m_panRect.right() - m_fonts.smallFontMetrics->horizontalAdvance(str) - 65;
-
-		if (m_dataEngineState == QSDR::DataEngineUp) {
-				
-			m_glTextColor = QColor(0, 0, 0, 255);
-			renderPanelText(m_oglTextSmall, x1 + 3, y1, 0.0f, str.arg(m_sampleSize));
-			m_glTextColor = QColor(255, 170, 90, 200);
-			renderPanelText(m_oglTextSmall, x1 + 1, y1 - 2, 1.0f, str.arg(m_sampleSize));
-		}
-		
-		str = "FFT: %1";
-		//float res;
-		QString s;
-
-		switch (m_fftMult) {
-
-			case 1:
-				s = "4k";
-				break;
-
-			case 2:
-				s = "8k";
-				break;
-
-			case 4:
-				s = "16k";
-				break;
-
-			case 8:
-				s = "32k";
-				break;
-
-			case 16:
-				s = "64k";
-				break;
-		}
-        x1 = m_panRect.right() - m_fonts.smallFontMetrics->horizontalAdvance(str) - 5;
-
-		if (m_dataEngineState == QSDR::DataEngineUp) {
-				
-			m_glTextColor = QColor(0, 0, 0, 255);
-			renderPanelText(m_oglTextSmall, x1 + 3, y1, 0.0f, str.arg(s));
-			m_glTextColor = QColor(255, 170, 90, 200);
-			renderPanelText(m_oglTextSmall, x1 + 1, y1 - 2, 1.0f, str.arg(s));
-		}
-
-
-	int delta = qRound((m_deltaF * m_panRect.width()) / displayedZoomFactor());
-	//GRAPHICS_DEBUG << "delta = " << delta;
-
-	if (delta > m_panRect.width()/2) {
-	
-		QColor col = QColor(255, 40, 40, 255);
-		str = "<< VFO %1";
-		str = str.arg(frequencyString(m_vfoFrequency, false));
-
-		int x = m_dBmScalePanRect.right();
-		int y = 25;
-
-        QRect rect = QRect(x, y, m_fonts.smallFontMetrics->horizontalAdvance(str) + 4, m_fonts.fontHeightSmallFont + 2);
-		drawPanelRect(rect, col, 2.0f);
-		m_glTextColor = QColor(255, 255, 255, 255);
-		renderPanelText(m_oglTextSmall, x + 1, y - 2, 3.0f, str);
-	}
-
-	if (delta < -m_panRect.width()/2) {
-		
-		QColor col = QColor(255, 40, 40, 255);
-		str = "%1 VFO >>";
-		str = str.arg(frequencyString(m_vfoFrequency, false));
-
-        int x = m_panRect.right() - m_fonts.smallFontMetrics->horizontalAdvance(str);
-		int y = 25;
-
-        QRect rect = QRect(x, y, m_fonts.smallFontMetrics->horizontalAdvance(str) + 4, m_fonts.fontHeightSmallFont + 2);
-		drawPanelRect(rect, col, 2.0f);
-		m_glTextColor = QColor(255, 255, 255, 255);
-		renderPanelText(m_oglTextSmall, x + 1, y - 2, 3.0f, str);
-	}
-
-	//qglColor(QColor(0, 0, 0));
-	//m_oglTextSmall->renderFreqText(x1+1, y1-2, 3.0f, str);
-
-	// set Center = VFO frequency button
-	/*QColor col;
-    x1 += m_fonts.smallFontMetrics->horizontalAdvance(str) + 7;
-	str = "mid = vfo";
-
-	if (m_dataEngineState == QSDR::DataEngineUp) {
-
-		if (m_receiver == m_currentReceiver) {
-		
-			if (m_panLocked)
-				col = QColor(1, 150, 140, 140);
-			else
-				col = QColor(1, 230, 220, 140);
-		}
-		else
-			col = QColor(90, 100, 90, 140);
-	}
-	else
-		col = m_darkColor;
-	
-    m_midToVfoButtonRect = QRect(x1, y1, m_fonts.smallFontMetrics->horizontalAdvance(str) + 5, m_fonts.fontHeightSmallFont + 2);
-	drawPanelRect(m_midToVfoButtonRect, col, 2.0f);
-	qglColor(QColor(0, 0, 0));
-	m_oglTextSmall->renderFreqText(x1+1, y1-2, 3.0f, str);*/
-
-
-	// set VFO = Center frequency button
-    /*x1 += m_fonts.smallFontMetrics->horizontalAdvance(str) + 7;
-	str = "vfo = mid";
-	
-	if (m_dataEngineState == QSDR::DataEngineUp) {
-
-		if (m_receiver == m_currentReceiver)
-			col = QColor(1, 230, 220, 140);
-		else
-			col = QColor(90, 100, 90, 140);
-	}
-	else
-		col = m_darkColor;
-
-    m_vfoToMidButtonRect = QRect(x1, y1, m_fonts.smallFontMetrics->horizontalAdvance(str) + 5, m_fonts.fontHeightSmallFont + 2);
-	drawPanelRect(m_vfoToMidButtonRect, col, 2.0f);
-	qglColor(QColor(0, 0, 0));
-	m_oglTextSmall->renderFreqText(x1+1, y1-2, 3.0f, str);*/
+    if (m_hudRenderer)
+        m_hudRenderer->drawVFOControl();
 }
 
 void QGLReceiverPanel::drawReceiverInfo() {
-
-	QString str;
-    const int badgeH = m_fonts.fontHeightSmallFont + 2;
-
-    auto drawRxBadge = [&](int &x, int y, const QString &label, const QColor &bg) {
-        if (label.isEmpty())
-            return;
-        const int w = m_oglTextSmall->fontMetrics().horizontalAdvance(label) + 3;
-        drawPanelRect(QRect(x, y, w, badgeH), bg, 2.0f);
-        m_glTextColor = QColor(0, 0, 0, 255);
-        renderPanelText(m_oglTextSmall, x + 1, y + 1, 2.0f, label);
-        x += w + 4;
-    };
-	// mouse wheel freq step size
-	/*if (m_dataEngineState == QSDR::DataEngineUp) {
-
-		if (m_receiver == m_currentReceiver)
-			col = QColor(1, 190, 180, 180);
-		else
-			col = QColor(1, 100, 90, 180);
-	}
-	else
-		col = m_darkColor;
-
-	str = "%1";
-	str = str.arg(set->getValue1000(m_mouseWheelFreqStep, 0, "Hz"));
-
-	int x1 = m_panRect.width() - (m_fonts.smallFontMetrics->tightBoundingRect(str).width() + 9);
-	int y1 = 3;
-
-	rect = QRect(x1+2, y1, m_fonts.smallFontMetrics->tightBoundingRect(str).width() + 5, m_fonts.fontHeightSmallFont + 2);
-	drawPanelRect(rect, col, 2.0f);
-	qglColor(QColor(0, 0, 0));
-	m_oglTextSmall->renderFreqText(x1+3, y1-2, 3.0f, str);*/
-
-
-	// AGC mode
-	//if (m_dataEngineState == QSDR::DataEngineUp) {
-
-	//	if (m_receiver == m_currentReceiver) {
-
-	//		if (m_showAGCLines)
-	//			col = QColor(255, 170, 90, 180);
-	//		else
-	//			col = QColor(215, 130, 50, 180);
-	//	}
-	//	else
-	//		col = QColor(165, 80, 1);
-	//}
-	//else
-	//	col = m_darkColor;
-
-	//str = "%1";
-	////str = str.arg(set->getAGCModeString(m_receiver));
-	//str = str.arg(m_agcModeString);
-
-	//x1 -= m_fonts.smallFontMetrics->tightBoundingRect(str).width() + 7;
-	//y1 = 3;
-
-	//m_agcButtonRect = QRect(x1+2, y1, m_fonts.smallFontMetrics->tightBoundingRect(str).width() + 5, m_fonts.fontHeightSmallFont + 2);
-	//drawPanelRect(m_agcButtonRect, col, 2.0f);
-	//qglColor(QColor(0, 0, 0));
-	//m_oglTextSmall->renderFreqText(x1+3, y1-2, 3.0f, str);
-
-
-	// main frequency display
-	glDisable(GL_MULTISAMPLE);
-	if (m_panRect.height() > 15) {
-
-        const int fLength = m_fonts.bigFont1Metrics->horizontalAdvance(QStringLiteral("55.555.555")) + 30;
-		int x = m_panRect.left() + qRound((qreal)(m_panRect.width() / 2.0f) - m_deltaF * m_panRect.width() / displayedZoomFactor()) + 10;
-		if (x > m_panRect.right() - fLength)
-            x -= fLength + 20;
-
-		QColor colFlt;
-		QColor colADC;
-		QColor colAGC;
-		QColor colDSP;
-
-		if (m_dataEngineState == QSDR::DataEngineUp) {
-
-			if (m_receiver == set->getCurrentReceiver()) {
-
-				colDSP = QColor(1, 190, 180, 180);
-				colFlt = QColor(200, 190, 50, 180);
-				colADC = QColor(215, 130, 50, 180);
-				if (m_showAGCLines)
-					colAGC = QColor(255, 170, 90, 180);
-				else
-					colAGC = QColor(215, 130, 50, 180);
-			}
-			else {
-
-				colFlt = QColor(110, 100, 1, 180);
-				colDSP = QColor(1, 100, 90, 180);
-				colAGC = QColor(165, 80, 1, 180);
-				colADC = QColor(165, 80, 1, 180);
-			}
-		}
-		else {
-
-			colFlt = m_darkColor;
-			colADC = m_darkColor;
-			colAGC = m_darkColor;
-			colDSP = m_darkColor;
-		}
-
-		int x1 = x;
-		const int y1 = 3;
-        drawRxBadge(x1, y1, m_filterWidthString, colFlt);
-        drawRxBadge(x1, y1, m_dspModeString, colDSP);
-        drawRxBadge(x1, y1, m_agcModeString, colAGC);
-        drawRxBadge(x1, y1, m_adcModeString, colADC);
-
-        if (m_sliceModel && m_dataEngineState == QSDR::DataEngineUp) {
-            const double sVal = m_sliceModel->sMeterValue();
-            QString sUnit;
-            QColor sBg;
-            if (sVal >= -73.0) {
-                const int over = qRound(sVal - (-73.0));
-                sUnit = (over > 0) ? QStringLiteral("S9+%1").arg(over) : QStringLiteral("S9");
-                sBg = (over >= 40) ? QColor(242, 56, 109, 220) :
-                      (over >= 10) ? QColor(255, 180, 40, 220) : QColor(56, 242, 115, 220);
-            } else {
-                const int s = qBound(0, static_cast<int>(9.0 + (sVal - (-73.0)) / 6.0 + 0.5), 9);
-                sUnit = QStringLiteral("S%1").arg(s);
-                sBg = QColor(40, 160, 90, 220);
-            }
-            drawRxBadge(x1, y1, sUnit, sBg);
-        }
-
-		TFrequency f;
-		f.freqMHz = (int)(m_vfoFrequency / 1000);
-		f.freqkHz = (int)(m_vfoFrequency % 1000);
-        const int freqY = y1 + 20;
-		str = "%1.%2";
-		const int f1 = f.freqMHz;
-		const int f2 = f.freqkHz;
-
-		const QString fstr = str.arg(f1 / 1000).arg(f1 - 1000 * (int)(f1 / 1000), 3, 10, QLatin1Char('0'));
-        const int fstrWidth = m_oglTextBig2->fontMetrics().horizontalAdvance(fstr);
-        Q_UNUSED(f2)
-
-        m_glTextColor = QColor(255, 255, 255, 255);
-        renderPanelText(m_oglTextBig2, x + 2, freqY, fstr);
-        renderPanelText(m_oglTextBig2, x + fstrWidth + 2, freqY, QStringLiteral("Mhz"));
-
-	if (m_panRect.height() > 15 && m_deltaFrequency != 0) {
-
-		f.freqMHz = (int)(m_centerFrequency / 1000);
-		f.freqkHz = (int)(m_centerFrequency % 1000);
-
-        const int centerY = freqY + 25;
-        const int cf1 = f.freqMHz;
-        const int cf2 = f.freqkHz;
-        Q_UNUSED(cf2)
-
-        const QString centerStr = str.arg(cf1 / 1000).arg(cf1 - 1000 * (int)(cf1 / 1000), 3, 10, QLatin1Char('0'));
-        const int centerWidth = m_oglTextBig2->fontMetrics().horizontalAdvance(centerStr);
-
-        m_glTextColor = QColor(255, 255, 255, 255);
-        renderPanelText(m_oglTextBig2, x + 2, centerY, centerStr);
-        renderPanelText(m_oglTextBig2, x + centerWidth + 2, centerY, QStringLiteral("Mhz"));
-	}
-
-    }
+    if (m_hudRenderer)
+        m_hudRenderer->drawReceiverInfo();
 }
 
 void QGLReceiverPanel::drawCwDecoderHUD() {
-    const DSPMode mode = m_sliceModel ? m_sliceModel->dspMode() : m_dspMode;
-    const DSPMode setMode = static_cast<DSPMode>(set->getDSPMode(m_receiver));
-    const bool isCw = (mode == DSPMode::CWL || mode == DSPMode::CWU ||
-                       m_dspMode == DSPMode::CWL || m_dspMode == DSPMode::CWU ||
-                       setMode == DSPMode::CWL || setMode == DSPMode::CWU);
-    if (!isCw || (m_sliceModel && !m_sliceModel->cwDecodeEnabled())) {
-        m_cwTextRect = QRect();
-        return;
-    }
-
-    const QString text = m_sliceModel ? m_sliceModel->cwDecodedText() : QString();
-    const int wpm = m_sliceModel ? m_sliceModel->cwWpm() : 20;
-    const bool toneOn = m_sliceModel ? m_sliceModel->cwToneActive() : false;
-
-    ensurePanelViewport();
-
-    // 1. Calculate the exact target CW tone frequency (+pitch for CWU, -pitch for CWL)
-    const int cwPitch = set->getCwSidetoneFreq();
-    const int trackedPitch = m_sliceModel ? m_sliceModel->cwTrackedPitch() : cwPitch;
-    const qint64 vfoFreq = m_sliceModel ? m_sliceModel->frequency() : m_vfoFrequency;
-    const qint64 centerFreq = m_sliceModel ? m_sliceModel->centerFrequency() : m_centerFrequency;
-
-    // Tracked tone frequency for the dynamic green marker line
-    const qint64 targetToneFreq = (mode == DSPMode::CWL) ? (vfoFreq - trackedPitch) : (vfoFreq + trackedPitch);
-    // Nominal center frequency for steady, non-jittering text box placement
-    const qint64 nominalToneFreq = (mode == DSPMode::CWL) ? (vfoFreq - cwPitch) : (vfoFreq + cwPitch);
-
-    // 2. Compute screen X positions
-    const float zoomFactor = displayedZoomFactor();
-    const float sampleRate = (m_sampleRate > 0) ? (float)m_sampleRate : 48000.0f;
-    const float targetDeltaF = (float)(targetToneFreq - centerFreq) / sampleRate;
-    const float nominalDeltaF = (float)(nominalToneFreq - centerFreq) / sampleRate;
-
-    const float cwX = (float)m_panRect.left() + ((float)m_panRect.width() / 2.0f) + (targetDeltaF * (float)m_panRect.width() / zoomFactor);
-    const float nominalX = (float)m_panRect.left() + ((float)m_panRect.width() / 2.0f) + (nominalDeltaF * (float)m_panRect.width() / zoomFactor);
-
-    const int panLeft = m_panRect.left();
-    const int panRight = m_panRect.right();
-    const int panTop = m_panRect.top();
-    const int panBottom = m_panRect.bottom();
-
-    const bool lineVisible = (cwX >= (float)panLeft && cwX <= (float)panRight);
-
-    const int badgeH = m_fonts.fontHeightNormalFont + 6;
-    const QString badgeText = (toneOn && std::abs(trackedPitch - cwPitch) > 6)
-        ? QStringLiteral("CW %1W %2H").arg(wpm > 0 ? wpm : 20).arg(trackedPitch)
-        : QStringLiteral("CW %1 WPM").arg(wpm > 0 ? wpm : 20);
-    // Fixed constant badge width to prevent horizontal jitter
-    const int badgeW = m_oglTextSmall->fontMetrics().horizontalAdvance(QStringLiteral("CW 99W 9999H")) + 16;
-
-    QString displayStr = text;
-    if (displayStr.isEmpty()) {
-        displayStr = (toneOn && std::abs(trackedPitch - cwPitch) > 6)
-            ? QStringLiteral("<%1Hz CW>").arg(trackedPitch)
-            : QStringLiteral("<%1Hz CW>").arg(cwPitch);
-    }
-
-    const int maxChars = 40;
-    const int maxTextW = m_oglTextNormal 
-        ? qMax(280, m_oglTextNormal->fontMetrics().averageCharWidth() * maxChars + 24)
-        : 320;
-    const int defaultBoxW = badgeW + maxTextW + 14;
-
-    // Determine CW Box coordinates: custom user-dragged or default anchored position
-    int textX = qRound(nominalX) + 6;
-    int textY = panTop + (m_panRect.height() / 2) - (badgeH / 2);
-
-    if (m_hasCustomCwBoxPos) {
-        textX = m_cwBoxPos.x();
-        textY = m_cwBoxPos.y();
-    } else if (textX + defaultBoxW > panRight) {
-        // Shift to left of nominal line if near right panadapter border
-        textX = qRound(nominalX) - 6 - defaultBoxW;
-    }
-
-    textX = qBound(panLeft + 4, textX, panRight - 80);
-    textY = qBound(panTop + 4, textY, panBottom - badgeH - 4);
-
-    const int availableW = panRight - textX - 8;
-    if (availableW > 60) {
-        const int textAvailableW = qBound(20, availableW - badgeW - 10, maxTextW);
-        QString trimmedText = displayStr;
-        if (trimmedText.length() > maxChars) {
-            trimmedText = trimmedText.right(maxChars);
-        }
-        while (!trimmedText.isEmpty() && m_oglTextNormal->fontMetrics().horizontalAdvance(trimmedText) > textAvailableW) {
-            trimmedText.remove(0, 1);
-        }
-
-        const int totalW = badgeW + (trimmedText.isEmpty() ? 0 : m_oglTextNormal->fontMetrics().horizontalAdvance(trimmedText) + 8) + 6;
-        m_cwTextRect = QRect(textX, textY, totalW, badgeH);
-
-        const int boxMidY = textY + (badgeH / 2);
-        const int boxLeftX = textX;
-        const int boxRightX = textX + totalW;
-
-        // Dynamic pitch marker color (glowing green on tone, soft emerald when idle)
-        const QColor lineColor = toneOn ? QColor(50, 240, 130, 230) : QColor(35, 170, 110, 140);
-
-        if (lineVisible) {
-            const int lineX = qRound(cwX);
-
-            // Find the spectrum curve/peak Y coordinate at lineX
-            int signalPeakY = panBottom - 12;
-            const int relX = lineX - panLeft;
-            if (!m_panadapterBins.isEmpty() && relX >= 0 && relX < m_panadapterBins.size()) {
-                const qreal dBmRange = qMax(10.0, m_dBmPanMax - m_dBmPanMin);
-                const qreal yScale = (qreal)m_panRect.height() / dBmRange;
-
-                // Sample a 3-bin window around the line to find the local peak Y
-                qreal maxBinVal = m_panadapterBins.at(relX);
-                if (relX > 0) maxBinVal = qMax(maxBinVal, m_panadapterBins.at(relX - 1));
-                if (relX < m_panadapterBins.size() - 1) maxBinVal = qMax(maxBinVal, m_panadapterBins.at(relX + 1));
-
-                const int curveY = panBottom - qRound(yScale * maxBinVal);
-                signalPeakY = qBound(panTop + 10, curveY, panBottom - 4);
-            }
-
-            // Downward arrow tip stops 8px above the spectrum peak
-            const int arrowTipY = qBound(panTop + 16, signalPeakY - 8, panBottom - 6);
-
-            // 1. Vertical Arrow Shaft extending from box level down to arrow tip
-            if (boxMidY < arrowTipY - 6) {
-                drawPanelRect(QRect(lineX - 1, boxMidY, 2, arrowTipY - 6 - boxMidY), lineColor, 3.5f);
-            } else if (boxMidY > arrowTipY + 6) {
-                drawPanelRect(QRect(lineX - 1, arrowTipY + 6, 2, boxMidY - (arrowTipY + 6)), lineColor, 3.5f);
-            }
-
-            // 2. Downward Arrowhead pointing directly at the CW RF peak (at lineX, arrowTipY)
-            drawPanelRect(QRect(lineX - 4, arrowTipY - 6, 9, 2), lineColor, 3.6f);
-            drawPanelRect(QRect(lineX - 3, arrowTipY - 4, 7, 2), lineColor, 3.6f);
-            drawPanelRect(QRect(lineX - 2, arrowTipY - 2, 5, 2), lineColor, 3.6f);
-            drawPanelRect(QRect(lineX - 1, arrowTipY,     3, 2), lineColor, 3.6f);
-
-            // 3. Horizontal Green Guide / Leader Line extending to the LHS of the CW display box
-            if (boxLeftX > lineX) {
-                // Box is to the right of the signal: leader line extends from lineX to boxLeftX
-                drawPanelRect(QRect(lineX, boxMidY - 1, qMax(1, boxLeftX - lineX), 2), lineColor, 3.5f);
-            } else if (boxRightX < lineX) {
-                // Box is to the left of the signal: leader line extends from boxRightX to lineX
-                drawPanelRect(QRect(boxRightX, boxMidY - 1, qMax(1, lineX - boxRightX), 2), lineColor, 3.5f);
-            }
-            // Small guide pip at the attachment point on the LHS of the box
-            drawPanelRect(QRect(boxLeftX - 3, boxMidY - 2, 4, 4), lineColor, 3.6f);
-        }
-
-        // Background container (stable dark slate)
-        drawPanelRect(m_cwTextRect, QColor(10, 14, 20, 215), 3.4f);
-
-        // WPM Badge (stable dark badge)
-        drawPanelRect(QRect(textX + 2, textY + 2, badgeW, badgeH - 4), QColor(28, 38, 48, 230), 3.5f);
-
-        // Tone indicator dot (lights green on active mark tone)
-        drawPanelRect(QRect(textX + 5, textY + (badgeH / 2) - 2, 5, 5),
-                      toneOn ? QColor(60, 240, 130) : QColor(90, 110, 130), 3.6f);
-
-        m_glTextColor = Qt::white;
-        renderPanelText(m_oglTextSmall, float(textX + 14), float(textY + 3), 3.6f, badgeText);
-
-        // Decoded text in high-contrast gold
-        if (!trimmedText.isEmpty()) {
-            m_glTextColor = text.isEmpty() ? QColor(130, 160, 180, 190) : QColor(255, 235, 130, 255);
-            renderPanelText(m_oglTextNormal, float(textX + badgeW + 6), float(textY + 2), 3.6f, trimmedText);
-        }
-    } else {
-        m_cwTextRect = QRect();
-    }
+    if (m_hudRenderer)
+        m_hudRenderer->drawCwDecoderHUD();
 }
 
 void QGLReceiverPanel::drawAGCControl() {
@@ -1895,286 +834,18 @@ void QGLReceiverPanel::drawAGCControl() {
         QMatrix4x4 projection;
         projection.ortho(0, size().width(), size().height(), 0, -10, 10);
         m_overlayRenderer->drawAGCControl(projection, m_panRect, m_dBmScalePanRect, m_agcMode, m_agcHangEnabled, m_agcThresholdOld, m_agcHangLevelOld, m_agcFixedGain, m_dBmPanMax, m_dBmPanMin, (float)devicePixelRatio(), size().height(), m_agcThresholdPixel, m_agcHangLevelPixel, m_agcFixedGainLevelPixel);
-
-        // Text rendering remains here for now
-        if (m_agcMode == (AGCMode) agcOFF) {
-            QString str = "AGC-F";
-            m_glTextColor = QColor(0, 0, 0, 255);
-            renderPanelText(m_oglTextSmall, m_panRect.right() - 32, m_agcFixedGainLevelPixel - 13, 4.0f, str);
-            m_glTextColor = QColor(225, 125, 225, 255);
-            renderPanelText(m_oglTextSmall, m_panRect.right() - 34, m_agcFixedGainLevelPixel - 15, 5.0f, str);
-        } else {
-            QString str = "AGC-T";
-            m_glTextColor = QColor(0, 0, 0, 255);
-            renderPanelText(m_oglTextSmall, m_panRect.right() - 32, m_agcThresholdPixel - 13, 4.0f, str);
-            m_glTextColor = QColor(225, 125, 125, 255);
-            renderPanelText(m_oglTextSmall, m_panRect.right() - 34, m_agcThresholdPixel - 15, 5.0f, str);
-            if (m_agcHangEnabled) {
-                str = "AGC-H";
-                m_glTextColor = QColor(0, 0, 0, 255);
-                renderPanelText(m_oglTextSmall, m_panRect.right() - 32, m_agcHangLevelPixel - 13, 4.0f, str);
-                m_glTextColor = QColor(125, 225, 125, 255);
-                renderPanelText(m_oglTextSmall, m_panRect.right() - 34, m_agcHangLevelPixel - 15, 5.0f, str);
-            }
-        }
+        if (m_hudRenderer)
+            m_hudRenderer->drawAGCLabels();
     }
 }
  
 
 
-void QGLReceiverPanel::renderPanHorizontalScale() {
-    if (!m_frequencyScaleFBO)
-        return;
 
-    const qreal dpr = devicePixelRatioF();
-    QOpenGLPaintDevice paintDevice(m_frequencyScaleFBO->size());
-    paintDevice.setDevicePixelRatio(dpr);
 
-    painter.begin(&paintDevice);
-    painter.setRenderHint(QPainter::Antialiasing, true);
-    painter.setRenderHint(QPainter::TextAntialiasing, true);
-    painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
 
-    const int plotLeft = m_dBmScalePanRect.isValid() ? m_dBmScalePanRect.width() : 0;
-    const int fullWidth = m_freqScalePanRect.width();
-    const int fullHeight = m_freqScalePanRect.height();
-
-    const qreal freqSpan = displayedFrequencySpanHz();
-    const qreal upperFreq = (qreal)m_centerFrequency + freqSpan / 2;
-
-    double freqScale = 1;
-    QString fstr = QStringLiteral("Hz");
-    if (upperFreq >= 1e6) { freqScale = 1e6; fstr = QStringLiteral("MHz"); }
-    else if (upperFreq >= 1e3) { freqScale = 1e3; fstr = QStringLiteral("kHz"); }
-
-    auto formatFreqLabel = [&](qreal freqHz, bool allowExtraDigit) -> QString {
-        const int decimals = (allowExtraDigit && freqScale >= 1e3) ? 4 : 3;
-        QString str = QString::number(freqHz / freqScale, 'f', decimals);
-        if (freqScale == 1e3 && decimals == 3)
-            while (str.endsWith('0')) str.remove(str.size() - 1, 1);
-        if (str.endsWith('.')) str.remove(str.size() - 1, 1);
-        return str;
-    };
-
-    // Full-width background
-    painter.setCompositionMode(QPainter::CompositionMode_Source);
-    painter.fillRect(0, 0, fullWidth, fullHeight, QColor(10, 14, 20, 255));
-    painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
-
-    // Top border line
-    painter.setPen(QPen(QColor(45, 60, 75), 1.0));
-    painter.drawLine(0, 0, fullWidth, 0);
-
-    QFont font = m_oglTextSmall->font();
-    painter.setFont(font);
-    QFontMetrics fm(font);
-    const int fontHeight = fm.height();
-
-    // Unit pill badge on right
-    const int unitW = fm.horizontalAdvance(fstr) + 10;
-    const int unitH = fontHeight + 2;
-    const QRectF unitRect(fullWidth - unitW - 4, (fullHeight - unitH) / 2.0, unitW, unitH);
-
-    painter.setPen(Qt::NoPen);
-    painter.setBrush(QColor(28, 38, 48, 230));
-    painter.drawRoundedRect(unitRect, 3.0, 3.0);
-    painter.setPen(QColor(255, 90, 130));
-    painter.drawText(unitRect, Qt::AlignCenter, fstr);
-
-    // Minor sub-ticks
-    const int sublen = m_frequencyScale.subPointPositions.length();
-    if (sublen > 0) {
-        painter.setPen(QPen(QColor(90, 125, 145), 1.0));
-        for (int i = 0; i < sublen; i++) {
-            const int screenX = plotLeft + m_frequencyScale.subPointPositions.at(i);
-            if (screenX >= plotLeft && screenX < fullWidth) {
-                painter.drawLine(screenX, 1, screenX, 3);
-            }
-        }
-    }
-
-    // Major ticks & labels
-    const int len = m_frequencyScale.mainPointPositions.length();
-    int lastLabelRight = plotLeft;
-
-    if (len > 0) {
-        painter.setPen(QPen(QColor(160, 195, 215), 1.0));
-        for (int i = 0; i < len; i++) {
-            const int screenX = plotLeft + m_frequencyScale.mainPointPositions.at(i);
-            if (screenX >= plotLeft && screenX < fullWidth) {
-                painter.drawLine(screenX, 1, screenX, 5);
-            }
-        }
-
-        for (int i = 0; i < len; i++) {
-            const int tickX = m_frequencyScale.mainPointPositions.at(i);
-            const int screenX = plotLeft + tickX;
-            if (screenX < plotLeft || screenX > fullWidth)
-                continue;
-
-            const QString str = formatFreqLabel(m_frequencyScale.mainPoints.at(i), tickX == 0);
-            const int textWidth = fm.horizontalAdvance(str);
-            int textX = (tickX == 0) ? (screenX + 2) : (screenX - textWidth / 2);
-
-            if (textX < plotLeft + 2)
-                textX = plotLeft + 2;
-
-            if (textX < lastLabelRight + 4)
-                continue;
-
-            if (textX + textWidth >= unitRect.left() - 4)
-                continue;
-
-            const QRectF textRect(textX, 6, textWidth, fontHeight);
-            painter.setPen(QColor(210, 230, 245));
-            painter.drawText(textRect, Qt::AlignCenter, str);
-
-            lastLabelRight = textX + textWidth;
-        }
-    }
-
-    painter.end();
-}
-
-void QGLReceiverPanel::renderPanadapterGrid()
-{
-    // Overlay FBO: transparent clear so only grid lines composite over the panadapter.
-    glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
-    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glLineWidth(2.0f);
-
-    QVector<GlDraw::Vec3Rgb> verts;
-    verts.reserve((m_frequencyScale.mainPointPositions.length()
-                   + m_dBmScale.mainPointPositions.length()) * 2);
-
-    const float r = m_redGrid;
-    const float g = m_greenGrid;
-    const float b = m_blueGrid;
-
-    int len = m_frequencyScale.mainPointPositions.length();
-    if (len > 0) {
-        const float y1 = 0.0f;
-        const float y2 = float(m_panRect.height() - 1);
-
-        for (int i = 0; i < len; i++) {
-            const float x = float(m_frequencyScale.mainPointPositions.at(i) - m_panRect.left());
-            if (x >= 0.0f && x < float(m_panRect.width())) {
-                verts.append({ x, y1, 0.0f, r, g, b });
-                verts.append({ x, y2, 0.0f, r, g, b });
-            }
-        }
-    }
-
-    len = m_dBmScale.mainPointPositions.length();
-    if (len > 0) {
-        const float x1 = 0.0f;
-        const float x2 = float(m_panRect.width() - 1);
-
-        for (int i = 0; i < len; i++) {
-            const float y = float(m_dBmScale.mainPointPositions.at(i) - m_panRect.top());
-            if (y >= 0.0f && y < float(m_panRect.height())) {
-                verts.append({ x1, y, 0.0f, r, g, b });
-                verts.append({ x2, y, 0.0f, r, g, b });
-            }
-        }
-    }
-
-    if (!verts.isEmpty() && m_shaderProgram && m_shaderProgram->isLinked()) {
-        QMatrix4x4 projection;
-        projection.ortho(0, m_panRect.width(), m_panRect.height(), 0, -10, 10);
-        m_vao.bind();
-        GlDraw::drawColoredLines(this, m_shaderProgram, m_vbo, projection,
-                                 verts.constData(), verts.size());
-    }
-
-    glDisable(GL_BLEND);
-}
  
-void QGLReceiverPanel::renderWaterfallVerticalScale() {
-    if (!m_secScaleWaterfallFBO)
-        return;
 
-    const qreal dpr = devicePixelRatioF();
-    QOpenGLPaintDevice paintDevice(m_secScaleWaterfallFBO->size());
-    paintDevice.setDevicePixelRatio(dpr);
-
-    painter.begin(&paintDevice);
-    painter.setRenderHint(QPainter::Antialiasing, true);
-    painter.setRenderHint(QPainter::TextAntialiasing, true);
-    painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
-
-    const int width = m_secScaleWaterfallRect.width();
-    const int height = m_secScaleWaterfallRect.height();
-    const qreal secRange = qAbs(m_secWaterfallMax - m_secWaterfallMin);
-    if (secRange <= 0) {
-        painter.end();
-        return;
-    }
-
-    QFont font = m_smallSize ? m_fonts.smallFont : m_fonts.bigFont1;
-    painter.setFont(font);
-    QFontMetrics fm(font);
-    const int fontHeight = fm.height();
-
-    const qreal unit = qreal(height) / secRange;
-    m_secScale = getYRuler2(m_secScaleWaterfallRect, fontHeight + 6, unit, m_secWaterfallMin, m_secWaterfallMax);
-
-    // Background panel
-    painter.setCompositionMode(QPainter::CompositionMode_Source);
-    painter.fillRect(0, 0, width, height, QColor(14, 18, 24, 210));
-    painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
-
-    // Right border
-    painter.setPen(QPen(QColor(45, 60, 75), 1.0));
-    painter.drawLine(width - 1, 0, width - 1, height);
-
-    const int len = m_secScale.mainPointPositions.length();
-    const int sublen = m_secScale.subPointPositions.length();
-
-    // Minor ticks
-    if (sublen > 0) {
-        painter.setPen(QPen(QColor(90, 125, 145), 1.0));
-        for (int i = 0; i < sublen; i++) {
-            const int y = m_secScale.subPointPositions.at(i);
-            painter.drawLine(width - 1, y, width - 3, y);
-        }
-    }
-
-    // Major ticks
-    if (len > 0) {
-        painter.setPen(QPen(QColor(160, 195, 215), 1.0));
-        for (int i = 0; i < len; i++) {
-            const int y = m_secScale.mainPointPositions.at(i);
-            painter.drawLine(width - 1, y, width - 6, y);
-        }
-    }
-
-    // Numbers
-    painter.setPen(QPen(QColor(200, 225, 240)));
-
-    if (len > 0) {
-        for (int i = 0; i < len; i++) {
-            const int y = m_secScale.mainPointPositions.at(i);
-            const QString str = QString::number(m_secScale.mainPoints.at(i), 'f', 1);
-            const QRectF textRect(2, y - fontHeight / 2.0, width - 9, fontHeight);
-            if (textRect.top() >= 2 && textRect.bottom() <= (height - 18)) {
-                painter.drawText(textRect, Qt::AlignRight | Qt::AlignVCenter, str);
-            }
-        }
-    }
-
-    // Unit "sec" at bottom
-    const QRectF unitRect(2, height - 16, width - 4, 14);
-    painter.setFont(m_fonts.smallFont);
-    painter.setPen(QPen(QColor(255, 90, 130)));
-    painter.drawText(unitRect, Qt::AlignCenter, QStringLiteral("sec"));
-
-    painter.end();
-}
 
 //********************************************************************
 
@@ -2269,11 +940,10 @@ void QGLReceiverPanel::getRegion(QPoint p) {
 }
 
 void QGLReceiverPanel::resizeGL(int iWidth, int iHeight) {
-    
-    if (m_dBmScaleFBO) { delete m_dBmScaleFBO; m_dBmScaleFBO = nullptr; }
-    if (m_frequencyScaleFBO) { delete m_frequencyScaleFBO; m_frequencyScaleFBO = nullptr; }
-    if (m_secScaleWaterfallFBO) { delete m_secScaleWaterfallFBO; m_secScaleWaterfallFBO = nullptr; }
-    
+
+    if (m_gridRenderer)
+        m_gridRenderer->invalidateScaleFBOs();
+
     // Update all sizes and rectangles
     setupDisplayRegions(QSize(iWidth, iHeight));
     

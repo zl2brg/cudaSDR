@@ -236,6 +236,9 @@ set(SOURCES
     ${SRC_DIR}/GL/WaterfallRenderer.cpp
     ${SRC_DIR}/GL/PanadapterRenderer.cpp
     ${SRC_DIR}/GL/OverlayRenderer.cpp
+    ${SRC_DIR}/GL/GridRenderer.cpp
+    ${SRC_DIR}/GL/TraceRenderer.cpp
+    ${SRC_DIR}/GL/HudRenderer.cpp
     ${SRC_DIR}/Util/CPUMonitor.cpp
 
   )
@@ -317,6 +320,9 @@ set(HEADERS
     ${SRC_DIR}/GL/WaterfallRenderer.h
     ${SRC_DIR}/GL/PanadapterRenderer.h
     ${SRC_DIR}/GL/OverlayRenderer.h
+    ${SRC_DIR}/GL/GridRenderer.h
+    ${SRC_DIR}/GL/TraceRenderer.h
+    ${SRC_DIR}/GL/HudRenderer.h
     ${SRC_DIR}/Util/CPUMonitor.h
     ${SRC_DIR}/cusdr_displayTabWidget.h
     ${SRC_DIR}/cusdr_displayWidget.h
