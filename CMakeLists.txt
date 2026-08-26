@@ -149,6 +149,10 @@ set(SOURCES
     # Data Engine
     ${SRC_DIR}/DataEngine/cusdr_audioReceiver.cpp
     ${SRC_DIR}/DataEngine/cusdr_dataEngine.cpp
+    ${SRC_DIR}/DataEngine/DataEngineThreadFactory.cpp
+    ${SRC_DIR}/DataEngine/DataEngineFirmware.cpp
+    ${SRC_DIR}/DataEngine/DataEngineLifecycle.cpp
+    ${SRC_DIR}/DataEngine/DataEngineSoapy.cpp
     ${SRC_DIR}/DataEngine/cusdr_dataIO.cpp
     ${SRC_DIR}/DataEngine/cusdr_discoverer.cpp
     ${SRC_DIR}/DataEngine/CProtocol1.cpp
@@ -257,6 +261,10 @@ set(HEADERS
 
     # Data Engine
     ${SRC_DIR}/DataEngine/cusdr_dataIO.h
+    ${SRC_DIR}/DataEngine/DataEngineThreadFactory.h
+    ${SRC_DIR}/DataEngine/DataEngineFirmware.h
+    ${SRC_DIR}/DataEngine/DataEngineLifecycle.h
+    ${SRC_DIR}/DataEngine/DataEngineSoapy.h
     ${SRC_DIR}/DataEngine/cusdr_sliceProcessor.h
     ${SRC_DIR}/DataEngine/cusdr_transmitter.h
     ${SRC_DIR}/DataEngine/soundout.h

@@ -79,6 +79,10 @@ class DataProcessor;
 class AudioOutProcessor;
 class WideBandDataProcessor;
 class SoapySDRDataSource;
+class DataEngineThreadFactory;
+class DataEngineFirmware;
+class DataEngineLifecycle;
+class DataEngineSoapy;
 
 //Q_DECLARE_METATYPE (QAbstractSocket::SocketError)
 
@@ -94,6 +98,11 @@ class RadioController;
 class DataEngine : public QObject {
 
 	Q_OBJECT
+
+	friend class DataEngineThreadFactory;
+	friend class DataEngineFirmware;
+	friend class DataEngineLifecycle;
+	friend class DataEngineSoapy;
 
 public:
 	explicit DataEngine(RadioModel *model, QObject* parent = nullptr);
@@ -261,6 +270,9 @@ private:
 	bool    initTransmitters(int tx);
 	bool	start();
 	bool	startDataEngineWithoutConnection();
+#ifdef HAVE_SOAPYSDR
+	bool	startSoapyEngine();
+#endif
 	bool	findHPSDRDevices();
 	bool	getFirmwareVersions();
 	bool	checkFirmwareVersions();
@@ -283,6 +295,11 @@ private:
 	void    setWideBandBufferCount();
 
 private:
+	DataEngineThreadFactory*	m_threadFactory{};
+	DataEngineFirmware*			m_firmware{};
+	DataEngineLifecycle*		m_lifecycle{};
+	DataEngineSoapy*			m_soapy{};
+
 	DataProcessor*			m_dataProcessor;
 	WideBandDataProcessor*	m_wbDataProcessor;
 	QWDSPEngine*			m_chirpDspEngine{};
