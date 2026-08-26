@@ -907,19 +907,21 @@ void QGLReceiverPanel::drawPanVerticalScale() {
     const bool regenDBmScale = !m_dBmScaleFBO || m_dBmScalePanadapterRenew
                                || (m_dBmScalePanadapterUpdate && !m_dragDBmScale);
 
+    const qreal dpr = devicePixelRatioF();
+    const int devWidth = qMax(1, int(qRound(width * dpr)));
+    const int devHeight = qMax(1, int(qRound(height * dpr)));
+
     if (regenDBmScale) {
-
-        if (!m_dBmScaleFBO || m_dBmScalePanadapterRenew) {
-
+        if (!m_dBmScaleFBO || m_dBmScaleFBO->size() != QSize(devWidth, devHeight) || m_dBmScalePanadapterRenew) {
             if (m_dBmScaleFBO) {
                 delete m_dBmScaleFBO;
-                m_dBmScaleFBO = 0;
+                m_dBmScaleFBO = nullptr;
             }
-            m_dBmScaleFBO = new QOpenGLFramebufferObject(width, height);
+            m_dBmScaleFBO = new QOpenGLFramebufferObject(devWidth, devHeight);
         }
         GLint viewport[4];
         glGetIntegerv(GL_VIEWPORT, viewport);
-        glViewport(0, 0, width, height);
+        glViewport(0, 0, devWidth, devHeight);
 
         m_dBmScaleFBO->bind();
         renderPanVerticalScale();
@@ -945,69 +947,79 @@ void QGLReceiverPanel::drawPanVerticalScale() {
 
 
 void QGLReceiverPanel::renderPanVerticalScale() {
+    if (!m_dBmScaleFBO)
+        return;
 
-    QString str;
-    int spacing = 7;
-    int fontHeight;
-    int fontMaxWidth;
+    const qreal dpr = devicePixelRatioF();
     QOpenGLPaintDevice paintDevice(m_dBmScaleFBO->size());
+    paintDevice.setDevicePixelRatio(dpr);
 
     painter.begin(&paintDevice);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    painter.setRenderHint(QPainter::TextAntialiasing, true);
+    painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
 
-    if (m_smallSize) {
-        fontHeight = m_fonts.smallFontMetrics->tightBoundingRect(".0dBm").height() + spacing;
-        fontMaxWidth = m_fonts.smallFontMetrics->boundingRect("-000.0").width();
-    } else {
-        fontHeight = m_fonts.bigFont1Metrics->tightBoundingRect(".0dBm").height() + spacing;
-        fontMaxWidth = m_fonts.bigFont1Metrics->boundingRect("-000.0").width();
-    }
+    const int width = m_dBmScalePanRect.width();
+    const int height = m_dBmScalePanRect.height();
 
-    int width = m_dBmScalePanRect.width();
-    int height = m_dBmScalePanRect.height();
-
-    QRect textRect(0, 0, fontMaxWidth, fontHeight);
-    textRect.moveLeft(3);
-
-    int len    = m_dBmScale.mainPointPositions.length();
-    int sublen = m_dBmScale.subPointPositions.length();
-
-    // draw the scale background
+    // Background panel
     painter.setCompositionMode(QPainter::CompositionMode_Source);
-    painter.fillRect(0, 0, width, height, QColor(30, 30, 30, 180));
+    painter.fillRect(0, 0, width, height, QColor(14, 18, 24, 210));
     painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
 
-    painter.setPen(QPen(QColor(166, 194, 206), 1, Qt::SolidLine, Qt::FlatCap));
+    // Right border
+    painter.setPen(QPen(QColor(45, 60, 75), 1.0));
+    painter.drawLine(width - 1, 0, width - 1, height);
+
+    const int len = m_dBmScale.mainPointPositions.length();
+    const int sublen = m_dBmScale.subPointPositions.length();
+
+    // Minor ticks
+    if (sublen > 0) {
+        painter.setPen(QPen(QColor(90, 125, 145), 1.0));
+        for (int i = 0; i < sublen; i++) {
+            const int y = m_dBmScale.subPointPositions.at(i);
+            painter.drawLine(width - 1, y, width - 3, y);
+        }
+    }
+
+    // Major ticks
+    if (len > 0) {
+        painter.setPen(QPen(QColor(160, 195, 215), 1.0));
+        for (int i = 0; i < len; i++) {
+            const int y = m_dBmScale.mainPointPositions.at(i);
+            painter.drawLine(width - 1, y, width - 6, y);
+        }
+    }
+
+    // Numbers
+    QFont font = m_smallSize ? m_fonts.smallFont : m_fonts.bigFont1;
+    painter.setFont(font);
+    QFontMetrics fm(font);
+    const int fontHeight = fm.height();
+
+    painter.setPen(QPen(QColor(200, 225, 240)));
+
     if (len > 0) {
         for (int i = 0; i < len; i++) {
             const int y = m_dBmScale.mainPointPositions.at(i);
-            painter.drawLine(width, y, width - 4, y);
-        }
-        painter.setPen(QPen(QColor(115, 143, 155), 1, Qt::SolidLine, Qt::FlatCap));
-        for (int i = 0; i < sublen; i++) {
-            const int y = m_dBmScale.subPointPositions.at(i);
-            painter.drawLine(width, y, width - 2, y);
-        }
-    }
+            const qreal val = m_dBmScale.mainPoints.at(i);
+            const QString str = (qAbs(val - qRound(val)) < 0.05) ? QString::number(qRound(val)) : QString::number(val, 'f', 1);
 
-    painter.setPen(QPen(QColor(191,219,232)));
-    painter.setFont(m_oglTextNormal->font());
-
-    if (len > 0) {
-        for (int i = 0; i < len; i++) {
-            textRect.moveBottom(m_dBmScale.mainPointPositions.at(i) + textRect.height()/2);
-            if (textRect.y() > textRect.height() && textRect.bottom() <= (height - textRect.height()/2)) {
-                str = QString::number(m_dBmScale.mainPoints.at(i), 'f', 1);
-                painter.drawText(textRect.x(), textRect.y() + fontHeight, str);
+            const QRectF textRect(2, y - fontHeight / 2.0, width - 9, fontHeight);
+            if (textRect.top() >= 2 && textRect.bottom() <= (height - 18)) {
+                painter.drawText(textRect, Qt::AlignRight | Qt::AlignVCenter, str);
             }
         }
     }
 
-    textRect.moveTop(height - textRect.height());
-    painter.setPen(QPen(QColor(239, 56, 109)));
-    str = QString("dBm");
-    painter.drawText(textRect.x() + 18, textRect.y() + fontHeight, str);
-    painter.end();
+    // Unit label "dBm" at bottom
+    const QRectF unitRect(2, height - 16, width - 4, 14);
+    painter.setFont(m_fonts.smallFont);
+    painter.setPen(QPen(QColor(255, 90, 130)));
+    painter.drawText(unitRect, Qt::AlignCenter, QStringLiteral("dBm"));
 
+    painter.end();
 }
 
 void QGLReceiverPanel::drawPanHorizontalScale() {
@@ -1023,27 +1035,28 @@ void QGLReceiverPanel::drawPanHorizontalScale() {
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glEnable(GL_BLEND);
 
-    const bool regenFreqScale = !m_frequencyScaleFBO || m_freqScalePanadapterRenew
+    const qreal dpr = devicePixelRatioF();
+    const int devWidth = qMax(1, int(qRound(width * dpr)));
+    const int devHeight = qMax(1, int(qRound(height * dpr)));
+
+    const bool regenFreqScale = !m_frequencyScaleFBO || m_frequencyScaleFBO->size() != QSize(devWidth, devHeight)
+                                || m_freqScalePanadapterRenew
                                 || m_freqScalePanadapterUpdate
                                 || m_dragMouse
                                 || (m_dragFreqScale && !m_dragFreqScaleZoom);
 
     if (regenFreqScale) {
-
-        if (!m_frequencyScaleFBO || m_freqScalePanadapterRenew) {
-
+        if (!m_frequencyScaleFBO || m_frequencyScaleFBO->size() != QSize(devWidth, devHeight) || m_freqScalePanadapterRenew) {
             if (m_frequencyScaleFBO) {
-
                 delete m_frequencyScaleFBO;
-                m_frequencyScaleFBO = 0;
+                m_frequencyScaleFBO = nullptr;
             }
-
-            m_frequencyScaleFBO = new QOpenGLFramebufferObject(width, height);  // Use logical size
+            m_frequencyScaleFBO = new QOpenGLFramebufferObject(devWidth, devHeight);
         }
 
         GLint viewport[4];
         glGetIntegerv(GL_VIEWPORT, viewport);
-        glViewport(0, 0, width, height);  // Use logical coordinates
+        glViewport(0, 0, devWidth, devHeight);
 
         m_frequencyScaleFBO->bind();
         renderPanHorizontalScale();
@@ -1052,10 +1065,10 @@ void QGLReceiverPanel::drawPanHorizontalScale() {
 
         glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
         m_freqScalePanadapterUpdate = false;
-		m_freqScalePanadapterRenew = false;
-	}
+        m_freqScalePanadapterRenew = false;
+    }
 
-	drawCachedTexture(m_freqScalePanRect, m_frequencyScaleFBO->texture(), 0.0f);
+    drawCachedTexture(m_freqScalePanRect, m_frequencyScaleFBO->texture(), 0.0f);
 }
 
 void QGLReceiverPanel::updateFrequencyRuler()
@@ -1239,21 +1252,25 @@ void QGLReceiverPanel::drawWaterfallVerticalScale() {
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glEnable(GL_BLEND);
 
-    const bool regenSecScale = !m_secScaleWaterfallFBO || m_secScaleWaterfallRenew || m_secScaleWaterfallUpdate;
+    const qreal dpr = devicePixelRatioF();
+    const int devWidth = qMax(1, int(qRound(width * dpr)));
+    const int devHeight = qMax(1, int(qRound(height * dpr)));
+
+    const bool regenSecScale = !m_secScaleWaterfallFBO || m_secScaleWaterfallFBO->size() != QSize(devWidth, devHeight)
+                               || m_secScaleWaterfallRenew || m_secScaleWaterfallUpdate;
 
     if (regenSecScale) {
-
-        if (!m_secScaleWaterfallFBO || m_secScaleWaterfallRenew) {
+        if (!m_secScaleWaterfallFBO || m_secScaleWaterfallFBO->size() != QSize(devWidth, devHeight) || m_secScaleWaterfallRenew) {
             if (m_secScaleWaterfallFBO) {
                 delete m_secScaleWaterfallFBO;
                 m_secScaleWaterfallFBO = nullptr;
             }
-            m_secScaleWaterfallFBO = new QOpenGLFramebufferObject(width, height);
+            m_secScaleWaterfallFBO = new QOpenGLFramebufferObject(devWidth, devHeight);
         }
 
         GLint viewport[4];
         glGetIntegerv(GL_VIEWPORT, viewport);
-        glViewport(0, 0, width, height);
+        glViewport(0, 0, devWidth, devHeight);
 
         m_secScaleWaterfallFBO->bind();
         renderWaterfallVerticalScale();
@@ -1906,30 +1923,29 @@ void QGLReceiverPanel::drawAGCControl() {
 
 
 void QGLReceiverPanel::renderPanHorizontalScale() {
+    if (!m_frequencyScaleFBO)
+        return;
 
-	//GRAPHICS_DEBUG << "render frequency scale";
-	int fontHeight;
-    QColor textColor = QColor(140, 180, 200);
-    const qreal freqSpan = displayedFrequencySpanHz();
-    qreal upperFreq = (qreal)m_centerFrequency + freqSpan / 2;
+    const qreal dpr = devicePixelRatioF();
+    QOpenGLPaintDevice paintDevice(m_frequencyScaleFBO->size());
+    paintDevice.setDevicePixelRatio(dpr);
+
+    painter.begin(&paintDevice);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    painter.setRenderHint(QPainter::TextAntialiasing, true);
+    painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
 
     const int plotLeft = m_dBmScalePanRect.isValid() ? m_dBmScalePanRect.width() : 0;
     const int fullWidth = m_freqScalePanRect.width();
+    const int fullHeight = m_freqScalePanRect.height();
 
-    QOpenGLPaintDevice paintDevice(m_frequencyScaleFBO->size());
-    painter.begin(&paintDevice);
+    const qreal freqSpan = displayedFrequencySpanHz();
+    const qreal upperFreq = (qreal)m_centerFrequency + freqSpan / 2;
 
-    fontHeight = m_fonts.smallFontMetrics->tightBoundingRect(".0kMGHz").height();
-
-	// draw the frequency scale
-	int		offset_X		= -1;
-	int		textOffset_y	= 5;
-	double	freqScale		= 1;
-
-	QString fstr = QString(" Hz ");
-	if (upperFreq >= 1e6) { freqScale = 1e6; fstr = QString("  MHz "); }
-	else
-	if (upperFreq >= 1e3) { freqScale = 1e3; fstr = QString("  kHz "); }
+    double freqScale = 1;
+    QString fstr = QStringLiteral("Hz");
+    if (upperFreq >= 1e6) { freqScale = 1e6; fstr = QStringLiteral("MHz"); }
+    else if (upperFreq >= 1e3) { freqScale = 1e3; fstr = QStringLiteral("kHz"); }
 
     auto formatFreqLabel = [&](qreal freqHz, bool allowExtraDigit) -> QString {
         const int decimals = (allowExtraDigit && freqScale >= 1e3) ? 4 : 3;
@@ -1940,68 +1956,83 @@ void QGLReceiverPanel::renderPanHorizontalScale() {
         return str;
     };
 
-	// Full-width background; ruler positions are plot-relative (see updateFrequencyRuler).
+    // Full-width background
     painter.setCompositionMode(QPainter::CompositionMode_Source);
-    painter.fillRect(0, 0, fullWidth, m_freqScalePanRect.height(), QColor(0, 0, 0, 255));
+    painter.fillRect(0, 0, fullWidth, fullHeight, QColor(10, 14, 20, 255));
     painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
 
-    QRect scaledTextRect(0, textOffset_y, 1, m_freqScalePanRect.height());
-    scaledTextRect.setWidth(m_fonts.smallFontMetrics->horizontalAdvance(fstr));
-    scaledTextRect.moveLeft(fullWidth - scaledTextRect.width());
-    painter.setRenderHint(QPainter::Antialiasing);
-    painter.setFont(m_oglTextSmall->font());
-    painter.setPen(QPen(textColor,3, Qt::SolidLine, Qt::FlatCap));
+    // Top border line
+    painter.setPen(QPen(QColor(45, 60, 75), 1.0));
+    painter.drawLine(0, 0, fullWidth, 0);
 
-	int len = m_frequencyScale.mainPointPositions.length();
-	int lastLabelRight = plotLeft;
+    QFont font = m_oglTextSmall->font();
+    painter.setFont(font);
+    QFontMetrics fm(font);
+    const int fontHeight = fm.height();
 
-	if (len > 0) {
+    // Unit pill badge on right
+    const int unitW = fm.horizontalAdvance(fstr) + 10;
+    const int unitH = fontHeight + 2;
+    const QRectF unitRect(fullWidth - unitW - 4, (fullHeight - unitH) / 2.0, unitW, unitH);
 
-		for (int i = 0; i < len; i++) {
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(QColor(28, 38, 48, 230));
+    painter.drawRoundedRect(unitRect, 3.0, 3.0);
+    painter.setPen(QColor(255, 90, 130));
+    painter.drawText(unitRect, Qt::AlignCenter, fstr);
+
+    // Minor sub-ticks
+    const int sublen = m_frequencyScale.subPointPositions.length();
+    if (sublen > 0) {
+        painter.setPen(QPen(QColor(90, 125, 145), 1.0));
+        for (int i = 0; i < sublen; i++) {
+            const int screenX = plotLeft + m_frequencyScale.subPointPositions.at(i);
+            if (screenX >= plotLeft && screenX < fullWidth) {
+                painter.drawLine(screenX, 1, screenX, 3);
+            }
+        }
+    }
+
+    // Major ticks & labels
+    const int len = m_frequencyScale.mainPointPositions.length();
+    int lastLabelRight = plotLeft;
+
+    if (len > 0) {
+        painter.setPen(QPen(QColor(160, 195, 215), 1.0));
+        for (int i = 0; i < len; i++) {
             const int screenX = plotLeft + m_frequencyScale.mainPointPositions.at(i);
-            if (screenX < plotLeft || screenX > fullWidth)
-                continue;
-            painter.drawLine(screenX, 1, screenX, 4);
-		}
+            if (screenX >= plotLeft && screenX < fullWidth) {
+                painter.drawLine(screenX, 1, screenX, 5);
+            }
+        }
 
-		for (int i = 0; i < len; i++) {
+        for (int i = 0; i < len; i++) {
             const int tickX = m_frequencyScale.mainPointPositions.at(i);
             const int screenX = plotLeft + tickX;
             if (screenX < plotLeft || screenX > fullWidth)
                 continue;
 
-			QString str = formatFreqLabel(m_frequencyScale.mainPoints.at(i), tickX == 0);
-
-            int textWidth = m_fonts.smallFontMetrics->horizontalAdvance(str);
-
-            int textX = (tickX == 0) ? (screenX + 2) : (screenX + offset_X - (textWidth / 2));
+            const QString str = formatFreqLabel(m_frequencyScale.mainPoints.at(i), tickX == 0);
+            const int textWidth = fm.horizontalAdvance(str);
+            int textX = (tickX == 0) ? (screenX + 2) : (screenX - textWidth / 2);
 
             if (textX < plotLeft + 2)
                 textX = plotLeft + 2;
 
-            QRect textRect(textX, textOffset_y, textWidth, fontHeight);
-
-			if (textRect.right() >= scaledTextRect.left()) continue;
-            if (textRect.left() < lastLabelRight + 2) continue;
-
-             painter.drawText(textRect.x(), textRect.y() + m_oglTextSmall->fontMetrics().height(), str);
-             lastLabelRight = textRect.right();
-
-		}
-	}
-
-    len = m_frequencyScale.subPointPositions.length();
-    if (len > 0) {
-        for (int i = 0; i < len; i++) {
-            const int screenX = plotLeft + m_frequencyScale.subPointPositions.at(i);
-            if (screenX < plotLeft || screenX > fullWidth)
+            if (textX < lastLabelRight + 4)
                 continue;
-            painter.drawLine(screenX, 1, screenX, 3);
+
+            if (textX + textWidth >= unitRect.left() - 4)
+                continue;
+
+            const QRectF textRect(textX, 6, textWidth, fontHeight);
+            painter.setPen(QColor(210, 230, 245));
+            painter.drawText(textRect, Qt::AlignCenter, str);
+
+            lastLabelRight = textX + textWidth;
         }
     }
 
-	painter.setPen(QPen(QColor(239, 56, 109)));
-     painter.drawText(fullWidth - 30, textOffset_y + 10, fstr);
     painter.end();
 }
 
@@ -2064,82 +2095,84 @@ void QGLReceiverPanel::renderPanadapterGrid()
 }
  
 void QGLReceiverPanel::renderWaterfallVerticalScale() {
-
     if (!m_secScaleWaterfallFBO)
         return;
 
-    QString str;
-    const int spacing = 7;
-    int fontHeight;
-    int fontMaxWidth;
-    const QFontMetrics *labelMetrics;
+    const qreal dpr = devicePixelRatioF();
+    QOpenGLPaintDevice paintDevice(m_secScaleWaterfallFBO->size());
+    paintDevice.setDevicePixelRatio(dpr);
 
-    if (m_smallSize) {
-        fontHeight = m_fonts.smallFontMetrics->tightBoundingRect(QStringLiteral(".0s")).height() + spacing;
-        fontMaxWidth = m_fonts.smallFontMetrics->boundingRect(QStringLiteral("000.0")).width();
-        labelMetrics = m_fonts.smallFontMetrics;
-    } else {
-        fontHeight = m_fonts.bigFont1Metrics->tightBoundingRect(QStringLiteral(".0s")).height() + spacing;
-        fontMaxWidth = m_fonts.bigFont1Metrics->boundingRect(QStringLiteral("000.0")).width();
-        labelMetrics = m_fonts.bigFont1Metrics;
-    }
+    painter.begin(&paintDevice);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    painter.setRenderHint(QPainter::TextAntialiasing, true);
+    painter.setRenderHint(QPainter::SmoothPixmapTransform, true);
 
     const int width = m_secScaleWaterfallRect.width();
     const int height = m_secScaleWaterfallRect.height();
     const qreal secRange = qAbs(m_secWaterfallMax - m_secWaterfallMin);
-    if (secRange <= 0)
+    if (secRange <= 0) {
+        painter.end();
         return;
+    }
+
+    QFont font = m_smallSize ? m_fonts.smallFont : m_fonts.bigFont1;
+    painter.setFont(font);
+    QFontMetrics fm(font);
+    const int fontHeight = fm.height();
 
     const qreal unit = qreal(height) / secRange;
-    m_secScale = getYRuler2(m_secScaleWaterfallRect, fontHeight, unit, m_secWaterfallMin, m_secWaterfallMax);
+    m_secScale = getYRuler2(m_secScaleWaterfallRect, fontHeight + 6, unit, m_secWaterfallMin, m_secWaterfallMax);
 
-    QOpenGLPaintDevice paintDevice(m_secScaleWaterfallFBO->size());
-    painter.begin(&paintDevice);
+    // Background panel
+    painter.setCompositionMode(QPainter::CompositionMode_Source);
+    painter.fillRect(0, 0, width, height, QColor(14, 18, 24, 210));
+    painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
 
-    QRect textRect(0, 0, fontMaxWidth, fontHeight);
-    textRect.moveLeft(m_smallSize ? 3 : -1);
+    // Right border
+    painter.setPen(QPen(QColor(45, 60, 75), 1.0));
+    painter.drawLine(width - 1, 0, width - 1, height);
 
     const int len = m_secScale.mainPointPositions.length();
     const int sublen = m_secScale.subPointPositions.length();
 
-    painter.setCompositionMode(QPainter::CompositionMode_Source);
-    painter.fillRect(0, 0, width, height, QColor(40, 40, 40, 180));
-    painter.setCompositionMode(QPainter::CompositionMode_SourceOver);
-
-    painter.setPen(QPen(QColor(166, 194, 206), 1, Qt::SolidLine, Qt::FlatCap));
-    if (len > 0) {
-        for (int i = 0; i < len; i++) {
-            const int y = m_secScale.mainPointPositions.at(i);
-            painter.drawLine(width, y, width - 4, y);
-        }
-        painter.setPen(QPen(QColor(115, 143, 155), 1, Qt::SolidLine, Qt::FlatCap));
+    // Minor ticks
+    if (sublen > 0) {
+        painter.setPen(QPen(QColor(90, 125, 145), 1.0));
         for (int i = 0; i < sublen; i++) {
             const int y = m_secScale.subPointPositions.at(i);
-            painter.drawLine(width, y, width - 2, y);
+            painter.drawLine(width - 1, y, width - 3, y);
         }
     }
 
-    painter.setPen(QPen(QColor(242, 245, 232)));
-    painter.setFont(m_smallSize ? m_fonts.smallFont : m_fonts.bigFont1);
+    // Major ticks
+    if (len > 0) {
+        painter.setPen(QPen(QColor(160, 195, 215), 1.0));
+        for (int i = 0; i < len; i++) {
+            const int y = m_secScale.mainPointPositions.at(i);
+            painter.drawLine(width - 1, y, width - 6, y);
+        }
+    }
 
-    int yOld = -textRect.height();
+    // Numbers
+    painter.setPen(QPen(QColor(200, 225, 240)));
+
     if (len > 0) {
         for (int i = 0; i < len; i++) {
-            textRect.moveBottom(m_secScale.mainPointPositions.at(i) + textRect.height() / 2);
-            if (textRect.y() >= yOld && textRect.bottom() <= (height - textRect.height())) {
-                str = QString::number(m_secScale.mainPoints.at(i), 'f', 1);
-                const int textX = textRect.x() + fontMaxWidth - labelMetrics->horizontalAdvance(str);
-                painter.drawText(textX, textRect.y() + fontHeight, str);
-                yOld = textRect.bottom();
+            const int y = m_secScale.mainPointPositions.at(i);
+            const QString str = QString::number(m_secScale.mainPoints.at(i), 'f', 1);
+            const QRectF textRect(2, y - fontHeight / 2.0, width - 9, fontHeight);
+            if (textRect.top() >= 2 && textRect.bottom() <= (height - 18)) {
+                painter.drawText(textRect, Qt::AlignRight | Qt::AlignVCenter, str);
             }
         }
     }
 
-    textRect.moveTop(height - textRect.height());
-    painter.setPen(QPen(QColor(239, 56, 109)));
-    str = QStringLiteral("sec");
-    const int secLabelX = m_smallSize ? textRect.x() : textRect.x() + 10;
-    painter.drawText(secLabelX, textRect.y() + fontHeight, str);
+    // Unit "sec" at bottom
+    const QRectF unitRect(2, height - 16, width - 4, 14);
+    painter.setFont(m_fonts.smallFont);
+    painter.setPen(QPen(QColor(255, 90, 130)));
+    painter.drawText(unitRect, Qt::AlignCenter, QStringLiteral("sec"));
+
     painter.end();
 }
 
