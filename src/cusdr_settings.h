@@ -434,22 +434,24 @@ typedef struct _networkDeviceCard {
 Q_DECLARE_METATYPE (TNetworkDevicecard)
 Q_DECLARE_METATYPE (QList<TNetworkDevicecard>)
 
+// Every scalar carries a default: unset members used to reach the INI via
+// syncSettingsWithSlices()/saveSettings() and persist as garbage.
 typedef struct _receiver {
 
-	QSDR::_DSPCore		dspCore;
+	QSDR::_DSPCore		dspCore = QSDR::QtDSP;
 
-	HamBand				hamBand;
-	HamBand				lastHamBand;
-	DSPMode				dspMode;
-	ADCMode				adcMode;
-	AGCMode				agcMode;
-	TDefaultFilterMode	defaultFilterMode;
-	PanGraphicsMode		panMode;
-	WaterfallColorMode	waterfallMode;
-	PanAveragingMode    panAvMode;
-	PanDetectorMode     panDetMode;
-	int 				fftsize;
-	int					fmsqLevel;
+	HamBand				hamBand = gen;
+	HamBand				lastHamBand = gen;
+	DSPMode				dspMode = LSB;
+	ADCMode				adcMode = adc1;
+	AGCMode				agcMode = agcMED;
+	TDefaultFilterMode	defaultFilterMode = filterLSB;
+	PanGraphicsMode		panMode = Line;
+	WaterfallColorMode	waterfallMode = Enhanced;
+	PanAveragingMode    panAvMode = AV_MODE_RECURSIVE;
+	PanDetectorMode     panDetMode = DET_MODE_ROSENFELL;
+	int 				fftsize = 1;
+	int					fmsqLevel = 0;
 
 	QList<qint64>		lastCenterFrequencyList;
 	QList<qint64>		lastVfoFrequencyList;
@@ -458,58 +460,58 @@ typedef struct _receiver {
 	QList<qreal>		dBmPanScaleMaxList;
 	QList<DSPMode>		dspModeList;
 
-	bool	hangEnabled;
-	bool	agcLines;
-	bool	panLocked;
-	bool	spectrumAveraging;
-	bool	hairCross;
-	bool	panGrid;
-	bool	peakHold;
-	bool	clickVFO;
+	bool	hangEnabled = false;
+	bool	agcLines = false;
+	bool	panLocked = false;
+	bool	spectrumAveraging = true;
+	bool	hairCross = false;
+	bool	panGrid = true;
+	bool	peakHold = false;
+	bool	clickVFO = false;
 
-	qint64	ctrFrequency;
-	qint64	vfoFrequency;
-	qint64	vfoAFrequency;
-	qint64	vfoBFrequency;
-	int		activeVfo; // 0 = A, 1 = B (SliceModel::ActiveVfo)
-	int		filterSlope; // SliceModel filter slope (0 Soft …); residual until Slice exists
-	qint64	ncoFrequency;
+	qint64	ctrFrequency = 7050000;
+	qint64	vfoFrequency = 7050000;
+	qint64	vfoAFrequency = 7050000;
+	qint64	vfoBFrequency = 7050000;
+	int		activeVfo = 0; // 0 = A, 1 = B (SliceModel::ActiveVfo)
+	int		filterSlope = 1; // SliceModel filter slope (0 Soft …); residual until Slice exists
+	qint64	ncoFrequency = 0;
 
-	float	freqRulerPosition;
-	float	audioVolume;
+	float	freqRulerPosition = 0.5f;
+	float	audioVolume = 0.25f;
 
-	qreal	mouseWheelFreqStep;
-	qreal	filterLo;
-	qreal	filterHi;
+	qreal	mouseWheelFreqStep = 100.0;
+	qreal	filterLo = -3050.0;
+	qreal	filterHi = -150.0;
 
 
-    int     m_filterIndex;
-	qreal	acgGain;
-	qreal	acgThreshold_dB;
-	int		agcHangThreshold;
-	qreal	agcHangLevel;
-	int 	agcMaximumGain_dB;
-	qreal	agcAttackTime;
-	qreal	agcDecayTime;
-	qreal	agcHangTime;
-	qreal	agcFixedGain_dB;
-	int 	agcSlope;
+    int     m_filterIndex = 0;
+	qreal	acgGain = 100.0;
+	qreal	acgThreshold_dB = 0.0;
+	int		agcHangThreshold = 0;
+	qreal	agcHangLevel = 0.0;
+	int 	agcMaximumGain_dB = 30;
+	qreal	agcAttackTime = 2.0;
+	qreal	agcDecayTime = 250.0;
+	qreal	agcHangTime = 100.0;
+	qreal	agcFixedGain_dB = 30.0;
+	int 	agcSlope = 0;
 
-	int		sampleRate;
-	int		framesPerSecond;
-	int		waterfallOffsetLo;
-	int		waterfallOffsetHi;
-	int		averagingCnt;
-	int		fftFactor;
-	int		nr;
-    int     nr_agc;
-    int		nbMode;
-    int     nr2_gain_method;
-    int     nr2_npe_method;
-    bool     nr2_ae;
-	bool	anf;
-	bool	snb;
-	bool	cwDecode;
+	int		sampleRate = 48000;
+	int		framesPerSecond = 25;
+	int		waterfallOffsetLo = -5;
+	int		waterfallOffsetHi = 20;
+	int		averagingCnt = 5;
+	int		fftFactor = 1;
+	int		nr = 0;
+    int     nr_agc = 0;
+    int		nbMode = 0;
+    int     nr2_gain_method = 0;
+    int     nr2_npe_method = 0;
+    bool     nr2_ae = false;
+	bool	anf = false;
+	bool	snb = false;
+	bool	cwDecode = false;
 } TReceiver;
 
 typedef struct _wideband {

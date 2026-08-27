@@ -783,11 +783,16 @@ if(BUILD_TESTING)
         cw_decoder_tests
     )
 
-    # Headless Qt for any test that links Gui/Widgets (CI has no display).
+    # Headless Qt for any test that links Gui/Widgets (CI has no display), plus a
+    # throwaway settings file per test: tests run from the build directory and
+    # would otherwise read and overwrite the application's own settings.ini.
     get_property(_cudasdr_tests DIRECTORY PROPERTY TESTS)
     if(_cudasdr_tests)
-        set_tests_properties(${_cudasdr_tests} PROPERTIES
-            ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
-        )
+        file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/test-config)
+        foreach(_cudasdr_test IN LISTS _cudasdr_tests)
+            set_tests_properties(${_cudasdr_test} PROPERTIES
+                ENVIRONMENT "QT_QPA_PLATFORM=offscreen;CUSDR_SETTINGS_PATH=${CMAKE_CURRENT_BINARY_DIR}/test-config/${_cudasdr_test}.ini"
+            )
+        endforeach()
     endif()
 endif()

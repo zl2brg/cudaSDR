@@ -30,6 +30,8 @@
 #include <QStandardPaths>
 #include <QSaveFile>
 #include <QJsonParseError>
+#include <QDir>
+#include <QFileInfo>
 #include "cusdr_settings.h"
 #include "Models/RadioModel.h"
 #include "Models/RadioTelemetry.h"
@@ -92,7 +94,19 @@ Settings::Settings(QObject *parent)
     SETTINGS_DEBUG << "start at: " << qPrintable(startTime.toString());
 
     settingsFilename = "settings.ini";
-    settings = new QSettings(QCoreApplication::applicationDirPath() + "/" + settingsFilename, QSettings::IniFormat);
+    // CUSDR_SETTINGS_PATH lets test binaries (which run from the build directory)
+    // point at a throwaway INI instead of the installed application's config.
+    QString overridePath = qEnvironmentVariable("CUSDR_SETTINGS_PATH");
+    if (overridePath.isEmpty() && QCoreApplication::applicationFilePath().endsWith(QLatin1String("_tests"))) {
+        overridePath = QDir(QStandardPaths::writableLocation(QStandardPaths::TempLocation))
+                           .filePath(QCoreApplication::applicationName() + QLatin1String("-settings.ini"));
+    }
+    if (!overridePath.isEmpty()) {
+        settingsFilename = QFileInfo(overridePath).fileName();
+        settings = new QSettings(overridePath, QSettings::IniFormat);
+    } else {
+        settings = new QSettings(QCoreApplication::applicationDirPath() + "/" + settingsFilename, QSettings::IniFormat);
+    }
     getConfigPath();
     m_titleString = "cudaSDR BETA";
     QFile File(":/cusdr_stylesheet.qss");
@@ -476,18 +490,22 @@ int Settings::loadSettings() {
         cstr.append("/fftSize");
 
         value = settings->value(cstr, 1).toInt();
+        // Combo index into QWDSPEngine::getfftVal; anything else silences the analyzer.
+        if (value < 0 || value > 7) value = 1;
         m_receiverDataList[i].fftsize = value;
 
         cstr = m_rxStringList.at(i);
         cstr.append("/PanAverageMode");
 
         value = settings->value(cstr, 1).toInt();
+        if (value < AV_MODE_NONE || value > AV_MODE_LOG_RECURSIVE) value = AV_MODE_RECURSIVE;
         m_receiverDataList[i].panAvMode = (PanAveragingMode) value;
 
         cstr = m_rxStringList.at(i);
         cstr.append("/PanDetectorMode");
 
         value = settings->value(cstr, 1).toInt();
+        if (value < DET_MODE_PEAK || value > DET_MODE_SAMPLE) value = DET_MODE_ROSENFELL;
         m_receiverDataList[i].panDetMode = (PanDetectorMode) value;
 
         cstr = m_rxStringList.at(i);
@@ -1081,6 +1099,19 @@ int Settings::loadSettings() {
 
                 //SETTINGS_DEBUG << cstr << ": " << getDSPModeString(m_receiverDataList[i].dspModeList[j]);
             }
+        }
+
+        // A zero-width or inverted passband mutes the receiver and leaves the
+        // panadapter empty, so fall back to the band's mode default.
+        if (m_receiverDataList[i].filterLo >= m_receiverDataList[i].filterHi) {
+            const HamBand band = getBandFromFrequency(m_bandList, m_receiverDataList[i].ctrFrequency);
+            const DSPMode mode = (band >= 0 && band < m_receiverDataList[i].dspModeList.size())
+                                     ? m_receiverDataList[i].dspModeList[band]
+                                     : (DSPMode) LSB;
+            const auto filter = getFilterFromDSPMode(m_defaultFilterList,
+                                                     resolveWDSPMode(mode, m_receiverDataList[i].ctrFrequency));
+            m_receiverDataList[i].filterLo = filter.filterLo;
+            m_receiverDataList[i].filterHi = filter.filterHi;
         }
 
         if (m_receiverDataList[i].mercuryAttenuators.length() == MAX_BANDS && m_bandList.length() == MAX_BANDS) {
