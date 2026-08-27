@@ -6,6 +6,7 @@
 #include <QJsonObject>
 #include <QHostAddress>
 #include <QNetworkInterface>
+#include "SettingsTypes.h"
 
 class QSettings;
 
@@ -43,6 +44,9 @@ public:
     int socketBufferSize() const { return m_socketBufferSize; }
     void setSocketBufferSize(int size);
 
+    TSDRDevice lastDevice() const { return m_lastDevice; }
+    void setLastDevice(const TSDRDevice &device);
+
     void load(const QJsonObject &json);
     void save(QJsonObject &json) const;
 
@@ -57,6 +61,7 @@ signals:
     void audioPortChanged(quint16 port);
     void metisPortChanged(quint16 port);
     void socketBufferSizeChanged(int size);
+    void lastDeviceChanged();
 
 private:
     QString m_serverAddress;
@@ -66,6 +71,7 @@ private:
     quint16 m_audioPort;
     quint16 m_metisPort;
     int m_socketBufferSize;
+    TSDRDevice m_lastDevice;
 };
 
 #endif // NETWORKCONFIG_H

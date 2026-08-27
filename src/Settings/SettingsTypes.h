@@ -2,6 +2,10 @@
 #define SETTINGSTYPES_H
 
 #include <QMetaType>
+#include <QString>
+
+/** Written by Settings::toJson(); fromJson accepts this and older versions. */
+constexpr int kSettingsJsonSchemaVersion = 2;
 
 namespace QSDR {
     enum _DSPCore {

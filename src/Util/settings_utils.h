@@ -174,6 +174,18 @@ inline long jsonValueAs<long>(const QJsonValue &value)
     return static_cast<long>(value.toDouble());
 }
 
+template<>
+inline qint64 jsonValueAs<qint64>(const QJsonValue &value)
+{
+    return static_cast<qint64>(value.toDouble());
+}
+
+template<>
+inline bool jsonValueAs<bool>(const QJsonValue &value)
+{
+    return value.toBool();
+}
+
 template<typename T, typename Setter>
 void applyJsonArray(const QJsonObject &json, const QString &key, int maxCount, Setter setter)
 {

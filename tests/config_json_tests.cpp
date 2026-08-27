@@ -23,6 +23,8 @@
 #include "Settings/WindowConfig.h"
 #include "Settings/TciConfig.h"
 #include "Settings/SoapyConfig.h"
+#include "Settings/WidebandConfig.h"
+#include "Settings/PennyConfig.h"
 
 class ConfigJsonTests : public QObject {
     Q_OBJECT
@@ -40,6 +42,8 @@ private slots:
     void testWindowConfigJson();
     void testTciConfigJson();
     void testSoapyConfigJson();
+    void testWidebandConfigJson();
+    void testPennyConfigJson();
     void testSettingsFullJsonRoundtrip();
     void testFromJsonGettersMatchConfigObjects();
     void testSettingsSaveAndLoadJsonFile();
@@ -171,6 +175,65 @@ void ConfigJsonTests::testReceiverConfigJson() {
     config3.fromReceiver(rx);
     QCOMPARE(config3.vfoFrequency(), static_cast<qint64>(3700000));
     QCOMPARE(config3.filterSlope(), 0);
+
+    ReceiverConfig full(0);
+    full.setNr(2);
+    full.setAnf(true);
+    full.setSnb(true);
+    full.setNbMode(1);
+    full.setFftSize(4);
+    full.setPanAvMode(AV_MODE_TIME_WINDOW);
+    full.setPanDetMode(DET_MODE_AVERAGE);
+    full.setAudioVolume(0.42f);
+    full.setFilterLo(-2400);
+    full.setFilterHi(-200);
+    full.setAgcGain(80);
+    full.setFramesPerSecond(30);
+    full.setCwDecode(true);
+    QList<qint64> centers = full.lastCenterFrequencyList();
+    centers[m40] = 7150000;
+    full.setLastCenterFrequencyList(centers);
+    QList<int> att = full.mercuryAttenuators();
+    att[m40] = 2;
+    full.setMercuryAttenuators(att);
+    QList<DSPMode> modes = full.dspModeList();
+    modes[m40] = USB;
+    full.setDspModeList(modes);
+
+    QJsonObject fullJson;
+    full.save(fullJson);
+    QCOMPARE(fullJson["nr"].toInt(), 2);
+    QCOMPARE(fullJson["anf"].toBool(), true);
+    QCOMPARE(fullJson["filterLo"].toDouble(), -2400.0);
+    QCOMPARE(fullJson["lastCenterFrequencyList"].toArray().size(), ReceiverConfig::kBandCount);
+
+    ReceiverConfig loaded(4);
+    loaded.load(fullJson);
+    QCOMPARE(loaded.nr(), 2);
+    QCOMPARE(loaded.anf(), true);
+    QCOMPARE(loaded.snb(), true);
+    QCOMPARE(loaded.nbMode(), 1);
+    QCOMPARE(loaded.fftSize(), 4);
+    QCOMPARE(loaded.panAvMode(), AV_MODE_TIME_WINDOW);
+    QCOMPARE(loaded.panDetMode(), DET_MODE_AVERAGE);
+    QCOMPARE(loaded.audioVolume(), 0.42f);
+    QCOMPARE(loaded.filterLo(), -2400.0);
+    QCOMPARE(loaded.filterHi(), -200.0);
+    QCOMPARE(loaded.agcGain(), 80.0);
+    QCOMPARE(loaded.framesPerSecond(), 30);
+    QCOMPARE(loaded.cwDecode(), true);
+    QCOMPARE(loaded.lastCenterFrequencyList().at(m40), static_cast<qint64>(7150000));
+    QCOMPARE(loaded.mercuryAttenuators().at(m40), 2);
+    QCOMPARE(loaded.dspModeList().at(m40), USB);
+
+    TReceiver rxFull{};
+    loaded.applyTo(rxFull);
+    QCOMPARE(rxFull.nr, 2);
+    QCOMPARE(rxFull.anf, true);
+    QCOMPARE(rxFull.filterLo, -2400.0);
+    QCOMPARE(rxFull.lastCenterFrequencyList.at(m40), static_cast<qint64>(7150000));
+    QCOMPARE(rxFull.mercuryAttenuators.at(m40), 2);
+    QCOMPARE(rxFull.dspModeList.at(m40), USB);
 }
 
 void ConfigJsonTests::testNetworkConfigJson() {
@@ -223,6 +286,22 @@ void ConfigJsonTests::testNetworkConfigJson() {
     QCOMPARE(config2.audioPort(), static_cast<quint16>(16000));
     QCOMPARE(config2.metisPort(), static_cast<quint16>(2048));
     QCOMPARE(config2.socketBufferSize(), 64);
+
+    TSDRDevice last;
+    last.deviceClass = DeviceClass_HPSDR;
+    last.deviceType = QStringLiteral("Hermes");
+    last.serialNumber = QStringLiteral("aa:bb:cc");
+    last.label = QStringLiteral("Hermes-1");
+    config.setLastDevice(last);
+    QJsonObject withDevice;
+    config.save(withDevice);
+    QCOMPARE(withDevice["lastDevice"].toObject()["type"].toString(), QStringLiteral("Hermes"));
+    NetworkConfig config3;
+    config3.load(withDevice);
+    QCOMPARE(config3.lastDevice().deviceClass, DeviceClass_HPSDR);
+    QCOMPARE(config3.lastDevice().deviceType, QStringLiteral("Hermes"));
+    QCOMPARE(config3.lastDevice().serialNumber, QStringLiteral("aa:bb:cc"));
+    QCOMPARE(config3.lastDevice().label, QStringLiteral("Hermes-1"));
 }
 
 void ConfigJsonTests::testAudioConfigJson() {
@@ -411,6 +490,23 @@ void ConfigJsonTests::testHardwareConfigJson() {
     QCOMPARE(config2.devices().alexPresence, true);
     QCOMPARE(config2.devices().hermesPresence, true);
     QCOMPARE(config2.devices().metisPresence, true);
+
+    config.setReceiverCount(4);
+    config.setHwInterface(2);
+    config.setDither(true);
+    config.setRandom(true);
+    QJsonObject json2;
+    config.save(json2);
+    QCOMPARE(json2["receiverCount"].toInt(), 4);
+    QCOMPARE(json2["interface"].toInt(), 2);
+    QCOMPARE(json2["dither"].toBool(), true);
+    QCOMPARE(json2["random"].toBool(), true);
+    HardwareConfig config3;
+    config3.load(json2);
+    QCOMPARE(config3.receiverCount(), 4);
+    QCOMPARE(config3.hwInterface(), 2);
+    QCOMPARE(config3.dither(), true);
+    QCOMPARE(config3.random(), true);
 }
 
 void ConfigJsonTests::testAlexConfigJson() {
@@ -668,6 +764,67 @@ void ConfigJsonTests::testSoapyConfigJson() {
     QCOMPARE(loaded.iqBalance(), false);
 }
 
+void ConfigJsonTests::testWidebandConfigJson() {
+    WidebandConfig config;
+    QCOMPARE(config.dataEnabled(), true);
+    QCOMPARE(config.displayEnabled(), false);
+
+    config.setDataEnabled(true);
+    config.setDisplayEnabled(true);
+    config.setAveraging(false);
+    config.setAveragingCnt(12);
+    config.setdBmScaleMin(-130);
+    config.setdBmScaleMax(-20);
+    config.setPanMode(FilledLine);
+
+    QJsonObject json;
+    config.save(json);
+    QCOMPARE(json["data"].toBool(), true);
+    QCOMPARE(json["display"].toBool(), true);
+    QCOMPARE(json["averaging"].toBool(), false);
+    QCOMPARE(json["averagingCnt"].toInt(), 12);
+    QCOMPARE(json["dBmScaleMin"].toDouble(), -130.0);
+    QCOMPARE(json["dBmScaleMax"].toDouble(), -20.0);
+    QCOMPARE(json["panMode"].toInt(), static_cast<int>(FilledLine));
+
+    WidebandConfig loaded;
+    loaded.load(json);
+    QCOMPARE(loaded.dataEnabled(), true);
+    QCOMPARE(loaded.displayEnabled(), true);
+    QCOMPARE(loaded.averaging(), false);
+    QCOMPARE(loaded.averagingCnt(), 12);
+    QCOMPARE(loaded.dBmScaleMin(), -130.0);
+    QCOMPARE(loaded.dBmScaleMax(), -20.0);
+    QCOMPARE(loaded.panMode(), FilledLine);
+}
+
+void ConfigJsonTests::testPennyConfigJson() {
+    PennyConfig config;
+    QCOMPARE(config.ocEnabled(), false);
+    QCOMPARE(config.rxJ6().size(), PennyConfig::kPinCount);
+
+    QList<int> rx = config.rxJ6();
+    QList<int> tx = config.txJ6();
+    rx[m40] = 5;
+    tx[m20] = 7;
+    config.setOcEnabled(true);
+    config.setRxJ6(rx);
+    config.setTxJ6(tx);
+
+    QJsonObject json;
+    config.save(json);
+    QCOMPARE(json["ocEnabled"].toBool(), true);
+    QCOMPARE(json["rxJ6"].toArray().size(), PennyConfig::kPinCount);
+    QCOMPARE(json["rxJ6"].toArray().at(m40).toInt(), 5);
+    QCOMPARE(json["txJ6"].toArray().at(m20).toInt(), 7);
+
+    PennyConfig loaded;
+    loaded.load(json);
+    QCOMPARE(loaded.ocEnabled(), true);
+    QCOMPARE(loaded.rxJ6().at(m40), 5);
+    QCOMPARE(loaded.txJ6().at(m20), 7);
+}
+
 void ConfigJsonTests::testSettingsFullJsonRoundtrip() {
     Settings::delete_instance();
     Settings* settings = Settings::instance();
@@ -687,9 +844,20 @@ void ConfigJsonTests::testSettingsFullJsonRoundtrip() {
     settings->setTciRxGain(1.25f);
     settings->setSoapyRxAntenna(QStringLiteral("RX2"));
     settings->setSoapyLnaGain(22);
+    settings->setSampleRate(96000);
+    settings->setDither(1);
+    settings->setRandom(1);
+    settings->setReceivers(2);
+    settings->setPennyOCEnabled(true);
+    settings->setRxJ6Pin(m40, 5);
+    settings->setWidebandData(true);
+    settings->setWidebandStatus(true);
+    settings->setWidebanddBmScaleMin(-130.0);
+    settings->setAnf(0, true);
+    settings->setdBmPanScaleMin(0, -95.5);
 
     const QJsonObject json = settings->toJson();
-    QCOMPARE(json["schemaVersion"].toInt(), 1);
+    QCOMPARE(json["schemaVersion"].toInt(), kSettingsJsonSchemaVersion);
     QCOMPARE(json["callsign"].toString(), QStringLiteral("ZL2BRG"));
     QCOMPARE(json["network"].toObject()["serverAddress"].toString(), QStringLiteral("192.168.1.100"));
     QCOMPARE(json["network"].toObject()["serverPort"].toInt(), 50000);
@@ -698,6 +866,13 @@ void ConfigJsonTests::testSettingsFullJsonRoundtrip() {
     QCOMPARE(json["cw"].toObject()["keyerSpeed"].toInt(), 26);
     QCOMPARE(json["transmit"].toObject()["audioCompression"].toInt(), 4);
     QCOMPARE(json["freedv"].toObject()["defaultMode"].toInt(), 2);
+    QCOMPARE(json["server"].toObject()["sampleRate"].toInt(), 96000);
+    QCOMPARE(json["hardware"].toObject()["dither"].toBool(), true);
+    QCOMPARE(json["hardware"].toObject()["receiverCount"].toInt(), 2);
+    QCOMPARE(json["penny"].toObject()["ocEnabled"].toBool(), true);
+    QCOMPARE(json["penny"].toObject()["rxJ6"].toArray().at(m40).toInt(), 5);
+    QCOMPARE(json["wideband"].toObject()["dBmScaleMin"].toDouble(), -130.0);
+    QCOMPARE(json["receivers"].toArray().at(0).toObject()["anf"].toBool(), true);
 
     // Reset settings and reload from JSON
     Settings::delete_instance();
@@ -731,6 +906,15 @@ void ConfigJsonTests::testSettingsFullJsonRoundtrip() {
     QCOMPARE(settings2->getSoapyRxAntenna(), settings2->soapyConfig()->rxAntenna());
     QCOMPARE(settings2->getSoapyLnaGain(), 22);
     QCOMPARE(settings2->getSoapyLnaGain(), settings2->soapyConfig()->lnaGain());
+    QCOMPARE(settings2->getSampleRate(), 96000);
+    QCOMPARE(settings2->getMercuryDither(), 1);
+    QCOMPARE(settings2->getMercuryRandom(), 1);
+    QCOMPARE(settings2->getNumberOfReceivers(), 2);
+    QCOMPARE(settings2->getPennyOCEnabled(), true);
+    QCOMPARE(settings2->getRxJ6Pins().at(m40), 5);
+    QCOMPARE(settings2->getWidebandData(), true);
+    QCOMPARE(settings2->getWidebanddBmScaleMin(), -130.0);
+    QCOMPARE(settings2->getReceiverDataList().at(0).anf, true);
 
     Settings::delete_instance();
 }

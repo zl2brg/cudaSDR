@@ -62,6 +62,16 @@ void NetworkConfig::setSocketBufferSize(int size) {
     }
 }
 
+void NetworkConfig::setLastDevice(const TSDRDevice &device) {
+    if (m_lastDevice.deviceClass == device.deviceClass
+        && m_lastDevice.deviceType == device.deviceType
+        && m_lastDevice.serialNumber == device.serialNumber
+        && m_lastDevice.label == device.label)
+        return;
+    m_lastDevice = device;
+    emit lastDeviceChanged();
+}
+
 void NetworkConfig::load(const QJsonObject &json) {
     if (json.contains("serverAddress")) setServerAddress(json["serverAddress"].toString());
     if (json.contains("localAddress")) setLocalAddress(json["localAddress"].toString());
@@ -70,6 +80,15 @@ void NetworkConfig::load(const QJsonObject &json) {
     if (json.contains("audioPort")) setAudioPort(static_cast<quint16>(json["audioPort"].toInt()));
     if (json.contains("metisPort")) setMetisPort(static_cast<quint16>(json["metisPort"].toInt()));
     if (json.contains("socketBufferSize")) setSocketBufferSize(json["socketBufferSize"].toInt());
+    if (json.contains("lastDevice") && json["lastDevice"].isObject()) {
+        const QJsonObject d = json["lastDevice"].toObject();
+        TSDRDevice device;
+        device.deviceClass = static_cast<DeviceClass>(d.value(QLatin1String("class")).toInt());
+        device.deviceType = d.value(QLatin1String("type")).toString();
+        device.serialNumber = d.value(QLatin1String("serial")).toString();
+        device.label = d.value(QLatin1String("label")).toString();
+        setLastDevice(device);
+    }
 }
 
 void NetworkConfig::save(QJsonObject &json) const {
@@ -80,6 +99,12 @@ void NetworkConfig::save(QJsonObject &json) const {
     json["audioPort"] = m_audioPort;
     json["metisPort"] = m_metisPort;
     json["socketBufferSize"] = m_socketBufferSize;
+    QJsonObject lastDevice;
+    lastDevice[QLatin1String("class")] = static_cast<int>(m_lastDevice.deviceClass);
+    lastDevice[QLatin1String("type")] = m_lastDevice.deviceType;
+    lastDevice[QLatin1String("serial")] = m_lastDevice.serialNumber;
+    lastDevice[QLatin1String("label")] = m_lastDevice.label;
+    json["lastDevice"] = lastDevice;
 }
 
 void NetworkConfig::loadIni(QSettings *settings) {

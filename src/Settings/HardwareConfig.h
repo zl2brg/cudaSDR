@@ -54,6 +54,19 @@ public:
     int rxTiming() const { return m_rxTiming; }
     void setRxTiming(int val);
 
+    int receiverCount() const { return m_receiverCount; }
+    void setReceiverCount(int count);
+
+    /** QSDR::_HWInterfaceMode as int (NoInterfaceMode=0, Metis=1, Hermes=2, SoapySDR=3). */
+    int hwInterface() const { return m_hwInterface; }
+    void setHwInterface(int mode);
+
+    bool dither() const { return m_dither; }
+    void setDither(bool enabled);
+
+    bool random() const { return m_random; }
+    void setRandom(bool enabled);
+
     THPSDRDevices devices() const { return m_devices; }
     void setDevices(const THPSDRDevices &devices);
 
@@ -70,6 +83,10 @@ signals:
     void source122_88MhzChanged(int source);
     void rxClassChanged(int val);
     void rxTimingChanged(int val);
+    void receiverCountChanged(int count);
+    void hwInterfaceChanged(int mode);
+    void ditherChanged(bool enabled);
+    void randomChanged(bool enabled);
     void devicesChanged();
 
 private:
@@ -79,6 +96,10 @@ private:
     int m_122_88MhzSource;
     int m_rxClass;
     int m_rxTiming;
+    int m_receiverCount;
+    int m_hwInterface;
+    bool m_dither;
+    bool m_random;
     THPSDRDevices m_devices;
 };
 

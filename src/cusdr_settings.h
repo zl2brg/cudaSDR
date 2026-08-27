@@ -62,6 +62,8 @@
 #include "Settings/WindowConfig.h"
 #include "Settings/TciConfig.h"
 #include "Settings/SoapyConfig.h"
+#include "Settings/WidebandConfig.h"
+#include "Settings/PennyConfig.h"
 #include "Util/cusdr_queue.h"
 #include "Util/display_utils.h"
 
@@ -516,19 +518,19 @@ typedef struct _receiver {
 
 typedef struct _wideband {
 
-	PanGraphicsMode	panMode;
+	PanGraphicsMode	panMode = Line;
 
-	bool	wideBandData;
-	bool	wideBandDisplayStatus;
-	bool	averaging;
+	bool	wideBandData = true;
+	bool	wideBandDisplayStatus = false;
+	bool	averaging = true;
 
-	int	numberOfBuffers;
-	int	averagingCnt;
+	int	numberOfBuffers = 0;
+	int	averagingCnt = 5;
 
-	float	scalePosition;
+	float	scalePosition = 0.0f;
 
-	qreal	dBmWBScaleMin;
-	qreal	dBmWBScaleMax;
+	qreal	dBmWBScaleMin = -140.0;
+	qreal	dBmWBScaleMax = -10.0;
 
 } TWideband;
 
@@ -660,6 +662,8 @@ public:
     WindowConfig *windowConfig() const { return m_windowConfig; }
     TciConfig *tciConfig() const { return m_tciConfig; }
     SoapyConfig *soapyConfig() const { return m_soapyConfig; }
+    WidebandConfig *widebandConfig() const { return m_widebandConfig; }
+    PennyConfig *pennyConfig() const { return m_pennyConfig; }
     QList<ReceiverConfig*> receiverConfigs() const { return m_receiverConfigs; }
 
 	virtual ~Settings() override;
@@ -686,6 +690,8 @@ private:
     WindowConfig        *m_windowConfig;
     TciConfig           *m_tciConfig;
     SoapyConfig         *m_soapyConfig;
+    WidebandConfig      *m_widebandConfig;
+    PennyConfig         *m_pennyConfig;
     QList<ReceiverConfig*> m_receiverConfigs;
 
 signals:
@@ -943,6 +949,8 @@ public:
     void	debugSystemState();
 	int 	loadSettings();
 	int 	saveSettings();
+	/** Prefer settings.json; migrate from the INI sibling when JSON is missing or unreadable. */
+	int 	loadPersistentSettings();
     QJsonObject toJson() const;
     bool fromJson(const QJsonObject &root);
     bool saveJson(const QString &filePath = QString()) const;

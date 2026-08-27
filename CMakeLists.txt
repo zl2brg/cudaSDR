@@ -236,6 +236,8 @@ set(SOURCES
     ${SRC_DIR}/Settings/WindowConfig.cpp
     ${SRC_DIR}/Settings/TciConfig.cpp
     ${SRC_DIR}/Settings/SoapyConfig.cpp
+    ${SRC_DIR}/Settings/WidebandConfig.cpp
+    ${SRC_DIR}/Settings/PennyConfig.cpp
     ${SRC_DIR}/UI/MainWindow/MainWindowUI.cpp
     ${SRC_DIR}/GL/WaterfallRenderer.cpp
     ${SRC_DIR}/GL/PanadapterRenderer.cpp
@@ -324,6 +326,8 @@ set(HEADERS
     ${SRC_DIR}/Settings/WindowConfig.h
     ${SRC_DIR}/Settings/TciConfig.h
     ${SRC_DIR}/Settings/SoapyConfig.h
+    ${SRC_DIR}/Settings/WidebandConfig.h
+    ${SRC_DIR}/Settings/PennyConfig.h
     ${SRC_DIR}/UI/MainWindow/MainWindowUI.h
     ${SRC_DIR}/GL/WaterfallRenderer.h
     ${SRC_DIR}/GL/PanadapterRenderer.h
@@ -482,6 +486,8 @@ if(BUILD_TESTING)
         ${SRC_DIR}/Settings/WindowConfig.cpp
         ${SRC_DIR}/Settings/TciConfig.cpp
         ${SRC_DIR}/Settings/SoapyConfig.cpp
+        ${SRC_DIR}/Settings/WidebandConfig.cpp
+        ${SRC_DIR}/Settings/PennyConfig.cpp
         ${SRC_DIR}/Models/RadioModel.cpp
         ${SRC_DIR}/Models/SliceModel.cpp
         ${SRC_DIR}/Models/TransmitModel.cpp

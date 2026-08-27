@@ -84,6 +84,10 @@ private slots:
     void loadAndSaveAllConfigModules();
     void savePersistsDBmPanScaleWithSliceModel();
     void saveDoesNotWriteConflictingDuplicateIniKeys();
+    void loadPersistentSettingsMigratesIniToJson();
+    void loadPersistentSettingsPrefersJsonOverIni();
+    void loadPersistentSettingsFallsBackFromCorruptJson();
+    void saveSettingsWritesJsonSibling();
 
 private:
     QTemporaryDir m_tempDir;
@@ -106,6 +110,7 @@ void SettingsPersistenceTests::init()
     Settings::delete_instance();
     m_settings = Settings::instance();
     m_settings->reopenSettingsStorage(m_iniPath);
+    QFile::remove(m_settings->defaultJsonConfigPath());
 }
 
 void SettingsPersistenceTests::cleanup()
@@ -459,6 +464,72 @@ void SettingsPersistenceTests::saveDoesNotWriteConflictingDuplicateIniKeys()
             assertNoConflictingValues(modules[i].second, modules[i].first,
                                       modules[j].second, modules[j].first);
     }
+}
+
+void SettingsPersistenceTests::loadPersistentSettingsMigratesIniToJson()
+{
+    writeSeedIni(QStringLiteral("MIGRATE1"));
+    const QString jsonPath = m_settings->defaultJsonConfigPath();
+    QVERIFY(!QFile::exists(jsonPath));
+
+    QVERIFY(m_settings->loadPersistentSettings() >= 0);
+    QCOMPARE(m_settings->getCallsign(), QStringLiteral("MIGRATE1"));
+    QVERIFY(QFile::exists(jsonPath));
+
+    Settings::delete_instance();
+    m_settings = Settings::instance();
+    m_settings->reopenSettingsStorage(m_iniPath);
+    QVERIFY(m_settings->loadJson(jsonPath));
+    QCOMPARE(m_settings->getCallsign(), QStringLiteral("MIGRATE1"));
+}
+
+void SettingsPersistenceTests::loadPersistentSettingsPrefersJsonOverIni()
+{
+    writeSeedIni(QStringLiteral("FROMINI"));
+    QVERIFY(m_settings->loadSettings() >= 0);
+    m_settings->setCallsign(QStringLiteral("FROMJSON"));
+    QVERIFY(m_settings->saveJson());
+
+    writeSeedIni(QStringLiteral("FROMINI"));
+    Settings::delete_instance();
+    m_settings = Settings::instance();
+    m_settings->reopenSettingsStorage(m_iniPath);
+
+    QVERIFY(m_settings->loadPersistentSettings() >= 0);
+    QCOMPARE(m_settings->getCallsign(), QStringLiteral("FROMJSON"));
+}
+
+void SettingsPersistenceTests::loadPersistentSettingsFallsBackFromCorruptJson()
+{
+    writeSeedIni(QStringLiteral("INIFALLBACK"));
+    const QString jsonPath = m_settings->defaultJsonConfigPath();
+    {
+        QFile bad(jsonPath);
+        QVERIFY(bad.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text));
+        bad.write("{ not valid json");
+    }
+
+    QVERIFY(m_settings->loadPersistentSettings() >= 0);
+    QCOMPARE(m_settings->getCallsign(), QStringLiteral("INIFALLBACK"));
+    QVERIFY(m_settings->loadJson(jsonPath));
+    QCOMPARE(m_settings->getCallsign(), QStringLiteral("INIFALLBACK"));
+}
+
+void SettingsPersistenceTests::saveSettingsWritesJsonSibling()
+{
+    QVERIFY(m_settings->loadSettings() >= 0);
+    m_settings->setCallsign(QStringLiteral("DUALWRITE"));
+    QVERIFY(m_settings->saveSettings() >= 0);
+
+    const QString jsonPath = m_settings->defaultJsonConfigPath();
+    QVERIFY(QFile::exists(jsonPath));
+    QVERIFY(QFile::exists(m_iniPath));
+
+    Settings::delete_instance();
+    m_settings = Settings::instance();
+    m_settings->reopenSettingsStorage(m_iniPath);
+    QVERIFY(m_settings->loadJson(jsonPath));
+    QCOMPARE(m_settings->getCallsign(), QStringLiteral("DUALWRITE"));
 }
 
 QTEST_MAIN(SettingsPersistenceTests)

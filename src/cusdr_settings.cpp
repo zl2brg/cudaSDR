@@ -65,6 +65,8 @@ Settings::Settings(QObject *parent)
     m_windowConfig = new WindowConfig(this);
     m_tciConfig = new TciConfig(this);
     m_soapyConfig = new SoapyConfig(this);
+    m_widebandConfig = new WidebandConfig(this);
+    m_pennyConfig = new PennyConfig(this);
 
     connect(m_displayConfig, &DisplayConfig::spectrumSizeChanged, this, &Settings::spectrumSizeChanged);
     connect(m_displayConfig, &DisplayConfig::sMeterHoldTimeChanged, this, &Settings::sMeterHoldTimeChanged);
@@ -1755,6 +1757,10 @@ int Settings::saveSettings() {
 
     settings->sync();
     SETTINGS_DEBUG << "save settings done.";
+
+    // Dual-write JSON so the next launch can prefer it. Keep the INI as rollback.
+    if (!saveJson())
+        qWarning() << "Failed to write JSON config:" << defaultJsonConfigPath();
     return 0;
 }
 
@@ -1766,6 +1772,27 @@ void Settings::reopenSettingsStorage(const QString &absoluteIniPath)
     }
     settingsFilename = QFileInfo(absoluteIniPath).fileName();
     settings = new QSettings(absoluteIniPath, QSettings::IniFormat);
+}
+
+int Settings::loadPersistentSettings()
+{
+    const QString jsonPath = defaultJsonConfigPath();
+    if (QFileInfo::exists(jsonPath)) {
+        if (loadJson(jsonPath)) {
+            SETTINGS_DEBUG << "loaded JSON config" << jsonPath;
+            return 0;
+        }
+        qWarning() << "Failed to load JSON config, falling back to INI:" << jsonPath;
+    }
+
+    const int rc = loadSettings();
+    if (rc >= 0) {
+        if (!saveJson(jsonPath))
+            qWarning() << "Failed to migrate settings to JSON:" << jsonPath;
+        else
+            SETTINGS_DEBUG << "migrated INI settings to" << jsonPath;
+    }
+    return rc;
 }
 
 QString Settings::defaultJsonConfigPath() const
@@ -1783,7 +1810,7 @@ QJsonObject Settings::toJson() const
     const_cast<Settings*>(this)->syncSettingsWithTransmit();
 
     QJsonObject root;
-    root["schemaVersion"] = 1;
+    root["schemaVersion"] = kSettingsJsonSchemaVersion;
     root["generator"] = const_cast<Settings*>(this)->getTitleStr();
     root["version"] = const_cast<Settings*>(this)->getVersionStr();
     root["saved"] = QDateTime::currentDateTime().toString(Qt::ISODate);
@@ -1795,10 +1822,18 @@ QJsonObject Settings::toJson() const
     root["window"] = windowObj;
 
     // Sub-configs
+    m_networkConfig->setLastDevice(m_lastConnectedDevice);
     QJsonObject netObj;
     m_networkConfig->save(netObj);
     root["network"] = netObj;
 
+    m_hardwareConfig->setHpsdrHardware(m_hpsdrHardware.load());
+    m_hardwareConfig->setDevices(m_devices);
+    m_hardwareConfig->setCheckFirmwareVersions(m_checkFirmwareVersions.load());
+    m_hardwareConfig->setReceiverCount(m_mercuryReceivers.load());
+    m_hardwareConfig->setHwInterface(static_cast<int>(m_hwInterface.load()));
+    m_hardwareConfig->setDither(m_mercuryDither.load() != 0);
+    m_hardwareConfig->setRandom(m_mercuryRandom.load() != 0);
     QJsonObject hwObj;
     m_hardwareConfig->save(hwObj);
     root["hardware"] = hwObj;
@@ -1848,9 +1883,31 @@ QJsonObject Settings::toJson() const
     QJsonObject serverObj;
     serverObj["class"] = m_RxClass.load();
     serverObj["timing"] = m_RxTiming.load();
+    serverObj["sampleRate"] = m_sampleRate.load();
+    serverObj["mode"] = (m_serverMode.load() == QSDR::SDRMode)
+                            ? QStringLiteral("sdr")
+                            : QStringLiteral("none");
     serverObj["repeaterOffset"] = m_transmitConfig->repeaterOffset();
     serverObj["txFullDuplex"] = m_transmitConfig->txFullDuplex();
     root["server"] = serverObj;
+
+    m_pennyConfig->setOcEnabled(m_pennyOCEnabled.load());
+    m_pennyConfig->setRxJ6(m_rxJ6pinList);
+    m_pennyConfig->setTxJ6(m_txJ6pinList);
+    QJsonObject pennyObj;
+    m_pennyConfig->save(pennyObj);
+    root["penny"] = pennyObj;
+
+    m_widebandConfig->setDataEnabled(m_widebandOptions.wideBandData);
+    m_widebandConfig->setDisplayEnabled(m_widebandOptions.wideBandDisplayStatus);
+    m_widebandConfig->setAveraging(m_widebandOptions.averaging);
+    m_widebandConfig->setAveragingCnt(m_widebandOptions.averagingCnt);
+    m_widebandConfig->setdBmScaleMin(m_widebandOptions.dBmWBScaleMin);
+    m_widebandConfig->setdBmScaleMax(m_widebandOptions.dBmWBScaleMax);
+    m_widebandConfig->setPanMode(m_widebandOptions.panMode);
+    QJsonObject widebandObj;
+    m_widebandConfig->save(widebandObj);
+    root["wideband"] = widebandObj;
 
     return root;
 }
@@ -1875,13 +1932,32 @@ bool Settings::fromJson(const QJsonObject &root)
 
     if (root.contains("network") && root["network"].isObject()) {
         m_networkConfig->load(root["network"].toObject());
+        m_lastConnectedDevice = m_networkConfig->lastDevice();
     }
 
     if (root.contains("hardware") && root["hardware"].isObject()) {
-        m_hardwareConfig->load(root["hardware"].toObject());
+        const QJsonObject hwObj = root["hardware"].toObject();
+        m_hardwareConfig->load(hwObj);
         m_hpsdrHardware.store(m_hardwareConfig->hpsdrHardware());
         m_devices = m_hardwareConfig->devices();
         m_checkFirmwareVersions.store(m_hardwareConfig->checkFirmwareVersions());
+        if (hwObj.contains(QLatin1String("receiverCount")))
+            setReceivers(m_hardwareConfig->receiverCount());
+        if (hwObj.contains(QLatin1String("dither")))
+            setDither(m_hardwareConfig->dither() ? 1 : 0);
+        if (hwObj.contains(QLatin1String("random")))
+            setRandom(m_hardwareConfig->random() ? 1 : 0);
+        if (hwObj.contains(QLatin1String("interface"))) {
+            m_hwInterface = static_cast<QSDR::_HWInterfaceMode>(m_hardwareConfig->hwInterface());
+        } else {
+            // v1 documents derived the interface from hpsdrHardware.
+            if (m_hpsdrHardware.load() == 1)
+                m_hwInterface = QSDR::Hermes;
+            else if (m_hpsdrHardware.load() == 2)
+                m_hwInterface = QSDR::SoapySDR;
+            else
+                m_hwInterface = QSDR::Metis;
+        }
     }
 
     if (root.contains("audio") && root["audio"].isObject()) {
@@ -1914,6 +1990,16 @@ bool Settings::fromJson(const QJsonObject &root)
             if (rxArray[i].isObject()) {
                 m_receiverConfigs[i]->load(rxArray[i].toObject());
                 m_receiverConfigs[i]->applyTo(m_receiverDataList[i]);
+                if (m_receiverDataList[i].filterLo >= m_receiverDataList[i].filterHi) {
+                    const HamBand band = getBandFromFrequency(m_bandList, m_receiverDataList[i].ctrFrequency);
+                    const DSPMode mode = (band >= 0 && band < m_receiverDataList[i].dspModeList.size())
+                                             ? m_receiverDataList[i].dspModeList[band]
+                                             : (DSPMode) LSB;
+                    const auto filter = getFilterFromDSPMode(m_defaultFilterList,
+                                                             resolveWDSPMode(mode, m_receiverDataList[i].ctrFrequency));
+                    m_receiverDataList[i].filterLo = filter.filterLo;
+                    m_receiverDataList[i].filterHi = filter.filterHi;
+                }
             }
         }
     }
@@ -1932,10 +2018,37 @@ bool Settings::fromJson(const QJsonObject &root)
             m_RxClass.store(serverObj["class"].toInt());
         if (serverObj.contains("timing"))
             m_RxTiming.store(serverObj["timing"].toInt());
+        if (serverObj.contains("sampleRate"))
+            setSampleRate(serverObj["sampleRate"].toInt());
+        if (serverObj.contains("mode")) {
+            m_serverMode = (serverObj["mode"].toString() == QLatin1String("sdr"))
+                               ? QSDR::SDRMode
+                               : QSDR::NoServerMode;
+        }
         if (serverObj.contains("repeaterOffset"))
             m_transmitConfig->setRepeaterOffset(serverObj["repeaterOffset"].toDouble());
         if (serverObj.contains("txFullDuplex"))
             m_transmitConfig->setTxFullDuplex(serverObj["txFullDuplex"].toBool());
+    }
+
+    if (root.contains("penny") && root["penny"].isObject()) {
+        m_pennyConfig->load(root["penny"].toObject());
+        setPennyOCEnabled(m_pennyConfig->ocEnabled());
+        setRxJ6Pins(m_pennyConfig->rxJ6());
+        setTxJ6Pins(m_pennyConfig->txJ6());
+    }
+
+    if (root.contains("wideband") && root["wideband"].isObject()) {
+        m_widebandConfig->load(root["wideband"].toObject());
+        TWideband wb = m_widebandOptions;
+        wb.wideBandData = m_widebandConfig->dataEnabled();
+        wb.wideBandDisplayStatus = m_widebandConfig->displayEnabled();
+        wb.averaging = m_widebandConfig->averaging();
+        wb.averagingCnt = m_widebandConfig->averagingCnt();
+        wb.dBmWBScaleMin = m_widebandConfig->dBmScaleMin();
+        wb.dBmWBScaleMax = m_widebandConfig->dBmScaleMax();
+        wb.panMode = m_widebandConfig->panMode();
+        setWidebandOptions(wb);
     }
 
     // Hydrate active models if present

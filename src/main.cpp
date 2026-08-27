@@ -260,7 +260,7 @@ int main(int argc, char *argv[]) {
     Settings::instance()->setSettingsFilename(QCoreApplication::applicationDirPath() +
                                               "/" + Settings::instance()->getSettingsFilename());
 
-    Settings::instance()->setSettingsLoaded(Settings::instance()->loadSettings() >= 0);
+    Settings::instance()->setSettingsLoaded(Settings::instance()->loadPersistentSettings() >= 0);
 
     if (Settings::instance()->getSettingsLoaded()) {
         splash->showMessage(

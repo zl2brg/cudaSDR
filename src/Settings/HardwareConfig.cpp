@@ -9,6 +9,10 @@ HardwareConfig::HardwareConfig(QObject *parent)
     , m_122_88MhzSource(1) // mercury
     , m_rxClass(0)
     , m_rxTiming(0)
+    , m_receiverCount(1)
+    , m_hwInterface(0)
+    , m_dither(false)
+    , m_random(false)
 {
     m_devices.mercuryPresence = true;
     m_devices.penelopePresence = false;
@@ -68,6 +72,40 @@ void HardwareConfig::setRxTiming(int val) {
     }
 }
 
+void HardwareConfig::setReceiverCount(int count) {
+    if (count < 1)
+        count = 1;
+    if (count > 8)
+        count = 8;
+    if (m_receiverCount != count) {
+        m_receiverCount = count;
+        emit receiverCountChanged(m_receiverCount);
+    }
+}
+
+void HardwareConfig::setHwInterface(int mode) {
+    if (mode < 0 || mode > 3)
+        mode = 0;
+    if (m_hwInterface != mode) {
+        m_hwInterface = mode;
+        emit hwInterfaceChanged(m_hwInterface);
+    }
+}
+
+void HardwareConfig::setDither(bool enabled) {
+    if (m_dither != enabled) {
+        m_dither = enabled;
+        emit ditherChanged(m_dither);
+    }
+}
+
+void HardwareConfig::setRandom(bool enabled) {
+    if (m_random != enabled) {
+        m_random = enabled;
+        emit randomChanged(m_random);
+    }
+}
+
 void HardwareConfig::setDevices(const THPSDRDevices &devices) {
     m_devices = devices;
     emit devicesChanged();
@@ -80,6 +118,10 @@ void HardwareConfig::load(const QJsonObject &json) {
     if (json.contains("source122_88Mhz")) m_122_88MhzSource = json["source122_88Mhz"].toInt();
     if (json.contains("rxClass")) m_rxClass = json["rxClass"].toInt();
     if (json.contains("rxTiming")) m_rxTiming = json["rxTiming"].toInt();
+    if (json.contains("receiverCount")) setReceiverCount(json["receiverCount"].toInt());
+    if (json.contains("interface")) setHwInterface(json["interface"].toInt());
+    if (json.contains("dither")) setDither(json["dither"].toBool());
+    if (json.contains("random")) setRandom(json["random"].toBool());
 
     if (json.contains("devices")) {
         QJsonObject d = json["devices"].toObject();
@@ -100,6 +142,10 @@ void HardwareConfig::save(QJsonObject &json) const {
     json["source122_88Mhz"] = m_122_88MhzSource;
     json["rxClass"] = m_rxClass;
     json["rxTiming"] = m_rxTiming;
+    json["receiverCount"] = m_receiverCount;
+    json["interface"] = m_hwInterface;
+    json["dither"] = m_dither;
+    json["random"] = m_random;
 
     QJsonObject d;
     d["mercuryPresence"] = m_devices.mercuryPresence;
