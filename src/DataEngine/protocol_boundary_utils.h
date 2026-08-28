@@ -31,6 +31,26 @@ inline uint32_t protocol1Sequence(const unsigned char* data) {
            (data[7] & 0xFFu);
 }
 
+/** True when a P1 discovery datagram is our own EF FE 02/03 probe echoed back
+ *  (zero MAC), not a radio. Localhost UDP broadcast can deliver this as a fake Metis. */
+inline bool isProtocol1DiscoveryProbeEcho(const unsigned char* data, int size) {
+    if (!data || size < 9)
+        return false;
+    if (data[0] != kProtocol1Sig0 || data[1] != kProtocol1Sig1)
+        return false;
+    if (data[2] != 0x02 && data[2] != 0x03)
+        return false;
+    return data[3] == 0 && data[4] == 0 && data[5] == 0
+        && data[6] == 0 && data[7] == 0 && data[8] == 0;
+}
+
+/** Protocol 1 C&C ADC select is 0/1. Single-ADC boards (Hermes) must stay on ADC0. */
+inline int protocol1ClampedAdcIndex(int adcIndex, int deviceAdcCount) {
+    if (deviceAdcCount <= 1)
+        return 0;
+    return (adcIndex <= 0) ? 0 : 1;
+}
+
 /** Standard Port Definitions */
 enum Ports : quint16 {
     DevicePort = 1024,

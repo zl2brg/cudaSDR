@@ -81,73 +81,64 @@ bool DataEngineLifecycle::findHPSDRDevices() {
 	m_engine->m_dataIO->networkIOMutex.lock();
 	DATA_ENGINE_DEBUG << "HPSDR network device detection...please wait.";
 	m_engine->set->setSystemMessage("HPSDR network device detection...please wait", 0);
-	m_engine->m_dataIO->devicefound.wait(&m_engine->m_dataIO->networkIOMutex);
-
+	m_engine->m_dataIO->devicefound.wait(&m_engine->m_dataIO->networkIOMutex, 3000);
 	m_engine->m_hpsdrDevices = m_engine->set->getHpsdrNetworkDevices();
-	if (m_engine->m_hpsdrDevices == 0) {
+	m_engine->m_dataIO->networkIOMutex.unlock();
 
-		m_engine->m_dataIO->networkIOMutex.unlock();
+	// Mutex must be released before Settings/UI work. setCurrentHPSDRDevice()
+	// emits on this thread; networkIOMutex is non-recursive.
+
+	if (m_engine->m_hpsdrDevices == 0) {
 		m_engine->stopDiscoverer();
 		DATA_ENGINE_DEBUG << "no device found. HPSDR hardware powered? Network connection established?";
 		m_engine->set->setSystemMessage("no device found. HPSDR hardware powered? Network connection established?", 10000);
 
 		m_engine->setSystemState(QSDR::HwIOError,	m_engine->m_hwInterface, m_engine->m_serverMode, QSDR::DataEngineDown);
-	}
-	else {
-
-		emit m_engine->clearSystemMessageEvent();
-
-		QList<TNetworkDevicecard> metisList = m_engine->set->getMetisCardsList();
-		DATA_ENGINE_DEBUG << "found " << metisList.count() << " network device(s)";
-
-		for (int i = 0; i < metisList.count(); i++) {
-
-			DATA_ENGINE_DEBUG 	<< "Device "
-								<< i << " @ "
-								<< qPrintable(metisList.at(i).ip_address.toString())
-								<< " [" << metisList.at(i).mac_address << "]";
-		}
-
-		// Multiple devices: keep the Network-panel selection if it is still present.
-		// Do NOT call showNetworkIODialog() here — that path re-enters discovery
-		// (searchDevices → searchHpsdrNetworkDevices) while networkIOMutex is held
-		// and deadlocks the UI thread on Start.
-		if (m_engine->m_hpsdrDevices > 1 && !metisList.isEmpty()) {
-			const TNetworkDevicecard current = m_engine->set->getCurrentMetisCard();
-			bool currentStillPresent = false;
-			for (const TNetworkDevicecard &card : metisList) {
-				if (QString::fromLatin1(card.mac_address) == QString::fromLatin1(current.mac_address)
-					&& !QString::fromLatin1(current.mac_address).isEmpty()) {
-					currentStillPresent = true;
-					break;
-				}
-			}
-			if (!currentStillPresent) {
-				m_engine->set->setCurrentHPSDRDevice(metisList.first());
-				DATA_ENGINE_DEBUG << "multiple devices; auto-selected "
-								  << qPrintable(metisList.first().ip_address.toString())
-								  << " [" << metisList.first().mac_address << "]";
-			} else {
-				DATA_ENGINE_DEBUG << "multiple devices; keeping selected "
-								  << qPrintable(current.ip_address.toString())
-								  << " [" << current.mac_address << "]";
-			}
-		}
-
-		m_engine->m_dataIO->hpsdrDeviceIPAddress = m_engine->set->getCurrentMetisCard().ip_address;
-		m_engine->hpsdrDeviceName = m_engine->set->getCurrentMetisCard().boardName;
-		DATA_ENGINE_DEBUG << "using HPSDR network device at " << qPrintable(m_engine->m_dataIO->hpsdrDeviceIPAddress.toString());
-
-		QThread::msleep(100);
-
-		// stop the discovery thread
-		m_engine->m_dataIO->networkIOMutex.unlock();
-		m_engine->stopDiscoverer();
-
-		if (m_engine->getFirmwareVersions()) return true;
 		return false;
 	}
 
+	emit m_engine->clearSystemMessageEvent();
+
+	QList<TNetworkDevicecard> metisList = m_engine->set->getMetisCardsList();
+	DATA_ENGINE_DEBUG << "found " << metisList.count() << " network device(s)";
+
+	for (int i = 0; i < metisList.count(); i++) {
+
+		DATA_ENGINE_DEBUG 	<< "Device "
+							<< i << " @ "
+							<< qPrintable(metisList.at(i).ip_address.toString())
+							<< " [" << metisList.at(i).mac_address << "]"
+							<< " protocol=" << metisList.at(i).protocol;
+	}
+
+	if (!metisList.isEmpty()) {
+		const TNetworkDevicecard current = m_engine->set->getCurrentMetisCard();
+		const QString currentMac = QString::fromLatin1(current.mac_address);
+		TNetworkDevicecard selected = metisList.first();
+		for (const TNetworkDevicecard &card : metisList) {
+			if (!currentMac.isEmpty()
+				&& QString::fromLatin1(card.mac_address) == currentMac
+				&& card.protocol == current.protocol) {
+				selected = card;
+				break;
+			}
+		}
+		m_engine->set->setCurrentHPSDRDevice(selected);
+		DATA_ENGINE_DEBUG << "using device "
+						  << qPrintable(selected.ip_address.toString())
+						  << " [" << selected.mac_address << "]"
+						  << " protocol=" << selected.protocol
+						  << " board=" << selected.boardName
+						  << " adcs=" << selected.adcs;
+	}
+
+	m_engine->m_dataIO->hpsdrDeviceIPAddress = m_engine->set->getCurrentMetisCard().ip_address;
+	m_engine->hpsdrDeviceName = m_engine->set->getCurrentMetisCard().boardName;
+	DATA_ENGINE_DEBUG << "using HPSDR network device at " << qPrintable(m_engine->m_dataIO->hpsdrDeviceIPAddress.toString());
+
+	m_engine->stopDiscoverer();
+
+	if (m_engine->getFirmwareVersions()) return true;
 	return false;
 }
 
@@ -339,6 +330,23 @@ bool DataEngineLifecycle::start() {
 		return false;
 	}
 
+	// Never write the DataIO QUdpSocket from the UI thread. P1 used to
+	// sendInitFrames/networkDeviceStartStop here after msleep(100); the
+	// same-host Hermes replies on that socket immediately, so UI
+	// writeDatagram raced DataIO readyRead and froze the GUI.
+	// Arm P1 start BEFORE startDataIO so initDataReceiverSocket() (runs on
+	// QThread::started, before exec) sends from the socket it just bound.
+	DataIO* dataIO = m_engine->m_dataIO;
+	const int rxCount = m_engine->receivers();
+	const bool isProtocol2 = m_engine->set->getCurrentMetisCard().protocol == 2;
+	if (dataIO && !isProtocol2) {
+		const char startByte = (m_engine->m_serverMode == QSDR::SDRMode && m_engine->set->getWidebandData())
+			? 0x03
+			: 0x01;
+		DATA_ENGINE_DEBUG << "[START] arming Protocol 1 networkDeviceStartStop(" << int(startByte) << ")";
+		dataIO->armProtocol1Start(rxCount, startByte);
+	}
+
 	// data IO thread
 	if (!m_engine->startDataIO(QThread::HighPriority)) {//  ::NormalPriority::HighPriority)) {
 
@@ -346,36 +354,12 @@ bool DataEngineLifecycle::start() {
 		return false;
 	}
 
-	// Give the DataIO thread time to run initDataReceiverSocket() and bind its
-	// UDP socket (m_dataIOSocket).  Without this delay, sendInitFramesToNetworkDevice()
-	// and networkDeviceStartStop() both check !m_dataIOSocket and silently return
-	// early, leaving the P1/P2 hardware without a start command.  This matches the
-	// same pattern used in getFirmwareVersions().
-	QThread::msleep(100);
-
-	// start Sync,ADC and S-Meter timers
-	//m_SyncChangedTime.start();
-	//m_ADCChangedTime.start();
-	//m_smeterTime.start();
-
-		// pre-conditioning
-	if (m_engine->m_dataIO) {
-		for (int i = 0; i < m_engine->receivers(); i++) {
-			m_engine->m_dataIO->sendInitFramesToNetworkDevice(i);
-		}
+	if (dataIO && isProtocol2) {
+		QMetaObject::invokeMethod(dataIO, [dataIO, rxCount]() {
+			for (int i = 0; i < rxCount; ++i)
+				dataIO->sendInitFramesToNetworkDevice(i);
+		}, Qt::QueuedConnection);
 	}
-
-    if (m_engine->m_serverMode == QSDR::SDRMode && m_engine->set->getWidebandData() && m_engine->m_dataIO) {
-			if (m_engine->set->getCurrentMetisCard().protocol != 2)
-				m_engine->m_dataIO->networkDeviceStartStop(0x03); // P1: start with wide band data
-			QThread::msleep(100);
-	    }
-    else if (m_engine->m_dataIO && m_engine->set->getCurrentMetisCard().protocol != 2) {
-            DATA_ENGINE_DEBUG << "[START] calling networkDeviceStartStop(0x01) protocol="
-                              << (m_engine->m_protocol ? "valid" : "NULL")
-                              << " hwInterface=" << m_engine->m_hwInterface;
-            m_engine->m_dataIO->networkDeviceStartStop(0x01); // 0x01 for starting the device without wide band data
-        }
 
 	// Protocol 2: do NOT use formatStartStop() as the first live HP packet.
 	// That datagram zeros DDC frequencies, and hpsdrsim gates IQ until
@@ -427,9 +411,16 @@ void DataEngineLifecycle::stop() {
 						Qt::BlockingQueuedConnection);
 				}
 
-				// stop the device
-				if (m_engine->m_dataIO)
+				// stop the device on the DataIO thread (same socket affinity as start)
+				if (m_engine->m_dataIO && m_engine->m_dataIOThread
+					&& m_engine->m_dataIOThread->isRunning()) {
+					DataIO* dataIO = m_engine->m_dataIO;
+					QMetaObject::invokeMethod(dataIO, [dataIO]() {
+						dataIO->networkDeviceStartStop(0);
+					}, Qt::BlockingQueuedConnection);
+				} else if (m_engine->m_dataIO) {
 					m_engine->m_dataIO->networkDeviceStartStop(0);
+				}
 				m_engine->m_networkDeviceRunning = false;
 				DATA_ENGINE_DEBUG << "HPSDR device stopped";
 
@@ -581,33 +572,15 @@ bool DataEngineLifecycle::initDataEngine() {
 	else {
 		
 		if (m_engine->findHPSDRDevices()) {
-		
-			if (m_engine->mercuryFW > 0 || m_engine->hermesFW > 0 || m_engine->metisFW > 0) {
+			DATA_ENGINE_DEBUG << "got firmware versions:";
+			DATA_ENGINE_DEBUG << "	Metis firmware:  " << m_engine->metisFW;
+			DATA_ENGINE_DEBUG << "	Mercury firmware:  " << m_engine->mercuryFW;
+			DATA_ENGINE_DEBUG << "	Penelope firmware:  " << m_engine->penelopeFW;
+			DATA_ENGINE_DEBUG << "	Pennylane firmware:  " << m_engine->pennylaneFW;
+			DATA_ENGINE_DEBUG << "	Hermes firmware: " << m_engine->hermesFW;
+			DATA_ENGINE_DEBUG << "stopping and restarting data engine.";
 
-				DATA_ENGINE_DEBUG << "got firmware versions:";
-				DATA_ENGINE_DEBUG << "	Metis firmware:  " << m_engine->metisFW;
-				DATA_ENGINE_DEBUG << "	Mercury firmware:  " << m_engine->mercuryFW;
-				DATA_ENGINE_DEBUG << "	Penelope firmware:  " << m_engine->penelopeFW;
-				DATA_ENGINE_DEBUG << "	Pennylane firmware:  " << m_engine->pennylaneFW;
-				DATA_ENGINE_DEBUG << "	Hermes firmware: " << m_engine->hermesFW;
-				DATA_ENGINE_DEBUG << "stopping and restarting data engine.";
-
-				return m_engine->start();
-			}
-			else {
-
-				DATA_ENGINE_DEBUG << "did not get firmware versions!"
-								 << " metisFW=" << m_engine->metisFW
-								 << " mercuryFW=" << m_engine->mercuryFW
-								 << " hermesFW=" << m_engine->hermesFW;
-				m_engine->set->setSystemMessage(
-					"No Mercury/Hermes firmware version from device — start aborted",
-					10000);
-				if (m_engine->m_dataEngineState == QSDR::DataEngineUp)
-					m_engine->stop();
-				m_engine->setSystemState(QSDR::FirmwareError, m_engine->m_hwInterface, m_engine->m_serverMode,
-							   QSDR::DataEngineDown);
-			}
+			return m_engine->start();
 		}
 	}
 	return false;
@@ -628,7 +601,7 @@ void DataEngineLifecycle::searchHpsdrNetworkDevices() {
     QMetaObject::invokeMethod(m_engine->m_discoverer, "initHPSDRDevice", Qt::QueuedConnection);
 
 	m_engine->m_dataIO->networkIOMutex.lock();
-	m_engine->m_dataIO->devicefound.wait(&m_engine->m_dataIO->networkIOMutex);
+	m_engine->m_dataIO->devicefound.wait(&m_engine->m_dataIO->networkIOMutex, 3000);
 
 	//m_discoverer->findHPSDRDevices();
 

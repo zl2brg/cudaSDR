@@ -45,7 +45,7 @@ int CProtocol1::getPacketType(const unsigned char* data) {
 }
 
 QList<quint16> CProtocol1::getRequiredPorts() {
-    return { (quint16)Settings::instance()->getMetisPort() };
+    return { ProtocolBoundaryUtils::Ports::DevicePort };
 }
 
 void CProtocol1::processInputBuffer(const QByteArray& buffer, DataEngine* de, quint16 sourcePort) {
@@ -531,10 +531,13 @@ void CProtocol1::encodeCCBytes(unsigned char* buffer, DataEngine* de, RadioModel
     		}
 
 		m_new_adc_rx1_4 = m_new_adc_rx5_8 = m_new_adc_rx9_16 = 0;
+		const int deviceAdcs = set->getCurrentMetisCard().adcs;
 		for (int i = 0; i < set->getNumberOfReceivers(); i++) {
-			if (i < 4) m_new_adc_rx1_4 |= set->getADCMode(i) << (i * 2);
-			else if (i < 8) m_new_adc_rx5_8 |= set->getADCMode(i) << ((i-4) * 2);
-			else if (i < 16) m_new_adc_rx9_16 |= set->getADCMode(i) << (i-8);
+			const int adc = ProtocolBoundaryUtils::protocol1ClampedAdcIndex(
+			    static_cast<int>(set->getADCMode(i)), deviceAdcs);
+			if (i < 4) m_new_adc_rx1_4 |= adc << (i * 2);
+			else if (i < 8) m_new_adc_rx5_8 |= adc << ((i-4) * 2);
+			else if (i < 16) m_new_adc_rx9_16 |= adc << (i-8);
 		}
 
 		if ((m_new_adc_rx1_4 != m_adc_rx1_4) || (m_new_adc_rx5_8 != m_adc_rx5_8) || (m_new_adc_rx9_16 != m_adc_rx9_16))

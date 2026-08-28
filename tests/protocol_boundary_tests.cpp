@@ -10,6 +10,8 @@ private slots:
     void protocol1HeaderAndSequenceParsing();
     void decode24BitBESignAndMagnitude();
     void decode16BitBEBigEndian();
+    void protocol1DiscoveryProbeEcho();
+    void protocol1ClampedAdcIndex();
 };
 
 void ProtocolBoundaryTests::protocol2PacketTypeByLength() {
@@ -74,6 +76,31 @@ void ProtocolBoundaryTests::decode16BitBEBigEndian()
 
     const unsigned char neg[] = {0xFF, 0xFE};
     QCOMPARE(ProtocolBoundaryUtils::decode16BitBE(neg), -2);
+}
+
+void ProtocolBoundaryTests::protocol1DiscoveryProbeEcho()
+{
+    unsigned char probe[63] = {};
+    probe[0] = 0xEF;
+    probe[1] = 0xFE;
+    probe[2] = 0x02;
+    QVERIFY(ProtocolBoundaryUtils::isProtocol1DiscoveryProbeEcho(probe, sizeof(probe)));
+
+    unsigned char hermes[11] = {
+        0xEF, 0xFE, 0x02,
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x01, // MAC last byte non-zero
+        0x12, 0x01
+    };
+    QVERIFY(!ProtocolBoundaryUtils::isProtocol1DiscoveryProbeEcho(hermes, sizeof(hermes)));
+}
+
+void ProtocolBoundaryTests::protocol1ClampedAdcIndex()
+{
+    QCOMPARE(ProtocolBoundaryUtils::protocol1ClampedAdcIndex(1, 1), 0);
+    QCOMPARE(ProtocolBoundaryUtils::protocol1ClampedAdcIndex(1, 0), 0);
+    QCOMPARE(ProtocolBoundaryUtils::protocol1ClampedAdcIndex(0, 2), 0);
+    QCOMPARE(ProtocolBoundaryUtils::protocol1ClampedAdcIndex(1, 2), 1);
+    QCOMPARE(ProtocolBoundaryUtils::protocol1ClampedAdcIndex(2, 2), 1);
 }
 
 QTEST_MAIN(ProtocolBoundaryTests)

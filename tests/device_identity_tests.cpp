@@ -56,6 +56,7 @@ void DeviceIdentityTests::findLastConnectedPrefersMatchingSoapy() {
     discovered.append(QVariant::fromValue(wrong));
 
     TNetworkDevicecard hpsdr {};
+    QCOMPARE(hpsdr.adcs, 1);
     qstrncpy(hpsdr.mac_address, "00:11:22:33:44:55", sizeof(hpsdr.mac_address));
     discovered.append(QVariant::fromValue(hpsdr));
 

@@ -76,6 +76,8 @@ public slots:
 	qint64	sendProtocol2ControlDatagram(const QByteArray &datagram, const QHostAddress &address, quint16 port);
 	void	sendInitFramesToNetworkDevice(int rx);
 	void	networkDeviceStartStop(char value);
+	/** Arm P1 start so initDataReceiverSocket() sends it from the bound socket. */
+	void	armProtocol1Start(int rxCount, char startByte);
 	
 private slots:
 	void setSampleRateSlot(int value);
@@ -133,6 +135,9 @@ private:
 	uint32_t		m_widebandMissedAccum;
 	
 	volatile bool	m_stopped;
+	bool	m_pendingP1Start = false;
+	int		m_pendingP1RxCount = 0;
+	char	m_pendingP1StartByte = 0;
 
 signals:
 	void	messageEvent(QString message);
