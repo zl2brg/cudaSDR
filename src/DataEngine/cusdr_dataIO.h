@@ -80,6 +80,10 @@ public slots:
 	void	networkDeviceStartStop(char value);
 	/** Arm P1 start so finishStartup() sends it from the bound socket. */
 	void	armProtocol1Start(int rxCount, char startByte);
+	/** DataIO-thread shutdown: drop readyRead, send P1/P2 stop, close sockets. */
+	void	beginShutdown();
+	/** Set the stop flag from any thread so readyRead loops can exit. */
+	void	requestStop();
 	
 private slots:
 	void setSampleRateSlot(int value);

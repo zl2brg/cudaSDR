@@ -379,23 +379,28 @@ void DataEngineThreadFactory::stopDataProcessor() {
 
 	if (m_engine->m_dataProcThread->isRunning()) {
 		if (m_engine->m_dataProcessor) {
+			m_engine->m_dataProcessor->requestStop();
 			QMetaObject::invokeMethod(m_engine->m_dataProcessor,
 								  &DataProcessor::stopControlTimer,
-								  Qt::BlockingQueuedConnection);
+								  Qt::QueuedConnection);
 			QMetaObject::invokeMethod(m_engine->m_dataProcessor,
 								  &DataProcessor::stop,
-								  Qt::BlockingQueuedConnection);
+								  Qt::QueuedConnection);
 		}
 		
 		if (m_engine->m_serverMode == QSDR::SDRMode ) {
 			
 			if (m_engine->m_dataIO->iq_queue.isEmpty()) {
-				m_engine->m_dataIO->iq_queue.enqueue(TIQPacket(QByteArray(BUFFER_SIZE, 0x0), 0));
+				m_engine->m_dataIO->iq_queue.tryEnqueue(TIQPacket(QByteArray(BUFFER_SIZE, 0x0), 0));
 			}
 		}
 
 		m_engine->m_dataProcThread->quit();
-		m_engine->m_dataProcThread->wait();
+		if (!m_engine->m_dataProcThread->wait(3000)) {
+			DATA_ENGINE_DEBUG << "data processor thread did not finish within 3s; terminating.";
+			m_engine->m_dataProcThread->terminate();
+			m_engine->m_dataProcThread->wait(1000);
+		}
 		delete m_engine->m_dataProcThread;
         m_engine->m_dataProcThread = nullptr;
 		delete m_engine->m_dataProcessor;
@@ -488,11 +493,14 @@ void DataEngineThreadFactory::stopWideBandDataProcessor() {
 	if (m_engine->m_wbDataProcThread->isRunning()) {
 					
 		m_engine->m_wbDataProcessor->stop();
-		if (m_engine->m_dataIO->wb_queue.isEmpty())
-			m_engine->m_dataIO->wb_queue.enqueue(m_engine->m_datagram);
+		m_engine->m_dataIO->wb_queue.tryEnqueue(m_engine->m_datagram);
 
 		m_engine->m_wbDataProcThread->quit();
-		m_engine->m_wbDataProcThread->wait();
+		if (!m_engine->m_wbDataProcThread->wait(3000)) {
+			DATA_ENGINE_DEBUG << "wideband processor thread did not finish within 3s; terminating.";
+			m_engine->m_wbDataProcThread->terminate();
+			m_engine->m_wbDataProcThread->wait(1000);
+		}
 		delete m_engine->m_wbDataProcThread;
         m_engine->m_wbDataProcThread = nullptr;
 		delete m_engine->m_wbDataProcessor;

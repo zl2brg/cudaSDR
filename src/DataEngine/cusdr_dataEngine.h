@@ -459,6 +459,9 @@ public:
 
 	~DataProcessor() override;
 
+	/** Thread-safe flag so processReadData can drop out without BlockingQueued. */
+	void	requestStop() { m_stopped = true; }
+
 public slots:
 	void	stop();
     void    startControlTimer();

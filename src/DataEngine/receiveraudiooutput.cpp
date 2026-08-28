@@ -86,7 +86,7 @@ void ReceiverAudioOutput::stop()
         // Sink/notifiers live on this object's thread; never stop/delete cross-thread
         // (Qt FFmpeg/Pulse idle callbacks then hit a null endpoint → segfault).
         if (thread() && thread()->isRunning()) {
-            QMetaObject::invokeMethod(this, [this] { stop(); }, Qt::BlockingQueuedConnection);
+            QMetaObject::invokeMethod(this, [this] { stop(); }, Qt::QueuedConnection);
             return;
         }
         // Owning thread already gone — best-effort local teardown.

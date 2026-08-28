@@ -312,6 +312,33 @@ void DataIO::armProtocol1Start(int rxCount, char startByte) {
     m_pendingP1Start = true;
 }
 
+void DataIO::requestStop() {
+    QMutexLocker locker(&networkIOMutex);
+    m_stopped = true;
+    m_pendingP1Start = false;
+}
+
+void DataIO::beginShutdown() {
+    m_stopped = true;
+    m_pendingP1Start = false;
+
+    for (auto socket : m_sockets) {
+        if (socket)
+            disconnect(socket, &QUdpSocket::readyRead, this, &DataIO::readDeviceData);
+    }
+
+    if (m_dataIOSocket && m_dataIOSocket->state() == QAbstractSocket::BoundState)
+        networkDeviceStartStop(0);
+
+    for (auto socket : m_sockets) {
+        if (socket)
+            socket->close();
+    }
+    m_dataIOSocketOn = false;
+    m_networkDeviceRunning = false;
+    DATAIO_DEBUG << "beginShutdown: sockets closed";
+}
+
 
 void DataIO::readDeviceData() {
     QUdpSocket* socket = qobject_cast<QUdpSocket*>(sender());
@@ -325,7 +352,7 @@ void DataIO::readDeviceData() {
 }
 
 void DataIO::readDeviceDataP1(QUdpSocket* socket) {
-    while (socket->hasPendingDatagrams()) {
+    while (!m_stopped && socket->hasPendingDatagrams()) {
         if (!m_iqArrivalTimer.isValid())
             m_iqArrivalTimer.start();
         QHostAddress Address;
@@ -377,7 +404,7 @@ void DataIO::readDeviceDataP2(QUdpSocket* socket) {
     static quint64 p2HpPacketsSeen = 0;
     static quint64 p2WidePacketsSeen = 0;
 
-    while (socket->hasPendingDatagrams()) {
+    while (!m_stopped && socket->hasPendingDatagrams()) {
         if (!m_iqArrivalTimer.isValid())
             m_iqArrivalTimer.start();
         QHostAddress Address;
@@ -669,8 +696,8 @@ void DataIO::writeData() {
 }
 
 qint64 DataIO::sendProtocol2ControlDatagram(const QByteArray &datagram, const QHostAddress &address, quint16 port) {
-    if (!m_dataIOSocket) {
-        DATAIO_DEBUG << "P2 control send skipped: m_dataIOSocket is null";
+    if (m_stopped || !m_dataIOSocket) {
+        DATAIO_DEBUG << "P2 control send skipped: stopped or m_dataIOSocket is null";
         return -1;
     }
     if (datagram.isEmpty()) {

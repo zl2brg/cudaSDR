@@ -419,6 +419,8 @@ bool DataEngineLifecycle::start() {
 
 void DataEngineLifecycle::stop() {
 
+	DATA_ENGINE_DEBUG << "shutting down data engine";
+
 	// DataEngineUp is now deferred until DataIO::finishStartup(). Stop must
 	// still tear down if Start is in-flight (thread running, engine still Down).
 	if (m_engine->m_dataEngineState == QSDR::DataEngineUp
@@ -433,29 +435,30 @@ void DataEngineLifecycle::stop() {
 				// turn time stamping off
 				m_engine->setTimeStamp(false);
 
-				// For Protocol 2, stop periodic control traffic before issuing the
-				// final stop command so the simulator does not see interleaved HP
-				// packets with sequence jumps during shutdown.
+				// Never BlockingQueued into DataIO/DataProcessor from the GUI:
+				// live IQ keeps those threads in readyRead/processReadData, so
+				// the posted stop never runs and close hangs forever.
+				if (m_engine->m_dataProcessor)
+					m_engine->m_dataProcessor->requestStop();
+
 				if (m_engine->set->getCurrentMetisCard().protocol == 2 &&
 					m_engine->m_dataProcessor && m_engine->m_dataProcThread && m_engine->m_dataProcThread->isRunning()) {
 					QMetaObject::invokeMethod(
 						m_engine->m_dataProcessor,
 						&DataProcessor::stopControlTimer,
-						Qt::BlockingQueuedConnection);
+						Qt::QueuedConnection);
 				}
 
-				// stop the device on the DataIO thread (same socket affinity as start)
 				if (m_engine->m_dataIO && m_engine->m_dataIOThread
 					&& m_engine->m_dataIOThread->isRunning()) {
-					DataIO* dataIO = m_engine->m_dataIO;
-					QMetaObject::invokeMethod(dataIO, [dataIO]() {
-						dataIO->networkDeviceStartStop(0);
-					}, Qt::BlockingQueuedConnection);
+					m_engine->m_dataIO->requestStop();
+					QMetaObject::invokeMethod(m_engine->m_dataIO, &DataIO::beginShutdown,
+								  Qt::QueuedConnection);
 				} else if (m_engine->m_dataIO) {
 					m_engine->m_dataIO->networkDeviceStartStop(0);
 				}
 				m_engine->m_networkDeviceRunning = false;
-				DATA_ENGINE_DEBUG << "HPSDR device stopped";
+				DATA_ENGINE_DEBUG << "HPSDR device stop queued";
 
 				// stop the threads
 				//QThread::msleep(100);
@@ -518,7 +521,11 @@ void DataEngineLifecycle::stop() {
 		foreach (QThread* thread, m_engine->m_dspThreadList) {
 
 			thread->quit();
-			thread->wait();
+			if (!thread->wait(3000)) {
+				DATA_ENGINE_DEBUG << "DSP thread did not finish within 3s; terminating.";
+				thread->terminate();
+				thread->wait(1000);
+			}
 		}
 		qDeleteAll(m_engine->m_dspThreadList.begin(), m_engine->m_dspThreadList.end());
 		m_engine->m_dspThreadList.clear();
