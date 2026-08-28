@@ -318,14 +318,6 @@ int Discoverer::findHPSDRDevices() {
 	}
 	set->setMetisCardList(m_deviceCards);
 
-	if (devicesFound == 1) {
-
-		set->setCurrentHPSDRDevice(m_deviceCards.at(0));
-		m_dataIO->networkIOMutex.lock();
-		DISCOVERER_DEBUG << "Device selected: " << qPrintable(m_deviceCards.at(0).ip_address.toString());
-		m_dataIO->networkIOMutex.unlock();
-	}
-
 	socket.close();
 	return devicesFound;
 }

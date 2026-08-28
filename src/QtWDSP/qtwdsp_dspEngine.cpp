@@ -128,7 +128,6 @@ QWDSPEngine::QWDSPEngine(SliceModel *model, QObject *parent, int size)
         m_ncoFrequency = static_cast<long>(set->getVfoFrequency(m_rx) - set->getCtrFrequency(m_rx));
 
     WDSP_ENGINE_DEBUG << "init DSPEngine with size: " << m_size;
-    QThread::msleep(100);
 
     setupConnections();
 

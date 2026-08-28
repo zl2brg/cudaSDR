@@ -9,6 +9,9 @@
 #include "CProtocol2.h"
 #include "Models/RadioModel.h"
 #include "Models/RadioTelemetry.h"
+#include <QCoreApplication>
+#include <QDeadlineTimer>
+#include <QEventLoop>
 
 // Helpers are not QObjects; force QObject::connect for CHECKED_CONNECT.
 #ifdef CHECKED_CONNECT
@@ -22,6 +25,16 @@ DataEngineLifecycle::DataEngineLifecycle(DataEngine *engine)
 	: m_engine(engine)
 {
 }
+
+namespace {
+bool hasUsableHpsdrDevice(const TNetworkDevicecard &card)
+{
+	if (card.ip_address.isNull() || card.protocol <= 0)
+		return false;
+	const QString mac = QString::fromLatin1(card.mac_address);
+	return !mac.isEmpty() && mac != QLatin1String("00:00:00:00:00:00");
+}
+} // namespace
 
 bool DataEngineLifecycle::startDataEngineWithoutConnection() {
 
@@ -78,15 +91,20 @@ bool DataEngineLifecycle::findHPSDRDevices() {
     // so a queued invocation is required — a direct call would run on the wrong thread).
     QMetaObject::invokeMethod(m_engine->m_discoverer, "initHPSDRDevice", Qt::QueuedConnection);
 
-	m_engine->m_dataIO->networkIOMutex.lock();
+	// Never QWaitCondition::wait() on the GUI thread: that stops the Qt event
+	// loop. Probe already populated the device list asynchronously; if Start
+	// must discover, keep the loop spinning until the worker finishes.
 	DATA_ENGINE_DEBUG << "HPSDR network device detection...please wait.";
 	m_engine->set->setSystemMessage("HPSDR network device detection...please wait", 0);
-	m_engine->m_dataIO->devicefound.wait(&m_engine->m_dataIO->networkIOMutex, 3000);
-	m_engine->m_hpsdrDevices = m_engine->set->getHpsdrNetworkDevices();
-	m_engine->m_dataIO->networkIOMutex.unlock();
 
-	// Mutex must be released before Settings/UI work. setCurrentHPSDRDevice()
-	// emits on this thread; networkIOMutex is non-recursive.
+	QDeadlineTimer deadline(3000);
+	while (!deadline.hasExpired()) {
+		m_engine->m_hpsdrDevices = m_engine->set->getHpsdrNetworkDevices();
+		if (m_engine->m_hpsdrDevices > 0 && !m_engine->set->getMetisCardsList().isEmpty())
+			break;
+		QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 50);
+	}
+	m_engine->m_hpsdrDevices = m_engine->set->getHpsdrNetworkDevices();
 
 	if (m_engine->m_hpsdrDevices == 0) {
 		m_engine->stopDiscoverer();
@@ -570,7 +588,23 @@ bool DataEngineLifecycle::initDataEngine() {
     }
 #endif
 	else {
-		
+		const TNetworkDevicecard already = m_engine->set->getCurrentMetisCard();
+		if (hasUsableHpsdrDevice(already) && m_engine->m_dataIO) {
+			// Probe / Network panel already selected the radio. Do not block
+			// the GUI event loop in QWaitCondition::wait() on Start.
+			m_engine->set->setCurrentHPSDRDevice(already);
+			m_engine->m_dataIO->hpsdrDeviceIPAddress = already.ip_address;
+			m_engine->hpsdrDeviceName = already.boardName;
+			DATA_ENGINE_DEBUG << "Start using selected device "
+							  << qPrintable(already.ip_address.toString())
+							  << " [" << already.mac_address << "]"
+							  << " protocol=" << already.protocol
+							  << " board=" << already.boardName;
+			if (m_engine->getFirmwareVersions())
+				return m_engine->start();
+			return false;
+		}
+
 		if (m_engine->findHPSDRDevices()) {
 			DATA_ENGINE_DEBUG << "got firmware versions:";
 			DATA_ENGINE_DEBUG << "	Metis firmware:  " << m_engine->metisFW;
@@ -578,7 +612,6 @@ bool DataEngineLifecycle::initDataEngine() {
 			DATA_ENGINE_DEBUG << "	Penelope firmware:  " << m_engine->penelopeFW;
 			DATA_ENGINE_DEBUG << "	Pennylane firmware:  " << m_engine->pennylaneFW;
 			DATA_ENGINE_DEBUG << "	Hermes firmware: " << m_engine->hermesFW;
-			DATA_ENGINE_DEBUG << "stopping and restarting data engine.";
 
 			return m_engine->start();
 		}
@@ -600,13 +633,16 @@ void DataEngineLifecycle::searchHpsdrNetworkDevices() {
 
     QMetaObject::invokeMethod(m_engine->m_discoverer, "initHPSDRDevice", Qt::QueuedConnection);
 
-	m_engine->m_dataIO->networkIOMutex.lock();
-	m_engine->m_dataIO->devicefound.wait(&m_engine->m_dataIO->networkIOMutex, 3000);
+	QDeadlineTimer deadline(3000);
+	while (!deadline.hasExpired()) {
+		if (m_engine->set->getHpsdrNetworkDevices() > 0)
+			break;
+		QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 50);
+	}
 
 	//m_discoverer->findHPSDRDevices();
 
 	// stop the discovery thread
-	m_engine->m_dataIO->networkIOMutex.unlock();
 	m_engine->stopDiscoverer();
 }
 
