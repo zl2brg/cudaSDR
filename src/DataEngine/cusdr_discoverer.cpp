@@ -226,6 +226,13 @@ int Discoverer::findHPSDRDevices() {
 		if (m_deviceDatagram.size() >= 11 &&
 			m_deviceDatagram[0] == (char)0xEF && m_deviceDatagram[1] == (char)0xFE)
 		{
+			if (ProtocolBoundaryUtils::isProtocol1DiscoveryProbeEcho(
+					reinterpret_cast<const unsigned char*>(m_deviceDatagram.constData()),
+					m_deviceDatagram.size())) {
+				DISCOVERER_DEBUG << "ignoring Protocol 1 discovery probe echo from "
+								 << qPrintable(mc.ip_address.toString());
+				continue;
+			}
 			if (m_deviceDatagram[2] == (char)0x02) {
 
 				sprintf(mc.mac_address, "%02X:%02X:%02X:%02X:%02X:%02X",
@@ -310,14 +317,6 @@ int Discoverer::findHPSDRDevices() {
 		}
 	}
 	set->setMetisCardList(m_deviceCards);
-
-	if (devicesFound == 1) {
-
-		set->setCurrentHPSDRDevice(m_deviceCards.at(0));
-		m_dataIO->networkIOMutex.lock();
-		DISCOVERER_DEBUG << "Device selected: " << qPrintable(m_deviceCards.at(0).ip_address.toString());
-		m_dataIO->networkIOMutex.unlock();
-	}
 
 	socket.close();
 	return devicesFound;

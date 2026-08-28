@@ -738,7 +738,7 @@ bool DataEngine::initReceivers(int rcvrs) {
 	//               |
 	//               +------------ MOX (1 = active, 0 = inactive)
 
-	control_out[0] |= MOX_ENABLED;
+	control_out[0] |= MOX_DISABLED;
 
 	// set C1
 	//
@@ -1040,7 +1040,8 @@ void DataEngine::setSystemState(
 		QSDR::_ServerMode statemode,
 		QSDR::_DataEngineState enginestate)
 {
-	QMutexLocker locker(&m_dataIO->networkIOMutex);
+	// Do not hold networkIOMutex across this emit: DataIO logs/enqueues under
+	// that mutex, and UI slots may re-enter Settings. QMutex is not recursive.
 	set->setSystemState(err, hwmode, statemode, enginestate);
 }
 

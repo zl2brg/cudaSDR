@@ -638,32 +638,22 @@ void MainWindow::updateStatusBar(short load) {
 	- starts/stops the server if in \a QSDR::ExternalDSP mode.
 */
 void MainWindow::masterSwitchChanged(
-		/*!<[in] the of the signal. */
-		bool power						/*!<[in] power on or off*/
+		bool power
 ) {
 	if (power) {
-
-		if (m_dataEngine->initDataEngine()) { // start data engine
-
-			//if (m_serverMode == QSDR::ExternalDSP && !m_hpsdrServer->startServer())
-			//	m_hpsdrServer->stopServer();
-			return;
-		}
-		else {
-
-			set->setMainPower(false);
-			startButtonClickedEvent();
-			return;
-		}
+		// initDataEngine used to run inline in this slot (including
+		// QWaitCondition::wait). That stops the Qt event loop and freezes the UI.
+		QTimer::singleShot(0, this, [this]() {
+			if (!m_dataEngine->initDataEngine()) {
+				set->setMainPower(false);
+				startButtonClickedEvent();
+			}
+		});
+		return;
 	}
-	else {
 
-		m_dataEngine->stop();
-
-		//if (m_serverMode == QSDR::ExternalDSP)
-		//	m_hpsdrServer->stopServer();
-		set->setMainPower(false);
-	}
+	m_dataEngine->stop();
+	set->setMainPower(false);
 }
 
 /*!
@@ -719,10 +709,7 @@ void MainWindow::setSystemState(
 			QSDR::_ServerMode mode,
 			QSDR::_DataEngineState state)
 {
-	Q_ASSERT(m_dataEngine && m_dataEngine->m_dataIO);
-	m_dataEngine->m_dataIO->networkIOMutex.lock();
 	set->setSystemState(err, hwmode, mode, state);
-	m_dataEngine->m_dataIO->networkIOMutex.unlock();
 }
 
 /*!

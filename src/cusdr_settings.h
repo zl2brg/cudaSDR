@@ -387,20 +387,20 @@ typedef struct _iqPacket {
 } TIQPacket;
 
 typedef struct _networkDeviceCard {
-    int             protocol;
-    int             device;
-    int             sw_version;
-    int             status;
-    int             max_receivers;
-    int             max_transmitters;
-    int             adcs;
-    int             dacs;
-    double          frequency_min;
-    double          frequency_max;
+    int             protocol = 0;
+    int             device = 0;
+    int             sw_version = 0;
+    int             status = 0;
+    int             max_receivers = 1;
+    int             max_transmitters = 1;
+    int             adcs = 1;
+    int             dacs = 1;
+    double          frequency_min = 0.0;
+    double          frequency_max = 0.0;
 
 	QHostAddress	ip_address;
-	char			mac_address[18];
-	int				boardID;
+	char			mac_address[18] = {};
+	int				boardID = 0;
 	QString			boardName;
 #ifdef SOAPYSDR
       struct soapy {
