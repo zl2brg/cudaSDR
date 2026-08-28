@@ -32,6 +32,8 @@
 #include <QJsonParseError>
 #include <QDir>
 #include <QFileInfo>
+#include <QCoreApplication>
+#include <QThread>
 #include "cusdr_settings.h"
 #include "Models/RadioModel.h"
 #include "Models/RadioTelemetry.h"
@@ -2675,6 +2677,16 @@ void Settings::setCurrentHPSDRDevice(TNetworkDevicecard card) {
         emit maxFrequencyChanged(m_maxFrequency.load());
     }
 
+    emit hpsdrNetworkDeviceChanged(card);
+
+    // Discoverer runs on a worker thread. Emitting setSystemState / saveSettings
+    // from there while Start used to wait() on the GUI thread deadlocked the
+    // event loop. Restrict UI/hardware sync to the GUI thread.
+    const bool onGuiThread = QCoreApplication::instance()
+        && QThread::currentThread() == QCoreApplication::instance()->thread();
+    if (!onGuiThread)
+        return;
+
     if (card.protocol > 0) {
         const auto info = ProtocolBoundaryUtils::decodeHpsdrDevice(
             card.boardID, card.protocol, card.sw_version);
@@ -2698,7 +2710,6 @@ void Settings::setCurrentHPSDRDevice(TNetworkDevicecard card) {
         }
     }
 
-    emit hpsdrNetworkDeviceChanged(card);
     saveSettings();
 }
 

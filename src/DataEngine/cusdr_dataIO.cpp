@@ -49,6 +49,7 @@
 #include "IHPSDRProtocol.h"
 #include "soundout.h"
 #include <QNetworkInterface>
+#include <QTimer>
 
 
 #ifdef LOG_P2_NETWORK
@@ -262,15 +263,22 @@ socket->setSocketOption(QAbstractSocket::ReceiveBufferSizeSocketOption, newBuffe
 
 	m_dataIOSocketOn = true;
 
+    // QThread::started runs BEFORE exec(). Sending P1 start here meant IQ
+    // replies arrived with no event loop yet, and writeDatagram could nest
+    // readyRead on this stack. Post the start for the next event-loop tick.
     if (m_pendingP1Start && isProtocol1(m_protocol)) {
-        const int rxCount = m_pendingP1RxCount;
-        const char startByte = m_pendingP1StartByte;
-        m_pendingP1Start = false;
-        for (int i = 0; i < rxCount; ++i)
-            sendInitFramesToNetworkDevice(i);
-        networkDeviceStartStop(startByte);
-        DATAIO_DEBUG << "Protocol 1 start sent from bound socket localPort="
-                     << (m_dataIOSocket ? m_dataIOSocket->localPort() : 0);
+        QTimer::singleShot(0, this, [this]() {
+            if (!m_pendingP1Start || !isProtocol1(m_protocol))
+                return;
+            const int rxCount = m_pendingP1RxCount;
+            const char startByte = m_pendingP1StartByte;
+            m_pendingP1Start = false;
+            for (int i = 0; i < rxCount; ++i)
+                sendInitFramesToNetworkDevice(i);
+            networkDeviceStartStop(startByte);
+            DATAIO_DEBUG << "Protocol 1 start sent from bound socket localPort="
+                         << (m_dataIOSocket ? m_dataIOSocket->localPort() : 0);
+        });
     }
 }
 

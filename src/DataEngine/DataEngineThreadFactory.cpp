@@ -188,14 +188,12 @@ bool DataEngineThreadFactory::startDataIO(QThread::Priority prio) {
 		return false;
 	}
 
-	m_engine->m_dataIOThread->start(prio);
+		m_engine->m_dataIOThread->start(prio);
 
 	if (m_engine->m_dataIOThread->isRunning()) {
 					
 		m_engine->m_dataIOThreadRunning = true;
-		m_engine->m_dataIO->networkIOMutex.lock();
 		DATA_ENGINE_DEBUG << "data IO thread started.";
-		m_engine->m_dataIO->networkIOMutex.unlock();
 
 		return true;
 	}
