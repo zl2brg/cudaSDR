@@ -719,10 +719,7 @@ void MainWindow::setSystemState(
 			QSDR::_ServerMode mode,
 			QSDR::_DataEngineState state)
 {
-	Q_ASSERT(m_dataEngine && m_dataEngine->m_dataIO);
-	m_dataEngine->m_dataIO->networkIOMutex.lock();
 	set->setSystemState(err, hwmode, mode, state);
-	m_dataEngine->m_dataIO->networkIOMutex.unlock();
 }
 
 /*!

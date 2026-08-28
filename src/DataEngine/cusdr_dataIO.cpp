@@ -225,22 +225,21 @@ void DataIO::initDataReceiverSocket() {
         newBufferSize = rxSocketBufferSizeForRate(m_sampleRate);
     }
 
-    const bool sameHostProtocol2 = isProtocol2(m_protocol) && isLocalAddress(hpsdrDeviceIPAddress);
-    const QHostAddress bindAddr = sameHostProtocol2
+    const bool sameHostDevice = isLocalAddress(hpsdrDeviceIPAddress);
+    const QHostAddress bindAddr = sameHostDevice
         ? QHostAddress(QHostAddress::AnyIPv4)
         : QHostAddress(set->getHPSDRDeviceLocalAddr());
 
-    if (sameHostProtocol2) {
-        // On the same host, the simulator binds 1024/1025/1027/1035+ itself.
-        // For P2 it sends all traffic back to the source port of the General
-        // Packet, so we must avoid binding 1024 locally and use one ephemeral
-        // socket for both control and receive.
+    if (sameHostDevice) {
+        // On the same host, hpsdrsim already owns 1024 (and P2's extra ports).
+        // Both protocols reply to the source port of the start/control datagram,
+        // so bind one ephemeral socket instead of competing for 1024.
         ports = { DEVICE_PORT };
-        DATAIO_DEBUG << "initDataReceiverSocket: same-host Protocol 2 detected; using one ephemeral socket";
+        DATAIO_DEBUG << "initDataReceiverSocket: same-host device detected; using one ephemeral socket";
     }
 
     for (quint16 port : ports) {
-        const quint16 bindPort = sameHostProtocol2 ? 0 : port;
+        const quint16 bindPort = sameHostDevice ? 0 : port;
         QUdpSocket* socket = new QUdpSocket(this);
         if (socket->bind(bindAddr,
                          bindPort,
@@ -262,6 +261,23 @@ socket->setSocketOption(QAbstractSocket::ReceiveBufferSizeSocketOption, newBuffe
     }
 
 	m_dataIOSocketOn = true;
+
+    if (m_pendingP1Start && isProtocol1(m_protocol)) {
+        const int rxCount = m_pendingP1RxCount;
+        const char startByte = m_pendingP1StartByte;
+        m_pendingP1Start = false;
+        for (int i = 0; i < rxCount; ++i)
+            sendInitFramesToNetworkDevice(i);
+        networkDeviceStartStop(startByte);
+        DATAIO_DEBUG << "Protocol 1 start sent from bound socket localPort="
+                     << (m_dataIOSocket ? m_dataIOSocket->localPort() : 0);
+    }
+}
+
+void DataIO::armProtocol1Start(int rxCount, char startByte) {
+    m_pendingP1RxCount = rxCount;
+    m_pendingP1StartByte = startByte;
+    m_pendingP1Start = true;
 }
 
 
@@ -519,12 +535,10 @@ void DataIO::sendInitFramesToNetworkDevice(int rx) {
     if (initDatagram.isEmpty()) return;
 
 	if (m_dataIOSocket->writeDatagram(initDatagram.data(), initDatagram.size(), hpsdrDeviceIPAddress, port) < 0) {
-
-		{ QMutexLocker l(&networkIOMutex); DATAIO_DEBUG << "error sending init data to device: " << qPrintable(m_dataIOSocket->errorString()); }
+		DATAIO_DEBUG << "error sending init data to device: " << qPrintable(m_dataIOSocket->errorString());
 	}
 	else {
-
-		{ QMutexLocker l(&networkIOMutex); DATAIO_DEBUG << "init frames sent to network device. " << rx << " port " << port; }
+		DATAIO_DEBUG << "init frames sent to network device. " << rx << " port " << port;
 	}
 }
 
@@ -538,13 +552,11 @@ void DataIO::networkDeviceStartStop(char value) {
 		if (m_dataIOSocket->writeDatagram(m_commandDatagram, metis.ip_address, port) == m_commandDatagram.size()) {
 
 			if (value != 0) {
-
-				{ QMutexLocker l(&networkIOMutex); DATAIO_DEBUG << "sent start command to device at: "<< qPrintable(metis.ip_address.toString()) << " port " << port; }
+				DATAIO_DEBUG << "sent start command to device at: "<< qPrintable(metis.ip_address.toString()) << " port " << port;
 				m_networkDeviceRunning = true;
 			}
 			else {
-
-				{ QMutexLocker l(&networkIOMutex); DATAIO_DEBUG << "sent stop command to device at: "<< qPrintable(metis.ip_address.toString()) << " port " << port; }
+				DATAIO_DEBUG << "sent stop command to device at: "<< qPrintable(metis.ip_address.toString()) << " port " << port;
 				m_networkDeviceRunning = false;
 			}
 		}

@@ -38,6 +38,7 @@
 #include "Models/SliceModel.h"
 #include "Models/TransmitModel.h"
 #include "Util/settings_utils.h"
+#include "DataEngine/protocol_boundary_utils.h"
 
 using namespace SettingsUtils;
 
@@ -2304,28 +2305,21 @@ void Settings::setSystemState(
         QSDR::_HWInterfaceMode hwmode,
         QSDR::_ServerMode mode,
         QSDR::_DataEngineState state) {
-    QMutexLocker locker(&settingsMutex);
+    {
+        QMutexLocker locker(&settingsMutex);
 
-    if (m_systemError != err)
-        m_systemError = err;
+        if (m_systemError != err)
+            m_systemError = err;
 
-    if (m_hwInterface != hwmode)
-        m_hwInterface = hwmode;
+        if (m_hwInterface != hwmode)
+            m_hwInterface = hwmode;
 
-    if (m_serverMode != mode) {
+        if (m_serverMode != mode)
+            m_serverMode = mode;
 
-        m_serverMode = mode;
-
+        if (m_dataEngineState != state)
+            m_dataEngineState = state;
     }
-
-    if (m_dataEngineState != state)
-        m_dataEngineState = state;
-
-  //if (m_dataEngineState == QSDR::DataEngineDown)
-//      setCurrentReceiver(0);
-    //m_currentReceiver = 0;
-
-    //locker.unlock();
 
     debugSystemState();
     emit systemStateChanged(m_systemError, m_hwInterface, m_serverMode, m_dataEngineState);
@@ -2679,6 +2673,29 @@ void Settings::setCurrentHPSDRDevice(TNetworkDevicecard card) {
 
     if (card.frequency_max > 0) {
         emit maxFrequencyChanged(m_maxFrequency.load());
+    }
+
+    if (card.protocol > 0) {
+        const auto info = ProtocolBoundaryUtils::decodeHpsdrDevice(
+            card.boardID, card.protocol, card.sw_version);
+        const bool modularMetis = (card.protocol == 1
+            && info.deviceType == ProtocolBoundaryUtils::HpsdrDeviceType::Metis);
+        const int hardware = modularMetis ? 0 : 1;
+        if (getHPSDRHardware() != hardware)
+            setHPSDRHardware(hardware);
+
+        if (m_hwInterface == QSDR::Metis || m_hwInterface == QSDR::Hermes) {
+            const QSDR::_HWInterfaceMode iface = modularMetis ? QSDR::Metis : QSDR::Hermes;
+            if (m_hwInterface != iface) {
+                setSystemState(QSDR::NoError, iface, m_serverMode, m_dataEngineState);
+            }
+        }
+
+        if (card.adcs <= 1) {
+            const int rxCount = getNumberOfReceivers();
+            for (int i = 0; i < rxCount; ++i)
+                setADCMode(i, adc1);
+        }
     }
 
     emit hpsdrNetworkDeviceChanged(card);
@@ -3942,6 +3959,7 @@ void Settings::setADCMode(int rx, ADCMode mode) {
 
     QMutexLocker locker(&settingsMutex);
 
+    if (rx < 0 || rx >= m_receiverDataList.size()) return;
     if (m_receiverDataList[rx].adcMode == mode) return;
     m_receiverDataList[rx].adcMode = mode;
 

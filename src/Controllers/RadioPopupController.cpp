@@ -27,7 +27,8 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
     int rx = m_view->getReceiver();
 
     // Initial setup loading
-    m_view->setSingleAdcDevice((m_model->getHWInterface() == QSDR::Hermes) || (m_model->getHPSDRHardware() == 1));
+    const TNetworkDevicecard card = m_model->getCurrentMetisCard();
+    m_view->setSingleAdcDevice(card.adcs <= 1);
     m_view->setBandFrequencyList(m_model->getBandFrequencyList());
 
     const HamBand hamBand = m_model->getCurrentHamBand(rx);
@@ -198,6 +199,11 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
 
     // Model -> View
     connect(m_model, &Settings::systemStateChanged, m_view, &RadioPopupWidget::systemStateChanged);
+
+    connect(m_model, &Settings::hpsdrNetworkDeviceChanged, this, [this](const TNetworkDevicecard& card) {
+        if (m_view)
+            m_view->setSingleAdcDevice(card.adcs <= 1);
+    });
 
     connect(m_model, &Settings::hamBandChanged, this, [this](int r, bool byBtn, HamBand band) {
         Q_UNUSED(byBtn)
