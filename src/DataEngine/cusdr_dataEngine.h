@@ -180,6 +180,8 @@ public slots:
 
 	bool	initDataEngine();
 	void	stop();
+	void	onDataIoReady();
+	void	onDataIoStartupFailed();
 	void 	setWbSpectrumAveraging(int rx, int value);
 
 

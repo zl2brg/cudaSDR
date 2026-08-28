@@ -49,7 +49,6 @@
 #include "IHPSDRProtocol.h"
 #include "soundout.h"
 #include <QNetworkInterface>
-#include <QTimer>
 
 
 #ifdef LOG_P2_NETWORK
@@ -239,21 +238,25 @@ void DataIO::initDataReceiverSocket() {
         DATAIO_DEBUG << "initDataReceiverSocket: same-host device detected; using one ephemeral socket";
     }
 
+    // Bind only. Do not connect readyRead and do not send P1 start from
+    // QThread::started: that runs BEFORE exec(), so writeDatagram can nest
+    // readyRead with no event loop, and GUI BlockingQueued calls deadlock.
+    const QAbstractSocket::BindMode bindMode = sameHostDevice
+        ? QAbstractSocket::DefaultForPlatform
+        : (QAbstractSocket::ReuseAddressHint | QAbstractSocket::ShareAddress);
+
     for (quint16 port : ports) {
         const quint16 bindPort = sameHostDevice ? 0 : port;
         QUdpSocket* socket = new QUdpSocket(this);
-        if (socket->bind(bindAddr,
-                         bindPort,
-                         QUdpSocket::ReuseAddressHint | QUdpSocket::ShareAddress))
+        if (socket->bind(bindAddr, bindPort, bindMode))
         {
-socket->setSocketOption(QAbstractSocket::ReceiveBufferSizeSocketOption, newBufferSize);
+            socket->setSocketOption(QAbstractSocket::ReceiveBufferSizeSocketOption, newBufferSize);
             connect(socket, &QUdpSocket::errorOccurred, this, &DataIO::displayDataReceiverSocketError);
-            connect(socket, &QUdpSocket::readyRead, this, &DataIO::readDeviceData);
 
             m_sockets[socket->localPort()] = socket;
             m_socketLogicalPorts[socket] = port;
             if (port == ports.first()) m_dataIOSocket = socket;
-            
+
             DATAIO_DEBUG << "Bound receiver socket to logical port " << port << " (localPort=" << socket->localPort() << ") with buffer size " << newBufferSize;
         } else {
             DATAIO_DEBUG << "Failed to bind receiver socket to port " << bindPort << " for logical port " << port << ": " << socket->errorString();
@@ -261,25 +264,46 @@ socket->setSocketOption(QAbstractSocket::ReceiveBufferSizeSocketOption, newBuffe
         }
     }
 
-	m_dataIOSocketOn = true;
+	m_dataIOSocketOn = (m_dataIOSocket != nullptr);
+    DATAIO_DEBUG << "initDataReceiverSocket: bind complete, waiting for finishStartup() after exec()";
+}
 
-    // QThread::started runs BEFORE exec(). Sending P1 start here meant IQ
-    // replies arrived with no event loop yet, and writeDatagram could nest
-    // readyRead on this stack. Post the start for the next event-loop tick.
-    if (m_pendingP1Start && isProtocol1(m_protocol)) {
-        QTimer::singleShot(0, this, [this]() {
-            if (!m_pendingP1Start || !isProtocol1(m_protocol))
-                return;
-            const int rxCount = m_pendingP1RxCount;
-            const char startByte = m_pendingP1StartByte;
-            m_pendingP1Start = false;
-            for (int i = 0; i < rxCount; ++i)
-                sendInitFramesToNetworkDevice(i);
-            networkDeviceStartStop(startByte);
-            DATAIO_DEBUG << "Protocol 1 start sent from bound socket localPort="
-                         << (m_dataIOSocket ? m_dataIOSocket->localPort() : 0);
-        });
+void DataIO::finishStartup() {
+    if (m_stopped) {
+        DATAIO_DEBUG << "finishStartup: already stopped; skipping";
+        return;
     }
+    if (!m_dataIOSocket) {
+        DATAIO_DEBUG << "finishStartup: no bound socket";
+        emit startupFailed();
+        return;
+    }
+
+    // Send P1 start BEFORE connecting readyRead so writeDatagram cannot nest
+    // into readDeviceData on this stack (same-host Hermes replies immediately).
+    if (m_pendingP1Start && isProtocol1(m_protocol)) {
+        const int rxCount = m_pendingP1RxCount;
+        const char startByte = m_pendingP1StartByte;
+        m_pendingP1Start = false;
+        DATAIO_DEBUG << "finishStartup: sending Protocol 1 start localPort="
+                     << m_dataIOSocket->localPort()
+                     << " rxCount=" << rxCount
+                     << " startByte=" << int(startByte);
+        for (int i = 0; i < rxCount; ++i)
+            sendInitFramesToNetworkDevice(i);
+        networkDeviceStartStop(startByte);
+        DATAIO_DEBUG << "Protocol 1 start sent from bound socket localPort="
+                     << m_dataIOSocket->localPort();
+    }
+
+    for (auto socket : m_sockets) {
+        if (socket) {
+            connect(socket, &QUdpSocket::readyRead, this, &DataIO::readDeviceData,
+                    Qt::UniqueConnection);
+        }
+    }
+
+    emit receiverReady();
 }
 
 void DataIO::armProtocol1Start(int rxCount, char startByte) {

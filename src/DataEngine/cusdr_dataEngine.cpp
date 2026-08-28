@@ -1045,6 +1045,31 @@ void DataEngine::setSystemState(
 	set->setSystemState(err, hwmode, statemode, enginestate);
 }
 
+void DataEngine::onDataIoReady()
+{
+	if (!m_dataIOThreadRunning) {
+		DATA_ENGINE_DEBUG << "onDataIoReady: DataIO already stopped; ignoring";
+		return;
+	}
+	m_networkDeviceRunning = true;
+	setSystemState(QSDR::NoError, m_hwInterface, m_serverMode, QSDR::DataEngineUp);
+	set->setSystemMessage("System running", 4000);
+	DATA_ENGINE_DEBUG << "Data Engine thread: " << thread();
+}
+
+void DataEngine::onDataIoStartupFailed()
+{
+	if (!m_dataIOThreadRunning) {
+		DATA_ENGINE_DEBUG << "onDataIoStartupFailed: DataIO already stopped; ignoring";
+		return;
+	}
+	DATA_ENGINE_DEBUG << "DataIO startup failed (no bound receiver socket)";
+	m_networkDeviceRunning = false;
+	setSystemState(QSDR::DataReceiverThreadError, m_hwInterface, m_serverMode, QSDR::DataEngineDown);
+	set->setMainPower(false);
+	set->setSystemMessage("Failed to bind receiver socket", 8000);
+}
+
 float DataEngine::getFilterSizeCalibrationOffset() {
 
     //int size=1024; // dspBufferSize
