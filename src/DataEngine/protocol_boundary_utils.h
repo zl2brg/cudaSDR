@@ -2,6 +2,7 @@
 #define PROTOCOL_BOUNDARY_UTILS_H
 
 #include <QByteArray>
+#include <QString>
 #include <QtEndian>
 #include <algorithm>
 #include <cmath>
@@ -347,6 +348,243 @@ inline quint8 protocol1AlexAntennaRelayBits(int alexState, bool transmitting)
 inline quint8 protocol1AlexTxRelayBits(int alexState)
 {
     return protocol1AlexAntennaRelayBits(alexState, true);
+}
+
+/** Unified OpenHPSDR / Apache Labs device classification. */
+enum class HpsdrDeviceType {
+    Metis = 0,
+    Hermes = 1,
+    Griffin = 2,
+    Hermes2 = 3,
+    Angelia = 4,
+    Orion = 5,
+    HermesLite = 6,
+    HermesLite2 = 506,
+    TangerineSDR = 7,
+    Orion2 = 10,
+    SaturnG2 = 1010,
+    StemLab = 100,
+    StemLabZ20 = 101,
+    Unknown = 999
+};
+
+struct HpsdrDeviceInfo {
+    HpsdrDeviceType deviceType = HpsdrDeviceType::Unknown;
+    int boardId = 0;
+    QString boardName;
+    QString modelName;
+    int adcs = 1;
+    int dacs = 1;
+    int maxReceivers = 1;
+    int maxTransmitters = 1;
+    double frequencyMin = 0.0;
+    double frequencyMax = 61440000.0;
+    QString firmwareString;
+};
+
+inline HpsdrDeviceInfo decodeHpsdrDevice(int rawBoardId, int protocol, int swVersion = 0, int minorVersion = 0) {
+    HpsdrDeviceInfo info;
+    info.boardId = rawBoardId;
+    info.frequencyMin = 0.0;
+    info.frequencyMax = 61440000.0;
+
+    if (protocol == 1) {
+        switch (rawBoardId) {
+            case 0:
+                info.deviceType = HpsdrDeviceType::Metis;
+                info.boardName = "Metis";
+                info.modelName = "Modular OpenHPSDR (Metis)";
+                info.adcs = 1;
+                info.dacs = 1;
+                info.maxReceivers = 4;
+                break;
+            case 1:
+                info.deviceType = HpsdrDeviceType::Hermes;
+                info.boardName = "Hermes";
+                info.modelName = "ANAN-10 / ANAN-100 (Hermes)";
+                info.adcs = 1;
+                info.dacs = 1;
+                info.maxReceivers = 2;
+                break;
+            case 2:
+                info.deviceType = HpsdrDeviceType::Griffin;
+                info.boardName = "Griffin";
+                info.modelName = "Griffin DSP";
+                info.adcs = 1;
+                info.dacs = 1;
+                info.maxReceivers = 2;
+                break;
+            case 4:
+                info.deviceType = HpsdrDeviceType::Angelia;
+                info.boardName = "Angelia";
+                info.modelName = "ANAN-100D (Angelia)";
+                info.adcs = 2;
+                info.dacs = 1;
+                info.maxReceivers = 4;
+                break;
+            case 5:
+                info.deviceType = HpsdrDeviceType::Orion;
+                info.boardName = "Orion";
+                info.modelName = "ANAN-200D (Orion)";
+                info.adcs = 2;
+                info.dacs = 1;
+                info.maxReceivers = 4;
+                break;
+            case 6:
+                if (swVersion >= 40 || swVersion >= 400) {
+                    info.deviceType = HpsdrDeviceType::HermesLite2;
+                    info.boardName = "HermesLite V2";
+                    info.modelName = "Hermes-Lite 2";
+                    info.adcs = 1;
+                    info.dacs = 1;
+                    info.maxReceivers = 8;
+                    info.frequencyMax = 38400000.0;
+                } else {
+                    info.deviceType = HpsdrDeviceType::HermesLite;
+                    info.boardName = "HermesLite V1";
+                    info.modelName = "Hermes-Lite 1";
+                    info.adcs = 1;
+                    info.dacs = 1;
+                    info.maxReceivers = 2;
+                    info.frequencyMax = 30720000.0;
+                }
+                break;
+            case 7:
+                info.deviceType = HpsdrDeviceType::TangerineSDR;
+                info.boardName = "TangerineSDR";
+                info.modelName = "TAPR Tangerine SDR";
+                info.adcs = 2;
+                info.dacs = 1;
+                info.maxReceivers = 4;
+                break;
+            case 10:
+                info.deviceType = HpsdrDeviceType::Orion2;
+                info.boardName = "Orion2";
+                info.modelName = "ANAN-7000DLE / 8000DLE (Orion2)";
+                info.adcs = 2;
+                info.dacs = 1;
+                info.maxReceivers = 4;
+                break;
+            case 100:
+                info.deviceType = HpsdrDeviceType::StemLab;
+                info.boardName = "STEMlab";
+                info.modelName = "Red Pitaya 125-14 (STEMlab)";
+                info.adcs = 2;
+                info.dacs = 1;
+                info.maxReceivers = 4;
+                break;
+            case 101:
+                info.deviceType = HpsdrDeviceType::StemLabZ20;
+                info.boardName = "STEMlab-Z20";
+                info.modelName = "Red Pitaya Zynq 7020 (STEMlab)";
+                info.adcs = 2;
+                info.dacs = 1;
+                info.maxReceivers = 4;
+                break;
+            default:
+                info.deviceType = HpsdrDeviceType::Unknown;
+                info.boardName = QString("Board-%1").arg(rawBoardId);
+                info.modelName = QString("OpenHPSDR Board %1").arg(rawBoardId);
+                info.adcs = 1;
+                info.dacs = 1;
+                info.maxReceivers = 2;
+                break;
+        }
+    } else { // Protocol 2
+        switch (rawBoardId) {
+            case 0:
+                info.deviceType = HpsdrDeviceType::Metis;
+                info.boardName = "Atlas";
+                info.modelName = "Atlas / Metis (P2)";
+                info.adcs = 1;
+                info.dacs = 1;
+                info.maxReceivers = 8;
+                break;
+            case 1:
+                info.deviceType = HpsdrDeviceType::Hermes;
+                info.boardName = "Hermes";
+                info.modelName = "ANAN-10 / ANAN-100 (Hermes P2)";
+                info.adcs = 1;
+                info.dacs = 1;
+                info.maxReceivers = 8;
+                break;
+            case 2:
+                info.deviceType = HpsdrDeviceType::Hermes2;
+                info.boardName = "Hermes2";
+                info.modelName = "Hermes 2 (P2)";
+                info.adcs = 1;
+                info.dacs = 1;
+                info.maxReceivers = 8;
+                break;
+            case 3:
+                info.deviceType = HpsdrDeviceType::Angelia;
+                info.boardName = "Angelia";
+                info.modelName = "ANAN-100D (Angelia P2)";
+                info.adcs = 2;
+                info.dacs = 1;
+                info.maxReceivers = 8;
+                break;
+            case 4:
+                info.deviceType = HpsdrDeviceType::Orion;
+                info.boardName = "Orion";
+                info.modelName = "ANAN-200D (Orion P2)";
+                info.adcs = 2;
+                info.dacs = 1;
+                info.maxReceivers = 8;
+                break;
+            case 5:
+                info.deviceType = HpsdrDeviceType::Orion2;
+                info.boardName = "Orion2";
+                info.modelName = "ANAN-7000DLE / 8000DLE (Orion2 P2)";
+                info.adcs = 2;
+                info.dacs = 1;
+                info.maxReceivers = 8;
+                break;
+            case 6:
+                if (swVersion >= 40) {
+                    info.deviceType = HpsdrDeviceType::HermesLite2;
+                    info.boardName = "HermesLite V2";
+                    info.modelName = "Hermes-Lite 2 (P2)";
+                    info.adcs = 1;
+                    info.dacs = 1;
+                    info.maxReceivers = 8;
+                    info.frequencyMax = 38400000.0;
+                } else {
+                    info.deviceType = HpsdrDeviceType::HermesLite;
+                    info.boardName = "HermesLite V1";
+                    info.modelName = "Hermes-Lite 1 (P2)";
+                    info.adcs = 1;
+                    info.dacs = 1;
+                    info.maxReceivers = 4;
+                    info.frequencyMax = 30720000.0;
+                }
+                break;
+            case 10:
+                info.deviceType = HpsdrDeviceType::SaturnG2;
+                info.boardName = "Saturn/G2";
+                info.modelName = "Apache Labs ANAN-G2 (Saturn)";
+                info.adcs = 2;
+                info.dacs = 1;
+                info.maxReceivers = 8;
+                break;
+            default:
+                info.deviceType = HpsdrDeviceType::Unknown;
+                info.boardName = QString("P2-Board-%1").arg(rawBoardId);
+                info.modelName = QString("Protocol 2 Board %1").arg(rawBoardId);
+                info.adcs = 1;
+                info.dacs = 1;
+                info.maxReceivers = 8;
+                break;
+        }
+    }
+
+    if (minorVersion > 0) {
+        info.firmwareString = QString("v%1.%2").arg(swVersion).arg(minorVersion);
+    } else if (swVersion > 0) {
+        info.firmwareString = QString("v%1").arg(swVersion);
+    }
+
+    return info;
 }
 
 }  // namespace ProtocolBoundaryUtils

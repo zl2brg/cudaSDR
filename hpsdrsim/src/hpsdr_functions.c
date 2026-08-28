@@ -24,12 +24,25 @@ void np_discovery(uint8_t *buffer, int new_protocol_running, int NEWDEVICE) {
     buffer[11] = NEWDEVICE;
     buffer[12] = 38;
     buffer[13] = 19;
+    buffer[14] = 2; // receivers
+    buffer[15] = 1; // transmitters
     buffer[20] = 2;
     buffer[21] = 1;
     buffer[22] = 3;
-    // HERMES_LITE2 is a HermesLite with a new software version
+    // HERMES_LITE2 is a HermesLite with software version >= 40
     if (NEWDEVICE == NEW_DEVICE_HERMES_LITE2) {
         buffer[11] = NEW_DEVICE_HERMES_LITE;
+        buffer[13] = 73; // Gateware 73
+        buffer[14] = 4;  // 4 DDCs
+        buffer[21] = 2;  // minor version 2 -> v73.2
+    } else if (NEWDEVICE == NEW_DEVICE_SATURN) {
+        buffer[11] = NEW_DEVICE_SATURN;
+        buffer[13] = 20; // Firmware 2.0
+        buffer[14] = 8;  // 8 DDCs
+    } else if (NEWDEVICE == NEW_DEVICE_ORION2) {
+        buffer[11] = NEW_DEVICE_ORION2;
+        buffer[13] = 18; // Firmware 1.8
+        buffer[14] = 8;  // 8 DDCs
     }
 }
 

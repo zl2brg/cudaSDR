@@ -29,6 +29,7 @@
 
 #include "cusdr_discoverer.h"
 #include "cusdr_dataIO.h"
+#include "protocol_boundary_utils.h"
 #include <SoapySDR/Device.hpp>
 #include "Util/cusdr_buttons.h"
 
@@ -250,7 +251,15 @@ int Discoverer::findHPSDRDevices() {
 				}
 
 				int no = (unsigned char)m_deviceDatagram.at(10);
-				devicesFound += addDevice(mc, no, 1);
+				int minorVer = (m_deviceDatagram.size() >= 22) ? (unsigned char)m_deviceDatagram.at(21) : 0;
+				int swVer = (m_deviceDatagram.size() >= 10) ? (unsigned char)m_deviceDatagram.at(9) : 0;
+				mc.sw_version = swVer;
+				if (no == 0)
+					set->setMetisVersion(swVer);
+				else
+					set->setHermesVersion(swVer);
+
+				devicesFound += addDevice(mc, no, 1, swVer, minorVer);
 			}
 			else if (m_deviceDatagram[2] == (char)0x03) {
 
@@ -288,13 +297,9 @@ int Discoverer::findHPSDRDevices() {
 
                 mc.sw_version = version;
                 mc.status = status;
-                mc.max_receivers = num_ddcs;
-                mc.max_transmitters = num_dacs;
-                mc.adcs = num_ddcs;
-                mc.dacs = num_dacs;
 
-				set->setHermesVersion(version); // Most P2 devices are Hermes-class
-				devicesFound += addDevice(mc, no, 2);
+				set->setHermesVersion(version); // Most P2 devices are Hermes/Orion-class
+				devicesFound += addDevice(mc, no, 2, version, 0, num_ddcs, num_dacs);
 
 				if (status == 0x03) {
 					m_dataIO->networkIOMutex.lock();
@@ -318,48 +323,31 @@ int Discoverer::findHPSDRDevices() {
 	return devicesFound;
 }
 
-int Discoverer::addDevice(TNetworkDevicecard &mc, int boardId, int protocol) {
-
-	QString str;
-	switch (boardId) {
-		case 0: str = "Metis"; break;
-		case 1: str = "Hermes"; break;
-		case 2: str = "Griffin"; break;
-		case 4: str = "Angelia"; break;
-		case 5: str = "Orion"; break;
-		case 6: str = "Hermes-Lite"; break;
-		default: str = QString("Board-%1").arg(boardId); break;
-	}
+int Discoverer::addDevice(TNetworkDevicecard &mc, int boardId, int protocol, int swVersion, int minorVersion, int numDdcs, int numDacs) {
+	ProtocolBoundaryUtils::HpsdrDeviceInfo info = ProtocolBoundaryUtils::decodeHpsdrDevice(boardId, protocol, swVersion, minorVersion);
 
 	mc.boardID = boardId;
-	mc.boardName = str;
+	mc.boardName = info.boardName;
 	mc.protocol = protocol;
+	mc.adcs = (numDdcs > 0 && protocol == 2) ? qMin(numDdcs, info.adcs) : info.adcs;
+	mc.dacs = (numDacs > 0 && protocol == 2) ? numDacs : info.dacs;
+	mc.max_receivers = (numDdcs > 0 && protocol == 2) ? numDdcs : info.maxReceivers;
+	mc.max_transmitters = (numDacs > 0 && protocol == 2) ? numDacs : info.maxTransmitters;
+	mc.frequency_min = info.frequencyMin;
+	mc.frequency_max = info.frequencyMax;
 
-    if (protocol == 1) {
-        if (boardId == 1) { // Hermes
-            mc.adcs = 1;
-            mc.dacs = 1;
-            mc.frequency_min = 0;
-        } else {
-            mc.adcs = 1;
-            mc.dacs = 1;
-        }
-        mc.max_receivers = mc.adcs;
-        mc.max_transmitters = mc.dacs;
-    }
-
-	mc.frequency_max = (boardId == 6) ? 30720000 : 61440000;
+	QString displayStr = QString("%1 (%2, %3, P%4)")
+		.arg(info.modelName,
+		     mc.ip_address.toString(),
+		     info.firmwareString.isEmpty() ? QString("ID 0x%1").arg(boardId, 2, 16, QLatin1Char('0')) : info.firmwareString)
+		.arg(protocol);
 
 	m_dataIO->networkIOMutex.lock();
-	DISCOVERER_DEBUG << "Board ID: " << boardId << " (" << qPrintable(str) << ") protocol=" << protocol;
+	DISCOVERER_DEBUG << "Discovered " << qPrintable(displayStr) << " ADCs=" << mc.adcs << " maxRx=" << mc.max_receivers;
 	m_dataIO->networkIOMutex.unlock();
 
 	m_deviceCards.append(mc);
-
-	str += " (";
-	str += mc.ip_address.toString();
-	str += ")";
-	set->addNetworkIOComboBoxEntry(str);
+	set->addNetworkIOComboBoxEntry(displayStr);
 
 	return 1;
 }

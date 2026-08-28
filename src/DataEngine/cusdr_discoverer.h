@@ -83,7 +83,7 @@ private:
 	TNetworkDevicecard			m_deviceCard;
 	QList<TNetworkDevicecard>	m_deviceCards;
 
-	int  addDevice(TNetworkDevicecard &mc, int boardId, int protocol);
+	int  addDevice(TNetworkDevicecard &mc, int boardId, int protocol, int swVersion = 0, int minorVersion = 0, int numDdcs = 0, int numDacs = 0);
 
 signals:
 #ifdef HAVE_SOAPYSDR

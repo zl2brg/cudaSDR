@@ -180,42 +180,24 @@ bool DataEngineFirmware::getFirmwareVersions() {
 // boards ("Orion", "Orion2", "Angelia", etc.).  Until the board-name mapping for
 // P2 boards is verified, these checks are likely silently skipped for P2 hardware.
 bool DataEngineFirmware::checkFirmwareVersions() {
+	const bool isProtocol2 = (m_engine->set->getCurrentMetisCard().protocol == 2);
+	const bool isMetisModular = (m_engine->hpsdrDeviceName == "Metis" && !isProtocol2);
 
-	// C4 board FW is stored as metisFW on the Metis decode path even for Hermes/ANAN.
-	// Only treat a real HW-interface mismatch as fatal — not a non-zero metisFW field.
-	if (m_engine->m_hwInterface == QSDR::Metis && m_engine->hpsdrDeviceName == "Hermes") {
-
-		DATA_ENGINE_DEBUG << "HW interface is Metis but board is Hermes/ANAN; continuing (prefer Hermes interface)";
+	// Protocol 2 devices and integrated SDR boards (Hermes, Angelia, Orion, Orion2, Saturn, HL2, STEMlab)
+	// do not require modular Atlas bus cards (Penelope / Mercury / PennyLane).
+	if (!isMetisModular) {
+		if (m_engine->m_hwInterface == QSDR::Metis && m_engine->hpsdrDeviceName != "Metis") {
+			DATA_ENGINE_DEBUG << "HW interface is Metis but board is" << m_engine->hpsdrDeviceName << "continuing";
+		}
+		if (m_engine->hermesFW < 18 && m_engine->set->getNumberOfReceivers() > 2 && m_engine->hpsdrDeviceName == "Hermes" && !isProtocol2) {
+			m_engine->stop();
+			QString msg = "Hermes FW < V1.8 has only 2 receivers!";
+			m_engine->set->showWarningDialog(msg);
+			return false;
+		}
+		m_engine->setWideBandBufferCount();
+		return true;
 	}
-
-	if (m_engine->m_hwInterface == QSDR::Hermes && m_engine->hpsdrDeviceName == "Metis") {
-
-		m_engine->stop();
-
-		QString msg = "Hermes selected, but Metis found!";
-		m_engine->set->showWarningDialog(msg);
-		return false;
-	}
-
-	if (m_engine->penelopeFW == 0 && (m_engine->set->getPenelopePresence() || m_engine->set->getPennyLanePresence())) {
-
-		m_engine->stop();
-
-		QString msg = "Penelope or Pennylane selected, but firmware version = 0 !";
-		m_engine->set->showWarningDialog(msg);
-		return false;
-	}
-
-	if (m_engine->mercuryFW < 27 && m_engine->set->getNumberOfReceivers() > 4 && m_engine->hpsdrDeviceName == "Metis") {
-
-		m_engine->stop();
-
-		QString msg = "Mercury FW must be V2.7 or higher!";
-		m_engine->set->showWarningDialog(msg);
-		return false;
-	}
-
-	if (m_engine->hpsdrDeviceName == "Metis") {
 
 		QString msg;
 		switch (m_engine->metisFW) {
@@ -350,7 +332,6 @@ bool DataEngineFirmware::checkFirmwareVersions() {
 				//return false;
 				return true;
 		}
-	}
 
 	if (m_engine->mercuryFW < 33 && m_engine->set->getNumberOfReceivers() > 4 && m_engine->hpsdrDeviceName == "Metis") {
 

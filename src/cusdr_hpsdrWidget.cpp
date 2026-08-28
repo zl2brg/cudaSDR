@@ -3,6 +3,7 @@
 #include <QBoxLayout>
 
 #include "cusdr_hpsdrWidget.h"
+#include "DataEngine/protocol_boundary_utils.h"
 
 #define	btn_height		22
 #define	btn_width		74
@@ -645,11 +646,20 @@ void HPSDRWidget::updateDetectedBoardLabel(TNetworkDevicecard card) {
 		return;
 	}
 
+	ProtocolBoundaryUtils::HpsdrDeviceInfo info = ProtocolBoundaryUtils::decodeHpsdrDevice(card.boardID, card.protocol, card.sw_version);
+	QString details;
+	if (card.adcs > 1) {
+		details = QString("%1 ADCs, ").arg(card.adcs);
+	}
+	details += QString("P%1, ID 0x%2").arg(card.protocol).arg(card.boardID, 2, 16, QLatin1Char('0'));
+	if (!info.firmwareString.isEmpty()) {
+		details += QString(", %1").arg(info.firmwareString);
+	}
+
 	m_detectedBoardLabel->setText(
-		QString("Detected: %1 (ID 0x%2, P%3)")
-			.arg(card.boardName)
-			.arg(card.boardID, 2, 16, QLatin1Char('0'))
-			.arg(card.protocol));
+		QString("Detected: %1 (%2)")
+			.arg(info.modelName.isEmpty() ? card.boardName : info.modelName)
+			.arg(details));
 }
 
 void HPSDRWidget::hpsdrHardwareChanged() {

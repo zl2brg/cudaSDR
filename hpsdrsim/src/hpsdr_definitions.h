@@ -14,9 +14,12 @@
 #define DEVICE_ANGELIA          4
 #define DEVICE_ORION            5
 #define DEVICE_HERMES_LITE      6
-#define DEVICE_HERMES_LITE2     1006
+#define DEVICE_HERMES_LITE2     506
+#define DEVICE_TANGERINE        7
 #define DEVICE_ORION2           10
 #define DEVICE_C25              100
+#define DEVICE_STEMLAB          100
+#define DEVICE_STEMLAB_Z20      101
 
 #define NEW_DEVICE_ATLAS        0
 #define NEW_DEVICE_HERMES       1
@@ -26,6 +29,7 @@
 #define NEW_DEVICE_ORION2       5
 #define NEW_DEVICE_HERMES_LITE  6
 #define NEW_DEVICE_HERMES_LITE2 1006
+#define NEW_DEVICE_SATURN       10
 
 // port definitions from host
 #define GENERAL_REGISTERS_FROM_HOST_PORT 1024

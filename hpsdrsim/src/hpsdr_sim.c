@@ -162,13 +162,18 @@ static double txlevel;
 enum {
     OPT_ATLAS = 100,
     OPT_HERMES,
+    OPT_HERMES2,
     OPT_GRIFFIN,
     OPT_ANGELIA,
     OPT_ORION,
     OPT_ORION2,
+    OPT_SATURN,
     OPT_HERMESLITE,
     OPT_HERMESLITE2,
     OPT_C25,
+    OPT_STEMLAB,
+    OPT_STEMLAB_Z20,
+    OPT_TANGERINE,
     OPT_DIVERSITY,
     OPT_PROTOCOL1,
     OPT_PROTOCOL2,
@@ -176,7 +181,6 @@ enum {
     OPT_DEBUGRX,
     OPT_DEBUG,
     OPT_HELP
-
 };
 
 int main(int argc, char *argv[]) {
@@ -222,13 +226,20 @@ int main(int argc, char *argv[]) {
     static struct option long_options[] = {
         {"atlas",       no_argument, 0, OPT_ATLAS},
         {"hermes",      no_argument, 0, OPT_HERMES},
+        {"hermes2",     no_argument, 0, OPT_HERMES2},
         {"griffin",     no_argument, 0, OPT_GRIFFIN},
         {"angelia",     no_argument, 0, OPT_ANGELIA},
         {"orion",       no_argument, 0, OPT_ORION},
         {"orion2",      no_argument, 0, OPT_ORION2},
+        {"saturn",      no_argument, 0, OPT_SATURN},
+        {"g2",          no_argument, 0, OPT_SATURN},
         {"hermeslite",  no_argument, 0, OPT_HERMESLITE},
         {"hermeslite2", no_argument, 0, OPT_HERMESLITE2},
         {"c25",         no_argument, 0, OPT_C25},
+        {"stemlab",     no_argument, 0, OPT_STEMLAB},
+        {"redpitaya",   no_argument, 0, OPT_STEMLAB},
+        {"stemlab-z20", no_argument, 0, OPT_STEMLAB_Z20},
+        {"tangerine",   no_argument, 0, OPT_TANGERINE},
         {"diversity",   no_argument, 0, OPT_DIVERSITY},
 	{"p1",		no_argument, 0, OPT_PROTOCOL1},
 	{"p2",          no_argument, 0, OPT_PROTOCOL2},
@@ -252,6 +263,18 @@ while ((c = getopt_long_only(argc, argv, "dh", long_options, NULL)) != -1) {
                 OLDDEVICE = DEVICE_HERMES;
                 NEWDEVICE = NEW_DEVICE_HERMES;
                 break;
+            case OPT_HERMES2:
+                OLDDEVICE = DEVICE_HERMES;
+                NEWDEVICE = NEW_DEVICE_HERMES2;
+                break;
+            case OPT_GRIFFIN:
+                OLDDEVICE = DEVICE_GRIFFIN;
+                NEWDEVICE = NEW_DEVICE_HERMES;
+                break;
+            case OPT_ANGELIA:
+                OLDDEVICE = DEVICE_ANGELIA;
+                NEWDEVICE = NEW_DEVICE_ANGELIA;
+                break;
             case OPT_ORION:
                 OLDDEVICE = DEVICE_ORION;
                 NEWDEVICE = NEW_DEVICE_ORION;
@@ -259,6 +282,10 @@ while ((c = getopt_long_only(argc, argv, "dh", long_options, NULL)) != -1) {
             case OPT_ORION2:
                 OLDDEVICE = DEVICE_ORION2;
                 NEWDEVICE = NEW_DEVICE_ORION2;
+                break;
+            case OPT_SATURN:
+                OLDDEVICE = DEVICE_ORION2;
+                NEWDEVICE = NEW_DEVICE_SATURN;
                 break;
 	    case OPT_HERMESLITE:
 	        OLDDEVICE = DEVICE_HERMES_LITE;
@@ -269,9 +296,18 @@ while ((c = getopt_long_only(argc, argv, "dh", long_options, NULL)) != -1) {
                  NEWDEVICE = NEW_DEVICE_HERMES_LITE2;
 		break;
 	    case OPT_C25:
-		 OLDDEVICE = DEVICE_C25;
-	         NEWDEVICE = NEW_DEVICE_HERMES;
+            case OPT_STEMLAB:
+		 OLDDEVICE = DEVICE_STEMLAB;
+	         NEWDEVICE = NEW_DEVICE_ANGELIA;
 		 break;
+            case OPT_STEMLAB_Z20:
+                 OLDDEVICE = DEVICE_STEMLAB_Z20;
+                 NEWDEVICE = NEW_DEVICE_ANGELIA;
+                 break;
+            case OPT_TANGERINE:
+                 OLDDEVICE = DEVICE_TANGERINE;
+                 NEWDEVICE = NEW_DEVICE_ORION;
+                 break;
 	    case OPT_DIVERSITY:
 		 diversity=1;
 		 break;
@@ -288,13 +324,17 @@ while ((c = getopt_long_only(argc, argv, "dh", long_options, NULL)) != -1) {
 		      printf("Options:\n"
                     "    -atlas: \n"
                     "    -hermes: \n"
+                    "    -hermes2: \n"
                     "    -griffin: \n"
                     "    -angelia: \n"
                     "    -orion: \n"
                    "    -orion2: \n"
+                    "    -saturn / -g2: \n"
                     "    -hermeslite: \n"
                     "    -hermeslite2: \n"
-                    "    -c25: \n"
+                    "    -stemlab / -c25 / -redpitaya: \n"
+                    "    -stemlab-z20: \n"
+                    "    -tangerine: \n"
                     "    -diversity: \n"
                     "    -P1: \n"
                     "    -P2: \n"
@@ -347,14 +387,20 @@ while ((c = getopt_long_only(argc, argv, "dh", long_options, NULL)) != -1) {
         c2 = 0.108;
         break;
     case DEVICE_ORION2:
-        dbg_printf(1, "DEVICE is ORION MkII\n");
+        dbg_printf(1, "DEVICE is ORION MkII / Saturn\n");
         c1 = 5.0;
         c2 = 0.108;
         break;
     case DEVICE_C25:
-        dbg_printf(1, "DEVICE is STEMlab/C25\n");
+    case DEVICE_STEMLAB_Z20:
+        dbg_printf(1, "DEVICE is STEMlab / Red Pitaya\n");
         c1 = 3.3;
         c2 = 0.090;
+        break;
+    case DEVICE_TANGERINE:
+        dbg_printf(1, "DEVICE is TangerineSDR\n");
+        c1 = 3.3;
+        c2 = 0.095;
         break;
     }
 
@@ -665,12 +711,15 @@ while ((c = getopt_long_only(argc, argv, "dh", long_options, NULL)) != -1) {
             reply[9] = 31; // software version
             reply[10] = OLDDEVICE;
             if (OLDDEVICE == DEVICE_HERMES_LITE2) {
-                // use HL1 device ID and new software version
-                reply[9] = 41;
+                // use HL1 device ID and gateware version 73.2
+                reply[9] = 73;
                 reply[10] = DEVICE_HERMES_LITE;
             }
             memset(buffer, 0, 60);
             memcpy(buffer, reply, 12);
+            if (OLDDEVICE == DEVICE_HERMES_LITE2) {
+                buffer[21] = 2; // minor version 2
+            }
 
             if (sock_TCP_Client > -1) {
                 // We will get into trouble if we respond via TCP while the radio is
