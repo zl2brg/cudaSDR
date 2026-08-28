@@ -1301,61 +1301,120 @@ void DataEngine::setHwIOVersion(int version) {
 
 void DataEngine::setNumberOfRx(int value) {
 
-	DATA_ENGINE_DEBUG << "[RX-ADD] setNumberOfRx: requested=" << value << "current=" << receivers();
+	DATA_ENGINE_DEBUG << "[RX-ADD] setNumberOfRx: requested=" << value << "current=" << receivers() << "allocated=" << RX.count();
 
-	if (receivers() == value) {
+	if (value < 1) value = 1;
+	if (value > MAX_RECEIVERS) value = MAX_RECEIVERS;
+
+	if (receivers() == value && RX.count() == value) {
 		DATA_ENGINE_DEBUG << "[RX-ADD] receiver count unchanged, no action.";
 		return;
 	}
 
-    bool restart = (m_dataEngineState == QSDR::DataEngineUp);
-	DATA_ENGINE_DEBUG << "[RX-ADD] engineUp=" << restart << "-> will" << (restart ? "stop/restart" : "update counts only");
-    if (restart) {
-		DATA_ENGINE_DEBUG << "[RX-ADD] stopping engine...";
-		stop();
-		// Give hardware/network stack a short settle window before re-init.
-		QThread::msleep(200);
-		DATA_ENGINE_DEBUG << "[RX-ADD] engine stopped, settling 200ms done.";
+	if (m_dataEngineState != QSDR::DataEngineUp) {
+		// Engine is down; update receiver count in model for next start
+		QMutexLocker locker(&mutex);
+		setReceiversCount(value);
+		if (currentReceiver >= value) {
+			currentReceiver = 0;
+		}
+		return;
 	}
+
+	// Engine is UP: dynamically scale SliceProcessors and DSP threads without tearing down network IO
+	const QList<qint64> ctrFrequencies = set->getCtrFrequencies();
+
+	// 1. Add new receiver slices if needed
+	while (RX.count() < value) {
+		int i = RX.count();
+		if (!m_radioModel || i >= m_radioModel->slices().size()) break;
+
+		DATA_ENGINE_DEBUG << "[RX-ADD] dynamically allocating slice processor for rx" << i;
+		auto rx = new SliceProcessor(m_radioModel->slices().at(i), nullptr);
+		if (!rx->initDSPInterface()) {
+			DATA_ENGINE_DEBUG << "[RX-ADD] ERROR: failed to init DSP interface for rx" << i;
+			delete rx;
+			break;
+		}
+
+		rx->setConnectedStatus(true);
+		rx->setServerMode(m_serverMode);
+
+		auto thread = new QThreadEx();
+		rx->moveToThread(thread);
+
+		connect(rx, &SliceProcessor::spectrumBufferChanged, set, &Settings::setSpectrumBuffer);
+		if (RadioTelemetry* tel = m_radioModel ? m_radioModel->telemetry() : nullptr) {
+			connect(rx, &SliceProcessor::sMeterValueChanged, tel,
+					[tel](int receiverId, double v) { tel->setSMeterValue(receiverId, v); });
+		}
+		if (TciServer *tci = set->tciServer()) {
+			connect(rx, &SliceProcessor::rxAudioSamples, tci, &TciServer::onRxAudioSamples, Qt::QueuedConnection);
+			connect(rx, &SliceProcessor::rxIqSamples, tci, &TciServer::onRxIqSamples, Qt::QueuedConnection);
+		}
+		if (m_cwIO) {
+			connect(m_cwIO, &iambic::key_down, rx, &SliceProcessor::cwKeyDown, Qt::DirectConnection);
+		}
+		if (m_dataProcessor) {
+			CHECKED_CONNECT(rx, &SliceProcessor::outputBufferSignal, m_dataProcessor, &DataProcessor::setOutputBuffer);
+			CHECKED_CONNECT(rx, &SliceProcessor::audioBufferSignal, m_dataProcessor, &DataProcessor::send_hpsdr_data);
+		}
+
+		if (i < ctrFrequencies.count()) {
+			setFrequency(true, i, ctrFrequencies.at(i));
+		}
+
+		thread->start(QThread::HighPriority);
+		m_dspThreadList.append(thread);
+		RX.append(rx);
+	}
+
+	// 2. Remove excess receiver slices if needed
+	while (RX.count() > value) {
+		int i = RX.count() - 1;
+		DATA_ENGINE_DEBUG << "[RX-ADD] dynamically tearing down slice processor for rx" << i;
+		SliceProcessor* rx = RX.takeAt(i);
+		QThread* thread = (i < m_dspThreadList.count()) ? m_dspThreadList.takeAt(i) : nullptr;
+
+		if (rx) {
+			rx->stop();
+			if (rx->qtwdsp) {
+				rx->qtwdsp->stopChannel();
+			}
+			rx->disconnect();
+		}
+		if (thread) {
+			thread->quit();
+			thread->wait(500);
+			delete thread;
+		}
+		if (rx) {
+			delete rx;
+		}
+	}
+
+	set->setRxList(RX);
 
 	{
-	QMutexLocker locker(&mutex);
-	setReceiversCount(value);
-	if (currentReceiver >= value) {
-		DATA_ENGINE_DEBUG << "[RX-ADD] currentReceiver" << currentReceiver << ">= new count, resetting to 0";
-		currentReceiver = 0;
+		QMutexLocker locker(&mutex);
+		setReceiversCount(value);
+		if (currentReceiver >= value) {
+			currentReceiver = 0;
+		}
+		m_configure = receivers() + 1;
 	}
-	}
-
-	DATA_ENGINE_DEBUG << "[RX-ADD] flushing IQ queue (" << m_dataIO->iq_queue.count() << " items) and WB queue (" << m_dataIO->wb_queue.count() << " items)";
-	while (!m_dataIO->iq_queue.isEmpty())
-		m_dataIO->iq_queue.dequeue();
-	while (!m_dataIO->wb_queue.isEmpty())
-		m_dataIO->wb_queue.dequeue();
 
 	if (set->getCurrentReceiver() >= value) {
 		set->setCurrentReceiver(0);
 	}
 
-	DATA_ENGINE_DEBUG << "[RX-ADD] receivers set to" << value;
+	DATA_ENGINE_DEBUG << "[RX-ADD] dynamic receiver update complete: active=" << value << "allocated=" << RX.count();
 
-    if (restart) {
-		DATA_ENGINE_DEBUG << "[RX-ADD] restarting engine with" << value << "receiver(s)...";
-		QThread::msleep(100);
-		if (!start()) {
-			DATA_ENGINE_DEBUG << "[RX-ADD] FAILED to restart data engine after receiver-count change.";
-		} else {
-			DATA_ENGINE_DEBUG << "[RX-ADD] engine restart successful.";
-			if (m_protocol && set->getCurrentMetisCard().protocol == 2 && m_dataProcessor) {
-				// For Protocol 2: after the engine restarts, push an explicit DDC Specific
-				// (port 1025) + HP Run=1 (port 1027) burst so the simulator immediately
-				// receives the updated DDC enable bitmask and re-asserts Run=1.
-				DATA_ENGINE_DEBUG << "[RX-ADD] P2: queuing DDC+HP Run=1 setup burst for" << value << "receiver(s)";
-				QMetaObject::invokeMethod(m_dataProcessor,
-				                          &DataProcessor::requestProtocol2ReceiverSetup,
-				                          Qt::QueuedConnection);
-			}
-		}
+	if (m_protocol && set->getCurrentMetisCard().protocol == 2 && m_dataProcessor) {
+		DATA_ENGINE_DEBUG << "[RX-ADD] P2: queuing DDC+HP Run=1 setup burst for" << value << "receiver(s)";
+		QMetaObject::invokeMethod(m_dataProcessor,
+								  &DataProcessor::requestProtocol2ReceiverSetup,
+								  Qt::QueuedConnection);
 	}
 }
 
@@ -1925,13 +1984,12 @@ void DataProcessor::requestProtocol2ReceiverSetup() {
     if (!de || !de->m_protocol || !de->m_controlSocket) return;
     if (de->set->getCurrentMetisCard().protocol != 2) return;
 
-	DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] enter: controlSocketLocalPort="
-	                    << de->m_controlSocket->localPort()
-	                    << " device=" << de->m_dataIO->hpsdrDeviceIPAddress;
+	DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] enter: receivers=" << de->receivers()
+	                     << " allocated=" << de->RX.count()
+	                     << " device=" << de->m_dataIO->hpsdrDeviceIPAddress;
 
-	// Keep Run low during setup staging to avoid early HP assertions from
-	// concurrent control paths; raise it only for the explicit start HP packet.
-	de->rcveIQ_toggle = false;
+	// Always ensure Run is asserted
+	de->rcveIQ_toggle = true;
 
     unsigned char p2CmdBuf[1444];
     quint16 port = DEVICE_PORT;
@@ -1952,125 +2010,46 @@ void DataProcessor::requestProtocol2ReceiverSetup() {
 				return sent;
 			}
 			DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] DataIO control send failed invoked="
-			                     << invoked << " sent=" << sent
-			                     << " — not falling back to controlSocket (same-host reply port)";
+			                     << invoked << " sent=" << sent;
 			return -1;
 		}
 		return -1;
 	};
 
-    // 0. Send General packet (port 1024) — must arrive before HP packets so
-    //    newhpsdrsim sets alex0_enable=1 (byte 59 bit 0) and processes alex0 bits.
+    m_deviceAddress = de->m_dataIO->hpsdrDeviceIPAddress;
+
+    // 0. Send General packet (port 1024)
     int genState = 0;
     memset(p2CmdBuf, 0, sizeof(p2CmdBuf));
     de->m_protocol->encodeCCBytes(p2CmdBuf, de, de->m_radioModel, genState, port);
-    m_deviceAddress = de->m_dataIO->hpsdrDeviceIPAddress;
-    sendP2Control((const char*)p2CmdBuf, 60, port); // General packet is 60 bytes
+    sendP2Control((const char*)p2CmdBuf, 60, port);
 
-    // 1. Send DDC Specific packet (port 1025) with updated receiver-count/bitmask.
+    // 1. Send DDC Specific packet (port 1025) with updated receiver-count/bitmask
 	int ddcState = 1;
     memset(p2CmdBuf, 0, sizeof(p2CmdBuf));
     de->m_protocol->encodeCCBytes(p2CmdBuf, de, de->m_radioModel, ddcState, port);
-    if (port != 1025) {
-        DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] unexpected DDC port" << port << "(expected 1025)";
-        return;
-    }
-    m_deviceAddress = de->m_dataIO->hpsdrDeviceIPAddress;
-	qint64 ddcSent = sendP2Control((const char*)p2CmdBuf, 1444, port);
-	if (ddcSent < 0) {
-        DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] DDC Specific send FAILED:" << de->m_controlSocket->errorString();
-	} else {
+    if (port == 1025) {
+		qint64 ddcSent = sendP2Control((const char*)p2CmdBuf, 1444, port);
 		DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] DDC Specific sent: bytes=" << ddcSent << " port=" << port;
-	}
+    }
 
-	// 2. Send TX Specific packet (port 1026). Some simulator/device builds
-	// expect the full DDC+TX+HP setup sequence before honoring Run.
+	// 2. Send TX Specific packet (port 1026)
 	int txState = 2;
 	memset(p2CmdBuf, 0, sizeof(p2CmdBuf));
 	de->m_protocol->encodeCCBytes(p2CmdBuf, de, de->m_radioModel, txState, port);
-	if (port != 1026) {
-		DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] unexpected TX port" << port << "(expected 1026)";
-		return;
-	}
-	qint64 txSent = sendP2Control((const char*)p2CmdBuf, 60, port);
-	if (txSent < 0) {
-		DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] TX Specific send FAILED:" << de->m_controlSocket->errorString();
-	} else {
+	if (port == 1026) {
+		qint64 txSent = sendP2Control((const char*)p2CmdBuf, 60, port);
 		DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] TX Specific sent: bytes=" << txSent << " port=" << port;
 	}
 
-	// 3. Send High Priority packet with Run=0 first so DDC frequencies are
-	// latched before Run is asserted.
+	// 3. Send High Priority packet (port 1027) with Run=1 and all active DDC frequencies
 	int hpState = 3;
-	de->rcveIQ_toggle = false;
-	memset(p2CmdBuf, 0, sizeof(p2CmdBuf));
-	de->m_protocol->encodeCCBytes(p2CmdBuf, de, de->m_radioModel, hpState, port);
-	if (port != 1027) {
-		DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] unexpected HP port" << port << "(expected 1027)";
-		return;
-	}
-	qint64 hpSentRun0 = sendP2Control((const char*)p2CmdBuf, 1444, port);
-	if (hpSentRun0 < 0) {
-		DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] HP Run=0 send FAILED:" << de->m_controlSocket->errorString();
-	} else {
-		DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] HP Run=0 sent: bytes=" << hpSentRun0 << " port=" << port;
-	}
-
-	// 4. Assert Run=1 with a FULL High Priority packet (frequencies included).
-	// formatStartStop() zeros the rest of the HP payload; hpsdrsim then latches
-	// rxfreq=0 and the RX threads stay gated even after DDC enable/rate arrive.
-	QThread::msleep(5);
-	de->rcveIQ_toggle = true;
 	port = DEVICE_PORT;
-	hpState = 3;
 	memset(p2CmdBuf, 0, sizeof(p2CmdBuf));
 	de->m_protocol->encodeCCBytes(p2CmdBuf, de, de->m_radioModel, hpState, port);
-	if (port != 1027) {
-		DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] unexpected HP Run=1 port" << port << "(expected 1027)";
-		return;
-	}
-	qint64 runSent = sendP2Control((const char*)p2CmdBuf, 1444, port);
-	if (runSent < 0) {
-		DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] final HP Run=1 send FAILED on port" << port << ":" << de->m_controlSocket->errorString();
-		return;
-	} else {
-		DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] final HP Run=1 sent: bytes=" << runSent << " port=" << port;
-	}
-
-	// The simulator starts DDC/TX receiver threads only after Run=1 is seen.
-	// Re-send DDC/TX/HP in a short burst so newly spawned threads latch config.
-	QThread::msleep(50); // allow ddc_specific_thread to bind before first post-run DDC
-	for (int attempt = 0; attempt < 5; ++attempt) {
-		QThread::msleep(20);
-
-		int ddcResendState = 1;
-		port = DEVICE_PORT;
-		memset(p2CmdBuf, 0, sizeof(p2CmdBuf));
-		de->m_protocol->encodeCCBytes(p2CmdBuf, de, de->m_radioModel, ddcResendState, port);
-		if (port == 1025) {
-			qint64 ddcSent2 = sendP2Control((const char*)p2CmdBuf, 1444, port);
-			if (ddcSent2 < 0) {
-				DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] post-run DDC send FAILED (attempt" << (attempt + 1) << "):" << de->m_controlSocket->errorString();
-			} else if (attempt == 0) {
-				DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] post-run DDC sent: bytes=" << ddcSent2 << " port=" << port;
-			}
-		}
-
-		int txResendState = 2;
-		port = DEVICE_PORT;
-		memset(p2CmdBuf, 0, sizeof(p2CmdBuf));
-		de->m_protocol->encodeCCBytes(p2CmdBuf, de, de->m_radioModel, txResendState, port);
-		if (port == 1026) {
-			(void)sendP2Control((const char*)p2CmdBuf, 60, port);
-		}
-
-		int hpResendState = 3;
-		port = DEVICE_PORT;
-		memset(p2CmdBuf, 0, sizeof(p2CmdBuf));
-		de->m_protocol->encodeCCBytes(p2CmdBuf, de, de->m_radioModel, hpResendState, port);
-		if (port == 1027) {
-			(void)sendP2Control((const char*)p2CmdBuf, 1444, port);
-		}
+	if (port == 1027) {
+		qint64 runSent = sendP2Control((const char*)p2CmdBuf, 1444, port);
+		DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] HP Run=1 sent: bytes=" << runSent << " port=" << port;
 	}
 
 	DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] complete";
@@ -3258,23 +3237,22 @@ void DataProcessor::processReadData()
             // (covers both HPSDR and SoapySDR) and delivered via a queued signal,
             // so it is no longer forwarded from this worker thread.
 
-            int rx = 0;
-            if (rx < de->RX.size() && de->RX[rx]) {
-                int soapyInputRate = 0;
-                {
-                    QMutexLocker lock(&de->mutex);
-                    soapyInputRate = de->soapyInputSampleRate;
-                }
-                static int s_lastSoapyInputRate = 0;
-                if (soapyInputRate > 0 && soapyInputRate != s_lastSoapyInputRate) {
-                    s_lastSoapyInputRate = soapyInputRate;
-                    de->RX[rx]->setSoapyInputSampleRate(soapyInputRate);
-                }
+            for (int rx = 0; rx < de->RX.size(); ++rx) {
+                if (de->RX[rx]) {
+                    int soapyInputRate = 0;
+                    {
+                        QMutexLocker lock(&de->mutex);
+                        soapyInputRate = de->soapyInputSampleRate;
+                    }
+                    if (soapyInputRate > 0) {
+                        de->RX[rx]->setSoapyInputSampleRate(soapyInputRate);
+                    }
 
-                // Use thread-safe push
-                de->RX[rx]->enqueueSoapyData(samples);
-                if (de->RX[rx]->trySetSoapyDspPending()) {
-                    QMetaObject::invokeMethod(de->RX[rx], "dspProcessingSoapy", Qt::QueuedConnection);
+                    // Use thread-safe push
+                    de->RX[rx]->enqueueSoapyData(samples);
+                    if (de->RX[rx]->trySetSoapyDspPending()) {
+                        QMetaObject::invokeMethod(de->RX[rx], "dspProcessingSoapy", Qt::QueuedConnection);
+                    }
                 }
             }
         }

@@ -28,8 +28,7 @@ QList<quint16> CProtocol2::getRequiredPorts() {
                              ProtocolBoundaryUtils::Ports::P2HighPriorityPort, 
                              ProtocolBoundaryUtils::Ports::P2AudioPort, 
                              ProtocolBoundaryUtils::Ports::P2DucIqPort };
-    int nRx = Settings::instance()->getNumberOfReceivers();
-    for (int i = 0; i < nRx; i++)
+    for (int i = 0; i < MAX_RECEIVERS; i++)
         ports.append((quint16)(ProtocolBoundaryUtils::Ports::P2Ddc0Port + i));
     return ports;
 }
