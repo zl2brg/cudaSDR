@@ -38,6 +38,10 @@ TransmitAudioInput::TransmitAudioInput(QObject *parent)
 
     m_deviceIndex = set->getMicInputDev();
     m_digitalDeviceIndex = set->getDigitalAudioInputDev();
+    {
+        const DSPMode currentMode = set->getDSPMode(set->getCurrentReceiver());
+        m_isDigitalMode = (currentMode == DIGL || currentMode == DIGU);
+    }
 
     // Resolve persisted source names against currently available devices.
     const QString savedMicName = set->getMicInputSourceName();
@@ -127,43 +131,46 @@ void TransmitAudioInput::Setup() {
 
     // Get audio input device
     QAudioDevice inputDevice;
-    if (m_isDigitalMode) {
-        // m_digitalDeviceIndex: 0 = None (no audio), >0 = device (1-based offset)
-        if (m_digitalDeviceIndex > 0) {
-            int actualIndex = m_digitalDeviceIndex - 1;
-            if (actualIndex >= 0 && actualIndex < devices.size()) {
-                inputDevice = devices[actualIndex];
-                AUDIO_INPUT_DEBUG << "Digital mode: using audio input:" << inputDevice.description();
-            } else {
-                inputDevice = audioService->defaultInput();
-                AUDIO_INPUT_DEBUG << "Digital mode: device index out of range, using default:" << inputDevice.description();
-            }
-        } else {
-            AUDIO_INPUT_DEBUG << "Digital mode: no digital audio device configured";
-            m_mutex.unlock();
-            return; // "None" selected — no audio source needed
-        }
-    } else if (m_deviceIndex == 0) {
-        // Index 0 is HPSDR/local mic path. For Soapy there is no external
-        // HPSDR mic stream, so fall back to the host default input device.
-        if (set->getHWInterface() == QSDR::SoapySDR) {
-            inputDevice = defaultInputDevice;
-            AUDIO_INPUT_DEBUG << "Soapy TX: mic index 0 selected; using default host input:"
-                              << inputDevice.description();
-        } else {
-            AUDIO_INPUT_DEBUG << "Current TX audio input device: HPSDR local mic (no host Qt input device)";
-            m_mutex.unlock();
-            return;
-        }
-    } else {
-        // Use specific device (adjust index since 0 is HPSDR)
-        int actualIndex = m_deviceIndex - 1;
+    const bool useDigitalDevice = m_isDigitalMode && m_digitalDeviceIndex > 0;
+    if (useDigitalDevice) {
+        // m_digitalDeviceIndex: >0 = device (1-based offset). "None" falls through
+        // to the analog PC mic so DIGU/DIGL still have a host source (TCI remains
+        // preferred in fetch_MicData when network frames are present).
+        int actualIndex = m_digitalDeviceIndex - 1;
         if (actualIndex >= 0 && actualIndex < devices.size()) {
             inputDevice = devices[actualIndex];
-            AUDIO_INPUT_DEBUG << "Using audio input device:" << inputDevice.description();
+            AUDIO_INPUT_DEBUG << "Digital mode: using audio input:" << inputDevice.description();
         } else {
-            inputDevice = defaultInputDevice;
-            AUDIO_INPUT_DEBUG << "Device index out of range, using default";
+            inputDevice = audioService->defaultInput();
+            AUDIO_INPUT_DEBUG << "Digital mode: device index out of range, using default:" << inputDevice.description();
+        }
+    } else if (m_isDigitalMode && m_digitalDeviceIndex <= 0) {
+        AUDIO_INPUT_DEBUG << "Digital mode: no digital device; falling back to analog PC mic";
+    }
+
+    if (!useDigitalDevice) {
+        if (m_deviceIndex == 0) {
+            // Index 0 is HPSDR/local mic path. For Soapy there is no external
+            // HPSDR mic stream, so fall back to the host default input device.
+            if (set->getHWInterface() == QSDR::SoapySDR) {
+                inputDevice = defaultInputDevice;
+                AUDIO_INPUT_DEBUG << "Soapy TX: mic index 0 selected; using default host input:"
+                                  << inputDevice.description();
+            } else {
+                AUDIO_INPUT_DEBUG << "Current TX audio input device: HPSDR local mic (no host Qt input device)";
+                m_mutex.unlock();
+                return;
+            }
+        } else {
+            // Use specific device (adjust index since 0 is HPSDR)
+            int actualIndex = m_deviceIndex - 1;
+            if (actualIndex >= 0 && actualIndex < devices.size()) {
+                inputDevice = devices[actualIndex];
+                AUDIO_INPUT_DEBUG << "Using audio input device:" << inputDevice.description();
+            } else {
+                inputDevice = defaultInputDevice;
+                AUDIO_INPUT_DEBUG << "Device index out of range, using default";
+            }
         }
     }
 
@@ -203,7 +210,8 @@ void TransmitAudioInput::MicInputChanged(int value) {
 
     m_deviceIndex = value;
 
-    if (!m_isDigitalMode) {
+    // Analog path, or digital-with-None falling back to analog.
+    if (!m_isDigitalMode || m_digitalDeviceIndex <= 0) {
         stopHardware();
         Setup();
         // Re-arm capture only while transmitting — never leave the mic open on RX.
@@ -252,8 +260,9 @@ bool TransmitAudioInput::isTransmitting() const
 
 bool TransmitAudioInput::shouldCaptureWhileTx() const
 {
-    if (m_isDigitalMode)
-        return m_digitalDeviceIndex > 0;
+    if (m_isDigitalMode && m_digitalDeviceIndex > 0)
+        return true;
+    // Analog PC mic, or DIGU/DIGL with digital device "None" falling back to it.
     // Soapy has no HPSDR mic path — index 0 uses the host default input.
     return m_deviceIndex > 0 || set->getHWInterface() == QSDR::SoapySDR;
 }

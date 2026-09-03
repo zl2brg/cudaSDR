@@ -5,6 +5,7 @@
 #include "QtWDSP/qtwdsp_dspEngine.h"
 #include "AudioEngine/cusdr_audio_input.h"
 #include "cusdr_settings.h"
+#include "cusdr_hamDatabase.h"
 #include <QSignalBlocker>
 #include <QDebug>
 
@@ -106,38 +107,26 @@ tx_settings_dialog::tx_settings_dialog(QWidget *parent) :
     m_txEqCurveDeg->setRange(0, 3);
     m_txEqCurveDeg->setPrefix(QStringLiteral("NURBS "));
     m_txEqCurveDeg->setToolTip(QStringLiteral("0 = classic linear; 1–3 = NURBS degree"));
+
+    QPushButton *flatBtn = new QPushButton(QStringLiteral("Flat"), txEqGroup);
+    flatBtn->setToolTip(QStringLiteral("Reset all equalizer bands to 0 dB"));
+    flatBtn->setFixedHeight(22);
+    connect(flatBtn, &QPushButton::clicked, this, [this]() {
+        for (int i = 0; i < EqCurvePlot::kBandSliderCount; ++i) {
+            emit txEqBandRequested(i, 0);
+        }
+    });
+
     txEqTop->addWidget(m_txEqEnable);
     txEqTop->addStretch();
+    txEqTop->addWidget(flatBtn);
     txEqTop->addWidget(m_txEqCurveDeg);
     txEqLayout->addLayout(txEqTop);
-    QHBoxLayout *eqRow = new QHBoxLayout();
-    eqRow->setSpacing(2);
-    for (int i = 0; i < EqCurvePlot::kBandSliderCount; ++i) {
-        QVBoxLayout *col = new QVBoxLayout();
-        const QString labelText = (i == 0)
-            ? QStringLiteral("Pre")
-            : QString::fromLatin1(EqCurvePlot::bandLabel(i - 1));
-        QLabel *lab = new QLabel(labelText, txEqGroup);
-        lab->setAlignment(Qt::AlignHCenter);
-        if (i == 0)
-            lab->setMinimumWidth(32);
-        QSlider *slider = new QSlider(Qt::Vertical, txEqGroup);
-        slider->setRange(-12, 12);
-        slider->setValue(0);
-        slider->setFixedHeight(72);
-        slider->setToolTip(i == 0
-            ? QStringLiteral("Preamp gain (dB)")
-            : QStringLiteral("%1 Hz gain (dB)").arg(labelText));
-        connect(slider, &QSlider::valueChanged, this, [this, i](int value) {
-            emit txEqBandRequested(i, value);
-        });
-        m_txEqSliders.append(slider);
-        col->addWidget(lab);
-        col->addWidget(slider, 0, Qt::AlignHCenter);
-        eqRow->addLayout(col);
-    }
-    txEqLayout->addLayout(eqRow);
+
     m_txEqPlot = new EqCurvePlot(txEqGroup);
+    m_txEqPlot->setInteractive(true);
+    m_txEqPlot->setFixedHeight(125);
+    connect(m_txEqPlot, &EqCurvePlot::bandGainChanged, this, &tx_settings_dialog::txEqBandRequested);
     txEqLayout->addWidget(m_txEqPlot);
     ui->verticalLayoutScroll->insertWidget(1, txEqGroup);
     connect(m_txEqEnable, &QCheckBox::toggled, this, &tx_settings_dialog::txEqEnabledRequested);
@@ -174,55 +163,52 @@ tx_settings_dialog::tx_settings_dialog(QWidget *parent) :
     cfcPre->addWidget(m_cfcPrePeq);
     cfcLayout->addLayout(cfcPre);
 
-    static const char *const kCfcLabels[] = {
-        "50", "150", "300", "500", "750", "1k2", "1k7", "2k3", "2k8", "3k1"
-    };
-    QHBoxLayout *cfcLvlRow = new QHBoxLayout();
-    cfcLvlRow->setSpacing(2);
-    for (int i = 0; i < 10; ++i) {
-        QVBoxLayout *col = new QVBoxLayout();
-        QLabel *lab = new QLabel(QString::fromLatin1(kCfcLabels[i]), cfcGroup);
-        lab->setAlignment(Qt::AlignHCenter);
-        QSlider *slider = new QSlider(Qt::Vertical, cfcGroup);
-        slider->setRange(-16, 16);
-        slider->setValue(0);
-        slider->setFixedHeight(64);
-        slider->setToolTip(QStringLiteral("CFC level %1 Hz (dB)").arg(QString::fromLatin1(kCfcLabels[i])));
-        connect(slider, &QSlider::valueChanged, this, [this, i](int value) {
-            emit cfcLevelRequested(i, static_cast<double>(value));
-        });
-        m_cfcLevelSliders.append(slider);
-        col->addWidget(lab);
-        col->addWidget(slider);
-        cfcLvlRow->addLayout(col);
-    }
-    cfcLayout->addWidget(new QLabel(QStringLiteral("Comp levels"), cfcGroup));
-    cfcLayout->addLayout(cfcLvlRow);
-
-    QHBoxLayout *cfcPostRow = new QHBoxLayout();
-    cfcPostRow->setSpacing(2);
-    for (int i = 0; i < 10; ++i) {
-        QVBoxLayout *col = new QVBoxLayout();
-        QSlider *slider = new QSlider(Qt::Vertical, cfcGroup);
-        slider->setRange(-16, 16);
-        slider->setValue(0);
-        slider->setFixedHeight(48);
-        slider->setToolTip(QStringLiteral("Post EQ %1 Hz (dB)").arg(QString::fromLatin1(kCfcLabels[i])));
-        connect(slider, &QSlider::valueChanged, this, [this, i](int value) {
-            emit cfcPostRequested(i, static_cast<double>(value));
-        });
-        m_cfcPostSliders.append(slider);
-        col->addWidget(slider);
-        cfcPostRow->addLayout(col);
-    }
-    cfcLayout->addWidget(new QLabel(QStringLiteral("Post EQ levels"), cfcGroup));
-    cfcLayout->addLayout(cfcPostRow);
+    QHBoxLayout *compHeader = new QHBoxLayout();
+    compHeader->addWidget(new QLabel(QStringLiteral("Compression Levels"), cfcGroup));
+    compHeader->addStretch();
+    QPushButton *compFlatBtn = new QPushButton(QStringLiteral("Flat"), cfcGroup);
+    compFlatBtn->setToolTip(QStringLiteral("Reset all compression levels to 0 dB"));
+    compFlatBtn->setFixedHeight(20);
+    connect(compFlatBtn, &QPushButton::clicked, this, [this]() {
+        for (int i = 0; i < EqCurvePlot::kCfcBandCount; ++i) {
+            emit cfcLevelRequested(i, 0.0);
+        }
+    });
+    compHeader->addWidget(compFlatBtn);
+    cfcLayout->addLayout(compHeader);
 
     m_cfcCompPlot = new EqCurvePlot(cfcGroup);
-    m_cfcPeqPlot = new EqCurvePlot(cfcGroup);
-    cfcLayout->addWidget(new QLabel(QStringLiteral("Comp curve"), cfcGroup));
+    m_cfcCompPlot->setPlotMode(EqCurvePlot::PlotMode::Cfc);
+    m_cfcCompPlot->setAccentColor(QColor(255, 160, 40));
+    m_cfcCompPlot->setInteractive(true);
+    m_cfcCompPlot->setFixedHeight(105);
+    connect(m_cfcCompPlot, &EqCurvePlot::bandGainChanged, this, [this](int band, int value) {
+        emit cfcLevelRequested(band, static_cast<double>(value));
+    });
     cfcLayout->addWidget(m_cfcCompPlot);
-    cfcLayout->addWidget(new QLabel(QStringLiteral("Post EQ curve"), cfcGroup));
+
+    QHBoxLayout *peqHeader = new QHBoxLayout();
+    peqHeader->addWidget(new QLabel(QStringLiteral("Post EQ Levels"), cfcGroup));
+    peqHeader->addStretch();
+    QPushButton *peqFlatBtn = new QPushButton(QStringLiteral("Flat"), cfcGroup);
+    peqFlatBtn->setToolTip(QStringLiteral("Reset all post-EQ levels to 0 dB"));
+    peqFlatBtn->setFixedHeight(20);
+    connect(peqFlatBtn, &QPushButton::clicked, this, [this]() {
+        for (int i = 0; i < EqCurvePlot::kCfcBandCount; ++i) {
+            emit cfcPostRequested(i, 0.0);
+        }
+    });
+    peqHeader->addWidget(peqFlatBtn);
+    cfcLayout->addLayout(peqHeader);
+
+    m_cfcPeqPlot = new EqCurvePlot(cfcGroup);
+    m_cfcPeqPlot->setPlotMode(EqCurvePlot::PlotMode::Cfc);
+    m_cfcPeqPlot->setAccentColor(QColor(50, 215, 160));
+    m_cfcPeqPlot->setInteractive(true);
+    m_cfcPeqPlot->setFixedHeight(105);
+    connect(m_cfcPeqPlot, &EqCurvePlot::bandGainChanged, this, [this](int band, int value) {
+        emit cfcPostRequested(band, static_cast<double>(value));
+    });
     cfcLayout->addWidget(m_cfcPeqPlot);
     ui->verticalLayoutScroll->insertWidget(2, cfcGroup);
 
@@ -344,9 +330,8 @@ void tx_settings_dialog::setTxEqEnabled(bool enabled)
 
 void tx_settings_dialog::setTxEqBands(const QVector<int> &bands)
 {
-    for (int i = 0; i < m_txEqSliders.size(); ++i) {
-        const QSignalBlocker blocker(m_txEqSliders.at(i));
-        m_txEqSliders.at(i)->setValue(i < bands.size() ? bands.at(i) : 0);
+    if (m_txEqPlot) {
+        m_txEqPlot->setBandGains(bands);
     }
 }
 
@@ -400,17 +385,23 @@ void tx_settings_dialog::setCfcCurveDeg(int deg)
 
 void tx_settings_dialog::setCfcLevels(const QVector<double> &levels)
 {
-    for (int i = 0; i < m_cfcLevelSliders.size(); ++i) {
-        const QSignalBlocker blocker(m_cfcLevelSliders.at(i));
-        m_cfcLevelSliders.at(i)->setValue(i < levels.size() ? qRound(levels.at(i)) : 0);
+    if (m_cfcCompPlot) {
+        QVector<int> intLevels;
+        intLevels.reserve(levels.size());
+        for (double v : levels)
+            intLevels.append(qRound(v));
+        m_cfcCompPlot->setBandGains(intLevels);
     }
 }
 
 void tx_settings_dialog::setCfcPost(const QVector<double> &post)
 {
-    for (int i = 0; i < m_cfcPostSliders.size(); ++i) {
-        const QSignalBlocker blocker(m_cfcPostSliders.at(i));
-        m_cfcPostSliders.at(i)->setValue(i < post.size() ? qRound(post.at(i)) : 0);
+    if (m_cfcPeqPlot) {
+        QVector<int> intPost;
+        intPost.reserve(post.size());
+        for (double v : post)
+            intPost.append(qRound(v));
+        m_cfcPeqPlot->setBandGains(intPost);
     }
 }
 
@@ -420,8 +411,10 @@ void tx_settings_dialog::refreshEqCurvePlots()
     QVector<double> Y(AudioConfig::kEqDrawPoints, 0.0);
     if (m_txEqPlot) {
         GetTXAEQDraw(TX_ID, X.data(), Y.data());
-        const double preamp = m_txEqSliders.isEmpty() ? 0.0 : static_cast<double>(m_txEqSliders.at(0)->value());
+        const QVector<int> bands = m_txEqPlot->bandGains();
+        const double preamp = bands.isEmpty() ? 0.0 : static_cast<double>(bands.at(0));
         m_txEqPlot->setBandEqCurve(X, Y, preamp);
+        updateTxEqPassband();
     }
     if (m_cfcCompPlot) {
         GetTXACFCOMPCompDraw(TX_ID, X.data(), Y.data());
@@ -431,6 +424,33 @@ void tx_settings_dialog::refreshEqCurvePlots()
         GetTXACFCOMPPeqDraw(TX_ID, X.data(), Y.data());
         m_cfcPeqPlot->setCurve(X, Y);
     }
+}
+
+void tx_settings_dialog::updateTxEqPassband()
+{
+    if (!m_txEqPlot)
+        return;
+    const DSPMode mode = Settings::instance()->getDSPMode(0);
+    const auto tf = resolvedTxPassband(Settings::instance()->getDefaultFilterList(), mode, 0, 0);
+    double lo = 0.0, hi = 3000.0;
+    if (isLowerSidebandMode(mode)) {
+        lo = std::abs(tf.filterHi);
+        hi = std::abs(tf.filterLo);
+    } else if (isUpperSidebandMode(mode)) {
+        lo = std::max(0.0, tf.filterLo);
+        hi = std::max(lo, tf.filterHi);
+    } else {
+        lo = 0.0;
+        hi = std::max(100.0, std::max(std::abs(tf.filterLo), std::abs(tf.filterHi)));
+    }
+    m_txEqPlot->setAudioPassband(lo, hi);
+}
+
+void tx_settings_dialog::showEvent(QShowEvent *event)
+{
+    QWidget::showEvent(event);
+    updateTxEqPassband();
+    refreshEqCurvePlots();
 }
 
 void tx_settings_dialog::setCtcssToneHz(int hz)

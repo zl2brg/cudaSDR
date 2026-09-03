@@ -961,41 +961,30 @@ void RadioPopupWidget::createModeBtnGroup() {
     connect(m_rxEqCurveDeg, QOverload<int>::of(&QSpinBox::valueChanged), this, [](int deg) {
         Settings::instance()->setRxEqCurveDeg(deg);
     });
+
+    QPushButton *flatBtn = new QPushButton(QStringLiteral("Flat"), rxEqGroup);
+    flatBtn->setToolTip(QStringLiteral("Reset all equalizer bands to 0 dB"));
+    flatBtn->setFixedHeight(22);
+    connect(flatBtn, &QPushButton::clicked, this, [this]() {
+        for (int i = 0; i < EqCurvePlot::kBandSliderCount; ++i) {
+            Settings::instance()->setRxEqBand(i, 0);
+        }
+    });
+
     rxEqTop->addWidget(m_rxEqEnable);
     rxEqTop->addStretch();
+    rxEqTop->addWidget(flatBtn);
     rxEqTop->addWidget(m_rxEqCurveDeg);
     rxEqLayout->addLayout(rxEqTop);
 
-    QHBoxLayout *eqRow = new QHBoxLayout();
-    eqRow->setSpacing(2);
-    const QVector<int> bands = Settings::instance()->getRxEqBands();
-    for (int i = 0; i < EqCurvePlot::kBandSliderCount; ++i) {
-        QVBoxLayout *col = new QVBoxLayout();
-        const QString labelText = (i == 0)
-            ? QStringLiteral("Pre")
-            : QString::fromLatin1(EqCurvePlot::bandLabel(i - 1));
-        QLabel *lab = new QLabel(labelText, rxEqGroup);
-        lab->setAlignment(Qt::AlignHCenter);
-        if (i == 0)
-            lab->setMinimumWidth(32);
-        QSlider *slider = new QSlider(Qt::Vertical, rxEqGroup);
-        slider->setRange(-12, 12);
-        slider->setValue(i < bands.size() ? bands.at(i) : 0);
-        slider->setFixedHeight(72);
-        slider->setToolTip(i == 0
-            ? QStringLiteral("Preamp gain (dB)")
-            : QStringLiteral("%1 Hz gain (dB)").arg(labelText));
-        connect(slider, &QSlider::valueChanged, this, [i](int value) {
-            Settings::instance()->setRxEqBand(i, value);
-        });
-        m_rxEqSliders.append(slider);
-        col->addWidget(lab);
-        col->addWidget(slider, 0, Qt::AlignHCenter);
-        eqRow->addLayout(col);
-    }
-    rxEqLayout->addLayout(eqRow);
-
     m_rxEqPlot = new EqCurvePlot(rxEqGroup);
+    m_rxEqPlot->setInteractive(true);
+    m_rxEqPlot->setFixedHeight(125);
+    const QVector<int> initialBands = Settings::instance()->getRxEqBands();
+    m_rxEqPlot->setBandGains(initialBands);
+    connect(m_rxEqPlot, &EqCurvePlot::bandGainChanged, this, [](int band, int value) {
+        Settings::instance()->setRxEqBand(band, value);
+    });
     rxEqLayout->addWidget(m_rxEqPlot);
     modeVBox->addWidget(rxEqGroup);
 
@@ -1008,7 +997,9 @@ void RadioPopupWidget::createModeBtnGroup() {
         GetRXAEQDraw(m_receiver, X.data(), Y.data());
         const QVector<int> rxBands = Settings::instance()->getRxEqBands();
         const double preamp = rxBands.isEmpty() ? 0.0 : static_cast<double>(rxBands.at(0));
+        m_rxEqPlot->setBandGains(rxBands);
         m_rxEqPlot->setBandEqCurve(X, Y, preamp);
+        updateRxEqPassband();
     };
     connect(Settings::instance(), &Settings::rxEqChanged, this, refreshRxEqPlot);
     // Do not call GetRXAEQDraw here — OpenChannel for this RX happens later.
@@ -1786,6 +1777,32 @@ void RadioPopupWidget::filterChanged(int rx, qreal low, qreal high) {
             m_varFilterContainer->setVisible(false);
         }
     }
+    updateRxEqPassband();
+}
+
+void RadioPopupWidget::updateRxEqPassband() {
+    if (!m_rxEqPlot)
+        return;
+    const DSPMode mode = Settings::instance()->getDSPMode(m_receiver);
+    double lo = 0.0;
+    double hi = 3000.0;
+    if (mode == LSB || mode == DIGL) {
+        lo = qAbs(m_filterHi);
+        hi = qAbs(m_filterLo);
+    } else if (mode == USB || mode == DIGU) {
+        lo = std::max(0.0, static_cast<double>(m_filterLo));
+        hi = std::max(lo, static_cast<double>(m_filterHi));
+    } else if (mode == CWL) {
+        lo = qAbs(m_filterHi);
+        hi = qAbs(m_filterLo);
+    } else if (mode == CWU) {
+        lo = std::max(0.0, static_cast<double>(m_filterLo));
+        hi = std::max(lo, static_cast<double>(m_filterHi));
+    } else { // AM, SAM, DSB, FMN, SPEC, etc.
+        lo = 0.0;
+        hi = std::max(100.0, static_cast<double>(qMax(qAbs(m_filterLo), qAbs(m_filterHi))));
+    }
+    m_rxEqPlot->setAudioPassband(lo, hi);
 }
 
 void RadioPopupWidget::adcModeChangedByBtn() {
@@ -2217,7 +2234,9 @@ void RadioPopupWidget::showEvent(QShowEvent *event) {
         GetRXAEQDraw(m_receiver, X.data(), Y.data());
         const QVector<int> rxBands = Settings::instance()->getRxEqBands();
         const double preamp = rxBands.isEmpty() ? 0.0 : static_cast<double>(rxBands.at(0));
+        m_rxEqPlot->setBandGains(rxBands);
         m_rxEqPlot->setBandEqCurve(X, Y, preamp);
+        updateRxEqPassband();
     }
     QDockWidget::showEvent(event);
 }

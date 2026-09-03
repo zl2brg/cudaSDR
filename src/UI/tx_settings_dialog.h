@@ -69,6 +69,10 @@ public:
     void setCurrentReceiver(int rx);
     void setFreeDVMode(int rx, int mode);
     void refreshAudioDevices(const QString& savedMicName, const QString& savedDigitalName);
+    void updateTxEqPassband();
+
+protected:
+    void showEvent(QShowEvent *event) override;
 
 signals:
     // MVC View Interface Signals
@@ -127,7 +131,6 @@ private:
     QCheckBox*      m_txEqEnable = nullptr;
     QSpinBox*       m_txEqCurveDeg = nullptr;
     EqCurvePlot*    m_txEqPlot = nullptr;
-    QVector<QSlider*> m_txEqSliders;
     QCheckBox*      m_cfcEnable = nullptr;
     QCheckBox*      m_cfcPeqEnable = nullptr;
     QDoubleSpinBox* m_cfcPrecomp = nullptr;
@@ -135,8 +138,6 @@ private:
     QSpinBox*       m_cfcCurveDeg = nullptr;
     EqCurvePlot*    m_cfcCompPlot = nullptr;
     EqCurvePlot*    m_cfcPeqPlot = nullptr;
-    QVector<QSlider*> m_cfcLevelSliders;
-    QVector<QSlider*> m_cfcPostSliders;
     int             m_currentReceiver;
     std::function<QString(int)> m_codec2ModeStringResolver;
 };

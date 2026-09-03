@@ -309,8 +309,8 @@ void RadioCtrl::filterChangedByBtn() {
         else if (mode == USB || mode == DIGU || mode == CWU) filterModeIdx = 1; // M_USB
         
         switch (filterModeIdx) {
-            case 0: m_filterLo = -150.0f; m_filterHi = -filterWidth; break; // M_LSB
-            case 1: m_filterLo = 150.0f; m_filterHi = filterWidth; break; // M_USB
+            case 0: m_filterLo = -(filterWidth + 150.0f); m_filterHi = -150.0f; break; // M_LSB
+            case 1: m_filterLo = 150.0f; m_filterHi = filterWidth + 150.0f; break; // M_USB
             case 2: m_filterHi = filterWidth; m_filterLo = -filterWidth; break; // M_DSB
         }
     }

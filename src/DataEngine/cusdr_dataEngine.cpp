@@ -1048,6 +1048,31 @@ void DataEngine::setSystemState(
 	set->setSystemState(err, hwmode, statemode, enginestate);
 }
 
+void DataEngine::onDataIoReady()
+{
+	if (!m_dataIOThreadRunning) {
+		DATA_ENGINE_DEBUG << "onDataIoReady: DataIO already stopped; ignoring";
+		return;
+	}
+	m_networkDeviceRunning = true;
+	setSystemState(QSDR::NoError, m_hwInterface, m_serverMode, QSDR::DataEngineUp);
+	set->setSystemMessage("System running", 4000);
+	DATA_ENGINE_DEBUG << "Data Engine thread: " << thread();
+}
+
+void DataEngine::onDataIoStartupFailed()
+{
+	if (!m_dataIOThreadRunning) {
+		DATA_ENGINE_DEBUG << "onDataIoStartupFailed: DataIO already stopped; ignoring";
+		return;
+	}
+	DATA_ENGINE_DEBUG << "DataIO startup failed (no bound receiver socket)";
+	m_networkDeviceRunning = false;
+	setSystemState(QSDR::DataReceiverThreadError, m_hwInterface, m_serverMode, QSDR::DataEngineDown);
+	set->setMainPower(false);
+	set->setSystemMessage("Failed to bind receiver socket", 8000);
+}
+
 float DataEngine::getFilterSizeCalibrationOffset() {
 
     //int size=1024; // dspBufferSize
@@ -1917,6 +1942,20 @@ void DataProcessor::stopControlTimer() {
 	}
 }
 
+namespace {
+void postProtocol2Control(DataIO *io, const QByteArray &datagram,
+                          const QHostAddress &address, quint16 port)
+{
+	if (!io || datagram.isEmpty())
+		return;
+	QMetaObject::invokeMethod(io, "sendProtocol2ControlDatagram",
+				  Qt::QueuedConnection,
+				  Q_ARG(QByteArray, datagram),
+				  Q_ARG(QHostAddress, address),
+				  Q_ARG(quint16, port));
+}
+}
+
 void DataProcessor::requestProtocol2HPUpdate() {
 	if (!de || !de->m_protocol || !de->m_controlSocket) return;
 	if (de->set->getCurrentMetisCard().protocol != 2) return;
@@ -1933,20 +1972,9 @@ void DataProcessor::requestProtocol2HPUpdate() {
 	if (port != 1027) return;
 
 	m_deviceAddress = de->m_dataIO->hpsdrDeviceIPAddress;
-	qint64 sent = -1;
 	if (de->m_dataIO) {
 		QByteArray dg((const char*)p2CmdBuf, 1444);
-		QMetaObject::invokeMethod(
-			de->m_dataIO,
-			"sendProtocol2ControlDatagram",
-			Qt::BlockingQueuedConnection,
-			Q_RETURN_ARG(qint64, sent),
-			Q_ARG(QByteArray, dg),
-			Q_ARG(QHostAddress, m_deviceAddress),
-			Q_ARG(quint16, port));
-	}
-	if (sent < 0) {
-		DATA_PROCESSOR_DEBUG << "P2 HP update send via DataIO failed";
+		postProtocol2Control(de->m_dataIO, dg, m_deviceAddress, port);
 	}
 }
 
@@ -1967,20 +1995,9 @@ void DataProcessor::requestProtocol2DDCUpdate() {
 	}
 
 	m_deviceAddress = de->m_dataIO->hpsdrDeviceIPAddress;
-	qint64 sent = -1;
 	if (de->m_dataIO) {
 		QByteArray dg((const char*)p2CmdBuf, 1444);
-		QMetaObject::invokeMethod(
-			de->m_dataIO,
-			"sendProtocol2ControlDatagram",
-			Qt::BlockingQueuedConnection,
-			Q_RETURN_ARG(qint64, sent),
-			Q_ARG(QByteArray, dg),
-			Q_ARG(QHostAddress, m_deviceAddress),
-			Q_ARG(quint16, port));
-	}
-	if (sent < 0) {
-		DATA_PROCESSOR_DEBUG << "error sending P2 DDC rate update via DataIO";
+		postProtocol2Control(de->m_dataIO, dg, m_deviceAddress, port);
 	}
 }
 
@@ -1998,26 +2015,11 @@ void DataProcessor::requestProtocol2ReceiverSetup() {
     unsigned char p2CmdBuf[1444];
     quint16 port = DEVICE_PORT;
 
-	auto sendP2Control = [&](const char *data, int len, quint16 dstPort) -> qint64 {
+	auto sendP2Control = [&](const char *data, int len, quint16 dstPort) {
 		if (de->m_dataIO) {
 			QByteArray dg(data, len);
-			qint64 sent = -1;
-			const bool invoked = QMetaObject::invokeMethod(
-				de->m_dataIO,
-				"sendProtocol2ControlDatagram",
-				Qt::BlockingQueuedConnection,
-				Q_RETURN_ARG(qint64, sent),
-				Q_ARG(QByteArray, dg),
-				Q_ARG(QHostAddress, m_deviceAddress),
-				Q_ARG(quint16, dstPort));
-			if (invoked && sent >= 0) {
-				return sent;
-			}
-			DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] DataIO control send failed invoked="
-			                     << invoked << " sent=" << sent;
-			return -1;
+			postProtocol2Control(de->m_dataIO, dg, m_deviceAddress, dstPort);
 		}
-		return -1;
 	};
 
     m_deviceAddress = de->m_dataIO->hpsdrDeviceIPAddress;
@@ -2033,8 +2035,8 @@ void DataProcessor::requestProtocol2ReceiverSetup() {
     memset(p2CmdBuf, 0, sizeof(p2CmdBuf));
     de->m_protocol->encodeCCBytes(p2CmdBuf, de, de->m_radioModel, ddcState, port);
     if (port == 1025) {
-		qint64 ddcSent = sendP2Control((const char*)p2CmdBuf, 1444, port);
-		DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] DDC Specific sent: bytes=" << ddcSent << " port=" << port;
+		sendP2Control((const char*)p2CmdBuf, 1444, port);
+		DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] DDC Specific queued port=" << port;
     }
 
 	// 2. Send TX Specific packet (port 1026)
@@ -2042,8 +2044,8 @@ void DataProcessor::requestProtocol2ReceiverSetup() {
 	memset(p2CmdBuf, 0, sizeof(p2CmdBuf));
 	de->m_protocol->encodeCCBytes(p2CmdBuf, de, de->m_radioModel, txState, port);
 	if (port == 1026) {
-		qint64 txSent = sendP2Control((const char*)p2CmdBuf, 60, port);
-		DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] TX Specific sent: bytes=" << txSent << " port=" << port;
+		sendP2Control((const char*)p2CmdBuf, 60, port);
+		DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] TX Specific queued port=" << port;
 	}
 
 	// 3. Send High Priority packet (port 1027) with Run=1 and all active DDC frequencies
@@ -2052,8 +2054,8 @@ void DataProcessor::requestProtocol2ReceiverSetup() {
 	memset(p2CmdBuf, 0, sizeof(p2CmdBuf));
 	de->m_protocol->encodeCCBytes(p2CmdBuf, de, de->m_radioModel, hpState, port);
 	if (port == 1027) {
-		qint64 runSent = sendP2Control((const char*)p2CmdBuf, 1444, port);
-		DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] HP Run=1 sent: bytes=" << runSent << " port=" << port;
+		sendP2Control((const char*)p2CmdBuf, 1444, port);
+		DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] HP Run=1 queued port=" << port;
 	}
 
 	DATA_PROCESSOR_DEBUG << "[P2-RXSETUP] complete";
@@ -2415,16 +2417,19 @@ void DataProcessor::fetch_MicData(){
 	int numSamples = 0;
     AUDIOBUF temp_data;
     // Network TX audio (remote TCI/browser client mic) takes over the TX mic
-    // input whenever frames are arriving; the local soundcard mic is the
-    // fallback — except while TCI TX_CHRONO is active, when ExpertSDR-style
-    // clients are the sole mic source and local capture must not leak in.
+    // input whenever frames are arriving. Local PC capture is the fallback.
+    // WSJT-X / ExpertSDR digital clients clock TX via TX_CHRONO and must not
+    // have the soundcard leak into DIGU/DIGL. SSB/AM/FM keep the PC mic as a
+    // fallback so a leftover chrono lock cannot mute voice.
     QHQueue<AUDIOBUF> *srcQueue = nullptr;
+    const DSPMode txMode = set->getDSPMode(de->currentReceiver);
     if (de->m_audioInput) {
         if (de->m_audioInput->m_netAudioInQueue.count() > 0)
             srcQueue = &de->m_audioInput->m_netAudioInQueue;
         else {
             const TciServer *tci = set ? set->tciServer() : nullptr;
-            const bool networkMicOnly = tci && tci->isTxChronoActive();
+            const bool digitalTx = (txMode == DIGU || txMode == DIGL);
+            const bool networkMicOnly = tci && tci->isTxChronoActive() && digitalTx;
             if (!networkMicOnly && de->m_audioInput->m_faudioInQueue.count() > 0)
                 srcQueue = &de->m_audioInput->m_faudioInQueue;
         }
@@ -2484,7 +2489,6 @@ void DataProcessor::fetch_MicData(){
 
 	// Keep WSJT-X digital-input handling (DIGU/DIGL) separate.
 	// DV routing is only active for the FreeDV mode button (mapped to FDV).
-	const DSPMode txMode = set->getDSPMode(de->currentReceiver);
 	if (txMode == FDV) {
 #ifdef HAVE_CODEC2
 		applyCodec2ToMicBuffer(numSamples);
@@ -2965,21 +2969,10 @@ void DataProcessor::encodeCCBytes() {
             //   port 1026 (DUC Specific) :   60 bytes
             //   port 1027 (HP Data)      : 1444 bytes
             const int sendSize = (port == 1025 || port == 1027) ? 1444 : 60;
-			qint64 sent = -1;
 			if (de->m_dataIO) {
 				QByteArray dg((const char*)p2CmdBuf, sendSize);
-				QMetaObject::invokeMethod(
-					de->m_dataIO,
-					"sendProtocol2ControlDatagram",
-					Qt::BlockingQueuedConnection,
-					Q_RETURN_ARG(qint64, sent),
-					Q_ARG(QByteArray, dg),
-					Q_ARG(QHostAddress, m_deviceAddress),
-					Q_ARG(quint16, port));
+				postProtocol2Control(de->m_dataIO, dg, m_deviceAddress, port);
 			}
-			if (sent < 0) {
-				DATA_PROCESSOR_DEBUG << "error sending control data to device via DataIO";
-            }
         } else {
             de->m_protocol->encodeCCBytes(de->output_buffer, de, de->m_radioModel, m_sendState, port);
         }
@@ -3234,7 +3227,7 @@ void DataProcessor::processReadData()
 {
 #ifdef HAVE_SOAPYSDR
     if (this->m_hwInterface == QSDR::SoapySDR) {
-        while (!de->m_dataIO->soapy_iq_queue.isEmpty()) {
+        while (!m_stopped && !de->m_dataIO->soapy_iq_queue.isEmpty()) {
             QVector<float> samples = de->m_dataIO->soapy_iq_queue.dequeue();
 
             // TCI IQ is now tapped per-receiver in SliceProcessor::dspProcessingCore
@@ -3265,7 +3258,7 @@ void DataProcessor::processReadData()
 
 	static quint64 p2ReadDataPackets = 0;
 	TIQPacket packet;
-    while(!de->m_dataIO->iq_queue.isEmpty()) {
+    while (!m_stopped && !de->m_dataIO->iq_queue.isEmpty()) {
 	  packet = de->m_dataIO->iq_queue.dequeue();
 	  const QByteArray &buf = packet.payload;
       if (de->m_protocol.get() && de->m_protocol.get()->getHeaderSize() == METIS_HEADER_SIZE) {

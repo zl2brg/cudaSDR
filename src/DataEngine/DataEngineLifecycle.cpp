@@ -11,7 +11,7 @@
 #include "Models/RadioTelemetry.h"
 #include <QCoreApplication>
 #include <QDeadlineTimer>
-#include <QEventLoop>
+#include <QObject>
 
 // Helpers are not QObjects; force QObject::connect for CHECKED_CONNECT.
 #ifdef CHECKED_CONNECT
@@ -352,8 +352,8 @@ bool DataEngineLifecycle::start() {
 	// sendInitFrames/networkDeviceStartStop here after msleep(100); the
 	// same-host Hermes replies on that socket immediately, so UI
 	// writeDatagram raced DataIO readyRead and froze the GUI.
-	// Arm P1 start BEFORE startDataIO so initDataReceiverSocket() (runs on
-	// QThread::started, before exec) sends from the socket it just bound.
+	// Arm P1 start, start DataIO (bind only on QThread::started), then
+	// queue finishStartup so send + readyRead run AFTER exec().
 	DataIO* dataIO = m_engine->m_dataIO;
 	const int rxCount = m_engine->receivers();
 	const bool isProtocol2 = m_engine->set->getCurrentMetisCard().protocol == 2;
@@ -396,11 +396,21 @@ bool DataEngineLifecycle::start() {
 		DATA_ENGINE_DEBUG << "[P2-START] queued full receiver setup + control timer";
 	}
 
-	m_engine->m_networkDeviceRunning = true;
-	m_engine->setSystemState(QSDR::NoError, m_engine->m_hwInterface, m_engine->m_serverMode, QSDR::DataEngineUp);
-	m_engine->set->setSystemMessage("System running", 4000);
-
-		DATA_ENGINE_DEBUG << "Data Engine thread: " << m_engine->thread();
+	// Do not set DataEngineUp until DataIO's event loop has sent P1 start
+	// (or attached readyRead for P2). Emitting Up from this thread while
+	// DataIO is still in QThread::started deadlocks same-host Hermes.
+	if (dataIO) {
+		const auto onceQueued = static_cast<Qt::ConnectionType>(
+			Qt::QueuedConnection | Qt::SingleShotConnection);
+		QObject::connect(dataIO, &DataIO::receiverReady,
+						 m_engine, &DataEngine::onDataIoReady,
+						 onceQueued);
+		QObject::connect(dataIO, &DataIO::startupFailed,
+						 m_engine, &DataEngine::onDataIoStartupFailed,
+						 onceQueued);
+		QMetaObject::invokeMethod(dataIO, &DataIO::finishStartup, Qt::QueuedConnection);
+		DATA_ENGINE_DEBUG << "[START] queued DataIO::finishStartup after exec()";
+	}
 
 	return true;
 }
@@ -408,7 +418,13 @@ bool DataEngineLifecycle::start() {
 
 void DataEngineLifecycle::stop() {
 
-	if (m_engine->m_dataEngineState == QSDR::DataEngineUp) {
+	DATA_ENGINE_DEBUG << "shutting down data engine";
+
+	// DataEngineUp is now deferred until DataIO::finishStartup(). Stop must
+	// still tear down if Start is in-flight (thread running, engine still Down).
+	if (m_engine->m_dataEngineState == QSDR::DataEngineUp
+		|| m_engine->m_dataIOThreadRunning
+		|| m_engine->m_networkDeviceRunning) {
 		
 		switch (m_engine->m_hwInterface) {
 
@@ -418,29 +434,30 @@ void DataEngineLifecycle::stop() {
 				// turn time stamping off
 				m_engine->setTimeStamp(false);
 
-				// For Protocol 2, stop periodic control traffic before issuing the
-				// final stop command so the simulator does not see interleaved HP
-				// packets with sequence jumps during shutdown.
+				// Never BlockingQueued into DataIO/DataProcessor from the GUI:
+				// live IQ keeps those threads in readyRead/processReadData, so
+				// the posted stop never runs and close hangs forever.
+				if (m_engine->m_dataProcessor)
+					m_engine->m_dataProcessor->requestStop();
+
 				if (m_engine->set->getCurrentMetisCard().protocol == 2 &&
 					m_engine->m_dataProcessor && m_engine->m_dataProcThread && m_engine->m_dataProcThread->isRunning()) {
 					QMetaObject::invokeMethod(
 						m_engine->m_dataProcessor,
 						&DataProcessor::stopControlTimer,
-						Qt::BlockingQueuedConnection);
+						Qt::QueuedConnection);
 				}
 
-				// stop the device on the DataIO thread (same socket affinity as start)
 				if (m_engine->m_dataIO && m_engine->m_dataIOThread
 					&& m_engine->m_dataIOThread->isRunning()) {
-					DataIO* dataIO = m_engine->m_dataIO;
-					QMetaObject::invokeMethod(dataIO, [dataIO]() {
-						dataIO->networkDeviceStartStop(0);
-					}, Qt::BlockingQueuedConnection);
+					m_engine->m_dataIO->requestStop();
+					QMetaObject::invokeMethod(m_engine->m_dataIO, &DataIO::beginShutdown,
+								  Qt::QueuedConnection);
 				} else if (m_engine->m_dataIO) {
 					m_engine->m_dataIO->networkDeviceStartStop(0);
 				}
 				m_engine->m_networkDeviceRunning = false;
-				DATA_ENGINE_DEBUG << "HPSDR device stopped";
+				DATA_ENGINE_DEBUG << "HPSDR device stop queued";
 
 				// stop the threads
 				//QThread::msleep(100);
@@ -503,7 +520,11 @@ void DataEngineLifecycle::stop() {
 		foreach (QThread* thread, m_engine->m_dspThreadList) {
 
 			thread->quit();
-			thread->wait();
+			if (!thread->wait(3000)) {
+				DATA_ENGINE_DEBUG << "DSP thread did not finish within 3s; terminating.";
+				thread->terminate();
+				thread->wait(1000);
+			}
 		}
 		qDeleteAll(m_engine->m_dspThreadList.begin(), m_engine->m_dspThreadList.end());
 		m_engine->m_dspThreadList.clear();
@@ -590,9 +611,9 @@ bool DataEngineLifecycle::initDataEngine() {
 	else {
 		const TNetworkDevicecard already = m_engine->set->getCurrentMetisCard();
 		if (hasUsableHpsdrDevice(already) && m_engine->m_dataIO) {
-			// Probe / Network panel already selected the radio. Do not block
-			// the GUI event loop in QWaitCondition::wait() on Start.
-			m_engine->set->setCurrentHPSDRDevice(already);
+			// the GUI event loop in QWaitCondition::wait() on Start, and do
+			// not re-enter setCurrentHPSDRDevice() (it saveSettings() and may
+			// emit setSystemState while Start is still on the GUI thread).
 			m_engine->m_dataIO->hpsdrDeviceIPAddress = already.ip_address;
 			m_engine->hpsdrDeviceName = already.boardName;
 			DATA_ENGINE_DEBUG << "Start using selected device "

@@ -180,6 +180,8 @@ public slots:
 
 	bool	initDataEngine();
 	void	stop();
+	void	onDataIoReady();
+	void	onDataIoStartupFailed();
 	void 	setWbSpectrumAveraging(int rx, int value);
 
 
@@ -456,6 +458,9 @@ public:
     bool p1SoftwareCwActive() const;
 
 	~DataProcessor() override;
+
+	/** Thread-safe flag so processReadData can drop out without BlockingQueued. */
+	void	requestStop() { m_stopped = true; }
 
 public slots:
 	void	stop();

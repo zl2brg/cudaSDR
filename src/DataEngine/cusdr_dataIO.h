@@ -70,14 +70,20 @@ public:
 public slots:
 	void	stop();
 	void	initDataReceiverSocket();
+	/** Send armed P1 start, attach readyRead, then emit receiverReady(). Must run after exec(). */
+	void	finishStartup();
 	void	readData();
 	void 	writeData();
 	void 	sendAudio(u_char *buf);
 	qint64	sendProtocol2ControlDatagram(const QByteArray &datagram, const QHostAddress &address, quint16 port);
 	void	sendInitFramesToNetworkDevice(int rx);
 	void	networkDeviceStartStop(char value);
-	/** Arm P1 start so initDataReceiverSocket() sends it from the bound socket. */
+	/** Arm P1 start so finishStartup() sends it from the bound socket. */
 	void	armProtocol1Start(int rxCount, char startByte);
+	/** DataIO-thread shutdown: drop readyRead, send P1/P2 stop, close sockets. */
+	void	beginShutdown();
+	/** Set the stop flag from any thread so readyRead loops can exit. */
+	void	requestStop();
 	
 private slots:
 	void setSampleRateSlot(int value);
@@ -142,6 +148,8 @@ private:
 signals:
 	void	messageEvent(QString message);
 	void    readydata();
+	void	receiverReady();
+	void	startupFailed();
 };
 
 #endif // _CUSDR_DATAIO_H

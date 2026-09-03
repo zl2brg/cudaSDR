@@ -1521,6 +1521,43 @@ inline TDefaultFilter getFilterFromDSPMode(const QList<TDefaultFilter> filterLis
 	return filterList.at(0);
 }
 
+inline bool isLowerSidebandMode(DSPMode mode)
+{
+	return mode == LSB || mode == DIGL || mode == CWL;
+}
+
+inline bool isUpperSidebandMode(DSPMode mode)
+{
+	return mode == USB || mode == DIGU || mode == CWU;
+}
+
+// WDSP SSB/DIG TX is silent when f_low >= f_high (AM/FM still show a carrier).
+// Prefer the live RX passband when it is usable and on the correct sideband;
+// flip a valid opposite-sideband filter (stale LSB edges on USB, etc.).
+inline TDefaultFilter resolvedTxPassband(const QList<TDefaultFilter> &filterList,
+                                        DSPMode mode, double lo, double hi)
+{
+	double a = lo;
+	double b = hi;
+	if (b > a) {
+		if (isUpperSidebandMode(mode) && b <= 0.0) {
+			a = -hi;
+			b = -lo;
+		} else if (isLowerSidebandMode(mode) && a >= 0.0) {
+			a = -hi;
+			b = -lo;
+		}
+	}
+	if (b > a) {
+		TDefaultFilter live;
+		live.dspMode = mode;
+		live.filterLo = a;
+		live.filterHi = b;
+		return live;
+	}
+	return getFilterFromDSPMode(filterList, mode);
+}
+
 inline QString getHamBandTextString(const QList<THamBandText> textList, bool shortText, qint64 frequency) {
 
 	QString str = "";

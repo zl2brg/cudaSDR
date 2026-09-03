@@ -248,11 +248,11 @@ void FilterWidget::btnCallback() {
         }
     }
     
-    switch (m_FilterMode) {
-        case M_DSB: m_filterHi = filterWidth; m_filterLo = -filterWidth; break;
-        case M_LSB: m_filterLo = -150.0f; m_filterHi = -filterWidth; break;
-        case M_USB: m_filterLo = 150.0f; m_filterHi = filterWidth; break;
-    }
+        switch (m_FilterMode) {
+            case M_DSB: m_filterHi = filterWidth; m_filterLo = -filterWidth; break;
+            case M_LSB: m_filterLo = -(filterWidth + 150.0f); m_filterHi = -150.0f; break;
+            case M_USB: m_filterLo = 150.0f; m_filterHi = filterWidth + 150.0f; break;
+        }
     
     button->update();
     updateFilterWidget();
@@ -304,8 +304,8 @@ void FilterWidget::slider_changed(int value){
       m_filterLo = -filter;
     break;
     case M_LSB:
-        m_filterLo = -150.0f;
-        m_filterHi = -filter;
+        m_filterLo = -filter;
+        m_filterHi = -150.0f;
     break;
     case M_USB:
         m_filterLo = 150.0f;

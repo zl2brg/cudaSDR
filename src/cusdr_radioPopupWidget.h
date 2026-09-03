@@ -245,7 +245,6 @@ private:
 	QCheckBox*		m_rxEqEnable = nullptr;
 	QSpinBox*		m_rxEqCurveDeg = nullptr;
 	class EqCurvePlot*	m_rxEqPlot = nullptr;
-	QList<QSlider*>	m_rxEqSliders;
 
 	QList<AeroButton *>	dspModeBtnList;
 
@@ -325,6 +324,7 @@ private:
 
 	float getVarWidth(int groupIdx, int varIndex) const;
 	void setVarWidth(int groupIdx, int varIndex, float width);
+	void updateRxEqPassband();
 	
 	QLabel*			m_rxLabel;
 
