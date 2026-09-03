@@ -868,6 +868,9 @@ signals:
 	void agcDecayTimeChanged(int rx, qreal value);
 	void agcHangTimeChanged(int rx, qreal value);
 	void filterFrequenciesChanged(int rx, qreal low, qreal high);
+	void txFilterLowChanged(int val);
+	void txFilterHighChanged(int val);
+	void txUseRxFilterChanged(bool enabled);
 	
 	void freqRulerPositionChanged(int rx, float position);
 	
@@ -1161,6 +1164,12 @@ public:
     double  getFMDeveation() const;
     double  getAMCarrierLevel() const;
     double  getAudioCompression() const;
+    int     getTxFilterLow() const;
+    void    setTxFilterLow(int val);
+    int     getTxFilterHigh() const;
+    void    setTxFilterHigh(int val);
+    bool    getTxUseRxFilter() const;
+    void    setTxUseRxFilter(bool enabled);
 
 	qreal	getMainVolume(int rx);
 	qreal	getMouseWheelFreqStep(int rx);// { return m_mouseWheelFreqStep; }

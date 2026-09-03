@@ -41,6 +41,9 @@ TransmitConfig::TransmitConfig(QObject *parent)
     , m_cfcCurveDeg(0)
     , m_txFullDuplex(true)
     , m_repeaterOffset(0.0)
+    , m_txFilterLow(100)
+    , m_txFilterHigh(2900)
+    , m_txUseRxFilter(false)
 {
     m_txEqBands.fill(0, kEqBands);
     ensureCfcDefaults();
@@ -326,6 +329,27 @@ void TransmitConfig::setRepeaterOffset(double offset) {
     }
 }
 
+void TransmitConfig::setTxFilterLow(int val) {
+    if (m_txFilterLow != val) {
+        m_txFilterLow = val;
+        emit txFilterLowChanged(m_txFilterLow);
+    }
+}
+
+void TransmitConfig::setTxFilterHigh(int val) {
+    if (m_txFilterHigh != val) {
+        m_txFilterHigh = val;
+        emit txFilterHighChanged(m_txFilterHigh);
+    }
+}
+
+void TransmitConfig::setTxUseRxFilter(bool enabled) {
+    if (m_txUseRxFilter != enabled) {
+        m_txUseRxFilter = enabled;
+        emit txUseRxFilterChanged(m_txUseRxFilter);
+    }
+}
+
 void TransmitConfig::load(const QJsonObject &json) {
     ensureCfcDefaults();
     if (json.contains("micSource")) setMicSource(json["micSource"].toInt());
@@ -354,6 +378,9 @@ void TransmitConfig::load(const QJsonObject &json) {
     if (json.contains("cfcCurveDeg")) setCfcCurveDeg(json["cfcCurveDeg"].toInt());
     if (json.contains("txFullDuplex")) setTxFullDuplex(json["txFullDuplex"].toBool());
     if (json.contains("repeaterOffset")) setRepeaterOffset(json["repeaterOffset"].toDouble());
+    if (json.contains("txFilterLow")) setTxFilterLow(json["txFilterLow"].toInt());
+    if (json.contains("txFilterHigh")) setTxFilterHigh(json["txFilterHigh"].toInt());
+    if (json.contains("txUseRxFilter")) setTxUseRxFilter(json["txUseRxFilter"].toBool());
 
     if (json.contains("txEqBands") && json["txEqBands"].isArray())
         setTxEqBands(SettingsUtils::jsonArrayToVector<int>(json, QStringLiteral("txEqBands"), kEqBands));
@@ -389,6 +416,9 @@ void TransmitConfig::save(QJsonObject &json) const {
     json["cfcCurveDeg"] = m_cfcCurveDeg;
     json["txFullDuplex"] = m_txFullDuplex;
     json["repeaterOffset"] = m_repeaterOffset;
+    json["txFilterLow"] = m_txFilterLow;
+    json["txFilterHigh"] = m_txFilterHigh;
+    json["txUseRxFilter"] = m_txUseRxFilter;
 
     json["txEqBands"] = SettingsUtils::toJsonArray(m_txEqBands);
     json["cfcLevels"] = SettingsUtils::toJsonArray(m_cfcLevels);
@@ -437,6 +467,9 @@ void TransmitConfig::loadIni(QSettings *settings) {
 
     setTxFullDuplex(settings->value("radio/txFullDuplex", true).toBool());
     setRepeaterOffset(settings->value("repeater_offset", 0.0).toDouble());
+    setTxFilterLow(iniValue(settings, "tx_filter_low", "audio/tx_filter_low", 100).toInt());
+    setTxFilterHigh(iniValue(settings, "tx_filter_high", "audio/tx_filter_high", 2900).toInt());
+    setTxUseRxFilter(iniValue(settings, "tx_use_rx_filter", "audio/tx_use_rx_filter", false).toBool());
 
     QVector<int> bands(kEqBands, 0);
     for (int i = 0; i < kEqBands; ++i) {
@@ -492,6 +525,9 @@ void TransmitConfig::saveIni(QSettings *settings) const {
     settings->setValue("cfc_curve_deg", m_cfcCurveDeg);
     settings->setValue("radio/txFullDuplex", m_txFullDuplex);
     settings->setValue("repeater_offset", m_repeaterOffset);
+    settings->setValue("tx_filter_low", m_txFilterLow);
+    settings->setValue("tx_filter_high", m_txFilterHigh);
+    settings->setValue("tx_use_rx_filter", m_txUseRxFilter);
 
     for (int i = 0; i < kEqBands; ++i)
         settings->setValue(QStringLiteral("tx_eq_band_%1").arg(i), m_txEqBands.value(i));

@@ -45,7 +45,7 @@ flowchart LR
   subgraph UI["UI shell & widgets"]
     MW[MainWindow]
     MWUI[MainWindowUI — menu, toolbar, actions]
-    RW[cusdr_radioWidget + tabs]
+    RW[cusdr_radioPopupWidget + tabs]
     UIpkg[UI/ — setup, filters, tx dialog, …]
     MW --> MWUI
     MW --> RW

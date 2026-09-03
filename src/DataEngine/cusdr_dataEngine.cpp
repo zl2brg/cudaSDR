@@ -273,6 +273,9 @@ DataEngine::DataEngine(RadioModel *model, QObject *parent)
 	hermesFW = 0;
 	mercuryFW = 0;
     txParams().use_repeaterOffset = set->get_repeaterMode();
+    const int currentRx = set ? set->getCurrentReceiver() : 0;
+    txParams().mode = set ? set->getDSPMode(currentRx) : USB;
+    TX.setDSPMode(1, txParams().mode);
 
     //m_audioBuffer.resize(0);
     //m_audiobuf.resize(IO_BUFFER_SIZE);

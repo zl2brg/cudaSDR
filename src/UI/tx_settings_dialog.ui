@@ -214,6 +214,77 @@
     </widget>
    </item>
    <item>
+    <widget class="QGroupBox" name="groupBoxTxFilter">
+     <property name="title">
+      <string>TX Filter</string>
+     </property>
+     <layout class="QGridLayout" name="gridLayout_txFilter">
+      <item row="0" column="0" colspan="2">
+       <widget class="QCheckBox" name="tx_use_rx_filter">
+        <property name="text">
+         <string>TX uses RX Filter</string>
+        </property>
+        <property name="toolTip">
+         <string>When checked, the transmit filter automatically tracks the active receiver filter width.</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QLabel" name="label_tx_filter_low">
+        <property name="text">
+         <string>Filter Low (Hz)</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QSpinBox" name="tx_filter_low">
+        <property name="minimum">
+         <number>0</number>
+        </property>
+        <property name="maximum">
+         <number>8000</number>
+        </property>
+        <property name="singleStep">
+         <number>50</number>
+        </property>
+        <property name="value">
+         <number>100</number>
+        </property>
+        <property name="toolTip">
+         <string>Lower cutoff frequency in Hz (0 to 8000 Hz).</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0">
+       <widget class="QLabel" name="label_tx_filter_high">
+        <property name="text">
+         <string>Filter High (Hz)</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="1">
+       <widget class="QSpinBox" name="tx_filter_high">
+        <property name="minimum">
+         <number>0</number>
+        </property>
+        <property name="maximum">
+         <number>8000</number>
+        </property>
+        <property name="singleStep">
+         <number>50</number>
+        </property>
+        <property name="value">
+         <number>2900</number>
+        </property>
+        <property name="toolTip">
+         <string>Upper cutoff frequency in Hz (0 to 8000 Hz).</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
     <widget class="QGroupBox" name="groupBox_2">
      <property name="autoFillBackground">
       <bool>true</bool>

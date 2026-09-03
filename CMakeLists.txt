@@ -208,7 +208,6 @@ set(SOURCES
     ${SRC_DIR}/cusdr_networkWidget.cpp
     ${SRC_DIR}/cusdr_mainWidget.cpp
     ${SRC_DIR}/cusdr_extCtrlWidget.cpp
-    ${SRC_DIR}/cusdr_radioWidget.cpp
     ${SRC_DIR}/cusdr_agcWidget.cpp
     ${SRC_DIR}/cusdr_displayTabWidget.cpp
     ${SRC_DIR}/cusdr_radioPopupWidget.cpp
@@ -341,7 +340,6 @@ set(HEADERS
     ${SRC_DIR}/cusdr_3DOptionsWidget.h
     ${SRC_DIR}/cusdr_mainWidget.h
     ${SRC_DIR}/cusdr_radioPopupWidget.h
-    ${SRC_DIR}/cusdr_radioWidget.h
     
     # Shared headers
     ${SRC_DIR}/Util/cusdr_queue.h

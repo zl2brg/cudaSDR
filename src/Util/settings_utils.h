@@ -11,6 +11,7 @@
 #include <QString>
 #include <QVector>
 #include <algorithm>
+#include <cmath>
 #include <type_traits>
 
 namespace SettingsUtils {
@@ -222,6 +223,107 @@ QJsonArray toJsonArray(const Container &values)
             arr.append(static_cast<int>(v));
     }
     return arr;
+}
+
+struct TxFilterBounds {
+    double low;
+    double high;
+};
+
+// USB/CWU passbands live at +Hz; LSB/CWL at −Hz. Saved filterLo/Hi are not
+// per-band, so a 20 m USB start often still has the LSB TReceiver defaults.
+inline bool rxFilterSignsMatchMode(DSPMode mode, double lo, double hi)
+{
+    switch (mode) {
+    case USB:
+    case DIGU:
+    case CWU:
+        return hi > 0.0;
+    case LSB:
+    case DIGL:
+    case CWL:
+        return lo < 0.0;
+    default:
+        return true;
+    }
+}
+
+inline TxFilterBounds calculateTxFilterBounds(
+    DSPMode mode,
+    int txFilterLow,
+    int txFilterHigh,
+    bool useRxFilter,
+    double rxFilterLow,
+    double rxFilterHigh)
+{
+    int low = txFilterLow;
+    int high = txFilterHigh;
+
+    if (useRxFilter) {
+        switch (mode) {
+        case DSB:
+        case AM:
+        case SAM:
+        case SPEC:
+            high = static_cast<int>(std::abs(rxFilterHigh));
+            break;
+        case LSB:
+        case DIGL:
+            high = static_cast<int>(std::abs(rxFilterLow));
+            low = static_cast<int>(std::abs(rxFilterHigh));
+            break;
+        case USB:
+        case DIGU:
+            high = static_cast<int>(std::abs(rxFilterHigh));
+            low = static_cast<int>(std::abs(rxFilterLow));
+            break;
+        default:
+            break;
+        }
+    }
+
+    if (low > high) {
+        std::swap(low, high);
+    }
+
+    switch (mode) {
+    case CWL:
+    case CWU:
+        return { -150.0, 150.0 };
+
+    case DSB:
+    case AM:
+    case SAM:
+    case SPEC:
+        return { -static_cast<double>(high), static_cast<double>(high) };
+
+    case FMN:
+        // 3 kHz speech pre-modulator audio filter matching deskHPSDR
+        return { -3000.0, 3000.0 };
+
+    case LSB:
+    case DIGL: {
+        const int a = std::abs(low);
+        const int b = std::abs(high);
+        const int lo = std::min(a, b);
+        const int hi = std::max(a, b);
+        return { -static_cast<double>(hi), -static_cast<double>(lo) };
+    }
+
+    case USB:
+    case DIGU: {
+        const int a = std::abs(low);
+        const int b = std::abs(high);
+        const int lo = std::min(a, b);
+        const int hi = std::max(a, b);
+        return { static_cast<double>(lo), static_cast<double>(hi) };
+    }
+
+    case FDV:
+        return { 700.0, 2300.0 };
+    }
+
+    return { static_cast<double>(low), static_cast<double>(high) };
 }
 
 } // namespace SettingsUtils

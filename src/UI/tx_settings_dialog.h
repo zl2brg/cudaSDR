@@ -63,6 +63,9 @@ public:
     void setCwKeyerSpeed(int speed);
     void setCwPttDelay(int delay);
     void setCwKeyerWeight(int weight);
+    void setTxFilterLow(int val);
+    void setTxFilterHigh(int val);
+    void setTxUseRxFilter(bool enabled);
     void setCurrentReceiver(int rx);
     void setFreeDVMode(int rx, int mode);
     void refreshAudioDevices(const QString& savedMicName, const QString& savedDigitalName);
@@ -103,6 +106,9 @@ signals:
     void cwSidetoneVolumeRequested(int val);
     void cwHangTimeRequested(int val);
     void cwKeyerWeightRequested(int val);
+    void txFilterLowRequested(int val);
+    void txFilterHighRequested(int val);
+    void txUseRxFilterRequested(bool enabled);
 
 private slots:
     void triggerRefreshDevices();

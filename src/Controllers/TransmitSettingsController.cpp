@@ -57,6 +57,9 @@ void TransmitSettingsController::bind(tx_settings_dialog* view, TransmitModel* t
         m_view->setCwKeyerSpeed(m_txModel->cwKeyerSpeed());
         m_view->setCwPttDelay(m_txModel->cwPttDelay());
         m_view->setCwKeyerWeight(m_txModel->cwKeyerWeight());
+        m_view->setTxFilterLow(m_txModel->txFilterLow());
+        m_view->setTxFilterHigh(m_txModel->txFilterHigh());
+        m_view->setTxUseRxFilter(m_txModel->txUseRxFilter());
         m_view->refreshAudioDevices(m_txModel->micInputSourceName(),
                                     m_txModel->digitalInputSourceName());
     } else {
@@ -87,6 +90,9 @@ void TransmitSettingsController::bind(tx_settings_dialog* view, TransmitModel* t
         m_view->setCwKeyerSpeed(m_model->getCwKeyerSpeed());
         m_view->setCwPttDelay(m_model->getCwPttDelay());
         m_view->setCwKeyerWeight(m_model->getCwKeyerWeight());
+        m_view->setTxFilterLow(m_model->getTxFilterLow());
+        m_view->setTxFilterHigh(m_model->getTxFilterHigh());
+        m_view->setTxUseRxFilter(m_model->getTxUseRxFilter());
         m_view->refreshAudioDevices(m_model->getMicInputSourceName(),
                                     m_model->getDigitalInputSourceName());
     }
@@ -238,6 +244,18 @@ void TransmitSettingsController::bind(tx_settings_dialog* view, TransmitModel* t
         if (m_txModel) m_txModel->setCwKeyerWeight(val);
         else m_model->setCwKeyerWeight(val);
     });
+    connect(m_view, &tx_settings_dialog::txFilterLowRequested, this, [this](int val) {
+        if (m_txModel) m_txModel->setTxFilterLow(val);
+        else m_model->setTxFilterLow(val);
+    });
+    connect(m_view, &tx_settings_dialog::txFilterHighRequested, this, [this](int val) {
+        if (m_txModel) m_txModel->setTxFilterHigh(val);
+        else m_model->setTxFilterHigh(val);
+    });
+    connect(m_view, &tx_settings_dialog::txUseRxFilterRequested, this, [this](bool val) {
+        if (m_txModel) m_txModel->setTxUseRxFilter(val);
+        else m_model->setTxUseRxFilter(val);
+    });
 
     // --- TransmitModel -> View ---
     if (m_txModel) {
@@ -267,6 +285,9 @@ void TransmitSettingsController::bind(tx_settings_dialog* view, TransmitModel* t
         connect(m_txModel, &TransmitModel::audioCompressionChanged, this, [this](int val) {
             m_view->setAudioCompression(val);
         });
+        connect(m_txModel, &TransmitModel::txFilterLowChanged, m_view, &tx_settings_dialog::setTxFilterLow);
+        connect(m_txModel, &TransmitModel::txFilterHighChanged, m_view, &tx_settings_dialog::setTxFilterHigh);
+        connect(m_txModel, &TransmitModel::txUseRxFilterChanged, m_view, &tx_settings_dialog::setTxUseRxFilter);
     } else {
         connect(m_model, &Settings::fmPremphasizechanged, this, [this](double value) {
             m_view->setFmPreEmphasis(value != 0.0);
@@ -292,6 +313,9 @@ void TransmitSettingsController::bind(tx_settings_dialog* view, TransmitModel* t
             m_view->setCfcPost(m_model->getCfcPost());
             m_view->refreshEqCurvePlots();
         });
+        connect(m_model, &Settings::txFilterLowChanged, m_view, &tx_settings_dialog::setTxFilterLow);
+        connect(m_model, &Settings::txFilterHighChanged, m_view, &tx_settings_dialog::setTxFilterHigh);
+        connect(m_model, &Settings::txUseRxFilterChanged, m_view, &tx_settings_dialog::setTxUseRxFilter);
     }
 
     connect(m_model, &Settings::currentReceiverChanged, this, [this](int rx) {

@@ -445,6 +445,24 @@ void ModelsTests::testTransmitModelProperties() {
     QSignalSpy spyMicDev(&tx, &TransmitModel::micInputDevChanged);
     QSignalSpy spyMicName(&tx, &TransmitModel::micInputSourceNameChanged);
     QSignalSpy spyCwSpeed(&tx, &TransmitModel::cwKeyerSpeedChanged);
+    QSignalSpy spyFilterLo(&tx, &TransmitModel::txFilterLowChanged);
+    QSignalSpy spyFilterHi(&tx, &TransmitModel::txFilterHighChanged);
+    QSignalSpy spyUseRx(&tx, &TransmitModel::txUseRxFilterChanged);
+
+    QCOMPARE(tx.txFilterLow(), 100);
+    tx.setTxFilterLow(150);
+    QCOMPARE(tx.txFilterLow(), 150);
+    QCOMPARE(spyFilterLo.count(), 1);
+
+    QCOMPARE(tx.txFilterHigh(), 2900);
+    tx.setTxFilterHigh(3000);
+    QCOMPARE(tx.txFilterHigh(), 3000);
+    QCOMPARE(spyFilterHi.count(), 1);
+
+    QCOMPARE(tx.txUseRxFilter(), false);
+    tx.setTxUseRxFilter(true);
+    QCOMPARE(tx.txUseRxFilter(), true);
+    QCOMPARE(spyUseRx.count(), 1);
 
     tx.setAmCarrierLevel(80);
     QCOMPARE(tx.amCarrierLevel(), 80);
@@ -510,6 +528,9 @@ void ModelsTests::testTransmitSettingsSync() {
 
     settings->setAudioCompression(5);
     settings->setCwKeyerSpeed(28);
+    settings->setTxFilterLow(120);
+    settings->setTxFilterHigh(2800);
+    settings->setTxUseRxFilter(true);
 
     settings->syncTransmitWithSettings();
 
@@ -517,14 +538,23 @@ void ModelsTests::testTransmitSettingsSync() {
     QVERIFY(tx != nullptr);
     QCOMPARE(tx->audioCompression(), 5);
     QCOMPARE(tx->cwKeyerSpeed(), 28);
+    QCOMPARE(tx->txFilterLow(), 120);
+    QCOMPARE(tx->txFilterHigh(), 2800);
+    QCOMPARE(tx->txUseRxFilter(), true);
 
     tx->setAudioCompression(7);
     tx->setCwKeyerSpeed(30);
+    tx->setTxFilterLow(150);
+    tx->setTxFilterHigh(3100);
+    tx->setTxUseRxFilter(false);
 
     settings->syncSettingsWithTransmit();
 
     QCOMPARE(settings->getAudioCompression(), 7);
     QCOMPARE(settings->getCwKeyerSpeed(), 30);
+    QCOMPARE(settings->getTxFilterLow(), 150);
+    QCOMPARE(settings->getTxFilterHigh(), 3100);
+    QCOMPARE(settings->getTxUseRxFilter(), false);
 
     settings->setRadioModel(nullptr);
 }

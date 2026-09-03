@@ -252,6 +252,14 @@ tx_settings_dialog::tx_settings_dialog(QWidget *parent) :
     connect(ui->sidetone_volume, &QSpinBox::valueChanged, this, &tx_settings_dialog::cwSidetoneVolumeRequested);
     connect(ui->cw_hangtime, &QSpinBox::valueChanged, this, &tx_settings_dialog::cwHangTimeRequested);
     connect(ui->weight, &QSlider::valueChanged, this, &tx_settings_dialog::cwKeyerWeightRequested);
+
+    connect(ui->tx_use_rx_filter, &QCheckBox::toggled, this, [this](bool checked) {
+        ui->tx_filter_low->setEnabled(!checked);
+        ui->tx_filter_high->setEnabled(!checked);
+        emit txUseRxFilterRequested(checked);
+    });
+    connect(ui->tx_filter_low, &QSpinBox::valueChanged, this, &tx_settings_dialog::txFilterLowRequested);
+    connect(ui->tx_filter_high, &QSpinBox::valueChanged, this, &tx_settings_dialog::txFilterHighRequested);
 }
 
 tx_settings_dialog::~tx_settings_dialog()
@@ -578,4 +586,24 @@ void tx_settings_dialog::refreshAudioDevices(const QString& savedMicName, const 
         }
     }
     ui->digitalAudioDevList->setCurrentIndex(digitalIndex);
+}
+
+void tx_settings_dialog::setTxFilterLow(int val)
+{
+    const QSignalBlocker blocker(ui->tx_filter_low);
+    ui->tx_filter_low->setValue(val);
+}
+
+void tx_settings_dialog::setTxFilterHigh(int val)
+{
+    const QSignalBlocker blocker(ui->tx_filter_high);
+    ui->tx_filter_high->setValue(val);
+}
+
+void tx_settings_dialog::setTxUseRxFilter(bool enabled)
+{
+    const QSignalBlocker blocker(ui->tx_use_rx_filter);
+    ui->tx_use_rx_filter->setChecked(enabled);
+    ui->tx_filter_low->setEnabled(!enabled);
+    ui->tx_filter_high->setEnabled(!enabled);
 }

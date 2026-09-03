@@ -55,6 +55,8 @@ private:
     bool create_transmitter(int id, int buffer_size, int fft_size, int fps, int width, int height);
     void init_analyser(int id);
     void tx_set_filter(double low, double high);
+    void applyTxFilter();
+    void programTxa();
     void applyFmPreEmphasis();
     void applyPhaseRotator();
     void applyTxEq();
@@ -86,6 +88,7 @@ private:
     Settings*   set;
     TransmitModel* m_txModel = nullptr;
     QTimer*     m_phrotStatusTimer = nullptr;
+    bool        m_channelCreated = false;
     int id;
     int mic_sample_rate;
     long m_asteps;
@@ -106,7 +109,7 @@ private:
     int display_waterfall;
     int update_timer_id;
 
-    DSPMode  mode;
+    DSPMode  mode = USB;
     double filter_low;
     double filter_high;
 

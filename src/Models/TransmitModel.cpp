@@ -217,3 +217,21 @@ void TransmitModel::setCwKeyerWeight(int val) {
     m_cwKeyerWeight = val;
     emit cwKeyerWeightChanged(m_cwKeyerWeight);
 }
+
+void TransmitModel::setTxFilterLow(int val) {
+    if (m_txFilterLow == val) return;
+    m_txFilterLow = val;
+    emit txFilterLowChanged(m_txFilterLow);
+}
+
+void TransmitModel::setTxFilterHigh(int val) {
+    if (m_txFilterHigh == val) return;
+    m_txFilterHigh = val;
+    emit txFilterHighChanged(m_txFilterHigh);
+}
+
+void TransmitModel::setTxUseRxFilter(bool enabled) {
+    if (m_txUseRxFilter == enabled) return;
+    m_txUseRxFilter = enabled;
+    emit txUseRxFilterChanged(m_txUseRxFilter);
+}

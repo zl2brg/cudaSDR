@@ -28,6 +28,7 @@
 
 #include "cusdr_transmitter.h"
 #include "Models/RadioModel.h"
+#include "Util/settings_utils.h"
 
 namespace {
 double micSliderToPanelGain(const double sliderValue)
@@ -54,6 +55,7 @@ Transmitter::Transmitter(int transmitter)
     , m_txModel(set->radioModel() ? set->radioModel()->transmit() : nullptr)
     , m_asteps(0)
     , m_bsteps(0)
+    , mode(set ? set->getDSPMode(set->getCurrentReceiver()) : USB)
 {
     Q_UNUSED(transmitter)
     m_phrotStatusTimer = new QTimer(this);
@@ -96,6 +98,9 @@ void Transmitter::setupConnections() {
     connect(set, &Settings::dspModeChanged,
             this, &Transmitter::setDSPMode);
 
+    connect(set, &Settings::currentReceiverChanged,
+            this, [this](int) { programTxa(); });
+
     connect(set, &Settings::radioStateChanged,
             this, &Transmitter::setRadioState);
 
@@ -137,6 +142,25 @@ void Transmitter::setupConnections() {
 
     connect(m_txModel, &TransmitModel::audioCompressionChanged,
             this, &Transmitter::transmitter_set_audio_compression);
+
+    connect(m_txModel, &TransmitModel::txFilterLowChanged,
+            this, [this](int) { applyTxFilter(); });
+
+    connect(m_txModel, &TransmitModel::txFilterHighChanged,
+            this, [this](int) { applyTxFilter(); });
+
+    connect(m_txModel, &TransmitModel::txUseRxFilterChanged,
+            this, [this](bool) { applyTxFilter(); });
+
+    if (set) {
+        connect(set, &Settings::filterFrequenciesChanged,
+                this, [this](int rx, qreal, qreal) {
+                    if (rx == set->getCurrentReceiver()) {
+                        const bool useRx = m_txModel ? m_txModel->txUseRxFilter() : set->getTxUseRxFilter();
+                        if (useRx) applyTxFilter();
+                    }
+                });
+    }
 }
 
 
@@ -192,8 +216,8 @@ bool  Transmitter::create_transmitter(int id, int buffer_size, int fft_size, int
 
     TRANSMITTER_DEBUG << "create_transmitter: id=" << id << " buffer_size=" << buffer_size << " mic_sample_rate=" << mic_sample_rate << " mic_dsp_rate=" << mic_dsp_rate << " iq_output_rate=" << iq_output_rate << " output_samples=" << output_samples << " fps=" << fps;
 
-    this->filter_low=0;
-    this->filter_high=2500;
+    this->filter_low = 100;
+    this->filter_high = 2900;
 
     this->out_of_band=0;
 
@@ -269,13 +293,13 @@ bool  Transmitter::create_transmitter(int id, int buffer_size, int fft_size, int
     }
 */
     SetTXABandpassWindow(this->id, 1);
-    SetTXABandpassRun(this->id, 1);
 
     SetTXAFMEmphPosition(this->id,pre_emphasize);
-    applyFmPreEmphasis();
     applyPhaseRotator();
     applyTxEq();
     applyCfc();
+    m_channelCreated = true;
+    programTxa();
 
     SetTXACFIRRun(this->id, protocol==NEW_PROTOCOL?1:0); // turned on if new protocol
 
@@ -332,12 +356,8 @@ bool  Transmitter::create_transmitter(int id, int buffer_size, int fft_size, int
 void Transmitter::setDSPMode(int id, DSPMode dspMode) {
     Q_UNUSED(id)
     mode = dspMode;
-    const DSPMode wdspMode = resolveWDSPMode(mode, set->getCtrFrequency(set->getCurrentReceiver()));
-    TRANSMITTER_DEBUG << "[TX] DSP mode set to" << dspMode << "(WDSP:" << wdspMode << ")";
-    SetTXAMode(this->id, wdspMode);
-    applyFmPreEmphasis(); // SetTXAMode forces pre-emph on for FM; honor user setting.
-    auto filter = getFilterFromDSPMode(set->getDefaultFilterList(), wdspMode);
-    tx_set_filter(filter.filterLo, filter.filterHi);
+    TRANSMITTER_DEBUG << "[TX] DSP mode set to" << dspMode;
+    programTxa();
 }
 
 
@@ -487,40 +507,29 @@ void Transmitter::setRadioState(RadioState state)
     switch(state) {
 
     case RadioState::MOX: {
-        const DSPMode wdspMode = resolveWDSPMode(mode, set->getCtrFrequency(set->getCurrentReceiver()));
-        auto filter = getFilterFromDSPMode(set->getDefaultFilterList(), wdspMode);
-        tx_set_filter(filter.filterLo, filter.filterHi);
         SetTXAPostGenRun(this->id, 0);
-        SetTXAMode(this->id, wdspMode);
-        applyFmPreEmphasis();
+        programTxa();
         applyPhaseRotator();
         SetTXAPanelGain1(this->id, micSliderToPanelGain(mic_gain));
         SetTXAPanelRun(this->id, 1);
-        SetTXABandpassWindow(this->id, 1);
-        SetTXABandpassRun(this->id, 1);
+        // SetTXABandpassRun() enables bp1 (compressor aux), which starts LSB.
         SetChannelState(TX_ID, 1, 1);
-        TRANSMITTER_DEBUG << "MOX: TX channel started";
+        TRANSMITTER_DEBUG << "MOX: TX channel started with mode" << this->mode;
         break;
     }
 
     case RadioState::TUNE: {
         // Tone generator for TUNE
-        const DSPMode wdspModeTune = resolveWDSPMode(mode, set->getCtrFrequency(set->getCurrentReceiver()));
-        auto filter = getFilterFromDSPMode(set->getDefaultFilterList(), wdspModeTune);
-        tx_set_filter(filter.filterLo, filter.filterHi);
         SetTXAPostGenToneFreq(this->id, 1000);
         SetTXAPostGenToneMag(this->id, 0.5);
         SetTXAPostGenMode(this->id, 0);
         SetTXAPostGenRun(this->id, 1);
-        SetTXAMode(this->id, wdspModeTune);
-        applyFmPreEmphasis();
+        programTxa();
         applyPhaseRotator();
         SetTXAPanelGain1(this->id, micSliderToPanelGain(mic_gain));
         SetTXAPanelRun(this->id, 1);
-        SetTXABandpassWindow(this->id, 1);
-        SetTXABandpassRun(this->id, 1);
         SetChannelState(TX_ID, 1, 1);
-        TRANSMITTER_DEBUG << "TUNE: TX channel started with tone";
+        TRANSMITTER_DEBUG << "TUNE: TX channel started with tone, mode" << this->mode;
         break;
     }
 
@@ -535,10 +544,45 @@ void Transmitter::setRadioState(RadioState state)
 }
 
 
-     void Transmitter::tx_set_filter(double filter_low,double filter_high){
-         TRANSMITTER_DEBUG << "Set Tx filter:Low " << filter_low << " High: " << filter_high;
-         SetTXABandpassFreqs(this->id, filter_low,filter_high);
-     }
+void Transmitter::programTxa() {
+    if (!m_channelCreated)
+        return;
+    const int rx = set ? set->getCurrentReceiver() : 0;
+    if (set) this->mode = set->getDSPMode(rx);
+    const DSPMode wdspMode = resolveWDSPMode(this->mode, set ? set->getCtrFrequency(rx) : 0);
+    // Mode first (may rebuild with stale Hz), then freqs so SetTXABandpassFreqs
+    // always installs the passband for the live sideband.
+    SetTXAMode(this->id, wdspMode);
+    applyTxFilter();
+    applyFmPreEmphasis();
+}
+
+void Transmitter::applyTxFilter() {
+    if (!m_channelCreated)
+        return;
+    const int rx = set ? set->getCurrentReceiver() : 0;
+    if (set) this->mode = set->getDSPMode(rx);
+    const DSPMode boundsMode = resolveWDSPMode(this->mode, set ? set->getCtrFrequency(rx) : 0);
+    const int txLow = m_txModel ? m_txModel->txFilterLow() : (set ? set->getTxFilterLow() : 100);
+    const int txHigh = m_txModel ? m_txModel->txFilterHigh() : (set ? set->getTxFilterHigh() : 2900);
+    const bool useRx = m_txModel ? m_txModel->txUseRxFilter() : (set ? set->getTxUseRxFilter() : false);
+    const double rxLo = set ? set->getFilterLo(rx) : 150.0;
+    const double rxHi = set ? set->getFilterHi(rx) : 3050.0;
+
+    const auto bounds = SettingsUtils::calculateTxFilterBounds(boundsMode, txLow, txHigh, useRx, rxLo, rxHi);
+    this->filter_low = bounds.low;
+    this->filter_high = bounds.high;
+    tx_set_filter(bounds.low, bounds.high);
+}
+
+void Transmitter::tx_set_filter(double filter_low, double filter_high) {
+    TRANSMITTER_DEBUG << "Set Tx filter:Low " << filter_low << " High: " << filter_high;
+    // SetTXABandpassFreqs no-ops when Hz are unchanged. create_txa starts at
+    // LSB -5000/-100; a USB program with the same stored Hz as last time must
+    // still rebuild. Nudge first so the real edges always take.
+    SetTXABandpassFreqs(this->id, filter_low, filter_high + 1.0);
+    SetTXABandpassFreqs(this->id, filter_low, filter_high);
+}
 
 
      void Transmitter::transmitter_set_am_carrier_level(double level ) {

@@ -29,6 +29,8 @@ private slots:
     void testClampTciGain();
     void testIniOnOff();
     void testJsonArrayViaSetters();
+    void testCalculateTxFilterBoundsManual();
+    void testCalculateTxFilterBoundsUseRxFilter();
 };
 
 void SettingsUtilsTests::agcHangDisabledForOffMedFast()
@@ -194,6 +196,77 @@ void SettingsUtilsTests::testJsonArrayViaSetters()
     QCOMPARE(out.size(), 3);
     QCOMPARE(out.at(0).toInt(), 4);
     QCOMPARE(out.at(2).toInt(), 6);
+}
+
+void SettingsUtilsTests::testCalculateTxFilterBoundsManual()
+{
+    // Defaults matching deskHPSDR: txFilterLow=100, txFilterHigh=2900, useRxFilter=false
+    const auto usb = calculateTxFilterBounds(DSPMode::USB, 100, 2900, false, 0, 0);
+    QCOMPARE(usb.low, 100.0);
+    QCOMPARE(usb.high, 2900.0);
+
+    const auto lsb = calculateTxFilterBounds(DSPMode::LSB, 100, 2900, false, 0, 0);
+    QCOMPARE(lsb.low, -2900.0);
+    QCOMPARE(lsb.high, -100.0);
+
+    const auto fmn = calculateTxFilterBounds(DSPMode::FMN, 100, 2900, false, 0, 0);
+    QCOMPARE(fmn.low, -3000.0);
+    QCOMPARE(fmn.high, 3000.0);
+
+    const auto am = calculateTxFilterBounds(DSPMode::AM, 100, 2900, false, 0, 0);
+    QCOMPARE(am.low, -2900.0);
+    QCOMPARE(am.high, 2900.0);
+
+    const auto cwu = calculateTxFilterBounds(DSPMode::CWU, 100, 2900, false, 0, 0);
+    QCOMPARE(cwu.low, -150.0);
+    QCOMPARE(cwu.high, 150.0);
+
+    const auto cwl = calculateTxFilterBounds(DSPMode::CWL, 100, 2900, false, 0, 0);
+    QCOMPARE(cwl.low, -150.0);
+    QCOMPARE(cwl.high, 150.0);
+
+    const auto fdv = calculateTxFilterBounds(DSPMode::FDV, 100, 2900, false, 0, 0);
+    QCOMPARE(fdv.low, 700.0);
+    QCOMPARE(fdv.high, 2300.0);
+}
+
+void SettingsUtilsTests::testCalculateTxFilterBoundsUseRxFilter()
+{
+    // With useRxFilter=true, TX filter tracks RX filter edges
+    // USB with RX 2.4k (150 to 2550 Hz)
+    const auto usb = calculateTxFilterBounds(DSPMode::USB, 100, 2900, true, 150.0, 2550.0);
+    QCOMPARE(usb.low, 150.0);
+    QCOMPARE(usb.high, 2550.0);
+
+    // USB with stale LSB-signed RX edges must still yield a USB passband
+    const auto usbStale = calculateTxFilterBounds(DSPMode::USB, 100, 2900, true, -2550.0, -150.0);
+    QCOMPARE(usbStale.low, 150.0);
+    QCOMPARE(usbStale.high, 2550.0);
+
+    // TReceiver defaults (-3050/-150) while the band mode is already USB
+    const auto usbDefaults = calculateTxFilterBounds(DSPMode::USB, 100, 2900, true, -3050.0, -150.0);
+    QCOMPARE(usbDefaults.low, 150.0);
+    QCOMPARE(usbDefaults.high, 3050.0);
+
+    QVERIFY(rxFilterSignsMatchMode(DSPMode::USB, 150.0, 3050.0));
+    QVERIFY(!rxFilterSignsMatchMode(DSPMode::USB, -3050.0, -150.0));
+    QVERIFY(rxFilterSignsMatchMode(DSPMode::LSB, -3050.0, -150.0));
+    QVERIFY(!rxFilterSignsMatchMode(DSPMode::LSB, 150.0, 3050.0));
+
+    // LSB with RX 2.1k (-2250 to -150 Hz)
+    const auto lsb = calculateTxFilterBounds(DSPMode::LSB, 100, 2900, true, -2250.0, -150.0);
+    QCOMPARE(lsb.low, -2250.0);
+    QCOMPARE(lsb.high, -150.0);
+
+    // AM with RX 8k (-4000 to 4000 Hz)
+    const auto am = calculateTxFilterBounds(DSPMode::AM, 100, 2900, true, -4000.0, 4000.0);
+    QCOMPARE(am.low, -4000.0);
+    QCOMPARE(am.high, 4000.0);
+
+    // FMN still retains 3 kHz pre-modulator audio filter
+    const auto fmn = calculateTxFilterBounds(DSPMode::FMN, 100, 2900, true, -5500.0, 5500.0);
+    QCOMPARE(fmn.low, -3000.0);
+    QCOMPARE(fmn.high, 3000.0);
 }
 
 QTEST_APPLESS_MAIN(SettingsUtilsTests)

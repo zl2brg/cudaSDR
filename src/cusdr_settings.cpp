@@ -44,6 +44,27 @@
 
 using namespace SettingsUtils;
 
+namespace {
+
+// filterLo/Hi are not stored per band. USB on 20 m often still has the LSB
+// TReceiver defaults (-3050/-150); clicking USB later rewrites them via
+// setDSPMode. Apply the same correction at load/sync so first USB MOX matches.
+void ensureFilterMatchesMode(TReceiver &rx, const QList<TDefaultFilter> &defaultFilterList)
+{
+    DSPMode mode = rx.dspMode;
+    if (rx.hamBand >= 0 && rx.hamBand < rx.dspModeList.size())
+        mode = rx.dspModeList.at(rx.hamBand);
+    const DSPMode wdspMode = resolveWDSPMode(mode, rx.ctrFrequency);
+    if (rx.filterLo < rx.filterHi
+        && rxFilterSignsMatchMode(wdspMode, rx.filterLo, rx.filterHi))
+        return;
+    const auto filter = getFilterFromDSPMode(defaultFilterList, wdspMode);
+    rx.filterLo = filter.filterLo;
+    rx.filterHi = filter.filterHi;
+}
+
+} // namespace
+
 Settings *Settings::m_instance = nullptr;        /*!< set m_instance to NULL. */
 
 /*!
@@ -1106,18 +1127,9 @@ int Settings::loadSettings() {
             }
         }
 
-        // A zero-width or inverted passband mutes the receiver and leaves the
-        // panadapter empty, so fall back to the band's mode default.
-        if (m_receiverDataList[i].filterLo >= m_receiverDataList[i].filterHi) {
-            const HamBand band = getBandFromFrequency(m_bandList, m_receiverDataList[i].ctrFrequency);
-            const DSPMode mode = (band >= 0 && band < m_receiverDataList[i].dspModeList.size())
-                                     ? m_receiverDataList[i].dspModeList[band]
-                                     : (DSPMode) LSB;
-            const auto filter = getFilterFromDSPMode(m_defaultFilterList,
-                                                     resolveWDSPMode(mode, m_receiverDataList[i].ctrFrequency));
-            m_receiverDataList[i].filterLo = filter.filterLo;
-            m_receiverDataList[i].filterHi = filter.filterHi;
-        }
+        // A zero-width, inverted, or wrong-sideband passband mutes RX/TX and
+        // leaves the panadapter shade on the opposite side of the carrier.
+        ensureFilterMatchesMode(m_receiverDataList[i], m_defaultFilterList);
 
         if (m_receiverDataList[i].mercuryAttenuators.length() == MAX_BANDS && m_bandList.length() == MAX_BANDS) {
 
@@ -1993,16 +2005,7 @@ bool Settings::fromJson(const QJsonObject &root)
             if (rxArray[i].isObject()) {
                 m_receiverConfigs[i]->load(rxArray[i].toObject());
                 m_receiverConfigs[i]->applyTo(m_receiverDataList[i]);
-                if (m_receiverDataList[i].filterLo >= m_receiverDataList[i].filterHi) {
-                    const HamBand band = getBandFromFrequency(m_bandList, m_receiverDataList[i].ctrFrequency);
-                    const DSPMode mode = (band >= 0 && band < m_receiverDataList[i].dspModeList.size())
-                                             ? m_receiverDataList[i].dspModeList[band]
-                                             : (DSPMode) LSB;
-                    const auto filter = getFilterFromDSPMode(m_defaultFilterList,
-                                                             resolveWDSPMode(mode, m_receiverDataList[i].ctrFrequency));
-                    m_receiverDataList[i].filterLo = filter.filterLo;
-                    m_receiverDataList[i].filterHi = filter.filterHi;
-                }
+                ensureFilterMatchesMode(m_receiverDataList[i], m_defaultFilterList);
             }
         }
     }
@@ -5476,6 +5479,7 @@ void Settings::syncSlicesWithSettings() {
         if (band >= 0 && band < m_receiverDataList[i].dspModeList.size())
             startupMode = m_receiverDataList[i].dspModeList[band];
         slice->setDspMode(startupMode);
+        ensureFilterMatchesMode(m_receiverDataList[i], m_defaultFilterList);
         slice->setFilterLow((float)m_receiverDataList[i].filterLo);
         slice->setFilterHigh((float)m_receiverDataList[i].filterHi);
         slice->setFilterSlope(m_receiverDataList[i].filterSlope);
@@ -5619,6 +5623,9 @@ void Settings::syncTransmitWithSettings() {
     tx->setCwSidetoneVolume(m_cwConfig->sidetoneVolume());
     tx->setCwHangTime(m_cwConfig->hangTime());
     tx->setCwKeyerWeight(m_cwConfig->keyerWeight());
+    tx->setTxFilterLow(m_transmitConfig->txFilterLow());
+    tx->setTxFilterHigh(m_transmitConfig->txFilterHigh());
+    tx->setTxUseRxFilter(m_transmitConfig->txUseRxFilter());
 }
 
 void Settings::syncSettingsWithTransmit() {
@@ -5653,6 +5660,9 @@ void Settings::syncSettingsWithTransmit() {
     m_transmitConfig->setMicInputSourceName(tx->micInputSourceName());
     m_transmitConfig->setDigitalAudioInputDev(tx->digitalAudioInputDev());
     m_transmitConfig->setDigitalInputSourceName(tx->digitalInputSourceName());
+    m_transmitConfig->setTxFilterLow(tx->txFilterLow());
+    m_transmitConfig->setTxFilterHigh(tx->txFilterHigh());
+    m_transmitConfig->setTxUseRxFilter(tx->txUseRxFilter());
     m_cwConfig->setKeyerMode(tx->cwKeyerMode());
     m_cwConfig->setInternalCw(tx->internalCw() ? 1 : 0);
     m_cwConfig->setKeyReversed(tx->cwKeyReversed() ? 1 : 0);
@@ -5859,4 +5869,49 @@ int Settings::getCwKeyerSpacing() const
     if (const TransmitModel* tx = transmitModel())
         return tx->cwKeyerSpacing() ? 1 : 0;
     return m_cwConfig->keyerSpacing();
+}
+
+int Settings::getTxFilterLow() const
+{
+    if (const TransmitModel* tx = transmitModel())
+        return tx->txFilterLow();
+    return m_transmitConfig->txFilterLow();
+}
+
+void Settings::setTxFilterLow(int val)
+{
+    if (TransmitModel* tx = transmitModel())
+        tx->setTxFilterLow(val);
+    m_transmitConfig->setTxFilterLow(val);
+    emit txFilterLowChanged(val);
+}
+
+int Settings::getTxFilterHigh() const
+{
+    if (const TransmitModel* tx = transmitModel())
+        return tx->txFilterHigh();
+    return m_transmitConfig->txFilterHigh();
+}
+
+void Settings::setTxFilterHigh(int val)
+{
+    if (TransmitModel* tx = transmitModel())
+        tx->setTxFilterHigh(val);
+    m_transmitConfig->setTxFilterHigh(val);
+    emit txFilterHighChanged(val);
+}
+
+bool Settings::getTxUseRxFilter() const
+{
+    if (const TransmitModel* tx = transmitModel())
+        return tx->txUseRxFilter();
+    return m_transmitConfig->txUseRxFilter();
+}
+
+void Settings::setTxUseRxFilter(bool enabled)
+{
+    if (TransmitModel* tx = transmitModel())
+        tx->setTxUseRxFilter(enabled);
+    m_transmitConfig->setTxUseRxFilter(enabled);
+    emit txUseRxFilterChanged(enabled);
 }

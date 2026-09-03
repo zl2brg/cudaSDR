@@ -40,6 +40,9 @@ class TransmitModel : public QObject {
     Q_PROPERTY(int cwSidetoneVolume READ cwSidetoneVolume WRITE setCwSidetoneVolume NOTIFY cwSidetoneVolumeChanged)
     Q_PROPERTY(int cwHangTime READ cwHangTime WRITE setCwHangTime NOTIFY cwHangTimeChanged)
     Q_PROPERTY(int cwKeyerWeight READ cwKeyerWeight WRITE setCwKeyerWeight NOTIFY cwKeyerWeightChanged)
+    Q_PROPERTY(int txFilterLow READ txFilterLow WRITE setTxFilterLow NOTIFY txFilterLowChanged)
+    Q_PROPERTY(int txFilterHigh READ txFilterHigh WRITE setTxFilterHigh NOTIFY txFilterHighChanged)
+    Q_PROPERTY(bool txUseRxFilter READ txUseRxFilter WRITE setTxUseRxFilter NOTIFY txUseRxFilterChanged)
 
 public:
     explicit TransmitModel(QObject *parent = nullptr);
@@ -143,6 +146,15 @@ public:
     int cwKeyerWeight() const { return m_cwKeyerWeight; }
     void setCwKeyerWeight(int val);
 
+    int txFilterLow() const { return m_txFilterLow; }
+    void setTxFilterLow(int val);
+
+    int txFilterHigh() const { return m_txFilterHigh; }
+    void setTxFilterHigh(int val);
+
+    bool txUseRxFilter() const { return m_txUseRxFilter; }
+    void setTxUseRxFilter(bool enabled);
+
 signals:
     void amCarrierLevelChanged(int level);
     void audioCompressionChanged(int val);
@@ -169,6 +181,9 @@ signals:
     void cwSidetoneVolumeChanged(int val);
     void cwHangTimeChanged(int val);
     void cwKeyerWeightChanged(int val);
+    void txFilterLowChanged(int val);
+    void txFilterHighChanged(int val);
+    void txUseRxFilterChanged(bool enabled);
 
 private:
     int m_amCarrierLevel = 100;
@@ -207,6 +222,9 @@ private:
     int m_cwSidetoneVolume = 50;
     int m_cwHangTime = 500;
     int m_cwKeyerWeight = 50;
+    int m_txFilterLow = 100;
+    int m_txFilterHigh = 2900;
+    bool m_txUseRxFilter = false;
 };
 
 #endif // TRANSMITMODEL_H

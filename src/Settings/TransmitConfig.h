@@ -37,6 +37,9 @@ class TransmitConfig : public QObject {
     Q_PROPERTY(int cfcCurveDeg READ cfcCurveDeg WRITE setCfcCurveDeg NOTIFY cfcCurveDegChanged)
     Q_PROPERTY(bool txFullDuplex READ txFullDuplex WRITE setTxFullDuplex NOTIFY txFullDuplexChanged)
     Q_PROPERTY(double repeaterOffset READ repeaterOffset WRITE setRepeaterOffset NOTIFY repeaterOffsetChanged)
+    Q_PROPERTY(int txFilterLow READ txFilterLow WRITE setTxFilterLow NOTIFY txFilterLowChanged)
+    Q_PROPERTY(int txFilterHigh READ txFilterHigh WRITE setTxFilterHigh NOTIFY txFilterHighChanged)
+    Q_PROPERTY(bool txUseRxFilter READ txUseRxFilter WRITE setTxUseRxFilter NOTIFY txUseRxFilterChanged)
 
 public:
     static constexpr int kCfcBands = 10;
@@ -134,6 +137,15 @@ public:
     double repeaterOffset() const { return m_repeaterOffset; }
     void setRepeaterOffset(double offset);
 
+    int txFilterLow() const { return m_txFilterLow; }
+    void setTxFilterLow(int val);
+
+    int txFilterHigh() const { return m_txFilterHigh; }
+    void setTxFilterHigh(int val);
+
+    bool txUseRxFilter() const { return m_txUseRxFilter; }
+    void setTxUseRxFilter(bool enabled);
+
     void load(const QJsonObject &json);
     void save(QJsonObject &json) const;
 
@@ -170,6 +182,9 @@ signals:
     void cfcPostChanged();
     void txFullDuplexChanged(bool fullDuplex);
     void repeaterOffsetChanged(double offset);
+    void txFilterLowChanged(int val);
+    void txFilterHighChanged(int val);
+    void txUseRxFilterChanged(bool enabled);
 
 private:
     void ensureCfcDefaults();
@@ -204,6 +219,9 @@ private:
     int m_cfcCurveDeg;
     bool m_txFullDuplex;
     double m_repeaterOffset;
+    int m_txFilterLow;
+    int m_txFilterHigh;
+    bool m_txUseRxFilter;
 };
 
 #endif // TRANSMITCONFIG_H
