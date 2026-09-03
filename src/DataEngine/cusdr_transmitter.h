@@ -55,6 +55,8 @@ private:
     bool create_transmitter(int id, int buffer_size, int fft_size, int fps, int width, int height);
     void init_analyser(int id);
     void tx_set_filter(double low, double high);
+    void applyTxPassband(DSPMode wdspMode);
+    DSPMode liveAppMode() const;
     void applyFmPreEmphasis();
     void applyPhaseRotator();
     void applyTxEq();

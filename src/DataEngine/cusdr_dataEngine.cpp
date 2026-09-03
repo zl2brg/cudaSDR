@@ -2414,16 +2414,19 @@ void DataProcessor::fetch_MicData(){
 	int numSamples = 0;
     AUDIOBUF temp_data;
     // Network TX audio (remote TCI/browser client mic) takes over the TX mic
-    // input whenever frames are arriving; the local soundcard mic is the
-    // fallback — except while TCI TX_CHRONO is active, when ExpertSDR-style
-    // clients are the sole mic source and local capture must not leak in.
+    // input whenever frames are arriving. Local PC capture is the fallback.
+    // WSJT-X / ExpertSDR digital clients clock TX via TX_CHRONO and must not
+    // have the soundcard leak into DIGU/DIGL. SSB/AM/FM keep the PC mic as a
+    // fallback so a leftover chrono lock cannot mute voice.
     QHQueue<AUDIOBUF> *srcQueue = nullptr;
+    const DSPMode txMode = set->getDSPMode(de->currentReceiver);
     if (de->m_audioInput) {
         if (de->m_audioInput->m_netAudioInQueue.count() > 0)
             srcQueue = &de->m_audioInput->m_netAudioInQueue;
         else {
             const TciServer *tci = set ? set->tciServer() : nullptr;
-            const bool networkMicOnly = tci && tci->isTxChronoActive();
+            const bool digitalTx = (txMode == DIGU || txMode == DIGL);
+            const bool networkMicOnly = tci && tci->isTxChronoActive() && digitalTx;
             if (!networkMicOnly && de->m_audioInput->m_faudioInQueue.count() > 0)
                 srcQueue = &de->m_audioInput->m_faudioInQueue;
         }
@@ -2483,7 +2486,6 @@ void DataProcessor::fetch_MicData(){
 
 	// Keep WSJT-X digital-input handling (DIGU/DIGL) separate.
 	// DV routing is only active for the FreeDV mode button (mapped to FDV).
-	const DSPMode txMode = set->getDSPMode(de->currentReceiver);
 	if (txMode == FDV) {
 #ifdef HAVE_CODEC2
 		applyCodec2ToMicBuffer(numSamples);

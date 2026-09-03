@@ -10,6 +10,10 @@ private slots:
     void bandFromFrequencyReturnsGenWhenOutOfRange();
     void filterFromDspModeMatchesUsb();
     void filterFromDspModeFallsBackToFirst();
+    void resolvedTxPassbandKeepsLiveEdges();
+    void resolvedTxPassbandRejectsInvertedLsb();
+    void resolvedTxPassbandFlipsStaleLsbOntoUsb();
+    void resolvedTxPassbandFlipsStaleUsbOntoLsb();
     void hamBandTextStringShortForm();
     void hamBandTextStringOutOfBand();
 };
@@ -42,6 +46,39 @@ void HamDatabaseUtilsTests::filterFromDspModeFallsBackToFirst()
     const auto filters = getDefaultFilterFrequencies();
     const TDefaultFilter fallback = getFilterFromDSPMode(filters, static_cast<DSPMode>(99));
     QCOMPARE(fallback.dspMode, filters.first().dspMode);
+}
+
+void HamDatabaseUtilsTests::resolvedTxPassbandKeepsLiveEdges()
+{
+    const auto filters = getDefaultFilterFrequencies();
+    const TDefaultFilter live = resolvedTxPassband(filters, USB, 200.0, 2400.0);
+    QCOMPARE(live.filterLo, 200.0);
+    QCOMPARE(live.filterHi, 2400.0);
+}
+
+void HamDatabaseUtilsTests::resolvedTxPassbandRejectsInvertedLsb()
+{
+    const auto filters = getDefaultFilterFrequencies();
+    // Widget bug: lo=-150, hi=-2700 mutes SSB TX.
+    const TDefaultFilter fixed = resolvedTxPassband(filters, LSB, -150.0, -2700.0);
+    QCOMPARE(fixed.filterLo, -3050.0);
+    QCOMPARE(fixed.filterHi, -150.0);
+}
+
+void HamDatabaseUtilsTests::resolvedTxPassbandFlipsStaleLsbOntoUsb()
+{
+    const auto filters = getDefaultFilterFrequencies();
+    const TDefaultFilter flipped = resolvedTxPassband(filters, USB, -3050.0, -150.0);
+    QCOMPARE(flipped.filterLo, 150.0);
+    QCOMPARE(flipped.filterHi, 3050.0);
+}
+
+void HamDatabaseUtilsTests::resolvedTxPassbandFlipsStaleUsbOntoLsb()
+{
+    const auto filters = getDefaultFilterFrequencies();
+    const TDefaultFilter flipped = resolvedTxPassband(filters, DIGL, 150.0, 2700.0);
+    QCOMPARE(flipped.filterLo, -2700.0);
+    QCOMPARE(flipped.filterHi, -150.0);
 }
 
 void HamDatabaseUtilsTests::hamBandTextStringShortForm()

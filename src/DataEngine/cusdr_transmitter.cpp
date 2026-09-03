@@ -99,6 +99,15 @@ void Transmitter::setupConnections() {
     connect(set, &Settings::radioStateChanged,
             this, &Transmitter::setRadioState);
 
+    connect(set, &Settings::filterFrequenciesChanged,
+            this, [this](int rx, qreal low, qreal high) {
+                if (rx != set->getCurrentReceiver())
+                    return;
+                Q_UNUSED(low)
+                Q_UNUSED(high)
+                applyTxPassband(resolveWDSPMode(mode, set->getCtrFrequency(rx)));
+            });
+
     // Mic gain still lives on Settings (main-window slider).
     connect(set, &Settings::micInputLevelChanged,
             this, &Transmitter::transmitter_set_mic_level);
@@ -269,7 +278,9 @@ bool  Transmitter::create_transmitter(int id, int buffer_size, int fft_size, int
     }
 */
     SetTXABandpassWindow(this->id, 1);
-    SetTXABandpassRun(this->id, 1);
+    // Do not call SetTXABandpassRun(1). In WDSP 2.0 that API sets bp1.run
+    // (compressor companion), not the primary bp0 filter. bp0 already runs.
+    // Forcing bp1 on leaves it at create-time LSB edges and series-kills USB/DIGU.
 
     SetTXAFMEmphPosition(this->id,pre_emphasize);
     applyFmPreEmphasis();
@@ -326,7 +337,29 @@ bool  Transmitter::create_transmitter(int id, int buffer_size, int fft_size, int
     } else {
         init_analyser(this->id);
     }
+
+    mode = liveAppMode();
+    const DSPMode wdspMode = resolveWDSPMode(mode, set->getCtrFrequency(set->getCurrentReceiver()));
+    SetTXAMode(this->id, wdspMode);
+    applyFmPreEmphasis();
+    applyTxPassband(wdspMode);
     return true;
+}
+
+DSPMode Transmitter::liveAppMode() const
+{
+    return set->getDSPMode(set->getCurrentReceiver());
+}
+
+void Transmitter::applyTxPassband(DSPMode wdspMode)
+{
+    const int rx = set->getCurrentReceiver();
+    const auto filter = resolvedTxPassband(set->getDefaultFilterList(), wdspMode,
+                                           set->getFilterLo(rx), set->getFilterHi(rx));
+    TRANSMITTER_DEBUG << "[TX] passband mode=" << wdspMode
+                      << " live=" << set->getFilterLo(rx) << ".." << set->getFilterHi(rx)
+                      << " applied=" << filter.filterLo << ".." << filter.filterHi;
+    tx_set_filter(filter.filterLo, filter.filterHi);
 }
 
 void Transmitter::setDSPMode(int id, DSPMode dspMode) {
@@ -336,8 +369,7 @@ void Transmitter::setDSPMode(int id, DSPMode dspMode) {
     TRANSMITTER_DEBUG << "[TX] DSP mode set to" << dspMode << "(WDSP:" << wdspMode << ")";
     SetTXAMode(this->id, wdspMode);
     applyFmPreEmphasis(); // SetTXAMode forces pre-emph on for FM; honor user setting.
-    auto filter = getFilterFromDSPMode(set->getDefaultFilterList(), wdspMode);
-    tx_set_filter(filter.filterLo, filter.filterHi);
+    applyTxPassband(wdspMode);
 }
 
 
@@ -487,9 +519,9 @@ void Transmitter::setRadioState(RadioState state)
     switch(state) {
 
     case RadioState::MOX: {
+        mode = liveAppMode();
         const DSPMode wdspMode = resolveWDSPMode(mode, set->getCtrFrequency(set->getCurrentReceiver()));
-        auto filter = getFilterFromDSPMode(set->getDefaultFilterList(), wdspMode);
-        tx_set_filter(filter.filterLo, filter.filterHi);
+        applyTxPassband(wdspMode);
         SetTXAPostGenRun(this->id, 0);
         SetTXAMode(this->id, wdspMode);
         applyFmPreEmphasis();
@@ -497,7 +529,6 @@ void Transmitter::setRadioState(RadioState state)
         SetTXAPanelGain1(this->id, micSliderToPanelGain(mic_gain));
         SetTXAPanelRun(this->id, 1);
         SetTXABandpassWindow(this->id, 1);
-        SetTXABandpassRun(this->id, 1);
         SetChannelState(TX_ID, 1, 1);
         TRANSMITTER_DEBUG << "MOX: TX channel started";
         break;
@@ -505,9 +536,9 @@ void Transmitter::setRadioState(RadioState state)
 
     case RadioState::TUNE: {
         // Tone generator for TUNE
+        mode = liveAppMode();
         const DSPMode wdspModeTune = resolveWDSPMode(mode, set->getCtrFrequency(set->getCurrentReceiver()));
-        auto filter = getFilterFromDSPMode(set->getDefaultFilterList(), wdspModeTune);
-        tx_set_filter(filter.filterLo, filter.filterHi);
+        applyTxPassband(wdspModeTune);
         SetTXAPostGenToneFreq(this->id, 1000);
         SetTXAPostGenToneMag(this->id, 0.5);
         SetTXAPostGenMode(this->id, 0);
@@ -518,7 +549,6 @@ void Transmitter::setRadioState(RadioState state)
         SetTXAPanelGain1(this->id, micSliderToPanelGain(mic_gain));
         SetTXAPanelRun(this->id, 1);
         SetTXABandpassWindow(this->id, 1);
-        SetTXABandpassRun(this->id, 1);
         SetChannelState(TX_ID, 1, 1);
         TRANSMITTER_DEBUG << "TUNE: TX channel started with tone";
         break;
