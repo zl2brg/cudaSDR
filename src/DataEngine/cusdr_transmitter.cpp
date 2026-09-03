@@ -104,15 +104,6 @@ void Transmitter::setupConnections() {
     connect(set, &Settings::radioStateChanged,
             this, &Transmitter::setRadioState);
 
-    connect(set, &Settings::filterFrequenciesChanged,
-            this, [this](int rx, qreal low, qreal high) {
-                if (rx != set->getCurrentReceiver())
-                    return;
-                Q_UNUSED(low)
-                Q_UNUSED(high)
-                applyTxPassband(resolveWDSPMode(mode, set->getCtrFrequency(rx)));
-            });
-
     // Mic gain still lives on Settings (main-window slider).
     connect(set, &Settings::micInputLevelChanged,
             this, &Transmitter::transmitter_set_mic_level);
