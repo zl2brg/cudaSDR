@@ -277,105 +277,70 @@ void HudRenderer::drawReceiverInfo() {
 	//m_panel->m_oglTextSmall->renderFreqText(x1+3, y1-2, 3.0f, str);
 
 
-	// main frequency display
-	glDisable(GL_MULTISAMPLE);
-	if (m_panel->m_panRect.height() > 15) {
+    // main frequency display
+    glDisable(GL_MULTISAMPLE);
+    if (m_panel->m_panRect.height() > 15) {
 
-        const int fLength = m_panel->m_fonts.bigFont1Metrics->horizontalAdvance(QStringLiteral("55.555.555")) + 30;
-		int x = m_panel->m_panRect.left() + qRound((qreal)(m_panel->m_panRect.width() / 2.0f) - m_panel->m_deltaF * m_panel->m_panRect.width() / m_panel->displayedZoomFactor()) + 10;
-		if (x > m_panel->m_panRect.right() - fLength)
-            x -= fLength + 20;
+        QColor colFlt;
 
-		QColor colFlt;
-		QColor colADC;
-		QColor colAGC;
-		QColor colDSP;
+        if (m_panel->m_dataEngineState == QSDR::DataEngineUp) {
 
-		if (m_panel->m_dataEngineState == QSDR::DataEngineUp) {
+            if (m_panel->m_receiver == m_panel->set->getCurrentReceiver()) {
 
-			if (m_panel->m_receiver == m_panel->set->getCurrentReceiver()) {
-
-				colDSP = QColor(1, 190, 180, 180);
-				colFlt = QColor(200, 190, 50, 180);
-				colADC = QColor(215, 130, 50, 180);
-				if (m_panel->m_showAGCLines)
-					colAGC = QColor(255, 170, 90, 180);
-				else
-					colAGC = QColor(215, 130, 50, 180);
-			}
-			else {
-
-				colFlt = QColor(110, 100, 1, 180);
-				colDSP = QColor(1, 100, 90, 180);
-				colAGC = QColor(165, 80, 1, 180);
-				colADC = QColor(165, 80, 1, 180);
-			}
-		}
-		else {
-
-			colFlt = m_panel->m_darkColor;
-			colADC = m_panel->m_darkColor;
-			colAGC = m_panel->m_darkColor;
-			colDSP = m_panel->m_darkColor;
-		}
-
-		int x1 = x;
-		const int y1 = 3;
-        drawRxBadge(x1, y1, m_panel->m_filterWidthString, colFlt);
-        drawRxBadge(x1, y1, m_panel->m_dspModeString, colDSP);
-        drawRxBadge(x1, y1, m_panel->m_agcModeString, colAGC);
-        drawRxBadge(x1, y1, m_panel->m_adcModeString, colADC);
-
-        if (m_panel->m_sliceModel && m_panel->m_dataEngineState == QSDR::DataEngineUp) {
-            const double sVal = m_panel->m_sliceModel->sMeterValue();
-            QString sUnit;
-            QColor sBg;
-            if (sVal >= -73.0) {
-                const int over = qRound(sVal - (-73.0));
-                sUnit = (over > 0) ? QStringLiteral("S9+%1").arg(over) : QStringLiteral("S9");
-                sBg = (over >= 40) ? QColor(242, 56, 109, 220) :
-                      (over >= 10) ? QColor(255, 180, 40, 220) : QColor(56, 242, 115, 220);
-            } else {
-                const int s = qBound(0, static_cast<int>(9.0 + (sVal - (-73.0)) / 6.0 + 0.5), 9);
-                sUnit = QStringLiteral("S%1").arg(s);
-                sBg = QColor(40, 160, 90, 220);
+                colFlt = QColor(200, 190, 50, 180);
             }
-            drawRxBadge(x1, y1, sUnit, sBg);
+            else {
+
+                colFlt = QColor(110, 100, 1, 180);
+            }
+        }
+        else {
+
+            colFlt = m_panel->m_darkColor;
         }
 
-		TFrequency f;
-		f.freqMHz = (int)(m_panel->m_vfoFrequency / 1000);
-		f.freqkHz = (int)(m_panel->m_vfoFrequency % 1000);
-        const int freqY = y1 + 20;
-		str = "%1.%2";
-		const int f1 = f.freqMHz;
-		const int f2 = f.freqkHz;
+        const int vfoX = m_panel->m_panRect.left() + qRound((qreal)(m_panel->m_panRect.width() / 2.0f) - m_panel->m_deltaF * m_panel->m_panRect.width() / m_panel->displayedZoomFactor());
+        const int centerX = m_panel->m_panRect.left() + m_panel->m_panRect.width() / 2;
 
-		const QString fstr = str.arg(f1 / 1000).arg(f1 - 1000 * (int)(f1 / 1000), 3, 10, QLatin1Char('0'));
-        const int fstrWidth = m_panel->m_oglTextBig2->fontMetrics().horizontalAdvance(fstr);
-        Q_UNUSED(f2)
+        const int f1 = (int)(m_panel->m_vfoFrequency / 1000);
+        const int f2 = (int)(m_panel->m_vfoFrequency % 1000);
+        const QString vfoText = (f2 == 0)
+            ? QStringLiteral("%1.%2 MHz").arg(f1 / 1000).arg(f1 - 1000 * (int)(f1 / 1000), 3, 10, QLatin1Char('0'))
+            : QStringLiteral("%1.%2.%3 MHz").arg(f1 / 1000).arg(f1 - 1000 * (int)(f1 / 1000), 3, 10, QLatin1Char('0')).arg(f2, 3, 10, QLatin1Char('0'));
+        const int vfoTextWidth = m_panel->m_oglTextBig2->fontMetrics().horizontalAdvance(vfoText);
 
+        int x = vfoX + 10;
+        if (x > m_panel->m_panRect.right() - vfoTextWidth - 10)
+            x = vfoX - vfoTextWidth - 10;
+        else if (m_panel->m_deltaFrequency != 0 && vfoX < centerX && x + vfoTextWidth >= centerX - 5)
+            x = vfoX - vfoTextWidth - 10;
+
+        int x1 = x;
+        const int y1 = 3;
+        drawRxBadge(x1, y1, m_panel->m_filterWidthString, colFlt);
+
+        const int freqY = y1 + badgeH + 3;
         m_panel->m_glTextColor = QColor(255, 255, 255, 255);
-        m_panel->renderPanelText(m_panel->m_oglTextBig2, x + 2, freqY, fstr);
-        m_panel->renderPanelText(m_panel->m_oglTextBig2, x + fstrWidth + 2, freqY, QStringLiteral("Mhz"));
+        m_panel->renderPanelText(m_panel->m_oglTextBig2, x, freqY, vfoText);
 
-	if (m_panel->m_panRect.height() > 15 && m_panel->m_deltaFrequency != 0) {
+        if (m_panel->m_panRect.height() > 15 && m_panel->m_deltaFrequency != 0) {
 
-		f.freqMHz = (int)(m_panel->m_centerFrequency / 1000);
-		f.freqkHz = (int)(m_panel->m_centerFrequency % 1000);
+            const int cf1 = (int)(m_panel->m_centerFrequency / 1000);
+            const int cf2 = (int)(m_panel->m_centerFrequency % 1000);
+            const QString centerText = (cf2 == 0)
+                ? QStringLiteral("%1.%2 MHz").arg(cf1 / 1000).arg(cf1 - 1000 * (int)(cf1 / 1000), 3, 10, QLatin1Char('0'))
+                : QStringLiteral("%1.%2.%3 MHz").arg(cf1 / 1000).arg(cf1 - 1000 * (int)(cf1 / 1000), 3, 10, QLatin1Char('0')).arg(cf2, 3, 10, QLatin1Char('0'));
+            const int centerWidth = m_panel->m_oglTextBig2->fontMetrics().horizontalAdvance(centerText);
 
-        const int centerY = freqY + 25;
-        const int cf1 = f.freqMHz;
-        const int cf2 = f.freqkHz;
-        Q_UNUSED(cf2)
+            int cx = centerX + 10;
+            if (vfoX >= centerX && vfoX < centerX + centerWidth + 20)
+                cx = centerX - centerWidth - 10;
+            else if (cx + centerWidth > m_panel->m_panRect.right() - 5)
+                cx = centerX - centerWidth - 10;
 
-        const QString centerStr = str.arg(cf1 / 1000).arg(cf1 - 1000 * (int)(cf1 / 1000), 3, 10, QLatin1Char('0'));
-        const int centerWidth = m_panel->m_oglTextBig2->fontMetrics().horizontalAdvance(centerStr);
-
-        m_panel->m_glTextColor = QColor(255, 255, 255, 255);
-        m_panel->renderPanelText(m_panel->m_oglTextBig2, x + 2, centerY, centerStr);
-        m_panel->renderPanelText(m_panel->m_oglTextBig2, x + centerWidth + 2, centerY, QStringLiteral("Mhz"));
-	}
+            m_panel->m_glTextColor = QColor(80, 180, 240, 220);
+            m_panel->renderPanelText(m_panel->m_oglTextBig2, cx, freqY, centerText);
+        }
 
     }
 }
