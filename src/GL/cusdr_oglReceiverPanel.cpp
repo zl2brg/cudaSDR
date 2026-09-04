@@ -955,14 +955,11 @@ void QGLReceiverPanel::getRegion(QPoint p) {
 		m_mouseRegion = filterRegionHigh;
 		m_mouseDownFilterFrequencyHi = m_filterUpperFrequency;
 	}
-	else if (m_filterRect.contains(p)) {
-
-		m_mouseRegion = filterRegion;
-
-	}
-	else if (m_filterRect.width() > 0
-			 && p.x() >= m_filterRect.left() && p.x() <= m_filterRect.right()
-			 && m_waterfallRect.contains(p) && !m_secScaleWaterfallRect.contains(p)) {
+	else if ((m_filterRect.contains(p)
+			  || (m_filterRect.width() > 0
+			      && p.x() >= m_filterRect.left() && p.x() <= m_filterRect.right()
+			      && m_waterfallRect.contains(p) && !m_secScaleWaterfallRect.contains(p)))
+			 && (QGuiApplication::keyboardModifiers() & Qt::ShiftModifier)) {
 
 		m_mouseRegion = filterRegion;
 
@@ -1241,8 +1238,8 @@ void QGLReceiverPanel::mousePressEvent(QMouseEvent* event) {
 		}
 	}
 
-	// Click-to-tune (Click-VFO or Shift+Click) on panadapter or waterfall
-	if (event->button() == Qt::LeftButton && (m_clickVFO || (event->modifiers() & Qt::ShiftModifier))) {
+	// Click-to-tune (Click-VFO or Shift+Click outside filter) on panadapter or waterfall
+	if (event->button() == Qt::LeftButton && m_mouseRegion != filterRegion && (m_clickVFO || (event->modifiers() & Qt::ShiftModifier))) {
 		if (m_panRect.contains(m_mousePos) || m_waterfallRect.contains(m_mousePos)) {
 			m_dragMouse = false;
 			m_highlightFilter = false;
@@ -1961,7 +1958,7 @@ void QGLReceiverPanel::mouseMoveEvent(QMouseEvent* event) {
 
 		case filterRegion:
 
-			setCursor(Qt::ArrowCursor);
+			setCursor(Qt::SizeAllCursor);
 			m_displayCenterlineHeight = m_panRect.top() + (size().height() - 3);
 			
 			if (event->buttons() == Qt::LeftButton) {
