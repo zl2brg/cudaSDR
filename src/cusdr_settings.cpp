@@ -94,6 +94,8 @@ Settings::Settings(QObject *parent)
 
     connect(m_displayConfig, &DisplayConfig::spectrumSizeChanged, this, &Settings::spectrumSizeChanged);
     connect(m_displayConfig, &DisplayConfig::sMeterHoldTimeChanged, this, &Settings::sMeterHoldTimeChanged);
+    connect(m_displayConfig, &DisplayConfig::showPanadapterSMeterChanged, this, &Settings::showPanadapterSMeterChanged);
+    connect(m_displayConfig, &DisplayConfig::showPanadapterFreqChanged, this, &Settings::showPanadapterFreqChanged);
 
 
     for (int i = 0; i < MAX_RECEIVERS; ++i) {
@@ -4840,6 +4842,14 @@ void Settings::setWaterfallOffesetHi(int rx, int value) {
 void Settings::setSMeterHoldTime(int value) {
     if (m_radioModel) { for (auto slice : m_radioModel->slices()) if (slice) slice->setSMeterHoldTime(value); }
     m_displayConfig->setSMeterHoldTime(value);
+}
+
+void Settings::setShowPanadapterSMeter(bool show) {
+    m_displayConfig->setShowPanadapterSMeter(show);
+}
+
+void Settings::setShowPanadapterFreq(bool show) {
+    m_displayConfig->setShowPanadapterFreq(show);
 }
 
 void Settings::setdBmPanScaleMin(int rx, qreal value) {

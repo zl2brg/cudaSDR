@@ -10,6 +10,7 @@
 #include <QLabel>
 #include <QBoxLayout>
 #include <QRadioButton>
+#include <QCheckBox>
 
 #include "Util/cusdr_buttons.h"
 #include "cusdr_settings.h"
@@ -32,6 +33,8 @@ public:
 	void	setWaterfallOffsetLo(int val);
 	void	setWaterfallOffsetHi(int val);
 	void	setSMeterHoldTime(int val);
+	void	setPanSMeter(bool show);
+	void	setPanFreq(bool show);
 	void	setCallsign(const QString& callsign);
 	void	setPanadapterMode(PanGraphicsMode mode);
 	void	setWaterfallColorMode(WaterfallColorMode mode);
@@ -51,6 +54,8 @@ signals:
 	void	waterfallOffsetLoRequested(int rx, int val);
 	void	waterfallOffsetHiRequested(int rx, int val);
 	void	sMeterHoldTimeRequested(int val);
+	void	panSMeterRequested(bool show);
+	void	panFreqRequested(bool show);
 	void	callsignRequested(const QString& val);
 	void	graphicsStateRequested(int rx, int panadapterMode, int waterColorMode);
 	void	panAveragingModeRequested(int rx, int mode);
@@ -143,6 +148,8 @@ private:
 	QList<AeroButton* >		m_waterfallColorBtnList;
 
 	QList<QRadioButton *>	m_sMeterTypeRadioBtnList;
+	QCheckBox*				m_panSMeterCheckBox;
+	QCheckBox*				m_panFreqCheckBox;
 
 	int		m_fontHeight;
 	int		m_maxFontWidth;
@@ -162,6 +169,8 @@ private:
 	int		m_sampleRate;
 	int		m_waterfallTime;
 	int		m_sMeterHoldTime;
+	bool	m_panSMeter = true;
+	bool	m_panFreq = true;
 	int     m_panAvMode;
     int     m_panDetMode;
     int     m_fftSize;
@@ -183,6 +192,8 @@ private slots:
 	void	waterfallLoOffsetChanged(int value);
 	void	waterfallHiOffsetChanged(int value);
 	void	sMeterHoldTimeChanged(int value);
+	void	panSMeterChanged(bool value);
+	void	panFreqChanged(bool value);
 	void 	fpsValueChanged(int value);
 	void	averagingFilterCntChanged(int value);
 	void	wbAveragingFilterCntChanged(int value);

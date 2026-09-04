@@ -476,9 +476,19 @@ void DisplayOptionsWidget::createSMeterOptions() {
 	hbox2->addStretch();
 	hbox2->addWidget(m_sMeterHoldTimeSpinBox);
 
+	m_panSMeterCheckBox = new QCheckBox(tr("Show S-Meter in Panadapter"), this);
+	m_panSMeterCheckBox->setChecked(m_panSMeter);
+	CHECKED_CONNECT(m_panSMeterCheckBox, &QCheckBox::toggled, this, &DisplayOptionsWidget::panSMeterChanged);
+
+	m_panFreqCheckBox = new QCheckBox(tr("Show Frequency in Panadapter"), this);
+	m_panFreqCheckBox->setChecked(m_panFreq);
+	CHECKED_CONNECT(m_panFreqCheckBox, &QCheckBox::toggled, this, &DisplayOptionsWidget::panFreqChanged);
+
 	QVBoxLayout *vbox = new QVBoxLayout;
 	vbox->setSpacing(6);
 	vbox->addSpacing(6);
+	vbox->addWidget(m_panSMeterCheckBox);
+	vbox->addWidget(m_panFreqCheckBox);
 	vbox->addLayout(hbox2);
 
 	m_sMeterOptions = new QGroupBox(tr("S-Meter"), this);
@@ -564,6 +574,22 @@ void DisplayOptionsWidget::setSMeterHoldTime(int val) {
 	m_sMeterHoldTime = val;
 	const QSignalBlocker blocker(m_sMeterHoldTimeSpinBox);
 	m_sMeterHoldTimeSpinBox->setValue(val);
+}
+
+void DisplayOptionsWidget::setPanSMeter(bool show) {
+	m_panSMeter = show;
+	if (m_panSMeterCheckBox) {
+		const QSignalBlocker blocker(m_panSMeterCheckBox);
+		m_panSMeterCheckBox->setChecked(show);
+	}
+}
+
+void DisplayOptionsWidget::setPanFreq(bool show) {
+	m_panFreq = show;
+	if (m_panFreqCheckBox) {
+		const QSignalBlocker blocker(m_panFreqCheckBox);
+		m_panFreqCheckBox->setChecked(show);
+	}
 }
 
 void DisplayOptionsWidget::setCallsign(const QString& callsign) {
@@ -705,6 +731,16 @@ void DisplayOptionsWidget::waterfallHiOffsetChanged(int value) {
 
 void DisplayOptionsWidget::sMeterHoldTimeChanged(int value) {
 	emit sMeterHoldTimeRequested(value);
+}
+
+void DisplayOptionsWidget::panSMeterChanged(bool value) {
+	m_panSMeter = value;
+	emit panSMeterRequested(value);
+}
+
+void DisplayOptionsWidget::panFreqChanged(bool value) {
+	m_panFreq = value;
+	emit panFreqRequested(value);
 }
 
 void DisplayOptionsWidget::fpsValueChanged(int value) {

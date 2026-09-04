@@ -12,6 +12,8 @@ public:
 
     void drawVFOControl();
     void drawReceiverInfo();
+    void drawPanadapterSMeter();
+    void drawPanadapterFreq();
     void drawCwDecoderHUD();
     void drawCrossHair();
     void drawFilterLabels();

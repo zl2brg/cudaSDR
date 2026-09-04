@@ -174,6 +174,16 @@ private:
 	QPoint						m_cwDragStartMouse;
 	bool						m_hasCustomCwBoxPos = false;
 	QPoint						m_cwBoxPos;
+	QRect						m_panSMeterRect;
+	QRect						m_panFreqRect;
+	QRect						m_panFreqVfoRect;
+
+	float						m_sMeterAvgVal = 0.0f;
+	float						m_sMeterPeakVal = 0.0f;
+	float						m_sMeterHoldMax = 0.0f;
+	float						m_sMeterOrgValue = -140.0f;
+	QElapsedTimer				m_sMeterHoldTimer;
+	QElapsedTimer				m_sMeterDisplayTimer;
 	
 	OGLText*					m_oglTextTiny;
 	OGLText*					m_oglTextSmall;
@@ -402,6 +412,8 @@ private:
 	void	drawAGCControl();
 	void	drawVFOControl();
 	void	drawCwDecoderHUD();
+	void	drawPanadapterSMeter();
+	void	drawPanadapterFreq();
 
 	void 	updateFrequencyRuler();
 	void 	updateDBmRuler();
@@ -468,6 +480,8 @@ private slots:
 	void 	setAGCLineLevels(int rx, qreal thresh, qreal hang);
 	void	setAGCLineFixedLevel(int rx, qreal value);
 	void	setAGCLinesStatus(bool value, int rx);
+	void	updateSMeterValue(double value);
+	void	updateSMeterPeakValue(double value);
 
 
 signals:

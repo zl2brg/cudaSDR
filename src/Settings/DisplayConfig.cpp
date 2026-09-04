@@ -7,6 +7,8 @@ DisplayConfig::DisplayConfig(QObject *parent)
     , m_dBmDistScaleMin(-20)
     , m_dBmDistScaleMax(100)
     , m_sMeterHoldTime(2000)
+    , m_showPanadapterSMeter(true)
+    , m_showPanadapterFreq(true)
 {
     // Default colors
     m_colors.panBackgroundColor = QColor(102, 69, 8);
@@ -54,6 +56,20 @@ void DisplayConfig::setSMeterHoldTime(int time) {
     }
 }
 
+void DisplayConfig::setShowPanadapterSMeter(bool show) {
+    if (m_showPanadapterSMeter != show) {
+        m_showPanadapterSMeter = show;
+        emit showPanadapterSMeterChanged(m_showPanadapterSMeter);
+    }
+}
+
+void DisplayConfig::setShowPanadapterFreq(bool show) {
+    if (m_showPanadapterFreq != show) {
+        m_showPanadapterFreq = show;
+        emit showPanadapterFreqChanged(m_showPanadapterFreq);
+    }
+}
+
 void DisplayConfig::setPanadapterColors(const TPanadapterColors &colors) {
     // Basic assignment for now. Could do detailed check if needed.
     m_colors = colors;
@@ -74,6 +90,8 @@ void DisplayConfig::load(const QJsonObject &json) {
     if (json.contains("dBmDistScaleMin")) setdBmDistScaleMin(json["dBmDistScaleMin"].toDouble());
     if (json.contains("dBmDistScaleMax")) setdBmDistScaleMax(json["dBmDistScaleMax"].toDouble());
     if (json.contains("sMeterHoldTime")) setSMeterHoldTime(json["sMeterHoldTime"].toInt());
+    if (json.contains("showPanadapterSMeter")) setShowPanadapterSMeter(json["showPanadapterSMeter"].toBool());
+    if (json.contains("showPanadapterFreq")) setShowPanadapterFreq(json["showPanadapterFreq"].toBool());
 
     if (json.contains("colors")) {
         QJsonObject colors = json["colors"].toObject();
@@ -102,6 +120,8 @@ void DisplayConfig::save(QJsonObject &json) const {
     json["dBmDistScaleMin"] = m_dBmDistScaleMin;
     json["dBmDistScaleMax"] = m_dBmDistScaleMax;
     json["sMeterHoldTime"] = m_sMeterHoldTime;
+    json["showPanadapterSMeter"] = m_showPanadapterSMeter;
+    json["showPanadapterFreq"] = m_showPanadapterFreq;
 
     QJsonObject colors;
     colors["panBackground"] = colorToString(m_colors.panBackgroundColor);
@@ -136,6 +156,9 @@ void DisplayConfig::loadIni(QSettings *settings) {
     value = settings->value("graphics/sMeterHoldTime", 2000).toInt();
     if ((value < 0) || (value > 10000)) value = 2000;
     setSMeterHoldTime(value);
+
+    setShowPanadapterSMeter(settings->value("graphics/showPanadapterSMeter", true).toBool());
+    setShowPanadapterFreq(settings->value("graphics/showPanadapterFreq", true).toBool());
 
     // Color loading
     TPanadapterColors colors = m_colors;
@@ -193,6 +216,8 @@ void DisplayConfig::saveIni(QSettings *settings) const {
     settings->setValue("graphics/dBmDistScaleMin",  m_dBmDistScaleMin);
     settings->setValue("graphics/dBmDistScaleMax",  m_dBmDistScaleMax);
     settings->setValue("graphics/sMeterHoldTime",   m_sMeterHoldTime);
+    settings->setValue("graphics/showPanadapterSMeter", m_showPanadapterSMeter);
+    settings->setValue("graphics/showPanadapterFreq", m_showPanadapterFreq);
 
     settings->setValue("colors/panBackground", m_colors.panBackgroundColor);
     settings->setValue("colors/waterfall", m_colors.waterfallColor);

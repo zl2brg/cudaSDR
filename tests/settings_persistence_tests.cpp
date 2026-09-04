@@ -209,6 +209,8 @@ void SettingsPersistenceTests::loadAndSaveAllConfigModules()
         seed.setValue(QStringLiteral("graphics/dBmDistScaleMin"), -50);
         seed.setValue(QStringLiteral("graphics/dBmDistScaleMax"), 120);
         seed.setValue(QStringLiteral("graphics/sMeterHoldTime"), 3500);
+        seed.setValue(QStringLiteral("graphics/showPanadapterSMeter"), false);
+        seed.setValue(QStringLiteral("graphics/showPanadapterFreq"), false);
         seed.setValue(QStringLiteral("colors/panBackground"), QColor(1, 2, 3));
 
         seed.setValue(QStringLiteral("server/mic_source"), QStringLiteral("janus"));
@@ -252,6 +254,8 @@ void SettingsPersistenceTests::loadAndSaveAllConfigModules()
     QCOMPARE(m_settings->displayConfig()->dBmDistScaleMin(), -50.0);
     QCOMPARE(m_settings->displayConfig()->dBmDistScaleMax(), 120.0);
     QCOMPARE(m_settings->displayConfig()->sMeterHoldTime(), 3500);
+    QCOMPARE(m_settings->displayConfig()->showPanadapterSMeter(), false);
+    QCOMPARE(m_settings->displayConfig()->showPanadapterFreq(), false);
     QCOMPARE(m_settings->displayConfig()->panadapterColors().panBackgroundColor, QColor(1, 2, 3));
 
     // Verify Audio (RX) and Transmit configs
@@ -298,6 +302,7 @@ void SettingsPersistenceTests::loadAndSaveAllConfigModules()
 
     // Update values, save, and reload
     m_settings->displayConfig()->setdBmDistScaleMin(-60.0);
+    m_settings->displayConfig()->setShowPanadapterFreq(true);
     m_settings->transmitConfig()->setMicSource(1); // penelope
     m_settings->cwConfig()->setInternalCw(0);
     m_settings->hardwareConfig()->setSource10Mhz(2); // mercury
@@ -316,6 +321,7 @@ void SettingsPersistenceTests::loadAndSaveAllConfigModules()
     QVERIFY(m_settings->loadSettings() >= 0);
 
     QCOMPARE(m_settings->displayConfig()->dBmDistScaleMin(), -60.0);
+    QCOMPARE(m_settings->displayConfig()->showPanadapterFreq(), true);
     QCOMPARE(m_settings->transmitConfig()->micSource(), 1); // penelope
     QCOMPARE(m_settings->cwConfig()->internalCw(), 0);
     QCOMPARE(m_settings->hardwareConfig()->source10Mhz(), 2); // mercury

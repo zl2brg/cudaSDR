@@ -38,6 +38,7 @@
 #include "cusdr_glShaders.h"
 #include "cusdr_glDraw.h"
 #include "Controllers/RadioPopupController.h"
+#include "UI/FrequencyEntryDialog.h"
 
 #include <QGuiApplication>
 #include <QMatrix4x4>
@@ -292,6 +293,9 @@ QGLReceiverPanel::QGLReceiverPanel(SliceModel *model, QWidget *parent)
 	m_gridRenderer = new GridRenderer(this);
 	m_traceRenderer = new TraceRenderer(this);
 	m_hudRenderer = new HudRenderer(this);
+
+	m_sMeterHoldTimer.start();
+	m_sMeterDisplayTimer.start();
 }
 
 QGLReceiverPanel::~QGLReceiverPanel() {
@@ -441,9 +445,17 @@ void QGLReceiverPanel::setupConnections() {
 
     connect(m_sliceModel, &SliceModel::cwDecodedTextChanged, this, qOverload<>(&QGLReceiverPanel::update));
     connect(m_sliceModel, &SliceModel::cwToneActiveChanged, this, qOverload<>(&QGLReceiverPanel::update));
-    connect(m_sliceModel, &SliceModel::sMeterValueChanged, this, qOverload<>(&QGLReceiverPanel::update));
+    connect(m_sliceModel, &SliceModel::sMeterValueChanged, this, &QGLReceiverPanel::updateSMeterValue);
+    connect(m_sliceModel, &SliceModel::sMeterPeakValueChanged, this, &QGLReceiverPanel::updateSMeterPeakValue);
     connect(m_sliceModel, &SliceModel::cwDecodeEnabledChanged, this, qOverload<>(&QGLReceiverPanel::update));
     connect(m_sliceModel, &SliceModel::cwTrackedPitchChanged, this, qOverload<>(&QGLReceiverPanel::update));
+    connect(m_sliceModel, &SliceModel::activeVfoChanged, this, [this](SliceModel::ActiveVfo){ update(); });
+
+    if (set) {
+        connect(set, &Settings::showPanadapterSMeterChanged, this, qOverload<>(&QGLReceiverPanel::update));
+        connect(set, &Settings::showPanadapterFreqChanged, this, qOverload<>(&QGLReceiverPanel::update));
+        connect(set, &Settings::radioStateChanged, this, qOverload<>(&QGLReceiverPanel::update));
+    }
 
 	connect(radioPopup, &RadioPopupWidget::vfoToMidBtnEvent, this, &QGLReceiverPanel::setVfoToMidFrequency);
 	connect(radioPopup, &RadioPopupWidget::midToVfoBtnEvent, this, &QGLReceiverPanel::setMidToVfoFrequency);
@@ -692,6 +704,8 @@ void QGLReceiverPanel::paintReceiverDisplay() {
         drawVFOControl();
         drawReceiverInfo();
         drawCwDecoderHUD();
+        drawPanadapterSMeter();
+        drawPanadapterFreq();
 	}
 
     // --- Trace: waterfall; Overlay: centerline/filter; Grid: waterfall scale ---
@@ -829,6 +843,51 @@ void QGLReceiverPanel::drawCwDecoderHUD() {
         m_hudRenderer->drawCwDecoderHUD();
 }
 
+void QGLReceiverPanel::drawPanadapterSMeter() {
+    if (m_hudRenderer)
+        m_hudRenderer->drawPanadapterSMeter();
+}
+
+void QGLReceiverPanel::drawPanadapterFreq() {
+    if (m_hudRenderer)
+        m_hudRenderer->drawPanadapterFreq();
+}
+
+void QGLReceiverPanel::updateSMeterValue(double value) {
+    const float offset = (set->getHWInterface() == QSDR::SoapySDR) ? 90.0f : 140.0f;
+    const float tmp = static_cast<float>(value) + offset;
+
+    // Fast-attack (0.80), smooth-decay (0.15) analog meter ballistics
+    if (tmp > m_sMeterAvgVal) {
+        m_sMeterAvgVal = tmp * 0.80f + m_sMeterAvgVal * 0.20f;
+    } else {
+        m_sMeterAvgVal = tmp * 0.15f + m_sMeterAvgVal * 0.85f;
+    }
+
+    if (m_sMeterDisplayTimer.elapsed() > 60) {
+        m_sMeterOrgValue = static_cast<float>(value);
+        m_sMeterDisplayTimer.restart();
+    }
+    update();
+}
+
+void QGLReceiverPanel::updateSMeterPeakValue(double value) {
+    const float offset = (set->getHWInterface() == QSDR::SoapySDR) ? 90.0f : 140.0f;
+    const float tmp = static_cast<float>(value) + offset;
+    m_sMeterPeakVal = tmp;
+
+    if (tmp > m_sMeterHoldMax) {
+        m_sMeterHoldMax = tmp;
+        m_sMeterHoldTimer.restart();
+    } else {
+        const int holdTime = m_sliceModel ? m_sliceModel->sMeterHoldTime() : set->getSMeterHoldTime();
+        if (m_sMeterHoldTimer.elapsed() > holdTime) {
+            m_sMeterHoldMax = m_sMeterHoldMax * 0.90f + m_sMeterAvgVal * 0.10f;
+        }
+    }
+    update();
+}
+
 void QGLReceiverPanel::drawAGCControl() {
     if (m_overlayRenderer) {
         QMatrix4x4 projection;
@@ -927,7 +986,11 @@ void QGLReceiverPanel::getRegion(QPoint p) {
 		m_mouseDownFixedGainLevel = -m_agcFixedGain;
 	}
 	else if (m_panRect.contains(p)) {
-		m_mouseRegion = panadapterRegion;
+		if ((m_panSMeterRect.isValid() && m_panSMeterRect.contains(p)) ||
+		    (m_panFreqRect.isValid() && m_panFreqRect.contains(p)))
+			m_mouseRegion = elsewhere;
+		else
+			m_mouseRegion = panadapterRegion;
 	}
 	else if (m_waterfallRect.contains(p)) {
 
@@ -1082,6 +1145,8 @@ void QGLReceiverPanel::leaveEvent(QEvent *event) {
 void QGLReceiverPanel::wheelEvent(QWheelEvent* event) {
 
     getRegion(event->position().toPoint());  // mouse pos set by mouseMoveEvent
+    if (m_panFreqRect.isValid() && m_panFreqRect.contains(event->position().toPoint()))
+        m_mouseRegion = panadapterRegion;
 	double freqStep = set->getMouseWheelFreqStep(m_currentReceiver);
 
 	switch (m_mouseRegion) {
@@ -1165,6 +1230,16 @@ void QGLReceiverPanel::mousePressEvent(QMouseEvent* event) {
 	m_mouseDownPos = m_mousePos;
 
 	getRegion(m_mousePos);
+
+	// Click on VFO badge in mini frequency display toggles VFO A/B
+	if (event->button() == Qt::LeftButton && m_panFreqVfoRect.isValid() && m_panFreqVfoRect.contains(m_mousePos)) {
+		if (m_sliceModel) {
+			m_sliceModel->setActiveVfo(m_sliceModel->activeVfo() == SliceModel::VfoA ? SliceModel::VfoB : SliceModel::VfoA);
+			update();
+			event->accept();
+			return;
+		}
+	}
 
 	// Click-to-tune (Click-VFO or Shift+Click) on panadapter or waterfall
 	if (event->button() == Qt::LeftButton && (m_clickVFO || (event->modifiers() & Qt::ShiftModifier))) {
@@ -1345,6 +1420,18 @@ void QGLReceiverPanel::mouseDoubleClickEvent(QMouseEvent *event) {
 	m_mouseDownPos = m_mousePos;
 
 	getRegion(m_mousePos);
+
+	if (event->button() == Qt::LeftButton && m_panFreqRect.isValid() && m_panFreqRect.contains(m_mousePos)) {
+		FrequencyEntryDialog dlg(m_vfoFrequency, this);
+		if (dlg.exec() == QDialog::Accepted) {
+			const qint64 newFreq = dlg.frequency();
+			if (newFreq < static_cast<qint64>(set->getMaxFrequency()) && newFreq >= 0) {
+				setVFOFrequency(0, m_receiver, newFreq);
+			}
+		}
+		event->accept();
+		return;
+	}
 
 	if (m_mouseRegion == panadapterRegion || m_mouseRegion == waterfallRegion) {
 
@@ -2661,6 +2748,7 @@ void QGLReceiverPanel::setMouseWheelFreqStep(int rx, qreal step) {
 
 	if (m_receiver != rx) return;
 	m_mouseWheelFreqStep = step;
+	update();
 }
 
 void QGLReceiverPanel::setHamBand(int rx, bool byButton, HamBand band) {
