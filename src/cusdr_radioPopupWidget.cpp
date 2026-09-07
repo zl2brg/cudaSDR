@@ -45,7 +45,7 @@
 #include <QScrollArea>
 #include <QMoveEvent>
 #include "cusdr_displayWidget.h"
-#include <wdsp.h>
+#include "QtWDSP/WdspRxChannel.h"
 
 #define LOG_RADIOPOPUP
 // use: RADIOPOPUP_DEBUG
@@ -994,7 +994,7 @@ void RadioPopupWidget::createModeBtnGroup() {
         // RX channel may not exist yet at popup construction time.
         QVector<double> X(AudioConfig::kEqDrawPoints, 0.0);
         QVector<double> Y(AudioConfig::kEqDrawPoints, 0.0);
-        GetRXAEQDraw(m_receiver, X.data(), Y.data());
+        WdspRxChannel::drawEq(m_receiver, X.data(), Y.data());
         const QVector<int> rxBands = Settings::instance()->getRxEqBands();
         const double preamp = rxBands.isEmpty() ? 0.0 : static_cast<double>(rxBands.at(0));
         m_rxEqPlot->setBandGains(rxBands);
@@ -2231,7 +2231,7 @@ void RadioPopupWidget::showEvent(QShowEvent *event) {
     if (m_rxEqPlot) {
         QVector<double> X(AudioConfig::kEqDrawPoints, 0.0);
         QVector<double> Y(AudioConfig::kEqDrawPoints, 0.0);
-        GetRXAEQDraw(m_receiver, X.data(), Y.data());
+        WdspRxChannel::drawEq(m_receiver, X.data(), Y.data());
         const QVector<int> rxBands = Settings::instance()->getRxEqBands();
         const double preamp = rxBands.isEmpty() ? 0.0 : static_cast<double>(rxBands.at(0));
         m_rxEqPlot->setBandGains(rxBands);

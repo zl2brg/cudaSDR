@@ -2396,8 +2396,8 @@ void DataProcessor::send_mic_data() {
 
     if ( de->txParams().mox ||  de->txParams().ptt ) {
 
-        fexchange0(TX_ID, a.data(), (double *) m_iq_output_buffer.data(), &error);
-        Spectrum0(1, TX_ID, 0, 0, (double *) m_iq_output_buffer.data());
+        de->TX.process(a.data(), (double *) m_iq_output_buffer.data(), error);
+        de->TX.pushSpectrum((const double *) m_iq_output_buffer.data());
 
         for (int j = 0; j < DSP_SAMPLE_SIZE; j++) {
             qs = m_iq_output_buffer.at(j).re;
@@ -2525,7 +2525,7 @@ void DataProcessor::get_tx_iqData(){
     }
 
     if (set->is_transmitting()) {
-        fexchange0(TX_ID, mic_buffer, (double *) m_iq_output_buffer.data(), &error);
+        de->TX.process(mic_buffer, (double *) m_iq_output_buffer.data(), error);
         int iqNonFinite = 0;
         for (int i = 0; i < m_iq_output_buffer.size(); ++i) {
             if (!std::isfinite(m_iq_output_buffer[i].re)) {
@@ -2547,10 +2547,10 @@ void DataProcessor::get_tx_iqData(){
             }
         }
 
-		Spectrum0(1, TX_ID, 0, 0, (double *) m_iq_output_buffer.data());
+		de->TX.pushSpectrum((const double *) m_iq_output_buffer.data());
 
         if (error != 0) {
-            qWarning() << "TX stream: fexchange0(TX_ID) error=" << error
+            qWarning() << "TX stream: process error=" << error
                        << "mode=" << set->getDSPMode(de->currentReceiver)
                        << "state=" << set->getRadioState();
         }
@@ -2609,13 +2609,13 @@ void DataProcessor::publishTxSpectrumForPanadapter() {
         m_txSpectrumBuffer.resize(kTxPanPixels);
 
     int flag = 0;
-    GetPixels(TX_ID, 0, m_txSpectrumBuffer.data(), &flag);
+    de->TX.getSpectrumPixels(m_txSpectrumBuffer.data(), flag);
     if (!flag) {
-        // TX analyzer runs asynchronously; a single immediate GetPixels() can miss,
+        // TX analyzer runs asynchronously; a single immediate getSpectrumPixels() can miss,
         // especially in FDV where TX framing cadence is bursty.
         for (int i = 0; i < 12 && !flag; ++i) {
             QThread::usleep(500);
-            GetPixels(TX_ID, 0, m_txSpectrumBuffer.data(), &flag);
+            de->TX.getSpectrumPixels(m_txSpectrumBuffer.data(), flag);
         }
     }
 

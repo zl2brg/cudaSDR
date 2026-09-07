@@ -177,6 +177,9 @@ set(SOURCES
     ${SRC_DIR}/GL/cusdr_meshGeneratorWorker.cpp
 
     # QtWDSP
+    ${SRC_DIR}/QtWDSP/WdspChannel.cpp
+    ${SRC_DIR}/QtWDSP/WdspRxChannel.cpp
+    ${SRC_DIR}/QtWDSP/WdspTxChannel.cpp
     ${SRC_DIR}/QtWDSP/qtwdsp_dspEngine.cpp
     ${WDSP_DIR}/wdsp.h
 
@@ -766,6 +769,32 @@ if(BUILD_TESTING)
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
     )
 
+    qt_add_executable(wdsp_channel_tests
+        tests/wdsp_channel_tests.cpp
+        ${SRC_DIR}/QtWDSP/WdspChannel.cpp
+        ${SRC_DIR}/QtWDSP/WdspRxChannel.cpp
+        ${SRC_DIR}/QtWDSP/WdspTxChannel.cpp
+        ${SRC_DIR}/cusdr_hamDatabase.cpp
+    )
+    target_include_directories(wdsp_channel_tests PRIVATE
+        ${SRC_DIR}
+        ${WDSP_DIR}
+        ${WDSP_LIBS_DIR}/include
+    )
+    target_link_libraries(wdsp_channel_tests PRIVATE
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Widgets
+        Qt6::Test
+        wdsp
+        ${LIQUID_LIBRARY}
+        -lm
+    )
+    add_test(NAME wdsp_channel_tests COMMAND wdsp_channel_tests)
+    set_tests_properties(wdsp_channel_tests PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    )
+
     # Convenience target: build every unit test without the full cudasdr app.
     add_custom_target(build_tests DEPENDS
         protocol_boundary_tests
@@ -785,6 +814,7 @@ if(BUILD_TESTING)
         config_json_tests
         dx_cluster_tests
         cw_decoder_tests
+        wdsp_channel_tests
     )
 
     # Headless Qt for any test that links Gui/Widgets (CI has no display), plus a

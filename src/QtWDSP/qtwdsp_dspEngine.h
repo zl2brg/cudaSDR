@@ -61,6 +61,9 @@ extern "C" {
 #undef max
 #endif
 
+#include "WdspRxChannel.h"
+#include <memory>
+
 class SliceModel;
 class QWDSPEngine : public QObject {
 
@@ -71,6 +74,9 @@ public:
     ~QWDSPEngine() override;
 
     void processDSP(CPX &in, CPX &out);
+
+    WdspRxChannel* channel() const { return m_channel.get(); }
+    bool getSpectrumPixels(float *pixels, int &ready);
 
     double getSMeterInstValue();
     double getSMeterPeakValue();
@@ -144,6 +150,7 @@ private:
     SliceModel *m_sliceModel;
     Settings *set;
     AGCMode m_agcMode;
+    std::unique_ptr<WdspRxChannel> m_channel;
 
     QMutex m_mutex;
     static QMutex s_wdspMutex; // serializes fftw_plan calls across all instances

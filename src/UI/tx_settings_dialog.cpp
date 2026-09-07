@@ -3,6 +3,7 @@
 #include "ui_tx_settings_dialog.h"
 #include "eq_curve_plot.h"
 #include "QtWDSP/qtwdsp_dspEngine.h"
+#include "QtWDSP/WdspTxChannel.h"
 #include "AudioEngine/cusdr_audio_input.h"
 #include "cusdr_settings.h"
 #include "cusdr_hamDatabase.h"
@@ -410,18 +411,18 @@ void tx_settings_dialog::refreshEqCurvePlots()
     QVector<double> X(AudioConfig::kEqDrawPoints, 0.0);
     QVector<double> Y(AudioConfig::kEqDrawPoints, 0.0);
     if (m_txEqPlot) {
-        GetTXAEQDraw(TX_ID, X.data(), Y.data());
+        WdspTxChannel::drawEq(TX_ID, X.data(), Y.data());
         const QVector<int> bands = m_txEqPlot->bandGains();
         const double preamp = bands.isEmpty() ? 0.0 : static_cast<double>(bands.at(0));
         m_txEqPlot->setBandEqCurve(X, Y, preamp);
         updateTxEqPassband();
     }
     if (m_cfcCompPlot) {
-        GetTXACFCOMPCompDraw(TX_ID, X.data(), Y.data());
+        WdspTxChannel::drawCfcompComp(TX_ID, X.data(), Y.data());
         m_cfcCompPlot->setCurve(X, Y);
     }
     if (m_cfcPeqPlot) {
-        GetTXACFCOMPPeqDraw(TX_ID, X.data(), Y.data());
+        WdspTxChannel::drawCfcompPeq(TX_ID, X.data(), Y.data());
         m_cfcPeqPlot->setCurve(X, Y);
     }
 }

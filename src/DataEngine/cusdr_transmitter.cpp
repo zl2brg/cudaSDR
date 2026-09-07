@@ -68,7 +68,41 @@ Transmitter::Transmitter(int transmitter)
 }
 
 Transmitter::~Transmitter() {
+    if (m_channel) {
+        m_channel->close();
+    }
+}
 
+void Transmitter::process(const double *audioIn, double *iqOut, int &error)
+{
+    if (m_channel) {
+        m_channel->process(audioIn, iqOut, error);
+    } else {
+        error = -1;
+    }
+}
+
+void Transmitter::pushSpectrum(const double *iqData)
+{
+    if (m_channel) {
+        m_channel->pushSpectrum(iqData);
+    }
+}
+
+bool Transmitter::getSpectrumPixels(float *pixels, int &ready)
+{
+    if (m_channel) {
+        return m_channel->getSpectrumPixels(pixels, ready);
+    }
+    ready = 0;
+    return false;
+}
+
+void Transmitter::stopChannel()
+{
+    if (m_channel) {
+        m_channel->stopChannel();
+    }
 }
 
 
@@ -124,7 +158,7 @@ void Transmitter::setupConnections() {
             this, [this](bool) { applyPhaseRotator(); });
 
     connect(m_txModel, &TransmitModel::phaseRotatorAutoResetRequested,
-            this, [this]() { SetTXAPHROTAutoReset(this->id); });
+            this, [this]() { if (m_channel) m_channel->resetPhaseRotatorAuto(); });
 
     connect(m_txModel, &TransmitModel::txEqChanged,
             this, [this]() { applyTxEq(); });
@@ -168,8 +202,6 @@ void Transmitter::setupConnections() {
 bool  Transmitter::create_transmitter(int id, int buffer_size, int fft_size, int fps, int width, int height) {
 
     int protocol = ORIGINAL_PROTOCOL;
-    // Position 0 = pre-emphasis before FM modulator (WDSP default path).
-    int pre_emphasize = 0;
     this->id = id;
     this->dac=0;
     this->buffer_size=buffer_size;
@@ -271,88 +303,34 @@ bool  Transmitter::create_transmitter(int id, int buffer_size, int fft_size, int
 
     TRANSMITTER_DEBUG << "create_transmitter: OpenChannel id=" << id << " buffer_size=" << buffer_size << " fft_size=" << fft_size << " sample_rate=" << mic_sample_rate << " dspRate=" << mic_dsp_rate << " outputRate=" << iq_output_rate;
 
-    OpenChannel(this->id,
-                this->buffer_size,
-                2048,
-                this->mic_sample_rate,
-                this->mic_dsp_rate,
-                this->iq_output_rate,
-                1, // transmit
-                0, // run
-                0.010, 0.025, 0.0, 0.010, 0);
-
-    // create_txa already uses nc = max(2048, dsp_size). Only bump if requested larger.
-    if (this->fft_size > 2048)
-        TXASetNC(this->id, this->fft_size);
-    TXASetMP(this->id, this->low_latency);
-
-
-/*    int mode=vfo[VFO_A].mode;
-    if(split) {
-        mode=vfo[VFO_B].mode;
+    m_channel = std::make_unique<WdspTxChannel>(this->id);
+    if (!m_channel->open(this->buffer_size, this->fft_size, this->mic_sample_rate, this->mic_dsp_rate, this->iq_output_rate, protocol, this->low_latency != 0)) {
+        qWarning() << "Failed to open WdspTxChannel for transmitter" << this->id;
+        return false;
     }
-*/
-    SetTXABandpassWindow(this->id, 1);
-    // Do not call SetTXABandpassRun(1). In WDSP 2.0 that API sets bp1.run
-    // (compressor companion), not the primary bp0 filter. bp0 already runs.
-    // Forcing bp1 on leaves it at create-time LSB edges and series-kills USB/DIGU.
 
-    SetTXAFMEmphPosition(this->id,pre_emphasize);
     applyPhaseRotator();
     applyTxEq();
     applyCfc();
     m_channelCreated = true;
     programTxa();
 
-    SetTXACFIRRun(this->id, protocol==NEW_PROTOCOL?1:0); // turned on if new protocol
-
-    // WDSP defaults CTCSS ON at 100 Hz — apply persisted UI setting (0 Hz = off).
     applyCtcss();
-    SetTXAAMSQRun(this->id, 0);
-    SetTXAosctrlRun(this->id, 0);
-
-    // A gentler ALC profile reduces audible pumping/background lift.
-    SetTXAALCAttack(this->id, 2);
-    SetTXAALCDecay(this->id, 120);
-    SetTXAALCSt(this->id, 1); // turn it on (always on)
-
-    SetTXALevelerAttack(this->id, 1);
-    SetTXALevelerDecay(this->id, 500);
-    SetTXALevelerTop(this->id, 1.0);
-    SetTXALevelerSt(this->id, tx_leveler);
-
-    SetTXAPreGenMode(this->id, 0);
-    SetTXAPreGenToneMag(this->id, 0.0);
-    SetTXAPreGenToneFreq(this->id, 0.0);
-    SetTXAPreGenRun(this->id, 0);
-
-    SetTXAPostGenMode(this->id, 0);
-    SetTXAPostGenToneMag(this->id, tone_level);
-    SetTXAPostGenTTMag(this->id, tone_level,tone_level);
-    SetTXAPostGenToneFreq(this->id, 1000.0);
-    SetTXAPostGenRun(this->id, 0);
 
     const double initialMicLevel = set->getMicInputLevel();
     mic_gain = initialMicLevel;
-    SetTXAPanelGain1(this->id, micSliderToPanelGain(initialMicLevel));
-    SetTXAPanelRun(this->id, 1);
+    transmitter_set_mic_level(initialMicLevel);
 
     const int fmDev = m_txModel ? m_txModel->fmDeviation()
                                 : static_cast<int>(set->getFMDeveation());
-    SetTXAFMDeviation(this->id, fmDev);
+    set_fm_deviation(fmDev);
     const int amPercent = m_txModel ? m_txModel->amCarrierLevel()
                                     : qRound(set->getAMCarrierLevel() <= 1.0
                                                  ? set->getAMCarrierLevel() * 100.0
                                                  : set->getAMCarrierLevel());
-    SetTXAAMCarrierLevel(this->id, amCarrierPercentToLevel(amPercent));
+    transmitter_set_am_carrier_level(amCarrierPercentToLevel(amPercent));
     transmitter_set_audio_compression(m_txModel ? m_txModel->audioCompression()
                                                 : static_cast<int>(set->getAudioCompression()));
-    XCreateAnalyzer(this->id, &rc, 262144, 1, 1, const_cast<char*>(""));
-    if (rc != 0) {
-        fprintf(stderr, "XCreateAnalyzer id=%d failed: %d\n",this->id,rc);
-    } else {
-        init_analyser(this->id);
-    }
 
     return true;
 }
@@ -369,9 +347,10 @@ void Transmitter::setDSPMode(int id, DSPMode dspMode) {
 
 
 void Transmitter::set_fm_deviation(double level) {
-    SetTXAFMDeviation(this->id, level);
+    if (m_channel) {
+        m_channel->setFmDeviation(level);
+    }
     TRANSMITTER_DEBUG << "Set Tx FM deveation " << level;
-
 }
 
 void Transmitter::applyFmPreEmphasis()
@@ -380,7 +359,9 @@ void Transmitter::applyFmPreEmphasis()
     const bool enabled = m_txModel ? m_txModel->fmPreEmphasis()
                                    : (set->getFMpreemphesis() != 0.0);
     const int run = enabled ? 1 : 0;
-    SetTXAFMEmphRun(this->id, run);
+    if (m_channel) {
+        m_channel->setFmPreEmphasis(0, enabled);
+    }
     TRANSMITTER_DEBUG << "FM pre-emphasis " << (run ? "on" : "off");
 }
 
@@ -392,8 +373,9 @@ void Transmitter::applyPhaseRotator()
                                   : set->getPhaseRotatorAuto();
     const int run = enabled ? 1 : 0;
     const int autoMode = (run && autoOn) ? 1 : 0;
-    SetTXAPHROTRun(this->id, run);
-    SetTXAPHROTAutoMode(this->id, autoMode);
+    if (m_channel) {
+        m_channel->setPhaseRotator(enabled, autoOn);
+    }
     syncPhaseRotatorTimer();
     TRANSMITTER_DEBUG << "Audio Phase Rotator " << (run ? "on" : "off")
                       << " auto=" << (autoMode ? "on" : "off");
@@ -403,17 +385,9 @@ void Transmitter::applyTxEq()
 {
     const bool enabled = m_txModel ? m_txModel->txEqEnabled() : set->getTxEqEnabled();
     const int curveDeg = m_txModel ? m_txModel->txEqCurveDeg() : set->getTxEqCurveDeg();
-    if (enabled) {
+    if (m_channel) {
         const QVector<int> bands = m_txModel ? m_txModel->txEqBands() : set->getTxEqBands();
-        int txeq[11];
-        for (int i = 0; i < 11; ++i)
-            txeq[i] = (i < bands.size()) ? bands.at(i) : 0;
-        // GrphEQ10 loads F/G; Curve selects linear (deg=0) or NURBS.
-        SetTXAGrphEQ10(this->id, txeq);
-        SetTXAEQCurve(this->id, curveDeg, 0, 0);
-        SetTXAEQRun(this->id, 1);
-    } else {
-        SetTXAEQRun(this->id, 0);
+        m_channel->setTxEq(bands, curveDeg, enabled);
     }
     TRANSMITTER_DEBUG << "TX EQ " << (enabled ? "on" : "off")
                       << " curveDeg=" << curveDeg;
@@ -429,20 +403,9 @@ void Transmitter::applyCfc()
     const double precomp = m_txModel ? m_txModel->cfcPrecomp() : set->getCfcPrecomp();
     const double prePeq = m_txModel ? m_txModel->cfcPrePeq() : set->getCfcPrePeq();
     const int deg = m_txModel ? m_txModel->cfcCurveDeg() : set->getCfcCurveDeg();
-    const int n = qMin(freqs.size(), qMin(levels.size(), post.size()));
-    if (n > 0) {
-        QVector<double> F = freqs.mid(0, n);
-        QVector<double> G = levels.mid(0, n);
-        QVector<double> E = post.mid(0, n);
-        SetTXACFCOMPprofile(this->id, n, F.data(), G.data(), E.data());
+    if (m_channel) {
+        m_channel->setCfc(run, peq, freqs, levels, post, precomp, prePeq, deg);
     }
-    SetTXACFCOMPPrecomp(this->id, precomp);
-    SetTXACFCOMPPrePeq(this->id, prePeq);
-    SetTXACFCOMPCompCurve(this->id, deg, 0, 0);
-    SetTXACFCOMPPeqCurve(this->id, deg, 0, 0);
-    // Post-EQ requires compressor run; force CFC on when only Peq is requested.
-    SetTXACFCOMPRun(this->id, (run || peq) ? 1 : 0);
-    SetTXACFCOMPPeqRun(this->id, peq ? 1 : 0);
     TRANSMITTER_DEBUG << "TX CFC run=" << (run || peq) << " peq=" << peq
                       << " precomp=" << precomp
                       << " prepeq=" << prePeq
@@ -476,15 +439,16 @@ void Transmitter::updatePhaseRotatorStatus()
                                : (set->getPhaseRotator() != 0);
     const bool autoMode = m_txModel ? m_txModel->phaseRotatorAuto()
                                     : set->getPhaseRotatorAuto();
-    if (!run || !autoMode)
+    if (!run || !autoMode || !m_channel)
         return;
     double in_pos = 0, in_neg = 0, in_ratio = 0;
     double out_pos = 0, out_neg = 0, out_ratio = 0;
     double current_fc = 0, auto_step = 0;
-    GetTXAPHROTAsymmetry(this->id,
-                         &in_pos, &in_neg, &in_ratio,
-                         &out_pos, &out_neg, &out_ratio,
-                         &current_fc, &auto_step);
+    if (!m_channel->getPhaseRotatorAsymmetry(&in_pos, &in_neg, &in_ratio,
+                                            &out_pos, &out_neg, &out_ratio,
+                                            &current_fc, &auto_step)) {
+        return;
+    }
     const QString status =
         QStringLiteral("Asym %1 → %2  fc %3 Hz")
             .arg(in_ratio, 0, 'f', 2)
@@ -501,8 +465,9 @@ void Transmitter::applyCtcss()
     const int hz = m_txModel ? m_txModel->ctcssToneHz() : set->getCtcssToneHz();
     this->ctcss_frequency = static_cast<double>(hz);
     this->ctcss = (hz > 0) ? 1 : 0;
-    SetTXACTCSSFreq(this->id, this->ctcss_frequency);
-    SetTXACTCSSRun(this->id, this->ctcss);
+    if (m_channel) {
+        m_channel->setCtcss(this->ctcss_frequency, this->ctcss != 0);
+    }
     TRANSMITTER_DEBUG << "CTCSS" << (this->ctcss ? "on" : "off") << "freq" << this->ctcss_frequency;
 }
 
@@ -511,38 +476,39 @@ void Transmitter::setRadioState(RadioState state)
     switch(state) {
 
     case RadioState::MOX: {
-        SetTXAPostGenRun(this->id, 0);
-        programTxa();
-        applyPhaseRotator();
-        SetTXAPanelGain1(this->id, micSliderToPanelGain(mic_gain));
-        SetTXAPanelRun(this->id, 1);
-        SetTXABandpassWindow(this->id, 1);
-        SetChannelState(TX_ID, 1, 1);
+        if (m_channel) {
+            m_channel->setPostGen(0, 0.0, 0.0, false);
+            programTxa();
+            applyPhaseRotator();
+            m_channel->setMicGain(micSliderToPanelGain(mic_gain));
+            m_channel->setBandpassWindow(1);
+            m_channel->setTxRun(true);
+        }
         TRANSMITTER_DEBUG << "MOX: TX channel started with mode" << this->mode;
         break;
     }
 
     case RadioState::TUNE: {
         // Tone generator for TUNE
-        SetTXAPostGenToneFreq(this->id, 1000);
-        SetTXAPostGenToneMag(this->id, 0.5);
-        SetTXAPostGenMode(this->id, 0);
-        SetTXAPostGenRun(this->id, 1);
-        programTxa();
-        applyPhaseRotator();
-        SetTXAPanelGain1(this->id, micSliderToPanelGain(mic_gain));
-        SetTXAPanelRun(this->id, 1);
-        SetTXABandpassWindow(this->id, 1);
-        SetChannelState(TX_ID, 1, 1);
+        if (m_channel) {
+            m_channel->setPostGen(0, 1000.0, 0.5, true);
+            programTxa();
+            applyPhaseRotator();
+            m_channel->setMicGain(micSliderToPanelGain(mic_gain));
+            m_channel->setBandpassWindow(1);
+            m_channel->setTxRun(true);
+        }
         TRANSMITTER_DEBUG << "TUNE: TX channel started with tone, mode" << this->mode;
         break;
     }
 
     case RadioState::RX:
     default:
-        SetTXAPostGenRun(this->id, 0);
-        SetChannelState(TX_ID, 0, 1);
-        SetChannelState(0, 1, 1);
+        if (m_channel) {
+            m_channel->setPostGen(0, 0.0, 0.0, false);
+            m_channel->setTxRun(false);
+        }
+        WdspChannel::setChannelStateById(0, 1, 1);
         TRANSMITTER_DEBUG << "RX: TX channel stopped";
         break;
     }
@@ -557,7 +523,9 @@ void Transmitter::programTxa() {
     const DSPMode wdspMode = resolveWDSPMode(this->mode, set ? set->getCtrFrequency(rx) : 0);
     // Mode first (may rebuild with stale Hz), then freqs so SetTXABandpassFreqs
     // always installs the passband for the live sideband.
-    SetTXAMode(this->id, wdspMode);
+    if (m_channel) {
+        m_channel->setMode(wdspMode);
+    }
     applyTxFilter();
     applyFmPreEmphasis();
 }
@@ -582,17 +550,17 @@ void Transmitter::applyTxFilter() {
 
 void Transmitter::tx_set_filter(double filter_low, double filter_high) {
     TRANSMITTER_DEBUG << "Set Tx filter:Low " << filter_low << " High: " << filter_high;
-    // SetTXABandpassFreqs no-ops when Hz are unchanged. create_txa starts at
-    // LSB -5000/-100; a USB program with the same stored Hz as last time must
-    // still rebuild. Nudge first so the real edges always take.
-    SetTXABandpassFreqs(this->id, filter_low, filter_high + 1.0);
-    SetTXABandpassFreqs(this->id, filter_low, filter_high);
+    if (m_channel) {
+        m_channel->setFilter(filter_low, filter_high);
+    }
 }
 
 
      void Transmitter::transmitter_set_am_carrier_level(double level ) {
          TRANSMITTER_DEBUG << "Set Am Carrier Level " << level;
-         SetTXAAMCarrierLevel(this->id, level);
+         if (m_channel) {
+             m_channel->setAmCarrierLevel(level);
+         }
      }
 
      long Transmitter::get_CtrFrequency(long rx_frequency, long repeater_offset, bool repeater_mode) {
@@ -607,8 +575,9 @@ void Transmitter::tx_set_filter(double filter_low, double filter_high) {
 void Transmitter::transmitter_set_mic_level(int level){
     TRANSMITTER_DEBUG << "Set Tx mic level" << level;
     mic_gain = level * 1.0;
-    SetTXAPanelGain1(this->id, micSliderToPanelGain(mic_gain));
-
+    if (m_channel) {
+        m_channel->setMicGain(micSliderToPanelGain(mic_gain));
+    }
 }
 
 void Transmitter::transmitter_set_audio_compression(int level)
@@ -616,59 +585,8 @@ void Transmitter::transmitter_set_audio_compression(int level)
     const int compressionDb = compressionSliderToDb(level);
     compressor_level = static_cast<float>(compressionDb);
     compressor = (compressionDb > 0) ? 1 : 0;
-    SetTXACompressorGain(this->id, compressionDb);
-    SetTXACompressorRun(this->id, compressor);
+    if (m_channel) {
+        m_channel->setAudioCompression(compressionDb, compressor != 0);
+    }
     TRANSMITTER_DEBUG << "Set Tx compression " << compressionDb << " dB run=" << compressor;
 }
-
-
-
-     void Transmitter::init_analyser(int tx) {
-         Q_UNUSED(tx)
-         int flp[] = {0};
-         double keep_time = 0.1;
-         int n_pixout=1;
-         int spur_elimination_ffts = 1;
-         int data_type = 1;
-         int fft_size = 2048;
-         int window_type = 4;
-         double kaiser_pi = 14.0;
-         int overlap = 0;
-         int clip = 0;
-         int span_clip_l = 0;
-         int span_clip_h = 0;
-         int stitches = 1;
-         int calibration_data_set = 0;
-         double span_min_freq = 0.0;
-         double span_max_freq = 0.0;
-
-         int max_w = fft_size + (int) min(keep_time * (double) this->fps, keep_time * (double) fft_size * (double) this->fps);
-
-         overlap = (int)max(0.0, ceil(fft_size - (double)this->mic_sample_rate / (double)this->fps));
-
-         TRANSMITTER_DEBUG << "SetAnalyzer id=" << this->id << " buffer_size=" << output_samples << " overlap=" << overlap;
-
-
-         SetAnalyzer(this->id,
-                     n_pixout,
-                     spur_elimination_ffts, //number of LO frequencies = number of ffts used in elimination
-                     data_type, //0 for real input data (I only); 1 for complex input data (I & Q)
-                     flp, //vector with one elt for each LO frequency, 1 if high-side LO, 0 otherwise
-                     fft_size, //size of the fft, i.e., number of input samples
-                     1024, //number of samples transferred for each OpenBuffer()/CloseBuffer()
-                     window_type, //integer specifying which window function to use
-                     kaiser_pi, //PiAlpha parameter for Kaiser window
-                     overlap, //number of samples each fft (other than the first) is to re-use from the previous
-                     clip, //number of fft output bins to be clipped from EACH side of each sub-span
-                     span_clip_l, //number of bins to clip from low end of entire span
-                     span_clip_h, //number of bins to clip from high end of entire span
-                     4096, //number of pixel values to return.  may be either <= or > number of bins
-                     stitches, //number of sub-spans to concatenate to form a complete span
-                     calibration_data_set, //identifier of which set of calibration data to use
-                     span_min_freq, //frequency at first pixel value8192
-                     span_max_freq, //frequency at last pixel value
-                     max_w //max samples to hold in input ring buffers
-                     );
-     }
-
-

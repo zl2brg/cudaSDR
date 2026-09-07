@@ -31,6 +31,7 @@
 // use: SLICE_PROCESSOR_DEBUG
 
 #include "cusdr_sliceProcessor.h"
+#include "QtWDSP/WdspTxChannel.h"
 #include <cmath>
 
 namespace {
@@ -513,7 +514,7 @@ void SliceProcessor::dspProcessingCore() {
 #endif
 			{
 				txPixelsRequested = true;
-				GetPixels(TX_ID, 0, qtwdsp->spectrumBuffer.data(), &spectrumDataReady);
+				WdspTxChannel::getSpectrumPixels(TX_ID, qtwdsp->spectrumBuffer.data(), spectrumDataReady);
 				if (spectrumDataReady) {
 					prepareTxPanadapterSpectrum(qtwdsp->spectrumBuffer, m_samplerate);
 					m_lastTxSpectrum = qtwdsp->spectrumBuffer;
@@ -526,7 +527,7 @@ void SliceProcessor::dspProcessingCore() {
 			}
 		} else {
 			m_haveLastTxSpectrum = false;
-			GetPixels(m_receiver, 0, qtwdsp->spectrumBuffer.data(), &spectrumDataReady);
+			qtwdsp->getSpectrumPixels(qtwdsp->spectrumBuffer.data(), spectrumDataReady);
 		}
 
         if (spectrumDataReady) {

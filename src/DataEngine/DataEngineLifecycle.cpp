@@ -514,6 +514,7 @@ void DataEngineLifecycle::stop() {
 				rx->qtwdsp->stopChannel();
 			}
 		}
+		m_engine->TX.stopChannel();
 		QThread::msleep(5); // let any in-flight fexchange0 observe run=0
 
 		// clear receiver thread list
