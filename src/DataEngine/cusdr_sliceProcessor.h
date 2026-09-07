@@ -86,7 +86,7 @@ public:
     float	out[BUFFER_SIZE * 2];
 	float	temp[BUFFER_SIZE * 4];
 	float	spectrum[BUFFER_SIZE * 4];
-    RadioState m_state  = RadioState::RX;
+    std::atomic<RadioState> m_state{RadioState::RX};
 	QVector<float>	newSpectrum;
     QWDSPEngine*	qtwdsp = nullptr;
     std::unique_ptr<HResTimer>	highResTimer;

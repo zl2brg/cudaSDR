@@ -4120,7 +4120,10 @@ void Settings::setAGCHangThresholdSlider(int rx, qreal value) {
 }
 
 int Settings::getAGCHangThreshold(int rx) {
-
+    if (SliceModel* slice = sliceModel(rx))
+        return slice->agcHangThreshold();
+    if (rx < 0 || rx >= m_receiverDataList.size())
+        return -100;
     return m_receiverDataList[rx].agcHangThreshold;
 }
 
@@ -4144,7 +4147,10 @@ void Settings::setAGCHangThreshold(int rx, int value) {
 }
 
 int Settings::getAGCHangLeveldB(int rx) {
-
+    if (SliceModel* slice = sliceModel(rx))
+        return slice->agcHangThreshold();
+    if (rx < 0 || rx >= m_receiverDataList.size())
+        return -100;
     return m_receiverDataList[rx].agcHangThreshold;
 }
 
@@ -4171,8 +4177,17 @@ void Settings::setAGCLineLevels(int rx, qreal thresh, qreal hang) {
 }
 
 void Settings::setAGCVariableGain_dB(int rx, qreal value) {
+    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size()) {
+        SliceModel* slice = m_radioModel->slices().at(rx);
+        if (slice) {
+            slice->setAgcSlope(static_cast<int>(value));
+            QMutexLocker locker(&settingsMutex);
+            m_receiverDataList[rx].agcSlope = value;
+            return;
+        }
+    }
 
-    if (m_currentReceiver != rx) return;
+    if (rx < 0 || rx >= m_receiverDataList.size()) return;
 
     if (m_receiverDataList[rx].agcSlope == value) return;
     m_receiverDataList[rx].agcSlope = value;
@@ -4948,9 +4963,11 @@ void Settings::setPanDetectorMode(int rx, PanDetectorMode mode) {
 
 
 int Settings::getAGCSlope(int rx) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) return m_radioModel->slices()[rx]->agcSlope();
+    if (SliceModel* slice = sliceModel(rx))
+        return slice->agcSlope();
+    if (rx < 0 || rx >= m_receiverDataList.size())
+        return 1;
     return m_receiverDataList[rx].agcSlope;
-
 }
 
 void Settings::setfftSize(int rx, int size) {
@@ -5530,9 +5547,41 @@ void Settings::syncSlicesWithSettings() {
         slice->setDBmPanScaleMax(dBmMax);
         slice->setWaterfallOffsetLo(m_receiverDataList[i].waterfallOffsetLo);
         slice->setWaterfallOffsetHi(m_receiverDataList[i].waterfallOffsetHi);
-        slice->setPanGrid(m_receiverDataList[i].panGrid);
-        slice->setPeakHold(m_receiverDataList[i].peakHold);
         slice->setCwDecodeEnabled(m_receiverDataList[i].cwDecode);
+
+        // Forward filter and mode changes from SliceModel to Settings signals
+        // so legacy listeners (e.g. Transmitter, TciServer) stay in sync.
+        disconnect(slice, &SliceModel::filterChanged, this, nullptr);
+        disconnect(slice, &SliceModel::dspModeChanged, this, nullptr);
+
+        connect(slice, &SliceModel::filterChanged, this, [this, i, slice]() {
+            QMutexLocker locker(&settingsMutex);
+            if (i >= 0 && i < m_receiverDataList.size()) {
+                if (m_receiverDataList[i].filterLo == slice->filterLow() &&
+                    m_receiverDataList[i].filterHi == slice->filterHigh()) {
+                    return;
+                }
+                m_receiverDataList[i].filterLo = slice->filterLow();
+                m_receiverDataList[i].filterHi = slice->filterHigh();
+            }
+            locker.unlock();
+            emit filterFrequenciesChanged(i, slice->filterLow(), slice->filterHigh());
+        });
+
+        connect(slice, &SliceModel::dspModeChanged, this, [this, i](DSPMode mode) {
+            QMutexLocker locker(&settingsMutex);
+            if (i >= 0 && i < m_receiverDataList.size()) {
+                HamBand band = m_receiverDataList[i].hamBand;
+                if (band >= 0 && band < m_receiverDataList[i].dspModeList.size()) {
+                    if (m_receiverDataList[i].dspModeList[band] == mode &&
+                        m_receiverDataList[i].dspMode == mode) return;
+                    m_receiverDataList[i].dspModeList[band] = mode;
+                }
+                m_receiverDataList[i].dspMode = mode;
+            }
+            locker.unlock();
+            emit dspModeChanged(i, mode);
+        });
     }
 }
 

@@ -538,7 +538,7 @@ void SliceProcessor::dspProcessingCore() {
         if (txPanDiagEnabled && txPixelsRequested && (m_dspCallCount % 100) == 1) {
             qDebug().nospace() << "[TX-PAN-DIAG] rx=" << m_receiver
                                << " mode=" << (m_sliceModel ? m_sliceModel->dspMode() : set->getDSPMode(m_receiver))
-                               << " state=" << m_state
+                               << " state=" << m_state.load()
                                << " txPixels=" << (spectrumDataReady ? "yes" : "no")
                                << " held=" << m_haveLastTxSpectrum;
         }

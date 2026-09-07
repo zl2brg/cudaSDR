@@ -34,6 +34,7 @@ private slots:
     void testTelemetryFromSettings();
 
     void testBandPlanManagerLoadsInternational();
+    void testSliceModelSettingsConsolidation();
 };
 
 void ModelsTests::initTestCase() {
@@ -760,6 +761,77 @@ void ModelsTests::testBandPlanManagerLoadsInternational() {
     QCOMPARE(eibiMgr.spotsInSpan(1000000, 20000000).size(), 3); // All 3 when unfiltered
     QCOMPARE(eibiMgr.spotsInSpan(1000000, 20000000, 12 * 60, 2).size(), 2); // 1010 kHz (24/7) + 7200 kHz (active 12:00)
     QCOMPARE(eibiMgr.spotsInSpan(1000000, 20000000, 14 * 60, 2).size(), 1); // 1010 kHz (24/7) only
+}
+
+void ModelsTests::testSliceModelSettingsConsolidation() {
+    Settings* settings = Settings::instance();
+    RadioModel radio;
+    SliceModel* slice0 = new SliceModel(0, &radio);
+    radio.addSlice(slice0);
+
+    settings->setRadioModel(&radio);
+    settings->syncSlicesWithSettings();
+
+    // 1. Direct mutation of SliceModel immediately updates Settings getters without sync
+    slice0->setFilterLow(-2400.0f);
+    slice0->setFilterHigh(-300.0f);
+    QCOMPARE(settings->getFilterLo(0), -2400.0);
+    QCOMPARE(settings->getFilterHi(0), -300.0);
+
+    slice0->setAgcSlope(5);
+    QCOMPARE(settings->getAGCSlope(0), 5);
+
+    slice0->setAgcHangThreshold(-85);
+    QCOMPARE(settings->getAGCHangThreshold(0), -85);
+    QCOMPARE(settings->getAGCHangLeveldB(0), -85);
+
+    slice0->setAgcMaxGain(90);
+    QCOMPARE(settings->getAGCMaximumGain_dB(0), 90);
+
+    slice0->setAgcFixedGain(45);
+    QCOMPARE(settings->getAGCFixedGain_dB(0), 45.0);
+
+    slice0->setVolume(0.75f);
+    QCOMPARE(settings->getMainVolume(0), 0.75);
+
+    slice0->setCwDecodeEnabled(true);
+    QCOMPARE(settings->getCwDecode(0), true);
+
+    slice0->setDspMode(USB);
+    QCOMPARE(settings->getDSPMode(0), USB);
+
+    slice0->setPanMode(Line);
+    QCOMPARE(settings->getPanadapterMode(0), Line);
+
+    slice0->setWaterfallMode(Enhanced);
+    QCOMPARE(settings->getWaterfallColorMode(0), Enhanced);
+
+    // 2. Test signal forwarding from SliceModel through Settings
+    QSignalSpy spyFilter(settings, &Settings::filterFrequenciesChanged);
+    QSignalSpy spyDsp(settings, &Settings::dspModeChanged);
+
+    slice0->setFilterLow(-2800.0f);
+    QCOMPARE(spyFilter.count(), 1);
+    QCOMPARE(spyFilter.at(0).at(0).toInt(), 0);
+    QCOMPARE(spyFilter.at(0).at(1).toReal(), -2800.0);
+
+    slice0->setDspMode(CWL);
+    QCOMPARE(spyDsp.count(), 1);
+    QCOMPARE(spyDsp.at(0).at(0).toInt(), 0);
+    QCOMPARE(spyDsp.at(0).at(1).value<DSPMode>(), CWL);
+
+    // 3. Settings setter path updates SliceModel and avoids duplicate emissions
+    spyFilter.clear();
+    settings->setRXFilter(0, -2600.0, -200.0);
+    QCOMPARE(slice0->filterLow(), -2600.0f);
+    QCOMPARE(slice0->filterHigh(), -200.0f);
+
+    // Redundant call with identical values should not re-emit
+    spyFilter.clear();
+    settings->setRXFilter(0, -2600.0, -200.0);
+    QCOMPARE(spyFilter.count(), 0);
+
+    settings->setRadioModel(nullptr);
 }
 
 QTEST_MAIN(ModelsTests)
