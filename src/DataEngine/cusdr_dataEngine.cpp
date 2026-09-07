@@ -2565,10 +2565,10 @@ void DataProcessor::get_tx_iqData(){
                                << " fexchange=" << error;
         }
 
-#ifdef HAVE_SOAPYSDR
-        if (m_hwInterface == QSDR::SoapySDR && !set->getTxFullDuplex())
+        const bool isSoapy = (m_hwInterface == QSDR::SoapySDR) ||
+                             (de->device() && de->device()->deviceType() == DeviceType::SoapySDR);
+        if (isSoapy && !set->getTxFullDuplex())
             publishTxSpectrumForPanadapter();
-#endif
 
 /* Queue the tx data */
         int idx = 0;
@@ -2582,8 +2582,16 @@ void DataProcessor::get_tx_iqData(){
             m_tx_iq_Buffer[idx++] = (int)rightTXSample >> 8;
             m_tx_iq_Buffer[idx++] = (int)rightTXSample;
         }
+        if (de->device()) {
+            std::vector<float> txFloat(DSP_SAMPLE_SIZE * 2);
+            for (int j = 0; j < DSP_SAMPLE_SIZE; ++j) {
+                txFloat[j * 2]     = static_cast<float>(m_iq_output_buffer.at(j).re);
+                txFloat[j * 2 + 1] = static_cast<float>(m_iq_output_buffer.at(j).im);
+            }
+            de->device()->sendTxIq(txFloat.data(), DSP_SAMPLE_SIZE);
+        }
 #ifdef HAVE_SOAPYSDR
-        if (m_hwInterface == QSDR::SoapySDR && !de->m_dataIO->soapy_tx_iq_queue.isFull()) {
+        else if (m_hwInterface == QSDR::SoapySDR && !de->m_dataIO->soapy_tx_iq_queue.isFull()) {
             QVector<float> soapyTxIq(DSP_SAMPLE_SIZE * 2);
             // LimeSDR needs Q conjugation to correct HPSDR-legacy sideband inversion.
             // Pluto/other Soapy devices should keep native IQ polarity.
@@ -2599,7 +2607,6 @@ void DataProcessor::get_tx_iqData(){
     }
 }
 
-#ifdef HAVE_SOAPYSDR
 void DataProcessor::publishTxSpectrumForPanadapter() {
     if (!set->is_transmitting())
         return;
@@ -2638,6 +2645,8 @@ void DataProcessor::publishTxSpectrumForPanadapter() {
                  << "state=" << set->getRadioState();
     }
 }
+
+#ifdef HAVE_SOAPYSDR
 
 void DataProcessor::startSoapyTxIqTimer(int intervalMs) {
     if (!m_soapyTxIqTimer || m_hwInterface != QSDR::SoapySDR)

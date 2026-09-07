@@ -163,6 +163,9 @@ set(SOURCES
     ${SRC_DIR}/DataEngine/soundout.cpp
     ${SRC_DIR}/DataEngine/fractresampler.cpp
     ${SRC_DIR}/DataEngine/cusdr_WidebandProcessor.cpp
+    ${SRC_DIR}/DataEngine/Drivers/SimulatedDevice.cpp
+    ${SRC_DIR}/DataEngine/Drivers/HpsdrDevice.cpp
+    ${SRC_DIR}/DataEngine/Drivers/SoapyDevice.cpp
 
 
     # GL (OpenGL)
@@ -272,6 +275,10 @@ set(HEADERS
     ${SRC_DIR}/DataEngine/cusdr_sliceProcessor.h
     ${SRC_DIR}/DataEngine/cusdr_transmitter.h
     ${SRC_DIR}/DataEngine/soundout.h
+    ${SRC_DIR}/DataEngine/ISdrDevice.h
+    ${SRC_DIR}/DataEngine/Drivers/SimulatedDevice.h
+    ${SRC_DIR}/DataEngine/Drivers/HpsdrDevice.h
+    ${SRC_DIR}/DataEngine/Drivers/SoapyDevice.h
 
     #Widgets
     ${SRC_DIR}/cusdr_hpsdrTabWidget.h
@@ -795,6 +802,22 @@ if(BUILD_TESTING)
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
     )
 
+    qt_add_executable(sdr_device_tests
+        tests/sdr_device_tests.cpp
+        ${SRC_DIR}/DataEngine/Drivers/SimulatedDevice.cpp
+    )
+    target_include_directories(sdr_device_tests PRIVATE
+        ${SRC_DIR}
+    )
+    target_link_libraries(sdr_device_tests PRIVATE
+        Qt6::Core
+        Qt6::Test
+    )
+    add_test(NAME sdr_device_tests COMMAND sdr_device_tests)
+    set_tests_properties(sdr_device_tests PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    )
+
     # Convenience target: build every unit test without the full cudasdr app.
     add_custom_target(build_tests DEPENDS
         protocol_boundary_tests
@@ -815,6 +838,7 @@ if(BUILD_TESTING)
         dx_cluster_tests
         cw_decoder_tests
         wdsp_channel_tests
+        sdr_device_tests
     )
 
     # Headless Qt for any test that links Gui/Widgets (CI has no display), plus a

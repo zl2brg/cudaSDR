@@ -170,28 +170,22 @@ void SliceProcessor::setupConnections() {
 			this, &SliceProcessor::setFreeDVMode);
 #endif
 
-#ifdef HAVE_SOAPYSDR
     connect(set, &Settings::soapyAutoCalibrateChanged,
             this, &SliceProcessor::resetSoapyDcEstimator);
-#endif
 
-#ifdef HAVE_SOAPYSDR
     if (m_sliceModel && set->getHWInterface() == QSDR::SoapySDR) {
         connect(m_sliceModel, &SliceModel::frequencyChanged,
                 this, &SliceProcessor::noteRetuneActivity);
         connect(m_sliceModel, &SliceModel::centerFrequencyChanged,
                 this, &SliceProcessor::noteRetuneActivity);
     }
-#endif
 }
 
-#ifdef HAVE_SOAPYSDR
 void SliceProcessor::resetSoapyDcEstimator()
 {
     m_soapyDcAvgI = 0.0;
     m_soapyDcAvgQ = 0.0;
 }
-#endif
 
 bool SliceProcessor::initDSPInterface() {
 
@@ -330,7 +324,6 @@ void SliceProcessor::setSoapyInputSampleRate(int value) {
 
 void SliceProcessor::noteRetuneActivity(qint64)
 {
-#ifdef HAVE_SOAPYSDR
     if (set->getHWInterface() != QSDR::SoapySDR)
         return;
 
@@ -343,7 +336,6 @@ void SliceProcessor::noteRetuneActivity(qint64)
     if (muteUntil > m_audioMuteUntilMs) {
         m_audioMuteUntilMs = muteUntil;
     }
-#endif
 }
 
 void SliceProcessor::enqueueData() {
@@ -506,12 +498,10 @@ void SliceProcessor::dspProcessingCore() {
 		const bool transmitting = set->is_transmitting() || (m_state != RadioState::RX);
 
 		if (transmitting) {
-#ifdef HAVE_SOAPYSDR
 			if (set->getHWInterface() == QSDR::SoapySDR && !set->getTxFullDuplex()) {
 				// Half duplex: TX panadapter updated from get_tx_iqData() (RX DSP idle).
 				spectrumDataReady = 0;
 			} else
-#endif
 			{
 				txPixelsRequested = true;
 				WdspTxChannel::getSpectrumPixels(TX_ID, qtwdsp->spectrumBuffer.data(), spectrumDataReady);
@@ -548,14 +538,12 @@ void SliceProcessor::dspProcessingCore() {
 
     if (m_receiver == set->getCurrentReceiver()) {
         int audioSamplesThisCall = m_audiobuffersize;
-#ifdef HAVE_SOAPYSDR
         if (set->getHWInterface() == QSDR::SoapySDR && m_soapyInputSampleRate > 0) {
             // WDSP channel output is fixed at 48 kHz. With high Soapy input rates,
             // each fexchange0 call produces proportionally fewer output samples.
             audioSamplesThisCall = std::max(1,
                 static_cast<int>((static_cast<long long>(BUFFER_SIZE) * 48000LL) / m_soapyInputSampleRate));
         }
-#endif
 
         if (m_smeterTime.elapsed() >= 25) {
             m_sMeterValue = qtwdsp->getSMeterInstValue();
@@ -571,11 +559,9 @@ void SliceProcessor::dspProcessingCore() {
 #ifdef USE_INTERNAL_AUDIO
         const DSPMode dspMode = m_sliceModel ? m_sliceModel->dspMode() : set->getDSPMode(m_receiver);
         bool retuneMuteAudio = false;
-#ifdef HAVE_SOAPYSDR
         if (set->getHWInterface() == QSDR::SoapySDR) {
             retuneMuteAudio = m_retuneTimer.isValid() && (m_retuneTimer.elapsed() < m_audioMuteUntilMs);
         }
-#endif
         auto deliverInternalAudio = [this, retuneMuteAudio](const QVector<float> &soundcardStereo,
                                                               const QVector<float> &tciStereo) {
             if (retuneMuteAudio)

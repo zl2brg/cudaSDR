@@ -7,6 +7,7 @@
 #include "cusdr_dataEngine.h"
 #include "CProtocol1.h"
 #include "CProtocol2.h"
+#include "Drivers/HpsdrDevice.h"
 #include "Models/RadioModel.h"
 #include "Models/RadioTelemetry.h"
 #include <QCoreApplication>
@@ -412,6 +413,8 @@ bool DataEngineLifecycle::start() {
 		DATA_ENGINE_DEBUG << "[START] queued DataIO::finishStartup after exec()";
 	}
 
+	m_engine->setDevice(std::make_unique<HpsdrDevice>(m_engine->m_dataIO, m_engine->m_protocol.get(), isProtocol2));
+
 	return true;
 }
 
@@ -492,6 +495,8 @@ void DataEngineLifecycle::stop() {
                 break;
 #endif
         }
+
+		m_engine->setDevice(nullptr);
 
 		while (!m_engine->m_dataIO->au_queue.isEmpty())
 			m_engine->m_dataIO->au_queue.dequeue();

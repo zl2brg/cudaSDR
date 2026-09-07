@@ -44,6 +44,7 @@
 #include "QtWDSP/qtwdsp_dspEngine.h"
 #include "cusdr_WidebandProcessor.h"
 #include "cusdr_transmitter.h"
+#include "DataEngine/ISdrDevice.h"
 #include "AudioEngine/cusdr_audio_input.h"
 #include "AudioEngine/cusdr_iambic.h"
 #ifdef HAVE_CODEC2
@@ -160,6 +161,9 @@ public:
     iambic *            m_cwIO;
     std::unique_ptr<IHPSDRProtocol> m_protocol;
     std::unique_ptr<RadioController> m_radioController;
+    std::unique_ptr<ISdrDevice> m_device;
+    ISdrDevice* device() const { return m_device.get(); }
+    void setDevice(std::unique_ptr<ISdrDevice> dev) { m_device = std::move(dev); }
     bool                m_internal_cw;
     bool                m_cw_key_reversed;
     int                 m_cw_keyer_spacing;
@@ -554,11 +558,11 @@ private:
 
 	volatile bool	m_stopped;
     QTimer*         m_controlTimer;
-#ifdef HAVE_SOAPYSDR
-    QTimer*         m_soapyTxIqTimer = nullptr;
     qVectorFloat    m_txSpectrumBuffer;
     bool            m_txSpectrumSeen = false;
     quint64         m_txSpectrumMissCount = 0;
+#ifdef HAVE_SOAPYSDR
+    QTimer*         m_soapyTxIqTimer = nullptr;
 #endif
 #ifdef HAVE_CODEC2
 	struct freedv* m_freeDVTx = nullptr;

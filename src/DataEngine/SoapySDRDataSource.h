@@ -32,8 +32,6 @@ public slots:
     void init();
     void stop();
     void runStream();
-
-private slots:
     void setSampleRate(int value);
     void setFrequency(int rx, qint64 frequency);
 
