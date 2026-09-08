@@ -288,6 +288,8 @@ void TransmitSettingsController::bind(tx_settings_dialog* view, TransmitModel* t
         connect(m_txModel, &TransmitModel::txFilterLowChanged, m_view, &tx_settings_dialog::setTxFilterLow);
         connect(m_txModel, &TransmitModel::txFilterHighChanged, m_view, &tx_settings_dialog::setTxFilterHigh);
         connect(m_txModel, &TransmitModel::txUseRxFilterChanged, m_view, &tx_settings_dialog::setTxUseRxFilter);
+        connect(m_txModel, &TransmitModel::micInputDevChanged, m_view, &tx_settings_dialog::setMicInputDev);
+        connect(m_txModel, &TransmitModel::micInputSourceNameChanged, m_view, &tx_settings_dialog::setMicInputSourceName);
     } else {
         connect(m_model, &Settings::fmPremphasizechanged, this, [this](double value) {
             m_view->setFmPreEmphasis(value != 0.0);
@@ -336,18 +338,61 @@ void TransmitSettingsController::bindOptions(TransmitOptionsWidget* options, Tra
         return;
     if (txModel)
         m_txModel = txModel;
-    if (!m_txModel)
-        return;
 
-    m_optionsView->setAmCarrierLevel(m_txModel->amCarrierLevel());
-    m_optionsView->setAudioCompression(m_txModel->audioCompression());
+    const QString currentMic = m_txModel ? m_txModel->micInputSourceName()
+                                         : (m_model ? m_model->getMicInputSourceName() : QString());
+    m_optionsView->refreshAudioDevices(currentMic);
 
+    if (m_txModel) {
+        m_optionsView->setAmCarrierLevel(m_txModel->amCarrierLevel());
+        m_optionsView->setAudioCompression(m_txModel->audioCompression());
+        m_optionsView->setTxFilterLow(m_txModel->txFilterLow());
+        m_optionsView->setTxFilterHigh(m_txModel->txFilterHigh());
+    } else if (m_model) {
+        m_optionsView->setAmCarrierLevel(m_model->getAMCarrierLevel());
+        m_optionsView->setAudioCompression(m_model->getAudioCompression());
+        m_optionsView->setTxFilterLow(m_model->getTxFilterLow());
+        m_optionsView->setTxFilterHigh(m_model->getTxFilterHigh());
+    }
+
+    // View -> Model
     connect(m_optionsView, &TransmitOptionsWidget::amCarrierLevelRequested, this, [this](int val) {
-        m_txModel->setAmCarrierLevel(val);
+        if (m_txModel) m_txModel->setAmCarrierLevel(val);
+        else if (m_model) m_model->setAMCarrierLevel(val);
     });
     connect(m_optionsView, &TransmitOptionsWidget::audioCompressionRequested, this, [this](int val) {
-        m_txModel->setAudioCompression(val);
+        if (m_txModel) m_txModel->setAudioCompression(val);
+        else if (m_model) m_model->setAudioCompression(val);
     });
-    connect(m_txModel, &TransmitModel::amCarrierLevelChanged, m_optionsView, &TransmitOptionsWidget::setAmCarrierLevel);
-    connect(m_txModel, &TransmitModel::audioCompressionChanged, m_optionsView, &TransmitOptionsWidget::setAudioCompression);
+    connect(m_optionsView, &TransmitOptionsWidget::txFilterLowRequested, this, [this](int hz) {
+        if (m_txModel) m_txModel->setTxFilterLow(hz);
+        else if (m_model) m_model->setTxFilterLow(hz);
+    });
+    connect(m_optionsView, &TransmitOptionsWidget::txFilterHighRequested, this, [this](int hz) {
+        if (m_txModel) m_txModel->setTxFilterHigh(hz);
+        else if (m_model) m_model->setTxFilterHigh(hz);
+    });
+    connect(m_optionsView, &TransmitOptionsWidget::micInputDevChanged, this, [this](int dev) {
+        if (m_txModel) m_txModel->setMicInputDev(dev);
+        else if (m_model) m_model->setMicInputDev(dev);
+    });
+    connect(m_optionsView, &TransmitOptionsWidget::micInputSourceNameChanged, this, [this](const QString& name) {
+        if (m_txModel) m_txModel->setMicInputSourceName(name);
+        else if (m_model) m_model->setMicInputSourceName(name);
+    });
+    connect(m_optionsView, &TransmitOptionsWidget::audioDevicesRefreshRequested, this, [this]() {
+        const QString name = m_txModel ? m_txModel->micInputSourceName()
+                                       : (m_model ? m_model->getMicInputSourceName() : QString());
+        m_optionsView->refreshAudioDevices(name);
+    });
+
+    // Model -> View
+    if (m_txModel) {
+        connect(m_txModel, &TransmitModel::amCarrierLevelChanged, m_optionsView, &TransmitOptionsWidget::setAmCarrierLevel);
+        connect(m_txModel, &TransmitModel::audioCompressionChanged, m_optionsView, &TransmitOptionsWidget::setAudioCompression);
+        connect(m_txModel, &TransmitModel::txFilterLowChanged, m_optionsView, &TransmitOptionsWidget::setTxFilterLow);
+        connect(m_txModel, &TransmitModel::txFilterHighChanged, m_optionsView, &TransmitOptionsWidget::setTxFilterHigh);
+        connect(m_txModel, &TransmitModel::micInputDevChanged, m_optionsView, &TransmitOptionsWidget::setMicInputDev);
+        connect(m_txModel, &TransmitModel::micInputSourceNameChanged, m_optionsView, &TransmitOptionsWidget::setMicInputSourceName);
+    }
 }

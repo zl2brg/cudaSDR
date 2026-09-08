@@ -34,6 +34,18 @@
 #include <QSignalBlocker>
 
 #include "cusdr_transmitOptionsWidget.h"
+#include "Util/AudioDeviceService.h"
+
+namespace {
+int findDeviceComboIndex(const QList<QAudioDevice> &devices, const QString &name, int offset)
+{
+    for (int i = 0; i < devices.size(); ++i) {
+        if (devices.at(i).description() == name)
+            return i + offset;
+    }
+    return -1;
+}
+}
 
 
 #define	btn_height		15
@@ -137,6 +149,25 @@ void TransmitOptionsWidget::setupConnections() {
 	                this, &TransmitOptionsWidget::amCarrierLevelRequested);
 	CHECKED_CONNECT(amCompressionSlider, &QSlider::valueChanged,
 	                this, &TransmitOptionsWidget::audioCompressionRequested);
+	CHECKED_CONNECT(highFilterSpinBox, &QSpinBox::valueChanged,
+	                this, &TransmitOptionsWidget::txFilterHighRequested);
+	CHECKED_CONNECT(lowFilterSpinBox, &QSpinBox::valueChanged,
+	                this, &TransmitOptionsWidget::txFilterLowRequested);
+
+	connect(micInputComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int index) {
+		if (index < 0) return;
+		emit micInputDevChanged(index);
+		if (index == 0)
+			emit micInputSourceNameChanged(QStringLiteral("hpsdr-local"));
+		else
+			emit micInputSourceNameChanged(micInputComboBox->itemText(index));
+	});
+
+	connect(AudioDeviceService::instance(), &AudioDeviceService::audioInputsChanged, this, [this]() {
+		const QString current = micInputComboBox->currentText();
+		refreshAudioDevices(current);
+		emit audioDevicesRefreshRequested();
+	});
 }
 
 void TransmitOptionsWidget::setAmCarrierLevel(int percent)
@@ -149,6 +180,87 @@ void TransmitOptionsWidget::setAudioCompression(int level)
 {
 	const QSignalBlocker blocker(amCompressionSlider);
 	amCompressionSlider->setValue(qBound(1, level, 100));
+}
+
+void TransmitOptionsWidget::setTxFilterHigh(int hz)
+{
+	const QSignalBlocker blocker(highFilterSpinBox);
+	highFilterSpinBox->setValue(hz);
+}
+
+void TransmitOptionsWidget::setTxFilterLow(int hz)
+{
+	const QSignalBlocker blocker(lowFilterSpinBox);
+	lowFilterSpinBox->setValue(hz);
+}
+
+void TransmitOptionsWidget::setMicInputDev(int index)
+{
+	if (index >= 0 && index < micInputComboBox->count()) {
+		const QSignalBlocker blocker(micInputComboBox);
+		micInputComboBox->setCurrentIndex(index);
+	}
+}
+
+void TransmitOptionsWidget::setMicInputSourceName(const QString& name)
+{
+	int idx = -1;
+	if (name == QLatin1String("hpsdr-local")) {
+		idx = 0;
+	} else if (!name.isEmpty()) {
+		idx = micInputComboBox->findText(name);
+	}
+	if (idx >= 0 && idx < micInputComboBox->count()) {
+		const QSignalBlocker blocker(micInputComboBox);
+		micInputComboBox->setCurrentIndex(idx);
+	}
+}
+
+void TransmitOptionsWidget::refreshAudioDevices(const QString& savedMicName)
+{
+	const QSignalBlocker micBlocker(micInputComboBox);
+	const QString currentMic = micInputComboBox->currentText();
+
+	micInputComboBox->clear();
+	micInputComboBox->addItem(QStringLiteral("HPSDR Mic Input"));
+
+	const QList<QAudioDevice> micInputs = AudioDeviceService::instance()->audioInputs();
+	for (const QAudioDevice &deviceInfo : micInputs) {
+		micInputComboBox->addItem(deviceInfo.description());
+	}
+
+	int micIndex = -1;
+	if (!currentMic.isEmpty()) {
+		micIndex = micInputComboBox->findText(currentMic);
+	}
+
+	if (micIndex < 0) {
+		if (savedMicName == QLatin1String("hpsdr-local")) {
+			micIndex = 0;
+		} else {
+			micIndex = findDeviceComboIndex(micInputs, savedMicName, 1);
+			if (micIndex < 0) {
+				const QString defaultName = AudioDeviceService::instance()->defaultInput().description();
+				micIndex = findDeviceComboIndex(micInputs, defaultName, 1);
+			}
+			if (micIndex < 0)
+				micIndex = 0;
+		}
+	}
+	micInputComboBox->setCurrentIndex(micIndex);
+}
+
+int TransmitOptionsWidget::micInputDev() const
+{
+	return micInputComboBox->currentIndex();
+}
+
+QString TransmitOptionsWidget::micInputSourceName() const
+{
+	int idx = micInputComboBox->currentIndex();
+	if (idx <= 0)
+		return QStringLiteral("hpsdr-local");
+	return micInputComboBox->itemText(idx);
 }
 
 void TransmitOptionsWidget::createAMSettingsGroup(){
@@ -272,6 +384,7 @@ void TransmitOptionsWidget::createSourceGroup() {
 	hbox4->addWidget(micGainMinSpinBox);
 */
     QLabel* micLabel = new QLabel("Mic Source:", this);
+    micInputComboBox->setMinimumWidth(180);
     QHBoxLayout *hbox5 = new QHBoxLayout();
     hbox5->setSpacing(4);
     hbox5->addWidget(micLabel);
@@ -282,23 +395,13 @@ void TransmitOptionsWidget::createSourceGroup() {
 	vbox->setSpacing(4);
 	vbox->addSpacing(6);
     vbox->addLayout(hbox5);
-//   vbox->addSpacing(6);
-//	vbox->addLayout(hbox1);
-//	vbox->addLayout(hbox2);
-//	vbox->addSpacing(12);
-//	vbox->addLayout(hbox3);
-//	vbox->addLayout(hbox4);
 	
 	sourceGroup = new QGroupBox(tr("Mic / Line Options"), this);
 	sourceGroup->setMinimumWidth(m_minimumGroupBoxWidth);
 	sourceGroup->setLayout(vbox);
     sourceGroup->setFont(QFont("Arial", 10));
 
-  //SettingsDialog::      micInputComboBox->addItem(QString(deviceInfo->name));
-
-
-//     micInputComboBox->setCurrentIndex(set->getMicInputDev());
-
+    refreshAudioDevices(set ? set->getMicInputSourceName() : QString());
 }
 
 void TransmitOptionsWidget::createTransmitFilterGroup() {
@@ -312,12 +415,12 @@ void TransmitOptionsWidget::createTransmitFilterGroup() {
 	highFilterSpinBox = new QSpinBox(this);
 	highFilterSpinBox->setMinimum(1000);
 	highFilterSpinBox->setMaximum(5000);
-	highFilterSpinBox->setValue(3100);
+	highFilterSpinBox->setValue(set ? set->getTxFilterHigh() : 3100);
 
 	lowFilterSpinBox = new QSpinBox(this);
 	lowFilterSpinBox->setMinimum(0);
 	lowFilterSpinBox->setMaximum(1000);
-	lowFilterSpinBox->setValue(200);
+	lowFilterSpinBox->setValue(set ? set->getTxFilterLow() : 200);
 
 	QHBoxLayout *hbox1 = new QHBoxLayout();
 	hbox1->setSpacing(4);

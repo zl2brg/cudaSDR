@@ -51,6 +51,13 @@ public:
 
 	void setAmCarrierLevel(int percent);
 	void setAudioCompression(int level);
+	void setTxFilterLow(int hz);
+	void setTxFilterHigh(int hz);
+	void setMicInputDev(int index);
+	void setMicInputSourceName(const QString& name);
+	void refreshAudioDevices(const QString& savedMicName = QString());
+	int micInputDev() const;
+	QString micInputSourceName() const;
 
 public slots:
 	
@@ -106,9 +113,13 @@ private slots:
 signals:
 	void	showEvent();
 	void	closeEvent();
-	void	messageEvent(QString message);
 	void	amCarrierLevelRequested(int percent);
 	void	audioCompressionRequested(int level);
+	void	txFilterLowRequested(int hz);
+	void	txFilterHighRequested(int hz);
+	void	micInputDevChanged(int dev);
+	void	micInputSourceNameChanged(const QString& name);
+	void	audioDevicesRefreshRequested();
 };
 
 #endif // _CUSDR_TRANSMIT_OPTIONS_WIDGET_H

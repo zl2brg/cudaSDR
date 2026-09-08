@@ -4,7 +4,6 @@
 #include "eq_curve_plot.h"
 #include "QtWDSP/qtwdsp_dspEngine.h"
 #include "QtWDSP/WdspTxChannel.h"
-#include "AudioEngine/cusdr_audio_input.h"
 #include "cusdr_settings.h"
 #include "cusdr_hamDatabase.h"
 #include <QSignalBlocker>
@@ -537,6 +536,28 @@ void tx_settings_dialog::setFreeDVMode(int rx, int mode)
     }
 }
 
+void tx_settings_dialog::setMicInputDev(int dev)
+{
+    if (dev >= 0 && dev < ui->audiodevlist->count()) {
+        const QSignalBlocker blocker(ui->audiodevlist);
+        ui->audiodevlist->setCurrentIndex(dev);
+    }
+}
+
+void tx_settings_dialog::setMicInputSourceName(const QString& name)
+{
+    int idx = -1;
+    if (name == QLatin1String("hpsdr-local")) {
+        idx = 0;
+    } else if (!name.isEmpty()) {
+        idx = ui->audiodevlist->findText(name);
+    }
+    if (idx >= 0 && idx < ui->audiodevlist->count()) {
+        const QSignalBlocker blocker(ui->audiodevlist);
+        ui->audiodevlist->setCurrentIndex(idx);
+    }
+}
+
 void tx_settings_dialog::triggerRefreshDevices()
 {
     emit audioDevicesRefreshRequested();
@@ -554,7 +575,7 @@ void tx_settings_dialog::refreshAudioDevices(const QString& savedMicName, const 
     ui->audiodevlist->clear();
     ui->audiodevlist->addItem("HPSDR Mic Input");
     
-    const QList<QAudioDevice> micInputs = TransmitAudioInput::availableAudioInputDevices();
+    const QList<QAudioDevice> micInputs = AudioDeviceService::instance()->audioInputs();
     for (const QAudioDevice &deviceInfo : micInputs) {
         ui->audiodevlist->addItem(deviceInfo.description());
     }

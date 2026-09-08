@@ -68,6 +68,8 @@ public:
     void setTxUseRxFilter(bool enabled);
     void setCurrentReceiver(int rx);
     void setFreeDVMode(int rx, int mode);
+    void setMicInputDev(int dev);
+    void setMicInputSourceName(const QString& name);
     void refreshAudioDevices(const QString& savedMicName, const QString& savedDigitalName);
     void updateTxEqPassband();
 

@@ -818,6 +818,41 @@ if(BUILD_TESTING)
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
     )
 
+    qt_add_executable(transmit_options_tests
+        tests/transmit_options_tests.cpp
+        ${SRC_DIR}/cusdr_transmitOptionsWidget.cpp
+        ${SRC_DIR}/Controllers/TransmitSettingsController.cpp
+        ${SRC_DIR}/UI/tx_settings_dialog.cpp
+        ${SRC_DIR}/UI/eq_curve_plot.cpp
+        ${SRC_DIR}/Util/AudioDeviceService.cpp
+        ${SRC_DIR}/Util/cusdr_buttons.cpp
+        ${SRC_DIR}/QtWDSP/WdspChannel.cpp
+        ${SRC_DIR}/QtWDSP/WdspTxChannel.cpp
+        ${CUDASDR_SETTINGS_TEST_SOURCES}
+    )
+    target_include_directories(transmit_options_tests PRIVATE
+        ${SRC_DIR}
+        ${SRC_DIR}/UI
+        ${WDSP_DIR}
+        ${WDSP_LIBS_DIR}/include
+    )
+    target_link_libraries(transmit_options_tests PRIVATE
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Widgets
+        Qt6::Network
+        Qt6::Multimedia
+        Qt6::WebSockets
+        Qt6::Test
+        wdsp
+        ${LIQUID_LIBRARY}
+        -lm
+    )
+    add_test(NAME transmit_options_tests COMMAND transmit_options_tests)
+    set_tests_properties(transmit_options_tests PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    )
+
     # Convenience target: build every unit test without the full cudasdr app.
     add_custom_target(build_tests DEPENDS
         protocol_boundary_tests
@@ -839,6 +874,7 @@ if(BUILD_TESTING)
         cw_decoder_tests
         wdsp_channel_tests
         sdr_device_tests
+        transmit_options_tests
     )
 
     # Headless Qt for any test that links Gui/Widgets (CI has no display), plus a
