@@ -61,6 +61,7 @@ class RadioPopupController;
 
 
 class SliceModel;
+class PanadapterInputController;
 class QGLReceiverPanel : public QOpenGLWidget, protected QOpenGLFunctions {
 
     Q_OBJECT
@@ -68,12 +69,30 @@ class QGLReceiverPanel : public QOpenGLWidget, protected QOpenGLFunctions {
 	friend class GridRenderer;
 	friend class TraceRenderer;
 	friend class HudRenderer;
+	friend class PanadapterInputController;
 
 public:
+	enum Region {
+		freqScalePanadapterRegion,
+		panadapterRegion,
+		dBmScalePanadapterRegion,
+		waterfallRegion,
+		filterRegion,
+		filterRegionLow,
+		filterRegionHigh,
+		agcButtonRegion,
+		agcThresholdLine,
+		agcHangLine,
+		agcFixedGainLine,
+		elsewhere,
+		out
+	};
+
     QGLReceiverPanel(SliceModel *model, QWidget *parent = nullptr);
 	~QGLReceiverPanel();
 
 	RadioPopupWidget* getRadioPopupWidget() const { return radioPopup; }
+	PanadapterInputController* inputController() const { return m_inputController; }
 
 public slots:
 	QSize minimumSizeHint() const;
@@ -212,26 +231,6 @@ private:
 	QVector<float>				m_cachedSpectrumBuffer;
 	QVector<float>				m_coalescedSpectrum;
     qreal                       dpr;
-	enum Region {
-
-		freqScalePanadapterRegion,
-		panadapterRegion,
-		dBmScalePanadapterRegion,
-		waterfallRegion,
-		filterRegion,
-		filterRegionLow,
-		filterRegionHigh,
-		agcButtonRegion,
-		agcThresholdLine,
-		agcHangLine,
-		agcFixedGainLine,
-		//lockedPanButtonRegion,
-		//vfoToMidButtonRegion,
-		//midToVfoButtonRegion,
-		//clickVfoButtonRegion,
-		elsewhere,
-		out
-	};
     
 	GLint		m_panRectWidth;
 	GLint		m_panSpectrumBinsLength;
@@ -276,6 +275,7 @@ private:
     GridRenderer* m_gridRenderer;
     TraceRenderer* m_traceRenderer;
     HudRenderer* m_hudRenderer;
+    PanadapterInputController* m_inputController = nullptr;
     SpectrumBinWorker* m_spectrumBinWorker = nullptr;
     quint64 m_spectrumBinGeneration = 0;
     quint64 m_spectrumBinAppliedGeneration = 0;

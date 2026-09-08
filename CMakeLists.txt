@@ -250,6 +250,7 @@ set(SOURCES
     ${SRC_DIR}/GL/GridRenderer.cpp
     ${SRC_DIR}/GL/TraceRenderer.cpp
     ${SRC_DIR}/GL/HudRenderer.cpp
+    ${SRC_DIR}/GL/PanadapterInputController.cpp
     ${SRC_DIR}/Util/CPUMonitor.cpp
 
   )
@@ -344,6 +345,7 @@ set(HEADERS
     ${SRC_DIR}/GL/GridRenderer.h
     ${SRC_DIR}/GL/TraceRenderer.h
     ${SRC_DIR}/GL/HudRenderer.h
+    ${SRC_DIR}/GL/PanadapterInputController.h
     ${SRC_DIR}/Util/CPUMonitor.h
     ${SRC_DIR}/cusdr_displayTabWidget.h
     ${SRC_DIR}/cusdr_displayWidget.h
@@ -853,6 +855,33 @@ if(BUILD_TESTING)
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
     )
 
+    qt_add_executable(panadapter_input_controller_tests
+        tests/panadapter_input_controller_tests.cpp
+        ${SRC_DIR}/GL/PanadapterInputController.cpp
+        ${SRC_DIR}/UI/FrequencyEntryDialog.cpp
+        ${CUDASDR_SETTINGS_TEST_SOURCES}
+    )
+    target_include_directories(panadapter_input_controller_tests PRIVATE
+        ${SRC_DIR}
+        ${SRC_DIR}/UI
+    )
+    target_link_libraries(panadapter_input_controller_tests PRIVATE
+        Qt6::Core
+        Qt6::Gui
+        Qt6::GuiPrivate
+        Qt6::Widgets
+        Qt6::Network
+        Qt6::Multimedia
+        Qt6::WebSockets
+        Qt6::OpenGL
+        Qt6::OpenGLWidgets
+        Qt6::Test
+    )
+    add_test(NAME panadapter_input_controller_tests COMMAND panadapter_input_controller_tests)
+    set_tests_properties(panadapter_input_controller_tests PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    )
+
     # Convenience target: build every unit test without the full cudasdr app.
     add_custom_target(build_tests DEPENDS
         protocol_boundary_tests
@@ -875,6 +904,7 @@ if(BUILD_TESTING)
         wdsp_channel_tests
         sdr_device_tests
         transmit_options_tests
+        panadapter_input_controller_tests
     )
 
     # Headless Qt for any test that links Gui/Widgets (CI has no display), plus a
