@@ -140,9 +140,46 @@ int SimulatedDevice::readRxIq(int rx, float* destination, int maxSamples)
     if (!destination || maxSamples <= 0) {
         return 0;
     }
+
+    {
+        QMutexLocker locker(&m_rxBufferMutex);
+        auto it = m_rxBuffers.find(rx);
+        if (it != m_rxBuffers.end() && !it.value().isEmpty()) {
+            auto& buf = it.value();
+            const int available = buf.size() / 2;
+            const int toCopy = std::min(maxSamples, available);
+            std::memcpy(destination, buf.constData(), toCopy * 2 * sizeof(float));
+            buf.remove(0, toCopy * 2);
+            if (m_rxCallback) {
+                m_rxCallback(rx, destination, toCopy);
+            }
+            return toCopy;
+        }
+    }
+
     generateSamples(destination, maxSamples);
     if (m_rxCallback) {
         m_rxCallback(rx, destination, maxSamples);
     }
     return maxSamples;
+}
+
+void SimulatedDevice::notifyRxIq(int rx, const float* buffer, int count)
+{
+    if (!buffer || count <= 0) return;
+
+    {
+        QMutexLocker locker(&m_rxBufferMutex);
+        auto& q = m_rxBuffers[rx];
+        if (q.size() > 16384 * 2) {
+            q.remove(0, count * 2);
+        }
+        const int oldSize = q.size();
+        q.resize(oldSize + count * 2);
+        std::memcpy(q.data() + oldSize, buffer, count * 2 * sizeof(float));
+    }
+
+    if (m_rxCallback) {
+        m_rxCallback(rx, buffer, count);
+    }
 }

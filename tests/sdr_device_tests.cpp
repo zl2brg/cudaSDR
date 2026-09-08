@@ -16,6 +16,7 @@ private slots:
     void testTxIqHandling();
     void testPolymorphicInterface();
     void testRxIqIngestAndCallback();
+    void testNotifyRxIqAndBufferedRead();
 };
 
 void SdrDeviceTests::testDeviceCapabilities()
@@ -221,6 +222,55 @@ void SdrDeviceTests::testRxIqIngestAndCallback()
     QCOMPARE(dev->readRxIq(0, nullptr, 100), 0);
     QCOMPARE(dev->readRxIq(0, rxBuf.data(), 0), 0);
     QCOMPARE(dev->readRxIq(0, rxBuf.data(), -10), 0);
+}
+
+void SdrDeviceTests::testNotifyRxIqAndBufferedRead()
+{
+    SimulatedDevice sim;
+
+    int callbackCount = 0;
+    int callbackRx = -1;
+    int callbackSamples = 0;
+
+    sim.setRxIqCallback([&](int rx, const float* data, int count) {
+        callbackCount++;
+        callbackRx = rx;
+        callbackSamples = count;
+        QVERIFY(data != nullptr);
+    });
+
+    const int sampleCount = 64;
+    std::vector<float> inputIq(sampleCount * 2);
+    for (int i = 0; i < sampleCount; ++i) {
+        inputIq[2 * i]     = 0.25f * static_cast<float>(i);
+        inputIq[2 * i + 1] = -0.25f * static_cast<float>(i);
+    }
+
+    // Ingest samples into device
+    sim.notifyRxIq(0, inputIq.data(), sampleCount);
+    QCOMPARE(callbackCount, 1);
+    QCOMPARE(callbackRx, 0);
+    QCOMPARE(callbackSamples, sampleCount);
+
+    // Read back buffered samples
+    std::vector<float> readBuf(sampleCount * 2, 0.0f);
+    int read = sim.readRxIq(0, readBuf.data(), sampleCount);
+    QCOMPARE(read, sampleCount);
+    for (int i = 0; i < sampleCount * 2; ++i) {
+        QCOMPARE(readBuf[i], inputIq[i]);
+    }
+
+    // Second read: buffer has been drained, so it should generate synthetic samples
+    std::vector<float> synthBuf(32 * 2, 0.0f);
+    int synthRead = sim.readRxIq(0, synthBuf.data(), 32);
+    QCOMPARE(synthRead, 32);
+    QCOMPARE(callbackCount, 3); // 1 from notify, 1 from first read, 1 from synth read
+
+    // Edge cases for notifyRxIq
+    sim.notifyRxIq(0, nullptr, 64);
+    sim.notifyRxIq(0, inputIq.data(), 0);
+    sim.notifyRxIq(0, inputIq.data(), -10);
+    QCOMPARE(callbackCount, 3);
 }
 
 QTEST_MAIN(SdrDeviceTests)

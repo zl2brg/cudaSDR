@@ -31,6 +31,7 @@
 // use: SLICE_PROCESSOR_DEBUG
 
 #include "cusdr_sliceProcessor.h"
+#include "DataEngine/ISdrDevice.h"
 #include "QtWDSP/WdspTxChannel.h"
 #include <cmath>
 
@@ -49,8 +50,8 @@ SliceProcessor::SliceProcessor(SliceModel *model, QObject *parent)
     , m_soapyInputSampleRate(set->getSampleRate())
 	, m_audioMode(1)
     , m_iqQueue(100)
-    , m_soapyQueue(100)
-    , m_soapyDspPending(false)
+    , m_rxQueue(100)
+    , m_dspPending(false)
     , m_rateTransitionDropBuffers(0)
 	//, m_calOffset(63.0)
 	//, m_calOffset(33.0)
@@ -237,70 +238,70 @@ bool SliceProcessor::initQtWDSPInterface() {
     return true;
 }
 
-void SliceProcessor::enqueueRawData() {
-    QVector<int32_t> rawBlock;
-    rawBlock.reserve(BUFFER_SIZE * 2);
-    for (int i = 0; i < BUFFER_SIZE * 2; ++i) {
-        rawBlock.append(m_rawIQ[i]);
-    }
+void SliceProcessor::enqueueRxIq(const float* interleavedIq, int numComplexSamples) {
+    if (!interleavedIq || numComplexSamples <= 0) return;
 
-    if (m_iqQueue.isFull()) {
-        m_iqQueue.dequeue();
-        ++m_iqQueueDropCount;
+    QVector<float> block(numComplexSamples * 2);
+    std::memcpy(block.data(), interleavedIq, numComplexSamples * 2 * sizeof(float));
+    enqueueRxIq(block);
+}
+
+void SliceProcessor::enqueueRxIq(const QVector<float> &samples) {
+    if (m_rxQueue.isFull()) {
+        m_rxQueue.dequeue();
+        ++m_rxQueueDropCount;
     }
-    m_iqQueue.enqueue(rawBlock);
+    m_rxQueue.enqueue(samples);
 
     if (!m_queueDropLogTimer.isValid())
         m_queueDropLogTimer.start();
     if (m_queueDropLogTimer.elapsed() >= 5000) {
-        if (m_iqQueueDropCount > 0 || m_soapyQueueDropCount > 0) {
+        if (m_iqQueueDropCount > 0 || m_rxQueueDropCount > 0) {
             SLICE_PROCESSOR_DEBUG << "[RX" << m_receiver << "] queue drops in last 5s: iq="
-                                  << m_iqQueueDropCount << " soapy=" << m_soapyQueueDropCount;
+                                  << m_iqQueueDropCount << " rx=" << m_rxQueueDropCount;
         }
         m_iqQueueDropCount = 0;
-        m_soapyQueueDropCount = 0;
+        m_rxQueueDropCount = 0;
         m_queueDropLogTimer.restart();
     }
+
+    if (trySetDspPending()) {
+        QMetaObject::invokeMethod(this, "dspProcessing", Qt::QueuedConnection);
+    }
+}
+
+int SliceProcessor::readFromDevice(ISdrDevice* dev, int maxSamples) {
+    if (!dev || maxSamples <= 0) return 0;
+    QVector<float> buf(maxSamples * 2);
+    int read = dev->readRxIq(m_receiver, buf.data(), maxSamples);
+    if (read > 0) {
+        buf.resize(read * 2);
+        enqueueRxIq(buf);
+    }
+    return read;
+}
+
+void SliceProcessor::enqueueRawData() {
+    const double scale = 1.0 / 8388607.0;
+    QVector<float> floatBlock(BUFFER_SIZE * 2);
+    for (int i = 0; i < BUFFER_SIZE * 2; ++i) {
+        floatBlock[i] = static_cast<float>(m_rawIQ[i] * scale);
+    }
+    enqueueRxIq(floatBlock);
 }
 
 void SliceProcessor::enqueueRawData(const QVector<int32_t> &rawBlock) {
-    if (m_iqQueue.isFull()) {
-        m_iqQueue.dequeue();
-        ++m_iqQueueDropCount;
+    const double scale = 1.0 / 8388607.0;
+    const int count = rawBlock.size();
+    QVector<float> floatBlock(count);
+    for (int i = 0; i < count; ++i) {
+        floatBlock[i] = static_cast<float>(rawBlock[i] * scale);
     }
-    m_iqQueue.enqueue(rawBlock);
-
-    if (!m_queueDropLogTimer.isValid())
-        m_queueDropLogTimer.start();
-    if (m_queueDropLogTimer.elapsed() >= 5000) {
-        if (m_iqQueueDropCount > 0 || m_soapyQueueDropCount > 0) {
-            SLICE_PROCESSOR_DEBUG << "[RX" << m_receiver << "] queue drops in last 5s: iq="
-                                  << m_iqQueueDropCount << " soapy=" << m_soapyQueueDropCount;
-        }
-        m_iqQueueDropCount = 0;
-        m_soapyQueueDropCount = 0;
-        m_queueDropLogTimer.restart();
-    }
+    enqueueRxIq(floatBlock);
 }
 
 void SliceProcessor::enqueueSoapyData(const QVector<float> &data) {
-    if (m_soapyQueue.isFull()) {
-        m_soapyQueue.dequeue();
-        ++m_soapyQueueDropCount;
-    }
-    m_soapyQueue.enqueue(data);
-
-    if (!m_queueDropLogTimer.isValid())
-        m_queueDropLogTimer.start();
-    if (m_queueDropLogTimer.elapsed() >= 5000) {
-        if (m_iqQueueDropCount > 0 || m_soapyQueueDropCount > 0) {
-            SLICE_PROCESSOR_DEBUG << "[RX" << m_receiver << "] queue drops in last 5s: iq="
-                                  << m_iqQueueDropCount << " soapy=" << m_soapyQueueDropCount;
-        }
-        m_iqQueueDropCount = 0;
-        m_soapyQueueDropCount = 0;
-        m_queueDropLogTimer.restart();
-    }
+    enqueueRxIq(data);
 }
 
 void SliceProcessor::setSoapyInputSampleRate(int value) {
@@ -364,10 +365,12 @@ void SliceProcessor::stopAudio()
 }
 
 void SliceProcessor::dspProcessingSoapy() {
-    // Flag is already set to true by trySetSoapyDspPending() in processReadData.
-    
-    while (!m_soapyQueue.isEmpty()) {
-        const QVector<float> rawIQ = m_soapyQueue.dequeue();
+    dspProcessing();
+}
+
+void SliceProcessor::dspProcessing() {
+    while (!m_rxQueue.isEmpty()) {
+        const QVector<float> rawIQ = m_rxQueue.dequeue();
 
         {
             QMutexLocker locker(&m_mutex);
@@ -383,12 +386,9 @@ void SliceProcessor::dspProcessingSoapy() {
 
         cpx* inPtr = inBuf.data();
         const float* rawPtr = rawIQ.constData();
-        const bool soapyDcRemove =
-            (set->getHWInterface() == QSDR::SoapySDR && set->getSoapyAutoCalibrate());
-        
-        // cudaSDR/WDSP expects conjugated IQ for most USB SDR data paths.
-        // We negate Q to flip the spectrum to the correct orientation.
-        const bool negateQ = true; 
+        const bool isSoapy = (set && set->getHWInterface() == QSDR::SoapySDR);
+        const bool soapyDcRemove = (isSoapy && set && set->getSoapyAutoCalibrate());
+        const bool negateQ = isSoapy;
 
         constexpr double kDcAlpha = 0.004; // ~256-sample time constant at 48 kHz
 
@@ -409,32 +409,26 @@ void SliceProcessor::dspProcessingSoapy() {
 
         dspProcessingCore();
     }
-    
-    // Clear pending flag. 
-    m_soapyDspPending.store(false, std::memory_order_release);
-    
-    // Safety check: if more data arrived between the loop and the flag clear, post again.
-    if (!m_soapyQueue.isEmpty() && trySetSoapyDspPending()) {
-        QMetaObject::invokeMethod(this, "dspProcessingSoapy", Qt::QueuedConnection);
+
+    // Drain legacy int32 queue if any data was enqueued directly
+    while (!m_iqQueue.isEmpty()) {
+        {
+            QMutexLocker locker(&m_mutex);
+            if (m_rateTransitionDropBuffers > 0) {
+                m_iqQueue.dequeue();
+                --m_rateTransitionDropBuffers;
+                continue;
+            }
+        }
+        QVector<int32_t> rawIQ = m_iqQueue.dequeue();
+        dspProcessing(rawIQ);
     }
-}
 
-void SliceProcessor::dspProcessing() {
-	if (m_iqQueue.isEmpty()) {
-		return;
-	}
+    m_dspPending.store(false, std::memory_order_release);
 
-	{
-		QMutexLocker locker(&m_mutex);
-		if (m_rateTransitionDropBuffers > 0) {
-			m_iqQueue.dequeue();
-			--m_rateTransitionDropBuffers;
-			return;
-		}
-	}
-    
-    QVector<int32_t> rawIQ = m_iqQueue.dequeue();
-    dspProcessing(rawIQ);
+    if (!m_rxQueue.isEmpty() && trySetDspPending()) {
+        QMetaObject::invokeMethod(this, "dspProcessing", Qt::QueuedConnection);
+    }
 }
 
 void SliceProcessor::dspProcessing(const QVector<int32_t> &rawIQ) {

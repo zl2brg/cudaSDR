@@ -23,6 +23,7 @@
 #include "DataEngine/ISdrDevice.h"
 #include <QObject>
 #include <QMap>
+#include <QMutex>
 #include <atomic>
 
 class SoapySDRDataSource;
@@ -66,7 +67,7 @@ public:
     void sendTxIq(const float* buffer, int count) override;
     void setRxIqCallback(RxIqCallback callback) override;
     int readRxIq(int rx, float* destination, int maxSamples) override;
-    void notifyRxIq(int rx, const float* buffer, int count);
+    void notifyRxIq(int rx, const float* buffer, int count) override;
 
     void setDataSource(SoapySDRDataSource* source) { m_source = source; }
     SoapySDRDataSource* dataSource() const { return m_source; }
@@ -83,6 +84,8 @@ private:
     QMap<int, double> m_rxGains;
     double m_txGain = 0.0;
     RxIqCallback m_rxCallback;
+    mutable QMutex m_rxBufferMutex;
+    QMap<int, QVector<float>> m_rxBuffers;
 };
 
 #endif // CUDASDR_SOAPY_DEVICE_H

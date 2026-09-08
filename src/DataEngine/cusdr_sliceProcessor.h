@@ -55,6 +55,7 @@
 
 
 class SliceModel;
+class ISdrDevice;
 class SliceProcessor : public QObject {
 
 	Q_OBJECT
@@ -99,7 +100,12 @@ public:
     CPX			audioOutputBuf;
 	int32_t     m_rawIQ[BUFFER_SIZE * 2];
 
-    bool    trySetSoapyDspPending() { return !m_soapyDspPending.exchange(true); }
+    bool    trySetDspPending() { return !m_dspPending.exchange(true); }
+    bool    trySetSoapyDspPending() { return trySetDspPending(); }
+
+    void    enqueueRxIq(const float* interleavedIq, int numComplexSamples);
+    void    enqueueRxIq(const QVector<float> &samples);
+    int     readFromDevice(ISdrDevice* dev, int maxSamples);
 
 public slots:
     void    enqueueRawData();
@@ -182,9 +188,11 @@ private:
 	int		m_displayTime;
 
 	QHQueue<QVector<int32_t>> m_iqQueue;
-	QHQueue<QVector<float>>   m_soapyQueue;
+	QHQueue<QVector<float>>   m_rxQueue;
+	QHQueue<QVector<float>>&  m_soapyQueue{m_rxQueue};
 	quint64				m_iqQueueDropCount = 0;
-	quint64				m_soapyQueueDropCount = 0;
+	quint64				m_rxQueueDropCount = 0;
+	quint64&			m_soapyQueueDropCount{m_rxQueueDropCount};
 
     int 	m_audiobuffersize;
 
@@ -196,7 +204,7 @@ private:
     double  m_sidetonePhase = 0.0;
 
 	bool	m_connected;
-    std::atomic<bool> m_soapyDspPending;
+    std::atomic<bool> m_dspPending{false};
     int     m_rateTransitionDropBuffers;
     QMutex  m_dspMutex;
 

@@ -3,6 +3,8 @@
 #include <memory>
 #include "DataEngine/SdrDeviceManager.h"
 #include "DataEngine/Drivers/SimulatedDevice.h"
+#include "DataEngine/Drivers/HpsdrDevice.h"
+#include "DataEngine/Drivers/SoapyDevice.h"
 #include "cusdr_settings.h"
 #include "Settings/SoapyConfig.h"
 #include "DataEngine/cusdr_dataIO.h"
@@ -30,6 +32,8 @@ private slots:
     void testSimulatedDeviceFactory();
     void testDiscoverySignals();
     void testClearAndUnregister();
+    void testHpsdrDeviceRxIngest();
+    void testSoapyDeviceRxIngest();
 };
 
 void SdrDeviceManagerTests::init()
@@ -238,6 +242,110 @@ void SdrDeviceManagerTests::testClearAndUnregister()
 
     mgr->clearDevices();
     QCOMPARE(mgr->deviceCount(), 0);
+}
+
+void SdrDeviceManagerTests::testHpsdrDeviceRxIngest()
+{
+    HpsdrDevice hpsdr(nullptr, nullptr, false);
+
+    int callbackCount = 0;
+    int callbackRx = -1;
+    int callbackSamples = 0;
+
+    hpsdr.setRxIqCallback([&](int rx, const float* data, int count) {
+        callbackCount++;
+        callbackRx = rx;
+        callbackSamples = count;
+        QVERIFY(data != nullptr);
+    });
+
+    const int count = 256;
+    std::vector<float> inData(count * 2, 0.42f);
+
+    // Ingest for RX 0
+    hpsdr.notifyRxIq(0, inData.data(), count);
+    QCOMPARE(callbackCount, 1);
+    QCOMPARE(callbackRx, 0);
+    QCOMPARE(callbackSamples, count);
+
+    // Ingest for RX 1
+    hpsdr.notifyRxIq(1, inData.data(), count);
+    QCOMPARE(callbackCount, 2);
+    QCOMPARE(callbackRx, 1);
+    QCOMPARE(callbackSamples, count);
+
+    // Read back RX 0 (triggers callback)
+    std::vector<float> outData(count * 2, 0.0f);
+    int read = hpsdr.readRxIq(0, outData.data(), count);
+    QCOMPARE(read, count);
+    QCOMPARE(callbackCount, 3);
+    for (int i = 0; i < count * 2; ++i) {
+        QCOMPARE(outData[i], 0.42f);
+    }
+
+    // Read back RX 1 (triggers callback)
+    read = hpsdr.readRxIq(1, outData.data(), count);
+    QCOMPARE(read, count);
+    QCOMPARE(callbackCount, 4);
+    for (int i = 0; i < count * 2; ++i) {
+        QCOMPARE(outData[i], 0.42f);
+    }
+
+    // Second read on RX 0 returns 0 (drained, no callback)
+    QCOMPARE(hpsdr.readRxIq(0, outData.data(), count), 0);
+    QCOMPARE(callbackCount, 4);
+
+    // Polymorphic interface verification
+    ISdrDevice* sdr = &hpsdr;
+    sdr->notifyRxIq(0, inData.data(), 128);
+    QCOMPARE(callbackCount, 5);
+    QCOMPARE(callbackSamples, 128);
+    QCOMPARE(sdr->readRxIq(0, outData.data(), 128), 128);
+    QCOMPARE(callbackCount, 6);
+}
+
+void SdrDeviceManagerTests::testSoapyDeviceRxIngest()
+{
+    SoapyDevice soapy(nullptr, nullptr);
+
+    int callbackCount = 0;
+    int callbackRx = -1;
+    int callbackSamples = 0;
+
+    soapy.setRxIqCallback([&](int rx, const float* data, int count) {
+        callbackCount++;
+        callbackRx = rx;
+        callbackSamples = count;
+        QVERIFY(data != nullptr);
+    });
+
+    const int count = 128;
+    std::vector<float> inData(count * 2, -0.65f);
+
+    soapy.notifyRxIq(0, inData.data(), count);
+    QCOMPARE(callbackCount, 1);
+    QCOMPARE(callbackRx, 0);
+    QCOMPARE(callbackSamples, count);
+
+    std::vector<float> outData(count * 2, 0.0f);
+    int read = soapy.readRxIq(0, outData.data(), count);
+    QCOMPARE(read, count);
+    QCOMPARE(callbackCount, 2);
+    for (int i = 0; i < count * 2; ++i) {
+        QCOMPARE(outData[i], -0.65f);
+    }
+
+    // Second read: drained
+    QCOMPARE(soapy.readRxIq(0, outData.data(), count), 0);
+    QCOMPARE(callbackCount, 2);
+
+    // Polymorphic interface verification
+    ISdrDevice* sdr = &soapy;
+    sdr->notifyRxIq(0, inData.data(), 64);
+    QCOMPARE(callbackCount, 3);
+    QCOMPARE(callbackSamples, 64);
+    QCOMPARE(sdr->readRxIq(0, outData.data(), 64), 64);
+    QCOMPARE(callbackCount, 4);
 }
 
 QTEST_MAIN(SdrDeviceManagerTests)

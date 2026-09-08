@@ -150,19 +150,28 @@ void CProtocol2::processInputBuffer(const QByteArray& buffer, DataEngine* de, qu
         rxSamples++;
         if (rxSamples == BUFFER_SIZE) {
             if (rx->qtwdsp) {
-                rx->enqueueRawData();
-                bool invoked = QMetaObject::invokeMethod(rx, "dspProcessing", Qt::QueuedConnection);
-                ++p2DspKickCount;
-                if ((p2DspKickCount % 100) == 1) {
-                    P2_ROUTE_DEBUG << "dspKick rx=" << ddcIndex
-                                   << " srcPort=" << sourcePort
-                                   << " count=" << p2DspKickCount
-                                   << " invoked=" << invoked;
-                }
-                if (!invoked) {
-                    ++p2DspInvokeFailCount;
-                    if ((p2DspInvokeFailCount % 10) == 1) {
-                        qDebug() << "P2 DSP invoke failed count=" << p2DspInvokeFailCount;
+                if (de->device()) {
+                    const double scale = 1.0 / 8388607.0;
+                    std::vector<float> floatBuf(BUFFER_SIZE * 2);
+                    for (int j = 0; j < BUFFER_SIZE * 2; ++j) {
+                        floatBuf[j] = static_cast<float>(rx->m_rawIQ[j] * scale);
+                    }
+                    de->device()->notifyRxIq(ddcIndex, floatBuf.data(), BUFFER_SIZE);
+                } else {
+                    rx->enqueueRawData();
+                    bool invoked = QMetaObject::invokeMethod(rx, "dspProcessing", Qt::QueuedConnection);
+                    ++p2DspKickCount;
+                    if ((p2DspKickCount % 100) == 1) {
+                        P2_ROUTE_DEBUG << "dspKick rx=" << ddcIndex
+                                       << " srcPort=" << sourcePort
+                                       << " count=" << p2DspKickCount
+                                       << " invoked=" << invoked;
+                    }
+                    if (!invoked) {
+                        ++p2DspInvokeFailCount;
+                        if ((p2DspInvokeFailCount % 10) == 1) {
+                            qDebug() << "P2 DSP invoke failed count=" << p2DspInvokeFailCount;
+                        }
                     }
                 }
             }

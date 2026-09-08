@@ -105,6 +105,15 @@ public:
      * @return Number of complex samples actually read into destination
      */
     virtual int readRxIq(int rx, float* destination, int maxSamples) = 0;
+
+    /**
+     * @brief Ingests incoming RX IQ samples into the device, buffering them for readRxIq
+     *        and forwarding them to any registered RxIqCallback.
+     * @param rx Receiver index (0..N-1)
+     * @param buffer Pointer to interleaved I/Q samples [I0, Q0, I1, Q1, ...]
+     * @param count Number of complex sample pairs
+     */
+    virtual void notifyRxIq(int rx, const float* buffer, int count) = 0;
 };
 
 #endif // CUDASDR_ISDR_DEVICE_H

@@ -163,7 +163,7 @@ public:
     std::unique_ptr<RadioController> m_radioController;
     std::unique_ptr<ISdrDevice> m_device;
     ISdrDevice* device() const { return m_device.get(); }
-    void setDevice(std::unique_ptr<ISdrDevice> dev) { m_device = std::move(dev); }
+    void setDevice(std::unique_ptr<ISdrDevice> dev);
     bool                m_internal_cw;
     bool                m_cw_key_reversed;
     int                 m_cw_keyer_spacing;

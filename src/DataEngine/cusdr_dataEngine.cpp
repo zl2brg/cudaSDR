@@ -293,6 +293,18 @@ DataEngine::DataEngine(RadioModel *model, QObject *parent)
 	m_soapy = new DataEngineSoapy(this);
 }
 
+void DataEngine::setDevice(std::unique_ptr<ISdrDevice> dev)
+{
+    m_device = std::move(dev);
+    if (m_device) {
+        m_device->setRxIqCallback([this](int rx, const float* interleavedIq, int numComplexSamples) {
+            if (rx >= 0 && rx < RX.size() && RX.at(rx)) {
+                RX.at(rx)->enqueueRxIq(interleavedIq, numComplexSamples);
+            }
+        });
+    }
+}
+
 
 TCCParameterTx& DataEngine::txParams()
 {
@@ -3260,10 +3272,14 @@ void DataProcessor::processReadData()
                         de->RX[rx]->setSoapyInputSampleRate(soapyInputRate);
                     }
 
-                    // Use thread-safe push
-                    de->RX[rx]->enqueueSoapyData(samples);
-                    if (de->RX[rx]->trySetSoapyDspPending()) {
-                        QMetaObject::invokeMethod(de->RX[rx], "dspProcessingSoapy", Qt::QueuedConnection);
+                    if (de->device()) {
+                        de->device()->notifyRxIq(rx, samples.constData(), samples.size() / 2);
+                    } else {
+                        // Use thread-safe push fallback
+                        de->RX[rx]->enqueueSoapyData(samples);
+                        if (de->RX[rx]->trySetSoapyDspPending()) {
+                            QMetaObject::invokeMethod(de->RX[rx], "dspProcessingSoapy", Qt::QueuedConnection);
+                        }
                     }
                 }
             }

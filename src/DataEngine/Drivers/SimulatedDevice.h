@@ -24,6 +24,7 @@
 #include <QObject>
 #include <QVector>
 #include <QMap>
+#include <QMutex>
 #include <atomic>
 
 /**
@@ -66,6 +67,7 @@ public:
     void sendTxIq(const float* buffer, int count) override;
     void setRxIqCallback(RxIqCallback callback) override;
     int readRxIq(int rx, float* destination, int maxSamples) override;
+    void notifyRxIq(int rx, const float* buffer, int count) override;
 
     // Simulation controls
     void setToneOffsetHz(double hz) { m_toneOffsetHz = hz; }
@@ -101,6 +103,8 @@ private:
 
     std::atomic<quint64> m_txSamplesCount{0};
     RxIqCallback m_rxCallback;
+    mutable QMutex m_rxBufferMutex;
+    QMap<int, QVector<float>> m_rxBuffers;
 };
 
 #endif // CUDASDR_SIMULATED_DEVICE_H
