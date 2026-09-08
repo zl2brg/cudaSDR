@@ -9,6 +9,9 @@
 #include <QVector>
 #include <QByteArray>
 #include <QTimer>
+#include <atomic>
+
+#include "Util/SpscRingBuffer.h"
 
 class ReceiverAudioOutput : public QObject
 {
@@ -20,13 +23,18 @@ public:
     void start();
     void stop();
     void writeAudio(const QVector<float>& audioBuffer);
+    void writeAudio(const float* data, int size);
 
     void setSampleRate(int rate);
+
+    size_t ringBufferAvailableRead() const { return m_ringBuffer.availableRead(); }
+    size_t ringBufferCapacity() const { return m_ringBuffer.capacity(); }
 
 private slots:
     void onAudioOutputsChanged();
     void onSinkStateChanged(QAudio::State state);
     void reopenOutput();
+    void pumpAudio();
 
 private:
     bool isSinkHealthy() const;
@@ -45,8 +53,9 @@ private:
     QAudioFormat m_format;
     int m_sampleRate = 48000;
     QMutex m_mutex;
-    QByteArray m_pending;  // carry-forward for partial writes
-    bool m_wantRunning = false;
+    SpscRingBuffer<float> m_ringBuffer{131072};
+    std::atomic<bool> m_wantRunning{false};
     bool m_reopenPending = false;
     QTimer m_reopenTimer;
+    QTimer m_pumpTimer;
 };

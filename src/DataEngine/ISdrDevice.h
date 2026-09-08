@@ -23,6 +23,7 @@
 #include <QString>
 #include <QList>
 #include <QtGlobal>
+#include <functional>
 
 /**
  * @enum DeviceType
@@ -82,6 +83,28 @@ public:
     virtual bool isPtt() const = 0;
 
     virtual void sendTxIq(const float* buffer, int count) = 0;
+
+    /**
+     * @brief Callback type for asynchronous RX IQ reception.
+     * @param rx Receiver / slice index (0..N-1)
+     * @param interleavedIq Pointer to interleaved I/Q samples [I0, Q0, I1, Q1, ...]
+     * @param numComplexSamples Number of complex sample pairs
+     */
+    using RxIqCallback = std::function<void(int rx, const float* interleavedIq, int numComplexSamples)>;
+
+    /**
+     * @brief Registers a callback to receive incoming RX IQ data as it arrives.
+     */
+    virtual void setRxIqCallback(RxIqCallback callback) = 0;
+
+    /**
+     * @brief Reads up to maxSamples of complex IQ into destination.
+     * @param rx Receiver index (0..N-1)
+     * @param destination Destination buffer (must hold at least maxSamples * 2 floats)
+     * @param maxSamples Maximum number of complex samples to read
+     * @return Number of complex samples actually read into destination
+     */
+    virtual int readRxIq(int rx, float* destination, int maxSamples) = 0;
 };
 
 #endif // CUDASDR_ISDR_DEVICE_H

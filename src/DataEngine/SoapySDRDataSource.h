@@ -18,6 +18,7 @@
 #include <liquid/liquid.h>
 #include "cusdr_settings.h"
 #include "Util/cusdr_queue.h"
+#include "Util/SpscRingBuffer.h"
 
 class DataEngine;
 
@@ -105,8 +106,7 @@ private:
     bool m_txDebugPrimed;
     static constexpr int kTxIqSampleRate = 48000;
     int m_txSampleRate = kTxIqSampleRate;
-    QVector<float> m_txIqRing;
-    QMutex m_txIqMutex;
+    SpscRingBuffer<float> m_txIqRing{131072};
 
     // RX Resampler (RF -> DSP) — multi-stage for large decimation ratios (e.g. 125:1)
     msresamp_crcf m_rxResampler;

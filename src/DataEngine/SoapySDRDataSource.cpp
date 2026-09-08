@@ -878,7 +878,6 @@ void SoapySDRDataSource::init() {
 }
 
 void SoapySDRDataSource::clearTxIqRing() {
-    QMutexLocker lock(&m_txIqMutex);
     m_txIqRing.clear();
 }
 
@@ -981,7 +980,6 @@ void SoapySDRDataSource::configureTxSampleRate() {
 void SoapySDRDataSource::drainSoapyTxIqQueue() {
     while (!m_engine->m_dataIO->soapy_tx_iq_queue.isEmpty()) {
         const QVector<float> block = m_engine->m_dataIO->soapy_tx_iq_queue.dequeue();
-        QMutexLocker lock(&m_txIqMutex);
 
         if (m_txInterp1 && m_txInterp2 && m_txInterpInterBuf && m_txResampOut) {
             // Two-stage polyphase interpolation: dspRate → intermediate (L1) → rfRate (L2)
@@ -990,47 +988,30 @@ void SoapySDRDataSource::drainSoapyTxIqQueue() {
             firinterp_crcf_execute_block(m_txInterp1, (liquid_float_complex*)block.data(), n_in,    m_txInterpInterBuf);
             firinterp_crcf_execute_block(m_txInterp2, m_txInterpInterBuf,                  n_inter, m_txResampOut);
             const unsigned int n_out = n_inter * m_txL2;
-            float* outPtr = (float*)m_txResampOut;
-            for (unsigned int i = 0; i < n_out * 2; ++i)
-                m_txIqRing.append(outPtr[i]);
+            m_txIqRing.writeDropOldest(reinterpret_cast<const float*>(m_txResampOut), n_out * 2);
         } else if (m_txInterp1 && m_txResampOut) {
             const unsigned int n_in = static_cast<unsigned int>(block.size() / 2);
             firinterp_crcf_execute_block(m_txInterp1, (liquid_float_complex*)block.data(), n_in, m_txResampOut);
             const unsigned int n_out = n_in * m_txL1;
-            float* outPtr = (float*)m_txResampOut;
-            for (unsigned int i = 0; i < n_out * 2; ++i)
-                m_txIqRing.append(outPtr[i]);
+            m_txIqRing.writeDropOldest(reinterpret_cast<const float*>(m_txResampOut), n_out * 2);
         } else if (m_txResampler) {
-            unsigned int num_written;
+            unsigned int num_written = 0;
             // Up-sample from DSP rate (48k) to RF TX rate.
             msresamp_crcf_execute(m_txResampler, (liquid_float_complex*)block.data(), block.size() / 2, m_txResampOut, &num_written);
-            float* outPtr = (float*)m_txResampOut;
-            for (unsigned int i = 0; i < num_written * 2; ++i) {
-                m_txIqRing.append(outPtr[i]);
-            }
+            m_txIqRing.writeDropOldest(reinterpret_cast<const float*>(m_txResampOut), num_written * 2);
         } else {
-            m_txIqRing += block;
+            m_txIqRing.writeDropOldest(block.constData(), static_cast<size_t>(block.size()));
         }
-
-        // Keep ~1 s of TX IQ at the hardware TX rate to avoid excessive memory use.
-        const int maxFloats = m_txSampleRate * 2;
-        if (m_txIqRing.size() > maxFloats)
-            m_txIqRing.remove(0, m_txIqRing.size() - maxFloats);
     }
 }
 
 bool SoapySDRDataSource::fillTxBufferFromRing(float *txBuff, int numComplexSamples) {
-    const int needFloats = numComplexSamples * 2;
-    QMutexLocker lock(&m_txIqMutex);
+    const size_t needFloats = static_cast<size_t>(numComplexSamples * 2);
 
-    if (m_txIqRing.size() < needFloats)
+    if (m_txIqRing.availableRead() < needFloats)
         return false;
 
-    for (int i = 0; i < needFloats; ++i)
-        txBuff[i] = m_txIqRing.at(i);
-    
-    m_txIqRing.remove(0, needFloats);
-    return true;
+    return m_txIqRing.read(txBuff, needFloats) == needFloats;
 }
 
 void SoapySDRDataSource::stop() {
@@ -1055,6 +1036,8 @@ void SoapySDRDataSource::stop() {
 
 void SoapySDRDataSource::runStream() {
     if (!m_device || !m_rxStream) return;
+
+    QThread::currentThread()->setPriority(QThread::TimeCriticalPriority);
 
     const size_t numSamples = 1024; // Match cudaSDR's BUFFER_SIZE
     std::vector<float> buff(numSamples * 2); // complex samples
@@ -1202,15 +1185,26 @@ void SoapySDRDataSource::runStream() {
                 const int n1 = static_cast<int>(m_rxDecimSurplus1.size()) / static_cast<int>(m_rxD1);
                 if (n1 > 0) {
                     firdecim_crcf_execute_block(m_rxDecim1, m_rxDecimSurplus1.data(), n1, m_rxDecimInterBuf);
-                    m_rxDecimSurplus1.erase(m_rxDecimSurplus1.begin(),
-                                            m_rxDecimSurplus1.begin() + n1 * static_cast<int>(m_rxD1));
+                    const size_t consumed1 = static_cast<size_t>(n1 * static_cast<int>(m_rxD1));
+                    const size_t remaining1 = m_rxDecimSurplus1.size() - consumed1;
+                    if (remaining1 > 0) {
+                        std::memmove(m_rxDecimSurplus1.data(), m_rxDecimSurplus1.data() + consumed1,
+                                     remaining1 * sizeof(liquid_float_complex));
+                    }
+                    m_rxDecimSurplus1.resize(remaining1);
+
                     // Stage 2: intermediate → dspRate (decimation by D2)
                     m_rxDecimSurplus2.insert(m_rxDecimSurplus2.end(), m_rxDecimInterBuf, m_rxDecimInterBuf + n1);
                     const int n2 = static_cast<int>(m_rxDecimSurplus2.size()) / static_cast<int>(m_rxD2);
                     if (n2 > 0) {
                         firdecim_crcf_execute_block(m_rxDecim2, m_rxDecimSurplus2.data(), n2, m_rxResampOut);
-                        m_rxDecimSurplus2.erase(m_rxDecimSurplus2.begin(),
-                                                m_rxDecimSurplus2.begin() + n2 * static_cast<int>(m_rxD2));
+                        const size_t consumed2 = static_cast<size_t>(n2 * static_cast<int>(m_rxD2));
+                        const size_t remaining2 = m_rxDecimSurplus2.size() - consumed2;
+                        if (remaining2 > 0) {
+                            std::memmove(m_rxDecimSurplus2.data(), m_rxDecimSurplus2.data() + consumed2,
+                                         remaining2 * sizeof(liquid_float_complex));
+                        }
+                        m_rxDecimSurplus2.resize(remaining2);
                         num_written = static_cast<unsigned int>(n2);
                     }
                 }
@@ -1220,8 +1214,13 @@ void SoapySDRDataSource::runStream() {
                 const int n1 = static_cast<int>(m_rxDecimSurplus1.size()) / static_cast<int>(m_rxD1);
                 if (n1 > 0) {
                     firdecim_crcf_execute_block(m_rxDecim1, m_rxDecimSurplus1.data(), n1, m_rxResampOut);
-                    m_rxDecimSurplus1.erase(m_rxDecimSurplus1.begin(),
-                                            m_rxDecimSurplus1.begin() + n1 * static_cast<int>(m_rxD1));
+                    const size_t consumed = static_cast<size_t>(n1 * static_cast<int>(m_rxD1));
+                    const size_t remaining = m_rxDecimSurplus1.size() - consumed;
+                    if (remaining > 0) {
+                        std::memmove(m_rxDecimSurplus1.data(), m_rxDecimSurplus1.data() + consumed,
+                                     remaining * sizeof(liquid_float_complex));
+                    }
+                    m_rxDecimSurplus1.resize(remaining);
                     num_written = static_cast<unsigned int>(n1);
                 }
             } else if (m_rxResampler && m_rxResampIn && m_rxResampOut) {
@@ -1251,7 +1250,7 @@ void SoapySDRDataSource::runStream() {
                             && !set->getTxFullDuplex();
                         if (!halfDuplexTx) {
                             QVector<float> out(numSamples * 2);
-                            std::copy(outBuff.begin(), outBuff.end(), out.begin());
+                            std::memcpy(out.data(), outBuff.data(), numSamples * 2 * sizeof(float));
                             m_engine->m_dataIO->soapy_iq_queue.enqueue(out);
                             emit readydata();
                         }
@@ -1335,11 +1334,7 @@ void SoapySDRDataSource::runStream() {
                     txReady = fillTxBufferFromRing(txBuff.data(), static_cast<int>(numSamples));
                 }
 
-                int txRingFloats = 0;
-                {
-                    QMutexLocker lock(&m_txIqMutex);
-                    txRingFloats = m_txIqRing.size();
-                }
+                const int txRingFloats = static_cast<int>(m_txIqRing.availableRead());
 
                 if (txDebugTimer.elapsed() > 1000 || !m_txDebugPrimed) {
                     RadioState rs = static_cast<RadioState>(m_radioStateValue.load(std::memory_order_acquire));
@@ -1425,6 +1420,8 @@ void SoapySDRDataSource::setupResamplers(int rxRfRate, int rxDspRate, int txRfRa
     if (m_rxDecim1) { firdecim_crcf_destroy(m_rxDecim1); m_rxDecim1 = nullptr; } m_rxD1 = 0;
     if (m_rxDecim2) { firdecim_crcf_destroy(m_rxDecim2); m_rxDecim2 = nullptr; } m_rxD2 = 0;
     m_rxDecimSurplus1.clear(); m_rxDecimSurplus2.clear();
+    m_rxDecimSurplus1.reserve(4096);
+    m_rxDecimSurplus2.reserve(4096);
     if (m_rxDecimInterBuf) { delete[] (float*)m_rxDecimInterBuf; m_rxDecimInterBuf = nullptr; }
     if (m_txInterp1) { firinterp_crcf_destroy(m_txInterp1); m_txInterp1 = nullptr; } m_txL1 = 0;
     if (m_txInterp2) { firinterp_crcf_destroy(m_txInterp2); m_txInterp2 = nullptr; } m_txL2 = 0;

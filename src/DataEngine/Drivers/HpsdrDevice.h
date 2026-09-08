@@ -64,6 +64,9 @@ public:
     bool isPtt() const override { return m_ptt.load(std::memory_order_acquire); }
 
     void sendTxIq(const float* buffer, int count) override;
+    void setRxIqCallback(RxIqCallback callback) override;
+    int readRxIq(int rx, float* destination, int maxSamples) override;
+    void notifyRxIq(int rx, const float* buffer, int count);
 
     void setProtocol(IHPSDRProtocol* protocol) { m_protocol = protocol; }
     void setDeviceName(const QString& name) { m_deviceName = name; }
@@ -81,6 +84,7 @@ private:
     QMap<int, qint64> m_rxFrequencies;
     QMap<int, double> m_rxGains;
     double m_txGain = 0.0;
+    RxIqCallback m_rxCallback;
 };
 
 #endif // CUDASDR_HPSDR_DEVICE_H

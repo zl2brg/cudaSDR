@@ -64,6 +64,9 @@ public:
     bool isPtt() const override { return m_ptt.load(std::memory_order_acquire); }
 
     void sendTxIq(const float* buffer, int count) override;
+    void setRxIqCallback(RxIqCallback callback) override;
+    int readRxIq(int rx, float* destination, int maxSamples) override;
+    void notifyRxIq(int rx, const float* buffer, int count);
 
     void setDataSource(SoapySDRDataSource* source) { m_source = source; }
     SoapySDRDataSource* dataSource() const { return m_source; }
@@ -79,6 +82,7 @@ private:
     QMap<int, qint64> m_rxFrequencies;
     QMap<int, double> m_rxGains;
     double m_txGain = 0.0;
+    RxIqCallback m_rxCallback;
 };
 
 #endif // CUDASDR_SOAPY_DEVICE_H

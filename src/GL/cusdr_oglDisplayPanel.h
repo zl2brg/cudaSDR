@@ -52,13 +52,59 @@
 
 
 class RadioModel;
+class SMeterRenderer;
+class DisplayFreqRenderer;
+class DisplayStatusRenderer;
+
 class OGLDisplayPanel : public QOpenGLWidget, protected QOpenGLFunctions {
 
     Q_OBJECT
 
+    friend class SMeterRenderer;
+    friend class DisplayFreqRenderer;
+    friend class DisplayStatusRenderer;
+
 public:
+    enum Region {
+        upperRegion,
+        lowerRegion,
+        rxRegion,
+        smeterRegion,
+        hpsdrRegion,
+        elsewhere,
+        out
+    };
+
+    enum FreqDigit {
+        Freq1000000000,
+        dp0,
+        Freq100000000,
+        Freq10000000,
+        Freq1000000,
+        dp1,
+        Freq100000,
+        Freq10000,
+        Freq1000,
+        dp2,
+        Freq100,
+        Freq10,
+        Freq1,
+        None,
+    };
+
+    enum DigitVfo {
+        DigitVfoNone = -1,
+        DigitVfoA = 0,
+        DigitVfoB = 1,
+    };
+
     OGLDisplayPanel(RadioModel *model, QWidget *parent = nullptr);
 	~OGLDisplayPanel();
+
+    SMeterRenderer* smeterRenderer() const { return m_smeterRenderer; }
+    DisplayFreqRenderer* freqRenderer() const { return m_freqRenderer; }
+    DisplayStatusRenderer* statusRenderer() const { return m_statusRenderer; }
+
 	// Core 3.3: frequency digits must use OGLText — QPainter(this) in paintGL flashes siblings.
 	void renderFreqText(OGLText *text, GLint &x1, GLint y1, const QColor &fontcolor,
 	                    const QString &freqstr, int digit, int digit_pos, int fixed_width = 0);
@@ -103,8 +149,6 @@ private:
     void drawPanelRoundedRectOutline(const QRect &rect, const QColor &color, int radius, float z = 0.0f);
     void drawPanelGradientRect(const QRect &rect, const QColor &c1, const QColor &c2,
                                bool leftToRight, float z = 0.0f);
-    void drawSMeterNeedle(const QMatrix4x4 &projection, int x1);
-    void drawSMeterScaleLabels(const QMatrix4x4 &projection, int xOffset);
 
     RadioModel*                             m_radioModel;
 	Settings*					set;
@@ -213,50 +257,18 @@ private:
 
     QElapsedTimer		m_sMeterTimer;
     QElapsedTimer		m_sMeterMaxTimer;
-    QElapsedTimer		m_sMeterMinTimer;
     QElapsedTimer		m_sMeterDisplayTime;
     bool				m_repaintPending = false;
 
 	void	scheduleRepaint();
 
-	enum Region {
-
-		upperRegion,
-		lowerRegion,
-		rxRegion,
-		smeterRegion,
-		hpsdrRegion,
-		elsewhere,
-		out
-	};
-
-	enum FreqDigit {
-	Freq1000000000,
-	dp0,
-	Freq100000000,
-	Freq10000000,
-	Freq1000000,
-	dp1,
-	Freq100000,
-	Freq10000,
-	Freq1000,
-	dp2,
-	Freq100,
-	Freq10,
-	Freq1,
-	None,
-	};
-
-	enum DigitVfo {
-		DigitVfoNone = -1,
-		DigitVfoA = 0,
-		DigitVfoB = 1,
-	};
+    SMeterRenderer       *m_smeterRenderer = nullptr;
+    DisplayFreqRenderer  *m_freqRenderer = nullptr;
+    DisplayStatusRenderer *m_statusRenderer = nullptr;
 
 	GLuint	m_sMeterTex;
 	bool	m_smeterUpdate;
 	bool	m_smeterRenew;
-	bool	m_sMeterAvg;
 
 
 	qint64	m_oldFreq;
@@ -335,37 +347,22 @@ private:
 	int		m_sMeterPosY;
 	int		m_sMeterHoldTime;
 	int		m_sMeterPrevHoldTimeMax;
-	int		m_sMeterPrevHoldTimeMin;
-	int		m_sMeterMeanValueCnt;
-    QOpenGLFramebufferObject * m_smeterFBO =nullptr;
 
 	qreal	m_mouseWheelFreqStep;
 	qreal	m_dBmPanMin;
 	qreal	m_dBmPanMax;
 	qreal	m_unit;
 	
-	float	m_smeterVertices;
 	float	m_sMeterValue;
-	float	m_sMeterMeanValue;
 	float	m_sMeterOrgValue;
-	float	m_sMeterMaxValueA;
-	float	m_sMeterMinValueA;
 	float	m_sMeterMaxValueB;
-	float	m_sMeterMinValueB;
 	float	m_sMeterAvgValList[MAX_RECEIVERS];
 	float	m_sMeterPeakValList[MAX_RECEIVERS];
 	float	m_sMeterHoldMaxList[MAX_RECEIVERS];
-	float	m_sMeterHoldMinList[MAX_RECEIVERS];
 
 	//*************************
 	void	setupConnections();
 	void	setupTextstrings();
-	void	paintUpperRegion();
-	void	paintLowerRegion();
-	void	paintRxRegion();
-	
-	void	paintSMeter();
-	void	renderSMeterScale();
 
 	/** GHz.MHz display string (leading zeros blanked) from absolute Hz. */
 	QString	freqMhzDisplayString(qint64 frequencyHz) const;
@@ -383,10 +380,6 @@ private:
 	void	tuneDigitVfoTo(DigitVfo which, qint64 frequencyHz);
 	bool	hitTestDigit(const FreqDigitHitRegions &regs, const QString &f1str,
 	                     QPoint p, int *digitOut) const;
-
-	void	paintVfoFrequencyRow(DigitVfo which, bool active, int yBaseline, int originX,
-	                             const QString &f1str, const QString &f2str,
-	                             const QColor &fontcolor);
 
 	void	getSelectedDigit(QPoint p);
 	

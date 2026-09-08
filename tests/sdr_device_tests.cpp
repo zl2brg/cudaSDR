@@ -15,6 +15,7 @@ private slots:
     void testSyntheticSampleGeneration();
     void testTxIqHandling();
     void testPolymorphicInterface();
+    void testRxIqIngestAndCallback();
 };
 
 void SdrDeviceTests::testDeviceCapabilities()
@@ -191,6 +192,35 @@ void SdrDeviceTests::testPolymorphicInterface()
 
     dev->stop();
     QVERIFY(!dev->isRunning());
+}
+
+void SdrDeviceTests::testRxIqIngestAndCallback()
+{
+    std::unique_ptr<ISdrDevice> dev = std::make_unique<SimulatedDevice>();
+    QVERIFY(dev != nullptr);
+
+    int callbackCount = 0;
+    int callbackRx = -1;
+    int callbackSamples = 0;
+
+    dev->setRxIqCallback([&](int rx, const float* data, int count) {
+        callbackCount++;
+        callbackRx = rx;
+        callbackSamples = count;
+        QVERIFY(data != nullptr);
+    });
+
+    std::vector<float> rxBuf(256 * 2, 0.0f);
+    int read = dev->readRxIq(0, rxBuf.data(), 256);
+    QCOMPARE(read, 256);
+    QCOMPARE(callbackCount, 1);
+    QCOMPARE(callbackRx, 0);
+    QCOMPARE(callbackSamples, 256);
+
+    // Edge cases
+    QCOMPARE(dev->readRxIq(0, nullptr, 100), 0);
+    QCOMPARE(dev->readRxIq(0, rxBuf.data(), 0), 0);
+    QCOMPARE(dev->readRxIq(0, rxBuf.data(), -10), 0);
 }
 
 QTEST_MAIN(SdrDeviceTests)

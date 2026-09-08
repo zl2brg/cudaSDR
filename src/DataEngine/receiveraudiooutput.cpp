@@ -13,6 +13,10 @@ ReceiverAudioOutput::ReceiverAudioOutput(QObject *parent)
     m_reopenTimer.setInterval(250);
     connect(&m_reopenTimer, &QTimer::timeout, this, &ReceiverAudioOutput::reopenOutput);
 
+    m_pumpTimer.setParent(this);
+    m_pumpTimer.setInterval(5);
+    connect(&m_pumpTimer, &QTimer::timeout, this, &ReceiverAudioOutput::pumpAudio);
+
     // HDMI sleep removes the sink on the GUI/media thread; reopen on this object's thread.
     connect(AudioDeviceService::instance(), &AudioDeviceService::audioOutputsChanged,
             this, &ReceiverAudioOutput::onAudioOutputsChanged, Qt::QueuedConnection);
@@ -59,7 +63,7 @@ void ReceiverAudioOutput::setSampleRate(int rate)
     m_format.setChannelCount(2); // Stereo
     m_format.setSampleFormat(QAudioFormat::Float); // Use Float for SDR output
 
-    const bool restart = m_wantRunning;
+    const bool restart = m_wantRunning.load(std::memory_order_relaxed);
     stopLocked();
     openSinkLocked();
     if (restart)
@@ -74,7 +78,7 @@ void ReceiverAudioOutput::start()
     }
 
     QMutexLocker locker(&m_mutex);
-    m_wantRunning = true;
+    m_wantRunning.store(true, std::memory_order_release);
     if (!m_audioSink)
         openSinkLocked();
     startLocked();
@@ -93,81 +97,92 @@ void ReceiverAudioOutput::stop()
     }
 
     QMutexLocker locker(&m_mutex);
-    m_wantRunning = false;
+    m_wantRunning.store(false, std::memory_order_release);
     m_reopenPending = false;
     if (onOwnThread())
         m_reopenTimer.stop();
     stopLocked();
 }
 
+void ReceiverAudioOutput::writeAudio(const float* data, int size)
+{
+    if (!data || size <= 0)
+        return;
+
+    if (!m_wantRunning.load(std::memory_order_relaxed))
+        return;
+
+    m_ringBuffer.writeDropOldest(data, static_cast<size_t>(size));
+}
+
 void ReceiverAudioOutput::writeAudio(const QVector<float>& audioBuffer)
 {
-    // QAudioSink / Pulse require I/O on the sink's thread. DSP runs elsewhere.
+    writeAudio(audioBuffer.constData(), audioBuffer.size());
+}
+
+void ReceiverAudioOutput::pumpAudio()
+{
     if (!onOwnThread()) {
-        const QVector<float> copy = audioBuffer;
-        QMetaObject::invokeMethod(this, [this, copy] { writeAudio(copy); }, Qt::QueuedConnection);
+        QMetaObject::invokeMethod(this, &ReceiverAudioOutput::pumpAudio, Qt::QueuedConnection);
         return;
     }
 
     QMutexLocker locker(&m_mutex);
-    if (!m_wantRunning)
+    if (!m_wantRunning.load(std::memory_order_relaxed))
         return;
+
     if (!isSinkHealthy()) {
-        // Drop samples while the sink is gone (e.g. HDMI display sleep).
-        // Teardown/reopen must happen on the sink's own thread, so only flag it here.
         if (!m_audioSink
             || m_audioSink->error() != QAudio::NoError
             || m_audioSink->state() == QAudio::StoppedState) {
-            markSinkLostLocked("writeAudio unhealthy sink");
+            markSinkLostLocked("pumpAudio unhealthy sink");
             scheduleReopen();
         }
         return;
     }
 
-    static QElapsedTimer overflowLogTimer;
-    static qint64 aggregatedDroppedBytes = 0;
-    if (!overflowLogTimer.isValid()) {
-        overflowLogTimer.start();
-    }
-
-    // Append new samples to any unwritten bytes from the previous call
-    const char* src = reinterpret_cast<const char*>(audioBuffer.constData());
-    m_pending.append(src, audioBuffer.size() * (int)sizeof(float));
-
-    const qint64 written = m_device->write(m_pending);
-    if (written < 0 || m_audioSink->error() != QAudio::NoError) {
-        markSinkLostLocked("write failed");
-        scheduleReopen();
+    int bytesFree = m_audioSink->bytesFree();
+    if (bytesFree <= 0)
         return;
-    }
-    if (written > 0)
-        m_pending.remove(0, (int)written);
 
-    // Safety cap: if the sink is stalled, drop oldest data rather than
-    // growing unbounded. Increase to ~500ms at 48kHz stereo float
-    // to accommodate high-rate batching bursts.
-    constexpr int MAX_PENDING = 500 * (48000 * 2 * sizeof(float)) / 1000;
-    if (m_pending.size() > MAX_PENDING) {
-        const int dropped = m_pending.size() - MAX_PENDING;
-        m_pending.remove(0, dropped);
-        aggregatedDroppedBytes += dropped;
+    size_t toWriteBytes = static_cast<size_t>(bytesFree);
+    constexpr size_t frameBytes = sizeof(float) * 2;
 
-        // During fast UI-driven retunes, the DSP can briefly outrun wall-clock
-        // playback. Aggregate drops and emit at most once per second.
-        if (overflowLogTimer.elapsed() >= 1000) {
-            qWarning() << "Audio: pending overflow, dropped"
-                       << aggregatedDroppedBytes << "bytes in last"
-                       << overflowLogTimer.elapsed() << "ms";
-            aggregatedDroppedBytes = 0;
-            overflowLogTimer.restart();
+    while (toWriteBytes >= frameBytes) {
+        size_t contiguousFloats = 0;
+        const float* src = m_ringBuffer.peekContiguous(contiguousFloats);
+        if (!src || contiguousFloats == 0)
+            break;
+
+        size_t availableBytes = contiguousFloats * sizeof(float);
+        size_t chunkBytes = std::min(toWriteBytes, availableBytes);
+        chunkBytes &= ~(frameBytes - 1);
+        if (chunkBytes == 0)
+            break;
+
+        const qint64 written = m_device->write(reinterpret_cast<const char*>(src), static_cast<qint64>(chunkBytes));
+        if (written < 0 || m_audioSink->error() != QAudio::NoError) {
+            markSinkLostLocked("write failed");
+            scheduleReopen();
+            return;
         }
+
+        if (written == 0)
+            break;
+
+        const size_t floatsWritten = static_cast<size_t>(written) / sizeof(float);
+        m_ringBuffer.advanceRead(floatsWritten);
+
+        toWriteBytes -= static_cast<size_t>(written);
+        if (written < static_cast<qint64>(chunkBytes))
+            break;
     }
 }
 
 void ReceiverAudioOutput::onAudioOutputsChanged()
 {
     QMutexLocker locker(&m_mutex);
-    if (!m_wantRunning)
+    if (!m_wantRunning.load(std::memory_order_relaxed))
         return;
 
     // Debounce HDMI flicker / multi-fire hotplug notifications.
@@ -177,7 +192,7 @@ void ReceiverAudioOutput::onAudioOutputsChanged()
 void ReceiverAudioOutput::onSinkStateChanged(QAudio::State state)
 {
     QMutexLocker locker(&m_mutex);
-    if (!m_wantRunning || !m_audioSink)
+    if (!m_wantRunning.load(std::memory_order_relaxed) || !m_audioSink)
         return;
 
     if (state == QAudio::StoppedState && m_audioSink->error() != QAudio::NoError) {
@@ -194,7 +209,7 @@ void ReceiverAudioOutput::reopenOutput()
     }
 
     QMutexLocker locker(&m_mutex);
-    if (!m_wantRunning) {
+    if (!m_wantRunning.load(std::memory_order_relaxed)) {
         m_reopenPending = false;
         return;
     }
@@ -223,14 +238,14 @@ void ReceiverAudioOutput::markSinkLostLocked(const char *reason)
     if (!m_device && m_reopenPending)
         return;
     qWarning() << "Audio: output device lost (" << reason << ") — muting until reopen";
-    m_pending.clear();
+    m_ringBuffer.clear();
     m_device = nullptr;
 }
 
 void ReceiverAudioOutput::handleDeviceLostLocked(const char *reason)
 {
     qWarning() << "Audio: output device lost (" << reason << ") — muting until reopen";
-    m_pending.clear();
+    m_ringBuffer.clear();
     m_device = nullptr;
     if (m_audioSink) {
         // Disconnect before stop/delete so we don't recurse through stateChanged.
@@ -279,19 +294,25 @@ void ReceiverAudioOutput::startLocked()
     // Pre-allocate a larger internal buffer (8 DSP buffers = ~170ms at 48kHz)
     m_audioSink->setBufferSize(8 * 8192);
     m_device = m_audioSink->start();
-    m_pending.clear();
+    m_ringBuffer.clear();
 
     if (!m_device || m_audioSink->error() != QAudio::NoError) {
         qWarning() << "Audio: failed to start sink on"
                     << AudioDeviceService::instance()->defaultOutput().description()
                     << "error" << m_audioSink->error();
         handleDeviceLostLocked("start failed");
+        return;
     }
+
+    if (onOwnThread() && !m_pumpTimer.isActive())
+        m_pumpTimer.start();
 }
 
 void ReceiverAudioOutput::stopLocked()
 {
-    m_pending.clear();
+    if (onOwnThread())
+        m_pumpTimer.stop();
+    m_ringBuffer.clear();
     m_device = nullptr;
     if (m_audioSink) {
         disconnect(m_audioSink, nullptr, this, nullptr);

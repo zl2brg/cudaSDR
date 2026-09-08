@@ -129,3 +129,20 @@ void SimulatedDevice::generateSamples(float* buffer, int count)
         }
     }
 }
+
+void SimulatedDevice::setRxIqCallback(RxIqCallback callback)
+{
+    m_rxCallback = std::move(callback);
+}
+
+int SimulatedDevice::readRxIq(int rx, float* destination, int maxSamples)
+{
+    if (!destination || maxSamples <= 0) {
+        return 0;
+    }
+    generateSamples(destination, maxSamples);
+    if (m_rxCallback) {
+        m_rxCallback(rx, destination, maxSamples);
+    }
+    return maxSamples;
+}

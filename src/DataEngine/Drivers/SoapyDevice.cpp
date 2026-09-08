@@ -149,3 +149,36 @@ void SoapyDevice::sendTxIq(const float* buffer, int count)
 
     m_engine->m_dataIO->soapy_tx_iq_queue.enqueue(soapyTxIq);
 }
+
+void SoapyDevice::setRxIqCallback(RxIqCallback callback)
+{
+    m_rxCallback = std::move(callback);
+}
+
+int SoapyDevice::readRxIq(int rx, float* destination, int maxSamples)
+{
+    if (!destination || maxSamples <= 0 || !m_engine || !m_engine->m_dataIO) {
+        return 0;
+    }
+
+    if (m_engine->m_dataIO->soapy_iq_queue.isEmpty()) {
+        return 0;
+    }
+
+    QVector<float> samples = m_engine->m_dataIO->soapy_iq_queue.dequeue();
+    const int available = samples.size() / 2;
+    const int toCopy = std::min(maxSamples, available);
+    std::memcpy(destination, samples.constData(), toCopy * 2 * sizeof(float));
+
+    if (m_rxCallback) {
+        m_rxCallback(rx, destination, toCopy);
+    }
+    return toCopy;
+}
+
+void SoapyDevice::notifyRxIq(int rx, const float* buffer, int count)
+{
+    if (m_rxCallback && buffer && count > 0) {
+        m_rxCallback(rx, buffer, count);
+    }
+}

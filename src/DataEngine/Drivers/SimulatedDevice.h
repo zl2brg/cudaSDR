@@ -64,6 +64,8 @@ public:
     bool isPtt() const override { return m_ptt.load(std::memory_order_acquire); }
 
     void sendTxIq(const float* buffer, int count) override;
+    void setRxIqCallback(RxIqCallback callback) override;
+    int readRxIq(int rx, float* destination, int maxSamples) override;
 
     // Simulation controls
     void setToneOffsetHz(double hz) { m_toneOffsetHz = hz; }
@@ -98,6 +100,7 @@ private:
     double m_phase = 0.0;
 
     std::atomic<quint64> m_txSamplesCount{0};
+    RxIqCallback m_rxCallback;
 };
 
 #endif // CUDASDR_SIMULATED_DEVICE_H

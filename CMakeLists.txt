@@ -166,6 +166,7 @@ set(SOURCES
     ${SRC_DIR}/DataEngine/Drivers/SimulatedDevice.cpp
     ${SRC_DIR}/DataEngine/Drivers/HpsdrDevice.cpp
     ${SRC_DIR}/DataEngine/Drivers/SoapyDevice.cpp
+    ${SRC_DIR}/DataEngine/SdrDeviceManager.cpp
 
 
     # GL (OpenGL)
@@ -251,6 +252,9 @@ set(SOURCES
     ${SRC_DIR}/GL/TraceRenderer.cpp
     ${SRC_DIR}/GL/HudRenderer.cpp
     ${SRC_DIR}/GL/PanadapterInputController.cpp
+    ${SRC_DIR}/GL/SMeterRenderer.cpp
+    ${SRC_DIR}/GL/DisplayFreqRenderer.cpp
+    ${SRC_DIR}/GL/DisplayStatusRenderer.cpp
     ${SRC_DIR}/Util/CPUMonitor.cpp
 
   )
@@ -280,6 +284,7 @@ set(HEADERS
     ${SRC_DIR}/DataEngine/Drivers/SimulatedDevice.h
     ${SRC_DIR}/DataEngine/Drivers/HpsdrDevice.h
     ${SRC_DIR}/DataEngine/Drivers/SoapyDevice.h
+    ${SRC_DIR}/DataEngine/SdrDeviceManager.h
 
     #Widgets
     ${SRC_DIR}/cusdr_hpsdrTabWidget.h
@@ -321,6 +326,7 @@ set(HEADERS
     ${SRC_DIR}/Util/TciCommandHandler.h
     ${SRC_DIR}/Util/AudioDeviceService.h
     ${SRC_DIR}/Util/DxClusterClient.h
+    ${SRC_DIR}/Util/SpscRingBuffer.h
 
     # Main Headers
     ${SRC_DIR}/cusdr_settings.h
@@ -346,6 +352,9 @@ set(HEADERS
     ${SRC_DIR}/GL/TraceRenderer.h
     ${SRC_DIR}/GL/HudRenderer.h
     ${SRC_DIR}/GL/PanadapterInputController.h
+    ${SRC_DIR}/GL/SMeterRenderer.h
+    ${SRC_DIR}/GL/DisplayFreqRenderer.h
+    ${SRC_DIR}/GL/DisplayStatusRenderer.h
     ${SRC_DIR}/Util/CPUMonitor.h
     ${SRC_DIR}/cusdr_displayTabWidget.h
     ${SRC_DIR}/cusdr_displayWidget.h
@@ -820,6 +829,33 @@ if(BUILD_TESTING)
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
     )
 
+    qt_add_executable(sdr_device_manager_tests
+        tests/sdr_device_manager_tests.cpp
+        ${SRC_DIR}/DataEngine/SdrDeviceManager.cpp
+        ${SRC_DIR}/DataEngine/Drivers/SimulatedDevice.cpp
+        ${SRC_DIR}/DataEngine/Drivers/HpsdrDevice.cpp
+        ${SRC_DIR}/DataEngine/Drivers/SoapyDevice.cpp
+        ${CUDASDR_SETTINGS_TEST_SOURCES}
+    )
+    target_include_directories(sdr_device_manager_tests PRIVATE
+        ${SRC_DIR}
+        ${LIQUID_INCLUDE_DIR}
+    )
+    target_link_libraries(sdr_device_manager_tests PRIVATE
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Widgets
+        Qt6::Network
+        Qt6::Multimedia
+        Qt6::WebSockets
+        Qt6::Test
+        ${LIQUID_LIBRARY}
+    )
+    add_test(NAME sdr_device_manager_tests COMMAND sdr_device_manager_tests)
+    set_tests_properties(sdr_device_manager_tests PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    )
+
     qt_add_executable(transmit_options_tests
         tests/transmit_options_tests.cpp
         ${SRC_DIR}/cusdr_transmitOptionsWidget.cpp
@@ -882,6 +918,54 @@ if(BUILD_TESTING)
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
     )
 
+    qt_add_executable(display_panel_renderer_tests
+        tests/display_panel_renderer_tests.cpp
+        ${SRC_DIR}/GL/DisplayFreqRenderer.cpp
+        ${SRC_DIR}/Models/RadioModel.cpp
+        ${SRC_DIR}/Models/SliceModel.cpp
+        ${SRC_DIR}/Models/BandPlanManager.cpp
+        ${CUDASDR_SETTINGS_TEST_SOURCES}
+    )
+    target_include_directories(display_panel_renderer_tests PRIVATE
+        ${SRC_DIR}
+        ${SRC_DIR}/UI
+    )
+    target_link_libraries(display_panel_renderer_tests PRIVATE
+        Qt6::Core
+        Qt6::Gui
+        Qt6::GuiPrivate
+        Qt6::Widgets
+        Qt6::Network
+        Qt6::Multimedia
+        Qt6::WebSockets
+        Qt6::OpenGL
+        Qt6::OpenGLWidgets
+        Qt6::Test
+    )
+    add_test(NAME display_panel_renderer_tests COMMAND display_panel_renderer_tests)
+    set_tests_properties(display_panel_renderer_tests PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    )
+
+    qt_add_executable(spsc_ring_buffer_tests
+        tests/spsc_ring_buffer_tests.cpp
+        ${SRC_DIR}/DataEngine/receiveraudiooutput.cpp
+        ${SRC_DIR}/Util/AudioDeviceService.cpp
+    )
+    target_include_directories(spsc_ring_buffer_tests PRIVATE
+        ${SRC_DIR}
+    )
+    target_link_libraries(spsc_ring_buffer_tests PRIVATE
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Multimedia
+        Qt6::Test
+    )
+    add_test(NAME spsc_ring_buffer_tests COMMAND spsc_ring_buffer_tests)
+    set_tests_properties(spsc_ring_buffer_tests PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    )
+
     # Convenience target: build every unit test without the full cudasdr app.
     add_custom_target(build_tests DEPENDS
         protocol_boundary_tests
@@ -905,6 +989,8 @@ if(BUILD_TESTING)
         sdr_device_tests
         transmit_options_tests
         panadapter_input_controller_tests
+        display_panel_renderer_tests
+        spsc_ring_buffer_tests
     )
 
     # Headless Qt for any test that links Gui/Widgets (CI has no display), plus a

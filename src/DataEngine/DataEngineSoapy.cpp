@@ -39,12 +39,12 @@ bool DataEngineSoapy::startSoapyEngine() {
 
         if (!m_engine->m_dataProcessor) m_engine->createDataProcessor();
 
-        if (!m_engine->startDataIO(QThread::HighPriority)) {
+        if (!m_engine->startDataIO(QThread::TimeCriticalPriority)) {
             m_engine->setSystemState(QSDR::DataReceiverThreadError, m_engine->m_hwInterface, m_engine->m_serverMode, QSDR::DataEngineDown);
             return false;
         }
 
-        if (!m_engine->startDataProcessor(QThread::HighPriority)) {
+        if (!m_engine->startDataProcessor(QThread::HighestPriority)) {
             m_engine->setSystemState(QSDR::DataProcessThreadError, m_engine->m_hwInterface, m_engine->m_serverMode, QSDR::DataEngineDown);
             return false;
         }

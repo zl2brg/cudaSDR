@@ -124,3 +124,23 @@ void HpsdrDevice::sendTxIq(const float* buffer, int count)
     Q_UNUSED(count)
     // HPSDR TX samples are marshaled into the UDP transmitter buffer via DataProcessor.
 }
+
+void HpsdrDevice::setRxIqCallback(RxIqCallback callback)
+{
+    m_rxCallback = std::move(callback);
+}
+
+int HpsdrDevice::readRxIq(int rx, float* destination, int maxSamples)
+{
+    Q_UNUSED(rx)
+    Q_UNUSED(destination)
+    Q_UNUSED(maxSamples)
+    return 0;
+}
+
+void HpsdrDevice::notifyRxIq(int rx, const float* buffer, int count)
+{
+    if (m_rxCallback && buffer && count > 0) {
+        m_rxCallback(rx, buffer, count);
+    }
+}
