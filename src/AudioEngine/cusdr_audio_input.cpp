@@ -378,25 +378,19 @@ void TransmitAudioInput::processAudioData(const QByteArray &data)
         m_residualBuffer.append(sample);
         
         if (m_residualBuffer.size() >= DSP_SAMPLE_SIZE) {
-            AUDIOBUF chunk;
-            chunk.resize(DSP_SAMPLE_SIZE);
-            double sumSq = 0;
-            for (int s = 0; s < DSP_SAMPLE_SIZE; s++) {
-                float val = m_residualBuffer.at(s);
-                chunk[s] = static_cast<double>(val);
-                sumSq += (val * val);
-            }
-            m_residualBuffer.remove(0, DSP_SAMPLE_SIZE);
-            
             static int blockCount = 0;
             if (++blockCount % 100 == 0) {
-                double rms = sqrt(sumSq / DSP_SAMPLE_SIZE);
+                double sumSq = 0;
                 float peak = 0.0f;
+                const float *samples = m_residualBuffer.constData();
                 for (int s = 0; s < DSP_SAMPLE_SIZE; ++s) {
-                    float a = std::fabs(static_cast<float>(chunk[s]));
+                    float val = samples[s];
+                    sumSq += (val * val);
+                    float a = std::fabs(val);
                     if (a > peak)
                         peak = a;
                 }
+                double rms = sqrt(sumSq / DSP_SAMPLE_SIZE);
                 double rmsDb = 20.0 * std::log10(std::max(rms, 1.0e-9));
                 double peakDb = 20.0 * std::log10(std::max(static_cast<double>(peak), 1.0e-9));
                 double headroomDb = -peakDb;
@@ -405,15 +399,39 @@ void TransmitAudioInput::processAudioData(const QByteArray &data)
                                   << " (" << rmsDb << " dBFS), peak=" << peak
                                   << " (" << peakDb << " dBFS), headroom=" << headroomDb << " dB";
             }
-            
-            m_faudioInQueue.enqueueDropOldest(chunk);
+            pushMicAudio(m_residualBuffer.constData(), DSP_SAMPLE_SIZE);
+            m_residualBuffer.remove(0, DSP_SAMPLE_SIZE);
             emit tx_mic_data_ready();
         }
     }
 }
 
+void TransmitAudioInput::pushMicAudio(const float* samples, size_t count)
+{
+    if (!samples || count == 0) return;
+    m_faudioRing.writeDropOldest(samples, count);
+}
+
+void TransmitAudioInput::pushNetAudio(const float* samples, size_t count)
+{
+    if (!samples || count == 0) return;
+    m_netAudioRing.writeDropOldest(samples, count);
+}
+
+size_t TransmitAudioInput::readMicAudio(float* dest, size_t count)
+{
+    return m_faudioRing.read(dest, count);
+}
+
+size_t TransmitAudioInput::readNetAudio(float* dest, size_t count)
+{
+    return m_netAudioRing.read(dest, count);
+}
+
 void TransmitAudioInput::clearTxQueues()
 {
+    m_faudioRing.clear();
+    m_netAudioRing.clear();
     m_faudioInQueue.clear();
     m_netAudioInQueue.clear();
     m_residualBuffer.clear();

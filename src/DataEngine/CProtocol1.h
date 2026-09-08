@@ -43,7 +43,7 @@ private:
     int     m_rightSample;
     int     m_micSample;
     float   m_micSample_float;
-    QVector<double> m_hpsdrMicBuffer;
+    QVector<float> m_hpsdrMicBuffer;
     int     m_micDecimCounter = 0;
 };
 

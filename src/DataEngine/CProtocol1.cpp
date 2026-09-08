@@ -123,10 +123,10 @@ void CProtocol1::processInputBuffer(const QByteArray& buffer, DataEngine* de, qu
             if (bufferHpsdrMic) {
                 if (++m_micDecimCounter >= decim) {
                     m_micDecimCounter = 0;
-                    m_hpsdrMicBuffer.append(static_cast<double>(m_micSample) / 32767.0);
+                    m_hpsdrMicBuffer.append(static_cast<float>(m_micSample) / 32767.0f);
                     if (m_hpsdrMicBuffer.size() >= DSP_SAMPLE_SIZE) {
                         if (de->m_audioInput) {
-                            de->m_audioInput->m_faudioInQueue.enqueueDropOldest(m_hpsdrMicBuffer);
+                            de->m_audioInput->pushMicAudio(m_hpsdrMicBuffer.constData(), DSP_SAMPLE_SIZE);
                         }
                         m_hpsdrMicBuffer.clear();
                     }

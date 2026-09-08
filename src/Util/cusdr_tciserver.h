@@ -24,6 +24,7 @@
 #include "cusdr_hamDatabase.h"
 #include "Settings/SettingsTypes.h"
 #include "Util/cusdr_queue.h"
+#include "Util/SpscRingBuffer.h"
 #include "Util/tci_protocol_utils.h"
 #include "Util/TciRoutingState.h"
 #include "Util/TciCommandHandler.h"
@@ -76,6 +77,9 @@ public:
      *  TX-audio frames can be enqueued for the DSP transmit path. The queue is
      *  owned by TransmitAudioInput and is thread-safe (QHQueue). */
     void setTransmitAudioQueue(QHQueue<QVector<double>> *queue) { m_txAudioQueue = queue; }
+
+    /** Hand the transmit path's lock-free network-mic ring buffer to the server. */
+    void setTransmitAudioRing(SpscRingBuffer<float> *ring) { m_txAudioRing = ring; }
 
 public slots:
     /** RX audio from SliceProcessor (queued to GUI thread). */
@@ -253,6 +257,7 @@ private:
     // TransmitAudioInput; the residual accumulates decoded mono samples so we
     // enqueue exactly DSP_SAMPLE_SIZE blocks (matching the local mic path).
     QHQueue<QVector<double>> *m_txAudioQueue = nullptr;
+    SpscRingBuffer<float>    *m_txAudioRing = nullptr;
     QVector<double>          m_txAudioResidual;
     TciRoutingState          m_routingState;
     TciCommandHandler        m_commandHandler{&m_routingState};

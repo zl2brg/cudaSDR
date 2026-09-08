@@ -14,6 +14,7 @@
 
 #include "cusdr_settings.h"
 #include "Util/cusdr_queue.h"
+#include "Util/SpscRingBuffer.h"
 
 #ifndef CUDASDR_CUSDR_AUDIO_INPUT_H
 #define CUDASDR_CUSDR_AUDIO_INPUT_H
@@ -60,6 +61,17 @@ public:
     // (socket thread), drained by the DataProcessor thread. When non-empty it
     // takes over the TX mic input; otherwise the local soundcard queue is used.
     QHQueue<AUDIOBUF> m_netAudioInQueue;
+
+    // Lock-free single-producer single-consumer circular buffers for mic audio
+    SpscRingBuffer<float> m_faudioRing{16384};
+    SpscRingBuffer<float> m_netAudioRing{16384};
+
+    void pushMicAudio(const float* samples, size_t count);
+    void pushNetAudio(const float* samples, size_t count);
+    size_t readMicAudio(float* dest, size_t count);
+    size_t readNetAudio(float* dest, size_t count);
+    size_t micAudioAvailable() const { return m_faudioRing.availableRead(); }
+    size_t netAudioAvailable() const { return m_netAudioRing.availableRead(); }
 
 signals:
     void tx_mic_data_ready();

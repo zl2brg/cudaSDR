@@ -2265,37 +2265,26 @@ void DataProcessor::buffer_tx_iq_sample(int i, int q)
 
 
 void DataProcessor::processMicData() {
-    
-    AUDIOBUF temp_data;
-    int queueCount = de->m_audioInput->m_faudioInQueue.count();
-    
-    if (queueCount > 0)
-    {
-        static quint64 micTraceCounter = 0;
-        if (txDiagEnabled() && (++micTraceCounter % 200) == 1) {
-            qDebug() << "processMicData queue count:" << queueCount;
-        }
-
-        temp_data = de->m_audioInput->m_faudioInQueue.dequeue();
-        // Only process the actual number of samples in the buffer
-        int numSamples = qMin((int)temp_data.size(), DSP_SAMPLE_SIZE);
+    float tempFloats[DSP_SAMPLE_SIZE];
+    int numSamples = 0;
+    if (de->m_audioInput && de->m_audioInput->micAudioAvailable() >= DSP_SAMPLE_SIZE) {
+        numSamples = static_cast<int>(de->m_audioInput->readMicAudio(tempFloats, DSP_SAMPLE_SIZE));
+    } else if (de->m_audioInput && de->m_audioInput->m_faudioInQueue.count() > 0) {
+        AUDIOBUF temp_data = de->m_audioInput->m_faudioInQueue.dequeue();
+        numSamples = qMin((int)temp_data.size(), DSP_SAMPLE_SIZE);
         for (int s = 0; s < numSamples; s++)
-        {
-            mic_buffer[(s * 2)]  = temp_data[s];
+            tempFloats[s] = static_cast<float>(temp_data[s]);
+    }
+
+    if (numSamples > 0) {
+        for (int s = 0; s < numSamples; s++) {
+            mic_buffer[(s * 2)]  = static_cast<double>(tempFloats[s]);
             mic_buffer[(s * 2) + 1] = 0.0f;
         }
-
-        if (txDiagEnabled() && (micTraceCounter % 200) == 1) {
-            qDebug() << "Mic buffer processed with" << numSamples
-                     << "samples." << mic_buffer[0] << mic_buffer[1];
-        }
-    }
-    else {
-        temp_data.clear();
+    } else {
         memset(&mic_buffer, 0x0, sizeof(mic_buffer));
     }
     mic_buffer_index = 0;
-
 }
 
 void DataProcessor::add_mic_sample()
@@ -2415,33 +2404,48 @@ void DataProcessor::send_mic_data() {
 
 void DataProcessor::fetch_MicData(){
 	int numSamples = 0;
-    AUDIOBUF temp_data;
+    float tempFloats[DSP_SAMPLE_SIZE];
+    bool gotAudio = false;
+
     // Network TX audio (remote TCI/browser client mic) takes over the TX mic
     // input whenever frames are arriving. Local PC capture is the fallback.
     // WSJT-X / ExpertSDR digital clients clock TX via TX_CHRONO and must not
     // have the soundcard leak into DIGU/DIGL. SSB/AM/FM keep the PC mic as a
     // fallback so a leftover chrono lock cannot mute voice.
-    QHQueue<AUDIOBUF> *srcQueue = nullptr;
     const DSPMode txMode = set->getDSPMode(de->currentReceiver);
     if (de->m_audioInput) {
-        if (de->m_audioInput->m_netAudioInQueue.count() > 0)
-            srcQueue = &de->m_audioInput->m_netAudioInQueue;
-        else {
+        if (de->m_audioInput->netAudioAvailable() >= DSP_SAMPLE_SIZE) {
+            numSamples = static_cast<int>(de->m_audioInput->readNetAudio(tempFloats, DSP_SAMPLE_SIZE));
+            gotAudio = (numSamples > 0);
+        } else if (de->m_audioInput->m_netAudioInQueue.count() > 0) {
+            AUDIOBUF temp_data = de->m_audioInput->m_netAudioInQueue.dequeue();
+            numSamples = qMin((int)temp_data.size(), (int)DSP_SAMPLE_SIZE);
+            for (int s = 0; s < numSamples; s++)
+                tempFloats[s] = static_cast<float>(temp_data[s]);
+            gotAudio = (numSamples > 0);
+        } else {
             const TciServer *tci = set ? set->tciServer() : nullptr;
             const bool digitalTx = (txMode == DIGU || txMode == DIGL);
             const bool networkMicOnly = tci && tci->isTxChronoActive() && digitalTx;
-            if (!networkMicOnly && de->m_audioInput->m_faudioInQueue.count() > 0)
-                srcQueue = &de->m_audioInput->m_faudioInQueue;
+            if (!networkMicOnly) {
+                if (de->m_audioInput->micAudioAvailable() >= DSP_SAMPLE_SIZE) {
+                    numSamples = static_cast<int>(de->m_audioInput->readMicAudio(tempFloats, DSP_SAMPLE_SIZE));
+                    gotAudio = (numSamples > 0);
+                } else if (de->m_audioInput->m_faudioInQueue.count() > 0) {
+                    AUDIOBUF temp_data = de->m_audioInput->m_faudioInQueue.dequeue();
+                    numSamples = qMin((int)temp_data.size(), (int)DSP_SAMPLE_SIZE);
+                    for (int s = 0; s < numSamples; s++)
+                        tempFloats[s] = static_cast<float>(temp_data[s]);
+                    gotAudio = (numSamples > 0);
+                }
+            }
         }
     }
-    if (srcQueue)
+    if (gotAudio)
     {
-        temp_data = srcQueue->dequeue();
-
-		numSamples = qMin((int)temp_data.size(), (int)DSP_SAMPLE_SIZE);
         for (int s = 0; s < numSamples; s++)
         {
-            mic_buffer[(s * 2 )]  = temp_data[s] ;
+            mic_buffer[(s * 2 )]  = static_cast<double>(tempFloats[s]);
             mic_buffer[(s * 2 ) + 1 ] = 0.0f;
         }
 
@@ -2449,14 +2453,14 @@ void DataProcessor::fetch_MicData(){
         static int nonZeroCount = 0;
         bool hasSignal = false;
         for (int i = 0; i < numSamples; ++i) {
-            if (std::abs(temp_data[i]) > 1e-5) {
+            if (std::abs(tempFloats[i]) > 1e-5f) {
                 hasSignal = true;
                 break;
             }
         }
         if (hasSignal && txDiagEnabled()) {
             if (++nonZeroCount % 100 == 1) {
-                qDebug() << "fetch_MicData: Dequeued block with signal. RMS approx:" << temp_data[0];
+                qDebug() << "fetch_MicData: Read block with signal. Approx sample:" << tempFloats[0];
             }
         }
 
@@ -2467,7 +2471,6 @@ void DataProcessor::fetch_MicData(){
         }
     }
     else{
-        temp_data.clear();
         memset(&mic_buffer,0x0,sizeof(mic_buffer));
         
         static int emptyCount = 0;
@@ -2477,7 +2480,7 @@ void DataProcessor::fetch_MicData(){
             const int digitalIndex = set->getDigitalAudioInputDev();
             const QString digitalName = set->getDigitalInputSourceName();
             qDebug().nospace()
-                << "fetch_MicData: Audio queue empty"
+                << "fetch_MicData: Audio buffer empty"
                 << " txMode=" << set->getDSPMode(de->currentReceiver)
                 << " micIndex=" << micIndex
                 << " micSource=\"" << micName << "\""
@@ -2557,9 +2560,12 @@ void DataProcessor::get_tx_iqData(){
 
         if (txDiagEnabled() && (++txDiagCounter % 50) == 1) {
             const TxIqStats st = computeTxIqStats(mic_buffer, m_iq_output_buffer);
+            const int micAvail = de->m_audioInput ? static_cast<int>(de->m_audioInput->micAudioAvailable()) : -1;
+            const int netAvail = de->m_audioInput ? static_cast<int>(de->m_audioInput->netAudioAvailable()) : -1;
             qDebug().nospace() << "[TX-DIAG] mode=" << set->getDSPMode(de->currentReceiver)
                                << " state=" << set->getRadioState()
-                               << " micQ=" << (de->m_audioInput ? de->m_audioInput->m_faudioInQueue.count() : -1)
+                               << " micRing=" << micAvail
+                               << " netRing=" << netAvail
                                << " micRms=" << st.micRms << " micPeak=" << st.micPeak
                                << " iqRms=" << st.iqRms << " iqPeak=" << st.iqPeak
                                << " fexchange=" << error;
