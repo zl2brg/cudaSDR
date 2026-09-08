@@ -68,8 +68,6 @@
 #include "Util/display_utils.h"
 
 
-// test for OpenCL
-//#include "CL/qclcontext.h"
 
 
 // **************************************
@@ -307,10 +305,6 @@ typedef struct _ccParameterRx {
 	bool	cyclopsPLL;	// Cyclops PLL locked (0 = unlocked, 1 = locked)
 	bool	cyclops;	// Cyclops - Mercury frequency changed, bit toggles 
 
-	//int		mercuryFirmwareVersion;			// Mercury firmware version
-	//int		penelopeFirmwareVersion;		// Penelope firmware version
-	//int		networkDeviceFirmwareVersion;	// Metis/Hermes firmware version
-
 	quint16	ain1;		// Forward Power from Alex or Apollo
 	quint16	ain2;		// Reverse Power from Alex or Apollo
 	quint16	ain3;		// AIN3 from Penny or Hermes
@@ -361,8 +355,8 @@ typedef struct _ccParameterTx {
 
 	QList<int>					mercuryAttenuators;
 	QList<int>					alexStates;
-	//QList<TAlexConfiguration>	alexConfiguration;
 	quint16						alexConfig;
+
 	QList<int>					rxJ6pinList;
 	QList<int>					txJ6pinList;
 
@@ -789,7 +783,6 @@ signals:
 	void mouseWheelFreqStepChanged(int rx, qreal value);
 	void mainVolumeChanged(int rx, float volume );
 
-	//void hermesPresenceChanged(bool value);
 	void hpsdrHardwareChanged(int value);
 	void hermesVersionChanged(int value);
 	void mercuryPresenceChanged(bool value);
@@ -801,12 +794,9 @@ signals:
 	void alexPresenceChanged(bool value);
 	void excaliburPresenceChanged(bool value);
 	void metisVersionChanged(int value);
-	//void alexConfigurationChanged(const QList<TAlexConfiguration> &conf);
 	void alexConfigurationChanged(quint16 config);
-	//void alexParametersChanged(TAlexParameters p);
 	void alexStatesChanged(const QList<int> &states);
 	void alexStateChanged(HamBand band, const QList<int> &states);
-//	void alexStateChanged(int pos, int value);
 	void alexManualStateChanged(bool value);
 	void checkFirmwareVersionChanged(bool value);
 	void pennyOCEnabledChanged(bool value);
@@ -816,7 +806,6 @@ signals:
 	void numberOfRXChanged(int value);
 	void sampleRateChanged(int value);
 	void mercuryAttenuatorChanged(HamBand band, int value);
-	//void mercuryAttenuatorsChanged(const QList<int> &values);
 	void ditherChanged(int value);
 	void randomChanged(int value);
 	void src10MhzChanged(int source);
@@ -827,9 +816,7 @@ signals:
 	void classChanged(int value);
 	void timingChanged(int value);
 	void controlBytesOutChanged(unsigned char *values);
-	//void ctrFrequencyChanged(bool value, int rx, long frequency);
 	void ctrFrequencyChanged(int mode, int rx, qint64 frequency);
-	//void vfoFrequencyChanged(bool value, int rx, long frequency);
 	void vfoFrequencyChanged(int mode, int rx, qint64 frequency);
 	void ncoFrequencyChanged(int rx, qint64 frequency);
 
@@ -840,8 +827,6 @@ signals:
 	void widebanddBmScaleMinChanged(qreal value);
 	void widebanddBmScaleMaxChanged(qreal value);
 	void wideBandScalePositionChanged(float position);
-	//void widebandAveragingChanged(bool value);
-	//void widebandAveragingCntChanged(int value);
     void panAveragingModeChanged(int rx, int mode);
     void panDetectorModeChanged(int rx, int mode);
     void fftSizeChanged(int rx, int size);
@@ -878,7 +863,6 @@ signals:
 	void audioFormatChanged(const QAudioFormat &format);
 	void audioPositionChanged(qint64 position);
 	void audioBufferChanged(qint64 position, qint64 length, const QByteArray &buffer);
-	//void audioBufferChanged(const QByteArray &buffer);
 
 
 	void displayWidgetHeightChanged(int value);
@@ -1077,7 +1061,6 @@ public:
 	bool						getAgcLines(int rx) const;
 	int							getWaterfallOffsetLo(int rx) const;
 	int							getWaterfallOffsetHi(int rx) const;
-	//int getMercuryAttenuator();
 
 	bool getPennyOCEnabled()		{ return m_pennyOCEnabled; }
 	int	 getHpsdrNetworkDevices()	{ return m_hpsdrNetworkDevices; }
@@ -1124,7 +1107,6 @@ public:
 	bool	getFrequencyRx1onRx2()		{ return m_frequencyRx1onRx2; }
 	int		getSampleRate()				{ return m_sampleRate; }
 
-	//int getMercuryAttenuator()		{ return m_mercuryAttenuator; }
     int     getMercuryDither()			{ return m_mercuryDither; }
     int     getMercuryRandom()			{ return m_mercuryRandom; }
     int     get10MHzSource()			{ return m_hardwareConfig->source10Mhz(); }
@@ -1338,7 +1320,6 @@ public slots:
 	void setCheckFirmwareVersion(bool value);
 
 	void setHPSDRDevices(THPSDRDevices devices);
-	//void setHermesPresence(bool value);
 	void setHermesVersion(int value);
 	void setHPSDRHardware(int value);
 	void setMercuryPresence(bool value);
@@ -1351,7 +1332,6 @@ public slots:
 	void setExcaliburPresence(bool value);
 	void setMetisVersion(int value);
 
-	//void setAlexConfiguration(const QList<TAlexConfiguration> &conf);
 	void setAlexConfiguration(quint16 conf);
 	void setAlexHPFLoFrequencies(int filter, long value);
 	void setAlexHPFHiFrequencies(int filter, long value);
@@ -1373,7 +1353,6 @@ public slots:
 
 
 	void setReceivers(int value);
-	//void setReceiver(int value);
 	void setCurrentReceiver(int value);
 	void setSampleRate(int value);
 	void setMercuryAttenuator(int value);
@@ -1448,18 +1427,14 @@ public slots:
 	void setWidebandData(bool value);
 	void setWidebanddBmScaleMin(qreal value);
 	void setWidebanddBmScaleMax(qreal value);
-	//void setWidebandAveraging(bool value);
-	//void setWidebandAveragingCnt(int value);
 	void setWideBandRulerPosition(float pos);
 
 	void setFreqRulerPosition(int rx, float pos);
-	//void setRulerPosition(float pos);
 
 
 	void setAudioFormat(const QAudioFormat &format);
 	void setAudioPosition(qint64 position);
 	void setAudioBuffer(qint64 position, qint64 length, const QByteArray &buffer);
-	//void setAudioBuffer(const QByteArray &buffer);
 
 
 	void moveDisplayWidget(int value);
@@ -1597,7 +1572,6 @@ private:
 	QList<THamBandFrequencies>	m_bandList;
 	QList<THamBandText>			m_bandTextList;
 	QList<TDefaultFilter>		m_defaultFilterList;
-	//QList<QCLDevice>			m_clDevices;
 	QList<QString>				m_rxStringList;
 	QList<int>					m_rxJ6pinList;
 	QList<int>					m_txJ6pinList;
@@ -1628,7 +1602,6 @@ private:
 	std::atomic<bool>	m_manualSocketBufferSize{false};
 	std::atomic<bool>	m_pennyOCEnabled{false};
 
-	//bool	main_mute;
 	std::atomic<bool>	m_checkFirmwareVersions{true};
 	std::atomic<bool>	m_specAveraging{false};
 	std::atomic<bool>	m_panGrid{true};
@@ -1666,7 +1639,6 @@ private:
 	QList<quint64>		m_freeDVRxFramesList;
 	QList<quint64>		m_freeDVTxFramesList;
 
-	//int		m_wbBuffers;
     std::atomic<bool>    m_repeaterMode{false};
 
 	long freq1;
@@ -1679,9 +1651,6 @@ private:
 
 
     bool    m_use_repeaterOffset;
-
-
-	//int		m_fft;
 
 	void	checkHPSDRDevices();
     qreal   getRxFilterBandwidth(int rx, int index);

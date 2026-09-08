@@ -427,19 +427,6 @@ void MainWindow::setup() {
 	m_serverWidget->addNICChangedConnection();
     //m_hpsdrTabWidget->addNICChangedConnection();
 	
-	// experimental:
-	// check for OpenCL devices
-	//QList<QCLDevice> clDevices = QCLDevice::allDevices();
-	//if (clDevices.length() == 0)
-	//	showMessage("[main]: no OpenCL devices found.");
-
-	//else {
-
-	//	m_message = "[main]: found %1 OpenCL device(s).";
-	//	showStatusBarMessage(m_message.arg(clDevices.length()), 5000);
-	//	//QString clNo = QString::number(m_clDevices.length());
-	//}
-	//set->setOpenCLDevices(clDevices);
 
 	// set the centralwidget as the central widget of the main window,
 	// i.e., we have a second QMainWindow as the central widget.

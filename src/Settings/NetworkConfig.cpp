@@ -115,6 +115,13 @@ void NetworkConfig::loadIni(QSettings *settings) {
     setAudioPort(static_cast<quint16>(SettingsUtils::clampNetworkPort(settings->value("network/audio_port", 15000).toInt(), 15000)));
     setMetisPort(static_cast<quint16>(SettingsUtils::clampNetworkPort(settings->value("network/metis_port", 1024).toInt(), 1024)));
     setSocketBufferSize(SettingsUtils::clampSocketBufferSizeKb(settings->value("network/socketBufferSize", 32).toInt()));
+
+    TSDRDevice dev;
+    dev.deviceClass = static_cast<DeviceClass>(settings->value("network/lastDeviceClass", DeviceClass_None).toInt());
+    dev.deviceType = settings->value("network/lastDeviceType", "").toString();
+    dev.serialNumber = settings->value("network/lastDeviceSerial", "").toString();
+    dev.label = settings->value("network/lastDeviceLabel", "").toString();
+    setLastDevice(dev);
 }
 
 void NetworkConfig::saveIni(QSettings *settings) const {
@@ -125,4 +132,8 @@ void NetworkConfig::saveIni(QSettings *settings) const {
     settings->setValue("network/audio_port", m_audioPort);
     settings->setValue("network/metis_port", m_metisPort);
     settings->setValue("network/socketBufferSize", m_socketBufferSize);
+    settings->setValue("network/lastDeviceClass", static_cast<int>(m_lastDevice.deviceClass));
+    settings->setValue("network/lastDeviceType", m_lastDevice.deviceType);
+    settings->setValue("network/lastDeviceSerial", m_lastDevice.serialNumber);
+    settings->setValue("network/lastDeviceLabel", m_lastDevice.label);
 }

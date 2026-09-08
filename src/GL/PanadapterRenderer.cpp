@@ -8,22 +8,7 @@
 #include <QtGui/rhi/qrhi_platform.h>
 #include <tuple>
 
-namespace {
 
-QShader loadSerializedShader(const char *resourcePath)
-{
-    QFile file(resourcePath);
-    if (!file.open(QIODevice::ReadOnly)) {
-        qWarning() << "PanadapterRenderer: failed to open shader resource" << resourcePath;
-        return QShader();
-    }
-    const QShader shader = QShader::fromSerialized(file.readAll());
-    if (!shader.isValid())
-        qWarning() << "PanadapterRenderer: invalid qsb" << resourcePath;
-    return shader;
-}
-
-} // namespace
 
 PanadapterRenderer::PanadapterRenderer() = default;
 

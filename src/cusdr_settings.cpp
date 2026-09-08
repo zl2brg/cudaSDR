@@ -97,6 +97,48 @@ Settings::Settings(QObject *parent)
     connect(m_displayConfig, &DisplayConfig::showPanadapterSMeterChanged, this, &Settings::showPanadapterSMeterChanged);
     connect(m_displayConfig, &DisplayConfig::showPanadapterFreqChanged, this, &Settings::showPanadapterFreqChanged);
 
+    m_widebandOptions.wideBandData = m_widebandConfig->dataEnabled();
+    m_widebandOptions.wideBandDisplayStatus = m_widebandConfig->displayEnabled();
+    m_widebandOptions.averaging = m_widebandConfig->averaging();
+    m_widebandOptions.averagingCnt = m_widebandConfig->averagingCnt();
+    m_widebandOptions.dBmWBScaleMin = m_widebandConfig->dBmScaleMin();
+    m_widebandOptions.dBmWBScaleMax = m_widebandConfig->dBmScaleMax();
+    m_widebandOptions.panMode = m_widebandConfig->panMode();
+
+    connect(m_widebandConfig, &WidebandConfig::averagingChanged, this, [this](bool val) {
+        m_widebandOptions.averaging = val;
+    });
+    connect(m_widebandConfig, &WidebandConfig::averagingCntChanged, this, [this](int val) {
+        m_widebandOptions.averagingCnt = val;
+    });
+    connect(m_widebandConfig, &WidebandConfig::dataEnabledChanged, this, [this](bool val) {
+        m_widebandOptions.wideBandData = val;
+    });
+    connect(m_widebandConfig, &WidebandConfig::displayEnabledChanged, this, [this](bool val) {
+        m_widebandOptions.wideBandDisplayStatus = val;
+    });
+    connect(m_widebandConfig, &WidebandConfig::dBmScaleMinChanged, this, [this](qreal val) {
+        m_widebandOptions.dBmWBScaleMin = val;
+    });
+    connect(m_widebandConfig, &WidebandConfig::dBmScaleMaxChanged, this, [this](qreal val) {
+        m_widebandOptions.dBmWBScaleMax = val;
+    });
+    connect(m_widebandConfig, &WidebandConfig::panModeChanged, this, [this](PanGraphicsMode val) {
+        m_widebandOptions.panMode = val;
+    });
+
+    m_pennyOCEnabled = m_pennyConfig->ocEnabled();
+
+    connect(m_pennyConfig, &PennyConfig::ocEnabledChanged, this, [this](bool val) {
+        m_pennyOCEnabled = val;
+    });
+    connect(m_pennyConfig, &PennyConfig::rxJ6Changed, this, [this]() {
+        m_rxJ6pinList = m_pennyConfig->rxJ6();
+    });
+    connect(m_pennyConfig, &PennyConfig::txJ6Changed, this, [this]() {
+        m_txJ6pinList = m_pennyConfig->txJ6();
+    });
+
 
     for (int i = 0; i < MAX_RECEIVERS; ++i) {
         m_receiverConfigs.append(new ReceiverConfig(i, this));
@@ -213,11 +255,8 @@ Settings::Settings(QObject *parent)
     // | +------------------------ pin 6 (0 = deactivated, 1 = activated)
     // +-------------------------- pin 7 (0 = deactivated, 1 = activated)
 
-    for (int i = 0; i < MAX_BANDS - 1; i++) {
-
-        m_rxJ6pinList << 0;
-        m_txJ6pinList << 0;
-    }
+    m_rxJ6pinList = m_pennyConfig->rxJ6();
+    m_txJ6pinList = m_pennyConfig->txJ6();
 
 
     m_bandList = getHamBandFrequencies();
@@ -252,11 +291,7 @@ int Settings::loadSettings() {
     // network settings
     m_networkConfig->loadIni(settings);
     m_tciConfig->loadIni(settings);
-
-    m_lastConnectedDevice.deviceClass = static_cast<DeviceClass>(settings->value("network/lastDeviceClass", DeviceClass_None).toInt());
-    m_lastConnectedDevice.deviceType = settings->value("network/lastDeviceType", "").toString();
-    m_lastConnectedDevice.serialNumber = settings->value("network/lastDeviceSerial", "").toString();
-    m_lastConnectedDevice.label = settings->value("network/lastDeviceLabel", "").toString();
+    m_lastConnectedDevice = m_networkConfig->lastDevice();
 
     value = settings->value("hpsdr/receivers", 1).toInt();
     if (value < 1 || value > MAX_RECEIVERS) value = 1;
@@ -288,13 +323,6 @@ int Settings::loadSettings() {
 
     m_hardwareConfig->setDevices(devices);
     m_devices = m_hardwareConfig->devices();
-
-
-//	str = settings->value("hpsdr/hermes", "false").toString();
-//	if (str == "true")
-//		m_devices.hermesPresence = true;
-//	else
-//		m_devices.hermesPresence = false;
 
     if (m_hpsdrHardware == 0) {
 
@@ -370,12 +398,6 @@ int Settings::loadSettings() {
     }
 
 
-//	value = settings->value("server/mouseWheelFreqStep", 1000).toInt();
-//	if ((value != 1) & (value != 10) & (value != 100) & (value != 1000) & (value != 10000) & (value != 100000) &
-//		(value != 5) & (value != 50) & (value != 500) & (value != 5000) & (value != 50000) & (value != 500000))
-//		value = 100;
-//	m_mouseWheelFreqStep = (double)value;
-
     //******************************************************************
     // Alexiares per-band antenna state (mask/freqs already in AlexConfig::loadIni)
     {
@@ -388,87 +410,30 @@ int Settings::loadSettings() {
 
     //******************************************************************
     // Penny open collector settings
-    str = settings->value("penny/OCenabled", "off").toString();
-    if (str.toLower() == "on")
-        m_pennyOCEnabled = true;
-    else
-        m_pennyOCEnabled = false;
-
-    if (m_rxJ6pinList.length() == MAX_BANDS - 1 && m_txJ6pinList.length() == MAX_BANDS - 1 &&
-        m_bandList.length() == MAX_BANDS) {
-
-        for (int i = 0; i < MAX_BANDS - 1; i++) {
-
-            str = "penny/rxState";
-            str.append(m_bandList.at(i).bandString);
-
-            value = settings->value(str, 0).toInt();
-            if (value < 0 || value > 255) value = 0;
-            setRxJ6Pin((HamBand) i, value);
-        }
-
-        for (int i = 0; i < MAX_BANDS - 1; i++) {
-
-            str = "penny/txState";
-            str.append(m_bandList.at(i).bandString);
-
-            value = settings->value(str, 0).toInt();
-            if (value < 0 || value > 255) value = 0;
-            setTxJ6Pin((HamBand) i, value);
-        }
-    } else {
-
-        qWarning() << "rxJ6pinList or txJ6pinList or bandList have wrong length!";
+    {
+        QStringList bandKeys;
+        for (int i = 0; i < MAX_BANDS - 1 && i < m_bandList.size(); ++i)
+            bandKeys << m_bandList.at(i).bandString;
+        m_pennyConfig->loadIni(settings, bandKeys);
+        m_pennyOCEnabled = m_pennyConfig->ocEnabled();
+        const auto rxPins = m_pennyConfig->rxJ6();
+        const auto txPins = m_pennyConfig->txJ6();
+        for (int i = 0; i < qMin(rxPins.size(), m_rxJ6pinList.size()); ++i)
+            setRxJ6Pin(static_cast<HamBand>(i), rxPins.at(i));
+        for (int i = 0; i < qMin(txPins.size(), m_txJ6pinList.size()); ++i)
+            setTxJ6Pin(static_cast<HamBand>(i), txPins.at(i));
     }
 
     //******************************************************************
     // wideband settings
-
-    str = settings->value("wideband/widebandData", "on").toString();
-    if (str.toLower() == "on")
-        m_widebandOptions.wideBandData = true;
-    else if (str.toLower() == "off")
-        m_widebandOptions.wideBandData = false;
-    else
-        m_widebandOptions.wideBandData = true;
-
-    str = settings->value("wideband/widebandDisplay", "off").toString();
-    if (str.toLower() == "on")
-        m_widebandOptions.wideBandDisplayStatus = true;
-    else if (str.toLower() == "off")
-        m_widebandOptions.wideBandDisplayStatus = false;
-    else
-        m_widebandOptions.wideBandDisplayStatus = false;
-
-    if (!m_widebandOptions.wideBandData) m_widebandOptions.wideBandDisplayStatus = false;
-
-    str = settings->value("wideband/averaging", "on").toString();
-    if (str.toLower() == "on")
-        m_widebandOptions.averaging = true;
-    else if (str.toLower() == "off")
-        m_widebandOptions.averaging = false;
-    else
-        m_widebandOptions.averaging = true;
-
-    value = settings->value("wideband/averagingCnt", 5).toInt();
-    if ((value < 1) || (value > 1000)) value = 5;
-    m_widebandOptions.averagingCnt = value;
-
-    value = settings->value("wideband/dBmWideBandScaleMin", -140).toInt();
-    if ((value < -200) || (value > 0)) value = -140;
-    m_widebandOptions.dBmWBScaleMin = (qreal) (1.0 * value);
-
-    value = settings->value("wideband/dBmWideBandScaleMax", -10).toInt();
-    if ((value < -100) || (value > 0)) value = -10;
-    m_widebandOptions.dBmWBScaleMax = (qreal) (1.0 * value);
-
-    str = settings->value("wideband/panMode", "LINE").toString();
-    if (str == "LINE")
-        m_widebandOptions.panMode = Line;
-    else if (str == "FILLEDLINE")
-        m_widebandOptions.panMode = FilledLine;
-    else if (str == "SOLID")
-        m_widebandOptions.panMode = Solid;
+    m_widebandConfig->loadIni(settings);
+    m_widebandOptions.wideBandData = m_widebandConfig->dataEnabled();
+    m_widebandOptions.wideBandDisplayStatus = m_widebandConfig->displayEnabled();
+    m_widebandOptions.averaging = m_widebandConfig->averaging();
+    m_widebandOptions.averagingCnt = m_widebandConfig->averagingCnt();
+    m_widebandOptions.dBmWBScaleMin = m_widebandConfig->dBmScaleMin();
+    m_widebandOptions.dBmWBScaleMax = m_widebandConfig->dBmScaleMax();
+    m_widebandOptions.panMode = m_widebandConfig->panMode();
 
     //******************************************************************
     // receiver data settings
@@ -1191,6 +1156,10 @@ int Settings::loadSettings() {
         }
     }
 
+    for (int i = 0; i < MAX_RECEIVERS && i < m_receiverConfigs.size(); ++i) {
+        m_receiverConfigs[i]->fromReceiver(m_receiverDataList[i]);
+    }
+
      //******************************************************************
     // graphics and color settings
     m_displayConfig->loadIni(settings);
@@ -1217,12 +1186,9 @@ int Settings::saveSettings() {
     m_windowConfig->saveIni(settings);
 
     // network settings
+    m_networkConfig->setLastDevice(m_lastConnectedDevice);
     m_networkConfig->saveIni(settings);
     m_tciConfig->saveIni(settings);
-    settings->setValue("network/lastDeviceClass", static_cast<int>(m_lastConnectedDevice.deviceClass));
-    settings->setValue("network/lastDeviceType", m_lastConnectedDevice.deviceType);
-    settings->setValue("network/lastDeviceSerial", m_lastConnectedDevice.serialNumber);
-    settings->setValue("network/lastDeviceLabel", m_lastConnectedDevice.label);
     settings->setValue("hpsdr/receivers", m_mercuryReceivers.load());
 
 
@@ -1236,53 +1202,14 @@ int Settings::saveSettings() {
     THPSDRDevices devices = m_hardwareConfig->devices();
 
     switch (m_hardwareConfig->hpsdrHardware()) {
-
         // Mercury/Penelope, PennyLane
         case 0:
-
-            if (devices.mercuryPresence)
-                settings->setValue("hpsdr/mercury", "true");
-            else
-                settings->setValue("hpsdr/mercury", "false");
-
-            if (devices.penelopePresence)
-                settings->setValue("hpsdr/penelope", "true");
-            else
-                settings->setValue("hpsdr/penelope", "false");
-
-            if (devices.pennylanePresence)
-                settings->setValue("hpsdr/pennylane", "true");
-            else
-                settings->setValue("hpsdr/pennylane", "false");
-
-            if (devices.excaliburPresence)
-                settings->setValue("hpsdr/excalibur", "true");
-            else
-                settings->setValue("hpsdr/excalibur", "false");
-            break;
-
-            // Hermes
+        // Hermes
         case 1:
-
-            if (devices.mercuryPresence)
-                settings->setValue("hpsdr/mercury", "true");
-            else
-                settings->setValue("hpsdr/mercury", "false");
-
-            if (devices.penelopePresence)
-                settings->setValue("hpsdr/penelope", "true");
-            else
-                settings->setValue("hpsdr/penelope", "false");
-
-            if (devices.pennylanePresence)
-                settings->setValue("hpsdr/pennylane", "true");
-            else
-                settings->setValue("hpsdr/pennylane", "false");
-
-            if (devices.excaliburPresence)
-                settings->setValue("hpsdr/excalibur", "true");
-            else
-                settings->setValue("hpsdr/excalibur", "false");
+            settings->setValue("hpsdr/mercury", devices.mercuryPresence ? "true" : "false");
+            settings->setValue("hpsdr/penelope", devices.penelopePresence ? "true" : "false");
+            settings->setValue("hpsdr/pennylane", devices.pennylanePresence ? "true" : "false");
+            settings->setValue("hpsdr/excalibur", devices.excaliburPresence ? "true" : "false");
             break;
 
         // Cyclops / SoapySDR
@@ -1292,16 +1219,7 @@ int Settings::saveSettings() {
 
     m_soapyConfig->saveIni(settings);
 
-    if (devices.alexPresence)
-        settings->setValue("hpsdr/alex", "true");
-    else
-        settings->setValue("hpsdr/alex", "false");
-
-
-//	if (devices.hermesPresence)
-//		settings->setValue("hpsdr/hermes", "true");
-//	else
-//		settings->setValue("hpsdr/hermes", "false");
+    settings->setValue("hpsdr/alex", devices.alexPresence ? "true" : "false");
 
     switch (m_hardwareConfig->hpsdrHardware()) {
 
@@ -1367,12 +1285,7 @@ int Settings::saveSettings() {
 
 
 
-    //settings->setValue("server/mainVolume", (int)(m_mainVolume * 100));
-
-    //if (m_serverMode == QSDR::SDRMode)
     settings->setValue("server/mode", "sdr");
-
-    //settings->setValue("server/mouseWheelFreqStep", m_mouseWheelFreqStep);
 
     {
         QStringList bandKeys;
@@ -1383,62 +1296,26 @@ int Settings::saveSettings() {
 
     //******************************************************************
     // Penny open collector settings
-
-    if (m_pennyOCEnabled)
-        settings->setValue("penny/OCenabled", "on");
-    else
-        settings->setValue("penny/OCenabled", "off");
-
-    if (m_rxJ6pinList.length() == MAX_BANDS - 1 && m_txJ6pinList.length() == MAX_BANDS - 1 &&
-        m_bandList.length() == MAX_BANDS) {
-
-        for (int i = 0; i < MAX_BANDS - 1; i++) {
-
-            str = "penny/rxState";
-            str.append(m_bandList.at(i).bandString);
-
-            settings->setValue(str, m_rxJ6pinList.at(i));
-        }
-
-        for (int i = 0; i < MAX_BANDS - 1; i++) {
-
-            str = "penny/txState";
-            str.append(m_bandList.at(i).bandString);
-
-            settings->setValue(str, m_txJ6pinList.at(i));
-        }
+    {
+        m_pennyConfig->setOcEnabled(m_pennyOCEnabled.load());
+        m_pennyConfig->setRxJ6(m_rxJ6pinList);
+        m_pennyConfig->setTxJ6(m_txJ6pinList);
+        QStringList bandKeys;
+        for (int i = 0; i < MAX_BANDS - 1 && i < m_bandList.size(); ++i)
+            bandKeys << m_bandList.at(i).bandString;
+        m_pennyConfig->saveIni(settings, bandKeys);
     }
 
     //******************************************************************
     // wideband settings
-
-    if (m_widebandOptions.wideBandData)
-        settings->setValue("wideband/widebandData", "on");
-    else
-        settings->setValue("wideband/widebandData", "off");
-
-    if (!m_widebandOptions.wideBandData) m_widebandOptions.wideBandDisplayStatus = false;
-
-    if (m_widebandOptions.wideBandDisplayStatus)
-        settings->setValue("wideband/widebandDisplay", "on");
-    else
-        settings->setValue("wideband/widebandDisplay", "off");
-
-    if (m_widebandOptions.averaging)
-        settings->setValue("wideband/averaging", "on");
-    else
-        settings->setValue("wideband/averaging", "off");
-
-    settings->setValue("wideband/averagingCnt", m_widebandOptions.averagingCnt);
-    settings->setValue("wideband/dBmWideBandScaleMin", (int) m_widebandOptions.dBmWBScaleMin);
-    settings->setValue("wideband/dBmWideBandScaleMax", (int) m_widebandOptions.dBmWBScaleMax);
-
-    if (m_widebandOptions.panMode == Line)
-        settings->setValue("wideband/panMode", "LINE");
-    else if (m_widebandOptions.panMode == FilledLine)
-        settings->setValue("wideband/panMode", "FILLEDLINE");
-    else if (m_widebandOptions.panMode == Solid)
-        settings->setValue("wideband/panMode", "SOLID");
+    m_widebandConfig->setDataEnabled(m_widebandOptions.wideBandData);
+    m_widebandConfig->setDisplayEnabled(m_widebandOptions.wideBandDisplayStatus);
+    m_widebandConfig->setAveraging(m_widebandOptions.averaging);
+    m_widebandConfig->setAveragingCnt(m_widebandOptions.averagingCnt);
+    m_widebandConfig->setdBmScaleMin(m_widebandOptions.dBmWBScaleMin);
+    m_widebandConfig->setdBmScaleMax(m_widebandOptions.dBmWBScaleMax);
+    m_widebandConfig->setPanMode(m_widebandOptions.panMode);
+    m_widebandConfig->saveIni(settings);
 
 
 
@@ -1542,15 +1419,6 @@ int Settings::saveSettings() {
             settings->setValue(str, "on");
         else
             settings->setValue(str, "off");
-
-//		str = m_rxStringList.at(i);
-//		str.append("/attenuator");
-//		str.append(m_bandList.at(j).bandString);
-//
-//		if (m_receiverDataList.at(i).mercuryAttenuators.at(j))
-//			settings->setValue(str, "off");
-//		else
-//			settings->setValue(str, "on");
 
         str = m_rxStringList.at(i);
         str.append("/agcMode");
@@ -2096,37 +1964,39 @@ bool Settings::loadJson(const QString &filePath)
     return fromJson(doc.object());
 }
 
-//void Settings::setMainWindowsState() {
-//
-//	settings->setValue("geometry", .saveGeometry());
-//	settings->setValue("windowState", saveState());
-//}
 
 //*******************************************************
+// Model Accessors
+//*******************************************************
+
+SliceModel* Settings::sliceModel(int rx) const {
+    if (!m_radioModel || rx < 0 || rx >= m_radioModel->slices().size())
+        return nullptr;
+    return m_radioModel->slices().at(rx);
+}
+
+TransmitModel* Settings::transmitModel() const {
+    return m_radioModel ? m_radioModel->transmit() : nullptr;
+}
 
 QList<qint64> Settings::getCtrFrequencies() {
-
     QList<qint64> frequencies;
-
     for (int i = 0; i < MAX_RECEIVERS; i++) {
-        if (m_radioModel && i < m_radioModel->slices().size() && m_radioModel->slices()[i])
-            frequencies << m_radioModel->slices()[i]->centerFrequency();
+        if (SliceModel* slice = sliceModel(i))
+            frequencies << slice->centerFrequency();
         else if (i < m_receiverDataList.size())
             frequencies << m_receiverDataList[i].ctrFrequency;
         else
             frequencies << 7000000;
     }
-
     return frequencies;
 }
 
 QList<qint64> Settings::getVfoFrequencies() {
-
     QList<qint64> frequencies;
-
     for (int i = 0; i < MAX_RECEIVERS; i++) {
-        if (m_radioModel && i < m_radioModel->slices().size() && m_radioModel->slices()[i])
-            frequencies << m_radioModel->slices()[i]->frequency();
+        if (SliceModel* slice = sliceModel(i))
+            frequencies << slice->frequency();
         else if (i < m_receiverDataList.size())
             frequencies << m_receiverDataList[i].vfoFrequency;
         else
@@ -2480,23 +2350,21 @@ void Settings::setGraphicsState(
         int rx,
         PanGraphicsMode panMode,
         WaterfallColorMode waterfallColorMode) {
-    if (rx >= 0 && m_radioModel && rx < m_radioModel->slices().size()) {
-        SliceModel* slice = m_radioModel->slices().at(rx);
-        if (slice) {
-            slice->setPanMode(panMode);
-            slice->setWaterfallMode(waterfallColorMode);
-            QMutexLocker locker(&settingsMutex);
-            m_receiverDataList[rx].panMode = panMode;
-            m_receiverDataList[rx].waterfallMode = waterfallColorMode;
-            return;
-        }
+    if (SliceModel* slice = sliceModel(rx)) {
+        slice->setPanMode(panMode);
+        slice->setWaterfallMode(waterfallColorMode);
+        QMutexLocker locker(&settingsMutex);
+        m_receiverDataList[rx].panMode = panMode;
+        m_receiverDataList[rx].waterfallMode = waterfallColorMode;
+        return;
     }
 
     QMutexLocker locker(&settingsMutex);
 
     if (rx == -1) {
         m_widebandOptions.panMode = panMode;
-    } else {
+        m_widebandConfig->setPanMode(panMode);
+    } else if (rx >= 0 && rx < m_receiverDataList.size()) {
         m_receiverDataList[rx].panMode = panMode;
         m_receiverDataList[rx].waterfallMode = waterfallColorMode;
     }
@@ -2505,29 +2373,27 @@ void Settings::setGraphicsState(
 }
 
 PanGraphicsMode Settings::getPanadapterMode(int rx) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) return m_radioModel->slices()[rx]->panMode();
-
-    return m_receiverDataList[rx].panMode;
+    if (SliceModel* slice = sliceModel(rx))
+        return slice->panMode();
+    return (rx >= 0 && rx < m_receiverDataList.size()) ? m_receiverDataList[rx].panMode : (PanGraphicsMode)0;
 }
 
 PanAveragingMode Settings::getPanAveragingMode(int rx) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) return m_radioModel->slices()[rx]->panAveragingMode();
-
-    return m_receiverDataList[rx].panAvMode;
+    if (SliceModel* slice = sliceModel(rx))
+        return slice->panAveragingMode();
+    return (rx >= 0 && rx < m_receiverDataList.size()) ? m_receiverDataList[rx].panAvMode : (PanAveragingMode)0;
 }
-
 
 PanDetectorMode Settings::getPanDetectorMode(int rx) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) return m_radioModel->slices()[rx]->panDetectorMode();
-
-    return m_receiverDataList[rx].panDetMode;
+    if (SliceModel* slice = sliceModel(rx))
+        return slice->panDetectorMode();
+    return (rx >= 0 && rx < m_receiverDataList.size()) ? m_receiverDataList[rx].panDetMode : (PanDetectorMode)0;
 }
 
-
 WaterfallColorMode Settings::getWaterfallColorMode(int rx) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) return m_radioModel->slices()[rx]->waterfallMode();
-
-    return m_receiverDataList.at(rx).waterfallMode;
+    if (SliceModel* slice = sliceModel(rx))
+        return slice->waterfallMode();
+    return (rx >= 0 && rx < m_receiverDataList.size()) ? m_receiverDataList.at(rx).waterfallMode : (WaterfallColorMode)0;
 }
 
 //QSDRGraphics::_Colors Settings::getColorItem() {
@@ -3277,20 +3143,6 @@ void Settings::setReceivers(int value) {
     emit numberOfRXChanged(value);
 }
 
-//void Settings::setReceiver(int value) {
-//
-//	QMutexLocker locker(&settingsMutex);
-//
-//	if (m_currentReceiver == value) return;
-//	if (value > MAX_RECEIVERS) value = MAX_RECEIVERS;
-//
-//	m_currentReceiver = value;
-//	locker.unlock();
-//
-//	SETTINGS_DEBUG << "switch to receiver: " << m_currentReceiver;
-//	emit receiverChanged(value);
-//	emit frequencyChanged(true, value, m_receiverDataList[value].frequency);
-//}
 
 void Settings::setCurrentReceiver(int value) {
 
@@ -3381,13 +3233,6 @@ QSDR::_DSPCore Settings::getReceiverDspCore(int rx) const {
     if (rx < 0 || rx >= m_receiverDataList.size())
         return QSDR::QtDSP;
     return m_receiverDataList.at(rx).dspCore;
-}
-
-SliceModel* Settings::sliceModel(int rx) const {
-
-    if (!m_radioModel || rx < 0 || rx >= m_radioModel->slices().size())
-        return nullptr;
-    return m_radioModel->slices().at(rx);
 }
 
 QList<DSPMode> Settings::getDSPModeList(int rx) const {
@@ -3616,32 +3461,34 @@ double Settings::getMouseWheelFreqStep(int rx) {
 }
 
 qreal Settings::getMainVolume(int rx) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) return (qreal)m_radioModel->slices()[rx]->volume();
+    if (SliceModel* slice = sliceModel(rx))
+        return static_cast<qreal>(slice->volume());
 
-    return m_receiverDataList[rx].audioVolume;
+    return (rx >= 0 && rx < m_receiverDataList.size()) ? m_receiverDataList[rx].audioVolume : 0.0;
 }
 
 void Settings::setMainVolume(int rx, float volume) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) { m_radioModel->slices()[rx]->setVolume(volume); return; }
+    if (SliceModel* slice = sliceModel(rx)) {
+        slice->setVolume(volume);
+        return;
+    }
 
     if (volume < 0) volume = 0.0f;
     if (volume > 1) volume = 1.0f;
 
     QMutexLocker locker(&settingsMutex);
 
-    //if (m_receiverDataList[rx].audioVolume == volume) return;
-    m_receiverDataList[rx].audioVolume = volume;
+    if (rx >= 0 && rx < m_receiverDataList.size()) {
+        m_receiverDataList[rx].audioVolume = volume;
+    }
 
     emit mainVolumeChanged(rx, volume);
 }
 
 void Settings::setMainVolumeMute(int rx, bool value) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size()) {
-        SliceModel* slice = m_radioModel->slices().at(rx);
-        if (slice) {
-            slice->setMute(value);
-            return;
-        }
+    if (SliceModel* slice = sliceModel(rx)) {
+        slice->setMute(value);
+        return;
     }
 
     qreal vol = getMainVolume(rx);
@@ -3672,8 +3519,8 @@ void Settings::setCtrFrequency(int mode, int rx, qint64 frequency) {
         return;
 
     // Mirror into MVC slice model; pre-MVC legacy path continues below and remains authoritative
-    if (m_radioModel && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx])
-        m_radioModel->slices()[rx]->setCenterFrequency(frequency);
+    if (SliceModel* slice = sliceModel(rx))
+        slice->setCenterFrequency(frequency);
 
     QMutexLocker locker(&settingsMutex);
     m_receiverDataList[rx].ctrFrequency = frequency;
@@ -3711,9 +3558,10 @@ void Settings::setCtrFrequency(int mode, int rx, qint64 frequency) {
 }
 
 qint64 Settings::getCtrFrequency(int rx) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) return m_radioModel->slices()[rx]->centerFrequency();
+    if (SliceModel* slice = sliceModel(rx))
+        return slice->centerFrequency();
 
-    return m_receiverDataList.at(rx).ctrFrequency;
+    return (rx >= 0 && rx < m_receiverDataList.size()) ? m_receiverDataList.at(rx).ctrFrequency : 0;
 }
 
 void Settings::setVFOFrequency(int mode, int rx, qint64 frequency) {
@@ -3721,8 +3569,7 @@ void Settings::setVFOFrequency(int mode, int rx, qint64 frequency) {
         return;
 
     // Mirror into MVC slice model; pre-MVC legacy path continues below and remains authoritative
-    if (m_radioModel && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) {
-        SliceModel *slice = m_radioModel->slices()[rx];
+    if (SliceModel *slice = sliceModel(rx)) {
         slice->setFrequency(frequency);
         m_receiverDataList[rx].vfoAFrequency = slice->vfoAFrequency();
         m_receiverDataList[rx].vfoBFrequency = slice->vfoBFrequency();
@@ -3749,8 +3596,8 @@ void Settings::setVFOFrequency(int mode, int rx, qint64 frequency) {
         // dspModeList entries can be stale (e.g. AM on 15m while DIGU is live);
         // WSJT-X band hops must not silently report/apply the wrong mode.
         DSPMode liveMode = m_receiverDataList[rx].dspModeList[m_receiverDataList[rx].hamBand];
-        if (m_radioModel && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx])
-            liveMode = m_radioModel->slices()[rx]->dspMode();
+        if (SliceModel* slice = sliceModel(rx))
+            liveMode = slice->dspMode();
 
         setHamBand(rx, false, band);
         setDSPMode(rx, liveMode);
@@ -3771,8 +3618,8 @@ void Settings::setVFOFrequency(int mode, int rx, qint64 frequency) {
                 m_receiverDataList[rx].ctrFrequency = frequency;
                 m_receiverDataList[rx].ncoFrequency = 0;
                 m_receiverDataList[rx].lastCenterFrequencyList[(int) band] = frequency;
-                if (m_radioModel && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx])
-                    m_radioModel->slices()[rx]->setCenterFrequency(frequency);
+                if (SliceModel* slice = sliceModel(rx))
+                    slice->setCenterFrequency(frequency);
                 if (ctrChanged)
                     emit ctrFrequencyChanged(0, rx, frequency);
             } else
@@ -3821,9 +3668,10 @@ void Settings::setVfoFrequencyVisible(int rx, qint64 frequency) {
 }
 
 qint64 Settings::getVfoFrequency(int rx) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) return m_radioModel->slices()[rx]->frequency();
+    if (SliceModel* slice = sliceModel(rx))
+        return slice->frequency();
 
-    return m_receiverDataList.at(rx).vfoFrequency;
+    return (rx >= 0 && rx < m_receiverDataList.size()) ? m_receiverDataList.at(rx).vfoFrequency : 0;
 }
 
 void Settings::setNCOFrequency(bool value, int rx, qint64 frequency) {
@@ -3868,8 +3716,7 @@ HamBand Settings::getCurrentHamBand(int rx) {
 
 void Settings::setDSPMode(int rx, DSPMode mode) {
     // Mirror into MVC slice model; pre-MVC legacy path continues below and remains authoritative
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) {
-        auto slice = m_radioModel->slices()[rx];
+    if (SliceModel* slice = sliceModel(rx)) {
         slice->setDspMode(mode);
         const DSPMode wdspMode = resolveWDSPMode(mode, slice->centerFrequency());
         auto filter = getFilterFromDSPMode(m_defaultFilterList, wdspMode);
@@ -3916,9 +3763,10 @@ QList<int> Settings::availableCodec2Modes() {
 }
 
 AGCMode Settings::getAGCMode(int rx) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) return m_radioModel->slices()[rx]->agcMode();
+    if (SliceModel* slice = sliceModel(rx))
+        return slice->agcMode();
 
-    return m_receiverDataList.at(rx).agcMode;
+    return (rx >= 0 && rx < m_receiverDataList.size()) ? m_receiverDataList.at(rx).agcMode : (AGCMode)0;
 }
 
 ADCMode Settings::getADCMode(int rx) {
@@ -3983,20 +3831,18 @@ void Settings::setADCMode(int rx, ADCMode mode) {
 }
 
 void Settings::setAGCMode(int rx, AGCMode mode) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size()) {
-        SliceModel* slice = m_radioModel->slices().at(rx);
-        if (slice) {
-            slice->setAgcMode(mode);
-            QMutexLocker locker(&settingsMutex);
-            m_receiverDataList[rx].agcMode = mode;
-            m_receiverDataList[rx].hangEnabled = agcHangEnabledForMode(mode);
-            locker.unlock();
-            return;
-        }
+    if (SliceModel* slice = sliceModel(rx)) {
+        slice->setAgcMode(mode);
+        QMutexLocker locker(&settingsMutex);
+        m_receiverDataList[rx].agcMode = mode;
+        m_receiverDataList[rx].hangEnabled = agcHangEnabledForMode(mode);
+        locker.unlock();
+        return;
     }
 
     QMutexLocker locker(&settingsMutex);
 
+    if (rx < 0 || rx >= m_receiverDataList.size()) return;
     if (m_receiverDataList[rx].agcMode == mode) return;
     m_receiverDataList[rx].agcMode = mode;
 
@@ -4019,6 +3865,7 @@ void Settings::setAGCMode(int rx, AGCMode mode) {
 
 void Settings::setAGCShowLines(int rx, bool value) {
 
+    if (rx < 0 || rx >= m_receiverDataList.size()) return;
     if (m_receiverDataList[rx].agcLines == value) return;
     m_receiverDataList[rx].agcLines = value;
 
@@ -4026,42 +3873,40 @@ void Settings::setAGCShowLines(int rx, bool value) {
 }
 
 qreal Settings::getAGCGain(int rx) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) return (qreal)m_radioModel->slices()[rx]->agcGain();
+    if (SliceModel* slice = sliceModel(rx))
+        return static_cast<qreal>(slice->agcGain());
 
+    if (rx < 0 || rx >= m_receiverDataList.size()) return 0.0;
     return m_receiverDataList[rx].acgGain;
 }
 
 void Settings::setAGCGain(int rx, int value) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size()) {
-        SliceModel* slice = m_radioModel->slices().at(rx);
-        if (slice) {
-            slice->setAgcGain(value);
-            QMutexLocker locker(&settingsMutex);
-            m_receiverDataList[rx].acgGain = value;
-            return;
-        }
+    if (SliceModel* slice = sliceModel(rx)) {
+        slice->setAgcGain(value);
+        QMutexLocker locker(&settingsMutex);
+        m_receiverDataList[rx].acgGain = value;
+        return;
     }
 
     QMutexLocker locker(&settingsMutex);
 
+    if (rx < 0 || rx >= m_receiverDataList.size()) return;
     if (m_receiverDataList[rx].acgGain == value) return;
     m_receiverDataList[rx].acgGain = value;
     emit agcGainChanged(rx, value);
 }
 
 void Settings::setAGCMaximumGain_dB(int rx, qreal value) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size()) {
-        SliceModel* slice = m_radioModel->slices().at(rx);
-        if (slice) {
-            slice->setAgcMaxGain(static_cast<int>(value));
-            QMutexLocker locker(&settingsMutex);
-            m_receiverDataList[rx].agcMaximumGain_dB = static_cast<int>(value);
-            return;
-        }
+    if (SliceModel* slice = sliceModel(rx)) {
+        slice->setAgcMaxGain(static_cast<int>(value));
+        QMutexLocker locker(&settingsMutex);
+        m_receiverDataList[rx].agcMaximumGain_dB = static_cast<int>(value);
+        return;
     }
 
     QMutexLocker locker(&settingsMutex);
 
+    if (rx < 0 || rx >= m_receiverDataList.size()) return;
     if (m_receiverDataList[rx].agcMaximumGain_dB == value) return;
     m_receiverDataList[rx].agcMaximumGain_dB = value;
 
@@ -4070,25 +3915,24 @@ void Settings::setAGCMaximumGain_dB(int rx, qreal value) {
 }
 
 int Settings::getAGCMaximumGain_dB(int rx) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx])
-        return m_radioModel->slices()[rx]->agcMaxGain();
+    if (SliceModel* slice = sliceModel(rx))
+        return slice->agcMaxGain();
 
+    if (rx < 0 || rx >= m_receiverDataList.size()) return 0;
     return m_receiverDataList[rx].agcMaximumGain_dB;
 }
 
 void Settings::setAGCFixedGain_dB(int rx, qreal value) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size()) {
-        SliceModel* slice = m_radioModel->slices().at(rx);
-        if (slice) {
-            slice->setAgcFixedGain(static_cast<int>(value));
-            QMutexLocker locker(&settingsMutex);
-            m_receiverDataList[rx].agcFixedGain_dB = value;
-            return;
-        }
+    if (SliceModel* slice = sliceModel(rx)) {
+        slice->setAgcFixedGain(static_cast<int>(value));
+        QMutexLocker locker(&settingsMutex);
+        m_receiverDataList[rx].agcFixedGain_dB = value;
+        return;
     }
 
     QMutexLocker locker(&settingsMutex);
 
+    if (rx < 0 || rx >= m_receiverDataList.size()) return;
     if (m_receiverDataList[rx].agcFixedGain_dB == value) return;
     m_receiverDataList[rx].agcFixedGain_dB = value;
 
@@ -4097,9 +3941,10 @@ void Settings::setAGCFixedGain_dB(int rx, qreal value) {
 }
 
 qreal Settings::getAGCFixedGain_dB(int rx) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx])
-        return static_cast<qreal>(m_radioModel->slices()[rx]->agcFixedGain());
+    if (SliceModel* slice = sliceModel(rx))
+        return static_cast<qreal>(slice->agcFixedGain());
 
+    if (rx < 0 || rx >= m_receiverDataList.size()) return 0.0;
     return m_receiverDataList[rx].agcFixedGain_dB;
 }
 
@@ -4128,18 +3973,16 @@ int Settings::getAGCHangThreshold(int rx) {
 }
 
 void Settings::setAGCHangThreshold(int rx, int value) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size()) {
-        SliceModel* slice = m_radioModel->slices().at(rx);
-        if (slice) {
-            slice->setAgcHangThreshold(value);
-            QMutexLocker locker(&settingsMutex);
-            m_receiverDataList[rx].agcHangThreshold = value;
-            return;
-        }
+    if (SliceModel* slice = sliceModel(rx)) {
+        slice->setAgcHangThreshold(value);
+        QMutexLocker locker(&settingsMutex);
+        m_receiverDataList[rx].agcHangThreshold = value;
+        return;
     }
 
     QMutexLocker locker(&settingsMutex);
 
+    if (rx < 0 || rx >= m_receiverDataList.size()) return;
     if (m_receiverDataList[rx].agcHangThreshold == value) return;
     m_receiverDataList[rx].agcHangThreshold = value;
 
@@ -4158,6 +4001,7 @@ void Settings::setAGCHangLevel_dB(int rx, qreal value) {
 
     QMutexLocker locker(&settingsMutex);
 
+    if (rx < 0 || rx >= m_receiverDataList.size()) return;
     if (m_receiverDataList[rx].agcHangLevel == value) return;
     m_receiverDataList[rx].agcHangLevel = value;
 
@@ -4168,6 +4012,7 @@ void Settings::setAGCHangLevel_dB(int rx, qreal value) {
 void Settings::setAGCLineLevels(int rx, qreal thresh, qreal hang) {
 
     if (m_currentReceiver != rx) return;
+    if (rx < 0 || rx >= m_receiverDataList.size()) return;
     if ((m_receiverDataList[rx].agcHangLevel == hang) && (m_receiverDataList[rx].acgThreshold_dB == thresh)) return;
 
     m_receiverDataList[rx].agcHangLevel = hang;
@@ -4177,14 +4022,11 @@ void Settings::setAGCLineLevels(int rx, qreal thresh, qreal hang) {
 }
 
 void Settings::setAGCVariableGain_dB(int rx, qreal value) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size()) {
-        SliceModel* slice = m_radioModel->slices().at(rx);
-        if (slice) {
-            slice->setAgcSlope(static_cast<int>(value));
-            QMutexLocker locker(&settingsMutex);
-            m_receiverDataList[rx].agcSlope = value;
-            return;
-        }
+    if (SliceModel* slice = sliceModel(rx)) {
+        slice->setAgcSlope(static_cast<int>(value));
+        QMutexLocker locker(&settingsMutex);
+        m_receiverDataList[rx].agcSlope = value;
+        return;
     }
 
     if (rx < 0 || rx >= m_receiverDataList.size()) return;
@@ -4234,8 +4076,7 @@ void Settings::setRXFilter(int rx, qreal low, qreal high) {
         return;
 
     // Mirror into MVC slice model; legacy path continues below and remains authoritative
-    if (m_radioModel && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) {
-        auto slice = m_radioModel->slices()[rx];
+    if (SliceModel* slice = sliceModel(rx)) {
         slice->setFilterLow(static_cast<float>(low));
         slice->setFilterHigh(static_cast<float>(high));
     }
@@ -4481,6 +4322,7 @@ void Settings::setRxJ6Pin(HamBand band, int value) {
     if (m_rxJ6pinList[band] == value) return;
 
     m_rxJ6pinList[band] = value;
+    m_pennyConfig->setRxJ6(m_rxJ6pinList);
 
     emit rxJ6PinsChanged(m_rxJ6pinList);
 }
@@ -4490,6 +4332,7 @@ void Settings::setRxJ6Pins(const QList<int> &states) {
     //if (m_rxJ6pinList == states) return;
 
     m_rxJ6pinList = states;
+    m_pennyConfig->setRxJ6(m_rxJ6pinList);
 
     emit rxJ6PinsChanged(m_rxJ6pinList);
 }
@@ -4500,6 +4343,7 @@ void Settings::setTxJ6Pin(HamBand band, int value) {
     if (m_txJ6pinList[band] == value) return;
 
     m_txJ6pinList[band] = value;
+    m_pennyConfig->setTxJ6(m_txJ6pinList);
 
     emit txJ6PinsChanged(m_txJ6pinList);
 }
@@ -4509,6 +4353,7 @@ void Settings::setTxJ6Pins(const QList<int> &states) {
     //if (m_txJ6pinList == states) return;
 
     m_txJ6pinList = states;
+    m_pennyConfig->setTxJ6(m_txJ6pinList);
 
     emit txJ6PinsChanged(m_txJ6pinList);
 }
@@ -4518,18 +4363,12 @@ void Settings::setPennyOCEnabled(bool value) {
     if (m_pennyOCEnabled == value) return;
 
     m_pennyOCEnabled = value;
+    m_pennyConfig->setOcEnabled(value);
 
     emit pennyOCEnabledChanged(m_pennyOCEnabled);
 }
 
-//**************************************
-//**************************************
-// OpenCL stuff
 
-//void Settings::setOpenCLDevices(QList<QCLDevice> devices) {
-//
-//	m_clDevices = devices;
-//}
 
 void Settings::setFreqRulerPosition(int rx, float position) {
 
@@ -4572,6 +4411,13 @@ void Settings::setWidebandOptions(TWideband options) {
     QMutexLocker locker(&settingsMutex);
 
     m_widebandOptions = options;
+    m_widebandConfig->setDataEnabled(options.wideBandData);
+    m_widebandConfig->setDisplayEnabled(options.wideBandDisplayStatus);
+    m_widebandConfig->setAveraging(options.averaging);
+    m_widebandConfig->setAveragingCnt(options.averagingCnt);
+    m_widebandConfig->setdBmScaleMin(options.dBmWBScaleMin);
+    m_widebandConfig->setdBmScaleMax(options.dBmWBScaleMax);
+    m_widebandConfig->setPanMode(options.panMode);
     locker.unlock();
     emit widebandOptionsChanged(m_widebandOptions);
 }
@@ -4582,6 +4428,7 @@ void Settings::setWidebandStatus(bool value) {
 
     if (m_widebandOptions.wideBandDisplayStatus == value) return;
     m_widebandOptions.wideBandDisplayStatus = value;
+    m_widebandConfig->setDisplayEnabled(value);
     locker.unlock();
     emit widebandStatusChanged(m_widebandOptions.wideBandDisplayStatus);
 }
@@ -4592,6 +4439,7 @@ void Settings::setWidebandData(bool value) {
 
     if (m_widebandOptions.wideBandData == value) return;
     m_widebandOptions.wideBandData = value;
+    m_widebandConfig->setDataEnabled(value);
     locker.unlock();
     emit widebandDataChanged(m_widebandOptions.wideBandData);
 }
@@ -4610,6 +4458,7 @@ void Settings::setWidebanddBmScaleMin(qreal value) {
 
     if (m_widebandOptions.dBmWBScaleMin == value) return;
     m_widebandOptions.dBmWBScaleMin = value;
+    m_widebandConfig->setdBmScaleMin(value);
 
     locker.unlock();
     emit widebanddBmScaleMinChanged(m_widebandOptions.dBmWBScaleMin);
@@ -4621,6 +4470,7 @@ void Settings::setWidebanddBmScaleMax(qreal value) {
 
     if (m_widebandOptions.dBmWBScaleMax == value) return;
     m_widebandOptions.dBmWBScaleMax = value;
+    m_widebandConfig->setdBmScaleMax(value);
 
     locker.unlock();
     emit widebanddBmScaleMaxChanged(m_widebandOptions.dBmWBScaleMax);
@@ -4688,19 +4538,17 @@ int Settings::getFramesPerSecond(int rx) {
 }
 
 void Settings::setSpectrumAveraging(int rx, bool value) {
-    if (rx >= 0 && m_radioModel && rx < m_radioModel->slices().size()) {
-        SliceModel* slice = m_radioModel->slices().at(rx);
-        if (slice) {
-            slice->setSpectrumAveraging(value);
-            QMutexLocker locker(&settingsMutex);
-            m_receiverDataList[rx].spectrumAveraging = value;
-            return;
-        }
+    if (SliceModel* slice = sliceModel(rx)) {
+        slice->setSpectrumAveraging(value);
+        QMutexLocker locker(&settingsMutex);
+        m_receiverDataList[rx].spectrumAveraging = value;
+        return;
     }
 
     if (rx == -1) {
         m_widebandOptions.averaging = value;
-    } else {
+        m_widebandConfig->setAveraging(value);
+    } else if (rx >= 0 && rx < m_receiverDataList.size()) {
         m_receiverDataList[rx].spectrumAveraging = value;
     }
 
@@ -4709,32 +4557,40 @@ void Settings::setSpectrumAveraging(int rx, bool value) {
 }
 
 bool Settings::getSpectrumAveraging(int rx) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) return m_radioModel->slices()[rx]->spectrumAveraging();
+    if (SliceModel* slice = sliceModel(rx))
+        return slice->spectrumAveraging();
 
     if (rx == -1)
         return m_widebandOptions.averaging;
-    else
+    else if (rx >= 0 && rx < m_receiverDataList.size())
         return m_receiverDataList[rx].spectrumAveraging;
+    return false;
 }
 
 int Settings::getSpectrumAveragingCnt(int rx) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) return m_radioModel->slices()[rx]->spectrumAveragingCnt();
+    if (SliceModel* slice = sliceModel(rx))
+        return slice->spectrumAveragingCnt();
 
     if (rx == -1)
         return m_widebandOptions.averagingCnt;
-    else
+    else if (rx >= 0 && rx < m_receiverDataList.size())
         return m_receiverDataList[rx].averagingCnt;
+    return 0;
 }
 
 void Settings::setSpectrumAveragingCnt(int rx, int value) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) { m_radioModel->slices()[rx]->setSpectrumAveragingCnt(value); return; }
+    if (SliceModel* slice = sliceModel(rx)) {
+        slice->setSpectrumAveragingCnt(value);
+        return;
+    }
 
  //   QMutexLocker locker(&settingsMutex);
 
     //if (m_specAveragingCnt == value) return
-    if (rx == -1)
+    if (rx == -1) {
         m_widebandOptions.averagingCnt = value;
-    else
+        m_widebandConfig->setAveragingCnt(value);
+    } else if (rx >= 0 && rx < m_receiverDataList.size())
         m_receiverDataList[rx].averagingCnt = value;
     qDebug() << "spec av" << value;
     emit spectrumAveragingCntChanged(rx, value);
@@ -4742,10 +4598,14 @@ void Settings::setSpectrumAveragingCnt(int rx, int value) {
 
 
 void Settings::setPanGrid(bool value, int rx) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) { m_radioModel->slices()[rx]->setPanGrid(value); return; }
+    if (SliceModel* slice = sliceModel(rx)) {
+        slice->setPanGrid(value);
+        return;
+    }
 
     QMutexLocker locker(&settingsMutex);
 
+    if (rx < 0 || rx >= m_receiverDataList.size()) return;
     if (m_receiverDataList.at(rx).panGrid == value) return;
     m_receiverDataList[rx].panGrid = value;
 
@@ -4753,14 +4613,16 @@ void Settings::setPanGrid(bool value, int rx) {
 }
 
 bool Settings::getPanGridStatus(int rx) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) return m_radioModel->slices()[rx]->panGrid();
+    if (SliceModel* slice = sliceModel(rx))
+        return slice->panGrid();
 
+    if (rx < 0 || rx >= m_receiverDataList.size()) return false;
     return m_receiverDataList[rx].panGrid;
 }
 
 void Settings::setPeakHold(bool value, int rx) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) {
-        m_radioModel->slices()[rx]->setPeakHold(value);
+    if (SliceModel* slice = sliceModel(rx)) {
+        slice->setPeakHold(value);
         QMutexLocker locker(&settingsMutex);
         m_receiverDataList[rx].peakHold = value;
         return;
@@ -4768,6 +4630,7 @@ void Settings::setPeakHold(bool value, int rx) {
 
     QMutexLocker locker(&settingsMutex);
 
+    if (rx < 0 || rx >= m_receiverDataList.size()) return;
     if (m_receiverDataList.at(rx).peakHold == value) return;
     m_receiverDataList[rx].peakHold = value;
 
@@ -4775,8 +4638,10 @@ void Settings::setPeakHold(bool value, int rx) {
 }
 
 bool Settings::getPeakHoldStatus(int rx) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) return m_radioModel->slices()[rx]->peakHold();
+    if (SliceModel* slice = sliceModel(rx))
+        return slice->peakHold();
 
+    if (rx < 0 || rx >= m_receiverDataList.size()) return false;
     return m_receiverDataList.at(rx).peakHold;
 }
 
@@ -4833,10 +4698,14 @@ void Settings::setWaterfallTime(int rx, int value) {
 }
 
 void Settings::setWaterfallOffesetLo(int rx, int value) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) { m_radioModel->slices()[rx]->setWaterfallOffsetLo(value); return; }
+    if (SliceModel* slice = sliceModel(rx)) {
+        slice->setWaterfallOffsetLo(value);
+        return;
+    }
 
     QMutexLocker locker(&settingsMutex);
 
+    if (rx < 0 || rx >= m_receiverDataList.size()) return;
     if (m_receiverDataList[rx].waterfallOffsetLo == value) return;
     m_receiverDataList[rx].waterfallOffsetLo = value;
 
@@ -4844,10 +4713,14 @@ void Settings::setWaterfallOffesetLo(int rx, int value) {
 }
 
 void Settings::setWaterfallOffesetHi(int rx, int value) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) { m_radioModel->slices()[rx]->setWaterfallOffsetHi(value); return; }
+    if (SliceModel* slice = sliceModel(rx)) {
+        slice->setWaterfallOffsetHi(value);
+        return;
+    }
 
     QMutexLocker locker(&settingsMutex);
 
+    if (rx < 0 || rx >= m_receiverDataList.size()) return;
     if (m_receiverDataList[rx].waterfallOffsetHi == value) return;
     m_receiverDataList[rx].waterfallOffsetHi = value;
 
@@ -4871,8 +4744,8 @@ void Settings::setdBmPanScaleMin(int rx, qreal value) {
     if (rx < 0 || rx >= m_receiverDataList.size())
         return;
 
-    if (m_radioModel && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx])
-        m_radioModel->slices()[rx]->setDBmPanScaleMin(value);
+    if (SliceModel* slice = sliceModel(rx))
+        slice->setDBmPanScaleMin(value);
 
     QMutexLocker locker(&settingsMutex);
 
@@ -4889,8 +4762,8 @@ void Settings::setdBmPanScaleMax(int rx, qreal value) {
     if (rx < 0 || rx >= m_receiverDataList.size())
         return;
 
-    if (m_radioModel && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx])
-        m_radioModel->slices()[rx]->setDBmPanScaleMax(value);
+    if (SliceModel* slice = sliceModel(rx))
+        slice->setDBmPanScaleMax(value);
 
     QMutexLocker locker(&settingsMutex);
 
@@ -4924,13 +4797,14 @@ void Settings::showRadioPopupWidget() {
 }
 
 void Settings::setPanAveragingMode(int rx, PanAveragingMode mode) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) {
-        m_radioModel->slices()[rx]->setPanAveragingMode(mode);
+    if (SliceModel* slice = sliceModel(rx)) {
+        slice->setPanAveragingMode(mode);
         QMutexLocker locker(&settingsMutex);
         m_receiverDataList[rx].panAvMode = mode;
         return;
     }
 
+    if (rx < 0 || rx >= m_receiverDataList.size()) return;
     if (m_receiverDataList.at(rx).panAvMode == mode) return;
 
     m_receiverDataList[rx].panAvMode = mode;
@@ -4942,16 +4816,14 @@ void Settings::setPanAveragingMode(int rx, PanAveragingMode mode) {
 }
 
 void Settings::setPanDetectorMode(int rx, PanDetectorMode mode) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size()) {
-        SliceModel* slice = m_radioModel->slices().at(rx);
-        if (slice) {
-            slice->setPanDetectorMode(mode);
-            QMutexLocker locker(&settingsMutex);
-            m_receiverDataList[rx].panDetMode = mode;
-            return;
-        }
+    if (SliceModel* slice = sliceModel(rx)) {
+        slice->setPanDetectorMode(mode);
+        QMutexLocker locker(&settingsMutex);
+        m_receiverDataList[rx].panDetMode = mode;
+        return;
     }
 
+    if (rx < 0 || rx >= m_receiverDataList.size()) return;
     if (m_receiverDataList.at(rx).panDetMode == mode) return;
 
     m_receiverDataList[rx].panDetMode = mode;
@@ -4971,7 +4843,11 @@ int Settings::getAGCSlope(int rx) {
 }
 
 void Settings::setfftSize(int rx, int size) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) { m_radioModel->slices()[rx]->setFftSize(size); return; }
+    if (SliceModel* slice = sliceModel(rx)) {
+        slice->setFftSize(size);
+        return;
+    }
+    if (rx < 0 || rx >= m_receiverDataList.size()) return;
     if (m_receiverDataList[rx].fftsize == size) return;
     m_receiverDataList[rx].fftsize = size;
     qDebug() << "fftsize set to " << size;
@@ -4980,6 +4856,7 @@ void Settings::setfftSize(int rx, int size) {
 
 void Settings::setfmsqLevel(int rx, int level) {
 
+    if (rx < 0 || rx >= m_receiverDataList.size()) return;
     if (m_receiverDataList[rx].fmsqLevel == level) return;
     m_receiverDataList[rx].fmsqLevel = level;
     qDebug() << "fm sq level set to " << level;
@@ -4989,63 +4866,79 @@ void Settings::setfmsqLevel(int rx, int level) {
 
 
 int Settings::getfftSize(int rx) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) return m_radioModel->slices()[rx]->fftSize();
+    if (SliceModel* slice = sliceModel(rx))
+        return slice->fftSize();
+    if (rx < 0 || rx >= m_receiverDataList.size()) return 2048;
     return m_receiverDataList[rx].fftsize;
 }
 
 int Settings::getNrAGC(int rx) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) return m_radioModel->slices()[rx]->nrAgc();
+    if (SliceModel* slice = sliceModel(rx))
+        return slice->nrAgc();
+    if (rx < 0 || rx >= m_receiverDataList.size()) return 0;
     return m_receiverDataList[rx].nr_agc;
 }
 
 
 int Settings::getNr2GainMethod(int rx) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) return m_radioModel->slices()[rx]->nr2GainMethod();
+    if (SliceModel* slice = sliceModel(rx))
+        return slice->nr2GainMethod();
+    if (rx < 0 || rx >= m_receiverDataList.size()) return 0;
     return m_receiverDataList[rx].nr2_gain_method;
 }
 
 int Settings::getNr2NpeMethod(int rx) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) return m_radioModel->slices()[rx]->nr2NpeMethod();
+    if (SliceModel* slice = sliceModel(rx))
+        return slice->nr2NpeMethod();
+    if (rx < 0 || rx >= m_receiverDataList.size()) return 0;
     return m_receiverDataList[rx].nr2_npe_method;
 }
 
 bool Settings::getSnb(int rx) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) return m_radioModel->slices()[rx]->snb();
+    if (SliceModel* slice = sliceModel(rx))
+        return slice->snb();
+    if (rx < 0 || rx >= m_receiverDataList.size()) return false;
     return m_receiverDataList[rx].snb;
 }
 
 bool Settings::getAnf(int rx) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) return m_radioModel->slices()[rx]->anf();
+    if (SliceModel* slice = sliceModel(rx))
+        return slice->anf();
+    if (rx < 0 || rx >= m_receiverDataList.size()) return false;
     return m_receiverDataList[rx].anf;
 }
 
 bool Settings::getNr2ae(int rx) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) return m_radioModel->slices()[rx]->nr2Ae();
+    if (SliceModel* slice = sliceModel(rx))
+        return slice->nr2Ae();
+    if (rx < 0 || rx >= m_receiverDataList.size()) return false;
     return m_receiverDataList[rx].nr2_ae;
 }
 
 
 int Settings::getnbMode(int rx) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) return m_radioModel->slices()[rx]->nbMode();
+    if (SliceModel* slice = sliceModel(rx))
+        return slice->nbMode();
+    if (rx < 0 || rx >= m_receiverDataList.size()) return 0;
     return m_receiverDataList[rx].nbMode;
 }
 
 int Settings::getnrMode(int rx) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) return m_radioModel->slices()[rx]->nrMode();
+    if (SliceModel* slice = sliceModel(rx))
+        return slice->nrMode();
+    if (rx < 0 || rx >= m_receiverDataList.size()) return 0;
     return m_receiverDataList[rx].nr;
 }
 
 
 void Settings::setNoiseBlankerMode(int rx, int nb) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size()) {
-        SliceModel* slice = m_radioModel->slices().at(rx);
-        if (slice) {
-            slice->setNbMode(nb);
-            QMutexLocker locker(&settingsMutex);
-            m_receiverDataList[rx].nbMode = nb;
-            return;
-        }
+    if (SliceModel* slice = sliceModel(rx)) {
+        slice->setNbMode(nb);
+        QMutexLocker locker(&settingsMutex);
+        m_receiverDataList[rx].nbMode = nb;
+        return;
     }
+    if (rx < 0 || rx >= m_receiverDataList.size()) return;
     if (m_receiverDataList[rx].nbMode == nb) return;
     m_receiverDataList[rx].nbMode = nb;
     emit noiseBlankerChanged(rx, nb);
@@ -5053,75 +4946,65 @@ void Settings::setNoiseBlankerMode(int rx, int nb) {
 
 
 void Settings::setNoiseFilterMode(int rx, int nr) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size()) {
-        SliceModel* slice = m_radioModel->slices().at(rx);
-        if (slice) {
-            slice->setNrMode(nr);
-            QMutexLocker locker(&settingsMutex);
-            m_receiverDataList[rx].nr = nr;
-            return;
-        }
+    if (SliceModel* slice = sliceModel(rx)) {
+        slice->setNrMode(nr);
+        QMutexLocker locker(&settingsMutex);
+        m_receiverDataList[rx].nr = nr;
+        return;
     }
+    if (rx < 0 || rx >= m_receiverDataList.size()) return;
     if (m_receiverDataList[rx].nr == nr) return;
     m_receiverDataList[rx].nr = nr;
     emit noiseFilterChanged(rx, nr);
 }
 
 void Settings::setNR2Ae(int rx, bool value) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size()) {
-        SliceModel* slice = m_radioModel->slices().at(rx);
-        if (slice) {
-            slice->setNr2Ae(value);
-            QMutexLocker locker(&settingsMutex);
-            m_receiverDataList[rx].nr2_ae = value;
-            return;
-        }
+    if (SliceModel* slice = sliceModel(rx)) {
+        slice->setNr2Ae(value);
+        QMutexLocker locker(&settingsMutex);
+        m_receiverDataList[rx].nr2_ae = value;
+        return;
     }
+    if (rx < 0 || rx >= m_receiverDataList.size()) return;
     if (m_receiverDataList[rx].nr2_ae == value) return;
     m_receiverDataList[rx].nr2_ae = value;
     emit nr2AeChanged(rx, value);
 }
 
 void Settings::setNR2GainMethod(int rx, int value) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size()) {
-        SliceModel* slice = m_radioModel->slices().at(rx);
-        if (slice) {
-            slice->setNr2GainMethod(value);
-            QMutexLocker locker(&settingsMutex);
-            m_receiverDataList[rx].nr2_gain_method = value;
-            return;
-        }
+    if (SliceModel* slice = sliceModel(rx)) {
+        slice->setNr2GainMethod(value);
+        QMutexLocker locker(&settingsMutex);
+        m_receiverDataList[rx].nr2_gain_method = value;
+        return;
     }
+    if (rx < 0 || rx >= m_receiverDataList.size()) return;
     if (m_receiverDataList[rx].nr2_gain_method == value) return;
     m_receiverDataList[rx].nr2_gain_method = value;
     emit nr2GainMethodChanged(rx, value);
 }
 
 void Settings::setNR2NpeMethod(int rx, int value) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size()) {
-        SliceModel* slice = m_radioModel->slices().at(rx);
-        if (slice) {
-            slice->setNr2NpeMethod(value);
-            QMutexLocker locker(&settingsMutex);
-            m_receiverDataList[rx].nr2_npe_method = value;
-            return;
-        }
+    if (SliceModel* slice = sliceModel(rx)) {
+        slice->setNr2NpeMethod(value);
+        QMutexLocker locker(&settingsMutex);
+        m_receiverDataList[rx].nr2_npe_method = value;
+        return;
     }
+    if (rx < 0 || rx >= m_receiverDataList.size()) return;
     if (m_receiverDataList[rx].nr2_npe_method == value) return;
     m_receiverDataList[rx].nr2_npe_method = value;
     emit nr2NpeMethodChanged(rx, value);
 }
 
 void Settings::setNRAgc(int rx, int value) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size()) {
-        SliceModel* slice = m_radioModel->slices().at(rx);
-        if (slice) {
-            slice->setNrAgc(value);
-            QMutexLocker locker(&settingsMutex);
-            m_receiverDataList[rx].nr_agc = value;
-            return;
-        }
+    if (SliceModel* slice = sliceModel(rx)) {
+        slice->setNrAgc(value);
+        QMutexLocker locker(&settingsMutex);
+        m_receiverDataList[rx].nr_agc = value;
+        return;
     }
+    if (rx < 0 || rx >= m_receiverDataList.size()) return;
     if (m_receiverDataList[rx].nr_agc == value) return;
     m_receiverDataList[rx].nr_agc = value;
     emit nrAgcChanged(rx, value);
@@ -5129,18 +5012,26 @@ void Settings::setNRAgc(int rx, int value) {
 
 
 void Settings::setSnb(int rx, bool value) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) { m_radioModel->slices()[rx]->setSnb(value); return; }
+    if (SliceModel* slice = sliceModel(rx)) {
+        slice->setSnb(value);
+        return;
+    }
+    if (rx < 0 || rx >= m_receiverDataList.size()) return;
     if (m_receiverDataList[rx].snb == value) return;
     m_receiverDataList[rx].snb = value;
-    emit(snbChanged(rx, value));
+    emit snbChanged(rx, value);
 }
 
 
 void Settings::setAnf(int rx, bool value) {
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) { m_radioModel->slices()[rx]->setAnf(value); return; }
+    if (SliceModel* slice = sliceModel(rx)) {
+        slice->setAnf(value);
+        return;
+    }
+    if (rx < 0 || rx >= m_receiverDataList.size()) return;
     if (m_receiverDataList[rx].anf == value) return;
     m_receiverDataList[rx].anf = value;
-    emit(anfChanged(rx, value));
+    emit anfChanged(rx, value);
 }
 
 bool Settings::getCwDecode(int rx) {
@@ -5155,8 +5046,8 @@ void Settings::setCwDecode(int rx, bool value) {
     if (rx >= 0 && rx < m_receiverDataList.size()) {
         m_receiverDataList[rx].cwDecode = value;
     }
-    if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices()[rx]) {
-        m_radioModel->slices()[rx]->setCwDecodeEnabled(value);
+    if (SliceModel* slice = sliceModel(rx)) {
+        slice->setCwDecodeEnabled(value);
     }
 }
 
@@ -5485,8 +5376,8 @@ void Settings::syncSlicesWithSettings() {
     m_radioModel->setPanadapterColors(m_displayConfig->panadapterColors());
     connect(m_radioModel, &RadioModel::colorsChanged, this, &Settings::panadapterColorChanged);
 
-    for (int i = 0; i < m_receiverDataList.size() && i < m_radioModel->slices().size(); ++i) {
-        auto slice = m_radioModel->slices().at(i);
+    for (int i = 0; i < m_receiverDataList.size(); ++i) {
+        auto slice = sliceModel(i);
         if (!slice) continue;
 
         // Frequency / mode / filters / volume / AGC / DSP-display: SliceModel -> runtime (not relayed via Settings).
@@ -5588,8 +5479,8 @@ void Settings::syncSlicesWithSettings() {
 void Settings::syncSettingsWithSlices() {
     if (!m_radioModel) return;
     m_displayConfig->setPanadapterColors(m_radioModel->panadapterColors());
-    for (int i = 0; i < m_receiverDataList.size() && i < m_radioModel->slices().size(); ++i) {
-        auto slice = m_radioModel->slices().at(i);
+    for (int i = 0; i < m_receiverDataList.size(); ++i) {
+        auto slice = sliceModel(i);
         if (!slice) continue;
         m_receiverDataList[i].vfoAFrequency = slice->vfoAFrequency();
         m_receiverDataList[i].vfoBFrequency = slice->vfoBFrequency();
@@ -5638,10 +5529,7 @@ void Settings::syncSettingsWithSlices() {
 }
 
 void Settings::syncTransmitWithSettings() {
-    if (!m_radioModel)
-        return;
-
-    TransmitModel* tx = m_radioModel->transmit();
+    TransmitModel* tx = transmitModel();
     if (!tx)
         return;
 
@@ -5688,10 +5576,7 @@ void Settings::syncTransmitWithSettings() {
 }
 
 void Settings::syncSettingsWithTransmit() {
-    if (!m_radioModel)
-        return;
-
-    const TransmitModel* tx = m_radioModel->transmit();
+    const TransmitModel* tx = transmitModel();
     if (!tx)
         return;
 
@@ -5732,11 +5617,6 @@ void Settings::syncSettingsWithTransmit() {
     m_cwConfig->setSidetoneVolume(tx->cwSidetoneVolume());
     m_cwConfig->setHangTime(tx->cwHangTime());
     m_cwConfig->setKeyerWeight(tx->cwKeyerWeight());
-}
-
-TransmitModel* Settings::transmitModel() const
-{
-    return m_radioModel ? m_radioModel->transmit() : nullptr;
 }
 
 double Settings::getFMpreemphesis() const

@@ -223,13 +223,13 @@ tx_settings_dialog::tx_settings_dialog(QWidget *parent) :
 
     connect(ui->ctcss_tone, QOverload<int>::of(&QSpinBox::valueChanged), this, &tx_settings_dialog::ctcssToneHzRequested);
     connect(ui->KeyerMode, &QComboBox::currentIndexChanged, this, &tx_settings_dialog::cwKeyerModeRequested);
-    connect(ui->internal_keyer, &QCheckBox::stateChanged, this, [this](int state) {
+    connect(ui->internal_keyer, &QCheckBox::checkStateChanged, this, [this](Qt::CheckState state) {
         emit internalCwRequested(state == Qt::Checked);
     });
-    connect(ui->keyer_reverse, &QCheckBox::stateChanged, this, [this](int state) {
+    connect(ui->keyer_reverse, &QCheckBox::checkStateChanged, this, [this](Qt::CheckState state) {
         emit cwKeyReversedRequested(state == Qt::Checked);
     });
-    connect(ui->keyer_spacing, &QCheckBox::stateChanged, this, [this](int state) {
+    connect(ui->keyer_spacing, &QCheckBox::checkStateChanged, this, [this](Qt::CheckState state) {
         emit cwKeyerSpacingRequested(state == Qt::Checked);
     });
     connect(ui->keyer_speed, &QSpinBox::valueChanged, this, &tx_settings_dialog::cwKeyerSpeedRequested);
