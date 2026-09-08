@@ -8,8 +8,10 @@
 #include "CProtocol1.h"
 #include "CProtocol2.h"
 #include "Drivers/HpsdrDevice.h"
+#include "DataEngine/protocol_boundary_utils.h"
 #include "Models/RadioModel.h"
 #include "Models/RadioTelemetry.h"
+#include "Util/device_identity.h"
 #include <QCoreApplication>
 #include <QDeadlineTimer>
 #include <QObject>
@@ -140,6 +142,20 @@ bool DataEngineLifecycle::findHPSDRDevices() {
 				&& card.protocol == current.protocol) {
 				selected = card;
 				break;
+			}
+		}
+		const auto selectedType = ProtocolBoundaryUtils::decodeHpsdrDevice(
+			selected.boardID, selected.protocol, selected.sw_version).deviceType;
+		if (ProtocolBoundaryUtils::isHermesLiteDeviceType(selectedType)) {
+			for (const TNetworkDevicecard &card : metisList) {
+				if (!sameHpsdrDeviceByMac(card, selected))
+					continue;
+				const auto type = ProtocolBoundaryUtils::decodeHpsdrDevice(
+					card.boardID, card.protocol, card.sw_version).deviceType;
+				if (ProtocolBoundaryUtils::isAnanHermesDeviceType(type)) {
+					selected = card;
+					break;
+				}
 			}
 		}
 		m_engine->set->setCurrentHPSDRDevice(selected);
@@ -413,7 +429,9 @@ bool DataEngineLifecycle::start() {
 		DATA_ENGINE_DEBUG << "[START] queued DataIO::finishStartup after exec()";
 	}
 
-	m_engine->setDevice(std::make_unique<HpsdrDevice>(m_engine->m_dataIO, m_engine->m_protocol.get(), isProtocol2));
+	auto device = std::make_unique<HpsdrDevice>(m_engine->m_dataIO, m_engine->m_protocol.get(), isProtocol2);
+	device->setDeviceName(m_engine->set->getCurrentMetisCard().boardName);
+	m_engine->setDevice(std::move(device));
 
 	return true;
 }

@@ -1,4 +1,5 @@
 #include <QtTest/QtTest>
+#include <cstdio>
 
 #include "Util/device_identity.h"
 #include "DataEngine/protocol_boundary_utils.h"
@@ -16,6 +17,9 @@ private slots:
     void hpsdrProtocol1DeviceDecoding();
     void hpsdrProtocol2DeviceDecoding();
     void hpsdrHermesLite2Versioning();
+    void anan10P1DiscoveryIsHermesNotLite();
+    void anan10P1WinsOverBogusP2Lite();
+    void hermes2IsAnan10eNotGriffin();
 };
 
 void DeviceIdentityTests::soapyMatchByDriverAndSerial() {
@@ -134,11 +138,19 @@ void DeviceIdentityTests::hpsdrProtocol1DeviceDecoding() {
     QCOMPARE(metis.adcs, 1);
     QCOMPARE(metis.boardName, QString("Metis"));
 
-    // Hermes (1)
+    // Hermes (1) — ANAN-10 / ANAN-100. Firmware must never reclassify this as Lite.
     auto hermes = decodeHpsdrDevice(1, 1);
     QCOMPARE(hermes.deviceType, HpsdrDeviceType::Hermes);
     QCOMPARE(hermes.adcs, 1);
     QCOMPARE(hermes.boardName, QString("Hermes"));
+
+    auto hermesFw6 = decodeHpsdrDevice(1, 1, 6);
+    QCOMPARE(hermesFw6.deviceType, HpsdrDeviceType::Hermes);
+    QVERIFY(!isHermesLiteDeviceType(hermesFw6.deviceType));
+
+    auto hermesFw73 = decodeHpsdrDevice(1, 1, 73);
+    QCOMPARE(hermesFw73.deviceType, HpsdrDeviceType::Hermes);
+    QVERIFY(!isHermesLiteDeviceType(hermesFw73.deviceType));
 
     // Angelia (4)
     auto angelia = decodeHpsdrDevice(4, 1);
@@ -224,6 +236,81 @@ void DeviceIdentityTests::hpsdrHermesLite2Versioning() {
     QCOMPARE(hl2_p2.boardName, QString("HermesLite V2"));
     QCOMPARE(hl2_p2.frequencyMax, 38400000.0);
     QCOMPARE(hl2_p2.firmwareString, QString("v74.1"));
+}
+
+void DeviceIdentityTests::anan10P1DiscoveryIsHermesNotLite() {
+    using namespace ProtocolBoundaryUtils;
+
+    unsigned char pkt[60] = {};
+    pkt[0] = 0xEF;
+    pkt[1] = 0xFE;
+    pkt[2] = 0x02;
+    pkt[3] = 0x00;
+    pkt[4] = 0x1C;
+    pkt[5] = 0xC0;
+    pkt[6] = 0x00;
+    pkt[7] = 0x00;
+    pkt[8] = 0x01;
+    pkt[9] = 6;   // firmware 6 — must not be read as board ID
+    pkt[10] = 1;  // Hermes / ANAN-10
+    pkt[11] = 6;  // leftover / HL2-style config bits, not board ID
+
+    const auto parsed = parseHpsdrDiscoveryDatagram(pkt, int(sizeof(pkt)));
+    QVERIFY(parsed.valid);
+    QCOMPARE(parsed.protocol, 1);
+    QCOMPARE(parsed.boardId, 1);
+    QCOMPARE(parsed.swVersion, 6);
+
+    const auto info = decodeHpsdrDevice(parsed.boardId, parsed.protocol, parsed.swVersion);
+    QCOMPARE(info.deviceType, HpsdrDeviceType::Hermes);
+    QCOMPARE(info.boardName, QString("Hermes"));
+    QVERIFY(!isHermesLiteDeviceType(info.deviceType));
+
+    unsigned char simHermes[60] = {
+        0xef, 0xfe, 0x02, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 31, 1, 1
+    };
+    const auto simParsed = parseHpsdrDiscoveryDatagram(simHermes, int(sizeof(simHermes)));
+    QVERIFY(simParsed.valid);
+    QCOMPARE(simParsed.protocol, 1);
+    QCOMPARE(simParsed.boardId, 1);
+    QCOMPARE(simParsed.swVersion, 31);
+    QCOMPARE(decodeHpsdrDevice(simParsed.boardId, simParsed.protocol, simParsed.swVersion).deviceType,
+             HpsdrDeviceType::Hermes);
+}
+
+void DeviceIdentityTests::anan10P1WinsOverBogusP2Lite() {
+    using namespace ProtocolBoundaryUtils;
+
+    HpsdrDiscoveryReply p2Lite;
+    p2Lite.valid = true;
+    p2Lite.protocol = 2;
+    p2Lite.boardId = 6;
+    p2Lite.swVersion = 6;
+    std::snprintf(p2Lite.mac_address, sizeof(p2Lite.mac_address), "00:1C:C0:00:00:01");
+
+    HpsdrDiscoveryReply p1Hermes;
+    p1Hermes.valid = true;
+    p1Hermes.protocol = 1;
+    p1Hermes.boardId = 1;
+    p1Hermes.swVersion = 6;
+    std::snprintf(p1Hermes.mac_address, sizeof(p1Hermes.mac_address), "00:1C:C0:00:00:01");
+
+    const auto merged = mergeHpsdrDiscoveryReplies({p2Lite, p1Hermes});
+    QCOMPARE(merged.size(), 1);
+    QCOMPARE(merged.first().protocol, 1);
+    QCOMPARE(merged.first().boardId, 1);
+
+    const auto info = decodeHpsdrDevice(merged.first().boardId, merged.first().protocol,
+                                        merged.first().swVersion);
+    QCOMPARE(info.deviceType, HpsdrDeviceType::Hermes);
+}
+
+void DeviceIdentityTests::hermes2IsAnan10eNotGriffin() {
+    using namespace ProtocolBoundaryUtils;
+    const auto hermes2 = decodeHpsdrDevice(2, 1);
+    QCOMPARE(hermes2.deviceType, HpsdrDeviceType::Hermes2);
+    QCOMPARE(hermes2.boardName, QString("Hermes2"));
+    QVERIFY(hermes2.modelName.contains(QStringLiteral("ANAN-10E")));
 }
 
 QTEST_APPLESS_MAIN(DeviceIdentityTests)

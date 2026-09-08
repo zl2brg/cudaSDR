@@ -213,109 +213,65 @@ int Discoverer::findHPSDRDevices() {
 	//QThread::msleep(30);
 	QThread::msleep(500);
 
+	QList<ProtocolBoundaryUtils::HpsdrDiscoveryReply> replies;
 	while (socket.hasPendingDatagrams()) {
-
-		quint16 port;
-        // Reset device card structure for each device found
-        mc = TNetworkDevicecard();
-			
+		quint16 port = 0;
+		mc = TNetworkDevicecard();
 		m_deviceDatagram.resize(socket.pendingDatagramSize());
 		socket.readDatagram(m_deviceDatagram.data(), m_deviceDatagram.size(), &mc.ip_address, &port);
 
-		// ---- Protocol 1 response: EF FE 02/03 + MAC + firmware + boardID ----
-		if (m_deviceDatagram.size() >= 11 &&
-			m_deviceDatagram[0] == (char)0xEF && m_deviceDatagram[1] == (char)0xFE)
-		{
+		ProtocolBoundaryUtils::HpsdrDiscoveryReply parsed =
+			ProtocolBoundaryUtils::parseHpsdrDiscoveryDatagram(
+				reinterpret_cast<const unsigned char*>(m_deviceDatagram.constData()),
+				m_deviceDatagram.size());
+		if (!parsed.valid) {
 			if (ProtocolBoundaryUtils::isProtocol1DiscoveryProbeEcho(
 					reinterpret_cast<const unsigned char*>(m_deviceDatagram.constData()),
+					m_deviceDatagram.size())
+				|| ProtocolBoundaryUtils::isProtocol2DiscoveryProbeEcho(
+					reinterpret_cast<const unsigned char*>(m_deviceDatagram.constData()),
 					m_deviceDatagram.size())) {
-				DISCOVERER_DEBUG << "ignoring Protocol 1 discovery probe echo from "
+				DISCOVERER_DEBUG << "ignoring discovery probe echo from "
 								 << qPrintable(mc.ip_address.toString());
-				continue;
 			}
-			if (m_deviceDatagram[2] == (char)0x02) {
-
-				sprintf(mc.mac_address, "%02X:%02X:%02X:%02X:%02X:%02X",
-					m_deviceDatagram[3] & 0xFF, m_deviceDatagram[4] & 0xFF, m_deviceDatagram[5] & 0xFF,
-					m_deviceDatagram[6] & 0xFF, m_deviceDatagram[7] & 0xFF, m_deviceDatagram[8] & 0xFF);
-
-				m_dataIO->networkIOMutex.lock();
-				DISCOVERER_DEBUG << "[P1] Device found at " << qPrintable(mc.ip_address.toString()) << ":" << port << "; Mac addr: [" << mc.mac_address << "]";
-				DISCOVERER_DEBUG << "[P1] Device code version: " << qPrintable(QString::number(m_deviceDatagram.at(9), 16));
-				m_dataIO->networkIOMutex.unlock();
-
-				mc.protocol = 1; // Always Protocol 1 for EF FE responses
-                mc.status = 0x02;
-
-				if (m_deviceDatagram.size() >= 10) {
-					int version = (unsigned char)m_deviceDatagram.at(9);
-					int boardId = (unsigned char)m_deviceDatagram.at(10);
-                    mc.sw_version = version;
-					if (boardId == 1)
-						set->setHermesVersion(version);
-					else if (boardId == 0)
-						set->setMetisVersion(version);
-				}
-
-				int no = (unsigned char)m_deviceDatagram.at(10);
-				int minorVer = (m_deviceDatagram.size() >= 22) ? (unsigned char)m_deviceDatagram.at(21) : 0;
-				int swVer = (m_deviceDatagram.size() >= 10) ? (unsigned char)m_deviceDatagram.at(9) : 0;
-				mc.sw_version = swVer;
-				if (no == 0)
-					set->setMetisVersion(swVer);
-				else
-					set->setHermesVersion(swVer);
-
-				devicesFound += addDevice(mc, no, 1, swVer, minorVer);
-			}
-			else if (m_deviceDatagram[2] == (char)0x03) {
-
-				m_dataIO->networkIOMutex.lock();
-				DISCOVERER_DEBUG << "[P1] Device already sending data - trying to shut down...";
-				m_dataIO->networkIOMutex.unlock();
-
-				shutdownHPSDRDevice();
-				clear();
-			}
+			continue;
 		}
-		// ---- Protocol 2 response: 00 00 00 00 02/03 + MAC + ... ----
-		// Bytes: [0-3]=seq(0), [4]=status, [5-10]=MAC, [11]=device, [12]=res, [13]=firmware, [14]=receivers, [15]=transmitters
-		else if (m_deviceDatagram.size() >= 14 &&
-				 m_deviceDatagram[0] == 0x00 && m_deviceDatagram[1] == 0x00 &&
-				 m_deviceDatagram[2] == 0x00 && m_deviceDatagram[3] == 0x00)
-		{
-			int status = (unsigned char)m_deviceDatagram.at(4);
-			if (status == 0x02 || status == 0x03) {
 
-				sprintf(mc.mac_address, "%02X:%02X:%02X:%02X:%02X:%02X",
-					m_deviceDatagram[5] & 0xFF, m_deviceDatagram[6] & 0xFF, m_deviceDatagram[7] & 0xFF,
-					m_deviceDatagram[8] & 0xFF, m_deviceDatagram[9] & 0xFF, m_deviceDatagram[10] & 0xFF);
-
-				int no      = (unsigned char)m_deviceDatagram.at(11);
-				int version = (unsigned char)m_deviceDatagram.at(13);
-                int num_ddcs = (m_deviceDatagram.size() >= 15) ? (unsigned char)m_deviceDatagram.at(14) : 1;
-                int num_dacs = (m_deviceDatagram.size() >= 16) ? (unsigned char)m_deviceDatagram.at(15) : 1;
-
-				m_dataIO->networkIOMutex.lock();
-				DISCOVERER_DEBUG << "[P2] Device found at " << qPrintable(mc.ip_address.toString()) << ":" << port 
-                                 << "; Mac: [" << mc.mac_address << "] board=" << no << " fw=" << version 
-                                 << " receivers=" << num_ddcs;
-				m_dataIO->networkIOMutex.unlock();
-
-                mc.sw_version = version;
-                mc.status = status;
-
-				set->setHermesVersion(version); // Most P2 devices are Hermes/Orion-class
-				devicesFound += addDevice(mc, no, 2, version, 0, num_ddcs, num_dacs);
-
-				if (status == 0x03) {
-					m_dataIO->networkIOMutex.lock();
-					DISCOVERER_DEBUG << "[P2] Device already running.";
-					m_dataIO->networkIOMutex.unlock();
-				}
-			}
+		parsed.ip = mc.ip_address.toString();
+		if (parsed.protocol == 1 && parsed.status == 0x03) {
+			m_dataIO->networkIOMutex.lock();
+			DISCOVERER_DEBUG << "[P1] Device already sending data - trying to shut down...";
+			m_dataIO->networkIOMutex.unlock();
+			qstrncpy(mc.mac_address, parsed.mac_address, sizeof(mc.mac_address));
+			shutdownHPSDRDevice();
 		}
+
+		m_dataIO->networkIOMutex.lock();
+		DISCOVERER_DEBUG << "[P" << parsed.protocol << "] Device found at "
+						 << qPrintable(parsed.ip) << ":" << port
+						 << "; Mac: [" << parsed.mac_address << "] board=" << parsed.boardId
+						 << " fw=" << parsed.swVersion;
+		m_dataIO->networkIOMutex.unlock();
+		replies.append(parsed);
 	}
+
+	const QList<ProtocolBoundaryUtils::HpsdrDiscoveryReply> merged =
+		ProtocolBoundaryUtils::mergeHpsdrDiscoveryReplies(replies);
+	for (const ProtocolBoundaryUtils::HpsdrDiscoveryReply &reply : merged) {
+		mc = TNetworkDevicecard();
+		mc.ip_address = QHostAddress(reply.ip);
+		qstrncpy(mc.mac_address, reply.mac_address, sizeof(mc.mac_address));
+		mc.protocol = reply.protocol;
+		mc.status = reply.status;
+		mc.sw_version = reply.swVersion;
+		if (reply.boardId == 0)
+			set->setMetisVersion(reply.swVersion);
+		else
+			set->setHermesVersion(reply.swVersion);
+		devicesFound += addDevice(mc, reply.boardId, reply.protocol, reply.swVersion,
+								  reply.minorVersion, reply.numDdcs, reply.numDacs);
+	}
+
 	set->setMetisCardList(m_deviceCards);
 
 	socket.close();

@@ -11,7 +11,9 @@ private slots:
     void decode24BitBESignAndMagnitude();
     void decode16BitBEBigEndian();
     void protocol1DiscoveryProbeEcho();
+    void protocol2DiscoveryProbeEcho();
     void protocol1ClampedAdcIndex();
+    void parseAnan10HermesDiscovery();
 };
 
 void ProtocolBoundaryTests::protocol2PacketTypeByLength() {
@@ -92,6 +94,44 @@ void ProtocolBoundaryTests::protocol1DiscoveryProbeEcho()
         0x12, 0x01
     };
     QVERIFY(!ProtocolBoundaryUtils::isProtocol1DiscoveryProbeEcho(hermes, sizeof(hermes)));
+}
+
+void ProtocolBoundaryTests::protocol2DiscoveryProbeEcho()
+{
+    unsigned char probe[60] = {};
+    probe[4] = 0x02;
+    QVERIFY(ProtocolBoundaryUtils::isProtocol2DiscoveryProbeEcho(probe, sizeof(probe)));
+
+    unsigned char hermesP2[60] = {};
+    hermesP2[4] = 0x02;
+    hermesP2[10] = 0x01; // non-zero MAC
+    hermesP2[11] = 0x01;
+    hermesP2[12] = 38;
+    hermesP2[13] = 19;
+    QVERIFY(!ProtocolBoundaryUtils::isProtocol2DiscoveryProbeEcho(hermesP2, sizeof(hermesP2)));
+
+    const auto parsed = ProtocolBoundaryUtils::parseHpsdrDiscoveryDatagram(hermesP2, sizeof(hermesP2));
+    QVERIFY(parsed.valid);
+    QCOMPARE(parsed.protocol, 2);
+    QCOMPARE(parsed.boardId, 1);
+}
+
+void ProtocolBoundaryTests::parseAnan10HermesDiscovery()
+{
+    unsigned char pkt[11] = {
+        0xEF, 0xFE, 0x02,
+        0x00, 0x1C, 0xC0, 0x00, 0x00, 0x01,
+        0x06, 0x01
+    };
+    const auto parsed = ProtocolBoundaryUtils::parseHpsdrDiscoveryDatagram(pkt, sizeof(pkt));
+    QVERIFY(parsed.valid);
+    QCOMPARE(parsed.protocol, 1);
+    QCOMPARE(parsed.boardId, 1);
+    QCOMPARE(parsed.swVersion, 6);
+
+    const auto info = ProtocolBoundaryUtils::decodeHpsdrDevice(
+        parsed.boardId, parsed.protocol, parsed.swVersion);
+    QCOMPARE(info.deviceType, ProtocolBoundaryUtils::HpsdrDeviceType::Hermes);
 }
 
 void ProtocolBoundaryTests::protocol1ClampedAdcIndex()

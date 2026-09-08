@@ -50,6 +50,7 @@
 #include "UI/DeviceSelectionDialog.h"
 #include "UI/MainWindow/MainWindowUI.h"
 #include "Util/device_identity.h"
+#include "DataEngine/protocol_boundary_utils.h"
 #include "Util/cusdr_tciserver.h"
 #include "cusdr_radioPopupWidget.h"
 
@@ -2064,13 +2065,23 @@ void MainWindow::handleDeviceListChanged(const QList<TNetworkDevicecard> &list) 
     for (const TNetworkDevicecard &card : list) {
         QVariant v = QVariant::fromValue(card);
         bool found = false;
-        for (const QVariant &existing : m_discoveredDevices) {
-            if (existing.canConvert<TNetworkDevicecard>()) {
-                if (sameHpsdrDeviceByMac(existing.value<TNetworkDevicecard>(), card)) {
-                    found = true;
-                    break;
-                }
+        for (int i = 0; i < m_discoveredDevices.size(); ++i) {
+            const QVariant &existing = m_discoveredDevices.at(i);
+            if (!existing.canConvert<TNetworkDevicecard>())
+                continue;
+            const TNetworkDevicecard existingCard = existing.value<TNetworkDevicecard>();
+            if (!sameHpsdrDeviceByMac(existingCard, card))
+                continue;
+            found = true;
+            const auto existingType = ProtocolBoundaryUtils::decodeHpsdrDevice(
+                existingCard.boardID, existingCard.protocol, existingCard.sw_version).deviceType;
+            const auto incomingType = ProtocolBoundaryUtils::decodeHpsdrDevice(
+                card.boardID, card.protocol, card.sw_version).deviceType;
+            if (ProtocolBoundaryUtils::isHermesLiteDeviceType(existingType)
+                && ProtocolBoundaryUtils::isAnanHermesDeviceType(incomingType)) {
+                m_discoveredDevices[i] = v;
             }
+            break;
         }
         if (!found) m_discoveredDevices.append(v);
     }

@@ -2,10 +2,12 @@
 #define PROTOCOL_BOUNDARY_UTILS_H
 
 #include <QByteArray>
+#include <QList>
 #include <QString>
 #include <QtEndian>
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <cstring>
 #include <cstdint>
 
@@ -31,6 +33,16 @@ inline uint32_t protocol1Sequence(const unsigned char* data) {
            (data[7] & 0xFFu);
 }
 
+inline bool macBytesAreZero(const unsigned char* mac, int n = 6) {
+    if (!mac)
+        return true;
+    for (int i = 0; i < n; ++i) {
+        if (mac[i] != 0)
+            return false;
+    }
+    return true;
+}
+
 /** True when a P1 discovery datagram is our own EF FE 02/03 probe echoed back
  *  (zero MAC), not a radio. Localhost UDP broadcast can deliver this as a fake Metis. */
 inline bool isProtocol1DiscoveryProbeEcho(const unsigned char* data, int size) {
@@ -40,8 +52,18 @@ inline bool isProtocol1DiscoveryProbeEcho(const unsigned char* data, int size) {
         return false;
     if (data[2] != 0x02 && data[2] != 0x03)
         return false;
-    return data[3] == 0 && data[4] == 0 && data[5] == 0
-        && data[6] == 0 && data[7] == 0 && data[8] == 0;
+    return macBytesAreZero(data + 3);
+}
+
+/** True when a P2 discovery datagram is our own 00 00 00 00 02/03 probe echoed back. */
+inline bool isProtocol2DiscoveryProbeEcho(const unsigned char* data, int size) {
+    if (!data || size < 11)
+        return false;
+    if (data[0] != 0 || data[1] != 0 || data[2] != 0 || data[3] != 0)
+        return false;
+    if (data[4] != 0x02 && data[4] != 0x03)
+        return false;
+    return macBytesAreZero(data + 5);
 }
 
 /** Protocol 1 C&C ADC select is 0/1. Single-ADC boards (Hermes) must stay on ADC0. */
@@ -419,6 +441,8 @@ inline HpsdrDeviceInfo decodeHpsdrDevice(int rawBoardId, int protocol, int swVer
                 info.maxReceivers = 4;
                 break;
             case 1:
+                // P1 wire ID 1 is Hermes (ANAN-10 / ANAN-100). Lite is wire ID 6 only;
+                // firmware at discovery byte 9 must not change this.
                 info.deviceType = HpsdrDeviceType::Hermes;
                 info.boardName = "Hermes";
                 info.modelName = "ANAN-10 / ANAN-100 (Hermes)";
@@ -427,9 +451,11 @@ inline HpsdrDeviceInfo decodeHpsdrDevice(int rawBoardId, int protocol, int swVer
                 info.maxReceivers = 2;
                 break;
             case 2:
-                info.deviceType = HpsdrDeviceType::Griffin;
-                info.boardName = "Griffin";
-                info.modelName = "Griffin DSP";
+                // Wire ID 2 is Hermes II on Apache/Thetis (ANAN-10E / ANAN-100B).
+                // Griffin was never shipped on this slot.
+                info.deviceType = HpsdrDeviceType::Hermes2;
+                info.boardName = "Hermes2";
+                info.modelName = "ANAN-10E / ANAN-100B (Hermes II)";
                 info.adcs = 1;
                 info.dacs = 1;
                 info.maxReceivers = 2;
@@ -605,6 +631,136 @@ inline HpsdrDeviceInfo decodeHpsdrDevice(int rawBoardId, int protocol, int swVer
     }
 
     return info;
+}
+
+inline QString boardNameForId(int boardId, int protocol) {
+    return decodeHpsdrDevice(boardId, protocol).boardName;
+}
+
+inline bool isHermesFamilyBoard(const QString& name) {
+    return name.contains(QLatin1String("Hermes"))
+        || name.contains(QLatin1String("Angelia"))
+        || name.contains(QLatin1String("Orion"))
+        || name.contains(QLatin1String("Saturn"));
+}
+
+inline bool isMetisFamilyBoard(const QString& name) {
+    return name.contains(QLatin1String("Metis"))
+        || name.contains(QLatin1String("Atlas"));
+}
+
+inline bool isHermesLiteDeviceType(HpsdrDeviceType type) {
+    return type == HpsdrDeviceType::HermesLite
+        || type == HpsdrDeviceType::HermesLite2;
+}
+
+inline bool isAnanHermesDeviceType(HpsdrDeviceType type) {
+    return type == HpsdrDeviceType::Hermes
+        || type == HpsdrDeviceType::Hermes2;
+}
+
+/** Parsed OpenHPSDR discovery reply. Board ID is byte 10 on P1 and byte 11 on P2. */
+struct HpsdrDiscoveryReply {
+    bool valid = false;
+    int protocol = 0;
+    int boardId = 0;
+    int swVersion = 0;
+    int minorVersion = 0;
+    int numDdcs = 0;
+    int numDacs = 0;
+    int status = 0;
+    char mac_address[18] = {};
+    QString ip;
+};
+
+inline void formatHpsdrMac(char* out, int outSize, const unsigned char* mac6) {
+    if (!out || outSize < 18 || !mac6)
+        return;
+    std::snprintf(out, static_cast<size_t>(outSize), "%02X:%02X:%02X:%02X:%02X:%02X",
+                  mac6[0], mac6[1], mac6[2], mac6[3], mac6[4], mac6[5]);
+}
+
+inline HpsdrDiscoveryReply parseHpsdrDiscoveryDatagram(const unsigned char* data, int size) {
+    HpsdrDiscoveryReply reply;
+    if (!data)
+        return reply;
+
+    if (size >= 11 && data[0] == kProtocol1Sig0 && data[1] == kProtocol1Sig1) {
+        if (isProtocol1DiscoveryProbeEcho(data, size))
+            return reply;
+        if (data[2] != 0x02 && data[2] != 0x03)
+            return reply;
+
+        reply.valid = true;
+        reply.protocol = 1;
+        reply.status = data[2];
+        formatHpsdrMac(reply.mac_address, sizeof(reply.mac_address), data + 3);
+        reply.swVersion = data[9];
+        reply.boardId = data[10];
+        reply.minorVersion = (size >= 22) ? data[21] : 0;
+        return reply;
+    }
+
+    if (size >= 14 && data[0] == 0 && data[1] == 0 && data[2] == 0 && data[3] == 0) {
+        if (isProtocol2DiscoveryProbeEcho(data, size))
+            return reply;
+        if (data[4] != 0x02 && data[4] != 0x03)
+            return reply;
+
+        reply.valid = true;
+        reply.protocol = 2;
+        reply.status = data[4];
+        formatHpsdrMac(reply.mac_address, sizeof(reply.mac_address), data + 5);
+        reply.boardId = data[11];
+        reply.swVersion = data[13];
+        reply.numDdcs = (size >= 15) ? data[14] : 1;
+        reply.numDacs = (size >= 16) ? data[15] : 1;
+        return reply;
+    }
+
+    return reply;
+}
+
+/** Same radio can answer P1 and P2. A P1-only Hermes (ANAN-10) may echo a P2 probe
+ *  with firmware 6 in the P2 device-type byte, which looks like Hermes-Lite.
+ *  Keep the ANAN Hermes identity and drop that conflicting Lite reply. */
+inline QList<HpsdrDiscoveryReply> mergeHpsdrDiscoveryReplies(const QList<HpsdrDiscoveryReply>& replies) {
+    QList<HpsdrDiscoveryReply> merged;
+    for (const HpsdrDiscoveryReply& incoming : replies) {
+        if (!incoming.valid)
+            continue;
+
+        int sameProtocol = -1;
+        int otherProtocol = -1;
+        for (int i = 0; i < merged.size(); ++i) {
+            if (std::strcmp(merged[i].mac_address, incoming.mac_address) != 0)
+                continue;
+            if (merged[i].protocol == incoming.protocol)
+                sameProtocol = i;
+            else
+                otherProtocol = i;
+        }
+        if (sameProtocol >= 0)
+            continue;
+
+        if (otherProtocol >= 0) {
+            const HpsdrDeviceType existingType = decodeHpsdrDevice(
+                merged[otherProtocol].boardId, merged[otherProtocol].protocol,
+                merged[otherProtocol].swVersion, merged[otherProtocol].minorVersion).deviceType;
+            const HpsdrDeviceType incomingType = decodeHpsdrDevice(
+                incoming.boardId, incoming.protocol,
+                incoming.swVersion, incoming.minorVersion).deviceType;
+
+            if (isAnanHermesDeviceType(existingType) && isHermesLiteDeviceType(incomingType))
+                continue;
+            if (isHermesLiteDeviceType(existingType) && isAnanHermesDeviceType(incomingType)) {
+                merged[otherProtocol] = incoming;
+                continue;
+            }
+        }
+        merged.append(incoming);
+    }
+    return merged;
 }
 
 }  // namespace ProtocolBoundaryUtils
