@@ -60,6 +60,7 @@ public:
     virtual ~ISdrDevice() = default;
 
     virtual QString deviceName() const = 0;
+    virtual void setDeviceName(const QString& name) { Q_UNUSED(name); }
     virtual DeviceType deviceType() const = 0;
     virtual DeviceCapabilities capabilities() const = 0;
 

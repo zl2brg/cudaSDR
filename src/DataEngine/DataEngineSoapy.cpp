@@ -6,6 +6,7 @@
 #include "DataEngineSoapy.h"
 #include "cusdr_dataEngine.h"
 #include "Drivers/SoapyDevice.h"
+#include "DataEngine/SdrDeviceManager.h"
 
 DataEngineSoapy::DataEngineSoapy(DataEngine *engine)
 	: m_engine(engine)
@@ -24,7 +25,7 @@ void DataEngineSoapy::searchSoapyDevices() {
 
 bool DataEngineSoapy::startSoapyEngine() {
         if (!m_engine->m_soapySDRSource) m_engine->createDataIO();
-        m_engine->setDevice(std::make_unique<SoapyDevice>(m_engine, m_engine->m_soapySDRSource));
+        m_engine->setDevice(SdrDeviceManager::instance()->createDevice(DeviceType::SoapySDR, m_engine));
         m_engine->initReceivers(1);
 
         if (!m_engine->m_audioInput)

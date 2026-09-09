@@ -30,6 +30,7 @@
 #include "cusdr_discoverer.h"
 #include "cusdr_dataIO.h"
 #include "protocol_boundary_utils.h"
+#include "DataEngine/SdrDeviceManager.h"
 #include <SoapySDR/Device.hpp>
 #include "Util/cusdr_buttons.h"
 
@@ -86,6 +87,9 @@ void Discoverer::discoverSoapyDevices() {
     }
     
     emit soapyDeviceListFound(list);
+    SdrDeviceManager::instance()->registerSoapyDevices(list);
+    SdrDeviceManager::instance()->notifyDiscoveryStepFinished(QStringLiteral("SoapySDR"), list.size());
+    emit soapyDiscoveryFinished(list.size());
 }
 #endif
 
@@ -273,6 +277,9 @@ int Discoverer::findHPSDRDevices() {
 	}
 
 	set->setMetisCardList(m_deviceCards);
+	SdrDeviceManager::instance()->registerNetworkCards(m_deviceCards);
+	SdrDeviceManager::instance()->notifyDiscoveryStepFinished(QStringLiteral("HPSDR"), devicesFound);
+	emit hpsdrDiscoveryFinished(devicesFound);
 
 	socket.close();
 	return devicesFound;
@@ -315,9 +322,9 @@ void Discoverer::displayDiscoverySocketError(QAbstractSocket::SocketError error)
 }
 
 void Discoverer::clear() {
-
-	//m_metisDeviceComboBox->clear();
 	m_deviceCards.clear();
+	SdrDeviceManager::instance()->clearDevices();
+	SdrDeviceManager::instance()->registerDevice(SdrDeviceManager::simulatedDeviceInfo());
 }
 
 void Discoverer::shutdownHPSDRDevice() {

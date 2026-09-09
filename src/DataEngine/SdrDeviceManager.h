@@ -15,6 +15,8 @@
 #include <mutex>
 #include "DataEngine/ISdrDevice.h"
 
+#include <QSet>
+
 class DataEngine;
 class DataIO;
 struct _networkDeviceCard;
@@ -53,12 +55,21 @@ public:
 
     static SdrDeviceManager* instance();
 
+    // DataEngine connection
+    void setDataEngine(DataEngine* engine);
+    DataEngine* dataEngine() const;
+
     // Catalog queries
     QList<SdrDeviceInfo> availableDevices() const;
     QList<SdrDeviceInfo> devicesByType(DeviceType type) const;
     SdrDeviceInfo deviceById(const QString& id) const;
     bool hasDevice(const QString& id) const;
     int deviceCount() const;
+
+    // Selection tracking
+    void selectDevice(const QString& id);
+    SdrDeviceInfo selectedDevice() const;
+    QString selectedDeviceId() const;
 
     // Device registration & conversion
     void registerDevice(const SdrDeviceInfo& info);
@@ -68,6 +79,8 @@ public:
     // Adapters for legacy discovery data
     void registerNetworkCards(const QList<TNetworkDevicecard>& cards);
     void registerSoapyDevices(const QList<TSoapyDevice>& devices);
+    bool findNetworkCard(const QString& id, TNetworkDevicecard& outCard) const;
+    bool findSoapyDevice(const QString& id, TSoapyDevice& outDev) const;
     static SdrDeviceInfo fromNetworkCard(const TNetworkDevicecard& card);
     static SdrDeviceInfo fromSoapyDevice(const TSoapyDevice& dev);
     static SdrDeviceInfo simulatedDeviceInfo();
@@ -78,21 +91,28 @@ public:
     std::unique_ptr<ISdrDevice> createSimulatedDevice();
 
     // Discovery control
-    void startDiscovery();
+    void startDiscovery(bool async = false);
     void stopDiscovery();
     bool isDiscovering() const;
+
+    // Step notification from Discoverer
+    void notifyDiscoveryStepFinished(const QString& scanName, int count = 0);
 
 signals:
     void deviceDiscovered(const SdrDeviceInfo& device);
     void deviceRemoved(const QString& id);
     void deviceListChanged(const QList<SdrDeviceInfo>& devices);
+    void selectedDeviceChanged(const SdrDeviceInfo& device);
     void discoveryStarted();
     void discoveryFinished();
 
 private:
     mutable std::mutex m_mutex;
     QList<SdrDeviceInfo> m_devices;
+    QString m_selectedDeviceId;
     bool m_discovering = false;
+    QSet<QString> m_pendingScans;
+    DataEngine* m_dataEngine = nullptr;
 };
 
 #endif // CUDASDR_SDR_DEVICE_MANAGER_H

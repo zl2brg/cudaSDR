@@ -8,6 +8,7 @@
 #include "CProtocol1.h"
 #include "CProtocol2.h"
 #include "Drivers/HpsdrDevice.h"
+#include "DataEngine/SdrDeviceManager.h"
 #include "DataEngine/protocol_boundary_utils.h"
 #include "Models/RadioModel.h"
 #include "Models/RadioTelemetry.h"
@@ -429,9 +430,12 @@ bool DataEngineLifecycle::start() {
 		DATA_ENGINE_DEBUG << "[START] queued DataIO::finishStartup after exec()";
 	}
 
-	auto device = std::make_unique<HpsdrDevice>(m_engine->m_dataIO, m_engine->m_protocol.get(), isProtocol2);
-	device->setDeviceName(m_engine->set->getCurrentMetisCard().boardName);
-	m_engine->setDevice(std::move(device));
+	auto device = SdrDeviceManager::instance()->createDevice(
+		isProtocol2 ? DeviceType::HpsdrP2 : DeviceType::HpsdrP1, m_engine);
+	if (device) {
+		device->setDeviceName(m_engine->set->getCurrentMetisCard().boardName);
+		m_engine->setDevice(std::move(device));
+	}
 
 	return true;
 }

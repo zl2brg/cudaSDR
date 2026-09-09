@@ -51,6 +51,7 @@ extern double cwramp48[];		// see cwramp.c, for 48 kHz sample rate
 #include "DataEngineFirmware.h"
 #include "DataEngineLifecycle.h"
 #include "DataEngineSoapy.h"
+#include "DataEngine/SdrDeviceManager.h"
 #include "Util/cusdr_tciserver.h"
 #include "Controllers/RadioController.h"
 #include "SoapySDRDataSource.h"
@@ -291,6 +292,7 @@ DataEngine::DataEngine(RadioModel *model, QObject *parent)
 	m_firmware = new DataEngineFirmware(this);
 	m_lifecycle = new DataEngineLifecycle(this);
 	m_soapy = new DataEngineSoapy(this);
+	SdrDeviceManager::instance()->setDataEngine(this);
 }
 
 void DataEngine::setDevice(std::unique_ptr<ISdrDevice> dev)
@@ -330,6 +332,7 @@ void DataEngine::setReceiversCount(int count)
 }
 
 DataEngine::~DataEngine() {
+    SdrDeviceManager::instance()->setDataEngine(nullptr);
     // m_protocol is a unique_ptr — destroyed automatically
     // Add socket cleanup
     if (sendSocket) {

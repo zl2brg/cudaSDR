@@ -34,6 +34,9 @@ private slots:
     void testClearAndUnregister();
     void testHpsdrDeviceRxIngest();
     void testSoapyDeviceRxIngest();
+    void testDeviceSelection();
+    void testUnifiedAsyncDiscovery();
+    void testFindNetworkCardAndSoapyDevice();
 };
 
 void SdrDeviceManagerTests::init()
@@ -346,6 +349,100 @@ void SdrDeviceManagerTests::testSoapyDeviceRxIngest()
     QCOMPARE(callbackSamples, 64);
     QCOMPARE(sdr->readRxIq(0, outData.data(), 64), 64);
     QCOMPARE(callbackCount, 4);
+}
+
+void SdrDeviceManagerTests::testDeviceSelection()
+{
+    SdrDeviceManager* mgr = SdrDeviceManager::instance();
+
+    SdrDeviceInfo d1;
+    d1.id = QStringLiteral("00:11:22:33:44:55");
+    d1.name = QStringLiteral("Hermes SDR");
+    d1.type = DeviceType::HpsdrP1;
+
+    SdrDeviceInfo d2;
+    d2.id = QStringLiteral("lime:1234");
+    d2.name = QStringLiteral("LimeSDR");
+    d2.type = DeviceType::SoapySDR;
+
+    mgr->registerDevice(d1);
+    mgr->registerDevice(d2);
+
+    QSignalSpy spySelected(mgr, &SdrDeviceManager::selectedDeviceChanged);
+
+    // Initial default selected device is first available
+    QCOMPARE(mgr->selectedDevice().id, d1.id);
+
+    // Select LimeSDR
+    mgr->selectDevice(d2.id);
+    QCOMPARE(mgr->selectedDeviceId(), d2.id);
+    QCOMPARE(mgr->selectedDevice().name, QStringLiteral("LimeSDR"));
+    QCOMPARE(spySelected.count(), 1);
+
+    // Invalid selection ignored
+    mgr->selectDevice(QStringLiteral("invalid:none"));
+    QCOMPARE(mgr->selectedDeviceId(), d2.id);
+    QCOMPARE(spySelected.count(), 1);
+}
+
+void SdrDeviceManagerTests::testUnifiedAsyncDiscovery()
+{
+    SdrDeviceManager* mgr = SdrDeviceManager::instance();
+
+    QSignalSpy spyStarted(mgr, &SdrDeviceManager::discoveryStarted);
+    QSignalSpy spyFinished(mgr, &SdrDeviceManager::discoveryFinished);
+
+    mgr->startDiscovery(true);
+
+    QCOMPARE(spyStarted.count(), 1);
+    QVERIFY(mgr->isDiscovering());
+
+    // Step 1: HPSDR finishes
+    mgr->notifyDiscoveryStepFinished(QStringLiteral("HPSDR"), 1);
+#ifdef HAVE_SOAPYSDR
+    // Still discovering because Soapy is pending
+    QVERIFY(mgr->isDiscovering());
+    QCOMPARE(spyFinished.count(), 0);
+
+    // Step 2: Soapy finishes
+    mgr->notifyDiscoveryStepFinished(QStringLiteral("SoapySDR"), 2);
+#endif
+    QVERIFY(!mgr->isDiscovering());
+    QCOMPARE(spyFinished.count(), 1);
+
+    // Test stopDiscovery aborts cleanly
+    mgr->startDiscovery(true);
+    QVERIFY(mgr->isDiscovering());
+    mgr->stopDiscovery();
+    QVERIFY(!mgr->isDiscovering());
+    QCOMPARE(spyFinished.count(), 2);
+}
+
+void SdrDeviceManagerTests::testFindNetworkCardAndSoapyDevice()
+{
+    SdrDeviceManager* mgr = SdrDeviceManager::instance();
+    Settings* set = Settings::instance();
+
+    TNetworkDevicecard card;
+    qstrncpy(card.mac_address, "aa:bb:cc:dd:ee:ff", sizeof(card.mac_address));
+    card.ip_address = QHostAddress(QStringLiteral("192.168.1.150"));
+    card.boardName = QStringLiteral("Metis Card");
+    card.protocol = 1;
+    card.adcs = 1;
+    card.dacs = 1;
+
+    set->setMetisCardList({card});
+
+    TNetworkDevicecard foundCard;
+    QVERIFY(mgr->findNetworkCard(QStringLiteral("aa:bb:cc:dd:ee:ff"), foundCard));
+    QCOMPARE(foundCard.boardName, QStringLiteral("Metis Card"));
+    QCOMPARE(foundCard.ip_address, QHostAddress(QStringLiteral("192.168.1.150")));
+
+    TNetworkDevicecard notFound;
+    QVERIFY(!mgr->findNetworkCard(QStringLiteral("00:00:00:00:00:00"), notFound));
+
+    // Test DataEngine binding
+    QVERIFY(mgr->dataEngine() == nullptr);
 }
 
 QTEST_MAIN(SdrDeviceManagerTests)

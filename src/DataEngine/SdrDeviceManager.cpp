@@ -12,6 +12,7 @@
 #include "Settings/SoapyConfig.h"
 #include "DataEngine/cusdr_dataEngine.h"
 #include "DataEngine/cusdr_dataIO.h"
+#include <QTimer>
 
 SdrDeviceManager::SdrDeviceManager(QObject* parent)
     : QObject(parent)
@@ -26,6 +27,18 @@ SdrDeviceManager* SdrDeviceManager::instance()
 {
     static SdrDeviceManager s_instance;
     return &s_instance;
+}
+
+void SdrDeviceManager::setDataEngine(DataEngine* engine)
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    m_dataEngine = engine;
+}
+
+DataEngine* SdrDeviceManager::dataEngine() const
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_dataEngine;
 }
 
 QList<SdrDeviceInfo> SdrDeviceManager::availableDevices() const
@@ -72,6 +85,87 @@ int SdrDeviceManager::deviceCount() const
 {
     std::lock_guard<std::mutex> lock(m_mutex);
     return m_devices.size();
+}
+
+void SdrDeviceManager::selectDevice(const QString& id)
+{
+    SdrDeviceInfo info = deviceById(id);
+    if (!info.isValid()) {
+        return;
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_selectedDeviceId = id;
+    }
+
+    Settings* set = Settings::instance();
+    if (set) {
+        if (info.type == DeviceType::HpsdrP1 || info.type == DeviceType::HpsdrP2) {
+            TNetworkDevicecard card;
+            if (findNetworkCard(id, card)) {
+                set->setCurrentHPSDRDevice(card);
+            }
+        } else if (info.type == DeviceType::SoapySDR) {
+            TSoapyDevice dev;
+            if (findSoapyDevice(id, dev)) {
+                set->setCurrentSoapyDevice(dev);
+            }
+        }
+    }
+
+    emit selectedDeviceChanged(info);
+}
+
+SdrDeviceInfo SdrDeviceManager::selectedDevice() const
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    if (m_selectedDeviceId.isEmpty()) {
+        if (!m_devices.isEmpty()) {
+            return m_devices.first();
+        }
+        return simulatedDeviceInfo();
+    }
+    for (const auto& dev : m_devices) {
+        if (dev.id == m_selectedDeviceId) {
+            return dev;
+        }
+    }
+    return SdrDeviceInfo();
+}
+
+QString SdrDeviceManager::selectedDeviceId() const
+{
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_selectedDeviceId;
+}
+
+bool SdrDeviceManager::findNetworkCard(const QString& id, TNetworkDevicecard& outCard) const
+{
+    Settings* set = Settings::instance();
+    if (!set) return false;
+    const auto list = set->getMetisCardsList();
+    for (const auto& card : list) {
+        if (fromNetworkCard(card).id == id) {
+            outCard = card;
+            return true;
+        }
+    }
+    return false;
+}
+
+bool SdrDeviceManager::findSoapyDevice(const QString& id, TSoapyDevice& outDev) const
+{
+    Settings* set = Settings::instance();
+    if (!set) return false;
+    const auto list = set->getSoapyDeviceList();
+    for (const auto& dev : list) {
+        if (fromSoapyDevice(dev).id == id) {
+            outDev = dev;
+            return true;
+        }
+    }
+    return false;
 }
 
 void SdrDeviceManager::registerDevice(const SdrDeviceInfo& info)
@@ -157,6 +251,9 @@ SdrDeviceInfo SdrDeviceManager::fromNetworkCard(const TNetworkDevicecard& card)
 
     info.properties[QStringLiteral("sw_version")] = QString::number(card.sw_version);
     info.properties[QStringLiteral("board_id")] = QString::number(card.boardID);
+    info.properties[QStringLiteral("adcs")] = QString::number(card.adcs);
+    info.properties[QStringLiteral("dacs")] = QString::number(card.dacs);
+    info.properties[QStringLiteral("status")] = QString::number(card.status);
     return info;
 }
 
@@ -164,6 +261,9 @@ SdrDeviceInfo SdrDeviceManager::fromSoapyDevice(const TSoapyDevice& dev)
 {
     SdrDeviceInfo info;
     info.id = dev.serial.isEmpty() ? (dev.driver + QStringLiteral(":") + dev.hardware) : dev.serial;
+    if (info.id.isEmpty() || info.id == QStringLiteral(":")) {
+        info.id = QStringLiteral("soapy:unknown");
+    }
     info.name = dev.label.isEmpty() ? (dev.name.isEmpty() ? dev.driver : dev.name) : dev.label;
     info.type = DeviceType::SoapySDR;
     info.serialNumber = dev.serial;
@@ -214,6 +314,11 @@ void SdrDeviceManager::registerSoapyDevices(const QList<TSoapyDevice>& devices)
 
 std::unique_ptr<ISdrDevice> SdrDeviceManager::createDevice(const SdrDeviceInfo& info, DataEngine* engine)
 {
+    if (!engine) {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        engine = m_dataEngine;
+    }
+
     switch (info.type) {
     case DeviceType::Simulated:
         return createSimulatedDevice();
@@ -257,32 +362,83 @@ std::unique_ptr<ISdrDevice> SdrDeviceManager::createSimulatedDevice()
     return std::make_unique<SimulatedDevice>();
 }
 
-void SdrDeviceManager::startDiscovery()
+void SdrDeviceManager::startDiscovery(bool async)
 {
-    m_discovering = true;
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_discovering = true;
+        m_pendingScans.clear();
+        if (async) {
+            m_pendingScans.insert(QStringLiteral("HPSDR"));
+#ifdef HAVE_SOAPYSDR
+            m_pendingScans.insert(QStringLiteral("SoapySDR"));
+#endif
+        }
+    }
     emit discoveryStarted();
 
     // Ensure simulated device is registered
     registerDevice(simulatedDeviceInfo());
 
-    // Import any already discovered cards/devices from Settings
     Settings* set = Settings::instance();
     if (set) {
+        if (async) {
+            set->searchDevices();
+            // Safety timeout in case a driver stalls
+            QTimer::singleShot(4000, this, [this]() {
+                if (isDiscovering()) {
+                    stopDiscovery();
+                }
+            });
+            return;
+        }
+
+        // Synchronous import of cached results
         registerNetworkCards(set->getMetisCardsList());
         registerSoapyDevices(set->getSoapyDeviceList());
     }
 
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_discovering = false;
+        m_pendingScans.clear();
+    }
     emit discoveryFinished();
-    m_discovering = false;
+}
+
+void SdrDeviceManager::notifyDiscoveryStepFinished(const QString& scanName, int count)
+{
+    Q_UNUSED(count)
+    bool finished = false;
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_pendingScans.remove(scanName);
+        if (m_discovering && m_pendingScans.isEmpty()) {
+            m_discovering = false;
+            finished = true;
+        }
+    }
+    if (finished) {
+        emit discoveryFinished();
+    }
 }
 
 void SdrDeviceManager::stopDiscovery()
 {
-    m_discovering = false;
-    emit discoveryFinished();
+    bool wasDiscovering = false;
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        wasDiscovering = m_discovering;
+        m_discovering = false;
+        m_pendingScans.clear();
+    }
+    if (wasDiscovering) {
+        emit discoveryFinished();
+    }
 }
 
 bool SdrDeviceManager::isDiscovering() const
 {
+    std::lock_guard<std::mutex> lock(m_mutex);
     return m_discovering;
 }
