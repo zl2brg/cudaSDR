@@ -61,9 +61,14 @@ QGLReceiverPanel::QGLReceiverPanel(SliceModel *model, QWidget *parent)
 	, m_serverMode(set->getCurrentServerMode())
 	, m_hwInterface(set->getHWInterface())
 	, m_dataEngineState(QSDR::DataEngineDown)
+	, m_glTextColor(Qt::white)
+	, m_panelDpr(devicePixelRatioF())
 	, m_mousePos(QPoint(-1, -1))
 	, m_mouseDownPos(QPoint(-1, -1))
 	, m_panSpectrumBinsLength(0)
+	, m_filterRight(0)
+	, m_filterTop(0)
+	, m_filterBottom(0)
 	, m_waterfallRenderer(nullptr)
 	, m_panadapterRenderer(nullptr)
 	, m_overlayRenderer(nullptr)
@@ -72,12 +77,6 @@ QGLReceiverPanel::QGLReceiverPanel(SliceModel *model, QWidget *parent)
 	, m_hudRenderer(nullptr)
 	, m_inputController(nullptr)
 	, m_bigHeight(0)
-	, m_glTextColor(Qt::white)
-	, m_panelDpr(devicePixelRatioF())
-
-	, m_filterRight(0)
-	, m_filterTop(0)
-	, m_filterBottom(0)
 	, m_receiver(model ? model->id() : 0)
 	//, m_frequencyRxOnRx(0)
 	, m_spectrumSize(set->getSpectrumSize())
@@ -91,6 +90,7 @@ QGLReceiverPanel::QGLReceiverPanel(SliceModel *model, QWidget *parent)
 	, m_panSpectrumMinimumHeight(0)
 	, m_snapMouse(3)
 	, m_sampleRate(set->getSampleRate())
+	, m_mercuryAttenuator(0)
 	, m_adcStatus(0)
 	, m_fftMult(1)
 	, m_smallSize(true)
@@ -106,7 +106,6 @@ QGLReceiverPanel::QGLReceiverPanel(SliceModel *model, QWidget *parent)
 	, m_filterChanged(true)
 	, m_showFilterLeftBoundary(false)
 	, m_showFilterRightBoundary(false)
-	, m_mercuryAttenuator(0)
 	, m_highlightFilter(false)
 	, m_dragMouse(false)
 	, m_dragDBmScale(false)
@@ -513,8 +512,9 @@ void QGLReceiverPanel::initializeGL() {
                                               GlShaders::texturedFragmentSource("tex"));
     m_textureProgram->bindAttributeLocation("position", 0);
     m_textureProgram->bindAttributeLocation("texCoord", 1);
-    if (!m_textureProgram->link())
+    if (!m_textureProgram->link()) {
         qCritical() << "Receiver panel texture shader link failed:" << m_textureProgram->log();
+    }
 
 	//*****************************************************************
 	// default initialization
@@ -652,101 +652,99 @@ void QGLReceiverPanel::paintGL() {
 }
  
 void QGLReceiverPanel::paintReceiverDisplay() {
-
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	QRect mouse_rect(0, 0, 100, 100);
-	mouse_rect.moveCenter(m_mousePos);
-
 	if (m_filterChanged) {
-
 		m_filterLo = m_filterLowerFrequency / m_sampleRate;
 		m_filterHi = m_filterUpperFrequency / m_sampleRate;
 		m_filterWidth = qAbs((int)(m_filterUpperFrequency - m_filterLowerFrequency));
 
 		if (m_filterWidth < 1000) {
-
 			QString str = "%1";
 			m_filterWidthString = str.arg(m_filterWidth);
 		}
 		else {
-
 			QString str = "%1k%2";
 			m_filterWidthString = str.arg((int)(m_filterWidth/1000)).arg((int)((m_filterWidth%1000)/100));
 		}
-		
 		m_filterChanged = false;
 	}
 
     // Spectrum binning runs on SpectrumBinWorker; paint only draws the latest snapshot.
     scheduleSpectrumBinning();
 
-    // --- Grid: update rulers ---
+    // 4 Discrete Modular Render Passes:
+    renderTracePass();
+    renderGridPass();
+    renderFilterBandwidthPass();
+    renderMarkerHudPass();
+}
+
+void QGLReceiverPanel::renderTracePass() {
+    drawPanadapter();
+    drawBandPlanStrip();
+
+    if (m_waterfallRect.height() > 10) {
+        ensurePanelViewport();
+        drawWaterfall();
+    }
+    if (m_waterfallDisplayUpdate)
+        m_waterfallDisplayUpdate = false;
+}
+
+void QGLReceiverPanel::renderGridPass() {
     if (m_freqScalePanRect.isValid())
         updateFrequencyRuler();
     if (m_dBmScalePanRect.isValid())
         updateDBmRuler();
 
-    // --- Trace: panadapter + band plan ---
-    drawPanadapter();
-    drawBandPlanStrip();
-
-    // --- Grid: scales + grid lines ---
     glDisable(GL_DEPTH_TEST);
     drawPanHorizontalScale();
     drawPanVerticalScale();
     drawPanadapterGrid();
-
-    // --- Overlay: AGC geometry (+ HUD AGC labels) ---
-	if (m_dataEngineState == QSDR::DataEngineUp && m_showAGCLines && (m_receiver == m_currentReceiver)) {
-        ensurePanelViewport();
-		drawAGCControl();
+    if (m_waterfallRect.height() > 10) {
+        glEnable(GL_DEPTH_TEST);
+        drawWaterfallVerticalScale();
     }
+    glEnable(GL_DEPTH_TEST);
+}
 
-    // --- HUD: VFO / receiver info / CW ---
-	if (m_panRect.width() > 300 && m_panRect.height() > 80) {
+void QGLReceiverPanel::renderFilterBandwidthPass() {
+    glDisable(GL_DEPTH_TEST);
+    drawCenterLine();
+    drawPanFilter();
+    glEnable(GL_DEPTH_TEST);
 
+    if (m_dataEngineState == QSDR::DataEngineUp && m_showAGCLines && (m_receiver == m_currentReceiver)) {
+        ensurePanelViewport();
+        drawAGCControl();
+    }
+}
+
+void QGLReceiverPanel::renderMarkerHudPass() {
+    if (m_panRect.width() > 300 && m_panRect.height() > 80) {
         ensurePanelViewport();
         drawVFOControl();
         drawReceiverInfo();
         drawCwDecoderHUD();
         drawPanadapterSMeter();
         drawPanadapterFreq();
-	}
-
-    // --- Trace: waterfall; Overlay: centerline/filter; Grid: waterfall scale ---
-	if (m_waterfallRect.height() > 10) {
-        ensurePanelViewport();
-        drawWaterfall();
-        glDisable(GL_DEPTH_TEST);
-        drawCenterLine();
-        drawPanFilter();
-        glEnable(GL_DEPTH_TEST);
-        drawWaterfallVerticalScale();
-    } else {
-        glDisable(GL_DEPTH_TEST);
-        drawCenterLine();
-        drawPanFilter();
-        glEnable(GL_DEPTH_TEST);
     }
-    if (m_waterfallDisplayUpdate)
-        m_waterfallDisplayUpdate = false;
 
-    // --- HUD: crosshair ---
-	if (m_crossHair) {
-
-		if (m_mouseRegion != freqScalePanadapterRegion && 
-			m_mouseRegion != dBmScalePanadapterRegion && 
-			m_mouseRegion != filterRegion &&
-			m_mouseRegion != filterRegionLow &&
-			m_mouseRegion != filterRegionHigh &&
-			m_mouseRegion != agcThresholdLine &&
-			m_mouseRegion != agcHangLine &&
-			m_mouseRegion != agcFixedGainLine &&
-			m_crossHairCursor)
-			drawCrossHair();
-	}
+    if (m_crossHair) {
+        if (m_mouseRegion != freqScalePanadapterRegion && 
+            m_mouseRegion != dBmScalePanadapterRegion && 
+            m_mouseRegion != filterRegion &&
+            m_mouseRegion != filterRegionLow &&
+            m_mouseRegion != filterRegionHigh &&
+            m_mouseRegion != agcThresholdLine &&
+            m_mouseRegion != agcHangLine &&
+            m_mouseRegion != agcFixedGainLine &&
+            m_crossHairCursor) {
+            drawCrossHair();
+        }
+    }
 }
 
 void QGLReceiverPanel::paint3DPanadapterMode() {

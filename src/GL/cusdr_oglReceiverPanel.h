@@ -394,8 +394,12 @@ private:
 	void	saveGLState();
 	void	restoreGLState();
 
-	// drawing
+	// Render pipeline & modular passes
 	void	paintReceiverDisplay();
+	void	renderTracePass();
+	void	renderGridPass();
+	void	renderFilterBandwidthPass();
+	void	renderMarkerHudPass();
 	void	paint3DPanadapterMode();
 
 	void	drawPanadapter();

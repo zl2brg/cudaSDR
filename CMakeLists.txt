@@ -970,6 +970,7 @@ if(BUILD_TESTING)
         tests/opengl_offscreen_tests.cpp
         ${SRC_DIR}/GL/PanadapterRenderer.cpp
         ${SRC_DIR}/GL/WaterfallRenderer.cpp
+        ${SRC_DIR}/GL/OverlayRenderer.cpp
         ${SRC_DIR}/Models/RadioModel.cpp
         ${SRC_DIR}/Models/SliceModel.cpp
         ${SRC_DIR}/Models/BandPlanManager.cpp

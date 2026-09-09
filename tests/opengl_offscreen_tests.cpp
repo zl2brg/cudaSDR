@@ -24,6 +24,7 @@
 #include "GL/cusdr_glShaders.h"
 #include "GL/PanadapterRenderer.h"
 #include "GL/WaterfallRenderer.h"
+#include "GL/OverlayRenderer.h"
 #include "cusdr_settings.h"
 
 class OpenglOffscreenTests : public QObject {
@@ -42,6 +43,9 @@ private slots:
     void testWaterfallRendererLifecycle();
     void testPanadapterRendererLifecycle();
     void testOffscreenFboRasterization();
+    void testOverlayRendererLifecycle();
+    void testOverlayFilterBandwidthRasterization();
+    void testOverlayGridRasterization();
 
 private:
     QOpenGLContext *m_context = nullptr;
@@ -389,6 +393,149 @@ void OpenglOffscreenTests::testOffscreenFboRasterization()
 
     qDebug() << "Offscreen FBO non-black rasterized pixels:" << nonBlackPixels;
     QVERIFY2(nonBlackPixels > 0, "FBO spectrum rendering produced 0 rasterized pixels");
+}
+
+void OpenglOffscreenTests::testOverlayRendererLifecycle()
+{
+    if (!m_glAvailable)
+        QSKIP("OpenGL offscreen context not supported on this platform");
+
+    OverlayRenderer overlay;
+    overlay.initialize();
+    QCOMPARE(m_gl->glGetError(), static_cast<GLenum>(GL_NO_ERROR));
+
+    QMatrix4x4 proj;
+    proj.ortho(0, 512, 256, 0, -10.0f, 10.0f);
+    QRect panRect(0, 0, 512, 128);
+    QRect dBmScaleRect(0, 0, 45, 128);
+
+    // Test AGC control geometry calculation and drawing
+    float threshPx = 0.0f, hangPx = 0.0f, fixedPx = 0.0f;
+    overlay.drawAGCControl(proj, panRect, dBmScaleRect, agcMED, true,
+                           -100.0f, -80.0f, 20.0f, -30.0, -140.0,
+                           1.0f, 256, threshPx, hangPx, fixedPx);
+    QCOMPARE(m_gl->glGetError(), static_cast<GLenum>(GL_NO_ERROR));
+    QVERIFY(threshPx > 0.0f);
+
+    // Test Crosshair rendering
+    overlay.drawCrossHair(proj, panRect, dBmScaleRect, QPoint(256, 64), 1.0f, 256);
+    QCOMPARE(m_gl->glGetError(), static_cast<GLenum>(GL_NO_ERROR));
+}
+
+void OpenglOffscreenTests::testOverlayFilterBandwidthRasterization()
+{
+    if (!m_glAvailable)
+        QSKIP("OpenGL offscreen context not supported on this platform");
+
+    constexpr int fboWidth = 512;
+    constexpr int fboHeight = 256;
+
+    QOpenGLFramebufferObjectFormat fboFormat;
+    fboFormat.setAttachment(QOpenGLFramebufferObject::CombinedDepthStencil);
+    QOpenGLFramebufferObject fbo(fboWidth, fboHeight, fboFormat);
+    QVERIFY(fbo.isValid());
+
+    QVERIFY(fbo.bind());
+    m_gl->glViewport(0, 0, fboWidth, fboHeight);
+    m_gl->glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    m_gl->glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    OverlayRenderer overlay;
+    overlay.initialize();
+
+    QMatrix4x4 proj;
+    proj.ortho(0, fboWidth, fboHeight, 0, -10.0f, 10.0f);
+    QRect panRect(0, 0, fboWidth, fboHeight / 2);
+    QRect waterfallRect(0, fboHeight / 2, fboWidth, fboHeight / 2);
+    QRect freqScaleRect(0, fboHeight / 2 - 20, fboWidth, 20);
+
+    // Filter passband from -0.1 to +0.1 relative to center
+    int fLeft = 0, fRight = 0, fTop = 0, fBottom = 0;
+    QColor filterColor(255, 180, 0, 160);
+    overlay.drawFilter(proj, panRect, waterfallRect, -0.1f, 0.1f, 0.0f, 1.0f,
+                       filterColor, false, false, true, true,
+                       fLeft, fRight, fTop, fBottom);
+    QCOMPARE(m_gl->glGetError(), static_cast<GLenum>(GL_NO_ERROR));
+    QVERIFY(fRight > fLeft);
+
+    // Center tuning line
+    overlay.drawCenterLine(proj, panRect, freqScaleRect, waterfallRect,
+                           panRect.bottom(), 0.0f, 1.0f,
+                           QColor(255, 255, 255), QColor(255, 0, 0), false, false);
+    QCOMPARE(m_gl->glGetError(), static_cast<GLenum>(GL_NO_ERROR));
+
+    QVERIFY(fbo.release());
+
+    // Verify non-black rasterized pixels in FBO
+    QImage img = fbo.toImage();
+    int nonBlackPixels = 0;
+    for (int y = 0; y < fboHeight; ++y) {
+        const QRgb *scanline = reinterpret_cast<const QRgb*>(img.constScanLine(y));
+        for (int x = 0; x < fboWidth; ++x) {
+            QRgb pixel = scanline[x];
+            if (qRed(pixel) > 10 || qGreen(pixel) > 10 || qBlue(pixel) > 10) {
+                ++nonBlackPixels;
+            }
+        }
+    }
+
+    qDebug() << "Offscreen FBO filter passband non-black pixels:" << nonBlackPixels;
+    QVERIFY2(nonBlackPixels > 0, "OverlayRenderer drawFilter produced 0 rasterized pixels");
+}
+
+void OpenglOffscreenTests::testOverlayGridRasterization()
+{
+    if (!m_glAvailable)
+        QSKIP("OpenGL offscreen context not supported on this platform");
+
+    constexpr int fboWidth = 512;
+    constexpr int fboHeight = 256;
+
+    QOpenGLFramebufferObjectFormat fboFormat;
+    fboFormat.setAttachment(QOpenGLFramebufferObject::CombinedDepthStencil);
+    QOpenGLFramebufferObject fbo(fboWidth, fboHeight, fboFormat);
+    QVERIFY(fbo.isValid());
+
+    QVERIFY(fbo.bind());
+    m_gl->glViewport(0, 0, fboWidth, fboHeight);
+    m_gl->glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    m_gl->glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    OverlayRenderer overlay;
+    overlay.initialize();
+
+    QMatrix4x4 proj;
+    proj.ortho(0, fboWidth, fboHeight, 0, -10.0f, 10.0f);
+    QRect panRect(0, 0, fboWidth, fboHeight);
+    QRect freqScaleRect(0, fboHeight - 20, fboWidth, 20);
+
+    TScale freqScale{};
+    freqScale.mainPointPositions << 50 << 100 << 150 << 200 << 250 << 300;
+
+    TScale dBmScale{};
+    dBmScale.mainPointPositions << 30 << 60 << 90 << 120 << 150 << 180;
+
+    overlay.drawGrid(proj, panRect, freqScaleRect, freqScale, dBmScale,
+                     0, 0.5f, 0.5f, 0.5f, 0.5f, true);
+    QCOMPARE(m_gl->glGetError(), static_cast<GLenum>(GL_NO_ERROR));
+
+    QVERIFY(fbo.release());
+
+    // Verify non-black rasterized grid lines in FBO
+    QImage img = fbo.toImage();
+    int nonBlackPixels = 0;
+    for (int y = 0; y < fboHeight; ++y) {
+        const QRgb *scanline = reinterpret_cast<const QRgb*>(img.constScanLine(y));
+        for (int x = 0; x < fboWidth; ++x) {
+            QRgb pixel = scanline[x];
+            if (qRed(pixel) > 10 || qGreen(pixel) > 10 || qBlue(pixel) > 10) {
+                ++nonBlackPixels;
+            }
+        }
+    }
+
+    qDebug() << "Offscreen FBO overlay grid non-black pixels:" << nonBlackPixels;
+    QVERIFY2(nonBlackPixels > 0, "OverlayRenderer drawGrid produced 0 rasterized pixels");
 }
 
 QTEST_MAIN(OpenglOffscreenTests)

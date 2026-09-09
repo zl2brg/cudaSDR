@@ -274,7 +274,7 @@ void OverlayRenderer::drawCenterLine(const QMatrix4x4& projection,
         float centerY = (float)(panRect.top() + panRect.height() - 1);
 		const QColor centerCol = centerColor.isValid() ? centerColor : QColor(246, 7, 19);
 
-        glLineWidth(3.0f);
+        glLineWidth(1.0f);
 
         QVarLengthArray<VertexData, 8> lines;
         float cr = centerCol.redF(); float cg = centerCol.greenF(); float cb = centerCol.blueF(); float ca = centerCol.alphaF();
@@ -473,7 +473,7 @@ void OverlayRenderer::drawCrossHair(const QMatrix4x4& projection,
 
 	glDisable(GL_BLEND);
 	glDisable(GL_LINE_SMOOTH);
-	glLineWidth(1.0f * dpr);
+	glLineWidth(1.0f);
     glDisable(GL_DEPTH_TEST);
 
     m_shader->bind();
