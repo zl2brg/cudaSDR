@@ -34,6 +34,7 @@
 #include "SMeterRenderer.h"
 #include "DisplayFreqRenderer.h"
 #include "DisplayStatusRenderer.h"
+#include "DisplayPanelInputController.h"
 #include "UI/FrequencyEntryDialog.h"
 #include "cusdr_glShaders.h"
 #include "cusdr_glDraw.h"
@@ -86,7 +87,6 @@ OGLDisplayPanel::OGLDisplayPanel(RadioModel *model, QWidget *parent)
 	, m_dither(set->getMercuryDither())
 	, m_random(set->getMercuryRandom())
 	, m_currentReceiver(set->getCurrentReceiver())
-	, m_sMeterDeform(15)
 	, m_freqDigitsPosYA(48)
 	, m_freqDigitsPosYB(95)
 	, m_sMeterPosY(50)//(45)
@@ -212,6 +212,7 @@ OGLDisplayPanel::OGLDisplayPanel(RadioModel *model, QWidget *parent)
 	m_smeterRenderer = new SMeterRenderer(this);
 	m_freqRenderer = new DisplayFreqRenderer(this);
 	m_statusRenderer = new DisplayStatusRenderer(this);
+	m_inputController = new DisplayPanelInputController(this);
 }
 
 OGLDisplayPanel::~OGLDisplayPanel() {
@@ -251,6 +252,7 @@ OGLDisplayPanel::~OGLDisplayPanel() {
     delete m_smeterRenderer;
     delete m_freqRenderer;
     delete m_statusRenderer;
+    delete m_inputController;
 }
 
 QSize OGLDisplayPanel::minimumSizeHint() const {
@@ -720,490 +722,69 @@ SliceModel *OGLDisplayPanel::currentSlice() const
 
 qint64 OGLDisplayPanel::vfoMemoryHz(DigitVfo which) const
 {
-	if (SliceModel *slice = currentSlice()) {
-		return (which == DigitVfoB) ? slice->vfoBFrequency() : slice->vfoAFrequency();
-	}
-	if (m_currentReceiver >= 0 && m_currentReceiver < m_frequencyList.size())
-		return m_frequencyList.at(m_currentReceiver).frequency;
-	return 7000000;
+	return m_inputController ? m_inputController->vfoMemoryHz(which) : 7000000;
 }
 
 void OGLDisplayPanel::activateDigitVfo(DigitVfo which)
 {
-	SliceModel *slice = currentSlice();
-	if (!slice || which == DigitVfoNone)
-		return;
-	const SliceModel::ActiveVfo target = (which == DigitVfoB) ? SliceModel::VfoB : SliceModel::VfoA;
-	if (slice->activeVfo() == target)
-		return;
-	slice->setActiveVfo(target);
-	set->setVfoFrequencyVisible(m_currentReceiver, slice->frequency());
+	if (m_inputController)
+		m_inputController->activateDigitVfo(which);
 }
 
 void OGLDisplayPanel::tuneDigitVfoTo(DigitVfo which, qint64 frequencyHz)
 {
-	activateDigitVfo(which);
-	SliceModel *slice = currentSlice();
-	if (!slice)
-		return;
-
-	if (which == DigitVfoB)
-		slice->setVfoBFrequency(frequencyHz);
-	else
-		slice->setVfoAFrequency(frequencyHz);
-
-	if (set->getPanLockedStatus(m_currentReceiver)) {
-		qint64 ctrf = slice->centerFrequency();
-		const int s = (m_radioModel ? m_radioModel->sampleRate() : set->getSampleRate()) / 2;
-		if (frequencyHz > ctrf + s)
-			frequencyHz = ctrf + s;
-		else if (frequencyHz < ctrf - s)
-			frequencyHz = ctrf - s;
-		set->setVFOFrequency(0, m_currentReceiver, frequencyHz);
-	} else {
-		// Unlocked pan: digit wheel moves LO with the dial (legacy behaviour).
-		set->setCtrFrequency(0, m_currentReceiver, frequencyHz);
-		set->setVFOFrequency(0, m_currentReceiver, frequencyHz);
-	}
+	if (m_inputController)
+		m_inputController->tuneDigitVfoTo(which, frequencyHz);
 }
 
 QRect OGLDisplayPanel::vfoLabelRect(int yBaseline) const
 {
-	const QFontMetrics fm = m_oglTextBig->fontMetrics();
-	return QRect(m_rxRect.left() + 4, yBaseline - fm.ascent() - 2,
-	             qMax(m_vfoLabelWidth, 16), fm.height() + 4);
+	return m_inputController ? m_inputController->vfoLabelRect(yBaseline) : QRect();
 }
 
 void OGLDisplayPanel::rebuildAllFreqDigitHitRegions()
 {
-	if (!m_oglTextFreq1 || !m_oglTextFreqInactive1)
-		return;
-
-	SliceModel *slice = currentSlice();
-	const bool bActive = slice && slice->activeVfo() == SliceModel::VfoB;
-	const int originX = m_rxRect.left() + 12 + m_vfoLabelWidth;
-
-	const QRect labelA = vfoLabelRect(m_rxRect.top() + m_freqDigitsPosYA);
-	const QRect labelB = vfoLabelRect(m_rxRect.top() + m_freqDigitsPosYB);
-
-	QString f1A = m_f1strA;
-	QString f1B = m_f1strB;
-	if (f1A.isEmpty())
-		f1A = freqMhzDisplayString(vfoMemoryHz(DigitVfoA));
-	if (f1B.isEmpty())
-		f1B = freqMhzDisplayString(vfoMemoryHz(DigitVfoB));
-
-	updateFreqDigitHitRegions(m_hitA, originX, m_rxRect.top() + m_freqDigitsPosYA,
-	                          f1A, !bActive, labelA);
-	updateFreqDigitHitRegions(m_hitB, originX, m_rxRect.top() + m_freqDigitsPosYB,
-	                          f1B, bActive, labelB);
+	if (m_inputController)
+		m_inputController->rebuildAllFreqDigitHitRegions();
 }
 
-void OGLDisplayPanel::updateFreqDigitHitRegions(FreqDigitHitRegions &out, int originX, int yBaseline,
-                                                const QString &f1str, bool large,
-                                                const QRect &labelRect)
-{
-	OGLText *text1 = large ? m_oglTextFreq1 : m_oglTextFreqInactive1;
-	OGLText *text2 = large ? m_oglTextFreq2 : m_oglTextFreqInactive2;
-	const int digitW1 = large ? m_blankWidthf1 : m_blankWidthInactive1;
-	const int digitW2 = large ? m_blankWidthf2 : m_blankWidthInactive2;
-	const int pointW = large ? m_pointStringWidth : m_pointStringWidthInactive;
-
-	const int freq1Ascent = text1 ? text1->fontMetrics().ascent() : m_fonts.fontHeightFreqFont1;
-	const int freq2Ascent = text2 ? text2->fontMetrics().ascent() : m_fonts.fontHeightFreqFont2;
-	const int freq1Height = text1 ? text1->fontMetrics().height() : m_fonts.fontHeightFreqFont1;
-	const int freq2Height = text2 ? text2->fontMetrics().height() : m_fonts.fontHeightFreqFont2;
-	const int y1 = yBaseline - freq1Ascent;
-	const int y2 = yBaseline - freq2Ascent;
-
-	out.label = QRegion(labelRect);
-
-	int x = originX;
-	auto slot = [&](int strIndex, int width, int top, int height) {
-		if (strIndex >= 0 && strIndex < f1str.length() && f1str.at(strIndex) == QLatin1Char(' '))
-			return QRegion();
-		const QRegion region(QRect(x, top, width, height));
-		x += width;
-		return region;
-	};
-
-	out.freg1000000000 = slot(0, digitW1, y1, freq1Height);
-	out.point2         = slot(1, pointW, y1, freq1Height);
-	out.freg100000000  = slot(2, digitW1, y1, freq1Height);
-	out.freg10000000   = slot(3, digitW1, y1, freq1Height);
-	out.freg1000000    = slot(4, digitW1, y1, freq1Height);
-	out.point          = slot(5, pointW, y1, freq1Height);
-	out.freg100000     = slot(6, digitW1, y1, freq1Height);
-	out.freg10000      = slot(7, digitW1, y1, freq1Height);
-	out.freg1000       = slot(8, digitW1, y1, freq1Height);
-	out.point1         = slot(-1, pointW, y1, freq1Height);
-	out.freg100        = slot(-1, digitW2, y2, freq2Height);
-	out.freg10         = slot(-1, digitW2, y2, freq2Height);
-	out.freg1          = slot(-1, digitW2, y2, freq2Height);
-}
-
-bool OGLDisplayPanel::hitTestDigit(const FreqDigitHitRegions &regs, const QString &f1str,
-                                   QPoint p, int *digitOut) const
-{
-	int digit = None;
-	if (regs.freg1.contains(p))
-		digit = Freq1;
-	else if (regs.freg10.contains(p))
-		digit = Freq10;
-	else if (regs.freg100.contains(p))
-		digit = Freq100;
-	else if (regs.point1.contains(p))
-		digit = dp2;
-	else if (regs.freg1000.contains(p))
-		digit = Freq1000;
-	else if (regs.freg10000.contains(p))
-		digit = Freq10000;
-	else if (regs.freg100000.contains(p))
-		digit = Freq100000;
-	else if (regs.point.contains(p))
-		digit = dp1;
-	else if (regs.freg1000000.contains(p))
-		digit = Freq1000000;
-	else if (regs.freg10000000.contains(p))
-		digit = Freq10000000;
-	else if (regs.freg100000000.contains(p))
-		digit = Freq100000000;
-	else if (regs.point2.contains(p))
-		digit = dp0;
-	else if (regs.freg1000000000.contains(p))
-		digit = Freq1000000000;
-
-	if (digit != None && digit <= Freq1000) {
-		int idx = -1;
-		switch (digit) {
-			case Freq1000000000: idx = 0; break;
-			case dp0:            idx = 1; break;
-			case Freq100000000:  idx = 2; break;
-			case Freq10000000:   idx = 3; break;
-			case Freq1000000:    idx = 4; break;
-			case dp1:            idx = 5; break;
-			case Freq100000:     idx = 6; break;
-			case Freq10000:      idx = 7; break;
-			case Freq1000:       idx = 8; break;
-			default: break;
-		}
-		if (idx >= 0 && idx < f1str.length() && f1str[idx] == ' ')
-			digit = None;
-	}
-
-	if (digitOut)
-		*digitOut = digit;
-	return digit != None;
-}
-
-void OGLDisplayPanel::getSelectedDigit(QPoint p) {
-
-	static int pos;
-	static int posVfo;
-	m_digitPosition = None;
-	m_digitVfo = DigitVfoNone;
-
-	int digit = None;
-	if (hitTestDigit(m_hitA, m_f1strA, p, &digit)) {
-		m_digitPosition = digit;
-		m_digitVfo = DigitVfoA;
-	} else if (hitTestDigit(m_hitB, m_f1strB, p, &digit)) {
-		m_digitPosition = digit;
-		m_digitVfo = DigitVfoB;
-	} else if (m_hitA.label.contains(p)) {
-		m_digitVfo = DigitVfoA;
-	} else if (m_hitB.label.contains(p)) {
-		m_digitVfo = DigitVfoB;
-	}
-
-	if (pos != m_digitPosition || posVfo != m_digitVfo) {
-		pos = m_digitPosition;
-		posVfo = m_digitVfo;
-		update();
-	}
-}
-
-//***********************************************
 void OGLDisplayPanel::enterEvent(QEvent *event) {
-
-	Q_UNUSED(event)
+	if (m_inputController)
+		m_inputController->handleEnter(event);
 }
 
 void OGLDisplayPanel::leaveEvent(QEvent *event) {
-
-	Q_UNUSED(event)
+	if (m_inputController)
+		m_inputController->handleLeave(event);
 }
 
 void OGLDisplayPanel::mousePressEvent(QMouseEvent *event) {
-
-	QPoint pos = event->pos();
-
-	getSelectedDigit(pos);
-
-	if (event->button() == Qt::LeftButton && m_digitVfo != DigitVfoNone) {
-		// Single click on A or B label/digits — select VFO A or B as active VFO
-		activateDigitVfo(static_cast<DigitVfo>(m_digitVfo));
-	}
-
-	if (event->button() == Qt::LeftButton && m_digitPosition != None) {
-		switch (m_digitPosition) {
-
-			case Freq1:
-				if (event->buttons() == Qt::LeftButton) {
-					if (set->getMouseWheelFreqStep(m_currentReceiver) == 1.0)
-						set->setMouseWheelFreqStep(m_currentReceiver, 5.0);
-					else
-						set->setMouseWheelFreqStep(m_currentReceiver, 1.0);
-				}
-				break;
-
-			case Freq10:
-				if (event->buttons() == Qt::LeftButton) {
-					if (set->getMouseWheelFreqStep(m_currentReceiver) == 10.0)
-						set->setMouseWheelFreqStep(m_currentReceiver, 50.0);
-					else
-						set->setMouseWheelFreqStep(m_currentReceiver, 10.0);
-				}
-				break;
-
-			case Freq100:
-				if (event->buttons() == Qt::LeftButton) {
-					if (set->getMouseWheelFreqStep(m_currentReceiver) == 100.0)
-						set->setMouseWheelFreqStep(m_currentReceiver, 500.0);
-					else
-						set->setMouseWheelFreqStep(m_currentReceiver, 100.0);
-				}
-				break;
-	
-			case Freq1000:
-				if (event->buttons() == Qt::LeftButton) {
-					if (set->getMouseWheelFreqStep(m_currentReceiver) == 1000.0)
-                        set->setMouseWheelFreqStep(m_currentReceiver, 5000.0);
-                    else if (set->getMouseWheelFreqStep(m_currentReceiver) == 5000.0)
-                        set->setMouseWheelFreqStep(m_currentReceiver, 9000.0);
-                    else
-						set->setMouseWheelFreqStep(m_currentReceiver, 1000.0);
-				}
-				break;
-
-			case Freq10000:
-				if (event->buttons() == Qt::LeftButton) {
-					if (set->getMouseWheelFreqStep(m_currentReceiver) == 10000.0)
-						set->setMouseWheelFreqStep(m_currentReceiver, 50000.0);
-					else
-						set->setMouseWheelFreqStep(m_currentReceiver, 10000.0);
-				}
-				break;
-	
-			case Freq100000:
-				if (event->buttons() == Qt::LeftButton) {
-					if (set->getMouseWheelFreqStep(m_currentReceiver) == 100000.0)
-						set->setMouseWheelFreqStep(m_currentReceiver, 500000.0);
-					else
-						set->setMouseWheelFreqStep(m_currentReceiver, 100000.0);
-				}
-				break;
-
-			case Freq1000000:
-				if (event->buttons() == Qt::LeftButton) {
-					if (set->getMouseWheelFreqStep(m_currentReceiver) == 1000000.0)
-						set->setMouseWheelFreqStep(m_currentReceiver, 5000000.0);
-					else
-						set->setMouseWheelFreqStep(m_currentReceiver, 1000000.0);
-				}
-				break;
-
-			case Freq10000000:
-				if (event->buttons() == Qt::LeftButton) {
-					if (set->getMouseWheelFreqStep(m_currentReceiver) == 10000000.0)
-						set->setMouseWheelFreqStep(m_currentReceiver, 50000000.0);
-					else
-						set->setMouseWheelFreqStep(m_currentReceiver, 10000000.0);
-				}
-				break;
-
-            case Freq100000000:
-                if (event->buttons() == Qt::LeftButton)
-                    set->setMouseWheelFreqStep(m_currentReceiver, 100000000.0);
-                break;
-
-            case Freq1000000000:
-                if (event->buttons() == Qt::LeftButton)
-                    set->setMouseWheelFreqStep(m_currentReceiver, 1000000000.0);
-                break;
-
-			case None:
-				break;
-		}
-	}
-
+	if (m_inputController)
+		m_inputController->handleMousePress(event);
 	QWidget::mousePressEvent(event);
 }
 
 void OGLDisplayPanel::mouseReleaseEvent(QMouseEvent *event) {
-
-	Q_UNUSED(event)
+	if (m_inputController)
+		m_inputController->handleMouseRelease(event);
 }
 
 void OGLDisplayPanel::mouseDoubleClickEvent(QMouseEvent *event) {
-
-	if (event->button() == Qt::LeftButton) {
-		QPoint pos = event->pos();
-		getSelectedDigit(pos);
-
-		if (m_digitVfo != DigitVfoNone) {
-			if (m_currentReceiver < 0 || m_currentReceiver >= m_frequencyList.size()) {
-				qWarning() << "OGLDisplayPanel::mouseDoubleClickEvent invalid receiver index" << m_currentReceiver;
-				return;
-			}
-
-			const DigitVfo which = static_cast<DigitVfo>(m_digitVfo);
-			activateDigitVfo(which);
-			qint64 currentFreq = vfoMemoryHz(which);
-			FrequencyEntryDialog dlg(currentFreq, this);
-			if (dlg.exec() == QDialog::Accepted) {
-				qint64 newFreq = dlg.frequency();
-				if (newFreq < (qint64)set->getMaxFrequency() && newFreq >= 0)
-					tuneDigitVfoTo(which, newFreq);
-			}
-			return;
-		}
-	}
-
+	if (m_inputController)
+		m_inputController->handleMouseDoubleClick(event);
 	QOpenGLWidget::mouseDoubleClickEvent(event);
 }
 
 void OGLDisplayPanel::mouseMoveEvent(QMouseEvent *event) {
-
-	QPoint pos = event->pos();
-	const int oldDigit = m_digitPosition;
-	const int oldVfo = m_digitVfo;
-
-    if (m_dataEngineState != QSDR::DataEngineUp)
-    {
-        m_digitColor = QColor(98, 98, 98);
-        return;
-    }
-
-		getSelectedDigit(pos);
-		Qt::CursorShape wantCursor = Qt::ArrowCursor;
-		switch (m_digitPosition) {
-
-			case Freq1:
-			case Freq10:
-			case Freq100:
-			case Freq1000:
-			case Freq10000:
-			case Freq100000:
-			case Freq1000000:
-			case Freq10000000:
-			case Freq100000000:
-			case Freq1000000000:
-				wantCursor = Qt::PointingHandCursor;
-				m_digitColor = QColor(136, 166, 178);
-				break;
-
-			case None:
-				wantCursor = (m_digitVfo != DigitVfoNone) ? Qt::PointingHandCursor : Qt::ArrowCursor;
-				m_digitColor = QColor(106, 136, 148);
-				break;
-		}
-
-		if (cursor().shape() != wantCursor)
-			setCursor(wantCursor);
-
-	// Highlight comes from m_digitPosition in renderFreqText — only repaint on change.
-	if (oldDigit != m_digitPosition || oldVfo != m_digitVfo)
-		scheduleRepaint();
-
+	if (m_inputController)
+		m_inputController->handleMouseMove(event);
 	QOpenGLWidget::mouseMoveEvent(event);
 }
 
 void OGLDisplayPanel::wheelEvent(QWheelEvent * event) {
-		qint64 deltaF = 0;
-		switch (m_digitPosition) {
-			case Freq1:
-				deltaF = 1;
-				break;
-
-			case Freq10:
-				deltaF = 10;
-				break;
-
-			case Freq100:
-				deltaF = 100;
-				break;
-
-			case Freq1000:
-				deltaF = 1000;
-				break;
-
-			case Freq10000:
-				deltaF = 10000;
-				break;
-
-			case Freq100000:
-				deltaF = 100000;
-				break;
-
-			case Freq1000000:
-				deltaF = 1000000;
-				break;
-
-			case Freq10000000:
-				deltaF = 10000000;
-				break;
-
-            case Freq100000000:
-                deltaF = 100000000;
-                break;
-
-            case Freq1000000000:
-                deltaF = 1000000000;
-                break;
-
-			case None:
-				return;
-		}
-
-        int  numDegrees = event->angleDelta().y()/ 8;
-        int  numSteps = numDegrees / 15;
-		
-		if (m_currentReceiver < 0 || m_currentReceiver >= m_frequencyList.size()) {
-			qWarning() << "OGLDisplayPanel::wheelEvent invalid receiver index" << m_currentReceiver;
-			return;
-		}
-
-		const DigitVfo which = (m_digitVfo == DigitVfoB) ? DigitVfoB : DigitVfoA;
-		qint64 currentFreq = vfoMemoryHz(which);
-        qint64 newFreq = currentFreq + (qint64)numSteps * deltaF;
-
-		if (newFreq < (qint64)set->getMaxFrequency() && newFreq >= 0)
-			tuneDigitVfoTo(which, newFreq);
-
-	event->accept();
+	if (m_inputController)
+		m_inputController->handleWheel(event);
 	QOpenGLWidget::wheelEvent(event);
-}
-
-void OGLDisplayPanel::keyPressEvent(QKeyEvent* event) {
-
-	Q_UNUSED(event)
-}
-
-void OGLDisplayPanel::closeEvent(QCloseEvent *event) {
-
-	Q_UNUSED(event)
-}
-/*
-void OGLDisplayPanel::showEvent(QShowEvent *event) {
-
-	Q_UNUSED(event)
-}
-*/
-
-void OGLDisplayPanel::timerEvent(QTimerEvent *event) {
-
-	Q_UNUSED(event)
 }
 
 void OGLDisplayPanel::setSMeterHoldTime(int value) {
@@ -1610,16 +1191,6 @@ void OGLDisplayPanel::renderPanelText(OGLText *text, float x, float y, float z, 
     if (text)
         text->renderText(x, y, z, str, m_glTextColor);
 }
-
-
-void OGLDisplayPanel::saveGLState()
-{
-}
-
-void OGLDisplayPanel::restoreGLState()
-{
-}
-
 
 void OGLDisplayPanel::renderFreqText(OGLText *text, GLint &x1, GLint y1, const QColor &fontcolor,
                                      const QString &freqstr, int digit, int digit_pos, int fixed_width)

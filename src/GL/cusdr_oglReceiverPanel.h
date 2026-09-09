@@ -116,7 +116,6 @@ protected:
 	void mouseReleaseEvent(QMouseEvent *event);
 	void mouseMoveEvent(QMouseEvent *event);
 	void wheelEvent(QWheelEvent * event );
-	void keyPressEvent(QKeyEvent* event);
 	void qglColor(QColor color);
 
 private:
@@ -390,9 +389,6 @@ private:
 
 	//******************************************************************
 	void	setupConnections();
-
-	void	saveGLState();
-	void	restoreGLState();
 
 	// Render pipeline & modular passes
 	void	paintReceiverDisplay();

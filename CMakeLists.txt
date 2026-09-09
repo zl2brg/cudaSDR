@@ -255,6 +255,7 @@ set(SOURCES
     ${SRC_DIR}/GL/SMeterRenderer.cpp
     ${SRC_DIR}/GL/DisplayFreqRenderer.cpp
     ${SRC_DIR}/GL/DisplayStatusRenderer.cpp
+    ${SRC_DIR}/GL/DisplayPanelInputController.cpp
     ${SRC_DIR}/Util/CPUMonitor.cpp
 
   )
@@ -355,6 +356,7 @@ set(HEADERS
     ${SRC_DIR}/GL/SMeterRenderer.h
     ${SRC_DIR}/GL/DisplayFreqRenderer.h
     ${SRC_DIR}/GL/DisplayStatusRenderer.h
+    ${SRC_DIR}/GL/DisplayPanelInputController.h
     ${SRC_DIR}/Util/CPUMonitor.h
     ${SRC_DIR}/cusdr_displayTabWidget.h
     ${SRC_DIR}/cusdr_displayWidget.h
@@ -944,6 +946,36 @@ if(BUILD_TESTING)
     )
     add_test(NAME display_panel_renderer_tests COMMAND display_panel_renderer_tests)
     set_tests_properties(display_panel_renderer_tests PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    )
+
+    qt_add_executable(display_panel_input_controller_tests
+        tests/display_panel_input_controller_tests.cpp
+        ${SRC_DIR}/GL/DisplayPanelInputController.cpp
+        ${SRC_DIR}/Models/RadioModel.cpp
+        ${SRC_DIR}/Models/SliceModel.cpp
+        ${SRC_DIR}/Models/BandPlanManager.cpp
+        ${SRC_DIR}/UI/FrequencyEntryDialog.cpp
+        ${CUDASDR_SETTINGS_TEST_SOURCES}
+    )
+    target_include_directories(display_panel_input_controller_tests PRIVATE
+        ${SRC_DIR}
+        ${SRC_DIR}/UI
+    )
+    target_link_libraries(display_panel_input_controller_tests PRIVATE
+        Qt6::Core
+        Qt6::Gui
+        Qt6::GuiPrivate
+        Qt6::Widgets
+        Qt6::Network
+        Qt6::Multimedia
+        Qt6::WebSockets
+        Qt6::OpenGL
+        Qt6::OpenGLWidgets
+        Qt6::Test
+    )
+    add_test(NAME display_panel_input_controller_tests COMMAND display_panel_input_controller_tests)
+    set_tests_properties(display_panel_input_controller_tests PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
     )
 

@@ -1026,14 +1026,6 @@ void QGLReceiverPanel::setupDisplayRegions(QSize size) {
 //	GRAPHICS_DEBUG << "";
 	
 }
-
-void QGLReceiverPanel::saveGLState()
-{
-}
-
-void QGLReceiverPanel::restoreGLState()
-{
-}
  
 void QGLReceiverPanel::showText(float x, float y, float z = 0.0f, const QString &text = "", bool smallText = true) {
 
@@ -1081,45 +1073,6 @@ void QGLReceiverPanel::mouseDoubleClickEvent(QMouseEvent *event) {
 void QGLReceiverPanel::mouseMoveEvent(QMouseEvent* event) {
 	if (m_inputController)
 		m_inputController->handleMouseMove(event);
-}
-
-void QGLReceiverPanel::keyPressEvent(QKeyEvent* event) {
-	
-	//GRAPHICS_DEBUG << "keyPressEvent";
-	if (event->key() == Qt::Key_Control) {
-		
-		//m_keyCTRLpressed = true;
-		//GRAPHICS_DEBUG << "m_keyCTRLpressed =" << m_keyCTRLpressed;
-		//printf("Ry %f\n",ry);
-		//ry+=10.0f;
- 	}
-	else if (event->key() == Qt::Key_T) {
-			
-			//printf("Ry %f\n",ry);
-			//ry-=10.0f;
-	}
- 	else if (event->key() == Qt::Key_P) {
-		
-		//drawTeapot = !drawTeapot;
-	}
- 	else if (event->key() == Qt::Key_W) {
-		
-		//approach -= 0.1f;
-	}
- 	else if (event->key() == Qt::Key_S) {
-		
-		//approach += 0.1f;
-	}
-	else {
-		
-		//m_keyCTRLpressed = false;
-		//GRAPHICS_DEBUG << "m_keyCTRLpressed =" << m_keyCTRLpressed;
-		//event->ignore();
- 	}
-
-	QWidget::keyPressEvent(event);
- 	//updateGL();
-//	update();
 }
 
 //void QGLReceiverPanel::timerEvent(QElapsedTimerrEvent *) {

@@ -55,6 +55,7 @@ class RadioModel;
 class SMeterRenderer;
 class DisplayFreqRenderer;
 class DisplayStatusRenderer;
+class DisplayPanelInputController;
 
 class OGLDisplayPanel : public QOpenGLWidget, protected QOpenGLFunctions {
 
@@ -63,6 +64,7 @@ class OGLDisplayPanel : public QOpenGLWidget, protected QOpenGLFunctions {
     friend class SMeterRenderer;
     friend class DisplayFreqRenderer;
     friend class DisplayStatusRenderer;
+    friend class DisplayPanelInputController;
 
 public:
     enum Region {
@@ -98,12 +100,30 @@ public:
         DigitVfoB = 1,
     };
 
+    struct FreqDigitHitRegions {
+        QRegion freg1;
+        QRegion freg10;
+        QRegion freg100;
+        QRegion freg1000;
+        QRegion freg10000;
+        QRegion freg100000;
+        QRegion freg1000000;
+        QRegion freg10000000;
+        QRegion freg100000000;
+        QRegion freg1000000000;
+        QRegion point;
+        QRegion point1;
+        QRegion point2;
+        QRegion label;
+    };
+
     OGLDisplayPanel(RadioModel *model, QWidget *parent = nullptr);
 	~OGLDisplayPanel();
 
     SMeterRenderer* smeterRenderer() const { return m_smeterRenderer; }
     DisplayFreqRenderer* freqRenderer() const { return m_freqRenderer; }
     DisplayStatusRenderer* statusRenderer() const { return m_statusRenderer; }
+    DisplayPanelInputController* inputController() const { return m_inputController; }
 
 	// Core 3.3: frequency digits must use OGLText — QPainter(this) in paintGL flashes siblings.
 	void renderFreqText(OGLText *text, GLint &x1, GLint y1, const QColor &fontcolor,
@@ -128,14 +148,9 @@ protected:
 	void mouseMoveEvent(QMouseEvent *event);
 	void mouseDoubleClickEvent(QMouseEvent *event);
 	void wheelEvent(QWheelEvent * event );
-	void keyPressEvent(QKeyEvent* event);
-	void closeEvent(QCloseEvent *event);
-    void timerEvent(QTimerEvent *);
     void qglColor(QColor color);
     void renderPanelText(OGLText *text, float x, float y, const QString &str);
     void renderPanelText(OGLText *text, float x, float y, float z, const QString &str);
-    void saveGLState();
-    void restoreGLState();
 
 private:
     QOpenGLShaderProgram      *m_shaderProgram;
@@ -165,8 +180,6 @@ private:
 
 	CFonts		*fonts;
 	TFonts		m_fonts;
-
-	QMutex		m_mutex;
 
     OGLText		*m_oglTextTiny;
 	OGLText		*m_oglTextSmall;
@@ -225,23 +238,6 @@ private:
 	QString     m_f1strB;
 	QString     m_f2strB;
 
-	struct FreqDigitHitRegions {
-		QRegion freg1;
-		QRegion freg10;
-		QRegion freg100;
-		QRegion freg1000;
-		QRegion freg10000;
-		QRegion freg100000;
-		QRegion freg1000000;
-		QRegion freg10000000;
-		QRegion freg100000000;
-		QRegion freg1000000000;
-		QRegion point;
-		QRegion point1;
-		QRegion point2;
-		QRegion label;
-	};
-
 	FreqDigitHitRegions m_hitA;
 	FreqDigitHitRegions m_hitB;
 
@@ -265,13 +261,13 @@ private:
     SMeterRenderer       *m_smeterRenderer = nullptr;
     DisplayFreqRenderer  *m_freqRenderer = nullptr;
     DisplayStatusRenderer *m_statusRenderer = nullptr;
+    DisplayPanelInputController *m_inputController = nullptr;
 
 	GLuint	m_sMeterTex;
 	bool	m_smeterUpdate;
 	bool	m_smeterRenew;
 
-
-	qint64	m_oldFreq;
+	qint64	m_oldFreq = -1;
 
 	int		m_height;
 	int		m_sMeterWidth;
@@ -340,7 +336,6 @@ private:
 	int		m_sampleRateWidth;
 	int		m_modusWidth;
 	int		m_10MHzWidth;
-	int		m_sMeterDeform;
 	int		m_12288MHzWidth;
 	int		m_freqDigitsPosYA;
 	int		m_freqDigitsPosYB;
@@ -349,9 +344,9 @@ private:
 	int		m_sMeterPrevHoldTimeMax;
 
 	qreal	m_mouseWheelFreqStep;
-	qreal	m_dBmPanMin;
-	qreal	m_dBmPanMax;
-	qreal	m_unit;
+	qreal	m_dBmPanMin = -130.0;
+	qreal	m_dBmPanMax = 10.0;
+	qreal	m_unit = 1.0;
 	
 	float	m_sMeterValue;
 	float	m_sMeterOrgValue;
