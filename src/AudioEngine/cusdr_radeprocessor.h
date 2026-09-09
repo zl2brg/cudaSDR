@@ -1,24 +1,25 @@
 #ifndef CUSDR_RADEPROCESSOR_H
 #define CUSDR_RADEPROCESSOR_H
 
+#include "IDigitalVoiceDemodulator.h"
 #include <vector>
 #include <QVector>
 
 struct rade;
 typedef void* rade_text_t;
 
-class RadeProcessor {
+class RadeProcessor : public IDigitalVoiceDemodulator {
 public:
     explicit RadeProcessor();
-    ~RadeProcessor();
+    ~RadeProcessor() override;
 
     RadeProcessor(const RadeProcessor&) = delete;
     RadeProcessor& operator=(const RadeProcessor&) = delete;
 
-    QVector<float> processSamples(const float* audio48k, int n);
+    QVector<float> processSamples(const float* audio48k, int n) override;
 
-    bool  isSync() const { return m_sync; }
-    float getSNR()  const { return m_snr;  }
+    bool  isSync() const override { return m_sync; }
+    float getSNR()  const override { return m_snr;  }
 
 private:
     struct rade* m_rade = nullptr;

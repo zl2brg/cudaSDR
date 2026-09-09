@@ -50,7 +50,6 @@ SliceProcessor::SliceProcessor(SliceModel *model, QObject *parent)
 	, m_samplerate(set->getSampleRate())
     , m_soapyInputSampleRate(set->getSampleRate())
 	, m_audioMode(1)
-    , m_iqQueue(100)
     , m_dspPending(false)
     , m_rateTransitionDropBuffers(0)
 	//, m_calOffset(63.0)
@@ -78,10 +77,10 @@ SliceProcessor::SliceProcessor(SliceModel *model, QObject *parent)
 	m_freeDVMode = set->getFreeDVMode(m_receiver);
 	if (m_freeDVMode == 100) {
 #ifdef HAVE_RADE
-		m_radeProcessor = new RadeProcessor();
+		m_dvDemodulator = std::make_unique<RadeProcessor>();
 #endif
 	} else {
-		m_freeDVProcessor = new FreeDVProcessor(m_freeDVMode);
+		m_dvDemodulator = std::make_unique<FreeDVProcessor>(m_freeDVMode);
 	}
 #endif
 	m_cwDecoder = new CwDecoder(m_receiver, this);
@@ -146,14 +145,6 @@ SliceProcessor::~SliceProcessor() {
 	}
     m_stopped = false;
     delete qtwdsp;
-#ifdef HAVE_CODEC2
-	delete m_freeDVProcessor;
-	m_freeDVProcessor = nullptr;
-#endif
-#ifdef HAVE_RADE
-	delete m_radeProcessor;
-	m_radeProcessor = nullptr;
-#endif
 }
 
 void SliceProcessor::setAudioBufferSize() {
@@ -324,15 +315,6 @@ void SliceProcessor::noteRetuneActivity(qint64)
     }
 }
 
-void SliceProcessor::enqueueData() {
-    // Legacy support or internal use
-    if (m_iqQueue.isFull()) {
-        SLICE_PROCESSOR_DEBUG << "iqQueue full! dropping oldest packet";
-        m_iqQueue.dequeue();
-    }
-    // Convert CPX to raw int for now if this is ever called, or just do nothing
-}
-
 void SliceProcessor::stop() {
 
 	m_mutex.lock();
@@ -394,42 +376,11 @@ void SliceProcessor::dspProcessing() {
         dspProcessingCore();
     }
 
-    // Drain legacy int32 queue if any data was enqueued directly
-    while (!m_iqQueue.isEmpty()) {
-        {
-            QMutexLocker locker(&m_mutex);
-            if (m_rateTransitionDropBuffers > 0) {
-                m_iqQueue.dequeue();
-                --m_rateTransitionDropBuffers;
-                continue;
-            }
-        }
-        QVector<int32_t> rawIQ = m_iqQueue.dequeue();
-        dspProcessing(rawIQ);
-    }
-
     m_dspPending.store(false, std::memory_order_release);
 
     if (m_rxRing.availableRead() >= kBlockFloats && trySetDspPending()) {
         QMetaObject::invokeMethod(this, "dspProcessing", Qt::QueuedConnection);
     }
-}
-
-void SliceProcessor::dspProcessing(const QVector<int32_t> &rawIQ) {
-    if (rawIQ.size() < BUFFER_SIZE * 2) return;
-
-    ++m_dspCallCount;
-
-    // Perform 24-bit integer to double conversion
-    const double scale = 1.0 / 8388607.0;
-    cpx* inPtr = inBuf.data();
-    const int32_t* rawPtr = rawIQ.constData();
-    for (int i = 0; i < BUFFER_SIZE; ++i) {
-        inPtr[i].re = (double)rawPtr[2*i] * scale;
-        inPtr[i].im = (double)rawPtr[2*i+1] * scale;
-    }
-
-    dspProcessingCore();
 }
 
 void SliceProcessor::dspProcessingCore() {
@@ -439,20 +390,12 @@ void SliceProcessor::dspProcessingCore() {
             return;
     }
 
-    int spectrumDataReady;
-    bool txPixelsRequested = false;
-
-    // TCI raw IQ tap. inBuf holds the normalized input I/Q at the radio's RX
-    // rate (m_samplerate) for both HPSDR (P1/P2) and SoapySDR. Capture it now,
-    // before WDSP consumes inBuf, but emit it at the END of this function so
-    // the RX audio frame (emitted mid-function) is queued onto the shared TCI
-    // socket first — audio has priority over the droppable panadapter IQ.
-    // Built only when a TCI client is subscribed, so the DSP hot path pays
-    // nothing when nobody is listening.
+    // 1. TCI raw IQ tap before WDSP consumes inBuf
     QVector<float> tciIqFrame;
     if (set->tciIqActive())
         tciIqFrame = interleaveFromCPX(inBuf);
 
+    // 2. WDSP channel execution
     m_dspMutex.lock();
     m_dspCallTimer.start();
     qtwdsp->processDSP(inBuf, audioOutputBuf);
@@ -465,268 +408,260 @@ void SliceProcessor::dspProcessingCore() {
 
     static constexpr quint64 DSP_REPORT_INTERVAL = 500;
     if ((m_dspCallCount % DSP_REPORT_INTERVAL) == 0) {
-        // Keep statistics updated for optional diagnostics, but do not log in hot path.
         m_dspTimeAccum = 0.0;
         m_dspTimeMin = 1e9;
         m_dspTimeMax = 0.0;
     }
 
-      if (highResTimer->getElapsedTimeInMicroSec() >= getDisplayDelay()) {
+    // 3. Spectrum & panadapter pass
+    const bool transmitting = set->is_transmitting() || (m_state != RadioState::RX);
+    processSpectrumPass(transmitting);
 
-		const bool transmitting = set->is_transmitting() || (m_state != RadioState::RX);
-
-		if (transmitting) {
-			if (set->getHWInterface() == QSDR::SoapySDR && !set->getTxFullDuplex()) {
-				// Half duplex: TX panadapter updated from get_tx_iqData() (RX DSP idle).
-				spectrumDataReady = 0;
-			} else
-			{
-				txPixelsRequested = true;
-				WdspTxChannel::getSpectrumPixels(TX_ID, qtwdsp->spectrumBuffer.data(), spectrumDataReady);
-				if (spectrumDataReady) {
-					prepareTxPanadapterSpectrum(qtwdsp->spectrumBuffer, m_samplerate);
-					m_lastTxSpectrum = qtwdsp->spectrumBuffer;
-					m_haveLastTxSpectrum = true;
-				} else if (m_haveLastTxSpectrum) {
-					// Hold last TX frame — do not fall back to RX (causes TX/blank flicker).
-					qtwdsp->spectrumBuffer = m_lastTxSpectrum;
-					spectrumDataReady = 1;
-				}
-			}
-		} else {
-			m_haveLastTxSpectrum = false;
-			qtwdsp->getSpectrumPixels(qtwdsp->spectrumBuffer.data(), spectrumDataReady);
-		}
-
-        if (spectrumDataReady) {
-            newSpectrum = qtwdsp->spectrumBuffer;  // Direct assignment
-            emit spectrumBufferChanged(m_receiver, newSpectrum);
-        }
-
-        static const bool txPanDiagEnabled = (qEnvironmentVariableIntValue("CUSDR_TX_DIAG") != 0);
-        if (txPanDiagEnabled && txPixelsRequested && (m_dspCallCount % 100) == 1) {
-            qDebug().nospace() << "[TX-PAN-DIAG] rx=" << m_receiver
-                               << " mode=" << (m_sliceModel ? m_sliceModel->dspMode() : set->getDSPMode(m_receiver))
-                               << " state=" << m_state.load()
-                               << " txPixels=" << (spectrumDataReady ? "yes" : "no")
-                               << " held=" << m_haveLastTxSpectrum;
-        }
-        highResTimer->start();
-    }
-
+    // 4. S-meter and audio pass (for active receiver)
     if (m_receiver == set->getCurrentReceiver()) {
+        processMeterPass();
+
         int audioSamplesThisCall = m_audiobuffersize;
         if (set->getHWInterface() == QSDR::SoapySDR && m_soapyInputSampleRate > 0) {
-            // WDSP channel output is fixed at 48 kHz. With high Soapy input rates,
-            // each fexchange0 call produces proportionally fewer output samples.
             audioSamplesThisCall = std::max(1,
                 static_cast<int>((static_cast<long long>(BUFFER_SIZE) * 48000LL) / m_soapyInputSampleRate));
         }
 
-        if (m_smeterTime.elapsed() >= 25) {
-            m_sMeterValue = qtwdsp->getSMeterInstValue();
-            m_sMeterPeakValue = qtwdsp->getSMeterPeakValue();
-            if (m_sliceModel) {
-                m_sliceModel->setSMeterValue(m_sMeterValue);
-                m_sliceModel->setSMeterPeakValue(m_sMeterPeakValue);
-            }
-            emit sMeterValueChanged(m_receiver, m_sMeterValue);
-            emit sMeterPeakValueChanged(m_receiver, m_sMeterPeakValue);
-            m_smeterTime.restart();
-        }
-#ifdef USE_INTERNAL_AUDIO
-        const DSPMode dspMode = m_sliceModel ? m_sliceModel->dspMode() : set->getDSPMode(m_receiver);
-        bool retuneMuteAudio = false;
-        if (set->getHWInterface() == QSDR::SoapySDR) {
-            retuneMuteAudio = m_retuneTimer.isValid() && (m_retuneTimer.elapsed() < m_audioMuteUntilMs);
-        }
-        auto deliverInternalAudio = [this, retuneMuteAudio](const float *soundcardStereo, int soundcardCount,
-                                                            const float *tciStereo, int tciCount) {
-            if (retuneMuteAudio)
-                return;
-            if (m_audioOutput && soundcardStereo && soundcardCount > 0)
-                m_audioOutput->writeAudio(soundcardStereo, soundcardCount);
-            if (tciStereo && tciCount > 0) {
-                m_tciAudioRing.writeDropOldest(tciStereo, static_cast<size_t>(tciCount));
-                emit tciAudioReady(m_receiver);
-                if (isSignalConnected(QMetaMethod::fromSignal(&SliceProcessor::rxAudioSamples))) {
-                    QVector<float> legacyVec(tciCount);
-                    std::memcpy(legacyVec.data(), tciStereo, tciCount * sizeof(float));
-                    emit rxAudioSamples(m_receiver, std::move(legacyVec), 48000);
-                }
-            }
-        };
-        if (dspMode != DSPMode::FDV) {
-			// Normal analogue modes: soundcard gets I/Q interleaved; TCI gets
-			// demod audio (I) duplicated to L/R — matches the last good commit.
-            const int n = audioSamplesThisCall;
-
-            // CW sidetone with QSK mute: while keying, replace RX audio with the
-            // sidetone so the latency-delayed received signal doesn't clash.
-            if ((dspMode == DSPMode::CWU || dspMode == DSPMode::CWL) && !set->isInternalCw()) {
-                const int vol = set->getCwSidetoneVolume();
-                const double freqHz = static_cast<double>(set->getCwSidetoneFreq());
-                const double phaseInc = 2.0 * M_PI * freqHz / 48000.0;
-                const double gain = vol / 127.0;
-                cpx* buf = audioOutputBuf.data();
-                for (int i = 0; i < n; ++i) {
-                    // Element shaping: ramp follows the raw paddle state.
-                    // This gives distinct shaped dit/dah elements in the sidetone audio.
-                    const bool keyActive = (m_cwKeyActive.load() != 0);
-                    if (keyActive) {
-                        if (m_sidetoneShape < 250) ++m_sidetoneShape;
-                    } else if (m_sidetoneShape > 0) {
-                        --m_sidetoneShape;
-                    }
-
-                    // RX mute: decrement hold counter each sample.
-                    // Refreshed by cwKeyDown(1) so it spans all inter-element gaps.
-                    // Falls to zero ~2 sec after the last key-up, reopening the receiver.
-                    int hold = m_cwMuteHold.load();
-                    if (hold > 0) m_cwMuteHold.store(hold - 1);
-                    const bool rxMuted = (hold > 0);
-
-                    if (rxMuted) {
-                        // Mute RX audio completely while keying (including inter-element gaps).
-                        const double ramp = m_sidetoneShape / 250.0;
-                        const double s = (vol > 0 && m_sidetoneShape > 0) ? gain * ramp * std::sin(m_sidetonePhase) : 0.0;
-                        buf[i].re = static_cast<float>(s);
-                        buf[i].im = static_cast<float>(s);
-                    }
-                    m_sidetonePhase += phaseInc;
-                    if (m_sidetonePhase >= 2.0 * M_PI) m_sidetonePhase -= 2.0 * M_PI;
-                }
-            }
-
-            if (m_soundcardScratch.size() < static_cast<size_t>(n * 2))
-                m_soundcardScratch.resize(n * 2);
-            if (m_tciAudioScratch.size() < static_cast<size_t>(n * 2))
-                m_tciAudioScratch.resize(n * 2);
-
-            const cpx* inData = audioOutputBuf.constData();
-            float* scOut = m_soundcardScratch.data();
-            float* tciOut = m_tciAudioScratch.data();
-            for (int i = 0; i < n; ++i) {
-                const float re = static_cast<float>(inData[i].re);
-                const float im = static_cast<float>(inData[i].im);
-                *scOut++ = re;
-                *scOut++ = im;
-                *tciOut++ = re;
-                *tciOut++ = re;
-            }
-
-            deliverInternalAudio(m_soundcardScratch.data(), n * 2,
-                                 m_tciAudioScratch.data(), n * 2);
-
-            if (m_cwDecoder && m_cwDecoder->isEnabled() && (dspMode == DSPMode::CWL || dspMode == DSPMode::CWU)) {
-                if (m_monoScratch.size() < static_cast<size_t>(n))
-                    m_monoScratch.resize(n);
-                float* mono = m_monoScratch.data();
-                for (int i = 0; i < n; ++i)
-                    mono[i] = static_cast<float>(inData[i].re);
-                m_cwDecoder->processAudio(mono, n, 48000);
-            }
-		}
-		else {
-			if (m_monoScratch.size() < static_cast<size_t>(audioSamplesThisCall))
-				m_monoScratch.resize(audioSamplesThisCall);
-			float* mono = m_monoScratch.data();
-			const cpx* src = audioOutputBuf.constData();
-			for (int i = 0; i < audioSamplesThisCall; ++i)
-				mono[i] = static_cast<float>(src[i].re);
-
-			bool wroteAudio = false;
-
-#ifdef HAVE_CODEC2
-#ifdef HAVE_RADE
-            if (m_freeDVMode == 100 && m_radeProcessor) {
-                QVector<float> speech = m_radeProcessor->processSamples(mono, audioSamplesThisCall);
-                deliverInternalAudio(speech.constData(), speech.size(),
-                                     speech.constData(), speech.size());
-                wroteAudio = true;
-                if (m_radeProcessor->isSync())
-                    m_freeDVRxFrames += 1;
-
-                if ((m_dspCallCount % 50) == 1) {
-                    set->setFreeDVStatus(
-                        m_receiver,
-                        m_radeProcessor->isSync(),
-                        m_radeProcessor->getSNR(),
-                        m_freeDVRxFrames);
-                }
-            } else
-#endif
-            if (m_freeDVProcessor) {
-                QVector<float> speech = m_freeDVProcessor->processSamples(mono, audioSamplesThisCall);
-                deliverInternalAudio(speech.constData(), speech.size(),
-                                     speech.constData(), speech.size());
-				wroteAudio = true;
-				if (m_freeDVProcessor->isSync())
-					m_freeDVRxFrames += 1;
-
-				if ((m_dspCallCount % 50) == 1) {
-					set->setFreeDVStatus(
-						m_receiver,
-						m_freeDVProcessor->isSync(),
-						m_freeDVProcessor->getSNR(),
-						m_freeDVRxFrames);
-				}
-			}
-#endif
-
-			if (!wroteAudio) {
-                if (m_soundcardScratch.size() < static_cast<size_t>(audioSamplesThisCall * 2))
-                    m_soundcardScratch.resize(audioSamplesThisCall * 2);
-                float* p = m_soundcardScratch.data();
-                for (int i = 0; i < audioSamplesThisCall; ++i) {
-					const float s = mono[i];
-					*p++ = s;
-					*p++ = s;
-				}
-                deliverInternalAudio(m_soundcardScratch.data(), audioSamplesThisCall * 2,
-                                     m_soundcardScratch.data(), audioSamplesThisCall * 2);
-			}
-		}
-#endif // USE_INTERNAL_AUDIO
-        // HPSDR: audioBufferSignal feeds the network TX/RX interleave path.
-        // Soapy: TX IQ is paced by DataProcessor::m_soapyTxIqTimer (half- and full-duplex).
-        if (set->getHWInterface() != QSDR::SoapySDR) {
-            emit audioBufferSignal(m_receiver, audioOutputBuf, audioSamplesThisCall);
-        }
+        processAudioPass(audioSamplesThisCall);
     }
 
-    // Emit the captured raw IQ last: RX audio has already been queued to the
-    // TCI socket above, so audio wins the shared link and panadapter IQ only
-    // uses spare capacity (and is dropped under backpressure by the server).
+    // 5. Emit captured raw IQ for TCI
     if (!tciIqFrame.isEmpty())
         emit rxIqSamples(m_receiver, tciIqFrame, m_samplerate);
 }
 
+void SliceProcessor::processSpectrumPass(bool transmitting) {
+    if (highResTimer->getElapsedTimeInMicroSec() < getDisplayDelay())
+        return;
+
+    int spectrumDataReady = 0;
+    bool txPixelsRequested = false;
+
+    if (transmitting) {
+        if (set->getHWInterface() == QSDR::SoapySDR && !set->getTxFullDuplex()) {
+            spectrumDataReady = 0;
+        } else {
+            txPixelsRequested = true;
+            WdspTxChannel::getSpectrumPixels(TX_ID, qtwdsp->spectrumBuffer.data(), spectrumDataReady);
+            if (spectrumDataReady) {
+                prepareTxPanadapterSpectrum(qtwdsp->spectrumBuffer, m_samplerate);
+                m_lastTxSpectrum = qtwdsp->spectrumBuffer;
+                m_haveLastTxSpectrum = true;
+            } else if (m_haveLastTxSpectrum) {
+                qtwdsp->spectrumBuffer = m_lastTxSpectrum;
+                spectrumDataReady = 1;
+            }
+        }
+    } else {
+        m_haveLastTxSpectrum = false;
+        qtwdsp->getSpectrumPixels(qtwdsp->spectrumBuffer.data(), spectrumDataReady);
+    }
+
+    if (spectrumDataReady) {
+        newSpectrum = qtwdsp->spectrumBuffer;
+        emit spectrumBufferChanged(m_receiver, newSpectrum);
+    }
+
+    static const bool txPanDiagEnabled = (qEnvironmentVariableIntValue("CUSDR_TX_DIAG") != 0);
+    if (txPanDiagEnabled && txPixelsRequested && (m_dspCallCount % 100) == 1) {
+        qDebug().nospace() << "[TX-PAN-DIAG] rx=" << m_receiver
+                           << " mode=" << (m_sliceModel ? m_sliceModel->dspMode() : set->getDSPMode(m_receiver))
+                           << " state=" << m_state.load()
+                           << " txPixels=" << (spectrumDataReady ? "yes" : "no")
+                           << " held=" << m_haveLastTxSpectrum;
+    }
+    highResTimer->start();
+}
+
+void SliceProcessor::processMeterPass() {
+    if (m_smeterTime.elapsed() < 25)
+        return;
+
+    m_sMeterValue = qtwdsp->getSMeterInstValue();
+    m_sMeterPeakValue = qtwdsp->getSMeterPeakValue();
+    if (m_sliceModel) {
+        m_sliceModel->setSMeterValue(m_sMeterValue);
+        m_sliceModel->setSMeterPeakValue(m_sMeterPeakValue);
+    }
+    emit sMeterValueChanged(m_receiver, m_sMeterValue);
+    emit sMeterPeakValueChanged(m_receiver, m_sMeterPeakValue);
+    m_smeterTime.restart();
+}
+
+bool SliceProcessor::isRetuneMuted() const {
+    if (set->getHWInterface() == QSDR::SoapySDR) {
+        return m_retuneTimer.isValid() && (m_retuneTimer.elapsed() < m_audioMuteUntilMs);
+    }
+    return false;
+}
+
+void SliceProcessor::deliverInternalAudio(const float *soundcardStereo, int soundcardCount,
+                                          const float *tciStereo, int tciCount) {
+#ifdef USE_INTERNAL_AUDIO
+    if (isRetuneMuted())
+        return;
+    if (m_audioOutput && soundcardStereo && soundcardCount > 0)
+        m_audioOutput->writeAudio(soundcardStereo, soundcardCount);
+    if (tciStereo && tciCount > 0) {
+        m_tciAudioRing.writeDropOldest(tciStereo, static_cast<size_t>(tciCount));
+        emit tciAudioReady(m_receiver);
+        if (isSignalConnected(QMetaMethod::fromSignal(&SliceProcessor::rxAudioSamples))) {
+            QVector<float> legacyVec(tciCount);
+            std::memcpy(legacyVec.data(), tciStereo, tciCount * sizeof(float));
+            emit rxAudioSamples(m_receiver, std::move(legacyVec), 48000);
+        }
+    }
+#else
+    Q_UNUSED(soundcardStereo)
+    Q_UNUSED(soundcardCount)
+    Q_UNUSED(tciStereo)
+    Q_UNUSED(tciCount)
+#endif
+}
+
+void SliceProcessor::synthesizeCwSidetone(int n) {
+    const int vol = set->getCwSidetoneVolume();
+    const double freqHz = static_cast<double>(set->getCwSidetoneFreq());
+    const double phaseInc = 2.0 * M_PI * freqHz / 48000.0;
+    const double gain = vol / 127.0;
+    cpx* buf = audioOutputBuf.data();
+    for (int i = 0; i < n; ++i) {
+        const bool keyActive = (m_cwKeyActive.load() != 0);
+        if (keyActive) {
+            if (m_sidetoneShape < 250) ++m_sidetoneShape;
+        } else if (m_sidetoneShape > 0) {
+            --m_sidetoneShape;
+        }
+
+        int hold = m_cwMuteHold.load();
+        if (hold > 0) m_cwMuteHold.store(hold - 1);
+        const bool rxMuted = (hold > 0);
+
+        if (rxMuted) {
+            const double ramp = m_sidetoneShape / 250.0;
+            const double s = (vol > 0 && m_sidetoneShape > 0) ? gain * ramp * std::sin(m_sidetonePhase) : 0.0;
+            buf[i].re = static_cast<float>(s);
+            buf[i].im = static_cast<float>(s);
+        }
+        m_sidetonePhase += phaseInc;
+        if (m_sidetonePhase >= 2.0 * M_PI) m_sidetonePhase -= 2.0 * M_PI;
+    }
+}
+
+void SliceProcessor::processDigitalVoicePass(const float* monoIn, int count) {
+    bool wroteAudio = false;
+
+#ifdef HAVE_CODEC2
+    if (m_dvDemodulator) {
+        QVector<float> speech = m_dvDemodulator->processSamples(monoIn, count);
+        if (!speech.isEmpty()) {
+            deliverInternalAudio(speech.constData(), speech.size(),
+                                 speech.constData(), speech.size());
+            wroteAudio = true;
+        }
+        if (m_dvDemodulator->isSync())
+            m_freeDVRxFrames += 1;
+
+        if ((m_dspCallCount % 50) == 1) {
+            set->setFreeDVStatus(
+                m_receiver,
+                m_dvDemodulator->isSync(),
+                m_dvDemodulator->getSNR(),
+                m_freeDVRxFrames);
+        }
+    }
+#endif
+
+    if (!wroteAudio) {
+        if (m_soundcardScratch.size() < static_cast<size_t>(count * 2))
+            m_soundcardScratch.resize(count * 2);
+        float* p = m_soundcardScratch.data();
+        for (int i = 0; i < count; ++i) {
+            const float s = monoIn[i];
+            *p++ = s;
+            *p++ = s;
+        }
+        deliverInternalAudio(m_soundcardScratch.data(), count * 2,
+                             m_soundcardScratch.data(), count * 2);
+    }
+}
+
+void SliceProcessor::processAudioPass(int audioSamplesThisCall) {
+#ifdef USE_INTERNAL_AUDIO
+    const DSPMode dspMode = m_sliceModel ? m_sliceModel->dspMode() : set->getDSPMode(m_receiver);
+
+    if (dspMode != DSPMode::FDV) {
+        const int n = audioSamplesThisCall;
+
+        if ((dspMode == DSPMode::CWU || dspMode == DSPMode::CWL) && !set->isInternalCw()) {
+            synthesizeCwSidetone(n);
+        }
+
+        if (m_soundcardScratch.size() < static_cast<size_t>(n * 2))
+            m_soundcardScratch.resize(n * 2);
+        if (m_tciAudioScratch.size() < static_cast<size_t>(n * 2))
+            m_tciAudioScratch.resize(n * 2);
+
+        const cpx* inData = audioOutputBuf.constData();
+        float* scOut = m_soundcardScratch.data();
+        float* tciOut = m_tciAudioScratch.data();
+        for (int i = 0; i < n; ++i) {
+            const float re = static_cast<float>(inData[i].re);
+            const float im = static_cast<float>(inData[i].im);
+            *scOut++ = re;
+            *scOut++ = im;
+            *tciOut++ = re;
+            *tciOut++ = re;
+        }
+
+        deliverInternalAudio(m_soundcardScratch.data(), n * 2,
+                             m_tciAudioScratch.data(), n * 2);
+
+        if (m_cwDecoder && m_cwDecoder->isEnabled() && (dspMode == DSPMode::CWL || dspMode == DSPMode::CWU)) {
+            if (m_monoScratch.size() < static_cast<size_t>(n))
+                m_monoScratch.resize(n);
+            float* mono = m_monoScratch.data();
+            for (int i = 0; i < n; ++i)
+                mono[i] = static_cast<float>(inData[i].re);
+            m_cwDecoder->processAudio(mono, n, 48000);
+        }
+    } else {
+        if (m_monoScratch.size() < static_cast<size_t>(audioSamplesThisCall))
+            m_monoScratch.resize(audioSamplesThisCall);
+        float* mono = m_monoScratch.data();
+        const cpx* src = audioOutputBuf.constData();
+        for (int i = 0; i < audioSamplesThisCall; ++i)
+            mono[i] = static_cast<float>(src[i].re);
+
+        processDigitalVoicePass(mono, audioSamplesThisCall);
+    }
+#endif // USE_INTERNAL_AUDIO
+
+    if (set->getHWInterface() != QSDR::SoapySDR) {
+        emit audioBufferSignal(m_receiver, audioOutputBuf, audioSamplesThisCall);
+    }
+}
+
 void SliceProcessor::setFreeDVMode(int rx, int mode) {
-	#ifdef HAVE_CODEC2
+#ifdef HAVE_CODEC2
 	if (rx != m_receiver) return;
-	if (m_freeDVMode == mode) return;
+	if (m_freeDVMode == mode && m_dvDemodulator) return;
 
 	m_freeDVMode = mode;
 	m_freeDVRxFrames = 0;
-
-	if (m_freeDVProcessor) {
-		delete m_freeDVProcessor;
-		m_freeDVProcessor = nullptr;
-	}
-#ifdef HAVE_RADE
-	if (m_radeProcessor) {
-		delete m_radeProcessor;
-		m_radeProcessor = nullptr;
-	}
-#endif
+	m_dvDemodulator.reset();
 
 	if (m_freeDVMode == 100) {
 #ifdef HAVE_RADE
-		m_radeProcessor = new RadeProcessor();
+		m_dvDemodulator = std::make_unique<RadeProcessor>();
 #endif
 	} else {
-		m_freeDVProcessor = new FreeDVProcessor(m_freeDVMode);
+		m_dvDemodulator = std::make_unique<FreeDVProcessor>(m_freeDVMode);
 	}
 	set->setFreeDVStatus(m_receiver, false, 0.0f, 0);
 #else
@@ -789,10 +724,8 @@ void SliceProcessor::setSampleRate(int value) {
 
 		setAudioBufferSize();
 
-		// Flush the queue and drop a few buffers after any rate transition so
+		// Flush the ring buffer and drop a few buffers after any rate transition so
 		// fexchange0 is not called on the channel while it is being rebuilt.
-		while (!m_iqQueue.isEmpty())
-			m_iqQueue.dequeue();
 		m_rxRing.clear();
 		m_rateTransitionDropBuffers = HIGH_RATE_TRANSITION_DROP_BUFFERS;
 

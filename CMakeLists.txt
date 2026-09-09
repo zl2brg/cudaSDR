@@ -268,6 +268,7 @@ set(HEADERS
     ${SRC_DIR}/AudioEngine/cusdr_audio_input.h
     ${SRC_DIR}/AudioEngine/audiooutputmanager.h
     ${SRC_DIR}/AudioEngine/cusdr_codec2processor.h
+    ${SRC_DIR}/AudioEngine/IDigitalVoiceDemodulator.h
     ${SRC_DIR}/AudioEngine/cusdr_freedvprocessor.h
     ${SRC_DIR}/AudioEngine/cusdr_radeprocessor.h
     ${SRC_DIR}/AudioEngine/CwDecoder.h
@@ -1026,6 +1027,31 @@ if(BUILD_TESTING)
     )
     add_test(NAME opengl_offscreen_tests COMMAND opengl_offscreen_tests)
 
+    qt_add_executable(digital_voice_tests
+        tests/digital_voice_tests.cpp
+        ${SRC_DIR}/AudioEngine/cusdr_freedvprocessor.cpp
+        ${SRC_DIR}/AudioEngine/cusdr_radeprocessor.cpp
+    )
+    target_include_directories(digital_voice_tests PRIVATE
+        ${SRC_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/deps/freedv-backend/src/pipeline
+        ${CMAKE_CURRENT_BINARY_DIR}/deps/freedv-backend
+    )
+    target_link_libraries(digital_voice_tests PRIVATE
+        Qt6::Core
+        Qt6::Test
+        fdv_audio_pipeline
+        rade
+        opus
+    )
+    if(CODEC2_FOUND)
+        target_include_directories(digital_voice_tests PRIVATE ${CODEC2_INCLUDE_DIR})
+        target_link_libraries(digital_voice_tests PRIVATE ${CODEC2_LIBRARY})
+        target_compile_definitions(digital_voice_tests PRIVATE HAVE_CODEC2)
+    endif()
+    target_compile_definitions(digital_voice_tests PRIVATE HAVE_RADE)
+    add_test(NAME digital_voice_tests COMMAND digital_voice_tests)
+
     # Convenience target: build every unit test without the full cudasdr app.
     add_custom_target(build_tests DEPENDS
         protocol_boundary_tests
@@ -1052,6 +1078,7 @@ if(BUILD_TESTING)
         display_panel_renderer_tests
         spsc_ring_buffer_tests
         opengl_offscreen_tests
+        digital_voice_tests
     )
 
     # Headless Qt for any test that links Gui/Widgets (CI has no display), plus a

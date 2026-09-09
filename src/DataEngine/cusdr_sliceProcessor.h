@@ -36,8 +36,10 @@
 #include "QtWDSP/qtdsp_qComplex.h"
 #include "receiveraudiooutput.h"
 #include "Util/SpscRingBuffer.h"
+#include "AudioEngine/IDigitalVoiceDemodulator.h"
 #include <atomic>
 #include <vector>
+#include <memory>
 
 #ifdef HAVE_CODEC2
 #include "AudioEngine/cusdr_freedvprocessor.h"
@@ -69,9 +71,6 @@ public:
 	void	setupConnections();
 	bool	initDSPInterface();
 
-	void	enqueueData();
-
-
 	QSDR::_ServerMode	getServerMode()	const;
 	QHostAddress		getPeerAddress()		{ return m_peerAddress; }
 
@@ -85,10 +84,6 @@ public:
 	bool	getConnectedStatus()	{ return m_connected; }
     void 	setAudioBufferSize();
 
-    float	in[BUFFER_SIZE * 2];
-    float	out[BUFFER_SIZE * 2];
-	float	temp[BUFFER_SIZE * 4];
-	float	spectrum[BUFFER_SIZE * 4];
     std::atomic<RadioState> m_state{RadioState::RX};
 	QVector<float>	newSpectrum;
     QWDSPEngine*	qtwdsp = nullptr;
@@ -133,7 +128,6 @@ public slots:
 	void	setFreeDVMode(int rx, int mode);
 
 	void	dspProcessing();
-    void    dspProcessing(const QVector<int32_t> &rawIQ);
 	void	stop();
 	/** Tear down QAudioSink after DSP writers have stopped. */
 	void	stopAudio();
@@ -192,13 +186,11 @@ private:
     int		m_bsPort;
 	int		m_displayTime;
 
-	QHQueue<QVector<int32_t>> m_iqQueue;
 	SpscRingBuffer<float>     m_rxRing{131072};
 	SpscRingBuffer<float>     m_tciAudioRing{32768};
 	std::vector<float>        m_soundcardScratch;
 	std::vector<float>        m_tciAudioScratch;
 	std::vector<float>        m_monoScratch;
-	quint64				m_iqQueueDropCount = 0;
 
     int 	m_audiobuffersize;
 
@@ -224,16 +216,22 @@ private:
     void    resetSoapyDcEstimator();
 
 #ifdef HAVE_CODEC2
-	FreeDVProcessor* m_freeDVProcessor = nullptr;
+	std::unique_ptr<IDigitalVoiceDemodulator> m_dvDemodulator;
 	int m_freeDVMode = 0;
 	quint64 m_freeDVRxFrames = 0;
 #endif
 
-#ifdef HAVE_RADE
-	RadeProcessor* m_radeProcessor = nullptr;
-#endif
-
 	CwDecoder* m_cwDecoder = nullptr;
+
+    // DSP Pipeline Stages
+    void    processSpectrumPass(bool transmitting);
+    void    processMeterPass();
+    void    processAudioPass(int audioSamplesThisCall);
+    void    processDigitalVoicePass(const float* monoIn, int count);
+    void    deliverInternalAudio(const float* soundcardStereo, int soundcardCount,
+                                 const float* tciStereo, int tciCount);
+    void    synthesizeCwSidetone(int n);
+    bool    isRetuneMuted() const;
 
 public:
 	CwDecoder* cwDecoder() const { return m_cwDecoder; }

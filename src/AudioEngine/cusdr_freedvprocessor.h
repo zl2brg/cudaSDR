@@ -1,6 +1,7 @@
 #ifndef CUSDR_FREEDVPROCESSOR_H
 #define CUSDR_FREEDVPROCESSOR_H
 
+#include "IDigitalVoiceDemodulator.h"
 #include <vector>
 #include <QVector>
 
@@ -23,11 +24,11 @@ struct freedv;
  * runs freedv_rx(), then zero-order-hold upsamples the decoded speech back
  * to 48 kHz stereo.
  */
-class FreeDVProcessor {
+class FreeDVProcessor : public IDigitalVoiceDemodulator {
 public:
     // Default mode 0 = FREEDV_MODE_1600 (defined in freedv_api.h).
     explicit FreeDVProcessor(int freedvMode = 0);
-    ~FreeDVProcessor();
+    ~FreeDVProcessor() override;
 
     FreeDVProcessor(const FreeDVProcessor&) = delete;
     FreeDVProcessor& operator=(const FreeDVProcessor&) = delete;
@@ -38,10 +39,10 @@ public:
      * May return an empty vector when fewer than freedv_nin() modem samples
      * have accumulated.
      */
-    QVector<float> processSamples(const float* audio48k, int n);
+    QVector<float> processSamples(const float* audio48k, int n) override;
 
-    bool  isSync() const { return m_sync; }
-    float getSNR()  const { return m_snr;  }
+    bool  isSync() const override { return m_sync; }
+    float getSNR()  const override { return m_snr;  }
 
 private:
     struct freedv* m_fdv       = nullptr;
