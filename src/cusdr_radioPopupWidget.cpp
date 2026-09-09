@@ -1783,7 +1783,7 @@ void RadioPopupWidget::filterChanged(int rx, qreal low, qreal high) {
 void RadioPopupWidget::updateRxEqPassband() {
     if (!m_rxEqPlot)
         return;
-    const DSPMode mode = Settings::instance()->getDSPMode(m_receiver);
+    const DSPMode mode = m_sliceModel ? m_sliceModel->dspMode() : Settings::instance()->getDSPMode(m_receiver);
     double lo = 0.0;
     double hi = 3000.0;
     if (mode == LSB || mode == DIGL) {

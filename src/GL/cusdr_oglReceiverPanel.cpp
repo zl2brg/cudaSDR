@@ -82,7 +82,7 @@ QGLReceiverPanel::QGLReceiverPanel(SliceModel *model, QWidget *parent)
 	, m_spectrumSize(set->getSpectrumSize())
 	, m_sampleSize(0)
 	, m_oldSampleSize(0)
-	, m_specAveragingCnt(set->getSpectrumAveragingCnt(m_receiver))
+	, m_specAveragingCnt(model ? model->spectrumAveragingCnt() : set->getSpectrumAveragingCnt(m_receiver))
 	, m_currentReceiver(set->getCurrentReceiver())
 	, m_waterfallAlpha(255)
 	, m_freqRulerDisplayWidth(0)
@@ -96,12 +96,12 @@ QGLReceiverPanel::QGLReceiverPanel(SliceModel *model, QWidget *parent)
 	, m_smallSize(true)
 	, m_spectrumVertexColorUpdate(false)
 	, m_spectrumColorsChanged(true)
-	, m_spectrumAveraging(set->getSpectrumAveraging(m_receiver))
+	, m_spectrumAveraging(model ? model->spectrumAveraging() : set->getSpectrumAveraging(m_receiver))
 	//, m_spectrumAveragingOld(m_spectrumAveraging)
 	, m_crossHair(set->getHairCrossStatus(m_receiver))
     , m_crossHairCursor(false)
-	, m_panGrid(set->getPanGridStatus(m_receiver))
-	, m_peakHold(set->getPeakHoldStatus(m_receiver))
+	, m_panGrid(model ? model->panGrid() : set->getPanGridStatus(m_receiver))
+	, m_peakHold(model ? model->peakHold() : set->getPeakHoldStatus(m_receiver))
 	, m_peakHoldBufferResize(true)
 	, m_filterChanged(true)
 	, m_showFilterLeftBoundary(false)
@@ -173,7 +173,7 @@ QGLReceiverPanel::QGLReceiverPanel(SliceModel *model, QWidget *parent)
 		m_mercuryAttenuator = (bandIndex >= 0 && bandIndex < attns.size()) ? attns.at(bandIndex) : 0;
 	}
 	m_adcMode = set->getADCMode(m_receiver);
-	m_dspModeString = set->getDSPModeString(set->getDSPMode(m_receiver));
+	m_dspModeString = set->getDSPModeString(m_sliceModel ? m_sliceModel->dspMode() : set->getDSPMode(m_receiver));
 	m_agcHangEnabled = set->getHangEnabled(m_receiver);
 	m_showAGCLines = set->getAgcLines(m_receiver);
 
@@ -250,36 +250,39 @@ QGLReceiverPanel::QGLReceiverPanel(SliceModel *model, QWidget *parent)
 
 	m_mousePos = QPoint(-100, -100);
 	
-	m_gridColor = set->getPanadapterColors().gridLineColor;
+	RadioModel* radioModel = qobject_cast<RadioModel*>(m_sliceModel ? m_sliceModel->parent() : nullptr);
+	const TPanadapterColors colors = radioModel ? radioModel->panadapterColors() : set->getPanadapterColors();
+
+	m_gridColor = colors.gridLineColor;
 	m_darkColor = QColor(150, 150, 150, 100);
 
 	m_redGrid   = (GLfloat)(m_gridColor.red()/256.0);
 	m_greenGrid = (GLfloat)(m_gridColor.green()/256.0);
 	m_blueGrid  = (GLfloat)(m_gridColor.blue()/256.0);
 
-	m_bkgRed   = (GLfloat)(set->getPanadapterColors().panBackgroundColor.red() / 256.0);
-	m_bkgGreen = (GLfloat)(set->getPanadapterColors().panBackgroundColor.green() / 256.0);
-	m_bkgBlue  = (GLfloat)(set->getPanadapterColors().panBackgroundColor.blue() / 256.0);
+	m_bkgRed   = (GLfloat)(colors.panBackgroundColor.red() / 256.0);
+	m_bkgGreen = (GLfloat)(colors.panBackgroundColor.green() / 256.0);
+	m_bkgBlue  = (GLfloat)(colors.panBackgroundColor.blue() / 256.0);
 
-	m_red	= (GLfloat)(set->getPanadapterColors().panLineColor.red() / 256.0);
-	m_green = (GLfloat)(set->getPanadapterColors().panLineColor.green() / 256.0);
-	m_blue	= (GLfloat)(set->getPanadapterColors().panLineColor.blue() / 256.0);
+	m_red	= (GLfloat)(colors.panLineColor.red() / 256.0);
+	m_green = (GLfloat)(colors.panLineColor.green() / 256.0);
+	m_blue	= (GLfloat)(colors.panLineColor.blue() / 256.0);
 
-	m_redF	 = (GLfloat)(set->getPanadapterColors().panLineFilledColor.red() / 256.0);
-	m_greenF = (GLfloat)(set->getPanadapterColors().panLineFilledColor.green() / 256.0);
-	m_blueF  = (GLfloat)(set->getPanadapterColors().panLineFilledColor.blue() / 256.0);
+	m_redF	 = (GLfloat)(colors.panLineFilledColor.red() / 256.0);
+	m_greenF = (GLfloat)(colors.panLineFilledColor.green() / 256.0);
+	m_blueF  = (GLfloat)(colors.panLineFilledColor.blue() / 256.0);
 
-	m_redST	  = (GLfloat)(set->getPanadapterColors().panSolidTopColor.red() / 256.0);
-	m_greenST = (GLfloat)(set->getPanadapterColors().panSolidTopColor.green() / 256.0);
-	m_blueST  = (GLfloat)(set->getPanadapterColors().panSolidTopColor.blue() / 256.0);
+	m_redST	  = (GLfloat)(colors.panSolidTopColor.red() / 256.0);
+	m_greenST = (GLfloat)(colors.panSolidTopColor.green() / 256.0);
+	m_blueST  = (GLfloat)(colors.panSolidTopColor.blue() / 256.0);
 
-	m_redSB   = (GLfloat)(set->getPanadapterColors().panSolidBottomColor.red() / 256.0);
-	m_greenSB = (GLfloat)(set->getPanadapterColors().panSolidBottomColor.green() / 256.0);
-	m_blueSB  = (GLfloat)(set->getPanadapterColors().panSolidBottomColor.blue() / 256.0);
+	m_redSB   = (GLfloat)(colors.panSolidBottomColor.red() / 256.0);
+	m_greenSB = (GLfloat)(colors.panSolidBottomColor.green() / 256.0);
+	m_blueSB  = (GLfloat)(colors.panSolidBottomColor.blue() / 256.0);
 
 	m_waterfallLoColor = QColor(0, 0, 0, m_waterfallAlpha);
 	m_waterfallHiColor = QColor(192, 124, 255, m_waterfallAlpha);
-	m_waterfallMidColor = set->getPanadapterColors().waterfallColor.toRgb();
+	m_waterfallMidColor = colors.waterfallColor.toRgb();
 
 	m_haircrossOffsetRight = 30;
 	m_haircrossOffsetLeft = 116;
@@ -412,6 +415,10 @@ void QGLReceiverPanel::setupConnections() {
         if (BandPlanManager* plan = radioModel->bandPlan()) {
             connect(plan, &BandPlanManager::planChanged, this, qOverload<>(&QGLReceiverPanel::update));
         }
+        connect(radioModel, &RadioModel::colorsChanged, this, [this]() {
+            setPanadapterColors();
+        });
+        connect(radioModel, &RadioModel::sampleRateChanged, this, &QGLReceiverPanel::sampleRateChanged);
     }
     connect(set, &Settings::panLockedStatusChanged,      this, &QGLReceiverPanel::setPanLockedStatus);
     connect(set, &Settings::clickVFOStatusChanged,       this, &QGLReceiverPanel::setClickVFOStatus);
@@ -1748,31 +1755,34 @@ void QGLReceiverPanel::setPanadapterColors() {
 
 	m_spectrumColorsChanged = true;
 
+	RadioModel* radioModel = qobject_cast<RadioModel*>(m_sliceModel ? m_sliceModel->parent() : nullptr);
+	const TPanadapterColors colors = radioModel ? radioModel->panadapterColors() : set->getPanadapterColors();
+
 	mutex.lock();
-	m_bkgRed   = (GLfloat)(set->getPanadapterColors().panBackgroundColor.red() / 256.0);
-	m_bkgGreen = (GLfloat)(set->getPanadapterColors().panBackgroundColor.green() / 256.0);
-	m_bkgBlue  = (GLfloat)(set->getPanadapterColors().panBackgroundColor.blue() / 256.0);
+	m_bkgRed   = (GLfloat)(colors.panBackgroundColor.red() / 256.0);
+	m_bkgGreen = (GLfloat)(colors.panBackgroundColor.green() / 256.0);
+	m_bkgBlue  = (GLfloat)(colors.panBackgroundColor.blue() / 256.0);
 
-	m_red	= (GLfloat)(set->getPanadapterColors().panLineColor.red() / 256.0);
-	m_green = (GLfloat)(set->getPanadapterColors().panLineColor.green() / 256.0);
-	m_blue	= (GLfloat)(set->getPanadapterColors().panLineColor.blue() / 256.0);
+	m_red	= (GLfloat)(colors.panLineColor.red() / 256.0);
+	m_green = (GLfloat)(colors.panLineColor.green() / 256.0);
+	m_blue	= (GLfloat)(colors.panLineColor.blue() / 256.0);
 
-	m_redF	 = (GLfloat)(set->getPanadapterColors().panLineFilledColor.red() / 256.0);
-	m_greenF = (GLfloat)(set->getPanadapterColors().panLineFilledColor.green() / 256.0);
-	m_blueF  = (GLfloat)(set->getPanadapterColors().panLineFilledColor.blue() / 256.0);
+	m_redF	 = (GLfloat)(colors.panLineFilledColor.red() / 256.0);
+	m_greenF = (GLfloat)(colors.panLineFilledColor.green() / 256.0);
+	m_blueF  = (GLfloat)(colors.panLineFilledColor.blue() / 256.0);
 
-	m_redST	  = (GLfloat)(set->getPanadapterColors().panSolidTopColor.red() / 256.0);
-	m_greenST = (GLfloat)(set->getPanadapterColors().panSolidTopColor.green() / 256.0);
-	m_blueST  = (GLfloat)(set->getPanadapterColors().panSolidTopColor.blue() / 256.0);
+	m_redST	  = (GLfloat)(colors.panSolidTopColor.red() / 256.0);
+	m_greenST = (GLfloat)(colors.panSolidTopColor.green() / 256.0);
+	m_blueST  = (GLfloat)(colors.panSolidTopColor.blue() / 256.0);
 
-	m_redSB   = (GLfloat)(set->getPanadapterColors().panSolidBottomColor.red() / 256.0);
-	m_greenSB = (GLfloat)(set->getPanadapterColors().panSolidBottomColor.green() / 256.0);
-	m_blueSB  = (GLfloat)(set->getPanadapterColors().panSolidBottomColor.blue() / 256.0);
+	m_redSB   = (GLfloat)(colors.panSolidBottomColor.red() / 256.0);
+	m_greenSB = (GLfloat)(colors.panSolidBottomColor.green() / 256.0);
+	m_blueSB  = (GLfloat)(colors.panSolidBottomColor.blue() / 256.0);
 
-	m_waterfallMidColor = set->getPanadapterColors().waterfallColor.toRgb() ;
+	m_waterfallMidColor = colors.waterfallColor.toRgb() ;
 
 	QColor gridColor = m_gridColor;
-	m_gridColor = set->getPanadapterColors().gridLineColor;
+	m_gridColor = colors.gridLineColor;
 
 	if (gridColor != m_gridColor) {
 

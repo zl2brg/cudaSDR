@@ -1156,8 +1156,14 @@ void MainWindow::closeWidgetEvent(
 void MainWindow::setCurrentReceiver(int rx) {
 
 	MAIN_DEBUG << "setCurrentReceiver: " << rx;
-	ui->volumeSlider->setValue(static_cast<int>(set->getMainVolume(rx) * 100));
-	m_agcMode = set->getAGCMode(rx);
+	if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices().at(rx)) {
+		SliceModel* slice = m_radioModel->slices().at(rx);
+		ui->volumeSlider->setValue(static_cast<int>(slice->volume() * 100));
+		m_agcMode = slice->agcMode();
+	} else {
+		ui->volumeSlider->setValue(static_cast<int>(set->getMainVolume(rx) * 100));
+		m_agcMode = set->getAGCMode(rx);
+	}
 	setAGCMode(rx, m_agcMode, false);
 }
 
@@ -1168,6 +1174,9 @@ void MainWindow::setNumberOfReceivers(
 		/*!<[in] the of the event. */
 		int value					/*!<[in] the number of receivers. */
 ) {
+	if (m_radioModel) {
+		m_radioModel->setActiveReceivers(value);
+	}
 	ui->viewMenu->clear();
 	if (m_3DPanDock)
 		ui->viewMenu->addAction(m_3DPanDock->toggleViewAction());
@@ -1192,19 +1201,19 @@ void MainWindow::setNumberOfReceivers(
 
 void MainWindow::setMicLevel(int value)
 {
-    if (value < 0 ) value = 0;
-    if (value > 100 ) value = 100;
-    if (value < 0 ) value = 0;
-    if (value > 100 ) value = 100;
+    if (value < 0) value = 0;
+    if (value > 100) value = 100;
     set->setMicInputLevel(value);
-
 }
 
 
 void MainWindow::setDriveLevel(int value)
 {
-    if (value < 0 ) value = 0;
-    if (value > 100 ) value = 100;
+    if (value < 0) value = 0;
+    if (value > 100) value = 100;
+    if (m_radioModel) {
+        m_radioModel->txParams().drivelevel = static_cast<uchar>(value);
+    }
     set->setDriveLevel(value);
 }
 

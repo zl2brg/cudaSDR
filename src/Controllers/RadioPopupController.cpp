@@ -33,7 +33,7 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
 
     const HamBand hamBand = m_model->getCurrentHamBand(rx);
     QList<DSPMode> dspModes = m_model->getDSPModeList(rx);
-    const DSPMode liveMode = m_model->getDSPMode(rx);
+    const DSPMode liveMode = m_sliceModel ? m_sliceModel->dspMode() : m_model->getDSPMode(rx);
     if (static_cast<int>(hamBand) >= 0 && static_cast<int>(hamBand) < dspModes.size()) {
         dspModes[static_cast<int>(hamBand)] = liveMode;
     }
@@ -41,24 +41,35 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
     m_view->setHamBand(hamBand);
     m_view->setDSPMode(liveMode);
     m_view->setADCMode(m_model->getADCMode(rx));
-    m_view->setAGCMode(m_model->getAGCMode(rx));
+    m_view->setAGCMode(m_sliceModel ? m_sliceModel->agcMode() : m_model->getAGCMode(rx));
     m_view->setDefaultFilterMode(m_model->getDefaultFilterMode(rx));
-    m_view->setFilterFrequencies(m_model->getFilterLo(rx), m_model->getFilterHi(rx));
-    m_view->setSpectrumAveraging(m_model->getPanAveragingMode(rx) != AV_MODE_NONE);
-    m_view->setPanGrid(m_model->getPanGridStatus(rx));
-    m_view->setPeakHold(m_model->getPeakHoldStatus(rx));
+    if (m_sliceModel) {
+        m_view->setFilterFrequencies(m_sliceModel->filterLow(), m_sliceModel->filterHigh());
+        m_view->setSpectrumAveraging(m_sliceModel->spectrumAveraging());
+        m_view->setPanGrid(m_sliceModel->panGrid());
+        m_view->setPeakHold(m_sliceModel->peakHold());
+        m_view->setPanadapterMode(m_sliceModel->panMode());
+        m_view->setWaterfallColorMode(m_sliceModel->waterfallMode());
+        m_view->setCtrFrequency(m_sliceModel->centerFrequency());
+        m_view->setVfoFrequency(m_sliceModel->frequency());
+    } else {
+        m_view->setFilterFrequencies(m_model->getFilterLo(rx), m_model->getFilterHi(rx));
+        m_view->setSpectrumAveraging(m_model->getPanAveragingMode(rx) != AV_MODE_NONE);
+        m_view->setPanGrid(m_model->getPanGridStatus(rx));
+        m_view->setPeakHold(m_model->getPeakHoldStatus(rx));
+        m_view->setPanadapterMode(m_model->getPanadapterMode(rx));
+        m_view->setWaterfallColorMode(m_model->getWaterfallColorMode(rx));
+        m_view->setCtrFrequency(m_model->getCtrFrequency(rx));
+        m_view->setVfoFrequency(m_model->getVfoFrequency(rx));
+    }
     m_view->setPanLocked(m_model->getPanLockedStatus(rx));
     m_view->setClickVFO(m_model->getClickVFOStatus(rx));
     m_view->setHairCross(m_model->getHairCrossStatus(rx));
-    m_view->setPanadapterMode(m_model->getPanadapterMode(rx));
-    m_view->setWaterfallColorMode(m_model->getWaterfallColorMode(rx));
     m_view->setLastFrequencies(m_model->getLastCenterFrequencyList(rx), m_model->getLastVfoFrequencyList(rx));
-    m_view->setCtrFrequency(m_model->getCtrFrequency(rx));
-    m_view->setVfoFrequency(m_model->getVfoFrequency(rx));
     m_view->setFreeDVMode(m_model->getFreeDVMode(rx));
     m_view->setAGCShowLines(m_model->getAgcLines(rx));
 
-    m_lastPanAvMode = m_model->getPanAveragingMode(rx);
+    m_lastPanAvMode = m_sliceModel ? m_sliceModel->panAveragingMode() : m_model->getPanAveragingMode(rx);
     if (m_lastPanAvMode == AV_MODE_NONE)
         m_lastPanAvMode = AV_MODE_RECURSIVE;
 
@@ -82,6 +93,9 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
     });
 
     connect(m_view, &RadioPopupWidget::dspModeRequested, this, [this](int r, DSPMode mode) {
+        if (m_sliceModel && r == m_sliceModel->id()) {
+            m_sliceModel->setDspMode(mode);
+        }
         m_model->setDSPMode(r, mode);
     });
 
@@ -335,8 +349,8 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
     AGCOptionsWidget* agcView = m_view->agcOptionsWidget();
     if (agcView) {
         agcView->setReceiver(rx);
-        agcView->setAGCMode(m_model->getAGCMode(rx));
-        agcView->setAGCSlope(m_model->getAGCSlope(rx));
+        agcView->setAGCMode(m_sliceModel ? m_sliceModel->agcMode() : m_model->getAGCMode(rx));
+        agcView->setAGCSlope(m_sliceModel ? m_sliceModel->agcSlope() : m_model->getAGCSlope(rx));
         agcView->setAGCMaximumGain(m_sliceModel ? m_sliceModel->agcMaxGain() : static_cast<int>(m_model->getAGCMaximumGain_dB(rx)));
         agcView->setAGCAttackTime(static_cast<int>(m_model->getAGCAttackTime(rx) * 1000));
         agcView->setAGCDecayTime(static_cast<int>(m_model->getAGCDecayTime(rx) * 1000));

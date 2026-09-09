@@ -631,7 +631,7 @@ void HudRenderer::drawPanadapterFreq() {
     m_panel->renderPanelText(m_panel->m_oglTextTiny, vfoLetterX, float(y0 + 2), 3.2f, vfoLetter);
 
     // Mode Badge
-    const QString modeStr = m_panel->set->getDSPModeString(m_panel->set->getDSPMode(m_panel->m_receiver));
+    const QString modeStr = m_panel->set->getDSPModeString(m_panel->m_sliceModel ? m_panel->m_sliceModel->dspMode() : m_panel->set->getDSPMode(m_panel->m_receiver));
     const int modeTextW = m_panel->m_oglTextTiny->fontMetrics().horizontalAdvance(modeStr);
     const int modeBadgeW = modeTextW + 6;
     const int modeBadgeX = x0 + 4 + vfoBadgeW + 4;
@@ -725,7 +725,7 @@ void HudRenderer::drawPanadapterFreq() {
 void HudRenderer::drawCwDecoderHUD() {
     ensureGL();
     const DSPMode mode = m_panel->m_sliceModel ? m_panel->m_sliceModel->dspMode() : m_panel->m_dspMode;
-    const DSPMode setMode = static_cast<DSPMode>(m_panel->set->getDSPMode(m_panel->m_receiver));
+    const DSPMode setMode = m_panel->m_sliceModel ? m_panel->m_sliceModel->dspMode() : static_cast<DSPMode>(m_panel->set->getDSPMode(m_panel->m_receiver));
     const bool isCw = (mode == DSPMode::CWL || mode == DSPMode::CWU ||
                        m_panel->m_dspMode == DSPMode::CWL || m_panel->m_dspMode == DSPMode::CWU ||
                        setMode == DSPMode::CWL || setMode == DSPMode::CWU);

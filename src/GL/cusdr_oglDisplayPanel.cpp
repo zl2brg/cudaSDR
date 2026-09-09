@@ -81,8 +81,8 @@ OGLDisplayPanel::OGLDisplayPanel(RadioModel *model, QWidget *parent)
 	, m_packetLossStatus(0)
 	, m_sendIQStatus(0)
 	, m_recvAudioStatus(0)
-	, m_receivers(set->getNumberOfReceivers())
-	, m_sample_rate(set->getSampleRate()/1000)
+	, m_receivers(model ? model->activeReceivers() : set->getNumberOfReceivers())
+	, m_sample_rate((model ? model->sampleRate() : set->getSampleRate())/1000)
 	, m_dither(set->getMercuryDither())
 	, m_random(set->getMercuryRandom())
 	, m_currentReceiver(set->getCurrentReceiver())
@@ -195,7 +195,7 @@ OGLDisplayPanel::OGLDisplayPanel(RadioModel *model, QWidget *parent)
 
 
 
-        m_colors = set->getPanadapterColors();
+    m_colors = m_radioModel ? m_radioModel->panadapterColors() : set->getPanadapterColors();
 
     m_txdigitColor = QColor(230,40,40);
 	m_digitColor = QColor(68, 68, 68);
@@ -753,8 +753,8 @@ void OGLDisplayPanel::tuneDigitVfoTo(DigitVfo which, qint64 frequencyHz)
 		slice->setVfoAFrequency(frequencyHz);
 
 	if (set->getPanLockedStatus(m_currentReceiver)) {
-		qint64 ctrf = set->getCtrFrequency(m_currentReceiver);
-		const int s = set->getSampleRate() / 2;
+		qint64 ctrf = slice->centerFrequency();
+		const int s = (m_radioModel ? m_radioModel->sampleRate() : set->getSampleRate()) / 2;
 		if (frequencyHz > ctrf + s)
 			frequencyHz = ctrf + s;
 		else if (frequencyHz < ctrf - s)

@@ -217,7 +217,8 @@ void DisplayFreqRenderer::paintRxRegion()
     m_panel->renderPanelText(m_panel->m_oglTextNormal, metaX, yNormal,
                              str.arg(m_panel->set->getValue1000(m_panel->m_mouseWheelFreqStep, 0, "Hz")));
 
-    QString dspModeName = m_panel->set->getDSPModeString(m_panel->set->getDSPMode(m_panel->m_currentReceiver));
+    SliceModel* curSlice = m_panel->currentSlice();
+    QString dspModeName = m_panel->set->getDSPModeString(curSlice ? curSlice->dspMode() : m_panel->set->getDSPMode(m_panel->m_currentReceiver));
     if (m_panel->set->getRadioState() == RadioState::RX) {
         m_panel->qglColor(fontcolor);
         m_panel->renderPanelText(m_panel->m_oglTextBig, metaX, yBig,
