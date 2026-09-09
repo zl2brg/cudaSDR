@@ -36,6 +36,8 @@
 #include <QHash>
 #include <QSet>
 #include <QVector>
+#include <array>
+#include <vector>
 
 class QWebSocketServer;
 class QWebSocket;
@@ -81,7 +83,14 @@ public:
     /** Hand the transmit path's lock-free network-mic ring buffer to the server. */
     void setTransmitAudioRing(SpscRingBuffer<float> *ring) { m_txAudioRing = ring; }
 
+    /** Set the receive audio lock-free ring buffer for a slice. */
+    void setRxAudioRing(int rx, SpscRingBuffer<float> *ring);
+    SpscRingBuffer<float>* rxAudioRing(int rx) const;
+
 public slots:
+    /** Notification from SliceProcessor that new RX audio is in the lock-free ring buffer. */
+    void onRxAudioReady(int rx);
+
     /** RX audio from SliceProcessor (queued to GUI thread). */
     void onRxAudioSamples(int rx, QVector<float> stereoInterleaved, int sampleRate);
 
@@ -258,6 +267,8 @@ private:
     // enqueue exactly DSP_SAMPLE_SIZE blocks (matching the local mic path).
     QHQueue<QVector<double>> *m_txAudioQueue = nullptr;
     SpscRingBuffer<float>    *m_txAudioRing = nullptr;
+    std::array<SpscRingBuffer<float>*, 8> m_rxAudioRings{};
+    std::vector<float>        m_tciAudioDrainBuffer;
     QVector<double>          m_txAudioResidual;
     TciRoutingState          m_routingState;
     TciCommandHandler        m_commandHandler{&m_routingState};

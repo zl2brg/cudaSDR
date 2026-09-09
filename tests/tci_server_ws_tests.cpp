@@ -40,6 +40,7 @@ private slots:
     void driveCommandClampsLevel();
     void tuneCommandSetsTuneState();
     void audioStartStopGatesRxBinaryStream();
+    void audioStartStopGatesRxRingBuffer();
     void compatStubCommandsAccepted();
     void startStopEmitRequestsAndInitAdvertisesPower();
     void dataEngineStateChangeBroadcastsStartStop();
@@ -459,6 +460,49 @@ void TciServerWsTests::audioStartStopGatesRxBinaryStream()
     m_server->onRxAudioSamples(0, stereo, 48'000);
     QTest::qWait(200);
     QCOMPARE(binarySpy.count(), 0);
+}
+
+void TciServerWsTests::audioStartStopGatesRxRingBuffer()
+{
+    QSignalSpy binarySpy(&m_client, &QWebSocket::binaryMessageReceived);
+    QVERIFY(binarySpy.isValid());
+
+    SpscRingBuffer<float> rxRing(4096);
+    m_server->setRxAudioRing(0, &rxRing);
+    QCOMPARE(m_server->rxAudioRing(0), &rxRing);
+
+    m_textMessages.clear();
+    m_client.sendTextMessage(QStringLiteral("AUDIO_STREAM_SAMPLES:4;"));
+    QTest::qWait(50);
+    m_client.sendTextMessage(QStringLiteral("AUDIO_START:0,0;"));
+    QVERIFY(waitForMessageContaining(QStringLiteral("audio_start:")));
+
+    const float stereo[4] = {0.25f, 0.0f, -0.25f, 0.0f};
+    rxRing.writeDropOldest(stereo, 4);
+    QCOMPARE(rxRing.availableRead(), size_t(4));
+
+    m_server->onRxAudioReady(0);
+    QVERIFY(QTest::qWaitFor([&binarySpy]() { return binarySpy.count() > 0; }, 3000));
+    QCOMPARE(rxRing.availableRead(), size_t(0));
+
+    const QByteArray frame = binarySpy.last().at(0).toByteArray();
+    StreamHeader hdr;
+    QVERIFY(parseStreamHeader(frame, hdr));
+    QCOMPARE(hdr.streamType, kRxAudioStreamType);
+    QCOMPARE(hdr.length, quint32(4));
+
+    binarySpy.clear();
+    m_client.sendTextMessage(QStringLiteral("AUDIO_STOP:0,0;"));
+    QTest::qWait(100);
+    rxRing.writeDropOldest(stereo, 4);
+    m_server->onRxAudioReady(0);
+    QTest::qWait(200);
+    QCOMPARE(binarySpy.count(), 0);
+    // Unsubscribed: ring buffer should be drained/cleared by onRxAudioReady
+    QCOMPARE(rxRing.availableRead(), size_t(0));
+
+    m_server->setRxAudioRing(0, nullptr);
+    QCOMPARE(m_server->rxAudioRing(0), nullptr);
 }
 
 void TciServerWsTests::compatStubCommandsAccepted()

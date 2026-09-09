@@ -35,7 +35,9 @@
 #include "QtWDSP/qtwdsp_dspEngine.h"
 #include "QtWDSP/qtdsp_qComplex.h"
 #include "receiveraudiooutput.h"
+#include "Util/SpscRingBuffer.h"
 #include <atomic>
+#include <vector>
 
 #ifdef HAVE_CODEC2
 #include "AudioEngine/cusdr_freedvprocessor.h"
@@ -102,6 +104,15 @@ public:
 
     bool    trySetDspPending() { return !m_dspPending.exchange(true); }
     bool    trySetSoapyDspPending() { return trySetDspPending(); }
+
+    SpscRingBuffer<float>* rxRing() { return &m_rxRing; }
+    size_t  rxRingAvailableRead() const { return m_rxRing.availableRead(); }
+    size_t  rxRingCapacity() const { return m_rxRing.capacity(); }
+    uint64_t rxQueueDropCount() const { return m_rxRing.dropCount(); }
+
+    SpscRingBuffer<float>* tciAudioRing() { return &m_tciAudioRing; }
+    size_t  tciAudioAvailable() const { return m_tciAudioRing.availableRead(); }
+    size_t  readTciAudio(float* dest, size_t maxFloats) { return m_tciAudioRing.read(dest, maxFloats); }
 
     void    enqueueRxIq(const float* interleavedIq, int numComplexSamples);
     void    enqueueRxIq(const QVector<float> &samples);
@@ -188,11 +199,12 @@ private:
 	int		m_displayTime;
 
 	QHQueue<QVector<int32_t>> m_iqQueue;
-	QHQueue<QVector<float>>   m_rxQueue;
-	QHQueue<QVector<float>>&  m_soapyQueue{m_rxQueue};
+	SpscRingBuffer<float>     m_rxRing{131072};
+	SpscRingBuffer<float>     m_tciAudioRing{32768};
+	std::vector<float>        m_soundcardScratch;
+	std::vector<float>        m_tciAudioScratch;
+	std::vector<float>        m_monoScratch;
 	quint64				m_iqQueueDropCount = 0;
-	quint64				m_rxQueueDropCount = 0;
-	quint64&			m_soapyQueueDropCount{m_rxQueueDropCount};
 
     int 	m_audiobuffersize;
 
@@ -239,6 +251,7 @@ signals:
 	void	sMeterPeakValueChanged(int rx, double value);
 	void	outputBufferSignal(int rx, const CPX &buffer);
 	void	audioBufferSignal(int rx, const CPX &buffer, int);
+	void	tciAudioReady(int rx);
 	void	rxAudioSamples(int rx, QVector<float> stereoInterleaved, int sampleRate);
 	void	rxIqSamples(int rx, QVector<float> iqInterleaved, int sampleRate);
 

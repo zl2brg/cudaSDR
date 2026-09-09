@@ -966,6 +966,33 @@ if(BUILD_TESTING)
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
     )
 
+    qt_add_executable(opengl_offscreen_tests
+        tests/opengl_offscreen_tests.cpp
+        ${SRC_DIR}/GL/PanadapterRenderer.cpp
+        ${SRC_DIR}/GL/WaterfallRenderer.cpp
+        ${SRC_DIR}/Models/RadioModel.cpp
+        ${SRC_DIR}/Models/SliceModel.cpp
+        ${SRC_DIR}/Models/BandPlanManager.cpp
+        ${CUDASDR_SETTINGS_TEST_SOURCES}
+    )
+    target_include_directories(opengl_offscreen_tests PRIVATE
+        ${SRC_DIR}
+        ${SRC_DIR}/UI
+    )
+    target_link_libraries(opengl_offscreen_tests PRIVATE
+        Qt6::Core
+        Qt6::Gui
+        Qt6::GuiPrivate
+        Qt6::Widgets
+        Qt6::Network
+        Qt6::Multimedia
+        Qt6::WebSockets
+        Qt6::OpenGL
+        Qt6::OpenGLWidgets
+        Qt6::Test
+    )
+    add_test(NAME opengl_offscreen_tests COMMAND opengl_offscreen_tests)
+
     # Convenience target: build every unit test without the full cudasdr app.
     add_custom_target(build_tests DEPENDS
         protocol_boundary_tests
@@ -991,6 +1018,7 @@ if(BUILD_TESTING)
         panadapter_input_controller_tests
         display_panel_renderer_tests
         spsc_ring_buffer_tests
+        opengl_offscreen_tests
     )
 
     # Headless Qt for any test that links Gui/Widgets (CI has no display), plus a

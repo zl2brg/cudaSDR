@@ -110,6 +110,17 @@ public:
         return toWrite;
     }
 
+    /** Number of elements dropped by writeDropOldest when buffer was full. */
+    uint64_t dropCount() const noexcept
+    {
+        return m_dropCount.load(std::memory_order_relaxed);
+    }
+
+    void resetDropCount() noexcept
+    {
+        m_dropCount.store(0, std::memory_order_relaxed);
+    }
+
     /**
      * @brief Writes elements, dropping oldest unread data if buffer space is insufficient.
      * Always writes all 'count' elements (clamped to capacity).
@@ -123,6 +134,14 @@ public:
         const T* src = data + (count - toWrite);
 
         const size_t w = m_writeIndex.load(std::memory_order_relaxed);
+        const size_t r = m_readIndex.load(std::memory_order_relaxed);
+        const size_t currentBuffered = (w >= r) ? (w - r) : 0;
+        const size_t excess = (count > m_capacity ? count - m_capacity : 0)
+                            + (currentBuffered + toWrite > m_capacity ? (currentBuffered + toWrite) - m_capacity : 0);
+        if (excess > 0) {
+            m_dropCount.fetch_add(excess, std::memory_order_relaxed);
+        }
+
         const size_t idx = w & m_mask;
         const size_t firstChunk = std::min(toWrite, m_capacity - idx);
         std::memcpy(&m_buffer[idx], src, firstChunk * sizeof(T));
@@ -215,6 +234,7 @@ private:
 
     alignas(kCacheLineSize) std::atomic<size_t> m_writeIndex{0};
     alignas(kCacheLineSize) std::atomic<size_t> m_readIndex{0};
+    alignas(kCacheLineSize) std::atomic<uint64_t> m_dropCount{0};
 };
 
 #endif // SPSC_RING_BUFFER_H

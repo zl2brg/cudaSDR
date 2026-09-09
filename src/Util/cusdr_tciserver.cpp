@@ -593,6 +593,80 @@ void TciServer::sendAudioPacket(QWebSocket *client, const TciClientState &state,
     client->sendBinaryMessage(frame);
 }
 
+void TciServer::setRxAudioRing(int rx, SpscRingBuffer<float> *ring)
+{
+    if (rx >= 0 && rx < static_cast<int>(m_rxAudioRings.size())) {
+        m_rxAudioRings[rx] = ring;
+    }
+}
+
+SpscRingBuffer<float>* TciServer::rxAudioRing(int rx) const
+{
+    if (rx >= 0 && rx < static_cast<int>(m_rxAudioRings.size()))
+        return m_rxAudioRings[rx];
+    return nullptr;
+}
+
+void TciServer::onRxAudioReady(int rx)
+{
+    if (rx < 0 || rx >= static_cast<int>(m_rxAudioRings.size()))
+        return;
+
+    SpscRingBuffer<float> *ring = m_rxAudioRings[rx];
+    if (!ring)
+        return;
+
+    if (!m_settings || !m_settings->getTciServerEnabled()) {
+        ring->clear();
+        return;
+    }
+
+    bool anySubscribed = false;
+    for (QWebSocket *client : std::as_const(m_clients)) {
+        if (client->state() != QAbstractSocket::ConnectedState)
+            continue;
+        const TciClientState *st = clientState(client);
+        if (st && st->audioEnabledReceivers.contains(rx)) {
+            anySubscribed = true;
+            break;
+        }
+    }
+
+    if (!anySubscribed) {
+        ring->clear();
+        return;
+    }
+
+    if (m_tciAudioDrainBuffer.size() < 4096)
+        m_tciAudioDrainBuffer.resize(4096);
+
+    while (ring->availableRead() > 0) {
+        size_t n = ring->read(m_tciAudioDrainBuffer.data(), m_tciAudioDrainBuffer.size());
+        if (n == 0)
+            break;
+
+        const float *samples = m_tciAudioDrainBuffer.data();
+        int sampleCount = static_cast<int>(n);
+
+        if (std::abs(m_rxGain - 1.0f) > 1e-6f) {
+            for (size_t i = 0; i < n; ++i) {
+                m_tciAudioDrainBuffer[i] *= m_rxGain;
+            }
+        }
+
+        for (QWebSocket *client : std::as_const(m_clients)) {
+            if (client->state() != QAbstractSocket::ConnectedState)
+                continue;
+
+            TciClientState *state = clientState(client);
+            if (!state || !state->audioEnabledReceivers.contains(rx))
+                continue;
+
+            sendAudioPacket(client, *state, rx, samples, sampleCount);
+        }
+    }
+}
+
 void TciServer::onRxAudioSamples(int rx, QVector<float> stereoInterleaved, int sampleRate)
 {
     Q_UNUSED(sampleRate)

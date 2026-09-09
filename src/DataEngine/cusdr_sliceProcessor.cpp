@@ -33,6 +33,7 @@
 #include "cusdr_sliceProcessor.h"
 #include "DataEngine/ISdrDevice.h"
 #include "QtWDSP/WdspTxChannel.h"
+#include "Util/cusdr_tciserver.h"
 #include <cmath>
 
 namespace {
@@ -50,7 +51,6 @@ SliceProcessor::SliceProcessor(SliceModel *model, QObject *parent)
     , m_soapyInputSampleRate(set->getSampleRate())
 	, m_audioMode(1)
     , m_iqQueue(100)
-    , m_rxQueue(100)
     , m_dspPending(false)
     , m_rateTransitionDropBuffers(0)
 	//, m_calOffset(63.0)
@@ -59,6 +59,9 @@ SliceProcessor::SliceProcessor(SliceModel *model, QObject *parent)
 	InitCPX(inBuf, BUFFER_SIZE, 0.0f);
 	InitCPX(outBuf, BUFFER_SIZE, 0.0f);
     InitCPX(audioOutputBuf, BUFFER_SIZE, 0.0f);
+    m_soundcardScratch.resize(BUFFER_SIZE * 2, 0.0f);
+    m_tciAudioScratch.resize(BUFFER_SIZE * 2, 0.0f);
+    m_monoScratch.resize(BUFFER_SIZE, 0.0f);
     setAudioBufferSize();
     newSpectrum.resize(BUFFER_SIZE*4);
 	highResTimer = std::make_unique<HResTimer>();
@@ -129,6 +132,9 @@ SliceProcessor::SliceProcessor(SliceModel *model, QObject *parent)
 
 SliceProcessor::~SliceProcessor() {
     qDebug() << "Destroy SliceProcessor " << m_receiver;
+    if (set && set->tciServer()) {
+        set->tciServer()->setRxAudioRing(m_receiver, nullptr);
+    }
     inBuf.clear();
     outBuf.clear();
 	if (m_audioOutput) {
@@ -241,27 +247,16 @@ bool SliceProcessor::initQtWDSPInterface() {
 void SliceProcessor::enqueueRxIq(const float* interleavedIq, int numComplexSamples) {
     if (!interleavedIq || numComplexSamples <= 0) return;
 
-    QVector<float> block(numComplexSamples * 2);
-    std::memcpy(block.data(), interleavedIq, numComplexSamples * 2 * sizeof(float));
-    enqueueRxIq(block);
-}
-
-void SliceProcessor::enqueueRxIq(const QVector<float> &samples) {
-    if (m_rxQueue.isFull()) {
-        m_rxQueue.dequeue();
-        ++m_rxQueueDropCount;
-    }
-    m_rxQueue.enqueue(samples);
+    m_rxRing.writeDropOldest(interleavedIq, static_cast<size_t>(numComplexSamples * 2));
 
     if (!m_queueDropLogTimer.isValid())
         m_queueDropLogTimer.start();
     if (m_queueDropLogTimer.elapsed() >= 5000) {
-        if (m_iqQueueDropCount > 0 || m_rxQueueDropCount > 0) {
-            SLICE_PROCESSOR_DEBUG << "[RX" << m_receiver << "] queue drops in last 5s: iq="
-                                  << m_iqQueueDropCount << " rx=" << m_rxQueueDropCount;
+        uint64_t drops = m_rxRing.dropCount();
+        if (drops > 0) {
+            SLICE_PROCESSOR_DEBUG << "[RX" << m_receiver << "] ring drops in last 5s: " << drops;
+            m_rxRing.resetDropCount();
         }
-        m_iqQueueDropCount = 0;
-        m_rxQueueDropCount = 0;
         m_queueDropLogTimer.restart();
     }
 
@@ -270,34 +265,57 @@ void SliceProcessor::enqueueRxIq(const QVector<float> &samples) {
     }
 }
 
+void SliceProcessor::enqueueRxIq(const QVector<float> &samples) {
+    if (samples.isEmpty()) return;
+    enqueueRxIq(samples.constData(), samples.size() / 2);
+}
+
 int SliceProcessor::readFromDevice(ISdrDevice* dev, int maxSamples) {
     if (!dev || maxSamples <= 0) return 0;
-    QVector<float> buf(maxSamples * 2);
+    constexpr int kMaxStackSamples = 2048;
+    if (maxSamples <= kMaxStackSamples) {
+        float stackBuf[kMaxStackSamples * 2];
+        int read = dev->readRxIq(m_receiver, stackBuf, maxSamples);
+        if (read > 0) {
+            enqueueRxIq(stackBuf, read);
+        }
+        return read;
+    }
+    std::vector<float> buf(maxSamples * 2);
     int read = dev->readRxIq(m_receiver, buf.data(), maxSamples);
     if (read > 0) {
-        buf.resize(read * 2);
-        enqueueRxIq(buf);
+        enqueueRxIq(buf.data(), read);
     }
     return read;
 }
 
 void SliceProcessor::enqueueRawData() {
     const double scale = 1.0 / 8388607.0;
-    QVector<float> floatBlock(BUFFER_SIZE * 2);
+    float floatBlock[BUFFER_SIZE * 2];
     for (int i = 0; i < BUFFER_SIZE * 2; ++i) {
         floatBlock[i] = static_cast<float>(m_rawIQ[i] * scale);
     }
-    enqueueRxIq(floatBlock);
+    enqueueRxIq(floatBlock, BUFFER_SIZE);
 }
 
 void SliceProcessor::enqueueRawData(const QVector<int32_t> &rawBlock) {
     const double scale = 1.0 / 8388607.0;
     const int count = rawBlock.size();
-    QVector<float> floatBlock(count);
-    for (int i = 0; i < count; ++i) {
-        floatBlock[i] = static_cast<float>(rawBlock[i] * scale);
+    if (count <= 0) return;
+    constexpr int CHUNK = 1024;
+    float tempBuf[CHUNK];
+    int offset = 0;
+    while (offset < count) {
+        int n = std::min(CHUNK, count - offset);
+        for (int i = 0; i < n; ++i) {
+            tempBuf[i] = static_cast<float>(rawBlock[offset + i] * scale);
+        }
+        m_rxRing.writeDropOldest(tempBuf, static_cast<size_t>(n));
+        offset += n;
     }
-    enqueueRxIq(floatBlock);
+    if (trySetDspPending()) {
+        QMetaObject::invokeMethod(this, "dspProcessing", Qt::QueuedConnection);
+    }
 }
 
 void SliceProcessor::enqueueSoapyData(const QVector<float> &data) {
@@ -353,6 +371,8 @@ void SliceProcessor::stop() {
 	m_mutex.lock();
 	m_stopped = true;
 	m_mutex.unlock();
+	m_rxRing.clear();
+	m_tciAudioRing.clear();
 }
 
 void SliceProcessor::stopAudio()
@@ -369,8 +389,11 @@ void SliceProcessor::dspProcessingSoapy() {
 }
 
 void SliceProcessor::dspProcessing() {
-    while (!m_rxQueue.isEmpty()) {
-        const QVector<float> rawIQ = m_rxQueue.dequeue();
+    constexpr size_t kBlockFloats = BUFFER_SIZE * 2;
+    float blockBuf[kBlockFloats];
+
+    while (m_rxRing.availableRead() >= kBlockFloats) {
+        m_rxRing.read(blockBuf, kBlockFloats);
 
         {
             QMutexLocker locker(&m_mutex);
@@ -380,12 +403,10 @@ void SliceProcessor::dspProcessing() {
             }
         }
 
-        if (rawIQ.size() < BUFFER_SIZE * 2) continue;
-
         ++m_dspCallCount;
 
         cpx* inPtr = inBuf.data();
-        const float* rawPtr = rawIQ.constData();
+        const float* rawPtr = blockBuf;
         const bool isSoapy = (set && set->getHWInterface() == QSDR::SoapySDR);
         const bool soapyDcRemove = (isSoapy && set && set->getSoapyAutoCalibrate());
         const bool negateQ = isSoapy;
@@ -426,7 +447,7 @@ void SliceProcessor::dspProcessing() {
 
     m_dspPending.store(false, std::memory_order_release);
 
-    if (!m_rxQueue.isEmpty() && trySetDspPending()) {
+    if (m_rxRing.availableRead() >= kBlockFloats && trySetDspPending()) {
         QMetaObject::invokeMethod(this, "dspProcessing", Qt::QueuedConnection);
     }
 }
@@ -556,13 +577,21 @@ void SliceProcessor::dspProcessingCore() {
         if (set->getHWInterface() == QSDR::SoapySDR) {
             retuneMuteAudio = m_retuneTimer.isValid() && (m_retuneTimer.elapsed() < m_audioMuteUntilMs);
         }
-        auto deliverInternalAudio = [this, retuneMuteAudio](const QVector<float> &soundcardStereo,
-                                                              const QVector<float> &tciStereo) {
+        auto deliverInternalAudio = [this, retuneMuteAudio](const float *soundcardStereo, int soundcardCount,
+                                                            const float *tciStereo, int tciCount) {
             if (retuneMuteAudio)
                 return;
-            if (m_audioOutput)
-                m_audioOutput->writeAudio(soundcardStereo);
-            emit rxAudioSamples(m_receiver, tciStereo, 48000);
+            if (m_audioOutput && soundcardStereo && soundcardCount > 0)
+                m_audioOutput->writeAudio(soundcardStereo, soundcardCount);
+            if (tciStereo && tciCount > 0) {
+                m_tciAudioRing.writeDropOldest(tciStereo, static_cast<size_t>(tciCount));
+                emit tciAudioReady(m_receiver);
+                if (isSignalConnected(QMetaMethod::fromSignal(&SliceProcessor::rxAudioSamples))) {
+                    QVector<float> legacyVec(tciCount);
+                    std::memcpy(legacyVec.data(), tciStereo, tciCount * sizeof(float));
+                    emit rxAudioSamples(m_receiver, std::move(legacyVec), 48000);
+                }
+            }
         };
         if (dspMode != DSPMode::FDV) {
 			// Normal analogue modes: soundcard gets I/Q interleaved; TCI gets
@@ -606,19 +635,39 @@ void SliceProcessor::dspProcessingCore() {
                 }
             }
 
-            deliverInternalAudio(interleaveFromCPX(audioOutputBuf, n),
-                                 monoStereoFromCPX(audioOutputBuf, n));
+            if (m_soundcardScratch.size() < static_cast<size_t>(n * 2))
+                m_soundcardScratch.resize(n * 2);
+            if (m_tciAudioScratch.size() < static_cast<size_t>(n * 2))
+                m_tciAudioScratch.resize(n * 2);
+
+            const cpx* inData = audioOutputBuf.constData();
+            float* scOut = m_soundcardScratch.data();
+            float* tciOut = m_tciAudioScratch.data();
+            for (int i = 0; i < n; ++i) {
+                const float re = static_cast<float>(inData[i].re);
+                const float im = static_cast<float>(inData[i].im);
+                *scOut++ = re;
+                *scOut++ = im;
+                *tciOut++ = re;
+                *tciOut++ = re;
+            }
+
+            deliverInternalAudio(m_soundcardScratch.data(), n * 2,
+                                 m_tciAudioScratch.data(), n * 2);
 
             if (m_cwDecoder && m_cwDecoder->isEnabled() && (dspMode == DSPMode::CWL || dspMode == DSPMode::CWU)) {
-                QVector<float> mono(n);
-                const cpx* src = audioOutputBuf.constData();
+                if (m_monoScratch.size() < static_cast<size_t>(n))
+                    m_monoScratch.resize(n);
+                float* mono = m_monoScratch.data();
                 for (int i = 0; i < n; ++i)
-                    mono[i] = static_cast<float>(src[i].re);
-                m_cwDecoder->processAudio(mono.constData(), n, 48000);
+                    mono[i] = static_cast<float>(inData[i].re);
+                m_cwDecoder->processAudio(mono, n, 48000);
             }
 		}
 		else {
-			QVector<float> mono(audioSamplesThisCall);
+			if (m_monoScratch.size() < static_cast<size_t>(audioSamplesThisCall))
+				m_monoScratch.resize(audioSamplesThisCall);
+			float* mono = m_monoScratch.data();
 			const cpx* src = audioOutputBuf.constData();
 			for (int i = 0; i < audioSamplesThisCall; ++i)
 				mono[i] = static_cast<float>(src[i].re);
@@ -628,8 +677,9 @@ void SliceProcessor::dspProcessingCore() {
 #ifdef HAVE_CODEC2
 #ifdef HAVE_RADE
             if (m_freeDVMode == 100 && m_radeProcessor) {
-                QVector<float> speech = m_radeProcessor->processSamples(mono.constData(), audioSamplesThisCall);
-                deliverInternalAudio(speech, speech);
+                QVector<float> speech = m_radeProcessor->processSamples(mono, audioSamplesThisCall);
+                deliverInternalAudio(speech.constData(), speech.size(),
+                                     speech.constData(), speech.size());
                 wroteAudio = true;
                 if (m_radeProcessor->isSync())
                     m_freeDVRxFrames += 1;
@@ -644,11 +694,9 @@ void SliceProcessor::dspProcessingCore() {
             } else
 #endif
             if (m_freeDVProcessor) {
-                QVector<float> speech = m_freeDVProcessor->processSamples(mono.constData(), audioSamplesThisCall);
-				// processSamples always returns n*2 floats (silence-padded when no
-				// frame is ready), so write unconditionally — this prevents the
-				// passthrough from adding a second burst of audio.
-                deliverInternalAudio(speech, speech);
+                QVector<float> speech = m_freeDVProcessor->processSamples(mono, audioSamplesThisCall);
+                deliverInternalAudio(speech.constData(), speech.size(),
+                                     speech.constData(), speech.size());
 				wroteAudio = true;
 				if (m_freeDVProcessor->isSync())
 					m_freeDVRxFrames += 1;
@@ -664,14 +712,16 @@ void SliceProcessor::dspProcessingCore() {
 #endif
 
 			if (!wroteAudio) {
-				QVector<float> passthrough;
-                passthrough.reserve(audioSamplesThisCall * 2);
+                if (m_soundcardScratch.size() < static_cast<size_t>(audioSamplesThisCall * 2))
+                    m_soundcardScratch.resize(audioSamplesThisCall * 2);
+                float* p = m_soundcardScratch.data();
                 for (int i = 0; i < audioSamplesThisCall; ++i) {
-					const float s = mono.at(i);
-					passthrough.append(s);
-					passthrough.append(s);
+					const float s = mono[i];
+					*p++ = s;
+					*p++ = s;
 				}
-                deliverInternalAudio(passthrough, passthrough);
+                deliverInternalAudio(m_soundcardScratch.data(), audioSamplesThisCall * 2,
+                                     m_soundcardScratch.data(), audioSamplesThisCall * 2);
 			}
 		}
 #endif // USE_INTERNAL_AUDIO
@@ -780,8 +830,7 @@ void SliceProcessor::setSampleRate(int value) {
 		// fexchange0 is not called on the channel while it is being rebuilt.
 		while (!m_iqQueue.isEmpty())
 			m_iqQueue.dequeue();
-		while (!m_soapyQueue.isEmpty())
-			m_soapyQueue.dequeue();
+		m_rxRing.clear();
 		m_rateTransitionDropBuffers = HIGH_RATE_TRANSITION_DROP_BUFFERS;
 
         // Dual-rate: HB rsmpin → 48 kHz DSP demod rate.

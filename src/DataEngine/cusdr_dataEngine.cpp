@@ -659,7 +659,8 @@ bool DataEngine::initReceivers(int rcvrs) {
                         });
             }
             if (TciServer *tci = set->tciServer()) {
-                connect(rx, &SliceProcessor::rxAudioSamples, tci, &TciServer::onRxAudioSamples,
+                tci->setRxAudioRing(rx->getReceiverNo(), rx->tciAudioRing());
+                connect(rx, &SliceProcessor::tciAudioReady, tci, &TciServer::onRxAudioReady,
                         Qt::QueuedConnection);
                 connect(rx, &SliceProcessor::rxIqSamples, tci, &TciServer::onRxIqSamples,
                         Qt::QueuedConnection);
@@ -1393,7 +1394,8 @@ void DataEngine::setNumberOfRx(int value) {
 					[tel](int receiverId, double v) { tel->setSMeterValue(receiverId, v); });
 		}
 		if (TciServer *tci = set->tciServer()) {
-			connect(rx, &SliceProcessor::rxAudioSamples, tci, &TciServer::onRxAudioSamples, Qt::QueuedConnection);
+			tci->setRxAudioRing(rx->getReceiverNo(), rx->tciAudioRing());
+			connect(rx, &SliceProcessor::tciAudioReady, tci, &TciServer::onRxAudioReady, Qt::QueuedConnection);
 			connect(rx, &SliceProcessor::rxIqSamples, tci, &TciServer::onRxIqSamples, Qt::QueuedConnection);
 		}
 		if (m_cwIO) {

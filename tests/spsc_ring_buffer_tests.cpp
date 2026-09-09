@@ -150,6 +150,10 @@ void SpscRingBufferTests::testWriteDropOldest()
     QCOMPARE(buf.availableRead(), size_t(16));
 
     // The oldest 4 (0, 1, 2, 3) must have been dropped.
+    QCOMPARE(buf.dropCount(), uint64_t(4));
+    buf.resetDropCount();
+    QCOMPARE(buf.dropCount(), uint64_t(0));
+
     // We should read values 4 through 19.
     int out[16] = {0};
     size_t read = buf.read(out, 16);
