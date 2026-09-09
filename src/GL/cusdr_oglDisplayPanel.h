@@ -366,7 +366,6 @@ private:
 	qint64	vfoMemoryHz(DigitVfo which) const;
 	void	activateDigitVfo(DigitVfo which);
 	void	tuneDigitVfoTo(DigitVfo which, qint64 frequencyHz);
-	void	applySMeterPanScale(class SliceModel *slice);
 	
 private slots:
 	void	systemStateChanged(

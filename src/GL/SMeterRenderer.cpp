@@ -9,16 +9,9 @@
 #include "cusdr_oglDisplayPanel.h"
 #include "cusdr_glDraw.h"
 
-#include <QtMath>
-#include <cmath>
-
 #ifndef GL_MULTISAMPLE
 #define GL_MULTISAMPLE  0x809D
 #endif
-
-namespace {
-constexpr qreal kIaruSMeterFloorDbm = -140.0;
-}
 
 SMeterRenderer::SMeterRenderer(OGLDisplayPanel *panel)
     : m_panel(panel)
@@ -46,10 +39,7 @@ void SMeterRenderer::drawSMeterNeedle(const QMatrix4x4 &projection, int x1)
     m_panel->m_vao.bind();
 
     // Main signal needle (bright white)
-    const float offset = (m_panel->set && m_panel->set->getHWInterface() == QSDR::SoapySDR)
-                             ? 90.0f : 140.0f;
-    const float dbm = m_panel->m_sMeterValue - offset;
-    const float x = float(x1) + xForDbm(dbm, m_panel->m_dBmPanMin, m_panel->m_unit);
+    const float x = float(x1 + int(m_panel->m_sMeterValue * m_panel->m_unit));
     const GlDraw::Vec3Rgb needle[2] = {
         { x, float(m_panel->m_sMeterPosY) - 15.0f, 1.0f, 1.0f, 1.0f, 1.0f },
         { x, float(m_panel->m_sMeterPosY) + 26.0f, 1.0f, 1.0f, 1.0f, 1.0f },
@@ -60,8 +50,7 @@ void SMeterRenderer::drawSMeterNeedle(const QMatrix4x4 &projection, int x1)
 
     // Peak hold needle (amber/red pip at top of scale)
     if (m_panel->m_sMeterMaxValueB > m_panel->m_sMeterValue + 0.5f) {
-        const float dbmPeak = m_panel->m_sMeterMaxValueB - offset;
-        const float xPeak = float(x1) + xForDbm(dbmPeak, m_panel->m_dBmPanMin, m_panel->m_unit);
+        const float xPeak = float(x1 + int(m_panel->m_sMeterMaxValueB * m_panel->m_unit));
         const GlDraw::Vec3Rgb peakNeedle[2] = {
             { xPeak, float(m_panel->m_sMeterPosY) - 15.0f, 1.0f, 0.4f, 0.4f, 1.0f },
             { xPeak, float(m_panel->m_sMeterPosY) + 12.0f, 1.0f, 0.4f, 0.4f, 1.0f },
@@ -126,15 +115,12 @@ void SMeterRenderer::paintSMeter() {
         m_panel->glDisable(GL_DEPTH_TEST);
 
         // Signal level bar filled from baseline (left) to current S-meter value
-        const float offset = (m_panel->set && m_panel->set->getHWInterface() == QSDR::SoapySDR)
-                                 ? 90.0f : 140.0f;
-        const float dbm = m_panel->m_sMeterValue - offset;
-        const int barWidth = qMax(0, int(xForDbm(dbm, m_panel->m_dBmPanMin, m_panel->m_unit)));
+        const int barWidth = int(m_panel->m_sMeterValue * m_panel->m_unit);
         if (barWidth > 0 && m_panel->m_shaderProgram && m_panel->m_shaderProgram->isLinked()) {
             const QRect bar(x1, m_panel->m_sMeterPosY + 3, barWidth, 6);
             const QColor cLeft(40, 180, 100);
-            const QColor cRight = (dbm > -43.0f) ? QColor(255, 50, 50) :
-                                  (dbm > -73.0f) ? QColor(255, 200, 50) : QColor(56, 242, 115);
+            const QColor cRight = (m_panel->m_sMeterValue > 97.0f) ? QColor(255, 50, 50) :
+                                  (m_panel->m_sMeterValue > 67.0f) ? QColor(255, 200, 50) : QColor(56, 242, 115);
             GlDraw::drawGradientRect(m_panel, m_panel->m_shaderProgram, m_panel->m_vbo, projection, bar,
                                      cLeft, cRight, true, 1.0f);
         }
@@ -178,10 +164,8 @@ void SMeterRenderer::renderSMeterScale() {
     const GLint width = m_panel->m_sMeterWidth;
     const GLint height = m_panel->m_smeterRect.height();
 
-    m_panel->m_unit = unitForRange(m_panel->m_sMeterWidth, m_panel->m_dBmPanMin, m_panel->m_dBmPanMax);
-    const qreal minDb = m_panel->m_dBmPanMin;
-    const qreal maxDb = m_panel->m_dBmPanMax;
-    const qreal unit = m_panel->m_unit;
+    const qreal dBmRange = qAbs(m_panel->m_dBmPanMax - m_panel->m_dBmPanMin);
+    m_panel->m_unit = (dBmRange > 0) ? qreal(m_panel->m_sMeterWidth / dBmRange) : 0;
 
     GLint savedViewport[4] = { 0, 0, 0, 0 };
     m_panel->glGetIntegerv(GL_VIEWPORT, savedViewport);
@@ -241,14 +225,12 @@ void SMeterRenderer::renderSMeterScale() {
 
         QVector<GlDraw::Vec3Rgb> tickLines;
         tickLines.reserve(64);
-        const int minTick = static_cast<int>(std::ceil(minDb / 10.0)) * 10;
-        const int maxTick = static_cast<int>(std::floor(maxDb / 10.0)) * 10;
-        for (int z = minTick; z <= maxTick; z += 10) {
-            const float xMajor = xForDbm(z, minDb, unit);
-            const float xMinor = xForDbm(z - 5, minDb, unit);
+        for (int z = -130; z <= 0; z += 10) {
+            const float xMajor = float((z - (-140)) * m_panel->m_unit);
+            const float xMinor = float((z - (-140) - 5) * m_panel->m_unit);
             tickLines.append({ xMajor, posY - 4.0f, 0.0f, tr, tg, tb });
             tickLines.append({ xMajor, posY, 0.0f, tr, tg, tb });
-            if (z > minTick) {
+            if (z > -130) {
                 tickLines.append({ xMinor, posY - 2.0f, 0.0f, tr, tg, tb });
                 tickLines.append({ xMinor, posY, 0.0f, tr, tg, tb });
             }
@@ -287,10 +269,7 @@ void SMeterRenderer::renderSMeterScale() {
         };
 
         for (const auto &mark : sMarks) {
-            const qreal dbm = kIaruSMeterFloorDbm + mark.dbFromBase;
-            if (dbm < minDb - 0.5 || dbm > maxDb + 0.5)
-                continue;
-            const float x = xForDbm(dbm, minDb, unit);
+            const float x = float(mark.dbFromBase * m_panel->m_unit);
             float lr, lg, lb;
             if (m_panel->m_dataEngineState == QSDR::DataEngineUp) {
                 if (mark.colorZone == 0) {
@@ -311,16 +290,14 @@ void SMeterRenderer::renderSMeterScale() {
 
         // Colored bottom guide rails
         if (m_panel->m_dataEngineState == QSDR::DataEngineUp) {
-            const float xS9 = xForDbm(-73.0, minDb, unit);
-            const float xS9p30 = xForDbm(-43.0, minDb, unit);
-            // Green line: left edge through S9
+            // Green line: 0 to S9 (67 dB)
             sUnitLines.append({ 0.0f, posY + 12.0f, 0.0f, 56.0f / 255.0f, 242.0f / 255.0f, 115.0f / 255.0f });
-            sUnitLines.append({ xS9, posY + 12.0f, 0.0f, 56.0f / 255.0f, 242.0f / 255.0f, 115.0f / 255.0f });
-            // Yellow line: S9 to +30 dB
-            sUnitLines.append({ xS9, posY + 12.0f, 0.0f, 255.0f / 255.0f, 200.0f / 255.0f, 50.0f / 255.0f });
-            sUnitLines.append({ xS9p30, posY + 12.0f, 0.0f, 255.0f / 255.0f, 200.0f / 255.0f, 50.0f / 255.0f });
+            sUnitLines.append({ float(67 * m_panel->m_unit), posY + 12.0f, 0.0f, 56.0f / 255.0f, 242.0f / 255.0f, 115.0f / 255.0f });
+            // Yellow line: S9 to +30 dB (97 dB)
+            sUnitLines.append({ float(67 * m_panel->m_unit), posY + 12.0f, 0.0f, 255.0f / 255.0f, 200.0f / 255.0f, 50.0f / 255.0f });
+            sUnitLines.append({ float(97 * m_panel->m_unit), posY + 12.0f, 0.0f, 255.0f / 255.0f, 200.0f / 255.0f, 50.0f / 255.0f });
             // Red line: +30 dB to end
-            sUnitLines.append({ xS9p30, posY + 12.0f, 0.0f, 255.0f / 255.0f, 60.0f / 255.0f, 60.0f / 255.0f });
+            sUnitLines.append({ float(97 * m_panel->m_unit), posY + 12.0f, 0.0f, 255.0f / 255.0f, 60.0f / 255.0f, 60.0f / 255.0f });
             sUnitLines.append({ float(width - 1), posY + 12.0f, 0.0f, 255.0f / 255.0f, 60.0f / 255.0f, 60.0f / 255.0f });
         }
 
@@ -343,17 +320,13 @@ void SMeterRenderer::drawSMeterScaleLabels(const QMatrix4x4 &projection, int xOf
 
     const QFontMetrics fm = m_panel->m_oglTextNormal->fontMetrics();
 
-    const qreal minDb = m_panel->m_dBmPanMin;
-    const qreal maxDb = m_panel->m_dBmPanMax;
-    const qreal unit = m_panel->m_unit;
-
-    // Top dBm labels
-    const int minLabel = static_cast<int>(std::ceil(minDb / 20.0)) * 20;
-    const int maxLabel = static_cast<int>(std::floor(maxDb / 20.0)) * 20;
-    for (int z = minLabel; z <= maxLabel; z += 20) {
-        const int d = fm.horizontalAdvance(QString::number(z));
-        const int x = xOffset + int(xForDbm(z, minDb, unit)) - d / 2;
-        m_panel->m_oglTextNormal->renderText(projection, float(x), float(m_panel->m_sMeterPosY - 18), QString::number(z), m_panel->m_activeTextColor);
+    // Top dBm labels (-120 to 0 dBm)
+    for (int z = -120; z <= 0; z += 20) {
+        const int dbFromBase = z - (-140);
+        QString marker = QString::number(z);
+        const int d = fm.horizontalAdvance(marker);
+        const int x = xOffset + int(dbFromBase * m_panel->m_unit) - d / 2;
+        m_panel->m_oglTextNormal->renderText(projection, float(x), float(m_panel->m_sMeterPosY - 18), marker, m_panel->m_activeTextColor);
     }
 
     m_panel->m_oglTextSmallItalic->renderText(projection, float(xOffset + m_panel->m_sMeterWidth - 25),
@@ -376,12 +349,9 @@ void SMeterRenderer::drawSMeterScaleLabels(const QMatrix4x4 &projection, int xOf
     };
 
     for (const auto &lbl : sLabels) {
-        const qreal dbm = kIaruSMeterFloorDbm + lbl.dbFromBase;
-        if (dbm < minDb - 0.5 || dbm > maxDb + 0.5)
-            continue;
         QString marker = QString::fromLatin1(lbl.text);
         const int d = fm.horizontalAdvance(marker);
-        const float x = float(xOffset + int(xForDbm(dbm, minDb, unit)) - d / 2);
+        const float x = float(xOffset + int(lbl.dbFromBase * m_panel->m_unit) - d / 2);
         const QColor c = (m_panel->m_dataEngineState == QSDR::DataEngineUp) ? lbl.color : m_panel->m_inactiveTextColor;
         m_panel->m_oglTextNormal->renderText(projection, x, float(m_panel->m_sMeterPosY + 18), marker, c);
     }
