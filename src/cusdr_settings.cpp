@@ -3311,20 +3311,52 @@ void Settings::setMicSource(int source) {
     emit micSourceChanged(source);
 }
 
+int Settings::getMicInputDev() {
+    if (const TransmitModel* tx = transmitModel())
+        return tx->micInputDev();
+    return m_transmitConfig->micInputDev();
+}
+
+int Settings::getDigitalAudioInputDev() {
+    if (const TransmitModel* tx = transmitModel())
+        return tx->digitalAudioInputDev();
+    return m_transmitConfig->digitalAudioInputDev();
+}
+
+QString Settings::getMicInputSourceName() {
+    if (const TransmitModel* tx = transmitModel())
+        return tx->micInputSourceName();
+    return m_transmitConfig->micInputSourceName();
+}
+
+QString Settings::getDigitalInputSourceName() {
+    if (const TransmitModel* tx = transmitModel())
+        return tx->digitalInputSourceName();
+    return m_transmitConfig->digitalInputSourceName();
+}
+
 void Settings::setMicInputDev(int index) {
+    if (TransmitModel* tx = transmitModel())
+        tx->setMicInputDev(index);
     m_transmitConfig->setMicInputDev(index);
     emit micInputChanged(index);
 }
 
 void Settings::setMicInputSourceName(const QString &name) {
+    if (TransmitModel* tx = transmitModel())
+        tx->setMicInputSourceName(name);
     m_transmitConfig->setMicInputSourceName(name);
 }
 
 void Settings::setDigitalInputSourceName(const QString &name) {
+    if (TransmitModel* tx = transmitModel())
+        tx->setDigitalInputSourceName(name);
     m_transmitConfig->setDigitalInputSourceName(name);
 }
 
 void Settings::setDigitalAudioInputDev(int index) {
+    if (TransmitModel* tx = transmitModel())
+        tx->setDigitalAudioInputDev(index);
     m_transmitConfig->setDigitalAudioInputDev(index);
     emit digitalAudioInputChanged(index);
 }

@@ -17,6 +17,7 @@ private slots:
     void testFreqMhzDisplayStringBands();
     void testSplitFreqDisplay();
     void testSMeterIARUMarkers();
+    void testSMeterScaleUsesPanFloor();
     void testSMeterBallisticsFastAttack();
     void testSMeterBallisticsSmoothDecay();
 };
@@ -109,6 +110,19 @@ void DisplayPanelRendererTests::testSMeterIARUMarkers()
     QCOMPARE(calcSUnit(-109.0), QStringLiteral("S3"));
     QCOMPARE(calcSUnit(-121.0), QStringLiteral("S1"));
     QCOMPARE(calcSUnit(-140.0), QStringLiteral("S0"));
+}
+
+void DisplayPanelRendererTests::testSMeterScaleUsesPanFloor()
+{
+    QCOMPARE(SMeterRenderer::unitForRange(140.0, -140.0, 0.0), 1.0);
+    QCOMPARE(SMeterRenderer::unitForRange(130.0, -130.0, 0.0), 1.0);
+    QCOMPARE(SMeterRenderer::unitForRange(0.0, -140.0, 0.0), 0.0);
+
+    // S9 is -73 dBm. With a -140 floor it sits 67 dB from the left edge;
+    // with a -130 floor it sits 57 dB from the left.
+    QCOMPARE(SMeterRenderer::xForDbm(-73.0, -140.0, 1.0), 67.0f);
+    QCOMPARE(SMeterRenderer::xForDbm(-73.0, -130.0, 1.0), 57.0f);
+    QCOMPARE(SMeterRenderer::xForDbm(-140.0, -140.0, 2.0), 0.0f);
 }
 
 void DisplayPanelRendererTests::testSMeterBallisticsFastAttack()

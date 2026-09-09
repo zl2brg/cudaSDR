@@ -48,12 +48,6 @@ int findDeviceComboIndex(const QList<QAudioDevice> &devices, const QString &name
 }
 
 
-#define	btn_height		15
-#define	btn_width		74
-#define	btn_width2		52
-#define	btn_widths		40
-
-
 TransmitOptionsWidget::TransmitOptionsWidget(QWidget *parent)
 	: QWidget(parent)
 	, set(Settings::instance())
@@ -301,93 +295,13 @@ void TransmitOptionsWidget::createAMSettingsGroup(){
 
 void TransmitOptionsWidget::createSourceGroup() {
 
-	QLabel* sourceLabel = new QLabel("Source:", this);
+	QLabel* sourceLabel = new QLabel("Mic Source:", this);
     sourceLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
     micInputComboBox = new QComboBox(this);
-/*
-	micInputBtn = new AeroButton("Mic Input", this);
-	micInputBtn->setRoundness(0);
-	micInputBtn->setFixedSize(btn_width, btn_height);
-	micInputBtn->setBtnState(AeroButton::ON);
-
-	CHECKED_CONNECT(
-		micInputBtn, 
-		SIGNAL(clicked()), 
-		this, 
-		SLOT(inputButtonClicked()));
-
-	lineInputBtn = new AeroButton("Line Input", this);
-	lineInputBtn->setRoundness(0);
-	lineInputBtn->setFixedSize(btn_width, btn_height);
-	lineInputBtn->setBtnState(AeroButton::OFF);
-
-	CHECKED_CONNECT(
-		lineInputBtn, 
-		SIGNAL(clicked()), 
-		this, 
-		SLOT(inputButtonClicked()));
-
-
-	QLabel* maxLabel = new QLabel("Max Gain (dB):", this);
-    maxLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-
-	QLabel* minLabel = new QLabel("Min Gain (dB):", this);
-    minLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-
-	micGainMaxSpinBox = new QSpinBox(this);
-	micGainMaxSpinBox->setMinimum(1);
-	micGainMaxSpinBox->setMaximum(70);
-	micGainMaxSpinBox->setValue(10);
-
-	micGainMinSpinBox = new QSpinBox(this);
-	micGainMinSpinBox->setMinimum(-96);
-	micGainMinSpinBox->setMaximum(0);
-	micGainMinSpinBox->setValue(-40);
-
-	QLabel* boostLabel = new QLabel("20 dB Mic Boost:", this);
-    boostLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
-
-	micBoostBtn = new AeroButton(" Off ", this);
-	micBoostBtn->setRoundness(0);
-	micBoostBtn->setFixedSize(btn_width, btn_height);
-	micBoostBtn->setBtnState(AeroButton::OFF);
-
-	CHECKED_CONNECT(
-		micBoostBtn, 
-		SIGNAL(clicked()), 
-		this, 
-		SLOT(boostButtonClicked()));
-
-	QHBoxLayout *hbox1 = new QHBoxLayout();
-	hbox1->setSpacing(4);
-	hbox1->addWidget(sourceLabel);
-	hbox1->addStretch();
-    hbox1->addWidget(micInputBtn);
-	hbox1->addWidget(lineInputBtn);
-
-	QHBoxLayout *hbox2 = new QHBoxLayout();
-	hbox2->setSpacing(4);
-	hbox2->addWidget(boostLabel);
-	hbox2->addStretch();
-	hbox2->addWidget(micBoostBtn);
-
-	QHBoxLayout *hbox3 = new QHBoxLayout();
-	hbox3->setSpacing(4);
-	hbox3->addWidget(maxLabel);
-	hbox3->addStretch();
-	hbox3->addWidget(micGainMaxSpinBox);
-
-	QHBoxLayout *hbox4 = new QHBoxLayout();
-	hbox4->setSpacing(4);
-	hbox4->addWidget(minLabel);
-	hbox4->addStretch();
-	hbox4->addWidget(micGainMinSpinBox);
-*/
-    QLabel* micLabel = new QLabel("Mic Source:", this);
     micInputComboBox->setMinimumWidth(180);
     QHBoxLayout *hbox5 = new QHBoxLayout();
     hbox5->setSpacing(4);
-    hbox5->addWidget(micLabel);
+    hbox5->addWidget(sourceLabel);
     hbox5->addStretch();
     hbox5->addWidget(micInputComboBox);
 	
@@ -396,7 +310,7 @@ void TransmitOptionsWidget::createSourceGroup() {
 	vbox->addSpacing(6);
     vbox->addLayout(hbox5);
 	
-	sourceGroup = new QGroupBox(tr("Mic / Line Options"), this);
+	sourceGroup = new QGroupBox(tr("Mic Source"), this);
 	sourceGroup->setMinimumWidth(m_minimumGroupBoxWidth);
 	sourceGroup->setLayout(vbox);
     sourceGroup->setFont(QFont("Arial", 10));
@@ -465,35 +379,6 @@ void TransmitOptionsWidget::createPTTOptionsGroup() {
 	pttOptionsGroup->setFont(QFont("Arial", 8));
 }
 
-
-// ************************************************************************
-
-void TransmitOptionsWidget::inputButtonClicked() {
-
-	AeroButton *button = qobject_cast<AeroButton *>(sender());
-	
-    micInputBtn->setBtnState(AeroButton::OFF);
-    micInputBtn->update();
-    lineInputBtn->setBtnState(AeroButton::OFF);
-    lineInputBtn->update();
-
-	button->setBtnState(AeroButton::ON);
-	button->update();
-}
-
-void TransmitOptionsWidget::boostButtonClicked() {
-
-	if (micBoostBtn->btnState() == AeroButton::OFF) {
-
-		micBoostBtn->setBtnState(AeroButton::ON);
-		micBoostBtn->setText(" On ");
-	}
-	else {
-
-		micBoostBtn->setBtnState(AeroButton::OFF);
-		micBoostBtn->setText(" Off ");
-	}
-}
 
 void TransmitOptionsWidget::closeEvent(QCloseEvent *event) {
 

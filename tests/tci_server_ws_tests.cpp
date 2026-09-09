@@ -3,7 +3,6 @@
 #include <QSignalSpy>
 
 #include "Util/cusdr_tciserver.h"
-#include "Util/cusdr_queue.h"
 #include "Util/SpscRingBuffer.h"
 #include "Util/tci_protocol_utils.h"
 #include "Models/RadioModel.h"
@@ -57,7 +56,6 @@ private:
     Settings *m_settings = nullptr;
     TciServer *m_server = nullptr;
     RadioModel *m_radioModel = nullptr;
-    QHQueue<QVector<double>> m_txQueue;
     SpscRingBuffer<float> m_txRing{8192};
     QWebSocket m_client;
     QStringList m_textMessages;
@@ -65,7 +63,7 @@ private:
 
     bool waitForConnected(int timeoutMs = 5000);
     bool waitForMessageContaining(const QString &needle, int timeoutMs = 5000);
-    void drainTxQueue();
+    void drainTxRing();
 };
 
 void TciServerWsTests::initTestCase()
@@ -82,7 +80,6 @@ void TciServerWsTests::initTestCase()
     m_settings->setRadioModel(m_radioModel);
 
     m_server = new TciServer();
-    m_server->setTransmitAudioQueue(&m_txQueue);
     m_server->setTransmitAudioRing(&m_txRing);
     m_server->bindSlices(m_radioModel);
     QVERIFY(m_server->startListening(0));
@@ -108,7 +105,7 @@ void TciServerWsTests::cleanupTestCase()
 void TciServerWsTests::init()
 {
     m_textMessages.clear();
-    drainTxQueue();
+    drainTxRing();
     m_settings->setRadioState(RadioState::RX);
 
     QObject::disconnect(&m_client, nullptr, this, nullptr);
@@ -130,7 +127,7 @@ void TciServerWsTests::cleanup()
     m_settings->setRadioState(RadioState::RX);
     m_settings->setSystemState(QSDR::NoError, m_settings->getHWInterface(),
                                m_settings->getCurrentServerMode(), QSDR::DataEngineDown);
-    drainTxQueue();
+    drainTxRing();
 }
 
 bool TciServerWsTests::waitForConnected(int timeoutMs)
@@ -149,10 +146,8 @@ bool TciServerWsTests::waitForMessageContaining(const QString &needle, int timeo
     }, timeoutMs);
 }
 
-void TciServerWsTests::drainTxQueue()
+void TciServerWsTests::drainTxRing()
 {
-    while (m_txQueue.count() > 0)
-        m_txQueue.dequeue();
     m_txRing.clear();
 }
 
@@ -236,11 +231,7 @@ void TciServerWsTests::txAudioEnqueuedWhileMox()
     const QByteArray frame = buildTxAudioFrame(samples.constData(), samples.size());
     m_client.sendBinaryMessage(frame);
 
-    QVERIFY(QTest::qWaitFor([this]() { return m_txQueue.count() > 0 && m_txRing.availableRead() >= DSP_SAMPLE_SIZE; }, 3000));
-    const QVector<double> block = m_txQueue.dequeue();
-    QCOMPARE(block.size(), DSP_SAMPLE_SIZE);
-    QVERIFY(block.at(0) >= 0.0);
-    QVERIFY(block.at(DSP_SAMPLE_SIZE - 1) < 1.0);
+    QVERIFY(QTest::qWaitFor([this]() { return m_txRing.availableRead() >= DSP_SAMPLE_SIZE; }, 3000));
 
     float ringBuf[DSP_SAMPLE_SIZE];
     size_t ringRead = m_txRing.read(ringBuf, DSP_SAMPLE_SIZE);
@@ -258,7 +249,7 @@ void TciServerWsTests::txAudioIgnoredWhileRx()
     m_client.sendBinaryMessage(frame);
 
     QTest::qWait(200);
-    QCOMPARE(m_txQueue.count(), 0);
+    QCOMPARE(m_txRing.availableRead(), size_t(0));
 }
 
 void TciServerWsTests::txAudioWsjtOversizedFrameYieldsOneBlock()
@@ -289,11 +280,10 @@ void TciServerWsTests::txAudioWsjtOversizedFrameYieldsOneBlock()
     QCOMPARE(frame.size() - kStreamHeaderBytes, 16384);
 
     m_client.sendBinaryMessage(frame);
-    QVERIFY(QTest::qWaitFor([this]() { return m_txQueue.count() > 0; }, 3000));
-    QCOMPARE(m_txQueue.count(), 1);
-    const QVector<double> block = m_txQueue.dequeue();
-    QCOMPARE(block.size(), DSP_SAMPLE_SIZE);
-    QVERIFY(qAbs(block.at(0) - 0.25) < 1e-5);
+    QVERIFY(QTest::qWaitFor([this]() { return m_txRing.availableRead() >= DSP_SAMPLE_SIZE; }, 3000));
+    float block[DSP_SAMPLE_SIZE];
+    QCOMPARE(static_cast<int>(m_txRing.read(block, DSP_SAMPLE_SIZE)), DSP_SAMPLE_SIZE);
+    QVERIFY(qAbs(block[0] - 0.25f) < 1e-5f);
 }
 
 void TciServerWsTests::vfoOutOfRangeRejected()
@@ -364,9 +354,9 @@ void TciServerWsTests::txAudioAccumulatesAcrossFrames()
     m_client.sendBinaryMessage(buildTxAudioFrame(first.constData(), first.size()));
     m_client.sendBinaryMessage(buildTxAudioFrame(second.constData(), second.size()));
 
-    QVERIFY(QTest::qWaitFor([this]() { return m_txQueue.count() > 0; }, 3000));
-    const QVector<double> block = m_txQueue.dequeue();
-    QCOMPARE(block.size(), DSP_SAMPLE_SIZE);
+    QVERIFY(QTest::qWaitFor([this]() { return m_txRing.availableRead() >= DSP_SAMPLE_SIZE; }, 3000));
+    float block[DSP_SAMPLE_SIZE];
+    QCOMPARE(static_cast<int>(m_txRing.read(block, DSP_SAMPLE_SIZE)), DSP_SAMPLE_SIZE);
 }
 
 void TciServerWsTests::nonTxBinaryStreamIgnored()
@@ -386,7 +376,7 @@ void TciServerWsTests::nonTxBinaryStreamIgnored()
     m_client.sendBinaryMessage(frame);
 
     QTest::qWait(200);
-    QCOMPARE(m_txQueue.count(), 0);
+    QCOMPARE(m_txRing.availableRead(), size_t(0));
 }
 
 void TciServerWsTests::remoteControlChangedOnConnectDisconnect()

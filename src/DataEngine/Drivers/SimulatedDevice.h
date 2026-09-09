@@ -21,10 +21,11 @@
 #define CUDASDR_SIMULATED_DEVICE_H
 
 #include "DataEngine/ISdrDevice.h"
+#include "DataEngine/RxIqIngest.h"
 #include <QObject>
 #include <QVector>
 #include <QMap>
-#include <QMutex>
+#include <QTimer>
 #include <atomic>
 
 /**
@@ -87,7 +88,12 @@ public:
 signals:
     void samplesReady(const QVector<float>& interleavedIq);
 
+private slots:
+    void emitSyntheticRx();
+
 private:
+    int blockIntervalMs() const;
+
     std::atomic<bool> m_running{false};
     std::atomic<bool> m_ptt{false};
     int m_sampleRate = 48000;
@@ -102,9 +108,9 @@ private:
     double m_phase = 0.0;
 
     std::atomic<quint64> m_txSamplesCount{0};
-    RxIqCallback m_rxCallback;
-    mutable QMutex m_rxBufferMutex;
-    QMap<int, QVector<float>> m_rxBuffers;
+    RxIqIngest m_rxIngest;
+    QTimer* m_rxTimer = nullptr;
+    static constexpr int kIqBlockSize = 1024;
 };
 
 #endif // CUDASDR_SIMULATED_DEVICE_H

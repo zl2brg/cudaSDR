@@ -26,12 +26,9 @@
 * Free Software Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02110-1301, USA.
 *
 */
-#define LOG_SLICE_PROCESSOR
-
 // use: SLICE_PROCESSOR_DEBUG
 
 #include "cusdr_sliceProcessor.h"
-#include "DataEngine/ISdrDevice.h"
 #include "QtWDSP/WdspTxChannel.h"
 #include "Util/cusdr_tciserver.h"
 #include <cmath>
@@ -259,25 +256,6 @@ void SliceProcessor::enqueueRxIq(const float* interleavedIq, int numComplexSampl
 void SliceProcessor::enqueueRxIq(const QVector<float> &samples) {
     if (samples.isEmpty()) return;
     enqueueRxIq(samples.constData(), samples.size() / 2);
-}
-
-int SliceProcessor::readFromDevice(ISdrDevice* dev, int maxSamples) {
-    if (!dev || maxSamples <= 0) return 0;
-    constexpr int kMaxStackSamples = 2048;
-    if (maxSamples <= kMaxStackSamples) {
-        float stackBuf[kMaxStackSamples * 2];
-        int read = dev->readRxIq(m_receiver, stackBuf, maxSamples);
-        if (read > 0) {
-            enqueueRxIq(stackBuf, read);
-        }
-        return read;
-    }
-    std::vector<float> buf(maxSamples * 2);
-    int read = dev->readRxIq(m_receiver, buf.data(), maxSamples);
-    if (read > 0) {
-        enqueueRxIq(buf.data(), read);
-    }
-    return read;
 }
 
 void SliceProcessor::setSoapyInputSampleRate(int value) {

@@ -9,6 +9,7 @@
 #define SMETER_RENDERER_H
 
 #include <QMatrix4x4>
+#include <QtMath>
 #include <QtOpenGL/QOpenGLFramebufferObject>
 
 class OGLDisplayPanel;
@@ -23,6 +24,18 @@ public:
     void drawSMeterNeedle(const QMatrix4x4 &projection, int x1);
     void drawSMeterScaleLabels(const QMatrix4x4 &projection, int xOffset);
     void invalidateFBO();
+
+    /** Pixels per dB for a scale spanning [minDb, maxDb] over width pixels. */
+    static qreal unitForRange(qreal width, qreal minDb, qreal maxDb)
+    {
+        const qreal range = qAbs(maxDb - minDb);
+        return (range > 0.0) ? (width / range) : 0.0;
+    }
+    /** X offset of an absolute dBm value from the left edge of the scale. */
+    static float xForDbm(qreal dbm, qreal minDb, qreal unit)
+    {
+        return float((dbm - minDb) * unit);
+    }
 
 private:
     OGLDisplayPanel *m_panel;

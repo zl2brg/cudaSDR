@@ -6,6 +6,7 @@
 
 #include <QTemporaryFile>
 #include <QTemporaryDir>
+#include <QSettings>
 
 #include "cusdr_settings.h"
 #include "Models/RadioModel.h"
@@ -38,6 +39,7 @@ private slots:
     void testHardwareConfigJson();
     void testAlexConfigJson();
     void testTransmitConfigJson();
+    void testTransmitConfigIniMicMigration();
     void testFreeDVConfigJson();
     void testWindowConfigJson();
     void testTciConfigJson();
@@ -652,6 +654,42 @@ void ConfigJsonTests::testTransmitConfigJson() {
     QCOMPARE(config2.txEqBands().value(0), 3);
     QCOMPARE(config2.cfcEnabled(), true);
     QCOMPARE(config2.cfcLevels().value(1), 4.0);
+}
+
+void ConfigJsonTests::testTransmitConfigIniMicMigration() {
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+
+    {
+        QSettings ini(dir.filePath(QStringLiteral("legacy-hpsdr.ini")), QSettings::IniFormat);
+        ini.setValue(QStringLiteral("mic_InputDevice"), 0);
+        ini.sync();
+        TransmitConfig cfg;
+        cfg.loadIni(&ini);
+        QCOMPARE(cfg.micInputDev(), 0);
+        QCOMPARE(cfg.micInputSourceName(), QStringLiteral("hpsdr-local"));
+    }
+
+    {
+        QSettings ini(dir.filePath(QStringLiteral("empty-name-hpsdr.ini")), QSettings::IniFormat);
+        ini.setValue(QStringLiteral("mic_InputDevice"), 0);
+        ini.setValue(QStringLiteral("mic_input_source"), QString());
+        ini.sync();
+        TransmitConfig cfg;
+        cfg.loadIni(&ini);
+        QCOMPARE(cfg.micInputDev(), 0);
+        QCOMPARE(cfg.micInputSourceName(), QStringLiteral("hpsdr-local"));
+    }
+
+    {
+        QSettings ini(dir.filePath(QStringLiteral("host-mic.ini")), QSettings::IniFormat);
+        ini.setValue(QStringLiteral("mic_InputDevice"), 1);
+        ini.sync();
+        TransmitConfig cfg;
+        cfg.loadIni(&ini);
+        QCOMPARE(cfg.micInputDev(), 1);
+        QCOMPARE(cfg.micInputSourceName(), QStringLiteral("default"));
+    }
 }
 
 void ConfigJsonTests::testFreeDVConfigJson() {

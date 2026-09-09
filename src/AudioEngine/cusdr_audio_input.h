@@ -13,8 +13,8 @@
 #include <QIODevice>
 
 #include "cusdr_settings.h"
-#include "Util/cusdr_queue.h"
 #include "Util/SpscRingBuffer.h"
+#include <vector>
 
 #ifndef CUDASDR_CUSDR_AUDIO_INPUT_H
 #define CUDASDR_CUSDR_AUDIO_INPUT_H
@@ -22,10 +22,6 @@
 
 #define AUDIO_FRAMESIZE  1024
 #define AUDIO_IN_PACKET_SIZE 4096//2048
-
-// Bound TX mic queues so capture can never build multi-minute latency.
-// 16 blocks × 1024 @ 48 kHz ≈ 341 ms of cushion for scheduling jitter.
-#define TX_MIC_QUEUE_MAX_BLOCKS 16
 
 #define LOG_AUDIO_INPUT
 
@@ -54,13 +50,7 @@ public:
     
 public:
     QStringList paDeviceList;
-    QHQueue<QByteArray> m_audioInQueue;
     AUDIOBUF  audioinputBuffer;
-    QHQueue<AUDIOBUF> m_faudioInQueue;
-    // Network mic audio (from a remote TCI/browser client). Filled by TciServer
-    // (socket thread), drained by the DataProcessor thread. When non-empty it
-    // takes over the TX mic input; otherwise the local soundcard queue is used.
-    QHQueue<AUDIOBUF> m_netAudioInQueue;
 
     // Lock-free single-producer single-consumer circular buffers for mic audio
     SpscRingBuffer<float> m_faudioRing{16384};
@@ -70,8 +60,12 @@ public:
     void pushNetAudio(const float* samples, size_t count);
     size_t readMicAudio(float* dest, size_t count);
     size_t readNetAudio(float* dest, size_t count);
-    size_t micAudioAvailable() const { return m_faudioRing.availableRead(); }
-    size_t netAudioAvailable() const { return m_netAudioRing.availableRead(); }
+    bool readMicAudioBlock(float* dest, size_t count);
+    bool readNetAudioBlock(float* dest, size_t count);
+    size_t micAudioAvailable() const { return m_faudioRing.availableRead() + m_micFetchResidual.size(); }
+    size_t netAudioAvailable() const { return m_netAudioRing.availableRead() + m_netFetchResidual.size(); }
+    bool hasPendingNetAudio() const { return netAudioAvailable() > 0; }
+    bool hasPendingMicAudio() const { return micAudioAvailable() > 0; }
 
 signals:
     void tx_mic_data_ready();
@@ -97,6 +91,8 @@ private:
     QMutex              m_mutex;
     bool                m_running;
     QVector<float>      m_residualBuffer;
+    std::vector<float>  m_micFetchResidual;
+    std::vector<float>  m_netFetchResidual;
     int                 m_sampleRate;
     int                 m_bufferSize;
     int                 m_deviceIndex;

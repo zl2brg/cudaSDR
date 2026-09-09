@@ -23,7 +23,6 @@
 
 #include "cusdr_hamDatabase.h"
 #include "Settings/SettingsTypes.h"
-#include "Util/cusdr_queue.h"
 #include "Util/SpscRingBuffer.h"
 #include "Util/tci_protocol_utils.h"
 #include "Util/TciRoutingState.h"
@@ -60,7 +59,7 @@ public:
     int clientCount() const { return m_clients.size(); }
 
     /** True while a TCI client is keyed and we are clocking TX_CHRONO.
-     *  During this window TX mic audio must come from the network queue only. */
+     *  During this window TX mic audio must come from the network ring only. */
     bool isTxChronoActive() const { return m_txChronoClient != nullptr; }
 
     /** Linear gains applied to TCI RX audio out and TX mic in (1.0 = unity). */
@@ -74,11 +73,6 @@ public:
 
     /** Connect to SliceModel S-meter updates (call after RadioModel is ready). */
     void bindSlices(RadioModel *radioModel);
-
-    /** Hand the transmit path's network-mic queue to the server so received
-     *  TX-audio frames can be enqueued for the DSP transmit path. The queue is
-     *  owned by TransmitAudioInput and is thread-safe (QHQueue). */
-    void setTransmitAudioQueue(QHQueue<QVector<double>> *queue) { m_txAudioQueue = queue; }
 
     /** Hand the transmit path's lock-free network-mic ring buffer to the server. */
     void setTransmitAudioRing(SpscRingBuffer<float> *ring) { m_txAudioRing = ring; }
@@ -232,11 +226,6 @@ private:
 
     static constexpr int WATCHDOG_TIMEOUT_MS = 30000;
 
-    // Bound the transmit-mic queue backlog (in DSP blocks) so a client sending
-    // TX audio faster than the DSP transmit path drains can never build TX
-    // latency nor block the socket thread. Keep in sync with TX_MIC_QUEUE_MAX_BLOCKS.
-    static constexpr int kTxAudioMaxQueueBlocks = 16;
-
     // TX_CHRONO steady-state period matches one WSJT geometric TX reply at 48 kHz:
     // length=2048 float stereo pairs → 1024 mono samples → 1024/48000 s ≈ 21.3 ms.
     // Priming burst in startTxChrono() is separate; do not shorten this period.
@@ -262,14 +251,11 @@ private:
     float             m_rxGain = 1.0f;
     float             m_txGain = 1.0f;
 
-    // Transmit (mic) audio received from clients. The queue is owned by
-    // TransmitAudioInput; the residual accumulates decoded mono samples so we
-    // enqueue exactly DSP_SAMPLE_SIZE blocks (matching the local mic path).
-    QHQueue<QVector<double>> *m_txAudioQueue = nullptr;
+    // Transmit (mic) audio received from clients is written to the lock-free
+    // ring owned by TransmitAudioInput.
     SpscRingBuffer<float>    *m_txAudioRing = nullptr;
     std::array<SpscRingBuffer<float>*, 8> m_rxAudioRings{};
     std::vector<float>        m_tciAudioDrainBuffer;
-    QVector<double>          m_txAudioResidual;
     TciRoutingState          m_routingState;
     TciCommandHandler        m_commandHandler{&m_routingState};
 

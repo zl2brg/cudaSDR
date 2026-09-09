@@ -7,8 +7,6 @@
 
 TransmitAudioInput::TransmitAudioInput(QObject *parent) 
     : QObject(parent)
-    , m_faudioInQueue(TX_MIC_QUEUE_MAX_BLOCKS)
-    , m_netAudioInQueue(TX_MIC_QUEUE_MAX_BLOCKS)
     , set(Settings::instance())
     , m_audioSource(nullptr)
     , m_audioInputDevice(nullptr)
@@ -428,12 +426,22 @@ size_t TransmitAudioInput::readNetAudio(float* dest, size_t count)
     return m_netAudioRing.read(dest, count);
 }
 
+bool TransmitAudioInput::readMicAudioBlock(float* dest, size_t count)
+{
+    return spscReadBlock(m_faudioRing, m_micFetchResidual, dest, count);
+}
+
+bool TransmitAudioInput::readNetAudioBlock(float* dest, size_t count)
+{
+    return spscReadBlock(m_netAudioRing, m_netFetchResidual, dest, count);
+}
+
 void TransmitAudioInput::clearTxQueues()
 {
     m_faudioRing.clear();
     m_netAudioRing.clear();
-    m_faudioInQueue.clear();
-    m_netAudioInQueue.clear();
     m_residualBuffer.clear();
+    m_micFetchResidual.clear();
+    m_netFetchResidual.clear();
 }
 

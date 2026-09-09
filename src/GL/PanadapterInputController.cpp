@@ -611,38 +611,29 @@ void PanadapterInputController::handleMouseMove(QMouseEvent* event) {
 
             if (m_panel->m_dragMouse && (event->buttons() == Qt::LeftButton)) {
                 QPoint dPos = m_panel->m_mouseDownPos - m_panel->m_mousePos;
-                qreal unit = m_panel->displayedFrequencySpanHz() / m_panel->m_freqScalePanRect.width();
-                qreal deltaFreq = unit * dPos.x();
-
-                long newFrequency = m_panel->m_centerFrequency + deltaFreq;
-                if (newFrequency > m_panel->set->getMaxFrequency())
-                    newFrequency = m_panel->set->getMaxFrequency();
-                else if (newFrequency < m_panel->set->getMinFrequency())
-                    newFrequency = m_panel->set->getMinFrequency();
-                else if (newFrequency + deltaFreq < 0)
-                    newFrequency = 0;
-                else {
-                    if (m_panel->m_panLocked) {
-                        if (m_panel->m_vfoFrequency > m_panel->m_centerFrequency + m_panel->m_sampleRate/2)
-                            m_panel->m_vfoFrequency = m_panel->m_centerFrequency + m_panel->m_sampleRate/2;
-                        else if (m_panel->m_vfoFrequency < m_panel->m_centerFrequency - m_panel->m_sampleRate/2)
-                            m_panel->m_vfoFrequency = m_panel->m_centerFrequency - m_panel->m_sampleRate/2;
-
-                        m_panel->m_vfoFrequency -= deltaFreq;
-                    }
-                    else {
-                        m_panel->m_centerFrequency += deltaFreq;
-                    }
-                }
 
                 if (m_panel->m_panLocked) {
+                    qreal unit = m_panel->displayedFrequencySpanHz() / m_panel->m_freqScalePanRect.width();
+                    qreal deltaFreq = unit * dPos.x();
+                    if (m_panel->m_vfoFrequency > m_panel->m_centerFrequency + m_panel->m_sampleRate/2)
+                        m_panel->m_vfoFrequency = m_panel->m_centerFrequency + m_panel->m_sampleRate/2;
+                    else if (m_panel->m_vfoFrequency < m_panel->m_centerFrequency - m_panel->m_sampleRate/2)
+                        m_panel->m_vfoFrequency = m_panel->m_centerFrequency - m_panel->m_sampleRate/2;
+
+                    m_panel->m_vfoFrequency -= deltaFreq;
                     m_panel->set->setVFOFrequency(0, m_panel->m_receiver, m_panel->m_vfoFrequency);
                     m_panel->m_deltaFrequency = m_panel->m_centerFrequency - m_panel->m_vfoFrequency;
                     m_panel->m_deltaF = (qreal)(1.0 * m_panel->m_deltaFrequency / m_panel->m_sampleRate);
                     m_panel->m_freqScalePanadapterUpdate = true;
                     m_panel->m_panGridUpdate = true;
-                }
-                else {
+                } else {
+                    m_panel->m_centerFrequency = calculatePanDragCenterFreq(
+                        m_panel->m_centerFrequency,
+                        dPos.x(),
+                        m_panel->displayedFrequencySpanHz(),
+                        m_panel->m_freqScalePanRect.width(),
+                        m_panel->set->getMinFrequency(),
+                        m_panel->set->getMaxFrequency());
                     m_panel->m_vfoFrequency = m_panel->m_centerFrequency - m_panel->m_deltaFrequency;
                     m_panel->m_freqScalePanadapterUpdate = true;
                     m_panel->m_panGridUpdate = true;
@@ -669,17 +660,19 @@ void PanadapterInputController::handleMouseMove(QMouseEvent* event) {
             if (event->buttons() == Qt::LeftButton) {
                 m_panel->m_dragDBmScale = true;
                 QPoint dPos = m_panel->m_mouseDownPos - m_panel->m_mousePos;
-                qreal unit = (qreal)(qAbs(m_panel->m_dBmPanMax - m_panel->m_dBmPanMin) / m_panel->m_panRect.height()) * 1.5;
-
-                qreal newMin = m_panel->m_dBmPanMin - unit * dPos.y();
-                qreal newMax = m_panel->m_dBmPanMax - unit * dPos.y();
-
-                if (newMin > MINDBM && newMax < MAXDBM) {
-                    m_panel->m_dBmPanMin = newMin;
-                    m_panel->m_dBmPanMax = newMax;
-                    m_panel->set->setdBmPanScaleMin(m_panel->m_receiver, m_panel->m_dBmPanMin);
-                    m_panel->set->setdBmPanScaleMax(m_panel->m_receiver, m_panel->m_dBmPanMax);
-                }
+                qreal newMin = m_panel->m_dBmPanMin;
+                qreal newMax = m_panel->m_dBmPanMax;
+                calculateDbmScaleDrag(
+                    dPos.y(),
+                    m_panel->m_panRect.height(),
+                    m_panel->m_dBmPanMin,
+                    m_panel->m_dBmPanMax,
+                    newMin,
+                    newMax);
+                m_panel->m_dBmPanMin = newMin;
+                m_panel->m_dBmPanMax = newMax;
+                m_panel->set->setdBmPanScaleMin(m_panel->m_receiver, m_panel->m_dBmPanMin);
+                m_panel->set->setdBmPanScaleMax(m_panel->m_receiver, m_panel->m_dBmPanMax);
 
                 m_panel->m_mouseDownPos = m_panel->m_mousePos;
                 m_panel->m_dBmScalePanadapterUpdate = true;
@@ -758,19 +751,13 @@ void PanadapterInputController::handleMouseMove(QMouseEvent* event) {
             }
             else if (event->buttons() == Qt::LeftButton) {
                 QPoint dPos = m_panel->m_mouseDownPos - m_panel->m_mousePos;
-                qreal unit = m_panel->displayedFrequencySpanHz() / m_panel->m_freqScalePanRect.width();
-                qreal deltaFreq = unit * dPos.x();
-
-                long newFrequency = m_panel->m_centerFrequency + deltaFreq;
-                if (newFrequency > m_panel->set->getMaxFrequency())
-                    newFrequency = m_panel->set->getMaxFrequency();
-                else if (newFrequency < m_panel->set->getMinFrequency())
-                    newFrequency = m_panel->set->getMinFrequency();
-                else if (newFrequency + deltaFreq < 0)
-                    newFrequency = 0;
-                else {
-                    m_panel->m_centerFrequency += deltaFreq;
-                }
+                m_panel->m_centerFrequency = calculatePanDragCenterFreq(
+                    m_panel->m_centerFrequency,
+                    dPos.x(),
+                    m_panel->displayedFrequencySpanHz(),
+                    m_panel->m_freqScalePanRect.width(),
+                    m_panel->set->getMinFrequency(),
+                    m_panel->set->getMaxFrequency());
 
                 if (!m_panel->m_panLocked) {
                     m_panel->m_vfoFrequency = m_panel->m_centerFrequency - m_panel->m_deltaFrequency;
@@ -780,17 +767,8 @@ void PanadapterInputController::handleMouseMove(QMouseEvent* event) {
                 else {
                     m_panel->m_deltaFrequency = m_panel->m_centerFrequency - m_panel->m_vfoFrequency;
                     m_panel->m_deltaF = (qreal)(1.0 * m_panel->m_deltaFrequency / m_panel->m_sampleRate);
-
-                    if (m_panel->m_sliceModel) {
-                        m_panel->m_sliceModel->setCenterFrequency(m_panel->m_centerFrequency);
-                        m_panel->set->setNCOFrequency(true, m_panel->m_receiver, -m_panel->m_deltaFrequency);
-                    } else {
-                        qreal vol = m_panel->set->getMainVolume(m_panel->m_receiver);
-                        m_panel->set->setMainVolume(m_panel->m_receiver, 0.0f);
-                        m_panel->set->setCtrFrequency(0, m_panel->m_receiver, m_panel->m_centerFrequency);
-                        m_panel->set->setNCOFrequency(true, m_panel->m_receiver, -m_panel->m_deltaFrequency);
-                        m_panel->set->setMainVolume(m_panel->m_receiver, vol);
-                    }
+                    m_panel->set->setCtrFrequency(0, m_panel->m_receiver, m_panel->m_centerFrequency);
+                    m_panel->set->setNCOFrequency(true, m_panel->m_receiver, -m_panel->m_deltaFrequency);
                 }
 
                 m_panel->m_mouseDownPos = m_panel->m_mousePos;
@@ -830,8 +808,20 @@ void PanadapterInputController::handleMouseMove(QMouseEvent* event) {
             m_panel->m_showFilterLeftBoundary = true;
             if (event->buttons() == Qt::LeftButton) {
                 QPoint dPos = m_panel->m_mouseDownPos - m_panel->m_mousePos;
-                qreal dFreq = dPos.x() * m_panel->displayedFrequencySpanHz() / m_panel->m_panRect.width();
-                m_panel->m_filterLowerFrequency = qRound(m_panel->m_mouseDownFilterFrequencyLo - dFreq);
+                qreal outLo = m_panel->m_filterLowerFrequency;
+                qreal outHi = m_panel->m_filterUpperFrequency;
+                calculateFilterDragEdges(
+                    dPos.x(),
+                    m_panel->displayedFrequencySpanHz(),
+                    m_panel->m_panRect.width(),
+                    m_panel->m_mouseDownFilterFrequencyLo,
+                    m_panel->m_mouseDownFilterFrequencyHi,
+                    true,
+                    false,
+                    outLo,
+                    outHi);
+                m_panel->m_filterLowerFrequency = outLo;
+                m_panel->m_filterUpperFrequency = outHi;
                 m_panel->set->setRXFilter(m_panel->m_receiver, m_panel->m_filterLowerFrequency, m_panel->m_filterUpperFrequency);
             }
             m_panel->m_highlightFilter = false;
@@ -843,8 +833,20 @@ void PanadapterInputController::handleMouseMove(QMouseEvent* event) {
             m_panel->m_showFilterRightBoundary = true;
             if (event->buttons() == Qt::LeftButton) {
                 QPoint dPos = m_panel->m_mouseDownPos - m_panel->m_mousePos;
-                qreal dFreq = dPos.x() * m_panel->displayedFrequencySpanHz() / m_panel->m_panRect.width();
-                m_panel->m_filterUpperFrequency = qRound(m_panel->m_mouseDownFilterFrequencyHi - dFreq);
+                qreal outLo = m_panel->m_filterLowerFrequency;
+                qreal outHi = m_panel->m_filterUpperFrequency;
+                calculateFilterDragEdges(
+                    dPos.x(),
+                    m_panel->displayedFrequencySpanHz(),
+                    m_panel->m_panRect.width(),
+                    m_panel->m_mouseDownFilterFrequencyLo,
+                    m_panel->m_mouseDownFilterFrequencyHi,
+                    false,
+                    true,
+                    outLo,
+                    outHi);
+                m_panel->m_filterLowerFrequency = outLo;
+                m_panel->m_filterUpperFrequency = outHi;
                 m_panel->set->setRXFilter(m_panel->m_receiver, m_panel->m_filterLowerFrequency, m_panel->m_filterUpperFrequency);
             }
             m_panel->m_highlightFilter = false;
@@ -858,9 +860,20 @@ void PanadapterInputController::handleMouseMove(QMouseEvent* event) {
             if (event->buttons() == Qt::LeftButton) {
                 m_panel->m_highlightFilter = true;
                 QPoint dPos = m_panel->m_mouseDownPos - m_panel->m_mousePos;
-                qreal dFreq = dPos.x() * m_panel->displayedFrequencySpanHz() / m_panel->m_panRect.width();
-                m_panel->m_filterUpperFrequency = qRound(m_panel->m_mouseDownFilterFrequencyHi - dFreq);
-                m_panel->m_filterLowerFrequency = qRound(m_panel->m_mouseDownFilterFrequencyLo - dFreq);
+                qreal outLo = m_panel->m_filterLowerFrequency;
+                qreal outHi = m_panel->m_filterUpperFrequency;
+                calculateFilterDragEdges(
+                    dPos.x(),
+                    m_panel->displayedFrequencySpanHz(),
+                    m_panel->m_panRect.width(),
+                    m_panel->m_mouseDownFilterFrequencyLo,
+                    m_panel->m_mouseDownFilterFrequencyHi,
+                    true,
+                    true,
+                    outLo,
+                    outHi);
+                m_panel->m_filterLowerFrequency = outLo;
+                m_panel->m_filterUpperFrequency = outHi;
                 m_panel->set->setRXFilter(m_panel->m_receiver, m_panel->m_filterLowerFrequency, m_panel->m_filterUpperFrequency);
             }
             m_panel->m_showFilterLeftBoundary = false;
@@ -889,36 +902,32 @@ void PanadapterInputController::handleWheel(QWheelEvent* event) {
         case QGLReceiverPanel::filterRegion:
         case QGLReceiverPanel::filterRegionLow:
         case QGLReceiverPanel::filterRegionHigh: {
-            double delta = 0;
-            if (event->angleDelta().y() < 0)
-                delta = -freqStep;
-            else if (event->angleDelta().y() > 0)
-                delta = freqStep;
-
-            if (!m_panel->m_panLocked) {
-                if (m_panel->m_centerFrequency + delta > m_panel->set->getMaxFrequency())
-                    m_panel->m_centerFrequency = m_panel->set->getMaxFrequency();
-                else if (m_panel->m_centerFrequency + delta < m_panel->set->getMinFrequency())
-                    m_panel->m_centerFrequency = m_panel->set->getMinFrequency();
-                else
-                    m_panel->m_centerFrequency = (long)(qRound((m_panel->m_centerFrequency + delta) / qAbs(freqStep)) * qAbs(freqStep));
-
-                m_panel->m_vfoFrequency = m_panel->m_centerFrequency - m_panel->m_deltaFrequency;
-            }
-            else {
-                if (m_panel->m_vfoFrequency + delta > m_panel->m_centerFrequency + m_panel->m_sampleRate/2)
-                    m_panel->m_vfoFrequency = m_panel->m_centerFrequency + m_panel->m_sampleRate/2;
-                else if (m_panel->m_vfoFrequency + delta < m_panel->m_centerFrequency - m_panel->m_sampleRate/2)
-                    m_panel->m_vfoFrequency = m_panel->m_centerFrequency - m_panel->m_sampleRate/2;
-                else
-                    m_panel->m_vfoFrequency = (long)(qRound((m_panel->m_vfoFrequency + delta) / qAbs(freqStep)) * qAbs(freqStep));
-
+            qint64 minF = m_panel->set->getMinFrequency();
+            qint64 maxF = m_panel->set->getMaxFrequency();
+            if (m_panel->m_panLocked) {
+                minF = qMax(minF, m_panel->m_centerFrequency - m_panel->m_sampleRate / 2);
+                maxF = qMin(maxF, m_panel->m_centerFrequency + m_panel->m_sampleRate / 2);
+                m_panel->m_vfoFrequency = calculateWheelFrequency(
+                    m_panel->m_vfoFrequency,
+                    event->angleDelta().y(),
+                    freqStep,
+                    minF,
+                    maxF);
                 m_panel->m_deltaFrequency = m_panel->m_centerFrequency - m_panel->m_vfoFrequency;
                 m_panel->m_deltaF = (qreal)(1.0 * m_panel->m_deltaFrequency / m_panel->m_sampleRate);
+            } else {
+                m_panel->m_centerFrequency = calculateWheelFrequency(
+                    m_panel->m_centerFrequency,
+                    event->angleDelta().y(),
+                    freqStep,
+                    minF,
+                    maxF);
+                m_panel->m_vfoFrequency = m_panel->m_centerFrequency - m_panel->m_deltaFrequency;
             }
 
             m_panel->set->setCtrFrequency(0, m_panel->m_receiver, m_panel->m_centerFrequency);
             m_panel->set->setVFOFrequency(0, m_panel->m_receiver, m_panel->m_vfoFrequency);
+            m_panel->update();
             break;
         }
         default:

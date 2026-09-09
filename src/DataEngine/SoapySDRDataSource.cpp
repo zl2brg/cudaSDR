@@ -1415,6 +1415,18 @@ void SoapySDRDataSource::setFrequency(int rx, qint64 frequency) {
     m_freqPending.store(true, std::memory_order_release);
 }
 
+void SoapySDRDataSource::setRxGain(int rx, double gainDb)
+{
+    Q_UNUSED(rx)
+    if (!m_device)
+        return;
+    try {
+        m_device->setGain(SOAPY_SDR_RX, 0, gainDb);
+    } catch (const std::exception &e) {
+        qWarning() << "SoapySDRDataSource: setRxGain failed:" << e.what();
+    }
+}
+
 void SoapySDRDataSource::setupResamplers(int rxRfRate, int rxDspRate, int txRfRate, int txDspRate) {
     // Destroy previous polyphase filters
     if (m_rxDecim1) { firdecim_crcf_destroy(m_rxDecim1); m_rxDecim1 = nullptr; } m_rxD1 = 0;

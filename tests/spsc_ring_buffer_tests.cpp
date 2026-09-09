@@ -22,6 +22,8 @@ private slots:
     void testWrapAroundWriteRead();
     void testWriteFullRejection();
     void testWriteDropOldest();
+    void testWriteDropOldestPeekWithoutConsumerHeal();
+    void testSpscReadBlock();
     void testPeekContiguousAndAdvance();
     void testClear();
     void testConcurrentProducerConsumerStress();
@@ -163,6 +165,50 @@ void SpscRingBufferTests::testWriteDropOldest()
         QCOMPARE(out[i], 4 + i);
     }
     QVERIFY(buf.isEmpty());
+}
+
+void SpscRingBufferTests::testWriteDropOldestPeekWithoutConsumerHeal()
+{
+    SpscRingBuffer<int> buf(16);
+    int initial[16];
+    std::iota(std::begin(initial), std::end(initial), 0);
+    QCOMPARE(buf.write(initial, 16), size_t(16));
+
+    int extra[4] = {16, 17, 18, 19};
+    QCOMPARE(buf.writeDropOldest(extra, 4), size_t(4));
+    QCOMPARE(buf.availableRead(), size_t(16));
+
+    size_t contiguous = 0;
+    const int* peek = buf.peekContiguous(contiguous);
+    QVERIFY(peek != nullptr);
+    QCOMPARE(contiguous, size_t(12));
+    QCOMPARE(peek[0], 4);
+
+    int out[16] = {0};
+    QCOMPARE(buf.read(out, 16), size_t(16));
+    for (int i = 0; i < 16; ++i)
+        QCOMPARE(out[i], 4 + i);
+}
+
+void SpscRingBufferTests::testSpscReadBlock()
+{
+    SpscRingBuffer<float> ring(32);
+    std::vector<float> residual;
+    float block[8];
+
+    float first[5] = {1.f, 2.f, 3.f, 4.f, 5.f};
+    QCOMPARE(ring.write(first, 5), size_t(5));
+    QVERIFY(!spscReadBlock(ring, residual, block, 8));
+    QCOMPARE(residual.size(), size_t(5));
+
+    float second[3] = {6.f, 7.f, 8.f};
+    QCOMPARE(ring.write(second, 3), size_t(3));
+    QVERIFY(spscReadBlock(ring, residual, block, 8));
+    QCOMPARE(residual.size(), size_t(0));
+    for (int i = 0; i < 8; ++i)
+        QCOMPARE(block[i], static_cast<float>(i + 1));
+
+    QVERIFY(!spscReadBlock(ring, residual, block, 8));
 }
 
 void SpscRingBufferTests::testPeekContiguousAndAdvance()

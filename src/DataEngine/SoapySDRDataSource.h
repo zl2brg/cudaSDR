@@ -35,6 +35,7 @@ public slots:
     void runStream();
     void setSampleRate(int value);
     void setFrequency(int rx, qint64 frequency);
+    void setRxGain(int rx, double gainDb);
 
 private:
     struct RfRatePlan {

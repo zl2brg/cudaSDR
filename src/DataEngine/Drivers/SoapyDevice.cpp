@@ -22,6 +22,9 @@
 #include "DataEngine/cusdr_dataEngine.h"
 #include "DataEngine/cusdr_dataIO.h"
 
+#include <algorithm>
+#include <cstring>
+
 #ifdef HAVE_SOAPYSDR
 #include "DataEngine/SoapySDRDataSource.h"
 #endif
@@ -119,6 +122,12 @@ bool SoapyDevice::setTxGain(double gainDb)
 bool SoapyDevice::setRxGain(int rx, double gainDb)
 {
     m_rxGains[rx] = gainDb;
+#ifdef HAVE_SOAPYSDR
+    if (m_source) {
+        m_source->setRxGain(rx, gainDb);
+    }
+#endif
+    Settings::instance()->setSoapyOverallGain(qRound(gainDb));
     return true;
 }
 
@@ -152,7 +161,7 @@ void SoapyDevice::sendTxIq(const float* buffer, int count)
 
 void SoapyDevice::setRxIqCallback(RxIqCallback callback)
 {
-    m_rxCallback = std::move(callback);
+    m_rxIngest.setCallback(std::move(callback));
 }
 
 int SoapyDevice::readRxIq(int rx, float* destination, int maxSamples)
@@ -161,20 +170,9 @@ int SoapyDevice::readRxIq(int rx, float* destination, int maxSamples)
         return 0;
     }
 
-    {
-        QMutexLocker locker(&m_rxBufferMutex);
-        auto it = m_rxBuffers.find(rx);
-        if (it != m_rxBuffers.end() && !it.value().isEmpty()) {
-            auto& buf = it.value();
-            const int available = buf.size() / 2;
-            const int toCopy = std::min(maxSamples, available);
-            std::memcpy(destination, buf.constData(), toCopy * 2 * sizeof(float));
-            buf.remove(0, toCopy * 2);
-            if (m_rxCallback) {
-                m_rxCallback(rx, destination, toCopy);
-            }
-            return toCopy;
-        }
+    const int fromBuffer = m_rxIngest.read(rx, destination, maxSamples);
+    if (fromBuffer > 0) {
+        return fromBuffer;
     }
 
     if (!m_engine || !m_engine->m_dataIO) {
@@ -187,31 +185,19 @@ int SoapyDevice::readRxIq(int rx, float* destination, int maxSamples)
 
     QVector<float> samples = m_engine->m_dataIO->soapy_iq_queue.dequeue();
     const int available = samples.size() / 2;
-    const int toCopy = std::min(maxSamples, available);
-    std::memcpy(destination, samples.constData(), toCopy * 2 * sizeof(float));
+    if (available <= 0) {
+        return 0;
+    }
 
-    if (m_rxCallback) {
-        m_rxCallback(rx, destination, toCopy);
+    const int toCopy = std::min(maxSamples, available);
+    std::memcpy(destination, samples.constData(), static_cast<size_t>(toCopy) * 2 * sizeof(float));
+    if (available > toCopy) {
+        m_rxIngest.append(rx, samples.constData() + toCopy * 2, available - toCopy);
     }
     return toCopy;
 }
 
 void SoapyDevice::notifyRxIq(int rx, const float* buffer, int count)
 {
-    if (!buffer || count <= 0) return;
-
-    {
-        QMutexLocker locker(&m_rxBufferMutex);
-        auto& q = m_rxBuffers[rx];
-        if (q.size() > 16384 * 2) {
-            q.remove(0, count * 2);
-        }
-        const int oldSize = q.size();
-        q.resize(oldSize + count * 2);
-        std::memcpy(q.data() + oldSize, buffer, count * 2 * sizeof(float));
-    }
-
-    if (m_rxCallback) {
-        m_rxCallback(rx, buffer, count);
-    }
+    m_rxIngest.notify(rx, buffer, count);
 }

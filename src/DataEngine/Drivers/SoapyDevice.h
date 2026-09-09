@@ -21,9 +21,9 @@
 #define CUDASDR_SOAPY_DEVICE_H
 
 #include "DataEngine/ISdrDevice.h"
+#include "DataEngine/RxIqIngest.h"
 #include <QObject>
 #include <QMap>
-#include <QMutex>
 #include <atomic>
 
 class SoapySDRDataSource;
@@ -83,9 +83,7 @@ private:
     QMap<int, qint64> m_rxFrequencies;
     QMap<int, double> m_rxGains;
     double m_txGain = 0.0;
-    RxIqCallback m_rxCallback;
-    mutable QMutex m_rxBufferMutex;
-    QMap<int, QVector<float>> m_rxBuffers;
+    RxIqIngest m_rxIngest;
 };
 
 #endif // CUDASDR_SOAPY_DEVICE_H

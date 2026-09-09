@@ -541,11 +541,10 @@ void DataEngineThreadFactory::createAudioInputProcessor() {
 
     m_engine->m_audioInput = new TransmitAudioInput();
 
-    // Give the TCI server the network-mic queue so remote client TX audio can
+    // Give the TCI server the network-mic ring so remote client TX audio can
     // be injected into the transmit path (network audio takes over the mic
     // input when frames arrive; see DataProcessor::fetch_MicData).
     if (m_engine->set && m_engine->set->tciServer()) {
-        m_engine->set->tciServer()->setTransmitAudioQueue(&m_engine->m_audioInput->m_netAudioInQueue);
         m_engine->set->tciServer()->setTransmitAudioRing(&m_engine->m_audioInput->m_netAudioRing);
     }
 

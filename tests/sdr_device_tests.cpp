@@ -10,6 +10,7 @@ class SdrDeviceTests : public QObject {
 private slots:
     void testDeviceCapabilities();
     void testSimulatedDeviceLifecycle();
+    void testSimulatedDeviceStartPushesIq();
     void testSimulatedDeviceSampleRateAndFreq();
     void testSimulatedDeviceGainsAndPtt();
     void testSyntheticSampleGeneration();
@@ -62,6 +63,28 @@ void SdrDeviceTests::testSimulatedDeviceLifecycle()
     // Idempotent stop
     sim.stop();
     QVERIFY(!sim.isRunning());
+}
+
+void SdrDeviceTests::testSimulatedDeviceStartPushesIq()
+{
+    SimulatedDevice sim;
+    int callbackCount = 0;
+    int callbackSamples = 0;
+    sim.setRxIqCallback([&](int rx, const float* data, int count) {
+        Q_UNUSED(rx)
+        QVERIFY(data != nullptr);
+        callbackCount++;
+        callbackSamples = count;
+    });
+
+    QVERIFY(sim.start());
+    QVERIFY(QTest::qWaitFor([&]() { return callbackCount > 0; }, 500));
+    QVERIFY(callbackCount >= 1);
+    QCOMPARE(callbackSamples, 1024);
+    sim.stop();
+    const int afterStop = callbackCount;
+    QTest::qWait(50);
+    QCOMPARE(callbackCount, afterStop);
 }
 
 void SdrDeviceTests::testSimulatedDeviceSampleRateAndFreq()
@@ -215,11 +238,18 @@ void SdrDeviceTests::testRxIqIngestAndCallback()
     std::vector<float> rxBuf(256 * 2, 0.0f);
     int read = dev->readRxIq(0, rxBuf.data(), 256);
     QCOMPARE(read, 256);
+    QCOMPARE(callbackCount, 0);
+
+    std::vector<float> ingest(64 * 2, 0.4f);
+    dev->notifyRxIq(0, ingest.data(), 64);
     QCOMPARE(callbackCount, 1);
     QCOMPARE(callbackRx, 0);
-    QCOMPARE(callbackSamples, 256);
+    QCOMPARE(callbackSamples, 64);
 
-    // Edge cases
+    // Push mode does not buffer; synthetic pull must not fire the callback
+    QCOMPARE(dev->readRxIq(0, rxBuf.data(), 32), 32);
+    QCOMPARE(callbackCount, 1);
+
     QCOMPARE(dev->readRxIq(0, nullptr, 100), 0);
     QCOMPARE(dev->readRxIq(0, rxBuf.data(), 0), 0);
     QCOMPARE(dev->readRxIq(0, rxBuf.data(), -10), 0);
@@ -229,17 +259,6 @@ void SdrDeviceTests::testNotifyRxIqAndBufferedRead()
 {
     SimulatedDevice sim;
 
-    int callbackCount = 0;
-    int callbackRx = -1;
-    int callbackSamples = 0;
-
-    sim.setRxIqCallback([&](int rx, const float* data, int count) {
-        callbackCount++;
-        callbackRx = rx;
-        callbackSamples = count;
-        QVERIFY(data != nullptr);
-    });
-
     const int sampleCount = 64;
     std::vector<float> inputIq(sampleCount * 2);
     for (int i = 0; i < sampleCount; ++i) {
@@ -247,13 +266,8 @@ void SdrDeviceTests::testNotifyRxIqAndBufferedRead()
         inputIq[2 * i + 1] = -0.25f * static_cast<float>(i);
     }
 
-    // Ingest samples into device
     sim.notifyRxIq(0, inputIq.data(), sampleCount);
-    QCOMPARE(callbackCount, 1);
-    QCOMPARE(callbackRx, 0);
-    QCOMPARE(callbackSamples, sampleCount);
 
-    // Read back buffered samples
     std::vector<float> readBuf(sampleCount * 2, 0.0f);
     int read = sim.readRxIq(0, readBuf.data(), sampleCount);
     QCOMPARE(read, sampleCount);
@@ -261,17 +275,21 @@ void SdrDeviceTests::testNotifyRxIqAndBufferedRead()
         QCOMPARE(readBuf[i], inputIq[i]);
     }
 
-    // Second read: buffer has been drained, so it should generate synthetic samples
     std::vector<float> synthBuf(32 * 2, 0.0f);
     int synthRead = sim.readRxIq(0, synthBuf.data(), 32);
     QCOMPARE(synthRead, 32);
-    QCOMPARE(callbackCount, 3); // 1 from notify, 1 from first read, 1 from synth read
 
-    // Edge cases for notifyRxIq
+    int callbackCount = 0;
+    sim.setRxIqCallback([&](int, const float*, int) { callbackCount++; });
+    sim.notifyRxIq(0, inputIq.data(), sampleCount);
+    QCOMPARE(callbackCount, 1);
+    QCOMPARE(sim.readRxIq(0, readBuf.data(), sampleCount), sampleCount);
+    QCOMPARE(callbackCount, 1);
+
     sim.notifyRxIq(0, nullptr, 64);
     sim.notifyRxIq(0, inputIq.data(), 0);
     sim.notifyRxIq(0, inputIq.data(), -10);
-    QCOMPARE(callbackCount, 3);
+    QCOMPARE(callbackCount, 1);
 }
 
 void SdrDeviceTests::testDecoupledMultiRxIngest()

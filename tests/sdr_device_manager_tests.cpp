@@ -5,6 +5,7 @@
 #include "DataEngine/Drivers/SimulatedDevice.h"
 #include "DataEngine/Drivers/HpsdrDevice.h"
 #include "DataEngine/Drivers/SoapyDevice.h"
+#include "DataEngine/RxIqIngest.h"
 #include "cusdr_settings.h"
 #include "Settings/SoapyConfig.h"
 #include "DataEngine/cusdr_dataIO.h"
@@ -15,6 +16,7 @@ void DataIO::networkDeviceStartStop(char) {}
 #include "DataEngine/SoapySDRDataSource.h"
 void SoapySDRDataSource::setSampleRate(int) {}
 void SoapySDRDataSource::setFrequency(int, qint64) {}
+void SoapySDRDataSource::setRxGain(int, double) {}
 #endif
 
 class SdrDeviceManagerTests : public QObject {
@@ -33,7 +35,12 @@ private slots:
     void testDiscoverySignals();
     void testClearAndUnregister();
     void testHpsdrDeviceRxIngest();
+    void testHpsdrDeviceFrequencyDrivesSettings();
+    void testHpsdrDeviceTxFrequencyAndDrive();
+    void testSoapyDeviceRxGainDrivesSettings();
     void testSoapyDeviceRxIngest();
+    void testRxIngestPushDoesNotBuffer();
+    void testRxIngestPullBoundsBuffer();
     void testDeviceSelection();
     void testUnifiedAsyncDiscovery();
     void testFindNetworkCardAndSoapyDevice();
@@ -195,10 +202,20 @@ void SdrDeviceManagerTests::testSimulatedDeviceFactory()
         rxCalled = true;
     });
 
+    // Synthetic pull does not invoke the callback (push-only contract)
     std::vector<float> buf(128 * 2);
     int read = dev->readRxIq(0, buf.data(), 128);
     QCOMPARE(read, 128);
+    QVERIFY(!rxCalled);
+
+    std::vector<float> tone(128 * 2, 0.5f);
+    dev->notifyRxIq(0, tone.data(), 128);
     QVERIFY(rxCalled);
+
+    // Push mode does not buffer for a second pull
+    rxCalled = false;
+    QCOMPARE(dev->readRxIq(0, buf.data(), 128), 128);
+    QVERIFY(!rxCalled);
 
     dev->stop();
     QVERIFY(!dev->isRunning());
@@ -265,46 +282,87 @@ void SdrDeviceManagerTests::testHpsdrDeviceRxIngest()
     const int count = 256;
     std::vector<float> inData(count * 2, 0.42f);
 
-    // Ingest for RX 0
     hpsdr.notifyRxIq(0, inData.data(), count);
     QCOMPARE(callbackCount, 1);
     QCOMPARE(callbackRx, 0);
     QCOMPARE(callbackSamples, count);
 
-    // Ingest for RX 1
     hpsdr.notifyRxIq(1, inData.data(), count);
     QCOMPARE(callbackCount, 2);
     QCOMPARE(callbackRx, 1);
     QCOMPARE(callbackSamples, count);
 
-    // Read back RX 0 (triggers callback)
+    // Push mode does not buffer for pull
     std::vector<float> outData(count * 2, 0.0f);
-    int read = hpsdr.readRxIq(0, outData.data(), count);
-    QCOMPARE(read, count);
-    QCOMPARE(callbackCount, 3);
-    for (int i = 0; i < count * 2; ++i) {
-        QCOMPARE(outData[i], 0.42f);
-    }
-
-    // Read back RX 1 (triggers callback)
-    read = hpsdr.readRxIq(1, outData.data(), count);
-    QCOMPARE(read, count);
-    QCOMPARE(callbackCount, 4);
-    for (int i = 0; i < count * 2; ++i) {
-        QCOMPARE(outData[i], 0.42f);
-    }
-
-    // Second read on RX 0 returns 0 (drained, no callback)
     QCOMPARE(hpsdr.readRxIq(0, outData.data(), count), 0);
-    QCOMPARE(callbackCount, 4);
+    QCOMPARE(hpsdr.readRxIq(1, outData.data(), count), 0);
+    QCOMPARE(callbackCount, 2);
 
-    // Polymorphic interface verification
     ISdrDevice* sdr = &hpsdr;
     sdr->notifyRxIq(0, inData.data(), 128);
-    QCOMPARE(callbackCount, 5);
+    QCOMPARE(callbackCount, 3);
     QCOMPARE(callbackSamples, 128);
-    QCOMPARE(sdr->readRxIq(0, outData.data(), 128), 128);
-    QCOMPARE(callbackCount, 6);
+    QCOMPARE(sdr->readRxIq(0, outData.data(), 128), 0);
+    QCOMPARE(callbackCount, 3);
+}
+
+void SdrDeviceManagerTests::testHpsdrDeviceFrequencyDrivesSettings()
+{
+    Settings* settings = Settings::instance();
+    const qint64 previous = settings->getCtrFrequency(0);
+
+    HpsdrDevice hpsdr(nullptr, nullptr, false);
+    QSignalSpy spy(settings, &Settings::ctrFrequencyChanged);
+
+    QVERIFY(hpsdr.setFrequency(0, 18100000LL));
+    QCOMPARE(hpsdr.frequency(0), 18100000LL);
+    QCOMPARE(settings->getCtrFrequency(0), 18100000LL);
+    QVERIFY(spy.count() >= 1);
+
+    QVERIFY(hpsdr.setRxGain(0, -20.0));
+    QVERIFY(hpsdr.setFrequency(0, previous));
+}
+
+void SdrDeviceManagerTests::testHpsdrDeviceTxFrequencyAndDrive()
+{
+    Settings* settings = Settings::instance();
+    const qint64 previousFreq = settings->getCtrFrequency(0);
+    const int previousDrive = settings->getDriveLevel();
+
+    HpsdrDevice hpsdr(nullptr, nullptr, false);
+    QSignalSpy freqSpy(settings, &Settings::ctrFrequencyChanged);
+    QSignalSpy driveSpy(settings, &Settings::driveLevelChanged);
+
+    QVERIFY(hpsdr.setTxFrequency(14195000LL));
+    QCOMPARE(hpsdr.txFrequency(), 14195000LL);
+    QCOMPARE(settings->getCtrFrequency(0), 14195000LL);
+    QVERIFY(freqSpy.count() >= 1);
+
+    QVERIFY(hpsdr.setTxGain(40.0));
+    QCOMPARE(settings->getDriveLevel(), 40);
+    QVERIFY(driveSpy.count() >= 1);
+
+    QVERIFY(hpsdr.setTxGain(150.0));
+    QCOMPARE(settings->getDriveLevel(), 100);
+
+    QVERIFY(hpsdr.setTxFrequency(previousFreq));
+    settings->setDriveLevel(previousDrive);
+}
+
+void SdrDeviceManagerTests::testSoapyDeviceRxGainDrivesSettings()
+{
+    Settings* settings = Settings::instance();
+    const int previous = settings->getSoapyOverallGain();
+
+    SoapyDevice soapy(nullptr, nullptr);
+    QSignalSpy spy(settings, &Settings::soapyOverallGainChanged);
+
+    QVERIFY(soapy.setRxGain(0, 12.0));
+    QCOMPARE(settings->getSoapyOverallGain(), 12);
+    QVERIFY(spy.count() >= 1);
+    QCOMPARE(spy.last().at(0).toInt(), 12);
+
+    settings->setSoapyOverallGain(previous);
 }
 
 void SdrDeviceManagerTests::testSoapyDeviceRxIngest()
@@ -331,24 +389,46 @@ void SdrDeviceManagerTests::testSoapyDeviceRxIngest()
     QCOMPARE(callbackSamples, count);
 
     std::vector<float> outData(count * 2, 0.0f);
-    int read = soapy.readRxIq(0, outData.data(), count);
-    QCOMPARE(read, count);
-    QCOMPARE(callbackCount, 2);
-    for (int i = 0; i < count * 2; ++i) {
-        QCOMPARE(outData[i], -0.65f);
-    }
-
-    // Second read: drained
     QCOMPARE(soapy.readRxIq(0, outData.data(), count), 0);
-    QCOMPARE(callbackCount, 2);
+    QCOMPARE(callbackCount, 1);
 
-    // Polymorphic interface verification
     ISdrDevice* sdr = &soapy;
     sdr->notifyRxIq(0, inData.data(), 64);
-    QCOMPARE(callbackCount, 3);
+    QCOMPARE(callbackCount, 2);
     QCOMPARE(callbackSamples, 64);
-    QCOMPARE(sdr->readRxIq(0, outData.data(), 64), 64);
-    QCOMPARE(callbackCount, 4);
+    QCOMPARE(sdr->readRxIq(0, outData.data(), 64), 0);
+    QCOMPARE(callbackCount, 2);
+}
+
+void SdrDeviceManagerTests::testRxIngestPushDoesNotBuffer()
+{
+    HpsdrDevice hpsdr(nullptr, nullptr, false);
+    int callbackCount = 0;
+    hpsdr.setRxIqCallback([&](int, const float*, int) { callbackCount++; });
+
+    std::vector<float> inData(64 * 2, 0.1f);
+    hpsdr.notifyRxIq(0, inData.data(), 64);
+    QCOMPARE(callbackCount, 1);
+
+    std::vector<float> outData(64 * 2, 0.0f);
+    QCOMPARE(hpsdr.readRxIq(0, outData.data(), 64), 0);
+    QCOMPARE(callbackCount, 1);
+}
+
+void SdrDeviceManagerTests::testRxIngestPullBoundsBuffer()
+{
+    HpsdrDevice hpsdr(nullptr, nullptr, false);
+    const int chunk = 4096;
+    std::vector<float> inData(static_cast<size_t>(chunk) * 2, 0.31f);
+    for (int i = 0; i < 8; ++i)
+        hpsdr.notifyRxIq(0, inData.data(), chunk);
+
+    std::vector<float> outData(static_cast<size_t>(RxIqIngest::kMaxComplexSamples) * 2, 0.0f);
+    const int read = hpsdr.readRxIq(0, outData.data(), RxIqIngest::kMaxComplexSamples + 16);
+    QCOMPARE(read, RxIqIngest::kMaxComplexSamples);
+    for (int i = 0; i < read * 2; ++i)
+        QCOMPARE(outData[static_cast<size_t>(i)], 0.31f);
+    QCOMPARE(hpsdr.readRxIq(0, outData.data(), chunk), 0);
 }
 
 void SdrDeviceManagerTests::testDeviceSelection()

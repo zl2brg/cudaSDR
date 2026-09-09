@@ -72,8 +72,41 @@ bool DataEngineLifecycle::startDataEngineWithoutConnection() {
 	}
 	else {
 
-		DATA_ENGINE_DEBUG << "no data available - data file loaded?";
-		return false;
+		DATA_ENGINE_DEBUG << "no IQ file — starting SimulatedDevice";
+
+		const int rcvrs = qMax(1, m_engine->set->getNumberOfReceivers());
+		if (!m_engine->initReceivers(rcvrs)) {
+			DATA_ENGINE_DEBUG << "failed to initialize simulated receivers";
+			return false;
+		}
+		if (!m_engine->m_dataProcessor)
+			m_engine->createDataProcessor();
+		if (!m_engine->startDataProcessor(QThread::HighPriority)) {
+			m_engine->setSystemState(QSDR::DataProcessThreadError, m_engine->m_hwInterface,
+									 m_engine->m_serverMode, QSDR::DataEngineDown);
+			return false;
+		}
+
+		m_engine->connectDSPSlots();
+		for (int i = 0; i < rcvrs; ++i) {
+			if (i >= m_engine->RX.size() || !m_engine->RX.at(i))
+				continue;
+			m_engine->RX.at(i)->setConnectedStatus(true);
+			if (i < m_engine->m_dspThreadList.size() && m_engine->m_dspThreadList.at(i))
+				m_engine->m_dspThreadList.at(i)->start(QThread::HighPriority);
+		}
+
+		auto device = SdrDeviceManager::instance()->createSimulatedDevice();
+		device->setSampleRate(m_engine->set->getSampleRate());
+		for (int rx = 0; rx < rcvrs; ++rx)
+			device->setFrequency(rx, m_engine->set->getCtrFrequency(rx));
+		m_engine->setDevice(std::move(device));
+		if (ISdrDevice* dev = m_engine->device())
+			dev->start();
+
+		m_engine->setSystemState(QSDR::NoError, m_engine->m_hwInterface, m_engine->m_serverMode, QSDR::DataEngineUp);
+		m_engine->set->setRadioState(RadioState::RX);
+		return true;
 	}
 }
 
@@ -502,6 +535,8 @@ void DataEngineLifecycle::stop() {
 				break;
 
 			case QSDR::NoInterfaceMode:
+				if (ISdrDevice* dev = m_engine->device())
+					dev->stop();
 
 				m_engine->stopDataIO();
 				

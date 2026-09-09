@@ -35,9 +35,7 @@
 #include <QLineEdit>
 #include  <QComboBox>
 #include  <QSlider>
-#include "portaudio.h"
 
-#include "Util/cusdr_buttons.h"
 #include "cusdr_settings.h"
 
 
@@ -92,23 +90,12 @@ private:
 
 	QSpinBox*	highFilterSpinBox;
 	QSpinBox*	lowFilterSpinBox;
-	QSpinBox*	micGainMaxSpinBox;
-	QSpinBox*	micGainMinSpinBox;
     QComboBox*  micInputComboBox;
     QSlider*    amCompressionSlider;
     QSlider*    amCarrierLevelSlider;
-    QStringList paDeviceList;
-
-	AeroButton*	micInputBtn;
-	AeroButton*	lineInputBtn;
-	AeroButton*	micBoostBtn;
 
 	int		m_minimumWidgetWidth;
 	int		m_minimumGroupBoxWidth;
-	
-private slots:
-	void	inputButtonClicked();
-	void	boostButtonClicked();
 	
 signals:
 	void	showEvent();

@@ -1592,6 +1592,12 @@ void DataEngine::setFrequency(int mode, int rx, qint64 frequency) {
 		txParams().txFrequency = frequency;
 	}
 
+	if (m_device) {
+		const DeviceType type = m_device->deviceType();
+		if (type == DeviceType::Simulated || type == DeviceType::SoapySDR)
+			m_device->setFrequency(rx, frequency);
+	}
+
 	// Protocol 2 includes DDC frequencies in the High Priority packet — push one
 	// immediately so CAT/WSJT-X band changes retune without waiting for the cycle.
 	if (set->getCurrentMetisCard().protocol == 2 && m_dataProcessor) {
@@ -2284,13 +2290,8 @@ void DataProcessor::buffer_tx_iq_sample(int i, int q)
 void DataProcessor::processMicData() {
     float tempFloats[DSP_SAMPLE_SIZE];
     int numSamples = 0;
-    if (de->m_audioInput && de->m_audioInput->micAudioAvailable() >= DSP_SAMPLE_SIZE) {
-        numSamples = static_cast<int>(de->m_audioInput->readMicAudio(tempFloats, DSP_SAMPLE_SIZE));
-    } else if (de->m_audioInput && de->m_audioInput->m_faudioInQueue.count() > 0) {
-        AUDIOBUF temp_data = de->m_audioInput->m_faudioInQueue.dequeue();
-        numSamples = qMin((int)temp_data.size(), DSP_SAMPLE_SIZE);
-        for (int s = 0; s < numSamples; s++)
-            tempFloats[s] = static_cast<float>(temp_data[s]);
+    if (de->m_audioInput && de->m_audioInput->readMicAudioBlock(tempFloats, DSP_SAMPLE_SIZE)) {
+        numSamples = DSP_SAMPLE_SIZE;
     }
 
     if (numSamples > 0) {
@@ -2431,30 +2432,19 @@ void DataProcessor::fetch_MicData(){
     // fallback so a leftover chrono lock cannot mute voice.
     const DSPMode txMode = set->getDSPMode(de->currentReceiver);
     if (de->m_audioInput) {
-        if (de->m_audioInput->netAudioAvailable() >= DSP_SAMPLE_SIZE) {
-            numSamples = static_cast<int>(de->m_audioInput->readNetAudio(tempFloats, DSP_SAMPLE_SIZE));
-            gotAudio = (numSamples > 0);
-        } else if (de->m_audioInput->m_netAudioInQueue.count() > 0) {
-            AUDIOBUF temp_data = de->m_audioInput->m_netAudioInQueue.dequeue();
-            numSamples = qMin((int)temp_data.size(), (int)DSP_SAMPLE_SIZE);
-            for (int s = 0; s < numSamples; s++)
-                tempFloats[s] = static_cast<float>(temp_data[s]);
-            gotAudio = (numSamples > 0);
-        } else {
-            const TciServer *tci = set ? set->tciServer() : nullptr;
-            const bool digitalTx = (txMode == DIGU || txMode == DIGL);
-            const bool networkMicOnly = tci && tci->isTxChronoActive() && digitalTx;
-            if (!networkMicOnly) {
-                if (de->m_audioInput->micAudioAvailable() >= DSP_SAMPLE_SIZE) {
-                    numSamples = static_cast<int>(de->m_audioInput->readMicAudio(tempFloats, DSP_SAMPLE_SIZE));
-                    gotAudio = (numSamples > 0);
-                } else if (de->m_audioInput->m_faudioInQueue.count() > 0) {
-                    AUDIOBUF temp_data = de->m_audioInput->m_faudioInQueue.dequeue();
-                    numSamples = qMin((int)temp_data.size(), (int)DSP_SAMPLE_SIZE);
-                    for (int s = 0; s < numSamples; s++)
-                        tempFloats[s] = static_cast<float>(temp_data[s]);
-                    gotAudio = (numSamples > 0);
-                }
+        const TciServer *tci = set ? set->tciServer() : nullptr;
+        const bool digitalTx = (txMode == DIGU || txMode == DIGL);
+        const bool networkMicOnly = tci && tci->isTxChronoActive() && digitalTx;
+
+        if (de->m_audioInput->hasPendingNetAudio()) {
+            if (de->m_audioInput->readNetAudioBlock(tempFloats, DSP_SAMPLE_SIZE)) {
+                numSamples = DSP_SAMPLE_SIZE;
+                gotAudio = true;
+            }
+        } else if (!networkMicOnly) {
+            if (de->m_audioInput->readMicAudioBlock(tempFloats, DSP_SAMPLE_SIZE)) {
+                numSamples = DSP_SAMPLE_SIZE;
+                gotAudio = true;
             }
         }
     }
@@ -2690,8 +2680,8 @@ void DataProcessor::pumpSoapyTxIqTimer() {
     if (m_hwInterface == QSDR::SoapySDR && set->is_transmitting()) {
         const RadioState state = set->getRadioState();
         // Timer drives TX IQ for all mic input modes (TUNE and MOX).
-        // fetch_MicData() drains whatever the soundcard has placed in m_faudioInQueue;
-        // if nothing is available it substitutes zeros, which is correct for local mic.
+        // fetch_MicData() drains the lock-free mic/net rings (partial samples
+        // accumulate until a full DSP block); zeros if nothing is ready.
         if (state == RadioState::TUNE || state == RadioState::MOX) {
             get_tx_iqData();
         }
@@ -2700,7 +2690,7 @@ void DataProcessor::pumpSoapyTxIqTimer() {
 
 void DataProcessor::processSoapyMicData() {
     // TX IQ is timer-driven (pumpSoapyTxIqTimer) for all mic input modes.
-    // The soundcard fills m_faudioInQueue; the timer drains it via get_tx_iqData().
+    // The soundcard fills the mic ring; the timer drains it via get_tx_iqData().
     // Nothing to do here — the slot is kept to preserve the signal connection.
 }
 #endif

@@ -59,7 +59,6 @@
 
 
 class SliceModel;
-class ISdrDevice;
 class SliceProcessor : public QObject {
 
 	Q_OBJECT
@@ -109,7 +108,6 @@ public:
 
     void    enqueueRxIq(const float* interleavedIq, int numComplexSamples);
     void    enqueueRxIq(const QVector<float> &samples);
-    int     readFromDevice(ISdrDevice* dev, int maxSamples);
 
 public slots:
 	void	noteRetuneActivity(qint64);

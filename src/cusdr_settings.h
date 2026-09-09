@@ -1089,10 +1089,10 @@ public:
     int     getMicSource()				{ return m_transmitConfig->micSource(); }
     int     getRxClass()				{ return m_RxClass; }
     int     getRxTiming()				{ return m_RxTiming; }
-    int     getMicInputDev()            { return m_transmitConfig->micInputDev(); }
-    int     getDigitalAudioInputDev()   { return m_transmitConfig->digitalAudioInputDev(); }
-	QString getMicInputSourceName()     { return m_transmitConfig->micInputSourceName(); }
-	QString getDigitalInputSourceName() { return m_transmitConfig->digitalInputSourceName(); }
+    int     getMicInputDev();
+    int     getDigitalAudioInputDev();
+	QString getMicInputSourceName();
+	QString getDigitalInputSourceName();
     int     getMicInputLevel()          { return static_cast<int>(m_transmitConfig->micGain()); }
     int     getDriveLevel()             { return m_transmitConfig->driveLevel(); }
     bool    getRepeaterMode()           { return m_repeaterMode; }

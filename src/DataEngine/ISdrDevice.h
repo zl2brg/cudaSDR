@@ -94,12 +94,19 @@ public:
     using RxIqCallback = std::function<void(int rx, const float* interleavedIq, int numComplexSamples)>;
 
     /**
-     * @brief Registers a callback to receive incoming RX IQ data as it arrives.
+     * @brief Registers a callback for RX IQ as it arrives (push delivery).
+     *
+     * When a callback is set, notifyRxIq invokes it and does not buffer for
+     * readRxIq. readRxIq never invokes the callback.
      */
     virtual void setRxIqCallback(RxIqCallback callback) = 0;
 
     /**
-     * @brief Reads up to maxSamples of complex IQ into destination.
+     * @brief Pulls up to maxSamples of complex IQ previously buffered by notifyRxIq.
+     *
+     * Silent pull: never invokes the RxIqCallback. Returns samples previously
+     * buffered by notifyRxIq when no callback is registered (pull mode).
+     *
      * @param rx Receiver index (0..N-1)
      * @param destination Destination buffer (must hold at least maxSamples * 2 floats)
      * @param maxSamples Maximum number of complex samples to read
@@ -108,8 +115,11 @@ public:
     virtual int readRxIq(int rx, float* destination, int maxSamples) = 0;
 
     /**
-     * @brief Ingests incoming RX IQ samples into the device, buffering them for readRxIq
-     *        and forwarding them to any registered RxIqCallback.
+     * @brief Ingests incoming RX IQ samples.
+     *
+     * Push mode (callback set): forwards the block to RxIqCallback and does not buffer.
+     * Pull mode (no callback): appends to a bounded per-RX buffer for readRxIq.
+     *
      * @param rx Receiver index (0..N-1)
      * @param buffer Pointer to interleaved I/Q samples [I0, Q0, I1, Q1, ...]
      * @param count Number of complex sample pairs

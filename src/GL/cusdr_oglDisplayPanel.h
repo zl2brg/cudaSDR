@@ -238,10 +238,6 @@ private:
 	QString     m_f1strB;
 	QString     m_f2strB;
 
-	FreqDigitHitRegions m_hitA;
-	FreqDigitHitRegions m_hitB;
-
-
     QColor      m_txdigitColor;
 	QColor		m_digitColor;
 	QColor		m_bkgColor1;
@@ -363,9 +359,6 @@ private:
 	QString	freqMhzDisplayString(qint64 frequencyHz) const;
 	void	splitFreqDisplay(qint64 frequencyHz, QString *f1str, QString *f2str) const;
 
-	void	updateFreqDigitHitRegions(FreqDigitHitRegions &out, int originX, int yBaseline,
-	                                  const QString &f1str, bool large,
-	                                  const QRect &labelRect);
 	void	rebuildAllFreqDigitHitRegions();
 	QRect	vfoLabelRect(int yBaseline) const;
 
@@ -373,10 +366,7 @@ private:
 	qint64	vfoMemoryHz(DigitVfo which) const;
 	void	activateDigitVfo(DigitVfo which);
 	void	tuneDigitVfoTo(DigitVfo which, qint64 frequencyHz);
-	bool	hitTestDigit(const FreqDigitHitRegions &regs, const QString &f1str,
-	                     QPoint p, int *digitOut) const;
-
-	void	getSelectedDigit(QPoint p);
+	void	applySMeterPanScale(class SliceModel *slice);
 	
 private slots:
 	void	systemStateChanged(

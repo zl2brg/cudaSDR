@@ -22,6 +22,7 @@ private slots:
     void testOptionsWidgetFilterControls();
     void testControllerBindingWithOptions();
     void testTwoWaySyncBetweenOptionsAndSettingsDialog();
+    void testLiveMicInputChangeAppliesToSettings();
 };
 
 void TransmitOptionsTests::initTestCase()
@@ -202,6 +203,44 @@ void TransmitOptionsTests::testTwoWaySyncBetweenOptionsAndSettingsDialog()
         QCOMPARE(optionsWidget.micInputDev(), 0);
         QCOMPARE(optionsWidget.micInputSourceName(), QStringLiteral("hpsdr-local"));
     }
+}
+
+void TransmitOptionsTests::testLiveMicInputChangeAppliesToSettings()
+{
+    TransmitModel model;
+    TransmitOptionsWidget optionsWidget;
+    tx_settings_dialog settingsDialog;
+    TransmitSettingsController controller;
+    Settings* settings = Settings::instance();
+
+    const int previousDev = settings->getMicInputDev();
+    const QString previousName = settings->getMicInputSourceName();
+
+    controller.bind(&settingsDialog, &model, settings);
+    controller.bindOptions(&optionsWidget, &model);
+
+    QSignalSpy spy(settings, &Settings::micInputChanged);
+
+    emit optionsWidget.micInputDevChanged(1);
+    emit optionsWidget.micInputSourceNameChanged(QStringLiteral("default"));
+
+    QCOMPARE(model.micInputDev(), 1);
+    QCOMPARE(model.micInputSourceName(), QStringLiteral("default"));
+    QCOMPARE(settings->getMicInputDev(), 1);
+    QCOMPARE(settings->getMicInputSourceName(), QStringLiteral("default"));
+    QVERIFY(spy.count() >= 1);
+    QCOMPARE(spy.last().at(0).toInt(), 1);
+
+    emit settingsDialog.micInputDevChanged(0);
+    emit settingsDialog.micInputSourceNameChanged(QStringLiteral("hpsdr-local"));
+
+    QCOMPARE(model.micInputDev(), 0);
+    QCOMPARE(settings->getMicInputDev(), 0);
+    QCOMPARE(settings->getMicInputSourceName(), QStringLiteral("hpsdr-local"));
+    QCOMPARE(spy.last().at(0).toInt(), 0);
+
+    settings->setMicInputDev(previousDev);
+    settings->setMicInputSourceName(previousName);
 }
 
 QTEST_MAIN(TransmitOptionsTests)

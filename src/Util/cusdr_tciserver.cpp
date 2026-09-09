@@ -798,17 +798,15 @@ void TciServer::onClientBinaryMessage(const QByteArray &message)
         return;
 
     // Network mic audio is only fed to the transmitter while the radio is
-    // actually in a TX state. Outside TX we drop it (and reset the accumulator)
+    // actually in a TX state. Outside TX we drop it (and clear the ring)
     // so nothing is buffered up to leak into a later transmission.
+    if (!m_txAudioRing)
+        return;
     const RadioState state = m_settings->getRadioState();
     if (!acceptsTxAudio(state)) {
-        m_txAudioResidual.clear();
-        if (m_txAudioRing)
-            m_txAudioRing->clear();
+        m_txAudioRing->clear();
         return;
     }
-    if (!m_txAudioQueue && !m_txAudioRing)
-        return;
 
     const QByteArray payload = message.mid(kStreamHeaderBytes);
     const int payloadBytes = payload.size();
@@ -820,7 +818,6 @@ void TciServer::onClientBinaryMessage(const QByteArray &message)
     // fills the first `length` floats — geometry in resolveTxAudioFloat32Layout,
     // not L≈R sample matching.
     int channels = 1;
-    int floatsUsed = 0;
     QByteArray decodePayload = payload;
     if (hdr.format == kStreamFormatFloat32) {
         const int availFloats = payloadBytes / static_cast<int>(sizeof(float));
@@ -834,7 +831,6 @@ void TciServer::onClientBinaryMessage(const QByteArray &message)
             return;
 
         channels = layout.channels;
-        floatsUsed = layout.useFloats;
         decodePayload = payload.left(layout.useFloats * static_cast<int>(sizeof(float)));
     } else if (hdr.channels >= 2) {
         channels = 2;
@@ -874,50 +870,12 @@ void TciServer::onClientBinaryMessage(const QByteArray &message)
             s *= static_cast<double>(m_txGain);
     }
 
-    if (m_txAudioRing && !decoded.isEmpty()) {
-        std::vector<float> fbuf(decoded.size());
+    if (!decoded.isEmpty()) {
+        std::vector<float> fbuf(static_cast<size_t>(decoded.size()));
         for (int i = 0; i < decoded.size(); ++i) {
-            fbuf[i] = static_cast<float>(decoded[i]);
+            fbuf[static_cast<size_t>(i)] = static_cast<float>(decoded[i]);
         }
         m_txAudioRing->writeDropOldest(fbuf.data(), fbuf.size());
-    }
-
-    if (m_txAudioQueue) {
-        m_txAudioResidual.append(decoded);
-
-        // Enqueue exactly DSP_SAMPLE_SIZE mono blocks — the same granularity the
-        // local soundcard mic uses (fetch_MicData truncates to DSP_SAMPLE_SIZE).
-        static quint64 txAudioBlockCounter = 0;
-        static quint64 txAudioDropWarnCounter = 0;
-        const int queueBefore = m_txAudioQueue->count();
-        const TxAudioChunkResult chunked = chunkTxAudioResidual(
-            m_txAudioResidual,
-            DSP_SAMPLE_SIZE,
-            kTxAudioMaxQueueBlocks,
-            queueBefore);
-        m_txAudioResidual = chunked.residual;
-
-        for (const QVector<double> &block : chunked.blocks)
-            m_txAudioQueue->enqueue(block);
-
-        if (!chunked.blocks.isEmpty() && (++txAudioBlockCounter % 50) == 1) {
-            TCI_DEBUG << "TX audio from client: enqueued" << chunked.blocks.size()
-                      << "block(s), queue=" << m_txAudioQueue->count()
-                      << "ch=" << channels << "fmt=" << hdr.format
-                      << "rate=" << hdr.sampleRate
-                      << "len=" << hdr.length << "payload=" << payloadBytes
-                      << "floatsUsed=" << floatsUsed
-                      << "monoOut=" << decoded.size();
-        }
-
-        if (chunked.droppedBlocks > 0) {
-            // Client is producing faster than the TX path drains — drop to keep
-            // TX latency bounded. Rate-limit the WARN; sustained backlog is noisy.
-            if ((++txAudioDropWarnCounter % 200) == 1) {
-                TCI_WARN << "TX audio backlog: dropping" << chunked.droppedBlocks
-                         << "client mic block(s) (TX drain slower than input)";
-            }
-        }
     }
 }
 
@@ -1727,7 +1685,6 @@ void TciServer::stopTxChrono()
     m_txChronoClient = nullptr;
     m_txChronoAccumNs = 0;
     m_txChronoClock.invalidate();
-    m_txAudioResidual.clear();
     TCI_DEBUG << "TX_CHRONO stopped";
     emit connectionStatusChanged();
 }

@@ -213,6 +213,7 @@ OGLDisplayPanel::OGLDisplayPanel(RadioModel *model, QWidget *parent)
 	m_freqRenderer = new DisplayFreqRenderer(this);
 	m_statusRenderer = new DisplayStatusRenderer(this);
 	m_inputController = new DisplayPanelInputController(this);
+	applySMeterPanScale(currentSlice());
 }
 
 OGLDisplayPanel::~OGLDisplayPanel() {
@@ -309,6 +310,10 @@ void OGLDisplayPanel::setupConnections() {
             connect(slice, &SliceModel::vfoAFrequencyChanged, this, [this](qint64){ scheduleRepaint(); });
             connect(slice, &SliceModel::vfoBFrequencyChanged, this, [this](qint64){ scheduleRepaint(); });
             connect(slice, &SliceModel::activeVfoChanged, this, [this](SliceModel::ActiveVfo){ scheduleRepaint(); });
+            connect(slice, &SliceModel::panScaleChanged, this, [this, slice]() {
+                if (slice->id() == m_currentReceiver)
+                    applySMeterPanScale(slice);
+            });
         }
 	connect(set, &Settings::sMeterHoldTimeChanged,    this, &OGLDisplayPanel::setSMeterHoldTime);
 
@@ -748,6 +753,23 @@ void OGLDisplayPanel::rebuildAllFreqDigitHitRegions()
 		m_inputController->rebuildAllFreqDigitHitRegions();
 }
 
+void OGLDisplayPanel::applySMeterPanScale(SliceModel *slice)
+{
+	if (!slice)
+		return;
+	const qreal minDb = slice->dBmPanScaleMin();
+	const qreal maxDb = slice->dBmPanScaleMax();
+	if (m_dBmPanMin == minDb && m_dBmPanMax == maxDb)
+		return;
+	m_dBmPanMin = minDb;
+	m_dBmPanMax = maxDb;
+	m_smeterRenew = true;
+	m_smeterUpdate = true;
+	if (m_smeterRenderer)
+		m_smeterRenderer->invalidateFBO();
+	scheduleRepaint();
+}
+
 void OGLDisplayPanel::enterEvent(QEvent *event) {
 	if (m_inputController)
 		m_inputController->handleEnter(event);
@@ -984,6 +1006,7 @@ void OGLDisplayPanel::setCurrentReceiver(int value) {
 		const float offset = (set->getHWInterface() == QSDR::SoapySDR) ? 90.0f : 140.0f;
 		m_sMeterOrgValue = (m_sMeterValue > 0.0f) ? (m_sMeterValue - offset) : -140.0f;
 	}
+	applySMeterPanScale(currentSlice());
 	scheduleRepaint();
 }
 

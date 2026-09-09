@@ -9,6 +9,39 @@ TransmitSettingsController::TransmitSettingsController(QObject* parent)
 {
 }
 
+void TransmitSettingsController::applyMicInputDev(int dev)
+{
+    if (m_txModel)
+        m_txModel->setMicInputDev(dev);
+    // TransmitAudioInput / CProtocol1 listen to Settings, not TransmitModel.
+    if (m_model)
+        m_model->setMicInputDev(dev);
+}
+
+void TransmitSettingsController::applyMicInputSourceName(const QString& name)
+{
+    if (m_txModel)
+        m_txModel->setMicInputSourceName(name);
+    if (m_model)
+        m_model->setMicInputSourceName(name);
+}
+
+void TransmitSettingsController::applyDigitalAudioInputDev(int dev)
+{
+    if (m_txModel)
+        m_txModel->setDigitalAudioInputDev(dev);
+    if (m_model)
+        m_model->setDigitalAudioInputDev(dev);
+}
+
+void TransmitSettingsController::applyDigitalInputSourceName(const QString& name)
+{
+    if (m_txModel)
+        m_txModel->setDigitalInputSourceName(name);
+    if (m_model)
+        m_model->setDigitalInputSourceName(name);
+}
+
 void TransmitSettingsController::bind(tx_settings_dialog* view, Settings* model)
 {
     bind(view, nullptr, model);
@@ -114,20 +147,16 @@ void TransmitSettingsController::bind(tx_settings_dialog* view, TransmitModel* t
     auto requireTx = [this]() { return m_txModel != nullptr; };
 
     connect(m_view, &tx_settings_dialog::micInputDevChanged, this, [this](int dev) {
-        if (m_txModel) m_txModel->setMicInputDev(dev);
-        else m_model->setMicInputDev(dev);
+        applyMicInputDev(dev);
     });
     connect(m_view, &tx_settings_dialog::micInputSourceNameChanged, this, [this](const QString& name) {
-        if (m_txModel) m_txModel->setMicInputSourceName(name);
-        else m_model->setMicInputSourceName(name);
+        applyMicInputSourceName(name);
     });
     connect(m_view, &tx_settings_dialog::digitalAudioInputDevChanged, this, [this](int dev) {
-        if (m_txModel) m_txModel->setDigitalAudioInputDev(dev);
-        else m_model->setDigitalAudioInputDev(dev);
+        applyDigitalAudioInputDev(dev);
     });
     connect(m_view, &tx_settings_dialog::digitalInputSourceNameChanged, this, [this](const QString& name) {
-        if (m_txModel) m_txModel->setDigitalInputSourceName(name);
-        else m_model->setDigitalInputSourceName(name);
+        applyDigitalInputSourceName(name);
     });
     connect(m_view, &tx_settings_dialog::freeDVModeRequested, this, [this](int rx, int mode) {
         m_model->setFreeDVMode(rx, mode);
@@ -373,12 +402,10 @@ void TransmitSettingsController::bindOptions(TransmitOptionsWidget* options, Tra
         else if (m_model) m_model->setTxFilterHigh(hz);
     });
     connect(m_optionsView, &TransmitOptionsWidget::micInputDevChanged, this, [this](int dev) {
-        if (m_txModel) m_txModel->setMicInputDev(dev);
-        else if (m_model) m_model->setMicInputDev(dev);
+        applyMicInputDev(dev);
     });
     connect(m_optionsView, &TransmitOptionsWidget::micInputSourceNameChanged, this, [this](const QString& name) {
-        if (m_txModel) m_txModel->setMicInputSourceName(name);
-        else if (m_model) m_model->setMicInputSourceName(name);
+        applyMicInputSourceName(name);
     });
     connect(m_optionsView, &TransmitOptionsWidget::audioDevicesRefreshRequested, this, [this]() {
         const QString name = m_txModel ? m_txModel->micInputSourceName()

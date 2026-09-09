@@ -10,9 +10,11 @@
 
 #include <atomic>
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
 #include <algorithm>
 #include <type_traits>
+#include <vector>
 
 // Cache line size for padding/alignment to prevent false sharing
 constexpr size_t kCacheLineSize = 64;
@@ -124,6 +126,7 @@ public:
     /**
      * @brief Writes elements, dropping oldest unread data if buffer space is insufficient.
      * Always writes all 'count' elements (clamped to capacity).
+     * Advances the read index so consumers never see overwritten slots.
      */
     size_t writeDropOldest(const T* data, size_t count) noexcept
     {
@@ -134,10 +137,13 @@ public:
         const T* src = data + (count - toWrite);
 
         const size_t w = m_writeIndex.load(std::memory_order_relaxed);
-        const size_t r = m_readIndex.load(std::memory_order_relaxed);
-        const size_t currentBuffered = (w >= r) ? (w - r) : 0;
-        const size_t excess = (count > m_capacity ? count - m_capacity : 0)
-                            + (currentBuffered + toWrite > m_capacity ? (currentBuffered + toWrite) - m_capacity : 0);
+        const size_t r = m_readIndex.load(std::memory_order_acquire);
+        const size_t currentBuffered = w - r;
+        const size_t overflowDrop = (currentBuffered > m_capacity) ? (currentBuffered - m_capacity) : 0;
+        const size_t room = m_capacity - std::min(currentBuffered, m_capacity);
+        const size_t dropForWrite = (toWrite > room) ? (toWrite - room) : 0;
+        const size_t tailDrop = (count > m_capacity) ? (count - m_capacity) : 0;
+        const size_t excess = overflowDrop + dropForWrite + tailDrop;
         if (excess > 0) {
             m_dropCount.fetch_add(excess, std::memory_order_relaxed);
         }
@@ -149,7 +155,10 @@ public:
             std::memcpy(&m_buffer[0], src + firstChunk, (toWrite - firstChunk) * sizeof(T));
         }
 
-        m_writeIndex.store(w + toWrite, std::memory_order_release);
+        const size_t newW = w + toWrite;
+        m_writeIndex.store(newW, std::memory_order_release);
+        if (newW - r > m_capacity)
+            storeReadIndexAtLeast(newW - m_capacity);
         return toWrite;
     }
 
@@ -163,13 +172,8 @@ public:
             return 0;
 
         const size_t w = m_writeIndex.load(std::memory_order_acquire);
-        size_t r = m_readIndex.load(std::memory_order_relaxed);
-        size_t diff = w - r;
-        if (diff > m_capacity) {
-            r = w - m_capacity;
-            diff = m_capacity;
-        }
-
+        const size_t r = effectiveReadIndex(w);
+        const size_t diff = w - r;
         const size_t toRead = std::min(maxCount, diff);
         if (toRead == 0)
             return 0;
@@ -181,25 +185,20 @@ public:
             std::memcpy(dest + firstChunk, &m_buffer[0], (toRead - firstChunk) * sizeof(T));
         }
 
-        m_readIndex.store(r + toRead, std::memory_order_release);
+        storeReadIndexAtLeast(r + toRead);
         return toRead;
     }
 
     /**
      * @brief Peeks at the next contiguous chunk of readable data without advancing read index.
-     * @param contiguousCount Output for number of contiguous elements available.
-     * @return Pointer to contiguous buffer slice, or nullptr if empty.
+     * Overrun is recovered locally; this does not mutate m_readIndex.
+     * Pair with advanceRead(), which heals then advances.
      */
     const T* peekContiguous(size_t& contiguousCount) noexcept
     {
         const size_t w = m_writeIndex.load(std::memory_order_acquire);
-        size_t r = m_readIndex.load(std::memory_order_relaxed);
-        size_t diff = w - r;
-        if (diff > m_capacity) {
-            r = w - m_capacity;
-            diff = m_capacity;
-            m_readIndex.store(r, std::memory_order_release);
-        }
+        const size_t r = effectiveReadIndex(w);
+        const size_t diff = w - r;
 
         if (diff == 0) {
             contiguousCount = 0;
@@ -216,8 +215,11 @@ public:
      */
     void advanceRead(size_t count) noexcept
     {
-        const size_t r = m_readIndex.load(std::memory_order_relaxed);
-        m_readIndex.store(r + count, std::memory_order_release);
+        if (count == 0)
+            return;
+        const size_t w = m_writeIndex.load(std::memory_order_acquire);
+        const size_t r = effectiveReadIndex(w);
+        storeReadIndexAtLeast(r + count);
     }
 
     /** Clears all contents by synchronizing read index with write index. */
@@ -228,6 +230,25 @@ public:
     }
 
 private:
+    size_t effectiveReadIndex(size_t writeIndex) const noexcept
+    {
+        const size_t r = m_readIndex.load(std::memory_order_relaxed);
+        const size_t diff = writeIndex - r;
+        return (diff > m_capacity) ? (writeIndex - m_capacity) : r;
+    }
+
+    void storeReadIndexAtLeast(size_t minRead) noexcept
+    {
+        size_t cur = m_readIndex.load(std::memory_order_relaxed);
+        while (cur < minRead) {
+            if (m_readIndex.compare_exchange_weak(cur, minRead,
+                                                  std::memory_order_release,
+                                                  std::memory_order_relaxed)) {
+                return;
+            }
+        }
+    }
+
     T* m_buffer = nullptr;
     size_t m_capacity = 0;
     size_t m_mask = 0;
@@ -236,5 +257,33 @@ private:
     alignas(kCacheLineSize) std::atomic<size_t> m_readIndex{0};
     alignas(kCacheLineSize) std::atomic<uint64_t> m_dropCount{0};
 };
+
+/**
+ * @brief Accumulates from a ring until a full block is available.
+ * Returns true and copies `count` elements to dest; otherwise false and
+ * keeps partial data in residual for the next call.
+ */
+template<typename T>
+inline bool spscReadBlock(SpscRingBuffer<T>& ring, std::vector<T>& residual, T* dest, size_t count)
+{
+    if (!dest || count == 0)
+        return false;
+
+    while (residual.size() < count) {
+        const size_t need = count - residual.size();
+        const size_t old = residual.size();
+        residual.resize(old + need);
+        const size_t got = ring.read(residual.data() + old, need);
+        residual.resize(old + got);
+        if (got == 0)
+            break;
+    }
+    if (residual.size() < count)
+        return false;
+
+    std::memcpy(dest, residual.data(), count * sizeof(T));
+    residual.erase(residual.begin(), residual.begin() + static_cast<std::ptrdiff_t>(count));
+    return true;
+}
 
 #endif // SPSC_RING_BUFFER_H

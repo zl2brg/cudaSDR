@@ -18,8 +18,10 @@
  */
 
 #include "SimulatedDevice.h"
+#include <QList>
 #include <cmath>
 #include <random>
+#include <vector>
 
 SimulatedDevice::SimulatedDevice(QObject* parent)
     : QObject(parent)
@@ -30,6 +32,12 @@ SimulatedDevice::SimulatedDevice(QObject* parent)
 SimulatedDevice::~SimulatedDevice()
 {
     stop();
+}
+
+int SimulatedDevice::blockIntervalMs() const
+{
+    const int rate = qMax(1, m_sampleRate);
+    return qMax(1, (kIqBlockSize * 1000) / rate);
 }
 
 DeviceCapabilities SimulatedDevice::capabilities() const
@@ -47,12 +55,22 @@ DeviceCapabilities SimulatedDevice::capabilities() const
 
 bool SimulatedDevice::start()
 {
+    if (m_running.load(std::memory_order_acquire))
+        return true;
+    if (!m_rxTimer) {
+        m_rxTimer = new QTimer(this);
+        m_rxTimer->setTimerType(Qt::PreciseTimer);
+        connect(m_rxTimer, &QTimer::timeout, this, &SimulatedDevice::emitSyntheticRx);
+    }
     m_running.store(true, std::memory_order_release);
+    m_rxTimer->start(blockIntervalMs());
     return true;
 }
 
 void SimulatedDevice::stop()
 {
+    if (m_rxTimer)
+        m_rxTimer->stop();
     m_running.store(false, std::memory_order_release);
     m_ptt.store(false, std::memory_order_release);
 }
@@ -62,6 +80,8 @@ bool SimulatedDevice::setSampleRate(int rate)
     if (rate <= 0) return false;
     if (!capabilities().supportedSampleRates.contains(rate)) return false;
     m_sampleRate = rate;
+    if (m_rxTimer && m_rxTimer->isActive())
+        m_rxTimer->setInterval(blockIntervalMs());
     return true;
 }
 
@@ -132,7 +152,7 @@ void SimulatedDevice::generateSamples(float* buffer, int count)
 
 void SimulatedDevice::setRxIqCallback(RxIqCallback callback)
 {
-    m_rxCallback = std::move(callback);
+    m_rxIngest.setCallback(std::move(callback));
 }
 
 int SimulatedDevice::readRxIq(int rx, float* destination, int maxSamples)
@@ -141,45 +161,31 @@ int SimulatedDevice::readRxIq(int rx, float* destination, int maxSamples)
         return 0;
     }
 
-    {
-        QMutexLocker locker(&m_rxBufferMutex);
-        auto it = m_rxBuffers.find(rx);
-        if (it != m_rxBuffers.end() && !it.value().isEmpty()) {
-            auto& buf = it.value();
-            const int available = buf.size() / 2;
-            const int toCopy = std::min(maxSamples, available);
-            std::memcpy(destination, buf.constData(), toCopy * 2 * sizeof(float));
-            buf.remove(0, toCopy * 2);
-            if (m_rxCallback) {
-                m_rxCallback(rx, destination, toCopy);
-            }
-            return toCopy;
-        }
+    const int fromBuffer = m_rxIngest.read(rx, destination, maxSamples);
+    if (fromBuffer > 0) {
+        return fromBuffer;
     }
 
     generateSamples(destination, maxSamples);
-    if (m_rxCallback) {
-        m_rxCallback(rx, destination, maxSamples);
-    }
     return maxSamples;
 }
 
 void SimulatedDevice::notifyRxIq(int rx, const float* buffer, int count)
 {
-    if (!buffer || count <= 0) return;
+    m_rxIngest.notify(rx, buffer, count);
+}
 
-    {
-        QMutexLocker locker(&m_rxBufferMutex);
-        auto& q = m_rxBuffers[rx];
-        if (q.size() > 16384 * 2) {
-            q.remove(0, count * 2);
-        }
-        const int oldSize = q.size();
-        q.resize(oldSize + count * 2);
-        std::memcpy(q.data() + oldSize, buffer, count * 2 * sizeof(float));
-    }
+void SimulatedDevice::emitSyntheticRx()
+{
+    if (!m_running.load(std::memory_order_acquire))
+        return;
 
-    if (m_rxCallback) {
-        m_rxCallback(rx, buffer, count);
-    }
+    std::vector<float> buffer(static_cast<size_t>(kIqBlockSize) * 2);
+    generateSamples(buffer.data(), kIqBlockSize);
+
+    QList<int> rxs = m_rxFrequencies.keys();
+    if (rxs.isEmpty())
+        rxs.append(0);
+    for (int rx : rxs)
+        notifyRxIq(rx, buffer.data(), kIqBlockSize);
 }

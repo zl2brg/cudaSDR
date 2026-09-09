@@ -533,6 +533,10 @@ void ModelsTests::testTransmitSettingsSync() {
     settings->setTxFilterHigh(2800);
     settings->setTxUseRxFilter(true);
 
+    QSignalSpy spyMic(settings, &Settings::micInputChanged);
+    settings->setMicInputDev(1);
+    settings->setMicInputSourceName(QStringLiteral("default"));
+
     settings->syncTransmitWithSettings();
 
     TransmitModel* tx = radio.transmit();
@@ -542,6 +546,10 @@ void ModelsTests::testTransmitSettingsSync() {
     QCOMPARE(tx->txFilterLow(), 120);
     QCOMPARE(tx->txFilterHigh(), 2800);
     QCOMPARE(tx->txUseRxFilter(), true);
+    QCOMPARE(tx->micInputDev(), 1);
+    QCOMPARE(tx->micInputSourceName(), QStringLiteral("default"));
+    QCOMPARE(settings->getMicInputDev(), 1);
+    QVERIFY(spyMic.count() >= 1);
 
     tx->setAudioCompression(7);
     tx->setCwKeyerSpeed(30);
@@ -557,6 +565,8 @@ void ModelsTests::testTransmitSettingsSync() {
     QCOMPARE(settings->getTxFilterHigh(), 3100);
     QCOMPARE(settings->getTxUseRxFilter(), false);
 
+    settings->setMicInputDev(0);
+    settings->setMicInputSourceName(QStringLiteral("hpsdr-local"));
     settings->setRadioModel(nullptr);
 }
 
