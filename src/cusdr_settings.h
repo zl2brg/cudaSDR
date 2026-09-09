@@ -743,7 +743,6 @@ signals:
 	void manualSocketBufferChanged(bool value);
 	//void metisCardListChanged(QList<TMetiscard> list);
 	void metisCardListChanged(const QList<TNetworkDevicecard> &list);
-	void hpsdrDevicesChanged(THPSDRDevices devices);
 	void hpsdrNetworkDeviceChanged(TNetworkDevicecard card);
 	void networkDeviceNumberChanged(int value);
 	void maxFrequencyChanged(qint64 value);
@@ -755,7 +754,6 @@ signals:
     void searchSoapySignal();
     void soapyDeviceListChanged(const QList<TSoapyDevice> &list);
     void soapyDeviceChanged(TSoapyDevice device);
-    void soapyMessageEvent(QString message);
     void soapyAntennaListChanged(QStringList list);
     void soapyTxAntennaListChanged(QStringList list);
     void soapyHardwareKeyChanged(QString key);
@@ -826,7 +824,6 @@ signals:
 	void widebandDataChanged(bool value);
 	void widebanddBmScaleMinChanged(qreal value);
 	void widebanddBmScaleMaxChanged(qreal value);
-	void wideBandScalePositionChanged(float position);
     void panAveragingModeChanged(int rx, int mode);
     void panDetectorModeChanged(int rx, int mode);
     void fftSizeChanged(int rx, int size);
@@ -858,14 +855,7 @@ signals:
 	void txUseRxFilterChanged(bool enabled);
 	
 	void freqRulerPositionChanged(int rx, float position);
-	
 
-	void audioFormatChanged(const QAudioFormat &format);
-	void audioPositionChanged(qint64 position);
-	void audioBufferChanged(qint64 position, qint64 length, const QByteArray &buffer);
-
-
-	void displayWidgetHeightChanged(int value);
 	void spectrumSizeChanged(int value);
 	void panadapterColorChanged();
 	void panGridStatusChanged(bool value, int rx);
@@ -890,10 +880,6 @@ signals:
 	void dBmScaleMaxChanged(int rx, qreal value);
     void noiseBlankerChanged(int rx, int mode);
 	void noiseFilterChanged(int rx, int mode);
-    void nr2GainMethodChanged(int rx, int value);
-    void nr2NpeMethodChanged(int rx, int value);
-    void nrAgcChanged(int rx, int value);
-    void nr2AeChanged(int rx, bool value);
     void snbChanged(int rx, bool value);
     void anfChanged(int rx, bool value);
     void micInputLevelChanged(int level);
@@ -916,7 +902,6 @@ signals:
     void audioCompressionchanged(int level);
     void micModeChanged(bool mode);
     void showRadioPopupChanged(bool value);
-	void receiverDataReady();
 
     void CwHangTimeChanged(int CwHangTime);
     void CwSidetoneFreqChanged(int CwSidetoneFreq);
@@ -956,27 +941,17 @@ public:
 	PanAveragingMode            getPanAveragingMode(int rx);
 	PanDetectorMode             getPanDetectorMode(int rx);
 
-	QString	getServerModeString(QSDR::_ServerMode mode);
 	QString	getHWInterfaceModeString(QSDR::_HWInterfaceMode mode);
-	QString	getHDataEngineStateString(QSDR::_DataEngineState mode);
-	QString	getErrorString(QSDR::_Error err);
 
 	QString getValue1000(double value, int valuePrefix, QString unitBase);
-	QString getValue1024(double value, int valuePrefix, QString unitBase);
-
-	THPSDRDevices 	getHPSDRDevices();
 
 	bool getSettingsLoaded();
 	bool getMainPower();
-	bool getDefaultSkin();
 
 	int getMinimumWidgetWidth();
 	int getMinimumGroupBoxWidth();
 	int getMultiRxView();
-	bool getPBOPresence();
-	bool getFBOPresence();
 
-	bool getConnected();
 	bool getClientConnected();
 	bool getTxAllowed();
     QString appStyleSheet;
@@ -1161,7 +1136,6 @@ public:
 	AGCMode getAGCMode(int rx);
 	QString getADCModeString(int rx);
 	QString getAGCModeString(int rx);
-    qreal   getAGCGain(int rx);
     int     getAGCMaximumGain_dB(int rx);
 	qreal	getAGCFixedGain_dB(int rx);
 	int		getAGCHangThreshold(int rx);
@@ -1208,7 +1182,6 @@ public:
 
 	bool getSpectrumAveraging(int rx);
 	int getSpectrumAveragingCnt(int rx);
-	int getFFTMultiplicator(int rx);//			{ return m_fft; }
     QStringList getFilterBtnText(int rx);
 
     QMutex debugMutex;
@@ -1218,7 +1191,6 @@ public:
 
 public slots:
 	void	setMainPower(bool power);
-	void	setDefaultSkin(bool value);
 	void	setSettingsFilename(QString filename);
 
 	void	setSystemMessage(const QString &msg, int time);
@@ -1226,11 +1198,7 @@ public slots:
 	void	setCPULoad(short load);
 	void	setCallsign(const QString &callsign);
 
-	void	setPBOPresence(bool value);
-	void	setFBOPresence(bool value);
-
 	void	setMainVolume(int rx, float volume);
-	void	setMainVolumeMute(int rx, bool value);
 
 	void	setSystemState(
 				QSDR::_Error err, 
@@ -1283,7 +1251,6 @@ public slots:
 	void setCurrentHPSDRDevice(TNetworkDevicecard card);
     void setSoapyDeviceList(QList<TSoapyDevice> list);
     void setCurrentSoapyDevice(TSoapyDevice device);
-    void setSoapyMessage(QString message);
     // SoapySDR radio parameter setters
     void setSoapyRxAntenna(const QString &antenna);
     void setSoapyAntennaList(const QStringList &list);  // runtime, from device
@@ -1316,10 +1283,8 @@ public slots:
 	void setClientNoConnected(int client);
 	void setRxConnectedStatus(int rx, bool value);
 	void setAudioRx(int rx);
-	void setConnected(bool value);
 	void setCheckFirmwareVersion(bool value);
 
-	void setHPSDRDevices(THPSDRDevices devices);
 	void setHermesVersion(int value);
 	void setHPSDRHardware(int value);
 	void setMercuryPresence(bool value);
@@ -1387,8 +1352,6 @@ public slots:
 	void setMouseWheelFreqStep(int rx, qreal value);
 	void setSocketBufferSize(int value);
 	void setManualSocketBufferSize(bool value);
-	
-	void setReceiverDataReady();
 
 	void setSpectrumSize(int value);
 	void setdBmPanScaleMin(int rx, qreal value);
@@ -1427,17 +1390,8 @@ public slots:
 	void setWidebandData(bool value);
 	void setWidebanddBmScaleMin(qreal value);
 	void setWidebanddBmScaleMax(qreal value);
-	void setWideBandRulerPosition(float pos);
 
 	void setFreqRulerPosition(int rx, float pos);
-
-
-	void setAudioFormat(const QAudioFormat &format);
-	void setAudioPosition(qint64 position);
-	void setAudioBuffer(qint64 position, qint64 length, const QByteArray &buffer);
-
-
-	void moveDisplayWidget(int value);
 
 	void setPanadapterColors(TPanadapterColors type);
 	void setPanGrid(bool value, int rx);
@@ -1458,10 +1412,6 @@ public slots:
     /*Noiseblanker*/
     void setNoiseBlankerMode(int rx, int nb);
 	void setNoiseFilterMode(int rx, int nr);
-	void setNR2GainMethod(int rx, int value);
-    void setNR2NpeMethod(int rx, int value);
-    void setNRAgc(int rx, int value);
-    void setNR2Ae(int rx, bool value);
     void setAnf(int rx, bool value);
     void setSnb(int rx, bool value);
     void setCwDecode(int rx, bool value);
@@ -1517,8 +1467,6 @@ public slots:
 
 	void showNetworkIODialog();
 	void showWarningDialog(const QString &msg);
-
-	void showRadioPopupWidget();
 
 	QList<qint64> getCtrFrequencies();
 	QList<qint64> getVfoFrequencies();
@@ -1594,11 +1542,7 @@ private:
     RigCtlServer *m_rigCtlServer = nullptr;
     TciServer    *m_tciServer = nullptr;
     std::atomic<bool>          m_tciIqActive{false};
-	std::atomic<bool>	m_defaultSkin{true};
-	std::atomic<bool>	m_connected{false};
 	std::atomic<bool>	m_clientConnected{false};
-	std::atomic<bool>	m_pboFound{false};
-	std::atomic<bool>	m_fboFound{false};
 	std::atomic<bool>	m_manualSocketBufferSize{false};
 	std::atomic<bool>	m_pennyOCEnabled{false};
 
@@ -1609,7 +1553,6 @@ private:
 	std::atomic<bool>	m_packetsToggle{true};
 
 	std::atomic<bool>	m_frequencyRx1onRx2{false};
-	std::atomic<bool>	m_radioPopupVisible{false};
 
 	std::atomic<qint64>	m_maxFrequency{MAXFREQUENCY};
 	std::atomic<qint64>	m_minFrequency{0};
@@ -1651,6 +1594,10 @@ private:
 
 
     bool    m_use_repeaterOffset;
+
+    QString getServerModeString(QSDR::_ServerMode mode);
+    QString getHDataEngineStateString(QSDR::_DataEngineState mode);
+    QString getErrorString(QSDR::_Error err);
 
 	void	checkHPSDRDevices();
     qreal   getRxFilterBandwidth(int rx, int index);

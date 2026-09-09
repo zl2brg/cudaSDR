@@ -44,6 +44,7 @@ private:
     // DDC1 packets arrive independently and must each fill their RX inBuf
     // without interfering with each other's fill state.
     int m_rxSamplesPerDDC[MAX_RECEIVERS];
+    int32_t m_rxRawIQ[MAX_RECEIVERS][BUFFER_SIZE * 2] = {};
     QMap<quint16, uint32_t> m_sequences;
     // Stored by isPacketValid() and read by getPacketType() to discriminate
     // between DDC-data packets (large) and High-Priority-Status packets (small).

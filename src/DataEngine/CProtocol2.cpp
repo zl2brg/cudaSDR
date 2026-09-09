@@ -64,9 +64,6 @@ int CProtocol2::getPacketType(const unsigned char* data) {
 
 void CProtocol2::processInputBuffer(const QByteArray& buffer, DataEngine* de, quint16 sourcePort) {
     static quint64 p2ProcessCalls = 0;
-    static quint64 p2DspKickCount = 0;
-    static quint64 p2NoQtWdspCount = 0;
-    static quint64 p2DspInvokeFailCount = 0;
     static quint64 p2RouteLogCount = 0;
 
     if (buffer.isEmpty()) return;
@@ -137,42 +134,23 @@ void CProtocol2::processInputBuffer(const QByteArray& buffer, DataEngine* de, qu
         p += 3;
         s += 6;
 
-        if (rx->qtwdsp) {
-            rx->m_rawIQ[rxSamples*2] = iSample;
-            rx->m_rawIQ[rxSamples*2+1] = qSample;
-        } else {
-            ++p2NoQtWdspCount;
-            if ((p2NoQtWdspCount % 1000) == 1) {
-                qDebug() << "P2 RX" << ddcIndex << "qtwdsp not ready count=" << p2NoQtWdspCount;
-            }
+        if (ddcIndex >= 0 && ddcIndex < MAX_RECEIVERS) {
+            m_rxRawIQ[ddcIndex][rxSamples * 2] = iSample;
+            m_rxRawIQ[ddcIndex][rxSamples * 2 + 1] = qSample;
         }
 
         rxSamples++;
         if (rxSamples == BUFFER_SIZE) {
-            if (rx->qtwdsp) {
+            if (ddcIndex >= 0 && ddcIndex < MAX_RECEIVERS) {
+                const double scale = 1.0 / 8388607.0;
+                std::vector<float> floatBuf(BUFFER_SIZE * 2);
+                for (int j = 0; j < BUFFER_SIZE * 2; ++j) {
+                    floatBuf[j] = static_cast<float>(m_rxRawIQ[ddcIndex][j] * scale);
+                }
                 if (de->device()) {
-                    const double scale = 1.0 / 8388607.0;
-                    std::vector<float> floatBuf(BUFFER_SIZE * 2);
-                    for (int j = 0; j < BUFFER_SIZE * 2; ++j) {
-                        floatBuf[j] = static_cast<float>(rx->m_rawIQ[j] * scale);
-                    }
                     de->device()->notifyRxIq(ddcIndex, floatBuf.data(), BUFFER_SIZE);
-                } else {
-                    rx->enqueueRawData();
-                    bool invoked = QMetaObject::invokeMethod(rx, "dspProcessing", Qt::QueuedConnection);
-                    ++p2DspKickCount;
-                    if ((p2DspKickCount % 100) == 1) {
-                        P2_ROUTE_DEBUG << "dspKick rx=" << ddcIndex
-                                       << " srcPort=" << sourcePort
-                                       << " count=" << p2DspKickCount
-                                       << " invoked=" << invoked;
-                    }
-                    if (!invoked) {
-                        ++p2DspInvokeFailCount;
-                        if ((p2DspInvokeFailCount % 10) == 1) {
-                            qDebug() << "P2 DSP invoke failed count=" << p2DspInvokeFailCount;
-                        }
-                    }
+                } else if (rx) {
+                    rx->enqueueRxIq(floatBuf.data(), BUFFER_SIZE);
                 }
             }
             rxSamples = 0;

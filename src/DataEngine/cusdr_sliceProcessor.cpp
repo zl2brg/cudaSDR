@@ -289,39 +289,6 @@ int SliceProcessor::readFromDevice(ISdrDevice* dev, int maxSamples) {
     return read;
 }
 
-void SliceProcessor::enqueueRawData() {
-    const double scale = 1.0 / 8388607.0;
-    float floatBlock[BUFFER_SIZE * 2];
-    for (int i = 0; i < BUFFER_SIZE * 2; ++i) {
-        floatBlock[i] = static_cast<float>(m_rawIQ[i] * scale);
-    }
-    enqueueRxIq(floatBlock, BUFFER_SIZE);
-}
-
-void SliceProcessor::enqueueRawData(const QVector<int32_t> &rawBlock) {
-    const double scale = 1.0 / 8388607.0;
-    const int count = rawBlock.size();
-    if (count <= 0) return;
-    constexpr int CHUNK = 1024;
-    float tempBuf[CHUNK];
-    int offset = 0;
-    while (offset < count) {
-        int n = std::min(CHUNK, count - offset);
-        for (int i = 0; i < n; ++i) {
-            tempBuf[i] = static_cast<float>(rawBlock[offset + i] * scale);
-        }
-        m_rxRing.writeDropOldest(tempBuf, static_cast<size_t>(n));
-        offset += n;
-    }
-    if (trySetDspPending()) {
-        QMetaObject::invokeMethod(this, "dspProcessing", Qt::QueuedConnection);
-    }
-}
-
-void SliceProcessor::enqueueSoapyData(const QVector<float> &data) {
-    enqueueRxIq(data);
-}
-
 void SliceProcessor::setSoapyInputSampleRate(int value) {
     if (QThread::currentThread() != thread()) {
         QMetaObject::invokeMethod(this,
@@ -382,10 +349,6 @@ void SliceProcessor::stopAudio()
 	if (m_audioOutput)
 		m_audioOutput->stop();
 #endif
-}
-
-void SliceProcessor::dspProcessingSoapy() {
-    dspProcessing();
 }
 
 void SliceProcessor::dspProcessing() {

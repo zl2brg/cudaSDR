@@ -108,9 +108,9 @@ void CProtocol1::processInputBuffer(const QByteArray& buffer, DataEngine* de, qu
                 m_rightSample = ProtocolBoundaryUtils::decode24BitBE(p);
                 p += 3;
 
-                if (r < activeReceivers && de->RX.at(r)->qtwdsp) {
-                    de->RX[r]->m_rawIQ[m_rxSamples * 2] = m_leftSample;
-                    de->RX[r]->m_rawIQ[m_rxSamples * 2 + 1] = m_rightSample;
+                if (r < activeReceivers && r < MAX_RECEIVERS) {
+                    m_rxRawIQ[r][m_rxSamples * 2] = m_leftSample;
+                    m_rxRawIQ[r][m_rxSamples * 2 + 1] = m_rightSample;
                 }
             }
             s += de->receivers() * 6;
@@ -141,18 +141,15 @@ void CProtocol1::processInputBuffer(const QByteArray& buffer, DataEngine* de, qu
             // when we have enough rx samples we start the DSP processing.
             if (m_rxSamples == BUFFER_SIZE) {
                 const double scale = 1.0 / 8388607.0;
-                for (int r = 0; r < activeReceivers; r++) {
-                    if (de->RX.at(r)->qtwdsp) {
-                        if (de->device()) {
-                            std::vector<float> floatBuf(BUFFER_SIZE * 2);
-                            for (int i = 0; i < BUFFER_SIZE * 2; ++i) {
-                                floatBuf[i] = static_cast<float>(de->RX[r]->m_rawIQ[i] * scale);
-                            }
-                            de->device()->notifyRxIq(r, floatBuf.data(), BUFFER_SIZE);
-                        } else {
-                            de->RX[r]->enqueueRawData();
-                            QMetaObject::invokeMethod(de->RX.at(r), "dspProcessing", Qt::QueuedConnection);
-                        }
+                for (int r = 0; r < activeReceivers && r < MAX_RECEIVERS; r++) {
+                    std::vector<float> floatBuf(BUFFER_SIZE * 2);
+                    for (int i = 0; i < BUFFER_SIZE * 2; ++i) {
+                        floatBuf[i] = static_cast<float>(m_rxRawIQ[r][i] * scale);
+                    }
+                    if (de->device()) {
+                        de->device()->notifyRxIq(r, floatBuf.data(), BUFFER_SIZE);
+                    } else if (r < de->RX.size() && de->RX.at(r)) {
+                        de->RX.at(r)->enqueueRxIq(floatBuf.data(), BUFFER_SIZE);
                     }
                 }
                 m_rxSamples = 0;

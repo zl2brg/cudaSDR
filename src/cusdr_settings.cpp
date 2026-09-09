@@ -74,7 +74,7 @@ Settings *Settings::m_instance = nullptr;        /*!< set m_instance to NULL. */
 
 Settings::Settings(QObject *parent)
         : QObject(parent), m_dataEngineState(QSDR::DataEngineDown), setLoaded(false), m_mainPower(false),
-          m_manualSocketBufferSize(false), m_peakHold(false), m_packetsToggle(true), m_radioPopupVisible(false),
+          m_manualSocketBufferSize(false), m_peakHold(false), m_packetsToggle(true),
           m_maxFrequency(MAXFREQUENCY), m_minFrequency(0), m_hpsdrNetworkDevices(0),
           m_mercuryReceivers(1), m_currentReceiver(0) {
     m_devices.mercuryFWVersion = 0;
@@ -2106,35 +2106,6 @@ QString Settings::getValue1000(
     return QString("%1 %2%3").arg(value).arg(prefixTab[resPrefix]).arg(unitBase);
 }
 
-QString Settings::getValue1024(
-
-        double value,            /*!<[in] Value to print. */
-        int valuePrefix,        /*!<[in] Value current prefix. */
-        QString unitBase)        /*!<[in] Unit base string. */
-{
-    const int prefixBase = 1024;
-    int resPrefix = valuePrefix;
-
-    static const char *prefixTab[prefixIecMax + 1] = {
-            "",    /* prefixNothing */
-            "Ki",    /* prefixKibi */
-            "Mi",    /* prefixMebi */
-            "Gi",    /* prefixGibi */
-            "Ti",    /* prefixTebi */
-            "Pi",    /* prefixPebi */
-            "Ei",    /* prefixExbi */
-            "Zi",    /* prefixZebi */
-            "Yi",    /* prefixYobi */
-    };
-
-    while ((value > (10 * prefixBase)) && (resPrefix < prefixIecMax)) {
-        value /= prefixBase;
-        resPrefix++;
-    }
-
-    return QString("%1 %2%3").arg(value).arg(prefixTab[resPrefix]).arg(unitBase);
-}
-
 int Settings::getMinimumWidgetWidth() {
 
     return m_windowConfig->minimumWidgetWidth();
@@ -2401,16 +2372,6 @@ WaterfallColorMode Settings::getWaterfallColorMode(int rx) {
 //	return m_colorItem;
 //}
 
-void Settings::setDefaultSkin(bool value) {
-
-    m_defaultSkin = value;
-}
-
-bool Settings::getDefaultSkin() {
-
-    return m_defaultSkin;
-}
-
 void Settings::setSettingsFilename(QString filename) {
 
     filename = filename.trimmed();
@@ -2602,10 +2563,6 @@ void Settings::setCurrentSoapyDevice(TSoapyDevice device) {
     saveSettings();
 }
 
-void Settings::setSoapyMessage(QString message) {
-    emit soapyMessageEvent(message);
-}
-
 void Settings::setSoapyAntennaList(const QStringList &list) {
     m_soapyConfig->setAntennaList(list);
     emit soapyAntennaListChanged(list);
@@ -2714,26 +2671,6 @@ void Settings::addNetworkIOComboBoxEntry(QString str) {
 void Settings::clearNetworkIOComboBoxEntry() {
 
     emit clearNetworkIOComboBoxEntrySignal();
-}
-
-void Settings::setPBOPresence(bool value) {
-
-    m_pboFound = value;
-}
-
-bool Settings::getPBOPresence() {
-
-    return m_pboFound;
-}
-
-void Settings::setFBOPresence(bool value) {
-
-    m_fboFound = value;
-}
-
-bool Settings::getFBOPresence() {
-
-    return m_fboFound;
 }
 
 //*******************************
@@ -2937,20 +2874,6 @@ void Settings::setAudioRx(int rx) {
     emit audioRxChanged(rx);
 }
 
-void Settings::setConnected(bool value) {
-
-    QMutexLocker locker(&settingsMutex);
-    m_connected = value;
-    locker.unlock();
-
-    emit connectedChanged(m_connected);
-}
-
-bool Settings::getConnected() {
-
-    return m_connected;
-}
-
 void Settings::clientDisconnected(int client) {
 
     emit clientDisconnectedEvent(client);
@@ -2977,16 +2900,6 @@ void Settings::setManualSocketBufferSize(bool value) {
 
 //*******************************
 // HPSDR hardware presence and firmware versions
-
-THPSDRDevices Settings::getHPSDRDevices() {
-
-    return m_devices;
-}
-
-void Settings::setHPSDRDevices(THPSDRDevices devices) {
-
-    Q_UNUSED(devices)
-}
 
 void Settings::checkHPSDRDevices() {
 
@@ -3485,19 +3398,6 @@ void Settings::setMainVolume(int rx, float volume) {
     emit mainVolumeChanged(rx, volume);
 }
 
-void Settings::setMainVolumeMute(int rx, bool value) {
-    if (SliceModel* slice = sliceModel(rx)) {
-        slice->setMute(value);
-        return;
-    }
-
-    qreal vol = getMainVolume(rx);
-    if (value)
-        setMainVolume(rx, 0.0f);
-    else
-        setMainVolume(rx, vol);
-}
-
 void Settings::setCtrFrequency(int rx, qint64 frequency) {
 
     QMutexLocker locker(&settingsMutex);
@@ -3872,14 +3772,6 @@ void Settings::setAGCShowLines(int rx, bool value) {
     emit showAGCLinesStatusChanged(m_receiverDataList[rx].agcLines, rx);
 }
 
-qreal Settings::getAGCGain(int rx) {
-    if (SliceModel* slice = sliceModel(rx))
-        return static_cast<qreal>(slice->agcGain());
-
-    if (rx < 0 || rx >= m_receiverDataList.size()) return 0.0;
-    return m_receiverDataList[rx].acgGain;
-}
-
 void Settings::setAGCGain(int rx, int value) {
     if (SliceModel* slice = sliceModel(rx)) {
         slice->setAgcGain(value);
@@ -4149,11 +4041,6 @@ void Settings::setFreeDVMode(int rx, int mode) {
     emit freeDVStatusChanged(rx, false, 0.0f, 0, 0);
 }
 
-void Settings::setReceiverDataReady() {
-
-    emit receiverDataReady();
-}
-
 void Settings::setSampleSize(int rx, int size) {
 
     SETTINGS_DEBUG << "set sample size to: " << size << " for Rx " << rx;
@@ -4189,11 +4076,6 @@ void Settings::setSampleSize(int rx, int size) {
     }
 
     emit sampleSizeChanged(rx, size);
-}
-
-int Settings::getFFTMultiplicator(int rx) {
-
-    return m_receiverDataList.at(rx).fftFactor;
 }
 
 // Alex configuration:
@@ -4380,30 +4262,6 @@ void Settings::setFreqRulerPosition(int rx, float position) {
 }
 
 //**********************************************************************************
-// audio settings
-
-void Settings::setAudioFormat(const QAudioFormat &format) {
-
-    QMutexLocker locker(&settingsMutex);
-
-    //if (m_format == format) return;
-    m_format = format;
-
-    emit audioFormatChanged(m_format);
-}
-
-void Settings::setAudioPosition(qint64 position) {
-
-    emit audioPositionChanged(position);
-}
-
-void Settings::setAudioBuffer(qint64 position, qint64 length, const QByteArray &buffer) {
-
-    emit audioBufferChanged(position, length, buffer);
-}
-
-
-//**********************************************************************************
 // wideband data & options
 
 void Settings::setWidebandOptions(TWideband options) {
@@ -4476,17 +4334,6 @@ void Settings::setWidebanddBmScaleMax(qreal value) {
     emit widebanddBmScaleMaxChanged(m_widebandOptions.dBmWBScaleMax);
 }
 
-void Settings::setWideBandRulerPosition(float position) {
-
-    if (m_widebandOptions.scalePosition == position) return;
-    if (position < 0) position = 0;
-    if (position > 1) position = 1;
-    m_widebandOptions.scalePosition = position;
-
-    emit wideBandScalePositionChanged(m_widebandOptions.scalePosition);
-}
-
-
 void Settings::setSpectrumSize(int value) {
     m_displayConfig->setSpectrumSize(value);
 }
@@ -4498,12 +4345,6 @@ void Settings::setSpectrumBuffer(int rx, const qVectorFloat& buffer)
         m_radioModel->telemetry()->setSpectrumBuffer(rx, buffer);
     }
 }
-
-void Settings::moveDisplayWidget(int value) {
-
-    emit displayWidgetHeightChanged(value);
-}
-
 
 //*********************************
 // color stuff
@@ -4786,16 +4627,6 @@ void Settings::setdBmDistScaleMax(qreal value) {
 
 // **********************************************************************
 
-void Settings::showRadioPopupWidget() {
-
-    if (m_radioPopupVisible)
-        m_radioPopupVisible = false;
-    else
-        m_radioPopupVisible = true;
-
-
-}
-
 void Settings::setPanAveragingMode(int rx, PanAveragingMode mode) {
     if (SliceModel* slice = sliceModel(rx)) {
         slice->setPanAveragingMode(mode);
@@ -4957,59 +4788,6 @@ void Settings::setNoiseFilterMode(int rx, int nr) {
     m_receiverDataList[rx].nr = nr;
     emit noiseFilterChanged(rx, nr);
 }
-
-void Settings::setNR2Ae(int rx, bool value) {
-    if (SliceModel* slice = sliceModel(rx)) {
-        slice->setNr2Ae(value);
-        QMutexLocker locker(&settingsMutex);
-        m_receiverDataList[rx].nr2_ae = value;
-        return;
-    }
-    if (rx < 0 || rx >= m_receiverDataList.size()) return;
-    if (m_receiverDataList[rx].nr2_ae == value) return;
-    m_receiverDataList[rx].nr2_ae = value;
-    emit nr2AeChanged(rx, value);
-}
-
-void Settings::setNR2GainMethod(int rx, int value) {
-    if (SliceModel* slice = sliceModel(rx)) {
-        slice->setNr2GainMethod(value);
-        QMutexLocker locker(&settingsMutex);
-        m_receiverDataList[rx].nr2_gain_method = value;
-        return;
-    }
-    if (rx < 0 || rx >= m_receiverDataList.size()) return;
-    if (m_receiverDataList[rx].nr2_gain_method == value) return;
-    m_receiverDataList[rx].nr2_gain_method = value;
-    emit nr2GainMethodChanged(rx, value);
-}
-
-void Settings::setNR2NpeMethod(int rx, int value) {
-    if (SliceModel* slice = sliceModel(rx)) {
-        slice->setNr2NpeMethod(value);
-        QMutexLocker locker(&settingsMutex);
-        m_receiverDataList[rx].nr2_npe_method = value;
-        return;
-    }
-    if (rx < 0 || rx >= m_receiverDataList.size()) return;
-    if (m_receiverDataList[rx].nr2_npe_method == value) return;
-    m_receiverDataList[rx].nr2_npe_method = value;
-    emit nr2NpeMethodChanged(rx, value);
-}
-
-void Settings::setNRAgc(int rx, int value) {
-    if (SliceModel* slice = sliceModel(rx)) {
-        slice->setNrAgc(value);
-        QMutexLocker locker(&settingsMutex);
-        m_receiverDataList[rx].nr_agc = value;
-        return;
-    }
-    if (rx < 0 || rx >= m_receiverDataList.size()) return;
-    if (m_receiverDataList[rx].nr_agc == value) return;
-    m_receiverDataList[rx].nr_agc = value;
-    emit nrAgcChanged(rx, value);
-}
-
 
 void Settings::setSnb(int rx, bool value) {
     if (SliceModel* slice = sliceModel(rx)) {

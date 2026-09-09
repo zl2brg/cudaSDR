@@ -369,7 +369,6 @@ int main(int argc, char *argv[]) {
             Settings::instance()->getVersionStr() +
             QObject::tr(":    OpenGL Frame Buffer support found."),
         Qt::AlignTop | Qt::AlignLeft, Qt::yellow);
-    Settings::instance()->setFBOPresence(true);
     QThread::msleep(100);
 
 

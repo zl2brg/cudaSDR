@@ -781,11 +781,16 @@ void PanadapterInputController::handleMouseMove(QMouseEvent* event) {
                     m_panel->m_deltaFrequency = m_panel->m_centerFrequency - m_panel->m_vfoFrequency;
                     m_panel->m_deltaF = (qreal)(1.0 * m_panel->m_deltaFrequency / m_panel->m_sampleRate);
 
-                    qreal vol = m_panel->set->getMainVolume(m_panel->m_receiver);
-                    m_panel->set->setMainVolume(m_panel->m_receiver, 0.0f);
-                    m_panel->set->setCtrFrequency(0, m_panel->m_receiver, m_panel->m_centerFrequency);
-                    m_panel->set->setNCOFrequency(true, m_panel->m_receiver, -m_panel->m_deltaFrequency);
-                    m_panel->set->setMainVolume(m_panel->m_receiver, vol);
+                    if (m_panel->m_sliceModel) {
+                        m_panel->m_sliceModel->setCenterFrequency(m_panel->m_centerFrequency);
+                        m_panel->set->setNCOFrequency(true, m_panel->m_receiver, -m_panel->m_deltaFrequency);
+                    } else {
+                        qreal vol = m_panel->set->getMainVolume(m_panel->m_receiver);
+                        m_panel->set->setMainVolume(m_panel->m_receiver, 0.0f);
+                        m_panel->set->setCtrFrequency(0, m_panel->m_receiver, m_panel->m_centerFrequency);
+                        m_panel->set->setNCOFrequency(true, m_panel->m_receiver, -m_panel->m_deltaFrequency);
+                        m_panel->set->setMainVolume(m_panel->m_receiver, vol);
+                    }
                 }
 
                 m_panel->m_mouseDownPos = m_panel->m_mousePos;

@@ -17,6 +17,7 @@ private slots:
     void testPolymorphicInterface();
     void testRxIqIngestAndCallback();
     void testNotifyRxIqAndBufferedRead();
+    void testDecoupledMultiRxIngest();
 };
 
 void SdrDeviceTests::testDeviceCapabilities()
@@ -271,6 +272,63 @@ void SdrDeviceTests::testNotifyRxIqAndBufferedRead()
     sim.notifyRxIq(0, inputIq.data(), 0);
     sim.notifyRxIq(0, inputIq.data(), -10);
     QCOMPARE(callbackCount, 3);
+}
+
+void SdrDeviceTests::testDecoupledMultiRxIngest()
+{
+    SimulatedDevice sim;
+
+    // Simulated per-receiver ingestion queues (emulating SliceProcessor::enqueueRxIq)
+    std::map<int, std::vector<float>> receiverQueues;
+
+    sim.setRxIqCallback([&](int rx, const float* interleavedIq, int numComplexSamples) {
+        if (!interleavedIq || numComplexSamples <= 0) return;
+        auto& q = receiverQueues[rx];
+        q.insert(q.end(), interleavedIq, interleavedIq + numComplexSamples * 2);
+    });
+
+    // Generate test data for 3 independent receiver slices
+    constexpr int kSamples = 128;
+    std::vector<float> rx0Data(kSamples * 2);
+    std::vector<float> rx1Data(kSamples * 2);
+    std::vector<float> rx2Data(kSamples * 2);
+
+    for (int i = 0; i < kSamples; ++i) {
+        rx0Data[2 * i]     = static_cast<float>(i) * 0.01f;
+        rx0Data[2 * i + 1] = static_cast<float>(-i) * 0.01f;
+
+        rx1Data[2 * i]     = 10.0f + static_cast<float>(i) * 0.05f;
+        rx1Data[2 * i + 1] = 20.0f + static_cast<float>(i) * 0.05f;
+
+        rx2Data[2 * i]     = -50.0f + static_cast<float>(i) * 0.1f;
+        rx2Data[2 * i + 1] = -100.0f + static_cast<float>(i) * 0.1f;
+    }
+
+    // Ingest data into independent receivers via polymorphic HAL
+    ISdrDevice* dev = &sim;
+    dev->notifyRxIq(0, rx0Data.data(), kSamples);
+    dev->notifyRxIq(1, rx1Data.data(), kSamples);
+    dev->notifyRxIq(2, rx2Data.data(), kSamples);
+
+    // Verify channel separation and exact sample fidelity
+    QCOMPARE(receiverQueues[0].size(), static_cast<size_t>(kSamples * 2));
+    QCOMPARE(receiverQueues[1].size(), static_cast<size_t>(kSamples * 2));
+    QCOMPARE(receiverQueues[2].size(), static_cast<size_t>(kSamples * 2));
+
+    for (int i = 0; i < kSamples * 2; ++i) {
+        QCOMPARE(receiverQueues[0][i], rx0Data[i]);
+        QCOMPARE(receiverQueues[1][i], rx1Data[i]);
+        QCOMPARE(receiverQueues[2][i], rx2Data[i]);
+    }
+
+    // Verify 24-bit full-scale normalization mapping
+    const double scale = 1.0 / 8388607.0;
+    int32_t maxPos = 8388607;
+    int32_t maxNeg = -8388607;
+    float maxPosFloat = static_cast<float>(maxPos * scale);
+    float maxNegFloat = static_cast<float>(maxNeg * scale);
+    QVERIFY(std::abs(maxPosFloat - 1.0f) < 1e-6f);
+    QVERIFY(std::abs(maxNegFloat - (-1.0f)) < 1e-6f);
 }
 
 QTEST_MAIN(SdrDeviceTests)

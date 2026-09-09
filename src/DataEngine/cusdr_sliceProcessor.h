@@ -100,10 +100,8 @@ public:
 	CPX			inBuf;
     CPX			outBuf;
     CPX			audioOutputBuf;
-	int32_t     m_rawIQ[BUFFER_SIZE * 2];
 
     bool    trySetDspPending() { return !m_dspPending.exchange(true); }
-    bool    trySetSoapyDspPending() { return trySetDspPending(); }
 
     SpscRingBuffer<float>* rxRing() { return &m_rxRing; }
     size_t  rxRingAvailableRead() const { return m_rxRing.availableRead(); }
@@ -119,12 +117,8 @@ public:
     int     readFromDevice(ISdrDevice* dev, int maxSamples);
 
 public slots:
-    void    enqueueRawData();
-    void    enqueueRawData(const QVector<int32_t> &rawBlock);
-    void    enqueueSoapyData(const QVector<float> &data);
 	void	noteRetuneActivity(qint64);
 	void    setSoapyInputSampleRate(int value);
-    void    dspProcessingSoapy();
 	void	setAudioMode(int mode);
 
 	void	setServerMode(QSDR::_ServerMode mode);

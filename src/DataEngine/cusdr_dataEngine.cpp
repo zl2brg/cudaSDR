@@ -3280,11 +3280,7 @@ void DataProcessor::processReadData()
                     if (de->device()) {
                         de->device()->notifyRxIq(rx, samples.constData(), samples.size() / 2);
                     } else {
-                        // Use thread-safe push fallback
-                        de->RX[rx]->enqueueSoapyData(samples);
-                        if (de->RX[rx]->trySetSoapyDspPending()) {
-                            QMetaObject::invokeMethod(de->RX[rx], "dspProcessingSoapy", Qt::QueuedConnection);
-                        }
+                        de->RX[rx]->enqueueRxIq(samples.constData(), samples.size() / 2);
                     }
                 }
             }
