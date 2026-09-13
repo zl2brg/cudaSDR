@@ -4,11 +4,10 @@
 
 #include "cusdr_audio_input.h"
 #include "Util/AudioDeviceService.h"
+#include "Util/cusdr_tciserver.h"
 
 TransmitAudioInput::TransmitAudioInput(QObject *parent) 
     : QObject(parent)
-    , m_faudioInQueue(TX_MIC_QUEUE_MAX_BLOCKS)
-    , m_netAudioInQueue(TX_MIC_QUEUE_MAX_BLOCKS)
     , set(Settings::instance())
     , m_audioSource(nullptr)
     , m_audioInputDevice(nullptr)
@@ -288,12 +287,22 @@ void TransmitAudioInput::Stop() {
 }
 
 bool TransmitAudioInput::Start() {
+    const bool tciOwnsMic = set && set->tciServer() && set->tciServer()->isTxChronoActive();
+    if (tciOwnsMic) {
+        if (m_running)
+            stopHardware();
+        clearLocalTxQueues();
+        AUDIO_INPUT_DEBUG << "Skipping host capture; TCI TX_CHRONO owns the mic";
+        return true;
+    }
+
     if (m_running)
         return true;
 
-    // Drop any backlog so TX starts at the live capture edge, not minutes of
-    // queued mic/digital audio left over from a previous key-up or underrun.
-    clearTxQueues();
+    // Drop leftover local capture so TX starts at the live mic edge. Do not
+    // clear the network ring — TCI TX frames may already be in flight from
+    // TX_CHRONO (TRX is set before this Start() runs).
+    clearLocalTxQueues();
 
     // Late-initialize capture path at TX start time. This covers cases where
     // the object was created before HW interface selection settled (e.g. Soapy),
@@ -378,25 +387,19 @@ void TransmitAudioInput::processAudioData(const QByteArray &data)
         m_residualBuffer.append(sample);
         
         if (m_residualBuffer.size() >= DSP_SAMPLE_SIZE) {
-            AUDIOBUF chunk;
-            chunk.resize(DSP_SAMPLE_SIZE);
-            double sumSq = 0;
-            for (int s = 0; s < DSP_SAMPLE_SIZE; s++) {
-                float val = m_residualBuffer.at(s);
-                chunk[s] = static_cast<double>(val);
-                sumSq += (val * val);
-            }
-            m_residualBuffer.remove(0, DSP_SAMPLE_SIZE);
-            
             static int blockCount = 0;
             if (++blockCount % 100 == 0) {
-                double rms = sqrt(sumSq / DSP_SAMPLE_SIZE);
+                double sumSq = 0;
                 float peak = 0.0f;
+                const float *samples = m_residualBuffer.constData();
                 for (int s = 0; s < DSP_SAMPLE_SIZE; ++s) {
-                    float a = std::fabs(static_cast<float>(chunk[s]));
+                    float val = samples[s];
+                    sumSq += (val * val);
+                    float a = std::fabs(val);
                     if (a > peak)
                         peak = a;
                 }
+                double rms = sqrt(sumSq / DSP_SAMPLE_SIZE);
                 double rmsDb = 20.0 * std::log10(std::max(rms, 1.0e-9));
                 double peakDb = 20.0 * std::log10(std::max(static_cast<double>(peak), 1.0e-9));
                 double headroomDb = -peakDb;
@@ -405,17 +408,61 @@ void TransmitAudioInput::processAudioData(const QByteArray &data)
                                   << " (" << rmsDb << " dBFS), peak=" << peak
                                   << " (" << peakDb << " dBFS), headroom=" << headroomDb << " dB";
             }
-            
-            m_faudioInQueue.enqueueDropOldest(chunk);
+            pushMicAudio(m_residualBuffer.constData(), DSP_SAMPLE_SIZE);
+            m_residualBuffer.remove(0, DSP_SAMPLE_SIZE);
             emit tx_mic_data_ready();
         }
     }
 }
 
+void TransmitAudioInput::pushMicAudio(const float* samples, size_t count)
+{
+    if (!samples || count == 0) return;
+    m_faudioRing.writeDropOldest(samples, count);
+}
+
+void TransmitAudioInput::pushNetAudio(const float* samples, size_t count)
+{
+    if (!samples || count == 0) return;
+    m_netAudioRing.writeDropOldest(samples, count);
+}
+
+size_t TransmitAudioInput::readMicAudio(float* dest, size_t count)
+{
+    return m_faudioRing.read(dest, count);
+}
+
+size_t TransmitAudioInput::readNetAudio(float* dest, size_t count)
+{
+    return m_netAudioRing.read(dest, count);
+}
+
+bool TransmitAudioInput::readMicAudioBlock(float* dest, size_t count)
+{
+    return spscReadBlock(m_faudioRing, m_micFetchResidual, dest, count);
+}
+
+bool TransmitAudioInput::readNetAudioBlock(float* dest, size_t count)
+{
+    return spscReadBlock(m_netAudioRing, m_netFetchResidual, dest, count);
+}
+
+void TransmitAudioInput::clearLocalTxQueues()
+{
+    m_faudioRing.clear();
+    m_residualBuffer.clear();
+    m_micFetchResidual.clear();
+}
+
+void TransmitAudioInput::clearNetTxQueues()
+{
+    m_netAudioRing.clear();
+    m_netFetchResidual.clear();
+}
+
 void TransmitAudioInput::clearTxQueues()
 {
-    m_faudioInQueue.clear();
-    m_netAudioInQueue.clear();
-    m_residualBuffer.clear();
+    clearLocalTxQueues();
+    clearNetTxQueues();
 }
 

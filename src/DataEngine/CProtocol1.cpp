@@ -1,5 +1,6 @@
 #include "CProtocol1.h"
 #include "cusdr_dataEngine.h"
+#include "AudioEngine/cusdr_audio_input.h"
 #include "Models/RadioModel.h"
 #include "Models/SliceModel.h"
 #include "Models/RadioTelemetry.h"
@@ -18,6 +19,7 @@ CProtocol1::CProtocol1()
     , m_rxSamples(0)
     , m_fwCount(0)
 {
+    m_hpsdrMicBuffer.reserve(DSP_SAMPLE_SIZE);
     m_metisGetDataSignature.resize(3);
     m_metisGetDataSignature[0] = (char)0xEF;
     m_metisGetDataSignature[1] = (char)0xFE;
@@ -90,6 +92,10 @@ void CProtocol1::processInputBuffer(const QByteArray& buffer, DataEngine* de, qu
             return;
         }
 
+        Settings* set = Settings::instance();
+        const bool bufferHpsdrMic = (set && set->getMicInputDev() == 0 && set->is_transmitting());
+        const int decim = (set && set->getSampleRate() > 0) ? qMax(1, set->getSampleRate() / 48000) : 1;
+
         // extract the samples
         while (s < maxSamples)
         {
@@ -102,9 +108,9 @@ void CProtocol1::processInputBuffer(const QByteArray& buffer, DataEngine* de, qu
                 m_rightSample = ProtocolBoundaryUtils::decode24BitBE(p);
                 p += 3;
 
-                if (r < activeReceivers && de->RX.at(r)->qtwdsp) {
-                    de->RX[r]->m_rawIQ[m_rxSamples * 2] = m_leftSample;
-                    de->RX[r]->m_rawIQ[m_rxSamples * 2 + 1] = m_rightSample;
+                if (r < activeReceivers && r < MAX_RECEIVERS) {
+                    m_rxRawIQ[r][m_rxSamples * 2] = m_leftSample;
+                    m_rxRawIQ[r][m_rxSamples * 2 + 1] = m_rightSample;
                 }
             }
             s += de->receivers() * 6;
@@ -114,14 +120,36 @@ void CProtocol1::processInputBuffer(const QByteArray& buffer, DataEngine* de, qu
             s += 2;
             m_micSample_float = (float) m_micSample / 32767.0f * de->mic_gain; // 16 bit sample
 
+            if (bufferHpsdrMic) {
+                if (++m_micDecimCounter >= decim) {
+                    m_micDecimCounter = 0;
+                    m_hpsdrMicBuffer.append(m_micSample_float);
+                    if (m_hpsdrMicBuffer.size() >= DSP_SAMPLE_SIZE) {
+                        if (de->m_audioInput) {
+                            de->m_audioInput->pushMicAudio(m_hpsdrMicBuffer.constData(), DSP_SAMPLE_SIZE);
+                        }
+                        m_hpsdrMicBuffer.clear();
+                    }
+                }
+            } else if (!m_hpsdrMicBuffer.isEmpty()) {
+                m_hpsdrMicBuffer.clear();
+                m_micDecimCounter = 0;
+            }
+
             m_rxSamples++;
 
             // when we have enough rx samples we start the DSP processing.
             if (m_rxSamples == BUFFER_SIZE) {
-                for (int r = 0; r < activeReceivers; r++) {
-                    if (de->RX.at(r)->qtwdsp) {
-                        de->RX[r]->enqueueRawData();
-                        QMetaObject::invokeMethod(de->RX.at(r), "dspProcessing", Qt::QueuedConnection);
+                const double scale = 1.0 / 8388607.0;
+                for (int r = 0; r < activeReceivers && r < MAX_RECEIVERS; r++) {
+                    std::vector<float> floatBuf(BUFFER_SIZE * 2);
+                    for (int i = 0; i < BUFFER_SIZE * 2; ++i) {
+                        floatBuf[i] = static_cast<float>(m_rxRawIQ[r][i] * scale);
+                    }
+                    if (de->device()) {
+                        de->device()->notifyRxIq(r, floatBuf.data(), BUFFER_SIZE);
+                    } else if (r < de->RX.size() && de->RX.at(r)) {
+                        de->RX.at(r)->enqueueRxIq(floatBuf.data(), BUFFER_SIZE);
                     }
                 }
                 m_rxSamples = 0;
@@ -134,12 +162,18 @@ void CProtocol1::decodeCCBytes(const QByteArray& buffer, DataEngine* de) {
     Settings* set = Settings::instance();
     const bool prev_dash = de->ccRx.dash;
     const bool prev_dot = de->ccRx.dot;
-	de->ccRx.ptt    = (bool)((buffer.at(0) & 0x01) == 0x01);
+    const bool prev_ptt = de->ccRx.ptt;
+    const bool ptt = (bool)((buffer.at(0) & 0x01) == 0x01);
+	de->ccRx.ptt    = ptt;
 	de->ccRx.dash   = (bool)((buffer.at(0) & 0x02) == 0x02);
 	de->ccRx.dot    = (bool)((buffer.at(0) & 0x04) == 0x04);
 	de->ccRx.previous_dash = prev_dash;
 	de->ccRx.previous_dot = prev_dot;
 	de->ccRx.lt2208 = (bool)((buffer.at(1) & 0x01) == 0x01);
+
+    if (ptt != prev_ptt && set) {
+        set->setRadioState(ptt ? RadioState::MOX : RadioState::RX);
+    }
 
     // Always feed the iambic thread — it drives host sidetone via cw_sidetone_down.
     // When internal keyer is ON the iambic key_down only sets cw_sidetone_down, not cw_key_down.

@@ -52,13 +52,79 @@
 
 
 class RadioModel;
+class SMeterRenderer;
+class DisplayFreqRenderer;
+class DisplayStatusRenderer;
+class DisplayPanelInputController;
+
 class OGLDisplayPanel : public QOpenGLWidget, protected QOpenGLFunctions {
 
     Q_OBJECT
 
+    friend class SMeterRenderer;
+    friend class DisplayFreqRenderer;
+    friend class DisplayStatusRenderer;
+    friend class DisplayPanelInputController;
+
 public:
+    enum Region {
+        upperRegion,
+        lowerRegion,
+        rxRegion,
+        smeterRegion,
+        hpsdrRegion,
+        elsewhere,
+        out
+    };
+
+    enum FreqDigit {
+        Freq1000000000,
+        dp0,
+        Freq100000000,
+        Freq10000000,
+        Freq1000000,
+        dp1,
+        Freq100000,
+        Freq10000,
+        Freq1000,
+        dp2,
+        Freq100,
+        Freq10,
+        Freq1,
+        None,
+    };
+
+    enum DigitVfo {
+        DigitVfoNone = -1,
+        DigitVfoA = 0,
+        DigitVfoB = 1,
+    };
+
+    struct FreqDigitHitRegions {
+        QRegion freg1;
+        QRegion freg10;
+        QRegion freg100;
+        QRegion freg1000;
+        QRegion freg10000;
+        QRegion freg100000;
+        QRegion freg1000000;
+        QRegion freg10000000;
+        QRegion freg100000000;
+        QRegion freg1000000000;
+        QRegion point;
+        QRegion point1;
+        QRegion point2;
+        QRegion label;
+    };
+
     OGLDisplayPanel(RadioModel *model, QWidget *parent = nullptr);
 	~OGLDisplayPanel();
+
+    SMeterRenderer* smeterRenderer() const { return m_smeterRenderer; }
+    DisplayFreqRenderer* freqRenderer() const { return m_freqRenderer; }
+    DisplayStatusRenderer* statusRenderer() const { return m_statusRenderer; }
+    DisplayPanelInputController* inputController() const { return m_inputController; }
+
 	// Core 3.3: frequency digits must use OGLText — QPainter(this) in paintGL flashes siblings.
 	void renderFreqText(OGLText *text, GLint &x1, GLint y1, const QColor &fontcolor,
 	                    const QString &freqstr, int digit, int digit_pos, int fixed_width = 0);
@@ -82,14 +148,9 @@ protected:
 	void mouseMoveEvent(QMouseEvent *event);
 	void mouseDoubleClickEvent(QMouseEvent *event);
 	void wheelEvent(QWheelEvent * event );
-	void keyPressEvent(QKeyEvent* event);
-	void closeEvent(QCloseEvent *event);
-    void timerEvent(QTimerEvent *);
     void qglColor(QColor color);
     void renderPanelText(OGLText *text, float x, float y, const QString &str);
     void renderPanelText(OGLText *text, float x, float y, float z, const QString &str);
-    void saveGLState();
-    void restoreGLState();
 
 private:
     QOpenGLShaderProgram      *m_shaderProgram;
@@ -103,8 +164,6 @@ private:
     void drawPanelRoundedRectOutline(const QRect &rect, const QColor &color, int radius, float z = 0.0f);
     void drawPanelGradientRect(const QRect &rect, const QColor &c1, const QColor &c2,
                                bool leftToRight, float z = 0.0f);
-    void drawSMeterNeedle(const QMatrix4x4 &projection, int x1);
-    void drawSMeterScaleLabels(const QMatrix4x4 &projection, int xOffset);
 
     RadioModel*                             m_radioModel;
 	Settings*					set;
@@ -121,8 +180,6 @@ private:
 
 	CFonts		*fonts;
 	TFonts		m_fonts;
-
-	QMutex		m_mutex;
 
     OGLText		*m_oglTextTiny;
 	OGLText		*m_oglTextSmall;
@@ -181,27 +238,6 @@ private:
 	QString     m_f1strB;
 	QString     m_f2strB;
 
-	struct FreqDigitHitRegions {
-		QRegion freg1;
-		QRegion freg10;
-		QRegion freg100;
-		QRegion freg1000;
-		QRegion freg10000;
-		QRegion freg100000;
-		QRegion freg1000000;
-		QRegion freg10000000;
-		QRegion freg100000000;
-		QRegion freg1000000000;
-		QRegion point;
-		QRegion point1;
-		QRegion point2;
-		QRegion label;
-	};
-
-	FreqDigitHitRegions m_hitA;
-	FreqDigitHitRegions m_hitB;
-
-
     QColor      m_txdigitColor;
 	QColor		m_digitColor;
 	QColor		m_bkgColor1;
@@ -213,53 +249,21 @@ private:
 
     QElapsedTimer		m_sMeterTimer;
     QElapsedTimer		m_sMeterMaxTimer;
-    QElapsedTimer		m_sMeterMinTimer;
     QElapsedTimer		m_sMeterDisplayTime;
     bool				m_repaintPending = false;
 
 	void	scheduleRepaint();
 
-	enum Region {
-
-		upperRegion,
-		lowerRegion,
-		rxRegion,
-		smeterRegion,
-		hpsdrRegion,
-		elsewhere,
-		out
-	};
-
-	enum FreqDigit {
-	Freq1000000000,
-	dp0,
-	Freq100000000,
-	Freq10000000,
-	Freq1000000,
-	dp1,
-	Freq100000,
-	Freq10000,
-	Freq1000,
-	dp2,
-	Freq100,
-	Freq10,
-	Freq1,
-	None,
-	};
-
-	enum DigitVfo {
-		DigitVfoNone = -1,
-		DigitVfoA = 0,
-		DigitVfoB = 1,
-	};
+    SMeterRenderer       *m_smeterRenderer = nullptr;
+    DisplayFreqRenderer  *m_freqRenderer = nullptr;
+    DisplayStatusRenderer *m_statusRenderer = nullptr;
+    DisplayPanelInputController *m_inputController = nullptr;
 
 	GLuint	m_sMeterTex;
 	bool	m_smeterUpdate;
 	bool	m_smeterRenew;
-	bool	m_sMeterAvg;
 
-
-	qint64	m_oldFreq;
+	qint64	m_oldFreq = -1;
 
 	int		m_height;
 	int		m_sMeterWidth;
@@ -279,6 +283,8 @@ private:
     bool    m_txMetersArmed = false;
     bool    m_rigCtlConnected = false;
     bool    m_tciConnected = false;
+    /** 0 idle, 1 waiting for client TX, 2 silent, 3 active (TciServer::TxAudioDebug). */
+    int     m_tciTxAudioDebug = 0;
     qreal   m_swr = 1.0;
     qreal   m_swrSmooth = 1.0;
     qreal   m_supplyVolts = 0.0;
@@ -328,52 +334,33 @@ private:
 	int		m_sampleRateWidth;
 	int		m_modusWidth;
 	int		m_10MHzWidth;
-	int		m_sMeterDeform;
 	int		m_12288MHzWidth;
 	int		m_freqDigitsPosYA;
 	int		m_freqDigitsPosYB;
 	int		m_sMeterPosY;
 	int		m_sMeterHoldTime;
 	int		m_sMeterPrevHoldTimeMax;
-	int		m_sMeterPrevHoldTimeMin;
-	int		m_sMeterMeanValueCnt;
-    QOpenGLFramebufferObject * m_smeterFBO =nullptr;
 
 	qreal	m_mouseWheelFreqStep;
-	qreal	m_dBmPanMin;
-	qreal	m_dBmPanMax;
-	qreal	m_unit;
+	qreal	m_dBmPanMin = -130.0;
+	qreal	m_dBmPanMax = 10.0;
+	qreal	m_unit = 1.0;
 	
-	float	m_smeterVertices;
 	float	m_sMeterValue;
-	float	m_sMeterMeanValue;
 	float	m_sMeterOrgValue;
-	float	m_sMeterMaxValueA;
-	float	m_sMeterMinValueA;
 	float	m_sMeterMaxValueB;
-	float	m_sMeterMinValueB;
 	float	m_sMeterAvgValList[MAX_RECEIVERS];
 	float	m_sMeterPeakValList[MAX_RECEIVERS];
 	float	m_sMeterHoldMaxList[MAX_RECEIVERS];
-	float	m_sMeterHoldMinList[MAX_RECEIVERS];
 
 	//*************************
 	void	setupConnections();
 	void	setupTextstrings();
-	void	paintUpperRegion();
-	void	paintLowerRegion();
-	void	paintRxRegion();
-	
-	void	paintSMeter();
-	void	renderSMeterScale();
 
 	/** GHz.MHz display string (leading zeros blanked) from absolute Hz. */
 	QString	freqMhzDisplayString(qint64 frequencyHz) const;
 	void	splitFreqDisplay(qint64 frequencyHz, QString *f1str, QString *f2str) const;
 
-	void	updateFreqDigitHitRegions(FreqDigitHitRegions &out, int originX, int yBaseline,
-	                                  const QString &f1str, bool large,
-	                                  const QRect &labelRect);
 	void	rebuildAllFreqDigitHitRegions();
 	QRect	vfoLabelRect(int yBaseline) const;
 
@@ -381,14 +368,6 @@ private:
 	qint64	vfoMemoryHz(DigitVfo which) const;
 	void	activateDigitVfo(DigitVfo which);
 	void	tuneDigitVfoTo(DigitVfo which, qint64 frequencyHz);
-	bool	hitTestDigit(const FreqDigitHitRegions &regs, const QString &f1str,
-	                     QPoint p, int *digitOut) const;
-
-	void	paintVfoFrequencyRow(DigitVfo which, bool active, int yBaseline, int originX,
-	                             const QString &f1str, const QString &f2str,
-	                             const QColor &fontcolor);
-
-	void	getSelectedDigit(QPoint p);
 	
 private slots:
 	void	systemStateChanged(
@@ -420,6 +399,7 @@ private slots:
 	void	setHermesVersion(int value);
 	void	setRigCtlStatus(bool active);
 	void	setTciStatus(bool active);
+	void	setTciTxAudioDebug(int hint);
 	void	setMercuryVersion(int value);
 	void	setPenelopeVersion(int value);
 	void 	setPennylaneVersion(int value);

@@ -35,7 +35,11 @@
 #include "QtWDSP/qtwdsp_dspEngine.h"
 #include "QtWDSP/qtdsp_qComplex.h"
 #include "receiveraudiooutput.h"
+#include "Util/SpscRingBuffer.h"
+#include "AudioEngine/IDigitalVoiceDemodulator.h"
 #include <atomic>
+#include <vector>
+#include <memory>
 
 #ifdef HAVE_CODEC2
 #include "AudioEngine/cusdr_freedvprocessor.h"
@@ -66,9 +70,6 @@ public:
 	void	setupConnections();
 	bool	initDSPInterface();
 
-	void	enqueueData();
-
-
 	QSDR::_ServerMode	getServerMode()	const;
 	QHostAddress		getPeerAddress()		{ return m_peerAddress; }
 
@@ -82,11 +83,7 @@ public:
 	bool	getConnectedStatus()	{ return m_connected; }
     void 	setAudioBufferSize();
 
-    float	in[BUFFER_SIZE * 2];
-    float	out[BUFFER_SIZE * 2];
-	float	temp[BUFFER_SIZE * 4];
-	float	spectrum[BUFFER_SIZE * 4];
-    RadioState m_state  = RadioState::RX;
+    std::atomic<RadioState> m_state{RadioState::RX};
 	QVector<float>	newSpectrum;
     QWDSPEngine*	qtwdsp = nullptr;
     std::unique_ptr<HResTimer>	highResTimer;
@@ -97,17 +94,24 @@ public:
 	CPX			inBuf;
     CPX			outBuf;
     CPX			audioOutputBuf;
-	int32_t     m_rawIQ[BUFFER_SIZE * 2];
 
-    bool    trySetSoapyDspPending() { return !m_soapyDspPending.exchange(true); }
+    bool    trySetDspPending() { return !m_dspPending.exchange(true); }
+
+    SpscRingBuffer<float>* rxRing() { return &m_rxRing; }
+    size_t  rxRingAvailableRead() const { return m_rxRing.availableRead(); }
+    size_t  rxRingCapacity() const { return m_rxRing.capacity(); }
+    uint64_t rxQueueDropCount() const { return m_rxRing.dropCount(); }
+
+    SpscRingBuffer<float>* tciAudioRing() { return &m_tciAudioRing; }
+    size_t  tciAudioAvailable() const { return m_tciAudioRing.availableRead(); }
+    size_t  readTciAudio(float* dest, size_t maxFloats) { return m_tciAudioRing.read(dest, maxFloats); }
+
+    void    enqueueRxIq(const float* interleavedIq, int numComplexSamples);
+    void    enqueueRxIq(const QVector<float> &samples);
 
 public slots:
-    void    enqueueRawData();
-    void    enqueueRawData(const QVector<int32_t> &rawBlock);
-    void    enqueueSoapyData(const QVector<float> &data);
 	void	noteRetuneActivity(qint64);
 	void    setSoapyInputSampleRate(int value);
-    void    dspProcessingSoapy();
 	void	setAudioMode(int mode);
 
 	void	setServerMode(QSDR::_ServerMode mode);
@@ -122,7 +126,6 @@ public slots:
 	void	setFreeDVMode(int rx, int mode);
 
 	void	dspProcessing();
-    void    dspProcessing(const QVector<int32_t> &rawIQ);
 	void	stop();
 	/** Tear down QAudioSink after DSP writers have stopped. */
 	void	stopAudio();
@@ -181,10 +184,11 @@ private:
     int		m_bsPort;
 	int		m_displayTime;
 
-	QHQueue<QVector<int32_t>> m_iqQueue;
-	QHQueue<QVector<float>>   m_soapyQueue;
-	quint64				m_iqQueueDropCount = 0;
-	quint64				m_soapyQueueDropCount = 0;
+	SpscRingBuffer<float>     m_rxRing{131072};
+	SpscRingBuffer<float>     m_tciAudioRing{32768};
+	std::vector<float>        m_soundcardScratch;
+	std::vector<float>        m_tciAudioScratch;
+	std::vector<float>        m_monoScratch;
 
     int 	m_audiobuffersize;
 
@@ -196,7 +200,7 @@ private:
     double  m_sidetonePhase = 0.0;
 
 	bool	m_connected;
-    std::atomic<bool> m_soapyDspPending;
+    std::atomic<bool> m_dspPending{false};
     int     m_rateTransitionDropBuffers;
     QMutex  m_dspMutex;
 
@@ -205,23 +209,27 @@ private:
     QVector<float> m_lastTxSpectrum;
     bool m_haveLastTxSpectrum = false;
 
-#ifdef HAVE_SOAPYSDR
     double  m_soapyDcAvgI = 0.0;
     double  m_soapyDcAvgQ = 0.0;
     void    resetSoapyDcEstimator();
-#endif
 
 #ifdef HAVE_CODEC2
-	FreeDVProcessor* m_freeDVProcessor = nullptr;
+	std::unique_ptr<IDigitalVoiceDemodulator> m_dvDemodulator;
 	int m_freeDVMode = 0;
 	quint64 m_freeDVRxFrames = 0;
 #endif
 
-#ifdef HAVE_RADE
-	RadeProcessor* m_radeProcessor = nullptr;
-#endif
-
 	CwDecoder* m_cwDecoder = nullptr;
+
+    // DSP Pipeline Stages
+    void    processSpectrumPass(bool transmitting);
+    void    processMeterPass();
+    void    processAudioPass(int audioSamplesThisCall);
+    void    processDigitalVoicePass(const float* monoIn, int count);
+    void    deliverInternalAudio(const float* soundcardStereo, int soundcardCount,
+                                 const float* tciStereo, int tciCount);
+    void    synthesizeCwSidetone(int n);
+    bool    isRetuneMuted() const;
 
 public:
 	CwDecoder* cwDecoder() const { return m_cwDecoder; }
@@ -233,6 +241,7 @@ signals:
 	void	sMeterPeakValueChanged(int rx, double value);
 	void	outputBufferSignal(int rx, const CPX &buffer);
 	void	audioBufferSignal(int rx, const CPX &buffer, int);
+	void	tciAudioReady(int rx);
 	void	rxAudioSamples(int rx, QVector<float> stereoInterleaved, int sampleRate);
 	void	rxIqSamples(int rx, QVector<float> iqInterleaved, int sampleRate);
 

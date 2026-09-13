@@ -244,6 +244,12 @@ void SettingsPersistenceTests::loadAndSaveAllConfigModules()
         seed.setValue(QStringLiteral("network/tci_rx_gain"), 1.5);
         seed.setValue(QStringLiteral("SoapySDR/rxAntenna"), QStringLiteral("LNAW"));
         seed.setValue(QStringLiteral("SoapySDR/lnaGain"), 18);
+        seed.setValue(QStringLiteral("penny/OCenabled"), QStringLiteral("on"));
+        seed.setValue(QStringLiteral("penny/rxState160m"), 12);
+        seed.setValue(QStringLiteral("penny/txState160m"), 34);
+        seed.setValue(QStringLiteral("wideband/widebandData"), QStringLiteral("on"));
+        seed.setValue(QStringLiteral("wideband/averaging"), QStringLiteral("off"));
+        seed.setValue(QStringLiteral("wideband/averagingCnt"), 15);
 
         seed.sync();
     }
@@ -299,6 +305,13 @@ void SettingsPersistenceTests::loadAndSaveAllConfigModules()
     QCOMPARE(m_settings->getSoapyRxAntenna(), m_settings->soapyConfig()->rxAntenna());
     QCOMPARE(m_settings->getSoapyLnaGain(), 18);
     QCOMPARE(m_settings->getSoapyLnaGain(), m_settings->soapyConfig()->lnaGain());
+    QCOMPARE(m_settings->pennyConfig()->ocEnabled(), true);
+    QCOMPARE(m_settings->getPennyOCEnabled(), true);
+    QCOMPARE(m_settings->pennyConfig()->rxJ6().value(m160), 12);
+    QCOMPARE(m_settings->pennyConfig()->txJ6().value(m160), 34);
+    QCOMPARE(m_settings->widebandConfig()->dataEnabled(), true);
+    QCOMPARE(m_settings->widebandConfig()->averaging(), false);
+    QCOMPARE(m_settings->widebandConfig()->averagingCnt(), 15);
 
     // Update values, save, and reload
     m_settings->displayConfig()->setdBmDistScaleMin(-60.0);
@@ -310,6 +323,9 @@ void SettingsPersistenceTests::loadAndSaveAllConfigModules()
     m_settings->setAlexConfiguration(0x410F);
     m_settings->setServerAddr(QStringLiteral("10.0.0.8"));
     m_settings->setFreeDVMode(0, 4);
+    m_settings->setPennyOCEnabled(false);
+    m_settings->widebandConfig()->setAveraging(true);
+    m_settings->widebandConfig()->setAveragingCnt(25);
 
     QVERIFY(m_settings->saveSettings() >= 0);
 
@@ -334,6 +350,10 @@ void SettingsPersistenceTests::loadAndSaveAllConfigModules()
     QCOMPARE(m_settings->getServerAddr(), m_settings->networkConfig()->serverAddress());
     QCOMPARE(m_settings->getFreeDVMode(0), 4);
     QCOMPARE(m_settings->getFreeDVMode(0), m_settings->freeDVConfig()->rxMode(0));
+    QCOMPARE(m_settings->pennyConfig()->ocEnabled(), false);
+    QCOMPARE(m_settings->getPennyOCEnabled(), false);
+    QCOMPARE(m_settings->widebandConfig()->averaging(), true);
+    QCOMPARE(m_settings->widebandConfig()->averagingCnt(), 25);
 }
 
 void SettingsPersistenceTests::savePersistsDBmPanScaleWithSliceModel()
@@ -444,6 +464,11 @@ void SettingsPersistenceTests::saveDoesNotWriteConflictingDuplicateIniKeys()
     const auto window = dumpConfigIni([&](QSettings *s) { m_settings->windowConfig()->saveIni(s); });
     const auto tci = dumpConfigIni([&](QSettings *s) { m_settings->tciConfig()->saveIni(s); });
     const auto soapy = dumpConfigIni([&](QSettings *s) { m_settings->soapyConfig()->saveIni(s); });
+    QStringList bandKeys;
+    for (const auto &b : m_settings->getBandFrequencyList())
+        bandKeys << b.bandString;
+    const auto penny = dumpConfigIni([&](QSettings *s) { m_settings->pennyConfig()->saveIni(s, bandKeys); });
+    const auto wideband = dumpConfigIni([&](QSettings *s) { m_settings->widebandConfig()->saveIni(s); });
     QMap<QString, QVariant> receivers;
     for (ReceiverConfig *rx : m_settings->receiverConfigs()) {
         const auto dumped = dumpConfigIni([&](QSettings *s) { rx->saveIni(s); });
@@ -463,6 +488,8 @@ void SettingsPersistenceTests::saveDoesNotWriteConflictingDuplicateIniKeys()
         {QStringLiteral("WindowConfig"), window},
         {QStringLiteral("TciConfig"), tci},
         {QStringLiteral("SoapyConfig"), soapy},
+        {QStringLiteral("PennyConfig"), penny},
+        {QStringLiteral("WidebandConfig"), wideband},
         {QStringLiteral("ReceiverConfig"), receivers},
     };
     for (int i = 0; i < modules.size(); ++i) {

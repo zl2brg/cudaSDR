@@ -1,9 +1,10 @@
 #include <QtTest/QtTest>
 #include <QWebSocket>
 #include <QSignalSpy>
+#include <vector>
 
 #include "Util/cusdr_tciserver.h"
-#include "Util/cusdr_queue.h"
+#include "Util/SpscRingBuffer.h"
 #include "Util/tci_protocol_utils.h"
 #include "Models/RadioModel.h"
 #include "Models/RadioTelemetry.h"
@@ -27,6 +28,7 @@ private slots:
     void iqStartAdvertisesDistinctSampleRate();
     void txAudioEnqueuedWhileMox();
     void txAudioIgnoredWhileRx();
+    void txAudioRejectedWhileRxDoesNotClearRing();
     void txAudioWsjtOversizedFrameYieldsOneBlock();
     void vfoOutOfRangeRejected();
     void vfoInRangeAccepted();
@@ -39,6 +41,9 @@ private slots:
     void driveCommandClampsLevel();
     void tuneCommandSetsTuneState();
     void audioStartStopGatesRxBinaryStream();
+    void audioStartStopGatesRxRingBuffer();
+    void rxAudioReadyDrainsOneChunkThenYields();
+    void txAudioSurvivesAfterTrxWhenMoreFramesArrive();
     void compatStubCommandsAccepted();
     void startStopEmitRequestsAndInitAdvertisesPower();
     void dataEngineStateChangeBroadcastsStartStop();
@@ -55,14 +60,14 @@ private:
     Settings *m_settings = nullptr;
     TciServer *m_server = nullptr;
     RadioModel *m_radioModel = nullptr;
-    QHQueue<QVector<double>> m_txQueue;
+    SpscRingBuffer<float> m_txRing{8192};
     QWebSocket m_client;
     QStringList m_textMessages;
     qint64 m_baselineVfoHz = 7'050'000;
 
     bool waitForConnected(int timeoutMs = 5000);
     bool waitForMessageContaining(const QString &needle, int timeoutMs = 5000);
-    void drainTxQueue();
+    void drainTxRing();
 };
 
 void TciServerWsTests::initTestCase()
@@ -79,7 +84,7 @@ void TciServerWsTests::initTestCase()
     m_settings->setRadioModel(m_radioModel);
 
     m_server = new TciServer();
-    m_server->setTransmitAudioQueue(&m_txQueue);
+    m_server->setTransmitAudioRing(&m_txRing);
     m_server->bindSlices(m_radioModel);
     QVERIFY(m_server->startListening(0));
     QVERIFY(m_server->port() > 0);
@@ -104,7 +109,7 @@ void TciServerWsTests::cleanupTestCase()
 void TciServerWsTests::init()
 {
     m_textMessages.clear();
-    drainTxQueue();
+    drainTxRing();
     m_settings->setRadioState(RadioState::RX);
 
     QObject::disconnect(&m_client, nullptr, this, nullptr);
@@ -126,7 +131,7 @@ void TciServerWsTests::cleanup()
     m_settings->setRadioState(RadioState::RX);
     m_settings->setSystemState(QSDR::NoError, m_settings->getHWInterface(),
                                m_settings->getCurrentServerMode(), QSDR::DataEngineDown);
-    drainTxQueue();
+    drainTxRing();
 }
 
 bool TciServerWsTests::waitForConnected(int timeoutMs)
@@ -145,10 +150,9 @@ bool TciServerWsTests::waitForMessageContaining(const QString &needle, int timeo
     }, timeoutMs);
 }
 
-void TciServerWsTests::drainTxQueue()
+void TciServerWsTests::drainTxRing()
 {
-    while (m_txQueue.count() > 0)
-        m_txQueue.dequeue();
+    m_txRing.clear();
 }
 
 void TciServerWsTests::connectReceivesReadyBurst()
@@ -231,11 +235,13 @@ void TciServerWsTests::txAudioEnqueuedWhileMox()
     const QByteArray frame = buildTxAudioFrame(samples.constData(), samples.size());
     m_client.sendBinaryMessage(frame);
 
-    QVERIFY(QTest::qWaitFor([this]() { return m_txQueue.count() > 0; }, 3000));
-    const QVector<double> block = m_txQueue.dequeue();
-    QCOMPARE(block.size(), DSP_SAMPLE_SIZE);
-    QVERIFY(block.at(0) >= 0.0);
-    QVERIFY(block.at(DSP_SAMPLE_SIZE - 1) < 1.0);
+    QVERIFY(QTest::qWaitFor([this]() { return m_txRing.availableRead() >= DSP_SAMPLE_SIZE; }, 3000));
+
+    float ringBuf[DSP_SAMPLE_SIZE];
+    size_t ringRead = m_txRing.read(ringBuf, DSP_SAMPLE_SIZE);
+    QCOMPARE(static_cast<int>(ringRead), DSP_SAMPLE_SIZE);
+    QVERIFY(ringBuf[0] >= 0.0f);
+    QVERIFY(ringBuf[DSP_SAMPLE_SIZE - 1] < 1.0f);
 }
 
 void TciServerWsTests::txAudioIgnoredWhileRx()
@@ -247,7 +253,25 @@ void TciServerWsTests::txAudioIgnoredWhileRx()
     m_client.sendBinaryMessage(frame);
 
     QTest::qWait(200);
-    QCOMPARE(m_txQueue.count(), 0);
+    QCOMPARE(m_txRing.availableRead(), size_t(0));
+}
+
+void TciServerWsTests::txAudioRejectedWhileRxDoesNotClearRing()
+{
+    QCOMPARE(m_settings->getRadioState(), RadioState::RX);
+
+    QVector<float> already(DSP_SAMPLE_SIZE, 0.4f);
+    m_txRing.writeDropOldest(already.constData(), static_cast<size_t>(already.size()));
+    QCOMPARE(m_txRing.availableRead(), size_t(DSP_SAMPLE_SIZE));
+
+    QVector<float> late(DSP_SAMPLE_SIZE, 0.9f);
+    m_client.sendBinaryMessage(buildTxAudioFrame(late.constData(), late.size()));
+    QTest::qWait(200);
+
+    QCOMPARE(m_txRing.availableRead(), size_t(DSP_SAMPLE_SIZE));
+    float block[DSP_SAMPLE_SIZE];
+    QCOMPARE(static_cast<int>(m_txRing.read(block, DSP_SAMPLE_SIZE)), DSP_SAMPLE_SIZE);
+    QVERIFY(qAbs(block[0] - 0.4f) < 1e-5f);
 }
 
 void TciServerWsTests::txAudioWsjtOversizedFrameYieldsOneBlock()
@@ -278,11 +302,10 @@ void TciServerWsTests::txAudioWsjtOversizedFrameYieldsOneBlock()
     QCOMPARE(frame.size() - kStreamHeaderBytes, 16384);
 
     m_client.sendBinaryMessage(frame);
-    QVERIFY(QTest::qWaitFor([this]() { return m_txQueue.count() > 0; }, 3000));
-    QCOMPARE(m_txQueue.count(), 1);
-    const QVector<double> block = m_txQueue.dequeue();
-    QCOMPARE(block.size(), DSP_SAMPLE_SIZE);
-    QVERIFY(qAbs(block.at(0) - 0.25) < 1e-5);
+    QVERIFY(QTest::qWaitFor([this]() { return m_txRing.availableRead() >= DSP_SAMPLE_SIZE; }, 3000));
+    float block[DSP_SAMPLE_SIZE];
+    QCOMPARE(static_cast<int>(m_txRing.read(block, DSP_SAMPLE_SIZE)), DSP_SAMPLE_SIZE);
+    QVERIFY(qAbs(block[0] - 0.25f) < 1e-5f);
 }
 
 void TciServerWsTests::vfoOutOfRangeRejected()
@@ -353,9 +376,9 @@ void TciServerWsTests::txAudioAccumulatesAcrossFrames()
     m_client.sendBinaryMessage(buildTxAudioFrame(first.constData(), first.size()));
     m_client.sendBinaryMessage(buildTxAudioFrame(second.constData(), second.size()));
 
-    QVERIFY(QTest::qWaitFor([this]() { return m_txQueue.count() > 0; }, 3000));
-    const QVector<double> block = m_txQueue.dequeue();
-    QCOMPARE(block.size(), DSP_SAMPLE_SIZE);
+    QVERIFY(QTest::qWaitFor([this]() { return m_txRing.availableRead() >= DSP_SAMPLE_SIZE; }, 3000));
+    float block[DSP_SAMPLE_SIZE];
+    QCOMPARE(static_cast<int>(m_txRing.read(block, DSP_SAMPLE_SIZE)), DSP_SAMPLE_SIZE);
 }
 
 void TciServerWsTests::nonTxBinaryStreamIgnored()
@@ -375,7 +398,7 @@ void TciServerWsTests::nonTxBinaryStreamIgnored()
     m_client.sendBinaryMessage(frame);
 
     QTest::qWait(200);
-    QCOMPARE(m_txQueue.count(), 0);
+    QCOMPARE(m_txRing.availableRead(), size_t(0));
 }
 
 void TciServerWsTests::remoteControlChangedOnConnectDisconnect()
@@ -449,6 +472,97 @@ void TciServerWsTests::audioStartStopGatesRxBinaryStream()
     m_server->onRxAudioSamples(0, stereo, 48'000);
     QTest::qWait(200);
     QCOMPARE(binarySpy.count(), 0);
+}
+
+void TciServerWsTests::audioStartStopGatesRxRingBuffer()
+{
+    QSignalSpy binarySpy(&m_client, &QWebSocket::binaryMessageReceived);
+    QVERIFY(binarySpy.isValid());
+
+    SpscRingBuffer<float> rxRing(4096);
+    m_server->setRxAudioRing(0, &rxRing);
+    QCOMPARE(m_server->rxAudioRing(0), &rxRing);
+
+    m_textMessages.clear();
+    m_client.sendTextMessage(QStringLiteral("AUDIO_STREAM_SAMPLES:4;"));
+    QTest::qWait(50);
+    m_client.sendTextMessage(QStringLiteral("AUDIO_START:0,0;"));
+    QVERIFY(waitForMessageContaining(QStringLiteral("audio_start:")));
+
+    const float stereo[4] = {0.25f, 0.0f, -0.25f, 0.0f};
+    rxRing.writeDropOldest(stereo, 4);
+    QCOMPARE(rxRing.availableRead(), size_t(4));
+
+    m_server->onRxAudioReady(0);
+    QVERIFY(QTest::qWaitFor([&binarySpy]() { return binarySpy.count() > 0; }, 3000));
+    QCOMPARE(rxRing.availableRead(), size_t(0));
+
+    const QByteArray frame = binarySpy.last().at(0).toByteArray();
+    StreamHeader hdr;
+    QVERIFY(parseStreamHeader(frame, hdr));
+    QCOMPARE(hdr.streamType, kRxAudioStreamType);
+    QCOMPARE(hdr.length, quint32(4));
+
+    binarySpy.clear();
+    m_client.sendTextMessage(QStringLiteral("AUDIO_STOP:0,0;"));
+    QTest::qWait(100);
+    rxRing.writeDropOldest(stereo, 4);
+    m_server->onRxAudioReady(0);
+    QTest::qWait(200);
+    QCOMPARE(binarySpy.count(), 0);
+    // Unsubscribed: ring buffer should be drained/cleared by onRxAudioReady
+    QCOMPARE(rxRing.availableRead(), size_t(0));
+
+    m_server->setRxAudioRing(0, nullptr);
+    QCOMPARE(m_server->rxAudioRing(0), nullptr);
+}
+
+void TciServerWsTests::rxAudioReadyDrainsOneChunkThenYields()
+{
+    SpscRingBuffer<float> rxRing(65536);
+    m_server->setRxAudioRing(0, &rxRing);
+
+    m_textMessages.clear();
+    m_client.sendTextMessage(QStringLiteral("AUDIO_START:0,0;"));
+    QVERIFY(waitForMessageContaining(QStringLiteral("audio_start:")));
+
+    std::vector<float> chunk(4096, 0.1f);
+    for (int i = 0; i < 8; ++i)
+        rxRing.writeDropOldest(chunk.data(), chunk.size());
+    const size_t before = rxRing.availableRead();
+    QVERIFY(before > 4096);
+
+    m_server->onRxAudioReady(0);
+    const size_t afterFirst = rxRing.availableRead();
+    QVERIFY(before - afterFirst <= 4096);
+    QVERIFY(before - afterFirst > 0);
+    QVERIFY(afterFirst > 0);
+
+    QVERIFY(QTest::qWaitFor([&rxRing]() { return rxRing.availableRead() == 0; }, 3000));
+
+    m_server->setRxAudioRing(0, nullptr);
+}
+
+void TciServerWsTests::txAudioSurvivesAfterTrxWhenMoreFramesArrive()
+{
+    m_client.sendTextMessage(QStringLiteral("TRX:0,true;"));
+    QVERIFY(QTest::qWaitFor([this]() { return m_settings->getRadioState() == RadioState::MOX; }, 3000));
+
+    QVector<float> first(DSP_SAMPLE_SIZE, 0.33f);
+    m_client.sendBinaryMessage(buildTxAudioFrame(first.constData(), first.size()));
+    QVERIFY(QTest::qWaitFor([this]() { return m_txRing.availableRead() >= DSP_SAMPLE_SIZE; }, 3000));
+
+    // A later local-mic flush must not be required to keep TCI audio. Write
+    // another block after TRX has settled — it must accumulate, not be wiped.
+    QVector<float> second(DSP_SAMPLE_SIZE, 0.66f);
+    m_client.sendBinaryMessage(buildTxAudioFrame(second.constData(), second.size()));
+    QVERIFY(QTest::qWaitFor([this]() { return m_txRing.availableRead() >= 2 * DSP_SAMPLE_SIZE; }, 3000));
+
+    float block[DSP_SAMPLE_SIZE];
+    QCOMPARE(static_cast<int>(m_txRing.read(block, DSP_SAMPLE_SIZE)), DSP_SAMPLE_SIZE);
+    QVERIFY(qAbs(block[0] - 0.33f) < 1e-5f);
+    QCOMPARE(static_cast<int>(m_txRing.read(block, DSP_SAMPLE_SIZE)), DSP_SAMPLE_SIZE);
+    QVERIFY(qAbs(block[0] - 0.66f) < 1e-5f);
 }
 
 void TciServerWsTests::compatStubCommandsAccepted()

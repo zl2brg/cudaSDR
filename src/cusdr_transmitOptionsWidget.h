@@ -35,9 +35,7 @@
 #include <QLineEdit>
 #include  <QComboBox>
 #include  <QSlider>
-#include "portaudio.h"
 
-#include "Util/cusdr_buttons.h"
 #include "cusdr_settings.h"
 
 
@@ -51,6 +49,13 @@ public:
 
 	void setAmCarrierLevel(int percent);
 	void setAudioCompression(int level);
+	void setTxFilterLow(int hz);
+	void setTxFilterHigh(int hz);
+	void setMicInputDev(int index);
+	void setMicInputSourceName(const QString& name);
+	void refreshAudioDevices(const QString& savedMicName = QString());
+	int micInputDev() const;
+	QString micInputSourceName() const;
 
 public slots:
 	
@@ -85,30 +90,23 @@ private:
 
 	QSpinBox*	highFilterSpinBox;
 	QSpinBox*	lowFilterSpinBox;
-	QSpinBox*	micGainMaxSpinBox;
-	QSpinBox*	micGainMinSpinBox;
     QComboBox*  micInputComboBox;
     QSlider*    amCompressionSlider;
     QSlider*    amCarrierLevelSlider;
-    QStringList paDeviceList;
-
-	AeroButton*	micInputBtn;
-	AeroButton*	lineInputBtn;
-	AeroButton*	micBoostBtn;
 
 	int		m_minimumWidgetWidth;
 	int		m_minimumGroupBoxWidth;
 	
-private slots:
-	void	inputButtonClicked();
-	void	boostButtonClicked();
-	
 signals:
 	void	showEvent();
 	void	closeEvent();
-	void	messageEvent(QString message);
 	void	amCarrierLevelRequested(int percent);
 	void	audioCompressionRequested(int level);
+	void	txFilterLowRequested(int hz);
+	void	txFilterHighRequested(int hz);
+	void	micInputDevChanged(int dev);
+	void	micInputSourceNameChanged(const QString& name);
+	void	audioDevicesRefreshRequested();
 };
 
 #endif // _CUSDR_TRANSMIT_OPTIONS_WIDGET_H

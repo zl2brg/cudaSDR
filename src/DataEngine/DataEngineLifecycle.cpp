@@ -7,8 +7,12 @@
 #include "cusdr_dataEngine.h"
 #include "CProtocol1.h"
 #include "CProtocol2.h"
+#include "Drivers/HpsdrDevice.h"
+#include "DataEngine/SdrDeviceManager.h"
+#include "DataEngine/protocol_boundary_utils.h"
 #include "Models/RadioModel.h"
 #include "Models/RadioTelemetry.h"
+#include "Util/device_identity.h"
 #include <QCoreApplication>
 #include <QDeadlineTimer>
 #include <QObject>
@@ -68,8 +72,41 @@ bool DataEngineLifecycle::startDataEngineWithoutConnection() {
 	}
 	else {
 
-		DATA_ENGINE_DEBUG << "no data available - data file loaded?";
-		return false;
+		DATA_ENGINE_DEBUG << "no IQ file — starting SimulatedDevice";
+
+		const int rcvrs = qMax(1, m_engine->set->getNumberOfReceivers());
+		if (!m_engine->initReceivers(rcvrs)) {
+			DATA_ENGINE_DEBUG << "failed to initialize simulated receivers";
+			return false;
+		}
+		if (!m_engine->m_dataProcessor)
+			m_engine->createDataProcessor();
+		if (!m_engine->startDataProcessor(QThread::HighPriority)) {
+			m_engine->setSystemState(QSDR::DataProcessThreadError, m_engine->m_hwInterface,
+									 m_engine->m_serverMode, QSDR::DataEngineDown);
+			return false;
+		}
+
+		m_engine->connectDSPSlots();
+		for (int i = 0; i < rcvrs; ++i) {
+			if (i >= m_engine->RX.size() || !m_engine->RX.at(i))
+				continue;
+			m_engine->RX.at(i)->setConnectedStatus(true);
+			if (i < m_engine->m_dspThreadList.size() && m_engine->m_dspThreadList.at(i))
+				m_engine->m_dspThreadList.at(i)->start(QThread::HighPriority);
+		}
+
+		auto device = SdrDeviceManager::instance()->createSimulatedDevice();
+		device->setSampleRate(m_engine->set->getSampleRate());
+		for (int rx = 0; rx < rcvrs; ++rx)
+			device->setFrequency(rx, m_engine->set->getCtrFrequency(rx));
+		m_engine->setDevice(std::move(device));
+		if (ISdrDevice* dev = m_engine->device())
+			dev->start();
+
+		m_engine->setSystemState(QSDR::NoError, m_engine->m_hwInterface, m_engine->m_serverMode, QSDR::DataEngineUp);
+		m_engine->set->setRadioState(RadioState::RX);
+		return true;
 	}
 }
 
@@ -139,6 +176,20 @@ bool DataEngineLifecycle::findHPSDRDevices() {
 				&& card.protocol == current.protocol) {
 				selected = card;
 				break;
+			}
+		}
+		const auto selectedType = ProtocolBoundaryUtils::decodeHpsdrDevice(
+			selected.boardID, selected.protocol, selected.sw_version).deviceType;
+		if (ProtocolBoundaryUtils::isHermesLiteDeviceType(selectedType)) {
+			for (const TNetworkDevicecard &card : metisList) {
+				if (!sameHpsdrDeviceByMac(card, selected))
+					continue;
+				const auto type = ProtocolBoundaryUtils::decodeHpsdrDevice(
+					card.boardID, card.protocol, card.sw_version).deviceType;
+				if (ProtocolBoundaryUtils::isAnanHermesDeviceType(type)) {
+					selected = card;
+					break;
+				}
 			}
 		}
 		m_engine->set->setCurrentHPSDRDevice(selected);
@@ -412,6 +463,13 @@ bool DataEngineLifecycle::start() {
 		DATA_ENGINE_DEBUG << "[START] queued DataIO::finishStartup after exec()";
 	}
 
+	auto device = SdrDeviceManager::instance()->createDevice(
+		isProtocol2 ? DeviceType::HpsdrP2 : DeviceType::HpsdrP1, m_engine);
+	if (device) {
+		device->setDeviceName(m_engine->set->getCurrentMetisCard().boardName);
+		m_engine->setDevice(std::move(device));
+	}
+
 	return true;
 }
 
@@ -477,6 +535,8 @@ void DataEngineLifecycle::stop() {
 				break;
 
 			case QSDR::NoInterfaceMode:
+				if (ISdrDevice* dev = m_engine->device())
+					dev->stop();
 
 				m_engine->stopDataIO();
 				
@@ -492,6 +552,8 @@ void DataEngineLifecycle::stop() {
                 break;
 #endif
         }
+
+		m_engine->setDevice(nullptr);
 
 		while (!m_engine->m_dataIO->au_queue.isEmpty())
 			m_engine->m_dataIO->au_queue.dequeue();
@@ -514,6 +576,7 @@ void DataEngineLifecycle::stop() {
 				rx->qtwdsp->stopChannel();
 			}
 		}
+		m_engine->TX.stopChannel();
 		QThread::msleep(5); // let any in-flight fexchange0 observe run=0
 
 		// clear receiver thread list

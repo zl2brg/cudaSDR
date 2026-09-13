@@ -23,7 +23,7 @@
 
 #include "cusdr_hamDatabase.h"
 #include "Settings/SettingsTypes.h"
-#include "Util/cusdr_queue.h"
+#include "Util/SpscRingBuffer.h"
 #include "Util/tci_protocol_utils.h"
 #include "Util/TciRoutingState.h"
 #include "Util/TciCommandHandler.h"
@@ -35,6 +35,9 @@
 #include <QHash>
 #include <QSet>
 #include <QVector>
+#include <array>
+#include <atomic>
+#include <vector>
 
 class QWebSocketServer;
 class QWebSocket;
@@ -57,8 +60,8 @@ public:
     int clientCount() const { return m_clients.size(); }
 
     /** True while a TCI client is keyed and we are clocking TX_CHRONO.
-     *  During this window TX mic audio must come from the network queue only. */
-    bool isTxChronoActive() const { return m_txChronoClient != nullptr; }
+     *  During this window TX mic audio must come from the network ring only. */
+    bool isTxChronoActive() const { return m_txChronoActive.load(std::memory_order_acquire); }
 
     /** Linear gains applied to TCI RX audio out and TX mic in (1.0 = unity). */
     float rxGain() const { return m_rxGain; }
@@ -66,18 +69,27 @@ public:
     void setRxGain(float gain);
     void setTxGain(float gain);
 
-    /** Short status line for the server dialog (listening / clients / TX). */
+    /** Short status line for the server dialog (listening / clients / TX level). */
     QString connectionStatusText() const;
+
+    /** Debug hint: whether a keyed TCI client is sending TX audio. */
+    enum class TxAudioDebug { Idle, Waiting, Silent, Active };
+    TxAudioDebug txAudioDebugHint() const;
 
     /** Connect to SliceModel S-meter updates (call after RadioModel is ready). */
     void bindSlices(RadioModel *radioModel);
 
-    /** Hand the transmit path's network-mic queue to the server so received
-     *  TX-audio frames can be enqueued for the DSP transmit path. The queue is
-     *  owned by TransmitAudioInput and is thread-safe (QHQueue). */
-    void setTransmitAudioQueue(QHQueue<QVector<double>> *queue) { m_txAudioQueue = queue; }
+    /** Hand the transmit path's lock-free network-mic ring buffer to the server. */
+    void setTransmitAudioRing(SpscRingBuffer<float> *ring) { m_txAudioRing = ring; }
+
+    /** Set the receive audio lock-free ring buffer for a slice. */
+    void setRxAudioRing(int rx, SpscRingBuffer<float> *ring);
+    SpscRingBuffer<float>* rxAudioRing(int rx) const;
 
 public slots:
+    /** Notification from SliceProcessor that new RX audio is in the lock-free ring buffer. */
+    void onRxAudioReady(int rx);
+
     /** RX audio from SliceProcessor (queued to GUI thread). */
     void onRxAudioSamples(int rx, QVector<float> stereoInterleaved, int sampleRate);
 
@@ -148,6 +160,9 @@ private:
     void stopTxChrono();
     void sendTxChronoFrame(QWebSocket *client);
     void onTxChronoTick();
+    void noteTxAudioLevel(const float *samples, size_t count);
+    void maybeReportTxAudioSilence();
+    QString txAudioLevelSuffix() const;
 
     struct TciClientState {
         QSet<int> audioEnabledReceivers;
@@ -167,11 +182,11 @@ private:
         int txSensorsIntervalMs = 200;
         qint64 txSensorsLastSendMs = 0;
 
-        // Best-effort IQ drop counter (diagnostics). The panadapter IQ stream is
-        // shed when the socket write backlog is large so it never builds latency
-        // on the socket shared with RX audio (audio priority). RX audio is never
-        // dropped.
+        // Best-effort IQ / RX-audio drop counters (diagnostics). Both streams
+        // are shed when the socket write backlog is large so they cannot stall
+        // the GUI thread or delay incoming TX audio on the shared socket.
         qint64 iqFramesDropped = 0;
+        qint64 audioFramesDropped = 0;
     };
 
     TciClientState *clientState(QWebSocket *client);
@@ -180,6 +195,8 @@ private:
                          const float *stereoInterleaved, int stereoFloatCount);
     void sendIqPacket(QWebSocket *client, const TciClientState &state, int rx,
                       const float *iqInterleaved, int iqFloatCount);
+    void scheduleRxAudioDrain(int rx);
+    bool rxAudioSocketCongested(int rx) const;
     int parseAudioFormat(const QString &value) const;
 
     // Recompute and publish the "any client wants IQ" hint to Settings so the
@@ -219,24 +236,20 @@ private:
 
     static constexpr int WATCHDOG_TIMEOUT_MS = 30000;
 
-    // Bound the transmit-mic queue backlog (in DSP blocks) so a client sending
-    // TX audio faster than the DSP transmit path drains can never build TX
-    // latency nor block the socket thread. Keep in sync with TX_MIC_QUEUE_MAX_BLOCKS.
-    static constexpr int kTxAudioMaxQueueBlocks = 16;
-
     // TX_CHRONO steady-state period matches one WSJT geometric TX reply at 48 kHz:
     // length=2048 float stereo pairs → 1024 mono samples → 1024/48000 s ≈ 21.3 ms.
     // Priming burst in startTxChrono() is separate; do not shorten this period.
     static constexpr qint64 kTxChronoPeriodNs =
         (static_cast<qint64>(TciProtocol::kTxChronoStereoFrames) * 1000000000LL) / 48000LL;
     static constexpr int kTxChronoPollMs = 5;
+    static constexpr qint64 kTxAudioLevelLogMs = 250;
+    static constexpr qint64 kTxAudioSilentMs = 300;
 
-    // IQ backpressure threshold (socket bytesToWrite backlog). The panadapter
-    // IQ stream is best-effort: it is shed at a very small backlog so it can
-    // never build socket latency that would delay RX audio on the shared
-    // socket. A dropped panadapter frame is invisible; late audio makes the
-    // client hard-reset its buffer. RX audio itself is never dropped.
+    // Socket bytesToWrite backlog at which we shed a frame and return to the
+    // event loop. IQ and RX audio share the socket with TX_CHRONO / TX mic.
     static constexpr qint64 kIqBacklogDropBytes = 32 * 1024;
+    static constexpr qint64 kAudioBacklogDropBytes = 32 * 1024;
+    static constexpr size_t kRxAudioFloatsPerSlot = 4096;
 
     QWebSocketServer *m_server   = nullptr;
     QTimer           *m_watchdog = nullptr;
@@ -249,18 +262,25 @@ private:
     float             m_rxGain = 1.0f;
     float             m_txGain = 1.0f;
 
-    // Transmit (mic) audio received from clients. The queue is owned by
-    // TransmitAudioInput; the residual accumulates decoded mono samples so we
-    // enqueue exactly DSP_SAMPLE_SIZE blocks (matching the local mic path).
-    QHQueue<QVector<double>> *m_txAudioQueue = nullptr;
-    QVector<double>          m_txAudioResidual;
+    // Transmit (mic) audio received from clients is written to the lock-free
+    // ring owned by TransmitAudioInput.
+    SpscRingBuffer<float>    *m_txAudioRing = nullptr;
+    std::array<SpscRingBuffer<float>*, 8> m_rxAudioRings{};
+    std::array<bool, 8>       m_rxAudioDrainPending{};
+    std::vector<float>        m_tciAudioDrainBuffer;
     TciRoutingState          m_routingState;
     TciCommandHandler        m_commandHandler{&m_routingState};
 
     QWebSocket   *m_txChronoClient = nullptr;
+    std::atomic<bool> m_txChronoActive{false};
     int           m_txChronoTrx = 0;
     QElapsedTimer m_txChronoClock;
     qint64        m_txChronoAccumNs = 0;
+    float         m_txAudioRmsDb = -120.0f;
+    float         m_txAudioPeakDb = -120.0f;
+    qint64        m_txAudioLastWriteMs = 0;
+    qint64        m_txAudioLastLogMs = 0;
+    bool          m_txAudioSilenceLogged = false;
 
     // Last start/stop power state advertised to clients (avoids duplicate
     // broadcasts when systemStateChanged fires for unrelated field changes).

@@ -56,6 +56,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <getopt.h>
+#include <strings.h>
 #include <math.h>
 #include <pthread.h>
 #include <termios.h>
@@ -159,6 +160,105 @@ static int oldnew = 3;    // 1: only P1, 2: only P2, 3: P1 and P2,
 
 static double txlevel;
 
+static int set_device_from_name(const char *arg) {
+    if (!arg || !*arg)
+        return -1;
+    while (*arg == '-')
+        ++arg;
+    if (strcasecmp(arg, "atlas") == 0 || strcasecmp(arg, "metis") == 0) {
+        OLDDEVICE = DEVICE_METIS;
+        NEWDEVICE = NEW_DEVICE_ATLAS;
+        return 0;
+    }
+    if (strcasecmp(arg, "hermes") == 0) {
+        OLDDEVICE = DEVICE_HERMES;
+        NEWDEVICE = NEW_DEVICE_HERMES;
+        return 0;
+    }
+    if (strcasecmp(arg, "hermes2") == 0) {
+        OLDDEVICE = DEVICE_HERMES;
+        NEWDEVICE = NEW_DEVICE_HERMES2;
+        return 0;
+    }
+    if (strcasecmp(arg, "griffin") == 0) {
+        OLDDEVICE = DEVICE_GRIFFIN;
+        NEWDEVICE = NEW_DEVICE_HERMES;
+        return 0;
+    }
+    if (strcasecmp(arg, "angelia") == 0) {
+        OLDDEVICE = DEVICE_ANGELIA;
+        NEWDEVICE = NEW_DEVICE_ANGELIA;
+        return 0;
+    }
+    if (strcasecmp(arg, "orion") == 0) {
+        OLDDEVICE = DEVICE_ORION;
+        NEWDEVICE = NEW_DEVICE_ORION;
+        return 0;
+    }
+    if (strcasecmp(arg, "orion2") == 0) {
+        OLDDEVICE = DEVICE_ORION2;
+        NEWDEVICE = NEW_DEVICE_ORION2;
+        return 0;
+    }
+    if (strcasecmp(arg, "saturn") == 0 || strcasecmp(arg, "g2") == 0) {
+        OLDDEVICE = DEVICE_ORION2;
+        NEWDEVICE = NEW_DEVICE_SATURN;
+        return 0;
+    }
+    if (strcasecmp(arg, "hermeslite") == 0) {
+        OLDDEVICE = DEVICE_HERMES_LITE;
+        NEWDEVICE = NEW_DEVICE_HERMES_LITE;
+        return 0;
+    }
+    if (strcasecmp(arg, "hermeslite2") == 0) {
+        OLDDEVICE = DEVICE_HERMES_LITE2;
+        NEWDEVICE = NEW_DEVICE_HERMES_LITE2;
+        return 0;
+    }
+    if (strcasecmp(arg, "c25") == 0 || strcasecmp(arg, "stemlab") == 0
+        || strcasecmp(arg, "redpitaya") == 0) {
+        OLDDEVICE = DEVICE_STEMLAB;
+        NEWDEVICE = NEW_DEVICE_ANGELIA;
+        return 0;
+    }
+    if (strcasecmp(arg, "stemlab-z20") == 0) {
+        OLDDEVICE = DEVICE_STEMLAB_Z20;
+        NEWDEVICE = NEW_DEVICE_ANGELIA;
+        return 0;
+    }
+    if (strcasecmp(arg, "tangerine") == 0) {
+        OLDDEVICE = DEVICE_TANGERINE;
+        NEWDEVICE = NEW_DEVICE_ORION;
+        return 0;
+    }
+    if (strcasecmp(arg, "p1") == 0) {
+        oldnew = 1;
+        return 0;
+    }
+    if (strcasecmp(arg, "p2") == 0) {
+        oldnew = 2;
+        return 0;
+    }
+    return -1;
+}
+
+static const char *old_device_name(int device) {
+    switch (device) {
+        case DEVICE_METIS: return "Metis";
+        case DEVICE_HERMES: return "Hermes";
+        case DEVICE_GRIFFIN: return "Griffin";
+        case DEVICE_ANGELIA: return "Angelia";
+        case DEVICE_ORION: return "Orion";
+        case DEVICE_HERMES_LITE: return "Hermes-Lite 1";
+        case DEVICE_HERMES_LITE2: return "Hermes-Lite 2";
+        case DEVICE_ORION2: return "Orion2";
+        case DEVICE_STEMLAB: return "STEMlab";
+        case DEVICE_STEMLAB_Z20: return "STEMlab-Z20";
+        case DEVICE_TANGERINE: return "TangerineSDR";
+        default: return "unknown";
+    }
+}
+
 enum {
     OPT_ATLAS = 100,
     OPT_HERMES,
@@ -242,7 +342,9 @@ int main(int argc, char *argv[]) {
         {"tangerine",   no_argument, 0, OPT_TANGERINE},
         {"diversity",   no_argument, 0, OPT_DIVERSITY},
 	{"p1",		no_argument, 0, OPT_PROTOCOL1},
+	{"P1",		no_argument, 0, OPT_PROTOCOL1},
 	{"p2",          no_argument, 0, OPT_PROTOCOL2},
+	{"P2",          no_argument, 0, OPT_PROTOCOL2},
         {"debugtx",     no_argument, 0, OPT_DEBUGTX},
         {"debugrx",     no_argument, 0, OPT_DEBUGRX},
      	{"debug",      no_argument, 0, OPT_DEBUG}, 
@@ -251,8 +353,8 @@ int main(int argc, char *argv[]) {
     };
 
     diversity = 0;
-    OLDDEVICE = DEVICE_HERMES_LITE;
-    NEWDEVICE = NEW_DEVICE_ORION2;
+    OLDDEVICE = DEVICE_HERMES;
+    NEWDEVICE = NEW_DEVICE_HERMES;
 while ((c = getopt_long_only(argc, argv, "dh", long_options, NULL)) != -1) {
         switch (c) {
             case OPT_ATLAS:
@@ -347,8 +449,21 @@ while ((c = getopt_long_only(argc, argv, "dh", long_options, NULL)) != -1) {
                 break;
         }
     
-}	
+}
 
+    for (i = optind; i < argc; ++i) {
+        if (argv[i][0] == '\0' || (argv[i][0] == '-' && argv[i][1] == '\0'))
+            continue;
+        if (set_device_from_name(argv[i]) != 0) {
+            fprintf(stderr, "hpsdrsim: unrecognized argument '%s' (try -hermes, -hermeslite, -p1, -p2)\n",
+                    argv[i]);
+            return EXIT_FAILURE;
+        }
+    }
+
+    printf("hpsdrsim: device=%s  protocol=%s\n",
+           old_device_name(OLDDEVICE),
+           oldnew == 1 ? "P1 only" : oldnew == 2 ? "P2 only" : "P1+P2");
 
     switch (OLDDEVICE) {
     case DEVICE_METIS:

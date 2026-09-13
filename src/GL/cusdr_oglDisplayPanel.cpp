@@ -31,6 +31,10 @@
 #define LOG_DISPLAYPANEL
 
 #include "cusdr_oglDisplayPanel.h"
+#include "SMeterRenderer.h"
+#include "DisplayFreqRenderer.h"
+#include "DisplayStatusRenderer.h"
+#include "DisplayPanelInputController.h"
 #include "UI/FrequencyEntryDialog.h"
 #include "cusdr_glShaders.h"
 #include "cusdr_glDraw.h"
@@ -67,7 +71,6 @@ OGLDisplayPanel::OGLDisplayPanel(RadioModel *model, QWidget *parent)
 	, m_oglTextImpact(nullptr)
 	, m_smeterUpdate(true)
 	, m_smeterRenew(true)
-	, m_sMeterAvg(true)
 	, m_oldFreq(0)
 	, m_height(155)
 	, m_sMeterWidth(300)
@@ -79,36 +82,27 @@ OGLDisplayPanel::OGLDisplayPanel(RadioModel *model, QWidget *parent)
 	, m_packetLossStatus(0)
 	, m_sendIQStatus(0)
 	, m_recvAudioStatus(0)
-	, m_receivers(set->getNumberOfReceivers())
-	, m_sample_rate(set->getSampleRate()/1000)
+	, m_receivers(model ? model->activeReceivers() : set->getNumberOfReceivers())
+	, m_sample_rate((model ? model->sampleRate() : set->getSampleRate())/1000)
 	, m_dither(set->getMercuryDither())
 	, m_random(set->getMercuryRandom())
 	, m_currentReceiver(set->getCurrentReceiver())
-	, m_sMeterDeform(15)
 	, m_freqDigitsPosYA(48)
 	, m_freqDigitsPosYB(95)
 	, m_sMeterPosY(50)//(45)
 	, m_sMeterHoldTime(model->slices().isEmpty() ? 1000 : model->slices().first()->sMeterHoldTime())
 	, m_sMeterPrevHoldTimeMax(0)
-	, m_sMeterPrevHoldTimeMin(0)
-	, m_sMeterMeanValueCnt(0)
 	, m_mouseWheelFreqStep(set->getMouseWheelFreqStep(m_currentReceiver))
 	, m_dBmPanMin(-130.0f)
 	, m_dBmPanMax(10.0f)
 	, m_unit(1.0f)
-	, m_smeterVertices(256.0f)
 	, m_sMeterValue(0.0f)
-	, m_sMeterMeanValue(0.0f)
-	, m_sMeterMaxValueA((float)(-ONEPI/2.0f))
-	, m_sMeterMinValueA((float)(ONEPI/2.0f))
     , m_sMeterMaxValueB(-1000.0f)
-    , m_sMeterMinValueB(1000.0f)
 {
     for (int i = 0; i < MAX_RECEIVERS; i++) {
         m_sMeterAvgValList[i] = 0.0f;
         m_sMeterPeakValList[i] = 0.0f;
         m_sMeterHoldMaxList[i] = 0.0f;
-        m_sMeterHoldMinList[i] = 0.0f;
     }
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     setAutoFillBackground(false);
@@ -201,7 +195,7 @@ OGLDisplayPanel::OGLDisplayPanel(RadioModel *model, QWidget *parent)
 
 
 
-        m_colors = set->getPanadapterColors();
+    m_colors = m_radioModel ? m_radioModel->panadapterColors() : set->getPanadapterColors();
 
     m_txdigitColor = QColor(230,40,40);
 	m_digitColor = QColor(68, 68, 68);
@@ -213,8 +207,12 @@ OGLDisplayPanel::OGLDisplayPanel(RadioModel *model, QWidget *parent)
 	m_textBackgroundColor = QColor(66, 96, 208);
 	m_sMeterTimer.start();
 	m_sMeterMaxTimer.start();
-	m_sMeterMinTimer.start();
 	m_sMeterDisplayTime.start();
+
+	m_smeterRenderer = new SMeterRenderer(this);
+	m_freqRenderer = new DisplayFreqRenderer(this);
+	m_statusRenderer = new DisplayStatusRenderer(this);
+	m_inputController = new DisplayPanelInputController(this);
 }
 
 OGLDisplayPanel::~OGLDisplayPanel() {
@@ -251,6 +249,10 @@ OGLDisplayPanel::~OGLDisplayPanel() {
     delete m_oglTextTiny;
     delete m_oglTextSmall;
 
+    delete m_smeterRenderer;
+    delete m_freqRenderer;
+    delete m_statusRenderer;
+    delete m_inputController;
 }
 
 QSize OGLDisplayPanel::minimumSizeHint() const {
@@ -317,7 +319,12 @@ void OGLDisplayPanel::setupConnections() {
 	TciServer *tci = set->tciServer();
 	if (tci) {
 		connect(tci, &TciServer::remoteControlChanged, this, &OGLDisplayPanel::setTciStatus);
+		connect(tci, &TciServer::connectionStatusChanged, this, [this, tci]() {
+			setTciStatus(tci->hasClients());
+			setTciTxAudioDebug(static_cast<int>(tci->txAudioDebugHint()));
+		});
 		setTciStatus(tci->hasClients());
+		setTciTxAudioDebug(static_cast<int>(tci->txAudioDebugHint()));
 	}
 }
 
@@ -500,744 +507,15 @@ void OGLDisplayPanel::paintGL() {
 	glClear(GL_DEPTH_BUFFER_BIT);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glEnable(GL_BLEND);
-        paintRxRegion();
-        paintUpperRegion();
-        paintLowerRegion();
-        paintSMeter();
-     //   renderSMeterB();
 
-
-}
-
-void OGLDisplayPanel::paintUpperRegion() {
-	QString str;
-
-
-    GLint x1 =  m_rxRect.left() + m_blankWidth;
-    GLint y1 =  m_rxRect.top() ;
-
-	// sync status
-	str = QString(m_SYNCString);
-    QRect rect = QRect(x1, y1, m_syncWidth + 2*m_blankWidth, m_blankHeight);
-	
-	switch (m_syncStatus) {
-
-		case 0:
-			drawPanelRect(rect, QColor(68, 68, 68), -2.0f);
-			break;
-
-
-		case 1:
-			drawPanelRect(rect, QColor(56, 242, 115), -2.0f);
-			break;
-
-		case 2:
-			drawPanelRect(rect, QColor(242, 56, 109), -2.0f);
-			break;
+	if (m_freqRenderer)
+		m_freqRenderer->paintRxRegion();
+	if (m_statusRenderer) {
+		m_statusRenderer->paintUpperRegion();
+		m_statusRenderer->paintLowerRegion();
 	}
-	qglColor(Qt::black);
-	renderPanelText(m_oglTextSmallItalic, x1 + m_blankWidth, y1, m_SYNCString);
-	
-	// ADC status
-	str = QString(m_ADCString);
-    x1 += m_syncWidth + 2*m_blankWidth + 2;
-	rect = QRect(x1, y1, m_adcWidth + 2*m_blankWidth, m_blankHeight);
-
-	switch (m_adcStatus) {
-
-		case 0:
-			drawPanelRect(rect, QColor(68, 68, 68), -2.0f);
-			break;
-
-		case 1:
-			drawPanelRect(rect, QColor(56, 242, 115), -2.0f);
-			break;
-
-		case 2:
-			drawPanelRect(rect, QColor(242, 56, 109), -2.0f);
-			break;
-	}
-	qglColor(Qt::black);
-	renderPanelText(m_oglTextSmallItalic, x1 + m_blankWidth, y1, m_ADCString);
-
-	// Packet loss status
-	str = QString(m_PacketLossString);
-    x1 += m_adcWidth + 2*m_blankWidth + 2;
-    rect = QRect(x1, y1,  m_packetLossWidth + 2*m_blankWidth, m_blankHeight);
-    
-	switch (m_packetLossStatus) {
-
-		case 0:
-			drawPanelRect(rect, QColor(68, 68, 68), -2.0f);
-			break;
-
-		case 1:
-			drawPanelRect(rect, QColor(56, 242, 115), -2.0f);
-			break;
-
-		case 2:
-			drawPanelRect(rect, QColor(242, 56, 109), -2.0f);
-			break;
-	}
-	qglColor(Qt::black);
-	renderPanelText(m_oglTextSmallItalic, x1 + m_blankWidth, y1, m_PacketLossString);
-
-	// Metis status
-	str = m_metisString;
-    x1 += m_packetLossWidth + 2*m_blankWidth + 2;
-	// FWD Power bar graph
-	{
-		int meterWidth = 90;
-		rect = QRect(x1, y1, meterWidth, m_blankHeight);
-		drawPanelRect(rect, QColor(35, 35, 35), -2.0f); // Track background
-
-		// Fills only after real RF in this TX (m_txMetersArmed). Bare m_txActive drew a
-		// permanent green baseline and flickered if MOX/PTT blipped during receive.
-		const bool metersLive = m_txActive && m_txMetersArmed;
-		qreal pVal = metersLive ? m_fwdPowerWattsSmooth : 0.0;
-		qreal maxP = (pVal > 10.0) ? 100.0 : 10.0;
-		// Square-root response curve for high sensitivity at low/medium wattages
-		qreal pFrac = qBound(0.0, std::sqrt(pVal / maxP), 1.0);
-
-		if (metersLive) {
-			// Baseline fill so the meter stays visibly active on TX during SSB valleys.
-			int fillW = qBound(14, qRound(14 + (meterWidth - 14) * pFrac), meterWidth);
-			QRect fillRect(x1, y1, fillW, m_blankHeight);
-			drawPanelRect(fillRect, QColor(56, 242, 115), -1.9f); // Live green bar
-		}
-
-		QString fwdStr = QString("FWD: %1 W").arg(pVal, 0, 'f', 1);
-		int fwdTextWidth = m_oglTextSmall->fontMetrics().horizontalAdvance(fwdStr);
-		int textX = x1 + qMax(2, (meterWidth - fwdTextWidth) / 2);
-
-		if (metersLive) {
-			qglColor(QColor(255, 255, 255));
-		} else {
-			qglColor(QColor(160, 160, 160));
-		}
-		renderPanelText(m_oglTextSmallItalic, textX, y1, fwdStr);
-		x1 += meterWidth + 3*m_blankWidth;
-	}
-
-    // SWR bar graph
-    {
-        int swrMeterWidth = 80;
-        rect = QRect(x1, y1, swrMeterWidth, m_blankHeight);
-        drawPanelRect(rect, QColor(35, 35, 35), -2.0f); // Track background
-
-		const bool metersLive = m_txActive && m_txMetersArmed;
-        // Use the IIR value only — qMax(raw, smooth) made attack follow raw spikes.
-        qreal swrVal = metersLive ? qMax(1.0, m_swrSmooth) : 1.0;
-        
-        // SWR scale mapping:
-        // SWR = 1.0 -> 30% meter fill (GOOD Green)
-        // SWR = 1.5 -> 55% meter fill (Green/Yellow)
-        // SWR = 2.5 -> 80% meter fill (Yellow/Red)
-        // SWR >= 3.0 -> 100% meter fill (Red)
-        qreal swrFrac = 0.30;
-        if (swrVal > 1.0) {
-            swrFrac = qBound(0.30, 0.30 + 0.70 * ((swrVal - 1.0) / 2.0), 1.0);
-        }
-
-        QColor barColor = QColor(56, 242, 115); // Green default for SWR < 1.5
-        if (swrVal >= 2.5)
-            barColor = QColor(242, 56, 109); // Red
-        else if (swrVal >= 1.5)
-            barColor = QColor(255, 255, 50);  // Yellow
-
-        if (metersLive) {
-            int fillW = qBound(24, qRound(swrMeterWidth * swrFrac), swrMeterWidth);
-            QRect fillRect(x1, y1, fillW, m_blankHeight);
-            drawPanelRect(fillRect, barColor, -1.9f);
-        }
-
-        QString swrStr = QString("SWR: %1").arg(swrVal, 0, 'f', 1);
-        int swrTextWidth = m_oglTextSmall->fontMetrics().horizontalAdvance(swrStr);
-        int textX = x1 + qMax(2, (swrMeterWidth - swrTextWidth) / 2);
-
-        if (metersLive) {
-            qglColor(QColor(255, 255, 255));
-        } else {
-            qglColor(QColor(160, 160, 160));
-        }
-        renderPanelText(m_oglTextSmallItalic, textX, y1, swrStr);
-        x1 += swrMeterWidth + 3*m_blankWidth;
-    }
-
-    // Supply Voltage
-    if (m_supplyVolts > 0.1) {
-        QString voltStr = QString("%1V").arg(m_supplyVolts, 0, 'f', 1);
-        int voltWidth = m_oglTextSmall->fontMetrics().horizontalAdvance(voltStr);
-        rect = QRect(x1, y1, voltWidth + 2*m_blankWidth, m_blankHeight);
-        drawPanelRect(rect, QColor(100, 120, 140), -2.0f); // Blue-grey
-        qglColor(QColor(206, 236, 248));
-        renderPanelText(m_oglTextSmallItalic,x1 + m_blankWidth, y1, voltStr);
-        x1 += voltWidth + 5*m_blankWidth;
-    }
-
-    // Temperature
-    if (m_temperature > 0.1) {
-        QString tempStr = QString("%1°C").arg(m_temperature, 0, 'f', 1);
-        int tempWidth = m_oglTextSmall->fontMetrics().horizontalAdvance(tempStr);
-        rect = QRect(x1, y1, tempWidth + 2*m_blankWidth, m_blankHeight);
-        drawPanelRect(rect, QColor(80, 80, 80), -2.0f); // Deep grey
-        qglColor(QColor(206, 236, 248));
-        renderPanelText(m_oglTextSmallItalic,x1 + m_blankWidth, y1, tempStr);
-        x1 += tempWidth + 5*m_blankWidth;
-    }
-
-	if (m_hwInterface == QSDR::Metis && m_dataEngineState == QSDR::DataEngineUp)
-		rect = QRect(x1, y1, m_metisStringWidth + m_versionStringWidth, m_blankHeight);
-	else
-		rect = QRect(x1, y1, m_metisStringWidth, m_blankHeight);
-	
-	if (m_hwInterface == QSDR::Metis) {
-
-		drawPanelRect(rect, m_textBackgroundColor, -2.0f);
-		if (m_dataEngineState == QSDR::DataEngineUp) {
-
-			str.append(m_metisVersion);
-			qglColor(QColor(206, 236, 248));
-		}
-		else
-			qglColor(QColor(0, 0, 0));
-	}
-	else {
-
-		drawPanelRect(rect, QColor(68, 68, 68), -2.0f);
-		qglColor(QColor(0, 0, 0));
-	}
-	renderPanelText(m_oglTextSmallItalic,x1, y1, 1.0f, str);
-
-
-	// Mercury status
-	str = m_mercuryString;
-
-	if (m_hwInterface == QSDR::Metis && m_dataEngineState == QSDR::DataEngineUp) {
-		x1 += m_metisStringWidth + m_versionStringWidth + m_blankWidth;
-		rect = QRect(x1, y1, m_mercuryStringWidth + m_versionStringWidth, m_blankHeight);
-	}
-	else {
-		x1 += m_metisStringWidth + m_blankWidth;
-		rect = QRect(x1, y1, m_mercuryStringWidth, m_blankHeight);
-	}
-
-    //rect = QRect(x1, y1, m_mercuryStringWidth + m_versionStringWidth, m_blankHeight);
-
-	if (set->getMercuryPresence() && m_hwInterface == QSDR::Metis) {
-		drawPanelRect(rect, m_textBackgroundColor, -2.0f);
-
-		if (m_dataEngineState == QSDR::DataEngineUp) {
-			str.append(m_mercuryVersion);
-			qglColor(QColor(206, 236, 248));
-		}
-		else
-			qglColor(QColor(0, 0, 0));
-	}
-	else {
-
-		drawPanelRect(rect, QColor(68, 68, 68), -2.0f);
-		qglColor(QColor(0, 0, 0));
-	}
-
-	//m_oglTextSmallItalic->renderFreqText(x1 + m_blankWidth, y1, 1.0f, str);
-	renderPanelText(m_oglTextSmallItalic,x1, y1, 1.0f, str);
-
-
-	// Penelope status
-	str = m_penelopeString;
-
-	if (m_hwInterface == QSDR::Metis && m_dataEngineState == QSDR::DataEngineUp)
-		x1 += m_mercuryStringWidth + m_versionStringWidth + m_blankWidth;
-	else
-		x1 += m_mercuryStringWidth + m_blankWidth;
-
-	if (set->getPenelopePresence() && m_hwInterface == QSDR::Metis) {
-		str = m_penelopeString;
-
-		if (m_dataEngineState == QSDR::DataEngineUp)
-			rect = QRect(x1, y1, m_penelopeStringWidth + m_versionStringWidth, m_blankHeight);
-		else
-			rect = QRect(x1, y1, m_penelopeStringWidth, m_blankHeight);
-
-		drawPanelRect(rect, m_textBackgroundColor, -2.0f);
-
-		if (m_dataEngineState == QSDR::DataEngineUp) {
-			str.append(m_penelopeVersion);
-			qglColor(QColor(206, 236, 248));
-		}
-		else
-			qglColor(QColor(0, 0, 0));
-	}
-	else if (set->getPennyLanePresence() && m_hwInterface == QSDR::Metis) {
-		str = m_pennylaneString;
-
-		if (m_dataEngineState == QSDR::DataEngineUp)
-			rect = QRect(x1, y1, m_pennylaneStringWidth + m_versionStringWidth, m_blankHeight);
-		else
-			rect = QRect(x1, y1, m_pennylaneStringWidth, m_blankHeight);
-
-		drawPanelRect(rect, m_textBackgroundColor, -2.0f);
-
-		if (m_dataEngineState == QSDR::DataEngineUp) {
-			str.append(m_pennylaneVersion);
-			qglColor(QColor(206, 236, 248));
-		}
-		else
-			qglColor(QColor(0, 0, 0));
-	}
-	else {
-//        if (m_dataEngineState == QSDR::DataEngineUp && m_hwInterface == QSDR::Metis)
-//            rect = QRect(x1, y1, m_penelopeStringWidth + m_versionStringWidth, m_blankHeight);
-//        else
-			rect = QRect(x1, y1, m_penelopeStringWidth, m_blankHeight);
-
-        drawPanelRect(rect, QColor(68, 68, 68), -2.0f);
-		qglColor(QColor(0, 0, 0));
-	}
-
-	renderPanelText(m_oglTextSmallItalic,x1, y1, 1.0f, str);
-
-
-	// Hermes status
-	str = m_hermesString;
-
-    if(set->getPennyLanePresence())
-        x1 += m_pennylaneStringWidth;
-    else
-        x1 += m_penelopeStringWidth;
-
-    x1 += m_blankWidth;
-
-    if (m_dataEngineState == QSDR::DataEngineUp) {
-
-        if(m_hwInterface == QSDR::Metis) {
-
-            if(set->getPenelopePresence() || set->getPennyLanePresence())
-                x1 += m_versionStringWidth;
-
-            rect = QRect(x1, y1,  m_hermesStringWidth, m_blankHeight);
-        }
-        else {
-            rect = QRect(x1, y1,  m_hermesStringWidth + m_versionStringWidth, m_blankHeight);
-        }
-    }
-	else {
-        rect = QRect(x1, y1,  m_hermesStringWidth, m_blankHeight);
-    }
-
-    if (set->getHPSDRHardware() == 1) {
-		drawPanelRect(rect, m_textBackgroundColor, -2.0f);
-
-		if (m_dataEngineState == QSDR::DataEngineUp) {
-			str.append(m_hermesVersion);
-			qglColor(QColor(206, 236, 248));
-		}
-		else
-			qglColor(QColor(0, 0, 0));
-	}
-	else {
-		drawPanelRect(rect, QColor(68, 68, 68), -2.0f);
-		qglColor(QColor(0, 0, 0));
-	}
-
-	//m_oglTextSmallItalic->renderFreqText(x1 + m_blankWidth, y1, 1.0f, str);
-    renderPanelText(m_oglTextSmallItalic,x1, y1, 1.0f, str);
-
-
-	// Excalibur status
-	str = m_excaliburString;
-
-//    if (m_dataEngineState == QSDR::DataEngineUp && set->getHermesPresence())
-    if (m_dataEngineState == QSDR::DataEngineUp && m_hwInterface == QSDR::Hermes)
-        x1 += m_hermesStringWidth + m_versionStringWidth + m_blankWidth;
-	else
-		x1 += m_hermesStringWidth + m_blankWidth;
-
-    //rect = QRect(x1, y1, m_hermesStringWidth + m_versionStringWidth, m_blankHeight);
-	rect = QRect(x1, y1, m_excaliburStringWidth, m_blankHeight);
-
-	if (set->getExcaliburPresence() && m_hwInterface == QSDR::Metis) {
-
-		drawPanelRect(rect, m_textBackgroundColor, -2.0f);
-		if (m_dataEngineState == QSDR::DataEngineUp) {
-
-			str.append(m_excaliburVersion);
-			qglColor(QColor(206, 236, 248));
-		}
-		else
-			qglColor(QColor(0, 0, 0));
-	}
-	else {
-
-		drawPanelRect(rect, QColor(68, 68, 68), -2.0f);
-		qglColor(QColor(0, 0, 0));
-	}
-	//m_oglTextSmallItalic->renderFreqText(x1 + m_blankWidth, y1, 1.0f, str);
-    renderPanelText(m_oglTextSmallItalic,x1, y1, 1.0f, str);
-
-	
-	// Alex status
-	str = m_alexString;
-    //x1 += m_hermesStringWidth + m_versionStringWidth + m_blankWidth;
-	x1 += m_excaliburStringWidth + m_blankWidth;
-
-    rect = QRect(x1, y1, m_alexStringWidth + m_blankWidth, m_blankHeight);
-
-	if (set->getAlexPresence()) {
-
-		drawPanelRect(rect, m_textBackgroundColor, -2.0f);
-		if (m_dataEngineState == QSDR::DataEngineUp) {
-
-			str.append(m_alexVersion);
-			qglColor(QColor(206, 236, 248));
-		}
-		else
-			qglColor(QColor(0, 0, 0));
-	}
-	else {
-
-		drawPanelRect(rect, QColor(68, 68, 68), -2.0f);
-		qglColor(QColor(0, 0, 0));
-	}
-	//m_oglTextSmallItalic->renderFreqText(x1 + m_blankWidth, y1, 1.0f, str);
-    renderPanelText(m_oglTextSmallItalic,x1, y1, 1.0f, str);
-
-	// RigCtl status
-	x1 += m_alexStringWidth + m_blankWidth;
-	rect = QRect(x1, y1, m_rigCtlStringWidth + 2*m_blankWidth, m_blankHeight);
-	if (m_rigCtlConnected) {
-		drawPanelRect(rect, QColor(56, 242, 115), -2.0f);
-		qglColor(QColor(0, 0, 0));
-	} else {
-		drawPanelRect(rect, QColor(68, 68, 68), -2.0f);
-		qglColor(QColor(0, 0, 0));
-	}
-	renderPanelText(m_oglTextSmallItalic,x1 + m_blankWidth, y1, m_rigCtlString);
-
-	// TCI status (lit when at least one WebSocket client is connected)
-	x1 += m_rigCtlStringWidth + 2*m_blankWidth + 2;
-	rect = QRect(x1, y1, m_tciStringWidth + 2*m_blankWidth, m_blankHeight);
-	if (m_tciConnected) {
-		drawPanelRect(rect, QColor(56, 242, 115), -2.0f);
-		qglColor(QColor(0, 0, 0));
-	} else {
-		drawPanelRect(rect, QColor(68, 68, 68), -2.0f);
-		qglColor(QColor(0, 0, 0));
-	}
-	renderPanelText(m_oglTextSmallItalic, x1 + m_blankWidth, y1, m_tciString);
-}
-
-void OGLDisplayPanel::paintLowerRegion() {
-
-	QString str;
-
-	GLint x1 = m_rxRect.left() + m_blankWidth;
-	GLint y2 = m_rxRect.height() - m_lowerRectY;
-	
-	// Attenuator
-	qglColor(QColor(106, 136, 148));
-	renderPanelText(m_oglTextSmallItalic,x1 + m_blankWidth, y2, m_AttnString);
-
-    x1 += m_AttnWidth + 2*m_blankWidth;
-	if (m_mercuryAttenuator == 0) {
-		str = QStringLiteral("0 dB");
-	} else if (m_mercuryAttenuator == 1 || m_mercuryAttenuator == 10 || m_mercuryAttenuator == -10) {
-		str = QStringLiteral("-10 dB");
-	} else if (m_mercuryAttenuator == 2 || m_mercuryAttenuator == 20 || m_mercuryAttenuator == -20) {
-		str = QStringLiteral("-20 dB");
-	} else if (m_mercuryAttenuator == 3 || m_mercuryAttenuator == 30 || m_mercuryAttenuator == -30) {
-		str = QStringLiteral("-30 dB");
-	} else {
-		str = QStringLiteral("%1 dB").arg(m_mercuryAttenuator > 0 ? -m_mercuryAttenuator : m_mercuryAttenuator);
-	}
-
-    int attnValueWidth = m_oglTextSmall->fontMetrics().tightBoundingRect(str).width();
-	qglColor(m_activeTextColor);
-	renderPanelText(m_oglTextSmallItalic,x1, y2, str);
-
-	// Dither status
-    x1 += attnValueWidth + 5*m_blankWidth;
-
-	if (m_dither == 1)
-		qglColor(m_activeTextColor);
-	else
-		qglColor(QColor(68, 68, 68));
-
-	renderPanelText(m_oglTextSmallItalic,x1 + m_blankWidth, y2, m_ditherString);
-
-	// Random status
-    x1 += m_ditherWidth + 5*m_blankWidth;
-
-	if (m_random == 1)
-		qglColor(m_activeTextColor);
-	else
-		qglColor(QColor(68, 68, 68));
-
-	renderPanelText(m_oglTextSmallItalic,x1 + m_blankWidth, y2, m_randomString);
-
-	// Sample rate status
-    x1 += m_randomWidth + 10*m_blankWidth;
-	str = "%1";
-
-	qglColor(QColor(166, 196, 208));
-	renderPanelText(m_oglTextSmallItalic,x1 + m_blankWidth, y2, str.arg(m_sample_rate, 3, 10, QLatin1Char(' ')));
-
-	int samplerateWidth = m_oglTextSmall->fontMetrics().tightBoundingRect(str.arg(m_sample_rate, 3, 10, QLatin1Char(' '))).width();
-	x1 += samplerateWidth + 4*m_blankWidth;
-
-	str = "kHz";
-	int samplerateUnitWidth = m_oglTextSmall->fontMetrics().tightBoundingRect(str).width();
-	renderPanelText(m_oglTextSmallItalic,x1 + m_blankWidth, y2, str);
-
-
-	// server modus status
-    x1 += samplerateUnitWidth + 10*m_blankWidth;
-	switch (m_serverMode) {
-
-		case QSDR::NoServerMode:
-
-			str = "No Server mode";
-			break;
-
-		case QSDR::SDRMode:
-			
-			str = "SDR Mode";
-			break;
-
-	}
-	int serverModeStringWidth = m_oglTextSmall->fontMetrics().tightBoundingRect(str).width();
-
-	qglColor(QColor(166, 196, 208));
-	renderPanelText(m_oglTextSmallItalic,x1 + m_blankWidth, y2, str);
-
-	if (m_hwInterface == QSDR::Metis) {
-
-		x1 += serverModeStringWidth + 15*m_blankWidth;
-
-		// 10 MHz source status
-		qglColor(QColor(106, 136, 148));
-		renderPanelText(m_oglTextSmallItalic,x1 + m_blankWidth, y2, m_10MHzString);
-
-		x1 += m_10MHzWidth + 4*m_blankWidth;
-		qglColor(QColor(166, 196, 208));
-		int src10MHStringWidth = m_oglTextSmall->fontMetrics().tightBoundingRect(m_src10mhz).width();
-		renderPanelText(m_oglTextSmallItalic,x1 + m_blankWidth, y2, m_src10mhz);
-
-		// 122.88 MHz source status
-		x1 += src10MHStringWidth + 10*m_blankWidth;
-		qglColor(QColor(106, 136, 148));
-		renderPanelText(m_oglTextSmallItalic,x1 + m_blankWidth, y2, m_12288MHzString);
-
-		x1 += m_12288MHzWidth + 4*m_blankWidth;
-		qglColor(QColor(166, 196, 208));
-		renderPanelText(m_oglTextSmallItalic,x1 + m_blankWidth, y2, m_src122_88mhz);
-	}
-	else if (m_hwInterface == QSDR::Hermes) {
-
-		//x1 += serverModeStringWidth + 10*m_blankWidth;
-
-		//qglColor(QColor(166, 196, 208));
-		//m_oglTextSmallItalic->renderFreqText(x1, y2, m_hermesStepAttnString);
-
-		//x1 += m_hermesStepAttnStringWidth + 2*m_blankWidth;
-		//y2 += 1;
-
-		//QColor triCol;
-		//QColor onLCol = QColor(0x11, 0x6b, 0x7f);//QColor(26, 56, 168);
-		//QColor onHCol = QColor(0x51, 0xab, 0xbf);//QColor(66, 96, 208);
-		//QColor offCol = QColor(68, 68, 68);
-
-		//if (m_dataEngineState == QSDR::DataEngineUp)
-		//	triCol = QColor(156, 186, 198);
-		//else
-		//	triCol = QColor(68, 68, 68);
-
-		//QRect rect = QRect(x1, y2, 9, 10);
-		//drawGLTriangleLeft(rect, triCol, -2.0f);
-		//x1 += 10;
-
-		//for (int i = 0; i < 31; i++) {
-
-		//	rect = QRect(x1 + i*4, y2, 3, 10);
-		//	if (m_dataEngineState == QSDR::DataEngineUp) {
-
-		//		if (i < 19)
-		//			drawGLRect(rect, onHCol, -2.0f);
-		//		else
-		//			drawGLRect(rect, onLCol, -2.0f);
-		//	}
-		//	else
-		//		drawGLRect(rect, offCol, -2.0f);
-		//}
-
-		//x1 += 124;
-		//rect = QRect(x1, y2, 9, 10);
-		//drawGLTriangleRight(rect, triCol, -2.0f);
-
-		//if (m_dataEngineState == QSDR::DataEngineUp)
-		//	qglColor(QColor(166, 196, 208));
-		//else
-		//	qglColor(QColor(0, 0, 0));
-
-		//x1 += 12;
-		//m_oglTextSmallItalic->renderFreqText(x1, y2, "-19 dB");
-	}
-}
-
-
-
-void OGLDisplayPanel::paintRxRegion() {
-	QColor fontcolor;
-
-	if (m_dataEngineState == QSDR::DataEngineUp) {
-		drawPanelGradientRect(m_rect, Qt::black, m_bkgColor2, false, -3.0f);
-		fontcolor = m_activeTextColor;
-	} else {
-		drawPanelRect(m_rect, QColor(0, 0, 0, 255), -3.0f);
-		fontcolor = QColor(68, 68, 68);
-	}
-
-	const qint64 freqA = vfoMemoryHz(DigitVfoA);
-	const qint64 freqB = vfoMemoryHz(DigitVfoB);
-	SliceModel *slice = currentSlice();
-	const bool bActive = slice && slice->activeVfo() == SliceModel::VfoB;
-
-	splitFreqDisplay(freqA, &m_f1strA, &m_f2strA);
-	splitFreqDisplay(freqB, &m_f1strB, &m_f2strB);
-
-	const int originX = m_rxRect.left() + 12 + m_vfoLabelWidth;
-	m_freqStringLeftPos = originX;
-	rebuildAllFreqDigitHitRegions();
-
-	const int activeBaseline = m_rxRect.top() + (bActive ? m_freqDigitsPosYB : m_freqDigitsPosYA);
-
-	// Advance of the active row's MHz digits; the active row always uses the large face.
-	const QString &activeF1 = bActive ? m_f1strB : m_f1strA;
-	int f1Advance = 0;
-	for (int i = 0; i < activeF1.length(); ++i) {
-		if (activeF1.at(i) == QLatin1Char(' '))
-			continue;
-		if (activeF1.at(i) == QLatin1Char('.'))
-			f1Advance += m_pointStringWidth;
-		else
-			f1Advance += m_blankWidthf1;
-	}
-	const int rowRight = originX + f1Advance + m_pointStringWidth + 3 * m_blankWidthf2
-	                     + 2 * m_blankWidth + m_fUnitStringWidth;
-
-	// Selection box around the active VFO, mirroring the web client's blue outline. It starts
-	// clear of the A/B chip and uses cap height so it hugs the digits below the status badges.
-	const int capH = m_oglTextFreq1->fontMetrics().capHeight();
-	const int boxLeft = vfoLabelRect(activeBaseline).right() + 5;
-	const QRect activeBox(boxLeft, activeBaseline - capH - 5,
-	                      rowRight + 6 - boxLeft, capH + 10);
-	// Outline only — drawSolidRect drops alpha, so a fill would paint solid blue.
-	if (m_dataEngineState == QSDR::DataEngineUp)
-		drawPanelRoundedRectOutline(activeBox, QColor(31, 111, 235), 5, -2.4f);
-	else
-		drawPanelRoundedRectOutline(activeBox, QColor(40, 70, 120), 5, -2.4f);
-
-	paintVfoFrequencyRow(DigitVfoA, !bActive, m_rxRect.top() + m_freqDigitsPosYA,
-	                     originX, m_f1strA, m_f2strA, fontcolor);
-	paintVfoFrequencyRow(DigitVfoB, bActive, m_rxRect.top() + m_freqDigitsPosYB,
-	                     originX, m_f1strB, m_f2strB, fontcolor);
-
-	const GLint yNormal = activeBaseline - m_oglTextNormal->fontMetrics().ascent();
-	const GLint yBig = activeBaseline - m_fonts.fontHeightBigFont
-	                   - m_oglTextBig->fontMetrics().ascent();
-
-	const int metaX = originX + f1Advance + m_pointStringWidth + 3 * m_blankWidthf2
-	                  + m_fUnitStringWidth + 3 * m_blankWidthf2;
-
-	QString str = QStringLiteral("step: %1");
-	qglColor(fontcolor);
-	renderPanelText(m_oglTextNormal, metaX, yNormal,
-	                str.arg(set->getValue1000(m_mouseWheelFreqStep, 0, "Hz")));
-
-	QString dspModeName = set->getDSPModeString(set->getDSPMode(m_currentReceiver));
-	if (set->getRadioState() == RadioState::RX) {
-		qglColor(fontcolor);
-		renderPanelText(m_oglTextBig, metaX, yBig,
-		                QStringLiteral("Rx: %1 %2").arg(m_currentReceiver + 1).arg(dspModeName));
-	} else {
-		qglColor(m_txdigitColor);
-		renderPanelText(m_oglTextBig, metaX, yBig,
-		                QStringLiteral("Tx: %1 %2").arg(m_currentReceiver + 1).arg(dspModeName));
-	}
-
-	const qint64 activeFreq = bActive ? freqB : freqA;
-	if (m_oldFreq != activeFreq) {
-		QString planLabel;
-		if (m_radioModel && m_radioModel->bandPlan())
-			planLabel = m_radioModel->bandPlan()->labelAt(activeFreq);
-		if (!planLabel.isEmpty()) {
-			const int pipe = planLabel.indexOf(QLatin1Char('|'));
-			m_bandText = (pipe >= 0) ? planLabel.left(pipe).trimmed() : planLabel;
-		} else {
-			m_bandText = getHamBandTextString(set->getHamBandTextList(), false, activeFreq);
-		}
-		m_oldFreq = activeFreq;
-	}
-
-	const GLint yBand = m_rxRect.height() - m_lowerRectY
-	                    - m_oglTextSmall->fontMetrics().height() - 2;
-	qglColor(fontcolor);
-	renderPanelText(m_oglTextSmall, originX, yBand, m_bandText);
-}
-
-void OGLDisplayPanel::paintVfoFrequencyRow(DigitVfo which, bool active, int yBaseline, int originX,
-                                           const QString &f1str, const QString &f2str,
-                                           const QColor &fontcolor)
-{
-	OGLText *text1 = active ? m_oglTextFreq1 : m_oglTextFreqInactive1;
-	OGLText *text2 = active ? m_oglTextFreq2 : m_oglTextFreqInactive2;
-	const int digitW1 = active ? m_blankWidthf1 : m_blankWidthInactive1;
-	const int pointW = active ? m_pointStringWidth : m_pointStringWidthInactive;
-
-	const int freq1Ascent = text1->fontMetrics().ascent();
-	const int freq2Ascent = text2->fontMetrics().ascent();
-	const GLint yFreq1 = yBaseline - freq1Ascent;
-	const GLint yFreq2 = yBaseline - freq2Ascent;
-
-	QColor rowColor = fontcolor;
-	if (m_dataEngineState == QSDR::DataEngineUp && !active)
-		rowColor = QColor(96, 118, 128);
-
-	const bool highlight = (m_digitVfo == which);
-	const int digitPos = highlight ? m_digitPosition : None;
-
-	// A/B chip: bright blue behind the active letter, dark slab behind the inactive one.
-	const QString label = (which == DigitVfoB) ? QStringLiteral("B") : QStringLiteral("A");
-	const QRect labelBox = vfoLabelRect(yBaseline);
-	const bool live = (m_dataEngineState == QSDR::DataEngineUp);
-	if (active && live)
-		drawPanelRoundedRect(labelBox, QColor(31, 111, 235), 4, -2.3f);
-	else
-		drawPanelRoundedRect(labelBox, QColor(38, 38, 38), 4, -2.3f);
-
-	const QFontMetrics labelMetrics = m_oglTextBig->fontMetrics();
-	const GLint labelX = labelBox.left()
-	                     + (labelBox.width() - labelMetrics.horizontalAdvance(label)) / 2;
-	const GLint labelY = yBaseline - labelMetrics.ascent();
-	if (active)
-		qglColor(live ? QColor(255, 255, 255) : rowColor);
-	else
-		qglColor(rowColor);
-	renderPanelText(m_oglTextBig, labelX, labelY, label);
-
-	GLint x1 = originX;
-	renderFreqText(text1, x1, yFreq1, rowColor, f1str, 0, digitPos, digitW1);
-	qglColor(rowColor);
-	renderPanelText(text1, x1, yFreq1, QStringLiteral("."));
-
-	x1 += pointW;
-	const int digitW2 = active ? m_blankWidthf2 : m_blankWidthInactive2;
-	renderFreqText(text2, x1, yFreq2, rowColor, f2str, 10, digitPos, digitW2);
-	x1 += 2 * m_blankWidth;
-
-	qglColor(rowColor);
-	renderPanelText(text2, x1, yFreq2 - 1, QStringLiteral("MHz"));
+	if (m_smeterRenderer)
+		m_smeterRenderer->paintSMeter();
 }
 
 QMatrix4x4 OGLDisplayPanel::panelProjection() const
@@ -1333,335 +611,6 @@ void OGLDisplayPanel::drawPanelGradientRect(const QRect &rect,
         GlDraw::drawGradientRect(this, m_shaderProgram, m_vbo, panelProjection(), rect, c1, c2, leftToRight, z);
 }
 
-void OGLDisplayPanel::drawSMeterNeedle(const QMatrix4x4 &projection, int x1)
-{
-    if (m_sMeterValue <= 0 || !m_shaderProgram || !m_shaderProgram->isLinked())
-        return;
-
-    m_vao.bind();
-
-    // Main signal needle (bright white)
-    const float x = float(x1 + int(m_sMeterValue * m_unit));
-    const GlDraw::Vec3Rgb needle[2] = {
-        { x, float(m_sMeterPosY) - 15.0f, 1.0f, 1.0f, 1.0f, 1.0f },
-        { x, float(m_sMeterPosY) + 26.0f, 1.0f, 1.0f, 1.0f, 1.0f },
-    };
-
-    glLineWidth(2.0f);
-    GlDraw::drawColoredLines(this, m_shaderProgram, m_vbo, projection, needle, 2);
-
-    // Peak hold needle (amber/red pip at top of scale)
-    if (m_sMeterMaxValueB > m_sMeterValue + 0.5f) {
-        const float xPeak = float(x1 + int(m_sMeterMaxValueB * m_unit));
-        const GlDraw::Vec3Rgb peakNeedle[2] = {
-            { xPeak, float(m_sMeterPosY) - 15.0f, 1.0f, 0.4f, 0.4f, 1.0f },
-            { xPeak, float(m_sMeterPosY) + 12.0f, 1.0f, 0.4f, 0.4f, 1.0f },
-        };
-        GlDraw::drawColoredLines(this, m_shaderProgram, m_vbo, projection, peakNeedle, 2);
-    }
-}
-
-    void OGLDisplayPanel::paintSMeter() {
-
-        GLint width = m_smeterRect.width();
-        GLint height = m_smeterRect.height();
-        GLint x1 = m_smeterRect.left();
-        GLint y1 = m_smeterRect.top();
-        GLint y2 = y1 + height;
-
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        glEnable(GL_BLEND);
-
-        // Only recreate FBO if needed
-        if (!m_smeterFBO || m_smeterRenew) {
-            if (m_smeterFBO) {
-                delete m_smeterFBO;
-                m_smeterFBO = nullptr;
-            }
-            m_smeterFBO = new QOpenGLFramebufferObject(m_sMeterWidth, height);
-            m_smeterUpdate = true; // Need to re-render after FBO recreation
-            m_smeterRenew = false;
-        }
-
-        // Only re-render scale if needed
-        if (m_smeterUpdate) {
-            m_smeterFBO->bind();
-            renderSMeterScale();
-            m_smeterFBO->release();
-            QOpenGLFramebufferObject::bindDefault();
-            m_smeterUpdate = false;
-        }
-
-        const QMatrix4x4 projection = panelProjection();
-        const int smeterX = m_rxRect.right() + m_sMeterOffset;
-
-        glDisable(GL_DEPTH_TEST);
-
-        const QRect texRect(smeterX, 0, m_sMeterWidth, height);
-        if (m_textureProgram && m_textureProgram->isLinked()) {
-            m_vao.bind();
-            GlDraw::renderTexturedQuad(this, m_textureProgram, m_vbo, projection,
-                                       texRect, m_smeterFBO->texture(), -2.0f);
-        }
-
-        drawSMeterScaleLabels(projection, smeterX);
-
-        glScissor(int(x1 * dpr), int((size().height() - y2) * dpr), int(width * dpr), int(height * dpr));
-        glEnable(GL_SCISSOR_TEST);
-
-        if (m_dataEngineState == QSDR::DataEngineUp) {
-
-            // Text rendering above releases its VAO; Core 3.3 requires a bound VAO
-            // before any draw — without this the level bar is a silent no-op.
-            m_vao.bind();
-            glDisable(GL_DEPTH_TEST);
-
-            // Signal level bar filled from baseline (left) to current S-meter value
-            const int barWidth = int(m_sMeterValue * m_unit);
-            if (barWidth > 0 && m_shaderProgram && m_shaderProgram->isLinked()) {
-                const QRect bar(x1, m_sMeterPosY + 3, barWidth, 6);
-                const QColor cLeft(40, 180, 100);
-                const QColor cRight = (m_sMeterValue > 97.0f) ? QColor(255, 50, 50) :
-                                      (m_sMeterValue > 67.0f) ? QColor(255, 200, 50) : QColor(56, 242, 115);
-                GlDraw::drawGradientRect(this, m_shaderProgram, m_vbo, projection, bar,
-                                         cLeft, cRight, true, 1.0f);
-            }
-
-            drawSMeterNeedle(projection, x1);
-
-            qglColor(m_activeTextColor);
-            m_sMeterNumValueString = QString::number(m_sMeterOrgValue, 'f', 1);
-
-            // Calculate standard S-Unit display string
-            QString sUnitStr;
-            QColor sUnitColor;
-            if (m_sMeterOrgValue >= -73.0) {
-                const int over = qRound(m_sMeterOrgValue - (-73.0));
-                sUnitStr = (over > 0) ? QStringLiteral("S9+%1").arg(over) : QStringLiteral("S9");
-                sUnitColor = (over >= 40) ? QColor(255, 60, 60) :
-                             (over >= 10) ? QColor(255, 200, 50) : QColor(255, 255, 255);
-            } else {
-                const int s = qBound(0, static_cast<int>(9.0 + (m_sMeterOrgValue - (-73.0)) / 6.0 + 0.5), 9);
-                sUnitStr = QStringLiteral("S%1").arg(s);
-                sUnitColor = QColor(56, 242, 115);
-            }
-
-            const QString rxBadge = QStringLiteral("RX%1").arg(m_currentReceiver + 1);
-            m_oglTextSmall->renderText(projection, x1 + m_sMeterWidth - 195, 8, rxBadge, m_activeTextColor);
-            m_oglTextBig->renderText(projection, x1 + m_sMeterWidth - 148, 2, sUnitStr, sUnitColor);
-            m_oglTextBig->renderText(projection, x1 + m_sMeterWidth - 85, 2, m_sMeterNumValueString, Qt::white);
-            m_oglTextNormal->renderText(projection, x1 + m_sMeterWidth - 28, 9, QStringLiteral("dBm"), m_activeTextColor);
-        }
-
-        glDisable(GL_SCISSOR_TEST);
-        glEnable(GL_DEPTH_TEST);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-        glEnable(GL_BLEND);
-    }
-
-void OGLDisplayPanel::renderSMeterScale() {
-    m_vao.bind();
-	const GLint width = m_sMeterWidth;
-	const GLint height = m_smeterRect.height();
-
-	const qreal dBmRange = qAbs(m_dBmPanMax - m_dBmPanMin);
-	m_unit = (dBmRange > 0) ? qreal(m_sMeterWidth / dBmRange) : 0;
-
-	GLint savedViewport[4] = { 0, 0, 0, 0 };
-	glGetIntegerv(GL_VIEWPORT, savedViewport);
-
-	const int fboW = m_smeterFBO ? m_smeterFBO->width() : width;
-	const int fboH = m_smeterFBO ? m_smeterFBO->height() : height;
-	if (m_smeterFBO)
-		glViewport(0, 0, fboW, fboH);
-
-	const QRect rect(0, 0, fboW, fboH);
-
-	QMatrix4x4 projection;
-	projection.ortho(0, fboW, fboH, 0, -10, 10);
-
-	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-	glClear(GL_COLOR_BUFFER_BIT);
-
-	glDisable(GL_MULTISAMPLE);
-	glDisable(GL_LINE_SMOOTH);
-	glLineWidth(1.0f);
-
-	if (m_shaderProgram && m_shaderProgram->isLinked()) {
-		if (m_dataEngineState == QSDR::DataEngineUp)
-			GlDraw::drawGradientRect(this, m_shaderProgram, m_vbo, projection, rect,
-			                         Qt::black, m_bkgColor2, false, -3.0f);
-		else
-			GlDraw::drawSolidRect(this, m_shaderProgram, m_vbo, projection, rect, Qt::black, -3.0f);
-
-		QColor col = m_activeTextColor;
-		const float r = col.redF(), g = col.greenF(), b = col.blueF();
-		const float posY = float(m_sMeterPosY);
-
-		QVector<GlDraw::Vec3Rgb> scaleLines;
-		scaleLines.reserve(4 + m_sMeterWidth * 2);
-		scaleLines.append({ 0.0f, posY, 0.0f, r, g, b });
-		scaleLines.append({ float(width - 1), posY, 0.0f, r, g, b });
-		scaleLines.append({ 0.0f, posY + 12.0f, 0.0f, r, g, b });
-		scaleLines.append({ float(width - 1), posY + 12.0f, 0.0f, r, g, b });
-
-		const QColor stepCol = (m_dataEngineState == QSDR::DataEngineUp)
-		                           ? QColor(126, 156, 168)
-		                           : m_activeTextColor;
-		const float sr = stepCol.redF(), sg = stepCol.greenF(), sb = stepCol.blueF();
-
-		int vertexArrayLength = m_sMeterWidth;
-		vertexArrayLength += vertexArrayLength % 2;
-		for (int i = 0; i < vertexArrayLength; ++i) {
-			scaleLines.append({ 2.0f * float(i), posY + 4.0f, 0.0f, sr, sg, sb });
-			scaleLines.append({ 2.0f * float(i), posY + 9.0f, 0.0f, sr, sg, sb });
-		}
-
-		GlDraw::drawColoredLines(this, m_shaderProgram, m_vbo, projection,
-		                         scaleLines.constData(), scaleLines.size());
-
-		const QColor tickCol = (m_dataEngineState == QSDR::DataEngineUp) ? Qt::white : m_inactiveTextColor;
-		const float tr = tickCol.redF(), tg = tickCol.greenF(), tb = tickCol.blueF();
-
-		QVector<GlDraw::Vec3Rgb> tickLines;
-		tickLines.reserve(64);
-		for (int z = -130; z <= 0; z += 10) {
-			const float xMajor = float((z - (-140)) * m_unit);
-			const float xMinor = float((z - (-140) - 5) * m_unit);
-			tickLines.append({ xMajor, posY - 4.0f, 0.0f, tr, tg, tb });
-			tickLines.append({ xMajor, posY, 0.0f, tr, tg, tb });
-			if (z > -130) {
-				tickLines.append({ xMinor, posY - 2.0f, 0.0f, tr, tg, tb });
-				tickLines.append({ xMinor, posY, 0.0f, tr, tg, tb });
-			}
-		}
-		GlDraw::drawColoredLines(this, m_shaderProgram, m_vbo, projection,
-		                         tickLines.constData(), tickLines.size());
-
-		// IARU HF Standard S-unit tick marks relative to -140 dBm baseline:
-		// S1=-121dBm(19), S2=-115dBm(25), S3=-109dBm(31), S4=-103dBm(37), S5=-97dBm(43),
-		// S6=-91dBm(49), S7=-85dBm(55), S8=-79dBm(61), S9=-73dBm(67),
-		// +10=-63dBm(77), +20=-53dBm(87), +30=-43dBm(97), +40=-33dBm(107), +50=-23dBm(117), +60=-13dBm(127)
-		struct SMark {
-			int dbFromBase;
-			int colorZone; // 0 = green (S1..S9), 1 = yellow (+10..+30), 2 = red (+40..+60)
-			bool isMajor;
-		};
-		static const SMark sMarks[] = {
-			{ 19, 0, true },   // S1
-			{ 25, 0, false },  // S2
-			{ 31, 0, true },   // S3
-			{ 37, 0, false },  // S4
-			{ 43, 0, true },   // S5
-			{ 49, 0, false },  // S6
-			{ 55, 0, true },   // S7
-			{ 61, 0, false },  // S8
-			{ 67, 0, true },   // S9
-			{ 77, 1, false },  // +10
-			{ 87, 1, true },   // +20
-			{ 97, 1, false },  // +30
-			{ 107, 2, true },  // +40
-			{ 117, 2, false }, // +50
-			{ 127, 2, true }   // +60
-		};
-
-		QVector<GlDraw::Vec3Rgb> sUnitLines;
-		sUnitLines.reserve(48);
-		auto appendLine = [&](float x, float y1, float y2, float lr, float lg, float lb) {
-			sUnitLines.append({ x, y1, 0.0f, lr, lg, lb });
-			sUnitLines.append({ x, y2, 0.0f, lr, lg, lb });
-		};
-
-		for (const auto &mark : sMarks) {
-			const float x = float(mark.dbFromBase * m_unit);
-			float lr, lg, lb;
-			if (m_dataEngineState == QSDR::DataEngineUp) {
-				if (mark.colorZone == 0) {
-					lr = 56.0f / 255.0f; lg = 242.0f / 255.0f; lb = 115.0f / 255.0f;
-				} else if (mark.colorZone == 1) {
-					lr = 255.0f / 255.0f; lg = 200.0f / 255.0f; lb = 50.0f / 255.0f;
-				} else {
-					lr = 255.0f / 255.0f; lg = 60.0f / 255.0f; lb = 60.0f / 255.0f;
-				}
-			} else {
-				lr = m_inactiveTextColor.redF();
-				lg = m_inactiveTextColor.greenF();
-				lb = m_inactiveTextColor.blueF();
-			}
-			const float tickH = mark.isMajor ? 6.0f : 4.0f;
-			appendLine(x, posY + 12.0f, posY + 12.0f + tickH, lr, lg, lb);
-		}
-
-		// Colored bottom guide rails
-		if (m_dataEngineState == QSDR::DataEngineUp) {
-			// Green line: 0 to S9 (67 dB)
-			sUnitLines.append({ 0.0f, posY + 12.0f, 0.0f, 56.0f / 255.0f, 242.0f / 255.0f, 115.0f / 255.0f });
-			sUnitLines.append({ float(67 * m_unit), posY + 12.0f, 0.0f, 56.0f / 255.0f, 242.0f / 255.0f, 115.0f / 255.0f });
-			// Yellow line: S9 to +30 dB (97 dB)
-			sUnitLines.append({ float(67 * m_unit), posY + 12.0f, 0.0f, 255.0f / 255.0f, 200.0f / 255.0f, 50.0f / 255.0f });
-			sUnitLines.append({ float(97 * m_unit), posY + 12.0f, 0.0f, 255.0f / 255.0f, 200.0f / 255.0f, 50.0f / 255.0f });
-			// Red line: +30 dB to end
-			sUnitLines.append({ float(97 * m_unit), posY + 12.0f, 0.0f, 255.0f / 255.0f, 60.0f / 255.0f, 60.0f / 255.0f });
-			sUnitLines.append({ float(width - 1), posY + 12.0f, 0.0f, 255.0f / 255.0f, 60.0f / 255.0f, 60.0f / 255.0f });
-		}
-
-		GlDraw::drawColoredLines(this, m_shaderProgram, m_vbo, projection,
-		                         sUnitLines.constData(), sUnitLines.size());
-	} else {
-		if (m_dataEngineState == QSDR::DataEngineUp)
-			GlDraw::drawGradientRect(this, m_shaderProgram, m_vbo, projection, rect,
-			                         Qt::black, m_bkgColor2, false, -3.0f);
-		else
-			GlDraw::drawSolidRect(this, m_shaderProgram, m_vbo, projection, rect, Qt::black, -3.0f);
-	}
-
-	glViewport(savedViewport[0], savedViewport[1], savedViewport[2], savedViewport[3]);
-}
-
-void OGLDisplayPanel::drawSMeterScaleLabels(const QMatrix4x4 &projection, int xOffset)
-{
-	const QFontMetrics fm = m_oglTextNormal->fontMetrics();
-
-	// Top dBm labels (-120 to 0 dBm)
-	for (int z = -120; z <= 0; z += 20) {
-		const int dbFromBase = z - (-140);
-		QString marker = QString::number(z);
-		const int d = fm.horizontalAdvance(marker);
-		const int x = xOffset + int(dbFromBase * m_unit) - d / 2;
-		m_oglTextNormal->renderText(projection, float(x), float(m_sMeterPosY - 18), marker, m_activeTextColor);
-	}
-
-	m_oglTextSmallItalic->renderText(projection, float(xOffset + m_sMeterWidth - 25),
-	                                 float(m_sMeterPosY - 16), QStringLiteral("dBm"), m_activeTextColor);
-
-	// Bottom S-Unit labels placed at accurate IARU calibrated positions
-	struct SLabel {
-		int dbFromBase;
-		const char *text;
-		QColor color;
-	};
-	static const SLabel sLabels[] = {
-		{ 19, "S1", QColor(56, 242, 115) },
-		{ 31, "S3", QColor(56, 242, 115) },
-		{ 43, "S5", QColor(56, 242, 115) },
-		{ 55, "S7", QColor(56, 242, 115) },
-		{ 67, "S9", QColor(255, 255, 255) },
-		{ 87, "+20", QColor(255, 200, 50) },
-		{ 107, "+40", QColor(255, 80, 80) },
-		{ 127, "+60", QColor(255, 80, 80) }
-	};
-
-	for (const auto &lbl : sLabels) {
-		QString marker = QString::fromLatin1(lbl.text);
-		const int d = fm.horizontalAdvance(marker);
-		const float x = float(xOffset + int(lbl.dbFromBase * m_unit) - d / 2);
-		const QColor c = (m_dataEngineState == QSDR::DataEngineUp) ? lbl.color : m_inactiveTextColor;
-		m_oglTextNormal->renderText(projection, x, float(m_sMeterPosY + 18), marker, c);
-	}
-}
-
-
-
 void OGLDisplayPanel::setSMeterValue(int rx, double value) {
 	if (rx < 0 || rx >= MAX_RECEIVERS)
 		return;
@@ -1756,32 +705,15 @@ void OGLDisplayPanel::setupDisplayRegions(QSize size) {
 
 QString OGLDisplayPanel::freqMhzDisplayString(qint64 frequencyHz) const
 {
-	const int f1 = static_cast<int>(frequencyHz / 1000);
-	const long ghz = f1 / 1000000;
-	const long mhz = (f1 / 1000) % 1000;
-	const long khz = f1 % 1000;
-
-	QString f1str = QString("%1.%2.%3")
-			.arg(ghz)
-			.arg(mhz, 3, 10, QLatin1Char('0'))
-			.arg(khz, 3, 10, QLatin1Char('0'));
-
-	for (int i = 0; i < f1str.length() - 1; ++i) {
-		if (f1str[i] == '0' || f1str[i] == '.')
-			f1str[i] = ' ';
-		else
-			break;
-	}
-
-	return f1str;
+	if (m_freqRenderer)
+		return m_freqRenderer->freqMhzDisplayString(frequencyHz);
+	return QString();
 }
 
 void OGLDisplayPanel::splitFreqDisplay(qint64 frequencyHz, QString *f1str, QString *f2str) const
 {
-	if (f1str)
-		*f1str = freqMhzDisplayString(frequencyHz);
-	if (f2str)
-		*f2str = QString("%1").arg(static_cast<int>(frequencyHz % 1000), 3, 10, QLatin1Char('0'));
+	if (m_freqRenderer)
+		m_freqRenderer->splitFreqDisplay(frequencyHz, f1str, f2str);
 }
 
 SliceModel *OGLDisplayPanel::currentSlice() const
@@ -1795,490 +727,69 @@ SliceModel *OGLDisplayPanel::currentSlice() const
 
 qint64 OGLDisplayPanel::vfoMemoryHz(DigitVfo which) const
 {
-	if (SliceModel *slice = currentSlice()) {
-		return (which == DigitVfoB) ? slice->vfoBFrequency() : slice->vfoAFrequency();
-	}
-	if (m_currentReceiver >= 0 && m_currentReceiver < m_frequencyList.size())
-		return m_frequencyList.at(m_currentReceiver).frequency;
-	return 7000000;
+	return m_inputController ? m_inputController->vfoMemoryHz(which) : 7000000;
 }
 
 void OGLDisplayPanel::activateDigitVfo(DigitVfo which)
 {
-	SliceModel *slice = currentSlice();
-	if (!slice || which == DigitVfoNone)
-		return;
-	const SliceModel::ActiveVfo target = (which == DigitVfoB) ? SliceModel::VfoB : SliceModel::VfoA;
-	if (slice->activeVfo() == target)
-		return;
-	slice->setActiveVfo(target);
-	set->setVfoFrequencyVisible(m_currentReceiver, slice->frequency());
+	if (m_inputController)
+		m_inputController->activateDigitVfo(which);
 }
 
 void OGLDisplayPanel::tuneDigitVfoTo(DigitVfo which, qint64 frequencyHz)
 {
-	activateDigitVfo(which);
-	SliceModel *slice = currentSlice();
-	if (!slice)
-		return;
-
-	if (which == DigitVfoB)
-		slice->setVfoBFrequency(frequencyHz);
-	else
-		slice->setVfoAFrequency(frequencyHz);
-
-	if (set->getPanLockedStatus(m_currentReceiver)) {
-		qint64 ctrf = set->getCtrFrequency(m_currentReceiver);
-		const int s = set->getSampleRate() / 2;
-		if (frequencyHz > ctrf + s)
-			frequencyHz = ctrf + s;
-		else if (frequencyHz < ctrf - s)
-			frequencyHz = ctrf - s;
-		set->setVFOFrequency(0, m_currentReceiver, frequencyHz);
-	} else {
-		// Unlocked pan: digit wheel moves LO with the dial (legacy behaviour).
-		set->setCtrFrequency(0, m_currentReceiver, frequencyHz);
-		set->setVFOFrequency(0, m_currentReceiver, frequencyHz);
-	}
+	if (m_inputController)
+		m_inputController->tuneDigitVfoTo(which, frequencyHz);
 }
 
 QRect OGLDisplayPanel::vfoLabelRect(int yBaseline) const
 {
-	const QFontMetrics fm = m_oglTextBig->fontMetrics();
-	return QRect(m_rxRect.left() + 4, yBaseline - fm.ascent() - 2,
-	             qMax(m_vfoLabelWidth, 16), fm.height() + 4);
+	return m_inputController ? m_inputController->vfoLabelRect(yBaseline) : QRect();
 }
 
 void OGLDisplayPanel::rebuildAllFreqDigitHitRegions()
 {
-	if (!m_oglTextFreq1 || !m_oglTextFreqInactive1)
-		return;
-
-	SliceModel *slice = currentSlice();
-	const bool bActive = slice && slice->activeVfo() == SliceModel::VfoB;
-	const int originX = m_rxRect.left() + 12 + m_vfoLabelWidth;
-
-	const QRect labelA = vfoLabelRect(m_rxRect.top() + m_freqDigitsPosYA);
-	const QRect labelB = vfoLabelRect(m_rxRect.top() + m_freqDigitsPosYB);
-
-	QString f1A = m_f1strA;
-	QString f1B = m_f1strB;
-	if (f1A.isEmpty())
-		f1A = freqMhzDisplayString(vfoMemoryHz(DigitVfoA));
-	if (f1B.isEmpty())
-		f1B = freqMhzDisplayString(vfoMemoryHz(DigitVfoB));
-
-	updateFreqDigitHitRegions(m_hitA, originX, m_rxRect.top() + m_freqDigitsPosYA,
-	                          f1A, !bActive, labelA);
-	updateFreqDigitHitRegions(m_hitB, originX, m_rxRect.top() + m_freqDigitsPosYB,
-	                          f1B, bActive, labelB);
+	if (m_inputController)
+		m_inputController->rebuildAllFreqDigitHitRegions();
 }
 
-void OGLDisplayPanel::updateFreqDigitHitRegions(FreqDigitHitRegions &out, int originX, int yBaseline,
-                                                const QString &f1str, bool large,
-                                                const QRect &labelRect)
-{
-	OGLText *text1 = large ? m_oglTextFreq1 : m_oglTextFreqInactive1;
-	OGLText *text2 = large ? m_oglTextFreq2 : m_oglTextFreqInactive2;
-	const int digitW1 = large ? m_blankWidthf1 : m_blankWidthInactive1;
-	const int digitW2 = large ? m_blankWidthf2 : m_blankWidthInactive2;
-	const int pointW = large ? m_pointStringWidth : m_pointStringWidthInactive;
-
-	const int freq1Ascent = text1 ? text1->fontMetrics().ascent() : m_fonts.fontHeightFreqFont1;
-	const int freq2Ascent = text2 ? text2->fontMetrics().ascent() : m_fonts.fontHeightFreqFont2;
-	const int freq1Height = text1 ? text1->fontMetrics().height() : m_fonts.fontHeightFreqFont1;
-	const int freq2Height = text2 ? text2->fontMetrics().height() : m_fonts.fontHeightFreqFont2;
-	const int y1 = yBaseline - freq1Ascent;
-	const int y2 = yBaseline - freq2Ascent;
-
-	out.label = QRegion(labelRect);
-
-	int x = originX;
-	auto slot = [&](int strIndex, int width, int top, int height) {
-		if (strIndex >= 0 && strIndex < f1str.length() && f1str.at(strIndex) == QLatin1Char(' '))
-			return QRegion();
-		const QRegion region(QRect(x, top, width, height));
-		x += width;
-		return region;
-	};
-
-	out.freg1000000000 = slot(0, digitW1, y1, freq1Height);
-	out.point2         = slot(1, pointW, y1, freq1Height);
-	out.freg100000000  = slot(2, digitW1, y1, freq1Height);
-	out.freg10000000   = slot(3, digitW1, y1, freq1Height);
-	out.freg1000000    = slot(4, digitW1, y1, freq1Height);
-	out.point          = slot(5, pointW, y1, freq1Height);
-	out.freg100000     = slot(6, digitW1, y1, freq1Height);
-	out.freg10000      = slot(7, digitW1, y1, freq1Height);
-	out.freg1000       = slot(8, digitW1, y1, freq1Height);
-	out.point1         = slot(-1, pointW, y1, freq1Height);
-	out.freg100        = slot(-1, digitW2, y2, freq2Height);
-	out.freg10         = slot(-1, digitW2, y2, freq2Height);
-	out.freg1          = slot(-1, digitW2, y2, freq2Height);
-}
-
-bool OGLDisplayPanel::hitTestDigit(const FreqDigitHitRegions &regs, const QString &f1str,
-                                   QPoint p, int *digitOut) const
-{
-	int digit = None;
-	if (regs.freg1.contains(p))
-		digit = Freq1;
-	else if (regs.freg10.contains(p))
-		digit = Freq10;
-	else if (regs.freg100.contains(p))
-		digit = Freq100;
-	else if (regs.point1.contains(p))
-		digit = dp2;
-	else if (regs.freg1000.contains(p))
-		digit = Freq1000;
-	else if (regs.freg10000.contains(p))
-		digit = Freq10000;
-	else if (regs.freg100000.contains(p))
-		digit = Freq100000;
-	else if (regs.point.contains(p))
-		digit = dp1;
-	else if (regs.freg1000000.contains(p))
-		digit = Freq1000000;
-	else if (regs.freg10000000.contains(p))
-		digit = Freq10000000;
-	else if (regs.freg100000000.contains(p))
-		digit = Freq100000000;
-	else if (regs.point2.contains(p))
-		digit = dp0;
-	else if (regs.freg1000000000.contains(p))
-		digit = Freq1000000000;
-
-	if (digit != None && digit <= Freq1000) {
-		int idx = -1;
-		switch (digit) {
-			case Freq1000000000: idx = 0; break;
-			case dp0:            idx = 1; break;
-			case Freq100000000:  idx = 2; break;
-			case Freq10000000:   idx = 3; break;
-			case Freq1000000:    idx = 4; break;
-			case dp1:            idx = 5; break;
-			case Freq100000:     idx = 6; break;
-			case Freq10000:      idx = 7; break;
-			case Freq1000:       idx = 8; break;
-			default: break;
-		}
-		if (idx >= 0 && idx < f1str.length() && f1str[idx] == ' ')
-			digit = None;
-	}
-
-	if (digitOut)
-		*digitOut = digit;
-	return digit != None;
-}
-
-void OGLDisplayPanel::getSelectedDigit(QPoint p) {
-
-	static int pos;
-	static int posVfo;
-	m_digitPosition = None;
-	m_digitVfo = DigitVfoNone;
-
-	int digit = None;
-	if (hitTestDigit(m_hitA, m_f1strA, p, &digit)) {
-		m_digitPosition = digit;
-		m_digitVfo = DigitVfoA;
-	} else if (hitTestDigit(m_hitB, m_f1strB, p, &digit)) {
-		m_digitPosition = digit;
-		m_digitVfo = DigitVfoB;
-	} else if (m_hitA.label.contains(p)) {
-		m_digitVfo = DigitVfoA;
-	} else if (m_hitB.label.contains(p)) {
-		m_digitVfo = DigitVfoB;
-	}
-
-	if (pos != m_digitPosition || posVfo != m_digitVfo) {
-		pos = m_digitPosition;
-		posVfo = m_digitVfo;
-		update();
-	}
-}
-
-//***********************************************
 void OGLDisplayPanel::enterEvent(QEvent *event) {
-
-	Q_UNUSED(event)
+	if (m_inputController)
+		m_inputController->handleEnter(event);
 }
 
 void OGLDisplayPanel::leaveEvent(QEvent *event) {
-
-	Q_UNUSED(event)
+	if (m_inputController)
+		m_inputController->handleLeave(event);
 }
 
 void OGLDisplayPanel::mousePressEvent(QMouseEvent *event) {
-
-	QPoint pos = event->pos();
-
-	getSelectedDigit(pos);
-
-	if (event->button() == Qt::LeftButton && m_digitVfo != DigitVfoNone) {
-		// Single click on A or B label/digits — select VFO A or B as active VFO
-		activateDigitVfo(static_cast<DigitVfo>(m_digitVfo));
-	}
-
-	if (event->button() == Qt::LeftButton && m_digitPosition != None) {
-		switch (m_digitPosition) {
-
-			case Freq1:
-				if (event->buttons() == Qt::LeftButton) {
-					if (set->getMouseWheelFreqStep(m_currentReceiver) == 1.0)
-						set->setMouseWheelFreqStep(m_currentReceiver, 5.0);
-					else
-						set->setMouseWheelFreqStep(m_currentReceiver, 1.0);
-				}
-				break;
-
-			case Freq10:
-				if (event->buttons() == Qt::LeftButton) {
-					if (set->getMouseWheelFreqStep(m_currentReceiver) == 10.0)
-						set->setMouseWheelFreqStep(m_currentReceiver, 50.0);
-					else
-						set->setMouseWheelFreqStep(m_currentReceiver, 10.0);
-				}
-				break;
-
-			case Freq100:
-				if (event->buttons() == Qt::LeftButton) {
-					if (set->getMouseWheelFreqStep(m_currentReceiver) == 100.0)
-						set->setMouseWheelFreqStep(m_currentReceiver, 500.0);
-					else
-						set->setMouseWheelFreqStep(m_currentReceiver, 100.0);
-				}
-				break;
-	
-			case Freq1000:
-				if (event->buttons() == Qt::LeftButton) {
-					if (set->getMouseWheelFreqStep(m_currentReceiver) == 1000.0)
-                        set->setMouseWheelFreqStep(m_currentReceiver, 5000.0);
-                    else if (set->getMouseWheelFreqStep(m_currentReceiver) == 5000.0)
-                        set->setMouseWheelFreqStep(m_currentReceiver, 9000.0);
-                    else
-						set->setMouseWheelFreqStep(m_currentReceiver, 1000.0);
-				}
-				break;
-
-			case Freq10000:
-				if (event->buttons() == Qt::LeftButton) {
-					if (set->getMouseWheelFreqStep(m_currentReceiver) == 10000.0)
-						set->setMouseWheelFreqStep(m_currentReceiver, 50000.0);
-					else
-						set->setMouseWheelFreqStep(m_currentReceiver, 10000.0);
-				}
-				break;
-	
-			case Freq100000:
-				if (event->buttons() == Qt::LeftButton) {
-					if (set->getMouseWheelFreqStep(m_currentReceiver) == 100000.0)
-						set->setMouseWheelFreqStep(m_currentReceiver, 500000.0);
-					else
-						set->setMouseWheelFreqStep(m_currentReceiver, 100000.0);
-				}
-				break;
-
-			case Freq1000000:
-				if (event->buttons() == Qt::LeftButton) {
-					if (set->getMouseWheelFreqStep(m_currentReceiver) == 1000000.0)
-						set->setMouseWheelFreqStep(m_currentReceiver, 5000000.0);
-					else
-						set->setMouseWheelFreqStep(m_currentReceiver, 1000000.0);
-				}
-				break;
-
-			case Freq10000000:
-				if (event->buttons() == Qt::LeftButton) {
-					if (set->getMouseWheelFreqStep(m_currentReceiver) == 10000000.0)
-						set->setMouseWheelFreqStep(m_currentReceiver, 50000000.0);
-					else
-						set->setMouseWheelFreqStep(m_currentReceiver, 10000000.0);
-				}
-				break;
-
-            case Freq100000000:
-                if (event->buttons() == Qt::LeftButton)
-                    set->setMouseWheelFreqStep(m_currentReceiver, 100000000.0);
-                break;
-
-            case Freq1000000000:
-                if (event->buttons() == Qt::LeftButton)
-                    set->setMouseWheelFreqStep(m_currentReceiver, 1000000000.0);
-                break;
-
-			case None:
-				break;
-		}
-	}
-
+	if (m_inputController)
+		m_inputController->handleMousePress(event);
 	QWidget::mousePressEvent(event);
 }
 
 void OGLDisplayPanel::mouseReleaseEvent(QMouseEvent *event) {
-
-	Q_UNUSED(event)
+	if (m_inputController)
+		m_inputController->handleMouseRelease(event);
 }
 
 void OGLDisplayPanel::mouseDoubleClickEvent(QMouseEvent *event) {
-
-	if (event->button() == Qt::LeftButton) {
-		QPoint pos = event->pos();
-		getSelectedDigit(pos);
-
-		if (m_digitVfo != DigitVfoNone) {
-			if (m_currentReceiver < 0 || m_currentReceiver >= m_frequencyList.size()) {
-				qWarning() << "OGLDisplayPanel::mouseDoubleClickEvent invalid receiver index" << m_currentReceiver;
-				return;
-			}
-
-			const DigitVfo which = static_cast<DigitVfo>(m_digitVfo);
-			activateDigitVfo(which);
-			qint64 currentFreq = vfoMemoryHz(which);
-			FrequencyEntryDialog dlg(currentFreq, this);
-			if (dlg.exec() == QDialog::Accepted) {
-				qint64 newFreq = dlg.frequency();
-				if (newFreq < (qint64)set->getMaxFrequency() && newFreq >= 0)
-					tuneDigitVfoTo(which, newFreq);
-			}
-			return;
-		}
-	}
-
+	if (m_inputController)
+		m_inputController->handleMouseDoubleClick(event);
 	QOpenGLWidget::mouseDoubleClickEvent(event);
 }
 
 void OGLDisplayPanel::mouseMoveEvent(QMouseEvent *event) {
-
-	QPoint pos = event->pos();
-	const int oldDigit = m_digitPosition;
-	const int oldVfo = m_digitVfo;
-
-    if (m_dataEngineState != QSDR::DataEngineUp)
-    {
-        m_digitColor = QColor(98, 98, 98);
-        return;
-    }
-
-		getSelectedDigit(pos);
-		Qt::CursorShape wantCursor = Qt::ArrowCursor;
-		switch (m_digitPosition) {
-
-			case Freq1:
-			case Freq10:
-			case Freq100:
-			case Freq1000:
-			case Freq10000:
-			case Freq100000:
-			case Freq1000000:
-			case Freq10000000:
-			case Freq100000000:
-			case Freq1000000000:
-				wantCursor = Qt::PointingHandCursor;
-				m_digitColor = QColor(136, 166, 178);
-				break;
-
-			case None:
-				wantCursor = (m_digitVfo != DigitVfoNone) ? Qt::PointingHandCursor : Qt::ArrowCursor;
-				m_digitColor = QColor(106, 136, 148);
-				break;
-		}
-
-		if (cursor().shape() != wantCursor)
-			setCursor(wantCursor);
-
-	// Highlight comes from m_digitPosition in renderFreqText — only repaint on change.
-	if (oldDigit != m_digitPosition || oldVfo != m_digitVfo)
-		scheduleRepaint();
-
+	if (m_inputController)
+		m_inputController->handleMouseMove(event);
 	QOpenGLWidget::mouseMoveEvent(event);
 }
 
 void OGLDisplayPanel::wheelEvent(QWheelEvent * event) {
-		qint64 deltaF = 0;
-		switch (m_digitPosition) {
-			case Freq1:
-				deltaF = 1;
-				break;
-
-			case Freq10:
-				deltaF = 10;
-				break;
-
-			case Freq100:
-				deltaF = 100;
-				break;
-
-			case Freq1000:
-				deltaF = 1000;
-				break;
-
-			case Freq10000:
-				deltaF = 10000;
-				break;
-
-			case Freq100000:
-				deltaF = 100000;
-				break;
-
-			case Freq1000000:
-				deltaF = 1000000;
-				break;
-
-			case Freq10000000:
-				deltaF = 10000000;
-				break;
-
-            case Freq100000000:
-                deltaF = 100000000;
-                break;
-
-            case Freq1000000000:
-                deltaF = 1000000000;
-                break;
-
-			case None:
-				return;
-		}
-
-        int  numDegrees = event->angleDelta().y()/ 8;
-        int  numSteps = numDegrees / 15;
-		
-		if (m_currentReceiver < 0 || m_currentReceiver >= m_frequencyList.size()) {
-			qWarning() << "OGLDisplayPanel::wheelEvent invalid receiver index" << m_currentReceiver;
-			return;
-		}
-
-		const DigitVfo which = (m_digitVfo == DigitVfoB) ? DigitVfoB : DigitVfoA;
-		qint64 currentFreq = vfoMemoryHz(which);
-        qint64 newFreq = currentFreq + (qint64)numSteps * deltaF;
-
-		if (newFreq < (qint64)set->getMaxFrequency() && newFreq >= 0)
-			tuneDigitVfoTo(which, newFreq);
-
-	event->accept();
+	if (m_inputController)
+		m_inputController->handleWheel(event);
 	QOpenGLWidget::wheelEvent(event);
-}
-
-void OGLDisplayPanel::keyPressEvent(QKeyEvent* event) {
-
-	Q_UNUSED(event)
-}
-
-void OGLDisplayPanel::closeEvent(QCloseEvent *event) {
-
-	Q_UNUSED(event)
-}
-/*
-void OGLDisplayPanel::showEvent(QShowEvent *event) {
-
-	Q_UNUSED(event)
-}
-*/
-
-void OGLDisplayPanel::timerEvent(QTimerEvent *event) {
-
-	Q_UNUSED(event)
 }
 
 void OGLDisplayPanel::setSMeterHoldTime(int value) {
@@ -2424,6 +935,15 @@ void OGLDisplayPanel::setTciStatus(bool active) {
 	if (m_tciConnected == active)
 		return;
 	m_tciConnected = active;
+	if (!active)
+		m_tciTxAudioDebug = 0;
+	scheduleRepaint();
+}
+
+void OGLDisplayPanel::setTciTxAudioDebug(int hint) {
+	if (m_tciTxAudioDebug == hint)
+		return;
+	m_tciTxAudioDebug = hint;
 	scheduleRepaint();
 }
 
@@ -2644,12 +1164,10 @@ void OGLDisplayPanel::systemStateChanged(
 	if (state == QSDR::DataEngineDown) {
 
 		m_sMeterMaxValueB = -1000.0f;
-		m_sMeterMinValueB =  1000.0f;
 
 		m_sMeterTimer.restart();
 		m_sMeterDisplayTime.restart();
 		m_sMeterMaxTimer.restart();
-		m_sMeterMinTimer.restart();
 
 		if (m_radioModel && m_radioModel->telemetry())
 			m_radioModel->telemetry()->setProtocolSync(0);
@@ -2688,51 +1206,10 @@ void OGLDisplayPanel::renderPanelText(OGLText *text, float x, float y, float z, 
         text->renderText(x, y, z, str, m_glTextColor);
 }
 
-
-void OGLDisplayPanel::saveGLState()
-{
-}
-
-void OGLDisplayPanel::restoreGLState()
-{
-}
-
-
 void OGLDisplayPanel::renderFreqText(OGLText *text, GLint &x1, GLint y1, const QColor &fontcolor,
                                      const QString &freqstr, int digit, int digit_pos, int fixed_width)
 {
-	if (!text)
-		return;
-
-	const QFontMetrics fontMetrics = text->fontMetrics();
-	const int len = freqstr.length();
-
-	for (int x = 0; x < len; x++) {
-		const int current_pos = x + digit;
-		const bool isDot = (current_pos == dp0 || current_pos == dp1 || current_pos == dp2);
-
-		QColor freqdigitcolor;
-		if (set->getRadioState() > RadioState::RX)
-			freqdigitcolor = m_txdigitColor;
-		else if (current_pos == digit_pos)
-			freqdigitcolor = QColor(106, 236, 248);
-		else
-			freqdigitcolor = fontcolor;
-
-		// Blanked leading slots (GHz / 100 MHz on HF) collapse instead of
-		// reserving width, so the first significant digit starts at the margin.
-		if (freqstr.at(x) == ' ')
-			continue;
-
-		qglColor(freqdigitcolor);
-		renderPanelText(text, x1, y1, QString(freqstr.at(x)));
-
-		if (isDot)
-			x1 += m_pointStringWidth;
-		else if (fixed_width > 0)
-			x1 += fixed_width;
-		else
-			x1 += fontMetrics.horizontalAdvance(freqstr.at(x));
-	}
+	if (m_freqRenderer)
+		m_freqRenderer->renderFreqText(text, x1, y1, fontcolor, freqstr, digit, digit_pos, fixed_width);
 }
 

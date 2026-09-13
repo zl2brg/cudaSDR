@@ -49,20 +49,26 @@ Legacy center-frequency updates from `Settings::setCtrFrequency` still emit `ctr
 | NB/NR/ANF/SNB, FFT, pan/wf modes, avg, grid | `SliceModel` → WDSP / GL (no Settings relay) |
 | Protocol stream sync | `DataIO` sequence check → `RadioTelemetry::setProtocolSync` |
 
-## Settings entry points
+## Settings entry points & Single-Authority Architecture (Phase 2)
 
-| User action | Updates |
-|-------------|---------|
-| Volume slider | `SliceModel::setVolume` (or `Settings::setMainVolume` → slice) |
-| Mute | `SliceModel::setMute` |
-| AGC mode / gain / hang | `Settings::setAGC*` → `SliceModel` when `RadioModel` present |
+| User action | Authority | Updates |
+|-------------|-----------|---------|
+| Filter frequencies / slope | `SliceModel` | `SliceModel::setFilterLow/High/Slope` (UI mutates slice directly; `Settings` forwards `filterFrequenciesChanged` to `Transmitter`) |
+| Mode (DSP / WDSP) | `SliceModel` | `SliceModel::setDspMode` (or `Settings::setDSPMode` → slice); `Settings` forwards `dspModeChanged` |
+| Volume / Mute | `SliceModel` | `SliceModel::setVolume` / `setMute` |
+| AGC mode / gain / slope / hang | `SliceModel` | `SliceModel::setAgc*` (UI mutates slice directly; `Settings::setAGC*` delegates to slice when model present) |
+| Display / averaging / pan / wf | `SliceModel` | `SliceModel::set*` (UI mutates slice directly) |
+| CW decode | `SliceModel` | `SliceModel::setCwDecodeEnabled` |
 
-Legacy `Settings::*Changed` signals for volume/AGC/mode/filter are **not** relayed from `syncSlicesWithSettings`; views listen to `SliceModel` instead.
+### Signal flow & loop elimination
+- **Direct UI mutation:** Controllers (`RadioPopupController`, `DisplaySettingsController`) mutate `SliceModel` directly as the primary authority. Redundant calls to `Settings` have been eliminated.
+- **Forwarding for legacy components:** `Settings::syncSlicesWithSettings()` connects `SliceModel::filterChanged` and `SliceModel::dspModeChanged` to emit `Settings::filterFrequenciesChanged` and `Settings::dspModeChanged` so non-MVC components (such as `Transmitter` and `TciServer`) receive updates without circular ping-ponging.
+- **Slice-aware getters:** All runtime slice getters in `Settings` (`getFilterLo`, `getFilterHi`, `getDSPMode`, `getAGCSlope`, `getAGCHangThreshold`, `getAGCHangLeveldB`, `getAGCMaximumGain_dB`, `getAGCFixedGain_dB`, `getMainVolume`, `getCwDecode`, etc.) defer to `sliceModel(rx)` when active.
 
 ## Persistence
 
-- **Load:** `Settings::syncSlicesWithSettings()` — INI → `SliceModel`
-- **Save:** `Settings::syncSettingsWithSlices()` — `SliceModel` → `m_receiverDataList` → INI
+- **Load (Boot only):** `Settings::syncSlicesWithSettings()` — INI/JSON → `SliceModel`
+- **Save (Shutdown only):** `Settings::syncSettingsWithSlices()` — `SliceModel` → `m_receiverDataList` → INI/JSON
 
 ## Phase 3: SliceProcessor without `TReceiver` mirror
 

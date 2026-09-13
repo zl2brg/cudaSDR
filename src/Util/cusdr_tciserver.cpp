@@ -33,6 +33,7 @@
 #include <QDateTime>
 #include <QtEndian>
 #include <QMetaType>
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <cstdlib>
@@ -177,8 +178,8 @@ QString TciServer::connectionStatusText() const
     else
         text = QStringLiteral("Connected — %1 clients").arg(n);
 
-    if (m_txChronoClient)
-        text += QStringLiteral(" (TX)");
+    if (isTxChronoActive())
+        text += txAudioLevelSuffix();
     return text;
 }
 
@@ -593,6 +594,129 @@ void TciServer::sendAudioPacket(QWebSocket *client, const TciClientState &state,
     client->sendBinaryMessage(frame);
 }
 
+void TciServer::setRxAudioRing(int rx, SpscRingBuffer<float> *ring)
+{
+    if (rx >= 0 && rx < static_cast<int>(m_rxAudioRings.size())) {
+        m_rxAudioRings[rx] = ring;
+    }
+}
+
+SpscRingBuffer<float>* TciServer::rxAudioRing(int rx) const
+{
+    if (rx >= 0 && rx < static_cast<int>(m_rxAudioRings.size()))
+        return m_rxAudioRings[rx];
+    return nullptr;
+}
+
+void TciServer::scheduleRxAudioDrain(int rx)
+{
+    if (rx < 0 || rx >= static_cast<int>(m_rxAudioDrainPending.size()))
+        return;
+    if (m_rxAudioDrainPending[static_cast<size_t>(rx)])
+        return;
+    m_rxAudioDrainPending[static_cast<size_t>(rx)] = true;
+    QTimer::singleShot(0, this, [this, rx]() {
+        if (rx >= 0 && rx < static_cast<int>(m_rxAudioDrainPending.size()))
+            m_rxAudioDrainPending[static_cast<size_t>(rx)] = false;
+        onRxAudioReady(rx);
+    });
+}
+
+bool TciServer::rxAudioSocketCongested(int rx) const
+{
+    for (QWebSocket *client : std::as_const(m_clients)) {
+        if (client->state() != QAbstractSocket::ConnectedState)
+            continue;
+        const TciClientState *state = clientState(client);
+        if (!state || !state->audioEnabledReceivers.contains(rx))
+            continue;
+        if (client->bytesToWrite() > kAudioBacklogDropBytes)
+            return true;
+    }
+    return false;
+}
+
+void TciServer::onRxAudioReady(int rx)
+{
+    if (rx < 0 || rx >= static_cast<int>(m_rxAudioRings.size()))
+        return;
+
+    SpscRingBuffer<float> *ring = m_rxAudioRings[rx];
+    if (!ring)
+        return;
+
+    if (!m_settings || !m_settings->getTciServerEnabled()) {
+        ring->clear();
+        return;
+    }
+
+    bool anySubscribed = false;
+    for (QWebSocket *client : std::as_const(m_clients)) {
+        if (client->state() != QAbstractSocket::ConnectedState)
+            continue;
+        const TciClientState *st = clientState(client);
+        if (st && st->audioEnabledReceivers.contains(rx)) {
+            anySubscribed = true;
+            break;
+        }
+    }
+
+    if (!anySubscribed) {
+        ring->clear();
+        return;
+    }
+
+    if (m_tciAudioDrainBuffer.size() < kRxAudioFloatsPerSlot)
+        m_tciAudioDrainBuffer.resize(kRxAudioFloatsPerSlot);
+
+    const bool congested = rxAudioSocketCongested(rx);
+    const RxAudioDrainPlan plan = planRxAudioDrain(ring->availableRead(),
+                                                   m_tciAudioDrainBuffer.size(),
+                                                   congested);
+    if (plan.floatsToRead == 0)
+        return;
+
+    const size_t n = ring->read(m_tciAudioDrainBuffer.data(), plan.floatsToRead);
+    if (n == 0)
+        return;
+
+    if (plan.send) {
+        const float *samples = m_tciAudioDrainBuffer.data();
+        const int sampleCount = static_cast<int>(n);
+
+        if (std::abs(m_rxGain - 1.0f) > 1e-6f) {
+            for (size_t i = 0; i < n; ++i) {
+                m_tciAudioDrainBuffer[i] *= m_rxGain;
+            }
+        }
+
+        for (QWebSocket *client : std::as_const(m_clients)) {
+            if (client->state() != QAbstractSocket::ConnectedState)
+                continue;
+
+            TciClientState *state = clientState(client);
+            if (!state || !state->audioEnabledReceivers.contains(rx))
+                continue;
+
+            sendAudioPacket(client, *state, rx, samples, sampleCount);
+        }
+    } else {
+        for (QWebSocket *client : std::as_const(m_clients)) {
+            if (client->state() != QAbstractSocket::ConnectedState)
+                continue;
+            TciClientState *state = clientState(client);
+            if (!state || !state->audioEnabledReceivers.contains(rx))
+                continue;
+            if ((++state->audioFramesDropped % 200) == 1)
+                TCI_WARN << "RX audio backpressure: dropping frame (link congested), total drops"
+                         << state->audioFramesDropped;
+        }
+    }
+
+    if (plan.reschedule || ring->availableRead() > 0)
+        scheduleRxAudioDrain(rx);
+}
+
 void TciServer::onRxAudioSamples(int rx, QVector<float> stereoInterleaved, int sampleRate)
 {
     Q_UNUSED(sampleRate)
@@ -611,10 +735,6 @@ void TciServer::onRxAudioSamples(int rx, QVector<float> stereoInterleaved, int s
         sampleCount = scaled.size();
     }
 
-    // Send each DSP audio block straight to the socket, in its natural cadence
-    // (~21 ms at 48k pan, ~5 ms at 192k) — exactly like the local soundcard
-    // path. The client's own jitter buffer absorbs the block granularity. RX
-    // audio is never dropped: it is small and any gap makes the client reset.
     for (QWebSocket *client : std::as_const(m_clients)) {
         if (client->state() != QAbstractSocket::ConnectedState)
             continue;
@@ -622,6 +742,13 @@ void TciServer::onRxAudioSamples(int rx, QVector<float> stereoInterleaved, int s
         TciClientState *state = clientState(client);
         if (!state || !state->audioEnabledReceivers.contains(rx))
             continue;
+
+        if (client->bytesToWrite() > kAudioBacklogDropBytes) {
+            if ((++state->audioFramesDropped % 200) == 1)
+                TCI_WARN << "RX audio backpressure: dropping legacy frame, total drops"
+                         << state->audioFramesDropped;
+            continue;
+        }
 
         sendAudioPacket(client, *state, rx, samples, sampleCount);
     }
@@ -723,15 +850,14 @@ void TciServer::onClientBinaryMessage(const QByteArray &message)
     if (hdr.streamType != kTxAudioStreamType)
         return;
 
-    // Network mic audio is only fed to the transmitter while the radio is
-    // actually in a TX state. Outside TX we drop it (and reset the accumulator)
-    // so nothing is buffered up to leak into a later transmission.
-    const RadioState state = m_settings->getRadioState();
-    if (!acceptsTxAudio(state)) {
-        m_txAudioResidual.clear();
+    // Accept TX audio while MOX/TUNE *or* TX_CHRONO is live. Chrono starts
+    // just before setRadioState(MOX); WSJT-X may reply to the priming burst
+    // in that window. Never clear the ring on a rejected frame — one late
+    // packet used to wipe a whole key-down of good samples.
+    if (!m_txAudioRing)
         return;
-    }
-    if (!m_txAudioQueue)
+    const RadioState state = m_settings->getRadioState();
+    if (!acceptsTxAudio(state) && !isTxChronoActive())
         return;
 
     const QByteArray payload = message.mid(kStreamHeaderBytes);
@@ -744,7 +870,6 @@ void TciServer::onClientBinaryMessage(const QByteArray &message)
     // fills the first `length` floats — geometry in resolveTxAudioFloat32Layout,
     // not L≈R sample matching.
     int channels = 1;
-    int floatsUsed = 0;
     QByteArray decodePayload = payload;
     if (hdr.format == kStreamFormatFloat32) {
         const int availFloats = payloadBytes / static_cast<int>(sizeof(float));
@@ -758,7 +883,6 @@ void TciServer::onClientBinaryMessage(const QByteArray &message)
             return;
 
         channels = layout.channels;
-        floatsUsed = layout.useFloats;
         decodePayload = payload.left(layout.useFloats * static_cast<int>(sizeof(float)));
     } else if (hdr.channels >= 2) {
         channels = 2;
@@ -798,40 +922,13 @@ void TciServer::onClientBinaryMessage(const QByteArray &message)
             s *= static_cast<double>(m_txGain);
     }
 
-    m_txAudioResidual.append(decoded);
-
-    // Enqueue exactly DSP_SAMPLE_SIZE mono blocks — the same granularity the
-    // local soundcard mic uses (fetch_MicData truncates to DSP_SAMPLE_SIZE).
-    static quint64 txAudioBlockCounter = 0;
-    static quint64 txAudioDropWarnCounter = 0;
-    const int queueBefore = m_txAudioQueue->count();
-    const TxAudioChunkResult chunked = chunkTxAudioResidual(
-        m_txAudioResidual,
-        DSP_SAMPLE_SIZE,
-        kTxAudioMaxQueueBlocks,
-        queueBefore);
-    m_txAudioResidual = chunked.residual;
-
-    for (const QVector<double> &block : chunked.blocks)
-        m_txAudioQueue->enqueue(block);
-
-    if (!chunked.blocks.isEmpty() && (++txAudioBlockCounter % 50) == 1) {
-        TCI_DEBUG << "TX audio from client: enqueued" << chunked.blocks.size()
-                  << "block(s), queue=" << m_txAudioQueue->count()
-                  << "ch=" << channels << "fmt=" << hdr.format
-                  << "rate=" << hdr.sampleRate
-                  << "len=" << hdr.length << "payload=" << payloadBytes
-                  << "floatsUsed=" << floatsUsed
-                  << "monoOut=" << decoded.size();
-    }
-
-    if (chunked.droppedBlocks > 0) {
-        // Client is producing faster than the TX path drains — drop to keep
-        // TX latency bounded. Rate-limit the WARN; sustained backlog is noisy.
-        if ((++txAudioDropWarnCounter % 200) == 1) {
-            TCI_WARN << "TX audio backlog: dropping" << chunked.droppedBlocks
-                     << "client mic block(s) (TX drain slower than input)";
+    if (!decoded.isEmpty()) {
+        std::vector<float> fbuf(static_cast<size_t>(decoded.size()));
+        for (int i = 0; i < decoded.size(); ++i) {
+            fbuf[static_cast<size_t>(i)] = static_cast<float>(decoded[i]);
         }
+        m_txAudioRing->writeDropOldest(fbuf.data(), fbuf.size());
+        noteTxAudioLevel(fbuf.data(), fbuf.size());
     }
 }
 
@@ -1242,11 +1339,17 @@ void TciServer::handleTrxRequest(QWebSocket *client, const TciCommandHandler::Tr
         applyEffectiveTxFrequency();
     }
 
-    m_settings->setRadioState(request.transmitting ? RadioState::MOX : RadioState::RX);
-    if (request.transmitting)
+    // Chrono before setRadioState: a nested event loop inside the MOX emit
+    // (WebSocket flush / UI update) can run DataEngine::Start() immediately.
+    // If chrono is not up yet, Start() opens the PC mic and TCI audio is lost.
+    if (request.transmitting) {
         startTxChrono(client, request.trx);
-    else if (client == m_txChronoClient)
-        stopTxChrono();
+        m_settings->setRadioState(RadioState::MOX);
+    } else {
+        m_settings->setRadioState(RadioState::RX);
+        if (client == m_txChronoClient)
+            stopTxChrono();
+    }
 }
 
 void TciServer::handleServerCommand(QWebSocket *client, const QString &name, const QStringList &args)
@@ -1618,6 +1721,7 @@ void TciServer::startTxChrono(QWebSocket *client, int trx)
         stopTxChrono();
 
     m_txChronoClient = client;
+    m_txChronoActive.store(true, std::memory_order_release);
     m_txChronoTrx = trx;
     m_txChronoAccumNs = 0;
     m_txChronoClock.start();
@@ -1628,6 +1732,11 @@ void TciServer::startTxChrono(QWebSocket *client, int trx)
     sendTxChronoFrame(client);
     sendTxChronoFrame(client);
     sendTxChronoFrame(client);
+    m_txAudioRmsDb = -120.0f;
+    m_txAudioPeakDb = -120.0f;
+    m_txAudioLastWriteMs = 0;
+    m_txAudioLastLogMs = 0;
+    m_txAudioSilenceLogged = false;
     TCI_DEBUG << "TX_CHRONO started trx=" << trx;
     emit connectionStatusChanged();
 }
@@ -1638,10 +1747,15 @@ void TciServer::stopTxChrono()
         return;
 
     m_txChronoTimer->stop();
+    m_txChronoActive.store(false, std::memory_order_release);
     m_txChronoClient = nullptr;
     m_txChronoAccumNs = 0;
     m_txChronoClock.invalidate();
-    m_txAudioResidual.clear();
+    m_txAudioRmsDb = -120.0f;
+    m_txAudioPeakDb = -120.0f;
+    m_txAudioLastWriteMs = 0;
+    m_txAudioLastLogMs = 0;
+    m_txAudioSilenceLogged = false;
     TCI_DEBUG << "TX_CHRONO stopped";
     emit connectionStatusChanged();
 }
@@ -1669,6 +1783,86 @@ void TciServer::onTxChronoTick()
         sendTxChronoFrame(client);
         m_txChronoAccumNs -= kTxChronoPeriodNs;
     }
+    maybeReportTxAudioSilence();
+}
+
+TciServer::TxAudioDebug TciServer::txAudioDebugHint() const
+{
+    if (!isTxChronoActive())
+        return TxAudioDebug::Idle;
+
+    const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
+    if (m_txAudioLastWriteMs > 0 && (nowMs - m_txAudioLastWriteMs) <= kTxAudioSilentMs)
+        return TxAudioDebug::Active;
+
+    if (m_txAudioLastWriteMs == 0 && m_txChronoClock.isValid()
+        && m_txChronoClock.elapsed() < kTxAudioSilentMs)
+        return TxAudioDebug::Waiting;
+
+    return TxAudioDebug::Silent;
+}
+
+QString TciServer::txAudioLevelSuffix() const
+{
+    switch (txAudioDebugHint()) {
+    case TxAudioDebug::Idle:
+        return {};
+    case TxAudioDebug::Waiting:
+        return QStringLiteral(" (TX waiting for client audio)");
+    case TxAudioDebug::Silent:
+        return QStringLiteral(" (TX no audio — client silent)");
+    case TxAudioDebug::Active:
+        return QStringLiteral(" (TX %1 dBFS pk %2 dBFS)")
+            .arg(m_txAudioRmsDb, 0, 'f', 1)
+            .arg(m_txAudioPeakDb, 0, 'f', 1);
+    }
+    return {};
+}
+
+void TciServer::noteTxAudioLevel(const float *samples, size_t count)
+{
+    if (!samples || count == 0)
+        return;
+
+    double sumSq = 0.0;
+    float peak = 0.0f;
+    for (size_t i = 0; i < count; ++i) {
+        const float a = std::fabs(samples[i]);
+        sumSq += static_cast<double>(samples[i]) * static_cast<double>(samples[i]);
+        if (a > peak)
+            peak = a;
+    }
+    const double rms = std::sqrt(sumSq / static_cast<double>(count));
+    m_txAudioRmsDb = static_cast<float>(20.0 * std::log10(std::max(rms, 1.0e-9)));
+    m_txAudioPeakDb = static_cast<float>(20.0 * std::log10(std::max(static_cast<double>(peak), 1.0e-9)));
+    m_txAudioLastWriteMs = QDateTime::currentMSecsSinceEpoch();
+    m_txAudioSilenceLogged = false;
+
+    if (m_txAudioLastLogMs == 0
+        || (m_txAudioLastWriteMs - m_txAudioLastLogMs) >= kTxAudioLevelLogMs) {
+        m_txAudioLastLogMs = m_txAudioLastWriteMs;
+        TCI_DEBUG << "TCI TX audio from client: RMS=" << m_txAudioRmsDb << " dBFS peak="
+                  << m_txAudioPeakDb << " dBFS n=" << count
+                  << " ring=" << (m_txAudioRing ? m_txAudioRing->availableRead() : 0);
+        emit connectionStatusChanged();
+    }
+}
+
+void TciServer::maybeReportTxAudioSilence()
+{
+    if (!isTxChronoActive() || m_txAudioSilenceLogged)
+        return;
+    const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
+    if (m_txAudioLastWriteMs != 0 && (nowMs - m_txAudioLastWriteMs) < kTxAudioSilentMs)
+        return;
+    // Allow one chrono period after start before calling it a client problem.
+    if (m_txAudioLastWriteMs == 0 && m_txChronoClock.isValid()
+        && m_txChronoClock.elapsed() < kTxAudioSilentMs)
+        return;
+
+    m_txAudioSilenceLogged = true;
+    TCI_DEBUG << "TCI TX audio: no frames from client (WSJT-X / web mic not sending)";
+    emit connectionStatusChanged();
 }
 
 void TciServer::onDriveLevelChanged(int level)

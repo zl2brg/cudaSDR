@@ -86,6 +86,8 @@ private:
 	int  addDevice(TNetworkDevicecard &mc, int boardId, int protocol, int swVersion = 0, int minorVersion = 0, int numDdcs = 0, int numDacs = 0);
 
 signals:
+    void    hpsdrDiscoveryFinished(int count);
+    void    soapyDiscoveryFinished(int count);
 #ifdef HAVE_SOAPYSDR
     void    soapyDeviceListFound(const QList<TSoapyDevice> &list);
 #endif

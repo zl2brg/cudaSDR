@@ -43,6 +43,9 @@ private:
     int     m_rightSample;
     int     m_micSample;
     float   m_micSample_float;
+    QVector<float> m_hpsdrMicBuffer;
+    int     m_micDecimCounter = 0;
+    int32_t m_rxRawIQ[MAX_RECEIVERS][BUFFER_SIZE * 2] = {};
 };
 
 #endif // CPROTOCOL1_H

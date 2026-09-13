@@ -33,7 +33,7 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
 
     const HamBand hamBand = m_model->getCurrentHamBand(rx);
     QList<DSPMode> dspModes = m_model->getDSPModeList(rx);
-    const DSPMode liveMode = m_model->getDSPMode(rx);
+    const DSPMode liveMode = m_sliceModel ? m_sliceModel->dspMode() : m_model->getDSPMode(rx);
     if (static_cast<int>(hamBand) >= 0 && static_cast<int>(hamBand) < dspModes.size()) {
         dspModes[static_cast<int>(hamBand)] = liveMode;
     }
@@ -41,24 +41,35 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
     m_view->setHamBand(hamBand);
     m_view->setDSPMode(liveMode);
     m_view->setADCMode(m_model->getADCMode(rx));
-    m_view->setAGCMode(m_model->getAGCMode(rx));
+    m_view->setAGCMode(m_sliceModel ? m_sliceModel->agcMode() : m_model->getAGCMode(rx));
     m_view->setDefaultFilterMode(m_model->getDefaultFilterMode(rx));
-    m_view->setFilterFrequencies(m_model->getFilterLo(rx), m_model->getFilterHi(rx));
-    m_view->setSpectrumAveraging(m_model->getPanAveragingMode(rx) != AV_MODE_NONE);
-    m_view->setPanGrid(m_model->getPanGridStatus(rx));
-    m_view->setPeakHold(m_model->getPeakHoldStatus(rx));
+    if (m_sliceModel) {
+        m_view->setFilterFrequencies(m_sliceModel->filterLow(), m_sliceModel->filterHigh());
+        m_view->setSpectrumAveraging(m_sliceModel->spectrumAveraging());
+        m_view->setPanGrid(m_sliceModel->panGrid());
+        m_view->setPeakHold(m_sliceModel->peakHold());
+        m_view->setPanadapterMode(m_sliceModel->panMode());
+        m_view->setWaterfallColorMode(m_sliceModel->waterfallMode());
+        m_view->setCtrFrequency(m_sliceModel->centerFrequency());
+        m_view->setVfoFrequency(m_sliceModel->frequency());
+    } else {
+        m_view->setFilterFrequencies(m_model->getFilterLo(rx), m_model->getFilterHi(rx));
+        m_view->setSpectrumAveraging(m_model->getPanAveragingMode(rx) != AV_MODE_NONE);
+        m_view->setPanGrid(m_model->getPanGridStatus(rx));
+        m_view->setPeakHold(m_model->getPeakHoldStatus(rx));
+        m_view->setPanadapterMode(m_model->getPanadapterMode(rx));
+        m_view->setWaterfallColorMode(m_model->getWaterfallColorMode(rx));
+        m_view->setCtrFrequency(m_model->getCtrFrequency(rx));
+        m_view->setVfoFrequency(m_model->getVfoFrequency(rx));
+    }
     m_view->setPanLocked(m_model->getPanLockedStatus(rx));
     m_view->setClickVFO(m_model->getClickVFOStatus(rx));
     m_view->setHairCross(m_model->getHairCrossStatus(rx));
-    m_view->setPanadapterMode(m_model->getPanadapterMode(rx));
-    m_view->setWaterfallColorMode(m_model->getWaterfallColorMode(rx));
     m_view->setLastFrequencies(m_model->getLastCenterFrequencyList(rx), m_model->getLastVfoFrequencyList(rx));
-    m_view->setCtrFrequency(m_model->getCtrFrequency(rx));
-    m_view->setVfoFrequency(m_model->getVfoFrequency(rx));
     m_view->setFreeDVMode(m_model->getFreeDVMode(rx));
     m_view->setAGCShowLines(m_model->getAgcLines(rx));
 
-    m_lastPanAvMode = m_model->getPanAveragingMode(rx);
+    m_lastPanAvMode = m_sliceModel ? m_sliceModel->panAveragingMode() : m_model->getPanAveragingMode(rx);
     if (m_lastPanAvMode == AV_MODE_NONE)
         m_lastPanAvMode = AV_MODE_RECURSIVE;
 
@@ -82,6 +93,9 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
     });
 
     connect(m_view, &RadioPopupWidget::dspModeRequested, this, [this](int r, DSPMode mode) {
+        if (m_sliceModel && r == m_sliceModel->id()) {
+            m_sliceModel->setDspMode(mode);
+        }
         m_model->setDSPMode(r, mode);
     });
 
@@ -89,8 +103,9 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
         if (m_sliceModel && r == m_sliceModel->id()) {
             m_sliceModel->setFilterLow(static_cast<float>(low));
             m_sliceModel->setFilterHigh(static_cast<float>(high));
+        } else if (m_model) {
+            m_model->setRXFilter(r, low, high);
         }
-        m_model->setRXFilter(r, low, high);
     });
 
     connect(m_view, &RadioPopupWidget::filterSlopeRequested, this, [this](int r, int slope) {
@@ -100,56 +115,89 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
     });
 
     connect(m_view, &RadioPopupWidget::adcModeRequested, this, [this](int r, ADCMode mode) {
-        m_model->setADCMode(r, mode);
+        if (m_model) m_model->setADCMode(r, mode);
     });
 
     connect(m_view, &RadioPopupWidget::agcModeRequested, this, [this](int r, AGCMode mode) {
-        m_model->setAGCMode(r, mode);
+        if (m_sliceModel && r == m_sliceModel->id()) {
+            m_sliceModel->setAgcMode(mode);
+        } else if (m_model) {
+            m_model->setAGCMode(r, mode);
+        }
     });
 
     connect(m_view, &RadioPopupWidget::agcShowLinesRequested, this, [this](int r, bool enabled) {
-        m_model->setAGCShowLines(r, enabled);
+        if (m_model) m_model->setAGCShowLines(r, enabled);
     });
 
     connect(m_view, &RadioPopupWidget::spectrumAveragingRequested, this, [this](int r, bool enabled) {
         // Pan Avg toggles WDSP pan averaging (Display Options "Averaging Mode").
-        if (enabled) {
-            PanAveragingMode mode = m_lastPanAvMode;
-            if (mode == AV_MODE_NONE)
-                mode = AV_MODE_RECURSIVE;
-            m_model->setPanAveragingMode(r, mode);
-            m_model->setSpectrumAveraging(r, true);
-        } else {
-            const PanAveragingMode cur = m_model->getPanAveragingMode(r);
-            if (cur != AV_MODE_NONE)
-                m_lastPanAvMode = cur;
-            m_model->setPanAveragingMode(r, AV_MODE_NONE);
-            m_model->setSpectrumAveraging(r, false);
+        if (m_sliceModel && r == m_sliceModel->id()) {
+            if (enabled) {
+                PanAveragingMode mode = m_lastPanAvMode;
+                if (mode == AV_MODE_NONE)
+                    mode = AV_MODE_RECURSIVE;
+                m_sliceModel->setPanAveragingMode(mode);
+                m_sliceModel->setSpectrumAveraging(true);
+            } else {
+                const PanAveragingMode cur = m_sliceModel->panAveragingMode();
+                if (cur != AV_MODE_NONE)
+                    m_lastPanAvMode = cur;
+                m_sliceModel->setPanAveragingMode(AV_MODE_NONE);
+                m_sliceModel->setSpectrumAveraging(false);
+            }
+        } else if (m_model) {
+            if (enabled) {
+                PanAveragingMode mode = m_lastPanAvMode;
+                if (mode == AV_MODE_NONE)
+                    mode = AV_MODE_RECURSIVE;
+                m_model->setPanAveragingMode(r, mode);
+                m_model->setSpectrumAveraging(r, true);
+            } else {
+                const PanAveragingMode cur = m_model->getPanAveragingMode(r);
+                if (cur != AV_MODE_NONE)
+                    m_lastPanAvMode = cur;
+                m_model->setPanAveragingMode(r, AV_MODE_NONE);
+                m_model->setSpectrumAveraging(r, false);
+            }
         }
     });
 
     connect(m_view, &RadioPopupWidget::panGridRequested, this, [this](int r, bool enabled) {
-        m_model->setPanGrid(enabled, r);
+        if (m_sliceModel && r == m_sliceModel->id()) {
+            m_sliceModel->setPanGrid(enabled);
+        } else if (m_model) {
+            m_model->setPanGrid(enabled, r);
+        }
     });
 
     connect(m_view, &RadioPopupWidget::peakHoldRequested, this, [this](int r, bool enabled) {
-        m_model->setPeakHold(enabled, r);
+        if (m_sliceModel && r == m_sliceModel->id()) {
+            m_sliceModel->setPeakHold(enabled);
+        } else if (m_model) {
+            m_model->setPeakHold(enabled, r);
+        }
     });
 
     connect(m_view, &RadioPopupWidget::panLockedRequested, this, [this](int r, bool enabled) {
-        m_model->setPanLocked(enabled, r);
+        if (m_model) m_model->setPanLocked(enabled, r);
     });
 
     connect(m_view, &RadioPopupWidget::clickVFORequested, this, [this](int r, bool enabled) {
-        m_model->setClickVFO(enabled, r);
+        if (m_model) m_model->setClickVFO(enabled, r);
     });
 
     connect(m_view, &RadioPopupWidget::hairCrossRequested, this, [this](int r, bool enabled) {
-        m_model->setHairCross(enabled, r);
+        if (m_model) m_model->setHairCross(enabled, r);
     });
 
     connect(m_view, &RadioPopupWidget::graphicsStateRequested, this, [this](int r, PanGraphicsMode panMode, WaterfallColorMode waterMode) {
-        m_model->setGraphicsState(r, panMode, waterMode);
+        if (m_sliceModel && r == m_sliceModel->id()) {
+            m_sliceModel->setPanMode(panMode);
+            m_sliceModel->setWaterfallMode(waterMode);
+        } else if (m_model) {
+            m_model->setGraphicsState(r, panMode, waterMode);
+        }
     });
 
     RadioModel* radioModel = qobject_cast<RadioModel*>(m_sliceModel ? m_sliceModel->parent() : nullptr);
@@ -185,15 +233,13 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
         connect(m_view, &RadioPopupWidget::cwDecodeRequested, this, [this](bool enabled) {
             if (m_sliceModel) {
                 m_sliceModel->setCwDecodeEnabled(enabled);
-                if (m_model)
-                    m_model->setCwDecode(m_sliceModel->id(), enabled);
+            } else if (m_model) {
+                m_model->setCwDecode(m_view->getReceiver(), enabled);
             }
         });
         connect(m_sliceModel, &SliceModel::cwDecodeEnabledChanged, this, [this](bool enabled) {
             if (m_view)
                 m_view->setCwDecodeEnabled(enabled);
-            if (m_model && m_sliceModel)
-                m_model->setCwDecode(m_sliceModel->id(), enabled);
         });
     }
 
@@ -212,32 +258,34 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
         }
     });
 
-    connect(m_model, &Settings::dspModeChanged, this, [this](int r, DSPMode mode) {
-        if (m_view->getReceiver() == r) {
-            m_view->setDSPMode(mode);
-        }
-    });
+    if (!m_sliceModel) {
+        connect(m_model, &Settings::dspModeChanged, this, [this](int r, DSPMode mode) {
+            if (m_view->getReceiver() == r) {
+                m_view->setDSPMode(mode);
+            }
+        });
 
-    connect(m_model, &Settings::ctrFrequencyChanged, this, [this](int mode, int r, qint64 freq) {
-        Q_UNUSED(mode)
-        if (m_view->getReceiver() == r) {
-            m_view->setCtrFrequency(freq);
-        }
-    });
+        connect(m_model, &Settings::ctrFrequencyChanged, this, [this](int mode, int r, qint64 freq) {
+            Q_UNUSED(mode)
+            if (m_view->getReceiver() == r) {
+                m_view->setCtrFrequency(freq);
+            }
+        });
 
-    connect(m_model, &Settings::vfoFrequencyChanged, this, [this](int mode, int r, qint64 freq) {
-        Q_UNUSED(mode)
-        if (m_view->getReceiver() == r) {
-            m_view->setVfoFrequency(freq);
-        }
-    });
+        connect(m_model, &Settings::vfoFrequencyChanged, this, [this](int mode, int r, qint64 freq) {
+            Q_UNUSED(mode)
+            if (m_view->getReceiver() == r) {
+                m_view->setVfoFrequency(freq);
+            }
+        });
 
-    connect(m_model, &Settings::graphicModeChanged, this, [this](int r, PanGraphicsMode panMode, WaterfallColorMode waterMode) {
-        if (m_view->getReceiver() == r) {
-            m_view->setPanadapterMode(panMode);
-            m_view->setWaterfallColorMode(waterMode);
-        }
-    });
+        connect(m_model, &Settings::graphicModeChanged, this, [this](int r, PanGraphicsMode panMode, WaterfallColorMode waterMode) {
+            if (m_view->getReceiver() == r) {
+                m_view->setPanadapterMode(panMode);
+                m_view->setWaterfallColorMode(waterMode);
+            }
+        });
+    }
 
     connect(m_model, &Settings::freeDVModeChanged, this, [this](int r, int mode) {
         if (m_view->getReceiver() == r) {
@@ -257,11 +305,13 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
         }
     });
 
-    connect(m_model, &Settings::filterFrequenciesChanged, this, [this](int r, qreal low, qreal high) {
-        if (m_view->getReceiver() == r) {
-            m_view->setFilterFrequencies(low, high);
-        }
-    });
+    if (!m_sliceModel) {
+        connect(m_model, &Settings::filterFrequenciesChanged, this, [this](int r, qreal low, qreal high) {
+            if (m_view->getReceiver() == r) {
+                m_view->setFilterFrequencies(low, high);
+            }
+        });
+    }
 
     if (m_sliceModel) {
         connect(m_sliceModel, &SliceModel::dspModeChanged, this, [this](DSPMode mode) {
@@ -299,8 +349,8 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
     AGCOptionsWidget* agcView = m_view->agcOptionsWidget();
     if (agcView) {
         agcView->setReceiver(rx);
-        agcView->setAGCMode(m_model->getAGCMode(rx));
-        agcView->setAGCSlope(m_model->getAGCSlope(rx));
+        agcView->setAGCMode(m_sliceModel ? m_sliceModel->agcMode() : m_model->getAGCMode(rx));
+        agcView->setAGCSlope(m_sliceModel ? m_sliceModel->agcSlope() : m_model->getAGCSlope(rx));
         agcView->setAGCMaximumGain(m_sliceModel ? m_sliceModel->agcMaxGain() : static_cast<int>(m_model->getAGCMaximumGain_dB(rx)));
         agcView->setAGCAttackTime(static_cast<int>(m_model->getAGCAttackTime(rx) * 1000));
         agcView->setAGCDecayTime(static_cast<int>(m_model->getAGCDecayTime(rx) * 1000));
@@ -310,13 +360,17 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
 
         // AGCOptionsWidget View -> Model
         connect(agcView, &AGCOptionsWidget::agcModeRequested, this, [this](int r, AGCMode mode) {
-            m_model->setAGCMode(r, mode);
+            if (m_sliceModel && r == m_sliceModel->id()) {
+                m_sliceModel->setAgcMode(mode);
+            } else if (m_model) {
+                m_model->setAGCMode(r, mode);
+            }
         });
 
         connect(agcView, &AGCOptionsWidget::agcSlopeRequested, this, [this](int r, int val) {
             if (m_sliceModel && r == m_sliceModel->id()) {
                 m_sliceModel->setAgcSlope(val);
-            } else {
+            } else if (m_model) {
                 m_model->setAGCVariableGain_dB(r, static_cast<qreal>(val));
             }
         });
@@ -324,7 +378,7 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
         connect(agcView, &AGCOptionsWidget::agcMaximumGainRequested, this, [this](int r, int val) {
             if (m_sliceModel && r == m_sliceModel->id()) {
                 m_sliceModel->setAgcMaxGain(val);
-            } else {
+            } else if (m_model) {
                 m_model->setAGCMaximumGain_dB(r, static_cast<qreal>(val));
             }
         });
@@ -332,56 +386,58 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
         connect(agcView, &AGCOptionsWidget::agcFixedGainRequested, this, [this](int r, int val) {
             if (m_sliceModel && r == m_sliceModel->id()) {
                 m_sliceModel->setAgcFixedGain(val);
-            } else {
+            } else if (m_model) {
                 m_model->setAGCFixedGain_dB(r, static_cast<qreal>(val));
             }
         });
 
         connect(agcView, &AGCOptionsWidget::agcAttackTimeRequested, this, [this](int r, int val) {
-            m_model->setAGCAttackTime(r, val / 1000.0);
+            if (m_model) m_model->setAGCAttackTime(r, val / 1000.0);
         });
 
         connect(agcView, &AGCOptionsWidget::agcDecayTimeRequested, this, [this](int r, int val) {
-            m_model->setAGCDecayTime(r, val / 1000.0);
+            if (m_model) m_model->setAGCDecayTime(r, val / 1000.0);
         });
 
         connect(agcView, &AGCOptionsWidget::agcHangTimeRequested, this, [this](int r, int val) {
-            m_model->setAGCHangTime(r, val / 1000.0);
+            if (m_model) m_model->setAGCHangTime(r, val / 1000.0);
         });
 
         connect(agcView, &AGCOptionsWidget::agcHangThresholdRequested, this, [this](int r, int val) {
             if (m_sliceModel && r == m_sliceModel->id()) {
                 m_sliceModel->setAgcHangThreshold(val);
-            } else {
+            } else if (m_model) {
                 m_model->setAGCHangThreshold(r, val);
             }
         });
 
         // AGCOptionsWidget Model -> View
-        connect(m_model, &Settings::agcModeChanged, this, [this, agcView](int r, AGCMode mode) {
-            if (m_view->getReceiver() == r) {
-                m_view->setAGCMode(mode);
-                agcView->setAGCMode(mode);
-            }
-        });
+        if (!m_sliceModel) {
+            connect(m_model, &Settings::agcModeChanged, this, [this, agcView](int r, AGCMode mode) {
+                if (m_view->getReceiver() == r) {
+                    m_view->setAGCMode(mode);
+                    agcView->setAGCMode(mode);
+                }
+            });
 
-        connect(m_model, &Settings::agcMaximumGainChanged_dB, this, [this, agcView](int r, qreal val) {
-            if (m_view->getReceiver() == r) {
-                agcView->setAGCMaximumGain(static_cast<int>(val));
-            }
-        });
+            connect(m_model, &Settings::agcMaximumGainChanged_dB, this, [this, agcView](int r, qreal val) {
+                if (m_view->getReceiver() == r) {
+                    agcView->setAGCMaximumGain(static_cast<int>(val));
+                }
+            });
 
-        connect(m_model, &Settings::agcFixedGainChanged_dB, this, [this, agcView](int r, qreal val) {
-            if (m_view->getReceiver() == r) {
-                agcView->setAGCFixedGain(static_cast<int>(val));
-            }
-        });
+            connect(m_model, &Settings::agcFixedGainChanged_dB, this, [this, agcView](int r, qreal val) {
+                if (m_view->getReceiver() == r) {
+                    agcView->setAGCFixedGain(static_cast<int>(val));
+                }
+            });
 
-        connect(m_model, &Settings::agcHangThresholdSliderChanged, this, [this, agcView](int r, qreal val) {
-            if (m_view->getReceiver() == r) {
-                agcView->setAGCHangThreshold(static_cast<int>(val));
-            }
-        });
+            connect(m_model, &Settings::agcHangThresholdSliderChanged, this, [this, agcView](int r, qreal val) {
+                if (m_view->getReceiver() == r) {
+                    agcView->setAGCHangThreshold(static_cast<int>(val));
+                }
+            });
+        }
 
         if (m_sliceModel) {
             connect(m_sliceModel, &SliceModel::agcModeChanged, this, [this, agcView](AGCMode mode) {
@@ -529,9 +585,10 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
         connect(dispView, &DisplayOptionsWidget::spectrumAveragingCntRequested, this, [this](int r, int val) {
             if (r == -1) {
                 if (m_model) m_model->setSpectrumAveragingCnt(-1, val);
-            } else if (m_sliceModel) {
+            } else if (m_sliceModel && r == m_sliceModel->id()) {
                 m_sliceModel->setSpectrumAveragingCnt(val);
-                if (m_model) m_model->setSpectrumAveragingCnt(r, val);
+            } else if (m_model) {
+                m_model->setSpectrumAveragingCnt(r, val);
             }
         });
 
@@ -540,16 +597,18 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
         });
 
         connect(dispView, &DisplayOptionsWidget::waterfallOffsetLoRequested, this, [this](int r, int val) {
-            if (m_sliceModel) {
+            if (m_sliceModel && r == m_sliceModel->id()) {
                 m_sliceModel->setWaterfallOffsetLo(val);
-                if (m_model) m_model->setWaterfallOffesetLo(r, val);
+            } else if (m_model) {
+                m_model->setWaterfallOffesetLo(r, val);
             }
         });
 
         connect(dispView, &DisplayOptionsWidget::waterfallOffsetHiRequested, this, [this](int r, int val) {
-            if (m_sliceModel) {
+            if (m_sliceModel && r == m_sliceModel->id()) {
                 m_sliceModel->setWaterfallOffsetHi(val);
-                if (m_model) m_model->setWaterfallOffesetHi(r, val);
+            } else if (m_model) {
+                m_model->setWaterfallOffesetHi(r, val);
             }
         });
 
@@ -570,33 +629,35 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
         });
 
         connect(dispView, &DisplayOptionsWidget::graphicsStateRequested, this, [this](int r, int panadapterMode, int waterColorMode) {
-            if (r >= 0 && m_sliceModel) {
+            if (r >= 0 && m_sliceModel && r == m_sliceModel->id()) {
                 m_sliceModel->setPanMode(static_cast<PanGraphicsMode>(panadapterMode));
                 m_sliceModel->setWaterfallMode(static_cast<WaterfallColorMode>(waterColorMode));
-                if (m_model) m_model->setGraphicsState(r, static_cast<PanGraphicsMode>(panadapterMode), static_cast<WaterfallColorMode>(waterColorMode));
-            } else if (r == -1 && m_model) {
-                m_model->setGraphicsState(-1, static_cast<PanGraphicsMode>(panadapterMode), static_cast<WaterfallColorMode>(waterColorMode));
+            } else if (m_model) {
+                m_model->setGraphicsState(r, static_cast<PanGraphicsMode>(panadapterMode), static_cast<WaterfallColorMode>(waterColorMode));
             }
         });
 
         connect(dispView, &DisplayOptionsWidget::panAveragingModeRequested, this, [this](int r, int mode) {
-            if (m_sliceModel) {
+            if (m_sliceModel && r == m_sliceModel->id()) {
                 m_sliceModel->setPanAveragingMode(static_cast<PanAveragingMode>(mode));
-                if (m_model) m_model->setPanAveragingMode(r, static_cast<PanAveragingMode>(mode));
+            } else if (m_model) {
+                m_model->setPanAveragingMode(r, static_cast<PanAveragingMode>(mode));
             }
         });
 
         connect(dispView, &DisplayOptionsWidget::panDetectorModeRequested, this, [this](int r, int mode) {
-            if (m_sliceModel) {
+            if (m_sliceModel && r == m_sliceModel->id()) {
                 m_sliceModel->setPanDetectorMode(static_cast<PanDetectorMode>(mode));
-                if (m_model) m_model->setPanDetectorMode(r, static_cast<PanDetectorMode>(mode));
+            } else if (m_model) {
+                m_model->setPanDetectorMode(r, static_cast<PanDetectorMode>(mode));
             }
         });
 
         connect(dispView, &DisplayOptionsWidget::fftSizeRequested, this, [this](int r, int size) {
-            if (m_sliceModel) {
+            if (m_sliceModel && r == m_sliceModel->id()) {
                 m_sliceModel->setFftSize(size);
-                if (m_model) m_model->setfftSize(r, size);
+            } else if (m_model) {
+                m_model->setfftSize(r, size);
             }
         });
 
@@ -633,7 +694,7 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
             connect(m_model, &Settings::spectrumAveragingCntChanged, this, [this, dispView](int r, int val) {
                 if (r == -1) {
                     dispView->setWidebandAveragingCnt(val);
-                } else if (dispView->currentReceiver() == r) {
+                } else if (!m_sliceModel && dispView->currentReceiver() == r) {
                     dispView->setSpectrumAveragingCnt(val);
                 }
             });

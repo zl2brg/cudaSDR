@@ -434,13 +434,12 @@ void TransmitConfig::loadIni(QSettings *settings) {
     setMicInputDev(iniValue(settings, "mic_InputDevice", "audio/mic_input_dev", 0).toInt());
     setDigitalAudioInputDev(iniValue(settings, "digital_audio_InputDevice", "audio/digital_audio_input_dev", 0).toInt());
     setMicInputSourceName(iniValue(settings, "mic_input_source", "audio/mic_input_source_name",
-                                   (micInputDev() > 0) ? QStringLiteral("default") : QString()).toString());
+                                   (micInputDev() > 0) ? QStringLiteral("default") : QStringLiteral("hpsdr-local")).toString());
     setDigitalInputSourceName(iniValue(settings, "digital_input_source", "audio/digital_input_source_name",
                                        (digitalAudioInputDev() > 0) ? QStringLiteral("default") : QStringLiteral("none")).toString());
 
     if (micInputSourceName().isEmpty()) {
-        setMicInputSourceName(QStringLiteral("default"));
-        setMicInputDev(1);
+        setMicInputSourceName((micInputDev() > 0) ? QStringLiteral("default") : QStringLiteral("hpsdr-local"));
     }
     if (digitalInputSourceName().isEmpty()) {
         setDigitalInputSourceName((digitalAudioInputDev() > 0) ? QStringLiteral("default") : QStringLiteral("none"));

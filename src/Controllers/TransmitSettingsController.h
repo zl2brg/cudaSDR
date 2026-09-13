@@ -2,6 +2,7 @@
 #define TRANSMITSETTINGSCONTROLLER_H
 
 #include <QObject>
+#include <QString>
 
 class Settings;
 class TransmitModel;
@@ -19,6 +20,11 @@ public:
     void bindOptions(TransmitOptionsWidget* options, TransmitModel* txModel);
 
 private:
+    void applyMicInputDev(int dev);
+    void applyMicInputSourceName(const QString& name);
+    void applyDigitalAudioInputDev(int dev);
+    void applyDigitalInputSourceName(const QString& name);
+
     tx_settings_dialog* m_view = nullptr;
     TransmitOptionsWidget* m_optionsView = nullptr;
     TransmitModel* m_txModel = nullptr;

@@ -50,6 +50,7 @@
 #include "UI/DeviceSelectionDialog.h"
 #include "UI/MainWindow/MainWindowUI.h"
 #include "Util/device_identity.h"
+#include "DataEngine/protocol_boundary_utils.h"
 #include "Util/cusdr_tciserver.h"
 #include "cusdr_radioPopupWidget.h"
 
@@ -426,19 +427,6 @@ void MainWindow::setup() {
 	m_serverWidget->addNICChangedConnection();
     //m_hpsdrTabWidget->addNICChangedConnection();
 	
-	// experimental:
-	// check for OpenCL devices
-	//QList<QCLDevice> clDevices = QCLDevice::allDevices();
-	//if (clDevices.length() == 0)
-	//	showMessage("[main]: no OpenCL devices found.");
-
-	//else {
-
-	//	m_message = "[main]: found %1 OpenCL device(s).";
-	//	showStatusBarMessage(m_message.arg(clDevices.length()), 5000);
-	//	//QString clNo = QString::number(m_clDevices.length());
-	//}
-	//set->setOpenCLDevices(clDevices);
 
 	// set the centralwidget as the central widget of the main window,
 	// i.e., we have a second QMainWindow as the central widget.
@@ -1168,8 +1156,14 @@ void MainWindow::closeWidgetEvent(
 void MainWindow::setCurrentReceiver(int rx) {
 
 	MAIN_DEBUG << "setCurrentReceiver: " << rx;
-	ui->volumeSlider->setValue(static_cast<int>(set->getMainVolume(rx) * 100));
-	m_agcMode = set->getAGCMode(rx);
+	if (m_radioModel && rx >= 0 && rx < m_radioModel->slices().size() && m_radioModel->slices().at(rx)) {
+		SliceModel* slice = m_radioModel->slices().at(rx);
+		ui->volumeSlider->setValue(static_cast<int>(slice->volume() * 100));
+		m_agcMode = slice->agcMode();
+	} else {
+		ui->volumeSlider->setValue(static_cast<int>(set->getMainVolume(rx) * 100));
+		m_agcMode = set->getAGCMode(rx);
+	}
 	setAGCMode(rx, m_agcMode, false);
 }
 
@@ -1180,6 +1174,9 @@ void MainWindow::setNumberOfReceivers(
 		/*!<[in] the of the event. */
 		int value					/*!<[in] the number of receivers. */
 ) {
+	if (m_radioModel) {
+		m_radioModel->setActiveReceivers(value);
+	}
 	ui->viewMenu->clear();
 	if (m_3DPanDock)
 		ui->viewMenu->addAction(m_3DPanDock->toggleViewAction());
@@ -1204,19 +1201,19 @@ void MainWindow::setNumberOfReceivers(
 
 void MainWindow::setMicLevel(int value)
 {
-    if (value < 0 ) value = 0;
-    if (value > 100 ) value = 100;
-    if (value < 0 ) value = 0;
-    if (value > 100 ) value = 100;
+    if (value < 0) value = 0;
+    if (value > 100) value = 100;
     set->setMicInputLevel(value);
-
 }
 
 
 void MainWindow::setDriveLevel(int value)
 {
-    if (value < 0 ) value = 0;
-    if (value > 100 ) value = 100;
+    if (value < 0) value = 0;
+    if (value > 100) value = 100;
+    if (m_radioModel) {
+        m_radioModel->txParams().drivelevel = static_cast<uchar>(value);
+    }
     set->setDriveLevel(value);
 }
 
@@ -2064,13 +2061,23 @@ void MainWindow::handleDeviceListChanged(const QList<TNetworkDevicecard> &list) 
     for (const TNetworkDevicecard &card : list) {
         QVariant v = QVariant::fromValue(card);
         bool found = false;
-        for (const QVariant &existing : m_discoveredDevices) {
-            if (existing.canConvert<TNetworkDevicecard>()) {
-                if (sameHpsdrDeviceByMac(existing.value<TNetworkDevicecard>(), card)) {
-                    found = true;
-                    break;
-                }
+        for (int i = 0; i < m_discoveredDevices.size(); ++i) {
+            const QVariant &existing = m_discoveredDevices.at(i);
+            if (!existing.canConvert<TNetworkDevicecard>())
+                continue;
+            const TNetworkDevicecard existingCard = existing.value<TNetworkDevicecard>();
+            if (!sameHpsdrDeviceByMac(existingCard, card))
+                continue;
+            found = true;
+            const auto existingType = ProtocolBoundaryUtils::decodeHpsdrDevice(
+                existingCard.boardID, existingCard.protocol, existingCard.sw_version).deviceType;
+            const auto incomingType = ProtocolBoundaryUtils::decodeHpsdrDevice(
+                card.boardID, card.protocol, card.sw_version).deviceType;
+            if (ProtocolBoundaryUtils::isHermesLiteDeviceType(existingType)
+                && ProtocolBoundaryUtils::isAnanHermesDeviceType(incomingType)) {
+                m_discoveredDevices[i] = v;
             }
+            break;
         }
         if (!found) m_discoveredDevices.append(v);
     }

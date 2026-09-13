@@ -165,11 +165,11 @@ void MainWindowUI::createMainBtnToolBar() {
     quitBtn->setFixedSize(btn_width3, btn_height1);
     CHECKED_CONNECT(quitBtn, &AeroButton::clicked, m_mainWindow, &MainWindow::closeMainWindow);
 
-    int vol = (int)(set->getMainVolume(0) * 100);
+    int micLevel = set->getMicInputLevel();
     micGainSlider = new QSlider(Qt::Horizontal, m_mainWindow);
     micGainSlider->setFixedSize(100, 14);
     micGainSlider->setRange(0, 128);
-    micGainSlider->setValue(vol);
+    micGainSlider->setValue(micLevel);
     CHECKED_CONNECT(micGainSlider, &QSlider::valueChanged, m_mainWindow, &MainWindow::setMicLevel);
 
     drivelevelSlider = new QSlider(Qt::Horizontal, m_mainWindow);
@@ -178,6 +178,7 @@ void MainWindowUI::createMainBtnToolBar() {
     drivelevelSlider->setValue(set->getDriveLevel());
     CHECKED_CONNECT(drivelevelSlider, &QSlider::valueChanged, m_mainWindow, &MainWindow::setDriveLevel);
 
+    int vol = static_cast<int>(set->getMainVolume(0) * 100);
     volumeSlider = new QSlider(Qt::Horizontal, m_mainWindow);
     volumeSlider->setFixedSize(100, 14);
     volumeSlider->setRange(0, 100);

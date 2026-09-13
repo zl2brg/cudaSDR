@@ -51,6 +51,7 @@ extern double cwramp48[];		// see cwramp.c, for 48 kHz sample rate
 #include "DataEngineFirmware.h"
 #include "DataEngineLifecycle.h"
 #include "DataEngineSoapy.h"
+#include "DataEngine/SdrDeviceManager.h"
 #include "Util/cusdr_tciserver.h"
 #include "Controllers/RadioController.h"
 #include "SoapySDRDataSource.h"
@@ -291,6 +292,19 @@ DataEngine::DataEngine(RadioModel *model, QObject *parent)
 	m_firmware = new DataEngineFirmware(this);
 	m_lifecycle = new DataEngineLifecycle(this);
 	m_soapy = new DataEngineSoapy(this);
+	SdrDeviceManager::instance()->setDataEngine(this);
+}
+
+void DataEngine::setDevice(std::unique_ptr<ISdrDevice> dev)
+{
+    m_device = std::move(dev);
+    if (m_device) {
+        m_device->setRxIqCallback([this](int rx, const float* interleavedIq, int numComplexSamples) {
+            if (rx >= 0 && rx < RX.size() && RX.at(rx)) {
+                RX.at(rx)->enqueueRxIq(interleavedIq, numComplexSamples);
+            }
+        });
+    }
 }
 
 
@@ -318,6 +332,7 @@ void DataEngine::setReceiversCount(int count)
 }
 
 DataEngine::~DataEngine() {
+    SdrDeviceManager::instance()->setDataEngine(nullptr);
     // m_protocol is a unique_ptr — destroyed automatically
     // Add socket cleanup
     if (sendSocket) {
@@ -330,8 +345,12 @@ DataEngine::~DataEngine() {
     }
 
    // file->close();
-    if (m_audioInput)
+    if (m_audioInput) {
+        if (set && set->tciServer())
+            set->tciServer()->setTransmitAudioRing(nullptr);
         delete m_audioInput;
+        m_audioInput = nullptr;
+    }
 
 #ifdef HAVE_SOAPYSDR
     if (m_soapySDRSource) {
@@ -524,11 +543,12 @@ void DataEngine::setupConnections() {
 		this,
 		&DataEngine::setTxJ6Pins);
 
-    CHECKED_CONNECT(
+    CHECKED_CONNECT_OPT(
             set,
             &Settings::radioStateChanged,
             this,
-            &DataEngine::radioStateChange);
+            &DataEngine::radioStateChange,
+            Qt::QueuedConnection);
 
     CHECKED_CONNECT(
             set,
@@ -644,7 +664,8 @@ bool DataEngine::initReceivers(int rcvrs) {
                         });
             }
             if (TciServer *tci = set->tciServer()) {
-                connect(rx, &SliceProcessor::rxAudioSamples, tci, &TciServer::onRxAudioSamples,
+                tci->setRxAudioRing(rx->getReceiverNo(), rx->tciAudioRing());
+                connect(rx, &SliceProcessor::tciAudioReady, tci, &TciServer::onRxAudioReady,
                         Qt::QueuedConnection);
                 connect(rx, &SliceProcessor::rxIqSamples, tci, &TciServer::onRxIqSamples,
                         Qt::QueuedConnection);
@@ -1378,7 +1399,8 @@ void DataEngine::setNumberOfRx(int value) {
 					[tel](int receiverId, double v) { tel->setSMeterValue(receiverId, v); });
 		}
 		if (TciServer *tci = set->tciServer()) {
-			connect(rx, &SliceProcessor::rxAudioSamples, tci, &TciServer::onRxAudioSamples, Qt::QueuedConnection);
+			tci->setRxAudioRing(rx->getReceiverNo(), rx->tciAudioRing());
+			connect(rx, &SliceProcessor::tciAudioReady, tci, &TciServer::onRxAudioReady, Qt::QueuedConnection);
 			connect(rx, &SliceProcessor::rxIqSamples, tci, &TciServer::onRxIqSamples, Qt::QueuedConnection);
 		}
 		if (m_cwIO) {
@@ -1573,6 +1595,12 @@ void DataEngine::setFrequency(int mode, int rx, qint64 frequency) {
 	rx_freq_change = rx;
 	if (rx == currentReceiver) {
 		txParams().txFrequency = frequency;
+	}
+
+	if (m_device) {
+		const DeviceType type = m_device->deviceType();
+		if (type == DeviceType::Simulated || type == DeviceType::SoapySDR)
+			m_device->setFrequency(rx, frequency);
 	}
 
 	// Protocol 2 includes DDC frequencies in the High Priority packet — push one
@@ -2265,37 +2293,21 @@ void DataProcessor::buffer_tx_iq_sample(int i, int q)
 
 
 void DataProcessor::processMicData() {
-    
-    AUDIOBUF temp_data;
-    int queueCount = de->m_audioInput->m_faudioInQueue.count();
-    
-    if (queueCount > 0)
-    {
-        static quint64 micTraceCounter = 0;
-        if (txDiagEnabled() && (++micTraceCounter % 200) == 1) {
-            qDebug() << "processMicData queue count:" << queueCount;
-        }
+    float tempFloats[DSP_SAMPLE_SIZE];
+    int numSamples = 0;
+    if (de->m_audioInput && de->m_audioInput->readMicAudioBlock(tempFloats, DSP_SAMPLE_SIZE)) {
+        numSamples = DSP_SAMPLE_SIZE;
+    }
 
-        temp_data = de->m_audioInput->m_faudioInQueue.dequeue();
-        // Only process the actual number of samples in the buffer
-        int numSamples = qMin((int)temp_data.size(), DSP_SAMPLE_SIZE);
-        for (int s = 0; s < numSamples; s++)
-        {
-            mic_buffer[(s * 2)]  = temp_data[s];
+    if (numSamples > 0) {
+        for (int s = 0; s < numSamples; s++) {
+            mic_buffer[(s * 2)]  = static_cast<double>(tempFloats[s]);
             mic_buffer[(s * 2) + 1] = 0.0f;
         }
-
-        if (txDiagEnabled() && (micTraceCounter % 200) == 1) {
-            qDebug() << "Mic buffer processed with" << numSamples
-                     << "samples." << mic_buffer[0] << mic_buffer[1];
-        }
-    }
-    else {
-        temp_data.clear();
+    } else {
         memset(&mic_buffer, 0x0, sizeof(mic_buffer));
     }
     mic_buffer_index = 0;
-
 }
 
 void DataProcessor::add_mic_sample()
@@ -2396,8 +2408,8 @@ void DataProcessor::send_mic_data() {
 
     if ( de->txParams().mox ||  de->txParams().ptt ) {
 
-        fexchange0(TX_ID, a.data(), (double *) m_iq_output_buffer.data(), &error);
-        Spectrum0(1, TX_ID, 0, 0, (double *) m_iq_output_buffer.data());
+        de->TX.process(a.data(), (double *) m_iq_output_buffer.data(), error);
+        de->TX.pushSpectrum((const double *) m_iq_output_buffer.data());
 
         for (int j = 0; j < DSP_SAMPLE_SIZE; j++) {
             qs = m_iq_output_buffer.at(j).re;
@@ -2415,33 +2427,44 @@ void DataProcessor::send_mic_data() {
 
 void DataProcessor::fetch_MicData(){
 	int numSamples = 0;
-    AUDIOBUF temp_data;
-    // Network TX audio (remote TCI/browser client mic) takes over the TX mic
-    // input whenever frames are arriving. Local PC capture is the fallback.
-    // WSJT-X / ExpertSDR digital clients clock TX via TX_CHRONO and must not
-    // have the soundcard leak into DIGU/DIGL. SSB/AM/FM keep the PC mic as a
-    // fallback so a leftover chrono lock cannot mute voice.
-    QHQueue<AUDIOBUF> *srcQueue = nullptr;
+    float tempFloats[DSP_SAMPLE_SIZE];
+    bool gotAudio = false;
+
+    // TCI TRX starts TX_CHRONO. While that clock is live the remote client
+    // owns the mic in every mode — falling back to the PC soundcard produced
+    // silent TX (room-noise ~-40 dBFS) whenever a net block was not ready.
+    // Chrono stops on RX, so a leftover lock cannot mute a later local PTT.
     const DSPMode txMode = set->getDSPMode(de->currentReceiver);
     if (de->m_audioInput) {
-        if (de->m_audioInput->m_netAudioInQueue.count() > 0)
-            srcQueue = &de->m_audioInput->m_netAudioInQueue;
-        else {
-            const TciServer *tci = set ? set->tciServer() : nullptr;
-            const bool digitalTx = (txMode == DIGU || txMode == DIGL);
-            const bool networkMicOnly = tci && tci->isTxChronoActive() && digitalTx;
-            if (!networkMicOnly && de->m_audioInput->m_faudioInQueue.count() > 0)
-                srcQueue = &de->m_audioInput->m_faudioInQueue;
+        const TciServer *tci = set ? set->tciServer() : nullptr;
+        const bool networkMicOnly = (tci && tci->isTxChronoActive())
+            || de->m_audioInput->hasPendingNetAudio();
+
+        // Do not pull TCI/net samples until WDSP exchange is on. Settings can
+        // already be MOX (TCI TRX + chrono) while setTxRun is still pending.
+        const bool txReady = de->TX.isTxChannelRunning();
+        const bool haveNetBlock = txReady
+            && de->m_audioInput->readNetAudioBlock(tempFloats, DSP_SAMPLE_SIZE);
+        switch (TciProtocol::selectTxMicSource(haveNetBlock, networkMicOnly, txReady)) {
+        case TciProtocol::TxMicSource::Network:
+            numSamples = DSP_SAMPLE_SIZE;
+            gotAudio = true;
+            break;
+        case TciProtocol::TxMicSource::Local:
+            if (de->m_audioInput->readMicAudioBlock(tempFloats, DSP_SAMPLE_SIZE)) {
+                numSamples = DSP_SAMPLE_SIZE;
+                gotAudio = true;
+            }
+            break;
+        case TciProtocol::TxMicSource::None:
+            break;
         }
     }
-    if (srcQueue)
+    if (gotAudio)
     {
-        temp_data = srcQueue->dequeue();
-
-		numSamples = qMin((int)temp_data.size(), (int)DSP_SAMPLE_SIZE);
         for (int s = 0; s < numSamples; s++)
         {
-            mic_buffer[(s * 2 )]  = temp_data[s] ;
+            mic_buffer[(s * 2 )]  = static_cast<double>(tempFloats[s]);
             mic_buffer[(s * 2 ) + 1 ] = 0.0f;
         }
 
@@ -2449,14 +2472,14 @@ void DataProcessor::fetch_MicData(){
         static int nonZeroCount = 0;
         bool hasSignal = false;
         for (int i = 0; i < numSamples; ++i) {
-            if (std::abs(temp_data[i]) > 1e-5) {
+            if (std::abs(tempFloats[i]) > 1e-5f) {
                 hasSignal = true;
                 break;
             }
         }
         if (hasSignal && txDiagEnabled()) {
             if (++nonZeroCount % 100 == 1) {
-                qDebug() << "fetch_MicData: Dequeued block with signal. RMS approx:" << temp_data[0];
+                qDebug() << "fetch_MicData: Read block with signal. Approx sample:" << tempFloats[0];
             }
         }
 
@@ -2467,7 +2490,6 @@ void DataProcessor::fetch_MicData(){
         }
     }
     else{
-        temp_data.clear();
         memset(&mic_buffer,0x0,sizeof(mic_buffer));
         
         static int emptyCount = 0;
@@ -2477,7 +2499,7 @@ void DataProcessor::fetch_MicData(){
             const int digitalIndex = set->getDigitalAudioInputDev();
             const QString digitalName = set->getDigitalInputSourceName();
             qDebug().nospace()
-                << "fetch_MicData: Audio queue empty"
+                << "fetch_MicData: Audio buffer empty"
                 << " txMode=" << set->getDSPMode(de->currentReceiver)
                 << " micIndex=" << micIndex
                 << " micSource=\"" << micName << "\""
@@ -2525,7 +2547,7 @@ void DataProcessor::get_tx_iqData(){
     }
 
     if (set->is_transmitting()) {
-        fexchange0(TX_ID, mic_buffer, (double *) m_iq_output_buffer.data(), &error);
+        de->TX.process(mic_buffer, (double *) m_iq_output_buffer.data(), error);
         int iqNonFinite = 0;
         for (int i = 0; i < m_iq_output_buffer.size(); ++i) {
             if (!std::isfinite(m_iq_output_buffer[i].re)) {
@@ -2547,28 +2569,31 @@ void DataProcessor::get_tx_iqData(){
             }
         }
 
-		Spectrum0(1, TX_ID, 0, 0, (double *) m_iq_output_buffer.data());
+		de->TX.pushSpectrum((const double *) m_iq_output_buffer.data());
 
         if (error != 0) {
-            qWarning() << "TX stream: fexchange0(TX_ID) error=" << error
+            qWarning() << "TX stream: process error=" << error
                        << "mode=" << set->getDSPMode(de->currentReceiver)
                        << "state=" << set->getRadioState();
         }
 
         if (txDiagEnabled() && (++txDiagCounter % 50) == 1) {
             const TxIqStats st = computeTxIqStats(mic_buffer, m_iq_output_buffer);
+            const int micAvail = de->m_audioInput ? static_cast<int>(de->m_audioInput->micAudioAvailable()) : -1;
+            const int netAvail = de->m_audioInput ? static_cast<int>(de->m_audioInput->netAudioAvailable()) : -1;
             qDebug().nospace() << "[TX-DIAG] mode=" << set->getDSPMode(de->currentReceiver)
                                << " state=" << set->getRadioState()
-                               << " micQ=" << (de->m_audioInput ? de->m_audioInput->m_faudioInQueue.count() : -1)
+                               << " micRing=" << micAvail
+                               << " netRing=" << netAvail
                                << " micRms=" << st.micRms << " micPeak=" << st.micPeak
                                << " iqRms=" << st.iqRms << " iqPeak=" << st.iqPeak
                                << " fexchange=" << error;
         }
 
-#ifdef HAVE_SOAPYSDR
-        if (m_hwInterface == QSDR::SoapySDR && !set->getTxFullDuplex())
+        const bool isSoapy = (m_hwInterface == QSDR::SoapySDR) ||
+                             (de->device() && de->device()->deviceType() == DeviceType::SoapySDR);
+        if (isSoapy && !set->getTxFullDuplex())
             publishTxSpectrumForPanadapter();
-#endif
 
 /* Queue the tx data */
         int idx = 0;
@@ -2582,8 +2607,16 @@ void DataProcessor::get_tx_iqData(){
             m_tx_iq_Buffer[idx++] = (int)rightTXSample >> 8;
             m_tx_iq_Buffer[idx++] = (int)rightTXSample;
         }
+        if (de->device()) {
+            std::vector<float> txFloat(DSP_SAMPLE_SIZE * 2);
+            for (int j = 0; j < DSP_SAMPLE_SIZE; ++j) {
+                txFloat[j * 2]     = static_cast<float>(m_iq_output_buffer.at(j).re);
+                txFloat[j * 2 + 1] = static_cast<float>(m_iq_output_buffer.at(j).im);
+            }
+            de->device()->sendTxIq(txFloat.data(), DSP_SAMPLE_SIZE);
+        }
 #ifdef HAVE_SOAPYSDR
-        if (m_hwInterface == QSDR::SoapySDR && !de->m_dataIO->soapy_tx_iq_queue.isFull()) {
+        else if (m_hwInterface == QSDR::SoapySDR && !de->m_dataIO->soapy_tx_iq_queue.isFull()) {
             QVector<float> soapyTxIq(DSP_SAMPLE_SIZE * 2);
             // LimeSDR needs Q conjugation to correct HPSDR-legacy sideband inversion.
             // Pluto/other Soapy devices should keep native IQ polarity.
@@ -2599,7 +2632,6 @@ void DataProcessor::get_tx_iqData(){
     }
 }
 
-#ifdef HAVE_SOAPYSDR
 void DataProcessor::publishTxSpectrumForPanadapter() {
     if (!set->is_transmitting())
         return;
@@ -2609,13 +2641,13 @@ void DataProcessor::publishTxSpectrumForPanadapter() {
         m_txSpectrumBuffer.resize(kTxPanPixels);
 
     int flag = 0;
-    GetPixels(TX_ID, 0, m_txSpectrumBuffer.data(), &flag);
+    de->TX.getSpectrumPixels(m_txSpectrumBuffer.data(), flag);
     if (!flag) {
-        // TX analyzer runs asynchronously; a single immediate GetPixels() can miss,
+        // TX analyzer runs asynchronously; a single immediate getSpectrumPixels() can miss,
         // especially in FDV where TX framing cadence is bursty.
         for (int i = 0; i < 12 && !flag; ++i) {
             QThread::usleep(500);
-            GetPixels(TX_ID, 0, m_txSpectrumBuffer.data(), &flag);
+            de->TX.getSpectrumPixels(m_txSpectrumBuffer.data(), flag);
         }
     }
 
@@ -2639,6 +2671,8 @@ void DataProcessor::publishTxSpectrumForPanadapter() {
     }
 }
 
+#ifdef HAVE_SOAPYSDR
+
 void DataProcessor::startSoapyTxIqTimer(int intervalMs) {
     if (!m_soapyTxIqTimer || m_hwInterface != QSDR::SoapySDR)
         return;
@@ -2658,8 +2692,8 @@ void DataProcessor::pumpSoapyTxIqTimer() {
     if (m_hwInterface == QSDR::SoapySDR && set->is_transmitting()) {
         const RadioState state = set->getRadioState();
         // Timer drives TX IQ for all mic input modes (TUNE and MOX).
-        // fetch_MicData() drains whatever the soundcard has placed in m_faudioInQueue;
-        // if nothing is available it substitutes zeros, which is correct for local mic.
+        // fetch_MicData() drains the lock-free mic/net rings (partial samples
+        // accumulate until a full DSP block); zeros if nothing is ready.
         if (state == RadioState::TUNE || state == RadioState::MOX) {
             get_tx_iqData();
         }
@@ -2668,7 +2702,7 @@ void DataProcessor::pumpSoapyTxIqTimer() {
 
 void DataProcessor::processSoapyMicData() {
     // TX IQ is timer-driven (pumpSoapyTxIqTimer) for all mic input modes.
-    // The soundcard fills m_faudioInQueue; the timer drains it via get_tx_iqData().
+    // The soundcard fills the mic ring; the timer drains it via get_tx_iqData().
     // Nothing to do here — the slot is kept to preserve the signal connection.
 }
 #endif
@@ -3178,7 +3212,8 @@ void DataEngine::radioStateChange(RadioState state) {
     if ((state == RadioState::MOX) || (state == RadioState::TUNE)) {
         txParams().mox = true;
         if (m_audioInput) {
-            m_audioInput->clearTxQueues();
+            // Keep any TCI TX frames already written for this key-down.
+            m_audioInput->clearLocalTxQueues();
             m_audioInput->Start();
         }
     } else {
@@ -3245,10 +3280,10 @@ void DataProcessor::processReadData()
                         de->RX[rx]->setSoapyInputSampleRate(soapyInputRate);
                     }
 
-                    // Use thread-safe push
-                    de->RX[rx]->enqueueSoapyData(samples);
-                    if (de->RX[rx]->trySetSoapyDspPending()) {
-                        QMetaObject::invokeMethod(de->RX[rx], "dspProcessingSoapy", Qt::QueuedConnection);
+                    if (de->device()) {
+                        de->device()->notifyRxIq(rx, samples.constData(), samples.size() / 2);
+                    } else {
+                        de->RX[rx]->enqueueRxIq(samples.constData(), samples.size() / 2);
                     }
                 }
             }

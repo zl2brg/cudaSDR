@@ -26,9 +26,11 @@
 #include "Models/TransmitModel.h"
 #include "Util/cusdr_highResTimer.h"
 #include "QtWDSP/qtwdsp_dspEngine.h"
+#include "QtWDSP/WdspTxChannel.h"
 #include "cusdr_hamDatabase.h"
 
 #include <QTimer>
+#include <memory>
 
 #define LOG_TRANSMITTER
 
@@ -49,11 +51,16 @@ public:
      double getNextSideToneSample();
      void setSidetoneFrequency(double hz) { cw_keyer_sidetone_frequency = hz; }
 
+    WdspTxChannel* channel() const { return m_channel.get(); }
+    void process(const double *audioIn, double *iqOut, int &error);
+    void pushSpectrum(const double *iqData);
+    bool getSpectrumPixels(float *pixels, int &ready);
+    void stopChannel();
+    bool isTxChannelRunning() const;
 
 private:
     void	setupConnections();
     bool create_transmitter(int id, int buffer_size, int fft_size, int fps, int width, int height);
-    void init_analyser(int id);
     void tx_set_filter(double low, double high);
     void applyTxFilter();
     void programTxa();
@@ -62,6 +69,7 @@ private:
     void applyTxEq();
     void applyCfc();
     void applyCtcss();
+    void finishTxChannelStart();
     void updatePhaseRotatorStatus();
     void syncPhaseRotatorTimer();
     long get_CtrFrequency(long rx_frequency, long repeater_offset, bool repeater_mode);
@@ -87,6 +95,7 @@ private slots:
 private:
     Settings*   set;
     TransmitModel* m_txModel = nullptr;
+    std::unique_ptr<WdspTxChannel> m_channel;
     QTimer*     m_phrotStatusTimer = nullptr;
     bool        m_channelCreated = false;
     int id;

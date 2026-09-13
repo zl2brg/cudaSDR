@@ -45,7 +45,7 @@
 #include <QScrollArea>
 #include <QMoveEvent>
 #include "cusdr_displayWidget.h"
-#include <wdsp.h>
+#include "QtWDSP/WdspRxChannel.h"
 
 #define LOG_RADIOPOPUP
 // use: RADIOPOPUP_DEBUG
@@ -76,7 +76,6 @@ namespace {
 RadioPopupWidget::RadioPopupWidget(SliceModel *model, QWidget *parent)
     : QDockWidget(parent)
     , m_sliceModel(model)
-    , m_sticky(false)
     , m_filterSlope(1)
     , m_var1WidthA(1800.0f)
     , m_var2WidthA(4000.0f)
@@ -85,6 +84,7 @@ RadioPopupWidget::RadioPopupWidget(SliceModel *model, QWidget *parent)
     , m_var1WidthC(150.0f)
     , m_var2WidthC(800.0f)
     , m_activeFilterIndex(-1)
+    , m_sticky(false)
     , m_receiver(model ? model->id() : 0)
     , m_currentRx(0)
     , m_singleAdcDevice(false)
@@ -994,7 +994,7 @@ void RadioPopupWidget::createModeBtnGroup() {
         // RX channel may not exist yet at popup construction time.
         QVector<double> X(AudioConfig::kEqDrawPoints, 0.0);
         QVector<double> Y(AudioConfig::kEqDrawPoints, 0.0);
-        GetRXAEQDraw(m_receiver, X.data(), Y.data());
+        WdspRxChannel::drawEq(m_receiver, X.data(), Y.data());
         const QVector<int> rxBands = Settings::instance()->getRxEqBands();
         const double preamp = rxBands.isEmpty() ? 0.0 : static_cast<double>(rxBands.at(0));
         m_rxEqPlot->setBandGains(rxBands);
@@ -1783,7 +1783,7 @@ void RadioPopupWidget::filterChanged(int rx, qreal low, qreal high) {
 void RadioPopupWidget::updateRxEqPassband() {
     if (!m_rxEqPlot)
         return;
-    const DSPMode mode = Settings::instance()->getDSPMode(m_receiver);
+    const DSPMode mode = m_sliceModel ? m_sliceModel->dspMode() : Settings::instance()->getDSPMode(m_receiver);
     double lo = 0.0;
     double hi = 3000.0;
     if (mode == LSB || mode == DIGL) {
@@ -2231,7 +2231,7 @@ void RadioPopupWidget::showEvent(QShowEvent *event) {
     if (m_rxEqPlot) {
         QVector<double> X(AudioConfig::kEqDrawPoints, 0.0);
         QVector<double> Y(AudioConfig::kEqDrawPoints, 0.0);
-        GetRXAEQDraw(m_receiver, X.data(), Y.data());
+        WdspRxChannel::drawEq(m_receiver, X.data(), Y.data());
         const QVector<int> rxBands = Settings::instance()->getRxEqBands();
         const double preamp = rxBands.isEmpty() ? 0.0 : static_cast<double>(rxBands.at(0));
         m_rxEqPlot->setBandGains(rxBands);

@@ -3,7 +3,7 @@
 #include "ui_tx_settings_dialog.h"
 #include "eq_curve_plot.h"
 #include "QtWDSP/qtwdsp_dspEngine.h"
-#include "AudioEngine/cusdr_audio_input.h"
+#include "QtWDSP/WdspTxChannel.h"
 #include "cusdr_settings.h"
 #include "cusdr_hamDatabase.h"
 #include <QSignalBlocker>
@@ -223,13 +223,13 @@ tx_settings_dialog::tx_settings_dialog(QWidget *parent) :
 
     connect(ui->ctcss_tone, QOverload<int>::of(&QSpinBox::valueChanged), this, &tx_settings_dialog::ctcssToneHzRequested);
     connect(ui->KeyerMode, &QComboBox::currentIndexChanged, this, &tx_settings_dialog::cwKeyerModeRequested);
-    connect(ui->internal_keyer, &QCheckBox::stateChanged, this, [this](int state) {
+    connect(ui->internal_keyer, &QCheckBox::checkStateChanged, this, [this](Qt::CheckState state) {
         emit internalCwRequested(state == Qt::Checked);
     });
-    connect(ui->keyer_reverse, &QCheckBox::stateChanged, this, [this](int state) {
+    connect(ui->keyer_reverse, &QCheckBox::checkStateChanged, this, [this](Qt::CheckState state) {
         emit cwKeyReversedRequested(state == Qt::Checked);
     });
-    connect(ui->keyer_spacing, &QCheckBox::stateChanged, this, [this](int state) {
+    connect(ui->keyer_spacing, &QCheckBox::checkStateChanged, this, [this](Qt::CheckState state) {
         emit cwKeyerSpacingRequested(state == Qt::Checked);
     });
     connect(ui->keyer_speed, &QSpinBox::valueChanged, this, &tx_settings_dialog::cwKeyerSpeedRequested);
@@ -410,18 +410,18 @@ void tx_settings_dialog::refreshEqCurvePlots()
     QVector<double> X(AudioConfig::kEqDrawPoints, 0.0);
     QVector<double> Y(AudioConfig::kEqDrawPoints, 0.0);
     if (m_txEqPlot) {
-        GetTXAEQDraw(TX_ID, X.data(), Y.data());
+        WdspTxChannel::drawEq(TX_ID, X.data(), Y.data());
         const QVector<int> bands = m_txEqPlot->bandGains();
         const double preamp = bands.isEmpty() ? 0.0 : static_cast<double>(bands.at(0));
         m_txEqPlot->setBandEqCurve(X, Y, preamp);
         updateTxEqPassband();
     }
     if (m_cfcCompPlot) {
-        GetTXACFCOMPCompDraw(TX_ID, X.data(), Y.data());
+        WdspTxChannel::drawCfcompComp(TX_ID, X.data(), Y.data());
         m_cfcCompPlot->setCurve(X, Y);
     }
     if (m_cfcPeqPlot) {
-        GetTXACFCOMPPeqDraw(TX_ID, X.data(), Y.data());
+        WdspTxChannel::drawCfcompPeq(TX_ID, X.data(), Y.data());
         m_cfcPeqPlot->setCurve(X, Y);
     }
 }
@@ -536,6 +536,28 @@ void tx_settings_dialog::setFreeDVMode(int rx, int mode)
     }
 }
 
+void tx_settings_dialog::setMicInputDev(int dev)
+{
+    if (dev >= 0 && dev < ui->audiodevlist->count()) {
+        const QSignalBlocker blocker(ui->audiodevlist);
+        ui->audiodevlist->setCurrentIndex(dev);
+    }
+}
+
+void tx_settings_dialog::setMicInputSourceName(const QString& name)
+{
+    int idx = -1;
+    if (name == QLatin1String("hpsdr-local")) {
+        idx = 0;
+    } else if (!name.isEmpty()) {
+        idx = ui->audiodevlist->findText(name);
+    }
+    if (idx >= 0 && idx < ui->audiodevlist->count()) {
+        const QSignalBlocker blocker(ui->audiodevlist);
+        ui->audiodevlist->setCurrentIndex(idx);
+    }
+}
+
 void tx_settings_dialog::triggerRefreshDevices()
 {
     emit audioDevicesRefreshRequested();
@@ -553,7 +575,7 @@ void tx_settings_dialog::refreshAudioDevices(const QString& savedMicName, const 
     ui->audiodevlist->clear();
     ui->audiodevlist->addItem("HPSDR Mic Input");
     
-    const QList<QAudioDevice> micInputs = TransmitAudioInput::availableAudioInputDevices();
+    const QList<QAudioDevice> micInputs = AudioDeviceService::instance()->audioInputs();
     for (const QAudioDevice &deviceInfo : micInputs) {
         ui->audiodevlist->addItem(deviceInfo.description());
     }

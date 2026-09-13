@@ -274,7 +274,7 @@ void OverlayRenderer::drawCenterLine(const QMatrix4x4& projection,
         float centerY = (float)(panRect.top() + panRect.height() - 1);
 		const QColor centerCol = centerColor.isValid() ? centerColor : QColor(246, 7, 19);
 
-        glLineWidth(3.0f);
+        glLineWidth(1.0f);
 
         QVarLengthArray<VertexData, 8> lines;
         float cr = centerCol.redF(); float cg = centerCol.greenF(); float cb = centerCol.blueF(); float ca = centerCol.alphaF();
@@ -292,7 +292,12 @@ void OverlayRenderer::drawCenterLine(const QMatrix4x4& projection,
 		float vfoX = (float)(panRect.left() + qRound((qreal)(panRect.width()/2.0f)  - deltaF * panRect.width() / zoomFactor));
         float vr = vfoColor.redF(); float vg = vfoColor.greenF(); float vb = vfoColor.blueF(); float va = 1.0f;
 
-        if (!qIsNaN(vfoX) && !qIsInf(vfoX)) {
+        // No NCO offset: VFO sits on the LO. Skip the blue cursor so it does
+        // not stack on the red centre line (filter overlay still shows the RX passband).
+        const bool vfoOffsetVisible = !qIsNaN(vfoX) && !qIsInf(vfoX)
+            && qRound(vfoX) != qRound(centerX);
+
+        if (vfoOffsetVisible) {
             lines.append({ vfoX, y1 + 1.0f, 4.0f, vr, vg, vb, va });
             lines.append({ vfoX, centerY - 1.0f,  4.0f, vr, vg, vb, va });
             if (waterfallRect.isValid() && waterfallRect.height() > 2) {
@@ -473,7 +478,7 @@ void OverlayRenderer::drawCrossHair(const QMatrix4x4& projection,
 
 	glDisable(GL_BLEND);
 	glDisable(GL_LINE_SMOOTH);
-	glLineWidth(1.0f * dpr);
+	glLineWidth(1.0f);
     glDisable(GL_DEPTH_TEST);
 
     m_shader->bind();

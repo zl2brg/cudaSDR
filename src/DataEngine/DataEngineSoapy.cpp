@@ -5,6 +5,8 @@
 
 #include "DataEngineSoapy.h"
 #include "cusdr_dataEngine.h"
+#include "Drivers/SoapyDevice.h"
+#include "DataEngine/SdrDeviceManager.h"
 
 DataEngineSoapy::DataEngineSoapy(DataEngine *engine)
 	: m_engine(engine)
@@ -23,6 +25,7 @@ void DataEngineSoapy::searchSoapyDevices() {
 
 bool DataEngineSoapy::startSoapyEngine() {
         if (!m_engine->m_soapySDRSource) m_engine->createDataIO();
+        m_engine->setDevice(SdrDeviceManager::instance()->createDevice(DeviceType::SoapySDR, m_engine));
         m_engine->initReceivers(1);
 
         if (!m_engine->m_audioInput)
@@ -37,12 +40,12 @@ bool DataEngineSoapy::startSoapyEngine() {
 
         if (!m_engine->m_dataProcessor) m_engine->createDataProcessor();
 
-        if (!m_engine->startDataIO(QThread::HighPriority)) {
+        if (!m_engine->startDataIO(QThread::TimeCriticalPriority)) {
             m_engine->setSystemState(QSDR::DataReceiverThreadError, m_engine->m_hwInterface, m_engine->m_serverMode, QSDR::DataEngineDown);
             return false;
         }
 
-        if (!m_engine->startDataProcessor(QThread::HighPriority)) {
+        if (!m_engine->startDataProcessor(QThread::HighestPriority)) {
             m_engine->setSystemState(QSDR::DataProcessThreadError, m_engine->m_hwInterface, m_engine->m_serverMode, QSDR::DataEngineDown);
             return false;
         }
