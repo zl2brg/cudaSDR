@@ -52,7 +52,7 @@ if(CUDASDR_ENABLE_COVERAGE)
 endif()
 
 # --- Find Dependencies ---
-find_package(Qt6 6.11.0 REQUIRED COMPONENTS Widgets Core Gui GuiPrivate ShaderTools Multimedia Network OpenGL OpenGLWidgets WebSockets Test)
+find_package(Qt6 6.4.0 REQUIRED COMPONENTS Widgets Core Gui Multimedia Network OpenGL OpenGLWidgets WebSockets Test)
 message(STATUS "Using Qt ${Qt6_VERSION} from ${Qt6_DIR}")
 find_package(PkgConfig REQUIRED)
 find_package(OpenGL REQUIRED)
@@ -397,15 +397,15 @@ qt_add_executable(cudasdr
     ${UI_HEADERS}
 )
 
-qt6_add_shaders(cudasdr "panadapter_shaders"
-    PREFIX "/shaders"
-    FILES
-        src/GL/shaders/panadapter.vert
-        src/GL/shaders/panadapter.frag
-    OUTPUTS
-        panadapter.vert.qsb
-        panadapter.frag.qsb
-)
+# qt6_add_shaders(cudasdr "panadapter_shaders"
+#     PREFIX "/shaders"
+#     FILES
+#         src/GL/shaders/panadapter.vert
+#         src/GL/shaders/panadapter.frag
+#     OUTPUTS
+#         panadapter.vert.qsb
+#         panadapter.frag.qsb
+# )
 
 # --- Configure Include Directories ---
 target_include_directories(cudasdr PRIVATE
