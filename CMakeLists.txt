@@ -872,11 +872,17 @@ if(BUILD_TESTING)
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
     )
 
+    set(TRANSMIT_OPTIONS_TEST_UI_SOURCES
+        ${SRC_DIR}/UI/tx_settings_dialog.ui
+    )
+    qt6_wrap_ui(TRANSMIT_OPTIONS_TEST_UI_HEADERS ${TRANSMIT_OPTIONS_TEST_UI_SOURCES})
+
     qt_add_executable(transmit_options_tests
         tests/transmit_options_tests.cpp
         ${SRC_DIR}/cusdr_transmitOptionsWidget.cpp
         ${SRC_DIR}/Controllers/TransmitSettingsController.cpp
         ${SRC_DIR}/UI/tx_settings_dialog.cpp
+        ${TRANSMIT_OPTIONS_TEST_UI_HEADERS}
         ${SRC_DIR}/UI/eq_curve_plot.cpp
         ${SRC_DIR}/Util/AudioDeviceService.cpp
         ${SRC_DIR}/Util/cusdr_buttons.cpp
@@ -885,6 +891,7 @@ if(BUILD_TESTING)
         ${CUDASDR_SETTINGS_TEST_SOURCES}
     )
     target_include_directories(transmit_options_tests PRIVATE
+        ${CMAKE_CURRENT_BINARY_DIR}
         ${SRC_DIR}
         ${SRC_DIR}/UI
         ${WDSP_DIR}
