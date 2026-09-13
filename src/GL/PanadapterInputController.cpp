@@ -282,6 +282,8 @@ void PanadapterInputController::handleMousePress(QMouseEvent* event) {
     if (event->button() == Qt::LeftButton && m_panel->m_panFreqVfoRect.isValid() && m_panel->m_panFreqVfoRect.contains(m_panel->m_mousePos)) {
         if (m_panel->m_sliceModel) {
             m_panel->m_sliceModel->setActiveVfo(m_panel->m_sliceModel->activeVfo() == SliceModel::VfoA ? SliceModel::VfoB : SliceModel::VfoA);
+            if (m_panel->set)
+                m_panel->set->setVfoFrequencyVisible(m_panel->m_receiver, m_panel->m_sliceModel->frequency());
             m_panel->update();
             event->accept();
             return;

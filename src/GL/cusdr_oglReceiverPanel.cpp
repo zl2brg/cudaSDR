@@ -36,6 +36,7 @@
 #include "TraceRenderer.h"
 #include "HudRenderer.h"
 #include "PanadapterInputController.h"
+#include "PanadapterOverlayFreq.h"
 #include "cusdr_glShaders.h"
 #include "cusdr_glDraw.h"
 #include "Controllers/RadioPopupController.h"
@@ -462,7 +463,9 @@ void QGLReceiverPanel::setupConnections() {
     connect(m_sliceModel, &SliceModel::sMeterPeakValueChanged, this, &QGLReceiverPanel::updateSMeterPeakValue);
     connect(m_sliceModel, &SliceModel::cwDecodeEnabledChanged, this, qOverload<>(&QGLReceiverPanel::update));
     connect(m_sliceModel, &SliceModel::cwTrackedPitchChanged, this, qOverload<>(&QGLReceiverPanel::update));
-    connect(m_sliceModel, &SliceModel::activeVfoChanged, this, [this](SliceModel::ActiveVfo){ update(); });
+    connect(m_sliceModel, &SliceModel::activeVfoChanged, this, [this](SliceModel::ActiveVfo){
+        this->setVFOFrequency(0, m_sliceModel->id(), m_sliceModel->frequency());
+    });
 
     if (set) {
         connect(set, &Settings::showPanadapterSMeterChanged, this, qOverload<>(&QGLReceiverPanel::update));
@@ -1097,20 +1100,19 @@ void QGLReceiverPanel::setCtrFrequency(int mode, int rx, qint64 freq) {
     Q_UNUSED(mode)
     if (m_receiver != rx) return;
 
-    const bool freqChanged = (m_centerFrequency != freq);
-    m_centerFrequency = freq;
+    // VFO A/B (and CAT band hops) emit the dial before the LO moves. The VFO
+    // update can leave a span-clamped cursor; always adopt the live dial so
+    // the blue line and filter sit on the receive frequency (Mid VFO state).
+    const qint64 modelVfo = m_sliceModel ? m_sliceModel->frequency()
+                                         : set->getVfoFrequency(m_receiver);
+    PanadapterOverlayFreq::State overlay{ m_centerFrequency, m_vfoFrequency, m_sampleRate };
+    PanadapterOverlayFreq::applyCenter(overlay, freq, modelVfo);
 
-    // Settings emits the VFO change before the centre moves, so a retune that
-    // leaves the old span (VFO A/B switch, CAT band hop) arrives here clamped to
-    // the span it just left. Only that case is recoverable from the dial: re-read
-    // it against the new centre, else the VFO cursor and filter sit off-panel.
-    const qint64 spanLow  = m_centerFrequency - m_sampleRate/2;
-    const qint64 spanHigh = m_centerFrequency + m_sampleRate/2;
-    if (m_vfoFrequency < spanLow || m_vfoFrequency > spanHigh)
-        m_vfoFrequency = qBound(spanLow, set->getVfoFrequency(m_receiver), spanHigh);
-
-    m_deltaFrequency = m_centerFrequency - m_vfoFrequency;
-    m_deltaF = (qreal)(1.0 * m_deltaFrequency / m_sampleRate);
+    const bool freqChanged = (m_centerFrequency != overlay.centerHz);
+    m_centerFrequency = overlay.centerHz;
+    m_vfoFrequency = overlay.vfoHz;
+    m_deltaFrequency = overlay.deltaFrequency();
+    m_deltaF = overlay.deltaF();
 
     if (freqChanged) {
         m_freqScalePanadapterUpdate = true;
@@ -1134,18 +1136,18 @@ void QGLReceiverPanel::setVFOFrequency(int mode, int rx, qint64 freq) {
 	
 	if (m_receiver != rx) return;
 
-	qint64 newFreq = freq;
-	if (newFreq > m_centerFrequency + m_sampleRate/2)
-		newFreq = m_centerFrequency + m_sampleRate/2;
-	else if (newFreq < m_centerFrequency - m_sampleRate/2)
-		newFreq = m_centerFrequency - m_sampleRate/2;
+	// Store the true dial. Clamping to the current span left a stale cursor
+	// after A/B switches that recenter the LO; off-span jumps are handled by
+	// setVfoFrequencyVisible, which moves the centre so the filter stays on-screen.
+	PanadapterOverlayFreq::State overlay{ m_centerFrequency, m_vfoFrequency, m_sampleRate };
+	PanadapterOverlayFreq::applyVfo(overlay, freq);
 
-	const bool unchanged = (m_vfoFrequency == newFreq);
-	m_vfoFrequency = newFreq;
+	const bool unchanged = (m_vfoFrequency == overlay.vfoHz);
+	m_vfoFrequency = overlay.vfoHz;
 	// Always resync NCO offset display — callers may have pre-assigned
 	// m_vfoFrequency (click-to-tune) before Settings emits frequencyChanged.
-	m_deltaFrequency = m_centerFrequency - m_vfoFrequency;
-	m_deltaF = (qreal)(1.0*m_deltaFrequency/m_sampleRate);
+	m_deltaFrequency = overlay.deltaFrequency();
+	m_deltaF = overlay.deltaF();
 
 	if (unchanged) return;
 

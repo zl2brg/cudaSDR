@@ -34,6 +34,12 @@ private slots:
     void buildRxAudioFrameFloat32Stereo();
     void buildRxAudioFrameInt16Mono();
     void buildIqFrameFloat32();
+    void selectTxMicSourcePrefersFullNetBlock();
+    void selectTxMicSourceFallsBackToLocalWhenPartialNet();
+    void selectTxMicSourceSilencesLocalWhileDigitalChrono();
+    void selectTxMicSourceHoldsNetUntilChannelReady();
+    void planRxAudioDrainOneSlotDoesNotConsumeAll();
+    void planRxAudioDrainDropsSendWhenCongested();
 };
 
 void TciProtocolUtilsTests::tciMessageFormatting()
@@ -408,6 +414,46 @@ void TciProtocolUtilsTests::buildIqFrameFloat32()
     QCOMPARE(hdr.streamType, kIqStreamType);
     QCOMPARE(hdr.sampleRate, 96'000u);
     QCOMPARE(hdr.length, 4u);
+}
+
+void TciProtocolUtilsTests::selectTxMicSourcePrefersFullNetBlock()
+{
+    QCOMPARE(selectTxMicSource(true, false), TxMicSource::Network);
+    QCOMPARE(selectTxMicSource(true, true), TxMicSource::Network);
+}
+
+void TciProtocolUtilsTests::selectTxMicSourceFallsBackToLocalWhenPartialNet()
+{
+    // Leftover net samples are not a full DSP block — voice modes keep the PC mic.
+    QCOMPARE(selectTxMicSource(false, false), TxMicSource::Local);
+}
+
+void TciProtocolUtilsTests::selectTxMicSourceSilencesLocalWhileDigitalChrono()
+{
+    QCOMPARE(selectTxMicSource(false, true), TxMicSource::None);
+}
+
+void TciProtocolUtilsTests::selectTxMicSourceHoldsNetUntilChannelReady()
+{
+    QCOMPARE(selectTxMicSource(true, true, false), TxMicSource::None);
+    QCOMPARE(selectTxMicSource(true, false, false), TxMicSource::Local);
+    QCOMPARE(selectTxMicSource(true, true, true), TxMicSource::Network);
+}
+
+void TciProtocolUtilsTests::planRxAudioDrainOneSlotDoesNotConsumeAll()
+{
+    const RxAudioDrainPlan plan = planRxAudioDrain(32768, 4096, false);
+    QCOMPARE(plan.floatsToRead, size_t(4096));
+    QVERIFY(plan.send);
+    QVERIFY(plan.reschedule);
+}
+
+void TciProtocolUtilsTests::planRxAudioDrainDropsSendWhenCongested()
+{
+    const RxAudioDrainPlan plan = planRxAudioDrain(8192, 4096, true);
+    QCOMPARE(plan.floatsToRead, size_t(4096));
+    QVERIFY(!plan.send);
+    QVERIFY(plan.reschedule);
 }
 
 QTEST_APPLESS_MAIN(TciProtocolUtilsTests)

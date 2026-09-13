@@ -319,7 +319,12 @@ void OGLDisplayPanel::setupConnections() {
 	TciServer *tci = set->tciServer();
 	if (tci) {
 		connect(tci, &TciServer::remoteControlChanged, this, &OGLDisplayPanel::setTciStatus);
+		connect(tci, &TciServer::connectionStatusChanged, this, [this, tci]() {
+			setTciStatus(tci->hasClients());
+			setTciTxAudioDebug(static_cast<int>(tci->txAudioDebugHint()));
+		});
 		setTciStatus(tci->hasClients());
+		setTciTxAudioDebug(static_cast<int>(tci->txAudioDebugHint()));
 	}
 }
 
@@ -930,6 +935,15 @@ void OGLDisplayPanel::setTciStatus(bool active) {
 	if (m_tciConnected == active)
 		return;
 	m_tciConnected = active;
+	if (!active)
+		m_tciTxAudioDebug = 0;
+	scheduleRepaint();
+}
+
+void OGLDisplayPanel::setTciTxAudioDebug(int hint) {
+	if (m_tciTxAudioDebug == hint)
+		return;
+	m_tciTxAudioDebug = hint;
 	scheduleRepaint();
 }
 

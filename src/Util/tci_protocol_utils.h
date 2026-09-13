@@ -9,6 +9,8 @@
 #include <QStringList>
 #include <QtEndian>
 #include <QtGlobal>
+#include <algorithm>
+#include <cstddef>
 #include <cstring>
 
 namespace TciProtocol {
@@ -111,6 +113,43 @@ inline bool isTrxActive(RadioState state)
 inline bool acceptsTxAudio(RadioState state)
 {
     return state == RadioState::MOX || state == RadioState::TUNE;
+}
+
+/** Which TX mic source fetch_MicData should use for this DSP block. */
+enum class TxMicSource {
+    None,
+    Network,
+    Local
+};
+
+inline TxMicSource selectTxMicSource(bool haveFullNetBlock, bool networkMicOnly,
+                                    bool txChannelReady = true)
+{
+    if (haveFullNetBlock && txChannelReady)
+        return TxMicSource::Network;
+    if (networkMicOnly)
+        return TxMicSource::None;
+    return TxMicSource::Local;
+}
+
+/** One GUI-thread RX-audio drain slot. Never loops; caller reschedules. */
+struct RxAudioDrainPlan {
+    size_t floatsToRead = 0;
+    bool send = false;
+    bool reschedule = false;
+};
+
+inline RxAudioDrainPlan planRxAudioDrain(size_t availableFloats, size_t maxFloatsPerSlot,
+                                         bool socketCongested)
+{
+    RxAudioDrainPlan plan;
+    if (availableFloats == 0 || maxFloatsPerSlot == 0)
+        return plan;
+
+    plan.floatsToRead = std::min(availableFloats, maxFloatsPerSlot);
+    plan.send = !socketCongested;
+    plan.reschedule = availableFloats > plan.floatsToRead;
+    return plan;
 }
 
 /**

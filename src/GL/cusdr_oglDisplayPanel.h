@@ -283,6 +283,8 @@ private:
     bool    m_txMetersArmed = false;
     bool    m_rigCtlConnected = false;
     bool    m_tciConnected = false;
+    /** 0 idle, 1 waiting for client TX, 2 silent, 3 active (TciServer::TxAudioDebug). */
+    int     m_tciTxAudioDebug = 0;
     qreal   m_swr = 1.0;
     qreal   m_swrSmooth = 1.0;
     qreal   m_supplyVolts = 0.0;
@@ -397,6 +399,7 @@ private slots:
 	void	setHermesVersion(int value);
 	void	setRigCtlStatus(bool active);
 	void	setTciStatus(bool active);
+	void	setTciTxAudioDebug(int hint);
 	void	setMercuryVersion(int value);
 	void	setPenelopeVersion(int value);
 	void 	setPennylaneVersion(int value);

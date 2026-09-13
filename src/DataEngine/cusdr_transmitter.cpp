@@ -471,6 +471,21 @@ void Transmitter::applyCtcss()
     TRANSMITTER_DEBUG << "CTCSS" << (this->ctcss ? "on" : "off") << "freq" << this->ctcss_frequency;
 }
 
+bool Transmitter::isTxChannelRunning() const
+{
+    return m_channel && m_channel->isRunning();
+}
+
+void Transmitter::finishTxChannelStart()
+{
+    if (!m_channel || !m_channel->isRunning())
+        return;
+    programTxa();
+    applyPhaseRotator();
+    m_channel->setMicGain(micSliderToPanelGain(mic_gain));
+    m_channel->setBandpassWindow(1);
+}
+
 void Transmitter::setRadioState(RadioState state)
 {
     switch(state) {
@@ -478,25 +493,22 @@ void Transmitter::setRadioState(RadioState state)
     case RadioState::MOX: {
         if (m_channel) {
             m_channel->setPostGen(0, 0.0, 0.0, false);
-            programTxa();
-            applyPhaseRotator();
-            m_channel->setMicGain(micSliderToPanelGain(mic_gain));
-            m_channel->setBandpassWindow(1);
+            // Arm exchange before FIR rebuild so TCI/net mic is not drained
+            // into a stopped channel (Settings is already MOX, DSP is pumping).
             m_channel->setTxRun(true);
+            QMetaObject::invokeMethod(this, &Transmitter::finishTxChannelStart,
+                                      Qt::QueuedConnection);
         }
         TRANSMITTER_DEBUG << "MOX: TX channel started with mode" << this->mode;
         break;
     }
 
     case RadioState::TUNE: {
-        // Tone generator for TUNE
         if (m_channel) {
             m_channel->setPostGen(0, 1000.0, 0.5, true);
-            programTxa();
-            applyPhaseRotator();
-            m_channel->setMicGain(micSliderToPanelGain(mic_gain));
-            m_channel->setBandpassWindow(1);
             m_channel->setTxRun(true);
+            QMetaObject::invokeMethod(this, &Transmitter::finishTxChannelStart,
+                                      Qt::QueuedConnection);
         }
         TRANSMITTER_DEBUG << "TUNE: TX channel started with tone, mode" << this->mode;
         break;

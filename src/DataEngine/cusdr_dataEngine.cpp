@@ -345,8 +345,12 @@ DataEngine::~DataEngine() {
     }
 
    // file->close();
-    if (m_audioInput)
+    if (m_audioInput) {
+        if (set && set->tciServer())
+            set->tciServer()->setTransmitAudioRing(nullptr);
         delete m_audioInput;
+        m_audioInput = nullptr;
+    }
 
 #ifdef HAVE_SOAPYSDR
     if (m_soapySDRSource) {
@@ -539,11 +543,12 @@ void DataEngine::setupConnections() {
 		this,
 		&DataEngine::setTxJ6Pins);
 
-    CHECKED_CONNECT(
+    CHECKED_CONNECT_OPT(
             set,
             &Settings::radioStateChanged,
             this,
-            &DataEngine::radioStateChange);
+            &DataEngine::radioStateChange,
+            Qt::QueuedConnection);
 
     CHECKED_CONNECT(
             set,
@@ -2425,27 +2430,34 @@ void DataProcessor::fetch_MicData(){
     float tempFloats[DSP_SAMPLE_SIZE];
     bool gotAudio = false;
 
-    // Network TX audio (remote TCI/browser client mic) takes over the TX mic
-    // input whenever frames are arriving. Local PC capture is the fallback.
-    // WSJT-X / ExpertSDR digital clients clock TX via TX_CHRONO and must not
-    // have the soundcard leak into DIGU/DIGL. SSB/AM/FM keep the PC mic as a
-    // fallback so a leftover chrono lock cannot mute voice.
+    // TCI TRX starts TX_CHRONO. While that clock is live the remote client
+    // owns the mic in every mode — falling back to the PC soundcard produced
+    // silent TX (room-noise ~-40 dBFS) whenever a net block was not ready.
+    // Chrono stops on RX, so a leftover lock cannot mute a later local PTT.
     const DSPMode txMode = set->getDSPMode(de->currentReceiver);
     if (de->m_audioInput) {
         const TciServer *tci = set ? set->tciServer() : nullptr;
-        const bool digitalTx = (txMode == DIGU || txMode == DIGL);
-        const bool networkMicOnly = tci && tci->isTxChronoActive() && digitalTx;
+        const bool networkMicOnly = (tci && tci->isTxChronoActive())
+            || de->m_audioInput->hasPendingNetAudio();
 
-        if (de->m_audioInput->hasPendingNetAudio()) {
-            if (de->m_audioInput->readNetAudioBlock(tempFloats, DSP_SAMPLE_SIZE)) {
-                numSamples = DSP_SAMPLE_SIZE;
-                gotAudio = true;
-            }
-        } else if (!networkMicOnly) {
+        // Do not pull TCI/net samples until WDSP exchange is on. Settings can
+        // already be MOX (TCI TRX + chrono) while setTxRun is still pending.
+        const bool txReady = de->TX.isTxChannelRunning();
+        const bool haveNetBlock = txReady
+            && de->m_audioInput->readNetAudioBlock(tempFloats, DSP_SAMPLE_SIZE);
+        switch (TciProtocol::selectTxMicSource(haveNetBlock, networkMicOnly, txReady)) {
+        case TciProtocol::TxMicSource::Network:
+            numSamples = DSP_SAMPLE_SIZE;
+            gotAudio = true;
+            break;
+        case TciProtocol::TxMicSource::Local:
             if (de->m_audioInput->readMicAudioBlock(tempFloats, DSP_SAMPLE_SIZE)) {
                 numSamples = DSP_SAMPLE_SIZE;
                 gotAudio = true;
             }
+            break;
+        case TciProtocol::TxMicSource::None:
+            break;
         }
     }
     if (gotAudio)
@@ -3200,7 +3212,8 @@ void DataEngine::radioStateChange(RadioState state) {
     if ((state == RadioState::MOX) || (state == RadioState::TUNE)) {
         txParams().mox = true;
         if (m_audioInput) {
-            m_audioInput->clearTxQueues();
+            // Keep any TCI TX frames already written for this key-down.
+            m_audioInput->clearLocalTxQueues();
             m_audioInput->Start();
         }
     } else {

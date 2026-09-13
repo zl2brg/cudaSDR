@@ -47,6 +47,8 @@ public:
     bool Start();
     QList<QAudioDevice> getAudioInputDevices() const;
     void clearTxQueues();
+    void clearLocalTxQueues();
+    void clearNetTxQueues();
     
 public:
     QStringList paDeviceList;

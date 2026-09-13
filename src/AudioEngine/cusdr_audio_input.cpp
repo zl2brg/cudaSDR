@@ -4,6 +4,7 @@
 
 #include "cusdr_audio_input.h"
 #include "Util/AudioDeviceService.h"
+#include "Util/cusdr_tciserver.h"
 
 TransmitAudioInput::TransmitAudioInput(QObject *parent) 
     : QObject(parent)
@@ -286,12 +287,22 @@ void TransmitAudioInput::Stop() {
 }
 
 bool TransmitAudioInput::Start() {
+    const bool tciOwnsMic = set && set->tciServer() && set->tciServer()->isTxChronoActive();
+    if (tciOwnsMic) {
+        if (m_running)
+            stopHardware();
+        clearLocalTxQueues();
+        AUDIO_INPUT_DEBUG << "Skipping host capture; TCI TX_CHRONO owns the mic";
+        return true;
+    }
+
     if (m_running)
         return true;
 
-    // Drop any backlog so TX starts at the live capture edge, not minutes of
-    // queued mic/digital audio left over from a previous key-up or underrun.
-    clearTxQueues();
+    // Drop leftover local capture so TX starts at the live mic edge. Do not
+    // clear the network ring — TCI TX frames may already be in flight from
+    // TX_CHRONO (TRX is set before this Start() runs).
+    clearLocalTxQueues();
 
     // Late-initialize capture path at TX start time. This covers cases where
     // the object was created before HW interface selection settled (e.g. Soapy),
@@ -436,12 +447,22 @@ bool TransmitAudioInput::readNetAudioBlock(float* dest, size_t count)
     return spscReadBlock(m_netAudioRing, m_netFetchResidual, dest, count);
 }
 
-void TransmitAudioInput::clearTxQueues()
+void TransmitAudioInput::clearLocalTxQueues()
 {
     m_faudioRing.clear();
-    m_netAudioRing.clear();
     m_residualBuffer.clear();
     m_micFetchResidual.clear();
+}
+
+void TransmitAudioInput::clearNetTxQueues()
+{
+    m_netAudioRing.clear();
     m_netFetchResidual.clear();
+}
+
+void TransmitAudioInput::clearTxQueues()
+{
+    clearLocalTxQueues();
+    clearNetTxQueues();
 }
 

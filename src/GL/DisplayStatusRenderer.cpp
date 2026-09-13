@@ -370,11 +370,19 @@ void DisplayStatusRenderer::paintUpperRegion()
     }
     m_panel->renderPanelText(m_panel->m_oglTextSmallItalic, x1 + m_panel->m_blankWidth, y1, m_panel->m_rigCtlString);
 
-    // TCI status (lit when at least one WebSocket client is connected)
+    // TCI status: green = connected, yellow = TX waiting, orange = TX silent,
+    // cyan = TX audio arriving from the client (debug: WSJT-X vs cudaSDR).
     x1 += m_panel->m_rigCtlStringWidth + 2 * m_panel->m_blankWidth + 2;
     rect = QRect(x1, y1, m_panel->m_tciStringWidth + 2 * m_panel->m_blankWidth, m_panel->m_blankHeight);
     if (m_panel->m_tciConnected) {
-        m_panel->drawPanelRect(rect, QColor(56, 242, 115), -2.0f);
+        QColor tciColor(56, 242, 115);
+        if (m_panel->m_tciTxAudioDebug == 1)
+            tciColor = QColor(242, 220, 56);
+        else if (m_panel->m_tciTxAudioDebug == 2)
+            tciColor = QColor(242, 140, 56);
+        else if (m_panel->m_tciTxAudioDebug == 3)
+            tciColor = QColor(56, 200, 242);
+        m_panel->drawPanelRect(rect, tciColor, -2.0f);
         m_panel->qglColor(QColor(0, 0, 0));
     } else {
         m_panel->drawPanelRect(rect, QColor(68, 68, 68), -2.0f);

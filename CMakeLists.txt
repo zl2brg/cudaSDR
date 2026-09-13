@@ -305,6 +305,7 @@ set(HEADERS
     ${SRC_DIR}/GL/cusdr_oglDistancePanel.h
     ${SRC_DIR}/GL/cusdr_oglInfo.h
     ${SRC_DIR}/GL/cusdr_oglReceiverPanel.h
+    ${SRC_DIR}/GL/PanadapterOverlayFreq.h
     ${SRC_DIR}/GL/cusdr_spectrumBinWorker.h
     ${SRC_DIR}/GL/cusdr_oglText.h
     ${SRC_DIR}/GL/cusdr_oglUtils.h
@@ -607,6 +608,18 @@ if(BUILD_TESTING)
         Qt6::Test
     )
     add_test(NAME display_utils_tests COMMAND display_utils_tests)
+
+    qt_add_executable(panadapter_overlay_freq_tests
+        tests/panadapter_overlay_freq_tests.cpp
+    )
+    target_include_directories(panadapter_overlay_freq_tests PRIVATE
+        ${SRC_DIR}
+    )
+    target_link_libraries(panadapter_overlay_freq_tests PRIVATE
+        Qt6::Core
+        Qt6::Test
+    )
+    add_test(NAME panadapter_overlay_freq_tests COMMAND panadapter_overlay_freq_tests)
 
     qt_add_executable(rigctl_protocol_utils_tests
         tests/rigctl_protocol_utils_tests.cpp
@@ -1061,6 +1074,7 @@ if(BUILD_TESTING)
         tci_protocol_utils_tests
         tci_routing_tests
         display_utils_tests
+        panadapter_overlay_freq_tests
         rigctl_protocol_utils_tests
         settings_utils_tests
         ham_database_utils_tests

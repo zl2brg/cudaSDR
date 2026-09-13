@@ -56,7 +56,7 @@ public:
     void pushSpectrum(const double *iqData);
     bool getSpectrumPixels(float *pixels, int &ready);
     void stopChannel();
-
+    bool isTxChannelRunning() const;
 
 private:
     void	setupConnections();
@@ -69,6 +69,7 @@ private:
     void applyTxEq();
     void applyCfc();
     void applyCtcss();
+    void finishTxChannelStart();
     void updatePhaseRotatorStatus();
     void syncPhaseRotatorTimer();
     long get_CtrFrequency(long rx_frequency, long repeater_offset, bool repeater_mode);
