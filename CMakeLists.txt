@@ -855,6 +855,7 @@ if(BUILD_TESTING)
     )
     target_include_directories(sdr_device_manager_tests PRIVATE
         ${SRC_DIR}
+        ${WDSP_DIR}
         ${LIQUID_INCLUDE_DIR}
     )
     target_link_libraries(sdr_device_manager_tests PRIVATE
