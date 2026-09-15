@@ -32,11 +32,12 @@ void HudRenderer::drawVFOControl() {
 
 	// lock Panadapter
 	QString str = "PAN LOCKED";
-	int x1 = (m_panel->m_panFreqRect.isValid())
-	             ? (m_panel->m_panFreqRect.right() + 8)
-	             : (m_panel->m_panSMeterRect.isValid())
-	                 ? (m_panel->m_panSMeterRect.right() + 8)
-	                 : (m_panel->m_dBmScalePanRect.right() + 5);
+	int x1 = (m_panel->m_panSMeterRect.isValid())
+	             ? (m_panel->m_panSMeterRect.right() + 8)
+	             : (m_panel->m_dBmScalePanRect.right() + 5);
+	if (m_panel->m_panFreqRect.isValid() && m_panel->m_panFreqRect.left() < x1 + 150 && m_panel->m_panFreqRect.right() >= x1) {
+		x1 = m_panel->m_panFreqRect.right() + 8;
+	}
 	int y1 = 3;
 
 	if (m_panel->m_panLocked) {
@@ -210,154 +211,19 @@ void HudRenderer::drawVFOControl() {
 	m_panel->m_oglTextSmall->renderFreqText(x1+1, y1-2, 3.0f, str);*/
 }
 
-void HudRenderer::drawReceiverInfo() {
-    ensureGL();
-
-	QString str;
-    const int badgeH = m_panel->m_fonts.fontHeightSmallFont + 2;
-
-    auto drawRxBadge = [&](int &x, int y, const QString &label, const QColor &bg) {
-        if (label.isEmpty())
-            return;
-        const int w = m_panel->m_oglTextSmall->fontMetrics().horizontalAdvance(label) + 3;
-        m_panel->drawPanelRect(QRect(x, y, w, badgeH), bg, 2.0f);
-        m_panel->m_glTextColor = QColor(0, 0, 0, 255);
-        m_panel->renderPanelText(m_panel->m_oglTextSmall, x + 1, y + 1, 2.0f, label);
-        x += w + 4;
-    };
-	// mouse wheel freq step size
-	/*if (m_panel->m_dataEngineState == QSDR::DataEngineUp) {
-
-		if (m_panel->m_receiver == m_panel->m_currentReceiver)
-			col = QColor(1, 190, 180, 180);
-		else
-			col = QColor(1, 100, 90, 180);
-	}
-	else
-		col = m_panel->m_darkColor;
-
-	str = "%1";
-	str = str.arg(m_panel->set->getValue1000(m_panel->m_mouseWheelFreqStep, 0, "Hz"));
-
-	int x1 = m_panel->m_panRect.width() - (m_panel->m_fonts.smallFontMetrics->tightBoundingRect(str).width() + 9);
-	int y1 = 3;
-
-	rect = QRect(x1+2, y1, m_panel->m_fonts.smallFontMetrics->tightBoundingRect(str).width() + 5, m_panel->m_fonts.fontHeightSmallFont + 2);
-	m_panel->drawPanelRect(rect, col, 2.0f);
-	qglColor(QColor(0, 0, 0));
-	m_panel->m_oglTextSmall->renderFreqText(x1+3, y1-2, 3.0f, str);*/
-
-
-	// AGC mode
-	//if (m_panel->m_dataEngineState == QSDR::DataEngineUp) {
-
-	//	if (m_panel->m_receiver == m_panel->m_currentReceiver) {
-
-	//		if (m_panel->m_showAGCLines)
-	//			col = QColor(255, 170, 90, 180);
-	//		else
-	//			col = QColor(215, 130, 50, 180);
-	//	}
-	//	else
-	//		col = QColor(165, 80, 1);
-	//}
-	//else
-	//	col = m_panel->m_darkColor;
-
-	//str = "%1";
-	////str = str.arg(m_panel->set->getAGCModeString(m_panel->m_receiver));
-	//str = str.arg(m_panel->m_agcModeString);
-
-	//x1 -= m_panel->m_fonts.smallFontMetrics->tightBoundingRect(str).width() + 7;
-	//y1 = 3;
-
-	//m_panel->m_agcButtonRect = QRect(x1+2, y1, m_panel->m_fonts.smallFontMetrics->tightBoundingRect(str).width() + 5, m_panel->m_fonts.fontHeightSmallFont + 2);
-	//m_panel->drawPanelRect(m_panel->m_agcButtonRect, col, 2.0f);
-	//qglColor(QColor(0, 0, 0));
-	//m_panel->m_oglTextSmall->renderFreqText(x1+3, y1-2, 3.0f, str);
-
-
-    // main frequency display
-    glDisable(GL_MULTISAMPLE);
-    if (m_panel->m_panRect.height() > 15) {
-
-        QColor colFlt;
-
-        if (m_panel->m_dataEngineState == QSDR::DataEngineUp) {
-
-            if (m_panel->m_receiver == m_panel->set->getCurrentReceiver()) {
-
-                colFlt = QColor(200, 190, 50, 180);
-            }
-            else {
-
-                colFlt = QColor(110, 100, 1, 180);
-            }
-        }
-        else {
-
-            colFlt = m_panel->m_darkColor;
-        }
-
-        const int vfoX = m_panel->m_panRect.left() + qRound((qreal)(m_panel->m_panRect.width() / 2.0f) - m_panel->m_deltaF * m_panel->m_panRect.width() / m_panel->displayedZoomFactor());
-        const int centerX = m_panel->m_panRect.left() + m_panel->m_panRect.width() / 2;
-
-        const int f1 = (int)(m_panel->m_vfoFrequency / 1000);
-        const int f2 = (int)(m_panel->m_vfoFrequency % 1000);
-        const QString vfoText = (f2 == 0)
-            ? QStringLiteral("%1.%2 MHz").arg(f1 / 1000).arg(f1 - 1000 * (int)(f1 / 1000), 3, 10, QLatin1Char('0'))
-            : QStringLiteral("%1.%2.%3 MHz").arg(f1 / 1000).arg(f1 - 1000 * (int)(f1 / 1000), 3, 10, QLatin1Char('0')).arg(f2, 3, 10, QLatin1Char('0'));
-        const int vfoTextWidth = m_panel->m_oglTextBig2->fontMetrics().horizontalAdvance(vfoText);
-
-        int x = vfoX + 10;
-        if (x > m_panel->m_panRect.right() - vfoTextWidth - 10)
-            x = vfoX - vfoTextWidth - 10;
-        else if (m_panel->m_deltaFrequency != 0 && vfoX < centerX && x + vfoTextWidth >= centerX - 5)
-            x = vfoX - vfoTextWidth - 10;
-
-        int x1 = x;
-        const int y1 = 3;
-        drawRxBadge(x1, y1, m_panel->m_filterWidthString, colFlt);
-
-        const int freqY = y1 + badgeH + 3;
-        m_panel->m_glTextColor = QColor(255, 255, 255, 255);
-        m_panel->renderPanelText(m_panel->m_oglTextBig2, x, freqY, vfoText);
-
-        if (m_panel->m_panRect.height() > 15 && m_panel->m_deltaFrequency != 0) {
-
-            const int cf1 = (int)(m_panel->m_centerFrequency / 1000);
-            const int cf2 = (int)(m_panel->m_centerFrequency % 1000);
-            const QString centerText = (cf2 == 0)
-                ? QStringLiteral("%1.%2 MHz").arg(cf1 / 1000).arg(cf1 - 1000 * (int)(cf1 / 1000), 3, 10, QLatin1Char('0'))
-                : QStringLiteral("%1.%2.%3 MHz").arg(cf1 / 1000).arg(cf1 - 1000 * (int)(cf1 / 1000), 3, 10, QLatin1Char('0')).arg(cf2, 3, 10, QLatin1Char('0'));
-            const int centerWidth = m_panel->m_oglTextBig2->fontMetrics().horizontalAdvance(centerText);
-
-            int cx = centerX + 10;
-            if (vfoX >= centerX && vfoX < centerX + centerWidth + 20)
-                cx = centerX - centerWidth - 10;
-            else if (cx + centerWidth > m_panel->m_panRect.right() - 5)
-                cx = centerX - centerWidth - 10;
-
-            m_panel->m_glTextColor = QColor(80, 180, 240, 220);
-            m_panel->renderPanelText(m_panel->m_oglTextBig2, cx, freqY, centerText);
-        }
-
-    }
-}
-
 void HudRenderer::drawPanadapterSMeter() {
     ensureGL();
     if (!m_panel || !m_panel->set || !m_panel->set->getShowPanadapterSMeter()) {
         m_panel->m_panSMeterRect = QRect();
         return;
     }
-    if (m_panel->m_panRect.width() < 320 || m_panel->m_panRect.height() < 80) {
+    if (m_panel->m_panRect.width() < 420 || m_panel->m_panRect.height() < 90) {
         m_panel->m_panSMeterRect = QRect();
         return;
     }
 
-    const int cardW = 200;
-    const int cardH = 38;
+    const int cardW = 300;
+    const int cardH = 57;
     const int x0 = m_panel->m_dBmScalePanRect.right() + 8;
     const int y0 = m_panel->m_panRect.top() + 6;
     m_panel->m_panSMeterRect = QRect(x0, y0, cardW, cardH);
@@ -387,10 +253,10 @@ void HudRenderer::drawPanadapterSMeter() {
 
     // 2. Digital Readout Row (top of card)
     const QString rxBadge = QStringLiteral("RX%1").arg(m_panel->m_receiver + 1);
-    const int badgeW = m_panel->m_oglTextTiny->fontMetrics().horizontalAdvance(rxBadge) + 6;
-    m_panel->drawPanelRect(QRect(x0 + 4, y0 + 2, badgeW, 11), QColor(28, 38, 50, 230), 3.1f);
+    const int badgeW = m_panel->m_oglTextSmall->fontMetrics().horizontalAdvance(rxBadge) + 8;
+    m_panel->drawPanelRect(QRect(x0 + 6, y0 + 3, badgeW, 16), QColor(28, 38, 50, 230), 3.1f);
     m_panel->m_glTextColor = QColor(180, 205, 225);
-    m_panel->renderPanelText(m_panel->m_oglTextTiny, float(x0 + 7), float(y0 + 2), 3.2f, rxBadge);
+    m_panel->renderPanelText(m_panel->m_oglTextSmall, float(x0 + 10), float(y0 + 3), 3.2f, rxBadge);
 
     const float rawDbm = m_panel->m_sMeterOrgValue;
     QString sUnitStr;
@@ -406,20 +272,20 @@ void HudRenderer::drawPanadapterSMeter() {
         sUnitCol = QColor(56, 242, 115);
     }
     m_panel->m_glTextColor = sUnitCol;
-    m_panel->renderPanelText(m_panel->m_oglTextTiny, float(x0 + badgeW + 10), float(y0 + 2), 3.2f, sUnitStr);
+    m_panel->renderPanelText(m_panel->m_oglTextSmall, float(x0 + badgeW + 14), float(y0 + 3), 3.2f, sUnitStr);
 
     const QString dbmStr = QString::asprintf("%.1f dBm", rawDbm);
-    const int dbmW = m_panel->m_oglTextTiny->fontMetrics().horizontalAdvance(dbmStr);
+    const int dbmW = m_panel->m_oglTextSmall->fontMetrics().horizontalAdvance(dbmStr);
     m_panel->m_glTextColor = QColor(210, 220, 230);
-    m_panel->renderPanelText(m_panel->m_oglTextTiny, float(x0 + cardW - dbmW - 6), float(y0 + 2), 3.2f, dbmStr);
+    m_panel->renderPanelText(m_panel->m_oglTextSmall, float(x0 + cardW - dbmW - 8), float(y0 + 3), 3.2f, dbmStr);
 
     // 3. Scale Geometry: -140 dBm to 0 dBm (140 dB span)
-    const int xStart = x0 + 7;
-    const int xEnd = x0 + cardW - 7;
+    const int xStart = x0 + 10;
+    const int xEnd = x0 + cardW - 10;
     const int scaleW = xEnd - xStart;
     const float unit = float(scaleW) / 140.0f;
-    const float yRailTop = float(y0 + 16);
-    const float yRailBottom = float(y0 + 23);
+    const float yRailTop = float(y0 + 23);
+    const float yRailBottom = float(y0 + 34);
 
     QVector<GlDraw::Vec3Rgb> scaleLines;
     scaleLines.reserve(10 + scaleW * 2 + 40);
@@ -432,10 +298,10 @@ void HudRenderer::drawPanadapterSMeter() {
     scaleLines.append({ float(xStart), yRailBottom, 3.2f, rr, rg, rb });
     scaleLines.append({ float(xEnd), yRailBottom, 3.2f, rr, rg, rb });
 
-    // Vertical ladder grille every 2 px
+    // Vertical ladder grille every 3 px
     const QColor grilleCol(60, 80, 95, 180);
     const float gr = grilleCol.redF(), gg = grilleCol.greenF(), gb = grilleCol.blueF();
-    for (int x = xStart + 2; x < xEnd; x += 2) {
+    for (int x = xStart + 2; x < xEnd; x += 3) {
         scaleLines.append({ float(x), yRailTop + 1.5f, 3.1f, gr, gg, gb });
         scaleLines.append({ float(x), yRailBottom - 1.5f, 3.1f, gr, gg, gb });
     }
@@ -445,12 +311,12 @@ void HudRenderer::drawPanadapterSMeter() {
     const float tr = tickCol.redF(), tg = tickCol.greenF(), tb = tickCol.blueF();
     for (int db = 20; db <= 140; db += 20) {
         const float xt = float(xStart) + float(db) * unit;
-        scaleLines.append({ xt, yRailTop - 3.0f, 3.2f, tr, tg, tb });
+        scaleLines.append({ xt, yRailTop - 4.5f, 3.2f, tr, tg, tb });
         scaleLines.append({ xt, yRailTop, 3.2f, tr, tg, tb });
     }
     for (int db = 10; db < 140; db += 20) {
         const float xt = float(xStart) + float(db) * unit;
-        scaleLines.append({ xt, yRailTop - 1.5f, 3.2f, tr, tg, tb });
+        scaleLines.append({ xt, yRailTop - 2.5f, 3.2f, tr, tg, tb });
         scaleLines.append({ xt, yRailTop, 3.2f, tr, tg, tb });
     }
 
@@ -481,7 +347,7 @@ void HudRenderer::drawPanadapterSMeter() {
         } else {
             mr = 255.0f / 255.0f; mg = 60.0f / 255.0f; mb = 60.0f / 255.0f;
         }
-        const float tickLen = mark.major ? 3.0f : 1.5f;
+        const float tickLen = mark.major ? 4.5f : 2.5f;
         scaleLines.append({ xt, yRailBottom, 3.2f, mr, mg, mb });
         scaleLines.append({ xt, yRailBottom + tickLen, 3.2f, mr, mg, mb });
     }
@@ -521,19 +387,19 @@ void HudRenderer::drawPanadapterSMeter() {
 
         // Main signal needle (bright white line)
         const float xNeedle = float(xStart) + avgVal * unit;
-        needleLines.append({ xNeedle, yRailTop - 2.0f, 3.5f, 1.0f, 1.0f, 1.0f });
-        needleLines.append({ xNeedle, yRailBottom + 2.0f, 3.5f, 1.0f, 1.0f, 1.0f });
+        needleLines.append({ xNeedle, yRailTop - 3.0f, 3.5f, 1.0f, 1.0f, 1.0f });
+        needleLines.append({ xNeedle, yRailBottom + 3.0f, 3.5f, 1.0f, 1.0f, 1.0f });
 
         // Peak hold needle (amber/red pip at top)
         const float peakVal = qBound(0.0f, m_panel->m_sMeterHoldMax, 140.0f);
         if (peakVal > avgVal + 0.5f) {
             const float xPeak = float(xStart) + peakVal * unit;
-            needleLines.append({ xPeak, yRailTop - 2.0f, 3.5f, 1.0f, 0.4f, 0.4f });
-            needleLines.append({ xPeak, yRailTop + 4.0f, 3.5f, 1.0f, 0.4f, 0.4f });
+            needleLines.append({ xPeak, yRailTop - 3.0f, 3.5f, 1.0f, 0.4f, 0.4f });
+            needleLines.append({ xPeak, yRailTop + 6.0f, 3.5f, 1.0f, 0.4f, 0.4f });
         }
 
         m_panel->m_vao.bind();
-        glLineWidth(1.5f);
+        glLineWidth(2.0f);
         GlDraw::drawColoredLines(this, m_panel->m_shaderProgram, m_panel->m_vbo, proj,
                                  needleLines.constData(), needleLines.size());
     }
@@ -555,7 +421,7 @@ void HudRenderer::drawPanadapterSMeter() {
         { 127, "+60", QColor(255, 80, 80) }
     };
 
-    const QFontMetrics fm = m_panel->m_oglTextTiny->fontMetrics();
+    const QFontMetrics fm = m_panel->m_oglTextSmall->fontMetrics();
     for (const auto &lbl : sLabels) {
         const QString markStr = QString::fromLatin1(lbl.txt);
         const int tw = fm.horizontalAdvance(markStr);
@@ -563,95 +429,124 @@ void HudRenderer::drawPanadapterSMeter() {
         m_panel->m_glTextColor = (m_panel->m_dataEngineState == QSDR::DataEngineUp)
                                      ? lbl.col
                                      : QColor(120, 130, 140);
-        m_panel->renderPanelText(m_panel->m_oglTextTiny, xl, float(y0 + 26), 3.4f, markStr);
+        m_panel->renderPanelText(m_panel->m_oglTextSmall, xl, float(y0 + 39), 3.4f, markStr);
     }
 }
 
 void HudRenderer::drawPanadapterFreq() {
     ensureGL();
-    if (!m_panel || !m_panel->set || !m_panel->set->getShowPanadapterFreq()) {
+    if (!m_panel || !m_panel->set) {
         m_panel->m_panFreqRect = QRect();
         m_panel->m_panFreqVfoRect = QRect();
         return;
     }
 
     const bool sMeterVisible = m_panel->m_panSMeterRect.isValid();
-    const int minPanWidth = sMeterVisible ? 440 : 250;
-    if (m_panel->m_panRect.width() < minPanWidth || m_panel->m_panRect.height() < 80) {
+    const int minPanWidth = sMeterVisible ? 550 : 300;
+    if (m_panel->m_panRect.width() < minPanWidth || m_panel->m_panRect.height() < 90) {
         m_panel->m_panFreqRect = QRect();
         m_panel->m_panFreqVfoRect = QRect();
         return;
     }
 
-    const int cardW = 180;
-    const int cardH = 38;
-    const int x0 = sMeterVisible ? (m_panel->m_panSMeterRect.right() + 8)
-                                 : (m_panel->m_dBmScalePanRect.right() + 8);
+    const int cardW = 270;
+    const int cardH = 57;
     const int y0 = m_panel->m_panRect.top() + 6;
-    m_panel->m_panFreqRect = QRect(x0, y0, cardW, cardH);
 
-    const QMatrix4x4 proj = m_panel->panelProjection();
+    const int vfoX = m_panel->m_panRect.left() + qRound((qreal)(m_panel->m_panRect.width() / 2.0f) - m_panel->m_deltaF * m_panel->m_panRect.width() / m_panel->displayedZoomFactor());
+
+    const int leftLimit = sMeterVisible ? (m_panel->m_panSMeterRect.right() + 8)
+                                        : (m_panel->m_dBmScalePanRect.right() + 8);
+    const int rightLimit = m_panel->m_panRect.right() - cardW - 6;
+
+    int x0 = vfoX + 12;
+    if (x0 > rightLimit)
+        x0 = vfoX - cardW - 12;
+    if (x0 < leftLimit)
+        x0 = leftLimit;
+    if (x0 > rightLimit && rightLimit >= leftLimit)
+        x0 = rightLimit;
+
+    m_panel->m_panFreqRect = QRect(x0, y0, cardW, cardH);
 
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glDisable(GL_DEPTH_TEST);
 
-    // 1. Background Card & Outline Border
-    m_panel->drawPanelRect(m_panel->m_panFreqRect, QColor(14, 18, 24, 220), 3.0f);
-
-    const float x1f = float(x0), y1f = float(y0);
-    const float x2f = float(x0 + cardW - 1), y2f = float(y0 + cardH - 1);
-    const QColor borderCol(50, 62, 75, 200);
-    const float br = borderCol.redF(), bg = borderCol.greenF(), bb = borderCol.blueF();
-    const GlDraw::Vec3Rgb borderLines[8] = {
-        { x1f, y1f, 3.1f, br, bg, bb }, { x2f, y1f, 3.1f, br, bg, bb },
-        { x2f, y1f, 3.1f, br, bg, bb }, { x2f, y2f, 3.1f, br, bg, bb },
-        { x2f, y2f, 3.1f, br, bg, bb }, { x1f, y2f, 3.1f, br, bg, bb },
-        { x1f, y2f, 3.1f, br, bg, bb }, { x1f, y1f, 3.1f, br, bg, bb }
+    // Helper to render text with a subtle drop shadow for crisp readability over any panadapter background
+    auto renderShadowedText = [this](OGLText *font, float x, float y, float z, const QString &str, const QColor &color) {
+        m_panel->m_glTextColor = QColor(0, 0, 0, 200);
+        m_panel->renderPanelText(font, x + 1.0f, y + 1.0f, z, str);
+        m_panel->m_glTextColor = color;
+        m_panel->renderPanelText(font, x, y, z + 0.1f, str);
     };
-    m_panel->m_vao.bind();
-    glLineWidth(1.0f);
-    GlDraw::drawColoredLines(this, m_panel->m_shaderProgram, m_panel->m_vbo, proj, borderLines, 8);
 
-    // 2. Top Meta Row: VFO chip, DSP mode badge, TX indicator, Band tag
+    // 1. Top Meta Row: VFO button, DSP mode, Filter width, TX indicator, LO center, Band tag
     SliceModel *slice = m_panel->m_sliceModel;
     const bool isVfoB = (slice && slice->activeVfo() == SliceModel::VfoB);
     const QString vfoLetter = isVfoB ? QStringLiteral("B") : QStringLiteral("A");
-    const int vfoBadgeW = 16;
-    m_panel->m_panFreqVfoRect = QRect(x0 + 4, y0 + 3, vfoBadgeW, 11);
+    const int vfoBadgeW = 24;
+    m_panel->m_panFreqVfoRect = QRect(x0 + 6, y0 + 3, vfoBadgeW, 16);
     const QColor vfoBg = (m_panel->m_dataEngineState == QSDR::DataEngineUp)
                              ? QColor(31, 111, 235)
-                             : QColor(38, 38, 38);
+                             : QColor(70, 75, 80);
     m_panel->drawPanelRect(m_panel->m_panFreqVfoRect, vfoBg, 3.1f);
     m_panel->m_glTextColor = (m_panel->m_dataEngineState == QSDR::DataEngineUp)
                                  ? QColor(255, 255, 255)
-                                 : QColor(140, 150, 160);
-    const int vfoLetterW = m_panel->m_oglTextTiny->fontMetrics().horizontalAdvance(vfoLetter);
-    const float vfoLetterX = float(x0 + 4 + (vfoBadgeW - vfoLetterW) / 2);
-    m_panel->renderPanelText(m_panel->m_oglTextTiny, vfoLetterX, float(y0 + 2), 3.2f, vfoLetter);
+                                 : QColor(160, 170, 180);
+    const int vfoLetterW = m_panel->m_oglTextSmall->fontMetrics().horizontalAdvance(vfoLetter);
+    const float vfoLetterX = float(x0 + 6 + (vfoBadgeW - vfoLetterW) / 2);
+    m_panel->renderPanelText(m_panel->m_oglTextSmall, vfoLetterX, float(y0 + 3), 3.2f, vfoLetter);
 
-    // Mode Badge
+    // Mode
     const QString modeStr = m_panel->set->getDSPModeString(m_panel->m_sliceModel ? m_panel->m_sliceModel->dspMode() : m_panel->set->getDSPMode(m_panel->m_receiver));
-    const int modeTextW = m_panel->m_oglTextTiny->fontMetrics().horizontalAdvance(modeStr);
-    const int modeBadgeW = modeTextW + 6;
-    const int modeBadgeX = x0 + 4 + vfoBadgeW + 4;
-    m_panel->drawPanelRect(QRect(modeBadgeX, y0 + 3, modeBadgeW, 11), QColor(28, 38, 50, 230), 3.1f);
-    m_panel->m_glTextColor = (m_panel->m_dataEngineState == QSDR::DataEngineUp)
-                                 ? QColor(180, 205, 225)
-                                 : QColor(120, 130, 140);
-    m_panel->renderPanelText(m_panel->m_oglTextTiny, float(modeBadgeX + 3), float(y0 + 2), 3.2f, modeStr);
+    const int modeTextW = m_panel->m_oglTextSmall->fontMetrics().horizontalAdvance(modeStr);
+    const int modeX = x0 + 6 + vfoBadgeW + 8;
+    const QColor modeCol = (m_panel->m_dataEngineState == QSDR::DataEngineUp)
+                               ? QColor(180, 215, 245)
+                               : QColor(120, 130, 140);
+    renderShadowedText(m_panel->m_oglTextSmall, float(modeX), float(y0 + 3), 3.2f, modeStr, modeCol);
+
+    int nextBadgeX = modeX + modeTextW + 8;
+
+    // Filter width (e.g. "2.8k")
+    const QString fltStr = m_panel->m_filterWidthString;
+    if (!fltStr.isEmpty()) {
+        const int fltTextW = m_panel->m_oglTextSmall->fontMetrics().horizontalAdvance(fltStr);
+        const QColor fltCol = (m_panel->m_dataEngineState == QSDR::DataEngineUp)
+                                     ? QColor(205, 230, 120)
+                                     : QColor(130, 140, 90);
+        renderShadowedText(m_panel->m_oglTextSmall, float(nextBadgeX), float(y0 + 3), 3.2f, fltStr, fltCol);
+        nextBadgeX += fltTextW + 8;
+    }
 
     // TX indicator badge
     const bool isTx = (m_panel->set->getRadioState() != RadioState::RX);
-    int nextBadgeX = modeBadgeX + modeBadgeW + 4;
     if (isTx) {
         const QString txStr = QStringLiteral("TX");
-        const int txTextW = m_panel->m_oglTextTiny->fontMetrics().horizontalAdvance(txStr);
-        const int txBadgeW = txTextW + 6;
-        m_panel->drawPanelRect(QRect(nextBadgeX, y0 + 3, txBadgeW, 11), QColor(220, 40, 40, 230), 3.1f);
+        const int txTextW = m_panel->m_oglTextSmall->fontMetrics().horizontalAdvance(txStr);
+        const int txBadgeW = txTextW + 8;
+        m_panel->drawPanelRect(QRect(nextBadgeX, y0 + 3, txBadgeW, 16), QColor(220, 40, 40, 230), 3.1f);
         m_panel->m_glTextColor = QColor(255, 255, 255);
-        m_panel->renderPanelText(m_panel->m_oglTextTiny, float(nextBadgeX + 3), float(y0 + 2), 3.2f, txStr);
-        nextBadgeX += txBadgeW + 4;
+        m_panel->renderPanelText(m_panel->m_oglTextSmall, float(nextBadgeX + 4), float(y0 + 3), 3.2f, txStr);
+        nextBadgeX += txBadgeW + 8;
+    }
+
+    // Center LO frequency (when VFO is offset from LO center)
+    if (m_panel->m_deltaFrequency != 0) {
+        const qint64 cf = m_panel->m_centerFrequency;
+        const qint64 cfMhz = cf / 1000000LL;
+        const qint64 cfKhz = (cf / 1000LL) % 1000LL;
+        const qint64 cfHz  = cf % 1000LL;
+        const QString loStr = (cfHz == 0)
+            ? QStringLiteral("LO %1.%2").arg(cfMhz).arg(cfKhz, 3, 10, QLatin1Char('0'))
+            : QStringLiteral("LO %1.%2.%3").arg(cfMhz).arg(cfKhz, 3, 10, QLatin1Char('0')).arg(cfHz, 3, 10, QLatin1Char('0'));
+        const int loTextW = m_panel->m_oglTextSmall->fontMetrics().horizontalAdvance(loStr);
+        const QColor loCol = (m_panel->m_dataEngineState == QSDR::DataEngineUp)
+                                     ? QColor(80, 180, 240)
+                                     : QColor(100, 130, 150);
+        renderShadowedText(m_panel->m_oglTextSmall, float(nextBadgeX), float(y0 + 3), 3.2f, loStr, loCol);
+        nextBadgeX += loTextW + 8;
     }
 
     // Band Tag (right-aligned on top row)
@@ -661,15 +556,15 @@ void HudRenderer::drawPanadapterFreq() {
         bandTag = getHamBandTextString(m_panel->set->getHamBandTextList(), true, activeFreq);
     }
     if (!bandTag.isEmpty() && bandTag != QStringLiteral("Out of Band")) {
-        const int bandTextW = m_panel->m_oglTextTiny->fontMetrics().horizontalAdvance(bandTag);
-        const float bandX = float(x0 + cardW - bandTextW - 6);
-        m_panel->m_glTextColor = (m_panel->m_dataEngineState == QSDR::DataEngineUp)
+        const int bandTextW = m_panel->m_oglTextSmall->fontMetrics().horizontalAdvance(bandTag);
+        const float bandX = float(x0 + cardW - bandTextW - 8);
+        const QColor bandCol = (m_panel->m_dataEngineState == QSDR::DataEngineUp)
                                      ? QColor(239, 209, 110)
                                      : QColor(130, 120, 90);
-        m_panel->renderPanelText(m_panel->m_oglTextTiny, bandX, float(y0 + 2), 3.2f, bandTag);
+        renderShadowedText(m_panel->m_oglTextSmall, bandX, float(y0 + 3), 3.2f, bandTag, bandCol);
     }
 
-    // 3. Main Frequency Row
+    // 2. Main Frequency Row
     const qint64 freq = activeFreq;
     const qint64 ghz = freq / 1000000000LL;
     const qint64 mhz = (freq / 1000000LL) % 1000LL;
@@ -690,35 +585,34 @@ void HudRenderer::drawPanadapterFreq() {
                       .arg(hz, 3, 10, QLatin1Char('0'));
     }
 
-    const float yBaseline = float(y0 + cardH - 6);
-    const float yFreq = yBaseline - float(m_panel->m_oglTextBig2->fontMetrics().ascent());
-    const float xFreq = float(x0 + 6);
+    const float yBaseline = float(y0 + cardH - 7);
+    const float yFreq = yBaseline - float(m_panel->m_oglTextFreq2->fontMetrics().ascent());
+    const float xFreq = float(x0 + 8);
 
     const QColor digitCol = isTx ? QColor(255, 65, 65)
                                 : (m_panel->m_dataEngineState == QSDR::DataEngineUp)
                                       ? QColor(255, 255, 255)
                                       : QColor(130, 140, 150);
-    m_panel->m_glTextColor = digitCol;
-    m_panel->renderPanelText(m_panel->m_oglTextBig2, xFreq, yFreq, 3.2f, freqStr);
+    renderShadowedText(m_panel->m_oglTextFreq2, xFreq, yFreq, 3.2f, freqStr, digitCol);
 
-    const int freqW = m_panel->m_oglTextBig2->fontMetrics().horizontalAdvance(freqStr);
-    const float xUnit = xFreq + float(freqW) + 4.0f;
-    const float yUnit = yBaseline - float(m_panel->m_oglTextSmall->fontMetrics().ascent());
-    m_panel->m_glTextColor = (m_panel->m_dataEngineState == QSDR::DataEngineUp)
+    const int freqW = m_panel->m_oglTextFreq2->fontMetrics().horizontalAdvance(freqStr);
+    const float xUnit = xFreq + float(freqW) + 5.0f;
+    const float yUnit = yBaseline - float(m_panel->m_oglTextNormal->fontMetrics().ascent());
+    const QColor unitCol = (m_panel->m_dataEngineState == QSDR::DataEngineUp)
                                  ? QColor(130, 155, 175)
                                  : QColor(100, 110, 120);
-    m_panel->renderPanelText(m_panel->m_oglTextSmall, xUnit, yUnit, 3.2f, QStringLiteral("MHz"));
+    renderShadowedText(m_panel->m_oglTextNormal, xUnit, yUnit, 3.2f, QStringLiteral("MHz"), unitCol);
 
     // Mouse wheel step indicator (right-aligned on main row)
     const QString stepStr = m_panel->set->getValue1000(m_panel->set->getMouseWheelFreqStep(m_panel->m_receiver), 0, "Hz");
     if (!stepStr.isEmpty()) {
-        const int stepW = m_panel->m_oglTextTiny->fontMetrics().horizontalAdvance(stepStr);
-        const float xStep = float(x0 + cardW - stepW - 6);
-        const float yStep = yBaseline - float(m_panel->m_oglTextTiny->fontMetrics().ascent());
-        m_panel->m_glTextColor = (m_panel->m_dataEngineState == QSDR::DataEngineUp)
+        const int stepW = m_panel->m_oglTextSmall->fontMetrics().horizontalAdvance(stepStr);
+        const float xStep = float(x0 + cardW - stepW - 8);
+        const float yStep = yBaseline - float(m_panel->m_oglTextSmall->fontMetrics().ascent());
+        const QColor stepCol = (m_panel->m_dataEngineState == QSDR::DataEngineUp)
                                      ? QColor(110, 135, 155)
                                      : QColor(90, 100, 110);
-        m_panel->renderPanelText(m_panel->m_oglTextTiny, xStep, yStep, 3.2f, stepStr);
+        renderShadowedText(m_panel->m_oglTextSmall, xStep, yStep, 3.2f, stepStr, stepCol);
     }
 }
 

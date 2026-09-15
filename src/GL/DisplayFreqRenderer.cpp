@@ -205,30 +205,6 @@ void DisplayFreqRenderer::paintRxRegion()
     paintVfoFrequencyRow(OGLDisplayPanel::DigitVfoB, bActive, m_panel->m_rxRect.top() + m_panel->m_freqDigitsPosYB,
                          originX, m_panel->m_f1strB, m_panel->m_f2strB, fontcolor);
 
-    const GLint yNormal = activeBaseline - m_panel->m_oglTextNormal->fontMetrics().ascent();
-    const GLint yBig = activeBaseline - m_panel->m_fonts.fontHeightBigFont
-                       - m_panel->m_oglTextBig->fontMetrics().ascent();
-
-    const int metaX = originX + f1Advance + m_panel->m_pointStringWidth + 3 * m_panel->m_blankWidthf2
-                      + m_panel->m_fUnitStringWidth + 3 * m_panel->m_blankWidthf2;
-
-    QString str = QStringLiteral("step: %1");
-    m_panel->qglColor(fontcolor);
-    m_panel->renderPanelText(m_panel->m_oglTextNormal, metaX, yNormal,
-                             str.arg(m_panel->set->getValue1000(m_panel->m_mouseWheelFreqStep, 0, "Hz")));
-
-    SliceModel* curSlice = m_panel->currentSlice();
-    QString dspModeName = m_panel->set->getDSPModeString(curSlice ? curSlice->dspMode() : m_panel->set->getDSPMode(m_panel->m_currentReceiver));
-    if (m_panel->set->getRadioState() == RadioState::RX) {
-        m_panel->qglColor(fontcolor);
-        m_panel->renderPanelText(m_panel->m_oglTextBig, metaX, yBig,
-                                 QStringLiteral("Rx: %1 %2").arg(m_panel->m_currentReceiver + 1).arg(dspModeName));
-    } else {
-        m_panel->qglColor(m_panel->m_txdigitColor);
-        m_panel->renderPanelText(m_panel->m_oglTextBig, metaX, yBig,
-                                 QStringLiteral("Tx: %1 %2").arg(m_panel->m_currentReceiver + 1).arg(dspModeName));
-    }
-
     const qint64 activeFreq = bActive ? freqB : freqA;
     if (m_panel->m_oldFreq != activeFreq) {
         QString planLabel;

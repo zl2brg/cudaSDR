@@ -408,7 +408,6 @@ private:
 	void 	drawWaterfall();
 	void 	drawWaterfallVerticalScale();
 	void	drawCrossHair();
-	void 	drawReceiverInfo();
 	void	drawAGCControl();
 	void	drawVFOControl();
 	void	drawCwDecoderHUD();

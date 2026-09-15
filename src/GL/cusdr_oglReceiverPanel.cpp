@@ -469,7 +469,6 @@ void QGLReceiverPanel::setupConnections() {
 
     if (set) {
         connect(set, &Settings::showPanadapterSMeterChanged, this, qOverload<>(&QGLReceiverPanel::update));
-        connect(set, &Settings::showPanadapterFreqChanged, this, qOverload<>(&QGLReceiverPanel::update));
         connect(set, &Settings::radioStateChanged, this, qOverload<>(&QGLReceiverPanel::update));
     }
 
@@ -736,7 +735,6 @@ void QGLReceiverPanel::renderMarkerHudPass() {
     if (m_panRect.width() > 300 && m_panRect.height() > 80) {
         ensurePanelViewport();
         drawVFOControl();
-        drawReceiverInfo();
         drawCwDecoderHUD();
         drawPanadapterSMeter();
         drawPanadapterFreq();
@@ -846,11 +844,6 @@ void QGLReceiverPanel::drawCrossHair() {
 void QGLReceiverPanel::drawVFOControl() {
     if (m_hudRenderer)
         m_hudRenderer->drawVFOControl();
-}
-
-void QGLReceiverPanel::drawReceiverInfo() {
-    if (m_hudRenderer)
-        m_hudRenderer->drawReceiverInfo();
 }
 
 void QGLReceiverPanel::drawCwDecoderHUD() {

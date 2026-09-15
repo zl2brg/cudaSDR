@@ -875,7 +875,6 @@ signals:
 
 	void sMeterHoldTimeChanged(int value);
 	void showPanadapterSMeterChanged(bool show);
-	void showPanadapterFreqChanged(bool show);
 	void dBmScaleMinChanged(int rx, qreal value);
 	void dBmScaleMaxChanged(int rx, qreal value);
     void noiseBlankerChanged(int rx, int mode);
@@ -1164,7 +1163,6 @@ public:
 
 	int		getSMeterHoldTime()			{ return m_displayConfig->sMeterHoldTime(); }
 	bool	getShowPanadapterSMeter() const { return m_displayConfig->showPanadapterSMeter(); }
-	bool	getShowPanadapterFreq() const { return m_displayConfig->showPanadapterFreq(); }
 
 	qreal	getFilterFrequencyLow()		{ return m_filterFrequencyLow; }
 	qreal	getFilterFrequencyHigh()	{ return m_filterFrequencyHigh; }
@@ -1463,7 +1461,6 @@ public slots:
 
     void setSMeterHoldTime(int value);
     void setShowPanadapterSMeter(bool show);
-    void setShowPanadapterFreq(bool show);
 
 	void showNetworkIODialog();
 	void showWarningDialog(const QString &msg);

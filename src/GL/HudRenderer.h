@@ -11,7 +11,6 @@ public:
     ~HudRenderer();
 
     void drawVFOControl();
-    void drawReceiverInfo();
     void drawPanadapterSMeter();
     void drawPanadapterFreq();
     void drawCwDecoderHUD();

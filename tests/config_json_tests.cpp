@@ -63,7 +63,6 @@ void ConfigJsonTests::testDisplayConfigJson() {
     QSignalSpy spyMax(&config, &DisplayConfig::dBmDistScaleMaxChanged);
     QSignalSpy spyHold(&config, &DisplayConfig::sMeterHoldTimeChanged);
     QSignalSpy spySMeter(&config, &DisplayConfig::showPanadapterSMeterChanged);
-    QSignalSpy spyFreq(&config, &DisplayConfig::showPanadapterFreqChanged);
     QSignalSpy spyColors(&config, &DisplayConfig::panadapterColorsChanged);
 
     config.setSpectrumSize(2048);
@@ -71,7 +70,6 @@ void ConfigJsonTests::testDisplayConfigJson() {
     config.setdBmDistScaleMax(80.0);
     config.setSMeterHoldTime(1000);
     config.setShowPanadapterSMeter(false);
-    config.setShowPanadapterFreq(false);
 
     TPanadapterColors colors;
     colors.panBackgroundColor = Qt::red;
@@ -84,7 +82,6 @@ void ConfigJsonTests::testDisplayConfigJson() {
     QCOMPARE(spyMax.count(), 1);
     QCOMPARE(spyHold.count(), 1);
     QCOMPARE(spySMeter.count(), 1);
-    QCOMPARE(spyFreq.count(), 1);
     QCOMPARE(spyColors.count(), 1);
 
     QJsonObject json;
@@ -95,7 +92,6 @@ void ConfigJsonTests::testDisplayConfigJson() {
     QCOMPARE(json["dBmDistScaleMax"].toDouble(), 80.0);
     QCOMPARE(json["sMeterHoldTime"].toInt(), 1000);
     QCOMPARE(json["showPanadapterSMeter"].toBool(), false);
-    QCOMPARE(json["showPanadapterFreq"].toBool(), false);
 
     QJsonObject colorsObj = json["colors"].toObject();
     QCOMPARE(colorsObj["panBackground"].toString(), DisplayConfig::colorToString(Qt::red));
@@ -111,7 +107,6 @@ void ConfigJsonTests::testDisplayConfigJson() {
     QCOMPARE(config2.dBmDistScaleMax(), 80.0);
     QCOMPARE(config2.sMeterHoldTime(), 1000);
     QCOMPARE(config2.showPanadapterSMeter(), false);
-    QCOMPARE(config2.showPanadapterFreq(), false);
     QCOMPARE(config2.panadapterColors().panBackgroundColor, QColor(Qt::red));
     QCOMPARE(config2.panadapterColors().waterfallColor, QColor(Qt::green));
     QCOMPARE(config2.panadapterColors().panLineColor, QColor(Qt::blue));

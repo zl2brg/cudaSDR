@@ -33,7 +33,6 @@ class DisplayConfig : public QObject {
     Q_PROPERTY(qreal dBmDistScaleMax READ dBmDistScaleMax WRITE setdBmDistScaleMax NOTIFY dBmDistScaleMaxChanged)
     Q_PROPERTY(int sMeterHoldTime READ sMeterHoldTime WRITE setSMeterHoldTime NOTIFY sMeterHoldTimeChanged)
     Q_PROPERTY(bool showPanadapterSMeter READ showPanadapterSMeter WRITE setShowPanadapterSMeter NOTIFY showPanadapterSMeterChanged)
-    Q_PROPERTY(bool showPanadapterFreq READ showPanadapterFreq WRITE setShowPanadapterFreq NOTIFY showPanadapterFreqChanged)
 
 public:
     explicit DisplayConfig(QObject *parent = nullptr);
@@ -52,9 +51,6 @@ public:
 
     bool showPanadapterSMeter() const { return m_showPanadapterSMeter; }
     void setShowPanadapterSMeter(bool show);
-
-    bool showPanadapterFreq() const { return m_showPanadapterFreq; }
-    void setShowPanadapterFreq(bool show);
 
     TPanadapterColors panadapterColors() const { return m_colors; }
     void setPanadapterColors(const TPanadapterColors &colors);
@@ -75,7 +71,6 @@ signals:
     void dBmDistScaleMaxChanged(qreal val);
     void sMeterHoldTimeChanged(int time);
     void showPanadapterSMeterChanged(bool show);
-    void showPanadapterFreqChanged(bool show);
     void panadapterColorsChanged();
 
 private:
@@ -84,7 +79,6 @@ private:
     qreal m_dBmDistScaleMax;
     int m_sMeterHoldTime;
     bool m_showPanadapterSMeter;
-    bool m_showPanadapterFreq;
     TPanadapterColors m_colors;
 };
 

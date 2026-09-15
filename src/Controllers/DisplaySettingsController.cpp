@@ -60,12 +60,10 @@ void DisplaySettingsController::bind(DisplayTabWidget* container, RadioModel* ra
         // Load global/shared values
         m_displayView->setSMeterHoldTime(m_model->getSMeterHoldTime());
         m_displayView->setPanSMeter(m_model->getShowPanadapterSMeter());
-        m_displayView->setPanFreq(m_model->getShowPanadapterFreq());
         m_displayView->setCallsign(m_model->getCallsign());
         m_displayView->setWidebandAveragingCnt(m_model->getSpectrumAveragingCnt(-1));
 
         connect(m_model, &Settings::showPanadapterSMeterChanged, m_displayView, &DisplayOptionsWidget::setPanSMeter);
-        connect(m_model, &Settings::showPanadapterFreqChanged, m_displayView, &DisplayOptionsWidget::setPanFreq);
 
         connect(m_model, &Settings::spectrumAveragingCntChanged, this, [this](int rx, int val) {
             if (rx == -1) {
@@ -115,10 +113,6 @@ void DisplaySettingsController::bind(DisplayTabWidget* container, RadioModel* ra
 
         connect(m_displayView, &DisplayOptionsWidget::panSMeterRequested, this, [this](bool val) {
             m_model->setShowPanadapterSMeter(val);
-        });
-
-        connect(m_displayView, &DisplayOptionsWidget::panFreqRequested, this, [this](bool val) {
-            m_model->setShowPanadapterFreq(val);
         });
 
         connect(m_displayView, &DisplayOptionsWidget::callsignRequested, this, [this](const QString& val) {
