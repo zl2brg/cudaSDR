@@ -273,6 +273,19 @@ void PanadapterInputController::handleMousePress(QMouseEvent* event) {
         return;
     }
 
+    // Left-click on panadapter S-meter starts movable dragging
+    if (event->button() == Qt::LeftButton && m_panel->m_panSMeterRect.isValid() && m_panel->m_panSMeterRect.contains(event->pos())) {
+        m_panel->m_dragPanSMeter = true;
+        m_panel->m_panSMeterDragStartMouse = event->pos();
+        if (!m_panel->m_hasCustomPanSMeterPos) {
+            m_panel->m_panSMeterPos = m_panel->m_panSMeterRect.topLeft();
+            m_panel->m_hasCustomPanSMeterPos = true;
+        }
+        m_panel->setCursor(Qt::ClosedHandCursor);
+        event->accept();
+        return;
+    }
+
     m_panel->m_mousePos = event->pos();
     m_panel->m_mouseDownPos = m_panel->m_mousePos;
 
@@ -402,6 +415,19 @@ void PanadapterInputController::handleMouseRelease(QMouseEvent *event) {
         return;
     }
 
+    if (m_panel->m_dragPanSMeter) {
+        m_panel->m_dragPanSMeter = false;
+        if (m_panel->cursor().shape() != Qt::ArrowCursor)
+            m_panel->setCursor(Qt::ArrowCursor);
+        if (m_panel->set) {
+            m_panel->set->setPanadapterSMeterPos(m_panel->m_panSMeterPos);
+            m_panel->set->saveSettings();
+        }
+        m_panel->update();
+        event->accept();
+        return;
+    }
+
     m_panel->m_mousePos = event->pos();
     m_panel->m_mouseDownPos = m_panel->m_mousePos;
 
@@ -451,6 +477,18 @@ void PanadapterInputController::handleMouseDoubleClick(QMouseEvent *event) {
     m_panel->m_mouseDownPos = m_panel->m_mousePos;
 
     getRegion(m_panel->m_mousePos);
+
+    if (event->button() == Qt::LeftButton && m_panel->m_panSMeterRect.isValid() && m_panel->m_panSMeterRect.contains(m_panel->m_mousePos)) {
+        m_panel->m_hasCustomPanSMeterPos = false;
+        m_panel->m_panSMeterPos = QPoint(-1, -1);
+        if (m_panel->set) {
+            m_panel->set->setPanadapterSMeterPos(QPoint(-1, -1));
+            m_panel->set->saveSettings();
+        }
+        m_panel->update();
+        event->accept();
+        return;
+    }
 
     if (event->button() == Qt::LeftButton && m_panel->m_panFreqRect.isValid() && m_panel->m_panFreqRect.contains(m_panel->m_mousePos)) {
         FrequencyEntryDialog dlg(m_panel->m_vfoFrequency, m_panel);
@@ -518,9 +556,25 @@ void PanadapterInputController::handleMouseMove(QMouseEvent* event) {
         return;
     }
 
+    if (m_panel->m_dragPanSMeter && (event->buttons() & Qt::LeftButton)) {
+        const QPoint delta = event->pos() - m_panel->m_panSMeterDragStartMouse;
+        m_panel->m_panSMeterDragStartMouse = event->pos();
+        m_panel->m_panSMeterPos += delta;
+        const int w = m_panel->m_panSMeterRect.width() > 0 ? m_panel->m_panSMeterRect.width() : 360;
+        const int h = m_panel->m_panSMeterRect.height() > 0 ? m_panel->m_panSMeterRect.height() : 74;
+        m_panel->m_panSMeterPos.setX(qBound(m_panel->m_panRect.left() + 4, m_panel->m_panSMeterPos.x(), m_panel->m_panRect.right() - w - 4));
+        m_panel->m_panSMeterPos.setY(qBound(m_panel->m_panRect.top() + 4, m_panel->m_panSMeterPos.y(), m_panel->m_panRect.bottom() - h - 4));
+        m_panel->update();
+        event->accept();
+        return;
+    }
+
     if (event->buttons() == Qt::NoButton) {
         getRegion(m_panel->m_mousePos);
         if (m_panel->m_cwTextRect.isValid() && m_panel->m_cwTextRect.contains(m_panel->m_mousePos)) {
+            if (m_panel->cursor().shape() != Qt::OpenHandCursor)
+                m_panel->setCursor(Qt::OpenHandCursor);
+        } else if (m_panel->m_panSMeterRect.isValid() && m_panel->m_panSMeterRect.contains(m_panel->m_mousePos)) {
             if (m_panel->cursor().shape() != Qt::OpenHandCursor)
                 m_panel->setCursor(Qt::OpenHandCursor);
         }
@@ -602,12 +656,16 @@ void PanadapterInputController::handleMouseMove(QMouseEvent* event) {
         case QGLReceiverPanel::panadapterRegion:
         case QGLReceiverPanel::waterfallRegion: {
             if (!m_panel->m_dragMouse) {
-                m_panel->m_crossHairCursor = true;
-                if (m_panel->m_crossHair) {
-                    if (m_panel->cursor().shape() != Qt::BlankCursor)
-                        m_panel->setCursor(Qt::BlankCursor);
-                } else if (m_panel->cursor().shape() != Qt::ArrowCursor) {
-                    m_panel->setCursor(Qt::ArrowCursor);
+                const bool overWidget = (m_panel->m_cwTextRect.isValid() && m_panel->m_cwTextRect.contains(m_panel->m_mousePos)) ||
+                                        (m_panel->m_panSMeterRect.isValid() && m_panel->m_panSMeterRect.contains(m_panel->m_mousePos));
+                if (!overWidget) {
+                    m_panel->m_crossHairCursor = true;
+                    if (m_panel->m_crossHair) {
+                        if (m_panel->cursor().shape() != Qt::BlankCursor)
+                            m_panel->setCursor(Qt::BlankCursor);
+                    } else if (m_panel->cursor().shape() != Qt::ArrowCursor) {
+                        m_panel->setCursor(Qt::ArrowCursor);
+                    }
                 }
             }
 

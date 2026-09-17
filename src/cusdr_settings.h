@@ -43,6 +43,7 @@
 #include <QJsonObject>
 #include <QJsonDocument>
 #include <QJsonArray>
+#include <QPoint>
 #include <atomic>
 
 #include "cusdr_hamDatabase.h"
@@ -875,6 +876,7 @@ signals:
 
 	void sMeterHoldTimeChanged(int value);
 	void showPanadapterSMeterChanged(bool show);
+	void panadapterSMeterPosChanged(const QPoint &pos);
 	void dBmScaleMinChanged(int rx, qreal value);
 	void dBmScaleMaxChanged(int rx, qreal value);
     void noiseBlankerChanged(int rx, int mode);
@@ -1163,6 +1165,7 @@ public:
 
 	int		getSMeterHoldTime()			{ return m_displayConfig->sMeterHoldTime(); }
 	bool	getShowPanadapterSMeter() const { return m_displayConfig->showPanadapterSMeter(); }
+	QPoint	getPanadapterSMeterPos() const { return m_displayConfig->panadapterSMeterPos(); }
 
 	qreal	getFilterFrequencyLow()		{ return m_filterFrequencyLow; }
 	qreal	getFilterFrequencyHigh()	{ return m_filterFrequencyHigh; }
@@ -1461,6 +1464,7 @@ public slots:
 
     void setSMeterHoldTime(int value);
     void setShowPanadapterSMeter(bool show);
+    void setPanadapterSMeterPos(const QPoint &pos);
 
 	void showNetworkIODialog();
 	void showWarningDialog(const QString &msg);

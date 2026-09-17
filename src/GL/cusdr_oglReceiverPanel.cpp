@@ -468,7 +468,21 @@ void QGLReceiverPanel::setupConnections() {
     });
 
     if (set) {
+        QPoint smPos = set->getPanadapterSMeterPos();
+        if (smPos.x() >= 0 && smPos.y() >= 0) {
+            m_panSMeterPos = smPos;
+            m_hasCustomPanSMeterPos = true;
+        }
         connect(set, &Settings::showPanadapterSMeterChanged, this, qOverload<>(&QGLReceiverPanel::update));
+        connect(set, &Settings::panadapterSMeterPosChanged, this, [this](const QPoint &pos) {
+            if (pos.x() >= 0 && pos.y() >= 0) {
+                m_panSMeterPos = pos;
+                m_hasCustomPanSMeterPos = true;
+            } else {
+                m_hasCustomPanSMeterPos = false;
+            }
+            update();
+        });
         connect(set, &Settings::radioStateChanged, this, qOverload<>(&QGLReceiverPanel::update));
     }
 

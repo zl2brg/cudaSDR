@@ -32,7 +32,9 @@ void HudRenderer::drawVFOControl() {
 
 	// lock Panadapter
 	QString str = "PAN LOCKED";
-	int x1 = (m_panel->m_panSMeterRect.isValid())
+	int x1 = (m_panel->m_panSMeterRect.isValid() &&
+	          m_panel->m_panSMeterRect.left() < m_panel->m_dBmScalePanRect.right() + 50 &&
+	          m_panel->m_panSMeterRect.top() < m_panel->m_panRect.top() + 80)
 	             ? (m_panel->m_panSMeterRect.right() + 8)
 	             : (m_panel->m_dBmScalePanRect.right() + 5);
 	if (m_panel->m_panFreqRect.isValid() && m_panel->m_panFreqRect.left() < x1 + 150 && m_panel->m_panFreqRect.right() >= x1) {
@@ -222,10 +224,15 @@ void HudRenderer::drawPanadapterSMeter() {
         return;
     }
 
-    const int cardW = 300;
-    const int cardH = 57;
-    const int x0 = m_panel->m_dBmScalePanRect.right() + 8;
-    const int y0 = m_panel->m_panRect.top() + 6;
+    const int cardW = 360;
+    const int cardH = 74;
+    int x0 = m_panel->m_dBmScalePanRect.right() + 8;
+    int y0 = m_panel->m_panRect.top() + 6;
+
+    if (m_panel->m_hasCustomPanSMeterPos && m_panel->m_panSMeterPos.x() >= 0 && m_panel->m_panSMeterPos.y() >= 0) {
+        x0 = qBound(m_panel->m_panRect.left() + 4, m_panel->m_panSMeterPos.x(), m_panel->m_panRect.right() - cardW - 4);
+        y0 = qBound(m_panel->m_panRect.top() + 4, m_panel->m_panSMeterPos.y(), m_panel->m_panRect.bottom() - cardH - 4);
+    }
     m_panel->m_panSMeterRect = QRect(x0, y0, cardW, cardH);
 
     const QMatrix4x4 proj = m_panel->panelProjection();
@@ -253,10 +260,10 @@ void HudRenderer::drawPanadapterSMeter() {
 
     // 2. Digital Readout Row (top of card)
     const QString rxBadge = QStringLiteral("RX%1").arg(m_panel->m_receiver + 1);
-    const int badgeW = m_panel->m_oglTextSmall->fontMetrics().horizontalAdvance(rxBadge) + 8;
-    m_panel->drawPanelRect(QRect(x0 + 6, y0 + 3, badgeW, 16), QColor(28, 38, 50, 230), 3.1f);
+    const int badgeW = m_panel->m_oglTextNormal->fontMetrics().horizontalAdvance(rxBadge) + 10;
+    m_panel->drawPanelRect(QRect(x0 + 8, y0 + 5, badgeW, 18), QColor(28, 38, 50, 230), 3.1f);
     m_panel->m_glTextColor = QColor(180, 205, 225);
-    m_panel->renderPanelText(m_panel->m_oglTextSmall, float(x0 + 10), float(y0 + 3), 3.2f, rxBadge);
+    m_panel->renderPanelText(m_panel->m_oglTextNormal, float(x0 + 13), float(y0 + 5), 3.2f, rxBadge);
 
     const float rawDbm = m_panel->m_sMeterOrgValue;
     QString sUnitStr;
@@ -272,20 +279,20 @@ void HudRenderer::drawPanadapterSMeter() {
         sUnitCol = QColor(56, 242, 115);
     }
     m_panel->m_glTextColor = sUnitCol;
-    m_panel->renderPanelText(m_panel->m_oglTextSmall, float(x0 + badgeW + 14), float(y0 + 3), 3.2f, sUnitStr);
+    m_panel->renderPanelText(m_panel->m_oglTextBig2, float(x0 + badgeW + 18), float(y0 + 5), 3.2f, sUnitStr);
 
     const QString dbmStr = QString::asprintf("%.1f dBm", rawDbm);
-    const int dbmW = m_panel->m_oglTextSmall->fontMetrics().horizontalAdvance(dbmStr);
+    const int dbmW = m_panel->m_oglTextBig2->fontMetrics().horizontalAdvance(dbmStr);
     m_panel->m_glTextColor = QColor(210, 220, 230);
-    m_panel->renderPanelText(m_panel->m_oglTextSmall, float(x0 + cardW - dbmW - 8), float(y0 + 3), 3.2f, dbmStr);
+    m_panel->renderPanelText(m_panel->m_oglTextBig2, float(x0 + cardW - dbmW - 10), float(y0 + 5), 3.2f, dbmStr);
 
     // 3. Scale Geometry: -140 dBm to 0 dBm (140 dB span)
-    const int xStart = x0 + 10;
-    const int xEnd = x0 + cardW - 10;
+    const int xStart = x0 + 12;
+    const int xEnd = x0 + cardW - 12;
     const int scaleW = xEnd - xStart;
     const float unit = float(scaleW) / 140.0f;
-    const float yRailTop = float(y0 + 23);
-    const float yRailBottom = float(y0 + 34);
+    const float yRailTop = float(y0 + 29);
+    const float yRailBottom = float(y0 + 46);
 
     QVector<GlDraw::Vec3Rgb> scaleLines;
     scaleLines.reserve(10 + scaleW * 2 + 40);
@@ -311,12 +318,12 @@ void HudRenderer::drawPanadapterSMeter() {
     const float tr = tickCol.redF(), tg = tickCol.greenF(), tb = tickCol.blueF();
     for (int db = 20; db <= 140; db += 20) {
         const float xt = float(xStart) + float(db) * unit;
-        scaleLines.append({ xt, yRailTop - 4.5f, 3.2f, tr, tg, tb });
+        scaleLines.append({ xt, yRailTop - 5.0f, 3.2f, tr, tg, tb });
         scaleLines.append({ xt, yRailTop, 3.2f, tr, tg, tb });
     }
     for (int db = 10; db < 140; db += 20) {
         const float xt = float(xStart) + float(db) * unit;
-        scaleLines.append({ xt, yRailTop - 2.5f, 3.2f, tr, tg, tb });
+        scaleLines.append({ xt, yRailTop - 3.0f, 3.2f, tr, tg, tb });
         scaleLines.append({ xt, yRailTop, 3.2f, tr, tg, tb });
     }
 
@@ -347,7 +354,7 @@ void HudRenderer::drawPanadapterSMeter() {
         } else {
             mr = 255.0f / 255.0f; mg = 60.0f / 255.0f; mb = 60.0f / 255.0f;
         }
-        const float tickLen = mark.major ? 4.5f : 2.5f;
+        const float tickLen = mark.major ? 5.0f : 3.0f;
         scaleLines.append({ xt, yRailBottom, 3.2f, mr, mg, mb });
         scaleLines.append({ xt, yRailBottom + tickLen, 3.2f, mr, mg, mb });
     }
@@ -387,15 +394,15 @@ void HudRenderer::drawPanadapterSMeter() {
 
         // Main signal needle (bright white line)
         const float xNeedle = float(xStart) + avgVal * unit;
-        needleLines.append({ xNeedle, yRailTop - 3.0f, 3.5f, 1.0f, 1.0f, 1.0f });
-        needleLines.append({ xNeedle, yRailBottom + 3.0f, 3.5f, 1.0f, 1.0f, 1.0f });
+        needleLines.append({ xNeedle, yRailTop - 4.0f, 3.5f, 1.0f, 1.0f, 1.0f });
+        needleLines.append({ xNeedle, yRailBottom + 4.0f, 3.5f, 1.0f, 1.0f, 1.0f });
 
         // Peak hold needle (amber/red pip at top)
         const float peakVal = qBound(0.0f, m_panel->m_sMeterHoldMax, 140.0f);
         if (peakVal > avgVal + 0.5f) {
             const float xPeak = float(xStart) + peakVal * unit;
-            needleLines.append({ xPeak, yRailTop - 3.0f, 3.5f, 1.0f, 0.4f, 0.4f });
-            needleLines.append({ xPeak, yRailTop + 6.0f, 3.5f, 1.0f, 0.4f, 0.4f });
+            needleLines.append({ xPeak, yRailTop - 4.0f, 3.5f, 1.0f, 0.4f, 0.4f });
+            needleLines.append({ xPeak, yRailTop + 8.0f, 3.5f, 1.0f, 0.4f, 0.4f });
         }
 
         m_panel->m_vao.bind();
@@ -421,7 +428,7 @@ void HudRenderer::drawPanadapterSMeter() {
         { 127, "+60", QColor(255, 80, 80) }
     };
 
-    const QFontMetrics fm = m_panel->m_oglTextSmall->fontMetrics();
+    const QFontMetrics fm = m_panel->m_oglTextNormal->fontMetrics();
     for (const auto &lbl : sLabels) {
         const QString markStr = QString::fromLatin1(lbl.txt);
         const int tw = fm.horizontalAdvance(markStr);
@@ -429,7 +436,7 @@ void HudRenderer::drawPanadapterSMeter() {
         m_panel->m_glTextColor = (m_panel->m_dataEngineState == QSDR::DataEngineUp)
                                      ? lbl.col
                                      : QColor(120, 130, 140);
-        m_panel->renderPanelText(m_panel->m_oglTextSmall, xl, float(y0 + 39), 3.4f, markStr);
+        m_panel->renderPanelText(m_panel->m_oglTextNormal, xl, float(y0 + 51), 3.4f, markStr);
     }
 }
 
@@ -441,8 +448,10 @@ void HudRenderer::drawPanadapterFreq() {
         return;
     }
 
-    const bool sMeterVisible = m_panel->m_panSMeterRect.isValid();
-    const int minPanWidth = sMeterVisible ? 550 : 300;
+    const bool sMeterAtTopLeft = m_panel->m_panSMeterRect.isValid() &&
+                                 (m_panel->m_panSMeterRect.left() < m_panel->m_dBmScalePanRect.right() + 50) &&
+                                 (m_panel->m_panSMeterRect.top() < m_panel->m_panRect.top() + 80);
+    const int minPanWidth = sMeterAtTopLeft ? 650 : 350;
     if (m_panel->m_panRect.width() < minPanWidth || m_panel->m_panRect.height() < 90) {
         m_panel->m_panFreqRect = QRect();
         m_panel->m_panFreqVfoRect = QRect();
@@ -455,8 +464,8 @@ void HudRenderer::drawPanadapterFreq() {
 
     const int vfoX = m_panel->m_panRect.left() + qRound((qreal)(m_panel->m_panRect.width() / 2.0f) - m_panel->m_deltaF * m_panel->m_panRect.width() / m_panel->displayedZoomFactor());
 
-    const int leftLimit = sMeterVisible ? (m_panel->m_panSMeterRect.right() + 8)
-                                        : (m_panel->m_dBmScalePanRect.right() + 8);
+    const int leftLimit = sMeterAtTopLeft ? (m_panel->m_panSMeterRect.right() + 8)
+                                          : (m_panel->m_dBmScalePanRect.right() + 8);
     const int rightLimit = m_panel->m_panRect.right() - cardW - 6;
 
     int x0 = vfoX + 12;

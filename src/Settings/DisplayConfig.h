@@ -3,6 +3,7 @@
 
 #include <QObject>
 #include <QColor>
+#include <QPoint>
 #include <QJsonObject>
 #include <QJsonArray>
 
@@ -33,6 +34,7 @@ class DisplayConfig : public QObject {
     Q_PROPERTY(qreal dBmDistScaleMax READ dBmDistScaleMax WRITE setdBmDistScaleMax NOTIFY dBmDistScaleMaxChanged)
     Q_PROPERTY(int sMeterHoldTime READ sMeterHoldTime WRITE setSMeterHoldTime NOTIFY sMeterHoldTimeChanged)
     Q_PROPERTY(bool showPanadapterSMeter READ showPanadapterSMeter WRITE setShowPanadapterSMeter NOTIFY showPanadapterSMeterChanged)
+    Q_PROPERTY(QPoint panadapterSMeterPos READ panadapterSMeterPos WRITE setPanadapterSMeterPos NOTIFY panadapterSMeterPosChanged)
 
 public:
     explicit DisplayConfig(QObject *parent = nullptr);
@@ -51,6 +53,9 @@ public:
 
     bool showPanadapterSMeter() const { return m_showPanadapterSMeter; }
     void setShowPanadapterSMeter(bool show);
+
+    QPoint panadapterSMeterPos() const { return m_panadapterSMeterPos; }
+    void setPanadapterSMeterPos(const QPoint &pos);
 
     TPanadapterColors panadapterColors() const { return m_colors; }
     void setPanadapterColors(const TPanadapterColors &colors);
@@ -71,6 +76,7 @@ signals:
     void dBmDistScaleMaxChanged(qreal val);
     void sMeterHoldTimeChanged(int time);
     void showPanadapterSMeterChanged(bool show);
+    void panadapterSMeterPosChanged(const QPoint &pos);
     void panadapterColorsChanged();
 
 private:
@@ -79,6 +85,7 @@ private:
     qreal m_dBmDistScaleMax;
     int m_sMeterHoldTime;
     bool m_showPanadapterSMeter;
+    QPoint m_panadapterSMeterPos;
     TPanadapterColors m_colors;
 };
 

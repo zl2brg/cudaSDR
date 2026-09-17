@@ -193,6 +193,10 @@ private:
 	bool						m_hasCustomCwBoxPos = false;
 	QPoint						m_cwBoxPos;
 	QRect						m_panSMeterRect;
+	bool						m_dragPanSMeter = false;
+	QPoint						m_panSMeterDragStartMouse;
+	bool						m_hasCustomPanSMeterPos = false;
+	QPoint						m_panSMeterPos;
 	QRect						m_panFreqRect;
 	QRect						m_panFreqVfoRect;
 

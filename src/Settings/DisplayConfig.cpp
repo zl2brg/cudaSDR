@@ -8,6 +8,7 @@ DisplayConfig::DisplayConfig(QObject *parent)
     , m_dBmDistScaleMax(100)
     , m_sMeterHoldTime(2000)
     , m_showPanadapterSMeter(true)
+    , m_panadapterSMeterPos(-1, -1)
 {
     // Default colors
     m_colors.panBackgroundColor = QColor(102, 69, 8);
@@ -62,6 +63,13 @@ void DisplayConfig::setShowPanadapterSMeter(bool show) {
     }
 }
 
+void DisplayConfig::setPanadapterSMeterPos(const QPoint &pos) {
+    if (m_panadapterSMeterPos != pos) {
+        m_panadapterSMeterPos = pos;
+        emit panadapterSMeterPosChanged(m_panadapterSMeterPos);
+    }
+}
+
 void DisplayConfig::setPanadapterColors(const TPanadapterColors &colors) {
     // Basic assignment for now. Could do detailed check if needed.
     m_colors = colors;
@@ -83,6 +91,9 @@ void DisplayConfig::load(const QJsonObject &json) {
     if (json.contains("dBmDistScaleMax")) setdBmDistScaleMax(json["dBmDistScaleMax"].toDouble());
     if (json.contains("sMeterHoldTime")) setSMeterHoldTime(json["sMeterHoldTime"].toInt());
     if (json.contains("showPanadapterSMeter")) setShowPanadapterSMeter(json["showPanadapterSMeter"].toBool());
+    if (json.contains("panadapterSMeterX") && json.contains("panadapterSMeterY")) {
+        setPanadapterSMeterPos(QPoint(json["panadapterSMeterX"].toInt(-1), json["panadapterSMeterY"].toInt(-1)));
+    }
 
     if (json.contains("colors")) {
         QJsonObject colors = json["colors"].toObject();
@@ -112,6 +123,8 @@ void DisplayConfig::save(QJsonObject &json) const {
     json["dBmDistScaleMax"] = m_dBmDistScaleMax;
     json["sMeterHoldTime"] = m_sMeterHoldTime;
     json["showPanadapterSMeter"] = m_showPanadapterSMeter;
+    json["panadapterSMeterX"] = m_panadapterSMeterPos.x();
+    json["panadapterSMeterY"] = m_panadapterSMeterPos.y();
 
     QJsonObject colors;
     colors["panBackground"] = colorToString(m_colors.panBackgroundColor);
@@ -148,6 +161,10 @@ void DisplayConfig::loadIni(QSettings *settings) {
     setSMeterHoldTime(value);
 
     setShowPanadapterSMeter(settings->value("graphics/showPanadapterSMeter", true).toBool());
+    setPanadapterSMeterPos(QPoint(
+        settings->value("graphics/panadapterSMeterX", -1).toInt(),
+        settings->value("graphics/panadapterSMeterY", -1).toInt()
+    ));
 
     // Color loading
     TPanadapterColors colors = m_colors;
@@ -206,6 +223,8 @@ void DisplayConfig::saveIni(QSettings *settings) const {
     settings->setValue("graphics/dBmDistScaleMax",  m_dBmDistScaleMax);
     settings->setValue("graphics/sMeterHoldTime",   m_sMeterHoldTime);
     settings->setValue("graphics/showPanadapterSMeter", m_showPanadapterSMeter);
+    settings->setValue("graphics/panadapterSMeterX", m_panadapterSMeterPos.x());
+    settings->setValue("graphics/panadapterSMeterY", m_panadapterSMeterPos.y());
 
     settings->setValue("colors/panBackground", m_colors.panBackgroundColor);
     settings->setValue("colors/waterfall", m_colors.waterfallColor);
