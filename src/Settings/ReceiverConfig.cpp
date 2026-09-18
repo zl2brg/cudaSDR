@@ -281,6 +281,12 @@ void ReceiverConfig::setPeakHold(bool enabled) { m_peakHold = enabled; }
 void ReceiverConfig::setClickVFO(bool enabled) { m_clickVFO = enabled; }
 void ReceiverConfig::setCwDecode(bool enabled) { m_cwDecode = enabled; }
 void ReceiverConfig::setRttyDecode(bool enabled) { m_rttyDecode = enabled; }
+void ReceiverConfig::setRttyShiftHz(float val) { m_rttyShiftHz = val; }
+void ReceiverConfig::setRttyBaudRate(float val) { m_rttyBaudRate = val; }
+void ReceiverConfig::setRttyReverse(bool val) { m_rttyReverse = val; }
+void ReceiverConfig::setRttyAfc(bool val) { m_rttyAfc = val; }
+void ReceiverConfig::setRttyLogToFile(bool val) { m_rttyLogToFile = val; }
+void ReceiverConfig::setCwLogToFile(bool val) { m_cwLogToFile = val; }
 
 void ReceiverConfig::setLastCenterFrequencyList(const QList<qint64> &values)
 {
@@ -377,6 +383,12 @@ void ReceiverConfig::applyTo(TReceiver &rx) const {
     rx.clickVFO = m_clickVFO;
     rx.cwDecode = m_cwDecode;
     rx.rttyDecode = m_rttyDecode;
+    rx.rttyShiftHz = m_rttyShiftHz;
+    rx.rttyBaudRate = m_rttyBaudRate;
+    rx.rttyReverse = m_rttyReverse;
+    rx.rttyAfc = m_rttyAfc;
+    rx.rttyLogToFile = m_rttyLogToFile;
+    rx.cwLogToFile = m_cwLogToFile;
     rx.lastCenterFrequencyList = m_lastCenterFrequencyList;
     rx.lastVfoFrequencyList = m_lastVfoFrequencyList;
     rx.mercuryAttenuators = m_mercuryAttenuators;
@@ -438,6 +450,12 @@ void ReceiverConfig::fromReceiver(const TReceiver &rx) {
     setClickVFO(rx.clickVFO);
     setCwDecode(rx.cwDecode);
     setRttyDecode(rx.rttyDecode);
+    setRttyShiftHz(rx.rttyShiftHz);
+    setRttyBaudRate(rx.rttyBaudRate);
+    setRttyReverse(rx.rttyReverse);
+    setRttyAfc(rx.rttyAfc);
+    setRttyLogToFile(rx.rttyLogToFile);
+    setCwLogToFile(rx.cwLogToFile);
     setLastCenterFrequencyList(rx.lastCenterFrequencyList);
     setLastVfoFrequencyList(rx.lastVfoFrequencyList);
     setMercuryAttenuators(rx.mercuryAttenuators);
@@ -554,6 +572,18 @@ void ReceiverConfig::load(const QJsonObject &json) {
         setCwDecode(json.value(QLatin1String("cwDecode")).toBool());
     if (json.contains(QLatin1String("rttyDecode")))
         setRttyDecode(json.value(QLatin1String("rttyDecode")).toBool());
+    if (json.contains(QLatin1String("rttyShiftHz")))
+        setRttyShiftHz(static_cast<float>(json.value(QLatin1String("rttyShiftHz")).toDouble(170.0)));
+    if (json.contains(QLatin1String("rttyBaudRate")))
+        setRttyBaudRate(static_cast<float>(json.value(QLatin1String("rttyBaudRate")).toDouble(45.4545)));
+    if (json.contains(QLatin1String("rttyReverse")))
+        setRttyReverse(json.value(QLatin1String("rttyReverse")).toBool());
+    if (json.contains(QLatin1String("rttyAfc")))
+        setRttyAfc(json.value(QLatin1String("rttyAfc")).toBool());
+    if (json.contains(QLatin1String("rttyLogToFile")))
+        setRttyLogToFile(json.value(QLatin1String("rttyLogToFile")).toBool());
+    if (json.contains(QLatin1String("cwLogToFile")))
+        setCwLogToFile(json.value(QLatin1String("cwLogToFile")).toBool());
 
     if (json.contains(QLatin1String("lastCenterFrequencyList"))) {
         const auto vec = SettingsUtils::jsonArrayToVector<qint64>(
@@ -642,6 +672,12 @@ void ReceiverConfig::save(QJsonObject &json) const {
     json[QLatin1String("clickVFO")] = m_clickVFO;
     json[QLatin1String("cwDecode")] = m_cwDecode;
     json[QLatin1String("rttyDecode")] = m_rttyDecode;
+    json[QLatin1String("rttyShiftHz")] = static_cast<double>(m_rttyShiftHz);
+    json[QLatin1String("rttyBaudRate")] = static_cast<double>(m_rttyBaudRate);
+    json[QLatin1String("rttyReverse")] = m_rttyReverse;
+    json[QLatin1String("rttyAfc")] = m_rttyAfc;
+    json[QLatin1String("rttyLogToFile")] = m_rttyLogToFile;
+    json[QLatin1String("cwLogToFile")] = m_cwLogToFile;
     json[QLatin1String("lastCenterFrequencyList")] = SettingsUtils::toJsonArray(m_lastCenterFrequencyList);
     json[QLatin1String("lastVfoFrequencyList")] = SettingsUtils::toJsonArray(m_lastVfoFrequencyList);
     json[QLatin1String("mercuryAttenuators")] = SettingsUtils::toJsonArray(m_mercuryAttenuators);

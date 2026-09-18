@@ -16,6 +16,9 @@
 #include <QEnterEvent>
 #include <QGuiApplication>
 #include <QCursor>
+#include <QMenu>
+#include <QAction>
+#include <QActionGroup>
 #include <QtMath>
 
 PanadapterInputController::PanadapterInputController(QGLReceiverPanel *panel)
@@ -273,13 +276,88 @@ void PanadapterInputController::handleMousePress(QMouseEvent* event) {
         return;
     }
 
-    // Right-click on decoded RTTY text box erases the text
+    // Right-click on decoded RTTY text box opens quick settings context menu
     if (event->button() == Qt::RightButton) {
         if (m_panel->m_rttyTextRect.isValid() && m_panel->m_rttyTextRect.contains(event->pos())) {
-            if (m_panel->m_sliceModel) {
-                m_panel->m_sliceModel->setRttyDecodedText(QString());
+            SliceModel* slice = m_panel->m_sliceModel;
+            if (slice) {
+                QMenu menu(m_panel);
+                menu.setStyleSheet(QStringLiteral(
+                    "QMenu { background-color: #2b2b2b; color: #e0e0e0; border: 1px solid #555; } "
+                    "QMenu::item:selected { background-color: #3d5a80; }"
+                ));
+
+                QAction *clearAction = menu.addAction(tr("Clear Text"));
+                menu.addSeparator();
+
+                // Shift submenu
+                QMenu *shiftMenu = menu.addMenu(tr("Shift"));
+                QActionGroup *shiftGroup = new QActionGroup(&menu);
+                const float shifts[] = {170.0f, 200.0f, 425.0f, 850.0f};
+                for (float s : shifts) {
+                    QAction *act = shiftMenu->addAction(QString("%1 Hz").arg(static_cast<int>(s)));
+                    act->setCheckable(true);
+                    act->setChecked(qAbs(slice->rttyShiftHz() - s) < 1.0f);
+                    shiftGroup->addAction(act);
+                    connect(act, &QAction::triggered, [slice, s]() {
+                        slice->setRttyShiftHz(s);
+                    });
+                }
+
+                // Baud rate submenu
+                QMenu *baudMenu = menu.addMenu(tr("Baud Rate"));
+                QActionGroup *baudGroup = new QActionGroup(&menu);
+                const float bauds[] = {45.45f, 50.0f, 75.0f, 100.0f};
+                const QString baudLabels[] = {"45.45 Baud", "50 Baud", "75 Baud", "100 Baud"};
+                for (int i = 0; i < 4; ++i) {
+                    float b = bauds[i];
+                    QAction *act = baudMenu->addAction(baudLabels[i]);
+                    act->setCheckable(true);
+                    act->setChecked(qAbs(slice->rttyBaudRate() - b) < 0.5f);
+                    baudGroup->addAction(act);
+                    connect(act, &QAction::triggered, [slice, b]() {
+                        slice->setRttyBaudRate(b);
+                    });
+                }
+
+                menu.addSeparator();
+
+                // Reverse Polarity
+                QAction *revAction = menu.addAction(tr("Reverse Polarity (Mark/Space)"));
+                revAction->setCheckable(true);
+                revAction->setChecked(slice->rttyReverse());
+                connect(revAction, &QAction::toggled, [slice](bool checked) {
+                    slice->setRttyReverse(checked);
+                });
+
+                // AFC
+                QAction *afcAction = menu.addAction(tr("AFC Tracking"));
+                afcAction->setCheckable(true);
+                afcAction->setChecked(slice->rttyAfc());
+                connect(afcAction, &QAction::toggled, [slice](bool checked) {
+                    slice->setRttyAfc(checked);
+                });
+
+                // Logging
+                QAction *logAction = menu.addAction(tr("Log to File"));
+                logAction->setCheckable(true);
+                logAction->setChecked(slice->rttyLogToFile());
+                connect(logAction, &QAction::toggled, [slice](bool checked) {
+                    slice->setRttyLogToFile(checked);
+                });
+
+                menu.addSeparator();
+                QAction *closeAction = menu.addAction(tr("Close Decoder"));
+                connect(closeAction, &QAction::triggered, [slice]() {
+                    slice->setRttyDecodeEnabled(false);
+                });
+
+                QAction *selectedItem = menu.exec(m_panel->mapToGlobal(event->pos()));
+                if (selectedItem == clearAction) {
+                    slice->setRttyDecodedText(QString());
+                    m_panel->update();
+                }
             }
-            m_panel->update();
             event->accept();
             return;
         }

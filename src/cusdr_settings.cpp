@@ -5287,6 +5287,12 @@ void Settings::syncSlicesWithSettings() {
         slice->setWaterfallOffsetHi(m_receiverDataList[i].waterfallOffsetHi);
         slice->setCwDecodeEnabled(m_receiverDataList[i].cwDecode);
         slice->setRttyDecodeEnabled(m_receiverDataList[i].rttyDecode);
+        slice->setRttyShiftHz(m_receiverDataList[i].rttyShiftHz);
+        slice->setRttyBaudRate(m_receiverDataList[i].rttyBaudRate);
+        slice->setRttyReverse(m_receiverDataList[i].rttyReverse);
+        slice->setRttyAfc(m_receiverDataList[i].rttyAfc);
+        slice->setRttyLogToFile(m_receiverDataList[i].rttyLogToFile);
+        slice->setCwLogToFile(m_receiverDataList[i].cwLogToFile);
 
         // Forward filter and mode changes from SliceModel to Settings signals
         // so legacy listeners (e.g. Transmitter, TciServer) stay in sync.
@@ -5374,6 +5380,12 @@ void Settings::syncSettingsWithSlices() {
         m_receiverDataList[i].peakHold = slice->peakHold();
         m_receiverDataList[i].cwDecode = slice->cwDecodeEnabled();
         m_receiverDataList[i].rttyDecode = slice->rttyDecodeEnabled();
+        m_receiverDataList[i].rttyShiftHz = slice->rttyShiftHz();
+        m_receiverDataList[i].rttyBaudRate = slice->rttyBaudRate();
+        m_receiverDataList[i].rttyReverse = slice->rttyReverse();
+        m_receiverDataList[i].rttyAfc = slice->rttyAfc();
+        m_receiverDataList[i].rttyLogToFile = slice->rttyLogToFile();
+        m_receiverDataList[i].cwLogToFile = slice->cwLogToFile();
     }
 }
 

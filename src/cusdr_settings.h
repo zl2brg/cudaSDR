@@ -510,6 +510,12 @@ typedef struct _receiver {
 	bool	snb = false;
 	bool	cwDecode = false;
 	bool	rttyDecode = false;
+	float	rttyShiftHz = 170.0f;
+	float	rttyBaudRate = 45.4545f;
+	bool	rttyReverse = false;
+	bool	rttyAfc = true;
+	bool	rttyLogToFile = false;
+	bool	cwLogToFile = false;
 } TReceiver;
 
 typedef struct _wideband {

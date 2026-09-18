@@ -37,6 +37,7 @@
 #include "receiveraudiooutput.h"
 #include "Util/SpscRingBuffer.h"
 #include "AudioEngine/IDigitalVoiceDemodulator.h"
+#include "Util/TextStreamLogger.h"
 #include <atomic>
 #include <vector>
 #include <memory>
@@ -226,6 +227,8 @@ private:
 	RttyDemodulator* m_rttyDemodulator = nullptr;
 	RttyBayesianDecoder* m_rttyDecoder = nullptr;
 	RttyLexicon* m_rttyLexicon = nullptr;
+	TextStreamLogger* m_cwLogger = nullptr;
+	TextStreamLogger* m_rttyLogger = nullptr;
 
     // DSP Pipeline Stages
     void    processSpectrumPass(bool transmitting);
@@ -242,6 +245,8 @@ public:
 	RttyDemodulator* rttyDemodulator() const { return m_rttyDemodulator; }
 	RttyBayesianDecoder* rttyDecoder() const { return m_rttyDecoder; }
 	RttyLexicon* rttyLexicon() const { return m_rttyLexicon; }
+	TextStreamLogger* cwLogger() const { return m_cwLogger; }
+	TextStreamLogger* rttyLogger() const { return m_rttyLogger; }
 
 signals:
 	void	messageEvent(QString msg);

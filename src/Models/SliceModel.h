@@ -65,6 +65,7 @@ public:
     Q_PROPERTY(bool cwToneActive READ cwToneActive WRITE setCwToneActive NOTIFY cwToneActiveChanged)
     Q_PROPERTY(bool cwDecodeEnabled READ cwDecodeEnabled WRITE setCwDecodeEnabled NOTIFY cwDecodeEnabledChanged)
     Q_PROPERTY(int cwTrackedPitch READ cwTrackedPitch WRITE setCwTrackedPitch NOTIFY cwTrackedPitchChanged)
+    Q_PROPERTY(QString cwCallsign READ cwCallsign WRITE setCwCallsign NOTIFY cwCallsignChanged)
     Q_PROPERTY(bool rttyDecodeEnabled READ rttyDecodeEnabled WRITE setRttyDecodeEnabled NOTIFY rttyDecodeEnabledChanged)
     Q_PROPERTY(QString rttyDecodedText READ rttyDecodedText WRITE setRttyDecodedText NOTIFY rttyDecodedTextChanged)
     Q_PROPERTY(float rttyCenterFreq READ rttyCenterFreq WRITE setRttyCenterFreq NOTIFY rttyCenterFreqChanged)
@@ -277,6 +278,15 @@ public:
     QString rttyCallsign() const { return m_rttyCallsign; }
     void setRttyCallsign(const QString &call);
 
+    QString cwCallsign() const { return m_cwCallsign; }
+    void setCwCallsign(const QString &call);
+
+    bool rttyLogToFile() const { return m_rttyLogToFile; }
+    void setRttyLogToFile(bool enabled);
+
+    bool cwLogToFile() const { return m_cwLogToFile; }
+    void setCwLogToFile(bool enabled);
+
 signals:
     void frequencyChanged(qint64 freq);
     void vfoAFrequencyChanged(qint64 freq);
@@ -337,6 +347,9 @@ signals:
     void rttyMarkFreqChanged(float freq);
     void rttySpaceFreqChanged(float freq);
     void rttyCallsignChanged(const QString &call);
+    void cwCallsignChanged(const QString &call);
+    void rttyLogToFileChanged(bool enabled);
+    void cwLogToFileChanged(bool enabled);
 
 private:
     void writeThroughActiveSlot(qint64 freq);
@@ -404,6 +417,9 @@ private:
     float m_rttyMarkFreq = 2125.0f;
     float m_rttySpaceFreq = 2295.0f;
     QString m_rttyCallsign;
+    QString m_cwCallsign;
+    bool m_rttyLogToFile = false;
+    bool m_cwLogToFile = false;
 };
 
 #endif // SLICEMODEL_H

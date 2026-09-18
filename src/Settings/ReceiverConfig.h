@@ -160,6 +160,18 @@ public:
     void setCwDecode(bool enabled);
     bool rttyDecode() const { return m_rttyDecode; }
     void setRttyDecode(bool enabled);
+    float rttyShiftHz() const { return m_rttyShiftHz; }
+    void setRttyShiftHz(float val);
+    float rttyBaudRate() const { return m_rttyBaudRate; }
+    void setRttyBaudRate(float val);
+    bool rttyReverse() const { return m_rttyReverse; }
+    void setRttyReverse(bool val);
+    bool rttyAfc() const { return m_rttyAfc; }
+    void setRttyAfc(bool val);
+    bool rttyLogToFile() const { return m_rttyLogToFile; }
+    void setRttyLogToFile(bool val);
+    bool cwLogToFile() const { return m_cwLogToFile; }
+    void setCwLogToFile(bool val);
 
     QList<qint64> lastCenterFrequencyList() const { return m_lastCenterFrequencyList; }
     void setLastCenterFrequencyList(const QList<qint64> &values);
@@ -253,6 +265,12 @@ private:
     bool m_clickVFO = false;
     bool m_cwDecode = false;
     bool m_rttyDecode = false;
+    float m_rttyShiftHz = 170.0f;
+    float m_rttyBaudRate = 45.4545f;
+    bool m_rttyReverse = false;
+    bool m_rttyAfc = true;
+    bool m_rttyLogToFile = false;
+    bool m_cwLogToFile = false;
 
     QList<qint64> m_lastCenterFrequencyList;
     QList<qint64> m_lastVfoFrequencyList;

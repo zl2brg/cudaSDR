@@ -205,6 +205,7 @@ set(SOURCES
     ${SRC_DIR}/Util/TciCommandHandler.cpp
     ${SRC_DIR}/Util/AudioDeviceService.cpp
     ${SRC_DIR}/Util/DxClusterClient.cpp
+    ${SRC_DIR}/Util/TextStreamLogger.cpp
 
     # Main Widget Classes
     ${SRC_DIR}/cusdr_alexAntennaWidget.cpp
@@ -336,6 +337,7 @@ set(HEADERS
     ${SRC_DIR}/Util/AudioDeviceService.h
     ${SRC_DIR}/Util/DxClusterClient.h
     ${SRC_DIR}/Util/SpscRingBuffer.h
+    ${SRC_DIR}/Util/TextStreamLogger.h
 
     # Main Headers
     ${SRC_DIR}/cusdr_settings.h
@@ -1102,6 +1104,14 @@ if(BUILD_TESTING)
     target_link_libraries(rtty_lexicon_tests PRIVATE Qt6::Core Qt6::Test)
     add_test(NAME rtty_lexicon_tests COMMAND rtty_lexicon_tests)
 
+    qt_add_executable(text_stream_logger_tests
+        tests/text_stream_logger_tests.cpp
+        ${SRC_DIR}/Util/TextStreamLogger.cpp
+    )
+    target_include_directories(text_stream_logger_tests PRIVATE ${SRC_DIR})
+    target_link_libraries(text_stream_logger_tests PRIVATE Qt6::Core Qt6::Test)
+    add_test(NAME text_stream_logger_tests COMMAND text_stream_logger_tests)
+
     # Convenience target: build every unit test without the full cudasdr app.
     add_custom_target(build_tests DEPENDS
         protocol_boundary_tests
@@ -1135,6 +1145,7 @@ if(BUILD_TESTING)
         rtty_demodulator_tests
         rtty_bayesian_decoder_tests
         rtty_lexicon_tests
+        text_stream_logger_tests
     )
 
     # Headless Qt for any test that links Gui/Widgets (CI has no display), plus a

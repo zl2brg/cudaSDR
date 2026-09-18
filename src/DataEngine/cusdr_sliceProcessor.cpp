@@ -82,6 +82,35 @@ SliceProcessor::SliceProcessor(SliceModel *model, QObject *parent)
 #endif
 	m_cwDecoder = new CwDecoder(m_receiver, this);
 	m_cwDecoder->setPitch(set->getCwSidetoneFreq());
+	m_cwLogger = new TextStreamLogger("CW", m_receiver, this);
+	auto cwToken = std::make_shared<QString>();
+	connect(m_cwDecoder, &CwDecoder::characterDecoded,
+			this, [this, cwToken](int rx, const QString &character, int currentWpm) {
+		Q_UNUSED(rx);
+		Q_UNUSED(currentWpm);
+		if (m_cwLogger && m_cwLogger->isEnabled()) {
+			m_cwLogger->appendText(character);
+		}
+		if (character == " " || character == "\n" || character == "\r") {
+			QString token = cwToken->trimmed().toUpper();
+			cwToken->clear();
+			if (RttyLexicon::isCallsign(token)) {
+				qint64 freq = m_sliceModel ? m_sliceModel->frequency() : 0;
+				float snr = m_cwDecoder ? m_cwDecoder->snrDb() : 0.0f;
+				if (m_cwLogger && m_cwLogger->isEnabled()) {
+					m_cwLogger->logCallsign(token, snr, freq);
+				}
+				if (m_sliceModel && m_sliceModel->id() == m_receiver) {
+					m_sliceModel->setCwCallsign(token);
+				}
+			}
+		} else {
+			cwToken->append(character);
+			if (cwToken->length() > 15)
+				cwToken->clear();
+		}
+	});
+
 	if (m_sliceModel) {
 		connect(m_cwDecoder, &CwDecoder::textUpdated,
 				m_sliceModel, [this](int rx, const QString &text) {
@@ -117,17 +146,30 @@ SliceProcessor::SliceProcessor(SliceModel *model, QObject *parent)
 					m_cwDecoder->clearText();
 			}
 		});
+		connect(m_sliceModel, &SliceModel::cwLogToFileChanged,
+				m_cwLogger, &TextStreamLogger::setEnabled);
+		m_cwLogger->setEnabled(m_sliceModel->cwLogToFile());
 	}
 	connect(set, &Settings::CwSidetoneFreqChanged, m_cwDecoder, &CwDecoder::setPitch);
 
 	m_rttyDemodulator = new RttyDemodulator(m_receiver, this);
 	m_rttyDecoder = new RttyBayesianDecoder(m_receiver, this);
 	m_rttyLexicon = new RttyLexicon(m_receiver, this);
+	m_rttyLogger = new TextStreamLogger("RTTY", m_receiver, this);
 
 	connect(m_rttyDemodulator, &RttyDemodulator::symbolSampled,
 			m_rttyDecoder, &RttyBayesianDecoder::processSymbol);
 	connect(m_rttyDecoder, &RttyBayesianDecoder::characterDecoded,
 			m_rttyLexicon, &RttyLexicon::processCharacter);
+	connect(m_rttyDecoder, &RttyBayesianDecoder::characterDecoded,
+			this, [this](int rx, const QString &character, float conf, float err) {
+		Q_UNUSED(rx);
+		Q_UNUSED(conf);
+		Q_UNUSED(err);
+		if (m_rttyLogger && m_rttyLogger->isEnabled()) {
+			m_rttyLogger->appendText(character);
+		}
+	});
 
 	if (m_sliceModel) {
 		connect(m_rttyDecoder, &RttyBayesianDecoder::textUpdated,
@@ -138,8 +180,14 @@ SliceProcessor::SliceProcessor(SliceModel *model, QObject *parent)
 		connect(m_rttyLexicon, &RttyLexicon::callsignDetected,
 				m_sliceModel, [this](int rx, const QString &call, float conf) {
 			Q_UNUSED(conf)
-			if (m_sliceModel && m_sliceModel->id() == rx)
+			if (m_sliceModel && m_sliceModel->id() == rx) {
 				m_sliceModel->setRttyCallsign(call);
+				if (m_rttyLogger && m_rttyLogger->isEnabled()) {
+					qint64 freq = m_sliceModel ? m_sliceModel->frequency() : 0;
+					float snr = m_sliceModel ? m_sliceModel->rttySnrDb() : 0.0f;
+					m_rttyLogger->logCallsign(call, snr, freq);
+				}
+			}
 		});
 		connect(m_rttyDemodulator, &RttyDemodulator::toneStatusChanged,
 				m_sliceModel, [this](int rx, float markFreq, float spaceFreq, float snrDb, bool locked) {
@@ -176,6 +224,9 @@ SliceProcessor::SliceProcessor(SliceModel *model, QObject *parent)
 				m_rttyDemodulator, &RttyDemodulator::setAfcEnabled);
 		connect(m_sliceModel, &SliceModel::rttySquelchChanged,
 				m_rttyDecoder, &RttyBayesianDecoder::setSquelchThreshold);
+		connect(m_sliceModel, &SliceModel::rttyLogToFileChanged,
+				m_rttyLogger, &TextStreamLogger::setEnabled);
+		m_rttyLogger->setEnabled(m_sliceModel->rttyLogToFile());
 	}
 
 	setupConnections();

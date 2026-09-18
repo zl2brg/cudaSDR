@@ -54,6 +54,25 @@ inline QString tciMessage(const QString &name, const QStringList &args = {})
     return cmd + ':' + args.join(',') + ';';
 }
 
+inline QString formatSpot(const QString &callsign, const QString &mode, qint64 freqHz, quint32 colorArgb, const QString &text)
+{
+    return tciMessage(QStringLiteral("spot"), {
+        callsign,
+        mode.toLower(),
+        QString::number(freqHz),
+        QString::number(colorArgb),
+        text
+    });
+}
+
+inline QString formatRxText(int trx, const QString &text)
+{
+    return tciMessage(QStringLiteral("rx_text"), {
+        QString::number(trx),
+        text
+    });
+}
+
 inline bool parseBoolArg(const QString &value)
 {
     const QString v = value.trimmed().toLower();

@@ -24,6 +24,7 @@
 #include "Models/RadioModel.h"
 #include "Models/RadioTelemetry.h"
 #include "Models/SliceModel.h"
+#include "Models/BandPlanManager.h"
 
 #include <QWebSocketServer>
 #include <QWebSocket>
@@ -473,6 +474,42 @@ void TciServer::bindSlices(RadioModel *radioModel)
         m_sliceConnections.append(
             connect(slice, &SliceModel::activeVfoChanged, this,
                     [this, rx](SliceModel::ActiveVfo) { onActiveVfoChanged(rx); }));
+
+        // RTTY callsign detected -> TCI spot broadcast
+        m_sliceConnections.append(
+            connect(slice, &SliceModel::rttyCallsignChanged, this,
+                    [this, slice](const QString &callsign) {
+                        if (callsign.isEmpty()) return;
+                        qint64 freq = slice->frequency();
+                        broadcast(formatSpot(callsign, QStringLiteral("rtty"), freq, 4278255615U, QStringLiteral("cudaSDR RTTY")));
+                    }));
+
+        // CW callsign detected -> TCI spot broadcast
+        m_sliceConnections.append(
+            connect(slice, &SliceModel::cwCallsignChanged, this,
+                    [this, slice](const QString &callsign) {
+                        if (callsign.isEmpty()) return;
+                        qint64 freq = slice->frequency();
+                        broadcast(formatSpot(callsign, QStringLiteral("cw"), freq, 4294956800U, QStringLiteral("cudaSDR CW")));
+                    }));
+
+        // RTTY decoded text -> TCI rx_text broadcast
+        m_sliceConnections.append(
+            connect(slice, &SliceModel::rttyDecodedTextChanged, this,
+                    [this, rx](const QString &text) {
+                        if (text.isEmpty()) return;
+                        int trx = (rx == rxSliceIdForTrx(0)) ? 0 : 1;
+                        broadcast(formatRxText(trx, text.right(1)));
+                    }));
+
+        // CW decoded text -> TCI rx_text broadcast
+        m_sliceConnections.append(
+            connect(slice, &SliceModel::cwDecodedTextChanged, this,
+                    [this, rx](const QString &text) {
+                        if (text.isEmpty()) return;
+                        int trx = (rx == rxSliceIdForTrx(0)) ? 0 : 1;
+                        broadcast(formatRxText(trx, text.right(1)));
+                    }));
     }
 
     if (RadioTelemetry *tel = radioModel->telemetry()) {
@@ -1417,6 +1454,27 @@ void TciServer::handleServerCommand(QWebSocket *client, const QString &name, con
         sendToClient(client, tciMessage(name,
                                         {QString::number(trx),
                                          QString::number(m_settings->getDriveLevel())}));
+        return;
+    }
+
+    if (name == QLatin1String("spot")) {
+        if (args.size() >= 3) {
+            const QString call = args.at(0);
+            const QString mode = args.at(1);
+            bool ok = false;
+            const qint64 freq = args.at(2).toLongLong(&ok);
+            const QString comment = args.size() >= 5 ? args.at(4) : QString();
+            if (ok && freq > 0 && !call.isEmpty() && m_radioModel && m_radioModel->bandPlan()) {
+                m_radioModel->bandPlan()->addSpotMarker(freq, call, mode, 0, 0, QStringLiteral("TCI"), comment);
+            }
+        }
+        return;
+    }
+
+    if (name == QLatin1String("spot_clear")) {
+        if (m_radioModel && m_radioModel->bandPlan()) {
+            m_radioModel->bandPlan()->clearDynamicSpots();
+        }
         return;
     }
 

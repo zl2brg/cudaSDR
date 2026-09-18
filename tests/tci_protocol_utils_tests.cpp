@@ -47,6 +47,9 @@ void TciProtocolUtilsTests::tciMessageFormatting()
     QCOMPARE(tciMessage(QStringLiteral("READY")), QStringLiteral("ready;"));
     QCOMPARE(tciMessage(QStringLiteral("VFO"), {QStringLiteral("0"), QStringLiteral("1"), QStringLiteral("7050000")}),
              QStringLiteral("vfo:0,1,7050000;"));
+    QCOMPARE(formatSpot(QStringLiteral("ZL2BRG"), QStringLiteral("rtty"), 7040000, 4278255615U, QStringLiteral("cudaSDR RTTY")),
+             QStringLiteral("spot:ZL2BRG,rtty,7040000,4278255615,cudaSDR RTTY;"));
+    QCOMPARE(formatRxText(0, QStringLiteral("CQ")), QStringLiteral("rx_text:0,CQ;"));
 }
 
 void TciProtocolUtilsTests::parseBoolArgVariants()

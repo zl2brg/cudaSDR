@@ -75,6 +75,12 @@ public:
 	void setDxCluster(bool enabled);
 	void setCwDecodeEnabled(bool enabled);
 	void setRttyDecodeEnabled(bool enabled);
+	void setRttyShift(float shiftHz);
+	void setRttyBaudRate(float baudRate);
+	void setRttyReverse(bool reverse);
+	void setRttyAfc(bool afc);
+	void setRttyLog(bool enable);
+	void setCwLog(bool enable);
 	int getReceiver() const { return m_receiver; }
 
 signals:
@@ -98,6 +104,12 @@ signals:
 	void dxClusterRequested(bool enabled);
 	void cwDecodeRequested(bool enabled);
 	void rttyDecodeRequested(bool enabled);
+	void rttyShiftRequested(float shiftHz);
+	void rttyBaudRateRequested(float baudRate);
+	void rttyReverseRequested(bool reverse);
+	void rttyAfcRequested(bool afc);
+	void rttyLogRequested(bool enable);
+	void cwLogRequested(bool enable);
 
 	void showEvent();
 	void hideEvent();
@@ -205,6 +217,12 @@ private:
 	QCheckBox*		m_cwDecodeCheckBox = nullptr;
 	QCheckBox*		m_rttyDecodeCheckBox = nullptr;
 	QCheckBox*		m_dxClusterCheckBox = nullptr;
+	QComboBox*		m_rttyShiftCombo = nullptr;
+	QComboBox*		m_rttyBaudCombo = nullptr;
+	QCheckBox*		m_rttyReverseCheckBox = nullptr;
+	QCheckBox*		m_rttyAfcCheckBox = nullptr;
+	QCheckBox*		m_rttyLogCheckBox = nullptr;
+	QCheckBox*		m_cwLogCheckBox = nullptr;
 
     AeroButton*		band2200mBtn;
     AeroButton*		band630mBtn;

@@ -444,3 +444,21 @@ void SliceModel::setRttyCallsign(const QString &call) {
     m_rttyCallsign = call;
     emit rttyCallsignChanged(m_rttyCallsign);
 }
+
+void SliceModel::setCwCallsign(const QString &call) {
+    if (m_cwCallsign == call) return;
+    m_cwCallsign = call;
+    emit cwCallsignChanged(m_cwCallsign);
+}
+
+void SliceModel::setRttyLogToFile(bool enabled) {
+    if (m_rttyLogToFile == enabled) return;
+    m_rttyLogToFile = enabled;
+    emit rttyLogToFileChanged(m_rttyLogToFile);
+}
+
+void SliceModel::setCwLogToFile(bool enabled) {
+    if (m_cwLogToFile == enabled) return;
+    m_cwLogToFile = enabled;
+    emit cwLogToFileChanged(m_cwLogToFile);
+}

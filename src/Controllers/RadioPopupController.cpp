@@ -254,6 +254,54 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
             if (m_view)
                 m_view->setRttyDecodeEnabled(enabled);
         });
+
+        m_view->setRttyShift(m_sliceModel->rttyShiftHz());
+        connect(m_view, &RadioPopupWidget::rttyShiftRequested, this, [this](float shift) {
+            if (m_sliceModel) m_sliceModel->setRttyShiftHz(shift);
+        });
+        connect(m_sliceModel, &SliceModel::rttyShiftHzChanged, this, [this](float shift) {
+            if (m_view) m_view->setRttyShift(shift);
+        });
+
+        m_view->setRttyBaudRate(m_sliceModel->rttyBaudRate());
+        connect(m_view, &RadioPopupWidget::rttyBaudRateRequested, this, [this](float baud) {
+            if (m_sliceModel) m_sliceModel->setRttyBaudRate(baud);
+        });
+        connect(m_sliceModel, &SliceModel::rttyBaudRateChanged, this, [this](float baud) {
+            if (m_view) m_view->setRttyBaudRate(baud);
+        });
+
+        m_view->setRttyReverse(m_sliceModel->rttyReverse());
+        connect(m_view, &RadioPopupWidget::rttyReverseRequested, this, [this](bool rev) {
+            if (m_sliceModel) m_sliceModel->setRttyReverse(rev);
+        });
+        connect(m_sliceModel, &SliceModel::rttyReverseChanged, this, [this](bool rev) {
+            if (m_view) m_view->setRttyReverse(rev);
+        });
+
+        m_view->setRttyAfc(m_sliceModel->rttyAfc());
+        connect(m_view, &RadioPopupWidget::rttyAfcRequested, this, [this](bool afc) {
+            if (m_sliceModel) m_sliceModel->setRttyAfc(afc);
+        });
+        connect(m_sliceModel, &SliceModel::rttyAfcChanged, this, [this](bool afc) {
+            if (m_view) m_view->setRttyAfc(afc);
+        });
+
+        m_view->setRttyLog(m_sliceModel->rttyLogToFile());
+        connect(m_view, &RadioPopupWidget::rttyLogRequested, this, [this](bool log) {
+            if (m_sliceModel) m_sliceModel->setRttyLogToFile(log);
+        });
+        connect(m_sliceModel, &SliceModel::rttyLogToFileChanged, this, [this](bool log) {
+            if (m_view) m_view->setRttyLog(log);
+        });
+
+        m_view->setCwLog(m_sliceModel->cwLogToFile());
+        connect(m_view, &RadioPopupWidget::cwLogRequested, this, [this](bool log) {
+            if (m_sliceModel) m_sliceModel->setCwLogToFile(log);
+        });
+        connect(m_sliceModel, &SliceModel::cwLogToFileChanged, this, [this](bool log) {
+            if (m_view) m_view->setCwLog(log);
+        });
     }
 
     // Model -> View
