@@ -47,6 +47,8 @@ void CwDecoder::clearText()
 {
     m_recentText.clear();
     m_symbolAccumulator.clear();
+    m_hypotheses.clear();
+    m_lastDecodedChar = QLatin1Char(' ');
     m_charPending = false;
     m_wordSpacePending = false;
     emit textUpdated(m_rxId, m_recentText);
@@ -66,11 +68,14 @@ void CwDecoder::reset()
     m_markDurationMs = 0.0f;
     m_spaceDurationMs = 0.0f;
     m_symbolAccumulator.clear();
+    m_hypotheses.clear();
+    m_lastDecodedChar = QLatin1Char(' ');
     m_charPending = false;
     m_wordSpacePending = false;
     m_decimCounter = 0;
     m_decimAccum = 0.0f;
     m_pitchEstimCounter = 0;
+    m_silenceSamples = 0;
     m_ringIdx = 0;
     std::fill(std::begin(m_ringBuffer), std::end(m_ringBuffer), 0.0f);
 }
@@ -131,16 +136,22 @@ void CwDecoder::estimateTonePitch()
     }
 
     if (energy0 < 0.00003f) {
-        // Signal too weak in wideband passband: slowly drift back towards nominal
-        if (std::abs(m_trackedPitchHz - static_cast<float>(m_pitchHz)) > 1.0f) {
-            m_trackedPitchHz += 0.005f * (static_cast<float>(m_pitchHz) - m_trackedPitchHz);
-            if (std::abs(m_trackedPitchHz - m_lastFilterPitchHz) >= 4.0f) {
-                updateBiquadCoefficients();
-                emit trackedPitchChanged(m_rxId, qRound(m_trackedPitchHz));
+        // Signal too weak in wideband passband:
+        // Only slowly drift back towards nominal during prolonged silence (> 500ms at 8000 Hz)
+        // rather than during normal 60-150ms inter-element/character spaces!
+        m_silenceSamples += 48;
+        if (m_silenceSamples > 4000) {
+            if (std::abs(m_trackedPitchHz - static_cast<float>(m_pitchHz)) > 1.0f) {
+                m_trackedPitchHz += 0.005f * (static_cast<float>(m_pitchHz) - m_trackedPitchHz);
+                if (std::abs(m_trackedPitchHz - m_lastFilterPitchHz) >= 4.0f) {
+                    updateBiquadCoefficients();
+                    emit trackedPitchChanged(m_rxId, qRound(m_trackedPitchHz));
+                }
             }
         }
         return;
     }
+    m_silenceSamples = 0;
 
     float corr[24] = {0.0f};
     for (int lag = 7; lag <= 22; ++lag) {
@@ -157,8 +168,8 @@ void CwDecoder::estimateTonePitch()
         }
     }
 
-    // Correlation threshold check (normalized autocorrelation > 0.45)
-    if (bestLag >= 8 && bestLag <= 21 && (maxCorr / energy0) > 0.45f) {
+    // Correlation threshold check (normalized autocorrelation > 0.40)
+    if (bestLag >= 8 && bestLag <= 21 && (maxCorr / energy0) > 0.40f) {
         // 3-point parabolic interpolation for sub-sample lag
         const float alpha = corr[bestLag - 1];
         const float beta = corr[bestLag];
@@ -178,10 +189,11 @@ void CwDecoder::estimateTonePitch()
         const float maxFreq = static_cast<float>(m_pitchHz) + 200.0f;
 
         if (detectedFreq >= minFreq && detectedFreq <= maxFreq) {
-            // Smooth adaptive pitch tracking with hysteresis to prevent filter transient clicks
-            m_trackedPitchHz += 0.05f * (detectedFreq - m_trackedPitchHz);
+            // Adaptive pitch tracking with higher responsiveness on strong correlation
+            const float adaptRate = (maxCorr / energy0 > 0.60f) ? 0.12f : 0.06f;
+            m_trackedPitchHz += adaptRate * (detectedFreq - m_trackedPitchHz);
 
-            if (std::abs(m_trackedPitchHz - m_lastFilterPitchHz) >= 4.0f) {
+            if (std::abs(m_trackedPitchHz - m_lastFilterPitchHz) >= 3.0f) {
                 updateBiquadCoefficients();
                 emit trackedPitchChanged(m_rxId, qRound(m_trackedPitchHz));
             }
@@ -298,8 +310,8 @@ void CwDecoder::processEnvelope(float env, float dtMs)
         }
         m_spaceDurationMs += dtMs;
 
-        // Check for character completion (inter-character space >= 2.3 * dit for natural operator timing)
-        if (m_charPending && m_spaceDurationMs >= (2.3f * m_ditMs)) {
+        // Check for character completion (inter-character space >= 2.2 * dit for natural operator timing)
+        if (m_charPending && m_spaceDurationMs >= (2.2f * m_ditMs)) {
             decodeCurrentSymbol();
             m_charPending = false;
         }
@@ -308,6 +320,7 @@ void CwDecoder::processEnvelope(float env, float dtMs)
         if (m_wordSpacePending && m_spaceDurationMs >= (5.0f * m_ditMs)) {
             if (!m_recentText.isEmpty() && !m_recentText.endsWith(QLatin1Char(' '))) {
                 m_recentText.append(QLatin1Char(' '));
+                m_lastDecodedChar = QLatin1Char(' ');
                 if (m_recentText.length() > 256)
                     m_recentText = m_recentText.right(256);
                 emit characterDecoded(m_rxId, QStringLiteral(" "), m_lastReportedWpm);
@@ -318,31 +331,141 @@ void CwDecoder::processEnvelope(float env, float dtMs)
     }
 }
 
-void CwDecoder::onMarkCompleted(float durationMs)
+float CwDecoder::ditLogLikelihood(float tMs, float ditMs) const
 {
-    // Glitch / Key click rejection (< 12 ms is noise spike; 50 WPM dit is 24 ms)
-    if (durationMs < 12.0f)
-        return;
+    const float mu = ditMs;
+    const float sigma = std::max(6.0f, 0.28f * ditMs);
+    const float diff = tMs - mu;
+    return -0.5f * (diff * diff) / (sigma * sigma);
+}
 
-    // Dit vs Dah Decision Threshold (1.95 * dit length)
-    const float ditThreshold = 1.95f * m_ditMs;
+float CwDecoder::dahLogLikelihood(float tMs, float ditMs) const
+{
+    const float mu = 3.0f * ditMs;
+    const float sigma = std::max(12.0f, 0.45f * ditMs);
+    const float diff = tMs - mu;
+    return -0.5f * (diff * diff) / (sigma * sigma);
+}
 
-    if (durationMs < ditThreshold) {
-        // DIT ('.')
-        m_symbolAccumulator.append(QLatin1Char('.'));
-        // Smooth dit length adaptation (10% weight)
-        m_ditMs = 0.90f * m_ditMs + 0.10f * durationMs;
-    } else {
-        // DAH ('-')
-        m_symbolAccumulator.append(QLatin1Char('-'));
-        // Dah is 3 * dit length; adapt estimated dit (6% weight to avoid over-reacting to operator swing)
-        const float estimatedDit = durationMs / 3.0f;
-        m_ditMs = 0.94f * m_ditMs + 0.06f * estimatedDit;
+float CwDecoder::getCharacterPrior(const QString &character, QChar prevChar) const
+{
+    if (character.isEmpty() || character == QStringLiteral("*"))
+        return -50.0f;
+
+    float score = 0.0f;
+
+    // 1. Single character unigram prior
+    if (character.length() == 1) {
+        const QChar c = character.at(0).toUpper();
+        switch (c.toLatin1()) {
+        case 'E': case 'T': score += 3.0f; break;
+        case 'A': case 'O': case 'I': case 'N': case 'S': case 'R': case 'H': score += 2.0f; break;
+        case 'D': case 'L': case 'C': case 'U': case 'M': case 'W': score += 1.0f; break;
+        case '5': case '9': case '0': case '7': case '3': score += 1.5f; break;
+        default: score += 0.0f; break;
+        }
+    } else if (character.startsWith(QLatin1Char('<')) && character.endsWith(QLatin1Char('>'))) {
+        score += 2.5f;
     }
 
-    // Clamp dit length to realistic speeds: 8 WPM (150 ms) to 60 WPM (20 ms)
+    // 2. Bigram context prior
+    if (character.length() == 1 && prevChar.isLetterOrNumber()) {
+        const QString bigram = QString(prevChar.toUpper()) + character.toUpper();
+        static const QStringList hamBigrams = {
+            QStringLiteral("CQ"), QStringLiteral("DE"), QStringLiteral("59"), QStringLiteral("99"),
+            QStringLiteral("5N"), QStringLiteral("NN"), QStringLiteral("73"), QStringLiteral("TU"),
+            QStringLiteral("UR"), QStringLiteral("BK"), QStringLiteral("SK"), QStringLiteral("FB"),
+            QStringLiteral("GM"), QStringLiteral("GA"), QStringLiteral("GE"), QStringLiteral("OM"),
+            QStringLiteral("OP"), QStringLiteral("ES"), QStringLiteral("TH"), QStringLiteral("HE"),
+            QStringLiteral("IN"), QStringLiteral("ER"), QStringLiteral("AN"), QStringLiteral("RE")
+        };
+        if (hamBigrams.contains(bigram)) {
+            score += 4.0f;
+        }
+
+        if (prevChar.isLetter() && character.at(0).isDigit()) {
+            score += 3.0f;
+        }
+        if (prevChar.isDigit() && character.at(0).isLetter()) {
+            score += 3.0f;
+        }
+    }
+
+    return score;
+}
+
+void CwDecoder::onMarkCompleted(float durationMs)
+{
+    // Glitch rejection: ignore spikes shorter than ~1/3 of a dit (min 8ms)
+    const float minMark = std::max(8.0f, 0.35f * m_ditMs);
+    if (durationMs < minMark)
+        return;
+
+    const float ditL = ditLogLikelihood(durationMs, m_ditMs);
+    const float dahL = dahLogLikelihood(durationMs, m_ditMs);
+
+    // Posterior distribution over Dit vs Dah
+    const float maxL = std::max(ditL, dahL);
+    const float pDit = std::exp(ditL - maxL);
+    const float pDah = std::exp(dahL - maxL);
+    const float sumP = pDit + pDah;
+    const float probDit = pDit / sumP;
+    const float probDah = pDah / sumP;
+
+    // Confidence-weighted Bayesian speed adaptation
+    const float confidence = std::abs(probDit - probDah);
+    const float estDit = (probDit * durationMs) + (probDah * (durationMs / 3.0f));
+    const float alpha = 0.05f + 0.15f * confidence;
+    m_ditMs = (1.0f - alpha) * m_ditMs + alpha * estDit;
     m_ditMs = qBound(20.0f, m_ditMs, 150.0f);
     m_currentWpm = qBound(8, qRound(1200.0f / m_ditMs), 60);
+
+    // Expand trellis hypotheses
+    if (m_hypotheses.isEmpty()) {
+        CwHypothesis hDit;
+        hDit.morse = QStringLiteral(".");
+        hDit.logLikelihood = ditL;
+
+        CwHypothesis hDah;
+        hDah.morse = QStringLiteral("-");
+        hDah.logLikelihood = dahL;
+
+        m_hypotheses.append(hDit);
+        m_hypotheses.append(hDah);
+    } else {
+        QVector<CwHypothesis> nextHypotheses;
+        for (const auto &h : m_hypotheses) {
+            if (h.morse.length() < 8) {
+                CwHypothesis hDit;
+                hDit.morse = h.morse + QLatin1Char('.');
+                hDit.logLikelihood = h.logLikelihood + ditL;
+                nextHypotheses.append(hDit);
+
+                CwHypothesis hDah;
+                hDah.morse = h.morse + QLatin1Char('-');
+                hDah.logLikelihood = h.logLikelihood + dahL;
+                nextHypotheses.append(hDah);
+            }
+        }
+
+        // Sort by log-likelihood descending
+        std::sort(nextHypotheses.begin(), nextHypotheses.end(), [](const CwHypothesis &a, const CwHypothesis &b) {
+            return a.logLikelihood > b.logLikelihood;
+        });
+
+        // Beam pruning: keep top 8 candidates, discard any > 12.0 below top
+        const float bestL = nextHypotheses.isEmpty() ? 0.0f : nextHypotheses.first().logLikelihood;
+        m_hypotheses.clear();
+        for (int i = 0; i < nextHypotheses.size() && i < 8; ++i) {
+            if (nextHypotheses[i].logLikelihood >= bestL - 12.0f) {
+                m_hypotheses.append(nextHypotheses[i]);
+            }
+        }
+    }
+
+    if (!m_hypotheses.isEmpty()) {
+        m_symbolAccumulator = m_hypotheses.first().morse;
+    }
 
     m_charPending = true;
     m_wordSpacePending = true;
@@ -355,24 +478,45 @@ void CwDecoder::onSpaceCompleted(float durationMs)
 
 void CwDecoder::decodeCurrentSymbol()
 {
-    if (m_symbolAccumulator.isEmpty())
+    if (m_hypotheses.isEmpty() && m_symbolAccumulator.isEmpty())
         return;
 
-    const QString decodedChar = morseToChar(m_symbolAccumulator);
+    QString bestChar;
+    float bestScore = -1e9f;
+
+    // Evaluate all candidates in the beam with Bayesian likelihood + language priors
+    for (const auto &h : m_hypotheses) {
+        const QString cand = morseToChar(h.morse);
+        if (!cand.isEmpty() && cand != QStringLiteral("*")) {
+            const float prior = getCharacterPrior(cand, m_lastDecodedChar);
+            const float totalScore = h.logLikelihood + prior;
+            if (totalScore > bestScore) {
+                bestScore = totalScore;
+                bestChar = cand;
+            }
+        }
+    }
+
+    // Fallback if no hypothesis matched known table
+    if (bestChar.isEmpty() && !m_symbolAccumulator.isEmpty()) {
+        bestChar = morseToChar(m_symbolAccumulator);
+    }
+
+    m_hypotheses.clear();
     m_symbolAccumulator.clear();
 
-    if (!decodedChar.isEmpty()) {
-        m_recentText.append(decodedChar);
+    if (!bestChar.isEmpty() && bestChar != QStringLiteral("*")) {
+        m_lastDecodedChar = bestChar.at(bestChar.length() - 1);
+        m_recentText.append(bestChar);
         if (m_recentText.length() > 256)
             m_recentText = m_recentText.right(256);
 
-        // Only update reported WPM when an actual valid Morse character is decoded
         if (std::abs(m_currentWpm - m_lastReportedWpm) >= 1) {
             m_lastReportedWpm = m_currentWpm;
             emit wpmChanged(m_rxId, m_lastReportedWpm);
         }
 
-        emit characterDecoded(m_rxId, decodedChar, m_lastReportedWpm);
+        emit characterDecoded(m_rxId, bestChar, m_lastReportedWpm);
         emit textUpdated(m_rxId, m_recentText);
     }
 }

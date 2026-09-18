@@ -717,6 +717,14 @@ int Settings::loadSettings() {
             m_receiverDataList[i].cwDecode = false;
 
         cstr = m_rxStringList.at(i);
+        cstr.append("/rttyDecode");
+        str = settings->value(cstr, "off").toString();
+        if (str.toLower() == "on" || str.toLower() == "true")
+            m_receiverDataList[i].rttyDecode = true;
+        else
+            m_receiverDataList[i].rttyDecode = false;
+
+        cstr = m_rxStringList.at(i);
         cstr.append("/panLocked");
         str = settings->value(cstr, "off").toString();
         if (str.toLower() == "on")
@@ -1521,6 +1529,13 @@ int Settings::saveSettings() {
         str = m_rxStringList.at(i);
         str.append("/cwDecode");
         if (m_receiverDataList[i].cwDecode)
+            settings->setValue(str, "on");
+        else
+            settings->setValue(str, "off");
+
+        str = m_rxStringList.at(i);
+        str.append("/rttyDecode");
+        if (m_receiverDataList[i].rttyDecode)
             settings->setValue(str, "on");
         else
             settings->setValue(str, "off");
@@ -4866,6 +4881,23 @@ void Settings::setCwDecode(int rx, bool value) {
     }
 }
 
+bool Settings::getRttyDecode(int rx) {
+    if (SliceModel* slice = sliceModel(rx))
+        return slice->rttyDecodeEnabled();
+    if (rx < 0 || rx >= m_receiverDataList.size())
+        return false;
+    return m_receiverDataList[rx].rttyDecode;
+}
+
+void Settings::setRttyDecode(int rx, bool value) {
+    if (rx >= 0 && rx < m_receiverDataList.size()) {
+        m_receiverDataList[rx].rttyDecode = value;
+    }
+    if (SliceModel* slice = sliceModel(rx)) {
+        slice->setRttyDecodeEnabled(value);
+    }
+}
+
 
 void Settings::getConfigPath() {
     cfg_dir = QStandardPaths::writableLocation(QStandardPaths::HomeLocation).append("/.cudaSDR");
@@ -5254,6 +5286,7 @@ void Settings::syncSlicesWithSettings() {
         slice->setWaterfallOffsetLo(m_receiverDataList[i].waterfallOffsetLo);
         slice->setWaterfallOffsetHi(m_receiverDataList[i].waterfallOffsetHi);
         slice->setCwDecodeEnabled(m_receiverDataList[i].cwDecode);
+        slice->setRttyDecodeEnabled(m_receiverDataList[i].rttyDecode);
 
         // Forward filter and mode changes from SliceModel to Settings signals
         // so legacy listeners (e.g. Transmitter, TciServer) stay in sync.
@@ -5340,6 +5373,7 @@ void Settings::syncSettingsWithSlices() {
         m_receiverDataList[i].panGrid = slice->panGrid();
         m_receiverDataList[i].peakHold = slice->peakHold();
         m_receiverDataList[i].cwDecode = slice->cwDecodeEnabled();
+        m_receiverDataList[i].rttyDecode = slice->rttyDecodeEnabled();
     }
 }
 

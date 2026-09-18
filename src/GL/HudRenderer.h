@@ -14,6 +14,7 @@ public:
     void drawPanadapterSMeter();
     void drawPanadapterFreq();
     void drawCwDecoderHUD();
+    void drawRttyDecoderHUD();
     void drawCrossHair();
     void drawFilterLabels();
     void drawAGCLabels();

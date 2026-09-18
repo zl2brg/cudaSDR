@@ -72,6 +72,15 @@ private:
     void decodeCurrentSymbol();
     static QString morseToChar(const QString &morse);
 
+    struct CwHypothesis {
+        QString morse;
+        float logLikelihood = 0.0f;
+    };
+
+    float ditLogLikelihood(float tMs, float ditMs) const;
+    float dahLogLikelihood(float tMs, float ditMs) const;
+    float getCharacterPrior(const QString &character, QChar prevChar) const;
+
     int m_rxId = 0;
     bool m_enabled = true;
     int m_pitchHz = 700;
@@ -94,14 +103,16 @@ private:
     float m_currentSnrDb = 0.0f;
     float m_minSnrDb = 6.0f;
 
-    // Timing Tracker (in milliseconds)
+    // Bayesian Timing Tracker (in milliseconds)
     float m_ditMs = 60.0f; // Initial 20 WPM (1200 / 60)
     int m_currentWpm = 20;
     int m_lastReportedWpm = 20;
     float m_markDurationMs = 0.0f;
     float m_spaceDurationMs = 0.0f;
 
-    // Morse accumulator
+    // Bayesian Morse Trellis & Context
+    QVector<CwHypothesis> m_hypotheses;
+    QChar m_lastDecodedChar = QLatin1Char(' ');
     QString m_symbolAccumulator;
     QString m_recentText;
     bool m_charPending = false;
@@ -122,6 +133,7 @@ private:
     float m_ringBuffer[64] = {0.0f};
     int m_ringIdx = 0;
     int m_pitchEstimCounter = 0;
+    int m_silenceSamples = 0;
 };
 
 #endif // CWDECODER_H

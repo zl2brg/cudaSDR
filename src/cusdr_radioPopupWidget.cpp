@@ -643,6 +643,15 @@ void RadioPopupWidget::createOptionsBtnGroup() {
         emit cwDecodeRequested(checked);
     });
 
+    m_rttyDecodeCheckBox = new QCheckBox(tr("RTTY"), this);
+    m_rttyDecodeCheckBox->setFont(m_fonts.smallFont);
+    m_rttyDecodeCheckBox->setStyleSheet("color: rgba(220, 220, 220, 255);");
+    m_rttyDecodeCheckBox->setToolTip(tr("Enable/disable Bayesian RTTY decoding and tuning markers"));
+    m_rttyDecodeCheckBox->setChecked(m_sliceModel ? m_sliceModel->rttyDecodeEnabled() : false);
+    connect(m_rttyDecodeCheckBox, &QCheckBox::clicked, this, [this](bool checked) {
+        emit rttyDecodeRequested(checked);
+    });
+
     m_dxClusterCheckBox = new QCheckBox(tr("DX Cluster (RBN)"), this);
     m_dxClusterCheckBox->setFont(m_fonts.smallFont);
     m_dxClusterCheckBox->setStyleSheet("color: rgba(220, 220, 220, 255);");
@@ -655,6 +664,7 @@ void RadioPopupWidget::createOptionsBtnGroup() {
     hboxDx->setContentsMargins(4, 2, 4, 2);
     hboxDx->setSpacing(6);
     hboxDx->addWidget(m_cwDecodeCheckBox);
+    hboxDx->addWidget(m_rttyDecodeCheckBox);
     hboxDx->addWidget(m_dxClusterCheckBox);
 
     optionsVBox = new QVBoxLayout;
@@ -2601,6 +2611,13 @@ void RadioPopupWidget::setCwDecodeEnabled(bool enabled) {
     if (m_cwDecodeCheckBox) {
         const QSignalBlocker blocker(m_cwDecodeCheckBox);
         m_cwDecodeCheckBox->setChecked(enabled);
+    }
+}
+
+void RadioPopupWidget::setRttyDecodeEnabled(bool enabled) {
+    if (m_rttyDecodeCheckBox) {
+        const QSignalBlocker blocker(m_rttyDecodeCheckBox);
+        m_rttyDecodeCheckBox->setChecked(enabled);
     }
 }
 

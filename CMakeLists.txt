@@ -136,6 +136,9 @@ set(SOURCES
     ${SRC_DIR}/AudioEngine/cusdr_freedvprocessor.cpp
     ${SRC_DIR}/AudioEngine/cusdr_radeprocessor.cpp
     ${SRC_DIR}/AudioEngine/CwDecoder.cpp
+    ${SRC_DIR}/AudioEngine/RttyDemodulator.cpp
+    ${SRC_DIR}/AudioEngine/RttyBayesianDecoder.cpp
+    ${SRC_DIR}/AudioEngine/RttyLexicon.cpp
 
 #    ${SRC_DIR}/AudioEngine/cusdr_audio_utils.cpp
 #    ${SRC_DIR}/AudioEngine/cusdr_audio_waveform.cpp
@@ -272,6 +275,9 @@ set(HEADERS
     ${SRC_DIR}/AudioEngine/cusdr_freedvprocessor.h
     ${SRC_DIR}/AudioEngine/cusdr_radeprocessor.h
     ${SRC_DIR}/AudioEngine/CwDecoder.h
+    ${SRC_DIR}/AudioEngine/RttyDemodulator.h
+    ${SRC_DIR}/AudioEngine/RttyBayesianDecoder.h
+    ${SRC_DIR}/AudioEngine/RttyLexicon.h
 
     # Data Engine
     ${SRC_DIR}/DataEngine/cusdr_dataIO.h
@@ -1071,7 +1077,30 @@ if(BUILD_TESTING)
         target_compile_definitions(digital_voice_tests PRIVATE HAVE_CODEC2)
     endif()
     target_compile_definitions(digital_voice_tests PRIVATE HAVE_RADE)
-    add_test(NAME digital_voice_tests COMMAND digital_voice_tests)
+    qt_add_executable(rtty_demodulator_tests
+        tests/rtty_demodulator_tests.cpp
+        ${SRC_DIR}/AudioEngine/RttyDemodulator.cpp
+    )
+    target_include_directories(rtty_demodulator_tests PRIVATE ${SRC_DIR})
+    target_link_libraries(rtty_demodulator_tests PRIVATE Qt6::Core Qt6::Test)
+    add_test(NAME rtty_demodulator_tests COMMAND rtty_demodulator_tests)
+
+    qt_add_executable(rtty_bayesian_decoder_tests
+        tests/rtty_bayesian_decoder_tests.cpp
+        ${SRC_DIR}/AudioEngine/RttyDemodulator.cpp
+        ${SRC_DIR}/AudioEngine/RttyBayesianDecoder.cpp
+    )
+    target_include_directories(rtty_bayesian_decoder_tests PRIVATE ${SRC_DIR})
+    target_link_libraries(rtty_bayesian_decoder_tests PRIVATE Qt6::Core Qt6::Test)
+    add_test(NAME rtty_bayesian_decoder_tests COMMAND rtty_bayesian_decoder_tests)
+
+    qt_add_executable(rtty_lexicon_tests
+        tests/rtty_lexicon_tests.cpp
+        ${SRC_DIR}/AudioEngine/RttyLexicon.cpp
+    )
+    target_include_directories(rtty_lexicon_tests PRIVATE ${SRC_DIR})
+    target_link_libraries(rtty_lexicon_tests PRIVATE Qt6::Core Qt6::Test)
+    add_test(NAME rtty_lexicon_tests COMMAND rtty_lexicon_tests)
 
     # Convenience target: build every unit test without the full cudasdr app.
     add_custom_target(build_tests DEPENDS
@@ -1103,6 +1132,9 @@ if(BUILD_TESTING)
         spsc_ring_buffer_tests
         opengl_offscreen_tests
         digital_voice_tests
+        rtty_demodulator_tests
+        rtty_bayesian_decoder_tests
+        rtty_lexicon_tests
     )
 
     # Headless Qt for any test that links Gui/Widgets (CI has no display), plus a

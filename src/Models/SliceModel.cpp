@@ -366,3 +366,81 @@ void SliceModel::setCwTrackedPitch(int pitch) {
     m_cwTrackedPitch = pitch;
     emit cwTrackedPitchChanged(m_cwTrackedPitch);
 }
+
+void SliceModel::setRttyDecodeEnabled(bool enabled) {
+    if (m_rttyDecodeEnabled == enabled) return;
+    m_rttyDecodeEnabled = enabled;
+    emit rttyDecodeEnabledChanged(m_rttyDecodeEnabled);
+}
+
+void SliceModel::setRttyDecodedText(const QString &text) {
+    if (m_rttyDecodedText == text) return;
+    m_rttyDecodedText = text;
+    emit rttyDecodedTextChanged(m_rttyDecodedText);
+}
+
+void SliceModel::setRttyCenterFreq(float freq) {
+    if (qFuzzyCompare(m_rttyCenterFreq, freq)) return;
+    m_rttyCenterFreq = freq;
+    emit rttyCenterFreqChanged(m_rttyCenterFreq);
+}
+
+void SliceModel::setRttyShiftHz(float shift) {
+    if (qFuzzyCompare(m_rttyShiftHz, shift)) return;
+    m_rttyShiftHz = shift;
+    emit rttyShiftHzChanged(m_rttyShiftHz);
+}
+
+void SliceModel::setRttyBaudRate(float baud) {
+    if (qFuzzyCompare(m_rttyBaudRate, baud)) return;
+    m_rttyBaudRate = baud;
+    emit rttyBaudRateChanged(m_rttyBaudRate);
+}
+
+void SliceModel::setRttyReverse(bool rev) {
+    if (m_rttyReverse == rev) return;
+    m_rttyReverse = rev;
+    emit rttyReverseChanged(m_rttyReverse);
+}
+
+void SliceModel::setRttyAfc(bool afc) {
+    if (m_rttyAfc == afc) return;
+    m_rttyAfc = afc;
+    emit rttyAfcChanged(m_rttyAfc);
+}
+
+void SliceModel::setRttySquelch(float squelch) {
+    if (qFuzzyCompare(m_rttySquelch, squelch)) return;
+    m_rttySquelch = squelch;
+    emit rttySquelchChanged(m_rttySquelch);
+}
+
+void SliceModel::setRttySnrDb(float snr) {
+    if (qFuzzyCompare(m_rttySnrDb, snr)) return;
+    m_rttySnrDb = snr;
+    emit rttySnrDbChanged(m_rttySnrDb);
+}
+
+void SliceModel::setRttyToneLocked(bool locked) {
+    if (m_rttyToneLocked == locked) return;
+    m_rttyToneLocked = locked;
+    emit rttyToneLockedChanged(m_rttyToneLocked);
+}
+
+void SliceModel::setRttyMarkFreq(float freq) {
+    if (qFuzzyCompare(m_rttyMarkFreq, freq)) return;
+    m_rttyMarkFreq = freq;
+    emit rttyMarkFreqChanged(m_rttyMarkFreq);
+}
+
+void SliceModel::setRttySpaceFreq(float freq) {
+    if (qFuzzyCompare(m_rttySpaceFreq, freq)) return;
+    m_rttySpaceFreq = freq;
+    emit rttySpaceFreqChanged(m_rttySpaceFreq);
+}
+
+void SliceModel::setRttyCallsign(const QString &call) {
+    if (m_rttyCallsign == call) return;
+    m_rttyCallsign = call;
+    emit rttyCallsignChanged(m_rttyCallsign);
+}

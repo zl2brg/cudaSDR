@@ -65,6 +65,19 @@ public:
     Q_PROPERTY(bool cwToneActive READ cwToneActive WRITE setCwToneActive NOTIFY cwToneActiveChanged)
     Q_PROPERTY(bool cwDecodeEnabled READ cwDecodeEnabled WRITE setCwDecodeEnabled NOTIFY cwDecodeEnabledChanged)
     Q_PROPERTY(int cwTrackedPitch READ cwTrackedPitch WRITE setCwTrackedPitch NOTIFY cwTrackedPitchChanged)
+    Q_PROPERTY(bool rttyDecodeEnabled READ rttyDecodeEnabled WRITE setRttyDecodeEnabled NOTIFY rttyDecodeEnabledChanged)
+    Q_PROPERTY(QString rttyDecodedText READ rttyDecodedText WRITE setRttyDecodedText NOTIFY rttyDecodedTextChanged)
+    Q_PROPERTY(float rttyCenterFreq READ rttyCenterFreq WRITE setRttyCenterFreq NOTIFY rttyCenterFreqChanged)
+    Q_PROPERTY(float rttyShiftHz READ rttyShiftHz WRITE setRttyShiftHz NOTIFY rttyShiftHzChanged)
+    Q_PROPERTY(float rttyBaudRate READ rttyBaudRate WRITE setRttyBaudRate NOTIFY rttyBaudRateChanged)
+    Q_PROPERTY(bool rttyReverse READ rttyReverse WRITE setRttyReverse NOTIFY rttyReverseChanged)
+    Q_PROPERTY(bool rttyAfc READ rttyAfc WRITE setRttyAfc NOTIFY rttyAfcChanged)
+    Q_PROPERTY(float rttySquelch READ rttySquelch WRITE setRttySquelch NOTIFY rttySquelchChanged)
+    Q_PROPERTY(float rttySnrDb READ rttySnrDb WRITE setRttySnrDb NOTIFY rttySnrDbChanged)
+    Q_PROPERTY(bool rttyToneLocked READ rttyToneLocked WRITE setRttyToneLocked NOTIFY rttyToneLockedChanged)
+    Q_PROPERTY(float rttyMarkFreq READ rttyMarkFreq WRITE setRttyMarkFreq NOTIFY rttyMarkFreqChanged)
+    Q_PROPERTY(float rttySpaceFreq READ rttySpaceFreq WRITE setRttySpaceFreq NOTIFY rttySpaceFreqChanged)
+    Q_PROPERTY(QString rttyCallsign READ rttyCallsign WRITE setRttyCallsign NOTIFY rttyCallsignChanged)
 
 public:
     explicit SliceModel(int id, QObject *parent = nullptr);
@@ -225,6 +238,45 @@ public:
     int cwTrackedPitch() const { return m_cwTrackedPitch; }
     void setCwTrackedPitch(int pitch);
 
+    bool rttyDecodeEnabled() const { return m_rttyDecodeEnabled; }
+    void setRttyDecodeEnabled(bool enabled);
+
+    QString rttyDecodedText() const { return m_rttyDecodedText; }
+    void setRttyDecodedText(const QString &text);
+
+    float rttyCenterFreq() const { return m_rttyCenterFreq; }
+    void setRttyCenterFreq(float freq);
+
+    float rttyShiftHz() const { return m_rttyShiftHz; }
+    void setRttyShiftHz(float shift);
+
+    float rttyBaudRate() const { return m_rttyBaudRate; }
+    void setRttyBaudRate(float baud);
+
+    bool rttyReverse() const { return m_rttyReverse; }
+    void setRttyReverse(bool rev);
+
+    bool rttyAfc() const { return m_rttyAfc; }
+    void setRttyAfc(bool afc);
+
+    float rttySquelch() const { return m_rttySquelch; }
+    void setRttySquelch(float squelch);
+
+    float rttySnrDb() const { return m_rttySnrDb; }
+    void setRttySnrDb(float snr);
+
+    bool rttyToneLocked() const { return m_rttyToneLocked; }
+    void setRttyToneLocked(bool locked);
+
+    float rttyMarkFreq() const { return m_rttyMarkFreq; }
+    void setRttyMarkFreq(float freq);
+
+    float rttySpaceFreq() const { return m_rttySpaceFreq; }
+    void setRttySpaceFreq(float freq);
+
+    QString rttyCallsign() const { return m_rttyCallsign; }
+    void setRttyCallsign(const QString &call);
+
 signals:
     void frequencyChanged(qint64 freq);
     void vfoAFrequencyChanged(qint64 freq);
@@ -272,6 +324,19 @@ signals:
     void cwToneActiveChanged(bool active);
     void cwDecodeEnabledChanged(bool enabled);
     void cwTrackedPitchChanged(int pitch);
+    void rttyDecodeEnabledChanged(bool enabled);
+    void rttyDecodedTextChanged(const QString &text);
+    void rttyCenterFreqChanged(float freq);
+    void rttyShiftHzChanged(float shift);
+    void rttyBaudRateChanged(float baud);
+    void rttyReverseChanged(bool rev);
+    void rttyAfcChanged(bool afc);
+    void rttySquelchChanged(float squelch);
+    void rttySnrDbChanged(float snr);
+    void rttyToneLockedChanged(bool locked);
+    void rttyMarkFreqChanged(float freq);
+    void rttySpaceFreqChanged(float freq);
+    void rttyCallsignChanged(const QString &call);
 
 private:
     void writeThroughActiveSlot(qint64 freq);
@@ -326,6 +391,19 @@ private:
     bool m_cwToneActive = false;
     bool m_cwDecodeEnabled = false;
     int m_cwTrackedPitch = 700;
+    bool m_rttyDecodeEnabled = false;
+    QString m_rttyDecodedText;
+    float m_rttyCenterFreq = 2210.0f;
+    float m_rttyShiftHz = 170.0f;
+    float m_rttyBaudRate = 45.4545f;
+    bool m_rttyReverse = false;
+    bool m_rttyAfc = true;
+    float m_rttySquelch = 0.35f;
+    float m_rttySnrDb = 0.0f;
+    bool m_rttyToneLocked = false;
+    float m_rttyMarkFreq = 2125.0f;
+    float m_rttySpaceFreq = 2295.0f;
+    QString m_rttyCallsign;
 };
 
 #endif // SLICEMODEL_H

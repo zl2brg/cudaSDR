@@ -836,6 +836,167 @@ void HudRenderer::drawCwDecoderHUD() {
     }
 }
 
+void HudRenderer::drawRttyDecoderHUD() {
+    ensureGL();
+    if (!m_panel->m_sliceModel || !m_panel->m_sliceModel->rttyDecodeEnabled()) {
+        m_panel->m_rttyTextRect = QRect();
+        return;
+    }
+
+    const QString text = m_panel->m_sliceModel->rttyDecodedText();
+    const float baud = m_panel->m_sliceModel->rttyBaudRate();
+    const float shift = m_panel->m_sliceModel->rttyShiftHz();
+    const float centerAudioFreq = m_panel->m_sliceModel->rttyCenterFreq();
+    const bool locked = m_panel->m_sliceModel->rttyToneLocked();
+    const float snr = m_panel->m_sliceModel->rttySnrDb();
+    const QString callsign = m_panel->m_sliceModel->rttyCallsign();
+
+    m_panel->ensurePanelViewport();
+
+    const DSPMode mode = m_panel->m_sliceModel->dspMode();
+    const qint64 vfoFreq = m_panel->m_sliceModel->frequency();
+    const qint64 centerFreq = m_panel->m_sliceModel->centerFrequency();
+
+    // Determine RF frequencies of Mark and Space tones
+    const bool isLsb = (mode == DSPMode::LSB || mode == DSPMode::DIGL || mode == DSPMode::CWL);
+    const float markOffset = centerAudioFreq - shift * 0.5f;
+    const float spaceOffset = centerAudioFreq + shift * 0.5f;
+
+    const qint64 markRf = isLsb ? (vfoFreq - qRound(markOffset)) : (vfoFreq + qRound(markOffset));
+    const qint64 spaceRf = isLsb ? (vfoFreq - qRound(spaceOffset)) : (vfoFreq + qRound(spaceOffset));
+    const qint64 centerRf = isLsb ? (vfoFreq - qRound(centerAudioFreq)) : (vfoFreq + qRound(centerAudioFreq));
+
+    // Screen X positions
+    const float zoomFactor = m_panel->displayedZoomFactor();
+    const float sampleRate = (m_panel->m_sampleRate > 0) ? (float)m_panel->m_sampleRate : 48000.0f;
+    const float markDeltaF = (float)(markRf - centerFreq) / sampleRate;
+    const float spaceDeltaF = (float)(spaceRf - centerFreq) / sampleRate;
+    const float nominalDeltaF = (float)(centerRf - centerFreq) / sampleRate;
+
+    const float markX = (float)m_panel->m_panRect.left() + ((float)m_panel->m_panRect.width() / 2.0f) + (markDeltaF * (float)m_panel->m_panRect.width() / zoomFactor);
+    const float spaceX = (float)m_panel->m_panRect.left() + ((float)m_panel->m_panRect.width() / 2.0f) + (spaceDeltaF * (float)m_panel->m_panRect.width() / zoomFactor);
+    const float nominalX = (float)m_panel->m_panRect.left() + ((float)m_panel->m_panRect.width() / 2.0f) + (nominalDeltaF * (float)m_panel->m_panRect.width() / zoomFactor);
+
+    const int panLeft = m_panel->m_panRect.left();
+    const int panRight = m_panel->m_panRect.right();
+    const int panTop = m_panel->m_panRect.top();
+    const int panBottom = m_panel->m_panRect.bottom();
+
+    // Draw Dual-Tone Tuning Crosshairs (Mark Cyan/Green, Space Orange/Amber)
+    const bool markVisible = (markX >= (float)panLeft && markX <= (float)panRight);
+    const bool spaceVisible = (spaceX >= (float)panLeft && spaceX <= (float)panRight);
+
+    const QColor markColor = locked ? QColor(50, 240, 200, 220) : QColor(35, 180, 160, 150);
+    const QColor spaceColor = locked ? QColor(255, 165, 50, 220) : QColor(200, 130, 40, 150);
+
+    const int badgeH = m_panel->m_fonts.fontHeightNormalFont + 6;
+
+    if (markVisible && spaceVisible) {
+        const int mX = qRound(markX);
+        const int sX = qRound(spaceX);
+
+        // Tuning scope crossbar
+        const int crossbarY = panBottom - 24;
+        const int minX = qMin(mX, sX);
+        const int maxX = qMax(mX, sX);
+        m_panel->drawPanelRect(QRect(minX, crossbarY, maxX - minX, 1), QColor(160, 180, 200, 100), 3.4f);
+
+        // Mark arrow & 'M' indicator
+        m_panel->drawPanelRect(QRect(mX - 1, crossbarY - 8, 2, 8), markColor, 3.5f);
+        m_panel->drawPanelRect(QRect(mX - 3, crossbarY, 7, 2), markColor, 3.5f);
+        m_panel->m_glTextColor = markColor;
+        m_panel->renderPanelText(m_panel->m_oglTextSmall, float(mX - 4), float(crossbarY - 18), 3.6f, QStringLiteral("M"));
+
+        // Space arrow & 'S' indicator
+        m_panel->drawPanelRect(QRect(sX - 1, crossbarY - 8, 2, 8), spaceColor, 3.5f);
+        m_panel->drawPanelRect(QRect(sX - 3, crossbarY, 7, 2), spaceColor, 3.5f);
+        m_panel->m_glTextColor = spaceColor;
+        m_panel->renderPanelText(m_panel->m_oglTextSmall, float(sX - 4), float(crossbarY - 18), 3.6f, QStringLiteral("S"));
+    }
+
+    // Badge formatting
+    QString badgeText = QStringLiteral("RTTY %1/%2").arg(qRound(baud)).arg(qRound(shift));
+    if (locked && snr > 0.0f) {
+        badgeText.append(QStringLiteral(" %1dB").arg(qRound(snr)));
+    }
+    const int badgeW = m_panel->m_oglTextSmall->fontMetrics().horizontalAdvance(QStringLiteral("RTTY 45/170 99dB")) + 16;
+
+    QString displayStr = text;
+    if (displayStr.isEmpty()) {
+        displayStr = QStringLiteral("<RTTY %1/%2>").arg(qRound(baud)).arg(qRound(shift));
+    }
+
+    const int maxChars = 40;
+    const int maxTextW = m_panel->m_oglTextNormal 
+        ? qMax(280, m_panel->m_oglTextNormal->fontMetrics().averageCharWidth() * maxChars + 24)
+        : 320;
+    const int defaultBoxW = badgeW + maxTextW + 14;
+
+    int textX = qRound(nominalX) + 6;
+    int textY = panTop + (m_panel->m_panRect.height() / 2) + (badgeH / 2) + 4;
+
+    if (m_panel->m_hasCustomRttyBoxPos) {
+        textX = m_panel->m_rttyBoxPos.x();
+        textY = m_panel->m_rttyBoxPos.y();
+    } else if (textX + defaultBoxW > panRight) {
+        textX = qRound(nominalX) - 6 - defaultBoxW;
+    }
+
+    textX = qBound(panLeft + 4, textX, panRight - 80);
+    textY = qBound(panTop + 4, textY, panBottom - badgeH - 4);
+
+    const int availableW = panRight - textX - 8;
+    if (availableW > 60) {
+        const int textAvailableW = qBound(20, availableW - badgeW - 10, maxTextW);
+        QString trimmedText = displayStr;
+        if (trimmedText.length() > maxChars) {
+            trimmedText = trimmedText.right(maxChars);
+        }
+        while (!trimmedText.isEmpty() && m_panel->m_oglTextNormal->fontMetrics().horizontalAdvance(trimmedText) > textAvailableW) {
+            trimmedText.remove(0, 1);
+        }
+
+        int callsignBadgeW = 0;
+        if (!callsign.isEmpty()) {
+            callsignBadgeW = m_panel->m_oglTextSmall->fontMetrics().horizontalAdvance(callsign) + 12;
+        }
+
+        const int totalW = badgeW + callsignBadgeW + (trimmedText.isEmpty() ? 0 : m_panel->m_oglTextNormal->fontMetrics().horizontalAdvance(trimmedText) + 8) + 6;
+        m_panel->m_rttyTextRect = QRect(textX, textY, totalW, badgeH);
+
+        // Background container (dark slate)
+        m_panel->drawPanelRect(m_panel->m_rttyTextRect, QColor(10, 16, 22, 220), 3.4f);
+
+        // Mode badge container
+        m_panel->drawPanelRect(QRect(textX + 2, textY + 2, badgeW, badgeH - 4), QColor(22, 34, 46, 230), 3.5f);
+
+        // Tone lock pip (green on lock)
+        m_panel->drawPanelRect(QRect(textX + 5, textY + (badgeH / 2) - 2, 5, 5),
+                      locked ? QColor(50, 240, 150) : QColor(90, 110, 130), 3.6f);
+
+        m_panel->m_glTextColor = Qt::white;
+        m_panel->renderPanelText(m_panel->m_oglTextSmall, float(textX + 14), float(textY + 3), 3.6f, badgeText);
+
+        int curX = textX + badgeW + 6;
+
+        // Detected callsign badge
+        if (!callsign.isEmpty()) {
+            m_panel->drawPanelRect(QRect(curX, textY + 2, callsignBadgeW - 4, badgeH - 4), QColor(60, 50, 20, 220), 3.5f);
+            m_panel->m_glTextColor = QColor(255, 215, 60); // Gold
+            m_panel->renderPanelText(m_panel->m_oglTextSmall, float(curX + 4), float(textY + 3), 3.6f, callsign);
+            curX += callsignBadgeW;
+        }
+
+        // Decoded text in high-contrast cyan
+        if (!trimmedText.isEmpty()) {
+            m_panel->m_glTextColor = text.isEmpty() ? QColor(130, 160, 180, 190) : QColor(120, 240, 255, 255);
+            m_panel->renderPanelText(m_panel->m_oglTextNormal, float(curX), float(textY + 2), 3.6f, trimmedText);
+        }
+    } else {
+        m_panel->m_rttyTextRect = QRect();
+    }
+}
+
 void HudRenderer::drawCrossHair() {
     ensureGL();
     if (!m_panel->m_overlayRenderer) return;

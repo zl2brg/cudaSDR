@@ -158,6 +158,8 @@ public:
     void setClickVFO(bool enabled);
     bool cwDecode() const { return m_cwDecode; }
     void setCwDecode(bool enabled);
+    bool rttyDecode() const { return m_rttyDecode; }
+    void setRttyDecode(bool enabled);
 
     QList<qint64> lastCenterFrequencyList() const { return m_lastCenterFrequencyList; }
     void setLastCenterFrequencyList(const QList<qint64> &values);
@@ -250,6 +252,7 @@ private:
     bool m_peakHold = false;
     bool m_clickVFO = false;
     bool m_cwDecode = false;
+    bool m_rttyDecode = false;
 
     QList<qint64> m_lastCenterFrequencyList;
     QList<qint64> m_lastVfoFrequencyList;

@@ -50,6 +50,9 @@
 #endif
 
 #include "AudioEngine/CwDecoder.h"
+#include "AudioEngine/RttyDemodulator.h"
+#include "AudioEngine/RttyBayesianDecoder.h"
+#include "AudioEngine/RttyLexicon.h"
 
 #ifdef LOG_SLICE_PROCESSOR
 #   define SLICE_PROCESSOR_DEBUG qDebug().nospace() << "SliceProcessor::\t"
@@ -220,6 +223,9 @@ private:
 #endif
 
 	CwDecoder* m_cwDecoder = nullptr;
+	RttyDemodulator* m_rttyDemodulator = nullptr;
+	RttyBayesianDecoder* m_rttyDecoder = nullptr;
+	RttyLexicon* m_rttyLexicon = nullptr;
 
     // DSP Pipeline Stages
     void    processSpectrumPass(bool transmitting);
@@ -233,6 +239,9 @@ private:
 
 public:
 	CwDecoder* cwDecoder() const { return m_cwDecoder; }
+	RttyDemodulator* rttyDemodulator() const { return m_rttyDemodulator; }
+	RttyBayesianDecoder* rttyDecoder() const { return m_rttyDecoder; }
+	RttyLexicon* rttyLexicon() const { return m_rttyLexicon; }
 
 signals:
 	void	messageEvent(QString msg);

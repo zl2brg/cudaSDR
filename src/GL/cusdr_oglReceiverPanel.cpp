@@ -463,6 +463,10 @@ void QGLReceiverPanel::setupConnections() {
     connect(m_sliceModel, &SliceModel::sMeterPeakValueChanged, this, &QGLReceiverPanel::updateSMeterPeakValue);
     connect(m_sliceModel, &SliceModel::cwDecodeEnabledChanged, this, qOverload<>(&QGLReceiverPanel::update));
     connect(m_sliceModel, &SliceModel::cwTrackedPitchChanged, this, qOverload<>(&QGLReceiverPanel::update));
+    connect(m_sliceModel, &SliceModel::rttyDecodedTextChanged, this, qOverload<>(&QGLReceiverPanel::update));
+    connect(m_sliceModel, &SliceModel::rttyToneLockedChanged, this, qOverload<>(&QGLReceiverPanel::update));
+    connect(m_sliceModel, &SliceModel::rttyDecodeEnabledChanged, this, qOverload<>(&QGLReceiverPanel::update));
+    connect(m_sliceModel, &SliceModel::rttyCallsignChanged, this, qOverload<>(&QGLReceiverPanel::update));
     connect(m_sliceModel, &SliceModel::activeVfoChanged, this, [this](SliceModel::ActiveVfo){
         this->setVFOFrequency(0, m_sliceModel->id(), m_sliceModel->frequency());
     });
@@ -751,6 +755,7 @@ void QGLReceiverPanel::renderMarkerHudPass() {
         ensurePanelViewport();
         drawVFOControl();
         drawCwDecoderHUD();
+        drawRttyDecoderHUD();
         drawPanadapterSMeter();
         drawPanadapterFreq();
     }
@@ -864,6 +869,11 @@ void QGLReceiverPanel::drawVFOControl() {
 void QGLReceiverPanel::drawCwDecoderHUD() {
     if (m_hudRenderer)
         m_hudRenderer->drawCwDecoderHUD();
+}
+
+void QGLReceiverPanel::drawRttyDecoderHUD() {
+    if (m_hudRenderer)
+        m_hudRenderer->drawRttyDecoderHUD();
 }
 
 void QGLReceiverPanel::drawPanadapterSMeter() {

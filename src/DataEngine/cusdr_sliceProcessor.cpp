@@ -120,6 +120,64 @@ SliceProcessor::SliceProcessor(SliceModel *model, QObject *parent)
 	}
 	connect(set, &Settings::CwSidetoneFreqChanged, m_cwDecoder, &CwDecoder::setPitch);
 
+	m_rttyDemodulator = new RttyDemodulator(m_receiver, this);
+	m_rttyDecoder = new RttyBayesianDecoder(m_receiver, this);
+	m_rttyLexicon = new RttyLexicon(m_receiver, this);
+
+	connect(m_rttyDemodulator, &RttyDemodulator::symbolSampled,
+			m_rttyDecoder, &RttyBayesianDecoder::processSymbol);
+	connect(m_rttyDecoder, &RttyBayesianDecoder::characterDecoded,
+			m_rttyLexicon, &RttyLexicon::processCharacter);
+
+	if (m_sliceModel) {
+		connect(m_rttyDecoder, &RttyBayesianDecoder::textUpdated,
+				m_sliceModel, [this](int rx, const QString &text) {
+			if (m_sliceModel && m_sliceModel->id() == rx)
+				m_sliceModel->setRttyDecodedText(text);
+		});
+		connect(m_rttyLexicon, &RttyLexicon::callsignDetected,
+				m_sliceModel, [this](int rx, const QString &call, float conf) {
+			Q_UNUSED(conf)
+			if (m_sliceModel && m_sliceModel->id() == rx)
+				m_sliceModel->setRttyCallsign(call);
+		});
+		connect(m_rttyDemodulator, &RttyDemodulator::toneStatusChanged,
+				m_sliceModel, [this](int rx, float markFreq, float spaceFreq, float snrDb, bool locked) {
+			if (m_sliceModel && m_sliceModel->id() == rx) {
+				m_sliceModel->setRttyMarkFreq(markFreq);
+				m_sliceModel->setRttySpaceFreq(spaceFreq);
+				m_sliceModel->setRttySnrDb(snrDb);
+				m_sliceModel->setRttyToneLocked(locked);
+			}
+		});
+		connect(m_sliceModel, &SliceModel::rttyDecodeEnabledChanged,
+				this, [this](bool enabled) {
+			if (m_rttyDemodulator) m_rttyDemodulator->setEnabled(enabled);
+			if (m_rttyDecoder) {
+				m_rttyDecoder->setEnabled(enabled);
+				if (!enabled) m_rttyDecoder->clearText();
+			}
+			if (m_rttyLexicon && !enabled) m_rttyLexicon->clearCallsigns();
+		});
+		connect(m_sliceModel, &SliceModel::rttyDecodedTextChanged,
+				this, [this](const QString &text) {
+			if (text.isEmpty() && m_rttyDecoder)
+				m_rttyDecoder->clearText();
+		});
+		connect(m_sliceModel, &SliceModel::rttyCenterFreqChanged,
+				m_rttyDemodulator, &RttyDemodulator::setCenterFreqHz);
+		connect(m_sliceModel, &SliceModel::rttyShiftHzChanged,
+				m_rttyDemodulator, &RttyDemodulator::setShiftHz);
+		connect(m_sliceModel, &SliceModel::rttyBaudRateChanged,
+				m_rttyDemodulator, &RttyDemodulator::setBaudRate);
+		connect(m_sliceModel, &SliceModel::rttyReverseChanged,
+				m_rttyDemodulator, &RttyDemodulator::setReversePolarity);
+		connect(m_sliceModel, &SliceModel::rttyAfcChanged,
+				m_rttyDemodulator, &RttyDemodulator::setAfcEnabled);
+		connect(m_sliceModel, &SliceModel::rttySquelchChanged,
+				m_rttyDecoder, &RttyBayesianDecoder::setSquelchThreshold);
+	}
+
 	setupConnections();
     m_displayTime = (int)(1000000.0/set->getFramesPerSecond(m_receiver));
 	m_smeterTime.start();
@@ -608,6 +666,15 @@ void SliceProcessor::processAudioPass(int audioSamplesThisCall) {
                 mono[i] = static_cast<float>(inData[i].re);
             m_cwDecoder->processAudio(mono, n, 48000);
         }
+
+        if (m_rttyDemodulator && m_sliceModel && m_sliceModel->rttyDecodeEnabled()) {
+            if (m_monoScratch.size() < static_cast<size_t>(n))
+                m_monoScratch.resize(n);
+            float* mono = m_monoScratch.data();
+            for (int i = 0; i < n; ++i)
+                mono[i] = static_cast<float>(inData[i].re);
+            m_rttyDemodulator->processAudio(mono, n, 48000);
+        }
     } else {
         if (m_monoScratch.size() < static_cast<size_t>(audioSamplesThisCall))
             m_monoScratch.resize(audioSamplesThisCall);
@@ -617,6 +684,10 @@ void SliceProcessor::processAudioPass(int audioSamplesThisCall) {
             mono[i] = static_cast<float>(src[i].re);
 
         processDigitalVoicePass(mono, audioSamplesThisCall);
+
+        if (m_rttyDemodulator && m_sliceModel && m_sliceModel->rttyDecodeEnabled()) {
+            m_rttyDemodulator->processAudio(mono, audioSamplesThisCall, 48000);
+        }
     }
 #endif // USE_INTERNAL_AUDIO
 

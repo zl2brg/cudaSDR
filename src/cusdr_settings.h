@@ -509,6 +509,7 @@ typedef struct _receiver {
 	bool	anf = false;
 	bool	snb = false;
 	bool	cwDecode = false;
+	bool	rttyDecode = false;
 } TReceiver;
 
 typedef struct _wideband {
@@ -1151,6 +1152,7 @@ public:
     bool    getSnb(int rx);
     bool    getAnf(int rx);
     bool    getCwDecode(int rx);
+    bool    getRttyDecode(int rx);
     int     getnbMode(int rx);
     int     getnrMode(int rx);
 
@@ -1418,6 +1420,7 @@ public slots:
     void setAnf(int rx, bool value);
     void setSnb(int rx, bool value);
     void setCwDecode(int rx, bool value);
+    void setRttyDecode(int rx, bool value);
     void setRepeaterMode(bool mode);
     void setTxFullDuplex(bool fullDuplex);
     void setRepeaterOffset(int offset);

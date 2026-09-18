@@ -20,6 +20,8 @@ private slots:
     void testPitchTuning();
     void testAutoPitchTracking();
     void testResetAndClear();
+    void testBayesianTimingJitter();
+    void testBayesianHamExchange();
 };
 
 QVector<float> CwDecoderTests::generateMorseTone(const QString &morse, int wpm, int pitchHz, int sampleRate)
@@ -139,12 +141,8 @@ void CwDecoderTests::testSpeedAdaptation()
     const QVector<float> audio = generateMorseTone(QStringLiteral("... --- ..."), 30, 700);
     decoder.processAudio(audio.constData(), audio.size(), 48000);
 
-    // Decoder adaptation at higher WPM is still imperfect on synthetic audio.
-    QEXPECT_FAIL("", "CW decoder speed adaptation at 30 WPM is flaky", Continue);
     QCOMPARE(decoder.recentText().trimmed(), QStringLiteral("SOS"));
-    if (decoder.recentText().trimmed() == QStringLiteral("SOS")) {
-        QVERIFY(decoder.wpm() >= 25 && decoder.wpm() <= 35);
-    }
+    QVERIFY(decoder.wpm() >= 25 && decoder.wpm() <= 35);
 }
 
 void CwDecoderTests::testPitchTuning()
@@ -189,6 +187,85 @@ void CwDecoderTests::testResetAndClear()
 
     decoder.reset();
     QCOMPARE(decoder.recentText(), QString());
+}
+
+void CwDecoderTests::testBayesianTimingJitter()
+{
+    // Test operator "swing" and timing jitter
+    // Send "TEST" (- . ... -) where element durations vary by +/- 20%
+    const int wpm = 20;
+    const float ditSec = 1.2f / static_cast<float>(wpm);
+    const int sampleRate = 48000;
+    const int ditSamples = static_cast<int>(ditSec * static_cast<float>(sampleRate));
+    const int dahSamples = ditSamples * 3;
+    const int charSpaceSamples = ditSamples * 3;
+    const int elemSpaceSamples = ditSamples;
+
+    QVector<float> audio;
+    float phase = 0.0f;
+    const float phaseStep = (2.0f * static_cast<float>(M_PI) * 700.0f) / static_cast<float>(sampleRate);
+
+    auto appendTone = [&](int sampleCount) {
+        for (int i = 0; i < sampleCount; ++i) {
+            float env = 1.0f;
+            const int rampSamples = sampleRate / 200;
+            if (i < rampSamples)
+                env = 0.5f * (1.0f - std::cos(static_cast<float>(M_PI) * static_cast<float>(i) / static_cast<float>(rampSamples)));
+            else if (i > sampleCount - rampSamples)
+                env = 0.5f * (1.0f - std::cos(static_cast<float>(M_PI) * static_cast<float>(sampleCount - i) / static_cast<float>(rampSamples)));
+
+            audio.append(0.5f * env * std::sin(phase));
+            phase += phaseStep;
+            if (phase >= 2.0f * static_cast<float>(M_PI))
+                phase -= 2.0f * static_cast<float>(M_PI);
+        }
+    };
+
+    auto appendSilence = [&](int sampleCount) {
+        audio.append(QVector<float>(sampleCount, 0.0f));
+    };
+
+    appendSilence(ditSamples * 2);
+
+    // Letter 'T' (-): Shortened dah (2.4x dit instead of 3.0x)
+    appendTone(static_cast<int>(dahSamples * 0.80f));
+    appendSilence(charSpaceSamples);
+
+    // Letter 'E' (.): Lengthened dit (1.3x dit instead of 1.0x)
+    appendTone(static_cast<int>(ditSamples * 1.30f));
+    appendSilence(charSpaceSamples);
+
+    // Letter 'S' (...): 3 dits with alternating jitter
+    appendTone(static_cast<int>(ditSamples * 0.90f));
+    appendSilence(elemSpaceSamples);
+    appendTone(static_cast<int>(ditSamples * 1.25f));
+    appendSilence(elemSpaceSamples);
+    appendTone(static_cast<int>(ditSamples * 1.05f));
+    appendSilence(charSpaceSamples);
+
+    // Letter 'T' (-): Standard dah
+    appendTone(dahSamples);
+    appendSilence(charSpaceSamples * 2);
+
+    CwDecoder decoder(0);
+    decoder.setPitch(700);
+    decoder.processAudio(audio.constData(), audio.size(), sampleRate);
+
+    QCOMPARE(decoder.recentText().trimmed(), QStringLiteral("TEST"));
+}
+
+void CwDecoderTests::testBayesianHamExchange()
+{
+    // Test full contest exchange with priors: "CQ DE ZL2BRG 599"
+    // Morse: "-.-. --.- / -.. . / --.. .-.. ..--- -... .-. --. / ..... ----. ----."
+    const QString exchange = QStringLiteral("-.-. --.- / -.. . / --.. .-.. ..--- -... .-. --. / ..... ----. ----.");
+    const QVector<float> audio = generateMorseTone(exchange, 22, 700);
+
+    CwDecoder decoder(0);
+    decoder.setPitch(700);
+    decoder.processAudio(audio.constData(), audio.size(), 48000);
+
+    QCOMPARE(decoder.recentText().trimmed(), QStringLiteral("CQ DE ZL2BRG 599"));
 }
 
 QTEST_MAIN(CwDecoderTests)

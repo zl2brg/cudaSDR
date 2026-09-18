@@ -74,6 +74,7 @@ public:
 	void setAGCShowLines(bool enabled);
 	void setDxCluster(bool enabled);
 	void setCwDecodeEnabled(bool enabled);
+	void setRttyDecodeEnabled(bool enabled);
 	int getReceiver() const { return m_receiver; }
 
 signals:
@@ -96,6 +97,7 @@ signals:
 	void graphicsStateRequested(int rx, PanGraphicsMode panMode, WaterfallColorMode waterMode);
 	void dxClusterRequested(bool enabled);
 	void cwDecodeRequested(bool enabled);
+	void rttyDecodeRequested(bool enabled);
 
 	void showEvent();
 	void hideEvent();
@@ -201,6 +203,7 @@ private:
 	AeroButton*		m_WaterfallSimpleBtn;
 	AeroButton*		m_WaterfallEnhancedBtn;
 	QCheckBox*		m_cwDecodeCheckBox = nullptr;
+	QCheckBox*		m_rttyDecodeCheckBox = nullptr;
 	QCheckBox*		m_dxClusterCheckBox = nullptr;
 
     AeroButton*		band2200mBtn;

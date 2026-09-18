@@ -273,6 +273,31 @@ void PanadapterInputController::handleMousePress(QMouseEvent* event) {
         return;
     }
 
+    // Right-click on decoded RTTY text box erases the text
+    if (event->button() == Qt::RightButton) {
+        if (m_panel->m_rttyTextRect.isValid() && m_panel->m_rttyTextRect.contains(event->pos())) {
+            if (m_panel->m_sliceModel) {
+                m_panel->m_sliceModel->setRttyDecodedText(QString());
+            }
+            m_panel->update();
+            event->accept();
+            return;
+        }
+    }
+
+    // Left-click on decoded RTTY text box starts movable dragging
+    if (event->button() == Qt::LeftButton && m_panel->m_rttyTextRect.isValid() && m_panel->m_rttyTextRect.contains(event->pos())) {
+        m_panel->m_dragRttyText = true;
+        m_panel->m_rttyDragStartMouse = event->pos();
+        if (!m_panel->m_hasCustomRttyBoxPos) {
+            m_panel->m_rttyBoxPos = m_panel->m_rttyTextRect.topLeft();
+            m_panel->m_hasCustomRttyBoxPos = true;
+        }
+        m_panel->setCursor(Qt::ClosedHandCursor);
+        event->accept();
+        return;
+    }
+
     // Left-click on panadapter S-meter starts movable dragging
     if (event->button() == Qt::LeftButton && m_panel->m_panSMeterRect.isValid() && m_panel->m_panSMeterRect.contains(event->pos())) {
         m_panel->m_dragPanSMeter = true;
@@ -408,6 +433,15 @@ void PanadapterInputController::handleMouseRelease(QMouseEvent *event) {
 
     if (m_panel->m_dragCwText) {
         m_panel->m_dragCwText = false;
+        if (m_panel->cursor().shape() != Qt::ArrowCursor)
+            m_panel->setCursor(Qt::ArrowCursor);
+        m_panel->update();
+        event->accept();
+        return;
+    }
+
+    if (m_panel->m_dragRttyText) {
+        m_panel->m_dragRttyText = false;
         if (m_panel->cursor().shape() != Qt::ArrowCursor)
             m_panel->setCursor(Qt::ArrowCursor);
         m_panel->update();
@@ -556,6 +590,19 @@ void PanadapterInputController::handleMouseMove(QMouseEvent* event) {
         return;
     }
 
+    if (m_panel->m_dragRttyText && (event->buttons() & Qt::LeftButton)) {
+        const QPoint delta = event->pos() - m_panel->m_rttyDragStartMouse;
+        m_panel->m_rttyDragStartMouse = event->pos();
+        m_panel->m_rttyBoxPos += delta;
+        const int w = m_panel->m_rttyTextRect.width() > 0 ? m_panel->m_rttyTextRect.width() : 200;
+        const int h = m_panel->m_rttyTextRect.height() > 0 ? m_panel->m_rttyTextRect.height() : 24;
+        m_panel->m_rttyBoxPos.setX(qBound(m_panel->m_panRect.left() + 4, m_panel->m_rttyBoxPos.x(), m_panel->m_panRect.right() - w - 4));
+        m_panel->m_rttyBoxPos.setY(qBound(m_panel->m_panRect.top() + 4, m_panel->m_rttyBoxPos.y(), m_panel->m_panRect.bottom() - h - 4));
+        m_panel->update();
+        event->accept();
+        return;
+    }
+
     if (m_panel->m_dragPanSMeter && (event->buttons() & Qt::LeftButton)) {
         const QPoint delta = event->pos() - m_panel->m_panSMeterDragStartMouse;
         m_panel->m_panSMeterDragStartMouse = event->pos();
@@ -572,6 +619,9 @@ void PanadapterInputController::handleMouseMove(QMouseEvent* event) {
     if (event->buttons() == Qt::NoButton) {
         getRegion(m_panel->m_mousePos);
         if (m_panel->m_cwTextRect.isValid() && m_panel->m_cwTextRect.contains(m_panel->m_mousePos)) {
+            if (m_panel->cursor().shape() != Qt::OpenHandCursor)
+                m_panel->setCursor(Qt::OpenHandCursor);
+        } else if (m_panel->m_rttyTextRect.isValid() && m_panel->m_rttyTextRect.contains(m_panel->m_mousePos)) {
             if (m_panel->cursor().shape() != Qt::OpenHandCursor)
                 m_panel->setCursor(Qt::OpenHandCursor);
         } else if (m_panel->m_panSMeterRect.isValid() && m_panel->m_panSMeterRect.contains(m_panel->m_mousePos)) {

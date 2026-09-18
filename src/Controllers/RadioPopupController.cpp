@@ -241,6 +241,19 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
             if (m_view)
                 m_view->setCwDecodeEnabled(enabled);
         });
+
+        m_view->setRttyDecodeEnabled(m_sliceModel->rttyDecodeEnabled());
+        connect(m_view, &RadioPopupWidget::rttyDecodeRequested, this, [this](bool enabled) {
+            if (m_sliceModel) {
+                m_sliceModel->setRttyDecodeEnabled(enabled);
+            } else if (m_model) {
+                m_model->setRttyDecode(m_view->getReceiver(), enabled);
+            }
+        });
+        connect(m_sliceModel, &SliceModel::rttyDecodeEnabledChanged, this, [this](bool enabled) {
+            if (m_view)
+                m_view->setRttyDecodeEnabled(enabled);
+        });
     }
 
     // Model -> View

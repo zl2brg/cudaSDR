@@ -192,6 +192,11 @@ private:
 	QPoint						m_cwDragStartMouse;
 	bool						m_hasCustomCwBoxPos = false;
 	QPoint						m_cwBoxPos;
+	QRect						m_rttyTextRect;
+	bool						m_dragRttyText = false;
+	QPoint						m_rttyDragStartMouse;
+	bool						m_hasCustomRttyBoxPos = false;
+	QPoint						m_rttyBoxPos;
 	QRect						m_panSMeterRect;
 	bool						m_dragPanSMeter = false;
 	QPoint						m_panSMeterDragStartMouse;
@@ -415,6 +420,7 @@ private:
 	void	drawAGCControl();
 	void	drawVFOControl();
 	void	drawCwDecoderHUD();
+	void	drawRttyDecoderHUD();
 	void	drawPanadapterSMeter();
 	void	drawPanadapterFreq();
 

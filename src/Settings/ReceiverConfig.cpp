@@ -280,6 +280,7 @@ void ReceiverConfig::setPanGrid(bool enabled) { m_panGrid = enabled; }
 void ReceiverConfig::setPeakHold(bool enabled) { m_peakHold = enabled; }
 void ReceiverConfig::setClickVFO(bool enabled) { m_clickVFO = enabled; }
 void ReceiverConfig::setCwDecode(bool enabled) { m_cwDecode = enabled; }
+void ReceiverConfig::setRttyDecode(bool enabled) { m_rttyDecode = enabled; }
 
 void ReceiverConfig::setLastCenterFrequencyList(const QList<qint64> &values)
 {
@@ -375,6 +376,7 @@ void ReceiverConfig::applyTo(TReceiver &rx) const {
     rx.peakHold = m_peakHold;
     rx.clickVFO = m_clickVFO;
     rx.cwDecode = m_cwDecode;
+    rx.rttyDecode = m_rttyDecode;
     rx.lastCenterFrequencyList = m_lastCenterFrequencyList;
     rx.lastVfoFrequencyList = m_lastVfoFrequencyList;
     rx.mercuryAttenuators = m_mercuryAttenuators;
@@ -435,6 +437,7 @@ void ReceiverConfig::fromReceiver(const TReceiver &rx) {
     setPeakHold(rx.peakHold);
     setClickVFO(rx.clickVFO);
     setCwDecode(rx.cwDecode);
+    setRttyDecode(rx.rttyDecode);
     setLastCenterFrequencyList(rx.lastCenterFrequencyList);
     setLastVfoFrequencyList(rx.lastVfoFrequencyList);
     setMercuryAttenuators(rx.mercuryAttenuators);
@@ -549,6 +552,8 @@ void ReceiverConfig::load(const QJsonObject &json) {
         setClickVFO(json.value(QLatin1String("clickVFO")).toBool());
     if (json.contains(QLatin1String("cwDecode")))
         setCwDecode(json.value(QLatin1String("cwDecode")).toBool());
+    if (json.contains(QLatin1String("rttyDecode")))
+        setRttyDecode(json.value(QLatin1String("rttyDecode")).toBool());
 
     if (json.contains(QLatin1String("lastCenterFrequencyList"))) {
         const auto vec = SettingsUtils::jsonArrayToVector<qint64>(
@@ -636,6 +641,7 @@ void ReceiverConfig::save(QJsonObject &json) const {
     json[QLatin1String("peakHold")] = m_peakHold;
     json[QLatin1String("clickVFO")] = m_clickVFO;
     json[QLatin1String("cwDecode")] = m_cwDecode;
+    json[QLatin1String("rttyDecode")] = m_rttyDecode;
     json[QLatin1String("lastCenterFrequencyList")] = SettingsUtils::toJsonArray(m_lastCenterFrequencyList);
     json[QLatin1String("lastVfoFrequencyList")] = SettingsUtils::toJsonArray(m_lastVfoFrequencyList);
     json[QLatin1String("mercuryAttenuators")] = SettingsUtils::toJsonArray(m_mercuryAttenuators);
