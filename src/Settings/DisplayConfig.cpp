@@ -9,6 +9,7 @@ DisplayConfig::DisplayConfig(QObject *parent)
     , m_sMeterHoldTime(2000)
     , m_showPanadapterSMeter(true)
     , m_panadapterSMeterPos(-1, -1)
+    , m_panadapterSMeterSize(0)
 {
     // Default colors
     m_colors.panBackgroundColor = QColor(102, 69, 8);
@@ -70,6 +71,14 @@ void DisplayConfig::setPanadapterSMeterPos(const QPoint &pos) {
     }
 }
 
+void DisplayConfig::setPanadapterSMeterSize(int size) {
+    if (size < 0 || size > 2) size = 0;
+    if (m_panadapterSMeterSize != size) {
+        m_panadapterSMeterSize = size;
+        emit panadapterSMeterSizeChanged(m_panadapterSMeterSize);
+    }
+}
+
 void DisplayConfig::setPanadapterColors(const TPanadapterColors &colors) {
     // Basic assignment for now. Could do detailed check if needed.
     m_colors = colors;
@@ -94,6 +103,7 @@ void DisplayConfig::load(const QJsonObject &json) {
     if (json.contains("panadapterSMeterX") && json.contains("panadapterSMeterY")) {
         setPanadapterSMeterPos(QPoint(json["panadapterSMeterX"].toInt(-1), json["panadapterSMeterY"].toInt(-1)));
     }
+    if (json.contains("panadapterSMeterSize")) setPanadapterSMeterSize(json["panadapterSMeterSize"].toInt(0));
 
     if (json.contains("colors")) {
         QJsonObject colors = json["colors"].toObject();
@@ -125,6 +135,7 @@ void DisplayConfig::save(QJsonObject &json) const {
     json["showPanadapterSMeter"] = m_showPanadapterSMeter;
     json["panadapterSMeterX"] = m_panadapterSMeterPos.x();
     json["panadapterSMeterY"] = m_panadapterSMeterPos.y();
+    json["panadapterSMeterSize"] = m_panadapterSMeterSize;
 
     QJsonObject colors;
     colors["panBackground"] = colorToString(m_colors.panBackgroundColor);
@@ -165,6 +176,7 @@ void DisplayConfig::loadIni(QSettings *settings) {
         settings->value("graphics/panadapterSMeterX", -1).toInt(),
         settings->value("graphics/panadapterSMeterY", -1).toInt()
     ));
+    setPanadapterSMeterSize(settings->value("graphics/panadapterSMeterSize", 0).toInt());
 
     // Color loading
     TPanadapterColors colors = m_colors;
@@ -225,6 +237,7 @@ void DisplayConfig::saveIni(QSettings *settings) const {
     settings->setValue("graphics/showPanadapterSMeter", m_showPanadapterSMeter);
     settings->setValue("graphics/panadapterSMeterX", m_panadapterSMeterPos.x());
     settings->setValue("graphics/panadapterSMeterY", m_panadapterSMeterPos.y());
+    settings->setValue("graphics/panadapterSMeterSize", m_panadapterSMeterSize);
 
     settings->setValue("colors/panBackground", m_colors.panBackgroundColor);
     settings->setValue("colors/waterfall", m_colors.waterfallColor);

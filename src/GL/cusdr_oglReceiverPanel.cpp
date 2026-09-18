@@ -474,6 +474,7 @@ void QGLReceiverPanel::setupConnections() {
             m_hasCustomPanSMeterPos = true;
         }
         connect(set, &Settings::showPanadapterSMeterChanged, this, qOverload<>(&QGLReceiverPanel::update));
+        connect(set, &Settings::panadapterSMeterSizeChanged, this, qOverload<>(&QGLReceiverPanel::update));
         connect(set, &Settings::panadapterSMeterPosChanged, this, [this](const QPoint &pos) {
             if (pos.x() >= 0 && pos.y() >= 0) {
                 m_panSMeterPos = pos;

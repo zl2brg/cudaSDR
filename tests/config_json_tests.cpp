@@ -64,6 +64,7 @@ void ConfigJsonTests::testDisplayConfigJson() {
     QSignalSpy spyHold(&config, &DisplayConfig::sMeterHoldTimeChanged);
     QSignalSpy spySMeter(&config, &DisplayConfig::showPanadapterSMeterChanged);
     QSignalSpy spySMeterPos(&config, &DisplayConfig::panadapterSMeterPosChanged);
+    QSignalSpy spySMeterSize(&config, &DisplayConfig::panadapterSMeterSizeChanged);
     QSignalSpy spyColors(&config, &DisplayConfig::panadapterColorsChanged);
 
     config.setSpectrumSize(2048);
@@ -72,6 +73,7 @@ void ConfigJsonTests::testDisplayConfigJson() {
     config.setSMeterHoldTime(1000);
     config.setShowPanadapterSMeter(false);
     config.setPanadapterSMeterPos(QPoint(120, 45));
+    config.setPanadapterSMeterSize(2);
 
     TPanadapterColors colors;
     colors.panBackgroundColor = Qt::red;
@@ -85,6 +87,7 @@ void ConfigJsonTests::testDisplayConfigJson() {
     QCOMPARE(spyHold.count(), 1);
     QCOMPARE(spySMeter.count(), 1);
     QCOMPARE(spySMeterPos.count(), 1);
+    QCOMPARE(spySMeterSize.count(), 1);
     QCOMPARE(spyColors.count(), 1);
 
     QJsonObject json;
@@ -97,6 +100,7 @@ void ConfigJsonTests::testDisplayConfigJson() {
     QCOMPARE(json["showPanadapterSMeter"].toBool(), false);
     QCOMPARE(json["panadapterSMeterX"].toInt(), 120);
     QCOMPARE(json["panadapterSMeterY"].toInt(), 45);
+    QCOMPARE(json["panadapterSMeterSize"].toInt(), 2);
 
     QJsonObject colorsObj = json["colors"].toObject();
     QCOMPARE(colorsObj["panBackground"].toString(), DisplayConfig::colorToString(Qt::red));
@@ -113,6 +117,7 @@ void ConfigJsonTests::testDisplayConfigJson() {
     QCOMPARE(config2.sMeterHoldTime(), 1000);
     QCOMPARE(config2.showPanadapterSMeter(), false);
     QCOMPARE(config2.panadapterSMeterPos(), QPoint(120, 45));
+    QCOMPARE(config2.panadapterSMeterSize(), 2);
     QCOMPARE(config2.panadapterColors().panBackgroundColor, QColor(Qt::red));
     QCOMPARE(config2.panadapterColors().waterfallColor, QColor(Qt::green));
     QCOMPARE(config2.panadapterColors().panLineColor, QColor(Qt::blue));

@@ -34,6 +34,7 @@ public:
 	void	setWaterfallOffsetHi(int val);
 	void	setSMeterHoldTime(int val);
 	void	setPanSMeter(bool show);
+	void	setPanSMeterSize(int size);
 	void	setCallsign(const QString& callsign);
 	void	setPanadapterMode(PanGraphicsMode mode);
 	void	setWaterfallColorMode(WaterfallColorMode mode);
@@ -54,6 +55,7 @@ signals:
 	void	waterfallOffsetHiRequested(int rx, int val);
 	void	sMeterHoldTimeRequested(int val);
 	void	panSMeterRequested(bool show);
+	void	panSMeterSizeRequested(int size);
 	void	callsignRequested(const QString& val);
 	void	graphicsStateRequested(int rx, int panadapterMode, int waterColorMode);
 	void	panAveragingModeRequested(int rx, int mode);
@@ -147,6 +149,8 @@ private:
 
 	QList<QRadioButton *>	m_sMeterTypeRadioBtnList;
 	QCheckBox*				m_panSMeterCheckBox;
+	QComboBox*				m_panSMeterSizeCombo;
+	QLabel*					m_panSMeterSizeLabel;
 
 	int		m_fontHeight;
 	int		m_maxFontWidth;
@@ -167,6 +171,7 @@ private:
 	int		m_waterfallTime;
 	int		m_sMeterHoldTime;
 	bool	m_panSMeter = true;
+	int		m_panSMeterSize = 0;
 	int     m_panAvMode;
     int     m_panDetMode;
     int     m_fftSize;
@@ -189,6 +194,7 @@ private slots:
 	void	waterfallHiOffsetChanged(int value);
 	void	sMeterHoldTimeChanged(int value);
 	void	panSMeterChanged(bool value);
+	void	panSMeterSizeChanged(int index);
 	void 	fpsValueChanged(int value);
 	void	averagingFilterCntChanged(int value);
 	void	wbAveragingFilterCntChanged(int value);

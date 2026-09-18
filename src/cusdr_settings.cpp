@@ -96,6 +96,7 @@ Settings::Settings(QObject *parent)
     connect(m_displayConfig, &DisplayConfig::sMeterHoldTimeChanged, this, &Settings::sMeterHoldTimeChanged);
     connect(m_displayConfig, &DisplayConfig::showPanadapterSMeterChanged, this, &Settings::showPanadapterSMeterChanged);
     connect(m_displayConfig, &DisplayConfig::panadapterSMeterPosChanged, this, &Settings::panadapterSMeterPosChanged);
+    connect(m_displayConfig, &DisplayConfig::panadapterSMeterSizeChanged, this, &Settings::panadapterSMeterSizeChanged);
 
     m_widebandOptions.wideBandData = m_widebandConfig->dataEnabled();
     m_widebandOptions.wideBandDisplayStatus = m_widebandConfig->displayEnabled();
@@ -4611,6 +4612,10 @@ void Settings::setShowPanadapterSMeter(bool show) {
 
 void Settings::setPanadapterSMeterPos(const QPoint &pos) {
     m_displayConfig->setPanadapterSMeterPos(pos);
+}
+
+void Settings::setPanadapterSMeterSize(int size) {
+    m_displayConfig->setPanadapterSMeterSize(size);
 }
 
 void Settings::setdBmPanScaleMin(int rx, qreal value) {

@@ -219,13 +219,35 @@ void HudRenderer::drawPanadapterSMeter() {
         m_panel->m_panSMeterRect = QRect();
         return;
     }
-    if (m_panel->m_panRect.width() < 420 || m_panel->m_panRect.height() < 90) {
+
+    const int sizePref = m_panel->set->getPanadapterSMeterSize();
+    bool isLarge = false;
+    if (sizePref == 1) {
+        isLarge = false; // Forced Compact
+    } else if (sizePref == 2) {
+        isLarge = true;  // Forced Large
+    } else {
+        // Auto: Large only on high-DPI with sufficient height, or spacious panadapter panel
+        const bool highDpi = (m_panel->m_panelDpr >= 1.4);
+        const bool largePanel = (m_panel->m_panRect.height() >= 240 && m_panel->m_panRect.width() >= 900);
+        isLarge = (highDpi && m_panel->m_panRect.height() >= 170) || largePanel;
+    }
+
+    int cardW = isLarge ? 360 : 300;
+    int cardH = isLarge ? 74 : 57;
+
+    // In auto mode, if the panadapter slice is too narrow or short for large, fallback to compact
+    if (isLarge && sizePref == 0 && (m_panel->m_panRect.width() < 420 || m_panel->m_panRect.height() < 120)) {
+        isLarge = false;
+        cardW = 300;
+        cardH = 57;
+    }
+
+    if (m_panel->m_panRect.width() < (cardW + 50) || m_panel->m_panRect.height() < 85) {
         m_panel->m_panSMeterRect = QRect();
         return;
     }
 
-    const int cardW = 360;
-    const int cardH = 74;
     int x0 = m_panel->m_dBmScalePanRect.right() + 8;
     int y0 = m_panel->m_panRect.top() + 6;
 
@@ -259,11 +281,19 @@ void HudRenderer::drawPanadapterSMeter() {
     GlDraw::drawColoredLines(this, m_panel->m_shaderProgram, m_panel->m_vbo, proj, borderLines, 8);
 
     // 2. Digital Readout Row (top of card)
+    OGLText *fontBadge = isLarge ? m_panel->m_oglTextNormal : m_panel->m_oglTextSmall;
+    OGLText *fontReadout = isLarge ? m_panel->m_oglTextBig2 : m_panel->m_oglTextSmall;
+    const int badgeH = isLarge ? 18 : 16;
+    const int badgePad = isLarge ? 10 : 8;
+    const int rowY = isLarge ? (y0 + 5) : (y0 + 3);
+    const int badgeX = isLarge ? (x0 + 8) : (x0 + 6);
+    const int badgeTextX = isLarge ? (x0 + 13) : (x0 + 10);
+
     const QString rxBadge = QStringLiteral("RX%1").arg(m_panel->m_receiver + 1);
-    const int badgeW = m_panel->m_oglTextNormal->fontMetrics().horizontalAdvance(rxBadge) + 10;
-    m_panel->drawPanelRect(QRect(x0 + 8, y0 + 5, badgeW, 18), QColor(28, 38, 50, 230), 3.1f);
+    const int badgeW = fontBadge->fontMetrics().horizontalAdvance(rxBadge) + badgePad;
+    m_panel->drawPanelRect(QRect(badgeX, rowY, badgeW, badgeH), QColor(28, 38, 50, 230), 3.1f);
     m_panel->m_glTextColor = QColor(180, 205, 225);
-    m_panel->renderPanelText(m_panel->m_oglTextNormal, float(x0 + 13), float(y0 + 5), 3.2f, rxBadge);
+    m_panel->renderPanelText(fontBadge, float(badgeTextX), float(rowY), 3.2f, rxBadge);
 
     const float rawDbm = m_panel->m_sMeterOrgValue;
     QString sUnitStr;
@@ -279,20 +309,22 @@ void HudRenderer::drawPanadapterSMeter() {
         sUnitCol = QColor(56, 242, 115);
     }
     m_panel->m_glTextColor = sUnitCol;
-    m_panel->renderPanelText(m_panel->m_oglTextBig2, float(x0 + badgeW + 18), float(y0 + 5), 3.2f, sUnitStr);
+    const float sUnitX = float(x0 + badgeW + (isLarge ? 18 : 14));
+    m_panel->renderPanelText(fontReadout, sUnitX, float(rowY), 3.2f, sUnitStr);
 
     const QString dbmStr = QString::asprintf("%.1f dBm", rawDbm);
-    const int dbmW = m_panel->m_oglTextBig2->fontMetrics().horizontalAdvance(dbmStr);
+    const int dbmW = fontReadout->fontMetrics().horizontalAdvance(dbmStr);
     m_panel->m_glTextColor = QColor(210, 220, 230);
-    m_panel->renderPanelText(m_panel->m_oglTextBig2, float(x0 + cardW - dbmW - 10), float(y0 + 5), 3.2f, dbmStr);
+    const float dbmX = float(x0 + cardW - dbmW - (isLarge ? 10 : 8));
+    m_panel->renderPanelText(fontReadout, dbmX, float(rowY), 3.2f, dbmStr);
 
     // 3. Scale Geometry: -140 dBm to 0 dBm (140 dB span)
-    const int xStart = x0 + 12;
-    const int xEnd = x0 + cardW - 12;
+    const int xStart = x0 + (isLarge ? 12 : 10);
+    const int xEnd = x0 + cardW - (isLarge ? 12 : 10);
     const int scaleW = xEnd - xStart;
     const float unit = float(scaleW) / 140.0f;
-    const float yRailTop = float(y0 + 29);
-    const float yRailBottom = float(y0 + 46);
+    const float yRailTop = float(y0 + (isLarge ? 29 : 23));
+    const float yRailBottom = float(y0 + (isLarge ? 46 : 34));
 
     QVector<GlDraw::Vec3Rgb> scaleLines;
     scaleLines.reserve(10 + scaleW * 2 + 40);
@@ -314,16 +346,18 @@ void HudRenderer::drawPanadapterSMeter() {
     }
 
     // Top dBm ticks (-120 dBm to 0 dBm)
+    const float majorTickLen = isLarge ? 5.0f : 4.5f;
+    const float minorTickLen = isLarge ? 3.0f : 2.5f;
     const QColor tickCol(160, 180, 195, 230);
     const float tr = tickCol.redF(), tg = tickCol.greenF(), tb = tickCol.blueF();
     for (int db = 20; db <= 140; db += 20) {
         const float xt = float(xStart) + float(db) * unit;
-        scaleLines.append({ xt, yRailTop - 5.0f, 3.2f, tr, tg, tb });
+        scaleLines.append({ xt, yRailTop - majorTickLen, 3.2f, tr, tg, tb });
         scaleLines.append({ xt, yRailTop, 3.2f, tr, tg, tb });
     }
     for (int db = 10; db < 140; db += 20) {
         const float xt = float(xStart) + float(db) * unit;
-        scaleLines.append({ xt, yRailTop - 3.0f, 3.2f, tr, tg, tb });
+        scaleLines.append({ xt, yRailTop - minorTickLen, 3.2f, tr, tg, tb });
         scaleLines.append({ xt, yRailTop, 3.2f, tr, tg, tb });
     }
 
@@ -354,7 +388,7 @@ void HudRenderer::drawPanadapterSMeter() {
         } else {
             mr = 255.0f / 255.0f; mg = 60.0f / 255.0f; mb = 60.0f / 255.0f;
         }
-        const float tickLen = mark.major ? 5.0f : 3.0f;
+        const float tickLen = mark.major ? majorTickLen : minorTickLen;
         scaleLines.append({ xt, yRailBottom, 3.2f, mr, mg, mb });
         scaleLines.append({ xt, yRailBottom + tickLen, 3.2f, mr, mg, mb });
     }
@@ -392,17 +426,20 @@ void HudRenderer::drawPanadapterSMeter() {
         QVector<GlDraw::Vec3Rgb> needleLines;
         needleLines.reserve(4);
 
+        const float needleExt = isLarge ? 4.0f : 3.0f;
+        const float peakPipExt = isLarge ? 8.0f : 6.0f;
+
         // Main signal needle (bright white line)
         const float xNeedle = float(xStart) + avgVal * unit;
-        needleLines.append({ xNeedle, yRailTop - 4.0f, 3.5f, 1.0f, 1.0f, 1.0f });
-        needleLines.append({ xNeedle, yRailBottom + 4.0f, 3.5f, 1.0f, 1.0f, 1.0f });
+        needleLines.append({ xNeedle, yRailTop - needleExt, 3.5f, 1.0f, 1.0f, 1.0f });
+        needleLines.append({ xNeedle, yRailBottom + needleExt, 3.5f, 1.0f, 1.0f, 1.0f });
 
         // Peak hold needle (amber/red pip at top)
         const float peakVal = qBound(0.0f, m_panel->m_sMeterHoldMax, 140.0f);
         if (peakVal > avgVal + 0.5f) {
             const float xPeak = float(xStart) + peakVal * unit;
-            needleLines.append({ xPeak, yRailTop - 4.0f, 3.5f, 1.0f, 0.4f, 0.4f });
-            needleLines.append({ xPeak, yRailTop + 8.0f, 3.5f, 1.0f, 0.4f, 0.4f });
+            needleLines.append({ xPeak, yRailTop - needleExt, 3.5f, 1.0f, 0.4f, 0.4f });
+            needleLines.append({ xPeak, yRailTop + peakPipExt, 3.5f, 1.0f, 0.4f, 0.4f });
         }
 
         m_panel->m_vao.bind();
@@ -428,7 +465,9 @@ void HudRenderer::drawPanadapterSMeter() {
         { 127, "+60", QColor(255, 80, 80) }
     };
 
-    const QFontMetrics fm = m_panel->m_oglTextNormal->fontMetrics();
+    OGLText *fontLabels = isLarge ? m_panel->m_oglTextNormal : m_panel->m_oglTextSmall;
+    const float labelY = float(y0 + (isLarge ? 51 : 39));
+    const QFontMetrics fm = fontLabels->fontMetrics();
     for (const auto &lbl : sLabels) {
         const QString markStr = QString::fromLatin1(lbl.txt);
         const int tw = fm.horizontalAdvance(markStr);
@@ -436,7 +475,7 @@ void HudRenderer::drawPanadapterSMeter() {
         m_panel->m_glTextColor = (m_panel->m_dataEngineState == QSDR::DataEngineUp)
                                      ? lbl.col
                                      : QColor(120, 130, 140);
-        m_panel->renderPanelText(m_panel->m_oglTextNormal, xl, float(y0 + 51), 3.4f, markStr);
+        m_panel->renderPanelText(fontLabels, xl, labelY, 3.4f, markStr);
     }
 }
 
@@ -451,7 +490,8 @@ void HudRenderer::drawPanadapterFreq() {
     const bool sMeterAtTopLeft = m_panel->m_panSMeterRect.isValid() &&
                                  (m_panel->m_panSMeterRect.left() < m_panel->m_dBmScalePanRect.right() + 50) &&
                                  (m_panel->m_panSMeterRect.top() < m_panel->m_panRect.top() + 80);
-    const int minPanWidth = sMeterAtTopLeft ? 650 : 350;
+    const bool isLargeSMeter = (m_panel->m_panSMeterRect.width() > 320);
+    const int minPanWidth = sMeterAtTopLeft ? (isLargeSMeter ? 650 : 550) : 350;
     if (m_panel->m_panRect.width() < minPanWidth || m_panel->m_panRect.height() < 90) {
         m_panel->m_panFreqRect = QRect();
         m_panel->m_panFreqVfoRect = QRect();

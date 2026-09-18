@@ -572,6 +572,7 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
         if (m_model) {
             dispView->setSMeterHoldTime(m_model->getSMeterHoldTime());
             dispView->setPanSMeter(m_model->getShowPanadapterSMeter());
+            dispView->setPanSMeterSize(m_model->getPanadapterSMeterSize());
             dispView->setCallsign(m_model->getCallsign());
             dispView->setWidebandAveragingCnt(m_model->getSpectrumAveragingCnt(-1));
         }
@@ -617,6 +618,10 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
 
         connect(dispView, &DisplayOptionsWidget::panSMeterRequested, this, [this](bool val) {
             if (m_model) m_model->setShowPanadapterSMeter(val);
+        });
+
+        connect(dispView, &DisplayOptionsWidget::panSMeterSizeRequested, this, [this](int val) {
+            if (m_model) m_model->setPanadapterSMeterSize(val);
         });
 
         connect(dispView, &DisplayOptionsWidget::callsignRequested, this, [this](const QString& val) {

@@ -35,6 +35,7 @@ class DisplayConfig : public QObject {
     Q_PROPERTY(int sMeterHoldTime READ sMeterHoldTime WRITE setSMeterHoldTime NOTIFY sMeterHoldTimeChanged)
     Q_PROPERTY(bool showPanadapterSMeter READ showPanadapterSMeter WRITE setShowPanadapterSMeter NOTIFY showPanadapterSMeterChanged)
     Q_PROPERTY(QPoint panadapterSMeterPos READ panadapterSMeterPos WRITE setPanadapterSMeterPos NOTIFY panadapterSMeterPosChanged)
+    Q_PROPERTY(int panadapterSMeterSize READ panadapterSMeterSize WRITE setPanadapterSMeterSize NOTIFY panadapterSMeterSizeChanged)
 
 public:
     explicit DisplayConfig(QObject *parent = nullptr);
@@ -57,6 +58,9 @@ public:
     QPoint panadapterSMeterPos() const { return m_panadapterSMeterPos; }
     void setPanadapterSMeterPos(const QPoint &pos);
 
+    int panadapterSMeterSize() const { return m_panadapterSMeterSize; }
+    void setPanadapterSMeterSize(int size);
+
     TPanadapterColors panadapterColors() const { return m_colors; }
     void setPanadapterColors(const TPanadapterColors &colors);
 
@@ -77,6 +81,7 @@ signals:
     void sMeterHoldTimeChanged(int time);
     void showPanadapterSMeterChanged(bool show);
     void panadapterSMeterPosChanged(const QPoint &pos);
+    void panadapterSMeterSizeChanged(int size);
     void panadapterColorsChanged();
 
 private:
@@ -86,6 +91,7 @@ private:
     int m_sMeterHoldTime;
     bool m_showPanadapterSMeter;
     QPoint m_panadapterSMeterPos;
+    int m_panadapterSMeterSize;
     TPanadapterColors m_colors;
 };
 

@@ -480,10 +480,27 @@ void DisplayOptionsWidget::createSMeterOptions() {
 	m_panSMeterCheckBox->setChecked(m_panSMeter);
 	CHECKED_CONNECT(m_panSMeterCheckBox, &QCheckBox::toggled, this, &DisplayOptionsWidget::panSMeterChanged);
 
+	m_panSMeterSizeLabel = new QLabel(tr("Size:"), this);
+	m_panSMeterSizeLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
+
+	m_panSMeterSizeCombo = new QComboBox(this);
+	m_panSMeterSizeCombo->addItem(tr("Auto"));
+	m_panSMeterSizeCombo->addItem(tr("Compact"));
+	m_panSMeterSizeCombo->addItem(tr("Large"));
+	m_panSMeterSizeCombo->setCurrentIndex(m_panSMeterSize);
+	CHECKED_CONNECT(m_panSMeterSizeCombo, &QComboBox::currentIndexChanged, this, &DisplayOptionsWidget::panSMeterSizeChanged);
+
+	QHBoxLayout *hbox3 = new QHBoxLayout;
+	hbox3->setSpacing(4);
+	hbox3->addWidget(m_panSMeterSizeLabel);
+	hbox3->addStretch();
+	hbox3->addWidget(m_panSMeterSizeCombo);
+
 	QVBoxLayout *vbox = new QVBoxLayout;
 	vbox->setSpacing(6);
 	vbox->addSpacing(6);
 	vbox->addWidget(m_panSMeterCheckBox);
+	vbox->addLayout(hbox3);
 	vbox->addLayout(hbox2);
 
 	m_sMeterOptions = new QGroupBox(tr("S-Meter"), this);
@@ -576,6 +593,15 @@ void DisplayOptionsWidget::setPanSMeter(bool show) {
 	if (m_panSMeterCheckBox) {
 		const QSignalBlocker blocker(m_panSMeterCheckBox);
 		m_panSMeterCheckBox->setChecked(show);
+	}
+}
+
+void DisplayOptionsWidget::setPanSMeterSize(int size) {
+	if (size < 0 || size > 2) size = 0;
+	m_panSMeterSize = size;
+	if (m_panSMeterSizeCombo) {
+		const QSignalBlocker blocker(m_panSMeterSizeCombo);
+		m_panSMeterSizeCombo->setCurrentIndex(size);
 	}
 }
 
@@ -723,6 +749,12 @@ void DisplayOptionsWidget::sMeterHoldTimeChanged(int value) {
 void DisplayOptionsWidget::panSMeterChanged(bool value) {
 	m_panSMeter = value;
 	emit panSMeterRequested(value);
+}
+
+void DisplayOptionsWidget::panSMeterSizeChanged(int index) {
+	if (index < 0 || index > 2) index = 0;
+	m_panSMeterSize = index;
+	emit panSMeterSizeRequested(index);
 }
 
 void DisplayOptionsWidget::fpsValueChanged(int value) {

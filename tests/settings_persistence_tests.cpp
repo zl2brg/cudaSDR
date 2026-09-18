@@ -212,6 +212,7 @@ void SettingsPersistenceTests::loadAndSaveAllConfigModules()
         seed.setValue(QStringLiteral("graphics/showPanadapterSMeter"), false);
         seed.setValue(QStringLiteral("graphics/panadapterSMeterX"), 150);
         seed.setValue(QStringLiteral("graphics/panadapterSMeterY"), 40);
+        seed.setValue(QStringLiteral("graphics/panadapterSMeterSize"), 1);
         seed.setValue(QStringLiteral("colors/panBackground"), QColor(1, 2, 3));
 
         seed.setValue(QStringLiteral("server/mic_source"), QStringLiteral("janus"));
@@ -263,6 +264,7 @@ void SettingsPersistenceTests::loadAndSaveAllConfigModules()
     QCOMPARE(m_settings->displayConfig()->sMeterHoldTime(), 3500);
     QCOMPARE(m_settings->displayConfig()->showPanadapterSMeter(), false);
     QCOMPARE(m_settings->displayConfig()->panadapterSMeterPos(), QPoint(150, 40));
+    QCOMPARE(m_settings->displayConfig()->panadapterSMeterSize(), 1);
     QCOMPARE(m_settings->displayConfig()->panadapterColors().panBackgroundColor, QColor(1, 2, 3));
 
     // Verify Audio (RX) and Transmit configs
@@ -318,6 +320,7 @@ void SettingsPersistenceTests::loadAndSaveAllConfigModules()
     m_settings->displayConfig()->setdBmDistScaleMin(-60.0);
     m_settings->displayConfig()->setShowPanadapterSMeter(true);
     m_settings->displayConfig()->setPanadapterSMeterPos(QPoint(220, 60));
+    m_settings->displayConfig()->setPanadapterSMeterSize(2);
     m_settings->transmitConfig()->setMicSource(1); // penelope
     m_settings->cwConfig()->setInternalCw(0);
     m_settings->hardwareConfig()->setSource10Mhz(2); // mercury
@@ -341,6 +344,7 @@ void SettingsPersistenceTests::loadAndSaveAllConfigModules()
     QCOMPARE(m_settings->displayConfig()->dBmDistScaleMin(), -60.0);
     QCOMPARE(m_settings->displayConfig()->showPanadapterSMeter(), true);
     QCOMPARE(m_settings->displayConfig()->panadapterSMeterPos(), QPoint(220, 60));
+    QCOMPARE(m_settings->displayConfig()->panadapterSMeterSize(), 2);
     QCOMPARE(m_settings->transmitConfig()->micSource(), 1); // penelope
     QCOMPARE(m_settings->cwConfig()->internalCw(), 0);
     QCOMPARE(m_settings->hardwareConfig()->source10Mhz(), 2); // mercury
