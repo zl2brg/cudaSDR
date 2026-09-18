@@ -514,6 +514,7 @@ typedef struct _receiver {
 	float	rttyBaudRate = 45.4545f;
 	bool	rttyReverse = false;
 	bool	rttyAfc = true;
+	bool	rttyAutoDetect = false;
 	bool	rttyLogToFile = false;
 	bool	cwLogToFile = false;
 } TReceiver;

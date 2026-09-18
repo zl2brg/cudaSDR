@@ -285,6 +285,7 @@ void ReceiverConfig::setRttyShiftHz(float val) { m_rttyShiftHz = val; }
 void ReceiverConfig::setRttyBaudRate(float val) { m_rttyBaudRate = val; }
 void ReceiverConfig::setRttyReverse(bool val) { m_rttyReverse = val; }
 void ReceiverConfig::setRttyAfc(bool val) { m_rttyAfc = val; }
+void ReceiverConfig::setRttyAutoDetect(bool val) { m_rttyAutoDetect = val; }
 void ReceiverConfig::setRttyLogToFile(bool val) { m_rttyLogToFile = val; }
 void ReceiverConfig::setCwLogToFile(bool val) { m_cwLogToFile = val; }
 
@@ -387,6 +388,7 @@ void ReceiverConfig::applyTo(TReceiver &rx) const {
     rx.rttyBaudRate = m_rttyBaudRate;
     rx.rttyReverse = m_rttyReverse;
     rx.rttyAfc = m_rttyAfc;
+    rx.rttyAutoDetect = m_rttyAutoDetect;
     rx.rttyLogToFile = m_rttyLogToFile;
     rx.cwLogToFile = m_cwLogToFile;
     rx.lastCenterFrequencyList = m_lastCenterFrequencyList;
@@ -454,6 +456,7 @@ void ReceiverConfig::fromReceiver(const TReceiver &rx) {
     setRttyBaudRate(rx.rttyBaudRate);
     setRttyReverse(rx.rttyReverse);
     setRttyAfc(rx.rttyAfc);
+    setRttyAutoDetect(rx.rttyAutoDetect);
     setRttyLogToFile(rx.rttyLogToFile);
     setCwLogToFile(rx.cwLogToFile);
     setLastCenterFrequencyList(rx.lastCenterFrequencyList);
@@ -580,6 +583,8 @@ void ReceiverConfig::load(const QJsonObject &json) {
         setRttyReverse(json.value(QLatin1String("rttyReverse")).toBool());
     if (json.contains(QLatin1String("rttyAfc")))
         setRttyAfc(json.value(QLatin1String("rttyAfc")).toBool());
+    if (json.contains(QLatin1String("rttyAutoDetect")))
+        setRttyAutoDetect(json.value(QLatin1String("rttyAutoDetect")).toBool());
     if (json.contains(QLatin1String("rttyLogToFile")))
         setRttyLogToFile(json.value(QLatin1String("rttyLogToFile")).toBool());
     if (json.contains(QLatin1String("cwLogToFile")))
@@ -676,6 +681,7 @@ void ReceiverConfig::save(QJsonObject &json) const {
     json[QLatin1String("rttyBaudRate")] = static_cast<double>(m_rttyBaudRate);
     json[QLatin1String("rttyReverse")] = m_rttyReverse;
     json[QLatin1String("rttyAfc")] = m_rttyAfc;
+    json[QLatin1String("rttyAutoDetect")] = m_rttyAutoDetect;
     json[QLatin1String("rttyLogToFile")] = m_rttyLogToFile;
     json[QLatin1String("cwLogToFile")] = m_cwLogToFile;
     json[QLatin1String("lastCenterFrequencyList")] = SettingsUtils::toJsonArray(m_lastCenterFrequencyList);

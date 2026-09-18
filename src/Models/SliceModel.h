@@ -73,6 +73,7 @@ public:
     Q_PROPERTY(float rttyBaudRate READ rttyBaudRate WRITE setRttyBaudRate NOTIFY rttyBaudRateChanged)
     Q_PROPERTY(bool rttyReverse READ rttyReverse WRITE setRttyReverse NOTIFY rttyReverseChanged)
     Q_PROPERTY(bool rttyAfc READ rttyAfc WRITE setRttyAfc NOTIFY rttyAfcChanged)
+    Q_PROPERTY(bool rttyAutoDetect READ rttyAutoDetect WRITE setRttyAutoDetect NOTIFY rttyAutoDetectChanged)
     Q_PROPERTY(float rttySquelch READ rttySquelch WRITE setRttySquelch NOTIFY rttySquelchChanged)
     Q_PROPERTY(float rttySnrDb READ rttySnrDb WRITE setRttySnrDb NOTIFY rttySnrDbChanged)
     Q_PROPERTY(bool rttyToneLocked READ rttyToneLocked WRITE setRttyToneLocked NOTIFY rttyToneLockedChanged)
@@ -260,6 +261,9 @@ public:
     bool rttyAfc() const { return m_rttyAfc; }
     void setRttyAfc(bool afc);
 
+    bool rttyAutoDetect() const { return m_rttyAutoDetect; }
+    void setRttyAutoDetect(bool autoDetect);
+
     float rttySquelch() const { return m_rttySquelch; }
     void setRttySquelch(float squelch);
 
@@ -341,6 +345,7 @@ signals:
     void rttyBaudRateChanged(float baud);
     void rttyReverseChanged(bool rev);
     void rttyAfcChanged(bool afc);
+    void rttyAutoDetectChanged(bool autoDetect);
     void rttySquelchChanged(float squelch);
     void rttySnrDbChanged(float snr);
     void rttyToneLockedChanged(bool locked);
@@ -411,6 +416,7 @@ private:
     float m_rttyBaudRate = 45.4545f;
     bool m_rttyReverse = false;
     bool m_rttyAfc = true;
+    bool m_rttyAutoDetect = false;
     float m_rttySquelch = 0.35f;
     float m_rttySnrDb = 0.0f;
     bool m_rttyToneLocked = false;

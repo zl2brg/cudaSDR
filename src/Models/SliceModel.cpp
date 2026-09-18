@@ -409,6 +409,12 @@ void SliceModel::setRttyAfc(bool afc) {
     emit rttyAfcChanged(m_rttyAfc);
 }
 
+void SliceModel::setRttyAutoDetect(bool autoDetect) {
+    if (m_rttyAutoDetect == autoDetect) return;
+    m_rttyAutoDetect = autoDetect;
+    emit rttyAutoDetectChanged(m_rttyAutoDetect);
+}
+
 void SliceModel::setRttySquelch(float squelch) {
     if (qFuzzyCompare(m_rttySquelch, squelch)) return;
     m_rttySquelch = squelch;

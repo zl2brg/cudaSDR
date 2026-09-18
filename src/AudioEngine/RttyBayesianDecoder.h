@@ -9,6 +9,8 @@
 
 #include "AudioEngine/RttyDemodulator.h"
 
+class RttyAutoClassifier;
+
 /**
  * Result structure for an individual Bayesian decoded Baudot character.
  */
@@ -69,6 +71,9 @@ public:
     bool isFramingLocked() const { return m_framingLocked; }
     float framingConfidence() const { return m_lastFramingConfidence; }
     float figsBelief() const { return m_figsBelief; }
+
+    RttyAutoClassifier* autoClassifier() const { return m_autoClassifier; }
+    void setAutoClassifier(RttyAutoClassifier *classifier) { m_autoClassifier = classifier; }
 
     /**
      * Static helper to compute posterior probabilities and confidence for 5 soft data LLRs.
@@ -133,6 +138,8 @@ private:
 
     // Output text buffer
     QString m_recentText;
+
+    RttyAutoClassifier *m_autoClassifier = nullptr;
 };
 
 #endif // RTTYBAYESIANDECODER_H

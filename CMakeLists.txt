@@ -139,6 +139,7 @@ set(SOURCES
     ${SRC_DIR}/AudioEngine/RttyDemodulator.cpp
     ${SRC_DIR}/AudioEngine/RttyBayesianDecoder.cpp
     ${SRC_DIR}/AudioEngine/RttyLexicon.cpp
+    ${SRC_DIR}/AudioEngine/RttyAutoClassifier.cpp
 
 #    ${SRC_DIR}/AudioEngine/cusdr_audio_utils.cpp
 #    ${SRC_DIR}/AudioEngine/cusdr_audio_waveform.cpp
@@ -279,6 +280,7 @@ set(HEADERS
     ${SRC_DIR}/AudioEngine/RttyDemodulator.h
     ${SRC_DIR}/AudioEngine/RttyBayesianDecoder.h
     ${SRC_DIR}/AudioEngine/RttyLexicon.h
+    ${SRC_DIR}/AudioEngine/RttyAutoClassifier.h
 
     # Data Engine
     ${SRC_DIR}/DataEngine/cusdr_dataIO.h
@@ -1082,6 +1084,7 @@ if(BUILD_TESTING)
     qt_add_executable(rtty_demodulator_tests
         tests/rtty_demodulator_tests.cpp
         ${SRC_DIR}/AudioEngine/RttyDemodulator.cpp
+        ${SRC_DIR}/AudioEngine/RttyAutoClassifier.cpp
     )
     target_include_directories(rtty_demodulator_tests PRIVATE ${SRC_DIR})
     target_link_libraries(rtty_demodulator_tests PRIVATE Qt6::Core Qt6::Test)
@@ -1091,6 +1094,7 @@ if(BUILD_TESTING)
         tests/rtty_bayesian_decoder_tests.cpp
         ${SRC_DIR}/AudioEngine/RttyDemodulator.cpp
         ${SRC_DIR}/AudioEngine/RttyBayesianDecoder.cpp
+        ${SRC_DIR}/AudioEngine/RttyAutoClassifier.cpp
     )
     target_include_directories(rtty_bayesian_decoder_tests PRIVATE ${SRC_DIR})
     target_link_libraries(rtty_bayesian_decoder_tests PRIVATE Qt6::Core Qt6::Test)
@@ -1111,6 +1115,14 @@ if(BUILD_TESTING)
     target_include_directories(text_stream_logger_tests PRIVATE ${SRC_DIR})
     target_link_libraries(text_stream_logger_tests PRIVATE Qt6::Core Qt6::Test)
     add_test(NAME text_stream_logger_tests COMMAND text_stream_logger_tests)
+
+    qt_add_executable(rtty_auto_classifier_tests
+        tests/rtty_auto_classifier_tests.cpp
+        ${SRC_DIR}/AudioEngine/RttyAutoClassifier.cpp
+    )
+    target_include_directories(rtty_auto_classifier_tests PRIVATE ${SRC_DIR})
+    target_link_libraries(rtty_auto_classifier_tests PRIVATE Qt6::Core Qt6::Test)
+    add_test(NAME rtty_auto_classifier_tests COMMAND rtty_auto_classifier_tests)
 
     # Convenience target: build every unit test without the full cudasdr app.
     add_custom_target(build_tests DEPENDS
@@ -1146,6 +1158,7 @@ if(BUILD_TESTING)
         rtty_bayesian_decoder_tests
         rtty_lexicon_tests
         text_stream_logger_tests
+        rtty_auto_classifier_tests
     )
 
     # Headless Qt for any test that links Gui/Widgets (CI has no display), plus a

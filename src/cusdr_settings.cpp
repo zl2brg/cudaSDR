@@ -725,6 +725,14 @@ int Settings::loadSettings() {
             m_receiverDataList[i].rttyDecode = false;
 
         cstr = m_rxStringList.at(i);
+        cstr.append("/rttyAutoDetect");
+        str = settings->value(cstr, "off").toString();
+        if (str.toLower() == "on" || str.toLower() == "true")
+            m_receiverDataList[i].rttyAutoDetect = true;
+        else
+            m_receiverDataList[i].rttyAutoDetect = false;
+
+        cstr = m_rxStringList.at(i);
         cstr.append("/panLocked");
         str = settings->value(cstr, "off").toString();
         if (str.toLower() == "on")
@@ -1536,6 +1544,13 @@ int Settings::saveSettings() {
         str = m_rxStringList.at(i);
         str.append("/rttyDecode");
         if (m_receiverDataList[i].rttyDecode)
+            settings->setValue(str, "on");
+        else
+            settings->setValue(str, "off");
+
+        str = m_rxStringList.at(i);
+        str.append("/rttyAutoDetect");
+        if (m_receiverDataList[i].rttyAutoDetect)
             settings->setValue(str, "on");
         else
             settings->setValue(str, "off");
@@ -5291,6 +5306,7 @@ void Settings::syncSlicesWithSettings() {
         slice->setRttyBaudRate(m_receiverDataList[i].rttyBaudRate);
         slice->setRttyReverse(m_receiverDataList[i].rttyReverse);
         slice->setRttyAfc(m_receiverDataList[i].rttyAfc);
+        slice->setRttyAutoDetect(m_receiverDataList[i].rttyAutoDetect);
         slice->setRttyLogToFile(m_receiverDataList[i].rttyLogToFile);
         slice->setCwLogToFile(m_receiverDataList[i].cwLogToFile);
 
@@ -5384,6 +5400,7 @@ void Settings::syncSettingsWithSlices() {
         m_receiverDataList[i].rttyBaudRate = slice->rttyBaudRate();
         m_receiverDataList[i].rttyReverse = slice->rttyReverse();
         m_receiverDataList[i].rttyAfc = slice->rttyAfc();
+        m_receiverDataList[i].rttyAutoDetect = slice->rttyAutoDetect();
         m_receiverDataList[i].rttyLogToFile = slice->rttyLogToFile();
         m_receiverDataList[i].cwLogToFile = slice->cwLogToFile();
     }

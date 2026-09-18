@@ -840,6 +840,7 @@ void HudRenderer::drawRttyDecoderHUD() {
     ensureGL();
     if (!m_panel->m_sliceModel || !m_panel->m_sliceModel->rttyDecodeEnabled()) {
         m_panel->m_rttyTextRect = QRect();
+        m_panel->m_rttyConfigBtnRect = QRect();
         return;
     }
 
@@ -915,15 +916,18 @@ void HudRenderer::drawRttyDecoderHUD() {
     }
 
     // Badge formatting
-    QString badgeText = QStringLiteral("RTTY %1/%2").arg(qRound(baud)).arg(qRound(shift));
+    const bool autoDetect = m_panel->m_sliceModel->rttyAutoDetect();
+    const QString modePrefix = autoDetect ? QStringLiteral("AUTO") : QStringLiteral("RTTY");
+    QString badgeText = QStringLiteral("%1 %2/%3").arg(modePrefix).arg(qRound(baud)).arg(qRound(shift));
     if (locked && snr > 0.0f) {
         badgeText.append(QStringLiteral(" %1dB").arg(qRound(snr)));
     }
-    const int badgeW = m_panel->m_oglTextSmall->fontMetrics().horizontalAdvance(QStringLiteral("RTTY 45/170 99dB")) + 16;
+    badgeText.append(QStringLiteral(" \u2699"));
+    const int badgeW = m_panel->m_oglTextSmall->fontMetrics().horizontalAdvance(QStringLiteral("AUTO 100/850 99dB \u2699")) + 18;
 
     QString displayStr = text;
     if (displayStr.isEmpty()) {
-        displayStr = QStringLiteral("<RTTY %1/%2>").arg(qRound(baud)).arg(qRound(shift));
+        displayStr = QStringLiteral("<%1 %2/%3>").arg(modePrefix).arg(qRound(baud)).arg(qRound(shift));
     }
 
     const int maxChars = 40;
@@ -967,8 +971,11 @@ void HudRenderer::drawRttyDecoderHUD() {
         // Background container (dark slate)
         m_panel->drawPanelRect(m_panel->m_rttyTextRect, QColor(10, 16, 22, 220), 3.4f);
 
-        // Mode badge container
-        m_panel->drawPanelRect(QRect(textX + 2, textY + 2, badgeW, badgeH - 4), QColor(22, 34, 46, 230), 3.5f);
+        // Mode badge / config button container (highlight on hover)
+        m_panel->m_rttyConfigBtnRect = QRect(textX + 2, textY + 2, badgeW, badgeH - 4);
+        const bool configHover = m_panel->m_rttyConfigBtnRect.contains(m_panel->m_mousePos);
+        const QColor badgeBg = configHover ? QColor(40, 62, 88, 240) : QColor(22, 34, 46, 230);
+        m_panel->drawPanelRect(m_panel->m_rttyConfigBtnRect, badgeBg, 3.5f);
 
         // Tone lock pip (green on lock)
         m_panel->drawPanelRect(QRect(textX + 5, textY + (badgeH / 2) - 2, 5, 5),
@@ -994,6 +1001,7 @@ void HudRenderer::drawRttyDecoderHUD() {
         }
     } else {
         m_panel->m_rttyTextRect = QRect();
+        m_panel->m_rttyConfigBtnRect = QRect();
     }
 }
 

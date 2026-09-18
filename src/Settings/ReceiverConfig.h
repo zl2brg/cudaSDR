@@ -168,6 +168,8 @@ public:
     void setRttyReverse(bool val);
     bool rttyAfc() const { return m_rttyAfc; }
     void setRttyAfc(bool val);
+    bool rttyAutoDetect() const { return m_rttyAutoDetect; }
+    void setRttyAutoDetect(bool val);
     bool rttyLogToFile() const { return m_rttyLogToFile; }
     void setRttyLogToFile(bool val);
     bool cwLogToFile() const { return m_cwLogToFile; }
@@ -269,6 +271,7 @@ private:
     float m_rttyBaudRate = 45.4545f;
     bool m_rttyReverse = false;
     bool m_rttyAfc = true;
+    bool m_rttyAutoDetect = false;
     bool m_rttyLogToFile = false;
     bool m_cwLogToFile = false;
 

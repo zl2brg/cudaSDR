@@ -667,85 +667,6 @@ void RadioPopupWidget::createOptionsBtnGroup() {
     hboxDx->addWidget(m_rttyDecodeCheckBox);
     hboxDx->addWidget(m_dxClusterCheckBox);
 
-    // RTTY Shift & Baud combos, Rev, AFC
-    m_rttyShiftCombo = new QComboBox(this);
-    m_rttyShiftCombo->setFont(m_fonts.smallFont);
-    m_rttyShiftCombo->setToolTip(tr("RTTY Frequency Shift (Hz)"));
-    m_rttyShiftCombo->addItem("170 Hz", 170.0f);
-    m_rttyShiftCombo->addItem("200 Hz", 200.0f);
-    m_rttyShiftCombo->addItem("425 Hz", 425.0f);
-    m_rttyShiftCombo->addItem("850 Hz", 850.0f);
-    if (m_sliceModel) {
-        float s = m_sliceModel->rttyShiftHz();
-        for (int i = 0; i < m_rttyShiftCombo->count(); ++i) {
-            if (qAbs(m_rttyShiftCombo->itemData(i).toFloat() - s) < 1.0f) {
-                m_rttyShiftCombo->setCurrentIndex(i);
-                break;
-            }
-        }
-    }
-    connect(m_rttyShiftCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int index) {
-        if (index >= 0) {
-            emit rttyShiftRequested(m_rttyShiftCombo->itemData(index).toFloat());
-        }
-    });
-
-    m_rttyBaudCombo = new QComboBox(this);
-    m_rttyBaudCombo->setFont(m_fonts.smallFont);
-    m_rttyBaudCombo->setToolTip(tr("RTTY Baud Rate"));
-    m_rttyBaudCombo->addItem("45.45 bd", 45.45f);
-    m_rttyBaudCombo->addItem("50 bd", 50.0f);
-    m_rttyBaudCombo->addItem("75 bd", 75.0f);
-    m_rttyBaudCombo->addItem("100 bd", 100.0f);
-    if (m_sliceModel) {
-        float b = m_sliceModel->rttyBaudRate();
-        for (int i = 0; i < m_rttyBaudCombo->count(); ++i) {
-            if (qAbs(m_rttyBaudCombo->itemData(i).toFloat() - b) < 0.5f) {
-                m_rttyBaudCombo->setCurrentIndex(i);
-                break;
-            }
-        }
-    }
-    connect(m_rttyBaudCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int index) {
-        if (index >= 0) {
-            emit rttyBaudRateRequested(m_rttyBaudCombo->itemData(index).toFloat());
-        }
-    });
-
-    m_rttyReverseCheckBox = new QCheckBox(tr("Rev"), this);
-    m_rttyReverseCheckBox->setFont(m_fonts.smallFont);
-    m_rttyReverseCheckBox->setStyleSheet("color: rgba(220, 220, 220, 255);");
-    m_rttyReverseCheckBox->setToolTip(tr("Reverse RTTY Mark and Space tone polarity"));
-    m_rttyReverseCheckBox->setChecked(m_sliceModel ? m_sliceModel->rttyReverse() : false);
-    connect(m_rttyReverseCheckBox, &QCheckBox::clicked, this, [this](bool checked) {
-        emit rttyReverseRequested(checked);
-    });
-
-    m_rttyAfcCheckBox = new QCheckBox(tr("AFC"), this);
-    m_rttyAfcCheckBox->setFont(m_fonts.smallFont);
-    m_rttyAfcCheckBox->setStyleSheet("color: rgba(220, 220, 220, 255);");
-    m_rttyAfcCheckBox->setToolTip(tr("RTTY Automatic Frequency Control (track carrier drift up to +/-50 Hz)"));
-    m_rttyAfcCheckBox->setChecked(m_sliceModel ? m_sliceModel->rttyAfc() : true);
-    connect(m_rttyAfcCheckBox, &QCheckBox::clicked, this, [this](bool checked) {
-        emit rttyAfcRequested(checked);
-    });
-
-    QHBoxLayout* hboxRtty = new QHBoxLayout();
-    hboxRtty->setContentsMargins(4, 2, 4, 2);
-    hboxRtty->setSpacing(6);
-    QLabel* shiftLabel = new QLabel(tr("Shift:"), this);
-    shiftLabel->setFont(m_fonts.smallFont);
-    shiftLabel->setStyleSheet("color: rgba(180, 180, 180, 255);");
-    hboxRtty->addWidget(shiftLabel);
-    hboxRtty->addWidget(m_rttyShiftCombo);
-    QLabel* baudLabel = new QLabel(tr("Baud:"), this);
-    baudLabel->setFont(m_fonts.smallFont);
-    baudLabel->setStyleSheet("color: rgba(180, 180, 180, 255);");
-    hboxRtty->addWidget(baudLabel);
-    hboxRtty->addWidget(m_rttyBaudCombo);
-    hboxRtty->addWidget(m_rttyReverseCheckBox);
-    hboxRtty->addWidget(m_rttyAfcCheckBox);
-
     // Logging Checkboxes
     m_cwLogCheckBox = new QCheckBox(tr("Log CW"), this);
     m_cwLogCheckBox->setFont(m_fonts.smallFont);
@@ -756,20 +677,10 @@ void RadioPopupWidget::createOptionsBtnGroup() {
         emit cwLogRequested(checked);
     });
 
-    m_rttyLogCheckBox = new QCheckBox(tr("Log RTTY"), this);
-    m_rttyLogCheckBox->setFont(m_fonts.smallFont);
-    m_rttyLogCheckBox->setStyleSheet("color: rgba(220, 220, 220, 255);");
-    m_rttyLogCheckBox->setToolTip(tr("Log decoded RTTY text and callsigns to ~/.cudaSDR/logs/"));
-    m_rttyLogCheckBox->setChecked(m_sliceModel ? m_sliceModel->rttyLogToFile() : false);
-    connect(m_rttyLogCheckBox, &QCheckBox::clicked, this, [this](bool checked) {
-        emit rttyLogRequested(checked);
-    });
-
     QHBoxLayout* hboxLogs = new QHBoxLayout();
     hboxLogs->setContentsMargins(4, 2, 4, 2);
     hboxLogs->setSpacing(8);
     hboxLogs->addWidget(m_cwLogCheckBox);
-    hboxLogs->addWidget(m_rttyLogCheckBox);
     hboxLogs->addStretch();
 
     optionsVBox = new QVBoxLayout;
@@ -783,7 +694,6 @@ void RadioPopupWidget::createOptionsBtnGroup() {
     optionsVBox->addLayout(hbox5);
     optionsVBox->addSpacing(4);
     optionsVBox->addLayout(hboxDx);
-    optionsVBox->addLayout(hboxRtty);
     optionsVBox->addLayout(hboxLogs);
 }
 
@@ -2725,51 +2635,6 @@ void RadioPopupWidget::setRttyDecodeEnabled(bool enabled) {
     if (m_rttyDecodeCheckBox) {
         const QSignalBlocker blocker(m_rttyDecodeCheckBox);
         m_rttyDecodeCheckBox->setChecked(enabled);
-    }
-}
-
-void RadioPopupWidget::setRttyShift(float shiftHz) {
-    if (m_rttyShiftCombo) {
-        const QSignalBlocker blocker(m_rttyShiftCombo);
-        for (int i = 0; i < m_rttyShiftCombo->count(); ++i) {
-            if (qAbs(m_rttyShiftCombo->itemData(i).toFloat() - shiftHz) < 1.0f) {
-                m_rttyShiftCombo->setCurrentIndex(i);
-                break;
-            }
-        }
-    }
-}
-
-void RadioPopupWidget::setRttyBaudRate(float baudRate) {
-    if (m_rttyBaudCombo) {
-        const QSignalBlocker blocker(m_rttyBaudCombo);
-        for (int i = 0; i < m_rttyBaudCombo->count(); ++i) {
-            if (qAbs(m_rttyBaudCombo->itemData(i).toFloat() - baudRate) < 0.5f) {
-                m_rttyBaudCombo->setCurrentIndex(i);
-                break;
-            }
-        }
-    }
-}
-
-void RadioPopupWidget::setRttyReverse(bool reverse) {
-    if (m_rttyReverseCheckBox) {
-        const QSignalBlocker blocker(m_rttyReverseCheckBox);
-        m_rttyReverseCheckBox->setChecked(reverse);
-    }
-}
-
-void RadioPopupWidget::setRttyAfc(bool afc) {
-    if (m_rttyAfcCheckBox) {
-        const QSignalBlocker blocker(m_rttyAfcCheckBox);
-        m_rttyAfcCheckBox->setChecked(afc);
-    }
-}
-
-void RadioPopupWidget::setRttyLog(bool enable) {
-    if (m_rttyLogCheckBox) {
-        const QSignalBlocker blocker(m_rttyLogCheckBox);
-        m_rttyLogCheckBox->setChecked(enable);
     }
 }
 

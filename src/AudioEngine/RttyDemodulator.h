@@ -64,6 +64,11 @@ public:
     void setAfcEnabled(bool enabled);
     float trackedOffsetHz() const { return m_trackedOffsetHz; }
 
+    // Auto Detection & Classification
+    bool isAutoDetectEnabled() const { return m_autoDetect; }
+    void setAutoDetectEnabled(bool enabled);
+    class RttyAutoClassifier* classifier() const { return m_classifier; }
+
     // Recent decoded text (Stage 1 direct slicer)
     QString recentText() const { return m_recentText; }
     void clearText();
@@ -89,6 +94,8 @@ signals:
 
     // Diagnostics / Tuning aid
     void toneStatusChanged(int rx, float markFreq, float spaceFreq, float snrDb, bool locked);
+    void autoParametersDetected(float shiftHz, float centerFreqHz, float baudRate);
+    void polarityInversionDetected(bool reverse);
 
 private:
     void initDecimator();
@@ -105,6 +112,9 @@ private:
     bool m_reversePolarity = false;
     bool m_afcEnabled = true;
     float m_trackedOffsetHz = 0.0f;
+    bool m_autoDetect = false;
+    class RttyAutoClassifier* m_classifier = nullptr;
+    int m_lastZeroCrossingSample = 0;
 
     // Direct Digital Downconversion (DDC to DC)
     float m_ddcPhase = 0.0f;

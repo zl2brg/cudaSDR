@@ -1,4 +1,5 @@
 #include "AudioEngine/RttyBayesianDecoder.h"
+#include "AudioEngine/RttyAutoClassifier.h"
 
 #include <algorithm>
 #include <cmath>
@@ -122,6 +123,9 @@ void RttyBayesianDecoder::processSoftSymbol(float llr) {
     for (int i = 0; i < m_activeHypotheses.size(); ++i) {
         const auto &hyp = m_activeHypotheses[i];
         if (hyp.bitCount == 6) {
+            if (m_autoClassifier) {
+                m_autoClassifier->feedFramingResult(hyp.stopLlr, 1.0f);
+            }
             // Stop bit must not be strongly space
             if (hyp.stopLlr > -1.5f) {
                 const bool isFigs = (m_figsBelief > 0.5f);

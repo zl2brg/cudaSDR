@@ -157,6 +157,8 @@ SliceProcessor::SliceProcessor(SliceModel *model, QObject *parent)
 	m_rttyLexicon = new RttyLexicon(m_receiver, this);
 	m_rttyLogger = new TextStreamLogger("RTTY", m_receiver, this);
 
+	m_rttyDecoder->setAutoClassifier(m_rttyDemodulator->classifier());
+
 	connect(m_rttyDemodulator, &RttyDemodulator::symbolSampled,
 			m_rttyDecoder, &RttyBayesianDecoder::processSymbol);
 	connect(m_rttyDecoder, &RttyBayesianDecoder::characterDecoded,
@@ -168,6 +170,21 @@ SliceProcessor::SliceProcessor(SliceModel *model, QObject *parent)
 		Q_UNUSED(err);
 		if (m_rttyLogger && m_rttyLogger->isEnabled()) {
 			m_rttyLogger->appendText(character);
+		}
+	});
+
+	connect(m_rttyDemodulator, &RttyDemodulator::autoParametersDetected,
+			this, [this](float shiftHz, float centerFreqHz, float baudRate) {
+		if (m_sliceModel) {
+			m_sliceModel->setRttyShiftHz(shiftHz);
+			m_sliceModel->setRttyCenterFreq(centerFreqHz);
+			m_sliceModel->setRttyBaudRate(baudRate);
+		}
+	});
+	connect(m_rttyDemodulator, &RttyDemodulator::polarityInversionDetected,
+			this, [this](bool reverse) {
+		if (m_sliceModel) {
+			m_sliceModel->setRttyReverse(reverse);
 		}
 	});
 
@@ -222,6 +239,9 @@ SliceProcessor::SliceProcessor(SliceModel *model, QObject *parent)
 				m_rttyDemodulator, &RttyDemodulator::setReversePolarity);
 		connect(m_sliceModel, &SliceModel::rttyAfcChanged,
 				m_rttyDemodulator, &RttyDemodulator::setAfcEnabled);
+		connect(m_sliceModel, &SliceModel::rttyAutoDetectChanged,
+				m_rttyDemodulator, &RttyDemodulator::setAutoDetectEnabled);
+		m_rttyDemodulator->setAutoDetectEnabled(m_sliceModel->rttyAutoDetect());
 		connect(m_sliceModel, &SliceModel::rttySquelchChanged,
 				m_rttyDecoder, &RttyBayesianDecoder::setSquelchThreshold);
 		connect(m_sliceModel, &SliceModel::rttyLogToFileChanged,

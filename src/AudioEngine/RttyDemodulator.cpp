@@ -1,4 +1,5 @@
 #include "RttyDemodulator.h"
+#include "RttyAutoClassifier.h"
 #include <algorithm>
 
 #ifndef M_PI
@@ -24,6 +25,31 @@ RttyDemodulator::RttyDemodulator(int rxId, QObject *parent)
     : QObject(parent)
     , m_rxId(rxId)
 {
+    m_classifier = new RttyAutoClassifier(m_rxId, this);
+    m_classifier->setEnabled(m_autoDetect);
+
+    connect(m_classifier, &RttyAutoClassifier::shiftDetected, this, [this](float shiftHz, float centerFreqHz) {
+        if (m_autoDetect) {
+            setShiftHz(shiftHz);
+            setCenterFreqHz(centerFreqHz);
+            emit autoParametersDetected(m_shiftHz, m_centerFreqHz, m_baudRate);
+        }
+    });
+
+    connect(m_classifier, &RttyAutoClassifier::baudRateDetected, this, [this](float baudRate) {
+        if (m_autoDetect) {
+            setBaudRate(baudRate);
+            emit autoParametersDetected(m_shiftHz, m_centerFreqHz, m_baudRate);
+        }
+    });
+
+    connect(m_classifier, &RttyAutoClassifier::polarityInversionSuggested, this, [this]() {
+        if (m_autoDetect) {
+            setReversePolarity(!m_reversePolarity);
+            emit polarityInversionDetected(m_reversePolarity);
+        }
+    });
+
     initDecimator();
     initMatchedFilters();
 }
@@ -68,6 +94,15 @@ void RttyDemodulator::setAfcEnabled(bool enabled) {
     }
 }
 
+void RttyDemodulator::setAutoDetectEnabled(bool enabled) {
+    if (m_autoDetect != enabled) {
+        m_autoDetect = enabled;
+        if (m_classifier) {
+            m_classifier->setEnabled(enabled);
+        }
+    }
+}
+
 float RttyDemodulator::markFreqHz() const {
     const float offset = m_reversePolarity ? (+m_shiftHz * 0.5f) : (-m_shiftHz * 0.5f);
     return m_centerFreqHz + m_trackedOffsetHz + offset;
@@ -94,6 +129,11 @@ void RttyDemodulator::reset() {
     m_dpllFreq = m_baudRate / static_cast<float>(DECIM_RATE);
     m_lastDiscriminator = 0.0f;
     m_sampleCounter = 0;
+    m_lastZeroCrossingSample = 0;
+
+    if (m_classifier) {
+        m_classifier->reset();
+    }
 
     m_noiseVariance = 0.001f;
     m_markEnergySmooth = 0.0f;
@@ -174,6 +214,10 @@ void RttyDemodulator::initMatchedFilters() {
 void RttyDemodulator::processAudio(const float *samples, int count, int sampleRate) {
     if (!m_enabled || !samples || count <= 0)
         return;
+
+    if (m_autoDetect && m_classifier) {
+        m_classifier->feedAudio(samples, count, sampleRate);
+    }
 
     // Direct Digital Downconversion (DDC) to DC + FIR Decimation
     const float ddcFreq = m_centerFreqHz + m_trackedOffsetHz;
@@ -257,6 +301,14 @@ void RttyDemodulator::processDecimatedComplexSample(const std::complex<float> &c
     // Zero-crossing detector on discriminator diff
     const bool zeroCrossing = (diff > 0.0f) != (m_lastDiscriminator > 0.0f);
     m_lastDiscriminator = diff;
+
+    if (zeroCrossing) {
+        if (m_autoDetect && m_locked && m_classifier) {
+            int interval = m_sampleCounter - m_lastZeroCrossingSample;
+            m_classifier->feedTransition(interval, static_cast<float>(DECIM_RATE));
+        }
+        m_lastZeroCrossingSample = m_sampleCounter;
+    }
 
     if (zeroCrossing && m_locked) {
         // Ideal zero crossing is at phase 0.0

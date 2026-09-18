@@ -105,6 +105,8 @@ public:
         qreal &outMax);
 
 private:
+    void showRttyConfigMenu(const QPoint &pos);
+
     QGLReceiverPanel *m_panel;
 };
 

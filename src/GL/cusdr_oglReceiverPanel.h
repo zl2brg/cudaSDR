@@ -193,6 +193,7 @@ private:
 	bool						m_hasCustomCwBoxPos = false;
 	QPoint						m_cwBoxPos;
 	QRect						m_rttyTextRect;
+	QRect						m_rttyConfigBtnRect;
 	bool						m_dragRttyText = false;
 	QPoint						m_rttyDragStartMouse;
 	bool						m_hasCustomRttyBoxPos = false;
