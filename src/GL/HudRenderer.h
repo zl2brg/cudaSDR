@@ -2,6 +2,7 @@
 #define HUDRENDERER_H
 
 #include <QOpenGLFunctions>
+#include <QRect>
 
 class QGLReceiverPanel;
 
@@ -21,9 +22,11 @@ public:
 
 private:
     void ensureGL();
+    void drawRttyTuningScope(const QRect &scopeRect, float markHz);
 
     QGLReceiverPanel *m_panel;
     bool m_glReady;
+    float m_rttyScopePeak = 0.0001f;
 };
 
 #endif // HUDRENDERER_H

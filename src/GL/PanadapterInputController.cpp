@@ -276,6 +276,38 @@ void PanadapterInputController::handleMousePress(QMouseEvent* event) {
         return;
     }
 
+    // Crossed-bananas mark nudge (±5 Hz), the manual counterpart to AFC.
+    if (event->button() == Qt::LeftButton && m_panel->m_sliceModel) {
+        const bool leftNudge = m_panel->m_rttyNudgeLeftRect.isValid() && m_panel->m_rttyNudgeLeftRect.contains(event->pos());
+        const bool rightNudge = m_panel->m_rttyNudgeRightRect.isValid() && m_panel->m_rttyNudgeRightRect.contains(event->pos());
+        if (leftNudge || rightNudge) {
+            const float delta = leftNudge ? -5.0f : 5.0f;
+            const float next = qBound(300.0f, m_panel->m_sliceModel->rttyCenterFreq() + delta, 4000.0f);
+            m_panel->m_sliceModel->setRttyCenterFreq(next);
+            m_panel->update();
+            event->accept();
+            return;
+        }
+    }
+
+    if (event->button() == Qt::LeftButton && m_panel->m_rttyJumpLatestRect.isValid()
+            && m_panel->m_rttyJumpLatestRect.contains(event->pos())) {
+        m_panel->m_rttyFollowLatest = true;
+        m_panel->m_rttyScrollFromBottom = 0;
+        m_panel->update();
+        event->accept();
+        return;
+    }
+
+    if (event->button() == Qt::LeftButton && m_panel->m_rttyScrollBarRect.isValid()
+            && m_panel->m_rttyScrollBarRect.contains(event->pos())) {
+        m_panel->m_dragRttyScroll = true;
+        applyRttyScrollFromY(event->pos().y());
+        m_panel->update();
+        event->accept();
+        return;
+    }
+
     // Click on RTTY configuration button (mode badge) or right-click anywhere on RTTY box opens settings menu
     if ((event->button() == Qt::LeftButton && m_panel->m_rttyConfigBtnRect.isValid() && m_panel->m_rttyConfigBtnRect.contains(event->pos())) ||
         (event->button() == Qt::RightButton && m_panel->m_rttyTextRect.isValid() && m_panel->m_rttyTextRect.contains(event->pos()))) {
@@ -287,7 +319,13 @@ void PanadapterInputController::handleMousePress(QMouseEvent* event) {
         }
     }
 
-    // Left-click on decoded RTTY text box starts movable dragging
+    if (event->button() == Qt::LeftButton && m_panel->m_rttyDecodeTextRect.isValid()
+            && m_panel->m_rttyDecodeTextRect.contains(event->pos())) {
+        event->accept();
+        return;
+    }
+
+    // Left-click on RTTY header / scope chrome starts movable dragging
     if (event->button() == Qt::LeftButton && m_panel->m_rttyTextRect.isValid() && m_panel->m_rttyTextRect.contains(event->pos())) {
         m_panel->m_dragRttyText = true;
         m_panel->m_rttyDragStartMouse = event->pos();
@@ -451,6 +489,13 @@ void PanadapterInputController::handleMouseRelease(QMouseEvent *event) {
         return;
     }
 
+    if (m_panel->m_dragRttyScroll) {
+        m_panel->m_dragRttyScroll = false;
+        m_panel->update();
+        event->accept();
+        return;
+    }
+
     if (m_panel->m_dragPanSMeter) {
         m_panel->m_dragPanSMeter = false;
         if (m_panel->cursor().shape() != Qt::ArrowCursor)
@@ -526,6 +571,14 @@ void PanadapterInputController::handleMouseDoubleClick(QMouseEvent *event) {
         return;
     }
 
+    if (event->button() == Qt::LeftButton && m_panel->m_rttyTextRect.isValid() && m_panel->m_rttyTextRect.contains(m_panel->m_mousePos)) {
+        m_panel->m_hasCustomRttyBoxPos = false;
+        m_panel->m_rttyBoxPos = QPoint();
+        m_panel->update();
+        event->accept();
+        return;
+    }
+
     if (event->button() == Qt::LeftButton && m_panel->m_panFreqRect.isValid() && m_panel->m_panFreqRect.contains(m_panel->m_mousePos)) {
         FrequencyEntryDialog dlg(m_panel->m_vfoFrequency, m_panel);
         if (dlg.exec() == QDialog::Accepted) {
@@ -596,10 +649,17 @@ void PanadapterInputController::handleMouseMove(QMouseEvent* event) {
         const QPoint delta = event->pos() - m_panel->m_rttyDragStartMouse;
         m_panel->m_rttyDragStartMouse = event->pos();
         m_panel->m_rttyBoxPos += delta;
-        const int w = m_panel->m_rttyTextRect.width() > 0 ? m_panel->m_rttyTextRect.width() : 200;
-        const int h = m_panel->m_rttyTextRect.height() > 0 ? m_panel->m_rttyTextRect.height() : 24;
+        const int w = m_panel->m_rttyTextRect.width() > 0 ? m_panel->m_rttyTextRect.width() : 860;
+        const int h = m_panel->m_rttyTextRect.height() > 0 ? m_panel->m_rttyTextRect.height() : 220;
         m_panel->m_rttyBoxPos.setX(qBound(m_panel->m_panRect.left() + 4, m_panel->m_rttyBoxPos.x(), m_panel->m_panRect.right() - w - 4));
         m_panel->m_rttyBoxPos.setY(qBound(m_panel->m_panRect.top() + 4, m_panel->m_rttyBoxPos.y(), m_panel->m_panRect.bottom() - h - 4));
+        m_panel->update();
+        event->accept();
+        return;
+    }
+
+    if (m_panel->m_dragRttyScroll && (event->buttons() & Qt::LeftButton)) {
+        applyRttyScrollFromY(event->pos().y());
         m_panel->update();
         event->accept();
         return;
@@ -627,6 +687,16 @@ void PanadapterInputController::handleMouseMove(QMouseEvent* event) {
             if (m_panel->cursor().shape() != Qt::PointingHandCursor)
                 m_panel->setCursor(Qt::PointingHandCursor);
             m_panel->update();
+        } else if ((m_panel->m_rttyNudgeLeftRect.isValid() && m_panel->m_rttyNudgeLeftRect.contains(m_panel->m_mousePos)) ||
+                   (m_panel->m_rttyNudgeRightRect.isValid() && m_panel->m_rttyNudgeRightRect.contains(m_panel->m_mousePos)) ||
+                   (m_panel->m_rttyJumpLatestRect.isValid() && m_panel->m_rttyJumpLatestRect.contains(m_panel->m_mousePos))) {
+            if (m_panel->cursor().shape() != Qt::PointingHandCursor)
+                m_panel->setCursor(Qt::PointingHandCursor);
+            m_panel->update();
+        } else if ((m_panel->m_rttyDecodeTextRect.isValid() && m_panel->m_rttyDecodeTextRect.contains(m_panel->m_mousePos)) ||
+                   (m_panel->m_rttyScrollBarRect.isValid() && m_panel->m_rttyScrollBarRect.contains(m_panel->m_mousePos))) {
+            if (m_panel->cursor().shape() != Qt::ArrowCursor)
+                m_panel->setCursor(Qt::ArrowCursor);
         } else if (m_panel->m_rttyTextRect.isValid() && m_panel->m_rttyTextRect.contains(m_panel->m_mousePos)) {
             if (m_panel->cursor().shape() != Qt::OpenHandCursor)
                 m_panel->setCursor(Qt::OpenHandCursor);
@@ -1007,6 +1077,21 @@ void PanadapterInputController::handleMouseMove(QMouseEvent* event) {
 void PanadapterInputController::handleWheel(QWheelEvent* event) {
     if (!m_panel) return;
 
+    const QPoint pos = event->position().toPoint();
+    const bool overRttyText = (m_panel->m_rttyDecodeTextRect.isValid() && m_panel->m_rttyDecodeTextRect.contains(pos))
+        || (m_panel->m_rttyScrollBarRect.isValid() && m_panel->m_rttyScrollBarRect.contains(pos));
+    if (overRttyText) {
+        int steps = event->angleDelta().y() / 120;
+        if (steps == 0 && event->pixelDelta().y() != 0)
+            steps = (event->pixelDelta().y() > 0) ? 1 : -1;
+        if (steps != 0) {
+            applyRttyScrollLines(steps);
+            m_panel->update();
+        }
+        event->accept();
+        return;
+    }
+
     getRegion(event->position().toPoint());
     if (m_panel->m_panFreqRect.isValid() && m_panel->m_panFreqRect.contains(event->position().toPoint()))
         m_panel->m_mouseRegion = QGLReceiverPanel::panadapterRegion;
@@ -1050,6 +1135,31 @@ void PanadapterInputController::handleWheel(QWheelEvent* event) {
         default:
             break;
     }
+}
+
+void PanadapterInputController::applyRttyScrollLines(int deltaLines)
+{
+    const int visible = qMax(1, m_panel->m_rttyVisibleLines);
+    const int maxScroll = qMax(0, m_panel->m_rttyWrappedLineCount - visible);
+    if (maxScroll <= 0) {
+        m_panel->m_rttyFollowLatest = true;
+        m_panel->m_rttyScrollFromBottom = 0;
+        return;
+    }
+    m_panel->m_rttyScrollFromBottom = qBound(0, m_panel->m_rttyScrollFromBottom + deltaLines, maxScroll);
+    m_panel->m_rttyFollowLatest = (m_panel->m_rttyScrollFromBottom == 0);
+}
+
+void PanadapterInputController::applyRttyScrollFromY(int y)
+{
+    const QRect track = m_panel->m_rttyScrollBarRect;
+    const int visible = qMax(1, m_panel->m_rttyVisibleLines);
+    const int maxScroll = qMax(0, m_panel->m_rttyWrappedLineCount - visible);
+    if (!track.isValid() || track.height() <= 0 || maxScroll <= 0)
+        return;
+    const float t = qBound(0.0f, float(y - track.top()) / float(track.height()), 1.0f);
+    m_panel->m_rttyScrollFromBottom = qRound((1.0f - t) * maxScroll);
+    m_panel->m_rttyFollowLatest = (m_panel->m_rttyScrollFromBottom == 0);
 }
 
 void PanadapterInputController::showRttyConfigMenu(const QPoint &pos) {
@@ -1097,6 +1207,16 @@ void PanadapterInputController::showRttyConfigMenu(const QPoint &pos) {
 
     menu.addSeparator();
 
+    QAction *wxAct = menu.addAction(QStringLiteral("Weather Profile (50 baud, 450 Hz)"));
+    wxAct->setCheckable(true);
+    wxAct->setChecked(slice->rttyWeatherProfile());
+    connect(wxAct, &QAction::triggered, this, [this, slice](bool checked) {
+        slice->setRttyWeatherProfile(checked);
+        if (m_panel) m_panel->update();
+    });
+
+    menu.addSeparator();
+
     // Shift submenu
     QMenu *shiftMenu = menu.addMenu(QStringLiteral("Shift (%1 Hz)").arg(qRound(slice->rttyShiftHz())));
     QActionGroup *shiftGroup = new QActionGroup(shiftMenu);
@@ -1104,18 +1224,41 @@ void PanadapterInputController::showRttyConfigMenu(const QPoint &pos) {
         {"170 Hz (Standard Amateur)", 170.0f},
         {"200 Hz", 200.0f},
         {"425 Hz (Commercial / Nav)", 425.0f},
+        {"450 Hz (Commercial / Weather)", 450.0f},
         {"850 Hz (Wide)", 850.0f}
     };
     for (const auto &item : shifts) {
         QAction *act = shiftMenu->addAction(item.label);
         act->setCheckable(true);
         shiftGroup->addAction(act);
-        if (qAbs(slice->rttyShiftHz() - item.shift) < 15.0f) {
+        if (qAbs(slice->rttyShiftHz() - item.shift) < 10.0f) {
             act->setChecked(true);
         }
         const float sVal = item.shift;
         connect(act, &QAction::triggered, this, [this, slice, sVal]() {
             slice->setRttyShiftHz(sVal);
+            if (m_panel) m_panel->update();
+        });
+    }
+
+    // Audio Tone Pair / Center Frequency submenu
+    QMenu *toneMenu = menu.addMenu(QStringLiteral("Audio Tone Pair (%1 Hz)").arg(qRound(slice->rttyCenterFreq())));
+    QActionGroup *toneGroup = new QActionGroup(toneMenu);
+    const struct { const char *label; float freq; } tonePairs[] = {
+        {"2210 Hz (Standard High Tones: 2125/2295 Hz)", 2210.0f},
+        {"1360 Hz (Standard Low Tones: 1275/1445 Hz)", 1360.0f},
+        {"1750 Hz (Commercial / Weather)", 1750.0f}
+    };
+    for (const auto &item : tonePairs) {
+        QAction *act = toneMenu->addAction(item.label);
+        act->setCheckable(true);
+        toneGroup->addAction(act);
+        if (qAbs(slice->rttyCenterFreq() - item.freq) < 15.0f) {
+            act->setChecked(true);
+        }
+        const float fVal = item.freq;
+        connect(act, &QAction::triggered, this, [this, slice, fVal]() {
+            slice->setRttyCenterFreq(fVal);
             if (m_panel) m_panel->update();
         });
     }
@@ -1193,6 +1336,20 @@ void PanadapterInputController::showRttyConfigMenu(const QPoint &pos) {
     connect(logAct, &QAction::toggled, this, [this, slice](bool checked) {
         slice->setRttyLogToFile(checked);
         if (m_panel) m_panel->update();
+    });
+
+    // Console Debug Diagnostics
+    QAction *dbgAct = menu.addAction(QStringLiteral("Console Diagnostics (Terminal)"));
+    dbgAct->setCheckable(true);
+    dbgAct->setChecked(qEnvironmentVariableIsSet("CUDASDR_RTTY_DEBUG"));
+    connect(dbgAct, &QAction::toggled, this, [](bool checked) {
+        if (checked) {
+            qputenv("CUDASDR_RTTY_DEBUG", "1");
+            qInfo("[RTTY] Console debug diagnostics enabled. Streaming live demodulator & decoder metrics to terminal.");
+        } else {
+            qunsetenv("CUDASDR_RTTY_DEBUG");
+            qInfo("[RTTY] Console debug diagnostics disabled.");
+        }
     });
 
     menu.addSeparator();

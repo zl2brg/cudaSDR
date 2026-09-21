@@ -1,27 +1,42 @@
 #include "AudioEngine/RttyBayesianDecoder.h"
 #include "AudioEngine/RttyAutoClassifier.h"
+#include "AudioEngine/RttyBaudot.h"
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 
-// Standard ITA2 tables
-static const char LTRS_TABLE[32] = {
-    '\0', 'E',  '\n', 'A',  ' ',  'S',  'I',  'U',
-    '\r', 'D',  'R',  'J',  'N',  'F',  'C',  'K',
-    'T',  'Z',  'L',  'W',  'H',  'Y',  'P',  'Q',
-    'O',  'B',  'G',  '\0', 'M',  'X',  'V',  '\0'
-};
+namespace {
 
-static const char FIGS_TABLE[32] = {
-    '\0', '3',  '\n', '-',  ' ',  '\'', '8',  '7',
-    '\r', '$',  '4',  '\'', ',',  '!',  ':',  '(',
-    '5',  '+',  ')',  '2',  '#',  '6',  '0',  '1',
-    '9',  '?',  '&',  '\0', '.',  '/',  ';',  '\0'
-};
+const char *baudotDebugLabel(quint8 code, QChar ch)
+{
+    code &= 0x1F;
+    if (code == 0x1B)
+        return "FIGS";
+    if (code == 0x1F)
+        return "LTRS";
+    if (code == 0x00)
+        return "NUL";
+    if (code == 0x02)
+        return "LF";
+    if (code == 0x08)
+        return "CR";
+    if (ch == QLatin1Char(' '))
+        return "SP";
+    if (ch != QChar('\0') && ch.isPrint()) {
+        static char buf[2];
+        buf[0] = ch.toLatin1();
+        buf[1] = '\0';
+        return buf;
+    }
+    return "?";
+}
+
+} // namespace
 
 // Empirical English / Amateur RTTY unigram character priors
 // Indexed by 5-bit Baudot code (0x00 to 0x1F)
-static const float DEFAULT_RTTY_PRIORS[32] = {
+[[maybe_unused]] static const float DEFAULT_RTTY_PRIORS[32] = {
     0.002f, // 0x00: Null / Blank
     0.085f, // 0x01: E / 3
     0.020f, // 0x02: LF
@@ -68,30 +83,35 @@ void RttyBayesianDecoder::clearText() {
     emit textUpdated(m_rxId, m_recentText);
 }
 
-void RttyBayesianDecoder::reset() {
-    m_recentText.clear();
+void RttyBayesianDecoder::resetFraming() {
     m_figsBelief = 0.0f; // Start in LTRS mode
     m_framingLocked = false;
     m_lastFramingConfidence = 0.0f;
     m_lockCounter = 0;
+    m_consecutiveMissCount = 0;
     m_activeHypotheses.clear();
     m_totalSymbols = 0;
     m_lastAcceptedEndIdx = -100;
 }
 
+void RttyBayesianDecoder::reset() {
+    m_recentText.clear();
+    resetFraming();
+}
+
 void RttyBayesianDecoder::processSymbol(const RttySoftSymbol &sym) {
     if (!m_enabled) return;
-    processSoftSymbol(sym.llr);
+    processSoftSymbol(sym.llr, sym.snrDb);
 }
 
 void RttyBayesianDecoder::processSymbols(const QVector<RttySoftSymbol> &symbols) {
     if (!m_enabled) return;
     for (const auto &sym : symbols) {
-        processSoftSymbol(sym.llr);
+        processSoftSymbol(sym.llr, sym.snrDb);
     }
 }
 
-void RttyBayesianDecoder::processSoftSymbol(float llr) {
+void RttyBayesianDecoder::processSoftSymbol(float llr, float snrDb) {
     ++m_totalSymbols;
 
     // Advance existing active hypotheses
@@ -105,14 +125,10 @@ void RttyBayesianDecoder::processSoftSymbol(float llr) {
         }
     }
 
-    // A candidate Start bit is Space (LLR < 0.0f)
-    // Only launch if we haven't just accepted a frame ending at the immediate prior symbol
-    if (llr < 0.0f && (m_totalSymbols - m_lastAcceptedEndIdx >= 1)) {
-        FrameHypothesis hyp;
-        hyp.startSampleIdx = m_totalSymbols;
-        hyp.bitCount = 0;
-        hyp.startLlr = llr;
-        m_activeHypotheses.append(hyp);
+    bool completedThisSymbol = false;
+    for (const auto &hyp : m_activeHypotheses) {
+        if (hyp.bitCount == 6)
+            completedThisSymbol = true;
     }
 
     // Evaluate completed hypotheses (bitCount == 6)
@@ -123,32 +139,43 @@ void RttyBayesianDecoder::processSoftSymbol(float llr) {
     for (int i = 0; i < m_activeHypotheses.size(); ++i) {
         const auto &hyp = m_activeHypotheses[i];
         if (hyp.bitCount == 6) {
-            if (m_autoClassifier) {
-                m_autoClassifier->feedFramingResult(hyp.stopLlr, 1.0f);
-            }
-            // Stop bit must not be strongly space
-            if (hyp.stopLlr > -1.5f) {
-                const bool isFigs = (m_figsBelief > 0.5f);
-                BayesianCharResult res = evaluateBaudotPosterior(hyp.dataLlrs, isFigs);
-                const float framingMetric = (-hyp.startLlr) + hyp.stopLlr;
-                res.framingConfidence = framingMetric;
+            const bool isFigs = (m_figsBelief > 0.5f);
+            BayesianCharResult res = evaluateBaudotPosterior(hyp.dataLlrs, isFigs);
+            const float framingMetric = (-hyp.startLlr) + hyp.stopLlr;
+            res.framingConfidence = framingMetric;
 
-                if (res.confidence >= m_squelchThreshold && framingMetric >= m_framingThreshold) {
-                    const float compositeScore = framingMetric + 5.0f * res.confidence;
-                    if (compositeScore > bestScore) {
-                        bestScore = compositeScore;
-                        bestIdx = i;
-                        bestResult = res;
-                    }
+            const quint8 code = res.baudotCode & 0x1F;
+            const bool isShift = (code == 0x1B || code == 0x1F);
+            // Real starts in on-air logs are << -8. A −1 dip into idle Mark
+            // plus five Mark bits is a fake LTRS/M/CR.
+            const bool startValid = hyp.startLlr < -3.0f;
+            // Stop must be Mark. A slightly-negative stop is the next start bit.
+            const bool stopValid = hyp.stopLlr > 0.0f;
+            // FIGS/LTRS need a Mark stop long enough to be idle, not a −1 dip.
+            // Start can be moderate: on-air LTRS often has start≈−5 and stop≫+20.
+            const bool shiftOk = !isShift
+                || (hyp.stopLlr >= 2.0f && framingMetric >= 10.0f);
+
+            if (startValid && stopValid && shiftOk
+                && res.confidence >= m_squelchThreshold
+                && framingMetric >= m_framingThreshold) {
+                const float compositeScore = framingMetric + 5.0f * res.confidence;
+                if (compositeScore > bestScore) {
+                    bestScore = compositeScore;
+                    bestIdx = i;
+                    bestResult = res;
                 }
             }
         }
     }
 
     if (bestIdx >= 0) {
-        const qint64 acceptedStart = m_activeHypotheses[bestIdx].startSampleIdx;
+        if (m_autoClassifier) {
+            m_autoClassifier->feedFramingResult(m_activeHypotheses[bestIdx].stopLlr, bestResult.confidence);
+        }
         m_lastAcceptedEndIdx = m_totalSymbols;
         m_lastFramingConfidence = bestResult.framingConfidence;
+        m_consecutiveMissCount = 0;
 
         if (!m_framingLocked) {
             ++m_lockCounter;
@@ -158,7 +185,10 @@ void RttyBayesianDecoder::processSoftSymbol(float llr) {
             }
         }
 
-        updateHMMShift(bestResult.baudotCode);
+        if (bestResult.confidence >= 0.70f
+            || (bestResult.baudotCode != 0x1B && bestResult.baudotCode != 0x1F)) {
+            updateHMMShift(bestResult.baudotCode);
+        }
 
         if (bestResult.character != '\0') {
             const QString charStr(bestResult.character);
@@ -171,23 +201,79 @@ void RttyBayesianDecoder::processSoftSymbol(float llr) {
             emit textUpdated(m_rxId, m_recentText);
         }
 
-        // Prune hypotheses that overlap with this accepted frame
-        QVector<FrameHypothesis> remaining;
-        for (const auto &hyp : m_activeHypotheses) {
-            if (hyp.startSampleIdx > acceptedStart + 5) {
-                remaining.append(hyp);
-            }
+        if (qEnvironmentVariableIsSet("CUDASDR_RTTY_DEBUG")) {
+            qDebug("[RTTY rx%d DECODER] ACCEPTED %s code=0x%02X conf=%.2f start=%+.1f stop=%+.1f metric=%.1f figs=%.0f lock=%d",
+                   m_rxId, baudotDebugLabel(bestResult.baudotCode, bestResult.character),
+                   bestResult.baudotCode, bestResult.confidence,
+                   m_activeHypotheses[bestIdx].startLlr, m_activeHypotheses[bestIdx].stopLlr,
+                   bestResult.framingConfidence, m_figsBelief, m_framingLocked);
         }
-        m_activeHypotheses = remaining;
+
+        // The accepted frame is finished; clear hypotheses so the next symbol starts fresh
+        m_activeHypotheses.clear();
     } else {
-        // Prune expired hypotheses (bitCount >= 6) that were not accepted
+        // Prune completed hypotheses (bitCount >= 6) that were not accepted
+        bool hadValidCandidate = false;
         QVector<FrameHypothesis> remaining;
         for (const auto &hyp : m_activeHypotheses) {
             if (hyp.bitCount < 6) {
                 remaining.append(hyp);
+            } else {
+                // Only count as a genuine missed frame if the channel SNR was sufficient
+                // for reception (> 0.8 dB) AND the hypothesis began with a strong Space
+                // start bit (< -2.5). Atmospheric noise during deep fades (SNR <= 0.8 dB)
+                // must NOT drop framing lock (Flywheel effect).
+                if (snrDb > 0.8f && hyp.startLlr < -2.5f) {
+                    hadValidCandidate = true;
+                }
+            }
+        }
+        if (hadValidCandidate && m_framingLocked) {
+            // A locked frame with sufficient SNR failed to pass thresholds
+            ++m_consecutiveMissCount;
+            if (qEnvironmentVariableIsSet("CUDASDR_RTTY_DEBUG")) {
+                for (const auto &hyp : m_activeHypotheses) {
+                    if (hyp.bitCount >= 6) {
+                        const bool isFigs = (m_figsBelief > 0.5f);
+                        BayesianCharResult res = evaluateBaudotPosterior(hyp.dataLlrs, isFigs);
+                        const float framingMetric = (-hyp.startLlr) + hyp.stopLlr;
+                        qDebug("[RTTY rx%d DECODER] Frame MISSED (%d/8) cand=%s code=0x%02X conf=%.2f start=%+.1f stop=%+.1f metric=%.1f",
+                               m_rxId, m_consecutiveMissCount,
+                               baudotDebugLabel(res.baudotCode, res.character),
+                               res.baudotCode, res.confidence, hyp.startLlr, hyp.stopLlr, framingMetric);
+                    }
+                }
+            }
+            if (m_consecutiveMissCount >= 8) {
+                m_framingLocked = false;
+                m_lockCounter = 0;
+                remaining.clear();
+                emit framingStateChanged(m_rxId, false, 0.0f);
             }
         }
         m_activeHypotheses = remaining;
+    }
+
+    // The demod emits one start+5+stop packet per hunted edge. Never start a
+    // new hypothesis on a completed stop — that one-bit "resync" walked the
+    // decoder through Space runs (8 misses → unlock) on strong weather signals.
+    bool collectingData = false;
+    for (const auto &hyp : m_activeHypotheses) {
+        if (hyp.bitCount < 6) {
+            collectingData = true;
+            break;
+        }
+    }
+    const bool canLaunch = !collectingData
+        && !completedThisSymbol
+        && (m_totalSymbols - m_lastAcceptedEndIdx >= 1)
+        && (llr < -3.0f);
+    if (canLaunch) {
+        FrameHypothesis hyp;
+        hyp.startSampleIdx = m_totalSymbols;
+        hyp.bitCount = 0;
+        hyp.startLlr = llr;
+        m_activeHypotheses.append(hyp);
     }
 
     // Bound memory / active hypotheses
@@ -224,7 +310,6 @@ BayesianCharResult RttyBayesianDecoder::evaluateBaudotPosterior(
 
     float scores[32];
     float maxScore = -1e9f;
-    const float *priors = (customPriors != nullptr) ? customPriors : DEFAULT_RTTY_PRIORS;
 
     for (quint8 c = 0; c < 32; ++c) {
         // Dot product with binary sign vector s_i in {-1, +1}
@@ -234,8 +319,15 @@ BayesianCharResult RttyBayesianDecoder::evaluateBaudotPosterior(
             dot += 0.5f * s * dataLlrs[bit];
         }
 
-        const float p = std::max(1e-6f, priors[c]);
-        const float priorLog = std::log(p);
+        float priorLog = 0.0f;
+        if (customPriors != nullptr) {
+            const float p = std::max(1e-6f, customPriors[c]);
+            priorLog = std::log(p);
+        } else {
+            // Unbiased prior across all 31 valid ITA2 symbols (letters/figures/callsigns).
+            // Mildly penalize null/blank code (0x00) which is not a valid text character.
+            priorLog = (c == 0x00) ? -2.5f : 0.0f;
+        }
 
         scores[c] = dot + priorLog;
         if (scores[c] > maxScore) {
@@ -275,9 +367,7 @@ BayesianCharResult RttyBayesianDecoder::evaluateBaudotPosterior(
     result.errorProbability = 1.0f - result.confidence;
     result.logLikelihoodMargin = maxScore - secondScore;
 
-    // Character lookup from ITA2 tables
-    const char ch = figs ? FIGS_TABLE[topCode] : LTRS_TABLE[topCode];
-    result.character = (ch != '\0') ? QChar(QLatin1Char(ch)) : QChar('\0');
+    result.character = RttyBaudot::decode(topCode, figs);
 
     return result;
 }

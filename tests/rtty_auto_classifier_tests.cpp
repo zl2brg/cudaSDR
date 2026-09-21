@@ -9,8 +9,11 @@ class RttyAutoClassifierTests : public QObject {
 private slots:
     void testInitialState();
     void testShiftDetection170Hz();
+    void testShiftDetection450Hz();
     void testShiftDetection850Hz();
     void testBaudRateDetection45Baud();
+    void testBaudRateDetection50Baud();
+    void testBaudRateDetection50BaudWithOnePointFiveStop();
     void testBaudRateDetection100Baud();
     void testPolarityInversionDetection();
     void testNoiseImmunityNoFalseLock();
@@ -52,6 +55,37 @@ void RttyAutoClassifierTests::testShiftDetection170Hz()
 
     QCOMPARE(detectedShift, 170.0f);
     QVERIFY(std::abs(detectedCenter - 2210.0f) < 25.0f);
+}
+
+void RttyAutoClassifierTests::testShiftDetection450Hz()
+{
+    RttyAutoClassifier classifier(0);
+    QSignalSpy shiftSpy(&classifier, &RttyAutoClassifier::shiftDetected);
+    QSignalSpy baudSpy(&classifier, &RttyAutoClassifier::baudRateDetected);
+
+    // Generate ~0.3s of 48 kHz audio containing 1900 Hz and 2350 Hz tones (450 Hz shift, center 2125 Hz)
+    const int sampleRate = 48000;
+    const int numSamples = 48000 * 3 / 10; // 0.3s
+    std::vector<float> audio(numSamples);
+
+    for (int i = 0; i < numSamples; ++i) {
+        const float t = static_cast<float>(i) / static_cast<float>(sampleRate);
+        const bool bit = ((i / (sampleRate * 20 / 1000)) % 2) == 0;
+        const float freq = bit ? 1900.0f : 2350.0f;
+        audio[i] = 0.6f * std::sin(2.0f * static_cast<float>(M_PI) * freq * t);
+    }
+
+    classifier.feedAudio(audio.data(), numSamples, sampleRate);
+
+    QVERIFY(shiftSpy.count() >= 1);
+    const QList<QVariant> args = shiftSpy.last();
+    const float detectedShift = args.at(0).toFloat();
+    const float detectedCenter = args.at(1).toFloat();
+
+    QCOMPARE(detectedShift, 450.0f);
+    QVERIFY(std::abs(detectedCenter - 2125.0f) < 25.0f);
+    QVERIFY(baudSpy.count() >= 1);
+    QCOMPARE(baudSpy.last().at(0).toFloat(), 50.0f);
 }
 
 void RttyAutoClassifierTests::testShiftDetection850Hz()
@@ -99,6 +133,41 @@ void RttyAutoClassifierTests::testBaudRateDetection45Baud()
     QCOMPARE(detectedBaud, 45.4545f);
 }
 
+void RttyAutoClassifierTests::testBaudRateDetection50Baud()
+{
+    RttyAutoClassifier classifier(0);
+    QSignalSpy baudSpy(&classifier, &RttyAutoClassifier::baudRateDetected);
+
+    // At 2000 Hz, 50 baud has symbol length 40 samples (not 44).
+    const int intervals[] = {40, 40, 80, 40, 120, 40, 80, 40, 40, 80, 40, 120, 40, 80, 40, 40, 80, 40, 120, 40, 40, 80, 40};
+    for (int intv : intervals) {
+        classifier.feedTransition(intv, 2000.0f);
+    }
+
+    QVERIFY(baudSpy.count() >= 1);
+    const float detectedBaud = baudSpy.last().at(0).toFloat();
+    QCOMPARE(detectedBaud, 50.0f);
+}
+
+void RttyAutoClassifierTests::testBaudRateDetection50BaudWithOnePointFiveStop()
+{
+    RttyAutoClassifier classifier(0);
+    QSignalSpy baudSpy(&classifier, &RttyAutoClassifier::baudRateDetected);
+
+    // On-air weather/commercial: 50 baud, 1.5 stop. At 2000 Hz that is
+    // 40-sample bits plus 60-sample stops (also 3 bits at 100 baud).
+    const int intervals[] = {
+        40, 60, 40, 40, 80, 60, 40, 60, 40, 80, 60, 40,
+        40, 60, 80, 40, 60, 40, 40, 60, 80, 40, 60, 40
+    };
+    for (int intv : intervals) {
+        classifier.feedTransition(intv, 2000.0f);
+    }
+
+    QVERIFY(baudSpy.count() >= 1);
+    QCOMPARE(baudSpy.last().at(0).toFloat(), 50.0f);
+}
+
 void RttyAutoClassifierTests::testBaudRateDetection100Baud()
 {
     RttyAutoClassifier classifier(0);
@@ -122,13 +191,13 @@ void RttyAutoClassifierTests::testPolarityInversionDetection()
     QSignalSpy polaritySpy(&classifier, &RttyAutoClassifier::polarityInversionSuggested);
 
     // Feed normal positive stop bit LLRs -> no inversion suggested
-    for (int i = 0; i < 6; ++i) {
+    for (int i = 0; i < 15; ++i) {
         classifier.feedFramingResult(+3.5f, 0.95f);
     }
     QCOMPARE(polaritySpy.count(), 0);
 
     // Feed negative stop bit LLRs (indicating inverted polarity: Space decoded as Stop)
-    for (int i = 0; i < 6; ++i) {
+    for (int i = 0; i < 15; ++i) {
         classifier.feedFramingResult(-3.5f, 0.95f);
     }
     QCOMPARE(polaritySpy.count(), 1);

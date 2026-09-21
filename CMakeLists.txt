@@ -278,6 +278,7 @@ set(HEADERS
     ${SRC_DIR}/AudioEngine/cusdr_radeprocessor.h
     ${SRC_DIR}/AudioEngine/CwDecoder.h
     ${SRC_DIR}/AudioEngine/RttyDemodulator.h
+    ${SRC_DIR}/AudioEngine/RttyBaudot.h
     ${SRC_DIR}/AudioEngine/RttyBayesianDecoder.h
     ${SRC_DIR}/AudioEngine/RttyLexicon.h
     ${SRC_DIR}/AudioEngine/RttyAutoClassifier.h

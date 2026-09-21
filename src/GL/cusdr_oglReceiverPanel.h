@@ -194,7 +194,18 @@ private:
 	QPoint						m_cwBoxPos;
 	QRect						m_rttyTextRect;
 	QRect						m_rttyConfigBtnRect;
+	QRect						m_rttyScopeRect;
+	QRect						m_rttyNudgeLeftRect;
+	QRect						m_rttyNudgeRightRect;
+	QRect						m_rttyDecodeTextRect;
+	QRect						m_rttyScrollBarRect;
+	QRect						m_rttyJumpLatestRect;
 	bool						m_dragRttyText = false;
+	bool						m_dragRttyScroll = false;
+	bool						m_rttyFollowLatest = true;
+	int							m_rttyScrollFromBottom = 0;
+	int							m_rttyWrappedLineCount = 0;
+	int							m_rttyVisibleLines = 10;
 	QPoint						m_rttyDragStartMouse;
 	bool						m_hasCustomRttyBoxPos = false;
 	QPoint						m_rttyBoxPos;

@@ -67,6 +67,8 @@ public:
     QString recentText() const { return m_recentText; }
     void clearText();
     void reset();
+    /** Drop framing/shift state without wiping already-decoded text. */
+    void resetFraming();
 
     bool isFramingLocked() const { return m_framingLocked; }
     float framingConfidence() const { return m_lastFramingConfidence; }
@@ -107,13 +109,13 @@ signals:
     void framingStateChanged(int rx, bool locked, float framingConfidence);
 
 private:
-    void processSoftSymbol(float llr);
+    void processSoftSymbol(float llr, float snrDb = 10.0f);
     void updateHMMShift(quint8 code);
 
     int m_rxId = 0;
     bool m_enabled = true;
     bool m_usosEnabled = true;          // Unshift On Space
-    float m_squelchThreshold = 0.35f;   // Squelch if char confidence < threshold
+    float m_squelchThreshold = 0.22f;   // Squelch if char confidence < threshold
     float m_framingThreshold = 0.0f;    // Minimum framing metric (-startLlr + stopLlr)
 
     struct FrameHypothesis {
@@ -135,6 +137,7 @@ private:
     bool m_framingLocked = false;
     float m_lastFramingConfidence = 0.0f;
     int m_lockCounter = 0;
+    int m_consecutiveMissCount = 0;
 
     // Output text buffer
     QString m_recentText;

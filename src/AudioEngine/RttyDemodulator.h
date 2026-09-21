@@ -24,8 +24,8 @@ struct RttySoftSymbol {
  * 
  * Takes 48 kHz mono audio from the receiver slice, downconverts it to complex
  * baseband centered at DC, decimates by 24 to 2000 Hz, runs orthogonal Mark/Space
- * matched filters at +/- (shift / 2), recovers symbol timing via a 2nd-order DPLL,
- * and computes continuous soft LLR metrics.
+ * matched filters at +/- (shift / 2), samples bits with async start/stop timing
+ * (end-of-bit matched-filter strobes), and computes continuous soft LLR metrics.
  * 
  * Also includes a standalone Baudot ITA2/US-TTY framing state machine for Stage 1
  * testing and verification.
@@ -59,6 +59,15 @@ public:
     float markFreqHz() const;
     float spaceFreqHz() const;
 
+    // Sideband is display-only; matched filters always use amateur AF tones.
+    bool isUsbMode() const { return m_isUsbMode; }
+    void setUsbMode(bool usb);
+
+    // Console Diagnostics / Debug Logging
+    bool isDebugLogging() const { return m_debugLogging; }
+    void setDebugLogging(bool enabled) { m_debugLogging = enabled; }
+    bool debugLoggingActive() const;
+
     // AFC
     bool isAfcEnabled() const { return m_afcEnabled; }
     void setAfcEnabled(bool enabled);
@@ -67,6 +76,8 @@ public:
     // Auto Detection & Classification
     bool isAutoDetectEnabled() const { return m_autoDetect; }
     void setAutoDetectEnabled(bool enabled);
+    bool usosEnabled() const { return m_usosEnabled; }
+    void setUsosEnabled(bool enabled) { m_usosEnabled = enabled; }
     class RttyAutoClassifier* classifier() const { return m_classifier; }
 
     // Recent decoded text (Stage 1 direct slicer)
@@ -84,6 +95,9 @@ public:
 
     static QChar decodeBaudot(quint8 code, bool figs);
 
+    QVector<float> lastScopeXs() const { return m_lastScopeXs; }
+    QVector<float> lastScopeYs() const { return m_lastScopeYs; }
+
 signals:
     // Soft symbol stream (Primary interface for Stage 2 Bayesian Trellis)
     void symbolSampled(const RttySoftSymbol &sym);
@@ -96,20 +110,28 @@ signals:
     void toneStatusChanged(int rx, float markFreq, float spaceFreq, float snrDb, bool locked);
     void autoParametersDetected(float shiftHz, float centerFreqHz, float baudRate);
     void polarityInversionDetected(bool reverse);
+    /** Crossed-ellipses XY frame: X = mark bandpass, Y = space bandpass. */
+    void scopeFrameReady(int rx, const QVector<float> &xs, const QVector<float> &ys);
 
 private:
     void initDecimator();
     void initMatchedFilters();
+    void updateScopeFilters(int sampleRate);
+    void processScopeSample(float sample);
     void processDecimatedComplexSample(const std::complex<float> &cpxSample);
     void onSymbolStrobe();
-    void processBaudotBit(bool bit, float llr);
+    void processUartSample(float markEnergy, float spaceEnergy);
+    void acceptBaudot(quint8 code);
+    void resetUart();
 
     int m_rxId = 0;
     bool m_enabled = true;
     float m_baudRate = 45.4545f;
     float m_shiftHz = 170.0f;
     float m_centerFreqHz = 2210.0f; // Standard High Tones (Mark 2125, Space 2295)
+    bool m_isUsbMode = false;
     bool m_reversePolarity = false;
+    bool m_debugLogging = false;
     bool m_afcEnabled = true;
     float m_trackedOffsetHz = 0.0f;
     bool m_autoDetect = false;
@@ -133,31 +155,70 @@ private:
     QVector<std::complex<float>> m_markRef;
     QVector<std::complex<float>> m_spaceRef;
 
-    // DPLL Clock Recovery
+    // DPLL Clock Recovery (baud tracking / classifier); sampling is async start/stop.
     float m_dpllPhase = 0.0f;
     float m_dpllFreq = 0.022727f; // 45.4545 / 2000
     float m_lastDiscriminator = 0.0f;
+    float m_lastShortDiff = 0.0f;
     int m_sampleCounter = 0;
+    int m_markDwellSamples = 0;
+    int m_baudLastCrossingSample = 0;
+
+    // Async Baudot sampler: hunt mark→space, then 7 end-of-bit strobes
+    // (start + 5 data + stop). Do not free-run mid-symbol DPLL strobes.
+    int m_asyncBitsLeft = 0;
+    float m_asyncCountdown = 0.0f;
 
     // Noise & Metric Estimation
     float m_noiseVariance = 0.001f;
+    float m_signalPower = 0.001f;
     float m_markEnergySmooth = 0.0f;
     float m_spaceEnergySmooth = 0.0f;
     float m_currentSnrDb = 0.0f;
     bool m_locked = false;
 
-    // Standalone Framing State Machine
-    enum FramerState {
-        WaitStart,
-        DataBits,
-        StopBit
+    // Diddle-style UART at 2 kHz: hysteresis slicer, half-bit start
+    // confirm, sample at end of bit, print only if stop is Mark.
+    enum UartState {
+        UartIdle,
+        UartWaitStartEnd,
+        UartData,
+        UartStop
     };
-    FramerState m_framerState = WaitStart;
+    UartState m_uartState = UartIdle;
+    float m_samplesPerBit = 44.0f;
+    float m_uartCounter = 0.0f;
+    bool m_heldBit = true;
+    float m_noiseFloor = 0.0f;
+    bool m_usosEnabled = true;
+    bool m_prevDataBit = true;
+    bool m_haveTransition = false;
+    int m_lastTransitionSample = 0;
     int m_bitCount = 0;
     quint8 m_shiftReg = 0;
     bool m_figsMode = false;
     QString m_recentText;
-    int m_consecutiveIdleCount = 0;
+
+    // Diddle-style crossed-ellipses tuning scope (48 kHz mark/space bandpass).
+    struct ScopeBiquad {
+        float b0 = 0, b1 = 0, b2 = 0, a1 = 0, a2 = 0, z1 = 0, z2 = 0;
+        void setBandpass(float sampleRate, float f0, float q);
+        float process(float x);
+        void resetState();
+    };
+    static constexpr float SCOPE_BW_HZ = 100.0f;
+    static constexpr int SCOPE_DECIMATE = 2;
+    static constexpr int SCOPE_BATCH = 512;
+    ScopeBiquad m_scopeMarkBp;
+    ScopeBiquad m_scopeSpaceBp;
+    int m_scopeDecim = 0;
+    int m_scopeSampleRate = 0;
+    float m_scopeMarkHz = 0.0f;
+    float m_scopeSpaceHz = 0.0f;
+    QVector<float> m_scopeXs;
+    QVector<float> m_scopeYs;
+    QVector<float> m_lastScopeXs;
+    QVector<float> m_lastScopeYs;
 };
 
 #endif // RTTYDEMODULATOR_H

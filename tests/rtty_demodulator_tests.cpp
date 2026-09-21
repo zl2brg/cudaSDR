@@ -3,6 +3,7 @@
 #include <cmath>
 
 #include "AudioEngine/RttyDemodulator.h"
+#include "AudioEngine/RttyAutoClassifier.h"
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -20,7 +21,8 @@ private:
         float shiftHz = 170.0f,
         bool reversePolarity = false,
         float snrDb = 100.0f,
-        int sampleRate = 48000);
+        int sampleRate = 48000,
+        float stopBits = 2.0f);
 
 private slots:
     void testCleanRySequence();
@@ -29,8 +31,15 @@ private slots:
     void testSoftSymbolMetrics();
     void testLowTones();
     void testReversePolarity();
+    void testUsbModeUsesAmateurHighTones();
+    void testInvertedTonesRequireReverse();
+    void testRyWithOnePointFiveStopBits();
+    void testWeather50BaudFigsPersist();
     void testBaudRateTolerance();
+    void testAutoBaudDetects50Not45();
+    void testWeatherShiftIgnoresAmateurAutoBaud();
     void testResetAndClear();
+    void testTuningScopeCrossedEllipses();
 };
 
 QVector<float> RttyDemodulatorTests::generateRttyAudio(
@@ -40,7 +49,8 @@ QVector<float> RttyDemodulatorTests::generateRttyAudio(
     float shiftHz,
     bool reversePolarity,
     float snrDb,
-    int sampleRate)
+    int sampleRate,
+    float stopBits)
 {
     const float markFreq = reversePolarity ? (centerFreq + shiftHz * 0.5f) : (centerFreq - shiftHz * 0.5f);
     const float spaceFreq = reversePolarity ? (centerFreq - shiftHz * 0.5f) : (centerFreq + shiftHz * 0.5f);
@@ -108,9 +118,8 @@ QVector<float> RttyDemodulatorTests::generateRttyAudio(
             bits.append((code >> b) & 1);
         }
 
-        // Stop bits: 2 Mark bits (1)
-        bits.append(1);
-        bits.append(1);
+        // Stop duration is synthesized below (1.0 / 1.5 / 2.0 mark bits)
+        bits.append(-1);
     }
 
     // Trailing idle: 8 Mark bits
@@ -120,20 +129,27 @@ QVector<float> RttyDemodulatorTests::generateRttyAudio(
 
     // Synthesize continuous-phase FSK audio
     QVector<float> audio;
+    const int stopSamples = qMax(1, qRound(static_cast<float>(samplesPerBit) * stopBits));
     audio.reserve(bits.size() * samplesPerBit);
 
     float phase = 0.0f;
     const float twoPi = 2.0f * static_cast<float>(M_PI);
 
-    for (const int bit : bits) {
-        const float toneFreq = (bit == 1) ? markFreq : spaceFreq;
+    auto emitTone = [&](float toneFreq, int count) {
         const float phaseStep = twoPi * toneFreq / static_cast<float>(sampleRate);
-
-        for (int s = 0; s < samplesPerBit; ++s) {
+        for (int s = 0; s < count; ++s) {
             audio.append(0.5f * std::sin(phase));
             phase += phaseStep;
             if (phase >= twoPi) phase -= twoPi;
         }
+    };
+
+    for (const int bit : bits) {
+        if (bit < 0) {
+            emitTone(markFreq, stopSamples);
+            continue;
+        }
+        emitTone((bit == 1) ? markFreq : spaceFreq, samplesPerBit);
     }
 
     // Optional AWGN noise injection
@@ -279,6 +295,95 @@ void RttyDemodulatorTests::testReversePolarity() {
              qPrintable(QString("Expected 'REVERSE POLARITY', got: '%1'").arg(demod.recentText())));
 }
 
+void RttyDemodulatorTests::testUsbModeUsesAmateurHighTones() {
+    RttyDemodulator demod;
+    demod.setCenterFreqHz(2210.0f);
+    demod.setShiftHz(170.0f);
+    demod.setUsbMode(true);
+
+    QCOMPARE(demod.markFreqHz(), 2125.0f);
+    QCOMPARE(demod.spaceFreqHz(), 2295.0f);
+
+    const QString testStr = "CQ CQ DE ZL2BRG K";
+    const QVector<float> audio = generateRttyAudio(testStr);
+
+    const int chunkSize = 480;
+    for (int i = 0; i < audio.size(); i += chunkSize) {
+        const int count = qMin(chunkSize, audio.size() - i);
+        demod.processAudio(audio.constData() + i, count, 48000);
+    }
+
+    QVERIFY2(demod.recentText().contains("CQ CQ DE ZL2BRG K"),
+             qPrintable(QString("USB mode should decode amateur high tones without REV, got: '%1'")
+                            .arg(demod.recentText())));
+}
+
+void RttyDemodulatorTests::testInvertedTonesRequireReverse() {
+    const QString testStr = "NEED REV";
+    const QVector<float> inverted = generateRttyAudio(testStr, 45.4545f, 2210.0f, 170.0f, true);
+
+    RttyDemodulator withoutRev;
+    withoutRev.setCenterFreqHz(2210.0f);
+    withoutRev.setShiftHz(170.0f);
+    withoutRev.processAudio(inverted.constData(), inverted.size(), 48000);
+    QVERIFY2(!withoutRev.recentText().contains("NEED REV"),
+             qPrintable(QString("Inverted tones must not decode without REV, got: '%1'")
+                            .arg(withoutRev.recentText())));
+
+    RttyDemodulator withRev;
+    withRev.setCenterFreqHz(2210.0f);
+    withRev.setShiftHz(170.0f);
+    withRev.setReversePolarity(true);
+    withRev.setUsbMode(true);
+    withRev.processAudio(inverted.constData(), inverted.size(), 48000);
+    QVERIFY2(withRev.recentText().contains("NEED REV"),
+             qPrintable(QString("Inverted tones should decode with REV, got: '%1'")
+                            .arg(withRev.recentText())));
+}
+
+void RttyDemodulatorTests::testRyWithOnePointFiveStopBits() {
+    RttyDemodulator demod;
+    demod.setCenterFreqHz(2210.0f);
+    demod.setShiftHz(170.0f);
+    demod.setUsbMode(true);
+
+    const QString testStr = "RYRYRYRY";
+    const QVector<float> audio = generateRttyAudio(
+        testStr, 45.4545f, 2210.0f, 170.0f, false, 100.0f, 48000, 1.5f);
+
+    const int chunkSize = 512;
+    for (int i = 0; i < audio.size(); i += chunkSize) {
+        const int count = qMin(chunkSize, audio.size() - i);
+        demod.processAudio(audio.constData() + i, count, 48000);
+    }
+
+    QVERIFY2(demod.recentText().contains("RYRYRYRY"),
+             qPrintable(QString("1.5 stop-bit RY should decode, got: '%1'").arg(demod.recentText())));
+}
+
+void RttyDemodulatorTests::testWeather50BaudFigsPersist() {
+    RttyDemodulator demod;
+    demod.setCenterFreqHz(2125.0f);
+    demod.setShiftHz(450.0f);
+    demod.setBaudRate(50.0f);
+    demod.setUsosEnabled(false);
+    demod.setUsbMode(true);
+
+    const QString testStr = QStringLiteral("20. 17");
+    const QVector<float> audio = generateRttyAudio(
+        testStr, 50.0f, 2125.0f, 450.0f, false, 100.0f, 48000, 1.5f);
+
+    const int chunkSize = 512;
+    for (int i = 0; i < audio.size(); i += chunkSize) {
+        const int count = qMin(chunkSize, audio.size() - i);
+        demod.processAudio(audio.constData() + i, count, 48000);
+    }
+
+    QVERIFY2(demod.recentText().contains(testStr),
+             qPrintable(QString("50 baud 1.5-stop weather should copy, got: '%1'")
+                            .arg(demod.recentText())));
+}
+
 void RttyDemodulatorTests::testBaudRateTolerance() {
     RttyDemodulator demod;
     demod.setCenterFreqHz(2210.0f);
@@ -299,6 +404,39 @@ void RttyDemodulatorTests::testBaudRateTolerance() {
              qPrintable(QString("Expected 'CLOCK JITTER 45', got: '%1'").arg(demod.recentText())));
 }
 
+void RttyDemodulatorTests::testAutoBaudDetects50Not45() {
+    RttyDemodulator demod;
+    demod.setCenterFreqHz(2210.0f);
+    demod.setShiftHz(170.0f);
+    demod.setBaudRate(45.4545f);
+    demod.setAutoDetectEnabled(true);
+
+    QSignalSpy baudSpy(demod.classifier(), &RttyAutoClassifier::baudRateDetected);
+
+    const QString testStr = QStringLiteral("RY").repeated(24);
+    const QVector<float> audio = generateRttyAudio(
+        testStr, 50.0f, 2210.0f, 170.0f, false, 100.0f, 48000, 1.5f);
+    demod.processAudio(audio.constData(), audio.size(), 48000);
+
+    QVERIFY2(baudSpy.count() >= 1, "auto-baud should lock on a 50 baud RY stream");
+    QCOMPARE(baudSpy.last().at(0).toFloat(), 50.0f);
+}
+
+void RttyDemodulatorTests::testWeatherShiftIgnoresAmateurAutoBaud() {
+    RttyDemodulator demod;
+    demod.setShiftHz(450.0f);
+    demod.setBaudRate(50.0f);
+    demod.setAutoDetectEnabled(true);
+
+    QVERIFY(QMetaObject::invokeMethod(demod.classifier(), "baudRateDetected",
+                                     Q_ARG(float, 45.4545f)));
+    QCOMPARE(demod.baudRate(), 50.0f);
+
+    QVERIFY(QMetaObject::invokeMethod(demod.classifier(), "baudRateDetected",
+                                     Q_ARG(float, 50.0f)));
+    QCOMPARE(demod.baudRate(), 50.0f);
+}
+
 void RttyDemodulatorTests::testResetAndClear() {
     RttyDemodulator demod;
     demod.setCenterFreqHz(2210.0f);
@@ -314,6 +452,45 @@ void RttyDemodulatorTests::testResetAndClear() {
 
     demod.reset();
     QCOMPARE(demod.trackedOffsetHz(), 0.0f);
+}
+
+void RttyDemodulatorTests::testTuningScopeCrossedEllipses()
+{
+    auto tone = [](float hz, int n, int sampleRate = 48000) {
+        QVector<float> audio(n);
+        const float step = 2.0f * static_cast<float>(M_PI) * hz / static_cast<float>(sampleRate);
+        float phase = 0.0f;
+        for (int i = 0; i < n; ++i) {
+            audio[i] = 0.4f * std::sin(phase);
+            phase += step;
+            if (phase > 2.0f * static_cast<float>(M_PI))
+                phase -= 2.0f * static_cast<float>(M_PI);
+        }
+        return audio;
+    };
+    auto rms = [](const QVector<float> &v) {
+        double sum = 0.0;
+        for (float s : v)
+            sum += double(s) * double(s);
+        return std::sqrt(sum / double(qMax(1, v.size())));
+    };
+
+    RttyDemodulator demod;
+    demod.setAfcEnabled(false);
+    demod.setCenterFreqHz(2210.0f);
+    demod.setShiftHz(170.0f);
+
+    const int n = 48000 / 4;
+    const QVector<float> markTone = tone(2125.0f, n);
+    demod.processAudio(markTone.constData(), markTone.size(), 48000);
+    QVERIFY(demod.lastScopeXs().size() >= 256);
+    QVERIFY(rms(demod.lastScopeXs()) > 3.0 * rms(demod.lastScopeYs()));
+
+    demod.reset();
+    const QVector<float> spaceTone = tone(2295.0f, n);
+    demod.processAudio(spaceTone.constData(), spaceTone.size(), 48000);
+    QVERIFY(demod.lastScopeYs().size() >= 256);
+    QVERIFY(rms(demod.lastScopeYs()) > 3.0 * rms(demod.lastScopeXs()));
 }
 
 QTEST_MAIN(RttyDemodulatorTests)

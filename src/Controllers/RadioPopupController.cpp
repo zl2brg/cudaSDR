@@ -244,10 +244,19 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
 
         m_view->setRttyDecodeEnabled(m_sliceModel->rttyDecodeEnabled());
         connect(m_view, &RadioPopupWidget::rttyDecodeRequested, this, [this](bool enabled) {
+            const int rx = m_view ? m_view->getReceiver() : (m_sliceModel ? m_sliceModel->id() : 0);
             if (m_sliceModel) {
                 m_sliceModel->setRttyDecodeEnabled(enabled);
-            } else if (m_model) {
-                m_model->setRttyDecode(m_view->getReceiver(), enabled);
+            }
+            if (m_model) {
+                m_model->setRttyDecode(rx, enabled);
+            }
+            if (enabled) {
+                if (m_model) {
+                    m_model->setDSPMode(rx, DSPMode::USB);
+                } else if (m_sliceModel) {
+                    m_sliceModel->setDspMode(DSPMode::USB);
+                }
             }
         });
         connect(m_sliceModel, &SliceModel::rttyDecodeEnabledChanged, this, [this](bool enabled) {

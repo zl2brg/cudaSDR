@@ -2,6 +2,7 @@
 #define SLICEMODEL_H
 
 #include <QObject>
+#include <QVector>
 #include "cusdr_hamDatabase.h"
 #include "Settings/SettingsTypes.h"
 
@@ -255,6 +256,10 @@ public:
     float rttyBaudRate() const { return m_rttyBaudRate; }
     void setRttyBaudRate(float baud);
 
+    /** 425/450 Hz weather/nav profile (50 baud, no USOS). */
+    bool rttyWeatherProfile() const;
+    void setRttyWeatherProfile(bool weather);
+
     bool rttyReverse() const { return m_rttyReverse; }
     void setRttyReverse(bool rev);
 
@@ -281,6 +286,10 @@ public:
 
     QString rttyCallsign() const { return m_rttyCallsign; }
     void setRttyCallsign(const QString &call);
+
+    QVector<float> rttyScopeXs() const { return m_rttyScopeXs; }
+    QVector<float> rttyScopeYs() const { return m_rttyScopeYs; }
+    void setRttyScopeTrace(const QVector<float> &xs, const QVector<float> &ys);
 
     QString cwCallsign() const { return m_cwCallsign; }
     void setCwCallsign(const QString &call);
@@ -352,6 +361,7 @@ signals:
     void rttyMarkFreqChanged(float freq);
     void rttySpaceFreqChanged(float freq);
     void rttyCallsignChanged(const QString &call);
+    void rttyScopeTraceChanged();
     void cwCallsignChanged(const QString &call);
     void rttyLogToFileChanged(bool enabled);
     void cwLogToFileChanged(bool enabled);
@@ -423,6 +433,8 @@ private:
     float m_rttyMarkFreq = 2125.0f;
     float m_rttySpaceFreq = 2295.0f;
     QString m_rttyCallsign;
+    QVector<float> m_rttyScopeXs;
+    QVector<float> m_rttyScopeYs;
     QString m_cwCallsign;
     bool m_rttyLogToFile = false;
     bool m_cwLogToFile = false;

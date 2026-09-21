@@ -29,6 +29,7 @@
 // use: SLICE_PROCESSOR_DEBUG
 
 #include "cusdr_sliceProcessor.h"
+#include "AudioEngine/RttyBaudot.h"
 #include "QtWDSP/WdspTxChannel.h"
 #include "Util/cusdr_tciserver.h"
 #include <cmath>
@@ -159,26 +160,23 @@ SliceProcessor::SliceProcessor(SliceModel *model, QObject *parent)
 
 	m_rttyDecoder->setAutoClassifier(m_rttyDemodulator->classifier());
 
-	connect(m_rttyDemodulator, &RttyDemodulator::symbolSampled,
-			m_rttyDecoder, &RttyBayesianDecoder::processSymbol);
-	connect(m_rttyDecoder, &RttyBayesianDecoder::characterDecoded,
-			m_rttyLexicon, &RttyLexicon::processCharacter);
-	connect(m_rttyDecoder, &RttyBayesianDecoder::characterDecoded,
-			this, [this](int rx, const QString &character, float conf, float err) {
-		Q_UNUSED(rx);
-		Q_UNUSED(conf);
-		Q_UNUSED(err);
-		if (m_rttyLogger && m_rttyLogger->isEnabled()) {
+	connect(m_rttyDemodulator, &RttyDemodulator::characterDecoded,
+			this, [this](int rx, const QString &character) {
+		if (m_rttyLexicon)
+			m_rttyLexicon->processCharacter(rx, character, 1.0f, 0.0f);
+		if (m_rttyLogger && m_rttyLogger->isEnabled())
 			m_rttyLogger->appendText(character);
-		}
 	});
 
 	connect(m_rttyDemodulator, &RttyDemodulator::autoParametersDetected,
 			this, [this](float shiftHz, float centerFreqHz, float baudRate) {
 		if (m_sliceModel) {
+			const bool weatherShift = RttyBaudot::isWeatherShiftHz(m_sliceModel->rttyShiftHz())
+				|| RttyBaudot::isWeatherShiftHz(shiftHz);
+			if (!(weatherShift && qAbs(baudRate - 50.0f) > 1.0f))
+				m_sliceModel->setRttyBaudRate(baudRate);
 			m_sliceModel->setRttyShiftHz(shiftHz);
 			m_sliceModel->setRttyCenterFreq(centerFreqHz);
-			m_sliceModel->setRttyBaudRate(baudRate);
 		}
 	});
 	connect(m_rttyDemodulator, &RttyDemodulator::polarityInversionDetected,
@@ -189,7 +187,7 @@ SliceProcessor::SliceProcessor(SliceModel *model, QObject *parent)
 	});
 
 	if (m_sliceModel) {
-		connect(m_rttyDecoder, &RttyBayesianDecoder::textUpdated,
+		connect(m_rttyDemodulator, &RttyDemodulator::textUpdated,
 				m_sliceModel, [this](int rx, const QString &text) {
 			if (m_sliceModel && m_sliceModel->id() == rx)
 				m_sliceModel->setRttyDecodedText(text);
@@ -215,6 +213,11 @@ SliceProcessor::SliceProcessor(SliceModel *model, QObject *parent)
 				m_sliceModel->setRttyToneLocked(locked);
 			}
 		});
+		connect(m_rttyDemodulator, &RttyDemodulator::scopeFrameReady,
+				m_sliceModel, [this](int rx, const QVector<float> &xs, const QVector<float> &ys) {
+			if (m_sliceModel && m_sliceModel->id() == rx)
+				m_sliceModel->setRttyScopeTrace(xs, ys);
+		}, Qt::QueuedConnection);
 		connect(m_sliceModel, &SliceModel::rttyDecodeEnabledChanged,
 				this, [this](bool enabled) {
 			if (m_rttyDemodulator) m_rttyDemodulator->setEnabled(enabled);
@@ -222,12 +225,20 @@ SliceProcessor::SliceProcessor(SliceModel *model, QObject *parent)
 				m_rttyDecoder->setEnabled(enabled);
 				if (!enabled) m_rttyDecoder->clearText();
 			}
+			if (!enabled && m_rttyDemodulator)
+				m_rttyDemodulator->clearText();
 			if (m_rttyLexicon && !enabled) m_rttyLexicon->clearCallsigns();
+			if (!enabled && m_sliceModel)
+				m_sliceModel->setRttyScopeTrace({}, {});
 		});
 		connect(m_sliceModel, &SliceModel::rttyDecodedTextChanged,
 				this, [this](const QString &text) {
-			if (text.isEmpty() && m_rttyDecoder)
-				m_rttyDecoder->clearText();
+			if (text.isEmpty()) {
+				if (m_rttyDecoder)
+					m_rttyDecoder->clearText();
+				if (m_rttyDemodulator)
+					m_rttyDemodulator->clearText();
+			}
 		});
 		connect(m_sliceModel, &SliceModel::rttyCenterFreqChanged,
 				m_rttyDemodulator, &RttyDemodulator::setCenterFreqHz);
@@ -241,12 +252,45 @@ SliceProcessor::SliceProcessor(SliceModel *model, QObject *parent)
 				m_rttyDemodulator, &RttyDemodulator::setAfcEnabled);
 		connect(m_sliceModel, &SliceModel::rttyAutoDetectChanged,
 				m_rttyDemodulator, &RttyDemodulator::setAutoDetectEnabled);
-		m_rttyDemodulator->setAutoDetectEnabled(m_sliceModel->rttyAutoDetect());
 		connect(m_sliceModel, &SliceModel::rttySquelchChanged,
 				m_rttyDecoder, &RttyBayesianDecoder::setSquelchThreshold);
 		connect(m_sliceModel, &SliceModel::rttyLogToFileChanged,
 				m_rttyLogger, &TextStreamLogger::setEnabled);
+
+		m_rttyDemodulator->setCenterFreqHz(m_sliceModel->rttyCenterFreq());
+		m_rttyDemodulator->setShiftHz(m_sliceModel->rttyShiftHz());
+		m_rttyDemodulator->setBaudRate(m_sliceModel->rttyBaudRate());
+		m_rttyDemodulator->setReversePolarity(m_sliceModel->rttyReverse());
+		m_rttyDemodulator->setAfcEnabled(m_sliceModel->rttyAfc());
+		m_rttyDemodulator->setAutoDetectEnabled(m_sliceModel->rttyAutoDetect());
+		m_rttyDecoder->setSquelchThreshold(m_sliceModel->rttySquelch());
+		const bool weatherUsosOff = !RttyBaudot::isWeatherShiftHz(m_sliceModel->rttyShiftHz());
+		m_rttyDecoder->setUsosEnabled(weatherUsosOff);
+		m_rttyDemodulator->setUsosEnabled(weatherUsosOff);
 		m_rttyLogger->setEnabled(m_sliceModel->rttyLogToFile());
+
+		const auto resetRttyFraming = [this]() {
+			if (m_rttyDecoder)
+				m_rttyDecoder->resetFraming();
+		};
+		connect(m_sliceModel, &SliceModel::rttyShiftHzChanged, this, [this, resetRttyFraming](float shift) {
+			const bool usos = !RttyBaudot::isWeatherShiftHz(shift);
+			if (m_rttyDecoder)
+				m_rttyDecoder->setUsosEnabled(usos);
+			if (m_rttyDemodulator)
+				m_rttyDemodulator->setUsosEnabled(usos);
+			resetRttyFraming();
+		});
+		connect(m_sliceModel, &SliceModel::rttyBaudRateChanged, this, resetRttyFraming);
+		connect(m_sliceModel, &SliceModel::rttyReverseChanged, this, resetRttyFraming);
+
+		const DSPMode initialMode = m_sliceModel ? m_sliceModel->dspMode() : set->getDSPMode(m_receiver);
+		m_rttyDemodulator->setUsbMode(initialMode == DSPMode::USB || initialMode == DSPMode::DIGU);
+		connect(m_sliceModel, &SliceModel::dspModeChanged, this, [this](DSPMode mode) {
+			if (m_rttyDemodulator) {
+				m_rttyDemodulator->setUsbMode(mode == DSPMode::USB || mode == DSPMode::DIGU);
+			}
+		});
 	}
 
 	setupConnections();

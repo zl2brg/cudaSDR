@@ -106,6 +106,8 @@ public:
 
 private:
     void showRttyConfigMenu(const QPoint &pos);
+    void applyRttyScrollLines(int deltaLines);
+    void applyRttyScrollFromY(int y);
 
     QGLReceiverPanel *m_panel;
 };

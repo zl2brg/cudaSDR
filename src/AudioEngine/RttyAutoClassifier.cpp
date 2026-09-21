@@ -86,6 +86,7 @@ void RttyAutoClassifier::reset()
 
     m_stopBitLlrSum = 0.0f;
     m_polarityFrameCount = 0;
+    m_polarityCooldown = 0;
 }
 
 void RttyAutoClassifier::feedAudio(const float *samples, int count, int sampleRate)
@@ -207,8 +208,10 @@ void RttyAutoClassifier::processFftBuffer()
         standardShift = 170.0f;
     } else if (rawShift > 185.0f && rawShift <= 250.0f) {
         standardShift = 200.0f;
-    } else if (rawShift >= 380.0f && rawShift <= 470.0f) {
+    } else if (rawShift >= 380.0f && rawShift <= 437.0f) {
         standardShift = 425.0f;
+    } else if (rawShift > 437.0f && rawShift <= 500.0f) {
+        standardShift = 450.0f;
     } else if (rawShift >= 780.0f && rawShift <= 920.0f) {
         standardShift = 850.0f;
     }
@@ -222,6 +225,13 @@ void RttyAutoClassifier::processFftBuffer()
                 m_lockedCenterFreqHz = m_candidateCenter;
                 m_shiftLocked = true;
                 emit shiftDetected(m_lockedShiftHz, m_lockedCenterFreqHz);
+                // Weather/nav shifts are 50 baud. Don't wait for interval scoring
+                // (1.5-stop looks like 100 baud) while the demod still runs 45.45.
+                if (!m_baudLocked && (standardShift == 425.0f || standardShift == 450.0f)) {
+                    m_lockedBaudRate = 50.0f;
+                    m_baudLocked = true;
+                    emit baudRateDetected(m_lockedBaudRate);
+                }
             }
         } else {
             m_candidateShift = standardShift;
@@ -239,14 +249,29 @@ void RttyAutoClassifier::feedTransition(int intervalSamples, float sampleRate)
         return;
     }
 
-    // Evaluate matching against standard baud rates at sampleRate (typically 2000 Hz)
+    // Integer bit runs plus the 1.5-unit stop used by commercial/weather RTTY.
+    // A 50-baud 1.5-stop is 60 samples @ 2 kHz — also exactly 3 bits at 100 baud —
+    // so integer-only scoring locks 45.45 (default) or 100 instead of 50.
+    static const float kMultiples[] = {1.0f, 1.5f, 2.0f, 2.5f, 3.0f, 4.0f, 5.0f, 6.0f};
     for (int i = 0; i < 4; ++i) {
         const float T = sampleRate / CANDIDATE_BAUD_RATES[i];
-        const int k = std::clamp(static_cast<int>(std::round(intervalSamples / T)), 1, 6);
-        const float expected = static_cast<float>(k) * T;
-        const float err = std::abs(intervalSamples - expected) / T;
-        if (err < 0.12f) {
-            m_baudScores[i] += (1.0f - err / 0.12f) / static_cast<float>(k);
+        float bestErr = 1.0f;
+        float bestK = 1.0f;
+        for (float k : kMultiples) {
+            const float expected = k * T;
+            const float err = std::abs(static_cast<float>(intervalSamples) - expected) / T;
+            if (err < bestErr) {
+                bestErr = err;
+                bestK = k;
+            }
+        }
+        if (bestErr < 0.08f) {
+            float weight = 1.0f / bestK;
+            if (bestK == 1.5f)
+                weight = 0.85f;
+            else if (bestK >= 3.0f)
+                weight *= 0.45f;
+            m_baudScores[i] += (1.0f - bestErr / 0.08f) * weight;
         }
     }
 
@@ -273,7 +298,7 @@ void RttyAutoClassifier::analyzeBaudScores()
         }
     }
 
-    if (bestScore > 8.0f && bestScore > 1.35f * secondScore) {
+    if (bestScore > 5.0f && bestScore > 1.20f * secondScore) {
         m_lockedBaudRate = CANDIDATE_BAUD_RATES[bestIdx];
         m_baudLocked = true;
         emit baudRateDetected(m_lockedBaudRate);
@@ -292,16 +317,24 @@ void RttyAutoClassifier::feedFramingResult(float stopBitLlr, float confidence)
         return;
     }
 
+    if (m_polarityCooldown > 0) {
+        --m_polarityCooldown;
+        return;
+    }
+
     m_stopBitLlrSum += stopBitLlr;
     ++m_polarityFrameCount;
 
-    if (m_polarityFrameCount >= 5) {
+    // Require at least 15 consecutive frames of strongly inverted stop bits (< -2.5)
+    // to prevent spurious flips from baud drift or occasional framing slips
+    if (m_polarityFrameCount >= 15) {
         const float avgLlr = m_stopBitLlrSum / static_cast<float>(m_polarityFrameCount);
         m_stopBitLlrSum = 0.0f;
         m_polarityFrameCount = 0;
 
         // If stop bits are consistently negative (Space instead of Mark), polarity is inverted
-        if (avgLlr < -1.2f) {
+        if (avgLlr < -2.5f) {
+            m_polarityCooldown = 40; // 40-frame lockout to prevent rapid oscillation
             emit polarityInversionSuggested();
         }
     }

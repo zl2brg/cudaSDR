@@ -389,12 +389,37 @@ void SliceModel::setRttyShiftHz(float shift) {
     if (qFuzzyCompare(m_rttyShiftHz, shift)) return;
     m_rttyShiftHz = shift;
     emit rttyShiftHzChanged(m_rttyShiftHz);
+    // Weather/nav 425–450 Hz is 50 baud. Don't leave the amateur 45.45 default.
+    const float s = (shift >= 0.0f) ? shift : -shift;
+    if ((s > 415.0f && s < 435.0f) || (s > 440.0f && s < 460.0f)) {
+        if (qAbs(m_rttyBaudRate - 45.4545f) < 1.0f)
+            setRttyBaudRate(50.0f);
+    }
 }
 
 void SliceModel::setRttyBaudRate(float baud) {
     if (qFuzzyCompare(m_rttyBaudRate, baud)) return;
     m_rttyBaudRate = baud;
     emit rttyBaudRateChanged(m_rttyBaudRate);
+}
+
+bool SliceModel::rttyWeatherProfile() const {
+    const float s = (m_rttyShiftHz >= 0.0f) ? m_rttyShiftHz : -m_rttyShiftHz;
+    return (s > 415.0f && s < 435.0f) || (s > 440.0f && s < 460.0f);
+}
+
+void SliceModel::setRttyWeatherProfile(bool weather) {
+    if (weather) {
+        setRttyAutoDetect(false);
+        setRttyReverse(false);
+        setRttyShiftHz(450.0f);
+        setRttyBaudRate(50.0f);
+        if (!m_rttyDecodeEnabled)
+            setRttyDecodeEnabled(true);
+    } else if (rttyWeatherProfile()) {
+        setRttyBaudRate(45.4545f);
+        setRttyShiftHz(170.0f);
+    }
 }
 
 void SliceModel::setRttyReverse(bool rev) {
@@ -449,6 +474,12 @@ void SliceModel::setRttyCallsign(const QString &call) {
     if (m_rttyCallsign == call) return;
     m_rttyCallsign = call;
     emit rttyCallsignChanged(m_rttyCallsign);
+}
+
+void SliceModel::setRttyScopeTrace(const QVector<float> &xs, const QVector<float> &ys) {
+    m_rttyScopeXs = xs;
+    m_rttyScopeYs = ys;
+    emit rttyScopeTraceChanged();
 }
 
 void SliceModel::setCwCallsign(const QString &call) {

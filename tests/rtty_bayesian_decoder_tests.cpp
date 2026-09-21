@@ -17,7 +17,7 @@ private:
     QVector<RttySoftSymbol> generateSymbolsFromBits(const QVector<int> &bits, float strongLlr = 8.0f);
 
     // Helper to convert ASCII text to Baudot bits (Start + 5 Data + Stop)
-    QVector<int> textToBaudotBits(const QString &text);
+    QVector<int> textToBaudotBits(const QString &text, bool usos = true);
 
     // Helper to generate 48 kHz synthetic audio for end-to-end test
     QVector<float> generateRttyAudio(
@@ -25,6 +25,7 @@ private:
         float baudRate = 45.4545f,
         float centerFreq = 2210.0f,
         float shiftHz = 170.0f,
+        bool reversePolarity = false,
         int sampleRate = 48000);
 
 private slots:
@@ -32,8 +33,16 @@ private slots:
     void testNoiseGlitchRejection();
     void testWeakBitBayesianRecovery();
     void testFigsShiftAndUsos();
+    void testWeatherFigsPersistAcrossSpace();
+    void testWeakIdleLtrsRejected();
+    void testNegativeStopRejected();
+    void testMissedSpaceStopDoesNotResync();
+    void testStrongStopLtrsWithModerateStart();
     void testSmartSquelch();
     void testEndToEndIntegration();
+    void testEndToEndUsbMode();
+    void testEndToEndRySequence();
+    void testEndToEndInvertedRequiresReverse();
 };
 
 QVector<RttySoftSymbol> RttyBayesianDecoderTests::generateSymbolsFromBits(
@@ -53,7 +62,7 @@ QVector<RttySoftSymbol> RttyBayesianDecoderTests::generateSymbolsFromBits(
     return symbols;
 }
 
-QVector<int> RttyBayesianDecoderTests::textToBaudotBits(const QString &text) {
+QVector<int> RttyBayesianDecoderTests::textToBaudotBits(const QString &text, bool usos) {
     static const struct { char c; quint8 code; bool figs; } CHAR_MAP[] = {
         { 'A', 0x03, false }, { 'B', 0x19, false }, { 'C', 0x0E, false }, { 'D', 0x09, false },
         { 'E', 0x01, false }, { 'F', 0x0D, false }, { 'G', 0x1A, false }, { 'H', 0x14, false },
@@ -115,8 +124,8 @@ QVector<int> RttyBayesianDecoderTests::textToBaudotBits(const QString &text) {
         bitStream.append(1);
         bitStream.append(1);
 
-        if (code == 0x04) {
-            // Space: USOS resets to LTRS
+        if (code == 0x04 && usos) {
+            // Space: USOS resets to LTRS (amateur). Weather leaves FIGS armed.
             currentFigs = false;
         }
     }
@@ -130,11 +139,12 @@ QVector<int> RttyBayesianDecoderTests::textToBaudotBits(const QString &text) {
 }
 
 QVector<float> RttyBayesianDecoderTests::generateRttyAudio(
-    const QString &text, float baudRate, float centerFreq, float shiftHz, int sampleRate)
+    const QString &text, float baudRate, float centerFreq, float shiftHz,
+    bool reversePolarity, int sampleRate)
 {
     const QVector<int> bits = textToBaudotBits(text);
-    const float markFreq = centerFreq - shiftHz * 0.5f;
-    const float spaceFreq = centerFreq + shiftHz * 0.5f;
+    const float markFreq = reversePolarity ? (centerFreq + shiftHz * 0.5f) : (centerFreq - shiftHz * 0.5f);
+    const float spaceFreq = reversePolarity ? (centerFreq - shiftHz * 0.5f) : (centerFreq + shiftHz * 0.5f);
     const int samplesPerBit = qRound(static_cast<float>(sampleRate) / baudRate);
 
     QVector<float> audio;
@@ -239,6 +249,110 @@ void RttyBayesianDecoderTests::testFigsShiftAndUsos() {
     QCOMPARE(decoder.recentText(), testText);
 }
 
+void RttyBayesianDecoderTests::testWeatherFigsPersistAcrossSpace() {
+    RttyBayesianDecoder decoder;
+    decoder.setUsosEnabled(false);
+
+    const QString testText = QStringLiteral("12 34");
+    const QVector<int> bits = textToBaudotBits(testText, false);
+    const QVector<RttySoftSymbol> symbols = generateSymbolsFromBits(bits, 8.0f);
+
+    decoder.processSymbols(symbols);
+
+    QCOMPARE(decoder.recentText(), testText);
+}
+
+void RttyBayesianDecoderTests::testWeakIdleLtrsRejected() {
+    RttyBayesianDecoder decoder;
+
+    // Tiny Space dip into Mark idle, then five Marks + Mark: looks like LTRS
+    // but is not a real start. Must not lock or flip shift state.
+    QVector<RttySoftSymbol> symbols;
+    for (int i = 0; i < 8; ++i) {
+        RttySoftSymbol mark;
+        mark.llr = 8.0f;
+        mark.snrDb = 12.0f;
+        symbols.append(mark);
+    }
+    RttySoftSymbol dip;
+    dip.llr = -1.5f;
+    dip.snrDb = 12.0f;
+    symbols.append(dip);
+    for (int i = 0; i < 6; ++i) {
+        RttySoftSymbol mark;
+        mark.llr = 8.0f;
+        mark.snrDb = 12.0f;
+        symbols.append(mark);
+    }
+    // Real 'A'
+    const float aBits[] = { -8.0f, 8.0f, 8.0f, -8.0f, -8.0f, -8.0f, 8.0f };
+    for (float llr : aBits) {
+        RttySoftSymbol s;
+        s.llr = llr;
+        s.snrDb = 12.0f;
+        symbols.append(s);
+    }
+
+    decoder.processSymbols(symbols);
+    QCOMPARE(decoder.recentText(), QStringLiteral("A"));
+    QCOMPARE(decoder.figsBelief(), 0.0f);
+}
+
+void RttyBayesianDecoderTests::testNegativeStopRejected() {
+    RttyBayesianDecoder decoder;
+
+    // Well-started 'L' (0x12) whose stop strobe is already the next start.
+    const float bits[] = {
+        -11.3f, 8.0f, -8.0f, 8.0f, -8.0f, -8.0f, -9.1f
+    };
+    QVector<RttySoftSymbol> symbols;
+    for (float llr : bits) {
+        RttySoftSymbol s;
+        s.llr = llr;
+        s.snrDb = 12.0f;
+        symbols.append(s);
+    }
+    decoder.processSymbols(symbols);
+    QVERIFY(decoder.recentText().isEmpty());
+}
+
+void RttyBayesianDecoderTests::testMissedSpaceStopDoesNotResync() {
+    RttyBayesianDecoder decoder;
+
+    // Rejected 'L' (Space stop) then a clean 'A'. Reusing the Space stop as the
+    // next start would swallow A's start bit and print garbage instead of A.
+    const float bits[] = {
+        -11.3f, 8.0f, -8.0f, 8.0f, -8.0f, -8.0f, -9.1f,
+        -8.0f, 8.0f, 8.0f, -8.0f, -8.0f, -8.0f, 8.0f
+    };
+    QVector<RttySoftSymbol> symbols;
+    for (float llr : bits) {
+        RttySoftSymbol s;
+        s.llr = llr;
+        s.snrDb = 12.0f;
+        symbols.append(s);
+    }
+    decoder.processSymbols(symbols);
+    QCOMPARE(decoder.recentText(), QStringLiteral("A"));
+}
+
+void RttyBayesianDecoderTests::testStrongStopLtrsWithModerateStart() {
+    RttyBayesianDecoder decoder;
+
+    // On-air: start≈−4.7, five Marks, stop=+98. That is a real LTRS, not idle.
+    const float bits[] = { -4.7f, 20.0f, 20.0f, 20.0f, 20.0f, 20.0f, 98.6f };
+    QVector<RttySoftSymbol> symbols;
+    for (float llr : bits) {
+        RttySoftSymbol s;
+        s.llr = llr;
+        s.snrDb = 14.0f;
+        symbols.append(s);
+    }
+    decoder.processSymbols(symbols);
+    QCOMPARE(decoder.figsBelief(), 0.0f);
+    QVERIFY(decoder.isFramingLocked() || decoder.framingConfidence() > 10.0f);
+}
+
 void RttyBayesianDecoderTests::testSmartSquelch() {
     RttyBayesianDecoder decoder;
     decoder.setSquelchThreshold(0.40f);
@@ -267,7 +381,6 @@ void RttyBayesianDecoderTests::testEndToEndIntegration() {
     RttyDemodulator demod;
     RttyBayesianDecoder decoder;
 
-    // Connect Stage 1 symbol stream to Stage 2 Bayesian decoder
     connect(&demod, &RttyDemodulator::symbolSampled, &decoder, &RttyBayesianDecoder::processSymbol);
 
     const QString message = "TEST DE ZL2BRG 73";
@@ -276,6 +389,52 @@ void RttyBayesianDecoderTests::testEndToEndIntegration() {
     demod.processAudio(audio.constData(), audio.size(), 48000);
 
     QCOMPARE(decoder.recentText(), message);
+}
+
+void RttyBayesianDecoderTests::testEndToEndUsbMode() {
+    RttyDemodulator demod;
+    RttyBayesianDecoder decoder;
+    demod.setUsbMode(true);
+    connect(&demod, &RttyDemodulator::symbolSampled, &decoder, &RttyBayesianDecoder::processSymbol);
+
+    const QString message = "TEST DE ZL2BRG 73";
+    const QVector<float> audio = generateRttyAudio(message);
+    demod.processAudio(audio.constData(), audio.size(), 48000);
+
+    QCOMPARE(decoder.recentText(), message);
+}
+
+void RttyBayesianDecoderTests::testEndToEndRySequence() {
+    RttyDemodulator demod;
+    RttyBayesianDecoder decoder;
+    demod.setUsbMode(true);
+    connect(&demod, &RttyDemodulator::symbolSampled, &decoder, &RttyBayesianDecoder::processSymbol);
+
+    const QString message = "RYRYRYRY";
+    const QVector<float> audio = generateRttyAudio(message);
+    demod.processAudio(audio.constData(), audio.size(), 48000);
+
+    QCOMPARE(decoder.recentText(), message);
+}
+
+void RttyBayesianDecoderTests::testEndToEndInvertedRequiresReverse() {
+    const QString message = "TEST DE ZL2BRG 73";
+    const QVector<float> inverted = generateRttyAudio(message, 45.4545f, 2210.0f, 170.0f, true);
+
+    RttyDemodulator demod;
+    RttyBayesianDecoder decoder;
+    demod.setUsbMode(true);
+    connect(&demod, &RttyDemodulator::symbolSampled, &decoder, &RttyBayesianDecoder::processSymbol);
+    demod.processAudio(inverted.constData(), inverted.size(), 48000);
+    QVERIFY(decoder.recentText() != message);
+
+    RttyDemodulator demodRev;
+    RttyBayesianDecoder decoderRev;
+    demodRev.setUsbMode(true);
+    demodRev.setReversePolarity(true);
+    connect(&demodRev, &RttyDemodulator::symbolSampled, &decoderRev, &RttyBayesianDecoder::processSymbol);
+    demodRev.processAudio(inverted.constData(), inverted.size(), 48000);
+    QCOMPARE(decoderRev.recentText(), message);
 }
 
 QTEST_MAIN(RttyBayesianDecoderTests)

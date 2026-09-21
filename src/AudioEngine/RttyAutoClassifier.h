@@ -8,7 +8,7 @@
 /**
  * Real-time automatic RTTY signal classifier and parameter estimator.
  * - Detects dual-tone FSK carrier peaks in audio passband (500 - 2800 Hz)
- * - Classifies frequency shift (170, 200, 425, 850 Hz) and center frequency
+ * - Classifies frequency shift (170, 200, 425, 450, 850 Hz) and center frequency
  * - Estimates baud rate from discriminator zero-crossing intervals (45.45, 50, 75, 100 baud)
  * - Evaluates stop-bit LLR to suggest polarity inversion
  */
@@ -78,6 +78,7 @@ private:
     // Polarity estimation state
     float m_stopBitLlrSum = 0.0f;
     int m_polarityFrameCount = 0;
+    int m_polarityCooldown = 0;
 };
 
 #endif // RTTYAUTOCLASSIFIER_H

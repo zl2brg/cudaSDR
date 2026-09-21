@@ -8,7 +8,46 @@
 
 #include <QMatrix4x4>
 #include <QVector>
+#include <algorithm>
 #include <cmath>
+
+namespace {
+
+QStringList wrapRttyTerminal(const QString &text, int cols)
+{
+    cols = qMax(8, cols);
+    QStringList lines;
+    QString line;
+    line.reserve(cols);
+
+    auto flush = [&]() {
+        lines.append(line);
+        line.clear();
+    };
+
+    for (int i = 0; i < text.size(); ++i) {
+        QChar c = text.at(i);
+        if (c == QLatin1Char('\r')) {
+            if (i + 1 < text.size() && text.at(i + 1) == QLatin1Char('\n'))
+                ++i;
+            flush();
+            continue;
+        }
+        if (c == QLatin1Char('\n')) {
+            flush();
+            continue;
+        }
+        if (c < QLatin1Char(' '))
+            c = QLatin1Char(' ');
+        line.append(c);
+        if (line.size() >= cols)
+            flush();
+    }
+    lines.append(line);
+    return lines;
+}
+
+} // namespace
 
 HudRenderer::HudRenderer(QGLReceiverPanel *panel)
     : m_panel(panel)
@@ -838,9 +877,24 @@ void HudRenderer::drawCwDecoderHUD() {
 
 void HudRenderer::drawRttyDecoderHUD() {
     ensureGL();
-    if (!m_panel->m_sliceModel || !m_panel->m_sliceModel->rttyDecodeEnabled()) {
+    auto clearRttyHudRects = [this]() {
         m_panel->m_rttyTextRect = QRect();
         m_panel->m_rttyConfigBtnRect = QRect();
+        m_panel->m_rttyScopeRect = QRect();
+        m_panel->m_rttyNudgeLeftRect = QRect();
+        m_panel->m_rttyNudgeRightRect = QRect();
+        m_panel->m_rttyDecodeTextRect = QRect();
+        m_panel->m_rttyScrollBarRect = QRect();
+        m_panel->m_rttyJumpLatestRect = QRect();
+    };
+    if (!m_panel->m_sliceModel || !m_panel->m_sliceModel->rttyDecodeEnabled()) {
+        clearRttyHudRects();
+        m_panel->m_rttyFollowLatest = true;
+        m_panel->m_rttyScrollFromBottom = 0;
+        m_panel->m_rttyWrappedLineCount = 0;
+        return;
+    }
+    if (!m_panel->m_oglTextNormal || !m_panel->m_oglTextSmall) {
         return;
     }
 
@@ -850,7 +904,6 @@ void HudRenderer::drawRttyDecoderHUD() {
     const float centerAudioFreq = m_panel->m_sliceModel->rttyCenterFreq();
     const bool locked = m_panel->m_sliceModel->rttyToneLocked();
     const float snr = m_panel->m_sliceModel->rttySnrDb();
-    const QString callsign = m_panel->m_sliceModel->rttyCallsign();
 
     m_panel->ensurePanelViewport();
 
@@ -858,14 +911,16 @@ void HudRenderer::drawRttyDecoderHUD() {
     const qint64 vfoFreq = m_panel->m_sliceModel->frequency();
     const qint64 centerFreq = m_panel->m_sliceModel->centerFrequency();
 
-    // Determine RF frequencies of Mark and Space tones
+    // Amateur high tones: Mark AF = center - shift/2 (2125), Space AF = center + shift/2 (2295).
+    // USB: higher AF is higher RF. LSB inverts the spectrum, so Mark RF is closer to the VFO.
     const bool isLsb = (mode == DSPMode::LSB || mode == DSPMode::DIGL || mode == DSPMode::CWL);
-    const float markOffset = centerAudioFreq - shift * 0.5f;
-    const float spaceOffset = centerAudioFreq + shift * 0.5f;
-
-    const qint64 markRf = isLsb ? (vfoFreq - qRound(markOffset)) : (vfoFreq + qRound(markOffset));
-    const qint64 spaceRf = isLsb ? (vfoFreq - qRound(spaceOffset)) : (vfoFreq + qRound(spaceOffset));
+    const bool rev = m_panel->m_sliceModel->rttyReverse();
+    const qint64 halfShift = qRound(shift * 0.5f);
     const qint64 centerRf = isLsb ? (vfoFreq - qRound(centerAudioFreq)) : (vfoFreq + qRound(centerAudioFreq));
+    qint64 markRf = isLsb ? (centerRf + halfShift) : (centerRf - halfShift);
+    qint64 spaceRf = isLsb ? (centerRf - halfShift) : (centerRf + halfShift);
+    if (rev)
+        std::swap(markRf, spaceRf);
 
     // Screen X positions
     const float zoomFactor = m_panel->displayedZoomFactor();
@@ -890,8 +945,6 @@ void HudRenderer::drawRttyDecoderHUD() {
     const QColor markColor = locked ? QColor(50, 240, 200, 220) : QColor(35, 180, 160, 150);
     const QColor spaceColor = locked ? QColor(255, 165, 50, 220) : QColor(200, 130, 40, 150);
 
-    const int badgeH = m_panel->m_fonts.fontHeightNormalFont + 6;
-
     if (markVisible && spaceVisible) {
         const int mX = qRound(markX);
         const int sX = qRound(spaceX);
@@ -915,94 +968,281 @@ void HudRenderer::drawRttyDecoderHUD() {
         m_panel->renderPanelText(m_panel->m_oglTextSmall, float(sX - 4), float(crossbarY - 18), 3.6f, QStringLiteral("S"));
     }
 
-    // Badge formatting
-    const bool autoDetect = m_panel->m_sliceModel->rttyAutoDetect();
-    const QString modePrefix = autoDetect ? QStringLiteral("AUTO") : QStringLiteral("RTTY");
-    QString badgeText = QStringLiteral("%1 %2/%3").arg(modePrefix).arg(qRound(baud)).arg(qRound(shift));
-    if (locked && snr > 0.0f) {
-        badgeText.append(QStringLiteral(" %1dB").arg(qRound(snr)));
+    const QFontMetrics &fm = m_panel->m_oglTextNormal->fontMetrics();
+    const int colW = qMax(6, fm.horizontalAdvance(QLatin1Char('0')));
+    const int lineH = (fm.height() > 0 ? fm.height() : m_panel->m_fonts.fontHeightNormalFont) + 2;
+    const int headerH = (m_panel->m_oglTextSmall ? m_panel->m_oglTextSmall->fontMetrics().height() : m_panel->m_fonts.fontHeightSmallFont) + 6;
+    const int numLines = 10;
+    const int scrollW = 8;
+    const int scopeGap = 8;
+    const int sidePad = 8;
+
+    int cols = 80;
+    int scopeSize = 96;
+    int textW = colW * cols;
+    int totalW = sidePad + scopeSize + scopeGap + textW + scrollW + sidePad;
+    if (totalW > m_panel->m_panRect.width() - 8) {
+        const int budget = m_panel->m_panRect.width() - 8 - sidePad - scopeGap - scrollW - sidePad;
+        if (budget < 280) {
+            scopeSize = 0;
+            cols = qBound(24, (m_panel->m_panRect.width() - 8 - sidePad * 2 - scrollW) / colW, 80);
+        } else {
+            const int forText = budget - scopeSize;
+            cols = qBound(24, forText / colW, 80);
+            if (cols < 40) {
+                scopeSize = 0;
+                cols = qBound(24, (m_panel->m_panRect.width() - 8 - sidePad * 2 - scrollW) / colW, 80);
+            }
+        }
+        textW = colW * cols;
+        totalW = sidePad + scopeSize + (scopeSize > 0 ? scopeGap : 0) + textW + scrollW + sidePad;
     }
-    badgeText.append(QStringLiteral(" \u2699"));
-    const int badgeW = m_panel->m_oglTextSmall->fontMetrics().horizontalAdvance(QStringLiteral("AUTO 100/850 99dB \u2699")) + 18;
 
-    QString displayStr = text;
-    if (displayStr.isEmpty()) {
-        displayStr = QStringLiteral("<%1 %2/%3>").arg(modePrefix).arg(qRound(baud)).arg(qRound(shift));
+    if (totalW < 140 || m_panel->m_panRect.width() < 140) {
+        clearRttyHudRects();
+        return;
     }
 
-    const int maxChars = 40;
-    const int maxTextW = m_panel->m_oglTextNormal 
-        ? qMax(280, m_panel->m_oglTextNormal->fontMetrics().averageCharWidth() * maxChars + 24)
-        : 320;
-    const int defaultBoxW = badgeW + maxTextW + 14;
+    const int textBlockH = numLines * lineH;
+    const int bodyH = qMax(textBlockH, scopeSize);
+    const int totalH = headerH + bodyH + 10;
 
-    int textX = qRound(nominalX) + 6;
-    int textY = panTop + (m_panel->m_panRect.height() / 2) + (badgeH / 2) + 4;
+    int textX = qRound(nominalX) + 8;
+    int textY = panTop + (m_panel->m_panRect.height() / 4);
 
     if (m_panel->m_hasCustomRttyBoxPos) {
         textX = m_panel->m_rttyBoxPos.x();
         textY = m_panel->m_rttyBoxPos.y();
-    } else if (textX + defaultBoxW > panRight) {
-        textX = qRound(nominalX) - 6 - defaultBoxW;
+    } else if (textX + totalW > panRight - 4) {
+        textX = qRound(nominalX) - 8 - totalW;
     }
 
-    textX = qBound(panLeft + 4, textX, panRight - 80);
-    textY = qBound(panTop + 4, textY, panBottom - badgeH - 4);
+    textX = qBound(panLeft + 4, textX, qMax(panLeft + 4, panRight - totalW - 4));
+    textY = qBound(panTop + 4, textY, qMax(panTop + 4, panBottom - totalH - 4));
 
-    const int availableW = panRight - textX - 8;
-    if (availableW > 60) {
-        const int textAvailableW = qBound(20, availableW - badgeW - 10, maxTextW);
-        QString trimmedText = displayStr;
-        if (trimmedText.length() > maxChars) {
-            trimmedText = trimmedText.right(maxChars);
+    if (m_panel->m_hasCustomRttyBoxPos) {
+        m_panel->m_rttyBoxPos = QPoint(textX, textY);
+    }
+
+    m_panel->m_rttyTextRect = QRect(textX, textY, totalW, totalH);
+
+    // Card background (dark slate with soft transparency)
+    m_panel->drawPanelRect(m_panel->m_rttyTextRect, QColor(10, 16, 22, 225), 3.4f);
+
+    // Subtle outer border
+    m_panel->drawPanelRect(QRect(textX, textY, totalW, 1), QColor(45, 65, 85, 200), 3.45f);
+    m_panel->drawPanelRect(QRect(textX, textY + totalH - 1, totalW, 1), QColor(45, 65, 85, 200), 3.45f);
+    m_panel->drawPanelRect(QRect(textX, textY, 1, totalH), QColor(45, 65, 85, 200), 3.45f);
+    m_panel->drawPanelRect(QRect(textX + totalW - 1, textY, 1, totalH), QColor(45, 65, 85, 200), 3.45f);
+
+    // Header divider line
+    const int headerY = textY + 3;
+    m_panel->drawPanelRect(QRect(textX + 4, headerY + headerH, totalW - 8, 1), QColor(40, 60, 80, 140), 3.5f);
+
+    // Badge formatting
+    const bool autoDetect = m_panel->m_sliceModel->rttyAutoDetect();
+    const bool weather = m_panel->m_sliceModel->rttyWeatherProfile();
+    const QString modePrefix = autoDetect ? QStringLiteral("AUTO")
+        : (weather ? QStringLiteral("WX") : QStringLiteral("RTTY"));
+    const QString polStr = rev ? QStringLiteral("REV") : QStringLiteral("NOR");
+    QString badgeText = QStringLiteral("%1 %2/%3 [%4]").arg(modePrefix).arg(qRound(baud)).arg(qRound(shift)).arg(polStr);
+    if (locked && snr > 0.0f) {
+        badgeText.append(QStringLiteral(" %1dB").arg(qRound(snr)));
+    }
+    badgeText.append(QStringLiteral(" \u2699"));
+
+    const int badgeTextW = m_panel->m_oglTextSmall->fontMetrics().horizontalAdvance(badgeText);
+    const int badgeW = badgeTextW + 22;
+
+    // Mode badge / config button container (highlight on hover)
+    m_panel->m_rttyConfigBtnRect = QRect(textX + 4, headerY, badgeW, headerH - 2);
+    const bool configHover = m_panel->m_rttyConfigBtnRect.contains(m_panel->m_mousePos);
+    const QColor badgeBg = configHover ? QColor(40, 62, 88, 240) : QColor(22, 34, 46, 230);
+    m_panel->drawPanelRect(m_panel->m_rttyConfigBtnRect, badgeBg, 3.5f);
+    m_panel->drawPanelRect(QRect(textX + 4, headerY, badgeW, 1), QColor(60, 85, 115, 180), 3.55f);
+
+    // Tone lock pip (green on lock)
+    m_panel->drawPanelRect(QRect(textX + 8, headerY + (headerH - 2) / 2 - 2, 5, 5),
+                           locked ? QColor(50, 240, 150) : QColor(90, 110, 130), 3.6f);
+
+    m_panel->m_glTextColor = Qt::white;
+    m_panel->renderPanelText(m_panel->m_oglTextSmall, float(textX + 18), float(headerY + 2), 3.6f, badgeText);
+
+    const int bodyY = headerY + headerH + 4;
+    QRect scopeRect;
+    int textLeft = textX + sidePad;
+    if (scopeSize > 0) {
+        scopeRect = QRect(textX + 4, bodyY, scopeSize, scopeSize);
+        m_panel->m_rttyScopeRect = scopeRect;
+        float markHz = m_panel->m_sliceModel->rttyMarkFreq();
+        if (markHz < 100.0f) {
+            const float half = m_panel->m_sliceModel->rttyShiftHz() * 0.5f;
+            markHz = m_panel->m_sliceModel->rttyCenterFreq() + (rev ? half : -half);
         }
-        while (!trimmedText.isEmpty() && m_panel->m_oglTextNormal->fontMetrics().horizontalAdvance(trimmedText) > textAvailableW) {
-            trimmedText.remove(0, 1);
-        }
-
-        int callsignBadgeW = 0;
-        if (!callsign.isEmpty()) {
-            callsignBadgeW = m_panel->m_oglTextSmall->fontMetrics().horizontalAdvance(callsign) + 12;
-        }
-
-        const int totalW = badgeW + callsignBadgeW + (trimmedText.isEmpty() ? 0 : m_panel->m_oglTextNormal->fontMetrics().horizontalAdvance(trimmedText) + 8) + 6;
-        m_panel->m_rttyTextRect = QRect(textX, textY, totalW, badgeH);
-
-        // Background container (dark slate)
-        m_panel->drawPanelRect(m_panel->m_rttyTextRect, QColor(10, 16, 22, 220), 3.4f);
-
-        // Mode badge / config button container (highlight on hover)
-        m_panel->m_rttyConfigBtnRect = QRect(textX + 2, textY + 2, badgeW, badgeH - 4);
-        const bool configHover = m_panel->m_rttyConfigBtnRect.contains(m_panel->m_mousePos);
-        const QColor badgeBg = configHover ? QColor(40, 62, 88, 240) : QColor(22, 34, 46, 230);
-        m_panel->drawPanelRect(m_panel->m_rttyConfigBtnRect, badgeBg, 3.5f);
-
-        // Tone lock pip (green on lock)
-        m_panel->drawPanelRect(QRect(textX + 5, textY + (badgeH / 2) - 2, 5, 5),
-                      locked ? QColor(50, 240, 150) : QColor(90, 110, 130), 3.6f);
-
-        m_panel->m_glTextColor = Qt::white;
-        m_panel->renderPanelText(m_panel->m_oglTextSmall, float(textX + 14), float(textY + 3), 3.6f, badgeText);
-
-        int curX = textX + badgeW + 6;
-
-        // Detected callsign badge
-        if (!callsign.isEmpty()) {
-            m_panel->drawPanelRect(QRect(curX, textY + 2, callsignBadgeW - 4, badgeH - 4), QColor(60, 50, 20, 220), 3.5f);
-            m_panel->m_glTextColor = QColor(255, 215, 60); // Gold
-            m_panel->renderPanelText(m_panel->m_oglTextSmall, float(curX + 4), float(textY + 3), 3.6f, callsign);
-            curX += callsignBadgeW;
-        }
-
-        // Decoded text in high-contrast cyan
-        if (!trimmedText.isEmpty()) {
-            m_panel->m_glTextColor = text.isEmpty() ? QColor(130, 160, 180, 190) : QColor(120, 240, 255, 255);
-            m_panel->renderPanelText(m_panel->m_oglTextNormal, float(curX), float(textY + 2), 3.6f, trimmedText);
-        }
+        drawRttyTuningScope(scopeRect, markHz);
+        textLeft = scopeRect.right() + scopeGap;
     } else {
-        m_panel->m_rttyTextRect = QRect();
-        m_panel->m_rttyConfigBtnRect = QRect();
+        m_panel->m_rttyScopeRect = QRect();
+        m_panel->m_rttyNudgeLeftRect = QRect();
+        m_panel->m_rttyNudgeRightRect = QRect();
     }
+
+    const QRect decodeRect(textLeft, bodyY, textW, textBlockH);
+    m_panel->m_rttyDecodeTextRect = decodeRect;
+    m_panel->m_rttyVisibleLines = numLines;
+    m_panel->drawPanelRect(decodeRect, QColor(12, 14, 16, 240), 3.5f);
+
+    QStringList wrappedLines;
+    if (text.isEmpty()) {
+        wrappedLines.append(QStringLiteral("<Listening for RTTY signals...>"));
+    } else {
+        wrappedLines = wrapRttyTerminal(text, cols);
+        while (wrappedLines.size() > 1 && wrappedLines.last().isEmpty()
+               && wrappedLines.at(wrappedLines.size() - 2).isEmpty()) {
+            wrappedLines.removeLast();
+        }
+        if (wrappedLines.isEmpty())
+            wrappedLines.append(QString());
+    }
+
+    m_panel->m_rttyWrappedLineCount = wrappedLines.size();
+    const int maxScroll = qMax(0, wrappedLines.size() - numLines);
+    if (m_panel->m_rttyFollowLatest)
+        m_panel->m_rttyScrollFromBottom = 0;
+    m_panel->m_rttyScrollFromBottom = qBound(0, m_panel->m_rttyScrollFromBottom, maxScroll);
+    if (m_panel->m_rttyScrollFromBottom == 0)
+        m_panel->m_rttyFollowLatest = true;
+
+    const int first = qMax(0, wrappedLines.size() - numLines - m_panel->m_rttyScrollFromBottom);
+    const QStringList displayLines = wrappedLines.mid(first, numLines);
+
+    m_panel->m_rttyScrollBarRect = QRect(decodeRect.right() + 1, decodeRect.top(), scrollW, decodeRect.height());
+    m_panel->drawPanelRect(m_panel->m_rttyScrollBarRect, QColor(18, 22, 26, 220), 3.52f);
+    if (maxScroll > 0) {
+        const int trackH = decodeRect.height();
+        const int thumbH = qBound(12, (numLines * trackH) / wrappedLines.size(), trackH);
+        const int travel = qMax(0, trackH - thumbH);
+        const int thumbY = decodeRect.top() + qRound(float(maxScroll - m_panel->m_rttyScrollFromBottom) / float(maxScroll) * travel);
+        m_panel->drawPanelRect(QRect(decodeRect.right() + 2, thumbY, scrollW - 2, thumbH),
+                               QColor(74, 90, 110, 220), 3.55f);
+    }
+
+    for (int i = 0; i < displayLines.size(); ++i) {
+        const QString &line = displayLines.at(i);
+        if (line.isEmpty())
+            continue;
+        const int lineY = decodeRect.top() + i * lineH;
+        m_panel->m_glTextColor = text.isEmpty() ? QColor(130, 160, 180, 180) : QColor(197, 209, 222, 255);
+        m_panel->renderPanelText(m_panel->m_oglTextNormal, float(decodeRect.left() + 2), float(lineY), 3.6f, line);
+    }
+
+    if (!m_panel->m_rttyFollowLatest) {
+        const QString jump = QStringLiteral("\u2193 latest");
+        const int jw = m_panel->m_oglTextSmall->fontMetrics().horizontalAdvance(jump) + 14;
+        const int jh = m_panel->m_oglTextSmall->fontMetrics().height() + 4;
+        m_panel->m_rttyJumpLatestRect = QRect(decodeRect.right() - jw - 4, decodeRect.bottom() - jh - 4, jw, jh);
+        const bool jumpHover = m_panel->m_rttyJumpLatestRect.contains(m_panel->m_mousePos);
+        m_panel->drawPanelRect(m_panel->m_rttyJumpLatestRect,
+                               jumpHover ? QColor(53, 80, 122, 240) : QColor(42, 63, 95, 230), 3.62f);
+        m_panel->m_glTextColor = QColor(230, 230, 230);
+        m_panel->renderPanelText(m_panel->m_oglTextSmall,
+                                 float(m_panel->m_rttyJumpLatestRect.left() + 7),
+                                 float(m_panel->m_rttyJumpLatestRect.top() + 2), 3.64f, jump);
+    } else {
+        m_panel->m_rttyJumpLatestRect = QRect();
+    }
+}
+
+void HudRenderer::drawRttyTuningScope(const QRect &scopeRect, float markHz)
+{
+    if (scopeRect.isEmpty())
+        return;
+
+    const int x0 = scopeRect.left();
+    const int y0 = scopeRect.top();
+    const int size = scopeRect.width();
+    const float cx = float(x0) + float(size) * 0.5f;
+    const float cy = float(y0) + float(size) * 0.5f;
+
+    m_panel->drawPanelRect(scopeRect, QColor(8, 12, 14, 255), 3.55f);
+    m_panel->drawPanelRect(QRect(x0, y0, size, 1), QColor(38, 43, 48, 220), 3.56f);
+    m_panel->drawPanelRect(QRect(x0, y0 + size - 1, size, 1), QColor(38, 43, 48, 220), 3.56f);
+    m_panel->drawPanelRect(QRect(x0, y0, 1, size), QColor(38, 43, 48, 220), 3.56f);
+    m_panel->drawPanelRect(QRect(x0 + size - 1, y0, 1, size), QColor(38, 43, 48, 220), 3.56f);
+
+    const QMatrix4x4 proj = m_panel->panelProjection();
+    const float cr = 120.0f / 255.0f, cg = 130.0f / 255.0f, cb = 140.0f / 255.0f;
+    const GlDraw::Vec3Rgb cross[4] = {
+        { float(x0 + 1), cy, 3.57f, cr, cg, cb }, { float(x0 + size - 1), cy, 3.57f, cr, cg, cb },
+        { cx, float(y0 + 1), 3.57f, cr, cg, cb }, { cx, float(y0 + size - 1), 3.57f, cr, cg, cb },
+    };
+    m_panel->m_vao.bind();
+    glLineWidth(1.0f);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    GlDraw::drawColoredLines(this, m_panel->m_shaderProgram, m_panel->m_vbo, proj, cross, 4);
+
+    const QVector<float> xs = m_panel->m_sliceModel->rttyScopeXs();
+    const QVector<float> ys = m_panel->m_sliceModel->rttyScopeYs();
+    const int n = qMin(xs.size(), ys.size());
+    if (n >= 2) {
+        float frameMax = 0.0f;
+        for (int i = 0; i < n; ++i) {
+            frameMax = qMax(frameMax, qAbs(xs.at(i)));
+            frameMax = qMax(frameMax, qAbs(ys.at(i)));
+        }
+        if (frameMax > m_rttyScopePeak)
+            m_rttyScopePeak = frameMax;
+        else
+            m_rttyScopePeak = m_rttyScopePeak * 0.95f + frameMax * 0.05f;
+        const float scale = (float(size) * 0.5f * 0.9f) / (m_rttyScopePeak + 1.0e-6f);
+
+        QVector<GlDraw::Vec3Rgb> verts;
+        verts.resize((n - 1) * 2);
+        const float tr = 74.0f / 255.0f, tg = 222.0f / 255.0f, tb = 128.0f / 255.0f;
+        int v = 0;
+        float px = cx + xs.at(0) * scale;
+        float py = cy - ys.at(0) * scale;
+        for (int i = 1; i < n; ++i) {
+            const float nx = cx + xs.at(i) * scale;
+            const float ny = cy - ys.at(i) * scale;
+            verts[v++] = { px, py, 3.58f, tr, tg, tb };
+            verts[v++] = { nx, ny, 3.58f, tr, tg, tb };
+            px = nx;
+            py = ny;
+        }
+        GlDraw::drawColoredLines(this, m_panel->m_shaderProgram, m_panel->m_vbo, proj,
+                                 verts.constData(), verts.size());
+    }
+
+    m_panel->m_glTextColor = QColor(90, 99, 108, 220);
+    m_panel->renderPanelText(m_panel->m_oglTextSmall, float(x0 + 5), float(y0 + 3), 3.62f, QStringLiteral("TUNING"));
+
+    const int btnW = 18;
+    const int btnH = 14;
+    const int nudgeY = y0 + size - btnH - 4;
+    const int midX = x0 + size / 2;
+    m_panel->m_rttyNudgeLeftRect = QRect(midX - 40, nudgeY, btnW, btnH);
+    m_panel->m_rttyNudgeRightRect = QRect(midX + 22, nudgeY, btnW, btnH);
+
+    const auto drawNudgeBtn = [&](const QRect &r, const QString &label) {
+        const bool hover = r.contains(m_panel->m_mousePos);
+        m_panel->drawPanelRect(r, hover ? QColor(42, 63, 95, 230) : QColor(24, 28, 31, 220), 3.6f);
+        m_panel->drawPanelRect(QRect(r.left(), r.top(), r.width(), 1), QColor(58, 68, 82, 200), 3.61f);
+        m_panel->m_glTextColor = hover ? QColor(230, 230, 230) : QColor(197, 209, 222);
+        const int tw = m_panel->m_oglTextSmall->fontMetrics().horizontalAdvance(label);
+        m_panel->renderPanelText(m_panel->m_oglTextSmall,
+                                 float(r.left() + (r.width() - tw) / 2),
+                                 float(r.top() + 1), 3.62f, label);
+    };
+    drawNudgeBtn(m_panel->m_rttyNudgeLeftRect, QStringLiteral("\u25C0"));
+    drawNudgeBtn(m_panel->m_rttyNudgeRightRect, QStringLiteral("\u25B6"));
+
+    const QString hzText = QString::number(qRound(markHz));
+    m_panel->m_glTextColor = QColor(197, 209, 222);
+    const int hzW = m_panel->m_oglTextSmall->fontMetrics().horizontalAdvance(hzText);
+    m_panel->renderPanelText(m_panel->m_oglTextSmall,
+                             float(midX - hzW / 2), float(nudgeY + 1), 3.62f, hzText);
 }
 
 void HudRenderer::drawCrossHair() {

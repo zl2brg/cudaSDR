@@ -5302,8 +5302,8 @@ void Settings::syncSlicesWithSettings() {
         slice->setWaterfallOffsetHi(m_receiverDataList[i].waterfallOffsetHi);
         slice->setCwDecodeEnabled(m_receiverDataList[i].cwDecode);
         slice->setRttyDecodeEnabled(m_receiverDataList[i].rttyDecode);
-        slice->setRttyShiftHz(m_receiverDataList[i].rttyShiftHz);
         slice->setRttyBaudRate(m_receiverDataList[i].rttyBaudRate);
+        slice->setRttyShiftHz(m_receiverDataList[i].rttyShiftHz);
         slice->setRttyReverse(m_receiverDataList[i].rttyReverse);
         slice->setRttyAfc(m_receiverDataList[i].rttyAfc);
         slice->setRttyAutoDetect(m_receiverDataList[i].rttyAutoDetect);

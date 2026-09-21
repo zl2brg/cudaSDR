@@ -215,6 +215,18 @@ void ModelsTests::testSliceModelProperties() {
     QCOMPARE(slice.active(), true);
     QCOMPARE(spyActive.count(), 1);
 
+    QCOMPARE(slice.rttyBaudRate(), 45.4545f);
+    QVERIFY(!slice.rttyWeatherProfile());
+    slice.setRttyAutoDetect(true);
+    slice.setRttyReverse(true);
+    slice.setRttyWeatherProfile(true);
+    QCOMPARE(slice.rttyShiftHz(), 450.0f);
+    QCOMPARE(slice.rttyBaudRate(), 50.0f);
+    QVERIFY(slice.rttyWeatherProfile());
+    QVERIFY(slice.rttyDecodeEnabled());
+    QVERIFY(!slice.rttyAutoDetect());
+    QVERIFY(!slice.rttyReverse());
+
     QSignalSpy spyFilterPreset(&slice, &SliceModel::filterPresetChanged);
     QSignalSpy spyAgcGain(&slice, &SliceModel::agcGainChanged);
     QSignalSpy spyAgcMaxGain(&slice, &SliceModel::agcMaxGainChanged);
