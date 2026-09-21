@@ -29,6 +29,8 @@
 #include <QWebSocketServer>
 #include <QWebSocket>
 #include <QHostAddress>
+#include <QNetworkRequest>
+#include <QUrl>
 #include <QStringList>
 #include <QDebug>
 #include <QDateTime>
@@ -174,14 +176,80 @@ QString TciServer::connectionStatusText() const
     const int n = m_clients.size();
     if (n == 0)
         text = QStringLiteral("Listening — no clients");
-    else if (n == 1)
-        text = QStringLiteral("Connected — 1 client");
     else
-        text = QStringLiteral("Connected — %1 clients").arg(n);
+        text = QStringLiteral("Connected — %1").arg(connectedClientSummary());
 
     if (isTxChronoActive())
         text += txAudioLevelSuffix();
     return text;
+}
+
+QString TciServer::sanitizeClientName(const QString &raw)
+{
+    QString s = raw.trimmed();
+    s.replace(QLatin1Char(':'), QChar::Space);
+    s.replace(QLatin1Char(','), QChar::Space);
+    s.replace(QLatin1Char(';'), QChar::Space);
+    s = s.simplified();
+    if (s.size() > 40)
+        s.truncate(40);
+    return s;
+}
+
+QString TciServer::guessClientName(QWebSocket *client) const
+{
+    if (!client)
+        return QStringLiteral("client");
+
+    const QString path = client->requestUrl().path();
+    if (path.compare(QLatin1String("/tci"), Qt::CaseInsensitive) == 0)
+        return QStringLiteral("cudaSDR web");
+
+    const QString origin = client->origin().trimmed();
+    if (origin.contains(QLatin1String("tci-client"), Qt::CaseInsensitive))
+        return QStringLiteral("cudaSDR web");
+
+    const QString ua = QString::fromUtf8(client->request().rawHeader("User-Agent"));
+    if (ua.contains(QLatin1String("WSJT-X"), Qt::CaseInsensitive))
+        return QStringLiteral("WSJT-X");
+    if (ua.contains(QLatin1String("JTDX"), Qt::CaseInsensitive))
+        return QStringLiteral("JTDX");
+    if (ua.contains(QLatin1String("Diddle"), Qt::CaseInsensitive))
+        return QStringLiteral("Diddle");
+    if (ua.contains(QLatin1String("cudaSDR"), Qt::CaseInsensitive))
+        return QStringLiteral("cudaSDR web");
+
+    if (!origin.isEmpty()) {
+        const QUrl originUrl(origin);
+        const QString host = originUrl.host();
+        if (!host.isEmpty())
+            return host;
+        return origin;
+    }
+
+    QHostAddress addr = client->peerAddress();
+    if (addr.protocol() == QAbstractSocket::IPv6Protocol) {
+        bool mapped = false;
+        const quint32 v4 = addr.toIPv4Address(&mapped);
+        if (mapped)
+            addr = QHostAddress(v4);
+    }
+    if (addr.isLoopback())
+        return QStringLiteral("localhost");
+    const QString ip = addr.toString();
+    return ip.isEmpty() ? QStringLiteral("client") : ip;
+}
+
+QString TciServer::connectedClientSummary() const
+{
+    QStringList names;
+    names.reserve(m_clients.size());
+    for (QWebSocket *client : m_clients) {
+        const TciClientState *state = clientState(client);
+        const QString name = (state && !state->name.isEmpty()) ? state->name : QStringLiteral("client");
+        names.append(name);
+    }
+    return names.join(QStringLiteral(", "));
 }
 
 void TciServer::sendToClient(QWebSocket *client, const QString &message)
@@ -851,6 +919,9 @@ void TciServer::onNewConnection()
         m_watchdog->stop();
 
         TCI_DEBUG << "Client connected from" << client->peerAddress().toString();
+        TciClientState *state = clientState(client);
+        state->name = guessClientName(client);
+        TCI_DEBUG << "Client name" << state->name;
         sendInitState(client);
 
         if (wasEmpty) {
@@ -1410,6 +1481,30 @@ void TciServer::handleServerCommand(QWebSocket *client, const QString &name, con
     // IQ / audio subscriptions: ExpertSDR uses trx as the receiver index.
     const int maxRx = qMax(0, m_settings->getNumberOfReceivers() - 1);
     const int rx = qBound(0, trx, maxRx);
+
+    if (name == QLatin1String("app")
+        || name == QLatin1String("id")
+        || name == QLatin1String("software")
+        || name == QLatin1String("client")) {
+        TciClientState *state = clientState(client);
+        if (!state)
+            return;
+        if (args.isEmpty() || (args.size() == 1 && args.at(0).isEmpty())) {
+            sendToClient(client, tciMessage(QStringLiteral("app"), {state->name}));
+            return;
+        }
+        const QString named = sanitizeClientName(args.join(QChar::Space));
+        if (named.isEmpty())
+            return;
+        if (state->name != named) {
+            state->name = named;
+            state->nameExplicit = true;
+            emit connectionStatusChanged();
+        } else {
+            state->nameExplicit = true;
+        }
+        return;
+    }
 
     if (name == QLatin1String("vfo")) {
         if (channel == 1)

@@ -55,6 +55,7 @@ private slots:
     void splitFalseNoOpPreservesVfoB();
     void activeVfoCommandSwitchesDialAndBroadcasts();
     void localActiveVfoSwitchBroadcastsToClients();
+    void appCommandSetsStatusName();
 
 private:
     Settings *m_settings = nullptr;
@@ -878,6 +879,22 @@ void TciServerWsTests::localActiveVfoSwitchBroadcastsToClients()
              qPrintable(m_textMessages.join('|')));
 
     m_radioModel->slices().at(0)->setActiveVfo(SliceModel::VfoA);
+}
+
+void TciServerWsTests::appCommandSetsStatusName()
+{
+    QCOMPARE(m_server->connectionStatusText(), QStringLiteral("Connected — localhost"));
+
+    m_client.sendTextMessage(QStringLiteral("app:Diddle;"));
+    QVERIFY(QTest::qWaitFor([this]() {
+        return m_server->connectionStatusText().contains(QStringLiteral("Diddle"));
+    }, 3000));
+    QCOMPARE(m_server->connectionStatusText(), QStringLiteral("Connected — Diddle"));
+
+    m_textMessages.clear();
+    m_client.sendTextMessage(QStringLiteral("app;"));
+    QVERIFY2(waitForMessageContaining(QStringLiteral("app:Diddle")),
+             qPrintable(m_textMessages.join('|')));
 }
 
 QTEST_MAIN(TciServerWsTests)

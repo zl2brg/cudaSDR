@@ -66,6 +66,7 @@ export class TciClient {
         this.log('sys', 'Connected');
         this.startIqWorker();
         window.setTimeout(() => {
+          this.send(formatTciCommand('APP', ['cudaSDR web']));
           this.subscribeIq(0);
           this.send(formatTciCommand('TX_SENSORS_ENABLE', ['true', 200]));
           if (this.state.rxAudioOn) {

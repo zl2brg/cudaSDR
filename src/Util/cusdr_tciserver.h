@@ -165,6 +165,8 @@ private:
     QString txAudioLevelSuffix() const;
 
     struct TciClientState {
+        QString name;
+        bool nameExplicit = false;
         QSet<int> audioEnabledReceivers;
         int audioChannels = 2;
         int audioFormat = 3;          // FLOAT32
@@ -191,6 +193,9 @@ private:
 
     TciClientState *clientState(QWebSocket *client);
     const TciClientState *clientState(QWebSocket *client) const;
+    QString guessClientName(QWebSocket *client) const;
+    static QString sanitizeClientName(const QString &raw);
+    QString connectedClientSummary() const;
     void sendAudioPacket(QWebSocket *client, const TciClientState &state, int rx,
                          const float *stereoInterleaved, int stereoFloatCount);
     void sendIqPacket(QWebSocket *client, const TciClientState &state, int rx,
