@@ -26,7 +26,6 @@
 #include "GL/cusdr_oglReceiverPanel.h"
 #include "GL/cusdr_oglDisplayPanel.h"
 #include "GL/cusdr_ogl3DPanel.h"
-#include "setupwidget.h"
 #include "tx_settings_dialog.h"
 
 #ifdef LOG_MAIN
@@ -146,7 +145,6 @@ private:
 private:
     MainWindowUI*               ui;
 	Settings*					set;
-    QDialog                     *setupWidget;
 
 	QSDR::_Error				m_error;
 	QSDR::_ServerMode			m_serverMode;

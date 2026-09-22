@@ -29,7 +29,6 @@
 
 #include "cusdr_settings.h"
 #include "Util/cusdr_queue.h"
-#include "soundout.h"
 
 #ifdef LOG_DATAIO
 #   define DATAIO_DEBUG qDebug().nospace() << "DataIO::\t"
@@ -129,7 +128,6 @@ private:
 	uint32_t	m_sendSequence;
 	uint32_t	m_oldSendSequence;
 
-    std::unique_ptr<CSoundOut> m_pSoundCardOut;
 	int		m_wbBuffers;
 	int		m_wbCount;
 	int		m_socketBufferSize;

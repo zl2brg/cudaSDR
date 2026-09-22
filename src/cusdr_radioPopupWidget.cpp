@@ -643,15 +643,6 @@ void RadioPopupWidget::createOptionsBtnGroup() {
         emit cwDecodeRequested(checked);
     });
 
-    m_rttyDecodeCheckBox = new QCheckBox(tr("RTTY"), this);
-    m_rttyDecodeCheckBox->setFont(m_fonts.smallFont);
-    m_rttyDecodeCheckBox->setStyleSheet("color: rgba(220, 220, 220, 255);");
-    m_rttyDecodeCheckBox->setToolTip(tr("Enable/disable Bayesian RTTY decoding and tuning markers"));
-    m_rttyDecodeCheckBox->setChecked(m_sliceModel ? m_sliceModel->rttyDecodeEnabled() : false);
-    connect(m_rttyDecodeCheckBox, &QCheckBox::clicked, this, [this](bool checked) {
-        emit rttyDecodeRequested(checked);
-    });
-
     m_dxClusterCheckBox = new QCheckBox(tr("DX Cluster (RBN)"), this);
     m_dxClusterCheckBox->setFont(m_fonts.smallFont);
     m_dxClusterCheckBox->setStyleSheet("color: rgba(220, 220, 220, 255);");
@@ -664,7 +655,6 @@ void RadioPopupWidget::createOptionsBtnGroup() {
     hboxDx->setContentsMargins(4, 2, 4, 2);
     hboxDx->setSpacing(6);
     hboxDx->addWidget(m_cwDecodeCheckBox);
-    hboxDx->addWidget(m_rttyDecodeCheckBox);
     hboxDx->addWidget(m_dxClusterCheckBox);
 
     // Logging Checkboxes
@@ -954,6 +944,26 @@ void RadioPopupWidget::createModeBtnGroup() {
     hbox2->addWidget(samBtn);
     hbox2->addWidget(drmBtn);
 
+    rttyBtn = new AeroButton("RTTY", this);
+    rttyBtn->setRoundness(0);
+    rttyBtn->setFixedHeight(btn_height);
+    rttyBtn->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    rttyBtn->setToolTip(tr("Enable/disable Bayesian RTTY decoding and tuning markers"));
+    rttyBtn->setBtnState(m_sliceModel && m_sliceModel->rttyDecodeEnabled() ? AeroButton::ON : AeroButton::OFF);
+    rttyBtn->update();
+    connect(rttyBtn, &AeroButton::clicked, this, [this]() {
+        const bool newState = (rttyBtn->btnState() != AeroButton::ON);
+        rttyBtn->setBtnState(newState ? AeroButton::ON : AeroButton::OFF);
+        rttyBtn->update();
+        emit rttyDecodeRequested(newState);
+    });
+
+    QHBoxLayout *hbox3 = new QHBoxLayout();
+    hbox3->setContentsMargins(0, 0, 0, 0);
+    hbox3->setSpacing(0);
+    hbox3->addWidget(rttyBtn, 1);
+    hbox3->addStretch(5);
+
     m_freeDVModeCombo = new QComboBox(this);
     m_freeDVModeCombo->addItem("FreeDV 1600", 0);
     m_freeDVModeCombo->addItem("FreeDV 700C", 6);
@@ -968,6 +978,7 @@ void RadioPopupWidget::createModeBtnGroup() {
     modeVBox->setSpacing(1);
     modeVBox->addLayout(hbox1);
     modeVBox->addLayout(hbox2);
+    modeVBox->addLayout(hbox3);
     modeVBox->addWidget(m_freeDVModeCombo);
     modeVBox->addWidget(m_freeDVStatusLabel);
 
@@ -2632,9 +2643,9 @@ void RadioPopupWidget::setCwDecodeEnabled(bool enabled) {
 }
 
 void RadioPopupWidget::setRttyDecodeEnabled(bool enabled) {
-    if (m_rttyDecodeCheckBox) {
-        const QSignalBlocker blocker(m_rttyDecodeCheckBox);
-        m_rttyDecodeCheckBox->setChecked(enabled);
+    if (rttyBtn) {
+        rttyBtn->setBtnState(enabled ? AeroButton::ON : AeroButton::OFF);
+        rttyBtn->update();
     }
 }
 

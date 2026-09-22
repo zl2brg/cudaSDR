@@ -540,7 +540,7 @@ private:
 	int				m_sendState;
 	int				m_chirpStartSample;
     CPX             m_iq_output_buffer;
-    TYPECPX         rx_audio_buffer[4096];
+    cpx             rx_audio_buffer[4096];
     volatile int       rx_audio_ptr;
 
     QFile   *file;

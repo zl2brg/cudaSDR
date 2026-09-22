@@ -205,7 +205,6 @@ private:
 	AeroButton*		m_WaterfallSimpleBtn;
 	AeroButton*		m_WaterfallEnhancedBtn;
 	QCheckBox*		m_cwDecodeCheckBox = nullptr;
-	QCheckBox*		m_rttyDecodeCheckBox = nullptr;
 	QCheckBox*		m_dxClusterCheckBox = nullptr;
 	QCheckBox*		m_cwLogCheckBox = nullptr;
 
@@ -246,6 +245,7 @@ private:
 	AeroButton*		diglBtn;
 	AeroButton*		samBtn;
 	AeroButton*		drmBtn;
+	AeroButton*		rttyBtn = nullptr;
 	QComboBox*		m_freeDVModeCombo;
 	QLabel*			m_freeDVStatusLabel;
 	QCheckBox*		m_rxEqEnable = nullptr;

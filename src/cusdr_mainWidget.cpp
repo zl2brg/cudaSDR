@@ -91,8 +91,6 @@ MainWindow::MainWindow(RadioModel *model, Settings* settingsModel, QWidget *pare
         , m_radioModel(model)
 {
     ui = new MainWindowUI(this, settingsModel);
-    setupWidget = new QDialog(this);
-    setupWidget->setSizePolicy(QSizePolicy::Maximum,QSizePolicy::Maximum);
 
 	QPalette palette;
 	QColor color = Qt::black;
@@ -460,7 +458,31 @@ void MainWindow::setup() {
 
 void MainWindow::cusdr_setup()
 {
-    setupWidget->show();
+    for (int i = 0; i < dockWidgetList.size(); ++i) {
+        QDockWidget *dock = dockWidgetList.at(i);
+        if (dock && dock->objectName() == QLatin1String("HPSDRCtrl")) {
+            if (dock->isVisible()) {
+                dock->raise();
+                dock->activateWindow();
+            } else {
+                dock->show();
+                dock->raise();
+                dock->activateWindow();
+                if (i < ui->mainBtnList.size() && ui->mainBtnList.at(i)) {
+                    ui->mainBtnList.at(i)->setBtnState(AeroButton::ON);
+                    ui->mainBtnList.at(i)->update();
+                }
+                const int chrome = 24;
+                const int need = qBound(DOCK_WIDTH,
+                                       dock->widget()->sizeHint().width() + chrome,
+                                       dock->maximumWidth());
+                if (dock->width() < need) {
+                    resizeDocks({dock}, {need}, Qt::Horizontal);
+                }
+            }
+            return;
+        }
+    }
 }
 
 
@@ -498,6 +520,13 @@ void MainWindow::setupLayout() {
     addDockWidget(Qt::RightDockWidgetArea, dock);
     dock->hide();
 
+    connect(dock, &QDockWidget::visibilityChanged, this, [this](bool visible) {
+        if (ui && ui->serverBtn) {
+            ui->serverBtn->setBtnState(visible ? AeroButton::ON : AeroButton::OFF);
+            ui->serverBtn->update();
+        }
+    });
+
 
     // CUDR Setup control widget
     dock = new QDockWidget(tr("CUSDR Ctrl"), this);
@@ -511,6 +540,13 @@ void MainWindow::setupLayout() {
 
     addDockWidget(Qt::RightDockWidgetArea, dock);
 	dock->hide();
+
+    connect(dock, &QDockWidget::visibilityChanged, this, [this](bool visible) {
+        if (ui && ui->setupBtn) {
+            ui->setupBtn->setBtnState(visible ? AeroButton::ON : AeroButton::OFF);
+            ui->setupBtn->update();
+        }
+    });
 
 
 	// receiver and wideband panel docks;

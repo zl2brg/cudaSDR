@@ -98,8 +98,6 @@ private:
 	QColor 		btnOff;
 	QColor 		btnOn;
 
-	quint16	m_alexConfig;
-
 	long	m_frequency;
 	int		m_minimumWidgetWidth;
 	int		m_minimumGroupBoxWidth;
@@ -114,6 +112,7 @@ private:
 	bool 	hpf9_5MHz;
 	bool 	hpf6_5MHz;
 	bool 	hpf1_5MHz;
+	quint16	m_alexConfig;
 
 private slots:
 	// Internal UI slots

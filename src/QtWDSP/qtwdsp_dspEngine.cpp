@@ -825,6 +825,7 @@ void QWDSPEngine::setanf(int rx, bool value) {
 }
 
 void QWDSPEngine::setsnb(int rx, bool value) {
+	if (rx != m_rx) return;
 	m_snb = value;
 	WDSP_ENGINE_DEBUG <<  "	snb mode" <<  value;
 	if (m_channel) m_channel->setSnb(value);

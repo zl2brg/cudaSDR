@@ -22,7 +22,13 @@ constexpr quint32 kRxFreqHz = 7050000u;
 
 QString hpsdrSimPath()
 {
-    return QStringLiteral("/home/simon/Projects/cudaSDR/hpsdrsim/hpsdr_sim");
+    const QString env = qEnvironmentVariable("HPSDR_SIM_PATH");
+    if (!env.isEmpty())
+        return env;
+    const QString relative = QDir::current().filePath(QStringLiteral("hpsdrsim/hpsdr_sim"));
+    if (QFileInfo::exists(relative))
+        return relative;
+    return QString();
 }
 
 QByteArray ddcSpecificPacket(uint32_t sequence, int receivers = 1)

@@ -192,7 +192,7 @@ Settings::Settings(QObject *parent)
     m_titleString = "cudaSDR Debug BETA ";
 #endif
 
-    m_versionString = "v6.2.2";
+    m_versionString = "v6.3.0";
 
     qDebug() << qPrintable(m_titleString);
 
@@ -522,8 +522,8 @@ int Settings::loadSettings() {
         cstr.append("/mouseWheelFreqStep");
 
         value = settings->value(cstr, 100).toInt();
-        if ((value != 1) & (value != 10) & (value != 100) & (value != 1000) & (value != 10000) & (value != 100000) &
-            (value != 5) & (value != 50) & (value != 500) & (value != 5000) & (value != 50000) & (value != 500000))
+        if ((value != 1) && (value != 10) && (value != 100) && (value != 1000) && (value != 10000) && (value != 100000) &&
+            (value != 5) && (value != 50) && (value != 500) && (value != 5000) && (value != 50000) && (value != 500000))
             value = 100;
         m_receiverDataList[i].mouseWheelFreqStep = (qreal) value;
 

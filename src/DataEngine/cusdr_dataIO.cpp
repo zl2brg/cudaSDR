@@ -47,7 +47,7 @@
 #include "Models/RadioTelemetry.h"
 #include "protocol_boundary_utils.h"
 #include "IHPSDRProtocol.h"
-#include "soundout.h"
+
 #include <QNetworkInterface>
 #include <QTimer>
 
@@ -119,14 +119,6 @@ DataIO::DataIO(QObject* parent)
 
     connect(set, &Settings::socketBufferSizeChanged, 
             this, &DataIO::setSocketBufferSize);
-
-#ifndef USE_INTERNAL_AUDIO
-     m_pSoundCardOut = std::make_unique<CSoundOut>(this);
-
-    //RRK pass -1 to get the systems "default" audio device
-    m_pSoundCardOut->Start(-1, true, 48000, false);
-    m_pSoundCardOut->SetVolume(80);
-#endif
 }
 
 namespace {
@@ -190,12 +182,6 @@ void DataIO::stop() {
     {
         QMutexLocker locker(&networkIOMutex);
         m_stopped = true;
-    }
-
-    if (m_pSoundCardOut) {
-        QThread::msleep(100);
-        m_pSoundCardOut->Stop();
-        m_pSoundCardOut.reset(); // Reset smart pointer instead of delete
     }
 }
 
@@ -453,7 +439,7 @@ void DataIO::readDeviceDataP2(QUdpSocket* socket) {
                     effectiveSourcePort = (logical >= ProtocolBoundaryUtils::Ports::P2Ddc0Port
                                            && logical < (ProtocolBoundaryUtils::Ports::P2Ddc0Port + MAX_RECEIVERS))
                         ? logical
-                        : ProtocolBoundaryUtils::Ports::P2Ddc0Port;
+                        : static_cast<quint16>(ProtocolBoundaryUtils::Ports::P2Ddc0Port);
                 }
                 {
                     QMutexLocker locker(&networkIOMutex);
@@ -626,33 +612,7 @@ void DataIO::networkDeviceStartStop(char value) {
 }
 
 void DataIO::sendAudio(u_char *buf) {
-	// TODO(P2-TX-AUDIO): This function decodes audio from the P1 Metis/Hermes
-	// output_buffer format: a 512-byte frame with an 8-byte Metis header followed
-	// by interleaved L/R/I/Q 16-bit samples at bytes 8, 16, 24 ...
-	// In Protocol 2, the equivalent function is full_txBuffer() in DataProcessor
-	// which calls formatOutputPacket() and sends a DUC IQ packet to port 1029.
-	// This DataIO::sendAudio path is called from full_txBuffer() only for
-	// QSDR::Metis / QSDR::Hermes interfaces.  For P2, no equivalent HW interface
-	// enum value routes here, so RX audio playback is silently skipped.
-	// Fix: either map P2 hardware to an existing enum, or add a QSDR::ProtocolV2
-	// enum case and handle it here or in full_txBuffer().
-#ifndef USE_INTERNAL_AUDIO
-	static TYPECPX cbuf[252];
-	int i, j;
-	short sample;
-
-	for(i = 8, j = 0; i < 512; i += 8, j++) {
-		//bytes are L,R,I,Q skip the I,Q
-		sample = buf[i] << 8 | buf[i+1]; //left
-		cbuf[j].re = (double)sample;
-		sample = buf[i+2] << 8 | buf[i+3]; //right
-		cbuf[j].im = (double)sample;
-	}
-    if((m_stopped != true) && m_pSoundCardOut)
-        m_pSoundCardOut->PutOutQueue(63, cbuf);
-#else
     Q_UNUSED(buf)
-#endif
 }
 
 void DataIO::writeData() {
@@ -761,13 +721,6 @@ void DataIO::setSampleRateSlot(int value) {
         }
     }
 	} // QMutexLocker released here
-
-#ifndef USE_INTERNAL_AUDIO
-    // Reset the sound card output queue so stale samples from the old rate
-    // don't cause choppy audio after the DSP channel is rebuilt.
-    if (m_pSoundCardOut)
-        m_pSoundCardOut->Reset();
-#endif
 }
 
 

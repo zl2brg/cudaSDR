@@ -140,15 +140,6 @@ set(SOURCES
     ${SRC_DIR}/AudioEngine/RttyBayesianDecoder.cpp
     ${SRC_DIR}/AudioEngine/RttyLexicon.cpp
     ${SRC_DIR}/AudioEngine/RttyAutoClassifier.cpp
-
-#    ${SRC_DIR}/AudioEngine/cusdr_audio_utils.cpp
-#    ${SRC_DIR}/AudioEngine/cusdr_audio_waveform.cpp
-#    ${SRC_DIR}/AudioEngine/cusdr_audio_wavfile.cpp
-#    ${SRC_DIR}/AudioEngine/cusdr_fspectrum.cpp
-# CL (OpenCL?)
- #   ${SRC_DIR}/CL/cusdr_clWdspAudioProcessor.cpp
- #   ${SRC_DIR}/CL/cusdr_clWdspFftProcessor.cpp
- #   ${SRC_DIR}/CL/cusdr_clWdspReceiver.cpp
     
     # Data Engine
     ${SRC_DIR}/DataEngine/cusdr_audioReceiver.cpp
@@ -164,8 +155,6 @@ set(SOURCES
     ${SRC_DIR}/DataEngine/cusdr_sliceProcessor.cpp
     ${SRC_DIR}/DataEngine/receiveraudiooutput.cpp
     ${SRC_DIR}/DataEngine/cusdr_transmitter.cpp
-    ${SRC_DIR}/DataEngine/soundout.cpp
-    ${SRC_DIR}/DataEngine/fractresampler.cpp
     ${SRC_DIR}/DataEngine/cusdr_WidebandProcessor.cpp
     ${SRC_DIR}/DataEngine/Drivers/SimulatedDevice.cpp
     ${SRC_DIR}/DataEngine/Drivers/HpsdrDevice.cpp
@@ -175,7 +164,6 @@ set(SOURCES
 
     # GL (OpenGL)
     ${SRC_DIR}/GL/cusdr_oglDisplayPanel.cpp
-    ${SRC_DIR}/GL/cusdr_oglDistancePanel.cpp
     ${SRC_DIR}/GL/cusdr_oglInfo.cpp
     ${SRC_DIR}/GL/cusdr_oglReceiverPanel.cpp
     ${SRC_DIR}/GL/cusdr_spectrumBinWorker.cpp
@@ -292,7 +280,6 @@ set(HEADERS
     ${SRC_DIR}/DataEngine/DataEngineSoapy.h
     ${SRC_DIR}/DataEngine/cusdr_sliceProcessor.h
     ${SRC_DIR}/DataEngine/cusdr_transmitter.h
-    ${SRC_DIR}/DataEngine/soundout.h
     ${SRC_DIR}/DataEngine/ISdrDevice.h
     ${SRC_DIR}/DataEngine/Drivers/SimulatedDevice.h
     ${SRC_DIR}/DataEngine/Drivers/HpsdrDevice.h
@@ -314,7 +301,6 @@ set(HEADERS
 
     # GL
     ${SRC_DIR}/GL/cusdr_oglDisplayPanel.h
-    ${SRC_DIR}/GL/cusdr_oglDistancePanel.h
     ${SRC_DIR}/GL/cusdr_oglInfo.h
     ${SRC_DIR}/GL/cusdr_oglReceiverPanel.h
     ${SRC_DIR}/GL/PanadapterOverlayFreq.h
@@ -1128,6 +1114,32 @@ if(BUILD_TESTING)
     target_link_libraries(rtty_auto_classifier_tests PRIVATE Qt6::Core Qt6::Test)
     add_test(NAME rtty_auto_classifier_tests COMMAND rtty_auto_classifier_tests)
 
+    qt_add_executable(rtty_decoder_window_tests
+        tests/rtty_decoder_window_tests.cpp
+        ${SRC_DIR}/UI/RttyDecoderWindow.cpp
+        ${CUDASDR_SETTINGS_TEST_SOURCES}
+    )
+    target_include_directories(rtty_decoder_window_tests PRIVATE
+        ${SRC_DIR}
+        ${SRC_DIR}/UI
+    )
+    target_link_libraries(rtty_decoder_window_tests PRIVATE
+        Qt6::Core
+        Qt6::Gui
+        Qt6::GuiPrivate
+        Qt6::Widgets
+        Qt6::Network
+        Qt6::Multimedia
+        Qt6::WebSockets
+        Qt6::OpenGL
+        Qt6::OpenGLWidgets
+        Qt6::Test
+    )
+    add_test(NAME rtty_decoder_window_tests COMMAND rtty_decoder_window_tests)
+    set_tests_properties(rtty_decoder_window_tests PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    )
+
     # Convenience target: build every unit test without the full cudasdr app.
     add_custom_target(build_tests DEPENDS
         protocol_boundary_tests
@@ -1163,6 +1175,7 @@ if(BUILD_TESTING)
         rtty_lexicon_tests
         text_stream_logger_tests
         rtty_auto_classifier_tests
+        rtty_decoder_window_tests
     )
 
     # Headless Qt for any test that links Gui/Widgets (CI has no display), plus a

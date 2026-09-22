@@ -610,7 +610,6 @@ QByteArray CProtocol2::formatOutputPacket(const QByteArray& audioData, uint32_t&
     // 16→24-bit conversion: [hi, lo, 0x00] preserves sign and scales correctly.
     // Samples 63-239 are zero-padded (silent) since we only have 63 per call.
 
-    const int NUM_P2_SAMPLES = 240;           // hpsdrsim tx_thread expects exactly this
     const int P1_HEADER      = 8;             // IO_HEADER_SIZE
     const int P1_SAMPLE_BYTES= 8;             // L(2)+R(2)+I(2)+Q(2)
     const int P1_SAMPLES     = 63;            // (512 - 8) / 8
