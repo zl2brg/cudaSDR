@@ -10,6 +10,7 @@
 #include "Models/SliceModel.h"
 #include "cusdr_settings.h"
 #include "UI/FrequencyEntryDialog.h"
+#include "UI/RttyDecoderWindow.h"
 
 #include <QMouseEvent>
 #include <QWheelEvent>
@@ -304,6 +305,14 @@ void PanadapterInputController::handleMousePress(QMouseEvent* event) {
         m_panel->m_dragRttyScroll = true;
         applyRttyScrollFromY(event->pos().y());
         m_panel->update();
+        event->accept();
+        return;
+    }
+
+    // Click on RTTY detach / pop-out button detaches HUD to desktop window
+    if (event->button() == Qt::LeftButton && m_panel->m_rttyDetachBtnRect.isValid()
+            && m_panel->m_rttyDetachBtnRect.contains(event->pos())) {
+        m_panel->setRttyFloating(true);
         event->accept();
         return;
     }
@@ -646,6 +655,14 @@ void PanadapterInputController::handleMouseMove(QMouseEvent* event) {
     }
 
     if (m_panel->m_dragRttyText && (event->buttons() & Qt::LeftButton)) {
+        // Dragging past the panadapter boundary automatically detaches to desktop window
+        if (!m_panel->m_panRect.contains(event->pos())) {
+            m_panel->m_dragRttyText = false;
+            m_panel->setRttyFloating(true);
+            m_panel->setCursor(Qt::ArrowCursor);
+            event->accept();
+            return;
+        }
         const QPoint delta = event->pos() - m_panel->m_rttyDragStartMouse;
         m_panel->m_rttyDragStartMouse = event->pos();
         m_panel->m_rttyBoxPos += delta;
@@ -683,7 +700,8 @@ void PanadapterInputController::handleMouseMove(QMouseEvent* event) {
         if (m_panel->m_cwTextRect.isValid() && m_panel->m_cwTextRect.contains(m_panel->m_mousePos)) {
             if (m_panel->cursor().shape() != Qt::OpenHandCursor)
                 m_panel->setCursor(Qt::OpenHandCursor);
-        } else if (m_panel->m_rttyConfigBtnRect.isValid() && m_panel->m_rttyConfigBtnRect.contains(m_panel->m_mousePos)) {
+        } else if ((m_panel->m_rttyConfigBtnRect.isValid() && m_panel->m_rttyConfigBtnRect.contains(m_panel->m_mousePos)) ||
+                   (m_panel->m_rttyDetachBtnRect.isValid() && m_panel->m_rttyDetachBtnRect.contains(m_panel->m_mousePos))) {
             if (m_panel->cursor().shape() != Qt::PointingHandCursor)
                 m_panel->setCursor(Qt::PointingHandCursor);
             m_panel->update();
@@ -1163,215 +1181,13 @@ void PanadapterInputController::applyRttyScrollFromY(int y)
 }
 
 void PanadapterInputController::showRttyConfigMenu(const QPoint &pos) {
-    if (!m_panel) return;
-    SliceModel *slice = m_panel->m_sliceModel;
-    if (!slice) return;
-
-    QMenu menu(m_panel);
-    menu.setStyleSheet(
-        "QMenu {"
-        "  background-color: #1a222d;"
-        "  color: #d8e2ec;"
-        "  border: 1px solid #334455;"
-        "  padding: 4px;"
-        "}"
-        "QMenu::item {"
-        "  padding: 5px 24px 5px 20px;"
-        "}"
-        "QMenu::item:selected {"
-        "  background-color: #2b3b4c;"
-        "  color: #64b5f6;"
-        "}"
-        "QMenu::separator {"
-        "  height: 1px;"
-        "  background: #334455;"
-        "  margin: 4px 6px;"
-        "}"
-    );
-
-    QAction *titleAction = menu.addAction(QStringLiteral("RTTY Decoder (RX %1)").arg(m_panel->m_receiver));
-    QFont boldFont = titleAction->font();
-    boldFont.setBold(true);
-    titleAction->setFont(boldFont);
-    titleAction->setEnabled(false);
-    menu.addSeparator();
-
-    // Auto Detect
-    QAction *autoAct = menu.addAction(QStringLiteral("Auto Detect (Shift & Baud)"));
-    autoAct->setCheckable(true);
-    autoAct->setChecked(slice->rttyAutoDetect());
-    connect(autoAct, &QAction::toggled, this, [this, slice](bool checked) {
-        slice->setRttyAutoDetect(checked);
+    if (!m_panel || !m_panel->m_sliceModel) return;
+    QMenu *menu = RttyDecoderWindow::createConfigMenu(m_panel, m_panel->m_sliceModel, m_panel->set, m_panel->m_receiver, [this]() {
         if (m_panel) m_panel->update();
     });
-
-    menu.addSeparator();
-
-    QAction *wxAct = menu.addAction(QStringLiteral("Weather Profile (50 baud, 450 Hz)"));
-    wxAct->setCheckable(true);
-    wxAct->setChecked(slice->rttyWeatherProfile());
-    connect(wxAct, &QAction::triggered, this, [this, slice](bool checked) {
-        slice->setRttyWeatherProfile(checked);
-        if (m_panel) m_panel->update();
-    });
-
-    menu.addSeparator();
-
-    // Shift submenu
-    QMenu *shiftMenu = menu.addMenu(QStringLiteral("Shift (%1 Hz)").arg(qRound(slice->rttyShiftHz())));
-    QActionGroup *shiftGroup = new QActionGroup(shiftMenu);
-    const struct { const char *label; float shift; } shifts[] = {
-        {"170 Hz (Standard Amateur)", 170.0f},
-        {"200 Hz", 200.0f},
-        {"425 Hz (Commercial / Nav)", 425.0f},
-        {"450 Hz (Commercial / Weather)", 450.0f},
-        {"850 Hz (Wide)", 850.0f}
-    };
-    for (const auto &item : shifts) {
-        QAction *act = shiftMenu->addAction(item.label);
-        act->setCheckable(true);
-        shiftGroup->addAction(act);
-        if (qAbs(slice->rttyShiftHz() - item.shift) < 10.0f) {
-            act->setChecked(true);
-        }
-        const float sVal = item.shift;
-        connect(act, &QAction::triggered, this, [this, slice, sVal]() {
-            slice->setRttyShiftHz(sVal);
-            if (m_panel) m_panel->update();
-        });
+    if (menu) {
+        menu->exec(m_panel->mapToGlobal(pos));
+        delete menu;
     }
-
-    // Audio Tone Pair / Center Frequency submenu
-    QMenu *toneMenu = menu.addMenu(QStringLiteral("Audio Tone Pair (%1 Hz)").arg(qRound(slice->rttyCenterFreq())));
-    QActionGroup *toneGroup = new QActionGroup(toneMenu);
-    const struct { const char *label; float freq; } tonePairs[] = {
-        {"2210 Hz (Standard High Tones: 2125/2295 Hz)", 2210.0f},
-        {"1360 Hz (Standard Low Tones: 1275/1445 Hz)", 1360.0f},
-        {"1750 Hz (Commercial / Weather)", 1750.0f}
-    };
-    for (const auto &item : tonePairs) {
-        QAction *act = toneMenu->addAction(item.label);
-        act->setCheckable(true);
-        toneGroup->addAction(act);
-        if (qAbs(slice->rttyCenterFreq() - item.freq) < 15.0f) {
-            act->setChecked(true);
-        }
-        const float fVal = item.freq;
-        connect(act, &QAction::triggered, this, [this, slice, fVal]() {
-            slice->setRttyCenterFreq(fVal);
-            if (m_panel) m_panel->update();
-        });
-    }
-
-    // Baud submenu
-    QMenu *baudMenu = menu.addMenu(QStringLiteral("Baud Rate (%1 Baud)").arg(QString::number(slice->rttyBaudRate(), 'f', 1)));
-    QActionGroup *baudGroup = new QActionGroup(baudMenu);
-    const struct { const char *label; float baud; } bauds[] = {
-        {"45.45 Baud (Standard Amateur)", 45.4545f},
-        {"50.00 Baud", 50.0f},
-        {"75.00 Baud", 75.0f},
-        {"100.0 Baud", 100.0f}
-    };
-    for (const auto &item : bauds) {
-        QAction *act = baudMenu->addAction(item.label);
-        act->setCheckable(true);
-        baudGroup->addAction(act);
-        if (qAbs(slice->rttyBaudRate() - item.baud) < 1.0f) {
-            act->setChecked(true);
-        }
-        const float bVal = item.baud;
-        connect(act, &QAction::triggered, this, [this, slice, bVal]() {
-            slice->setRttyBaudRate(bVal);
-            if (m_panel) m_panel->update();
-        });
-    }
-
-    // Reverse Polarity
-    QAction *revAct = menu.addAction(QStringLiteral("Reverse Polarity (REV)"));
-    revAct->setCheckable(true);
-    revAct->setChecked(slice->rttyReverse());
-    connect(revAct, &QAction::toggled, this, [this, slice](bool checked) {
-        slice->setRttyReverse(checked);
-        if (m_panel) m_panel->update();
-    });
-
-    // AFC Tracking
-    QAction *afcAct = menu.addAction(QStringLiteral("AFC (Auto Frequency Tracking)"));
-    afcAct->setCheckable(true);
-    afcAct->setChecked(slice->rttyAfc());
-    connect(afcAct, &QAction::toggled, this, [this, slice](bool checked) {
-        slice->setRttyAfc(checked);
-        if (m_panel) m_panel->update();
-    });
-
-    // Squelch submenu
-    QMenu *squelchMenu = menu.addMenu(QStringLiteral("Squelch Sensitivity"));
-    QActionGroup *squelchGroup = new QActionGroup(squelchMenu);
-    const struct { const char *label; float thresh; } squelches[] = {
-        {"Off (0.00)", 0.0f},
-        {"Low (0.20)", 0.20f},
-        {"Medium (0.35)", 0.35f},
-        {"High (0.50)", 0.50f}
-    };
-    for (const auto &item : squelches) {
-        QAction *act = squelchMenu->addAction(item.label);
-        act->setCheckable(true);
-        squelchGroup->addAction(act);
-        if (qAbs(slice->rttySquelch() - item.thresh) < 0.08f) {
-            act->setChecked(true);
-        }
-        const float sqVal = item.thresh;
-        connect(act, &QAction::triggered, this, [this, slice, sqVal]() {
-            slice->setRttySquelch(sqVal);
-            if (m_panel) m_panel->update();
-        });
-    }
-
-    menu.addSeparator();
-
-    // Log to file
-    QAction *logAct = menu.addAction(QStringLiteral("Log Decoded Text to File"));
-    logAct->setCheckable(true);
-    logAct->setChecked(slice->rttyLogToFile());
-    connect(logAct, &QAction::toggled, this, [this, slice](bool checked) {
-        slice->setRttyLogToFile(checked);
-        if (m_panel) m_panel->update();
-    });
-
-    // Console Debug Diagnostics
-    QAction *dbgAct = menu.addAction(QStringLiteral("Console Diagnostics (Terminal)"));
-    dbgAct->setCheckable(true);
-    dbgAct->setChecked(qEnvironmentVariableIsSet("CUDASDR_RTTY_DEBUG"));
-    connect(dbgAct, &QAction::toggled, this, [](bool checked) {
-        if (checked) {
-            qputenv("CUDASDR_RTTY_DEBUG", "1");
-            qInfo("[RTTY] Console debug diagnostics enabled. Streaming live demodulator & decoder metrics to terminal.");
-        } else {
-            qunsetenv("CUDASDR_RTTY_DEBUG");
-            qInfo("[RTTY] Console debug diagnostics disabled.");
-        }
-    });
-
-    menu.addSeparator();
-
-    // Clear Decoded Text
-    QAction *clearAct = menu.addAction(QStringLiteral("Clear Decoded Text"));
-    connect(clearAct, &QAction::triggered, this, [this, slice]() {
-        slice->setRttyDecodedText(QString());
-        if (m_panel) m_panel->update();
-    });
-
-    // Close Decoder
-    QAction *closeAct = menu.addAction(QStringLiteral("Close RTTY Decoder"));
-    connect(closeAct, &QAction::triggered, this, [this, slice]() {
-        if (m_panel && m_panel->set) {
-            m_panel->set->setRttyDecode(m_panel->m_receiver, false);
-        } else {
-            slice->setRttyDecodeEnabled(false);
-        }
-        if (m_panel) m_panel->update();
-    });
-
-    menu.exec(m_panel->mapToGlobal(pos));
 }
 

@@ -517,6 +517,12 @@ typedef struct _receiver {
 	bool	rttyAutoDetect = false;
 	bool	rttyLogToFile = false;
 	bool	cwLogToFile = false;
+	bool	rttyFloating = false;
+	int		rttyWindowX = 100;
+	int		rttyWindowY = 100;
+	int		rttyWindowW = 680;
+	int		rttyWindowH = 280;
+	bool	rttyScopeVisible = true;
 } TReceiver;
 
 typedef struct _wideband {
@@ -1160,6 +1166,7 @@ public:
     bool    getAnf(int rx);
     bool    getCwDecode(int rx);
     bool    getRttyDecode(int rx);
+    bool    getRttyFloating(int rx);
     int     getnbMode(int rx);
     int     getnrMode(int rx);
 
@@ -1428,6 +1435,7 @@ public slots:
     void setSnb(int rx, bool value);
     void setCwDecode(int rx, bool value);
     void setRttyDecode(int rx, bool value);
+    void setRttyFloating(int rx, bool value);
     void setRepeaterMode(bool mode);
     void setTxFullDuplex(bool fullDuplex);
     void setRepeaterOffset(int offset);

@@ -235,6 +235,7 @@ set(SOURCES
     ${SRC_DIR}/UI/cusdr_setupwidget.cpp
     ${SRC_DIR}/UI/FrequencyEntryDialog.cpp
     ${SRC_DIR}/UI/DeviceSelectionDialog.cpp
+    ${SRC_DIR}/UI/RttyDecoderWindow.cpp
     ${SRC_DIR}/Settings/NetworkConfig.cpp
     ${SRC_DIR}/Settings/DisplayConfig.cpp
     ${SRC_DIR}/Settings/HardwareConfig.cpp
@@ -308,6 +309,7 @@ set(HEADERS
     ${SRC_DIR}/UI/cusdr_setupwidget.h
     ${SRC_DIR}/UI/FrequencyEntryDialog.h
     ${SRC_DIR}/UI/DeviceSelectionDialog.h
+    ${SRC_DIR}/UI/RttyDecoderWindow.h
 
 
     # GL
@@ -930,6 +932,7 @@ if(BUILD_TESTING)
         tests/panadapter_input_controller_tests.cpp
         ${SRC_DIR}/GL/PanadapterInputController.cpp
         ${SRC_DIR}/UI/FrequencyEntryDialog.cpp
+        ${SRC_DIR}/UI/RttyDecoderWindow.cpp
         ${CUDASDR_SETTINGS_TEST_SOURCES}
     )
     target_include_directories(panadapter_input_controller_tests PRIVATE

@@ -41,6 +41,7 @@
 #include "cusdr_glDraw.h"
 #include "Controllers/RadioPopupController.h"
 #include "UI/FrequencyEntryDialog.h"
+#include "UI/RttyDecoderWindow.h"
 
 #include <QGuiApplication>
 #include <QMatrix4x4>
@@ -207,6 +208,8 @@ QGLReceiverPanel::QGLReceiverPanel(SliceModel *model, QWidget *parent)
 	radioPopup = new RadioPopupWidget(m_sliceModel, this);
 	radioPopupController = new RadioPopupController(this);
 	radioPopupController->bind(radioPopup, m_sliceModel, set);
+
+	m_rttyDecoderWindow = new RttyDecoderWindow(m_sliceModel, set, m_receiver, this);
 
 	fonts = new CFonts(this);
 	m_fonts = fonts->getFonts();
@@ -465,7 +468,28 @@ void QGLReceiverPanel::setupConnections() {
     connect(m_sliceModel, &SliceModel::cwTrackedPitchChanged, this, qOverload<>(&QGLReceiverPanel::update));
     connect(m_sliceModel, &SliceModel::rttyDecodedTextChanged, this, qOverload<>(&QGLReceiverPanel::update));
     connect(m_sliceModel, &SliceModel::rttyToneLockedChanged, this, qOverload<>(&QGLReceiverPanel::update));
-    connect(m_sliceModel, &SliceModel::rttyDecodeEnabledChanged, this, qOverload<>(&QGLReceiverPanel::update));
+    connect(m_sliceModel, &SliceModel::rttyDecodeEnabledChanged, this, [this](bool enabled) {
+        if (m_rttyDecoderWindow) {
+            if (enabled && m_sliceModel && m_sliceModel->rttyFloating()) {
+                m_rttyDecoderWindow->show();
+                m_rttyDecoderWindow->raise();
+            } else {
+                m_rttyDecoderWindow->hide();
+            }
+        }
+        update();
+    });
+    connect(m_sliceModel, &SliceModel::rttyFloatingChanged, this, [this](bool floating) {
+        if (m_rttyDecoderWindow) {
+            if (floating && m_sliceModel && m_sliceModel->rttyDecodeEnabled()) {
+                m_rttyDecoderWindow->show();
+                m_rttyDecoderWindow->raise();
+            } else {
+                m_rttyDecoderWindow->hide();
+            }
+        }
+        update();
+    });
     connect(m_sliceModel, &SliceModel::rttyCallsignChanged, this, qOverload<>(&QGLReceiverPanel::update));
     connect(m_sliceModel, &SliceModel::activeVfoChanged, this, [this](SliceModel::ActiveVfo){
         this->setVFOFrequency(0, m_sliceModel->id(), m_sliceModel->frequency());
@@ -1910,4 +1934,27 @@ void QGLReceiverPanel::qglColor(QColor color)
 {
     m_glTextColor = color;
 }
+
+void QGLReceiverPanel::setRttyFloating(bool floating) {
+    if (m_sliceModel) {
+        m_sliceModel->setRttyFloating(floating);
+    }
+    if (set) {
+        set->setRttyFloating(m_receiver, floating);
+    }
+    if (m_rttyDecoderWindow) {
+        if (floating && m_sliceModel && m_sliceModel->rttyDecodeEnabled()) {
+            m_rttyDecoderWindow->show();
+            m_rttyDecoderWindow->raise();
+        } else {
+            m_rttyDecoderWindow->hide();
+        }
+    }
+    update();
+}
+
+bool QGLReceiverPanel::isRttyFloating() const {
+    return m_sliceModel ? m_sliceModel->rttyFloating() : false;
+}
+
 

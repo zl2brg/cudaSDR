@@ -288,6 +288,10 @@ void ReceiverConfig::setRttyAfc(bool val) { m_rttyAfc = val; }
 void ReceiverConfig::setRttyAutoDetect(bool val) { m_rttyAutoDetect = val; }
 void ReceiverConfig::setRttyLogToFile(bool val) { m_rttyLogToFile = val; }
 void ReceiverConfig::setCwLogToFile(bool val) { m_cwLogToFile = val; }
+void ReceiverConfig::setRttyFloating(bool val) { m_rttyFloating = val; }
+void ReceiverConfig::setRttyWindowPos(const QPoint &val) { m_rttyWindowPos = val; }
+void ReceiverConfig::setRttyWindowSize(const QSize &val) { m_rttyWindowSize = val; }
+void ReceiverConfig::setRttyScopeVisible(bool val) { m_rttyScopeVisible = val; }
 
 void ReceiverConfig::setLastCenterFrequencyList(const QList<qint64> &values)
 {
@@ -391,6 +395,12 @@ void ReceiverConfig::applyTo(TReceiver &rx) const {
     rx.rttyAutoDetect = m_rttyAutoDetect;
     rx.rttyLogToFile = m_rttyLogToFile;
     rx.cwLogToFile = m_cwLogToFile;
+    rx.rttyFloating = m_rttyFloating;
+    rx.rttyWindowX = m_rttyWindowPos.x();
+    rx.rttyWindowY = m_rttyWindowPos.y();
+    rx.rttyWindowW = m_rttyWindowSize.width();
+    rx.rttyWindowH = m_rttyWindowSize.height();
+    rx.rttyScopeVisible = m_rttyScopeVisible;
     rx.lastCenterFrequencyList = m_lastCenterFrequencyList;
     rx.lastVfoFrequencyList = m_lastVfoFrequencyList;
     rx.mercuryAttenuators = m_mercuryAttenuators;
@@ -459,6 +469,10 @@ void ReceiverConfig::fromReceiver(const TReceiver &rx) {
     setRttyAutoDetect(rx.rttyAutoDetect);
     setRttyLogToFile(rx.rttyLogToFile);
     setCwLogToFile(rx.cwLogToFile);
+    setRttyFloating(rx.rttyFloating);
+    setRttyWindowPos(QPoint(rx.rttyWindowX, rx.rttyWindowY));
+    setRttyWindowSize(QSize(rx.rttyWindowW, rx.rttyWindowH));
+    setRttyScopeVisible(rx.rttyScopeVisible);
     setLastCenterFrequencyList(rx.lastCenterFrequencyList);
     setLastVfoFrequencyList(rx.lastVfoFrequencyList);
     setMercuryAttenuators(rx.mercuryAttenuators);
@@ -589,6 +603,16 @@ void ReceiverConfig::load(const QJsonObject &json) {
         setRttyLogToFile(json.value(QLatin1String("rttyLogToFile")).toBool());
     if (json.contains(QLatin1String("cwLogToFile")))
         setCwLogToFile(json.value(QLatin1String("cwLogToFile")).toBool());
+    if (json.contains(QLatin1String("rttyFloating")))
+        setRttyFloating(json.value(QLatin1String("rttyFloating")).toBool());
+    if (json.contains(QLatin1String("rttyWindowX")) && json.contains(QLatin1String("rttyWindowY")))
+        setRttyWindowPos(QPoint(json.value(QLatin1String("rttyWindowX")).toInt(100),
+                                json.value(QLatin1String("rttyWindowY")).toInt(100)));
+    if (json.contains(QLatin1String("rttyWindowW")) && json.contains(QLatin1String("rttyWindowH")))
+        setRttyWindowSize(QSize(json.value(QLatin1String("rttyWindowW")).toInt(680),
+                                json.value(QLatin1String("rttyWindowH")).toInt(280)));
+    if (json.contains(QLatin1String("rttyScopeVisible")))
+        setRttyScopeVisible(json.value(QLatin1String("rttyScopeVisible")).toBool(true));
 
     if (json.contains(QLatin1String("lastCenterFrequencyList"))) {
         const auto vec = SettingsUtils::jsonArrayToVector<qint64>(
@@ -684,6 +708,12 @@ void ReceiverConfig::save(QJsonObject &json) const {
     json[QLatin1String("rttyAutoDetect")] = m_rttyAutoDetect;
     json[QLatin1String("rttyLogToFile")] = m_rttyLogToFile;
     json[QLatin1String("cwLogToFile")] = m_cwLogToFile;
+    json[QLatin1String("rttyFloating")] = m_rttyFloating;
+    json[QLatin1String("rttyWindowX")] = m_rttyWindowPos.x();
+    json[QLatin1String("rttyWindowY")] = m_rttyWindowPos.y();
+    json[QLatin1String("rttyWindowW")] = m_rttyWindowSize.width();
+    json[QLatin1String("rttyWindowH")] = m_rttyWindowSize.height();
+    json[QLatin1String("rttyScopeVisible")] = m_rttyScopeVisible;
     json[QLatin1String("lastCenterFrequencyList")] = SettingsUtils::toJsonArray(m_lastCenterFrequencyList);
     json[QLatin1String("lastVfoFrequencyList")] = SettingsUtils::toJsonArray(m_lastVfoFrequencyList);
     json[QLatin1String("mercuryAttenuators")] = SettingsUtils::toJsonArray(m_mercuryAttenuators);

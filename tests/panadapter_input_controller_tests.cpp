@@ -59,6 +59,15 @@ void QGLReceiverPanel::setVFOFrequency(int, int, qint64)
 {
 }
 
+void QGLReceiverPanel::setRttyFloating(bool)
+{
+}
+
+bool QGLReceiverPanel::isRttyFloating() const
+{
+    return false;
+}
+
 void PanadapterInputControllerTests::initTestCase()
 {
 }

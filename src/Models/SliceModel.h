@@ -3,6 +3,8 @@
 
 #include <QObject>
 #include <QVector>
+#include <QPoint>
+#include <QSize>
 #include "cusdr_hamDatabase.h"
 #include "Settings/SettingsTypes.h"
 
@@ -81,6 +83,10 @@ public:
     Q_PROPERTY(float rttyMarkFreq READ rttyMarkFreq WRITE setRttyMarkFreq NOTIFY rttyMarkFreqChanged)
     Q_PROPERTY(float rttySpaceFreq READ rttySpaceFreq WRITE setRttySpaceFreq NOTIFY rttySpaceFreqChanged)
     Q_PROPERTY(QString rttyCallsign READ rttyCallsign WRITE setRttyCallsign NOTIFY rttyCallsignChanged)
+    Q_PROPERTY(bool rttyFloating READ rttyFloating WRITE setRttyFloating NOTIFY rttyFloatingChanged)
+    Q_PROPERTY(QPoint rttyWindowPos READ rttyWindowPos WRITE setRttyWindowPos NOTIFY rttyWindowPosChanged)
+    Q_PROPERTY(QSize rttyWindowSize READ rttyWindowSize WRITE setRttyWindowSize NOTIFY rttyWindowSizeChanged)
+    Q_PROPERTY(bool rttyScopeVisible READ rttyScopeVisible WRITE setRttyScopeVisible NOTIFY rttyScopeVisibleChanged)
 
 public:
     explicit SliceModel(int id, QObject *parent = nullptr);
@@ -300,6 +306,18 @@ public:
     bool cwLogToFile() const { return m_cwLogToFile; }
     void setCwLogToFile(bool enabled);
 
+    bool rttyFloating() const { return m_rttyFloating; }
+    void setRttyFloating(bool floating);
+
+    QPoint rttyWindowPos() const { return m_rttyWindowPos; }
+    void setRttyWindowPos(const QPoint &pos);
+
+    QSize rttyWindowSize() const { return m_rttyWindowSize; }
+    void setRttyWindowSize(const QSize &size);
+
+    bool rttyScopeVisible() const { return m_rttyScopeVisible; }
+    void setRttyScopeVisible(bool visible);
+
 signals:
     void frequencyChanged(qint64 freq);
     void vfoAFrequencyChanged(qint64 freq);
@@ -365,6 +383,10 @@ signals:
     void cwCallsignChanged(const QString &call);
     void rttyLogToFileChanged(bool enabled);
     void cwLogToFileChanged(bool enabled);
+    void rttyFloatingChanged(bool floating);
+    void rttyWindowPosChanged(const QPoint &pos);
+    void rttyWindowSizeChanged(const QSize &size);
+    void rttyScopeVisibleChanged(bool visible);
 
 private:
     void writeThroughActiveSlot(qint64 freq);
@@ -438,6 +460,10 @@ private:
     QString m_cwCallsign;
     bool m_rttyLogToFile = false;
     bool m_cwLogToFile = false;
+    bool m_rttyFloating = false;
+    QPoint m_rttyWindowPos = QPoint(100, 100);
+    QSize m_rttyWindowSize = QSize(680, 280);
+    bool m_rttyScopeVisible = true;
 };
 
 #endif // SLICEMODEL_H

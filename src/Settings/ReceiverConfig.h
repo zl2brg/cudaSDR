@@ -4,6 +4,8 @@
 #include <QObject>
 #include <QJsonObject>
 #include <QList>
+#include <QPoint>
+#include <QSize>
 #include "SettingsTypes.h"
 #include "cusdr_hamDatabase.h"
 
@@ -174,6 +176,14 @@ public:
     void setRttyLogToFile(bool val);
     bool cwLogToFile() const { return m_cwLogToFile; }
     void setCwLogToFile(bool val);
+    bool rttyFloating() const { return m_rttyFloating; }
+    void setRttyFloating(bool val);
+    QPoint rttyWindowPos() const { return m_rttyWindowPos; }
+    void setRttyWindowPos(const QPoint &val);
+    QSize rttyWindowSize() const { return m_rttyWindowSize; }
+    void setRttyWindowSize(const QSize &val);
+    bool rttyScopeVisible() const { return m_rttyScopeVisible; }
+    void setRttyScopeVisible(bool val);
 
     QList<qint64> lastCenterFrequencyList() const { return m_lastCenterFrequencyList; }
     void setLastCenterFrequencyList(const QList<qint64> &values);
@@ -274,6 +284,10 @@ private:
     bool m_rttyAutoDetect = false;
     bool m_rttyLogToFile = false;
     bool m_cwLogToFile = false;
+    bool m_rttyFloating = false;
+    QPoint m_rttyWindowPos = QPoint(100, 100);
+    QSize m_rttyWindowSize = QSize(680, 280);
+    bool m_rttyScopeVisible = true;
 
     QList<qint64> m_lastCenterFrequencyList;
     QList<qint64> m_lastVfoFrequencyList;

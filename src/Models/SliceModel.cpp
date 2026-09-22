@@ -499,3 +499,27 @@ void SliceModel::setCwLogToFile(bool enabled) {
     m_cwLogToFile = enabled;
     emit cwLogToFileChanged(m_cwLogToFile);
 }
+
+void SliceModel::setRttyFloating(bool floating) {
+    if (m_rttyFloating == floating) return;
+    m_rttyFloating = floating;
+    emit rttyFloatingChanged(m_rttyFloating);
+}
+
+void SliceModel::setRttyWindowPos(const QPoint &pos) {
+    if (m_rttyWindowPos == pos) return;
+    m_rttyWindowPos = pos;
+    emit rttyWindowPosChanged(m_rttyWindowPos);
+}
+
+void SliceModel::setRttyWindowSize(const QSize &size) {
+    if (m_rttyWindowSize == size) return;
+    m_rttyWindowSize = size;
+    emit rttyWindowSizeChanged(m_rttyWindowSize);
+}
+
+void SliceModel::setRttyScopeVisible(bool visible) {
+    if (m_rttyScopeVisible == visible) return;
+    m_rttyScopeVisible = visible;
+    emit rttyScopeVisibleChanged(m_rttyScopeVisible);
+}

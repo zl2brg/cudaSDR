@@ -62,6 +62,7 @@ class RadioPopupController;
 
 class SliceModel;
 class PanadapterInputController;
+class RttyDecoderWindow;
 class QGLReceiverPanel : public QOpenGLWidget, protected QOpenGLFunctions {
 
     Q_OBJECT
@@ -70,6 +71,7 @@ class QGLReceiverPanel : public QOpenGLWidget, protected QOpenGLFunctions {
 	friend class TraceRenderer;
 	friend class HudRenderer;
 	friend class PanadapterInputController;
+	friend class RttyDecoderWindow;
 
 public:
 	enum Region {
@@ -194,6 +196,7 @@ private:
 	QPoint						m_cwBoxPos;
 	QRect						m_rttyTextRect;
 	QRect						m_rttyConfigBtnRect;
+	QRect						m_rttyDetachBtnRect;
 	QRect						m_rttyScopeRect;
 	QRect						m_rttyNudgeLeftRect;
 	QRect						m_rttyNudgeRightRect;
@@ -209,6 +212,7 @@ private:
 	QPoint						m_rttyDragStartMouse;
 	bool						m_hasCustomRttyBoxPos = false;
 	QPoint						m_rttyBoxPos;
+	RttyDecoderWindow*			m_rttyDecoderWindow = nullptr;
 	QRect						m_panSMeterRect;
 	bool						m_dragPanSMeter = false;
 	QPoint						m_panSMeterDragStartMouse;
@@ -451,6 +455,8 @@ private:
 	qint64	findPeakFrequencyNear(qint64 targetFreq, int searchRadiusHz, bool *found = nullptr) const;
 	void 	showText(float x, float y, float z, const QString &text, bool smallText);
 	void	showRadioPopup(bool value);
+	void	setRttyFloating(bool floating);
+	bool	isRttyFloating() const;
 
 private slots:
 	void	onSpectrumBinsReady(SpectrumBinWorker::Result result);

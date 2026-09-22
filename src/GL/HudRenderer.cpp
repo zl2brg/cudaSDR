@@ -880,6 +880,7 @@ void HudRenderer::drawRttyDecoderHUD() {
     auto clearRttyHudRects = [this]() {
         m_panel->m_rttyTextRect = QRect();
         m_panel->m_rttyConfigBtnRect = QRect();
+        m_panel->m_rttyDetachBtnRect = QRect();
         m_panel->m_rttyScopeRect = QRect();
         m_panel->m_rttyNudgeLeftRect = QRect();
         m_panel->m_rttyNudgeRightRect = QRect();
@@ -966,6 +967,11 @@ void HudRenderer::drawRttyDecoderHUD() {
         m_panel->drawPanelRect(QRect(sX - 3, crossbarY, 7, 2), spaceColor, 3.5f);
         m_panel->m_glTextColor = spaceColor;
         m_panel->renderPanelText(m_panel->m_oglTextSmall, float(sX - 4), float(crossbarY - 18), 3.6f, QStringLiteral("S"));
+    }
+
+    if (m_panel->m_sliceModel->rttyFloating()) {
+        clearRttyHudRects();
+        return;
     }
 
     const QFontMetrics &fm = m_panel->m_oglTextNormal->fontMetrics();
@@ -1067,6 +1073,24 @@ void HudRenderer::drawRttyDecoderHUD() {
 
     m_panel->m_glTextColor = Qt::white;
     m_panel->renderPanelText(m_panel->m_oglTextSmall, float(textX + 18), float(headerY + 2), 3.6f, badgeText);
+
+    // Detach / pop-out button on the right side of the header
+    const int detachW = headerH + 2;
+    m_panel->m_rttyDetachBtnRect = QRect(textX + totalW - detachW - 4, headerY, detachW, headerH - 2);
+    const bool detachHover = m_panel->m_rttyDetachBtnRect.contains(m_panel->m_mousePos);
+    const QColor detachBg = detachHover ? QColor(45, 70, 100, 240) : QColor(22, 34, 46, 230);
+    m_panel->drawPanelRect(m_panel->m_rttyDetachBtnRect, detachBg, 3.5f);
+    m_panel->drawPanelRect(QRect(m_panel->m_rttyDetachBtnRect.left(), headerY, detachW, 1), QColor(60, 85, 115, 180), 3.55f);
+    m_panel->m_glTextColor = detachHover ? Qt::white : QColor(160, 185, 210);
+    QString detachIcon = QStringLiteral("\u29C9");
+    int iconW = m_panel->m_oglTextSmall->fontMetrics().horizontalAdvance(detachIcon);
+    if (iconW <= 0) {
+        detachIcon = QStringLiteral("\u2197");
+        iconW = m_panel->m_oglTextSmall->fontMetrics().horizontalAdvance(detachIcon);
+    }
+    m_panel->renderPanelText(m_panel->m_oglTextSmall,
+                             float(m_panel->m_rttyDetachBtnRect.left() + qMax(1, (detachW - iconW) / 2)),
+                             float(headerY + 2), 3.6f, detachIcon);
 
     const int bodyY = headerY + headerH + 4;
     QRect scopeRect;

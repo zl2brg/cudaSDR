@@ -4913,6 +4913,23 @@ void Settings::setRttyDecode(int rx, bool value) {
     }
 }
 
+bool Settings::getRttyFloating(int rx) {
+    if (SliceModel* slice = sliceModel(rx))
+        return slice->rttyFloating();
+    if (rx < 0 || rx >= m_receiverDataList.size())
+        return false;
+    return m_receiverDataList[rx].rttyFloating;
+}
+
+void Settings::setRttyFloating(int rx, bool value) {
+    if (rx >= 0 && rx < m_receiverDataList.size()) {
+        m_receiverDataList[rx].rttyFloating = value;
+    }
+    if (SliceModel* slice = sliceModel(rx)) {
+        slice->setRttyFloating(value);
+    }
+}
+
 
 void Settings::getConfigPath() {
     cfg_dir = QStandardPaths::writableLocation(QStandardPaths::HomeLocation).append("/.cudaSDR");
@@ -5309,6 +5326,10 @@ void Settings::syncSlicesWithSettings() {
         slice->setRttyAutoDetect(m_receiverDataList[i].rttyAutoDetect);
         slice->setRttyLogToFile(m_receiverDataList[i].rttyLogToFile);
         slice->setCwLogToFile(m_receiverDataList[i].cwLogToFile);
+        slice->setRttyFloating(m_receiverDataList[i].rttyFloating);
+        slice->setRttyWindowPos(QPoint(m_receiverDataList[i].rttyWindowX, m_receiverDataList[i].rttyWindowY));
+        slice->setRttyWindowSize(QSize(m_receiverDataList[i].rttyWindowW, m_receiverDataList[i].rttyWindowH));
+        slice->setRttyScopeVisible(m_receiverDataList[i].rttyScopeVisible);
 
         // Forward filter and mode changes from SliceModel to Settings signals
         // so legacy listeners (e.g. Transmitter, TciServer) stay in sync.
@@ -5403,6 +5424,12 @@ void Settings::syncSettingsWithSlices() {
         m_receiverDataList[i].rttyAutoDetect = slice->rttyAutoDetect();
         m_receiverDataList[i].rttyLogToFile = slice->rttyLogToFile();
         m_receiverDataList[i].cwLogToFile = slice->cwLogToFile();
+        m_receiverDataList[i].rttyFloating = slice->rttyFloating();
+        m_receiverDataList[i].rttyWindowX = slice->rttyWindowPos().x();
+        m_receiverDataList[i].rttyWindowY = slice->rttyWindowPos().y();
+        m_receiverDataList[i].rttyWindowW = slice->rttyWindowSize().width();
+        m_receiverDataList[i].rttyWindowH = slice->rttyWindowSize().height();
+        m_receiverDataList[i].rttyScopeVisible = slice->rttyScopeVisible();
     }
 }
 
