@@ -69,6 +69,7 @@ public slots:
     void dspModeChanged(int rx, DSPMode mode);
     void slider_changed(int value);
     void bandChanged(int rx, bool byButton, HamBand band);
+    void iaruRegionChanged(IARURegion region);
 
 private slots:
     void	systemStateChanged(

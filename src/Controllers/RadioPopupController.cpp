@@ -29,6 +29,7 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
     // Initial setup loading
     const TNetworkDevicecard card = m_model->getCurrentMetisCard();
     m_view->setSingleAdcDevice(card.adcs <= 1);
+    m_view->setIARURegion(m_model->getIARURegion());
     m_view->setBandFrequencyList(m_model->getBandFrequencyList());
 
     const HamBand hamBand = m_model->getCurrentHamBand(rx);
@@ -332,6 +333,15 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
     connect(m_model, &Settings::adcModeChanged, this, [this](int r, ADCMode mode) {
         if (m_view->getReceiver() == r) {
             m_view->setADCMode(mode);
+        }
+    });
+
+    connect(m_model, &Settings::iaruRegionChanged, this, [this](IARURegion reg) {
+        if (m_view) {
+            m_view->setIARURegion(reg);
+            if (m_model) {
+                m_view->setBandFrequencyList(m_model->getBandFrequencyList());
+            }
         }
     });
 

@@ -65,11 +65,18 @@ RadioCtrl::RadioCtrl(QWidget *parent, int rx)
          this,
          SLOT(bandChanged(int, bool, HamBand)));
 
+     CHECKED_CONNECT(
+         set,
+         SIGNAL(iaruRegionChanged(IARURegion)),
+         this,
+         SLOT(iaruRegionChanged(IARURegion)));
+
 qDebug() << "RX" << m_receiver;
 
 setFilterWidget();
 setModeWidget();
 setBandWidget();
+iaruRegionChanged(set->getIARURegion());
 dspModeChanged(0, m_dspModeList.at(m_hamBand));
 
 
@@ -410,6 +417,14 @@ void RadioCtrl::systemStateChanged(
 void RadioCtrl::modeChange(){
     qDebug() << "Mode change";
 
+}
+
+void RadioCtrl::iaruRegionChanged(IARURegion region)
+{
+    const bool has125cm = (region == region2);
+    const bool has33cm = (region == region2);
+    ui->bnd_125cm->setEnabled(has125cm);
+    ui->bnd_33cm->setEnabled(has33cm);
 }
 
 

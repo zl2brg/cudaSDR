@@ -39,12 +39,16 @@ public:
 	void	setAlexPresence(bool pres);
 	void	setExcaliburPresence(bool pres);
 	void	setCurrentMetisCard(const TNetworkDevicecard& card);
+	void	setIARURegion(IARURegion region);
+	void	setCallsign(const QString &callsign);
 	void	setDataEngineRunning(bool running);
 
 signals:
 	// MVC View Interface Signals
 	void	hwInterfaceRequested(QSDR::_HWInterfaceMode mode);
 	void	hpsdrHardwareRequested(int hw);
+	void	iaruRegionRequested(IARURegion region);
+	void	callsignRequested(const QString &callsign);
 	void	numberOfReceiversRequested(int count);
 	void	firmwareCheckRequested(bool check);
 	void	src10MhzRequested(int src);
@@ -65,12 +69,18 @@ private:
 	QGroupBox       *source122_88MhzExclusiveGroup;
 	QGroupBox       *sampleRateExclusiveGroup();
 	QGroupBox       *numberOfReceiversGroup();
+	QGroupBox       *stationGroup();
 
 	QGroupBox       *m_hpsdrHardwareGroupBox;
 	QGroupBox       *m_sampleRateGroupBox;
 	QGroupBox       *m_numberOfReceiversGroupBox;
+	QGroupBox       *m_stationGroupBox;
 
+	QLineEdit       *m_callsignLineEdit;
+	AeroButton      *m_setCallsignBtn;
+	QLabel          *m_callsignLabel;
 	QComboBox       *m_receiverComboBox;
+	QComboBox       *m_regionComboBox;
 
 	QLabel		*m_fwCheckLabel;
 	QLabel		*m_receiversLabel;
@@ -135,6 +145,8 @@ private slots:
 	void	source122_88MhzChanged();
 	void	sampleRateChanged();
 	void	receiverComboBoxChanged(int index);
+	void	regionComboBoxChanged(int index);
+	void	callsignSetClicked();
 	void	hpsdrHardwareChanged();
 	void	penelopePresenceChanged();
 	void	pennyPresenceChanged();

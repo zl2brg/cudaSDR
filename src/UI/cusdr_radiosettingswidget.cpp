@@ -8,6 +8,12 @@ cusdr_radioSettingsWidget::cusdr_radioSettingsWidget(QWidget *parent) :
     ui->setupUi(this);
 
 #ifdef HAVE_SOAPYSDR
+    ui->iaruRegionCombo->addItem(tr("Region 1 (Europe, Africa, Northern Asia)"), static_cast<int>(region1));
+    ui->iaruRegionCombo->addItem(tr("Region 2 (Americas)"), static_cast<int>(region2));
+    ui->iaruRegionCombo->addItem(tr("Region 3 (Asia-Pacific)"), static_cast<int>(region3));
+    connect(ui->iaruRegionCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &cusdr_radioSettingsWidget::onRegionComboChanged);
+
     connect(ui->fullDuplexCheck, &QCheckBox::toggled,
             this, &cusdr_radioSettingsWidget::onFullDuplexToggled);
     connect(ui->iqBalanceCheck, &QCheckBox::toggled,
@@ -51,6 +57,23 @@ QWidget *cusdr_radioSettingsWidget::detachRadioConfigPage()
     ui->tabWidget->removeTab(idx);
     page->setParent(nullptr);
     return page;
+}
+
+void cusdr_radioSettingsWidget::setIARURegion(IARURegion region)
+{
+    ui->iaruRegionCombo->blockSignals(true);
+    int idx = ui->iaruRegionCombo->findData(static_cast<int>(region));
+    if (idx >= 0) {
+        ui->iaruRegionCombo->setCurrentIndex(idx);
+    }
+    ui->iaruRegionCombo->blockSignals(false);
+}
+
+void cusdr_radioSettingsWidget::onRegionComboChanged(int index)
+{
+    if (index < 0) return;
+    IARURegion reg = static_cast<IARURegion>(ui->iaruRegionCombo->itemData(index).toInt());
+    emit iaruRegionRequested(reg);
 }
 
 void cusdr_radioSettingsWidget::setTxFullDuplex(bool enabled)

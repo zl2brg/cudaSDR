@@ -848,6 +848,7 @@ signals:
 	void iqPortChanged(int rx, int port);
 
 	void hamBandChanged(int rx, bool byButton, HamBand band);
+	void iaruRegionChanged(IARURegion region);
 	void dspModeChanged(int rx, DSPMode mode);
 	void adcModeChanged(int rx, ADCMode mode);
 	void agcModeChanged(int rx, AGCMode mode, bool hangEnabled);
@@ -868,6 +869,12 @@ signals:
 	void txFilterLowChanged(int val);
 	void txFilterHighChanged(int val);
 	void txUseRxFilterChanged(bool enabled);
+	void spectralPaintAutoTailChanged(bool enabled);
+	void spectralPaintTextChanged(const QString &text);
+	void spectralPaintDurationMsChanged(int ms);
+	void spectralPaintLowHzChanged(int hz);
+	void spectralPaintHighHzChanged(int hz);
+	void spectralPaintRequested();
 	
 	void freqRulerPositionChanged(int rx, float position);
 
@@ -1013,6 +1020,7 @@ public:
 	QList<TReceiver>			getReceiverDataList()		{ QReadLocker locker(&m_dataRwLock); return m_receiverDataList; }
 	QList<THamBandFrequencies>	getBandFrequencyList()		{ QReadLocker locker(&m_dataRwLock); return m_bandList; }
 	QList<THamBandText>			getHamBandTextList()		{ QReadLocker locker(&m_dataRwLock); return m_bandTextList; }
+	IARURegion					getIARURegion()				{ QReadLocker locker(&m_dataRwLock); return m_iaruRegion; }
 	QList<TDefaultFilter>		getDefaultFilterList()		{ QReadLocker locker(&m_dataRwLock); return m_defaultFilterList; }
 	TDefaultFilterMode			getCurrentFilterMode()		{ return m_filterMode; }
 	quint16						getAlexConfig()				{ return m_alexConfigObj->alexConfig(); }
@@ -1145,6 +1153,17 @@ public:
     void    setTxFilterHigh(int val);
     bool    getTxUseRxFilter() const;
     void    setTxUseRxFilter(bool enabled);
+    bool    getSpectralPaintAutoTail() const;
+    void    setSpectralPaintAutoTail(bool enabled);
+    QString getSpectralPaintText() const;
+    void    setSpectralPaintText(const QString &text);
+    int     getSpectralPaintDurationMs() const;
+    void    setSpectralPaintDurationMs(int ms);
+    int     getSpectralPaintLowHz() const;
+    void    setSpectralPaintLowHz(int hz);
+    int     getSpectralPaintHighHz() const;
+    void    setSpectralPaintHighHz(int hz);
+    void    requestSpectralPaint();
 
 	qreal	getMainVolume(int rx);
 	qreal	getMouseWheelFreqStep(int rx);// { return m_mouseWheelFreqStep; }
@@ -1305,6 +1324,7 @@ public slots:
 	void setCheckFirmwareVersion(bool value);
 
 	void setHermesVersion(int value);
+	void setIARURegion(IARURegion region);
 	void setHPSDRHardware(int value);
 	void setMercuryPresence(bool value);
 	void setMercuryVersion(int value);
@@ -1541,6 +1561,7 @@ private:
 	QList<TReceiver>			pam_receiverDataList;
 	QList<THamBandFrequencies>	m_bandList;
 	QList<THamBandText>			m_bandTextList;
+	IARURegion					m_iaruRegion;
 	QList<TDefaultFilter>		m_defaultFilterList;
 	QList<QString>				m_rxStringList;
 	QList<int>					m_rxJ6pinList;

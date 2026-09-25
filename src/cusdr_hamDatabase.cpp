@@ -8,7 +8,7 @@
 
 #include "cusdr_hamDatabase.h"
 
-QList<THamBandFrequencies> getHamBandFrequencies() {
+QList<THamBandFrequencies> getHamBandFrequencies(IARURegion region) {
 
 	QList<THamBandFrequencies> hamBandFreqList;
 
@@ -18,180 +18,175 @@ QList<THamBandFrequencies> getHamBandFrequencies() {
     hamBandFreq.frequencyHi = 137800;
     hamBandFreq.hamBand = (HamBand) m2200;
     hamBandFreq.bandString = "2200m";
-    hamBandFreq.region = (IARURegion) region1;
-
+    hamBandFreq.region = region;
     hamBandFreqList << hamBandFreq;
 
     hamBandFreq.frequencyLo = 472000;
     hamBandFreq.frequencyHi = 479000;
     hamBandFreq.hamBand = (HamBand) m630;
     hamBandFreq.bandString = "630m";
-    hamBandFreq.region = (IARURegion) region1;
-
+    hamBandFreq.region = region;
     hamBandFreqList << hamBandFreq;
 
-    hamBandFreq.frequencyLo = 1810000;
+    hamBandFreq.frequencyLo = (region == region1) ? 1810000 : 1800000;
 	hamBandFreq.frequencyHi = 2000000;
 	hamBandFreq.hamBand = (HamBand) m160;
 	hamBandFreq.bandString = "160m";
-	hamBandFreq.region = (IARURegion) region1;
-
+	hamBandFreq.region = region;
 	hamBandFreqList << hamBandFreq;
 
 	hamBandFreq.frequencyLo = 3500000;
-	hamBandFreq.frequencyHi = 3800000;
+	hamBandFreq.frequencyHi = (region == region2) ? 4000000 : (region == region3 ? 3900000 : 3800000);
 	hamBandFreq.hamBand = (HamBand) m80;
 	hamBandFreq.bandString = "80m";
-	hamBandFreq.region = (IARURegion) region1;
-
+	hamBandFreq.region = region;
 	hamBandFreqList << hamBandFreq;
 
 	hamBandFreq.frequencyLo = 5260000;
 	hamBandFreq.frequencyHi = 5410000;
 	hamBandFreq.hamBand = (HamBand) m60;
 	hamBandFreq.bandString = "60m";
+	hamBandFreq.region = region;
 	hamBandFreqList << hamBandFreq;
 
 	hamBandFreq.frequencyLo = 7000000;
-	hamBandFreq.frequencyHi = 7200000;
+	hamBandFreq.frequencyHi = (region == region1) ? 7200000 : 7300000;
 	hamBandFreq.hamBand = (HamBand) m40;
 	hamBandFreq.bandString = "40m";
-	hamBandFreq.region = (IARURegion) region1;
-
+	hamBandFreq.region = region;
 	hamBandFreqList << hamBandFreq;
 
 	hamBandFreq.frequencyLo = 10100000;
 	hamBandFreq.frequencyHi = 10150000;
 	hamBandFreq.hamBand = (HamBand) m30;
 	hamBandFreq.bandString = "30m";
-	hamBandFreq.region = (IARURegion) region1;
-
+	hamBandFreq.region = region;
 	hamBandFreqList << hamBandFreq;
 
 	hamBandFreq.frequencyLo = 14000000;
 	hamBandFreq.frequencyHi = 14350000;
 	hamBandFreq.hamBand = (HamBand) m20;
 	hamBandFreq.bandString = "20m";
-	hamBandFreq.region = (IARURegion) region1;
-
+	hamBandFreq.region = region;
 	hamBandFreqList << hamBandFreq;
 
 	hamBandFreq.frequencyLo = 18068000;
 	hamBandFreq.frequencyHi = 18168000;
 	hamBandFreq.hamBand = (HamBand) m17;
 	hamBandFreq.bandString = "17m";
-	hamBandFreq.region = (IARURegion) region1;
-
+	hamBandFreq.region = region;
 	hamBandFreqList << hamBandFreq;
 
 	hamBandFreq.frequencyLo = 21000000;
 	hamBandFreq.frequencyHi = 21450000;
 	hamBandFreq.hamBand = (HamBand) m15;
 	hamBandFreq.bandString = "15m";
-	hamBandFreq.region = (IARURegion) region1;
-
+	hamBandFreq.region = region;
 	hamBandFreqList << hamBandFreq;
 
 	hamBandFreq.frequencyLo = 24890000;
 	hamBandFreq.frequencyHi = 24990000;
 	hamBandFreq.hamBand = (HamBand) m12;
 	hamBandFreq.bandString = "12m";
-	hamBandFreq.region = (IARURegion) region1;
-
+	hamBandFreq.region = region;
 	hamBandFreqList << hamBandFreq;
 
 	hamBandFreq.frequencyLo = 28000000;
 	hamBandFreq.frequencyHi = 29700000;
 	hamBandFreq.hamBand = (HamBand) m10;
 	hamBandFreq.bandString = "10m";
-	hamBandFreq.region = (IARURegion) region1;
-
+	hamBandFreq.region = region;
 	hamBandFreqList << hamBandFreq;
 
 	hamBandFreq.frequencyLo = 50000000;
-	hamBandFreq.frequencyHi = 54000000;
+	hamBandFreq.frequencyHi = (region == region1) ? 52000000 : 54000000;
 	hamBandFreq.hamBand = (HamBand) m6;
 	hamBandFreq.bandString = "6m";
-	hamBandFreq.region = (IARURegion) region1;
-
+	hamBandFreq.region = region;
 	hamBandFreqList << hamBandFreq;
 
 	hamBandFreq.frequencyLo = 144000000;
-	hamBandFreq.frequencyHi = 148000000;
+	hamBandFreq.frequencyHi = (region == region1) ? 146000000 : 148000000;
 	hamBandFreq.hamBand = (HamBand) m2;
 	hamBandFreq.bandString = "2m";
-	hamBandFreq.region = (IARURegion) region1;
-
+	hamBandFreq.region = region;
 	hamBandFreqList << hamBandFreq;
 
-	hamBandFreq.frequencyLo = 222000000;
-	hamBandFreq.frequencyHi = 225000000;
+	if (region == region2) {
+		hamBandFreq.frequencyLo = 222000000;
+		hamBandFreq.frequencyHi = 225000000;
+	} else {
+		hamBandFreq.frequencyLo = -1;
+		hamBandFreq.frequencyHi = -1;
+	}
 	hamBandFreq.hamBand = (HamBand) cm125;
 	hamBandFreq.bandString = "125cm";
-	hamBandFreq.region = (IARURegion) region1;
-
+	hamBandFreq.region = region;
 	hamBandFreqList << hamBandFreq;
 
-	hamBandFreq.frequencyLo = 420000000;
-	hamBandFreq.frequencyHi = 450000000;
+	hamBandFreq.frequencyLo = (region == region2) ? 420000000 : 430000000;
+	hamBandFreq.frequencyHi = (region == region1) ? 440000000 : 450000000;
 	hamBandFreq.hamBand = (HamBand) cm70;
 	hamBandFreq.bandString = "70cm";
-	hamBandFreq.region = (IARURegion) region1;
-
+	hamBandFreq.region = region;
 	hamBandFreqList << hamBandFreq;
 
-	hamBandFreq.frequencyLo = 902000000;
-	hamBandFreq.frequencyHi = 928000000;
+	if (region == region2) {
+		hamBandFreq.frequencyLo = 902000000;
+		hamBandFreq.frequencyHi = 928000000;
+	} else {
+		hamBandFreq.frequencyLo = -1;
+		hamBandFreq.frequencyHi = -1;
+	}
 	hamBandFreq.hamBand = (HamBand) cm33;
 	hamBandFreq.bandString = "33cm";
-	hamBandFreq.region = (IARURegion) region1;
-
+	hamBandFreq.region = region;
 	hamBandFreqList << hamBandFreq;
 
-//RRK TODO FIX
-	hamBandFreq.frequencyLo = 902000000;
-	hamBandFreq.frequencyHi = 928000000;
+	hamBandFreq.frequencyLo = 1240000000LL;
+	hamBandFreq.frequencyHi = 1300000000LL;
 	hamBandFreq.hamBand = (HamBand) cm23;
 	hamBandFreq.bandString = "23cm";
-	hamBandFreq.region = (IARURegion) region1;
-
+	hamBandFreq.region = region;
 	hamBandFreqList << hamBandFreq;
 
-	hamBandFreq.frequencyLo = 902000000;
-	hamBandFreq.frequencyHi = 928000000;
+	hamBandFreq.frequencyLo = 2300000000LL;
+	hamBandFreq.frequencyHi = 2450000000LL;
 	hamBandFreq.hamBand = (HamBand) cm13;
 	hamBandFreq.bandString = "13cm";
-	hamBandFreq.region = (IARURegion) region1;
-
+	hamBandFreq.region = region;
 	hamBandFreqList << hamBandFreq;
 
-	hamBandFreq.frequencyLo = 902000000;
-	hamBandFreq.frequencyHi = 928000000;
+	if (region == region1) {
+		hamBandFreq.frequencyLo = 3400000000LL;
+		hamBandFreq.frequencyHi = 3475000000LL;
+	} else {
+		hamBandFreq.frequencyLo = 3300000000LL;
+		hamBandFreq.frequencyHi = 3500000000LL;
+	}
 	hamBandFreq.hamBand = (HamBand) cm10;
 	hamBandFreq.bandString = "10cm";
-	hamBandFreq.region = (IARURegion) region1;
-
+	hamBandFreq.region = region;
 	hamBandFreqList << hamBandFreq;
 
-	hamBandFreq.frequencyLo = 902000000;
-	hamBandFreq.frequencyHi = 928000000;
+	hamBandFreq.frequencyLo = 5650000000LL;
+	hamBandFreq.frequencyHi = 5925000000LL;
 	hamBandFreq.hamBand = (HamBand) cm5;
 	hamBandFreq.bandString = "5cm";
-	hamBandFreq.region = (IARURegion) region1;
-
+	hamBandFreq.region = region;
 	hamBandFreqList << hamBandFreq;
 
 	hamBandFreq.frequencyLo = 0;
 	hamBandFreq.frequencyHi = 61440000;
 	hamBandFreq.hamBand = (HamBand) gen;
 	hamBandFreq.bandString = "Gen";
-
+	hamBandFreq.region = region;
 	hamBandFreqList << hamBandFreq;
 
 	return hamBandFreqList;
 }
 
-QList<THamBandText> getHamBandText() {
+QList<THamBandText> getHamBandText(IARURegion region) {
 
 	QList<THamBandText> hamBandTextList;
 
@@ -200,7 +195,7 @@ QList<THamBandText> getHamBandText() {
     hamBandText.frequencyLo = 135700;
     hamBandText.frequencyHi = 135800;
     hamBandText.hamBand = (HamBand) m2200;
-    hamBandText.region = (IARURegion) region1;
+    hamBandText.region = region;
     hamBandText.maxBandwith = 200;
     hamBandText.text = "CW only, International DX window";
     hamBandText.shortText = "CW";
@@ -210,7 +205,7 @@ QList<THamBandText> getHamBandText() {
     hamBandText.frequencyLo = 135800;
     hamBandText.frequencyHi = 136000;
     hamBandText.hamBand = (HamBand) m2200;
-    hamBandText.region = (IARURegion) region1;
+    hamBandText.region = region;
     hamBandText.maxBandwith = 200;
     hamBandText.text = "CW only, Test transmissions and beacons";
     hamBandText.shortText = "CW";
@@ -220,7 +215,7 @@ QList<THamBandText> getHamBandText() {
     hamBandText.frequencyLo = 136000;
     hamBandText.frequencyHi = 137400;
     hamBandText.hamBand = (HamBand) m2200;
-    hamBandText.region = (IARURegion) region1;
+    hamBandText.region = region;
     hamBandText.maxBandwith = 200;
     hamBandText.text = "CW only";
     hamBandText.shortText = "CW";
@@ -230,7 +225,7 @@ QList<THamBandText> getHamBandText() {
     hamBandText.frequencyLo = 137400;
     hamBandText.frequencyHi = 137600;
     hamBandText.hamBand = (HamBand) m2200;
-    hamBandText.region = (IARURegion) region1;
+    hamBandText.region = region;
     hamBandText.maxBandwith = 200;
     hamBandText.text = "Narrow band digital modes";
     hamBandText.shortText = "Digital Modes";
@@ -240,7 +235,7 @@ QList<THamBandText> getHamBandText() {
     hamBandText.frequencyLo = 137600;
     hamBandText.frequencyHi = 137800;
     hamBandText.hamBand = (HamBand) m2200;
-    hamBandText.region = (IARURegion) region1;
+    hamBandText.region = region;
     hamBandText.maxBandwith = 200;
     hamBandText.text = "Slow CW, QRSS etc.";
     hamBandText.shortText = "Slow CW";
@@ -250,16 +245,29 @@ QList<THamBandText> getHamBandText() {
     hamBandText.frequencyLo = 472000;
     hamBandText.frequencyHi = 479000;
     hamBandText.hamBand = (HamBand) m630;
-    hamBandText.region = (IARURegion) region1;
+    hamBandText.region = region;
     hamBandText.maxBandwith = 2100;
     hamBandText.text = "CW, Digi and SSB narrow band modes";
     hamBandText.shortText = "Narrow band modes";
 
     hamBandTextList << hamBandText;
+
+    if (region != region1) {
+        hamBandText.frequencyLo = 1800000;
+        hamBandText.frequencyHi = 1810000;
+        hamBandText.hamBand = (HamBand) m160;
+        hamBandText.region = region;
+        hamBandText.maxBandwith = 200;
+        hamBandText.text = "CW, Digital modes";
+        hamBandText.shortText = "CW/Digital";
+        hamBandText.freqTextList.clear();
+        hamBandTextList << hamBandText;
+    }
+
     hamBandText.frequencyLo = 1810000;
 	hamBandText.frequencyHi = 1838000;
 	hamBandText.hamBand = (HamBand) m160;
-	hamBandText.region = (IARURegion) region1;
+	hamBandText.region = region;
 	hamBandText.maxBandwith = 200;
 	hamBandText.text = "CW";
 	hamBandText.shortText = "CW";
@@ -396,12 +404,34 @@ QList<THamBandText> getHamBandText() {
 	hamBandText.frequencyLo = 3775000;
 	hamBandText.frequencyHi = 3800000;
 	hamBandText.hamBand = (HamBand) m80;
-	hamBandText.region = (IARURegion) region1;
+	hamBandText.region = region;
 	hamBandText.maxBandwith = 2700;
 	hamBandText.text = "All modes, priority for intercontinental operation";
 	hamBandText.shortText = "All modes";
 
 	hamBandTextList << hamBandText;
+
+	if (region == region2) {
+		hamBandText.frequencyLo = 3800000;
+		hamBandText.frequencyHi = 4000000;
+		hamBandText.hamBand = (HamBand) m80;
+		hamBandText.region = region;
+		hamBandText.maxBandwith = 2700;
+		hamBandText.text = "All modes, Phone (75m)";
+		hamBandText.shortText = "Phone (75m)";
+		hamBandText.freqTextList.clear();
+		hamBandTextList << hamBandText;
+	} else if (region == region3) {
+		hamBandText.frequencyLo = 3800000;
+		hamBandText.frequencyHi = 3900000;
+		hamBandText.hamBand = (HamBand) m80;
+		hamBandText.region = region;
+		hamBandText.maxBandwith = 2700;
+		hamBandText.text = "All modes, Phone (80m)";
+		hamBandText.shortText = "Phone (80m)";
+		hamBandText.freqTextList.clear();
+		hamBandTextList << hamBandText;
+	}
 
 	hamBandText.frequencyLo = 7000000;
 	hamBandText.frequencyHi = 7040000;
@@ -491,12 +521,24 @@ QList<THamBandText> getHamBandText() {
 	hamBandText.frequencyLo = 7175000;
 	hamBandText.frequencyHi = 7200000;
 	hamBandText.hamBand = (HamBand) m40;
-	hamBandText.region = (IARURegion) region1;
+	hamBandText.region = region;
 	hamBandText.maxBandwith = 2700;
 	hamBandText.text = "All modes, priority for intercontinental operation";
 	hamBandText.shortText = "All modes";
 
 	hamBandTextList << hamBandText;
+
+	if (region != region1) {
+		hamBandText.frequencyLo = 7200000;
+		hamBandText.frequencyHi = 7300000;
+		hamBandText.hamBand = (HamBand) m40;
+		hamBandText.region = region;
+		hamBandText.maxBandwith = 2700;
+		hamBandText.text = "All modes, Phone";
+		hamBandText.shortText = "Phone/All";
+		hamBandText.freqTextList.clear();
+		hamBandTextList << hamBandText;
+	}
 
 	hamBandText.frequencyLo = 10100000;
 	hamBandText.frequencyHi = 10140000;
@@ -1022,25 +1064,208 @@ QList<THamBandText> getHamBandText() {
 	hamBandTextList << hamBandText;
 
     hamBandText.frequencyLo = 50080000;
-    hamBandText.frequencyHi = 53000000;
+    hamBandText.frequencyHi = 52000000;
     hamBandText.hamBand = (HamBand) m6;
-    hamBandText.region = (IARURegion) region1;
+    hamBandText.region = region;
     hamBandText.maxBandwith = 2700;
     hamBandText.text = "All Modes";
     hamBandText.shortText = "All modes";
-
+    hamBandText.freqTextList.clear();
     hamBandTextList << hamBandText;
 
-    hamBandText.frequencyLo = 53000000;
-    hamBandText.frequencyHi = 54000000;
-    hamBandText.hamBand = (HamBand) m6;
-    hamBandText.region = (IARURegion) region1;
-    hamBandText.maxBandwith = 5000;
-    hamBandText.text = "FM Repeaters";
+    if (region != region1) {
+        hamBandText.frequencyLo = 52000000;
+        hamBandText.frequencyHi = 53000000;
+        hamBandText.hamBand = (HamBand) m6;
+        hamBandText.region = region;
+        hamBandText.maxBandwith = 2700;
+        hamBandText.text = "All Modes, Simplex, Digital";
+        hamBandText.shortText = "All modes";
+        hamBandText.freqTextList.clear();
+        hamBandTextList << hamBandText;
+
+        hamBandText.frequencyLo = 53000000;
+        hamBandText.frequencyHi = 54000000;
+        hamBandText.hamBand = (HamBand) m6;
+        hamBandText.region = region;
+        hamBandText.maxBandwith = 5000;
+        hamBandText.text = "FM Repeaters";
+        hamBandText.shortText = "FM Repeaters";
+        hamBandText.freqTextList.clear();
+        hamBandTextList << hamBandText;
+    }
+
+    // 2m
+    hamBandText.frequencyLo = 144000000;
+    hamBandText.frequencyHi = 144100000;
+    hamBandText.hamBand = (HamBand) m2;
+    hamBandText.region = region;
+    hamBandText.maxBandwith = 500;
+    hamBandText.text = "CW, Telegraphy, EME";
+    hamBandText.shortText = "CW/EME";
+    hamBandText.freqTextList.clear();
+    hamBandTextList << hamBandText;
+
+    hamBandText.frequencyLo = 144100000;
+    hamBandText.frequencyHi = 144400000;
+    hamBandText.hamBand = (HamBand) m2;
+    hamBandText.region = region;
+    hamBandText.maxBandwith = 2700;
+    hamBandText.text = "SSB, CW, Telegraphy";
+    hamBandText.shortText = "SSB/CW";
+    hamBandText.freqTextList.clear();
+    hamBandTextList << hamBandText;
+
+    hamBandText.frequencyLo = 144400000;
+    hamBandText.frequencyHi = 144990000;
+    hamBandText.hamBand = (HamBand) m2;
+    hamBandText.region = region;
+    hamBandText.maxBandwith = 500;
+    hamBandText.text = "Propagation Beacons, Digital";
+    hamBandText.shortText = "Beacons/Digi";
+    hamBandText.freqTextList.clear();
+    hamBandTextList << hamBandText;
+
+    hamBandText.frequencyLo = 145000000;
+    hamBandText.frequencyHi = 145800000;
+    hamBandText.hamBand = (HamBand) m2;
+    hamBandText.region = region;
+    hamBandText.maxBandwith = 12500;
+    hamBandText.text = "FM Repeaters, Simplex";
+    hamBandText.shortText = "FM/Repeaters";
+    hamBandText.freqTextList.clear();
+    hamBandTextList << hamBandText;
+
+    hamBandText.frequencyLo = 145800000;
+    hamBandText.frequencyHi = 146000000;
+    hamBandText.hamBand = (HamBand) m2;
+    hamBandText.region = region;
+    hamBandText.maxBandwith = 12500;
+    hamBandText.text = "Amateur Satellite Service";
+    hamBandText.shortText = "Satellite";
+    hamBandText.freqTextList.clear();
+    hamBandTextList << hamBandText;
+
+    if (region != region1) {
+        hamBandText.frequencyLo = 146000000;
+        hamBandText.frequencyHi = 148000000;
+        hamBandText.hamBand = (HamBand) m2;
+        hamBandText.region = region;
+        hamBandText.maxBandwith = 20000;
+        hamBandText.text = "FM Repeaters, Simplex, Digital";
+        hamBandText.shortText = "FM/Repeaters";
+        hamBandText.freqTextList.clear();
+        hamBandTextList << hamBandText;
+    }
+
+    // 1.25m (Region 2 only)
+    if (region == region2) {
+        hamBandText.frequencyLo = 222000000;
+        hamBandText.frequencyHi = 225000000;
+        hamBandText.hamBand = (HamBand) cm125;
+        hamBandText.region = region;
+        hamBandText.maxBandwith = 20000;
+        hamBandText.text = "All modes, FM repeaters, Simplex";
+        hamBandText.shortText = "FM/All";
+        hamBandText.freqTextList.clear();
+        hamBandTextList << hamBandText;
+    }
+
+    // 70cm
+    if (region == region2) {
+        hamBandText.frequencyLo = 420000000;
+        hamBandText.frequencyHi = 430000000;
+        hamBandText.hamBand = (HamBand) cm70;
+        hamBandText.region = region;
+        hamBandText.maxBandwith = 20000;
+        hamBandText.text = "ATV, Repeaters, Experimental";
+        hamBandText.shortText = "ATV/Exp";
+        hamBandText.freqTextList.clear();
+        hamBandTextList << hamBandText;
+    }
+
+    hamBandText.frequencyLo = 430000000;
+    hamBandText.frequencyHi = 440000000;
+    hamBandText.hamBand = (HamBand) cm70;
+    hamBandText.region = region;
+    hamBandText.maxBandwith = 20000;
+    hamBandText.text = "All modes, Simplex, Repeaters, Satellites";
     hamBandText.shortText = "All modes";
-
+    hamBandText.freqTextList.clear();
     hamBandTextList << hamBandText;
 
+    if (region != region1) {
+        hamBandText.frequencyLo = 440000000;
+        hamBandText.frequencyHi = 450000000;
+        hamBandText.hamBand = (HamBand) cm70;
+        hamBandText.region = region;
+        hamBandText.maxBandwith = 20000;
+        hamBandText.text = "FM Repeaters, Simplex, Digital links";
+        hamBandText.shortText = "FM/Repeaters";
+        hamBandText.freqTextList.clear();
+        hamBandTextList << hamBandText;
+    }
+
+    // 33cm (Region 2 only)
+    if (region == region2) {
+        hamBandText.frequencyLo = 902000000;
+        hamBandText.frequencyHi = 928000000;
+        hamBandText.hamBand = (HamBand) cm33;
+        hamBandText.region = region;
+        hamBandText.maxBandwith = 20000;
+        hamBandText.text = "All modes, Weak signal, FM repeaters";
+        hamBandText.shortText = "Weak signal/FM";
+        hamBandText.freqTextList.clear();
+        hamBandTextList << hamBandText;
+    }
+
+    // 23cm
+    hamBandText.frequencyLo = 1240000000LL;
+    hamBandText.frequencyHi = 1300000000LL;
+    hamBandText.hamBand = (HamBand) cm23;
+    hamBandText.region = region;
+    hamBandText.maxBandwith = 20000;
+    hamBandText.text = "All modes, ATV, Weak signal, Satellites";
+    hamBandText.shortText = "All modes";
+    hamBandText.freqTextList.clear();
+    hamBandTextList << hamBandText;
+
+    // 13cm
+    hamBandText.frequencyLo = 2300000000LL;
+    hamBandText.frequencyHi = 2450000000LL;
+    hamBandText.hamBand = (HamBand) cm13;
+    hamBandText.region = region;
+    hamBandText.maxBandwith = 20000;
+    hamBandText.text = "All modes, Amateur satellite, Broadband";
+    hamBandText.shortText = "All modes";
+    hamBandText.freqTextList.clear();
+    hamBandTextList << hamBandText;
+
+    // 10cm
+    hamBandText.frequencyLo = (region == region1) ? 3400000000LL : 3300000000LL;
+    hamBandText.frequencyHi = (region == region1) ? 3475000000LL : 3500000000LL;
+    hamBandText.hamBand = (HamBand) cm10;
+    hamBandText.region = region;
+    hamBandText.maxBandwith = 20000;
+    hamBandText.text = "All modes, Weak signal, Satellites";
+    hamBandText.shortText = "All modes";
+    hamBandText.freqTextList.clear();
+    hamBandTextList << hamBandText;
+
+    // 5cm
+    hamBandText.frequencyLo = 5650000000LL;
+    hamBandText.frequencyHi = 5925000000LL;
+    hamBandText.hamBand = (HamBand) cm5;
+    hamBandText.region = region;
+    hamBandText.maxBandwith = 20000;
+    hamBandText.text = "All modes, Amateur satellite, Broadband";
+    hamBandText.shortText = "All modes";
+    hamBandText.freqTextList.clear();
+    hamBandTextList << hamBandText;
+
+    for (int i = 0; i < hamBandTextList.size(); ++i) {
+        hamBandTextList[i].region = region;
+    }
 
     return hamBandTextList;
 }
@@ -1138,7 +1363,7 @@ QList<TDefaultFilter> getDefaultFilterFrequencies() {
 	return defaultFilters;
 }
 
-QList<QList<THamBandDefaults> > getHamBandDefaults() {
+QList<QList<THamBandDefaults> > getHamBandDefaults(IARURegion region) {
 
 	QList<QList<THamBandDefaults> > hamBandDefaults;
 
@@ -1163,6 +1388,7 @@ QList<QList<THamBandDefaults> > getHamBandDefaults() {
 
 	hamBandDefaults << hamBandDefault;
 
+	hamBandDefault.clear();
 	defaults.hamBand = (HamBand) m80;
 	defaults.dspMode = (DSPMode) CWL;
 	defaults.frequencyLo = 3501000;
@@ -1170,16 +1396,17 @@ QList<QList<THamBandDefaults> > getHamBandDefaults() {
 
 	defaults.hamBand = (HamBand) m80;
 	defaults.dspMode = (DSPMode) LSB;
-	defaults.frequencyLo = 3751000;
+	defaults.frequencyLo = (region == region1) ? 3650000 : 3751000;
 	hamBandDefault << defaults;
 
 	defaults.hamBand = (HamBand) m80;
 	defaults.dspMode = (DSPMode) LSB;
-	defaults.frequencyLo = 3850000;
+	defaults.frequencyLo = (region == region1) ? 3751000 : 3850000;
 	hamBandDefault << defaults;
 
 	hamBandDefaults << hamBandDefault;
 
+	hamBandDefault.clear();
 	defaults.hamBand = (HamBand) m60;
 	defaults.dspMode = (DSPMode) USB;
 	defaults.frequencyLo = 5258500;
@@ -1187,6 +1414,7 @@ QList<QList<THamBandDefaults> > getHamBandDefaults() {
 
 	hamBandDefaults << hamBandDefault;
 
+	hamBandDefault.clear();
 	defaults.hamBand = (HamBand) m40;
 	defaults.dspMode = (DSPMode) CWL;
 	defaults.frequencyLo = 7001000;
@@ -1196,6 +1424,13 @@ QList<QList<THamBandDefaults> > getHamBandDefaults() {
 	defaults.dspMode = (DSPMode) LSB;
 	defaults.frequencyLo = 7152000;
 	hamBandDefault << defaults;
+
+	if (region != region1) {
+		defaults.hamBand = (HamBand) m40;
+		defaults.dspMode = (DSPMode) LSB;
+		defaults.frequencyLo = 7250000;
+		hamBandDefault << defaults;
+	}
 
 	hamBandDefaults << hamBandDefault;
 
@@ -1278,13 +1513,91 @@ QList<QList<THamBandDefaults> > getHamBandDefaults() {
 
     defaults.hamBand = (HamBand) m6;
     defaults.dspMode = (DSPMode) FMN;
-    defaults.frequencyLo = 53000000;
-
+    defaults.frequencyLo = (region == region1) ? 51500000 : 53000000;
     hamBandDefault << defaults;
 
-
-
     hamBandDefaults << hamBandDefault;
+
+	// 2m
+	hamBandDefault.clear();
+	defaults.hamBand = (HamBand) m2;
+	defaults.dspMode = (DSPMode) CWU;
+	defaults.frequencyLo = 144050000;
+	hamBandDefault << defaults;
+
+	defaults.hamBand = (HamBand) m2;
+	defaults.dspMode = (DSPMode) USB;
+	defaults.frequencyLo = 144200000;
+	hamBandDefault << defaults;
+
+	defaults.hamBand = (HamBand) m2;
+	defaults.dspMode = (DSPMode) FMN;
+	defaults.frequencyLo = (region == region1) ? 145500000 : 146520000;
+	hamBandDefault << defaults;
+	hamBandDefaults << hamBandDefault;
+
+	// 1.25m (Region 2 only)
+	if (region == region2) {
+		hamBandDefault.clear();
+		defaults.hamBand = (HamBand) cm125;
+		defaults.dspMode = (DSPMode) CWU;
+		defaults.frequencyLo = 222100000;
+		hamBandDefault << defaults;
+
+		defaults.hamBand = (HamBand) cm125;
+		defaults.dspMode = (DSPMode) USB;
+		defaults.frequencyLo = 222300000;
+		hamBandDefault << defaults;
+
+		defaults.hamBand = (HamBand) cm125;
+		defaults.dspMode = (DSPMode) FMN;
+		defaults.frequencyLo = 223500000;
+		hamBandDefault << defaults;
+		hamBandDefaults << hamBandDefault;
+	}
+
+	// 70cm
+	hamBandDefault.clear();
+	defaults.hamBand = (HamBand) cm70;
+	defaults.dspMode = (DSPMode) USB;
+	defaults.frequencyLo = 432100000;
+	hamBandDefault << defaults;
+
+	defaults.hamBand = (HamBand) cm70;
+	defaults.dspMode = (DSPMode) FMN;
+	defaults.frequencyLo = (region == region1) ? 433500000 : 446000000;
+	hamBandDefault << defaults;
+	hamBandDefaults << hamBandDefault;
+
+	// 33cm (Region 2 only)
+	if (region == region2) {
+		hamBandDefault.clear();
+		defaults.hamBand = (HamBand) cm33;
+		defaults.dspMode = (DSPMode) USB;
+		defaults.frequencyLo = 902100000;
+		hamBandDefault << defaults;
+
+		defaults.hamBand = (HamBand) cm33;
+		defaults.dspMode = (DSPMode) FMN;
+		defaults.frequencyLo = 927500000;
+		hamBandDefault << defaults;
+		hamBandDefaults << hamBandDefault;
+	}
+
+	// 23cm
+	hamBandDefault.clear();
+	defaults.hamBand = (HamBand) cm23;
+	defaults.dspMode = (DSPMode) USB;
+	defaults.frequencyLo = 1296100000LL;
+	hamBandDefault << defaults;
+
+	defaults.hamBand = (HamBand) cm23;
+	defaults.dspMode = (DSPMode) FMN;
+	defaults.frequencyLo = 1294500000LL;
+	hamBandDefault << defaults;
+	hamBandDefaults << hamBandDefault;
+
+	hamBandDefault.clear();
 
 	defaults.hamBand = (HamBand) gen;
 	defaults.dspMode = (DSPMode) SAM;

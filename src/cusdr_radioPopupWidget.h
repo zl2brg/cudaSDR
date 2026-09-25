@@ -49,6 +49,7 @@ public:
 
 	// MVC View Interface Setters
 	void setSingleAdcDevice(bool single);
+	void setIARURegion(IARURegion region);
 	void setBandFrequencyList(const QList<THamBandFrequencies>& list);
 	void setHamBand(HamBand band);
 	void setDSPModeList(const QList<DSPMode>& list);
@@ -342,6 +343,7 @@ private:
 	QList<DSPMode>		m_dspModeList;
 
 	HamBand				m_hamBand;
+	IARURegion			m_iaruRegion;
 	ADCMode				m_adcMode;
 	AGCMode				m_agcMode;
 	TDefaultFilterMode	m_filterMode;

@@ -248,6 +248,20 @@
            </widget>
           </item>
           <item>
+           <layout class="QHBoxLayout" name="regionHLayout">
+            <item>
+             <widget class="QLabel" name="regionLabel">
+              <property name="text">
+               <string>IARU Region:</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QComboBox" name="iaruRegionCombo"/>
+            </item>
+           </layout>
+          </item>
+          <item>
            <widget class="QCheckBox" name="iqBalanceCheck">
             <property name="text">
              <string>IQ balance correction (TX sideband suppression)</string>

@@ -42,6 +42,7 @@ public:
 	void	setPanDetectorMode(PanDetectorMode mode);
 	void	setfftSize(int size);
 	void	setfmsqLevel(int val);
+	void	setCallsignEditorVisible(bool visible);
 
 	int		currentReceiver() const { return m_currentReceiver; }
 

@@ -259,9 +259,9 @@ Settings::Settings(QObject *parent)
     m_rxJ6pinList = m_pennyConfig->rxJ6();
     m_txJ6pinList = m_pennyConfig->txJ6();
 
-
-    m_bandList = getHamBandFrequencies();
-    m_bandTextList = getHamBandText();
+    m_iaruRegion = region1;
+    m_bandList = getHamBandFrequencies(m_iaruRegion);
+    m_bandTextList = getHamBandText(m_iaruRegion);
     m_defaultFilterList = getDefaultFilterFrequencies();
 
     m_transmitter.txAllowed = false;
@@ -285,6 +285,10 @@ int Settings::loadSettings() {
     //while (str.endsWith('\"')) str = str.left(str.length() - 1).trimmed();
 
     m_callsignString = str;
+
+    int regionVal = settings->value("radio/iaruRegion", settings->value("user/iaruRegion", 0)).toInt();
+    if (regionVal < 0 || regionVal > 2) regionVal = 0;
+    setIARURegion(static_cast<IARURegion>(regionVal));
 
     // Window settings
     m_windowConfig->loadIni(settings);
@@ -1198,6 +1202,7 @@ int Settings::saveSettings() {
     settings->setValue("saved",
                        QDateTime::currentDateTime().toString("dddd dd MMMM yyyy hh:mm:ss"));// << " local time\n\n");
     settings->setValue("user/callSign", m_callsignString);
+    settings->setValue("radio/iaruRegion", static_cast<int>(m_iaruRegion));
 
     // window settings
     m_windowConfig->saveIni(settings);
@@ -2970,6 +2975,17 @@ void Settings::checkHPSDRDevices() {
     }
 }
 
+
+void Settings::setIARURegion(IARURegion region) {
+    {
+        QWriteLocker locker(&m_dataRwLock);
+        if (m_iaruRegion == region) return;
+        m_iaruRegion = region;
+        m_bandList = getHamBandFrequencies(region);
+        m_bandTextList = getHamBandText(region);
+    }
+    emit iaruRegionChanged(region);
+}
 
 void Settings::setHPSDRHardware(int value) {
 
@@ -5478,6 +5494,11 @@ void Settings::syncTransmitWithSettings() {
     tx->setTxFilterLow(m_transmitConfig->txFilterLow());
     tx->setTxFilterHigh(m_transmitConfig->txFilterHigh());
     tx->setTxUseRxFilter(m_transmitConfig->txUseRxFilter());
+    tx->setSpectralPaintAutoTail(m_transmitConfig->spectralPaintAutoTail());
+    tx->setSpectralPaintText(m_transmitConfig->spectralPaintText());
+    tx->setSpectralPaintDurationMs(m_transmitConfig->spectralPaintDurationMs());
+    tx->setSpectralPaintLowHz(m_transmitConfig->spectralPaintLowHz());
+    tx->setSpectralPaintHighHz(m_transmitConfig->spectralPaintHighHz());
 }
 
 void Settings::syncSettingsWithTransmit() {
@@ -5512,6 +5533,11 @@ void Settings::syncSettingsWithTransmit() {
     m_transmitConfig->setTxFilterLow(tx->txFilterLow());
     m_transmitConfig->setTxFilterHigh(tx->txFilterHigh());
     m_transmitConfig->setTxUseRxFilter(tx->txUseRxFilter());
+    m_transmitConfig->setSpectralPaintAutoTail(tx->spectralPaintAutoTail());
+    m_transmitConfig->setSpectralPaintText(tx->spectralPaintText());
+    m_transmitConfig->setSpectralPaintDurationMs(tx->spectralPaintDurationMs());
+    m_transmitConfig->setSpectralPaintLowHz(tx->spectralPaintLowHz());
+    m_transmitConfig->setSpectralPaintHighHz(tx->spectralPaintHighHz());
     m_cwConfig->setKeyerMode(tx->cwKeyerMode());
     m_cwConfig->setInternalCw(tx->internalCw() ? 1 : 0);
     m_cwConfig->setKeyReversed(tx->cwKeyReversed() ? 1 : 0);
@@ -5758,4 +5784,84 @@ void Settings::setTxUseRxFilter(bool enabled)
         tx->setTxUseRxFilter(enabled);
     m_transmitConfig->setTxUseRxFilter(enabled);
     emit txUseRxFilterChanged(enabled);
+}
+
+bool Settings::getSpectralPaintAutoTail() const
+{
+    if (const TransmitModel* tx = transmitModel())
+        return tx->spectralPaintAutoTail();
+    return m_transmitConfig->spectralPaintAutoTail();
+}
+
+void Settings::setSpectralPaintAutoTail(bool enabled)
+{
+    if (TransmitModel* tx = transmitModel())
+        tx->setSpectralPaintAutoTail(enabled);
+    m_transmitConfig->setSpectralPaintAutoTail(enabled);
+    emit spectralPaintAutoTailChanged(enabled);
+}
+
+QString Settings::getSpectralPaintText() const
+{
+    if (const TransmitModel* tx = transmitModel())
+        return tx->spectralPaintText();
+    return m_transmitConfig->spectralPaintText();
+}
+
+void Settings::setSpectralPaintText(const QString &text)
+{
+    if (TransmitModel* tx = transmitModel())
+        tx->setSpectralPaintText(text);
+    m_transmitConfig->setSpectralPaintText(text);
+    emit spectralPaintTextChanged(text);
+}
+
+int Settings::getSpectralPaintDurationMs() const
+{
+    if (const TransmitModel* tx = transmitModel())
+        return tx->spectralPaintDurationMs();
+    return m_transmitConfig->spectralPaintDurationMs();
+}
+
+void Settings::setSpectralPaintDurationMs(int ms)
+{
+    if (TransmitModel* tx = transmitModel())
+        tx->setSpectralPaintDurationMs(ms);
+    m_transmitConfig->setSpectralPaintDurationMs(ms);
+    emit spectralPaintDurationMsChanged(ms);
+}
+
+int Settings::getSpectralPaintLowHz() const
+{
+    if (const TransmitModel* tx = transmitModel())
+        return tx->spectralPaintLowHz();
+    return m_transmitConfig->spectralPaintLowHz();
+}
+
+void Settings::setSpectralPaintLowHz(int hz)
+{
+    if (TransmitModel* tx = transmitModel())
+        tx->setSpectralPaintLowHz(hz);
+    m_transmitConfig->setSpectralPaintLowHz(hz);
+    emit spectralPaintLowHzChanged(hz);
+}
+
+int Settings::getSpectralPaintHighHz() const
+{
+    if (const TransmitModel* tx = transmitModel())
+        return tx->spectralPaintHighHz();
+    return m_transmitConfig->spectralPaintHighHz();
+}
+
+void Settings::setSpectralPaintHighHz(int hz)
+{
+    if (TransmitModel* tx = transmitModel())
+        tx->setSpectralPaintHighHz(hz);
+    m_transmitConfig->setSpectralPaintHighHz(hz);
+    emit spectralPaintHighHzChanged(hz);
+}
+
+void Settings::requestSpectralPaint()
+{
+    emit spectralPaintRequested();
 }

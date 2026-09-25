@@ -59,11 +59,17 @@ HPSDRWidget::HPSDRWidget(QWidget *parent)
 	hbox5->setContentsMargins(4, 0, 4, 0);
 	hbox5->addWidget(numberOfReceiversGroup());
 
+	QHBoxLayout *hbox6 = new QHBoxLayout();
+	hbox6->setSpacing(0);
+	hbox6->setContentsMargins(4, 0, 4, 0);
+	hbox6->addWidget(stationGroup());
+
 	mainLayout->addLayout(hbox1);
 	mainLayout->addLayout(hbox2);
 	mainLayout->addLayout(hbox3);
 	mainLayout->addLayout(hbox4);
 	mainLayout->addLayout(hbox5);
+	mainLayout->addLayout(hbox6);
 	mainLayout->addStretch();
 	setLayout(mainLayout);
 
@@ -464,6 +470,70 @@ QGroupBox *HPSDRWidget::numberOfReceiversGroup() {
 	return m_numberOfReceiversGroupBox;
 }
 
+QGroupBox *HPSDRWidget::stationGroup() {
+	m_callsignLabel = new QLabel(tr("Call Sign:"), this);
+	m_callsignLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
+
+	m_callsignLineEdit = new QLineEdit(this);
+	m_callsignLineEdit->setPlaceholderText(tr("Call Sign"));
+	m_callsignLineEdit->setFixedHeight(btn_height);
+
+	m_setCallsignBtn = new AeroButton(tr("Set"), this);
+	m_setCallsignBtn->setRoundness(0);
+	m_setCallsignBtn->setFixedSize(btn_widths, btn_height);
+
+	CHECKED_CONNECT(
+		m_setCallsignBtn,
+		&AeroButton::clicked,
+		this,
+		&HPSDRWidget::callsignSetClicked);
+
+	CHECKED_CONNECT(
+		m_callsignLineEdit,
+		&QLineEdit::returnPressed,
+		this,
+		&HPSDRWidget::callsignSetClicked);
+
+	QHBoxLayout *callsignHBox = new QHBoxLayout();
+	callsignHBox->setSpacing(5);
+	callsignHBox->addWidget(m_callsignLabel);
+	callsignHBox->addWidget(m_callsignLineEdit);
+	callsignHBox->addWidget(m_setCallsignBtn);
+
+	QLabel *regionLabel = new QLabel(tr("IARU Region:"), this);
+	regionLabel->setFrameStyle(QFrame::Box | QFrame::Raised);
+
+	m_regionComboBox = new QComboBox(this);
+	m_regionComboBox->addItem(tr("Region 1 (Europe, Africa, Northern Asia)"), static_cast<int>(region1));
+	m_regionComboBox->addItem(tr("Region 2 (Americas)"), static_cast<int>(region2));
+	m_regionComboBox->addItem(tr("Region 3 (Asia-Pacific)"), static_cast<int>(region3));
+	m_regionComboBox->setFixedHeight(btn_height);
+
+	CHECKED_CONNECT(
+		m_regionComboBox,
+		&QComboBox::currentIndexChanged,
+		this,
+		&HPSDRWidget::regionComboBoxChanged);
+
+	QHBoxLayout *regionHBox = new QHBoxLayout();
+	regionHBox->setSpacing(5);
+	regionHBox->addWidget(regionLabel);
+	regionHBox->addWidget(m_regionComboBox);
+
+	QVBoxLayout *vbox = new QVBoxLayout();
+	vbox->setSpacing(6);
+	vbox->setContentsMargins(4, 6, 4, 6);
+	vbox->addLayout(callsignHBox);
+	vbox->addLayout(regionHBox);
+
+	m_stationGroupBox = new QGroupBox(tr("Station & Region Configuration"), this);
+	m_stationGroupBox->setMinimumWidth(m_minimumGroupBoxWidth);
+	m_stationGroupBox->setLayout(vbox);
+	m_stationGroupBox->setFont(QFont("Arial", 8));
+
+	return m_stationGroupBox;
+}
+
 void HPSDRWidget::setHwInterface(QSDR::_HWInterfaceMode mode) {
 	if (m_hwInterface != mode) {
 		m_hwInterface = mode;
@@ -729,6 +799,33 @@ void HPSDRWidget::sampleRateChanged() {
 
 void HPSDRWidget::receiverComboBoxChanged(int index) {
 	emit numberOfReceiversRequested(index + 1);
+}
+
+void HPSDRWidget::setIARURegion(IARURegion region) {
+	if (!m_regionComboBox) return;
+	m_regionComboBox->blockSignals(true);
+	int idx = m_regionComboBox->findData(static_cast<int>(region));
+	if (idx >= 0) {
+		m_regionComboBox->setCurrentIndex(idx);
+	}
+	m_regionComboBox->blockSignals(false);
+}
+
+void HPSDRWidget::setCallsign(const QString &callsign) {
+	if (!m_callsignLineEdit) return;
+	const QSignalBlocker blocker(m_callsignLineEdit);
+	m_callsignLineEdit->setText(callsign);
+}
+
+void HPSDRWidget::regionComboBoxChanged(int index) {
+	if (index < 0 || !m_regionComboBox) return;
+	IARURegion reg = static_cast<IARURegion>(m_regionComboBox->itemData(index).toInt());
+	emit iaruRegionRequested(reg);
+}
+
+void HPSDRWidget::callsignSetClicked() {
+	if (!m_callsignLineEdit) return;
+	emit callsignRequested(m_callsignLineEdit->text().trimmed());
 }
 
 void HPSDRWidget::setDataEngineRunning(bool running) {

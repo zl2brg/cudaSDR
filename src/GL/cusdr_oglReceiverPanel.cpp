@@ -409,6 +409,7 @@ void QGLReceiverPanel::setupConnections() {
     connect(set, &Settings::systemStateChanged,          this, &QGLReceiverPanel::systemStateChanged);
     connect(set, &Settings::freqRulerPositionChanged,    this, &QGLReceiverPanel::freqRulerPositionChanged);
     connect(set, &Settings::hamBandChanged,              this, &QGLReceiverPanel::setHamBand);
+    connect(set, &Settings::iaruRegionChanged,           this, qOverload<>(&QGLReceiverPanel::update));
     connect(set, &Settings::currentReceiverChanged,      this, &QGLReceiverPanel::setCurrentReceiver);
     connect(set, &Settings::sampleRateChanged,           this, &QGLReceiverPanel::sampleRateChanged);
     CHECKED_CONNECT(set, &Settings::spectrumBufferChanged, this, &QGLReceiverPanel::setSpectrumBuffer);

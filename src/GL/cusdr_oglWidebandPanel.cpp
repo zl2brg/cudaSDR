@@ -226,6 +226,9 @@ void QGLWidebandPanel::setupConnections() {
     connect(set, &Settings::mercuryAttenuatorChanged,
             this, &QGLWidebandPanel::setMercuryAttenuator);
 
+    connect(set, &Settings::iaruRegionChanged,
+            this, qOverload<>(&QGLWidebandPanel::update));
+
     // Uncomment if needed
     // connect(set, &Settings::spectrumAveragingCntChanged,
     //         this, &QGLWidebandPanel::setSpectrumAvera
@@ -347,22 +350,21 @@ void QGLWidebandPanel::paintGL() {
 
             if (m_panGrid)
                     drawGrid();
-//#todo use ham database
-				// Ham band information
-				drawHamBand(1810000, 2000000, "160m");
-				drawHamBand(3500000, 3800000, "80m");
-				drawHamBand(5258500, 5403500, "60m");
-				drawHamBand(7000000, 7300000, "40m");
-				drawHamBand(10100000, 10150000, "30m");
-				drawHamBand(14000000, 14350000, "20m");
-				drawHamBand(18068000, 18168000, "17m");
-				drawHamBand(21000000, 21450000, "15m");
-				drawHamBand(24890000, 24990000, "12m");
-				drawHamBand(28000000, 29700000, "10m");
-				drawHamBand(50000000, 54000000, "6m");
+				// Ham band information from ham database
+				const auto bandList = set->getBandFrequencyList();
+				for (const auto &band : bandList) {
+					if (band.hamBand != gen && band.frequencyHi > band.frequencyLo && band.frequencyHi <= 61440000) {
+						drawHamBand(band.frequencyLo, band.frequencyHi, band.bandString);
+					}
+				}
 
-                //glColor4f(QColor(255, 255, 255, 130));
-				//m_oglTextSmall->renderFreqText(m_panRect.right() - 100, m_panRect.top(), 5.0f, "Region 1");
+				if (m_oglTextSmall) {
+					const QString regStr = getIARURegionString(set->getIARURegion());
+					const QFontMetrics fm = m_oglTextSmall->fontMetrics();
+					const float tx = float(m_panRect.right() - fm.horizontalAdvance(regStr) - 10);
+					const float ty = float(m_panRect.top() + fm.height() + 5);
+					m_oglTextSmall->renderText(panelProjection(), tx, ty, regStr, QColor(255, 255, 255, 180));
+				}
 
 				if (m_mouseRegion == panRegion && m_crossHairCursor)
 					drawCrossHair();

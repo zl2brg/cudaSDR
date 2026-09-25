@@ -42,6 +42,16 @@ typedef enum _iaruRegion {
 #include <QDebug>
 Q_DECLARE_METATYPE (_iaruRegion)
 
+inline QString getIARURegionString(IARURegion region) {
+    switch (region) {
+    case region1: return QStringLiteral("Region 1");
+    case region2: return QStringLiteral("Region 2");
+    case region3: return QStringLiteral("Region 3");
+    default: return QStringLiteral("Region 1");
+    }
+}
+
+
 typedef enum _hamBand {
 
   m2200,        //  0
@@ -185,10 +195,10 @@ typedef struct _hamBandDefaults {
 
 
 // Ham database query and table accessor functions
-QList<THamBandFrequencies> getHamBandFrequencies();
-QList<THamBandText> getHamBandText();
+QList<THamBandFrequencies> getHamBandFrequencies(IARURegion region = region1);
+QList<THamBandText> getHamBandText(IARURegion region = region1);
 QList<TDefaultFilter> getDefaultFilterFrequencies();
-QList<QList<THamBandDefaults> > getHamBandDefaults();
+QList<QList<THamBandDefaults> > getHamBandDefaults(IARURegion region = region1);
 
 HamBand getBandFromFrequency(const QList<THamBandFrequencies> &bandList, qint64 frequency);
 TDefaultFilter getFilterFromDSPMode(const QList<TDefaultFilter> &filterList, DSPMode mode);

@@ -2,6 +2,7 @@
 #define CUSDR_RADIOSETTINGSWIDGET_H
 
 #include <QDialog>
+#include "cusdr_hamDatabase.h"
 
 namespace Ui {
 class cusdr_radioSettingsWidget;
@@ -30,11 +31,13 @@ public:
     void setAntennaList(const QStringList& list, const QString& active);
     void setTxAntennaList(const QStringList& list, const QString& active);
     void updateGainGroupVisibility(const QString& hardwareKey);
+    void setIARURegion(IARURegion region);
 #endif
 
 signals:
 #ifdef HAVE_SOAPYSDR
     // MVC View Interface Signals
+    void iaruRegionRequested(IARURegion region);
     void txFullDuplexRequested(bool enabled);
     void soapyIQBalanceRequested(bool enabled);
     void soapyAutoCalibrateRequested(bool enabled);
@@ -53,6 +56,7 @@ private slots:
 #ifdef HAVE_SOAPYSDR
     // Internal UI wiring slots
     void onFullDuplexToggled(bool enabled);
+    void onRegionComboChanged(int index);
     void onIQBalanceToggled(bool enabled);
     void onAutoCalToggled(bool enabled);
     void onAntennaComboChanged(int index);

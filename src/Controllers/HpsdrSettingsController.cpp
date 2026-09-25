@@ -30,6 +30,8 @@ void HpsdrSettingsController::bind(HPSDRWidget* view, Settings* model)
     m_view->setAlexPresence(m_model->getAlexPresence());
     m_view->setExcaliburPresence(m_model->getExcaliburPresence());
     m_view->setCurrentMetisCard(m_model->getCurrentMetisCard());
+    m_view->setCallsign(m_model->getCallsign());
+    m_view->setIARURegion(m_model->getIARURegion());
     m_view->setDataEngineRunning(m_model->getDataEngineState() == QSDR::DataEngineUp);
 
     auto normalizeHermesHardware = [this](int hw) {
@@ -124,7 +126,31 @@ void HpsdrSettingsController::bind(HPSDRWidget* view, Settings* model)
         }
     });
 
+    connect(m_view, &HPSDRWidget::callsignRequested, this, [this](const QString &cs) {
+        if (m_model) {
+            m_model->setCallsign(cs);
+            m_model->saveSettings();
+        }
+    });
+
+    connect(m_view, &HPSDRWidget::iaruRegionRequested, this, [this](IARURegion region) {
+        if (m_model) {
+            m_model->setIARURegion(region);
+            m_model->saveSettings();
+        }
+    });
+
     // --- 3. Model -> View (Model update notifications) ---
+    connect(m_model, &Settings::callsignChanged, this, [this]() {
+        if (m_view && m_model) {
+            m_view->setCallsign(m_model->getCallsign());
+        }
+    });
+
+    connect(m_model, &Settings::iaruRegionChanged, this, [this](IARURegion region) {
+        m_view->setIARURegion(region);
+    });
+
     connect(m_model, &Settings::systemStateChanged, this, [this](QSDR::_Error, QSDR::_HWInterfaceMode mode, QSDR::_ServerMode, QSDR::_DataEngineState state) {
         m_view->setHwInterface(mode);
         // Re-apply device card so 768/1536 enablement tracks protocol after interface changes.

@@ -21,6 +21,7 @@ void RadioSettingsController::bind(cusdr_radioSettingsWidget* view, Settings* mo
 
     // --- 1. Initialize View state from Model ---
     m_view->setTxFullDuplex(m_model->getTxFullDuplex());
+    m_view->setIARURegion(m_model->getIARURegion());
     m_view->setSoapyIQBalance(m_model->getSoapyIQBalance());
     m_view->setSoapyAutoCalibrate(m_model->getSoapyAutoCalibrate());
     m_view->setSoapyLnaGain(m_model->getSoapyLnaGain());
@@ -33,6 +34,13 @@ void RadioSettingsController::bind(cusdr_radioSettingsWidget* view, Settings* mo
     m_view->updateGainGroupVisibility(m_model->getSoapyHardwareKey());
 
     // --- 2. View -> Model (User interaction events) ---
+    connect(m_view, &cusdr_radioSettingsWidget::iaruRegionRequested, this, [this](IARURegion reg) {
+        if (m_model) {
+            m_model->setIARURegion(reg);
+            m_model->saveSettings();
+        }
+    });
+
     connect(m_view, &cusdr_radioSettingsWidget::txFullDuplexRequested, this, [this](bool enabled) {
         if (m_model->getTxFullDuplex() != enabled) {
             m_model->setTxFullDuplex(enabled);
@@ -88,6 +96,10 @@ void RadioSettingsController::bind(cusdr_radioSettingsWidget* view, Settings* mo
     });
 
     // --- 3. Model -> View (Model update notifications) ---
+    connect(m_model, &Settings::iaruRegionChanged, this, [this](IARURegion reg) {
+        m_view->setIARURegion(reg);
+    });
+
     connect(m_model, &Settings::txFullDuplexChanged, this, [this](bool enabled) {
         m_view->setTxFullDuplex(enabled);
     });

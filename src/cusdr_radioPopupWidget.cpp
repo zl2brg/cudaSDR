@@ -167,6 +167,7 @@ RadioPopupWidget::RadioPopupWidget(SliceModel *model, QWidget *parent)
     m_popupAgcWidget = new AGCOptionsWidget(this);
     m_noiseFilterWidget = new NoiseFilterWidget(this);
     m_popupDisplayWidget = new DisplayOptionsWidget(nullptr, this);
+    m_popupDisplayWidget->setCallsignEditorVisible(false);
 
     QScrollArea *dispScroll = new QScrollArea(this);
     dispScroll->setWidget(m_popupDisplayWidget);
@@ -2449,6 +2450,26 @@ void RadioPopupWidget::setSingleAdcDevice(bool single) {
     m_singleAdcDevice = single;
     if (adc2Btn) {
         adc2Btn->setEnabled(!single);
+    }
+}
+
+void RadioPopupWidget::setIARURegion(IARURegion region) {
+    m_iaruRegion = region;
+    const bool has125cm = (region == region2);
+    const bool has33cm = (region == region2);
+    if (band125cmBtn) {
+        band125cmBtn->setEnabled(has125cm);
+        if (!has125cm && m_hamBand == cm125) {
+            band125cmBtn->setBtnState(AeroButton::OFF);
+            band125cmBtn->update();
+        }
+    }
+    if (band33cmBtn) {
+        band33cmBtn->setEnabled(has33cm);
+        if (!has33cm && m_hamBand == cm33) {
+            band33cmBtn->setBtnState(AeroButton::OFF);
+            band33cmBtn->update();
+        }
     }
 }
 

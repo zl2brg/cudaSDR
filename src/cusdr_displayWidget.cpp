@@ -611,6 +611,12 @@ void DisplayOptionsWidget::setCallsign(const QString& callsign) {
 	callSignLineEdit->setText(callsign);
 }
 
+void DisplayOptionsWidget::setCallsignEditorVisible(bool visible) {
+	if (m_callSignEditor) {
+		m_callSignEditor->setVisible(visible);
+	}
+}
+
 void DisplayOptionsWidget::setPanadapterMode(PanGraphicsMode mode) {
 	if (mode != m_panadapterMode) {
 		foreach(AeroButton *btn, m_panadapterBtnList) {
