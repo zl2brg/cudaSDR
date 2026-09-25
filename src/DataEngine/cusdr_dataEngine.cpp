@@ -57,6 +57,7 @@ extern double cwramp48[];		// see cwramp.c, for 48 kHz sample rate
 #include "SoapySDRDataSource.h"
 #include "CProtocol1.h"
 #include "CProtocol2.h"
+#include "AudioEngine/SpectralPainter.h"
 #ifdef HAVE_CODEC2
 extern "C" {
 #define COMP FREEDV_COMP
@@ -261,6 +262,9 @@ DataEngine::DataEngine(RadioModel *model, QObject *parent)
 	m_audioOutProcessor= nullptr;
     m_audioInput= nullptr;
     m_cwIO = nullptr;
+    m_spectralPainter = new SpectralPainter(this);
+    connect(m_spectralPainter, &SpectralPainter::paintStarted, this, &DataEngine::spectralPaintStarted);
+    connect(m_spectralPainter, &SpectralPainter::paintFinished, this, &DataEngine::onSpectralPaintFinished);
 	//m_wbAverager= nullptr;
 	set->setMercuryVersion(0);
 	set->setPenelopeVersion(0);
@@ -378,6 +382,14 @@ void DataEngine::setupConnections() {
 		connect(this, &DataEngine::rcveIQEvent,
 		        m_radioModel->telemetry(), &RadioTelemetry::setRcveIQ);
 	}
+
+	CHECKED_CONNECT(
+		set,
+		&Settings::spectralPaintRequested,
+		this,
+		[this]() {
+			startSpectralPaint(false, set ? (set->getRadioState() == RadioState::RX) : true);
+		});
 
 	CHECKED_CONNECT(
 		set,
@@ -2435,7 +2447,13 @@ void DataProcessor::fetch_MicData(){
     // silent TX (room-noise ~-40 dBFS) whenever a net block was not ready.
     // Chrono stops on RX, so a leftover lock cannot mute a later local PTT.
     const DSPMode txMode = set->getDSPMode(de->currentReceiver);
-    if (de->m_audioInput) {
+    if (de->m_spectralPainter && de->m_spectralPainter->isActive()) {
+        // While spectral painting is active, direct complex baseband I/Q synthesis
+        // is routed directly into m_iq_output_buffer in get_tx_iqData().
+        // Mic audio is muted so room noise does not corrupt the painted transmission.
+        numSamples = 0;
+        gotAudio = false;
+    } else if (de->m_audioInput) {
         const TciServer *tci = set ? set->tciServer() : nullptr;
         const bool networkMicOnly = (tci && tci->isTxChronoActive())
             || de->m_audioInput->hasPendingNetAudio();
@@ -2493,7 +2511,7 @@ void DataProcessor::fetch_MicData(){
         memset(&mic_buffer,0x0,sizeof(mic_buffer));
         
         static int emptyCount = 0;
-        if (txDiagEnabled() && ++emptyCount % 200 == 1) {
+        if (!(de->m_spectralPainter && de->m_spectralPainter->isActive()) && txDiagEnabled() && ++emptyCount % 200 == 1) {
             const int micIndex = set->getMicInputDev();
             const QString micName = set->getMicInputSourceName();
             const int digitalIndex = set->getDigitalAudioInputDev();
@@ -2547,7 +2565,16 @@ void DataProcessor::get_tx_iqData(){
     }
 
     if (set->is_transmitting()) {
-        de->TX.process(mic_buffer, (double *) m_iq_output_buffer.data(), error);
+        if (de->m_spectralPainter && de->m_spectralPainter->isActive()) {
+            size_t n = de->m_spectralPainter->readIqSamples(m_iq_output_buffer.data(), DSP_SAMPLE_SIZE);
+            for (size_t i = n; i < static_cast<size_t>(DSP_SAMPLE_SIZE); ++i) {
+                m_iq_output_buffer[i].re = 0.0;
+                m_iq_output_buffer[i].im = 0.0;
+            }
+            error = 0;
+        } else {
+            de->TX.process(mic_buffer, (double *) m_iq_output_buffer.data(), error);
+        }
         int iqNonFinite = 0;
         for (int i = 0; i < m_iq_output_buffer.size(); ++i) {
             if (!std::isfinite(m_iq_output_buffer[i].re)) {
@@ -3218,6 +3245,10 @@ void DataEngine::radioStateChange(RadioState state) {
         }
     } else {
         txParams().mox = false;
+        if (m_spectralPainter && m_spectralPainter->isActive()) {
+            m_spectralPainter->stop();
+        }
+        m_spectralPaintManualTx = false;
         if (m_audioInput) {
             m_audioInput->Stop();
             m_audioInput->clearTxQueues();
@@ -3346,6 +3377,67 @@ void DataProcessor::key_down_test(int dummy,int state) {
         de->cw_key_down = 0;
     }
 }
+
+bool DataEngine::isSpectralPaintActive() const {
+    return m_spectralPainter && m_spectralPainter->isActive();
+}
+
+bool DataEngine::startSpectralPaint(bool isAutoTail, bool manualTx) {
+    if (!m_spectralPainter)
+        return false;
+
+    QString text = set ? set->getSpectralPaintText().trimmed() : QString();
+    const QString callsign = set ? set->getCallsign().trimmed() : QString();
+    if (text.isEmpty()) {
+        text = callsign;
+    }
+    if (text.isEmpty()) {
+        text = QStringLiteral("NOCALL");
+    }
+
+    const int durMs = set ? set->getSpectralPaintDurationMs() : 2000;
+    const float lowHz = set ? static_cast<float>(set->getSpectralPaintLowHz()) : 600.0f;
+    const float highHz = set ? static_cast<float>(set->getSpectralPaintHighHz()) : 2400.0f;
+
+    const DSPMode txMode = set ? set->getDSPMode(currentReceiver) : USB;
+    const bool isLsb = (txMode == LSB || txMode == DIGL || txMode == CWL);
+
+    m_spectralPainter->setDurationMs(durMs);
+    m_spectralPainter->setFrequencyRange(lowHz, highHz);
+    m_spectralPainter->setCustomText(text);
+    m_spectralPainter->setInvertFrequency(isLsb);
+
+    m_spectralPaintManualTx = manualTx;
+
+    if (manualTx && set && set->getRadioState() != RadioState::MOX) {
+        set->setRadioState(RadioState::MOX);
+    }
+
+    return m_spectralPainter->start(isAutoTail, text, callsign, isLsb);
+}
+
+void DataEngine::cancelSpectralPaint() {
+    if (m_spectralPainter && m_spectralPainter->isActive()) {
+        m_spectralPainter->stop();
+    }
+    if (m_spectralPaintManualTx) {
+        m_spectralPaintManualTx = false;
+        if (set && set->getRadioState() != RadioState::RX) {
+            set->setRadioState(RadioState::RX);
+        }
+    }
+}
+
+void DataEngine::onSpectralPaintFinished(bool wasAutoTail) {
+    emit spectralPaintFinished(wasAutoTail);
+    if (wasAutoTail || m_spectralPaintManualTx) {
+        m_spectralPaintManualTx = false;
+        if (set && set->getRadioState() != RadioState::RX) {
+            set->setRadioState(RadioState::RX);
+        }
+    }
+}
+
 #if defined(__clang__)
 #pragma clang diagnostic pop
 #endif

@@ -172,7 +172,14 @@ void CProtocol1::decodeCCBytes(const QByteArray& buffer, DataEngine* de) {
 	de->ccRx.lt2208 = (bool)((buffer.at(1) & 0x01) == 0x01);
 
     if (ptt != prev_ptt && set) {
-        set->setRadioState(ptt ? RadioState::MOX : RadioState::RX);
+        if (!ptt && set->getSpectralPaintAutoTail() && de && de->startSpectralPaint(true)) {
+            // Auto-tail active; radio stays in MOX until painter completes
+        } else {
+            if (ptt && de && de->isSpectralPaintActive()) {
+                de->cancelSpectralPaint();
+            }
+            set->setRadioState(ptt ? RadioState::MOX : RadioState::RX);
+        }
     }
 
     // Always feed the iambic thread — it drives host sidetone via cw_sidetone_down.

@@ -190,6 +190,28 @@ void MainWindow::setupConnections() {
 	        this,
 	        &MainWindow::radioStateChange);
 
+	CHECKED_CONNECT(
+		m_dataEngine,
+		&DataEngine::spectralPaintStarted,
+		this,
+		[this](bool) {
+			if (ui && ui->paintBtn) {
+				ui->paintBtn->setBtnState(AeroButton::ON);
+				ui->paintBtn->repaint();
+			}
+		});
+
+	CHECKED_CONNECT(
+		m_dataEngine,
+		&DataEngine::spectralPaintFinished,
+		this,
+		[this](bool) {
+			if (ui && ui->paintBtn) {
+				ui->paintBtn->setBtnState(AeroButton::OFF);
+				ui->paintBtn->repaint();
+			}
+		});
+
 
 
 
@@ -709,6 +731,7 @@ void MainWindow::systemStateChanged(
 	ui->modeBtn->setEnabled(m_dataEngineState == QSDR::DataEngineDown);
 	ui->moxBtn->setEnabled(m_hwInterface == QSDR::Hermes);
 	ui->tunBtn->setEnabled(m_hwInterface == QSDR::Hermes);
+	ui->paintBtn->setEnabled(m_hwInterface == QSDR::Hermes);
     ui->plusRxBtn->setEnabled(m_dataEngineState == QSDR::DataEngineUp);
 
 
@@ -1310,6 +1333,7 @@ void MainWindow::setTxAllowed(bool value) {
         // Keep buttons enabled in Soapy mode so TUNE/MOX control remains usable.
         ui->moxBtn->setEnabled(true);
         ui->tunBtn->setEnabled(true);
+        ui->paintBtn->setEnabled(true);
         return;
     }
 
@@ -1317,6 +1341,7 @@ void MainWindow::setTxAllowed(bool value) {
 
 		ui->moxBtn->setEnabled(false);
 		ui->tunBtn->setEnabled(false);
+		ui->paintBtn->setEnabled(false);
 	}
 	else if (set->getPenelopePresence() || set->getPennyLanePresence()
              || (m_hwInterface == QSDR::Hermes)
@@ -1324,6 +1349,7 @@ void MainWindow::setTxAllowed(bool value) {
 
 		ui->moxBtn->setEnabled(true);
 		ui->tunBtn->setEnabled(true);
+		ui->paintBtn->setEnabled(true);
 	}
 }
 
@@ -1943,6 +1969,9 @@ void MainWindow::radioStateChange(RadioState state) {
         case RadioState::RX:
         ui->moxBtn->setBtnState(AeroButton::OFF);
         ui->tunBtn->setBtnState(AeroButton::OFF);
+        if (ui->paintBtn && (!m_dataEngine || !m_dataEngine->isSpectralPaintActive())) {
+            ui->paintBtn->setBtnState(AeroButton::OFF);
+        }
         break;
         case RadioState::MOX:
             ui->moxBtn->setBtnState(AeroButton::ON);
@@ -1958,15 +1987,29 @@ void MainWindow::radioStateChange(RadioState state) {
     }
     ui->tunBtn->repaint();
     ui->moxBtn->repaint();
+    if (ui->paintBtn)
+        ui->paintBtn->repaint();
 
 }
 
 void MainWindow::moxBtnClickedEvent() {
     if (set->getRadioState() == RadioState::MOX)
     {
-        set->setRadioState(RadioState::RX);
+        if (m_dataEngine && m_dataEngine->isSpectralPaintActive()) {
+            m_dataEngine->cancelSpectralPaint();
+            set->setRadioState(RadioState::RX);
+        } else if (set->getSpectralPaintAutoTail() && m_dataEngine && m_dataEngine->startSpectralPaint(true)) {
+            // Started auto-tail; radio remains in MOX until paint finishes.
+        } else {
+            set->setRadioState(RadioState::RX);
+        }
     }
-    else set->setRadioState(RadioState::MOX);
+    else {
+        if (m_dataEngine && m_dataEngine->isSpectralPaintActive()) {
+            m_dataEngine->cancelSpectralPaint();
+        }
+        set->setRadioState(RadioState::MOX);
+    }
 }
 
 void MainWindow::tunBtnClickedEvent() {
@@ -1975,6 +2018,17 @@ void MainWindow::tunBtnClickedEvent() {
         set->setRadioState(RadioState::RX);
     }
     else set->setRadioState(RadioState::TUNE);
+}
+
+void MainWindow::paintBtnClickedEvent() {
+    if (!m_dataEngine)
+        return;
+    if (m_dataEngine->isSpectralPaintActive()) {
+        m_dataEngine->cancelSpectralPaint();
+    } else {
+        const bool fromRx = (set->getRadioState() == RadioState::RX);
+        m_dataEngine->startSpectralPaint(false /* isAutoTail */, fromRx /* manualTx */);
+    }
 }
 
 

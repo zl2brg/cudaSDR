@@ -93,6 +93,11 @@ void TransmitSettingsController::bind(tx_settings_dialog* view, TransmitModel* t
         m_view->setTxFilterLow(m_txModel->txFilterLow());
         m_view->setTxFilterHigh(m_txModel->txFilterHigh());
         m_view->setTxUseRxFilter(m_txModel->txUseRxFilter());
+        m_view->setSpectralPaintAutoTail(m_txModel->spectralPaintAutoTail());
+        m_view->setSpectralPaintText(m_txModel->spectralPaintText());
+        m_view->setSpectralPaintDurationMs(m_txModel->spectralPaintDurationMs());
+        m_view->setSpectralPaintLowHz(m_txModel->spectralPaintLowHz());
+        m_view->setSpectralPaintHighHz(m_txModel->spectralPaintHighHz());
         m_view->refreshAudioDevices(m_txModel->micInputSourceName(),
                                     m_txModel->digitalInputSourceName());
     } else {
@@ -126,6 +131,11 @@ void TransmitSettingsController::bind(tx_settings_dialog* view, TransmitModel* t
         m_view->setTxFilterLow(m_model->getTxFilterLow());
         m_view->setTxFilterHigh(m_model->getTxFilterHigh());
         m_view->setTxUseRxFilter(m_model->getTxUseRxFilter());
+        m_view->setSpectralPaintAutoTail(m_model->getSpectralPaintAutoTail());
+        m_view->setSpectralPaintText(m_model->getSpectralPaintText());
+        m_view->setSpectralPaintDurationMs(m_model->getSpectralPaintDurationMs());
+        m_view->setSpectralPaintLowHz(m_model->getSpectralPaintLowHz());
+        m_view->setSpectralPaintHighHz(m_model->getSpectralPaintHighHz());
         m_view->refreshAudioDevices(m_model->getMicInputSourceName(),
                                     m_model->getDigitalInputSourceName());
     }
@@ -285,6 +295,29 @@ void TransmitSettingsController::bind(tx_settings_dialog* view, TransmitModel* t
         if (m_txModel) m_txModel->setTxUseRxFilter(val);
         else m_model->setTxUseRxFilter(val);
     });
+    connect(m_view, &tx_settings_dialog::spectralPaintAutoTailRequested, this, [this](bool val) {
+        if (m_txModel) m_txModel->setSpectralPaintAutoTail(val);
+        if (m_model) m_model->setSpectralPaintAutoTail(val);
+    });
+    connect(m_view, &tx_settings_dialog::spectralPaintTextRequested, this, [this](const QString &text) {
+        if (m_txModel) m_txModel->setSpectralPaintText(text);
+        if (m_model) m_model->setSpectralPaintText(text);
+    });
+    connect(m_view, &tx_settings_dialog::spectralPaintDurationMsRequested, this, [this](int ms) {
+        if (m_txModel) m_txModel->setSpectralPaintDurationMs(ms);
+        if (m_model) m_model->setSpectralPaintDurationMs(ms);
+    });
+    connect(m_view, &tx_settings_dialog::spectralPaintLowHzRequested, this, [this](int hz) {
+        if (m_txModel) m_txModel->setSpectralPaintLowHz(hz);
+        if (m_model) m_model->setSpectralPaintLowHz(hz);
+    });
+    connect(m_view, &tx_settings_dialog::spectralPaintHighHzRequested, this, [this](int hz) {
+        if (m_txModel) m_txModel->setSpectralPaintHighHz(hz);
+        if (m_model) m_model->setSpectralPaintHighHz(hz);
+    });
+    connect(m_view, &tx_settings_dialog::spectralPaintTestRequested, this, [this]() {
+        if (m_model) m_model->requestSpectralPaint();
+    });
 
     // --- TransmitModel -> View ---
     if (m_txModel) {
@@ -319,6 +352,11 @@ void TransmitSettingsController::bind(tx_settings_dialog* view, TransmitModel* t
         connect(m_txModel, &TransmitModel::txUseRxFilterChanged, m_view, &tx_settings_dialog::setTxUseRxFilter);
         connect(m_txModel, &TransmitModel::micInputDevChanged, m_view, &tx_settings_dialog::setMicInputDev);
         connect(m_txModel, &TransmitModel::micInputSourceNameChanged, m_view, &tx_settings_dialog::setMicInputSourceName);
+        connect(m_txModel, &TransmitModel::spectralPaintAutoTailChanged, m_view, &tx_settings_dialog::setSpectralPaintAutoTail);
+        connect(m_txModel, &TransmitModel::spectralPaintTextChanged, m_view, &tx_settings_dialog::setSpectralPaintText);
+        connect(m_txModel, &TransmitModel::spectralPaintDurationMsChanged, m_view, &tx_settings_dialog::setSpectralPaintDurationMs);
+        connect(m_txModel, &TransmitModel::spectralPaintLowHzChanged, m_view, &tx_settings_dialog::setSpectralPaintLowHz);
+        connect(m_txModel, &TransmitModel::spectralPaintHighHzChanged, m_view, &tx_settings_dialog::setSpectralPaintHighHz);
     } else {
         connect(m_model, &Settings::fmPremphasizechanged, this, [this](double value) {
             m_view->setFmPreEmphasis(value != 0.0);
@@ -347,6 +385,11 @@ void TransmitSettingsController::bind(tx_settings_dialog* view, TransmitModel* t
         connect(m_model, &Settings::txFilterLowChanged, m_view, &tx_settings_dialog::setTxFilterLow);
         connect(m_model, &Settings::txFilterHighChanged, m_view, &tx_settings_dialog::setTxFilterHigh);
         connect(m_model, &Settings::txUseRxFilterChanged, m_view, &tx_settings_dialog::setTxUseRxFilter);
+        connect(m_model, &Settings::spectralPaintAutoTailChanged, m_view, &tx_settings_dialog::setSpectralPaintAutoTail);
+        connect(m_model, &Settings::spectralPaintTextChanged, m_view, &tx_settings_dialog::setSpectralPaintText);
+        connect(m_model, &Settings::spectralPaintDurationMsChanged, m_view, &tx_settings_dialog::setSpectralPaintDurationMs);
+        connect(m_model, &Settings::spectralPaintLowHzChanged, m_view, &tx_settings_dialog::setSpectralPaintLowHz);
+        connect(m_model, &Settings::spectralPaintHighHzChanged, m_view, &tx_settings_dialog::setSpectralPaintHighHz);
     }
 
     connect(m_model, &Settings::currentReceiverChanged, this, [this](int rx) {

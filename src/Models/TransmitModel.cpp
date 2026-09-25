@@ -235,3 +235,33 @@ void TransmitModel::setTxUseRxFilter(bool enabled) {
     m_txUseRxFilter = enabled;
     emit txUseRxFilterChanged(m_txUseRxFilter);
 }
+
+void TransmitModel::setSpectralPaintAutoTail(bool enabled) {
+    if (m_spectralPaintAutoTail == enabled) return;
+    m_spectralPaintAutoTail = enabled;
+    emit spectralPaintAutoTailChanged(m_spectralPaintAutoTail);
+}
+
+void TransmitModel::setSpectralPaintText(const QString &text) {
+    if (m_spectralPaintText == text) return;
+    m_spectralPaintText = text;
+    emit spectralPaintTextChanged(m_spectralPaintText);
+}
+
+void TransmitModel::setSpectralPaintDurationMs(int ms) {
+    if (m_spectralPaintDurationMs == ms) return;
+    m_spectralPaintDurationMs = ms;
+    emit spectralPaintDurationMsChanged(m_spectralPaintDurationMs);
+}
+
+void TransmitModel::setSpectralPaintLowHz(int hz) {
+    if (m_spectralPaintLowHz == hz) return;
+    m_spectralPaintLowHz = hz;
+    emit spectralPaintLowHzChanged(m_spectralPaintLowHz);
+}
+
+void TransmitModel::setSpectralPaintHighHz(int hz) {
+    if (m_spectralPaintHighHz == hz) return;
+    m_spectralPaintHighHz = hz;
+    emit spectralPaintHighHzChanged(m_spectralPaintHighHz);
+}

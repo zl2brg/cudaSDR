@@ -43,6 +43,11 @@ class TransmitModel : public QObject {
     Q_PROPERTY(int txFilterLow READ txFilterLow WRITE setTxFilterLow NOTIFY txFilterLowChanged)
     Q_PROPERTY(int txFilterHigh READ txFilterHigh WRITE setTxFilterHigh NOTIFY txFilterHighChanged)
     Q_PROPERTY(bool txUseRxFilter READ txUseRxFilter WRITE setTxUseRxFilter NOTIFY txUseRxFilterChanged)
+    Q_PROPERTY(bool spectralPaintAutoTail READ spectralPaintAutoTail WRITE setSpectralPaintAutoTail NOTIFY spectralPaintAutoTailChanged)
+    Q_PROPERTY(QString spectralPaintText READ spectralPaintText WRITE setSpectralPaintText NOTIFY spectralPaintTextChanged)
+    Q_PROPERTY(int spectralPaintDurationMs READ spectralPaintDurationMs WRITE setSpectralPaintDurationMs NOTIFY spectralPaintDurationMsChanged)
+    Q_PROPERTY(int spectralPaintLowHz READ spectralPaintLowHz WRITE setSpectralPaintLowHz NOTIFY spectralPaintLowHzChanged)
+    Q_PROPERTY(int spectralPaintHighHz READ spectralPaintHighHz WRITE setSpectralPaintHighHz NOTIFY spectralPaintHighHzChanged)
 
 public:
     explicit TransmitModel(QObject *parent = nullptr);
@@ -155,6 +160,21 @@ public:
     bool txUseRxFilter() const { return m_txUseRxFilter; }
     void setTxUseRxFilter(bool enabled);
 
+    bool spectralPaintAutoTail() const { return m_spectralPaintAutoTail; }
+    void setSpectralPaintAutoTail(bool enabled);
+
+    QString spectralPaintText() const { return m_spectralPaintText; }
+    void setSpectralPaintText(const QString &text);
+
+    int spectralPaintDurationMs() const { return m_spectralPaintDurationMs; }
+    void setSpectralPaintDurationMs(int ms);
+
+    int spectralPaintLowHz() const { return m_spectralPaintLowHz; }
+    void setSpectralPaintLowHz(int hz);
+
+    int spectralPaintHighHz() const { return m_spectralPaintHighHz; }
+    void setSpectralPaintHighHz(int hz);
+
 signals:
     void amCarrierLevelChanged(int level);
     void audioCompressionChanged(int val);
@@ -184,6 +204,11 @@ signals:
     void txFilterLowChanged(int val);
     void txFilterHighChanged(int val);
     void txUseRxFilterChanged(bool enabled);
+    void spectralPaintAutoTailChanged(bool enabled);
+    void spectralPaintTextChanged(const QString &text);
+    void spectralPaintDurationMsChanged(int ms);
+    void spectralPaintLowHzChanged(int hz);
+    void spectralPaintHighHzChanged(int hz);
 
 private:
     int m_amCarrierLevel = 100;
@@ -225,6 +250,11 @@ private:
     int m_txFilterLow = 100;
     int m_txFilterHigh = 2900;
     bool m_txUseRxFilter = false;
+    bool m_spectralPaintAutoTail = false;
+    QString m_spectralPaintText;
+    int m_spectralPaintDurationMs = 2000;
+    int m_spectralPaintLowHz = 600;
+    int m_spectralPaintHighHz = 2400;
 };
 
 #endif // TRANSMITMODEL_H

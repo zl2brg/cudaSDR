@@ -246,6 +246,65 @@ tx_settings_dialog::tx_settings_dialog(QWidget *parent) :
     });
     connect(ui->tx_filter_low, &QSpinBox::valueChanged, this, &tx_settings_dialog::txFilterLowRequested);
     connect(ui->tx_filter_high, &QSpinBox::valueChanged, this, &tx_settings_dialog::txFilterHighRequested);
+
+    QGroupBox *paintGroup = new QGroupBox("Spectral Painting", this);
+    QVBoxLayout *paintLayout = new QVBoxLayout(paintGroup);
+
+    m_spectralPaintAutoTail = new QCheckBox("Auto-tail on PTT release", paintGroup);
+    m_spectralPaintAutoTail->setToolTip("Automatically transmit spectral callsign watermark when releasing PTT");
+    paintLayout->addWidget(m_spectralPaintAutoTail);
+
+    QHBoxLayout *textRow = new QHBoxLayout();
+    QLabel *textLabel = new QLabel("Text:", paintGroup);
+    m_spectralPaintText = new QLineEdit(paintGroup);
+    m_spectralPaintText->setPlaceholderText("Default (Callsign)");
+    m_spectralPaintText->setToolTip("Custom text to paint on waterfall. If empty, station callsign is used.");
+    textRow->addWidget(textLabel);
+    textRow->addWidget(m_spectralPaintText);
+    paintLayout->addLayout(textRow);
+
+    QHBoxLayout *durRow = new QHBoxLayout();
+    QLabel *durLabel = new QLabel("Duration:", paintGroup);
+    m_spectralPaintDuration = new QSpinBox(paintGroup);
+    m_spectralPaintDuration->setRange(500, 5000);
+    m_spectralPaintDuration->setSingleStep(250);
+    m_spectralPaintDuration->setValue(2000);
+    m_spectralPaintDuration->setSuffix(" ms");
+    durRow->addWidget(durLabel);
+    durRow->addWidget(m_spectralPaintDuration);
+    paintLayout->addLayout(durRow);
+
+    QHBoxLayout *freqRow = new QHBoxLayout();
+    QLabel *freqLabel = new QLabel("Audio Freq:", paintGroup);
+    m_spectralPaintLowHz = new QSpinBox(paintGroup);
+    m_spectralPaintLowHz->setRange(200, 2000);
+    m_spectralPaintLowHz->setSingleStep(50);
+    m_spectralPaintLowHz->setValue(600);
+    m_spectralPaintLowHz->setSuffix(" Hz");
+    QLabel *toLabel = new QLabel("-", paintGroup);
+    m_spectralPaintHighHz = new QSpinBox(paintGroup);
+    m_spectralPaintHighHz->setRange(1000, 3500);
+    m_spectralPaintHighHz->setSingleStep(50);
+    m_spectralPaintHighHz->setValue(2400);
+    m_spectralPaintHighHz->setSuffix(" Hz");
+    freqRow->addWidget(freqLabel);
+    freqRow->addWidget(m_spectralPaintLowHz);
+    freqRow->addWidget(toLabel);
+    freqRow->addWidget(m_spectralPaintHighHz);
+    paintLayout->addLayout(freqRow);
+
+    m_spectralPaintTestBtn = new QPushButton("Test Paint Now", paintGroup);
+    m_spectralPaintTestBtn->setToolTip("Transmit spectral paint watermark now");
+    paintLayout->addWidget(m_spectralPaintTestBtn);
+
+    ui->verticalLayoutScroll->addWidget(paintGroup);
+
+    connect(m_spectralPaintAutoTail, &QCheckBox::toggled, this, &tx_settings_dialog::spectralPaintAutoTailRequested);
+    connect(m_spectralPaintText, &QLineEdit::textChanged, this, &tx_settings_dialog::spectralPaintTextRequested);
+    connect(m_spectralPaintDuration, QOverload<int>::of(&QSpinBox::valueChanged), this, &tx_settings_dialog::spectralPaintDurationMsRequested);
+    connect(m_spectralPaintLowHz, QOverload<int>::of(&QSpinBox::valueChanged), this, &tx_settings_dialog::spectralPaintLowHzRequested);
+    connect(m_spectralPaintHighHz, QOverload<int>::of(&QSpinBox::valueChanged), this, &tx_settings_dialog::spectralPaintHighHzRequested);
+    connect(m_spectralPaintTestBtn, &QPushButton::clicked, this, &tx_settings_dialog::spectralPaintTestRequested);
 }
 
 tx_settings_dialog::~tx_settings_dialog()
@@ -648,4 +707,44 @@ void tx_settings_dialog::setTxUseRxFilter(bool enabled)
     ui->tx_use_rx_filter->setChecked(enabled);
     ui->tx_filter_low->setEnabled(!enabled);
     ui->tx_filter_high->setEnabled(!enabled);
+}
+
+void tx_settings_dialog::setSpectralPaintAutoTail(bool enabled)
+{
+    if (m_spectralPaintAutoTail) {
+        const QSignalBlocker blocker(m_spectralPaintAutoTail);
+        m_spectralPaintAutoTail->setChecked(enabled);
+    }
+}
+
+void tx_settings_dialog::setSpectralPaintText(const QString &text)
+{
+    if (m_spectralPaintText) {
+        const QSignalBlocker blocker(m_spectralPaintText);
+        m_spectralPaintText->setText(text);
+    }
+}
+
+void tx_settings_dialog::setSpectralPaintDurationMs(int ms)
+{
+    if (m_spectralPaintDuration) {
+        const QSignalBlocker blocker(m_spectralPaintDuration);
+        m_spectralPaintDuration->setValue(ms);
+    }
+}
+
+void tx_settings_dialog::setSpectralPaintLowHz(int hz)
+{
+    if (m_spectralPaintLowHz) {
+        const QSignalBlocker blocker(m_spectralPaintLowHz);
+        m_spectralPaintLowHz->setValue(hz);
+    }
+}
+
+void tx_settings_dialog::setSpectralPaintHighHz(int hz)
+{
+    if (m_spectralPaintHighHz) {
+        const QSignalBlocker blocker(m_spectralPaintHighHz);
+        m_spectralPaintHighHz->setValue(hz);
+    }
 }

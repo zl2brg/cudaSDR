@@ -532,6 +532,36 @@ void ModelsTests::testTransmitModelProperties() {
     tx.setCwKeyerSpeed(25);
     QCOMPARE(tx.cwKeyerSpeed(), 25);
     QCOMPARE(spyCwSpeed.count(), 1);
+
+    QSignalSpy spyPaintAuto(&tx, &TransmitModel::spectralPaintAutoTailChanged);
+    QSignalSpy spyPaintText(&tx, &TransmitModel::spectralPaintTextChanged);
+    QSignalSpy spyPaintDur(&tx, &TransmitModel::spectralPaintDurationMsChanged);
+    QSignalSpy spyPaintLo(&tx, &TransmitModel::spectralPaintLowHzChanged);
+    QSignalSpy spyPaintHi(&tx, &TransmitModel::spectralPaintHighHzChanged);
+
+    QCOMPARE(tx.spectralPaintAutoTail(), false);
+    tx.setSpectralPaintAutoTail(true);
+    QCOMPARE(tx.spectralPaintAutoTail(), true);
+    QCOMPARE(spyPaintAuto.count(), 1);
+
+    QCOMPARE(tx.spectralPaintDurationMs(), 2000);
+    tx.setSpectralPaintDurationMs(2500);
+    QCOMPARE(tx.spectralPaintDurationMs(), 2500);
+    QCOMPARE(spyPaintDur.count(), 1);
+
+    tx.setSpectralPaintText(QStringLiteral("ZL2BRG"));
+    QCOMPARE(tx.spectralPaintText(), QStringLiteral("ZL2BRG"));
+    QCOMPARE(spyPaintText.count(), 1);
+
+    QCOMPARE(tx.spectralPaintLowHz(), 600);
+    tx.setSpectralPaintLowHz(800);
+    QCOMPARE(tx.spectralPaintLowHz(), 800);
+    QCOMPARE(spyPaintLo.count(), 1);
+
+    QCOMPARE(tx.spectralPaintHighHz(), 2400);
+    tx.setSpectralPaintHighHz(2200);
+    QCOMPARE(tx.spectralPaintHighHz(), 2200);
+    QCOMPARE(spyPaintHi.count(), 1);
 }
 
 void ModelsTests::testTransmitSettingsSync() {
@@ -544,6 +574,11 @@ void ModelsTests::testTransmitSettingsSync() {
     settings->setTxFilterLow(120);
     settings->setTxFilterHigh(2800);
     settings->setTxUseRxFilter(true);
+    settings->setSpectralPaintAutoTail(true);
+    settings->setSpectralPaintText(QStringLiteral("TEST_SYNC"));
+    settings->setSpectralPaintDurationMs(1800);
+    settings->setSpectralPaintLowHz(700);
+    settings->setSpectralPaintHighHz(2300);
 
     QSignalSpy spyMic(settings, &Settings::micInputChanged);
     settings->setMicInputDev(1);
@@ -558,6 +593,11 @@ void ModelsTests::testTransmitSettingsSync() {
     QCOMPARE(tx->txFilterLow(), 120);
     QCOMPARE(tx->txFilterHigh(), 2800);
     QCOMPARE(tx->txUseRxFilter(), true);
+    QCOMPARE(tx->spectralPaintAutoTail(), true);
+    QCOMPARE(tx->spectralPaintText(), QStringLiteral("TEST_SYNC"));
+    QCOMPARE(tx->spectralPaintDurationMs(), 1800);
+    QCOMPARE(tx->spectralPaintLowHz(), 700);
+    QCOMPARE(tx->spectralPaintHighHz(), 2300);
     QCOMPARE(tx->micInputDev(), 1);
     QCOMPARE(tx->micInputSourceName(), QStringLiteral("default"));
     QCOMPARE(settings->getMicInputDev(), 1);

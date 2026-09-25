@@ -14,6 +14,7 @@
 #include <QSlider>
 #include <QSpinBox>
 #include <QDoubleSpinBox>
+#include <QLineEdit>
 #include <QVector>
 #include <functional>
 
@@ -66,6 +67,11 @@ public:
     void setTxFilterLow(int val);
     void setTxFilterHigh(int val);
     void setTxUseRxFilter(bool enabled);
+    void setSpectralPaintAutoTail(bool enabled);
+    void setSpectralPaintText(const QString &text);
+    void setSpectralPaintDurationMs(int ms);
+    void setSpectralPaintLowHz(int hz);
+    void setSpectralPaintHighHz(int hz);
     void setCurrentReceiver(int rx);
     void setFreeDVMode(int rx, int mode);
     void setMicInputDev(int dev);
@@ -115,6 +121,12 @@ signals:
     void txFilterLowRequested(int val);
     void txFilterHighRequested(int val);
     void txUseRxFilterRequested(bool enabled);
+    void spectralPaintAutoTailRequested(bool enabled);
+    void spectralPaintTextRequested(const QString &text);
+    void spectralPaintDurationMsRequested(int ms);
+    void spectralPaintLowHzRequested(int hz);
+    void spectralPaintHighHzRequested(int hz);
+    void spectralPaintTestRequested();
 
 private slots:
     void triggerRefreshDevices();
@@ -140,6 +152,12 @@ private:
     QSpinBox*       m_cfcCurveDeg = nullptr;
     EqCurvePlot*    m_cfcCompPlot = nullptr;
     EqCurvePlot*    m_cfcPeqPlot = nullptr;
+    QCheckBox*      m_spectralPaintAutoTail = nullptr;
+    QLineEdit*      m_spectralPaintText = nullptr;
+    QSpinBox*       m_spectralPaintDuration = nullptr;
+    QSpinBox*       m_spectralPaintLowHz = nullptr;
+    QSpinBox*       m_spectralPaintHighHz = nullptr;
+    QPushButton*    m_spectralPaintTestBtn = nullptr;
     int             m_currentReceiver;
     std::function<QString(int)> m_codec2ModeStringResolver;
 };

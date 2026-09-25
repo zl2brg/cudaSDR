@@ -69,6 +69,7 @@ public slots:
 	void	muteBtnClickedEvent();
 	void    moxBtnClickedEvent();
 	void    tunBtnClickedEvent();
+	void    paintBtnClickedEvent();
 	
 	void	showWidgetEvent();
 	void	closeWidgetEvent();

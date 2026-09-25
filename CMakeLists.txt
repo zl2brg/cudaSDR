@@ -140,6 +140,7 @@ set(SOURCES
     ${SRC_DIR}/AudioEngine/RttyBayesianDecoder.cpp
     ${SRC_DIR}/AudioEngine/RttyLexicon.cpp
     ${SRC_DIR}/AudioEngine/RttyAutoClassifier.cpp
+    ${SRC_DIR}/AudioEngine/SpectralPainter.cpp
     
     # Data Engine
     ${SRC_DIR}/DataEngine/cusdr_audioReceiver.cpp
@@ -271,6 +272,7 @@ set(HEADERS
     ${SRC_DIR}/AudioEngine/RttyBayesianDecoder.h
     ${SRC_DIR}/AudioEngine/RttyLexicon.h
     ${SRC_DIR}/AudioEngine/RttyAutoClassifier.h
+    ${SRC_DIR}/AudioEngine/SpectralPainter.h
 
     # Data Engine
     ${SRC_DIR}/DataEngine/cusdr_dataIO.h
@@ -1140,6 +1142,20 @@ if(BUILD_TESTING)
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
     )
 
+    add_executable(spectral_painter_tests
+        tests/spectral_painter_tests.cpp
+        ${SRC_DIR}/AudioEngine/SpectralPainter.cpp
+    )
+    target_link_libraries(spectral_painter_tests PRIVATE
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Test
+    )
+    target_include_directories(spectral_painter_tests PRIVATE
+        ${SRC_DIR}
+    )
+    add_test(NAME spectral_painter_tests COMMAND spectral_painter_tests)
+
     # Convenience target: build every unit test without the full cudasdr app.
     add_custom_target(build_tests DEPENDS
         protocol_boundary_tests
@@ -1176,6 +1192,7 @@ if(BUILD_TESTING)
         text_stream_logger_tests
         rtty_auto_classifier_tests
         rtty_decoder_window_tests
+        spectral_painter_tests
     )
 
     # Headless Qt for any test that links Gui/Widgets (CI has no display), plus a

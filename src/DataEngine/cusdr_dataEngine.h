@@ -84,6 +84,7 @@ class DataEngineThreadFactory;
 class DataEngineFirmware;
 class DataEngineLifecycle;
 class DataEngineSoapy;
+class SpectralPainter;
 
 //Q_DECLARE_METATYPE (QAbstractSocket::SocketError)
 
@@ -154,10 +155,17 @@ public:
 	void setReceiversCount(int count);
     DataProcessor* dataProcessor() const { return m_dataProcessor; }
     void decodeCCBytes(const QByteArray &buffer);
+
+    SpectralPainter* spectralPainter() const { return m_spectralPainter; }
+    bool isSpectralPaintActive() const;
+    bool startSpectralPaint(bool isAutoTail = false, bool manualTx = false);
+    void cancelSpectralPaint();
 #ifdef HAVE_SOAPYSDR
 	SoapySDRDataSource* m_soapySDRSource;
 #endif
     TransmitAudioInput *       m_audioInput;
+    SpectralPainter *          m_spectralPainter = nullptr;
+    bool                       m_spectralPaintManualTx = false;
     iambic *            m_cwIO;
     std::unique_ptr<IHPSDRProtocol> m_protocol;
     std::unique_ptr<RadioController> m_radioController;
@@ -438,6 +446,11 @@ signals:
 	void	clearSystemMessageEvent();
 	void	DataProcessorReadyEvent();
 	void	audioSenderReadyEvent(bool value);
+	void	spectralPaintStarted(bool isAutoTail);
+	void	spectralPaintFinished(bool wasAutoTail);
+
+private slots:
+	void	onSpectralPaintFinished(bool wasAutoTail);
 
 };
 

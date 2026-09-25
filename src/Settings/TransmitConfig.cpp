@@ -350,6 +350,41 @@ void TransmitConfig::setTxUseRxFilter(bool enabled) {
     }
 }
 
+void TransmitConfig::setSpectralPaintAutoTail(bool enabled) {
+    if (m_spectralPaintAutoTail != enabled) {
+        m_spectralPaintAutoTail = enabled;
+        emit spectralPaintAutoTailChanged(m_spectralPaintAutoTail);
+    }
+}
+
+void TransmitConfig::setSpectralPaintText(const QString &text) {
+    if (m_spectralPaintText != text) {
+        m_spectralPaintText = text;
+        emit spectralPaintTextChanged(m_spectralPaintText);
+    }
+}
+
+void TransmitConfig::setSpectralPaintDurationMs(int ms) {
+    if (m_spectralPaintDurationMs != ms) {
+        m_spectralPaintDurationMs = ms;
+        emit spectralPaintDurationMsChanged(m_spectralPaintDurationMs);
+    }
+}
+
+void TransmitConfig::setSpectralPaintLowHz(int hz) {
+    if (m_spectralPaintLowHz != hz) {
+        m_spectralPaintLowHz = hz;
+        emit spectralPaintLowHzChanged(m_spectralPaintLowHz);
+    }
+}
+
+void TransmitConfig::setSpectralPaintHighHz(int hz) {
+    if (m_spectralPaintHighHz != hz) {
+        m_spectralPaintHighHz = hz;
+        emit spectralPaintHighHzChanged(m_spectralPaintHighHz);
+    }
+}
+
 void TransmitConfig::load(const QJsonObject &json) {
     ensureCfcDefaults();
     if (json.contains("micSource")) setMicSource(json["micSource"].toInt());
@@ -381,6 +416,11 @@ void TransmitConfig::load(const QJsonObject &json) {
     if (json.contains("txFilterLow")) setTxFilterLow(json["txFilterLow"].toInt());
     if (json.contains("txFilterHigh")) setTxFilterHigh(json["txFilterHigh"].toInt());
     if (json.contains("txUseRxFilter")) setTxUseRxFilter(json["txUseRxFilter"].toBool());
+    if (json.contains("spectralPaintAutoTail")) setSpectralPaintAutoTail(json["spectralPaintAutoTail"].toBool());
+    if (json.contains("spectralPaintText")) setSpectralPaintText(json["spectralPaintText"].toString());
+    if (json.contains("spectralPaintDurationMs")) setSpectralPaintDurationMs(json["spectralPaintDurationMs"].toInt());
+    if (json.contains("spectralPaintLowHz")) setSpectralPaintLowHz(json["spectralPaintLowHz"].toInt());
+    if (json.contains("spectralPaintHighHz")) setSpectralPaintHighHz(json["spectralPaintHighHz"].toInt());
 
     if (json.contains("txEqBands") && json["txEqBands"].isArray())
         setTxEqBands(SettingsUtils::jsonArrayToVector<int>(json, QStringLiteral("txEqBands"), kEqBands));
@@ -419,6 +459,11 @@ void TransmitConfig::save(QJsonObject &json) const {
     json["txFilterLow"] = m_txFilterLow;
     json["txFilterHigh"] = m_txFilterHigh;
     json["txUseRxFilter"] = m_txUseRxFilter;
+    json["spectralPaintAutoTail"] = m_spectralPaintAutoTail;
+    json["spectralPaintText"] = m_spectralPaintText;
+    json["spectralPaintDurationMs"] = m_spectralPaintDurationMs;
+    json["spectralPaintLowHz"] = m_spectralPaintLowHz;
+    json["spectralPaintHighHz"] = m_spectralPaintHighHz;
 
     json["txEqBands"] = SettingsUtils::toJsonArray(m_txEqBands);
     json["cfcLevels"] = SettingsUtils::toJsonArray(m_cfcLevels);
@@ -469,6 +514,11 @@ void TransmitConfig::loadIni(QSettings *settings) {
     setTxFilterLow(iniValue(settings, "tx_filter_low", "audio/tx_filter_low", 100).toInt());
     setTxFilterHigh(iniValue(settings, "tx_filter_high", "audio/tx_filter_high", 2900).toInt());
     setTxUseRxFilter(iniValue(settings, "tx_use_rx_filter", "audio/tx_use_rx_filter", false).toBool());
+    setSpectralPaintAutoTail(iniValue(settings, "spectral_paint_auto_tail", "audio/spectral_paint_auto_tail", false).toBool());
+    setSpectralPaintText(iniValue(settings, "spectral_paint_text", "audio/spectral_paint_text", QString()).toString());
+    setSpectralPaintDurationMs(iniValue(settings, "spectral_paint_duration_ms", "audio/spectral_paint_duration_ms", 2000).toInt());
+    setSpectralPaintLowHz(iniValue(settings, "spectral_paint_low_hz", "audio/spectral_paint_low_hz", 600).toInt());
+    setSpectralPaintHighHz(iniValue(settings, "spectral_paint_high_hz", "audio/spectral_paint_high_hz", 2400).toInt());
 
     QVector<int> bands(kEqBands, 0);
     for (int i = 0; i < kEqBands; ++i) {
@@ -527,6 +577,11 @@ void TransmitConfig::saveIni(QSettings *settings) const {
     settings->setValue("tx_filter_low", m_txFilterLow);
     settings->setValue("tx_filter_high", m_txFilterHigh);
     settings->setValue("tx_use_rx_filter", m_txUseRxFilter);
+    settings->setValue("spectral_paint_auto_tail", m_spectralPaintAutoTail);
+    settings->setValue("spectral_paint_text", m_spectralPaintText);
+    settings->setValue("spectral_paint_duration_ms", m_spectralPaintDurationMs);
+    settings->setValue("spectral_paint_low_hz", m_spectralPaintLowHz);
+    settings->setValue("spectral_paint_high_hz", m_spectralPaintHighHz);
 
     for (int i = 0; i < kEqBands; ++i)
         settings->setValue(QStringLiteral("tx_eq_band_%1").arg(i), m_txEqBands.value(i));

@@ -230,6 +230,14 @@ void MainWindowUI::createMainBtnToolBar() {
     tunBtn->setEnabled(false);
     CHECKED_CONNECT(tunBtn, &AeroButton::clicked, m_mainWindow, &MainWindow::tunBtnClickedEvent);
 
+    paintBtn = new AeroButton("Paint", m_mainWindow);
+    paintBtn->setRoundness(10);
+    paintBtn->setFont(m_fonts.normalFont);
+    paintBtn->setTextColor(btnCol);
+    paintBtn->setFixedSize(btn_width1, btn_height3);
+    paintBtn->setEnabled(false);
+    CHECKED_CONNECT(paintBtn, &AeroButton::clicked, m_mainWindow, &MainWindow::paintBtnClickedEvent);
+
     alexBtn = new AeroButton("Alex Auto", m_mainWindow);
     alexBtn->setRoundness(10);
     alexBtn->setFont(m_fonts.normalFont);
@@ -274,6 +282,7 @@ void MainWindowUI::createMainBtnToolBar() {
     secondBtnLayout->setContentsMargins(0,0,0,0);
     secondBtnLayout->addWidget(moxBtn);
     secondBtnLayout->addWidget(tunBtn);
+    secondBtnLayout->addWidget(paintBtn);
     secondBtnLayout->addStretch();
     secondBtnLayout->addWidget(alexBtn);
     secondBtnLayout->addWidget(attenuatorBtn);

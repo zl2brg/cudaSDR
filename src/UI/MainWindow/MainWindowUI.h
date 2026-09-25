@@ -41,6 +41,7 @@ public:
     AeroButton* quitBtn;
     AeroButton* moxBtn;
     AeroButton* tunBtn;
+    AeroButton* paintBtn;
     AeroButton* alexBtn;
     AeroButton* attenuatorBtn;
     AeroButton* muteBtn;

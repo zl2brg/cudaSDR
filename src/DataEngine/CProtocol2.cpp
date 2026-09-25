@@ -172,7 +172,14 @@ void CProtocol2::decodeCCBytes(const QByteArray& buffer, DataEngine* de) {
     bool ptt = (buffer.at(4) & 0x01);
     if (ptt != de->ccRx.ptt) {
         de->ccRx.ptt = ptt;
-        set->setRadioState(ptt ? RadioState::MOX : RadioState::RX);
+        if (!ptt && set && set->getSpectralPaintAutoTail() && de && de->startSpectralPaint(true)) {
+            // Auto-tail active; radio stays in MOX until painter completes
+        } else if (set) {
+            if (ptt && de && de->isSpectralPaintActive()) {
+                de->cancelSpectralPaint();
+            }
+            set->setRadioState(ptt ? RadioState::MOX : RadioState::RX);
+        }
     }
 
     de->ccRx.dot  = (buffer.at(4) & 0x02);

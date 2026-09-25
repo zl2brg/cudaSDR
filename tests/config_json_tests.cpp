@@ -621,6 +621,11 @@ void ConfigJsonTests::testTransmitConfigJson() {
     config.setTxEqBand(0, 3);
     config.setCfcEnabled(true);
     config.setCfcLevel(1, 4.0);
+    config.setSpectralPaintAutoTail(true);
+    config.setSpectralPaintText(QStringLiteral("ZL2BRG"));
+    config.setSpectralPaintDurationMs(2500);
+    config.setSpectralPaintLowHz(800);
+    config.setSpectralPaintHighHz(2200);
 
     QCOMPARE(spyMicSrc.count(), 1);
     QCOMPARE(spyDrive.count(), 1);
@@ -644,6 +649,11 @@ void ConfigJsonTests::testTransmitConfigJson() {
     QCOMPARE(json["ctcssToneHz"].toInt(), 100);
     QCOMPARE(json["txEqEnabled"].toBool(), true);
     QCOMPARE(json["cfcEnabled"].toBool(), true);
+    QCOMPARE(json["spectralPaintAutoTail"].toBool(), true);
+    QCOMPARE(json["spectralPaintText"].toString(), QStringLiteral("ZL2BRG"));
+    QCOMPARE(json["spectralPaintDurationMs"].toInt(), 2500);
+    QCOMPARE(json["spectralPaintLowHz"].toInt(), 800);
+    QCOMPARE(json["spectralPaintHighHz"].toInt(), 2200);
 
     TransmitConfig config2;
     config2.load(json);
@@ -660,6 +670,11 @@ void ConfigJsonTests::testTransmitConfigJson() {
     QCOMPARE(config2.txEqBands().value(0), 3);
     QCOMPARE(config2.cfcEnabled(), true);
     QCOMPARE(config2.cfcLevels().value(1), 4.0);
+    QCOMPARE(config2.spectralPaintAutoTail(), true);
+    QCOMPARE(config2.spectralPaintText(), QStringLiteral("ZL2BRG"));
+    QCOMPARE(config2.spectralPaintDurationMs(), 2500);
+    QCOMPARE(config2.spectralPaintLowHz(), 800);
+    QCOMPARE(config2.spectralPaintHighHz(), 2200);
 }
 
 void ConfigJsonTests::testTransmitConfigIniMicMigration() {
