@@ -131,6 +131,7 @@ Protocol and WDSP references are in `Docs/`.
 
 - CW polish and validation
 
+<img width="1957" height="1353" alt="image" src="https://github.com/user-attachments/assets/c2f809b0-b9b6-4eeb-bc78-7fb18e9b6884" />
 
 
 
