@@ -13,8 +13,6 @@
 - **Experimental Soapy Integration  **
 - ** TCI server **
 - AI Development assist from 2025 on
-
-
 This project is still work in progress and very much alpha.
 
 ### Credits
@@ -131,7 +129,8 @@ Protocol and WDSP references are in `Docs/`.
 
 - CW polish and validation
 
-<img width="1957" height="1353" alt="image" src="https://github.com/user-attachments/assets/c2f809b0-b9b6-4eeb-bc78-7fb18e9b6884" />
+
+<img width="1959" height="1357" alt="image" src="https://github.com/user-attachments/assets/b32a6969-09a5-448d-bf61-e3fcfa757dca" />
 
 
 
