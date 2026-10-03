@@ -53,6 +53,7 @@ struct OGLTextPrivate {
 
     void allocateTexture();
     CharData &createCharacter(QChar c);
+    void releaseGl();
 
     QFont font;
     QFontMetrics fontMetrics;
@@ -79,16 +80,28 @@ OGLTextPrivate::OGLTextPrivate(const QFont &f, qreal devicePixelRatio)
     // Note: DPR is stored for potential future use
 }
 
-OGLTextPrivate::~OGLTextPrivate() {
-	
-	foreach (GLuint texture, textures)
-		glDeleteTextures(1, &texture);
-
+void OGLTextPrivate::releaseGl()
+{
+    if (QOpenGLContext *ctx = QOpenGLContext::currentContext()) {
+        if (QOpenGLFunctions *gl = ctx->functions()) {
+            for (GLuint texture : textures)
+                gl->glDeleteTextures(1, &texture);
+        }
+        if (textVbo.isCreated())
+            textVbo.destroy();
+        if (textVao.isCreated())
+            textVao.destroy();
+    }
+    textures.clear();
+    characters.clear();
+    xOffset = 0;
+    yOffset = 0;
     delete textProgram;
-    if (textVbo.isCreated())
-        textVbo.destroy();
-    if (textVao.isCreated())
-        textVao.destroy();
+    textProgram = nullptr;
+}
+
+OGLTextPrivate::~OGLTextPrivate() {
+    releaseGl();
 }
 
 bool OGLTextPrivate::ensureTextProgram()
@@ -365,9 +378,12 @@ OGLText::~OGLText() {
 
 void OGLText::invalidateCache()
 {
-    d->characters.clear();
-    d->xOffset = 0;
-    d->yOffset = 0;
+    d->releaseGl();
+}
+
+void OGLText::releaseGlResources()
+{
+    d->releaseGl();
 }
 
 void OGLText::setDevicePixelRatio(qreal devicePixelRatio)

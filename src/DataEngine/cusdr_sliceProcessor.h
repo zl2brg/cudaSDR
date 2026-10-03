@@ -233,6 +233,7 @@ private:
     // DSP Pipeline Stages
     void    processSpectrumPass(bool transmitting);
     void    processMeterPass();
+    void    processDecoderPass(int audioSamplesThisCall);
     void    processAudioPass(int audioSamplesThisCall);
     void    processDigitalVoicePass(const float* monoIn, int count);
     void    deliverInternalAudio(const float* soundcardStereo, int soundcardCount,

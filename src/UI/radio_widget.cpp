@@ -226,12 +226,7 @@ void RadioCtrl::BandbtnCallback() {
     button->setBtnState(AeroButton::ON);
     button->update();
 
-    HamBand band = static_cast<HamBand>(btnIndex);
-    set->setHamBand(m_receiver, true, band);
-
-    if (btnIndex >= 0 && btnIndex < m_lastVfoFrequencyList.size()) {
-        set->setVFOFrequency(2, m_receiver, m_lastVfoFrequencyList.at(btnIndex));
-    }
+    set->applyHamBand(m_receiver, static_cast<HamBand>(btnIndex));
 }
 
 

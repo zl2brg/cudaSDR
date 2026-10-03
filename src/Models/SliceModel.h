@@ -444,7 +444,7 @@ private:
     bool m_rttyDecodeEnabled = false;
     QString m_rttyDecodedText;
     float m_rttyCenterFreq = 2210.0f;
-    float m_rttyShiftHz = 170.0f;
+    float m_rttyShiftHz = 200.0f;
     float m_rttyBaudRate = 45.4545f;
     bool m_rttyReverse = false;
     bool m_rttyAfc = true;
@@ -452,8 +452,8 @@ private:
     float m_rttySquelch = 0.35f;
     float m_rttySnrDb = 0.0f;
     bool m_rttyToneLocked = false;
-    float m_rttyMarkFreq = 2125.0f;
-    float m_rttySpaceFreq = 2295.0f;
+    float m_rttyMarkFreq = 2110.0f;
+    float m_rttySpaceFreq = 2310.0f;
     QString m_rttyCallsign;
     QVector<float> m_rttyScopeXs;
     QVector<float> m_rttyScopeYs;

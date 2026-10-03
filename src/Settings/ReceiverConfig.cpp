@@ -590,7 +590,7 @@ void ReceiverConfig::load(const QJsonObject &json) {
     if (json.contains(QLatin1String("rttyDecode")))
         setRttyDecode(json.value(QLatin1String("rttyDecode")).toBool());
     if (json.contains(QLatin1String("rttyShiftHz")))
-        setRttyShiftHz(static_cast<float>(json.value(QLatin1String("rttyShiftHz")).toDouble(170.0)));
+        setRttyShiftHz(static_cast<float>(json.value(QLatin1String("rttyShiftHz")).toDouble(200.0)));
     if (json.contains(QLatin1String("rttyBaudRate")))
         setRttyBaudRate(static_cast<float>(json.value(QLatin1String("rttyBaudRate")).toDouble(45.4545)));
     if (json.contains(QLatin1String("rttyReverse")))

@@ -45,6 +45,7 @@
 //#include <QGLFramebufferObject>
 
 #include <QOpenGLWidget>
+#include <QOpenGLContext>
 #include <QOpenGLFunctions>
 #include <QOpenGLPaintDevice>
 #include <QOpenGLShaderProgram>
@@ -77,6 +78,7 @@ protected:
     void initializeGL();
     void resizeGL(int iWidth, int iHeight);
     void paintGL();
+    void releaseGlResources();
 
     void enterEvent(QEnterEvent *event) override;
     void leaveEvent(QEvent *event) override;
@@ -106,6 +108,10 @@ private:
 	TWideband					m_widebandOptions;
 
     void drawPanelRect(const QRect &rect, const QColor &color, float z = 0.0f);
+
+    void renewGlCachesAfterSleep();
+    QOpenGLContext *m_watchedContext = nullptr;
+    bool m_glNeedsRenewAfterSleep = false;
 
     QOpenGLFramebufferObject*		m_frequencyScaleFBO = nullptr;
     QOpenGLFramebufferObject*		m_dBmScaleFBO = nullptr;

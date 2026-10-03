@@ -76,13 +76,7 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
 
     // View -> Model
     connect(m_view, &RadioPopupWidget::hamBandRequested, this, [this](int r, HamBand band) {
-        m_model->setHamBand(r, true, band);
-        // Restore last-used VFO for this band from Settings (authoritative), not a stale view cache.
-        const QList<qint64> lasts = m_model->getLastVfoFrequencyList(r);
-        const int bandIdx = static_cast<int>(band);
-        if (bandIdx >= 0 && bandIdx < lasts.size()) {
-            m_model->setVFOFrequency(2, r, lasts.at(bandIdx));
-        }
+        m_model->applyHamBand(r, band);
     });
 
     connect(m_view, &RadioPopupWidget::vfoFrequencyRequested, this, [this](int r, qint64 val) {
@@ -254,9 +248,9 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
             }
             if (enabled) {
                 if (m_model) {
-                    m_model->setDSPMode(rx, DSPMode::USB);
+                    m_model->setDSPMode(rx, DSPMode::LSB);
                 } else if (m_sliceModel) {
-                    m_sliceModel->setDspMode(DSPMode::USB);
+                    m_sliceModel->setDspMode(DSPMode::LSB);
                 }
             }
         });

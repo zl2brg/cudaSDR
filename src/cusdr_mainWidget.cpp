@@ -104,11 +104,10 @@ MainWindow::MainWindow(RadioModel *model, Settings* settingsModel, QWidget *pare
 
 	m_fullScreen = false;
 
-	// save and reload the windows size and state
+	// Window size now; dock layout is restored in setup() after the docks exist.
 	m_windowsSettingsFilename = "windowsSettings.ini";
 	QSettings settings(QCoreApplication::applicationDirPath() +  "/" + m_windowsSettingsFilename, QSettings::IniFormat);
 	restoreGeometry(settings.value("geometry").toByteArray());
-	restoreState(settings.value("windowState").toByteArray());
 
 	// Dock windows options
 	setDockOptions(QMainWindow::AnimatedDocks | QMainWindow::AllowNestedDocks | QMainWindow::AllowTabbedDocks | QMainWindow::GroupedDragging);
@@ -476,6 +475,10 @@ void MainWindow::setup() {
 
     QTimer::singleShot(1000, set, &Settings::searchDevices);
     m_discoveryTimer.start(2500); // Wait 2.5s for discovery results
+
+	// Docks (including the inner RX QMainWindow) must exist before restoreState.
+	restoreWindowLayout();
+	setNumberOfReceivers(set->getNumberOfReceivers());
 }
 
 void MainWindow::cusdr_setup()
@@ -598,7 +601,7 @@ void MainWindow::setupLayout() {
 		QString num = QString::number(i+1);
 		str.append(num);
 		dock = new QDockWidget(str, this);
-		widebandDock->setObjectName(str);
+		dock->setObjectName(QString("Receiver%1").arg(i + 1));
 		dock->setWidget(rxWidgetList.at(i));
 		rxDockWidgetList.append(dock);
 
@@ -646,6 +649,31 @@ void MainWindow::setupLayout() {
 	}
 
 	//ui->viewMenu->addAction(dock->toggleViewAction());
+}
+
+void MainWindow::saveWindowLayout()
+{
+	QSettings settings(QCoreApplication::applicationDirPath() + "/" + m_windowsSettingsFilename, QSettings::IniFormat);
+	settings.setValue(QStringLiteral("geometry"), saveGeometry());
+	settings.setValue(QStringLiteral("windowState"), saveState());
+	if (centralwidget)
+		settings.setValue(QStringLiteral("centralWindowState"), centralwidget->saveState());
+}
+
+void MainWindow::restoreWindowLayout()
+{
+	QSettings settings(QCoreApplication::applicationDirPath() + "/" + m_windowsSettingsFilename, QSettings::IniFormat);
+	const QByteArray geometry = settings.value(QStringLiteral("geometry")).toByteArray();
+	if (!geometry.isEmpty())
+		restoreGeometry(geometry);
+	const QByteArray windowState = settings.value(QStringLiteral("windowState")).toByteArray();
+	if (!windowState.isEmpty())
+		restoreState(windowState);
+	if (centralwidget) {
+		const QByteArray centralState = settings.value(QStringLiteral("centralWindowState")).toByteArray();
+		if (!centralState.isEmpty())
+			centralwidget->restoreState(centralState);
+	}
 }
 
 /*!
@@ -1862,9 +1890,7 @@ void MainWindow::closeEvent(
 	// Persist last VFO/center frequencies even if the user never toggled main power.
 	set->saveSettings();
 
-	QSettings settings(QCoreApplication::applicationDirPath() +  "/" + m_windowsSettingsFilename, QSettings::IniFormat);
-    settings.setValue("geometry", saveGeometry());
-    settings.setValue("windowState", saveState());
+	saveWindowLayout();
 
 	ui->mainBtnList.clear();
 

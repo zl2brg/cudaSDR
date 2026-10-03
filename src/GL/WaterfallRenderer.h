@@ -30,6 +30,7 @@ public:
     ~WaterfallRenderer();
 
     void initialize();
+    void release();
     void render(const QMatrix4x4& projection, const QRect& rect, const QVarLengthArray<float>& intensity,
                 QSDR::_DataEngineState dataEngineState, float dpr, bool newLine, const WaterfallMapping& mapping);
     void reset();

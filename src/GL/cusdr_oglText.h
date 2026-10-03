@@ -61,6 +61,7 @@ public:
     void renderText(const QMatrix4x4 &projection, float x, float y, float z, const QString &text,
                     const QColor &color = Qt::white);
     void invalidateCache();
+    void releaseGlResources();
     void setDevicePixelRatio(qreal devicePixelRatio);
   
 private:

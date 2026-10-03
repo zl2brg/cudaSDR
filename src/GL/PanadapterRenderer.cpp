@@ -53,6 +53,9 @@ bool PanadapterRenderer::initialize(QOpenGLContext *shareContext, QOpenGLShaderP
         return true;
     };
 
+    if (m_glVao.isCreated() || m_glShader)
+        release();
+
     if (m_rhi)
         return m_glShader && m_glShader->isLinked();
 
@@ -99,11 +102,10 @@ void PanadapterRenderer::release()
         m_glVao.destroy();
     if (m_glVbo.isCreated())
         m_glVbo.destroy();
-    if (m_ownsGlShader && m_glShader) {
+    if (m_ownsGlShader && m_glShader)
         delete m_glShader;
-        m_glShader = nullptr;
-        m_ownsGlShader = false;
-    }
+    m_glShader = nullptr;
+    m_ownsGlShader = false;
 }
 
 bool PanadapterRenderer::ensureRenderTarget(const QSize &pixelSize)

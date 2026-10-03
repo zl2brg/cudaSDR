@@ -29,6 +29,7 @@
 
 #include <QOpenGLWidget>
 #include <QGuiApplication>
+#include <QOpenGLContext>
 #include <QOpenGLFramebufferObject>
 #include <QSurfaceFormat>
 #include <QElapsedTimer>
@@ -40,6 +41,72 @@
 inline bool isNativeWaylandPlatform()
 {
     return QGuiApplication::platformName().contains(QLatin1String("wayland"), Qt::CaseInsensitive);
+}
+
+// DPMS / lock-screen blank: skip GL while the window is unmapped or the
+// session is suspended. QScreen::powerState is not public in Qt 6.
+inline bool displayIsAsleep(const QWidget *w)
+{
+    if (!w)
+        return false;
+    const Qt::ApplicationState appState = QGuiApplication::applicationState();
+    if (appState == Qt::ApplicationSuspended || appState == Qt::ApplicationHidden)
+        return true;
+    if (const QWindow *win = w->windowHandle())
+        return !win->isExposed();
+    return false;
+}
+
+inline bool glWidgetCanPaint(const QOpenGLWidget *w)
+{
+    if (!w)
+        return false;
+    QOpenGLContext *ctx = w->context();
+    if (!ctx || !ctx->isValid())
+        return false;
+    if (!w->isValid())
+        return false;
+    return !displayIsAsleep(w);
+}
+
+// Swallow paints while the display is off so QOpenGLWidget does not bind a
+// stale FBO. First-time init (no context yet) is left alone.
+class GlDisplaySleepGuard : public QObject {
+public:
+    explicit GlDisplaySleepGuard(QOpenGLWidget *widget)
+        : QObject(widget)
+        , m_widget(widget)
+    {
+        setObjectName(QStringLiteral("__gl_display_sleep_guard__"));
+        widget->installEventFilter(this);
+    }
+
+    bool eventFilter(QObject *, QEvent *event) override
+    {
+        const QEvent::Type t = event->type();
+        if (t != QEvent::Paint && t != QEvent::UpdateRequest)
+            return false;
+        if (displayIsAsleep(m_widget))
+            return true;
+        QOpenGLContext *ctx = m_widget->context();
+        if (ctx && !ctx->isValid())
+            return true;
+        return false;
+    }
+
+private:
+    QOpenGLWidget *m_widget;
+};
+
+inline void installGlDisplaySleepGuard(QOpenGLWidget *widget)
+{
+    if (!widget)
+        return;
+    static constexpr auto kGuardInstalledProperty = "cudasdr_gl_display_sleep_guard";
+    if (widget->property(kGuardInstalledProperty).toBool())
+        return;
+    widget->setProperty(kGuardInstalledProperty, true);
+    new GlDisplaySleepGuard(widget);
 }
 
 // NVIDIA EGL on native Wayland either busy-waits in eglSwapBuffers (swapInterval 1)

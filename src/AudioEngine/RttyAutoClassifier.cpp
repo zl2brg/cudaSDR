@@ -42,6 +42,30 @@ static void fftRadix2(std::vector<std::complex<float>> &data)
 }
 
 constexpr float CANDIDATE_BAUD_RATES[4] = {45.4545f, 50.0f, 75.0f, 100.0f};
+constexpr float STANDARD_SHIFTS[] = {170.0f, 200.0f, 425.0f, 450.0f, 850.0f};
+
+float snapStandardShift(float rawShift)
+{
+    float best = 0.0f;
+    float bestErr = 1.0e9f;
+    for (float standard : STANDARD_SHIFTS) {
+        const float err = std::abs(rawShift - standard);
+        const float tol = (standard <= 200.0f) ? 28.0f : 70.0f;
+        if (err > tol)
+            continue;
+        // Ham 45.45 is usually 200 Hz. A 7-bin FFT pair (~164 Hz) is closer
+        // to 170, so only keep 170 when it is clearly nearer.
+        if (standard == 170.0f && std::abs(rawShift - 200.0f) <= 28.0f
+            && err + 8.0f >= std::abs(rawShift - 200.0f)) {
+            continue;
+        }
+        if (err < bestErr) {
+            bestErr = err;
+            best = standard;
+        }
+    }
+    return best;
+}
 
 } // anonymous namespace
 
@@ -164,22 +188,6 @@ void RttyAutoClassifier::processFftBuffer()
         return a.power > b.power;
     });
 
-    const Peak &p1 = peaks[0];
-    int p2Idx = -1;
-    for (size_t i = 1; i < peaks.size(); ++i) {
-        if (std::abs(peaks[i].bin - p1.bin) >= 4) { // At least ~94 Hz apart
-            p2Idx = static_cast<int>(i);
-            break;
-        }
-    }
-
-    if (p2Idx < 0) {
-        m_shiftCandidateCount = 0;
-        return;
-    }
-
-    const Peak &p2 = peaks[p2Idx];
-
     auto refineFreq = [this, binHz](int k) -> float {
         const float y0 = m_smoothedSpectrum[k - 1];
         const float y1 = m_smoothedSpectrum[k];
@@ -193,27 +201,33 @@ void RttyAutoClassifier::processFftBuffer()
         return (static_cast<float>(k) + delta) * binHz;
     };
 
-    float f1 = refineFreq(p1.bin);
-    float f2 = refineFreq(p2.bin);
-    if (f1 > f2) {
-        std::swap(f1, f2);
-    }
-
-    const float rawShift = f2 - f1;
-    const float center = (f1 + f2) * 0.5f;
-
-    // Classify shift against standard standards
+    // Score every strong peak pair against standard shifts. Taking only the
+    // two loudest bins often locks 170 Hz (7 FFT bins ≈ 164 Hz) on 200 Hz ham.
+    const int nPeaks = std::min(static_cast<int>(peaks.size()), 8);
     float standardShift = 0.0f;
-    if (rawShift >= 140.0f && rawShift <= 185.0f) {
-        standardShift = 170.0f;
-    } else if (rawShift > 185.0f && rawShift <= 250.0f) {
-        standardShift = 200.0f;
-    } else if (rawShift >= 380.0f && rawShift <= 437.0f) {
-        standardShift = 425.0f;
-    } else if (rawShift > 437.0f && rawShift <= 500.0f) {
-        standardShift = 450.0f;
-    } else if (rawShift >= 780.0f && rawShift <= 920.0f) {
-        standardShift = 850.0f;
+    float center = 0.0f;
+    float bestScore = -1.0f;
+    for (int i = 0; i < nPeaks; ++i) {
+        for (int j = i + 1; j < nPeaks; ++j) {
+            if (std::abs(peaks[static_cast<size_t>(i)].bin - peaks[static_cast<size_t>(j)].bin) < 6)
+                continue;
+            float f1 = refineFreq(peaks[static_cast<size_t>(i)].bin);
+            float f2 = refineFreq(peaks[static_cast<size_t>(j)].bin);
+            if (f1 > f2)
+                std::swap(f1, f2);
+            const float rawShift = f2 - f1;
+            const float snapped = snapStandardShift(rawShift);
+            if (snapped <= 0.0f)
+                continue;
+            const float err = std::abs(rawShift - snapped);
+            const float power = peaks[static_cast<size_t>(i)].power + peaks[static_cast<size_t>(j)].power;
+            const float score = power / (1.0f + err / 8.0f);
+            if (score > bestScore) {
+                bestScore = score;
+                standardShift = snapped;
+                center = (f1 + f2) * 0.5f;
+            }
+        }
     }
 
     if (standardShift > 0.0f) {

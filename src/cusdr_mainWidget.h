@@ -133,6 +133,8 @@ private:
 #endif
 	void	setupConnections();
 	void	setupLayout();
+	void	saveWindowLayout();
+	void	restoreWindowLayout();
 	
 	void	createReceiverPanels(int rx);
 	void	updateFromSettings();

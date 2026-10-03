@@ -41,6 +41,13 @@ inline void applyCenter(State &s, qint64 newCenterHz, qint64 modelVfoHz)
     s.vfoHz = modelVfoHz;
 }
 
+// Mouse-wheel tune: keep the receive filter on the display centre (NCO 0).
+inline void applyCenteredTune(State &s, qint64 freqHz)
+{
+    s.centerHz = freqHz;
+    s.vfoHz = freqHz;
+}
+
 } // namespace PanadapterOverlayFreq
 
 #endif

@@ -44,6 +44,7 @@
 
 #include <QWheelEvent>
 #include <QOpenGLWidget>
+#include <QOpenGLContext>
 #include <QOpenGLFunctions>
 #include <QOpenGLPaintDevice>
 #include <QOpenGLShaderProgram>
@@ -94,6 +95,7 @@ public:
 	~QGLReceiverPanel();
 
 	RadioPopupWidget* getRadioPopupWidget() const { return radioPopup; }
+	SliceModel* sliceModel() const { return m_sliceModel; }
 	PanadapterInputController* inputController() const { return m_inputController; }
 
 public slots:
@@ -110,6 +112,7 @@ protected:
     void initializeGL();
     void resizeGL(int iWidth, int iHeight);
     void paintGL();
+    void releaseGlResources();
     
 	void enterEvent(QEnterEvent *event) override;
 	void leaveEvent(QEvent *event) override;
@@ -173,6 +176,9 @@ private:
     void renderPanelText(OGLText *text, float x, float y, const QString &str);
     void renderPanelText(OGLText *text, float x, float y, float z, const QString &str);
     void drawCachedTexture(const QRect &rect, GLuint texId, float z = 0.0f);
+    void renewGlCachesAfterSleep();
+    QOpenGLContext *m_watchedContext = nullptr;
+    bool m_glNeedsRenewAfterSleep = false;
 
     QColor m_glTextColor;
     qreal m_panelDpr;

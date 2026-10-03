@@ -60,13 +60,23 @@ OverlayRenderer::OverlayRenderer()
 {
 }
 
+void OverlayRenderer::release() {
+    if (m_vao.isCreated())
+        m_vao.destroy();
+    if (m_vbo.isCreated())
+        m_vbo.destroy();
+    if (m_ownsShader && m_shader)
+        delete m_shader;
+    m_shader = nullptr;
+    m_ownsShader = false;
+}
+
 OverlayRenderer::~OverlayRenderer() {
-    if (m_vao.isCreated()) m_vao.destroy();
-    if (m_vbo.isCreated()) m_vbo.destroy();
-    if (m_ownsShader && m_shader) delete m_shader;
+    release();
 }
 
 void OverlayRenderer::initialize(QOpenGLShaderProgram* sharedShader) {
+    release();
     initializeOpenGLFunctions();
 
     if (sharedShader) {

@@ -134,17 +134,19 @@ WaterfallRenderer::WaterfallRenderer()
     m_pbo[1] = QOpenGLBuffer(QOpenGLBuffer::PixelUnpackBuffer);
 }
 
-WaterfallRenderer::~WaterfallRenderer() {
-    if (m_vao.isCreated()) m_vao.destroy();
-    if (m_vbo.isCreated()) m_vbo.destroy();
-    if (m_shader) delete m_shader;
-    if (QOpenGLContext::currentContext()) {
-        if (m_textureId != 0) {
-            glDeleteTextures(1, &m_textureId);
+void WaterfallRenderer::release() {
+    if (QOpenGLContext *ctx = QOpenGLContext::currentContext()) {
+        QOpenGLFunctions *gl = ctx->functions();
+        if (m_vao.isCreated())
+            m_vao.destroy();
+        if (m_vbo.isCreated())
+            m_vbo.destroy();
+        if (m_textureId != 0 && gl) {
+            gl->glDeleteTextures(1, &m_textureId);
             m_textureId = 0;
         }
-        if (m_lutId != 0) {
-            glDeleteTextures(1, &m_lutId);
+        if (m_lutId != 0 && gl) {
+            gl->glDeleteTextures(1, &m_lutId);
             m_lutId = 0;
         }
         for (int i = 0; i < 2; ++i) {
@@ -152,6 +154,21 @@ WaterfallRenderer::~WaterfallRenderer() {
                 m_pbo[i].destroy();
         }
     }
+    delete m_shader;
+    m_shader = nullptr;
+    m_oldWidth = 0;
+    m_oldHeight = 0;
+    m_oldDpr = 0.0f;
+    m_headLine = 0;
+    m_updatePending = true;
+    m_lutMode = Simple;
+    m_lutLo = QColor();
+    m_lutMid = QColor();
+    m_lutHi = QColor();
+}
+
+WaterfallRenderer::~WaterfallRenderer() {
+    release();
 }
 
 void WaterfallRenderer::resolveTexStorage()
@@ -195,6 +212,7 @@ void WaterfallRenderer::allocateTexture2D(GLenum internalFormat, int width, int 
 }
 
 void WaterfallRenderer::initialize() {
+    release();
     initializeOpenGLFunctions();
     resolveTexStorage();
 

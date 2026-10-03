@@ -33,6 +33,7 @@
 #include "cusdr_glDraw.h"
 #include "Models/RadioTelemetry.h"
 #include <QGuiApplication>
+#include <QOpenGLContext>
 #include <QScreen>
 #include <QWindow>
 
@@ -84,6 +85,7 @@ QGLWidebandPanel::QGLWidebandPanel(QWidget *parent)
 	// Full repaint each frame — PartialUpdate corrupts the pan background under Core GL.
 	setUpdateBehavior(QOpenGLWidget::NoPartialUpdate);
 	disableVSyncOnNativeWayland(this);
+	installGlDisplaySleepGuard(this);
 	
 	setMouseTracking(true);
 	//setFocusPolicy(Qt::StrongFocus);
@@ -163,6 +165,17 @@ QGLWidebandPanel::~QGLWidebandPanel() {
 
 	disconnect(set, 0, this, 0);
 
+	if (m_watchedContext) {
+		disconnect(m_watchedContext, &QOpenGLContext::aboutToBeDestroyed,
+		           this, &QGLWidebandPanel::releaseGlResources);
+		m_watchedContext = nullptr;
+	}
+	if (context() && context()->isValid()) {
+		makeCurrent();
+		releaseGlResources();
+		doneCurrent();
+	}
+
 	while (!specAv_queue.isEmpty())
 		specAv_queue.dequeue();
 
@@ -234,9 +247,69 @@ void QGLWidebandPanel::setupConnections() {
     //         this, &QGLWidebandPanel::setSpectrumAvera
 }
 
+void QGLWidebandPanel::releaseGlResources()
+{
+	if (m_watchedContext) {
+		disconnect(m_watchedContext, &QOpenGLContext::aboutToBeDestroyed,
+		           this, &QGLWidebandPanel::releaseGlResources);
+		m_watchedContext = nullptr;
+	}
+	if (m_panadapterRenderer)
+		m_panadapterRenderer->release();
+	if (m_overlayRenderer)
+		m_overlayRenderer->release();
+
+	auto releaseText = [](OGLText *text) {
+		if (text)
+			text->releaseGlResources();
+	};
+	releaseText(m_oglTextTiny);
+	releaseText(m_oglTextSmall);
+	releaseText(m_oglTextNormal);
+
+	delete m_dBmScaleFBO;
+	m_dBmScaleFBO = nullptr;
+	delete m_frequencyScaleFBO;
+	m_frequencyScaleFBO = nullptr;
+	delete m_gridFBO;
+	m_gridFBO = nullptr;
+
+	delete m_program;
+	m_program = nullptr;
+	delete m_textureProgram;
+	m_textureProgram = nullptr;
+	if (m_vao.isCreated())
+		m_vao.destroy();
+	if (m_vbo.isCreated())
+		m_vbo.destroy();
+	m_dBmScaleRenew = true;
+	m_freqScaleRenew = true;
+	m_panGridRenew = true;
+	m_glNeedsRenewAfterSleep = true;
+}
+
+void QGLWidebandPanel::renewGlCachesAfterSleep()
+{
+	delete m_dBmScaleFBO;
+	m_dBmScaleFBO = nullptr;
+	delete m_frequencyScaleFBO;
+	m_frequencyScaleFBO = nullptr;
+	delete m_gridFBO;
+	m_gridFBO = nullptr;
+	m_dBmScaleRenew = true;
+	m_freqScaleRenew = true;
+	m_panGridRenew = true;
+	m_glNeedsRenewAfterSleep = false;
+}
+
 void QGLWidebandPanel::initializeGL() {
 
 	if (!isValid()) return;
+
+	if (m_watchedContext)
+		disconnect(m_watchedContext, &QOpenGLContext::aboutToBeDestroyed,
+		           this, &QGLWidebandPanel::releaseGlResources);
+	releaseGlResources();
 	initializeOpenGLFunctions();
 
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
@@ -288,13 +361,20 @@ void QGLWidebandPanel::initializeGL() {
 	if (!m_textureProgram->link())
 		qWarning() << "Wideband panel texture shader link failed:" << m_textureProgram->log();
 
-	m_overlayRenderer = new OverlayRenderer();
+	if (!m_overlayRenderer)
+		m_overlayRenderer = new OverlayRenderer();
 	m_overlayRenderer->initialize(nullptr);
 
 	// Own shader (WB uses a_pos/a_color); reuse vertex cache / RHI path like RX pan.
-	m_panadapterRenderer = new PanadapterRenderer();
+	if (!m_panadapterRenderer)
+		m_panadapterRenderer = new PanadapterRenderer();
 	if (!m_panadapterRenderer->initialize(context(), nullptr))
 		qWarning() << "PanadapterRenderer init failed for wideband panel";
+
+	m_watchedContext = context();
+	if (m_watchedContext)
+		connect(m_watchedContext, &QOpenGLContext::aboutToBeDestroyed,
+		        this, &QGLWidebandPanel::releaseGlResources, Qt::DirectConnection);
 }
 
 QMatrix4x4 QGLWidebandPanel::panelProjection() const
@@ -323,6 +403,13 @@ void QGLWidebandPanel::drawPanelRect(const QRect &rect, const QColor &color, flo
 }
 
 void QGLWidebandPanel::paintGL() {
+	if (!glWidgetCanPaint(this)) {
+		m_glNeedsRenewAfterSleep = true;
+		return;
+	}
+	if (m_glNeedsRenewAfterSleep)
+		renewGlCachesAfterSleep();
+
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glDisable(GL_DEPTH_TEST);
@@ -1041,9 +1128,11 @@ void QGLWidebandPanel::getRegion(QPoint p) {
 
 void QGLWidebandPanel::resizeGL(int iWidth, int iHeight) {
 
-    if (m_dBmScaleFBO) { delete m_dBmScaleFBO; m_dBmScaleFBO = nullptr; }
-    if (m_frequencyScaleFBO) { delete m_frequencyScaleFBO; m_frequencyScaleFBO = nullptr; }
-    if (m_gridFBO) { delete m_gridFBO; m_gridFBO = nullptr; }
+    if (glWidgetCanPaint(this)) {
+        if (m_dBmScaleFBO) { delete m_dBmScaleFBO; m_dBmScaleFBO = nullptr; }
+        if (m_frequencyScaleFBO) { delete m_frequencyScaleFBO; m_frequencyScaleFBO = nullptr; }
+        if (m_gridFBO) { delete m_gridFBO; m_gridFBO = nullptr; }
+    }
 
     // Update all sizes and rectangles
     setupDisplayRegions(QSize(iWidth, iHeight));

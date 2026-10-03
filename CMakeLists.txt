@@ -225,6 +225,7 @@ set(SOURCES
     ${SRC_DIR}/UI/FrequencyEntryDialog.cpp
     ${SRC_DIR}/UI/DeviceSelectionDialog.cpp
     ${SRC_DIR}/UI/RttyDecoderWindow.cpp
+    ${SRC_DIR}/UI/BandModeBar.cpp
     ${SRC_DIR}/Settings/NetworkConfig.cpp
     ${SRC_DIR}/Settings/DisplayConfig.cpp
     ${SRC_DIR}/Settings/HardwareConfig.cpp
@@ -299,6 +300,7 @@ set(HEADERS
     ${SRC_DIR}/UI/FrequencyEntryDialog.h
     ${SRC_DIR}/UI/DeviceSelectionDialog.h
     ${SRC_DIR}/UI/RttyDecoderWindow.h
+    ${SRC_DIR}/UI/BandModeBar.h
 
 
     # GL

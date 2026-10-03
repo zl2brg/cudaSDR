@@ -510,7 +510,7 @@ typedef struct _receiver {
 	bool	snb = false;
 	bool	cwDecode = false;
 	bool	rttyDecode = false;
-	float	rttyShiftHz = 170.0f;
+	float	rttyShiftHz = 200.0f;
 	float	rttyBaudRate = 45.4545f;
 	bool	rttyReverse = false;
 	bool	rttyAfc = true;
@@ -1400,6 +1400,9 @@ public slots:
 	void setdBmDistScaleMax(qreal value);
 	
 	void setHamBand(int rx, bool byButton, HamBand band);
+	/** Band-button hop: last on-band VFO if valid, else the IARU band edge. */
+	qint64 frequencyForHamBand(int rx, HamBand band) const;
+	void applyHamBand(int rx, HamBand band);
 	void setDSPMode(int rx, DSPMode mode);
 	void setADCMode(int rx, ADCMode mode);
 	void setAGCMode(int rx, AGCMode mode);

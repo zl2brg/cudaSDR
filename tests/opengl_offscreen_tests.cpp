@@ -22,10 +22,13 @@
 #include <cmath>
 
 #include "GL/cusdr_glShaders.h"
+#include "GL/cusdr_oglUtils.h"
 #include "GL/PanadapterRenderer.h"
 #include "GL/WaterfallRenderer.h"
 #include "GL/OverlayRenderer.h"
 #include "cusdr_settings.h"
+
+#include <QWidget>
 
 class OpenglOffscreenTests : public QObject {
     Q_OBJECT
@@ -41,6 +44,8 @@ private slots:
     void testGlShadersWaterfallCompilation();
     void testVaoVboAllocationAndBinding();
     void testWaterfallRendererLifecycle();
+    void testWaterfallRendererReinitializeAfterRelease();
+    void testDisplaySleepHelpers();
     void testPanadapterRendererLifecycle();
     void testOffscreenFboRasterization();
     void testOverlayRendererLifecycle();
@@ -281,6 +286,39 @@ void OpenglOffscreenTests::testWaterfallRendererLifecycle()
     waterfall.reset();
     waterfall.render(proj, rect, row, QSDR::DataEngineUp, 1.0f, true, mapping);
     QCOMPARE(m_gl->glGetError(), static_cast<GLenum>(GL_NO_ERROR));
+}
+
+void OpenglOffscreenTests::testWaterfallRendererReinitializeAfterRelease()
+{
+    if (!m_glAvailable)
+        QSKIP("OpenGL offscreen context not supported on this platform");
+
+    WaterfallRenderer waterfall;
+    waterfall.initialize();
+    waterfall.release();
+    waterfall.initialize();
+
+    QVarLengthArray<float> row(128);
+    for (int i = 0; i < row.size(); ++i)
+        row[i] = -120.0f + float(i);
+
+    QMatrix4x4 proj;
+    proj.ortho(0, 128, 64, 0, -1.0f, 1.0f);
+    WaterfallMapping mapping;
+    mapping.lowerThreshold = -140.0f;
+    mapping.upperThreshold = -30.0f;
+    mapping.colorRange = 110.0f;
+    waterfall.render(proj, QRect(0, 0, 128, 64), row, QSDR::DataEngineUp, 1.0f, true, mapping);
+    QCOMPARE(m_gl->glGetError(), static_cast<GLenum>(GL_NO_ERROR));
+}
+
+void OpenglOffscreenTests::testDisplaySleepHelpers()
+{
+    QVERIFY(!displayIsAsleep(nullptr));
+    QVERIFY(!glWidgetCanPaint(nullptr));
+
+    QWidget widget;
+    QVERIFY(!displayIsAsleep(&widget));
 }
 
 void OpenglOffscreenTests::testPanadapterRendererLifecycle()

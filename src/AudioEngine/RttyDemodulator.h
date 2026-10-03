@@ -127,7 +127,7 @@ private:
     int m_rxId = 0;
     bool m_enabled = true;
     float m_baudRate = 45.4545f;
-    float m_shiftHz = 170.0f;
+    float m_shiftHz = 200.0f;
     float m_centerFreqHz = 2210.0f; // Standard High Tones (Mark 2125, Space 2295)
     bool m_isUsbMode = false;
     bool m_reversePolarity = false;

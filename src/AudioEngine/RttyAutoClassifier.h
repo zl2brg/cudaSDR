@@ -61,7 +61,7 @@ private:
     std::vector<float> m_smoothedSpectrum;
     int m_spectrumFrames = 0;
 
-    float m_lockedShiftHz = 170.0f;
+    float m_lockedShiftHz = 200.0f;
     float m_lockedCenterFreqHz = 2210.0f;
     float m_lockedBaudRate = 45.4545f;
     bool m_shiftLocked = false;

@@ -17,6 +17,7 @@ public:
     ~OverlayRenderer();
 
     void initialize(QOpenGLShaderProgram* sharedShader = nullptr);
+    void release();
 
     void drawGrid(const QMatrix4x4& projection,
                   const QRect& panRect,

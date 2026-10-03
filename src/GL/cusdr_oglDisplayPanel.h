@@ -35,6 +35,7 @@
 
 #include <QWheelEvent>
 #include <QOpenGLWidget>
+#include <QOpenGLContext>
 #include <QtOpenGL/QOpenGLFramebufferObject>
 #include <QOpenGLFunctions>
 #include <QOpenGLShaderProgram>
@@ -52,6 +53,7 @@
 
 
 class RadioModel;
+class BandModeBar;
 class SMeterRenderer;
 class DisplayFreqRenderer;
 class DisplayStatusRenderer;
@@ -131,6 +133,7 @@ public:
 
 	QSize minimumSizeHint() const;
 	QSize sizeHint() const;
+	int faceHeight() const { return m_faceHeight; }
 
 public slots:
 	void setSampleRate(int value);
@@ -140,6 +143,7 @@ protected:
     void initializeGL();
     void resizeGL(int iWidth, int iHeight);
     void paintGL();
+    void releaseGlResources();
     
 	void enterEvent(QEvent *event);
 	void leaveEvent(QEvent *event);
@@ -258,6 +262,13 @@ private:
     DisplayFreqRenderer  *m_freqRenderer = nullptr;
     DisplayStatusRenderer *m_statusRenderer = nullptr;
     DisplayPanelInputController *m_inputController = nullptr;
+    BandModeBar *m_bandModeBar = nullptr;
+
+    int frequencyDisplayRight() const;
+    void layoutBandModeBar();
+    void renewGlCachesAfterSleep();
+    QOpenGLContext *m_watchedContext = nullptr;
+    bool m_glNeedsRenewAfterSleep = false;
 
 	GLuint	m_sMeterTex;
 	bool	m_smeterUpdate;
@@ -265,6 +276,7 @@ private:
 
 	qint64	m_oldFreq = -1;
 
+	int		m_faceHeight;
 	int		m_height;
 	int		m_sMeterWidth;
 	int		m_sMeterOffset;

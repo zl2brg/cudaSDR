@@ -35,6 +35,7 @@ void GridRenderer::invalidateScaleFBOs()
     m_dBmScaleFBO = nullptr;
     delete m_secScaleWaterfallFBO;
     m_secScaleWaterfallFBO = nullptr;
+    m_glReady = false;
 }
 
 void GridRenderer::updateFrequencyRuler()

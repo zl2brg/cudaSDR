@@ -584,8 +584,8 @@ QMenu* RttyDecoderWindow::createConfigMenu(QWidget *parent, SliceModel *slice, S
     QMenu *shiftMenu = menu->addMenu(QStringLiteral("Shift (%1 Hz)").arg(qRound(slice->rttyShiftHz())));
     QActionGroup *shiftGroup = new QActionGroup(shiftMenu);
     const struct { const char *label; float shift; } shifts[] = {
-        {"170 Hz (Standard Amateur)", 170.0f},
-        {"200 Hz", 200.0f},
+        {"170 Hz", 170.0f},
+        {"200 Hz (Standard Amateur)", 200.0f},
         {"425 Hz (Commercial / Nav)", 425.0f},
         {"450 Hz (Commercial / Weather)", 450.0f},
         {"850 Hz (Wide)", 850.0f}

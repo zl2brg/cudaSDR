@@ -1,6 +1,9 @@
 #include <QtTest/QtTest>
 #include <QSignalSpy>
 
+#include "Models/RadioModel.h"
+#include "Models/SliceModel.h"
+#include "cusdr_hamDatabase.h"
 #include "cusdr_settings.h"
 
 class SettingsSignalTests : public QObject {
@@ -20,6 +23,9 @@ private slots:
     void ctrMode1ClearsStaleNcoWhenVfoUnchanged();
     void visibleRetuneKeepsCenterInsideSpan();
     void visibleRetuneRecentersOutsideSpan();
+    void applyHamBandIgnoresOffBandLastVfo();
+    void applyHamBandMovesRx2WhenSettingsVfoAlreadyOnBand();
+    void applyHamBandMovesRx2SliceWhenLastVfoStale();
 
 private:
     Settings *m_settings = nullptr;
@@ -157,6 +163,61 @@ void SettingsSignalTests::visibleRetuneRecentersOutsideSpan()
     QCOMPARE(m_settings->getCtrFrequency(0), target);
     QCOMPARE(m_settings->getVfoFrequency(0), target);
     QCOMPARE(m_settings->getReceiverDataList().at(0).ncoFrequency, 0);
+}
+
+void SettingsSignalTests::applyHamBandIgnoresOffBandLastVfo()
+{
+    // ReceiverConfig pads unused RX last-VFO slots with 7.050 MHz. A 20 m
+    // button must not restore that 40 m frequency (and then no-op).
+    const QList<THamBandFrequencies> bands = m_settings->getBandFrequencyList();
+    QCOMPARE(getBandFromFrequency(bands, m_settings->frequencyForHamBand(1, static_cast<HamBand>(m20))),
+             static_cast<HamBand>(m20));
+
+    m_settings->setCtrFrequency(0, 1, 7'050'000);
+    m_settings->setVFOFrequency(0, 1, 7'050'000);
+    m_settings->applyHamBand(1, static_cast<HamBand>(m20));
+
+    QCOMPARE(getBandFromFrequency(bands, m_settings->getVfoFrequency(1)), static_cast<HamBand>(m20));
+    QCOMPARE(getBandFromFrequency(bands, m_settings->getCtrFrequency(1)), static_cast<HamBand>(m20));
+}
+
+void SettingsSignalTests::applyHamBandMovesRx2WhenSettingsVfoAlreadyOnBand()
+{
+    // Settings VFO already 20 m, CTR still on 40 m — the old setVFOFrequency(2)
+    // early-return left the panadapter on 40 m.
+    const qint64 stuckCenter = 7'050'000;
+    const qint64 dial = 14'100'000;
+    m_settings->setCtrFrequency(0, 1, stuckCenter);
+    m_settings->setVFOFrequency(0, 1, dial);
+    QCOMPARE(m_settings->getCtrFrequency(1), stuckCenter);
+
+    m_settings->applyHamBand(1, static_cast<HamBand>(m20));
+
+    QCOMPARE(m_settings->getCtrFrequency(1), dial);
+    QCOMPARE(m_settings->getVfoFrequency(1), dial);
+    QCOMPARE(m_settings->getReceiverDataList().at(1).ncoFrequency, 0);
+}
+
+void SettingsSignalTests::applyHamBandMovesRx2SliceWhenLastVfoStale()
+{
+    RadioModel radio;
+    radio.addSlice(new SliceModel(0, &radio));
+    radio.addSlice(new SliceModel(1, &radio));
+    m_settings->setRadioModel(&radio);
+
+    SliceModel *rx2 = radio.slices().at(1);
+    rx2->setCenterFrequency(7'000'000);
+    rx2->setFrequency(7'000'000);
+    m_settings->setCtrFrequency(0, 1, 7'000'000);
+    m_settings->setVFOFrequency(0, 1, 7'000'000);
+
+    m_settings->applyHamBand(1, static_cast<HamBand>(m20));
+
+    const QList<THamBandFrequencies> bands = m_settings->getBandFrequencyList();
+    QCOMPARE(getBandFromFrequency(bands, rx2->frequency()), static_cast<HamBand>(m20));
+    QCOMPARE(getBandFromFrequency(bands, rx2->centerFrequency()), static_cast<HamBand>(m20));
+
+    m_settings->setRadioModel(nullptr);
 }
 
 QTEST_MAIN(SettingsSignalTests)

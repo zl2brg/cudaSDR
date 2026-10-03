@@ -418,7 +418,7 @@ void SliceModel::setRttyWeatherProfile(bool weather) {
             setRttyDecodeEnabled(true);
     } else if (rttyWeatherProfile()) {
         setRttyBaudRate(45.4545f);
-        setRttyShiftHz(170.0f);
+        setRttyShiftHz(200.0f);
     }
 }
 

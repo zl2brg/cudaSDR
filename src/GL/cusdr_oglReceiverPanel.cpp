@@ -44,6 +44,7 @@
 #include "UI/RttyDecoderWindow.h"
 
 #include <QGuiApplication>
+#include <QOpenGLContext>
 #include <QMatrix4x4>
 #include <algorithm>
 #include <cmath>
@@ -128,6 +129,7 @@ QGLReceiverPanel::QGLReceiverPanel(SliceModel *model, QWidget *parent)
 	setAttribute(Qt::WA_OpaquePaintEvent);
 	setAttribute(Qt::WA_NoSystemBackground);
 	disableVSyncOnNativeWayland(this);
+	installGlDisplaySleepGuard(this);
 
 	setMouseTracking(true);
 	setFocusPolicy(Qt::StrongFocus);
@@ -311,6 +313,17 @@ QGLReceiverPanel::~QGLReceiverPanel() {
 
     qDebug() << "rx panel destructor" << m_receiver;
     disconnect(set, 0, this, 0);
+
+    if (m_watchedContext) {
+        disconnect(m_watchedContext, &QOpenGLContext::aboutToBeDestroyed,
+                   this, &QGLReceiverPanel::releaseGlResources);
+        m_watchedContext = nullptr;
+    }
+    if (context() && context()->isValid()) {
+        makeCurrent();
+        releaseGlResources();
+        doneCurrent();
+    }
 
     if (m_spectrumBinWorker) {
         disconnect(m_spectrumBinWorker, nullptr, this, nullptr);
@@ -520,10 +533,67 @@ void QGLReceiverPanel::setupConnections() {
 	connect(radioPopup, &RadioPopupWidget::midToVfoBtnEvent, this, &QGLReceiverPanel::setMidToVfoFrequency);
 }
 
+void QGLReceiverPanel::releaseGlResources()
+{
+	if (m_watchedContext) {
+		disconnect(m_watchedContext, &QOpenGLContext::aboutToBeDestroyed,
+		           this, &QGLReceiverPanel::releaseGlResources);
+		m_watchedContext = nullptr;
+	}
+	if (m_waterfallRenderer)
+		m_waterfallRenderer->release();
+	if (m_panadapterRenderer)
+		m_panadapterRenderer->release();
+	if (m_overlayRenderer)
+		m_overlayRenderer->release();
+	if (m_gridRenderer)
+		m_gridRenderer->invalidateScaleFBOs();
+
+	auto releaseText = [](OGLText *text) {
+		if (text)
+			text->releaseGlResources();
+	};
+	releaseText(m_oglTextTiny);
+	releaseText(m_oglTextSmall);
+	releaseText(m_oglTextNormal);
+	releaseText(m_oglTextFreq1);
+	releaseText(m_oglTextFreq2);
+	releaseText(m_oglTextBig1);
+	releaseText(m_oglTextBig2);
+	releaseText(m_oglTextHuge);
+
+	delete m_shaderProgram;
+	m_shaderProgram = nullptr;
+	delete m_textureProgram;
+	m_textureProgram = nullptr;
+	if (m_vao.isCreated())
+		m_vao.destroy();
+	if (m_vbo.isCreated())
+		m_vbo.destroy();
+	m_glNeedsRenewAfterSleep = true;
+}
+
+void QGLReceiverPanel::renewGlCachesAfterSleep()
+{
+	if (m_gridRenderer)
+		m_gridRenderer->invalidateScaleFBOs();
+	if (m_waterfallRenderer)
+		m_waterfallRenderer->reset();
+	m_panGridRenew = true;
+	m_panFrequencyScale = true;
+	m_spectrumVertexColorUpdate = true;
+	m_glNeedsRenewAfterSleep = false;
+}
+
 void QGLReceiverPanel::initializeGL() {
 
 	if (!isValid()) return;
-     initializeOpenGLFunctions();
+
+	if (m_watchedContext)
+		disconnect(m_watchedContext, &QOpenGLContext::aboutToBeDestroyed,
+		           this, &QGLReceiverPanel::releaseGlResources);
+	releaseGlResources();
+	initializeOpenGLFunctions();
 
     // --- Modern OpenGL Setup ---
     m_shaderProgram = new QOpenGLShaderProgram(this);
@@ -582,15 +652,18 @@ void QGLReceiverPanel::initializeGL() {
     glEnable(GL_DEPTH_TEST);
 	glDisable(GL_CULL_FACE);
 
-    m_waterfallRenderer = new WaterfallRenderer();
+    if (!m_waterfallRenderer)
+        m_waterfallRenderer = new WaterfallRenderer();
     m_waterfallRenderer->initialize();
 
-    m_panadapterRenderer = new PanadapterRenderer();
+    if (!m_panadapterRenderer)
+        m_panadapterRenderer = new PanadapterRenderer();
     if (!m_panadapterRenderer->initialize(context(), m_shaderProgram)) {
         qWarning() << "PanadapterRenderer init failed for rx" << m_receiver;
     }
 
-    m_overlayRenderer = new OverlayRenderer();
+    if (!m_overlayRenderer)
+        m_overlayRenderer = new OverlayRenderer();
     m_overlayRenderer->initialize(m_shaderProgram);
 
     if (!m_gridRenderer)
@@ -599,6 +672,13 @@ void QGLReceiverPanel::initializeGL() {
         m_traceRenderer = new TraceRenderer(this);
     if (!m_hudRenderer)
         m_hudRenderer = new HudRenderer(this);
+
+    m_watchedContext = context();
+    if (m_watchedContext) {
+        connect(m_watchedContext, &QOpenGLContext::aboutToBeDestroyed,
+                this, &QGLReceiverPanel::releaseGlResources, Qt::DirectConnection);
+        qInfo() << "ReceiverPanel: watching GL context for rx" << m_receiver;
+    }
 }
 
 QMatrix4x4 QGLReceiverPanel::panelProjection() const
@@ -680,6 +760,13 @@ void QGLReceiverPanel::drawCachedTexture(const QRect &rect, GLuint texId, float 
 }
 
 void QGLReceiverPanel::paintGL() {
+    if (!glWidgetCanPaint(this)) {
+        m_glNeedsRenewAfterSleep = true;
+        return;
+    }
+    if (m_glNeedsRenewAfterSleep)
+        renewGlCachesAfterSleep();
+
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -980,7 +1067,8 @@ void QGLReceiverPanel::resizeGL(int iWidth, int iHeight) {
     setupDisplayRegions(QSize(iWidth, iHeight));
     
     syncTextDevicePixelRatio();
-    ensurePanelViewport();
+    if (glWidgetCanPaint(this))
+        ensurePanelViewport();
     
     // Mark all for renewal
     m_panGridRenew = true;
@@ -1927,6 +2015,9 @@ void QGLReceiverPanel::setDSPMode(int rx, DSPMode mode) {
 void QGLReceiverPanel::showRadioPopup(bool value) {
 
 	Q_UNUSED (value)
+
+	if (set && set->getCurrentReceiver() != m_receiver)
+		set->setCurrentReceiver(m_receiver);
 
 	radioPopup->showPopupWidget(QCursor::pos());
 }

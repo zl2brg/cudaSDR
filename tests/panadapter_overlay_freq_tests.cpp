@@ -10,6 +10,7 @@
 using PanadapterOverlayFreq::State;
 using PanadapterOverlayFreq::applyVfo;
 using PanadapterOverlayFreq::applyCenter;
+using PanadapterOverlayFreq::applyCenteredTune;
 
 class PanadapterOverlayFreqTests : public QObject {
     Q_OBJECT
@@ -18,6 +19,7 @@ private slots:
     void inSpanAbSwitchKeepsCenterAndOffset();
     void justOffSpanAbSwitchZerosDelta();
     void farBandAbSwitchZerosDelta();
+    void wheelTuneKeepsFilterAtCenter();
 };
 
 void PanadapterOverlayFreqTests::inSpanAbSwitchKeepsCenterAndOffset()
@@ -67,6 +69,18 @@ void PanadapterOverlayFreqTests::farBandAbSwitchZerosDelta()
 
     QCOMPARE(s.centerHz, vfoB);
     QCOMPARE(s.vfoHz, vfoB);
+    QCOMPARE(s.deltaFrequency(), 0);
+    QCOMPARE(s.deltaF(), 0.0);
+}
+
+void PanadapterOverlayFreqTests::wheelTuneKeepsFilterAtCenter()
+{
+    const qint64 sampleRate = 192000;
+    State s{ 14100000, 14105000, sampleRate };
+    applyCenteredTune(s, 14100100);
+
+    QCOMPARE(s.centerHz, 14100100);
+    QCOMPARE(s.vfoHz, 14100100);
     QCOMPARE(s.deltaFrequency(), 0);
     QCOMPARE(s.deltaF(), 0.0);
 }

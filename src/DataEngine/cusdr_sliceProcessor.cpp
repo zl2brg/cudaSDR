@@ -568,18 +568,17 @@ void SliceProcessor::dspProcessingCore() {
     const bool transmitting = set->is_transmitting() || (m_state != RadioState::RX);
     processSpectrumPass(transmitting);
 
-    // 4. S-meter and audio pass (for active receiver)
-    if (m_receiver == set->getCurrentReceiver()) {
-        processMeterPass();
-
-        int audioSamplesThisCall = m_audiobuffersize;
-        if (set->getHWInterface() == QSDR::SoapySDR && m_soapyInputSampleRate > 0) {
-            audioSamplesThisCall = std::max(1,
-                static_cast<int>((static_cast<long long>(BUFFER_SIZE) * 48000LL) / m_soapyInputSampleRate));
-        }
-
-        processAudioPass(audioSamplesThisCall);
+    // 4. Decoders and S-meter run on every slice; speaker stays on the focused RX.
+    int audioSamplesThisCall = m_audiobuffersize;
+    if (set->getHWInterface() == QSDR::SoapySDR && m_soapyInputSampleRate > 0) {
+        audioSamplesThisCall = std::max(1,
+            static_cast<int>((static_cast<long long>(BUFFER_SIZE) * 48000LL) / m_soapyInputSampleRate));
     }
+    processDecoderPass(audioSamplesThisCall);
+    processMeterPass();
+
+    if (m_receiver == set->getCurrentReceiver())
+        processAudioPass(audioSamplesThisCall);
 
     // 5. Emit captured raw IQ for TCI
     if (!tciIqFrame.isEmpty())
@@ -742,6 +741,33 @@ void SliceProcessor::processDigitalVoicePass(const float* monoIn, int count) {
     }
 }
 
+void SliceProcessor::processDecoderPass(int audioSamplesThisCall)
+{
+#ifdef USE_INTERNAL_AUDIO
+    const DSPMode dspMode = m_sliceModel ? m_sliceModel->dspMode() : set->getDSPMode(m_receiver);
+    const bool rttyOn = m_rttyDemodulator && m_sliceModel && m_sliceModel->rttyDecodeEnabled();
+    const bool cwOn = m_cwDecoder && m_cwDecoder->isEnabled()
+        && (dspMode == DSPMode::CWL || dspMode == DSPMode::CWU);
+    if (!rttyOn && !cwOn)
+        return;
+
+    const int n = audioSamplesThisCall;
+    if (n <= 0)
+        return;
+    if (m_monoScratch.size() < static_cast<size_t>(n))
+        m_monoScratch.resize(n);
+    float *mono = m_monoScratch.data();
+    const cpx *src = audioOutputBuf.constData();
+    for (int i = 0; i < n; ++i)
+        mono[i] = static_cast<float>(src[i].re);
+
+    if (cwOn)
+        m_cwDecoder->processAudio(mono, n, 48000);
+    if (rttyOn)
+        m_rttyDemodulator->processAudio(mono, n, 48000);
+#endif
+}
+
 void SliceProcessor::processAudioPass(int audioSamplesThisCall) {
 #ifdef USE_INTERNAL_AUDIO
     const DSPMode dspMode = m_sliceModel ? m_sliceModel->dspMode() : set->getDSPMode(m_receiver);
@@ -772,24 +798,6 @@ void SliceProcessor::processAudioPass(int audioSamplesThisCall) {
 
         deliverInternalAudio(m_soundcardScratch.data(), n * 2,
                              m_tciAudioScratch.data(), n * 2);
-
-        if (m_cwDecoder && m_cwDecoder->isEnabled() && (dspMode == DSPMode::CWL || dspMode == DSPMode::CWU)) {
-            if (m_monoScratch.size() < static_cast<size_t>(n))
-                m_monoScratch.resize(n);
-            float* mono = m_monoScratch.data();
-            for (int i = 0; i < n; ++i)
-                mono[i] = static_cast<float>(inData[i].re);
-            m_cwDecoder->processAudio(mono, n, 48000);
-        }
-
-        if (m_rttyDemodulator && m_sliceModel && m_sliceModel->rttyDecodeEnabled()) {
-            if (m_monoScratch.size() < static_cast<size_t>(n))
-                m_monoScratch.resize(n);
-            float* mono = m_monoScratch.data();
-            for (int i = 0; i < n; ++i)
-                mono[i] = static_cast<float>(inData[i].re);
-            m_rttyDemodulator->processAudio(mono, n, 48000);
-        }
     } else {
         if (m_monoScratch.size() < static_cast<size_t>(audioSamplesThisCall))
             m_monoScratch.resize(audioSamplesThisCall);
@@ -799,10 +807,6 @@ void SliceProcessor::processAudioPass(int audioSamplesThisCall) {
             mono[i] = static_cast<float>(src[i].re);
 
         processDigitalVoicePass(mono, audioSamplesThisCall);
-
-        if (m_rttyDemodulator && m_sliceModel && m_sliceModel->rttyDecodeEnabled()) {
-            m_rttyDemodulator->processAudio(mono, audioSamplesThisCall, 48000);
-        }
     }
 #endif // USE_INTERNAL_AUDIO
 

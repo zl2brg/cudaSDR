@@ -31,6 +31,7 @@
 #define LOG_DISPLAYPANEL
 
 #include "cusdr_oglDisplayPanel.h"
+#include "UI/BandModeBar.h"
 #include "SMeterRenderer.h"
 #include "DisplayFreqRenderer.h"
 #include "DisplayStatusRenderer.h"
@@ -42,6 +43,7 @@
 #include "Util/cusdr_tciserver.h"
 
 #include <QGuiApplication>
+#include <QOpenGLContext>
 #include <QOpenGLPaintDevice>
 #include <QTimer>
 
@@ -72,6 +74,7 @@ OGLDisplayPanel::OGLDisplayPanel(RadioModel *model, QWidget *parent)
 	, m_smeterUpdate(true)
 	, m_smeterRenew(true)
 	, m_oldFreq(0)
+	, m_faceHeight(155)
 	, m_height(155)
 	, m_sMeterWidth(300)
 	, m_rxRectWidth(500)
@@ -111,6 +114,7 @@ OGLDisplayPanel::OGLDisplayPanel(RadioModel *model, QWidget *parent)
     setMouseTracking(true);
     setUpdateBehavior(QOpenGLWidget::PartialUpdate);
     disableVSyncOnNativeWayland(this);
+    installGlDisplaySleepGuard(this);
         m_freqStringLeftPos = 20;
         setupDisplayRegions(size());
         dpr = devicePixelRatioF();
@@ -213,28 +217,29 @@ OGLDisplayPanel::OGLDisplayPanel(RadioModel *model, QWidget *parent)
 	m_freqRenderer = new DisplayFreqRenderer(this);
 	m_statusRenderer = new DisplayStatusRenderer(this);
 	m_inputController = new DisplayPanelInputController(this);
+
+	m_bandModeBar = new BandModeBar(set, this);
+	layoutBandModeBar();
+	setupDisplayRegions(size());
 }
 
 OGLDisplayPanel::~OGLDisplayPanel() {
-    if (m_shaderProgram) {
-        delete m_shaderProgram;
-        m_shaderProgram = nullptr;
+    // Drop the context-loss hook first. ~QOpenGLWidget destroys the context
+    // after this destructor returns; a leftover aboutToBeDestroyed call would
+    // run releaseGlResources() on already-destroyed members.
+    if (m_watchedContext) {
+        disconnect(m_watchedContext, &QOpenGLContext::aboutToBeDestroyed,
+                   this, &OGLDisplayPanel::releaseGlResources);
+        m_watchedContext = nullptr;
     }
-    if (m_textureProgram) {
-        delete m_textureProgram;
-        m_textureProgram = nullptr;
-    }
-
-    if (m_vao.isCreated()) {
-        m_vao.destroy();
-    }
-
-    if (m_vbo.isCreated()) {
-        m_vbo.destroy();
-    }
-
-    if (m_sMeterTex) {
-        glDeleteTextures(1, &m_sMeterTex);
+    if (context() && context()->isValid()) {
+        makeCurrent();
+        releaseGlResources();
+        if (m_sMeterTex) {
+            glDeleteTextures(1, &m_sMeterTex);
+            m_sMeterTex = 0;
+        }
+        doneCurrent();
     }
 
     delete  m_oglTextBigItalic;
@@ -255,6 +260,37 @@ OGLDisplayPanel::~OGLDisplayPanel() {
     delete m_inputController;
 }
 
+int OGLDisplayPanel::frequencyDisplayRight() const
+{
+	const int originX = 12 + qMax(m_vfoLabelWidth, 16);
+	const int digit1 = m_blankWidthf1 > 0 ? m_blankWidthf1 : 22;
+	const int digit2 = m_blankWidthf2 > 0 ? m_blankWidthf2 : 14;
+	const int point = m_pointStringWidth > 0 ? m_pointStringWidth : 10;
+	const int unit = m_fUnitStringWidth > 0 ? m_fUnitStringWidth : 36;
+	const int blank = m_blankWidth > 0 ? m_blankWidth : 4;
+	// Full GHz.MHz.kHz + .Hz + MHz so the strip stays clear of the digits.
+	return originX + 7 * digit1 + 3 * point + 3 * digit2 + 2 * blank + unit + 12;
+}
+
+void OGLDisplayPanel::layoutBandModeBar()
+{
+	if (!m_bandModeBar)
+		return;
+
+	const QSize hint = m_bandModeBar->sizeHint();
+	const int barW = hint.width();
+	const int barH = qMin(hint.height(), m_faceHeight);
+	const int x = frequencyDisplayRight();
+	const int topReserve = (m_blankHeight > 0 ? m_blankHeight : 16) + 2;
+	const int y = qBound(0, topReserve, qMax(0, m_faceHeight - barH));
+
+	m_bandModeBar->setGeometry(x, y, barW, barH);
+	m_bandModeBar->raise();
+	m_rxRectWidth = x + barW + 8;
+	m_height = m_faceHeight;
+	updateGeometry();
+}
+
 QSize OGLDisplayPanel::minimumSizeHint() const {
 
 	return QSize(width(), m_height);
@@ -262,8 +298,7 @@ QSize OGLDisplayPanel::minimumSizeHint() const {
 
 QSize OGLDisplayPanel::sizeHint() const {
 	
-	//return QSize(width(), height());
-	return QSize(width(), m_height);
+	return QSize(width() > 0 ? width() : 800, m_height);
 }
 
 void OGLDisplayPanel::setupConnections() {
@@ -413,9 +448,62 @@ void OGLDisplayPanel::setupTextstrings() {
     m_hermesStepAttnStringWidth = m_oglTextSmall->fontMetrics().horizontalAdvance(m_hermesStepAttnString);
 }
 
+void OGLDisplayPanel::releaseGlResources()
+{
+	if (m_watchedContext) {
+		disconnect(m_watchedContext, &QOpenGLContext::aboutToBeDestroyed,
+		           this, &OGLDisplayPanel::releaseGlResources);
+		m_watchedContext = nullptr;
+	}
+	if (m_smeterRenderer)
+		m_smeterRenderer->invalidateFBO();
+
+	auto releaseText = [](OGLText *text) {
+		if (text)
+			text->releaseGlResources();
+	};
+	releaseText(m_oglTextTiny);
+	releaseText(m_oglTextSmall);
+	releaseText(m_oglTextSmallItalic);
+	releaseText(m_oglTextNormal);
+	releaseText(m_oglTextBig);
+	releaseText(m_oglTextBigItalic);
+	releaseText(m_oglTextFreq1);
+	releaseText(m_oglTextFreq2);
+	releaseText(m_oglTextFreqInactive1);
+	releaseText(m_oglTextFreqInactive2);
+	releaseText(m_oglTextImpact);
+
+	delete m_shaderProgram;
+	m_shaderProgram = nullptr;
+	delete m_textureProgram;
+	m_textureProgram = nullptr;
+	if (m_vao.isCreated())
+		m_vao.destroy();
+	if (m_vbo.isCreated())
+		m_vbo.destroy();
+	m_smeterUpdate = true;
+	m_smeterRenew = true;
+	m_glNeedsRenewAfterSleep = true;
+}
+
+void OGLDisplayPanel::renewGlCachesAfterSleep()
+{
+	if (m_smeterRenderer)
+		m_smeterRenderer->invalidateFBO();
+	m_smeterUpdate = true;
+	m_smeterRenew = true;
+	m_glNeedsRenewAfterSleep = false;
+}
+
 void OGLDisplayPanel::initializeGL() {
-    initializeOpenGLFunctions();
     if (!isValid()) return;
+
+    if (m_watchedContext)
+        disconnect(m_watchedContext, &QOpenGLContext::aboutToBeDestroyed,
+                   this, &OGLDisplayPanel::releaseGlResources);
+    releaseGlResources();
+    initializeOpenGLFunctions();
 
     // --- Modern OpenGL Setup ---
     m_shaderProgram = new QOpenGLShaderProgram(this);
@@ -473,17 +561,31 @@ void OGLDisplayPanel::initializeGL() {
     glEnable(GL_DEPTH_TEST);
 	glDisable(GL_CULL_FACE);
 	glEnable(GL_MULTISAMPLE);
+
+	m_watchedContext = context();
+	if (m_watchedContext)
+		connect(m_watchedContext, &QOpenGLContext::aboutToBeDestroyed,
+		        this, &OGLDisplayPanel::releaseGlResources, Qt::DirectConnection);
 }
 
 void OGLDisplayPanel::resizeGL(int iWidth,int iHeight) {
         //m_resizeTime.restart();
+    layoutBandModeBar();
     setupDisplayRegions(QSize(iWidth, iHeight));
-    glViewport(0, 0, (GLsizei)iWidth * dpr, (GLsizei)iHeight * dpr);
+    if (glWidgetCanPaint(this))
+        glViewport(0, 0, (GLsizei)iWidth * dpr, (GLsizei)iHeight * dpr);
     update();
 
 }
 
 void OGLDisplayPanel::paintGL() {
+    if (!glWidgetCanPaint(this)) {
+        m_glNeedsRenewAfterSleep = true;
+        return;
+    }
+    if (m_glNeedsRenewAfterSleep)
+        renewGlCachesAfterSleep();
+
     const qreal currentDpr = devicePixelRatioF();
     if (!qFuzzyCompare(currentDpr, dpr)) {
         dpr = currentDpr;
@@ -674,7 +776,7 @@ void OGLDisplayPanel::setSMeterPeakValue(int rx, double value) {
 void OGLDisplayPanel::setupDisplayRegions(QSize size) {
 
     int width  = size.width();
-	int height = size.height();
+	int height = m_faceHeight;
 
 	m_sMeterWidth = (int)(0.8f*(width - m_rxRectWidth));
 
@@ -686,6 +788,8 @@ void OGLDisplayPanel::setupDisplayRegions(QSize size) {
 		m_sMeterOffset = (int)(width - m_rxRectWidth - m_sMeterWidth)/2.0f;
 	else
 		m_sMeterOffset = width - m_rxRectWidth - m_sMeterWidth - 40;
+	if (m_sMeterOffset < 0)
+		m_sMeterOffset = 0;
 
 	//m_sMeterOffset = 0;
 		

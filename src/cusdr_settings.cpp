@@ -3663,6 +3663,39 @@ void Settings::setNCOFrequency(bool value, int rx, qint64 frequency) {
     emit ncoFrequencyChanged(rx, frequency);
 }
 
+qint64 Settings::frequencyForHamBand(int rx, HamBand band) const
+{
+    const int bandIdx = static_cast<int>(band);
+    if (rx >= 0 && rx < m_receiverDataList.size() && bandIdx >= 0) {
+        const QList<qint64> &lasts = m_receiverDataList.at(rx).lastVfoFrequencyList;
+        if (bandIdx < lasts.size()) {
+            const qint64 last = lasts.at(bandIdx);
+            if (last > 0 && getBandFromFrequency(m_bandList, last) == band)
+                return last;
+        }
+    }
+
+    if (bandIdx >= 0 && bandIdx < m_bandList.size()) {
+        const qint64 lo = m_bandList.at(bandIdx).frequencyLo;
+        if (lo > 0)
+            return lo;
+    }
+
+    return (rx >= 0 && rx < m_receiverDataList.size())
+        ? m_receiverDataList.at(rx).vfoFrequency
+        : 7050000;
+}
+
+void Settings::applyHamBand(int rx, HamBand band)
+{
+    if (rx < 0 || rx >= m_receiverDataList.size())
+        return;
+
+    const qint64 freq = frequencyForHamBand(rx, band);
+    setVfoFrequencyVisible(rx, freq);
+    setHamBand(rx, true, band);
+}
+
 void Settings::setHamBand(int rx, bool byButton, HamBand band) {
 
     QMutexLocker locker(&settingsMutex);

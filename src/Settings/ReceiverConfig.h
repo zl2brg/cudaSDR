@@ -277,7 +277,7 @@ private:
     bool m_clickVFO = false;
     bool m_cwDecode = false;
     bool m_rttyDecode = false;
-    float m_rttyShiftHz = 170.0f;
+    float m_rttyShiftHz = 200.0f;
     float m_rttyBaudRate = 45.4545f;
     bool m_rttyReverse = false;
     bool m_rttyAfc = true;

@@ -6,6 +6,7 @@
  */
 
 #include "PanadapterInputController.h"
+#include "PanadapterOverlayFreq.h"
 #include "cusdr_oglReceiverPanel.h"
 #include "Models/SliceModel.h"
 #include "cusdr_settings.h"
@@ -1122,31 +1123,22 @@ void PanadapterInputController::handleWheel(QWheelEvent* event) {
         case QGLReceiverPanel::filterRegion:
         case QGLReceiverPanel::filterRegionLow:
         case QGLReceiverPanel::filterRegionHigh: {
-            qint64 minF = m_panel->set->getMinFrequency();
-            qint64 maxF = m_panel->set->getMaxFrequency();
-            if (m_panel->m_panLocked) {
-                minF = qMax(minF, m_panel->m_centerFrequency - m_panel->m_sampleRate / 2);
-                maxF = qMin(maxF, m_panel->m_centerFrequency + m_panel->m_sampleRate / 2);
-                m_panel->m_vfoFrequency = calculateWheelFrequency(
-                    m_panel->m_vfoFrequency,
-                    event->angleDelta().y(),
-                    freqStep,
-                    minF,
-                    maxF);
-                m_panel->m_deltaFrequency = m_panel->m_centerFrequency - m_panel->m_vfoFrequency;
-                m_panel->m_deltaF = (qreal)(1.0 * m_panel->m_deltaFrequency / m_panel->m_sampleRate);
-            } else {
-                m_panel->m_centerFrequency = calculateWheelFrequency(
-                    m_panel->m_centerFrequency,
-                    event->angleDelta().y(),
-                    freqStep,
-                    minF,
-                    maxF);
-                m_panel->m_vfoFrequency = m_panel->m_centerFrequency - m_panel->m_deltaFrequency;
-            }
-
-            m_panel->set->setCtrFrequency(0, m_panel->m_receiver, m_panel->m_centerFrequency);
-            m_panel->set->setVFOFrequency(0, m_panel->m_receiver, m_panel->m_vfoFrequency);
+            const qint64 minF = m_panel->set->getMinFrequency();
+            const qint64 maxF = m_panel->set->getMaxFrequency();
+            const qint64 newFreq = calculateWheelFrequency(
+                m_panel->m_vfoFrequency,
+                event->angleDelta().y(),
+                freqStep,
+                minF,
+                maxF);
+            PanadapterOverlayFreq::State overlay{
+                m_panel->m_centerFrequency, m_panel->m_vfoFrequency, m_panel->m_sampleRate };
+            PanadapterOverlayFreq::applyCenteredTune(overlay, newFreq);
+            m_panel->m_centerFrequency = overlay.centerHz;
+            m_panel->m_vfoFrequency = overlay.vfoHz;
+            m_panel->m_deltaFrequency = overlay.deltaFrequency();
+            m_panel->m_deltaF = overlay.deltaF();
+            m_panel->set->setCtrFrequency(1, m_panel->m_receiver, newFreq);
             m_panel->update();
             break;
         }

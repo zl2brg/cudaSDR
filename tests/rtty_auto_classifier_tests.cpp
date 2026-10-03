@@ -9,6 +9,7 @@ class RttyAutoClassifierTests : public QObject {
 private slots:
     void testInitialState();
     void testShiftDetection170Hz();
+    void testShiftDetection200Hz();
     void testShiftDetection450Hz();
     void testShiftDetection850Hz();
     void testBaudRateDetection45Baud();
@@ -55,6 +56,31 @@ void RttyAutoClassifierTests::testShiftDetection170Hz()
 
     QCOMPARE(detectedShift, 170.0f);
     QVERIFY(std::abs(detectedCenter - 2210.0f) < 25.0f);
+}
+
+void RttyAutoClassifierTests::testShiftDetection200Hz()
+{
+    RttyAutoClassifier classifier(0);
+    QSignalSpy shiftSpy(&classifier, &RttyAutoClassifier::shiftDetected);
+
+    // Amateur 45.45 high tones at 200 Hz (2125 / 2325), not the older 170 Hz pair.
+    const int sampleRate = 48000;
+    const int numSamples = 48000 * 3 / 10;
+    std::vector<float> audio(numSamples);
+
+    for (int i = 0; i < numSamples; ++i) {
+        const float t = static_cast<float>(i) / static_cast<float>(sampleRate);
+        const bool bit = ((i / (sampleRate * 22 / 1000)) % 2) == 0;
+        const float freq = bit ? 2125.0f : 2325.0f;
+        audio[i] = 0.6f * std::sin(2.0f * static_cast<float>(M_PI) * freq * t);
+    }
+
+    classifier.feedAudio(audio.data(), numSamples, sampleRate);
+
+    QVERIFY(shiftSpy.count() >= 1);
+    const QList<QVariant> args = shiftSpy.last();
+    QCOMPARE(args.at(0).toFloat(), 200.0f);
+    QVERIFY(std::abs(args.at(1).toFloat() - 2225.0f) < 25.0f);
 }
 
 void RttyAutoClassifierTests::testShiftDetection450Hz()

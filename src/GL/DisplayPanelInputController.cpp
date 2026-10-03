@@ -453,17 +453,6 @@ void DisplayPanelInputController::tuneDigitVfoTo(OGLDisplayPanel::DigitVfo which
     else
         slice->setVfoAFrequency(frequencyHz);
 
-    if (m_panel->set->getPanLockedStatus(m_panel->m_currentReceiver)) {
-        const qint64 ctrf = slice->centerFrequency();
-        const int s = (m_panel->m_radioModel ? m_panel->m_radioModel->sampleRate() : m_panel->set->getSampleRate()) / 2;
-        if (frequencyHz > ctrf + s)
-            frequencyHz = ctrf + s;
-        else if (frequencyHz < ctrf - s)
-            frequencyHz = ctrf - s;
-        m_panel->set->setVFOFrequency(0, m_panel->m_currentReceiver, frequencyHz);
-    } else {
-        // Unlocked pan: digit wheel moves LO with the dial (legacy behaviour).
-        m_panel->set->setCtrFrequency(0, m_panel->m_currentReceiver, frequencyHz);
-        m_panel->set->setVFOFrequency(0, m_panel->m_currentReceiver, frequencyHz);
-    }
+    // Keep the receive filter on the display centre: LO and VFO move together.
+    m_panel->set->setCtrFrequency(1, m_panel->m_currentReceiver, frequencyHz);
 }
