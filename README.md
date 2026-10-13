@@ -1,3 +1,6 @@
+<img width="1959" height="1357" alt="image" src="https://github.com/user-attachments/assets/b32a6969-09a5-448d-bf61-e3fcfa757dca" />
+
+
 ## cudaSDR
 
 `cudaSDR` was originally written by Hermann von Hasseln (DL1HVH/DL3HVH). Modernised and maintained by Simon Eatough (ZL2BRG/G4GVQ). It is a Qt-based SDR with ongoing modernization and protocol work.
@@ -130,7 +133,7 @@ Protocol and WDSP references are in `Docs/`.
 - CW polish and validation
 
 
-<img width="1959" height="1357" alt="image" src="https://github.com/user-attachments/assets/b32a6969-09a5-448d-bf61-e3fcfa757dca" />
+
 
 
 
