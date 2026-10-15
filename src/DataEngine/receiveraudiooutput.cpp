@@ -291,7 +291,9 @@ void ReceiverAudioOutput::startLocked()
     if (!m_audioSink)
         return;
 
-    // Pre-allocate a larger internal buffer (8 DSP buffers = ~170ms at 48kHz)
+    // One DSP block is 1024 stereo frames (~21 ms at 48 kHz). Ask the backend
+    // for that period, then keep ~170 ms of host buffering against underruns.
+    m_audioSink->setNativePeriodFrameCount(1024);
     m_audioSink->setBufferSize(8 * 8192);
     m_device = m_audioSink->start();
     m_ringBuffer.clear();

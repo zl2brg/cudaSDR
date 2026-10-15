@@ -13,9 +13,7 @@ class TransmitConfig : public QObject {
     Q_OBJECT
     Q_PROPERTY(int micSource READ micSource WRITE setMicSource NOTIFY micSourceChanged)
     Q_PROPERTY(int micInputDev READ micInputDev WRITE setMicInputDev NOTIFY micInputDevChanged)
-    Q_PROPERTY(int digitalAudioInputDev READ digitalAudioInputDev WRITE setDigitalAudioInputDev NOTIFY digitalAudioInputDevChanged)
     Q_PROPERTY(QString micInputSourceName READ micInputSourceName WRITE setMicInputSourceName NOTIFY micInputSourceNameChanged)
-    Q_PROPERTY(QString digitalInputSourceName READ digitalInputSourceName WRITE setDigitalInputSourceName NOTIFY digitalInputSourceNameChanged)
     Q_PROPERTY(double micGain READ micGain WRITE setMicGain NOTIFY micGainChanged)
     Q_PROPERTY(int driveLevel READ driveLevel WRITE setDriveLevel NOTIFY driveLevelChanged)
     Q_PROPERTY(int tunePower READ tunePower WRITE setTunePower NOTIFY tunePowerChanged)
@@ -58,14 +56,8 @@ public:
     int micInputDev() const { return m_micInputDev; }
     void setMicInputDev(int dev);
 
-    int digitalAudioInputDev() const { return m_digitalAudioInputDev; }
-    void setDigitalAudioInputDev(int dev);
-
     QString micInputSourceName() const { return m_micInputSourceName; }
     void setMicInputSourceName(const QString &name);
-
-    QString digitalInputSourceName() const { return m_digitalInputSourceName; }
-    void setDigitalInputSourceName(const QString &name);
 
     double micGain() const { return m_micGain; }
     void setMicGain(double gain);
@@ -175,9 +167,7 @@ public:
 signals:
     void micSourceChanged(int source);
     void micInputDevChanged(int dev);
-    void digitalAudioInputDevChanged(int dev);
     void micInputSourceNameChanged(const QString &name);
-    void digitalInputSourceNameChanged(const QString &name);
     void micGainChanged(double gain);
     void driveLevelChanged(int level);
     void tunePowerChanged(int power);
@@ -216,9 +206,7 @@ private:
 
     int m_micSource;
     int m_micInputDev;
-    int m_digitalAudioInputDev;
     QString m_micInputSourceName;
-    QString m_digitalInputSourceName;
     double m_micGain;
     int m_driveLevel;
     int m_tunePower;
@@ -249,9 +237,9 @@ private:
     bool m_txUseRxFilter;
     bool m_spectralPaintAutoTail = false;
     QString m_spectralPaintText;
-    int m_spectralPaintDurationMs = 2000;
-    int m_spectralPaintLowHz = 600;
-    int m_spectralPaintHighHz = 2400;
+    int m_spectralPaintDurationMs = 3000;
+    int m_spectralPaintLowHz = 200;
+    int m_spectralPaintHighHz = 3200;
 };
 
 #endif // TRANSMITCONFIG_H

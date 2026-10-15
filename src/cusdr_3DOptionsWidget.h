@@ -38,6 +38,7 @@ private slots:
     void heightScaleChanged(int value);
     void frequencyScaleChanged(int value);
     void timeScaleChanged(int value);
+    void newestAtBottomChanged();
     void updateIntervalChanged(int value);
     void showGridChanged();
     void showAxesChanged();
@@ -68,6 +69,7 @@ private:
     QLabel* m_frequencyScaleLabel;
     QSlider* m_timeScaleSlider;
     QLabel* m_timeScaleLabel;
+    QCheckBox* m_newestAtBottomCheckBox;
     QCheckBox* m_showGridCheckBox;
     QCheckBox* m_showAxesCheckBox;
     QCheckBox* m_wireframeModeCheckBox;
@@ -87,6 +89,7 @@ signals:
     void heightScaleValueChanged(float scale);
     void frequencyScaleValueChanged(float scale);
     void timeScaleValueChanged(float scale);
+    void newestAtBottomValueChanged(bool newestAtBottom);
     void updateIntervalValueChanged(int interval);
     void showGridValueChanged(bool show);
     void showAxesValueChanged(bool show);

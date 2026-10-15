@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.25)
 project(cudaSDR LANGUAGES CXX)
 
 # --- Build parallelism cap ---
@@ -52,7 +52,7 @@ if(CUDASDR_ENABLE_COVERAGE)
 endif()
 
 # --- Find Dependencies ---
-find_package(Qt6 6.11.0 REQUIRED COMPONENTS Widgets Core Gui GuiPrivate ShaderTools Multimedia Network OpenGL OpenGLWidgets WebSockets Test)
+find_package(Qt6 6.12.0 REQUIRED COMPONENTS Widgets Core Gui GuiPrivate ShaderTools Multimedia Network OpenGL OpenGLWidgets WebSockets Test)
 message(STATUS "Using Qt ${Qt6_VERSION} from ${Qt6_DIR}")
 find_package(PkgConfig REQUIRED)
 find_package(OpenGL REQUIRED)
@@ -1158,6 +1158,20 @@ if(BUILD_TESTING)
     )
     add_test(NAME spectral_painter_tests COMMAND spectral_painter_tests)
 
+    add_executable(mesh_generator_tests
+        tests/mesh_generator_tests.cpp
+        ${SRC_DIR}/GL/cusdr_meshGeneratorWorker.cpp
+    )
+    target_link_libraries(mesh_generator_tests PRIVATE
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Test
+    )
+    target_include_directories(mesh_generator_tests PRIVATE
+        ${SRC_DIR}
+    )
+    add_test(NAME mesh_generator_tests COMMAND mesh_generator_tests)
+
     # Convenience target: build every unit test without the full cudasdr app.
     add_custom_target(build_tests DEPENDS
         protocol_boundary_tests
@@ -1195,6 +1209,7 @@ if(BUILD_TESTING)
         rtty_auto_classifier_tests
         rtty_decoder_window_tests
         spectral_painter_tests
+        mesh_generator_tests
     )
 
     # Headless Qt for any test that links Gui/Widgets (CI has no display), plus a

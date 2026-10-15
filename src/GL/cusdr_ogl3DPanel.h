@@ -67,6 +67,7 @@ public slots:
     void setHeightScale(float scale);
     void setFrequencyScale(float scale);
     void setTimeScale(float scale);
+    void setNewestAtBottom(bool newestAtBottom);
     void setUpdateRate(int intervalMs);
     void setShowGrid(bool show);
     void setShowAxes(bool show);
@@ -201,6 +202,7 @@ private:
     float m_heightScale;
     float m_frequencyScale;
     float m_timeScale;
+    bool m_newestAtBottom;
     float m_waterfallOffset;  // dBm offset for color mapping
     QColor m_backgroundColor;
     QColor m_gridColor;

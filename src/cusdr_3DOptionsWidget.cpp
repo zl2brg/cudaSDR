@@ -145,6 +145,11 @@ void Options3DWidget::createRenderingGroup() {
 
     connect(m_timeScaleSlider, &QSlider::valueChanged, this, &Options3DWidget::timeScaleChanged);
 
+    m_newestAtBottomCheckBox = new QCheckBox("Newest at bottom", this);
+    m_newestAtBottomCheckBox->setChecked(true);
+    m_newestAtBottomCheckBox->setFont(QFont("Arial", 8));
+    m_newestAtBottomCheckBox->setToolTip("When checked, new spectrum arrives at the bottom and history scrolls toward the top.");
+
     // Display options
     m_showGridCheckBox = new QCheckBox("Show Grid", this);
     m_showGridCheckBox->setChecked(true);
@@ -166,6 +171,7 @@ void Options3DWidget::createRenderingGroup() {
     m_waterfallOffsetSlider->setValue(17);  // 17 dB default
     m_waterfallOffsetSlider->setMinimumWidth(160);
 
+    connect(m_newestAtBottomCheckBox, &QCheckBox::toggled, this, &Options3DWidget::newestAtBottomChanged);
     connect(m_showGridCheckBox, &QCheckBox::toggled, this, &Options3DWidget::showGridChanged);
     connect(m_showAxesCheckBox, &QCheckBox::toggled, this, &Options3DWidget::showAxesChanged);
     connect(m_wireframeModeCheckBox, &QCheckBox::toggled, this, &Options3DWidget::wireframeModeChanged);
@@ -180,11 +186,12 @@ void Options3DWidget::createRenderingGroup() {
     layout->addWidget(m_frequencyScaleSlider, 3, 0);
     layout->addWidget(m_timeScaleLabel, 4, 0);
     layout->addWidget(m_timeScaleSlider, 5, 0);
-    layout->addWidget(m_showGridCheckBox, 6, 0);
-    layout->addWidget(m_showAxesCheckBox, 7, 0);
-    layout->addWidget(m_wireframeModeCheckBox, 8, 0);
-    layout->addWidget(m_waterfallOffsetLabel, 9, 0);
-    layout->addWidget(m_waterfallOffsetSlider, 10, 0);
+    layout->addWidget(m_newestAtBottomCheckBox, 6, 0);
+    layout->addWidget(m_showGridCheckBox, 7, 0);
+    layout->addWidget(m_showAxesCheckBox, 8, 0);
+    layout->addWidget(m_wireframeModeCheckBox, 9, 0);
+    layout->addWidget(m_waterfallOffsetLabel, 10, 0);
+    layout->addWidget(m_waterfallOffsetSlider, 11, 0);
     m_renderingGroup->setLayout(layout);
     m_renderingGroup->setEnabled(false);
 }
@@ -252,6 +259,10 @@ void Options3DWidget::timeScaleChanged(int value) {
     emit timeScaleValueChanged(scale);
 }
 
+void Options3DWidget::newestAtBottomChanged() {
+    emit newestAtBottomValueChanged(m_newestAtBottomCheckBox->isChecked());
+}
+
 void Options3DWidget::updateIntervalChanged(int value) {
     int interval = 1000 / value; // Convert FPS to milliseconds
     m_updateIntervalLabel->setText(QString("Update Rate: %1 FPS").arg(value));
@@ -282,6 +293,7 @@ void Options3DWidget::emitInitialValues() {
     emit heightScaleValueChanged(static_cast<float>(m_heightScaleSlider->value()));
     emit frequencyScaleValueChanged(static_cast<float>(m_frequencyScaleSlider->value()) / 10.0f);
     emit timeScaleValueChanged(static_cast<float>(m_timeScaleSlider->value()) / 10.0f);
+    emit newestAtBottomValueChanged(m_newestAtBottomCheckBox->isChecked());
     emit updateIntervalValueChanged(1000 / m_updateIntervalSlider->value()); // FPS to ms
     emit showGridValueChanged(m_showGridCheckBox->isChecked());
     emit showAxesValueChanged(m_showAxesCheckBox->isChecked());

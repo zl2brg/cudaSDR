@@ -20,11 +20,15 @@
                 },
                 {
                     "name": "QT_QPA_PLATFORM_PLUGIN_PATH",
-                    "value": "${env:HOME}/Qt/6.11.0/gcc_64/plugins"
+                    "value": "${env:HOME}/Qt/6.12.0/gcc_64/plugins"
                 },
                 {
                     "name": "LD_LIBRARY_PATH",
-                    "value": "${env:HOME}/Qt/6.11.0/gcc_64/lib:${env:LD_LIBRARY_PATH}"
+                    "value": "${env:HOME}/Qt/6.12.0/gcc_64/lib:${env:LD_LIBRARY_PATH}"
+                },
+                {
+                    "name": "QT_AUDIO_BACKEND",
+                    "value": "pulseaudio"
                 }
             ],
             "externalConsole": false,
@@ -59,11 +63,15 @@
                 },
                 {
                     "name": "QT_QPA_PLATFORM_PLUGIN_PATH",
-                    "value": "${env:HOME}/Qt/6.11.0/gcc_64/plugins"
+                    "value": "${env:HOME}/Qt/6.12.0/gcc_64/plugins"
                 },
                 {
                     "name": "LD_LIBRARY_PATH",
-                    "value": "${env:HOME}/Qt/6.11.0/gcc_64/lib:${env:LD_LIBRARY_PATH}"
+                    "value": "${env:HOME}/Qt/6.12.0/gcc_64/lib:${env:LD_LIBRARY_PATH}"
+                },
+                {
+                    "name": "QT_AUDIO_BACKEND",
+                    "value": "pulseaudio"
                 }
             ],
             "externalConsole": false,

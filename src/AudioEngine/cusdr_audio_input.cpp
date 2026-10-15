@@ -15,8 +15,6 @@ TransmitAudioInput::TransmitAudioInput(QObject *parent)
     , m_sampleRate(48000)
     , m_bufferSize(AUDIO_FRAMESIZE)
     , m_deviceIndex(0)
-    , m_digitalDeviceIndex(0)
-    , m_isDigitalMode(false)
 {
     AudioDeviceService* audioService = AudioDeviceService::instance();
 
@@ -25,52 +23,22 @@ TransmitAudioInput::TransmitAudioInput(QObject *parent)
                     this,
                     &TransmitAudioInput::MicInputChanged);
 
-    CHECKED_CONNECT(set,
-                    &Settings::digitalAudioInputChanged,
-                    this,
-                    &TransmitAudioInput::DigitalAudioInputChanged);
-
-    connect(set, &Settings::dspModeChanged,
-            this, &TransmitAudioInput::dspModeChanged);
-
     connect(audioService, &AudioDeviceService::audioInputsChanged, this, &TransmitAudioInput::Setup);
 
     m_deviceIndex = set->getMicInputDev();
-    m_digitalDeviceIndex = set->getDigitalAudioInputDev();
     {
-        const DSPMode currentMode = set->getDSPMode(set->getCurrentReceiver());
-        m_isDigitalMode = (currentMode == DIGL || currentMode == DIGU);
-    }
-
-    // Resolve persisted source names against currently available devices.
-    const QString savedMicName = set->getMicInputSourceName();
-    if (savedMicName == "hpsdr-local") {
-        m_deviceIndex = 0;
-    } else {
-        QStringList descriptions = audioService->audioInputDescriptions();
-        int micPos = descriptions.indexOf(savedMicName);
-        if (micPos < 0) {
-            // Fallback to default
-            micPos = descriptions.indexOf(audioService->defaultInput().description());
+        const QString savedMicName = set->getMicInputSourceName();
+        if (savedMicName == "hpsdr-local") {
+            m_deviceIndex = 0;
+        } else {
+            QStringList descriptions = audioService->audioInputDescriptions();
+            int micPos = descriptions.indexOf(savedMicName);
+            if (micPos < 0) {
+                micPos = descriptions.indexOf(audioService->defaultInput().description());
+            }
+            if (micPos >= 0)
+                m_deviceIndex = micPos + 1;
         }
-        if (micPos >= 0)
-            m_deviceIndex = micPos + 1;
-    }
-
-    const QString savedDigitalName = set->getDigitalInputSourceName();
-    if (savedDigitalName == "none") {
-        m_digitalDeviceIndex = 0;
-    } else {
-        QStringList descriptions = audioService->audioInputDescriptions();
-        int digPos = descriptions.indexOf(savedDigitalName);
-        if (digPos < 0) {
-            // Fallback to default
-            digPos = descriptions.indexOf(audioService->defaultInput().description());
-        }
-        if (digPos >= 0)
-            m_digitalDeviceIndex = digPos + 1;
-        else
-            m_digitalDeviceIndex = 0;
     }
     
     audioinputBuffer.resize(AUDIO_FRAMESIZE);
@@ -107,9 +75,7 @@ void TransmitAudioInput::Setup() {
     const QAudioDevice defaultInputDevice = audioService->defaultInput();
     const bool haveInputDevices = !devices.isEmpty();
 
-    AUDIO_INPUT_DEBUG << "Setup: mode=" << (m_isDigitalMode ? "digital" : "analog")
-                      << " micIndex=" << m_deviceIndex
-                      << " digitalIndex=" << m_digitalDeviceIndex
+    AUDIO_INPUT_DEBUG << "Setup: micIndex=" << m_deviceIndex
                       << " hw=" << set->getHWInterface()
                       << " inputDevices=" << devices.size()
                       << " defaultInput=\"" << defaultInputDevice.description() << "\"";
@@ -130,46 +96,26 @@ void TransmitAudioInput::Setup() {
 
     // Get audio input device
     QAudioDevice inputDevice;
-    const bool useDigitalDevice = m_isDigitalMode && m_digitalDeviceIndex > 0;
-    if (useDigitalDevice) {
-        // m_digitalDeviceIndex: >0 = device (1-based offset). "None" falls through
-        // to the analog PC mic so DIGU/DIGL still have a host source (TCI remains
-        // preferred in fetch_MicData when network frames are present).
-        int actualIndex = m_digitalDeviceIndex - 1;
+    if (m_deviceIndex == 0) {
+        // Index 0 is HPSDR/local mic path. For Soapy there is no external
+        // HPSDR mic stream, so fall back to the host default input device.
+        if (set->getHWInterface() == QSDR::SoapySDR) {
+            inputDevice = defaultInputDevice;
+            AUDIO_INPUT_DEBUG << "Soapy TX: mic index 0 selected; using default host input:"
+                              << inputDevice.description();
+        } else {
+            AUDIO_INPUT_DEBUG << "Current TX audio input device: HPSDR local mic (no host Qt input device)";
+            m_mutex.unlock();
+            return;
+        }
+    } else {
+        int actualIndex = m_deviceIndex - 1;
         if (actualIndex >= 0 && actualIndex < devices.size()) {
             inputDevice = devices[actualIndex];
-            AUDIO_INPUT_DEBUG << "Digital mode: using audio input:" << inputDevice.description();
+            AUDIO_INPUT_DEBUG << "Using audio input device:" << inputDevice.description();
         } else {
-            inputDevice = audioService->defaultInput();
-            AUDIO_INPUT_DEBUG << "Digital mode: device index out of range, using default:" << inputDevice.description();
-        }
-    } else if (m_isDigitalMode && m_digitalDeviceIndex <= 0) {
-        AUDIO_INPUT_DEBUG << "Digital mode: no digital device; falling back to analog PC mic";
-    }
-
-    if (!useDigitalDevice) {
-        if (m_deviceIndex == 0) {
-            // Index 0 is HPSDR/local mic path. For Soapy there is no external
-            // HPSDR mic stream, so fall back to the host default input device.
-            if (set->getHWInterface() == QSDR::SoapySDR) {
-                inputDevice = defaultInputDevice;
-                AUDIO_INPUT_DEBUG << "Soapy TX: mic index 0 selected; using default host input:"
-                                  << inputDevice.description();
-            } else {
-                AUDIO_INPUT_DEBUG << "Current TX audio input device: HPSDR local mic (no host Qt input device)";
-                m_mutex.unlock();
-                return;
-            }
-        } else {
-            // Use specific device (adjust index since 0 is HPSDR)
-            int actualIndex = m_deviceIndex - 1;
-            if (actualIndex >= 0 && actualIndex < devices.size()) {
-                inputDevice = devices[actualIndex];
-                AUDIO_INPUT_DEBUG << "Using audio input device:" << inputDevice.description();
-            } else {
-                inputDevice = defaultInputDevice;
-                AUDIO_INPUT_DEBUG << "Device index out of range, using default";
-            }
+            inputDevice = defaultInputDevice;
+            AUDIO_INPUT_DEBUG << "Device index out of range, using default";
         }
     }
 
@@ -196,6 +142,8 @@ void TransmitAudioInput::Setup() {
     // Create the audio source
     AUDIO_INPUT_DEBUG << "Opening audio input device:" << inputDevice.description();
     m_audioSource = new QAudioSource(inputDevice, m_format, this);
+    // Match Pulse/PipeWire's native period to one DSP block instead of guessing bytes.
+    m_audioSource->setNativePeriodFrameCount(m_bufferSize);
     m_audioSource->setBufferSize(4 * m_bufferSize); // Larger buffer to prevent underruns
     
     AUDIO_INPUT_DEBUG << "Audio input setup complete";
@@ -209,44 +157,13 @@ void TransmitAudioInput::MicInputChanged(int value) {
 
     m_deviceIndex = value;
 
-    // Analog path, or digital-with-None falling back to analog.
-    if (!m_isDigitalMode || m_digitalDeviceIndex <= 0) {
-        stopHardware();
-        Setup();
-        // Re-arm capture only while transmitting — never leave the mic open on RX.
-        if (shouldCaptureWhileTx() && isTransmitting())
-            Start();
-        else if (m_deviceIndex == 0 && set->getHWInterface() != QSDR::SoapySDR)
-            AUDIO_INPUT_DEBUG << "Local HPSDR Mic Mode selected";
-    }
-}
-
-void TransmitAudioInput::DigitalAudioInputChanged(int index) {
-    AUDIO_INPUT_DEBUG << "Digital audio input changed to:" << index;
-    m_digitalDeviceIndex = index;
-
-    if (m_isDigitalMode) {
-        stopHardware();
-        Setup();
-        if (shouldCaptureWhileTx() && isTransmitting())
-            Start();
-    }
-}
-
-void TransmitAudioInput::dspModeChanged(int rx, DSPMode mode) {
-    Q_UNUSED(rx)
-
-    bool digital = (mode == DIGL || mode == DIGU);
-    if (digital == m_isDigitalMode)
-        return;
-
-    m_isDigitalMode = digital;
-    AUDIO_INPUT_DEBUG << "DSP mode changed; digital mode:" << m_isDigitalMode;
-
     stopHardware();
     Setup();
+    // Re-arm capture only while transmitting — never leave the mic open on RX.
     if (shouldCaptureWhileTx() && isTransmitting())
         Start();
+    else if (m_deviceIndex == 0 && set->getHWInterface() != QSDR::SoapySDR)
+        AUDIO_INPUT_DEBUG << "Local HPSDR Mic Mode selected";
 }
 
 bool TransmitAudioInput::isTransmitting() const
@@ -259,9 +176,6 @@ bool TransmitAudioInput::isTransmitting() const
 
 bool TransmitAudioInput::shouldCaptureWhileTx() const
 {
-    if (m_isDigitalMode && m_digitalDeviceIndex > 0)
-        return true;
-    // Analog PC mic, or DIGU/DIGL with digital device "None" falling back to it.
     // Soapy has no HPSDR mic path — index 0 uses the host default input.
     return m_deviceIndex > 0 || set->getHWInterface() == QSDR::SoapySDR;
 }
@@ -332,9 +246,9 @@ bool TransmitAudioInput::Start() {
             return false;
         }
     } else {
-        // Digital "None" / HPSDR local mic intentionally leave m_audioSource null;
+        // HPSDR local mic intentionally leaves m_audioSource null;
         // TX audio then comes from TCI network mic or the Hermes mic path.
-        if (!(m_isDigitalMode && m_digitalDeviceIndex <= 0) && m_deviceIndex != 0)
+        if (m_deviceIndex != 0)
             qWarning() << "TransmitAudioInput: Cannot start capture, m_audioSource is NULL. (Device index" << m_deviceIndex << ")";
     }
     m_mutex.unlock();

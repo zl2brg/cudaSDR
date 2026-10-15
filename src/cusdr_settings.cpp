@@ -192,7 +192,7 @@ Settings::Settings(QObject *parent)
     m_titleString = "cudaSDR Debug BETA ";
 #endif
 
-    m_versionString = "v6.4.0";
+    m_versionString = "v6.4.1";
 
     qDebug() << qPrintable(m_titleString);
 
@@ -3364,22 +3364,10 @@ int Settings::getMicInputDev() {
     return m_transmitConfig->micInputDev();
 }
 
-int Settings::getDigitalAudioInputDev() {
-    if (const TransmitModel* tx = transmitModel())
-        return tx->digitalAudioInputDev();
-    return m_transmitConfig->digitalAudioInputDev();
-}
-
 QString Settings::getMicInputSourceName() {
     if (const TransmitModel* tx = transmitModel())
         return tx->micInputSourceName();
     return m_transmitConfig->micInputSourceName();
-}
-
-QString Settings::getDigitalInputSourceName() {
-    if (const TransmitModel* tx = transmitModel())
-        return tx->digitalInputSourceName();
-    return m_transmitConfig->digitalInputSourceName();
 }
 
 void Settings::setMicInputDev(int index) {
@@ -3393,19 +3381,6 @@ void Settings::setMicInputSourceName(const QString &name) {
     if (TransmitModel* tx = transmitModel())
         tx->setMicInputSourceName(name);
     m_transmitConfig->setMicInputSourceName(name);
-}
-
-void Settings::setDigitalInputSourceName(const QString &name) {
-    if (TransmitModel* tx = transmitModel())
-        tx->setDigitalInputSourceName(name);
-    m_transmitConfig->setDigitalInputSourceName(name);
-}
-
-void Settings::setDigitalAudioInputDev(int index) {
-    if (TransmitModel* tx = transmitModel())
-        tx->setDigitalAudioInputDev(index);
-    m_transmitConfig->setDigitalAudioInputDev(index);
-    emit digitalAudioInputChanged(index);
 }
 
 void Settings::setMicInputLevel(int level) {
@@ -5512,8 +5487,6 @@ void Settings::syncTransmitWithSettings() {
     tx->setCfcPost(m_transmitConfig->cfcPost());
     tx->setMicInputDev(m_transmitConfig->micInputDev());
     tx->setMicInputSourceName(m_transmitConfig->micInputSourceName());
-    tx->setDigitalAudioInputDev(m_transmitConfig->digitalAudioInputDev());
-    tx->setDigitalInputSourceName(m_transmitConfig->digitalInputSourceName());
     tx->setCwKeyerMode(m_cwConfig->keyerMode());
     tx->setInternalCw(m_cwConfig->internalCw() > 0);
     tx->setCwKeyReversed(m_cwConfig->keyReversed() > 0);
@@ -5561,8 +5534,6 @@ void Settings::syncSettingsWithTransmit() {
         m_transmitConfig->setCfcPostBand(i, tx->cfcPost().at(i));
     m_transmitConfig->setMicInputDev(tx->micInputDev());
     m_transmitConfig->setMicInputSourceName(tx->micInputSourceName());
-    m_transmitConfig->setDigitalAudioInputDev(tx->digitalAudioInputDev());
-    m_transmitConfig->setDigitalInputSourceName(tx->digitalInputSourceName());
     m_transmitConfig->setTxFilterLow(tx->txFilterLow());
     m_transmitConfig->setTxFilterHigh(tx->txFilterHigh());
     m_transmitConfig->setTxUseRxFilter(tx->txUseRxFilter());
@@ -5894,7 +5865,7 @@ void Settings::setSpectralPaintHighHz(int hz)
     emit spectralPaintHighHzChanged(hz);
 }
 
-void Settings::requestSpectralPaint()
+void Settings::requestSpectralPaint(const QString &text)
 {
-    emit spectralPaintRequested();
+    emit spectralPaintRequested(text);
 }

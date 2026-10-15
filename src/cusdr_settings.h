@@ -825,7 +825,6 @@ signals:
 	void src122_88MhzChanged(int source);
     void micSourceChanged(int source);
     void micInputChanged(int source);
-	void digitalAudioInputChanged(int index);
 	void classChanged(int value);
 	void timingChanged(int value);
 	void controlBytesOutChanged(unsigned char *values);
@@ -874,7 +873,7 @@ signals:
 	void spectralPaintDurationMsChanged(int ms);
 	void spectralPaintLowHzChanged(int hz);
 	void spectralPaintHighHzChanged(int hz);
-	void spectralPaintRequested();
+	void spectralPaintRequested(const QString &text = QString());
 	
 	void freqRulerPositionChanged(int rx, float position);
 
@@ -1114,9 +1113,7 @@ public:
     int     getRxClass()				{ return m_RxClass; }
     int     getRxTiming()				{ return m_RxTiming; }
     int     getMicInputDev();
-    int     getDigitalAudioInputDev();
 	QString getMicInputSourceName();
-	QString getDigitalInputSourceName();
     int     getMicInputLevel()          { return static_cast<int>(m_transmitConfig->micGain()); }
     int     getDriveLevel()             { return m_transmitConfig->driveLevel(); }
     bool    getRepeaterMode()           { return m_repeaterMode; }
@@ -1163,7 +1160,7 @@ public:
     void    setSpectralPaintLowHz(int hz);
     int     getSpectralPaintHighHz() const;
     void    setSpectralPaintHighHz(int hz);
-    void    requestSpectralPaint();
+    void    requestSpectralPaint(const QString &text = QString());
 
 	qreal	getMainVolume(int rx);
 	qreal	getMouseWheelFreqStep(int rx);// { return m_mouseWheelFreqStep; }
@@ -1367,8 +1364,6 @@ public slots:
     void setMicSource(int source);
     void setMicInputDev(int index);
 	void setMicInputSourceName(const QString &name);
-	void setDigitalAudioInputDev(int index);
-	void setDigitalInputSourceName(const QString &name);
     void setMicInputLevel(int level);
     void setDriveLevel(int level);
 	void setClass(int value);

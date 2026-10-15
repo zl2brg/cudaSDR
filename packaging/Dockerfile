@@ -1,10 +1,10 @@
 # cudaSDR CI / AppImage build environment
 # Same image for local docker runs and GitHub Actions.
-# Qt 6.11.0 is installed inside the image via aqtinstall (no host Qt mount).
+# Qt 6.12.0 is installed inside the image via aqtinstall (no host Qt mount).
 FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive \
-    QT_VERSION=6.11.0 \
+    QT_VERSION=6.12.0 \
     QT_PATH=/opt/Qt \
     APPIMAGE_EXTRACT_AND_RUN=1
 
@@ -43,7 +43,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         xz-utils \
     && rm -rf /var/lib/apt/lists/*
 
-# Official Qt desktop tree (gcc_64). Keep aqt recent for 6.11 mirror layout.
+# Official Qt desktop tree (gcc_64). Keep aqt recent for 6.12 mirror layout.
 RUN pip3 install --break-system-packages --no-cache-dir 'aqtinstall>=3.3.0' \
     && ARCH="$(aqt list-qt linux desktop --arch ${QT_VERSION} | tr ' ' '\n' | grep -E '^(linux_gcc_64|gcc_64)$' | head -1)" \
     && test -n "$ARCH" \
@@ -72,7 +72,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 ENV LANG=C.UTF-8 \
     LC_ALL=C.UTF-8
 
-# Official Qt desktop tree (gcc_64). Keep aqt recent for 6.11 mirror layout.
+# Official Qt desktop tree (gcc_64). Keep aqt recent for 6.12 mirror layout.
 RUN pip3 install --break-system-packages --no-cache-dir 'aqtinstall>=3.3.0' \
     && ARCH="$(aqt list-qt linux desktop --arch ${QT_VERSION} | tr ' ' '\n' | grep -E '^(linux_gcc_64|gcc_64)$' | head -1)" \
     && test -n "$ARCH" \

@@ -48,7 +48,24 @@ public:
                                  float colorLower,
                                  float colorUpper,
                                  float dBmPanMin,
-                                 float dBmPanMax);
+                                 float dBmPanMax,
+                                 bool newestAtBottom = true);
+
+    // Bin 0 is the 2D panadapter's low-frequency (left) edge. Map it to world -X
+    // so panning a signal right on R1 also moves it right on the 3D waterfall.
+    static inline float frequencyWorldX(int bin, int spectrumWidth, float frequencyScale)
+    {
+        if (spectrumWidth <= 0)
+            return 0.0f;
+        const float frac = static_cast<float>(bin) / static_cast<float>(spectrumWidth);
+        return frac * 400.0f * frequencyScale - 200.0f * frequencyScale;
+    }
+
+    // +1: newest at -Z (screen-bottom); -1: newest at +Z (screen-top).
+    static inline float timeDirectionSign(bool newestAtBottom)
+    {
+        return newestAtBottom ? 1.0f : -1.0f;
+    }
 
     // Synchronous mesh build (same logic as worker thread, for scale/color refresh).
     // timeScale must match QGL3DPanel slice spacing (4.0 * timeScale) so ribbons
@@ -61,7 +78,8 @@ public:
                                    float colorLower,
                                    float colorUpper,
                                    float dBmPanMin,
-                                   float dBmPanMax);
+                                   float dBmPanMax,
+                                   bool newestAtBottom = true);
 
     // Stop the worker thread
     void stop();
@@ -100,6 +118,7 @@ private:
     float m_colorUpper;
     float m_dBmPanMin;
     float m_dBmPanMax;
+    bool m_newestAtBottom;
     
     // Constants
     static const int MAX_TIME_SLICES = 300;

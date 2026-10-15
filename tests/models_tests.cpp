@@ -544,7 +544,7 @@ void ModelsTests::testTransmitModelProperties() {
     QCOMPARE(tx.spectralPaintAutoTail(), true);
     QCOMPARE(spyPaintAuto.count(), 1);
 
-    QCOMPARE(tx.spectralPaintDurationMs(), 2000);
+    QCOMPARE(tx.spectralPaintDurationMs(), 3000);
     tx.setSpectralPaintDurationMs(2500);
     QCOMPARE(tx.spectralPaintDurationMs(), 2500);
     QCOMPARE(spyPaintDur.count(), 1);
@@ -553,12 +553,12 @@ void ModelsTests::testTransmitModelProperties() {
     QCOMPARE(tx.spectralPaintText(), QStringLiteral("ZL2BRG"));
     QCOMPARE(spyPaintText.count(), 1);
 
-    QCOMPARE(tx.spectralPaintLowHz(), 600);
+    QCOMPARE(tx.spectralPaintLowHz(), 200);
     tx.setSpectralPaintLowHz(800);
     QCOMPARE(tx.spectralPaintLowHz(), 800);
     QCOMPARE(spyPaintLo.count(), 1);
 
-    QCOMPARE(tx.spectralPaintHighHz(), 2400);
+    QCOMPARE(tx.spectralPaintHighHz(), 3200);
     tx.setSpectralPaintHighHz(2200);
     QCOMPARE(tx.spectralPaintHighHz(), 2200);
     QCOMPARE(spyPaintHi.count(), 1);

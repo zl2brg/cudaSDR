@@ -52,8 +52,8 @@ if [[ -e /proc/driver/nvidia/version ]] || lsmod 2>/dev/null | grep -q '^nvidia\
     echo "==> NVIDIA driver detected; using __GLX_VENDOR_LIBRARY_NAME=${__GLX_VENDOR_LIBRARY_NAME} GBM_BACKEND=${GBM_BACKEND}"
 fi
 
-# --- Qt 6.11.0 Detection Logic ---
-REQUIRED_QT_VERSION="6.11.0"
+# --- Qt 6.12.0 Detection Logic ---
+REQUIRED_QT_VERSION="6.12.0"
 QT_SEARCH_PATHS=(
     "$HOME/Qt/${REQUIRED_QT_VERSION}/gcc_64"
     "$HOME/Qt/${REQUIRED_QT_VERSION}/linux_gcc_64"

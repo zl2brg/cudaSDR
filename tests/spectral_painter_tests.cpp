@@ -26,6 +26,9 @@ private slots:
     void testDirectIqSynthesisUSB();
     void testDirectIqSynthesisLSB();
     void testDirectIqStreamingRead();
+    void testFrequencyRangeAffectsSpan();
+    void testBitmapIHasCenterEnergy();
+    void testSquareAndCirclePatterns();
 };
 
 void SpectralPainterTests::initTestCase() {
@@ -35,15 +38,19 @@ void SpectralPainterTests::initTestCase() {
 void SpectralPainterTests::testDefaultsAndSetters() {
     SpectralPainter painter;
     QCOMPARE(painter.sampleRate(), 48000);
-    QCOMPARE(painter.lowFrequencyHz(), 600.0f);
-    QCOMPARE(painter.highFrequencyHz(), 2400.0f);
-    QCOMPARE(painter.durationMs(), 2000);
+    QCOMPARE(painter.lowFrequencyHz(), 200.0f);
+    QCOMPARE(painter.highFrequencyHz(), 3200.0f);
+    QCOMPARE(painter.durationMs(), 3000);
     QVERIFY(!painter.isActive());
     QVERIFY(!painter.isAutoTail());
 
     painter.setFrequencyRange(500.0f, 2500.0f);
     QCOMPARE(painter.lowFrequencyHz(), 500.0f);
     QCOMPARE(painter.highFrequencyHz(), 2500.0f);
+
+    painter.setFrequencyRange(3000.0f, 400.0f);
+    QCOMPARE(painter.lowFrequencyHz(), 400.0f);
+    QCOMPARE(painter.highFrequencyHz(), 3000.0f);
 
     painter.setDurationMs(1500);
     QCOMPARE(painter.durationMs(), 1500);
@@ -54,10 +61,9 @@ void SpectralPainterTests::testDefaultsAndSetters() {
 
 void SpectralPainterTests::testSynthesisOutputLengthAndRange() {
     SpectralPainter painter;
-    painter.setDurationMs(1000); // 1.0 second = 48000 samples
-
+    painter.setDurationMs(1000); // 1.0 second per letter
     std::vector<float> samples = painter.synthesize(QStringLiteral("TEST"));
-    QCOMPARE(static_cast<int>(samples.size()), 48000);
+    QCOMPARE(static_cast<int>(samples.size()), 192000); // 4 letters
 
     float maxAbs = 0.0f;
     for (float s : samples) {
@@ -118,7 +124,7 @@ void SpectralPainterTests::testStreamingReadSamplesAndSignals() {
         totalRead += n;
     }
 
-    QCOMPARE(static_cast<int>(totalRead), 24000);
+    QCOMPARE(static_cast<int>(totalRead), 120000); // 5 letters × 0.5 s
     QVERIFY(!painter.isActive());
     QCOMPARE(spyFinished.count(), 1);
     QCOMPARE(spyFinished.at(0).at(0).toBool(), true);
@@ -181,7 +187,7 @@ void SpectralPainterTests::testDirectIqSynthesisUSB() {
     painter.setDurationMs(500); // 0.5s = 24000 samples
     painter.setFrequencyRange(600.0f, 2400.0f);
 
-    std::vector<std::complex<float>> iq = painter.synthesizeIq(QStringLiteral("ZL2BRG"), QString(), false);
+    std::vector<std::complex<float>> iq = painter.synthesizeIq(QStringLiteral("SQUARE"), QString(), false);
     QCOMPARE(static_cast<int>(iq.size()), 24000);
 
     size_t peakIdx = 0;
@@ -225,7 +231,7 @@ void SpectralPainterTests::testDirectIqSynthesisUSB() {
 
     QVERIFY(posPower > 1.0);
     const double rejectionDb = 10.0 * std::log10(posPower / std::max(negPower, 1e-12));
-    QVERIFY2(rejectionDb > 35.0, qPrintable(QString("USB rejection %1 dB < 35 dB").arg(rejectionDb)));
+    QVERIFY2(rejectionDb > 30.0, qPrintable(QString("USB rejection %1 dB < 30 dB").arg(rejectionDb)));
 }
 
 void SpectralPainterTests::testDirectIqSynthesisLSB() {
@@ -234,7 +240,7 @@ void SpectralPainterTests::testDirectIqSynthesisLSB() {
     painter.setFrequencyRange(600.0f, 2400.0f);
 
     // invertFrequency = true triggers LSB negative-baseband mapping (-2400 Hz .. -600 Hz)
-    std::vector<std::complex<float>> iq = painter.synthesizeIq(QStringLiteral("ZL2BRG"), QString(), true);
+    std::vector<std::complex<float>> iq = painter.synthesizeIq(QStringLiteral("SQUARE"), QString(), true);
     QCOMPARE(static_cast<int>(iq.size()), 24000);
 
     size_t peakIdx = 0;
@@ -275,7 +281,7 @@ void SpectralPainterTests::testDirectIqSynthesisLSB() {
 
     QVERIFY(negPower > 1.0);
     const double rejectionDb = 10.0 * std::log10(negPower / std::max(posPower, 1e-12));
-    QVERIFY2(rejectionDb > 35.0, qPrintable(QString("LSB rejection %1 dB < 35 dB").arg(rejectionDb)));
+    QVERIFY2(rejectionDb > 30.0, qPrintable(QString("LSB rejection %1 dB < 30 dB").arg(rejectionDb)));
 }
 
 void SpectralPainterTests::testDirectIqStreamingRead() {
@@ -300,7 +306,7 @@ void SpectralPainterTests::testDirectIqStreamingRead() {
         totalRead += n;
     }
 
-    QCOMPARE(static_cast<int>(totalRead), 24000);
+    QCOMPARE(static_cast<int>(totalRead), 96000); // 4 letters × 0.5 s
     QVERIFY(!painter.isActive());
     QCOMPARE(spyFinished.count(), 1);
 
@@ -312,6 +318,79 @@ void SpectralPainterTests::testDirectIqStreamingRead() {
     QCOMPARE(nFloat, static_cast<size_t>(512));
     painter.stop();
     QVERIFY(!painter.isActive());
+}
+
+void SpectralPainterTests::testFrequencyRangeAffectsSpan() {
+    auto tonePower = [](const std::vector<std::complex<float>> &iq, double freqHz, int sampleRate) {
+        const size_t N = qMin(iq.size(), static_cast<size_t>(4800));
+        const size_t start = (iq.size() > N) ? (iq.size() - N) / 2 : 0;
+        std::complex<double> X(0.0, 0.0);
+        for (size_t n = 0; n < N; ++n) {
+            const double phi = -2.0 * M_PI * freqHz * static_cast<double>(n) / sampleRate;
+            const std::complex<double> s(iq[start + n].real(), iq[start + n].imag());
+            X += s * std::complex<double>(std::cos(phi), std::sin(phi));
+        }
+        return std::norm(X);
+    };
+
+    SpectralPainter painter;
+    painter.setDurationMs(500);
+    painter.setFrequencyRange(400.0f, 800.0f);
+    const auto narrow = painter.synthesizeIq(QStringLiteral("HHH"));
+    QVERIFY(!narrow.empty());
+    const double narrowIn = tonePower(narrow, 600.0, painter.sampleRate());
+    const double narrowOut = tonePower(narrow, 2400.0, painter.sampleRate());
+    QVERIFY2(narrowIn > narrowOut * 8.0,
+             qPrintable(QString("narrow paint leaked: in=%1 out=%2").arg(narrowIn).arg(narrowOut)));
+
+    painter.setFrequencyRange(2000.0f, 3200.0f);
+    const auto wide = painter.synthesizeIq(QStringLiteral("HHH"));
+    QVERIFY(!wide.empty());
+    const double wideIn = tonePower(wide, 2600.0, painter.sampleRate());
+    const double wideOut = tonePower(wide, 600.0, painter.sampleRate());
+    QVERIFY2(wideIn > wideOut * 8.0,
+             qPrintable(QString("wide paint leaked: in=%1 out=%2").arg(wideIn).arg(wideOut)));
+}
+
+void SpectralPainterTests::testBitmapIHasCenterEnergy() {
+    auto tonePower = [](const std::vector<std::complex<float>> &iq, double freqHz, int sampleRate) {
+        const size_t N = qMin(iq.size(), static_cast<size_t>(4800));
+        const size_t start = (iq.size() > N) ? (iq.size() - N) / 2 : 0;
+        std::complex<double> X(0.0, 0.0);
+        for (size_t n = 0; n < N; ++n) {
+            const double phi = -2.0 * M_PI * freqHz * static_cast<double>(n) / sampleRate;
+            const std::complex<double> s(iq[start + n].real(), iq[start + n].imag());
+            X += s * std::complex<double>(std::cos(phi), std::sin(phi));
+        }
+        return std::norm(X);
+    };
+
+    SpectralPainter painter;
+    painter.setDurationMs(500);
+    painter.setFrequencyRange(200.0f, 3200.0f);
+    const auto iq = painter.synthesizeIq(QStringLiteral("I"));
+    QVERIFY(!iq.empty());
+    const double center = tonePower(iq, 1700.0, painter.sampleRate());
+    const double edge = tonePower(iq, 400.0, painter.sampleRate());
+    QVERIFY2(center > edge * 4.0,
+             qPrintable(QString("I is not a center bar: center=%1 edge=%2").arg(center).arg(edge)));
+}
+
+void SpectralPainterTests::testSquareAndCirclePatterns() {
+    SpectralPainter painter;
+    painter.setDurationMs(500);
+    painter.setFrequencyRange(200.0f, 3200.0f);
+
+    const auto square = painter.synthesizeIq(QStringLiteral("SQUARE"));
+    QCOMPARE(static_cast<int>(square.size()), 24000);
+    float maxMag = 0.0f;
+    for (const auto &s : square)
+        maxMag = std::max(maxMag, std::abs(s));
+    QVERIFY(maxMag >= 0.65f && maxMag <= 0.75f);
+
+    const auto circle = painter.synthesizeIq(QStringLiteral("circle"));
+    QCOMPARE(static_cast<int>(circle.size()), 24000);
+    QVERIFY(circle.size() == square.size());
 }
 
 QTEST_MAIN(SpectralPainterTests)

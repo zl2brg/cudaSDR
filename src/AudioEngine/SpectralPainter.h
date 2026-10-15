@@ -138,9 +138,9 @@ signals:
 private:
     mutable QMutex m_mutex;
     int m_sampleRate = 48000;
-    float m_lowHz = 600.0f;
-    float m_highHz = 2400.0f;
-    int m_durationMs = 2000;
+    float m_lowHz = 200.0f;
+    float m_highHz = 3200.0f;
+    int m_durationMs = 3000;
     QString m_customText;
     PaintStyle m_paintStyle = PaintStyle::Banner;
     bool m_invertFrequency = false;

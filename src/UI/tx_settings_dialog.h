@@ -76,7 +76,7 @@ public:
     void setFreeDVMode(int rx, int mode);
     void setMicInputDev(int dev);
     void setMicInputSourceName(const QString& name);
-    void refreshAudioDevices(const QString& savedMicName, const QString& savedDigitalName);
+    void refreshAudioDevices(const QString& savedMicName);
     void updateTxEqPassband();
 
 protected:
@@ -87,8 +87,6 @@ signals:
     void audioDevicesRefreshRequested();
     void micInputDevChanged(int dev);
     void micInputSourceNameChanged(const QString& name);
-    void digitalAudioInputDevChanged(int dev);
-    void digitalInputSourceNameChanged(const QString& name);
     void freeDVModeRequested(int rx, int mode);
     void audioCompressionRequested(int val);
     void amCarrierLevelRequested(int val);

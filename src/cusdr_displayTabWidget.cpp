@@ -110,6 +110,7 @@ void DisplayTabWidget::create3DDockWidget(QWidget *mainWindow) {
 		CHECKED_CONNECT(m_3DWidget, &Options3DWidget::heightScaleValueChanged, m_3DPanel, &QGL3DPanel::setHeightScale);
 		CHECKED_CONNECT(m_3DWidget, &Options3DWidget::frequencyScaleValueChanged, m_3DPanel, &QGL3DPanel::setFrequencyScale);
 		CHECKED_CONNECT(m_3DWidget, &Options3DWidget::timeScaleValueChanged, m_3DPanel, &QGL3DPanel::setTimeScale);
+		CHECKED_CONNECT(m_3DWidget, &Options3DWidget::newestAtBottomValueChanged, m_3DPanel, &QGL3DPanel::setNewestAtBottom);
 		CHECKED_CONNECT(m_3DWidget, &Options3DWidget::updateIntervalValueChanged, m_3DPanel, &QGL3DPanel::setUpdateRate);
 		CHECKED_CONNECT(m_3DWidget, &Options3DWidget::showGridValueChanged, m_3DPanel, &QGL3DPanel::setShowGrid);
 		CHECKED_CONNECT(m_3DWidget, &Options3DWidget::showAxesValueChanged, m_3DPanel, &QGL3DPanel::setShowAxes);

@@ -158,7 +158,8 @@ public:
 
     SpectralPainter* spectralPainter() const { return m_spectralPainter; }
     bool isSpectralPaintActive() const;
-    bool startSpectralPaint(bool isAutoTail = false, bool manualTx = false);
+    bool startSpectralPaint(bool isAutoTail = false, bool manualTx = false,
+                            const QString &textOverride = QString());
     void cancelSpectralPaint();
 #ifdef HAVE_SOAPYSDR
 	SoapySDRDataSource* m_soapySDRSource;

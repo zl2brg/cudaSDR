@@ -36,7 +36,7 @@ Install the dev package (system Qt on Ubuntu/Debian):
   sudo apt install qt6-websockets-dev
 
 Or, if you use the Qt online installer, add the WebSockets module and set Qt6_DIR:
-  export Qt6_DIR=$HOME/Qt/6.11.0/gcc_64/lib/cmake/Qt6
+  export Qt6_DIR=$HOME/Qt/6.12.0/gcc_64/lib/cmake/Qt6
 EOF
     exit 1
 }

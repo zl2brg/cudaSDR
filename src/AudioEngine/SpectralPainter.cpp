@@ -1,16 +1,167 @@
 #include "SpectralPainter.h"
 
 #include <QImage>
-#include <QPainter>
-#include <QFont>
-#include <QFontMetrics>
 #include <QDebug>
 #include <cmath>
 #include <algorithm>
+#include <array>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
+
+namespace {
+
+void sanitizePaintRange(float &lowHz, float &highHz)
+{
+    if (highHz < lowHz)
+        std::swap(lowHz, highHz);
+    lowHz = qBound(50.0f, lowHz, 6000.0f);
+    highHz = qBound(lowHz + 200.0f, highHz, 8000.0f);
+}
+
+// Same canvas as the square, which painted cleanly. Each callsign letter is
+// drawn this large, one after another — packing 6 letters into 64 columns
+// made ~10 px glyphs that read as noise.
+constexpr int kPaintW = 64;
+constexpr int kPaintH = 48;
+constexpr int kGlyphN = 8;
+
+using Glyph8 = std::array<quint8, kGlyphN>;
+
+Glyph8 glyph8(QChar ch)
+{
+    switch (ch.toUpper().unicode()) {
+    case ' ': return {{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}};
+    case '0': return {{0x3C, 0x66, 0xC3, 0xC3, 0xC3, 0x66, 0x3C, 0x00}};
+    case '1': return {{0x18, 0x38, 0x18, 0x18, 0x18, 0x18, 0x7E, 0x00}};
+    case '2': return {{0x7E, 0xC3, 0x03, 0x1E, 0x78, 0xC0, 0xFF, 0x00}};
+    case '3': return {{0x7E, 0xC3, 0x03, 0x1E, 0x03, 0xC3, 0x7E, 0x00}};
+    case '4': return {{0x0E, 0x1E, 0x36, 0x66, 0xFF, 0x06, 0x06, 0x00}};
+    case '5': return {{0xFF, 0xC0, 0xFE, 0x03, 0x03, 0xC3, 0x7E, 0x00}};
+    case '6': return {{0x3E, 0x60, 0xC0, 0xFE, 0xC3, 0xC3, 0x7E, 0x00}};
+    case '7': return {{0xFF, 0x03, 0x06, 0x0C, 0x18, 0x18, 0x18, 0x00}};
+    case '8': return {{0x7E, 0xC3, 0xC3, 0x7E, 0xC3, 0xC3, 0x7E, 0x00}};
+    case '9': return {{0x7E, 0xC3, 0xC3, 0x7F, 0x03, 0x06, 0x7C, 0x00}};
+    case 'A': return {{0x18, 0x3C, 0x66, 0xC3, 0xFF, 0xC3, 0xC3, 0x00}};
+    case 'B': return {{0xFE, 0xC3, 0xC3, 0xFE, 0xC3, 0xC3, 0xFE, 0x00}};
+    case 'C': return {{0x3E, 0x63, 0xC0, 0xC0, 0xC0, 0x63, 0x3E, 0x00}};
+    case 'D': return {{0xFC, 0xC6, 0xC3, 0xC3, 0xC3, 0xC6, 0xFC, 0x00}};
+    case 'E': return {{0xFF, 0xC0, 0xC0, 0xFC, 0xC0, 0xC0, 0xFF, 0x00}};
+    case 'F': return {{0xFF, 0xC0, 0xC0, 0xFC, 0xC0, 0xC0, 0xC0, 0x00}};
+    case 'G': return {{0x3E, 0x63, 0xC0, 0xCF, 0xC3, 0x63, 0x3F, 0x00}};
+    case 'H': return {{0xC3, 0xC3, 0xC3, 0xFF, 0xC3, 0xC3, 0xC3, 0x00}};
+    case 'I': return {{0x7E, 0x18, 0x18, 0x18, 0x18, 0x18, 0x7E, 0x00}};
+    case 'J': return {{0x03, 0x03, 0x03, 0x03, 0xC3, 0xC3, 0x7E, 0x00}};
+    case 'K': return {{0xC3, 0xC6, 0xCC, 0xF8, 0xCC, 0xC6, 0xC3, 0x00}};
+    case 'L': return {{0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xFF, 0x00}};
+    case 'M': return {{0xC3, 0xE7, 0xFF, 0xDB, 0xC3, 0xC3, 0xC3, 0x00}};
+    case 'N': return {{0xC3, 0xE3, 0xF3, 0xDB, 0xCF, 0xC7, 0xC3, 0x00}};
+    case 'O': return {{0x3C, 0x66, 0xC3, 0xC3, 0xC3, 0x66, 0x3C, 0x00}};
+    case 'P': return {{0xFE, 0xC3, 0xC3, 0xFE, 0xC0, 0xC0, 0xC0, 0x00}};
+    case 'Q': return {{0x3C, 0x66, 0xC3, 0xC3, 0xDB, 0x66, 0x3D, 0x00}};
+    case 'R': return {{0xFE, 0xC3, 0xC3, 0xFE, 0xCC, 0xC6, 0xC3, 0x00}};
+    case 'S': return {{0x7E, 0xC3, 0xC0, 0x7E, 0x03, 0xC3, 0x7E, 0x00}};
+    case 'T': return {{0xFF, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x00}};
+    case 'U': return {{0xC3, 0xC3, 0xC3, 0xC3, 0xC3, 0xC3, 0x7E, 0x00}};
+    case 'V': return {{0xC3, 0xC3, 0xC3, 0xC3, 0x66, 0x3C, 0x18, 0x00}};
+    case 'W': return {{0xC3, 0xC3, 0xC3, 0xDB, 0xFF, 0xE7, 0xC3, 0x00}};
+    case 'X': return {{0xC3, 0x66, 0x3C, 0x18, 0x3C, 0x66, 0xC3, 0x00}};
+    case 'Y': return {{0xC3, 0xC3, 0x66, 0x3C, 0x18, 0x18, 0x18, 0x00}};
+    case 'Z': return {{0xFF, 0x06, 0x0C, 0x18, 0x30, 0x60, 0xFF, 0x00}};
+    case '/': return {{0x03, 0x06, 0x0C, 0x18, 0x30, 0x60, 0xC0, 0x00}};
+    case '-': return {{0x00, 0x00, 0x00, 0xFF, 0x00, 0x00, 0x00, 0x00}};
+    case '+': return {{0x18, 0x18, 0x18, 0xFF, 0x18, 0x18, 0x18, 0x00}};
+    case '.': return {{0x00, 0x00, 0x00, 0x00, 0x00, 0x18, 0x18, 0x00}};
+    default:  return {{0xFF, 0xC3, 0xC3, 0xC3, 0xC3, 0xC3, 0xFF, 0x00}};
+    }
+}
+
+QImage rasterizeBigGlyph(QChar ch)
+{
+    QImage img(kPaintW, kPaintH, QImage::Format_Grayscale8);
+    img.fill(0);
+    if (ch == QLatin1Char(' '))
+        return img;
+
+    const int scale = qMin(kPaintW / kGlyphN, kPaintH / kGlyphN);
+    const int usedW = kGlyphN * scale;
+    const int usedH = kGlyphN * scale;
+    const int destX = (kPaintW - usedW) / 2;
+    const int destY = (kPaintH - usedH) / 2;
+    const Glyph8 g = glyph8(ch);
+
+    for (int gy = 0; gy < kGlyphN; ++gy) {
+        const quint8 row = g[static_cast<size_t>(gy)];
+        for (int gx = 0; gx < kGlyphN; ++gx) {
+            if ((row & (1 << (7 - gx))) == 0)
+                continue;
+            for (int oy = 0; oy < scale; ++oy) {
+                uchar *line = img.scanLine(destY + gy * scale + oy);
+                for (int ox = 0; ox < scale; ++ox)
+                    line[destX + gx * scale + ox] = 255;
+            }
+        }
+    }
+    return img;
+}
+
+QImage rasterizeSquare()
+{
+    QImage img(kPaintW, kPaintH, QImage::Format_Grayscale8);
+    img.fill(0);
+    constexpr int t = 6;
+    for (int y = 0; y < kPaintH; ++y) {
+        uchar *line = img.scanLine(y);
+        for (int x = 0; x < kPaintW; ++x) {
+            if (y < t || y >= kPaintH - t || x < t || x >= kPaintW - t)
+                line[x] = 255;
+        }
+    }
+    return img;
+}
+
+QImage rasterizeCircle()
+{
+    constexpr int t = 5;
+    const double cx = (kPaintW - 1) / 2.0;
+    const double cy = (kPaintH - 1) / 2.0;
+    const double rx = std::max(1.0, (kPaintW - 1) / 2.0 - 1.0);
+    const double ry = std::max(1.0, (kPaintH - 1) / 2.0 - 1.0);
+    const double inner = 1.0 - (static_cast<double>(t) / std::min(rx, ry));
+    QImage img(kPaintW, kPaintH, QImage::Format_Grayscale8);
+    img.fill(0);
+    for (int y = 0; y < kPaintH; ++y) {
+        uchar *line = img.scanLine(y);
+        for (int x = 0; x < kPaintW; ++x) {
+            const double nx = (x - cx) / rx;
+            const double ny = (y - cy) / ry;
+            const double d = std::sqrt(nx * nx + ny * ny);
+            if (d <= 1.0 && d >= inner)
+                line[x] = 255;
+        }
+    }
+    return img;
+}
+
+QImage rasterizeBanner(const QString &text)
+{
+    const QString key = text.trimmed().toUpper();
+    if (key == QLatin1String("SQUARE"))
+        return rasterizeSquare();
+    if (key == QLatin1String("CIRCLE"))
+        return rasterizeCircle();
+    return rasterizeBigGlyph(text.isEmpty() ? QLatin1Char(' ') : text.at(0));
+}
+
+bool isShapeKeyword(const QString &text)
+{
+    const QString key = text.trimmed().toUpper();
+    return key == QLatin1String("SQUARE") || key == QLatin1String("CIRCLE");
+}
+
+} // namespace
+
 
 SpectralPainter::SpectralPainter(QObject *parent)
     : QObject(parent)
@@ -27,17 +178,16 @@ void SpectralPainter::setSampleRate(int rate)
 
 void SpectralPainter::setFrequencyRange(float lowHz, float highHz)
 {
+    sanitizePaintRange(lowHz, highHz);
     QMutexLocker locker(&m_mutex);
-    if (lowHz > 0.0f && highHz > lowHz) {
-        m_lowHz = lowHz;
-        m_highHz = highHz;
-    }
+    m_lowHz = lowHz;
+    m_highHz = highHz;
 }
 
 void SpectralPainter::setDurationMs(int ms)
 {
     QMutexLocker locker(&m_mutex);
-    m_durationMs = qBound(500, ms, 10000);
+    m_durationMs = qBound(500, ms, 15000);
 }
 
 QString SpectralPainter::customText() const
@@ -110,7 +260,6 @@ std::vector<std::complex<float>> SpectralPainter::synthesizeIq(const QString &te
     int durationMs;
     bool invertFreq;
     bool invertTm;
-    PaintStyle style;
     {
         QMutexLocker locker(&m_mutex);
         sampleRate = m_sampleRate;
@@ -119,10 +268,9 @@ std::vector<std::complex<float>> SpectralPainter::synthesizeIq(const QString &te
         durationMs = m_durationMs;
         invertFreq = invertFrequency || m_invertFrequency;
         invertTm = m_invertTime;
-        style = m_paintStyle;
     }
 
-    if (style == PaintStyle::Banner) {
+    if (isShapeKeyword(targetText)) {
         return synthesizeBannerIq(targetText, sampleRate, lowHz, highHz, durationMs, invertFreq, invertTm);
     }
     return synthesizeTickerIq(targetText, sampleRate, lowHz, highHz, durationMs, invertFreq, invertTm);
@@ -161,52 +309,17 @@ std::vector<std::complex<float>> SpectralPainter::synthesizeTickerIq(const QStri
     if (numChars == 0)
         return {};
 
-    constexpr int numBands = 48;
-    constexpr int charHeight = 32;
-
-    // 1. Rasterize each character individually centered in [numBands x charHeight]
-    QFont font;
-    font.setFamily(QStringLiteral("Arial"));
-    font.setStyleHint(QFont::SansSerif);
-    font.setBold(true);
-
-    const int padX = 3;
-    const int padY = 2;
-    const int availW = numBands - 2 * padX;
-    const int availH = charHeight - 2 * padY;
+    constexpr int numBands = kPaintW;
+    constexpr int charHeight = kPaintH;
 
     std::vector<QImage> charImages;
     charImages.reserve(numChars);
+    for (int i = 0; i < numChars; ++i)
+        charImages.push_back(rasterizeBigGlyph(text.at(i)));
 
-    for (int i = 0; i < numChars; ++i) {
-        const QChar qc = text.at(i);
-        QImage cImg(numBands, charHeight, QImage::Format_Grayscale8);
-        cImg.fill(0);
-
-        if (qc != QLatin1Char(' ')) {
-            const QString chStr(qc);
-            for (int px = 36; px >= 10; --px) {
-                font.setPixelSize(px);
-                QFontMetrics fm(font);
-                if (fm.horizontalAdvance(chStr) <= availW && fm.height() <= availH) {
-                    break;
-                }
-            }
-            QFontMetrics fm(font);
-            const int drawX = (numBands - fm.horizontalAdvance(chStr)) / 2;
-            const int drawY = (charHeight - fm.height()) / 2 + fm.ascent();
-
-            QPainter p(&cImg);
-            p.setFont(font);
-            p.setPen(Qt::white);
-            p.drawText(drawX, drawY, chStr);
-            p.end();
-        }
-        charImages.push_back(std::move(cImg));
-    }
-
-    // 2. Synthesize direct complex baseband I/Q stream across durationMs
-    const double durationSec = static_cast<double>(durationMs) / 1000.0;
+    // durationMs is the hold time for one letter so a callsign stays as tall as "A".
+    const int totalMs = qMax(1, durationMs) * numChars;
+    const double durationSec = static_cast<double>(totalMs) / 1000.0;
     const size_t totalSamples = static_cast<size_t>(std::round(durationSec * sampleRate));
     if (totalSamples == 0)
         return {};
@@ -232,7 +345,7 @@ std::vector<std::complex<float>> SpectralPainter::synthesizeTickerIq(const QStri
     }
 
     const double samplesPerChar = static_cast<double>(totalSamples) / static_cast<double>(numChars);
-    // 85% character glyph, 15% inter-character gap
+    // Blank gap so successive letters do not smear together on the waterfall.
     const double activeSamples = samplesPerChar * 0.85;
 
     for (size_t n = 0; n < totalSamples; ++n) {
@@ -247,24 +360,14 @@ std::vector<std::complex<float>> SpectralPainter::synthesizeTickerIq(const QStri
             const double v = invertTm
                 ? (static_cast<double>(charHeight - 1) * progress)
                 : (static_cast<double>(charHeight - 1) * (1.0 - progress));
-
-            const int y0 = qBound(0, static_cast<int>(std::floor(v)), charHeight - 1);
-            const int y1 = qBound(0, y0 + 1, charHeight - 1);
-            const double tFrac = v - std::floor(v);
-
-            const QImage &cImg = charImages[cIdx];
-            const uchar *line0 = cImg.constScanLine(y0);
-            const uchar *line1 = cImg.constScanLine(y1);
+            const int y = qBound(0, static_cast<int>(std::lround(v)), charHeight - 1);
+            const uchar *line = charImages[cIdx].constScanLine(y);
 
             for (int x = 0; x < numBands; ++x) {
-                const double v0 = static_cast<double>(line0[x]) / 255.0;
-                const double v1 = static_cast<double>(line1[x]) / 255.0;
-                const double amp = (1.0 - tFrac) * v0 + tFrac * v1;
-
-                if (amp > 0.04) {
-                    sampleRe += amp * std::cos(phi[x]);
-                    sampleIm += amp * std::sin(phi[x]);
-                }
+                if (line[x] < 128)
+                    continue;
+                sampleRe += std::cos(phi[x]);
+                sampleIm += std::sin(phi[x]);
             }
         }
 
@@ -311,46 +414,12 @@ std::vector<std::complex<float>> SpectralPainter::synthesizeBannerIq(const QStri
                                                                      float lowHz, float highHz, int durationMs,
                                                                      bool invertFreq, bool invertTm) const
 {
-    constexpr int numBands = 80;
-    const int imgHeight = qBound(24, durationMs / 50, 64);
+    const QImage img = rasterizeBanner(text);
+    if (img.isNull() || img.width() <= 0 || img.height() <= 0)
+        return {};
 
-    // 1. Rasterize text onto a grayscale image without any border framing.
-    // The image width (numBands columns) maps to frequency (lowHz to highHz).
-    // The image height (imgHeight rows) maps to time over durationMs.
-    QImage img(numBands, imgHeight, QImage::Format_Grayscale8);
-    img.fill(0); // Pure black background
-
-    QFont font;
-    font.setFamily(QStringLiteral("Arial"));
-    font.setStyleHint(QFont::SansSerif);
-    font.setBold(true);
-
-    const int padX = 4;
-    const int padY = 2;
-    const int availW = numBands - 2 * padX;
-    const int availH = imgHeight - 2 * padY;
-
-    for (int px = 32; px >= 8; --px) {
-        font.setPixelSize(px);
-        QFontMetrics fm(font);
-        if (fm.horizontalAdvance(text) <= availW && fm.height() <= availH) {
-            break;
-        }
-    }
-
-    QFontMetrics fm(font);
-    const int textW = fm.horizontalAdvance(text);
-    const int textH = fm.height();
-    const int drawX = (numBands - textW) / 2;
-    const int drawY = (imgHeight - textH) / 2 + fm.ascent();
-
-    {
-        QPainter p(&img);
-        p.setFont(font);
-        p.setPen(Qt::white);
-        p.drawText(drawX, drawY, text);
-        p.end();
-    }
+    const int numBands = img.width();
+    const int imgHeight = img.height();
 
     // 2. Additive multi-tone complex synthesis with Schroeder phase distribution
     const double durationSec = static_cast<double>(durationMs) / 1000.0;
@@ -386,26 +455,15 @@ std::vector<std::complex<float>> SpectralPainter::synthesizeBannerIq(const QStri
         const double v = invertTm
             ? (static_cast<double>(imgHeight - 1) * progress)
             : (static_cast<double>(imgHeight - 1) * (1.0 - progress));
-
-        const int y0 = qBound(0, static_cast<int>(std::floor(v)), imgHeight - 1);
-        const int y1 = qBound(0, y0 + 1, imgHeight - 1);
-        const double tFrac = v - std::floor(v);
-
-        const uchar *line0 = img.constScanLine(y0);
-        const uchar *line1 = img.constScanLine(y1);
+        const int y = qBound(0, static_cast<int>(std::lround(v)), imgHeight - 1);
+        const uchar *line = img.constScanLine(y);
 
         double sampleRe = 0.0;
         double sampleIm = 0.0;
         for (int x = 0; x < numBands; ++x) {
-            const double v0 = static_cast<double>(line0[x]) / 255.0;
-            const double v1 = static_cast<double>(line1[x]) / 255.0;
-            double amp = (1.0 - tFrac) * v0 + tFrac * v1;
-
-            if (amp > 0.08) {
-                // Solidify character strokes for sharp high-contrast waterfall appearance
-                amp = qMin(1.0, amp * 1.25);
-                sampleRe += amp * std::cos(phi[x]);
-                sampleIm += amp * std::sin(phi[x]);
+            if (line[x] >= 128) {
+                sampleRe += std::cos(phi[x]);
+                sampleIm += std::sin(phi[x]);
             }
 
             phi[x] += deltaPhi[x];

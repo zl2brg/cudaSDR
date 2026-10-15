@@ -205,6 +205,16 @@ int main(int argc, char *argv[]) {
     } else {
         qInfo() << "Using QT_MEDIA_BACKEND =" << qEnvironmentVariable("QT_MEDIA_BACKEND");
     }
+    // Qt 6.11 introduced an experimental native PipeWire audio backend ("QAudioContext")
+    // which segfaults in libpipewire-module-protocol-native.so when an HDMI/DisplayPort
+    // audio sink is suspended/removed during monitor DPMS sleep. Default to pulseaudio
+    // (pipewire-pulse) for stability, unless the user explicitly sets QT_AUDIO_BACKEND.
+    if (!qEnvironmentVariableIsSet("QT_AUDIO_BACKEND")) {
+        qputenv("QT_AUDIO_BACKEND", QByteArrayLiteral("pulseaudio"));
+        qInfo() << "QT_AUDIO_BACKEND not set; defaulting to" << qEnvironmentVariable("QT_AUDIO_BACKEND");
+    } else {
+        qInfo() << "Using QT_AUDIO_BACKEND =" << qEnvironmentVariable("QT_AUDIO_BACKEND");
+    }
 #endif
     QApplication::setHighDpiScaleFactorRoundingPolicy(Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
     QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);

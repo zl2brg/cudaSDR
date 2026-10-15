@@ -26,22 +26,6 @@ void TransmitSettingsController::applyMicInputSourceName(const QString& name)
         m_model->setMicInputSourceName(name);
 }
 
-void TransmitSettingsController::applyDigitalAudioInputDev(int dev)
-{
-    if (m_txModel)
-        m_txModel->setDigitalAudioInputDev(dev);
-    if (m_model)
-        m_model->setDigitalAudioInputDev(dev);
-}
-
-void TransmitSettingsController::applyDigitalInputSourceName(const QString& name)
-{
-    if (m_txModel)
-        m_txModel->setDigitalInputSourceName(name);
-    if (m_model)
-        m_model->setDigitalInputSourceName(name);
-}
-
 void TransmitSettingsController::bind(tx_settings_dialog* view, Settings* model)
 {
     bind(view, nullptr, model);
@@ -98,8 +82,7 @@ void TransmitSettingsController::bind(tx_settings_dialog* view, TransmitModel* t
         m_view->setSpectralPaintDurationMs(m_txModel->spectralPaintDurationMs());
         m_view->setSpectralPaintLowHz(m_txModel->spectralPaintLowHz());
         m_view->setSpectralPaintHighHz(m_txModel->spectralPaintHighHz());
-        m_view->refreshAudioDevices(m_txModel->micInputSourceName(),
-                                    m_txModel->digitalInputSourceName());
+        m_view->refreshAudioDevices(m_txModel->micInputSourceName());
     } else {
         m_view->setAmCarrierLevel(m_model->getAMCarrierLevel());
         m_view->setAudioCompression(m_model->getAudioCompression());
@@ -136,8 +119,7 @@ void TransmitSettingsController::bind(tx_settings_dialog* view, TransmitModel* t
         m_view->setSpectralPaintDurationMs(m_model->getSpectralPaintDurationMs());
         m_view->setSpectralPaintLowHz(m_model->getSpectralPaintLowHz());
         m_view->setSpectralPaintHighHz(m_model->getSpectralPaintHighHz());
-        m_view->refreshAudioDevices(m_model->getMicInputSourceName(),
-                                    m_model->getDigitalInputSourceName());
+        m_view->refreshAudioDevices(m_model->getMicInputSourceName());
     }
     m_view->refreshEqCurvePlots();
     m_view->setCurrentReceiver(m_model->getCurrentReceiver());
@@ -146,11 +128,9 @@ void TransmitSettingsController::bind(tx_settings_dialog* view, TransmitModel* t
     // --- View -> TransmitModel (Settings persistence via syncSettingsWithTransmit on save) ---
     connect(m_view, &tx_settings_dialog::audioDevicesRefreshRequested, this, [this]() {
         if (m_txModel) {
-            m_view->refreshAudioDevices(m_txModel->micInputSourceName(),
-                                        m_txModel->digitalInputSourceName());
+            m_view->refreshAudioDevices(m_txModel->micInputSourceName());
         } else {
-            m_view->refreshAudioDevices(m_model->getMicInputSourceName(),
-                                        m_model->getDigitalInputSourceName());
+            m_view->refreshAudioDevices(m_model->getMicInputSourceName());
         }
     });
 
@@ -161,12 +141,6 @@ void TransmitSettingsController::bind(tx_settings_dialog* view, TransmitModel* t
     });
     connect(m_view, &tx_settings_dialog::micInputSourceNameChanged, this, [this](const QString& name) {
         applyMicInputSourceName(name);
-    });
-    connect(m_view, &tx_settings_dialog::digitalAudioInputDevChanged, this, [this](int dev) {
-        applyDigitalAudioInputDev(dev);
-    });
-    connect(m_view, &tx_settings_dialog::digitalInputSourceNameChanged, this, [this](const QString& name) {
-        applyDigitalInputSourceName(name);
     });
     connect(m_view, &tx_settings_dialog::freeDVModeRequested, this, [this](int rx, int mode) {
         m_model->setFreeDVMode(rx, mode);

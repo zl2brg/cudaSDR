@@ -387,8 +387,8 @@ void DataEngine::setupConnections() {
 		set,
 		&Settings::spectralPaintRequested,
 		this,
-		[this]() {
-			startSpectralPaint(false, set ? (set->getRadioState() == RadioState::RX) : true);
+		[this](const QString &text) {
+			startSpectralPaint(false, set ? (set->getRadioState() == RadioState::RX) : true, text);
 		});
 
 	CHECKED_CONNECT(
@@ -2514,15 +2514,11 @@ void DataProcessor::fetch_MicData(){
         if (!(de->m_spectralPainter && de->m_spectralPainter->isActive()) && txDiagEnabled() && ++emptyCount % 200 == 1) {
             const int micIndex = set->getMicInputDev();
             const QString micName = set->getMicInputSourceName();
-            const int digitalIndex = set->getDigitalAudioInputDev();
-            const QString digitalName = set->getDigitalInputSourceName();
             qDebug().nospace()
                 << "fetch_MicData: Audio buffer empty"
                 << " txMode=" << set->getDSPMode(de->currentReceiver)
                 << " micIndex=" << micIndex
                 << " micSource=\"" << micName << "\""
-                << " digIndex=" << digitalIndex
-                << " digSource=\"" << digitalName << "\""
                 << " audioInputObj=" << (de->m_audioInput ? "yes" : "no");
         }
     }
@@ -3382,11 +3378,13 @@ bool DataEngine::isSpectralPaintActive() const {
     return m_spectralPainter && m_spectralPainter->isActive();
 }
 
-bool DataEngine::startSpectralPaint(bool isAutoTail, bool manualTx) {
+bool DataEngine::startSpectralPaint(bool isAutoTail, bool manualTx, const QString &textOverride) {
     if (!m_spectralPainter)
         return false;
 
-    QString text = set ? set->getSpectralPaintText().trimmed() : QString();
+    QString text = textOverride.trimmed();
+    if (text.isEmpty())
+        text = set ? set->getSpectralPaintText().trimmed() : QString();
     const QString callsign = set ? set->getCallsign().trimmed() : QString();
     if (text.isEmpty()) {
         text = callsign;
@@ -3395,9 +3393,16 @@ bool DataEngine::startSpectralPaint(bool isAutoTail, bool manualTx) {
         text = QStringLiteral("NOCALL");
     }
 
-    const int durMs = set ? set->getSpectralPaintDurationMs() : 2000;
-    const float lowHz = set ? static_cast<float>(set->getSpectralPaintLowHz()) : 600.0f;
-    const float highHz = set ? static_cast<float>(set->getSpectralPaintHighHz()) : 2400.0f;
+    const int durMs = set ? set->getSpectralPaintDurationMs() : 3000;
+    float lowHz = set ? static_cast<float>(set->getSpectralPaintLowHz()) : 200.0f;
+    float highHz = set ? static_cast<float>(set->getSpectralPaintHighHz()) : 3200.0f;
+    if (highHz < lowHz) {
+        const float tmp = lowHz;
+        lowHz = highHz;
+        highHz = tmp;
+    }
+    if (highHz - lowHz < 200.0f)
+        highHz = lowHz + 200.0f;
 
     const DSPMode txMode = set ? set->getDSPMode(currentReceiver) : USB;
     const bool isLsb = (txMode == LSB || txMode == DIGL || txMode == CWL);

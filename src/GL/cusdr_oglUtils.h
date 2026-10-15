@@ -52,7 +52,11 @@ inline bool displayIsAsleep(const QWidget *w)
     const Qt::ApplicationState appState = QGuiApplication::applicationState();
     if (appState == Qt::ApplicationSuspended || appState == Qt::ApplicationHidden)
         return true;
-    if (const QWindow *win = w->windowHandle())
+    const QWidget *top = w->window();
+    if (top && top->isMinimized())
+        return true;
+    const QWindow *win = top ? top->windowHandle() : w->windowHandle();
+    if (win)
         return !win->isExposed();
     return false;
 }

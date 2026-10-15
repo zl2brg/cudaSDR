@@ -43,7 +43,7 @@ tx_settings_dialog::tx_settings_dialog(QWidget *parent) :
 
     digitalVoiceLayout->addWidget(codec2Label);
     digitalVoiceLayout->addWidget(m_codec2ModeCombo);
-    ui->verticalLayoutScroll->insertWidget(2, digitalVoiceGroup);
+    ui->verticalLayoutScroll->insertWidget(1, digitalVoiceGroup);
 
     ui->groupBox->setContentsMargins(2,2,2,2);
     setContentsMargins(4, 4, 4, 4);
@@ -59,14 +59,6 @@ tx_settings_dialog::tx_settings_dialog(QWidget *parent) :
             emit micInputSourceNameChanged("hpsdr-local");
         else
             emit micInputSourceNameChanged(ui->audiodevlist->itemText(index));
-    });
-
-    connect(ui->digitalAudioDevList, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int index) {
-        emit digitalAudioInputDevChanged(index);
-        if (index == 0)
-            emit digitalInputSourceNameChanged("none");
-        else
-            emit digitalInputSourceNameChanged(ui->digitalAudioDevList->itemText(index));
     });
 
     connect(m_codec2ModeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int index) {
@@ -258,7 +250,7 @@ tx_settings_dialog::tx_settings_dialog(QWidget *parent) :
     QLabel *textLabel = new QLabel("Text:", paintGroup);
     m_spectralPaintText = new QLineEdit(paintGroup);
     m_spectralPaintText->setPlaceholderText("Default (Callsign)");
-    m_spectralPaintText->setToolTip("Custom text to paint on waterfall. If empty, station callsign is used.");
+    m_spectralPaintText->setToolTip("Custom text to paint on waterfall. If empty, station callsign is used. SQUARE or CIRCLE paints a test shape.");
     textRow->addWidget(textLabel);
     textRow->addWidget(m_spectralPaintText);
     paintLayout->addLayout(textRow);
@@ -266,27 +258,33 @@ tx_settings_dialog::tx_settings_dialog(QWidget *parent) :
     QHBoxLayout *durRow = new QHBoxLayout();
     QLabel *durLabel = new QLabel("Duration:", paintGroup);
     m_spectralPaintDuration = new QSpinBox(paintGroup);
-    m_spectralPaintDuration->setRange(500, 5000);
+    m_spectralPaintDuration->setRange(500, 15000);
     m_spectralPaintDuration->setSingleStep(250);
-    m_spectralPaintDuration->setValue(2000);
+    m_spectralPaintDuration->setValue(3000);
     m_spectralPaintDuration->setSuffix(" ms");
+    m_spectralPaintDuration->setToolTip("Time each letter is painted. Longer messages keep this height per character.");
     durRow->addWidget(durLabel);
     durRow->addWidget(m_spectralPaintDuration);
     paintLayout->addLayout(durRow);
 
     QHBoxLayout *freqRow = new QHBoxLayout();
-    QLabel *freqLabel = new QLabel("Audio Freq:", paintGroup);
+    QLabel *freqLabel = new QLabel("Width:", paintGroup);
     m_spectralPaintLowHz = new QSpinBox(paintGroup);
-    m_spectralPaintLowHz->setRange(200, 2000);
+    m_spectralPaintLowHz->setRange(50, 4000);
     m_spectralPaintLowHz->setSingleStep(50);
-    m_spectralPaintLowHz->setValue(600);
+    m_spectralPaintLowHz->setValue(200);
     m_spectralPaintLowHz->setSuffix(" Hz");
     QLabel *toLabel = new QLabel("-", paintGroup);
     m_spectralPaintHighHz = new QSpinBox(paintGroup);
-    m_spectralPaintHighHz->setRange(1000, 3500);
+    m_spectralPaintHighHz->setRange(250, 8000);
     m_spectralPaintHighHz->setSingleStep(50);
-    m_spectralPaintHighHz->setValue(2400);
+    m_spectralPaintHighHz->setValue(3200);
     m_spectralPaintHighHz->setSuffix(" Hz");
+    const QString widthTip = QStringLiteral(
+        "Audio-frequency span of the painted text. Wider span = wider letters on the waterfall. "
+        "Applied on the next Test Paint or PTT auto-tail.");
+    m_spectralPaintLowHz->setToolTip(widthTip);
+    m_spectralPaintHighHz->setToolTip(widthTip);
     freqRow->addWidget(freqLabel);
     freqRow->addWidget(m_spectralPaintLowHz);
     freqRow->addWidget(toLabel);
@@ -294,7 +292,7 @@ tx_settings_dialog::tx_settings_dialog(QWidget *parent) :
     paintLayout->addLayout(freqRow);
 
     m_spectralPaintTestBtn = new QPushButton("Test Paint Now", paintGroup);
-    m_spectralPaintTestBtn->setToolTip("Transmit spectral paint watermark now");
+    m_spectralPaintTestBtn->setToolTip("Transmit the callsign as large sequential letters. Type SQUARE or CIRCLE in Text for a test shape.");
     paintLayout->addWidget(m_spectralPaintTestBtn);
 
     ui->verticalLayoutScroll->addWidget(paintGroup);
@@ -302,8 +300,16 @@ tx_settings_dialog::tx_settings_dialog(QWidget *parent) :
     connect(m_spectralPaintAutoTail, &QCheckBox::toggled, this, &tx_settings_dialog::spectralPaintAutoTailRequested);
     connect(m_spectralPaintText, &QLineEdit::textChanged, this, &tx_settings_dialog::spectralPaintTextRequested);
     connect(m_spectralPaintDuration, QOverload<int>::of(&QSpinBox::valueChanged), this, &tx_settings_dialog::spectralPaintDurationMsRequested);
-    connect(m_spectralPaintLowHz, QOverload<int>::of(&QSpinBox::valueChanged), this, &tx_settings_dialog::spectralPaintLowHzRequested);
-    connect(m_spectralPaintHighHz, QOverload<int>::of(&QSpinBox::valueChanged), this, &tx_settings_dialog::spectralPaintHighHzRequested);
+    connect(m_spectralPaintLowHz, QOverload<int>::of(&QSpinBox::valueChanged), this, [this](int hz) {
+        if (m_spectralPaintHighHz)
+            m_spectralPaintHighHz->setMinimum(qMin(8000, hz + 200));
+        emit spectralPaintLowHzRequested(hz);
+    });
+    connect(m_spectralPaintHighHz, QOverload<int>::of(&QSpinBox::valueChanged), this, [this](int hz) {
+        if (m_spectralPaintLowHz)
+            m_spectralPaintLowHz->setMaximum(qMax(50, hz - 200));
+        emit spectralPaintHighHzRequested(hz);
+    });
     connect(m_spectralPaintTestBtn, &QPushButton::clicked, this, &tx_settings_dialog::spectralPaintTestRequested);
 }
 
@@ -622,29 +628,25 @@ void tx_settings_dialog::triggerRefreshDevices()
     emit audioDevicesRefreshRequested();
 }
 
-void tx_settings_dialog::refreshAudioDevices(const QString& savedMicName, const QString& savedDigitalName)
+void tx_settings_dialog::refreshAudioDevices(const QString& savedMicName)
 {
     const QSignalBlocker micBlocker(ui->audiodevlist);
-    const QSignalBlocker digBlocker(ui->digitalAudioDevList);
 
     const QString currentMic = ui->audiodevlist->currentText();
-    const QString currentDig = ui->digitalAudioDevList->currentText();
 
-    // Populate Mic List
     ui->audiodevlist->clear();
     ui->audiodevlist->addItem("HPSDR Mic Input");
-    
+
     const QList<QAudioDevice> micInputs = AudioDeviceService::instance()->audioInputs();
     for (const QAudioDevice &deviceInfo : micInputs) {
         ui->audiodevlist->addItem(deviceInfo.description());
     }
 
-    // Restore mic selection
     int micIndex = -1;
     if (!currentMic.isEmpty()) {
         micIndex = ui->audiodevlist->findText(currentMic);
     }
-    
+
     if (micIndex < 0) {
         if (savedMicName == "hpsdr-local") {
             micIndex = 0;
@@ -659,34 +661,6 @@ void tx_settings_dialog::refreshAudioDevices(const QString& savedMicName, const 
         }
     }
     ui->audiodevlist->setCurrentIndex(micIndex);
-
-    // Populate digital audio input device list
-    ui->digitalAudioDevList->clear();
-    ui->digitalAudioDevList->addItem("None");
-    for (const QAudioDevice &deviceInfo : micInputs) {
-        ui->digitalAudioDevList->addItem(deviceInfo.description());
-    }
-
-    // Restore digital selection
-    int digitalIndex = -1;
-    if (!currentDig.isEmpty()) {
-        digitalIndex = ui->digitalAudioDevList->findText(currentDig);
-    }
-
-    if (digitalIndex < 0) {
-        if (savedDigitalName == "none") {
-            digitalIndex = 0;
-        } else {
-            digitalIndex = findDeviceComboIndex(micInputs, savedDigitalName, 1);
-            if (digitalIndex < 0) {
-                const QString defaultName = QMediaDevices::defaultAudioInput().description();
-                digitalIndex = findDeviceComboIndex(micInputs, defaultName, 1);
-            }
-            if (digitalIndex < 0)
-                digitalIndex = 0;
-        }
-    }
-    ui->digitalAudioDevList->setCurrentIndex(digitalIndex);
 }
 
 void tx_settings_dialog::setTxFilterLow(int val)
@@ -738,6 +712,8 @@ void tx_settings_dialog::setSpectralPaintLowHz(int hz)
     if (m_spectralPaintLowHz) {
         const QSignalBlocker blocker(m_spectralPaintLowHz);
         m_spectralPaintLowHz->setValue(hz);
+        if (m_spectralPaintHighHz)
+            m_spectralPaintHighHz->setMinimum(qMin(8000, hz + 200));
     }
 }
 
@@ -746,5 +722,7 @@ void tx_settings_dialog::setSpectralPaintHighHz(int hz)
     if (m_spectralPaintHighHz) {
         const QSignalBlocker blocker(m_spectralPaintHighHz);
         m_spectralPaintHighHz->setValue(hz);
+        if (m_spectralPaintLowHz)
+            m_spectralPaintLowHz->setMaximum(qMax(50, hz - 200));
     }
 }

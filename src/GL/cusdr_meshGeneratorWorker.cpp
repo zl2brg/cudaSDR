@@ -25,6 +25,7 @@ MeshGeneratorWorker::MeshGeneratorWorker(QObject *parent)
     , m_timeScale(1.0f)
     , m_colorLower(-160.0f)
     , m_colorUpper(-80.0f)
+    , m_newestAtBottom(true)
 {
 }
 
@@ -43,11 +44,11 @@ void MeshGeneratorWorker::generateSingleSliceMesh(const QVector<float>& spectrum
                                                   float colorLower,
                                                   float colorUpper,
                                                   float dBmPanMin,
-                                                  float dBmPanMax) {
+                                                  float dBmPanMax,
+                                                  bool newestAtBottom) {
     QMutexLocker locker(&m_mutex);
     
-    // Update parameters for single slice
-    m_spectrumData = spectrumData;  // Qt implicit sharing - efficient copy
+    m_spectrumData = spectrumData;
     m_timeIndex = timeIndex;
     m_spectrumWidth = spectrumWidth;
     m_lodLevel = lodLevel;
@@ -58,6 +59,7 @@ void MeshGeneratorWorker::generateSingleSliceMesh(const QVector<float>& spectrum
     m_colorUpper = colorUpper;
     m_dBmPanMin = dBmPanMin;
     m_dBmPanMax = dBmPanMax;
+    m_newestAtBottom = newestAtBottom;
     
     m_newDataAvailable = true;
     m_condition.wakeOne(); // Wake up the worker thread
@@ -83,7 +85,8 @@ MeshGeneratorWorker::MeshData MeshGeneratorWorker::buildSliceMesh(
     float colorLower,
     float colorUpper,
     float dBmPanMin,
-    float dBmPanMax)
+    float dBmPanMax,
+    bool newestAtBottom)
 {
     MeshData meshData;
 
@@ -120,7 +123,7 @@ MeshGeneratorWorker::MeshData MeshGeneratorWorker::buildSliceMesh(
             amplitude = -120.0f;
         }
 
-        float x = (f * lodFactor / (float)freqBins) * 400.0f * frequencyScale - 200.0f * frequencyScale;
+        float x = frequencyWorldX(f * lodFactor, freqBins, frequencyScale);
         float y = (amplitude - dBmPanMin) / (dBmPanMax - dBmPanMin) * 40.0f;
         float z = 0.0f;
 
@@ -135,11 +138,8 @@ MeshGeneratorWorker::MeshData MeshGeneratorWorker::buildSliceMesh(
     }
 
     int verticesPerRow = effectiveFreqBins;
-    // Must match renderSpectrum3D spacing: (i+1)-(i) = 4.0 * timeScale.
-    // A fixed -4.0 depth with default timeScale=0.2 overlaps ~5 sheets and
-    // depth-tests peaks away depending on orbit angle.
     const float safeTimeScale = qMax(0.1f, timeScale);
-    float zBackEdge = -4.0f * safeTimeScale;
+    float zBackEdge = timeDirectionSign(newestAtBottom) * 4.0f * safeTimeScale;
 
     for (int f = 0; f < effectiveFreqBins; f++) {
         int srcIdx = f * 6;
@@ -196,6 +196,7 @@ void MeshGeneratorWorker::run() {
         float colorUpper = m_colorUpper;
         float dBmPanMin = m_dBmPanMin;
         float dBmPanMax = m_dBmPanMax;
+        bool newestAtBottom = m_newestAtBottom;
 
         Q_UNUSED(m_timeIndex)
         Q_UNUSED(m_heightScale)
@@ -212,7 +213,8 @@ void MeshGeneratorWorker::run() {
                                            colorLower,
                                            colorUpper,
                                            dBmPanMin,
-                                           dBmPanMax);
+                                           dBmPanMax,
+                                           newestAtBottom);
 
         {
             QMutexLocker locker(&m_mutex);

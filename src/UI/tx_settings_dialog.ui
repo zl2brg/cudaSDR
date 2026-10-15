@@ -126,34 +126,6 @@
     </widget>
    </item>
    <item>
-    <widget class="QGroupBox" name="groupBoxDigitalAudio">
-     <property name="sizePolicy">
-      <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-       <horstretch>0</horstretch>
-       <verstretch>0</verstretch>
-      </sizepolicy>
-     </property>
-     <property name="title">
-      <string>Digital Audio Input (FT8 / Digi modes)</string>
-     </property>
-     <layout class="QVBoxLayout" name="verticalLayoutDigital">
-      <item>
-       <widget class="QComboBox" name="digitalAudioDevList"/>
-      </item>
-      <item>
-       <widget class="QLabel" name="labelDigitalInfo">
-        <property name="text">
-         <string>Select the system audio device carrying the digital mode audio (e.g. WSJT-X virtual cable).</string>
-        </property>
-        <property name="wordWrap">
-         <bool>true</bool>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item>
     <widget class="QGroupBox" name="groupBox_3">
      <property name="sizePolicy">
       <sizepolicy hsizetype="Preferred" vsizetype="Minimum">

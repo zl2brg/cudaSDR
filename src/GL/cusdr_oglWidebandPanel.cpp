@@ -386,20 +386,24 @@ QMatrix4x4 QGLWidebandPanel::panelProjection() const
 
 void QGLWidebandPanel::drawCachedTexture(const QRect &rect, GLuint texId, float z)
 {
-	if (rect.isEmpty() || !texId)
+	if (rect.isEmpty() || !texId || !m_textureProgram || !m_textureProgram->isLinked())
 		return;
-	m_vao.bind();
-	if (m_textureProgram && m_textureProgram->isLinked())
-		GlDraw::renderTexturedQuad(this, m_textureProgram, m_vbo, panelProjection(), rect, texId, z);
+	if (m_vao.isCreated())
+		m_vao.bind();
+	GlDraw::renderTexturedQuad(this, m_textureProgram, m_vbo, panelProjection(), rect, texId, z);
+	if (m_vao.isCreated())
+		m_vao.release();
 }
 
 void QGLWidebandPanel::drawPanelRect(const QRect &rect, const QColor &color, float z)
 {
-	if (rect.isEmpty())
+	if (rect.isEmpty() || !m_program || !m_program->isLinked())
 		return;
-	m_vao.bind();
-	if (m_program && m_program->isLinked())
-		GlDraw::drawSolidRect(this, m_program, m_vbo, panelProjection(), rect, color, z);
+	if (m_vao.isCreated())
+		m_vao.bind();
+	GlDraw::drawSolidRect(this, m_program, m_vbo, panelProjection(), rect, color, z);
+	if (m_vao.isCreated())
+		m_vao.release();
 }
 
 void QGLWidebandPanel::paintGL() {
@@ -409,6 +413,12 @@ void QGLWidebandPanel::paintGL() {
 	}
 	if (m_glNeedsRenewAfterSleep)
 		renewGlCachesAfterSleep();
+
+	if (!m_program || !m_textureProgram || !m_vao.isCreated() || !m_vbo.isCreated()) {
+		initializeGL();
+		if (!m_program || !m_textureProgram)
+			return;
+	}
 
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);

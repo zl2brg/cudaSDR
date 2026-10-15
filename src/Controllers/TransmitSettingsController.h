@@ -22,8 +22,6 @@ public:
 private:
     void applyMicInputDev(int dev);
     void applyMicInputSourceName(const QString& name);
-    void applyDigitalAudioInputDev(int dev);
-    void applyDigitalInputSourceName(const QString& name);
 
     tx_settings_dialog* m_view = nullptr;
     TransmitOptionsWidget* m_optionsView = nullptr;

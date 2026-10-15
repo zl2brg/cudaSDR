@@ -58,6 +58,7 @@ QGL3DPanel::QGL3DPanel(QWidget *parent, int rx)
     , m_heightScale(1.0f)
     , m_frequencyScale(1.0f)
     , m_timeScale(0.2f)
+    , m_newestAtBottom(true)
     , m_waterfallOffset(20.0f)
     , m_backgroundColor(Qt::black)
     , m_gridColor(Qt::darkGray)
@@ -121,6 +122,7 @@ QGL3DPanel::QGL3DPanel(QWidget *parent, int rx)
     format.setSwapInterval(0);
     setFormat(format);
     disableVSyncOnNativeWayland(this);
+    installGlDisplaySleepGuard(this);
     setUpdateBehavior(isWayland ? QOpenGLWidget::NoPartialUpdate : QOpenGLWidget::PartialUpdate);
     setAutoFillBackground(false);
     setAttribute(Qt::WA_OpaquePaintEvent);
@@ -265,7 +267,8 @@ void QGL3DPanel::updateMeshesForScaleChange() {
                                                 colorLower,
                                                 colorUpper,
                                                 static_cast<float>(m_dBmPanMin),
-                                                static_cast<float>(m_dBmPanMax));
+                                                static_cast<float>(m_dBmPanMax),
+                                                m_newestAtBottom);
         if (meshData.vertices.isEmpty())
             continue;
 
@@ -486,7 +489,8 @@ void QGL3DPanel::updateMesh() {
                                           colorLower,
                                           colorUpper,
                                           static_cast<float>(m_dBmPanMin),
-                                          static_cast<float>(m_dBmPanMax));
+                                          static_cast<float>(m_dBmPanMax),
+                                          m_newestAtBottom);
     
     m_newSliceAvailable = false;
 }
@@ -507,6 +511,9 @@ void QGL3DPanel::onMeshReady(const MeshGeneratorWorker::MeshData& meshData) {
 }
 
 void QGL3DPanel::paintGL() {
+    if (!glWidgetCanPaint(this))
+        return;
+
     // Frame counting for FPS calculation
     m_frameCount++;
     
@@ -554,25 +561,20 @@ void QGL3DPanel::renderSpectrum3D() {
         glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
     }
     
-    // Render each time slice with individual translation
-    // Newer slices (index 0) are at front, older slices recede backward
-    // Center the entire waterfall display around Z=0
+    const float timeDir = MeshGeneratorWorker::timeDirectionSign(m_newestAtBottom);
     int numSlices = m_timeSliceMeshes.size();
     float totalDepth = (numSlices - 1) * 4.0f * m_timeScale;
-    float centerOffset = totalDepth / 2.0f;  // Offset to center around Z=0
+    float centerOffset = totalDepth / 2.0f;
     
     for (int i = 0; i < numSlices; i++) {
-        // Simple visibility culling - skip slices that are definitely off-screen
         if (!isSliceVisible(i)) {
             continue;
         }
         
         const TimeSliceMesh& slice = m_timeSliceMeshes[i];
         
-        // Create model matrix with Z offset for this slice
-        // Index 0 is newest (at centerOffset), higher indices recede backward
         QMatrix4x4 sliceModel = m_modelMatrix;
-        float zOffset = centerOffset - (float)i * 4.0f * m_timeScale;
+        float zOffset = timeDir * ((float)i * 4.0f * m_timeScale - centerOffset);
         sliceModel.translate(0.0f, 0.0f, zOffset);
         
         // Set MVP for this slice
@@ -647,7 +649,7 @@ void QGL3DPanel::renderVerticalScale() {
     // Scale positioning should respond to time scale changes but stay reasonable
     float scaleX = -200.0f * m_frequencyScale;  // Left side, scaled with frequency
     // Move closer to front - increase Z value to get to front corner
-    float scaleZ = 150.0f * m_timeScale;  // Higher value to move toward front corner
+    float scaleZ = -MeshGeneratorWorker::timeDirectionSign(m_newestAtBottom) * 150.0f * m_timeScale;
     
     // Use dynamic dBm range from 2D panadapter for scale labels
     // Even though mesh height is fixed, scale labels reflect current dBm range
@@ -831,9 +833,12 @@ void QGL3DPanel::calculateVisibleRange(int& minTimeSlice, int& maxTimeSlice, int
             float t = (float)ts / (testSamplesTime - 1) * totalTimeSlices;
             float f = (float)fs / (testSamplesFreq - 1) * m_spectrumWidth;
             
-            float x = (f / (float)m_spectrumWidth) * 400.0f * m_frequencyScale - 200.0f * m_frequencyScale;
+            float x = MeshGeneratorWorker::frequencyWorldX(static_cast<int>(f),
+                                                           m_spectrumWidth,
+                                                           m_frequencyScale);
             float y = 0.0f; // Test at base of mesh
-            float z = ((float)totalTimeSlices - t) * 4.0f * m_timeScale - (float)totalTimeSlices * 2.0f * m_timeScale;
+            const float timeDir = MeshGeneratorWorker::timeDirectionSign(m_newestAtBottom);
+            float z = timeDir * (t * 4.0f * m_timeScale - (float)totalTimeSlices * 2.0f * m_timeScale);
             
             // Transform to clip space
             QVector4D worldPos(x, y, z, 1.0f);
@@ -1342,7 +1347,13 @@ void QGL3DPanel::setFrequencyScale(float scale) {
 
 void QGL3DPanel::setTimeScale(float scale) {
     m_timeScale = qBound(0.1f, scale, 10.0f);
-    // Ribbon Z depth is baked into mesh vertices; rebuild so depth matches spacing.
+    updateMeshesForScaleChange();
+}
+
+void QGL3DPanel::setNewestAtBottom(bool newestAtBottom) {
+    if (m_newestAtBottom == newestAtBottom)
+        return;
+    m_newestAtBottom = newestAtBottom;
     updateMeshesForScaleChange();
 }
 

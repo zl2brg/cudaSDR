@@ -17,9 +17,7 @@ TransmitConfig::TransmitConfig(QObject *parent)
     : QObject(parent)
     , m_micSource(1)
     , m_micInputDev(0)
-    , m_digitalAudioInputDev(0)
     , m_micInputSourceName(QString())
-    , m_digitalInputSourceName(QString())
     , m_micGain(10.0)
     , m_driveLevel(100)
     , m_tunePower(10)
@@ -85,24 +83,10 @@ void TransmitConfig::setMicInputDev(int dev) {
     }
 }
 
-void TransmitConfig::setDigitalAudioInputDev(int dev) {
-    if (m_digitalAudioInputDev != dev) {
-        m_digitalAudioInputDev = dev;
-        emit digitalAudioInputDevChanged(m_digitalAudioInputDev);
-    }
-}
-
 void TransmitConfig::setMicInputSourceName(const QString &name) {
     if (m_micInputSourceName != name) {
         m_micInputSourceName = name;
         emit micInputSourceNameChanged(m_micInputSourceName);
-    }
-}
-
-void TransmitConfig::setDigitalInputSourceName(const QString &name) {
-    if (m_digitalInputSourceName != name) {
-        m_digitalInputSourceName = name;
-        emit digitalInputSourceNameChanged(m_digitalInputSourceName);
     }
 }
 
@@ -389,9 +373,7 @@ void TransmitConfig::load(const QJsonObject &json) {
     ensureCfcDefaults();
     if (json.contains("micSource")) setMicSource(json["micSource"].toInt());
     if (json.contains("micInputDev")) setMicInputDev(json["micInputDev"].toInt());
-    if (json.contains("digitalAudioInputDev")) setDigitalAudioInputDev(json["digitalAudioInputDev"].toInt());
     if (json.contains("micInputSourceName")) setMicInputSourceName(json["micInputSourceName"].toString());
-    if (json.contains("digitalInputSourceName")) setDigitalInputSourceName(json["digitalInputSourceName"].toString());
     if (json.contains("micGain")) setMicGain(json["micGain"].toDouble());
     if (json.contains("driveLevel")) setDriveLevel(json["driveLevel"].toInt());
     if (json.contains("tunePower")) setTunePower(json["tunePower"].toInt());
@@ -433,9 +415,7 @@ void TransmitConfig::load(const QJsonObject &json) {
 void TransmitConfig::save(QJsonObject &json) const {
     json["micSource"] = m_micSource;
     json["micInputDev"] = m_micInputDev;
-    json["digitalAudioInputDev"] = m_digitalAudioInputDev;
     json["micInputSourceName"] = m_micInputSourceName;
-    json["digitalInputSourceName"] = m_digitalInputSourceName;
     json["micGain"] = m_micGain;
     json["driveLevel"] = m_driveLevel;
     json["tunePower"] = m_tunePower;
@@ -477,17 +457,11 @@ void TransmitConfig::loadIni(QSettings *settings) {
     setMicSource(str == QLatin1String("janus") ? 0 : 1);
 
     setMicInputDev(iniValue(settings, "mic_InputDevice", "audio/mic_input_dev", 0).toInt());
-    setDigitalAudioInputDev(iniValue(settings, "digital_audio_InputDevice", "audio/digital_audio_input_dev", 0).toInt());
     setMicInputSourceName(iniValue(settings, "mic_input_source", "audio/mic_input_source_name",
                                    (micInputDev() > 0) ? QStringLiteral("default") : QStringLiteral("hpsdr-local")).toString());
-    setDigitalInputSourceName(iniValue(settings, "digital_input_source", "audio/digital_input_source_name",
-                                       (digitalAudioInputDev() > 0) ? QStringLiteral("default") : QStringLiteral("none")).toString());
 
     if (micInputSourceName().isEmpty()) {
         setMicInputSourceName((micInputDev() > 0) ? QStringLiteral("default") : QStringLiteral("hpsdr-local"));
-    }
-    if (digitalInputSourceName().isEmpty()) {
-        setDigitalInputSourceName((digitalAudioInputDev() > 0) ? QStringLiteral("default") : QStringLiteral("none"));
     }
 
     setMicGain(iniValue(settings, "micGain", "audio/mic_gain", 0).toDouble());
@@ -516,9 +490,9 @@ void TransmitConfig::loadIni(QSettings *settings) {
     setTxUseRxFilter(iniValue(settings, "tx_use_rx_filter", "audio/tx_use_rx_filter", false).toBool());
     setSpectralPaintAutoTail(iniValue(settings, "spectral_paint_auto_tail", "audio/spectral_paint_auto_tail", false).toBool());
     setSpectralPaintText(iniValue(settings, "spectral_paint_text", "audio/spectral_paint_text", QString()).toString());
-    setSpectralPaintDurationMs(iniValue(settings, "spectral_paint_duration_ms", "audio/spectral_paint_duration_ms", 2000).toInt());
-    setSpectralPaintLowHz(iniValue(settings, "spectral_paint_low_hz", "audio/spectral_paint_low_hz", 600).toInt());
-    setSpectralPaintHighHz(iniValue(settings, "spectral_paint_high_hz", "audio/spectral_paint_high_hz", 2400).toInt());
+    setSpectralPaintDurationMs(iniValue(settings, "spectral_paint_duration_ms", "audio/spectral_paint_duration_ms", 3000).toInt());
+    setSpectralPaintLowHz(iniValue(settings, "spectral_paint_low_hz", "audio/spectral_paint_low_hz", 200).toInt());
+    setSpectralPaintHighHz(iniValue(settings, "spectral_paint_high_hz", "audio/spectral_paint_high_hz", 3200).toInt());
 
     QVector<int> bands(kEqBands, 0);
     for (int i = 0; i < kEqBands; ++i) {
@@ -552,8 +526,6 @@ void TransmitConfig::saveIni(QSettings *settings) const {
     settings->setValue("server/mic_source", m_micSource == 0 ? QStringLiteral("janus") : QStringLiteral("penelope"));
     settings->setValue("mic_InputDevice", m_micInputDev);
     settings->setValue("mic_input_source", m_micInputSourceName);
-    settings->setValue("digital_audio_InputDevice", m_digitalAudioInputDev);
-    settings->setValue("digital_input_source", m_digitalInputSourceName);
     settings->setValue("micGain", m_micGain);
     settings->setValue("driveLevel", m_driveLevel);
     settings->setValue("audio/tune_power", m_tunePower);

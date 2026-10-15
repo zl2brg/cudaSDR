@@ -9,7 +9,7 @@ cd "${ROOT}"
 BUILD_DIR="${BUILD_DIR:-build-ci}"
 BUILD_TYPE="${BUILD_TYPE:-Release}"
 OUTPUT_DIR="${OUTPUT_DIR:-${ROOT}/out}"
-QT_VERSION="${QT_VERSION:-6.11.0}"
+QT_VERSION="${QT_VERSION:-6.12.0}"
 QT_PREFIX="${QT_PREFIX:-/opt/Qt/${QT_VERSION}/gcc_64}"
 JOBS="${JOBS:-$(nproc)}"
 

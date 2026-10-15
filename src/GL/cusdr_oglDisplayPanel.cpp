@@ -586,6 +586,12 @@ void OGLDisplayPanel::paintGL() {
     if (m_glNeedsRenewAfterSleep)
         renewGlCachesAfterSleep();
 
+    if (!m_shaderProgram || !m_textureProgram || !m_vao.isCreated() || !m_vbo.isCreated()) {
+        initializeGL();
+        if (!m_shaderProgram || !m_textureProgram)
+            return;
+    }
+
     const qreal currentDpr = devicePixelRatioF();
     if (!qFuzzyCompare(currentDpr, dpr)) {
         dpr = currentDpr;
@@ -629,11 +635,13 @@ QMatrix4x4 OGLDisplayPanel::panelProjection() const
 
 void OGLDisplayPanel::drawPanelRect(const QRect &rect, const QColor &color, float z)
 {
-    if (rect.isEmpty())
+    if (rect.isEmpty() || !m_shaderProgram || !m_shaderProgram->isLinked())
         return;
-    m_vao.bind();
-    if (m_shaderProgram && m_shaderProgram->isLinked())
-        GlDraw::drawSolidRect(this, m_shaderProgram, m_vbo, panelProjection(), rect, color, z);
+    if (m_vao.isCreated())
+        m_vao.bind();
+    GlDraw::drawSolidRect(this, m_shaderProgram, m_vbo, panelProjection(), rect, color, z);
+    if (m_vao.isCreated())
+        m_vao.release();
 }
 
 // Corners are built from per-scanline insets: drawSolidRect is the only fill primitive here.
@@ -694,10 +702,15 @@ void OGLDisplayPanel::drawPanelRoundedRectOutline(const QRect &rect, const QColo
         verts.append({ float(b.x()), float(b.y()), z, cr, cg, cb, ca });
     }
 
-    m_vao.bind();
+    if (!m_shaderProgram || !m_shaderProgram->isLinked())
+        return;
+    if (m_vao.isCreated())
+        m_vao.bind();
     glLineWidth(1.0f);
     GlDraw::drawColoredRgbaLines(this, m_shaderProgram, m_vbo, panelProjection(),
                                 verts.constData(), verts.size());
+    if (m_vao.isCreated())
+        m_vao.release();
 }
 
 void OGLDisplayPanel::drawPanelGradientRect(const QRect &rect,
@@ -706,11 +719,13 @@ void OGLDisplayPanel::drawPanelGradientRect(const QRect &rect,
                                           bool leftToRight,
                                           float z)
 {
-    if (rect.isEmpty())
+    if (rect.isEmpty() || !m_shaderProgram || !m_shaderProgram->isLinked())
         return;
-    m_vao.bind();
-    if (m_shaderProgram && m_shaderProgram->isLinked())
-        GlDraw::drawGradientRect(this, m_shaderProgram, m_vbo, panelProjection(), rect, c1, c2, leftToRight, z);
+    if (m_vao.isCreated())
+        m_vao.bind();
+    GlDraw::drawGradientRect(this, m_shaderProgram, m_vbo, panelProjection(), rect, c1, c2, leftToRight, z);
+    if (m_vao.isCreated())
+        m_vao.release();
 }
 
 void OGLDisplayPanel::setSMeterValue(int rx, double value) {

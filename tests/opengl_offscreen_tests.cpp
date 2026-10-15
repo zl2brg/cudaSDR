@@ -319,6 +319,10 @@ void OpenglOffscreenTests::testDisplaySleepHelpers()
 
     QWidget widget;
     QVERIFY(!displayIsAsleep(&widget));
+
+    QWidget top;
+    QWidget child(&top);
+    QVERIFY(!displayIsAsleep(&child));
 }
 
 void OpenglOffscreenTests::testPanadapterRendererLifecycle()

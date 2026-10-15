@@ -146,18 +146,6 @@ void TransmitModel::setMicInputSourceName(const QString &name) {
     emit micInputSourceNameChanged(m_micInputSourceName);
 }
 
-void TransmitModel::setDigitalAudioInputDev(int dev) {
-    if (m_digitalAudioInputDev == dev) return;
-    m_digitalAudioInputDev = dev;
-    emit digitalAudioInputDevChanged(m_digitalAudioInputDev);
-}
-
-void TransmitModel::setDigitalInputSourceName(const QString &name) {
-    if (m_digitalInputSourceName == name) return;
-    m_digitalInputSourceName = name;
-    emit digitalInputSourceNameChanged(m_digitalInputSourceName);
-}
-
 void TransmitModel::setCwKeyerMode(int val) {
     if (m_cwKeyerMode == val) return;
     m_cwKeyerMode = val;

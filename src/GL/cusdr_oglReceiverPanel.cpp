@@ -728,11 +728,13 @@ void QGLReceiverPanel::syncTextDevicePixelRatio()
 
 void QGLReceiverPanel::drawPanelRect(const QRect &rect, const QColor &color, float z)
 {
-    if (rect.isEmpty())
+    if (rect.isEmpty() || !m_shaderProgram || !m_shaderProgram->isLinked())
         return;
-    m_vao.bind();
-    if (m_shaderProgram && m_shaderProgram->isLinked())
-        GlDraw::drawSolidRect(this, m_shaderProgram, m_vbo, panelProjection(), rect, color, z);
+    if (m_vao.isCreated())
+        m_vao.bind();
+    GlDraw::drawSolidRect(this, m_shaderProgram, m_vbo, panelProjection(), rect, color, z);
+    if (m_vao.isCreated())
+        m_vao.release();
 }
 
 void QGLReceiverPanel::renderPanelText(OGLText *text, float x, float y, const QString &str)
@@ -752,11 +754,13 @@ void QGLReceiverPanel::renderPanelText(OGLText *text, float x, float y, float z,
 
 void QGLReceiverPanel::drawCachedTexture(const QRect &rect, GLuint texId, float z)
 {
-    if (rect.isEmpty() || !texId)
+    if (rect.isEmpty() || !texId || !m_textureProgram || !m_textureProgram->isLinked())
         return;
-    m_vao.bind();
-    if (m_textureProgram && m_textureProgram->isLinked())
-        GlDraw::renderTexturedQuad(this, m_textureProgram, m_vbo, panelProjection(), rect, texId, z);
+    if (m_vao.isCreated())
+        m_vao.bind();
+    GlDraw::renderTexturedQuad(this, m_textureProgram, m_vbo, panelProjection(), rect, texId, z);
+    if (m_vao.isCreated())
+        m_vao.release();
 }
 
 void QGLReceiverPanel::paintGL() {
@@ -766,6 +770,12 @@ void QGLReceiverPanel::paintGL() {
     }
     if (m_glNeedsRenewAfterSleep)
         renewGlCachesAfterSleep();
+
+    if (!m_shaderProgram || !m_textureProgram || !m_vao.isCreated() || !m_vbo.isCreated()) {
+        initializeGL();
+        if (!m_shaderProgram || !m_textureProgram)
+            return;
+    }
 
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);

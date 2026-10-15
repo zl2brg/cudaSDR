@@ -28,8 +28,6 @@ class TransmitModel : public QObject {
     Q_PROPERTY(QVector<double> cfcPost READ cfcPost WRITE setCfcPost NOTIFY cfcChanged)
     Q_PROPERTY(int micInputDev READ micInputDev WRITE setMicInputDev NOTIFY micInputDevChanged)
     Q_PROPERTY(QString micInputSourceName READ micInputSourceName WRITE setMicInputSourceName NOTIFY micInputSourceNameChanged)
-    Q_PROPERTY(int digitalAudioInputDev READ digitalAudioInputDev WRITE setDigitalAudioInputDev NOTIFY digitalAudioInputDevChanged)
-    Q_PROPERTY(QString digitalInputSourceName READ digitalInputSourceName WRITE setDigitalInputSourceName NOTIFY digitalInputSourceNameChanged)
     Q_PROPERTY(int cwKeyerMode READ cwKeyerMode WRITE setCwKeyerMode NOTIFY cwKeyerModeChanged)
     Q_PROPERTY(bool internalCw READ internalCw WRITE setInternalCw NOTIFY internalCwChanged)
     Q_PROPERTY(bool cwKeyReversed READ cwKeyReversed WRITE setCwKeyReversed NOTIFY cwKeyReversedChanged)
@@ -115,12 +113,6 @@ public:
     QString micInputSourceName() const { return m_micInputSourceName; }
     void setMicInputSourceName(const QString &name);
 
-    int digitalAudioInputDev() const { return m_digitalAudioInputDev; }
-    void setDigitalAudioInputDev(int dev);
-
-    QString digitalInputSourceName() const { return m_digitalInputSourceName; }
-    void setDigitalInputSourceName(const QString &name);
-
     int cwKeyerMode() const { return m_cwKeyerMode; }
     void setCwKeyerMode(int val);
 
@@ -189,8 +181,6 @@ signals:
     void cfcChanged();
     void micInputDevChanged(int dev);
     void micInputSourceNameChanged(const QString &name);
-    void digitalAudioInputDevChanged(int dev);
-    void digitalInputSourceNameChanged(const QString &name);
     void cwKeyerModeChanged(int val);
     void internalCwChanged(bool val);
     void cwKeyReversedChanged(bool val);
@@ -234,8 +224,6 @@ private:
 
     int m_micInputDev = 0;
     QString m_micInputSourceName;
-    int m_digitalAudioInputDev = 0;
-    QString m_digitalInputSourceName;
 
     int m_cwKeyerMode = 2;
     bool m_internalCw = true;
@@ -252,9 +240,9 @@ private:
     bool m_txUseRxFilter = false;
     bool m_spectralPaintAutoTail = false;
     QString m_spectralPaintText;
-    int m_spectralPaintDurationMs = 2000;
-    int m_spectralPaintLowHz = 600;
-    int m_spectralPaintHighHz = 2400;
+    int m_spectralPaintDurationMs = 3000;
+    int m_spectralPaintLowHz = 200;
+    int m_spectralPaintHighHz = 3200;
 };
 
 #endif // TRANSMITMODEL_H

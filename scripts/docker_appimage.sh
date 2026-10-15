@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Build the CI Docker image and run the same AppImage pipeline GitHub Actions uses.
-# No host Qt mount — Qt 6.11 is installed inside the image via aqtinstall.
+# No host Qt mount — Qt 6.12 is installed inside the image via aqtinstall.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -53,7 +53,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ "${BUILD_IMAGE}" -eq 1 ]]; then
-    echo "==> Building image ${IMAGE} with ${DOCKER[*]} (Qt 6.11 download on first build)..."
+    echo "==> Building image ${IMAGE} with ${DOCKER[*]} (Qt 6.12 download on first build)..."
     "${DOCKER[@]}" build -f "${DOCKERFILE}" -t "${IMAGE}" "${ROOT}/packaging"
 fi
 
