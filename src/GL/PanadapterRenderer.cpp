@@ -1,6 +1,9 @@
 #include "PanadapterRenderer.h"
 #include "cusdr_glShaders.h"
 
+#include <algorithm>
+#include <cmath>
+
 #include <QFile>
 #include <QOffscreenSurface>
 #include <QOpenGLContext>
@@ -78,6 +81,7 @@ void PanadapterRenderer::release()
     m_triStripPipeline.reset();
     m_lineStripPipeline.reset();
     m_linesPipeline.reset();
+    m_trianglesPipeline.reset();
     m_vertShader = QShader();
     m_fragShader = QShader();
     m_srb.reset();
@@ -119,6 +123,7 @@ bool PanadapterRenderer::ensureRenderTarget(const QSize &pixelSize)
     m_triStripPipeline.reset();
     m_lineStripPipeline.reset();
     m_linesPipeline.reset();
+    m_trianglesPipeline.reset();
     m_rp.reset();
     m_rt.reset();
     m_colorTex.reset();
@@ -155,6 +160,7 @@ QRhiGraphicsPipeline *PanadapterRenderer::pipelineForTopology(QRhiGraphicsPipeli
     case QRhiGraphicsPipeline::TriangleStrip: slot = &m_triStripPipeline; break;
     case QRhiGraphicsPipeline::LineStrip: slot = &m_lineStripPipeline; break;
     case QRhiGraphicsPipeline::Lines: slot = &m_linesPipeline; break;
+    case QRhiGraphicsPipeline::Triangles: slot = &m_trianglesPipeline; break;
     default: return nullptr;
     }
 
@@ -208,6 +214,179 @@ QRhiGraphicsPipeline *PanadapterRenderer::pipelineForTopology(QRhiGraphicsPipeli
 }
 
 
+int PanadapterRenderer::buildUnderTraceFill(float xLeft, float plotWidth, float plotHeight,
+                                             float yBaseline, float yScale, float scaleMult,
+                                             const QVector<qreal> &bins,
+                                             float topR, float topG, float topB, float topA,
+                                             float botR, float botG, float botB, float botA,
+                                             float z)
+{
+    const int n = bins.size();
+    if (n <= 0 || plotWidth <= 0.0f)
+        return 0;
+
+    const float step = (scaleMult > 1.0e-6f) ? (1.0f / scaleMult) : 1.0f;
+    const float xRight = xLeft + plotWidth;
+    const float lastX = xLeft + float(n - 1) * step;
+    const bool closeRight = lastX < xRight - 0.5f;
+    const int columns = n + (closeRight ? 1 : 0);
+
+    // Anchor the gradient to the plot, not to each bin. Putting the top colour
+    // on every trace vertex makes the two triangles of a column disagree, which
+    // draws a vertical stripe per bin.
+    auto shade = [&](float y) -> VertexData {
+        float t = 0.0f;
+        if (plotHeight > 1.0f)
+            t = (yBaseline - y) / plotHeight;
+        if (t < 0.0f)
+            t = 0.0f;
+        else if (t > 1.0f)
+            t = 1.0f;
+        VertexData v{};
+        v.r = botR + (topR - botR) * t;
+        v.g = botG + (topG - botG) * t;
+        v.b = botB + (topB - botB) * t;
+        v.a = botA + (topA - botA) * t;
+        v.z = z;
+        return v;
+    };
+
+    m_vertexCache.resize(columns * 2);
+    for (int i = 0; i < n; ++i) {
+        const float vx = xLeft + float(i) * step;
+        const float vy = yBaseline - yScale * float(bins.at(i));
+        VertexData top = shade(vy);
+        top.x = vx;
+        top.y = vy;
+        VertexData bot = shade(yBaseline);
+        bot.x = vx;
+        bot.y = yBaseline;
+        m_vertexCache[2 * i] = top;
+        m_vertexCache[2 * i + 1] = bot;
+    }
+    if (closeRight) {
+        const float lastVy = yBaseline - yScale * float(bins.at(n - 1));
+        VertexData top = shade(lastVy);
+        top.x = xRight;
+        top.y = lastVy;
+        VertexData bot = shade(yBaseline);
+        bot.x = xRight;
+        bot.y = yBaseline;
+        m_vertexCache[2 * n] = top;
+        m_vertexCache[2 * n + 1] = bot;
+    }
+    return columns * 2;
+}
+
+int PanadapterRenderer::buildPaletteFill(float xLeft, float plotWidth, float plotHeight,
+                                          float yBaseline, float yScale, float scaleMult,
+                                          qreal dBmMin, qreal dBmMax,
+                                          const QVector<qreal> &bins,
+                                          const SignalPalette &palette)
+{
+    m_vertexCache.clear();
+    const int n = bins.size();
+    const float dBmRange = float(std::fabs(dBmMax - dBmMin));
+    if (n <= 0 || plotWidth <= 0.0f || plotHeight <= 1.0f || dBmRange <= 1.0e-6f)
+        return 0;
+
+    const float step = (scaleMult > 1.0e-6f) ? (1.0f / scaleMult) : 1.0f;
+    const float xRight = xLeft + plotWidth;
+    const float panTop = yBaseline - plotHeight;
+    const bool closeRight = (xLeft + float(n - 1) * step) < xRight - 0.5f;
+    const int columns = n + (closeRight ? 1 : 0);
+
+    const float span = (palette.mode == Enhanced)
+                           ? qMax(palette.colorRange, 0.001f)
+                           : qMax(palette.upperThreshold - palette.lowerThreshold, 0.001f);
+    const float knots[] = {
+        0.0f,
+        2.0f / 9.0f, 3.0f / 9.0f, 4.0f / 9.0f, 5.0f / 9.0f,
+        0.5f,
+        7.0f / 9.0f, 8.0f / 9.0f,
+        1.0f
+    };
+    const int knotCount = (palette.mode == Enhanced) ? 9 : 3;
+    const int knotIndex[] = { 0, 8, 5 }; // Simple: 0, 0.5, 1
+
+    auto dbmAtY = [&](float y) {
+        return float(dBmMin) + (yBaseline - y) / plotHeight * dBmRange;
+    };
+    auto yAtDbm = [&](float dbm) {
+        return yBaseline - plotHeight * (dbm - float(dBmMin)) / dBmRange;
+    };
+
+    QVector<float> sampleY;
+    sampleY.reserve(knotCount + 2);
+    sampleY.append(panTop);
+    sampleY.append(yBaseline);
+    for (int k = 0; k < knotCount; ++k) {
+        const float t = (palette.mode == Enhanced) ? knots[k] : knots[knotIndex[k]];
+        const float y = yAtDbm(palette.lowerThreshold + t * span);
+        if (y >= panTop - 0.5f && y <= yBaseline + 0.5f)
+            sampleY.append(std::clamp(y, panTop, yBaseline));
+    }
+    std::sort(sampleY.begin(), sampleY.end());
+    QVector<float> levels;
+    levels.reserve(sampleY.size());
+    for (float y : sampleY) {
+        if (levels.isEmpty() || y - levels.last() > 0.25f)
+            levels.append(y);
+    }
+    if (levels.size() < 2)
+        return 0;
+
+    auto colorAt = [&](float y) {
+        const float t = waterfallPaletteT(dbmAtY(y), palette);
+        const PaletteRgb c = waterfallPaletteColor(palette, t);
+        VertexData v{};
+        v.y = y;
+        v.z = -1.0f;
+        v.r = float(c.r) / 255.0f;
+        v.g = float(c.g) / 255.0f;
+        v.b = float(c.b) / 255.0f;
+        v.a = qBound(0.0f, palette.alpha, 1.0f);
+        return v;
+    };
+    auto xAt = [&](int i) {
+        if (closeRight && i == n)
+            return xRight;
+        return xLeft + float(i) * step;
+    };
+    auto traceAt = [&](int i) {
+        const int bin = qMin(i, n - 1);
+        return yBaseline - yScale * float(bins.at(bin));
+    };
+
+    const int intervals = columns - 1;
+    m_vertexCache.reserve(intervals * (levels.size() - 1) * 6);
+    for (int i = 0; i < intervals; ++i) {
+        const float xL = xAt(i);
+        const float xR = xAt(i + 1);
+        const float traceL = traceAt(i);
+        const float traceR = traceAt(i + 1);
+        for (int s = 0; s < levels.size() - 1; ++s) {
+            const float yL0 = std::max(levels.at(s), traceL);
+            const float yR0 = std::max(levels.at(s), traceR);
+            const float yL1 = std::max(levels.at(s + 1), traceL);
+            const float yR1 = std::max(levels.at(s + 1), traceR);
+            if (yL0 >= yL1 - 0.01f && yR0 >= yR1 - 0.01f)
+                continue;
+            VertexData a = colorAt(yL0); a.x = xL;
+            VertexData b = colorAt(yR0); b.x = xR;
+            VertexData c = colorAt(yL1); c.x = xL;
+            VertexData d = colorAt(yR1); d.x = xR;
+            m_vertexCache.append(a);
+            m_vertexCache.append(b);
+            m_vertexCache.append(c);
+            m_vertexCache.append(b);
+            m_vertexCache.append(d);
+            m_vertexCache.append(c);
+        }
+    }
+    return m_vertexCache.size();
+}
+
 void PanadapterRenderer::drawGeometry(QRhiCommandBuffer *cb,
                                       const QMatrix4x4 &matrix,
                                       const VertexData *data,
@@ -252,7 +431,8 @@ void PanadapterRenderer::render(QOpenGLFunctions *gl,
                                 QSDR::_DataEngineState dataEngineState,
                                 bool isCurrentReceiver,
                                 const QVector<qreal>& peakHoldBins,
-                                bool scaleColorByLevel)
+                                bool scaleColorByLevel,
+                                const SignalPalette &palette)
 {
     if (bins.isEmpty() || panRect.width() <= 0 || panRect.height() <= 0)
         return;
@@ -260,7 +440,7 @@ void PanadapterRenderer::render(QOpenGLFunctions *gl,
     if (!m_rhiActive) {
         renderWithOpenGL(projection, panRect, bins, dBmMax, dBmMin, mode, scaleMult, dpr,
                          parentHeight, colors, dataEngineState, isCurrentReceiver, gl,
-                         peakHoldBins, scaleColorByLevel);
+                         peakHoldBins, scaleColorByLevel, palette);
         return;
     }
 
@@ -272,7 +452,7 @@ void PanadapterRenderer::render(QOpenGLFunctions *gl,
         m_rhiActive = false;
         renderWithOpenGL(projection, panRect, bins, dBmMax, dBmMin, mode, scaleMult, dpr,
                          parentHeight, colors, dataEngineState, isCurrentReceiver, gl,
-                         peakHoldBins, scaleColorByLevel);
+                         peakHoldBins, scaleColorByLevel, palette);
         return;
     }
 
@@ -282,7 +462,7 @@ void PanadapterRenderer::render(QOpenGLFunctions *gl,
         m_rhiActive = false;
         renderWithOpenGL(projection, panRect, bins, dBmMax, dBmMin, mode, scaleMult, dpr,
                          parentHeight, colors, dataEngineState, isCurrentReceiver, gl,
-                         peakHoldBins, scaleColorByLevel);
+                         peakHoldBins, scaleColorByLevel, palette);
         return;
     }
 
@@ -345,20 +525,17 @@ void PanadapterRenderer::render(QOpenGLFunctions *gl,
 
     QRhiGraphicsPipeline *triPipeline = pipelineForTopology(QRhiGraphicsPipeline::TriangleStrip);
     QRhiGraphicsPipeline *linePipeline = pipelineForTopology(QRhiGraphicsPipeline::LineStrip);
-    QRhiGraphicsPipeline *linesPipeline = pipelineForTopology(QRhiGraphicsPipeline::Lines);
 
     drawGeometry(cb, matrix, bkgData, 4, triPipeline, 4);
 
     switch (mode) {
     case FilledLine: {
-        m_vertexCache.resize(vertexArrayLength * 2);
-        for (int i = 0; i < vertexArrayLength; ++i) {
-            const float vx = float(x1 + (i / scaleMult));
-            const float vy = float(yTop - yScale * float(bins.at(i)));
-            m_vertexCache[2 * i] = { vx, vy, -1.5f, 0.7f * colors.rf, 0.7f * colors.gf, 0.7f * colors.bf, 0.4f };
-            m_vertexCache[2 * i + 1] = { vx, yTop, -1.5f, 0.3f * colors.rf, 0.3f * colors.gf, 0.3f * colors.bf, 0.2f };
-        }
-        drawGeometry(cb, matrix, m_vertexCache.data(), m_vertexCache.size(), triPipeline, vertexArrayLength * 2);
+        const int fillCount = buildUnderTraceFill(float(x1), float(panRect.width()), float(panRect.height()),
+                                                   yTop, yScale, scaleMult, bins,
+                                                   colors.rf, colors.gf, colors.bf, 0.90f,
+                                                   0.85f * colors.rf, 0.85f * colors.gf, 0.85f * colors.bf, 0.60f,
+                                                   -1.5f);
+        drawGeometry(cb, matrix, m_vertexCache.data(), fillCount, triPipeline, fillCount);
 
         m_vertexCache.resize(vertexArrayLength);
         for (int i = 0; i < vertexArrayLength; ++i) {
@@ -382,14 +559,19 @@ void PanadapterRenderer::render(QOpenGLFunctions *gl,
         break;
     }
     case Solid: {
-        m_vertexCache.resize(vertexArrayLength * 2);
-        for (int i = 0; i < vertexArrayLength; ++i) {
-            const float vx = float(x1 + (i / scaleMult));
-            const float vy = float(yTop - yScale * float(bins.at(i)));
-            m_vertexCache[2 * i] = { vx, vy, -1.0f, colors.rst, colors.gst, colors.bst, 1.0f };
-            m_vertexCache[2 * i + 1] = { vx, yTop, -1.0f, colors.rsb, colors.gsb, colors.bsb, 1.0f };
-        }
-        drawGeometry(cb, matrix, m_vertexCache.data(), m_vertexCache.size(), linesPipeline, vertexArrayLength * 2);
+        const int count = buildUnderTraceFill(float(x1), float(panRect.width()), float(panRect.height()),
+                                               yTop, yScale, scaleMult, bins,
+                                               colors.rst, colors.gst, colors.bst, 1.0f,
+                                               colors.rsb, colors.gsb, colors.bsb, 1.0f,
+                                               -1.0f);
+        drawGeometry(cb, matrix, m_vertexCache.data(), count, triPipeline, count);
+        break;
+    }
+    case Palette: {
+        const int count = buildPaletteFill(float(x1), float(panRect.width()), float(panRect.height()),
+                                            yTop, yScale, scaleMult, dBmMin, dBmMax, bins, palette);
+        QRhiGraphicsPipeline *triList = pipelineForTopology(QRhiGraphicsPipeline::Triangles);
+        drawGeometry(cb, matrix, m_vertexCache.data(), count, triList, count);
         break;
     }
     default:
@@ -612,7 +794,8 @@ void PanadapterRenderer::renderWithOpenGL(const QMatrix4x4& projection,
                                           bool isCurrentReceiver,
                                           QOpenGLFunctions *gl,
                                           const QVector<qreal>& peakHoldBins,
-                                          bool scaleColorByLevel)
+                                          bool scaleColorByLevel,
+                                          const SignalPalette &palette)
 {
     if (!m_glShader || !m_glShader->isLinked() || !gl)
         return;
@@ -710,15 +893,15 @@ void PanadapterRenderer::renderWithOpenGL(const QMatrix4x4& projection,
 
     switch (mode) {
     case FilledLine: {
-        m_vertexCache.resize(vertexArrayLength * 2);
-        for (int i = 0; i < vertexArrayLength; ++i) {
-            const float vx = float(x1 + (i / scaleMult));
-            const float vy = float(yTop - yScale * float(bins.at(i)));
-            m_vertexCache[2 * i] = { vx, vy, -1.5f, 0.7f * colors.rf, 0.7f * colors.gf, 0.7f * colors.bf, 0.4f };
-            m_vertexCache[2 * i + 1] = { vx, yTop, -1.5f, 0.3f * colors.rf, 0.3f * colors.gf, 0.3f * colors.bf, 0.2f };
+        const int fillCount = buildUnderTraceFill(float(x1), float(panRect.width()), float(panRect.height()),
+                                                   yTop, yScale, scaleMult, bins,
+                                                   colors.rf, colors.gf, colors.bf, 0.90f,
+                                                   0.85f * colors.rf, 0.85f * colors.gf, 0.85f * colors.bf, 0.60f,
+                                                   -1.5f);
+        if (fillCount > 0) {
+            updateVBO(int(fillCount * sizeof(VertexData)), m_vertexCache.data());
+            gl->glDrawArrays(GL_TRIANGLE_STRIP, 0, fillCount);
         }
-        updateVBO(int(m_vertexCache.size() * sizeof(VertexData)), m_vertexCache.data());
-        gl->glDrawArrays(GL_TRIANGLE_STRIP, 0, vertexArrayLength * 2);
 
         m_vertexCache.resize(vertexArrayLength);
         for (int i = 0; i < vertexArrayLength; ++i) {
@@ -744,15 +927,24 @@ void PanadapterRenderer::renderWithOpenGL(const QMatrix4x4& projection,
         break;
     }
     case Solid: {
-        m_vertexCache.resize(vertexArrayLength * 2);
-        for (int i = 0; i < vertexArrayLength; ++i) {
-            const float vx = float(x1 + (i / scaleMult));
-            const float vy = float(yTop - yScale * float(bins.at(i)));
-            m_vertexCache[2 * i] = { vx, vy, -1.0f, colors.rst, colors.gst, colors.bst, 1.0f };
-            m_vertexCache[2 * i + 1] = { vx, yTop, -1.0f, colors.rsb, colors.gsb, colors.bsb, 1.0f };
+        const int count = buildUnderTraceFill(float(x1), float(panRect.width()), float(panRect.height()),
+                                               yTop, yScale, scaleMult, bins,
+                                               colors.rst, colors.gst, colors.bst, 1.0f,
+                                               colors.rsb, colors.gsb, colors.bsb, 1.0f,
+                                               -1.0f);
+        if (count > 0) {
+            updateVBO(int(count * sizeof(VertexData)), m_vertexCache.data());
+            gl->glDrawArrays(GL_TRIANGLE_STRIP, 0, count);
         }
-        updateVBO(int(m_vertexCache.size() * sizeof(VertexData)), m_vertexCache.data());
-        gl->glDrawArrays(GL_LINES, 0, vertexArrayLength * 2);
+        break;
+    }
+    case Palette: {
+        const int count = buildPaletteFill(float(x1), float(panRect.width()), float(panRect.height()),
+                                            yTop, yScale, scaleMult, dBmMin, dBmMax, bins, palette);
+        if (count > 0) {
+            updateVBO(int(count * sizeof(VertexData)), m_vertexCache.data());
+            gl->glDrawArrays(GL_TRIANGLES, 0, count);
+        }
         break;
     }
     default:

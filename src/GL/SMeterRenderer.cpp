@@ -152,6 +152,7 @@ void SMeterRenderer::paintSMeter() {
     }
 
     m_panel->glDisable(GL_SCISSOR_TEST);
+    paintTxMeters(projection, smeterX);
     m_panel->glEnable(GL_DEPTH_TEST);
     m_panel->glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     m_panel->glEnable(GL_BLEND);
@@ -355,4 +356,60 @@ void SMeterRenderer::drawSMeterScaleLabels(const QMatrix4x4 &projection, int xOf
         const QColor c = (m_panel->m_dataEngineState == QSDR::DataEngineUp) ? lbl.color : m_panel->m_inactiveTextColor;
         m_panel->m_oglTextNormal->renderText(projection, x, float(m_panel->m_sMeterPosY + 18), marker, c);
     }
+}
+
+void SMeterRenderer::paintTxMeters(const QMatrix4x4 &projection, int xOffset)
+{
+    if (!m_panel || !m_panel->m_oglTextSmall || !m_panel->m_oglTextSmallItalic)
+        return;
+
+    const int meterW = m_panel->m_sMeterWidth;
+    if (meterW <= 0)
+        return;
+
+    const int x0 = xOffset;
+    const int y0 = m_panel->m_sMeterPosY + 38;
+    const int rowH = 18;
+    const int gap = 3;
+    const int labelW = 34;
+    const int valueW = 58;
+    const int barH = 10;
+    const int barX = x0 + labelW;
+    const int barW = qMax(40, meterW - labelW - valueW);
+
+    const bool live = m_panel->m_txActive;
+    const qreal watts = live ? m_panel->m_fwdPowerWattsSmooth : 0.0;
+    const qreal swr = live ? qMax(1.0, m_panel->m_swrSmooth) : 1.0;
+
+    const QColor labelCol = live ? QColor(166, 196, 208) : QColor(78, 78, 78);
+    const QColor valueCol = live ? Qt::white : QColor(78, 78, 78);
+    const QColor trackCol = live ? QColor(28, 32, 36) : QColor(24, 24, 24);
+
+    auto drawRow = [&](int y, const QString &label, const QString &value,
+                       qreal frac, const QColor &fillLeft, const QColor &fillRight) {
+        m_panel->m_oglTextSmallItalic->renderText(projection, float(x0), float(y), label, labelCol);
+        const QRect track(barX, y + 3, barW, barH);
+        m_panel->drawPanelRect(track, trackCol, 1.0f);
+        if (live) {
+            const int fillW = qBound(2, qRound(barW * frac), barW);
+            m_panel->drawPanelGradientRect(QRect(barX, y + 3, fillW, barH),
+                                           fillLeft, fillRight, true, 1.1f);
+        }
+        m_panel->m_oglTextSmall->renderText(projection, float(barX + barW + 6), float(y), value, valueCol);
+    };
+
+    const QString pwrVal = live
+        ? QStringLiteral("%1 W").arg(watts, 0, 'f', watts < 10.0 ? 1 : 0)
+        : QStringLiteral("-- W");
+    const QString swrVal = live
+        ? QStringLiteral("%1").arg(swr, 0, 'f', 1)
+        : QStringLiteral("--");
+
+    const qreal pFrac = txPowerFraction(watts);
+    const QColor pRight = (watts > 50.0) ? QColor(255, 200, 50) : QColor(56, 242, 115);
+    drawRow(y0, QStringLiteral("PWR"), pwrVal, pFrac, QColor(40, 160, 90), pRight);
+
+    const qreal sFrac = txSwrFraction(swr);
+    const QColor sCol = txSwrColor(swr);
+    drawRow(y0 + rowH + gap, QStringLiteral("SWR"), swrVal, sFrac, sCol, sCol);
 }

@@ -203,6 +203,7 @@ private:
 	AeroButton*		m_PanLineBtn;
 	AeroButton*		m_PanFilledLineBtn;
 	AeroButton*		m_PanSolidBtn;
+	AeroButton*		m_PanPaletteBtn;
 	AeroButton*		m_WaterfallSimpleBtn;
 	AeroButton*		m_WaterfallEnhancedBtn;
 	QCheckBox*		m_cwDecodeCheckBox = nullptr;

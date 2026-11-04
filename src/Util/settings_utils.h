@@ -86,7 +86,7 @@ inline int clampMultiRxView(int value)
 
 inline int clampDriveLevel(int level)
 {
-    return clampIntRange(level, 0, 100, 0);
+    return qBound(0, level, 100);
 }
 
 inline int clampSocketBufferSizeKb(int value)

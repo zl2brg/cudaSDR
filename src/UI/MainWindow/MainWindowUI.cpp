@@ -174,7 +174,7 @@ void MainWindowUI::createMainBtnToolBar() {
 
     drivelevelSlider = new QSlider(Qt::Horizontal, m_mainWindow);
     drivelevelSlider->setFixedSize(100, 14);
-    drivelevelSlider->setRange(0, 128);
+    drivelevelSlider->setRange(0, 100);
     drivelevelSlider->setValue(set->getDriveLevel());
     CHECKED_CONNECT(drivelevelSlider, &QSlider::valueChanged, m_mainWindow, &MainWindow::setDriveLevel);
 

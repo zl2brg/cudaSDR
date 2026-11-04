@@ -484,6 +484,10 @@ void Transmitter::finishTxChannelStart()
     applyPhaseRotator();
     m_channel->setMicGain(micSliderToPanelGain(mic_gain));
     m_channel->setBandpassWindow(1);
+    // programTxa() rebuilds the TX bandpass; re-arm TUNE after that so the
+    // 1 kHz post-gen tone is a full-scale carrier, not leftover mic/SSB.
+    if (set && set->getRadioState() == RadioState::TUNE)
+        m_channel->setPostGen(0, 1000.0, 0.99999, true);
 }
 
 void Transmitter::setRadioState(RadioState state)
@@ -505,7 +509,7 @@ void Transmitter::setRadioState(RadioState state)
 
     case RadioState::TUNE: {
         if (m_channel) {
-            m_channel->setPostGen(0, 1000.0, 0.5, true);
+            m_channel->setPostGen(0, 1000.0, 0.99999, true);
             m_channel->setTxRun(true);
             QMetaObject::invokeMethod(this, &Transmitter::finishTxChannelStart,
                                       Qt::QueuedConnection);

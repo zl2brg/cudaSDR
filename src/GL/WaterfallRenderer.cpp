@@ -1,4 +1,5 @@
 #include "WaterfallRenderer.h"
+#include "WaterfallPalette.h"
 #include "cusdr_glShaders.h"
 #include <QDebug>
 #include <QOpenGLContext>
@@ -30,11 +31,6 @@ void expandPixelRow(const float* logical, int logicalWidth,
     }
 }
 
-int lerpByte(int a, int b, float t)
-{
-    return int((1.0f - t) * float(a) + t * float(b));
-}
-
 TGL_ubyteRGBA packRgb(int r, int g, int b)
 {
     TGL_ubyteRGBA c;
@@ -48,69 +44,13 @@ TGL_ubyteRGBA packRgb(int r, int g, int b)
 TGL_ubyteRGBA paletteColor(WaterfallColorMode mode, float t,
                            const QColor& lo, const QColor& mid, const QColor& hi)
 {
-    t = qBound(0.0f, t, 1.0f);
-
-    if (mode == Simple) {
-        if (t <= 0.0f)
-            return packRgb(lo.red(), lo.green(), lo.blue());
-        if (t >= 1.0f)
-            return packRgb(255, 255, 255);
-        if (t <= 0.5f) {
-            const float p = t * 2.0f;
-            return packRgb(lerpByte(lo.red(), mid.red(), p),
-                           lerpByte(lo.green(), mid.green(), p),
-                           lerpByte(lo.blue(), mid.blue(), p));
-        }
-        const float p = (t - 0.5f) * 2.0f;
-        return packRgb(lerpByte(mid.red(), 255, p),
-                       lerpByte(mid.green(), 255, p),
-                       lerpByte(mid.blue(), 255, p));
-    }
-
-    // Enhanced — PowerSDR / KISS Konsole segments.
-    if (t <= 0.0f)
-        return packRgb(lo.red(), lo.green(), lo.blue());
-    if (t >= 1.0f)
-        return packRgb(hi.red(), hi.green(), hi.blue());
-
-    int r, g, b;
-    if (t < 2.0f / 9.0f) {
-        const float p = t / (2.0f / 9.0f);
-        r = int((1.0f - p) * lo.red());
-        g = int((1.0f - p) * lo.green());
-        b = int(lo.blue() + p * (255 - lo.blue()));
-    } else if (t < 3.0f / 9.0f) {
-        const float p = (t - 2.0f / 9.0f) / (1.0f / 9.0f);
-        r = 0;
-        g = int(p * 255);
-        b = 255;
-    } else if (t < 4.0f / 9.0f) {
-        const float p = (t - 3.0f / 9.0f) / (1.0f / 9.0f);
-        r = 0;
-        g = 255;
-        b = int((1.0f - p) * 255);
-    } else if (t < 5.0f / 9.0f) {
-        const float p = (t - 4.0f / 9.0f) / (1.0f / 9.0f);
-        r = int(p * 255);
-        g = 255;
-        b = 0;
-    } else if (t < 7.0f / 9.0f) {
-        const float p = (t - 5.0f / 9.0f) / (2.0f / 9.0f);
-        r = 255;
-        g = int((1.0f - p) * 255);
-        b = 0;
-    } else if (t < 8.0f / 9.0f) {
-        const float p = (t - 7.0f / 9.0f) / (1.0f / 9.0f);
-        r = 255;
-        g = 0;
-        b = int(p * 255);
-    } else {
-        const float p = (t - 8.0f / 9.0f) / (1.0f / 9.0f);
-        r = int((0.75f + 0.25f * (1.0f - p)) * 255);
-        g = int(p * 255 * 0.5f);
-        b = 255;
-    }
-    return packRgb(r, g, b);
+    SignalPalette palette;
+    palette.mode = mode;
+    palette.lo = lo;
+    palette.mid = mid;
+    palette.hi = hi;
+    const PaletteRgb c = waterfallPaletteColor(palette, t);
+    return packRgb(c.r, c.g, c.b);
 }
 
 } // namespace

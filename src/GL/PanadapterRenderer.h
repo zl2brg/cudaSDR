@@ -14,6 +14,7 @@
 #include <rhi/qrhi.h>
 
 #include "../cusdr_settings.h"
+#include "WaterfallPalette.h"
 
 class QOpenGLContext;
 class QOffscreenSurface;
@@ -49,7 +50,8 @@ public:
                 QSDR::_DataEngineState dataEngineState,
                 bool isCurrentReceiver,
                 const QVector<qreal>& peakHoldBins = {},
-                bool scaleColorByLevel = false);
+                bool scaleColorByLevel = false,
+                const SignalPalette &palette = {});
 
     void renderIdleBackground(QOpenGLFunctions *gl,
                               const QMatrix4x4& projection,
@@ -86,6 +88,23 @@ private:
                       QRhiGraphicsPipeline *pipeline,
                       int vertexCount);
     void ensureCompositeResources(QOpenGLFunctions *gl);
+    // Column pairs from each bin down to the baseline, plus a closing column at
+    // the right edge so bins spaced more than one pixel apart still meet.
+    // Colour is a function of screen Y (top colour at the top of the plot,
+    // bottom colour at the baseline) so a horizontal row is one shade.
+    int buildUnderTraceFill(float xLeft, float plotWidth, float plotHeight,
+                            float yBaseline, float yScale, float scaleMult,
+                            const QVector<qreal> &bins,
+                            float topR, float topG, float topB, float topA,
+                            float botR, float botG, float botB, float botA,
+                            float z);
+    // Filled columns coloured by the waterfall palette at each screen dBm.
+    // Knots follow the palette segments so a row is one colour.
+    int buildPaletteFill(float xLeft, float plotWidth, float plotHeight,
+                         float yBaseline, float yScale, float scaleMult,
+                         qreal dBmMin, qreal dBmMax,
+                         const QVector<qreal> &bins,
+                         const SignalPalette &palette);
     void renderWithOpenGL(const QMatrix4x4& projection,
                           const QRect& panRect,
                           const QVector<qreal>& bins,
@@ -99,7 +118,8 @@ private:
                           bool isCurrentReceiver,
                           QOpenGLFunctions *gl,
                           const QVector<qreal>& peakHoldBins = {},
-                          bool scaleColorByLevel = false);
+                          bool scaleColorByLevel = false,
+                          const SignalPalette &palette = {});
 
     bool m_rhiActive = false;
     std::unique_ptr<QRhi> m_rhi;
@@ -114,6 +134,7 @@ private:
     std::unique_ptr<QRhiGraphicsPipeline> m_triStripPipeline;
     std::unique_ptr<QRhiGraphicsPipeline> m_lineStripPipeline;
     std::unique_ptr<QRhiGraphicsPipeline> m_linesPipeline;
+    std::unique_ptr<QRhiGraphicsPipeline> m_trianglesPipeline;
     QShader m_vertShader;
     QShader m_fragShader;
 

@@ -19,11 +19,13 @@
 #include <QOpenGLFramebufferObject>
 #include <QMatrix4x4>
 #include <QVarLengthArray>
+#include <algorithm>
 #include <cmath>
 
 #include "GL/cusdr_glShaders.h"
 #include "GL/cusdr_oglUtils.h"
 #include "GL/PanadapterRenderer.h"
+#include "GL/WaterfallPalette.h"
 #include "GL/WaterfallRenderer.h"
 #include "GL/OverlayRenderer.h"
 #include "cusdr_settings.h"
@@ -48,6 +50,8 @@ private slots:
     void testDisplaySleepHelpers();
     void testPanadapterRendererLifecycle();
     void testOffscreenFboRasterization();
+    void testSolidFillHasNoGaps();
+    void testPaletteFillMatchesWaterfallScale();
     void testOverlayRendererLifecycle();
     void testOverlayFilterBandwidthRasterization();
     void testOverlayGridRasterization();
@@ -435,6 +439,171 @@ void OpenglOffscreenTests::testOffscreenFboRasterization()
 
     qDebug() << "Offscreen FBO non-black rasterized pixels:" << nonBlackPixels;
     QVERIFY2(nonBlackPixels > 0, "FBO spectrum rendering produced 0 rasterized pixels");
+}
+
+void OpenglOffscreenTests::testSolidFillHasNoGaps()
+{
+    if (!m_glAvailable)
+        QSKIP("OpenGL offscreen context not supported on this platform");
+
+    constexpr int fboWidth = 128;
+    constexpr int fboHeight = 64;
+
+    QOpenGLFramebufferObjectFormat fboFormat;
+    fboFormat.setAttachment(QOpenGLFramebufferObject::CombinedDepthStencil);
+    QOpenGLFramebufferObject fbo(fboWidth, fboHeight, fboFormat);
+    QVERIFY(fbo.isValid());
+    QVERIFY(fbo.bind());
+
+    m_gl->glViewport(0, 0, fboWidth, fboHeight);
+    m_gl->glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    m_gl->glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    PanadapterRenderer pan;
+    QVERIFY(pan.initialize(m_context));
+
+    QMatrix4x4 proj;
+    proj.ortho(0, fboWidth, fboHeight, 0, -10.0f, 10.0f);
+    const QRect panRect(0, 0, fboWidth, fboHeight);
+
+    PanadapterRenderer::Colors colors{};
+    colors.rst = 1.0f; colors.gst = 0.0f; colors.bst = 0.0f;
+    colors.rsb = 0.0f; colors.gsb = 1.0f; colors.bsb = 0.0f;
+
+    // scaleMult 0.25 places bins 4 pixels apart. One-pixel vertical lines
+    // would leave three dark columns between every pair. Alternating heights
+    // used to paint a different shade in each column.
+    constexpr int nBins = 32;
+    constexpr float scaleMult = 0.25f;
+    QVector<qreal> bins(nBins);
+    for (int i = 0; i < nBins; ++i)
+        bins[i] = (i % 2 == 0) ? 90.0 : 30.0;
+
+    pan.render(m_gl, proj, panRect, bins, -30.0, -140.0, Solid,
+               scaleMult, 1.0f, fboHeight, colors, QSDR::DataEngineUp, true);
+    QCOMPARE(m_gl->glGetError(), static_cast<GLenum>(GL_NO_ERROR));
+    pan.release();
+    QVERIFY(fbo.release());
+
+    const QImage img = fbo.toImage().convertToFormat(QImage::Format_RGB32);
+    QCOMPARE(img.width(), fboWidth);
+    QCOMPARE(img.height(), fboHeight);
+
+    auto isFill = [](QRgb pixel) {
+        return (qRed(pixel) + qGreen(pixel)) > 40 && qBlue(pixel) < 40;
+    };
+
+    int bestRow = -1;
+    for (int y = fboHeight - 1; y >= 0; --y) {
+        const QRgb *scan = reinterpret_cast<const QRgb *>(img.constScanLine(y));
+        int count = 0;
+        for (int x = 2; x < fboWidth - 2; ++x) {
+            if (isFill(scan[x]))
+                ++count;
+        }
+        if (count >= fboWidth - 8) {
+            bestRow = y;
+            break;
+        }
+    }
+    QVERIFY2(bestRow >= 0, "Solid fill left uncovered columns between bins");
+
+    const QRgb *scan = reinterpret_cast<const QRgb *>(img.constScanLine(bestRow));
+    int minR = 255, maxR = 0, minG = 255, maxG = 0, gaps = 0;
+    for (int x = 2; x < fboWidth - 2; ++x) {
+        if (!isFill(scan[x])) {
+            ++gaps;
+            continue;
+        }
+        minR = std::min(minR, qRed(scan[x]));
+        maxR = std::max(maxR, qRed(scan[x]));
+        minG = std::min(minG, qGreen(scan[x]));
+        maxG = std::max(maxG, qGreen(scan[x]));
+    }
+    QCOMPARE(gaps, 0);
+    QVERIFY2(maxR - minR < 20 && maxG - minG < 20,
+             "Solid fill colour changes from column to column");
+}
+
+void OpenglOffscreenTests::testPaletteFillMatchesWaterfallScale()
+{
+    if (!m_glAvailable)
+        QSKIP("OpenGL offscreen context not supported on this platform");
+
+    constexpr int fboWidth = 128;
+    constexpr int fboHeight = 64;
+
+    QOpenGLFramebufferObjectFormat fboFormat;
+    fboFormat.setAttachment(QOpenGLFramebufferObject::CombinedDepthStencil);
+    QOpenGLFramebufferObject fbo(fboWidth, fboHeight, fboFormat);
+    QVERIFY(fbo.isValid());
+    QVERIFY(fbo.bind());
+
+    m_gl->glViewport(0, 0, fboWidth, fboHeight);
+    m_gl->glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    m_gl->glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    PanadapterRenderer pan;
+    QVERIFY(pan.initialize(m_context));
+
+    QMatrix4x4 proj;
+    proj.ortho(0, fboWidth, fboHeight, 0, -10.0f, 10.0f);
+    const QRect panRect(0, 0, fboWidth, fboHeight);
+
+    PanadapterRenderer::Colors colors{};
+    SignalPalette palette;
+    palette.mode = Simple;
+    palette.lowerThreshold = -140.0f;
+    palette.upperThreshold = -30.0f;
+    palette.colorRange = 110.0f;
+    palette.lo = QColor(0, 0, 255);
+    palette.mid = QColor(0, 255, 0);
+    palette.hi = QColor(255, 255, 255);
+    palette.alpha = 1.0f;
+
+    constexpr int nBins = 32;
+    constexpr float scaleMult = 0.25f;
+    QVector<qreal> bins(nBins);
+    for (int i = 0; i < nBins; ++i)
+        bins[i] = (i % 2 == 0) ? 90.0 : 30.0;
+
+    pan.render(m_gl, proj, panRect, bins, -30.0, -140.0, Palette,
+               scaleMult, 1.0f, fboHeight, colors, QSDR::DataEngineUp, true,
+               {}, false, palette);
+    QCOMPARE(m_gl->glGetError(), static_cast<GLenum>(GL_NO_ERROR));
+    pan.release();
+    QVERIFY(fbo.release());
+
+    const QImage img = fbo.toImage().convertToFormat(QImage::Format_RGB32);
+
+    // Short bins sit at y ≈ 46.5, so y=56 is under every column.
+    constexpr int y = 56;
+    const float dbm = -140.0f + (float(fboHeight) - float(y)) / float(fboHeight) * 110.0f;
+    const PaletteRgb expect = waterfallPaletteColor(palette, waterfallPaletteT(dbm, palette));
+
+    const QRgb *scan = reinterpret_cast<const QRgb *>(img.constScanLine(y));
+    int minR = 255, maxR = 0, minG = 255, maxG = 0, minB = 255, maxB = 0, gaps = 0;
+    for (int x = 2; x < fboWidth - 2; ++x) {
+        const int r = qRed(scan[x]);
+        const int g = qGreen(scan[x]);
+        const int b = qBlue(scan[x]);
+        if (r + g + b < 30) {
+            ++gaps;
+            continue;
+        }
+        minR = std::min(minR, r);
+        maxR = std::max(maxR, r);
+        minG = std::min(minG, g);
+        maxG = std::max(maxG, g);
+        minB = std::min(minB, b);
+        maxB = std::max(maxB, b);
+    }
+    QCOMPARE(gaps, 0);
+    QVERIFY2(maxR - minR < 16 && maxG - minG < 16 && maxB - minB < 16,
+             "Palette fill colour changes from column to column");
+    QVERIFY(std::abs(minR - expect.r) < 20);
+    QVERIFY(std::abs(maxG - expect.g) < 20);
+    QVERIFY(std::abs(minB - expect.b) < 20);
 }
 
 void OpenglOffscreenTests::testOverlayRendererLifecycle()

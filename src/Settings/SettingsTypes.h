@@ -18,7 +18,8 @@ namespace QSDR {
 typedef enum _panGraphicsMode {
     Line,		// 0
     FilledLine, // 1
-    Solid		// 2
+    Solid,		// 2
+    Palette		// 3  fill coloured by the waterfall signal scale
 } PanGraphicsMode;
 
 typedef enum _waterfallColorMode {

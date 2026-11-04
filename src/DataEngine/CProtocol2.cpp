@@ -478,9 +478,9 @@ void CProtocol2::encodeCCBytes(unsigned char* buffer, DataEngine* de, RadioModel
                     uint32_t txfreq = qToBigEndian((uint32_t)txHz);
                     memcpy(&buffer[333], &txfreq, 4);
 
-                    // DUC0 drive level (buffer[345], scale 0-100 to 0-255)
-                    int drive = qBound(0, (int)de->txParams().drivelevel, 100);
-                    buffer[345] = (unsigned char)((drive * 255) / 100);
+                    // DUC0 drive level (buffer[345], scale 0-100% to 0-255)
+                    buffer[345] = ProtocolBoundaryUtils::drivePercentToHardwareByte(
+                        set->getDriveLevel());
                 }
 
                 // Alex0 32-bit word (bytes 1432-1435, big-endian)

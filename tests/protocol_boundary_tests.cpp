@@ -14,6 +14,9 @@ private slots:
     void protocol2DiscoveryProbeEcho();
     void protocol1ClampedAdcIndex();
     void parseAnan10HermesDiscovery();
+    void drivePercentToHardwareByte();
+    void protocol1C3StepAttenuatorBits();
+    void fillTuneToneIq16FullScale();
 };
 
 void ProtocolBoundaryTests::protocol2PacketTypeByLength() {
@@ -141,6 +144,35 @@ void ProtocolBoundaryTests::protocol1ClampedAdcIndex()
     QCOMPARE(ProtocolBoundaryUtils::protocol1ClampedAdcIndex(0, 2), 0);
     QCOMPARE(ProtocolBoundaryUtils::protocol1ClampedAdcIndex(1, 2), 1);
     QCOMPARE(ProtocolBoundaryUtils::protocol1ClampedAdcIndex(2, 2), 1);
+}
+
+void ProtocolBoundaryTests::drivePercentToHardwareByte()
+{
+    QCOMPARE(ProtocolBoundaryUtils::drivePercentToHardwareByte(0), static_cast<unsigned char>(0));
+    QCOMPARE(ProtocolBoundaryUtils::drivePercentToHardwareByte(100), static_cast<unsigned char>(255));
+    QCOMPARE(ProtocolBoundaryUtils::drivePercentToHardwareByte(50), static_cast<unsigned char>(127));
+    QCOMPARE(ProtocolBoundaryUtils::drivePercentToHardwareByte(-10), static_cast<unsigned char>(0));
+    QCOMPARE(ProtocolBoundaryUtils::drivePercentToHardwareByte(150), static_cast<unsigned char>(255));
+}
+
+void ProtocolBoundaryTests::protocol1C3StepAttenuatorBits()
+{
+    QCOMPARE(ProtocolBoundaryUtils::protocol1C3StepAttenuatorBits(0, 0, false), static_cast<quint8>(0));
+    QCOMPARE(ProtocolBoundaryUtils::protocol1C3StepAttenuatorBits(1, 0, false), static_cast<quint8>(1));
+    QCOMPARE(ProtocolBoundaryUtils::protocol1C3StepAttenuatorBits(0, 0, true), static_cast<quint8>(3));
+    QCOMPARE(ProtocolBoundaryUtils::protocol1C3StepAttenuatorBits(0, 0x0100, false), static_cast<quint8>(2));
+}
+
+void ProtocolBoundaryTests::fillTuneToneIq16FullScale()
+{
+    unsigned char buf[8] = {};
+    const double next = ProtocolBoundaryUtils::fillTuneToneIq16(
+        buf, 1, 0.0, 2.0 * 3.14159265358979323846 * 1000.0 / 48000.0, 0.99999);
+    QVERIFY(next > 0.0);
+    QCOMPARE(buf[0], static_cast<unsigned char>(0x7F));
+    QCOMPARE(buf[1], static_cast<unsigned char>(0xFF));
+    QCOMPARE(buf[2], static_cast<unsigned char>(0x00));
+    QCOMPARE(buf[3], static_cast<unsigned char>(0x00));
 }
 
 QTEST_MAIN(ProtocolBoundaryTests)

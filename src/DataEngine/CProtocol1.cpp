@@ -403,16 +403,17 @@ void CProtocol1::encodeCCBytes(unsigned char* buffer, DataEngine* de, RadioModel
     		    de->txParams().alexStates.at(de->txParams().currentBand));
     		rxOut = (rxAnt > 0) ? 1 : 0;
     		// Bits [1:0]: step attenuator value (0=0dB, 1=10dB, 2=20dB, 3=30dB).
-    		// Source: mercuryAttenuator (main-window Attn menu), which overrides any
-    		// Alex-att contribution from alexStates bits [8:7] (used when an Alex board
-    		// is present).  Both default to 0 so the behaviour is unchanged when neither
-    		// is set.
-    		de->control_out[3] = (de->txParams().alexStates.at(de->txParams().currentBand) >> 7) & 0x03;
-    		de->control_out[3] |= (de->txParams().mercuryAttenuator & 0x03);  // step-att at bits [1:0]
+    		// Source: mercuryAttenuator (main-window Attn menu), ORed with Alex-att
+    		// from alexStates bits [8:7]. During TX force 30 dB so the RX ADC is
+    		// not slammed by the PA (matches Thetis / C0=0x1C / Protocol 2).
+    		bool txActive = de->txParams().mox || de->txParams().ptt;
+    		de->control_out[3] = ProtocolBoundaryUtils::protocol1C3StepAttenuatorBits(
+    		    de->txParams().mercuryAttenuator,
+    		    de->txParams().alexStates.at(de->txParams().currentBand),
+    		    txActive);
     		// Bit 2: Preamp/LNA on when no step attenuation and not transmitting.
     		// C3 bit2=1 = preamp on (full sensitivity), bit2=0 = preamp off (-20 dB).
     		de->control_out[3] &= 0xFB; // 1 1 1 1 1 0 1 1 — clear bit 2
-    		bool txActive = de->txParams().mox || de->txParams().ptt;
     		de->control_out[3] |= ((!txActive && de->txParams().mercuryAttenuator == 0) ? 1 : 0) << 2;
     		de->control_out[3] &= 0xF7; // 1 1 1 1 0 1 1 1
     		de->control_out[3] |= (de->txParams().dither << 3);
@@ -533,7 +534,10 @@ void CProtocol1::encodeCCBytes(unsigned char* buffer, DataEngine* de, RadioModel
     		// manual 		  0
 
     		de->control_out[0] = 0x12; // 0 0 0 1 0 0 1 0
-            de->control_out[1] = (uchar) de->txParams().drivelevel; // C1
+            // Read Settings, not the C&C snapshot — txParams.drivelevel can stay
+            // at the RadioModel zero-init (0) if the slider never moved.
+            de->control_out[1] = ProtocolBoundaryUtils::drivePercentToHardwareByte(
+                set->getDriveLevel());
     		de->control_out[2] = 0x10; // C2
     		de->control_out[3] = 0x0; // C3
             de->control_out[4] = 0x0; // C4

@@ -66,6 +66,51 @@ inline bool isProtocol2DiscoveryProbeEcho(const unsigned char* data, int size) {
     return macBytesAreZero(data + 5);
 }
 
+/** Map UI drive 0–100% to Hermes/Penelope/Orion hardware byte 0–255 (Thetis/piHPSDR). */
+inline unsigned char drivePercentToHardwareByte(int percent)
+{
+    const int p = qBound(0, percent, 100);
+    return static_cast<unsigned char>((p * 255) / 100);
+}
+
+inline void packInt16BE(unsigned char* dst, int value)
+{
+    const int v = qBound(-32768, value, 32767);
+    dst[0] = static_cast<unsigned char>((v >> 8) & 0xFF);
+    dst[1] = static_cast<unsigned char>(v & 0xFF);
+}
+
+/** USB Tune tone (WDSP PostGen polarity): I=+cos, Q=−sin. Returns next phase. */
+inline double fillTuneToneIq16(unsigned char* dst, int complexSamples,
+                               double phase, double phaseStep, double mag)
+{
+    constexpr double kScale = 32767.0;
+    constexpr double kTwoPi = 6.28318530717958647692;
+    for (int i = 0; i < complexSamples; ++i) {
+        const double iSamp = mag * std::cos(phase);
+        const double qSamp = -mag * std::sin(phase);
+        phase += phaseStep;
+        if (phase >= kTwoPi)
+            phase -= kTwoPi;
+        packInt16BE(dst + i * 4, static_cast<int>(std::lround(iSamp * kScale)));
+        packInt16BE(dst + i * 4 + 2, static_cast<int>(std::lround(qSamp * kScale)));
+    }
+    return phase;
+}
+
+/**
+ * Protocol 1 C0=0x12 C3 bits [1:0]: 0/10/20/30 dB step attenuator.
+ * During TX force 30 dB so the RX ADC is not slammed by the PA (Thetis default).
+ */
+inline quint8 protocol1C3StepAttenuatorBits(int mercuryAttenuator, int alexState, bool transmitting)
+{
+    if (transmitting)
+        return 0x03;
+    const quint8 alexAtt = static_cast<quint8>((alexState >> 7) & 0x03);
+    const quint8 mercuryAtt = static_cast<quint8>(mercuryAttenuator & 0x03);
+    return static_cast<quint8>(alexAtt | mercuryAtt);
+}
+
 /** Protocol 1 C&C ADC select is 0/1. Single-ADC boards (Hermes) must stay on ADC0. */
 inline int protocol1ClampedAdcIndex(int adcIndex, int deviceAdcCount) {
     if (deviceAdcCount <= 1)

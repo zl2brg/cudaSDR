@@ -3389,8 +3389,9 @@ void Settings::setMicInputLevel(int level) {
 }
 
 void Settings::setDriveLevel(int level) {
-    m_transmitConfig->setDriveLevel(level);
-    emit driveLevelChanged(clampDriveLevel(level));
+    const int clamped = clampDriveLevel(level);
+    m_transmitConfig->setDriveLevel(clamped);
+    emit driveLevelChanged(clamped);
 }
 
 

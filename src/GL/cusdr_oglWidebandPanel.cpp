@@ -636,10 +636,20 @@ void QGLWidebandPanel::drawSpectrum() {
 	const qreal dBmMax = m_calibrate ? m_dBmPanMaxOld : m_dBmPanMax;
 
 	if (m_panadapterRenderer && !m_widebandPanSpectrumBins.isEmpty()) {
+		SignalPalette palette;
+		palette.mode = m_waterfallMode;
+		palette.lowerThreshold = float(dBmMin);
+		palette.upperThreshold = float(dBmMax);
+		palette.colorRange = float(qAbs(dBmMax - dBmMin));
+		palette.lo = QColor(0, 0, 0);
+		palette.mid = set->getPanadapterColors().waterfallColor;
+		palette.hi = QColor(192, 124, 255);
+		palette.alpha = 1.0f;
 		m_panadapterRenderer->render(this, projection, m_panRect, m_widebandPanSpectrumBins,
 		                             dBmMax, dBmMin, m_panMode, float(m_wbScaleMult), dprF,
 		                             size().height(), colors, m_dataEngineState, true,
-		                             {}, true /* scaleColorByLevel: match legacy WB brightness */);
+		                             {}, true /* scaleColorByLevel: match legacy WB brightness */,
+		                             palette);
 		if (m_panadapterRenderer->usesCompositePass())
 			m_panadapterRenderer->compositeToDefaultFramebuffer(this, projection, m_panRect,
 			                                                    dprF, size().height());

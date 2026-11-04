@@ -106,7 +106,8 @@ void SettingsUtilsTests::testClampDriveLevel()
 {
     QCOMPARE(clampDriveLevel(50), 50);
     QCOMPARE(clampDriveLevel(-5), 0);
-    QCOMPARE(clampDriveLevel(150), 0);
+    QCOMPARE(clampDriveLevel(150), 100);
+    QCOMPARE(clampDriveLevel(100), 100);
 }
 
 void SettingsUtilsTests::testClampSocketBufferSizeKb()

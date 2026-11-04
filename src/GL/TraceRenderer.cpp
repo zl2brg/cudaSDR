@@ -71,9 +71,18 @@ void TraceRenderer::drawPanadapter() {
             (m_panel->m_peakHold && m_panel->m_panPeakHoldBins.size() == m_panel->m_panadapterBins.size())
                 ? m_panel->m_panPeakHoldBins
                 : emptyPeakHold;
+        SignalPalette palette;
+        palette.mode = m_panel->m_waterfallMode;
+        palette.lowerThreshold = float(m_panel->m_dBmPanMin) - float(m_panel->m_waterfallOffsetLo);
+        palette.upperThreshold = float(m_panel->m_dBmPanMax) + float(m_panel->m_waterfallOffsetHi);
+        palette.colorRange = float(qAbs(m_panel->m_dBmPanMax - m_panel->m_dBmPanMin));
+        palette.lo = m_panel->m_waterfallLoColor;
+        palette.mid = m_panel->m_waterfallMidColor;
+        palette.hi = m_panel->m_waterfallHiColor;
+        palette.alpha = float(m_panel->m_waterfallAlpha) / 255.0f;
         m_panel->m_panadapterRenderer->render(m_panel, projection, m_panel->m_panRect, m_panel->m_panadapterBins, m_panel->m_dBmPanMax, m_panel->m_dBmPanMin,
                                    m_panel->m_panMode, m_panel->m_scaleMult, dpr, m_panel->size().height(), colors, m_panel->m_dataEngineState,
-                                   (m_panel->m_receiver == m_panel->m_currentReceiver), peakHoldBins);
+                                   (m_panel->m_receiver == m_panel->m_currentReceiver), peakHoldBins, false, palette);
         if (m_panel->m_panadapterRenderer->usesCompositePass())
             m_panel->m_panadapterRenderer->compositeToDefaultFramebuffer(m_panel, projection, m_panel->m_panRect, dpr, m_panel->size().height());
     }

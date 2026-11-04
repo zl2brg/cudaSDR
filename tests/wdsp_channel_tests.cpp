@@ -16,6 +16,7 @@ private slots:
     void testTxChannelParameterSafetyBeforeOpen();
     void testMultiChannelCoexistence();
     void testStaticHelpers();
+    void testCfirOffForProtocol1OnForProtocol2();
 };
 
 void WdspChannelTests::testRxChannelLifecycle()
@@ -220,6 +221,18 @@ void WdspChannelTests::testStaticHelpers()
     // Static setChannelState
     WdspChannel::setChannelStateById(TX_ID, 0, 0);
 
+    tx.close();
+}
+
+void WdspChannelTests::testCfirOffForProtocol1OnForProtocol2()
+{
+    WdspTxChannel tx(TX_ID);
+    QVERIFY(tx.open(1024, 2048, 48000, 48000, 48000, 0, false));
+    QVERIFY(!tx.cfirRun());
+    tx.close();
+
+    QVERIFY(tx.open(1024, 2048, 48000, 96000, 192000, 1, false));
+    QVERIFY(tx.cfirRun());
     tx.close();
 }
 

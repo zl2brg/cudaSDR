@@ -19,6 +19,8 @@ private slots:
     void testSMeterIARUMarkers();
     void testSMeterBallisticsFastAttack();
     void testSMeterBallisticsSmoothDecay();
+    void testTxPowerFraction();
+    void testTxSwrFractionAndColor();
 };
 
 void DisplayPanelRendererTests::testFreqMhzDisplayStringLeadingZeros()
@@ -130,6 +132,27 @@ void DisplayPanelRendererTests::testSMeterBallisticsSmoothDecay()
     QCOMPARE(next, 71.0f);
     QVERIFY(next < prev);
     QVERIFY(next > current);
+}
+
+void DisplayPanelRendererTests::testTxPowerFraction()
+{
+    QCOMPARE(SMeterRenderer::txPowerFraction(0.0), 0.0);
+    QCOMPARE(SMeterRenderer::txPowerFraction(10.0), 1.0);
+    QVERIFY(SMeterRenderer::txPowerFraction(2.5) > 0.4);
+    QVERIFY(SMeterRenderer::txPowerFraction(2.5) < 0.6);
+    QVERIFY(SMeterRenderer::txPowerFraction(25.0) < SMeterRenderer::txPowerFraction(100.0));
+    QCOMPARE(SMeterRenderer::txPowerFraction(100.0), 1.0);
+}
+
+void DisplayPanelRendererTests::testTxSwrFractionAndColor()
+{
+    QCOMPARE(SMeterRenderer::txSwrFraction(1.0), 0.30);
+    QCOMPARE(SMeterRenderer::txSwrFraction(3.0), 1.0);
+    QVERIFY(SMeterRenderer::txSwrFraction(1.5) > 0.45);
+    QVERIFY(SMeterRenderer::txSwrFraction(1.5) < 0.55);
+    QCOMPARE(SMeterRenderer::txSwrColor(1.2), QColor(56, 242, 115));
+    QCOMPARE(SMeterRenderer::txSwrColor(1.8), QColor(255, 255, 50));
+    QCOMPARE(SMeterRenderer::txSwrColor(2.8), QColor(242, 56, 109));
 }
 
 #include "GL/cusdr_oglDisplayPanel.h"

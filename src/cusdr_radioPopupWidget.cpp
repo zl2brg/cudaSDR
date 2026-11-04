@@ -545,21 +545,40 @@ void RadioPopupWidget::createOptionsBtnGroup() {
 
     connect(m_PanSolidBtn, &AeroButton::clicked, this, &RadioPopupWidget::panModeChanged);
 
+    m_PanPaletteBtn = new AeroButton("Palette", this);
+    m_PanPaletteBtn->setRoundness(10);
+    m_PanPaletteBtn->setFont(m_fonts.smallFont);
+    m_PanPaletteBtn->setFixedHeight(btn_height);
+    m_PanPaletteBtn->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    m_PanPaletteBtn->setToolTip(tr("Fill with the waterfall signal colours"));
+    panadapterBtnList.append(m_PanPaletteBtn);
+
+    connect(m_PanPaletteBtn, &AeroButton::clicked, this, &RadioPopupWidget::panModeChanged);
+
     switch (m_panadapterMode) {
     case PanGraphicsMode::Line:
         m_PanLineBtn->setBtnState(AeroButton::ON);
         m_PanFilledLineBtn->setBtnState(AeroButton::OFF);
         m_PanSolidBtn->setBtnState(AeroButton::OFF);
+        m_PanPaletteBtn->setBtnState(AeroButton::OFF);
         break;
     case PanGraphicsMode::FilledLine:
         m_PanFilledLineBtn->setBtnState(AeroButton::ON);
         m_PanLineBtn->setBtnState(AeroButton::OFF);
         m_PanSolidBtn->setBtnState(AeroButton::OFF);
+        m_PanPaletteBtn->setBtnState(AeroButton::OFF);
         break;
     case PanGraphicsMode::Solid:
         m_PanSolidBtn->setBtnState(AeroButton::ON);
         m_PanLineBtn->setBtnState(AeroButton::OFF);
         m_PanFilledLineBtn->setBtnState(AeroButton::OFF);
+        m_PanPaletteBtn->setBtnState(AeroButton::OFF);
+        break;
+    case PanGraphicsMode::Palette:
+        m_PanPaletteBtn->setBtnState(AeroButton::ON);
+        m_PanLineBtn->setBtnState(AeroButton::OFF);
+        m_PanFilledLineBtn->setBtnState(AeroButton::OFF);
+        m_PanSolidBtn->setBtnState(AeroButton::OFF);
         break;
     }
 
@@ -628,6 +647,7 @@ void RadioPopupWidget::createOptionsBtnGroup() {
     hbox4->addWidget(m_PanLineBtn);
     hbox4->addWidget(m_PanFilledLineBtn);
     hbox4->addWidget(m_PanSolidBtn);
+    hbox4->addWidget(m_PanPaletteBtn);
 
     QHBoxLayout* hbox5 = new QHBoxLayout();
     hbox5->setContentsMargins(0, 0, 0, 0);
@@ -2097,6 +2117,7 @@ void RadioPopupWidget::panModeChanged() {
     case 0: m_panadapterMode = PanGraphicsMode::Line; break;
     case 1: m_panadapterMode = PanGraphicsMode::FilledLine; break;
     case 2: m_panadapterMode = PanGraphicsMode::Solid; break;
+    case 3: m_panadapterMode = PanGraphicsMode::Palette; break;
     }
     emit graphicsStateRequested(m_receiver, m_panadapterMode, m_waterfallColorMode);
 }

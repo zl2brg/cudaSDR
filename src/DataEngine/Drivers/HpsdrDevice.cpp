@@ -120,8 +120,8 @@ bool HpsdrDevice::setTxFrequency(qint64 freqHz)
 bool HpsdrDevice::setTxGain(double gainDb)
 {
     m_txGain = gainDb;
-    // HPSDR TX "gain" is Penelope/Hermes drive 0-100. Protocol 1 writes it
-    // as C1; Protocol 2 scales it to 0-255 on DUC0. DataEngine copies
+    // HPSDR TX "gain" is Penelope/Hermes drive 0-100%. Both protocols scale
+    // that percent to hardware 0-255 (P1 C1 / P2 DUC0). DataEngine copies
     // driveLevelChanged into txParams().drivelevel.
     const int drive = qBound(0, qRound(gainDb), 100);
     if (RadioModel* rm = Settings::instance()->radioModel())

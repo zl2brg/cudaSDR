@@ -47,7 +47,12 @@ bool WdspTxChannel::open(int bufferSize, int fftSize, int micSampleRate, int mic
     SetTXAPHROTRun(m_channelId, m_phaseRotatorRun ? 1 : 0);
     SetTXAPHROTAutoMode(m_channelId, m_phaseRotatorAuto ? 1 : 0);
 
-    SetTXACFIRRun(m_channelId, m_protocol == 1 ? 1 : 0);
+    // CIC compensating FIR is designed for Protocol 2 (192 kHz IQ, R=640,
+    // cicrate=out_rate). Enabling it on Protocol 1 (48 kHz) puts the 20 kHz
+    // cutoff near Nyquist and the DC CIC-normalization drops TX IQ to ~0.22
+    // (~1 W instead of 16 W). P1 firmware does its own interpolation.
+    m_cfirRun = (m_protocol == 1);
+    SetTXACFIRRun(m_channelId, m_cfirRun ? 1 : 0);
     SetTXAAMSQRun(m_channelId, 0);
     SetTXAosctrlRun(m_channelId, 0);
 
@@ -169,7 +174,9 @@ void WdspTxChannel::initAnalyzer(int refreshRate)
     constexpr int spur_elimination_ffts = 1;
     constexpr int data_type = 1;
     constexpr int fft_size = 2048;
-    constexpr int window_type = 4;
+    // Same BH7 window as RX. Hamming (4) first sidelobes are only ~-43 dB, so a
+    // full-scale Tune carrier looks like wide skirts on the TX pan.
+    constexpr int window_type = 6;
     constexpr double kaiser_pi = 14.0;
     constexpr int clip = 0;
     constexpr int span_clip_l = 0;

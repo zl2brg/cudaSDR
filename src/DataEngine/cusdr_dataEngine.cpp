@@ -2349,7 +2349,9 @@ bool DataProcessor::p1SoftwareCwActive() const
 
 void DataProcessor::fillP1CwTxIqBuffer()
 {
-    const double gain = 32767.0 * (static_cast<double>(de->txParams().drivelevel) / 255.0);
+    const double gain = 32767.0
+        * (static_cast<double>(ProtocolBoundaryUtils::drivePercentToHardwareByte(set->getDriveLevel()))
+           / 255.0);
     int idx = 0;
     for (int j = 0; j < DSP_SAMPLE_SIZE; ++j) {
         if (de->cw_key_down > 0) {

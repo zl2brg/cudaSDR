@@ -197,7 +197,7 @@ void SettingsPersistenceTests::loadCorruptedAndClampedValues()
     QCOMPARE(m_settings->getMinimumWidgetWidth(), 300);
     QCOMPARE(m_settings->getServerPort(), static_cast<quint16>(52685));
     QCOMPARE(m_settings->getSocketBufferSize(), 32);
-    QCOMPARE(m_settings->getDriveLevel(), 0);
+    QCOMPARE(m_settings->getDriveLevel(), 100);
     QCOMPARE(m_settings->getMultiRxView(), 0);
 }
 

@@ -60,6 +60,7 @@ public:
     void setFmPreEmphasis(int position, bool run);
     void setCtcss(double freqHz, bool enabled);
     void setCfirRun(bool run);
+    bool cfirRun() const { return m_cfirRun; }
     void setPhaseRotator(bool run, bool autoMode);
     void resetPhaseRotatorAuto();
     void setCfc(bool run, bool peq, const QVector<double> &freqs, const QVector<double> &levels,

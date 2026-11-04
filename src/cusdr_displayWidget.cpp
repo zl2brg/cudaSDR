@@ -165,21 +165,37 @@ void DisplayOptionsWidget::createPanSpectrumOptions() {
 	m_panadapterBtnList.append(m_PanSolidBtn);
 	CHECKED_CONNECT(m_PanSolidBtn, &AeroButton::clicked, this, &DisplayOptionsWidget::panModeChanged);
 
+	m_PanPaletteBtn = new AeroButton("Palette", this);
+	m_PanPaletteBtn->setRoundness(0);
+	m_PanPaletteBtn->setFixedSize(btn_width, btn_height);
+	m_PanPaletteBtn->setToolTip(tr("Fill with the waterfall signal colours"));
+	m_panadapterBtnList.append(m_PanPaletteBtn);
+	CHECKED_CONNECT(m_PanPaletteBtn, &AeroButton::clicked, this, &DisplayOptionsWidget::panModeChanged);
+
 	switch (m_panadapterMode) {
 		case Line:
 			m_PanLineBtn->setBtnState(AeroButton::ON);
 			m_PanFilledLineBtn->setBtnState(AeroButton::OFF);
 			m_PanSolidBtn->setBtnState(AeroButton::OFF);
+			m_PanPaletteBtn->setBtnState(AeroButton::OFF);
 			break;
 		case FilledLine:
 			m_PanFilledLineBtn->setBtnState(AeroButton::ON);
 			m_PanLineBtn->setBtnState(AeroButton::OFF);
 			m_PanSolidBtn->setBtnState(AeroButton::OFF);
+			m_PanPaletteBtn->setBtnState(AeroButton::OFF);
 			break;
 		case Solid:
 			m_PanSolidBtn->setBtnState(AeroButton::ON);
 			m_PanLineBtn->setBtnState(AeroButton::OFF);
 			m_PanFilledLineBtn->setBtnState(AeroButton::OFF);
+			m_PanPaletteBtn->setBtnState(AeroButton::OFF);
+			break;
+		case Palette:
+			m_PanPaletteBtn->setBtnState(AeroButton::ON);
+			m_PanLineBtn->setBtnState(AeroButton::OFF);
+			m_PanFilledLineBtn->setBtnState(AeroButton::OFF);
+			m_PanSolidBtn->setBtnState(AeroButton::OFF);
 			break;
 	}
 
@@ -248,6 +264,7 @@ void DisplayOptionsWidget::createPanSpectrumOptions() {
 	hbox1->addWidget(m_PanLineBtn);
 	hbox1->addWidget(m_PanFilledLineBtn);
 	hbox1->addWidget(m_PanSolidBtn);
+	hbox1->addWidget(m_PanPaletteBtn);
 
 	QHBoxLayout *hbox2 = new QHBoxLayout;
 	hbox2->setSpacing(0);
@@ -316,21 +333,37 @@ void DisplayOptionsWidget::createWidebandPanOptions() {
 	m_wbpanadapterBtnList.append(m_wbPanSolidBtn);
 	CHECKED_CONNECT(m_wbPanSolidBtn, &AeroButton::clicked, this, &DisplayOptionsWidget::wbPanModeChanged);
 
+	m_wbPanPaletteBtn = new AeroButton("Palette", this);
+	m_wbPanPaletteBtn->setRoundness(0);
+	m_wbPanPaletteBtn->setFixedSize(btn_width, btn_height);
+	m_wbPanPaletteBtn->setToolTip(tr("Fill with the waterfall signal colours"));
+	m_wbpanadapterBtnList.append(m_wbPanPaletteBtn);
+	CHECKED_CONNECT(m_wbPanPaletteBtn, &AeroButton::clicked, this, &DisplayOptionsWidget::wbPanModeChanged);
+
 	switch (m_wbPanadapterMode) {
 		case Line:
 			m_wbPanLineBtn->setBtnState(AeroButton::ON);
 			m_wbPanFilledLineBtn->setBtnState(AeroButton::OFF);
 			m_wbPanSolidBtn->setBtnState(AeroButton::OFF);
+			m_wbPanPaletteBtn->setBtnState(AeroButton::OFF);
 			break;
 		case FilledLine:
 			m_wbPanFilledLineBtn->setBtnState(AeroButton::ON);
 			m_wbPanLineBtn->setBtnState(AeroButton::OFF);
 			m_wbPanSolidBtn->setBtnState(AeroButton::OFF);
+			m_wbPanPaletteBtn->setBtnState(AeroButton::OFF);
 			break;
 		case Solid:
 			m_wbPanSolidBtn->setBtnState(AeroButton::ON);
 			m_wbPanLineBtn->setBtnState(AeroButton::OFF);
 			m_wbPanFilledLineBtn->setBtnState(AeroButton::OFF);
+			m_wbPanPaletteBtn->setBtnState(AeroButton::OFF);
+			break;
+		case Palette:
+			m_wbPanPaletteBtn->setBtnState(AeroButton::ON);
+			m_wbPanLineBtn->setBtnState(AeroButton::OFF);
+			m_wbPanFilledLineBtn->setBtnState(AeroButton::OFF);
+			m_wbPanSolidBtn->setBtnState(AeroButton::OFF);
 			break;
 	}
 
@@ -361,6 +394,7 @@ void DisplayOptionsWidget::createWidebandPanOptions() {
 	hbox1->addWidget(m_wbPanLineBtn);
 	hbox1->addWidget(m_wbPanFilledLineBtn);
 	hbox1->addWidget(m_wbPanSolidBtn);
+	hbox1->addWidget(m_wbPanPaletteBtn);
 
 	QHBoxLayout *hbox2 = new QHBoxLayout;
 	hbox2->setSpacing(0);

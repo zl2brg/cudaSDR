@@ -136,9 +136,11 @@ private:
 	AeroButton*				m_PanLineBtn;
 	AeroButton*				m_PanFilledLineBtn;
 	AeroButton*				m_PanSolidBtn;
+	AeroButton*				m_PanPaletteBtn;
 	AeroButton*				m_wbPanLineBtn;
 	AeroButton*				m_wbPanFilledLineBtn;
 	AeroButton*				m_wbPanSolidBtn;
+	AeroButton*				m_wbPanPaletteBtn;
 	AeroButton*				m_setCallSignBtn;
 	AeroButton*				m_waterfallSimpleBtn;
 	AeroButton*				m_waterfallEnhancedBtn;

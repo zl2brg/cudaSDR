@@ -1,6 +1,6 @@
 /**
  * @file  DisplayStatusRenderer.cpp
- * @brief Renderer for upper status badges (sync, ADC, loss, FWD power, SWR, HW info)
+ * @brief Renderer for upper status badges (sync, ADC, loss, volts, temp, HW info)
  *        and lower status indicators (attenuator, dither, random, rate, clocks) in OGLDisplayPanel.
  * @author Simon Eatough <simon.eatough@gmail.com>
  * @date 2026-09-08
@@ -86,84 +86,6 @@ void DisplayStatusRenderer::paintUpperRegion()
     // Metis status
     str = m_panel->m_metisString;
     x1 += m_panel->m_packetLossWidth + 2 * m_panel->m_blankWidth + 2;
-    // FWD Power bar graph
-    {
-        int meterWidth = 90;
-        rect = QRect(x1, y1, meterWidth, m_panel->m_blankHeight);
-        m_panel->drawPanelRect(rect, QColor(35, 35, 35), -2.0f); // Track background
-
-        // Fills only after real RF in this TX (m_txMetersArmed). Bare m_txActive drew a
-        // permanent green baseline and flickered if MOX/PTT blipped during receive.
-        const bool metersLive = m_panel->m_txActive && m_panel->m_txMetersArmed;
-        qreal pVal = metersLive ? m_panel->m_fwdPowerWattsSmooth : 0.0;
-        qreal maxP = (pVal > 10.0) ? 100.0 : 10.0;
-        // Square-root response curve for high sensitivity at low/medium wattages
-        qreal pFrac = qBound(0.0, std::sqrt(pVal / maxP), 1.0);
-
-        if (metersLive) {
-            // Baseline fill so the meter stays visibly active on TX during SSB valleys.
-            int fillW = qBound(14, qRound(14 + (meterWidth - 14) * pFrac), meterWidth);
-            QRect fillRect(x1, y1, fillW, m_panel->m_blankHeight);
-            m_panel->drawPanelRect(fillRect, QColor(56, 242, 115), -1.9f); // Live green bar
-        }
-
-        QString fwdStr = QString("FWD: %1 W").arg(pVal, 0, 'f', 1);
-        int fwdTextWidth = m_panel->m_oglTextSmall->fontMetrics().horizontalAdvance(fwdStr);
-        int textX = x1 + qMax(2, (meterWidth - fwdTextWidth) / 2);
-
-        if (metersLive) {
-            m_panel->qglColor(QColor(255, 255, 255));
-        } else {
-            m_panel->qglColor(QColor(160, 160, 160));
-        }
-        m_panel->renderPanelText(m_panel->m_oglTextSmallItalic, textX, y1, fwdStr);
-        x1 += meterWidth + 3 * m_panel->m_blankWidth;
-    }
-
-    // SWR bar graph
-    {
-        int swrMeterWidth = 80;
-        rect = QRect(x1, y1, swrMeterWidth, m_panel->m_blankHeight);
-        m_panel->drawPanelRect(rect, QColor(35, 35, 35), -2.0f); // Track background
-
-        const bool metersLive = m_panel->m_txActive && m_panel->m_txMetersArmed;
-        // Use the IIR value only — qMax(raw, smooth) made attack follow raw spikes.
-        qreal swrVal = metersLive ? qMax(1.0, m_panel->m_swrSmooth) : 1.0;
-
-        // SWR scale mapping:
-        // SWR = 1.0 -> 30% meter fill (GOOD Green)
-        // SWR = 1.5 -> 55% meter fill (Green/Yellow)
-        // SWR = 2.5 -> 80% meter fill (Yellow/Red)
-        // SWR >= 3.0 -> 100% meter fill (Red)
-        qreal swrFrac = 0.30;
-        if (swrVal > 1.0) {
-            swrFrac = qBound(0.30, 0.30 + 0.70 * ((swrVal - 1.0) / 2.0), 1.0);
-        }
-
-        QColor barColor = QColor(56, 242, 115); // Green default for SWR < 1.5
-        if (swrVal >= 2.5)
-            barColor = QColor(242, 56, 109); // Red
-        else if (swrVal >= 1.5)
-            barColor = QColor(255, 255, 50);  // Yellow
-
-        if (metersLive) {
-            int fillW = qBound(24, qRound(swrMeterWidth * swrFrac), swrMeterWidth);
-            QRect fillRect(x1, y1, fillW, m_panel->m_blankHeight);
-            m_panel->drawPanelRect(fillRect, barColor, -1.9f);
-        }
-
-        QString swrStr = QString("SWR: %1").arg(swrVal, 0, 'f', 1);
-        int swrTextWidth = m_panel->m_oglTextSmall->fontMetrics().horizontalAdvance(swrStr);
-        int textX = x1 + qMax(2, (swrMeterWidth - swrTextWidth) / 2);
-
-        if (metersLive) {
-            m_panel->qglColor(QColor(255, 255, 255));
-        } else {
-            m_panel->qglColor(QColor(160, 160, 160));
-        }
-        m_panel->renderPanelText(m_panel->m_oglTextSmallItalic, textX, y1, swrStr);
-        x1 += swrMeterWidth + 3 * m_panel->m_blankWidth;
-    }
 
     // Supply Voltage
     if (m_panel->m_supplyVolts > 0.1) {

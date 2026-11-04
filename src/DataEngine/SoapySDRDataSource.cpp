@@ -38,9 +38,9 @@ bool listLooksLikeRangeEndpoints(const std::vector<double>& rates) {
     return false;
 }
 
-// IQ tone level for TUNE; drive 128 = max peak (RF gain still from drive slider).
+// IQ tone level for TUNE; drive 100 = max peak (RF gain still from drive slider).
 float tuneToneAmplitudeFromDrive(int driveLevel) {
-    const float t = qBound(0.0f, driveLevel / 128.0f, 1.0f);
+    const float t = qBound(0.0f, driveLevel / 100.0f, 1.0f);
     constexpr float kMaxTuneAmp = 0.25f;
     return kMaxTuneAmp * t;
 }
@@ -641,14 +641,14 @@ void SoapySDRDataSource::init() {
             if (!m_device || !m_txCapable)
                 return;
 
-            // Map UI drive [0..128] to the Soapy TX gain range where available.
+            // Map UI drive [0..100] to the Soapy TX gain range where available.
             double gainToApply = static_cast<double>(driveValue);
             try {
                 const SoapySDR::Range txGainRange = m_device->getGainRange(SOAPY_SDR_TX, 0);
                 const double minGain = txGainRange.minimum();
                 const double maxGain = txGainRange.maximum();
                 if (maxGain > minGain) {
-                    const double t = qBound(0.0, driveValue / 128.0, 1.0);
+                    const double t = qBound(0.0, driveValue / 100.0, 1.0);
                     gainToApply = minGain + (maxGain - minGain) * t;
                 }
             } catch (...) {
