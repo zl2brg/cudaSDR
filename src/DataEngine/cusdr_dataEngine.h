@@ -474,6 +474,7 @@ public:
     void add_rx_audio_sample();
     void fillP1CwTxIqBuffer();
     bool p1SoftwareCwActive() const;
+    bool txDraining() const;
 
 	~DataProcessor() override;
 
@@ -569,6 +570,13 @@ private:
 //RRK	long			m_sendSequence;//RRK	long			m_oldSendSequence;
 	quint32			m_sendSequence;
 	quint32			m_oldSendSequence;
+
+	QElapsedTimer	m_p1SendClock;
+	qint64			m_p1LastSendMs = -1;
+	qint64			m_p1MaxSendGapMs = 0;
+	qint64			m_p1SendReportMs = 0;
+	quint64			m_p1SendCount = 0;
+	quint64			m_p1SendErrors = 0;
 
 	volatile bool	m_stopped;
     QTimer*         m_controlTimer;

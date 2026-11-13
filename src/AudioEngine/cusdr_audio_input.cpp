@@ -238,7 +238,9 @@ bool TransmitAudioInput::Start() {
             
             // Check if there is already data available
             if (m_audioInputDevice->bytesAvailable() > 0) {
-                handleReadyRead();
+                // Queued: handleReadyRead() takes m_mutex, which is held here.
+                QMetaObject::invokeMethod(this, &TransmitAudioInput::handleReadyRead,
+                                          Qt::QueuedConnection);
             }
         } else {
             qWarning() << "TransmitAudioInput: Could not start audio input! Error:" << m_audioSource->error();
@@ -353,25 +355,36 @@ size_t TransmitAudioInput::readNetAudio(float* dest, size_t count)
 
 bool TransmitAudioInput::readMicAudioBlock(float* dest, size_t count)
 {
+    if (m_micResidualClearPending.exchange(false, std::memory_order_acq_rel))
+        m_micFetchResidual.clear();
     return spscReadBlock(m_faudioRing, m_micFetchResidual, dest, count);
 }
 
 bool TransmitAudioInput::readNetAudioBlock(float* dest, size_t count)
 {
+    if (m_netResidualClearPending.exchange(false, std::memory_order_acq_rel))
+        m_netFetchResidual.clear();
     return spscReadBlock(m_netAudioRing, m_netFetchResidual, dest, count);
 }
 
+// Called from the GUI/DataEngine thread while the DataProcessor may be inside
+// read*Block. Ring clear() only moves the read index forward, which is safe
+// against a concurrent reader; the residual vectors are consumer-owned, so the
+// consumer drops them on its next read.
 void TransmitAudioInput::clearLocalTxQueues()
 {
     m_faudioRing.clear();
-    m_residualBuffer.clear();
-    m_micFetchResidual.clear();
+    {
+        QMutexLocker locker(&m_mutex);
+        m_residualBuffer.clear();
+    }
+    m_micResidualClearPending.store(true, std::memory_order_release);
 }
 
 void TransmitAudioInput::clearNetTxQueues()
 {
     m_netAudioRing.clear();
-    m_netFetchResidual.clear();
+    m_netResidualClearPending.store(true, std::memory_order_release);
 }
 
 void TransmitAudioInput::clearTxQueues()

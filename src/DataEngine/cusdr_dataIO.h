@@ -29,6 +29,7 @@
 
 #include "cusdr_settings.h"
 #include "Util/cusdr_queue.h"
+#include "P1LinkWatchdog.h"
 
 #ifdef LOG_DATAIO
 #   define DATAIO_DEBUG qDebug().nospace() << "DataIO::\t"
@@ -37,6 +38,7 @@
 #endif
 
 
+class QTimer;
 class RadioModel;
 class DataEngine;
 class IHPSDRProtocol;
@@ -90,8 +92,11 @@ private slots:
 	void setSocketBufferSize(int value);
 	void displayDataReceiverSocketError(QAbstractSocket::SocketError error);
 	void readDeviceData();
+	void pollProtocol1Link();
 
 private:
+	void startProtocol1LinkWatchdog(int rxCount, char startByte);
+	void restartProtocol1Stream(qint64 nowMs);
 	void readDeviceDataP1(QUdpSocket* socket);
 	void readDeviceDataP2(QUdpSocket* socket);
 	void processWidebandPacket(qint64 size);
@@ -109,6 +114,14 @@ private:
     QElapsedTimer   m_iqArrivalTimer;
     quint64         m_iqPacketCount = 0;
     quint64         m_iqDropCount   = 0;
+    quint64         m_iqSeqGaps     = 0;
+    quint64         m_iqMissedPackets = 0;
+
+    QTimer*         m_p1LinkTimer = nullptr;
+    QElapsedTimer   m_p1LinkClock;
+    P1LinkWatchdog  m_p1LinkWatchdog;
+    int             m_p1RxCount = 1;
+    char            m_p1StartByte = 0x01;
     double          m_iqGapMax      = 0;
     double          m_iqGapAccum    = 0;
 

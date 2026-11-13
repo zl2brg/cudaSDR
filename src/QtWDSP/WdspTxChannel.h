@@ -74,6 +74,8 @@ public:
 
     // Channel Run State
     void setTxRun(bool run);
+    /** Hides WdspChannel::stopChannel(): stops with wait=1 so no ramp is left pending. */
+    void stopChannel();
 
     // Spectrum Analyzer & Panadapter
     void pushSpectrum(const double *iqData);

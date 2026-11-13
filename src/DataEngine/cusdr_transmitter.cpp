@@ -30,6 +30,8 @@
 #include "Models/RadioModel.h"
 #include "Util/settings_utils.h"
 
+#include <QElapsedTimer>
+
 namespace {
 double micSliderToPanelGain(const double sliderValue)
 {
@@ -519,14 +521,22 @@ void Transmitter::setRadioState(RadioState state)
     }
 
     case RadioState::RX:
-    default:
+    default: {
+        // Blocks this (GUI) thread until the DataProcessor has pumped the
+        // ramp-down through fexchange0, or WDSP's 100 ms timeout expires.
+        QElapsedTimer stopTimer;
+        stopTimer.start();
         if (m_channel) {
             m_channel->setPostGen(0, 0.0, 0.0, false);
             m_channel->setTxRun(false);
         }
-        WdspChannel::setChannelStateById(0, 1, 1);
-        TRANSMITTER_DEBUG << "RX: TX channel stopped";
+        const qint64 stopMs = stopTimer.elapsed();
+        if (stopMs >= 90)
+            qWarning() << "Transmitter::\tRX: TX channel stop took" << stopMs
+                       << "ms (ramp-down not pumped; WDSP timeout)";
+        TRANSMITTER_DEBUG << "RX: TX channel stopped in " << stopMs << " ms";
         break;
+    }
     }
 }
 

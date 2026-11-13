@@ -396,10 +396,17 @@ void DataEngineThreadFactory::stopDataProcessor() {
 		}
 
 		m_engine->m_dataProcThread->quit();
+		QElapsedTimer stopTimer;
+		stopTimer.start();
 		if (!m_engine->m_dataProcThread->wait(3000)) {
-			DATA_ENGINE_DEBUG << "data processor thread did not finish within 3s; terminating.";
+			// May kill it inside fexchange0 holding WDSP's TX exchange lock;
+			// the next key-up then hangs until the app is restarted.
+			qCritical() << "DataEngine::\tdata processor thread did not finish within 3 s;"
+						<< "TERMINATING it. TX may hang until cudaSDR is restarted.";
 			m_engine->m_dataProcThread->terminate();
 			m_engine->m_dataProcThread->wait(1000);
+		} else {
+			DATA_ENGINE_DEBUG << "data processor thread finished in " << stopTimer.elapsed() << " ms";
 		}
 		delete m_engine->m_dataProcThread;
         m_engine->m_dataProcThread = nullptr;

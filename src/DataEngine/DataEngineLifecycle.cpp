@@ -478,6 +478,12 @@ void DataEngineLifecycle::stop() {
 
 	DATA_ENGINE_DEBUG << "shutting down data engine";
 
+	// Unkey through the normal path while the TX channel is still running, so
+	// WDSP flushes it; stopping it while keyed leaves the next key-up silent.
+	if (m_engine->set->getRadioState() != RadioState::RX)
+		m_engine->set->setRadioState(RadioState::RX);
+	m_engine->TX.stopChannel();
+
 	// DataEngineUp is now deferred until DataIO::finishStartup(). Stop must
 	// still tear down if Start is in-flight (thread running, engine still Down).
 	if (m_engine->m_dataEngineState == QSDR::DataEngineUp
@@ -576,7 +582,7 @@ void DataEngineLifecycle::stop() {
 				rx->qtwdsp->stopChannel();
 			}
 		}
-		m_engine->TX.stopChannel();
+		m_engine->TX.stopChannel(); // no-op unless something re-armed TX during teardown
 		QThread::msleep(5); // let any in-flight fexchange0 observe run=0
 
 		// clear receiver thread list

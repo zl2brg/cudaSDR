@@ -59,6 +59,8 @@
 #include <strings.h>
 #include <math.h>
 #include <pthread.h>
+#include <signal.h>
+#include <time.h>
 #include <termios.h>
 #include <sys/mman.h>
 #include <sys/time.h>
@@ -159,6 +161,26 @@ static int tx_print = 0;
 static int oldnew = 3;    // 1: only P1, 2: only P2, 3: P1 and P2,
 
 static double txlevel;
+
+// -watchdog: stop EP6 when the host stops sending EP2, like a radio whose
+// firmware watchdog drops the stream. SIGUSR1 drops EP6 for EP6_DROPOUT_MS
+// to simulate a network glitch in the radio-to-host direction.
+#define HOST_WATCHDOG_MS 1000
+#define EP6_DROPOUT_MS   1500
+static int host_watchdog = 0;
+static volatile long long last_ep2_ms = 0;
+static volatile long long ep6_pause_until_ms = 0;
+
+static long long now_ms(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (long long) ts.tv_sec * 1000LL + ts.tv_nsec / 1000000L;
+}
+
+static void ep6_dropout_handler(int sig) {
+    (void) sig;
+    ep6_pause_until_ms = now_ms() + EP6_DROPOUT_MS;
+}
 
 static int set_device_from_name(const char *arg) {
     if (!arg || !*arg)
@@ -280,6 +302,7 @@ enum {
     OPT_DEBUGTX,
     OPT_DEBUGRX,
     OPT_DEBUG,
+    OPT_WATCHDOG,
     OPT_HELP
 };
 
@@ -348,6 +371,7 @@ int main(int argc, char *argv[]) {
         {"debugtx",     no_argument, 0, OPT_DEBUGTX},
         {"debugrx",     no_argument, 0, OPT_DEBUGRX},
      	{"debug",      no_argument, 0, OPT_DEBUG}, 
+        {"watchdog",    no_argument, 0, OPT_WATCHDOG},
         {"help",        no_argument, 0, OPT_HELP},
         {0, 0, 0, 0}
     };
@@ -422,6 +446,9 @@ while ((c = getopt_long_only(argc, argv, "dh", long_options, NULL)) != -1) {
 	    case OPT_DEBUG: 
                 dbg_setlevel(1);
                 break;
+            case OPT_WATCHDOG:
+                host_watchdog = 1;
+                break;
 	        case OPT_HELP: 
 		      printf("Options:\n"
                     "    -atlas: \n"
@@ -442,7 +469,9 @@ while ((c = getopt_long_only(argc, argv, "dh", long_options, NULL)) != -1) {
                     "    -P2: \n"
                     "    -debug: \n"
                     "    -debugtx: \n"
-                    "    -debugrx: \n");
+                    "    -debugrx: \n"
+                    "    -watchdog: stop P1 EP6 after 1 s without host EP2 packets\n"
+                    "    (SIGUSR1 drops P1 EP6 for 1.5 s)\n");
 
                 exit(0);
             default:
@@ -461,9 +490,16 @@ while ((c = getopt_long_only(argc, argv, "dh", long_options, NULL)) != -1) {
         }
     }
 
-    printf("hpsdrsim: device=%s  protocol=%s\n",
+    printf("hpsdrsim: device=%s  protocol=%s%s\n",
            old_device_name(OLDDEVICE),
-           oldnew == 1 ? "P1 only" : oldnew == 2 ? "P2 only" : "P1+P2");
+           oldnew == 1 ? "P1 only" : oldnew == 2 ? "P2 only" : "P1+P2",
+           host_watchdog ? "  host-watchdog=on" : "");
+    fflush(stdout);
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = ep6_dropout_handler;
+    sa.sa_flags = SA_RESTART;
+    sigaction(SIGUSR1, &sa, NULL);
 
     switch (OLDDEVICE) {
     case DEVICE_METIS:
@@ -681,7 +717,7 @@ while ((c = getopt_long_only(argc, argv, "dh", long_options, NULL)) != -1) {
 
         }
 
-        if (bytes_read < 0 && errno != EAGAIN) {
+        if (bytes_read < 0 && errno != EAGAIN && errno != EINTR) {
             dbg_printf(1, "recvfrom");
             return EXIT_FAILURE;
         }
@@ -718,6 +754,7 @@ while ((c = getopt_long_only(argc, argv, "dh", long_options, NULL)) != -1) {
             }
 
             last_seqnum = seqnum;
+            last_ep2_ms = now_ms();
 
             process_ep2(buffer + 11);
             process_ep2(buffer + 523);
@@ -889,10 +926,15 @@ while ((c = getopt_long_only(argc, argv, "dh", long_options, NULL)) != -1) {
                 break;
             }
             dbg_printf(1, "START the PC-to-SDR handler thread / code: 0x%08x\n", code);
+            if (host_watchdog) {
+                printf("hpsdrsim: P1 START received (0x%08x)\n", code);
+                fflush(stdout);
+            }
 
             enable_thread = 0;
-            while (active_thread)
+            while (active_thread || ep4_active_thread)
                 usleep(1000);
+            last_ep2_ms = now_ms();
             memset(&addr_old, 0, sizeof(addr_old));
             addr_old.sin_family = AF_INET;
             addr_old.sin_addr.s_addr = addr_from.sin_addr.s_addr;
@@ -1349,6 +1391,7 @@ void* handler_ep6(void *arg) {
     int decimation;  // for converting 1536 kHz samples to 48, 192, 384, ....
     unsigned int seed;
     unsigned int tx_fifo_count;
+    int ep6_paused = 0;
 
     fac2 = 0;
     fac4 = 0;
@@ -1562,7 +1605,30 @@ void* handler_ep6(void *arg) {
             delay.tv_sec++;
         }
 
-        clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &delay, NULL);
+        while (clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &delay, NULL) == EINTR)
+            ;
+
+        const long long now = now_ms();
+        if (host_watchdog && now - last_ep2_ms > HOST_WATCHDOG_MS) {
+            printf("hpsdrsim: WATCHDOG no host EP2 for %lld ms, stopping EP6 (seq %u)\n",
+                   now - last_ep2_ms, counter);
+            fflush(stdout);
+            enable_thread = 0;
+            break;
+        }
+        if (now < ep6_pause_until_ms) {
+            if (!ep6_paused) {
+                printf("hpsdrsim: EP6 dropout started (seq %u)\n", counter);
+                fflush(stdout);
+                ep6_paused = 1;
+            }
+            continue;
+        }
+        if (ep6_paused) {
+            printf("hpsdrsim: EP6 dropout ended (seq %u)\n", counter);
+            fflush(stdout);
+            ep6_paused = 0;
+        }
 
         if (sock_TCP_Client > -1) {
             if (sendto(sock_TCP_Client, buffer, 1032, 0, (struct sockaddr*) &addr_old, sizeof(addr_old)) < 0) {

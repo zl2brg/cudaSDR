@@ -123,22 +123,23 @@ DataIO::DataIO(QObject* parent)
 
 namespace {
 
+// Sized for several hundred ms of EP6 so a scheduler hiccup on the DataIO
+// thread does not overflow the kernel buffer; Linux clamps to rmem_max.
 int rxSocketBufferSizeForRate(int sampleRate) {
     switch (sampleRate) {
         case 48000:
-            return 16 * 1024;
         case 96000:
-            return 32 * 1024;
-        case 192000:
-            return 64 * 1024;
-        case 384000:
-            return 128 * 1024;
-        case 768000:
             return 256 * 1024;
-        case 1536000:
+        case 192000:
             return 512 * 1024;
+        case 384000:
+            return 1024 * 1024;
+        case 768000:
+            return 2 * 1024 * 1024;
+        case 1536000:
+            return 4 * 1024 * 1024;
         default:
-            return 16 * 1024;
+            return 256 * 1024;
     }
 }
 
@@ -281,6 +282,7 @@ void DataIO::finishStartup() {
         networkDeviceStartStop(startByte);
         DATAIO_DEBUG << "Protocol 1 start sent from bound socket localPort="
                      << m_dataIOSocket->localPort();
+        startProtocol1LinkWatchdog(rxCount, startByte);
     }
 
     for (auto socket : m_sockets) {
@@ -305,9 +307,61 @@ void DataIO::requestStop() {
     m_pendingP1Start = false;
 }
 
+void DataIO::startProtocol1LinkWatchdog(int rxCount, char startByte) {
+    m_p1RxCount = qMax(1, rxCount);
+    m_p1StartByte = startByte;
+    m_oldSequence = 0xFFFFFFFF;
+    m_p1LinkClock.start();
+    m_p1LinkWatchdog.reset(0);
+    if (!m_p1LinkTimer) {
+        m_p1LinkTimer = new QTimer(this);
+        m_p1LinkTimer->setInterval(100);
+        connect(m_p1LinkTimer, &QTimer::timeout, this, &DataIO::pollProtocol1Link);
+    }
+    m_p1LinkTimer->start();
+}
+
+void DataIO::pollProtocol1Link() {
+    if (m_stopped || !m_dataIOSocket || !isProtocol1(m_protocol)) {
+        m_p1LinkTimer->stop();
+        return;
+    }
+
+    // Drain first: if readyRead went quiet with IQ queued, this is enough.
+    // Wideband EP4 shares the socket, so pending datagrams alone do not
+    // prove EP6 is alive.
+    if (m_p1LinkWatchdog.isSilent(m_p1LinkClock.elapsed())
+        && m_dataIOSocket->hasPendingDatagrams()) {
+        readDeviceDataP1(m_dataIOSocket);
+    }
+
+    const qint64 now = m_p1LinkClock.elapsed();
+    if (m_p1LinkWatchdog.shouldResendStart(now))
+        restartProtocol1Stream(now);
+}
+
+void DataIO::restartProtocol1Stream(qint64 nowMs) {
+    const int attempt = m_p1LinkWatchdog.restarts();
+    if (attempt == 1 || attempt % 10 == 0) {
+        qWarning().nospace() << "DataIO::\tProtocol 1 EP6 stream silent for "
+                             << m_p1LinkWatchdog.silenceMs(nowMs) << " ms (last seq "
+                             << m_sequence << "); re-sending start, attempt " << attempt;
+    }
+    if (RadioTelemetry* tel = telemetryFromSettings())
+        tel->setProtocolSync(2);
+
+    networkDeviceStartStop(0);
+    for (int i = 0; i < m_p1RxCount; ++i)
+        sendInitFramesToNetworkDevice(i);
+    networkDeviceStartStop(m_p1StartByte);
+    m_oldSequence = 0xFFFFFFFF;
+}
+
 void DataIO::beginShutdown() {
     m_stopped = true;
     m_pendingP1Start = false;
+    delete m_p1LinkTimer;
+    m_p1LinkTimer = nullptr;
 
     for (auto socket : m_sockets) {
         if (socket)
@@ -350,8 +404,27 @@ void DataIO::readDeviceDataP1(QUdpSocket* socket) {
         int type = m_protocol->getPacketType((const unsigned char*)m_datagram.data());
         if (type == ProtocolBoundaryUtils::kPacketTypeP1IqPrimary || type == ProtocolBoundaryUtils::kPacketTypeP1IqLoopback) { // IQ data (P1 EP6 or EP2 loopback)
             m_sequence = m_protocol->getSequence((const unsigned char*)m_datagram.data());
+            if (m_oldSequence != 0xFFFFFFFFu && m_sequence != m_oldSequence + 1) {
+                ++m_iqSeqGaps;
+                const uint32_t missing = m_sequence - m_oldSequence - 1;
+                if (missing < 100000u)
+                    m_iqMissedPackets += missing;
+            }
             reportIqSequenceSync(m_sequence, m_oldSequence, m_packetLossTime);
             ++m_iqPacketCount;
+
+            if (m_p1LinkClock.isValid()) {
+                const P1LinkWatchdog::PacketEvent ev =
+                    m_p1LinkWatchdog.onIqPacket(m_p1LinkClock.elapsed());
+                if (ev.first) {
+                    qInfo().nospace() << "DataIO::\tProtocol 1 EP6 stream up after "
+                                      << ev.gapMs << " ms";
+                } else if (ev.resumed) {
+                    qWarning().nospace() << "DataIO::\tProtocol 1 EP6 stream resumed after "
+                                         << ev.gapMs << " ms silence (" << ev.restarts
+                                         << " start re-send(s))";
+                }
+            }
 
             {
                 const int hdrSize = m_protocol->getHeaderSize();
@@ -374,8 +447,15 @@ void DataIO::readDeviceDataP1(QUdpSocket* socket) {
                     DATAIO_DEBUG << "IQ queue drops in last 5s:" << m_iqDropCount
                                  << "(received" << m_iqPacketCount << "packets)";
                 }
+                if (m_iqSeqGaps > 0) {
+                    qWarning().nospace() << "DataIO::\tProtocol 1 EP6 sequence gaps in last 5 s: "
+                                         << m_iqSeqGaps << " (" << m_iqMissedPackets
+                                         << " packets missing, " << m_iqPacketCount << " received)";
+                }
                 m_iqPacketCount = 0;
                 m_iqDropCount = 0;
+                m_iqSeqGaps = 0;
+                m_iqMissedPackets = 0;
                 m_iqArrivalTimer.restart();
             }
         }
@@ -683,8 +763,8 @@ void DataIO::setManualSocketBufferSize(bool value) {
     if (m_manualBufferSize) {
         DATAIO_DEBUG << "set data IO socket BufferSize to " << m_socketBufferSize;
     } else {
-        DATAIO_DEBUG << "set data IO socket BufferSize to 32 kB.";
-        socketBufferSize = 32 * 1024;
+        socketBufferSize = rxSocketBufferSizeForRate(m_sampleRate);
+        DATAIO_DEBUG << "set data IO socket BufferSize to" << (socketBufferSize / 1024) << "kB.";
     }
 
     for (auto socket : m_sockets) {

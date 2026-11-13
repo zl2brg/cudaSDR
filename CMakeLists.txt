@@ -534,6 +534,22 @@ if(BUILD_TESTING)
     )
     add_test(NAME protocol_boundary_tests COMMAND protocol_boundary_tests)
 
+    qt_add_executable(p1_link_watchdog_tests
+        tests/p1_link_watchdog_tests.cpp
+    )
+    target_include_directories(p1_link_watchdog_tests PRIVATE
+        ${SRC_DIR}
+    )
+    target_compile_definitions(p1_link_watchdog_tests PRIVATE
+        HPSDR_SIM_DEFAULT_PATH="${CMAKE_SOURCE_DIR}/hpsdrsim/hpsdr_sim"
+    )
+    target_link_libraries(p1_link_watchdog_tests PRIVATE
+        Qt6::Core
+        Qt6::Network
+        Qt6::Test
+    )
+    add_test(NAME p1_link_watchdog_tests COMMAND p1_link_watchdog_tests)
+
     qt_add_executable(alex_encoding_tests
         tests/alex_encoding_tests.cpp
     )
@@ -1175,6 +1191,7 @@ if(BUILD_TESTING)
     # Convenience target: build every unit test without the full cudasdr app.
     add_custom_target(build_tests DEPENDS
         protocol_boundary_tests
+        p1_link_watchdog_tests
         alex_encoding_tests
         protocol2_format_init_tests
         device_identity_tests

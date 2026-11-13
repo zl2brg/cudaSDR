@@ -2237,6 +2237,8 @@ void DataProcessor::send_hpsdr_data(int rx, const CPX &buffer, int buffersize) {
     }
 #endif
 
+    if (m_stopped) return;
+
     // Only send audio for the currently selected receiver.
     if (rx != de->currentReceiver) return;
 
@@ -2248,7 +2250,7 @@ void DataProcessor::send_hpsdr_data(int rx, const CPX &buffer, int buffersize) {
         rx_audio_buffer[j].im = buffer[j].im;
         }
 
-    if (set->is_transmitting()) {
+    if (set->is_transmitting() || txDraining()) {
         if (!tx_index) get_tx_iqData();
     } else if (p1SoftwareCwActive() && de->cw_key_down > 0) {
         if (!tx_index) get_tx_iqData();
@@ -2345,6 +2347,13 @@ bool DataProcessor::p1SoftwareCwActive() const
         return false;
     const DSPMode txMode = set->getDSPMode(de->currentReceiver);
     return (txMode == DSPMode::CWU || txMode == DSPMode::CWL) && !set->isInternalCw();
+}
+
+// Settings has already gone to RX but Transmitter::setTxRun(false) is still
+// waiting for the WDSP ramp-down, which only advances inside fexchange0.
+bool DataProcessor::txDraining() const
+{
+    return !set->is_transmitting() && de->TX.isTxChannelRunning();
 }
 
 void DataProcessor::fillP1CwTxIqBuffer()
@@ -2548,22 +2557,36 @@ void DataProcessor::get_tx_iqData(){
     double is,qs;
     double gain = 32767.0f;
    // double gain = 25 * 0.00392;
-    fetch_MicData();
+    const bool transmitting = set->is_transmitting();
+    const bool draining = txDraining();
     int micNonFinite = 0;
-    for (int i = 0; i < DSP_SAMPLE_SIZE * 2; ++i) {
-        if (!std::isfinite(mic_buffer[i])) {
-            mic_buffer[i] = 0.0;
-            ++micNonFinite;
+    if (draining) {
+        // Feed silence: the mic/TCI rings belong to the next key-down.
+        memset(&mic_buffer, 0x0, sizeof(mic_buffer));
+    } else {
+        fetch_MicData();
+        for (int i = 0; i < DSP_SAMPLE_SIZE * 2; ++i) {
+            if (!std::isfinite(mic_buffer[i])) {
+                mic_buffer[i] = 0.0;
+                ++micNonFinite;
+            }
         }
     }
 
-    if (p1SoftwareCwActive() && (set->is_transmitting() || de->cw_key_down > 0)) {
+    if (p1SoftwareCwActive() && (transmitting || de->cw_key_down > 0)) {
         fillP1CwTxIqBuffer();
         return;
     }
 
-    if (set->is_transmitting()) {
-        if (de->m_spectralPainter && de->m_spectralPainter->isActive()) {
+    if (draining && p1SoftwareCwActive()) {
+        // Software CW never fed WDSP; flush it but keep the CW envelope's silence.
+        de->TX.process(mic_buffer, (double *) m_iq_output_buffer.data(), error);
+        memset(&m_tx_iq_Buffer, 0x0, sizeof(m_tx_iq_Buffer));
+        return;
+    }
+
+    if (transmitting || draining) {
+        if (!draining && de->m_spectralPainter && de->m_spectralPainter->isActive()) {
             size_t n = de->m_spectralPainter->readIqSamples(m_iq_output_buffer.data(), DSP_SAMPLE_SIZE);
             for (size_t i = n; i < static_cast<size_t>(DSP_SAMPLE_SIZE); ++i) {
                 m_iq_output_buffer[i].re = 0.0;
@@ -2596,7 +2619,7 @@ void DataProcessor::get_tx_iqData(){
 
 		de->TX.pushSpectrum((const double *) m_iq_output_buffer.data());
 
-        if (error != 0) {
+        if (error != 0 && !draining) {
             qWarning() << "TX stream: process error=" << error
                        << "mode=" << set->getDSPMode(de->currentReceiver)
                        << "state=" << set->getRadioState();
@@ -2763,6 +2786,7 @@ void DataProcessor::setAudioBuffer(int rx, const CPX &buffer, int buffersize)
 {
     //DATA_PROCESSOR_DEBUG << "processOutputBuffer: " << this->thread();
     Q_UNUSED(rx)
+    if (m_stopped) return;
 
     qint16 leftRXSample;
     qint16 rightRXSample;
@@ -2771,8 +2795,11 @@ void DataProcessor::setAudioBuffer(int rx, const CPX &buffer, int buffersize)
 	const DSPMode rxMode = set->getDSPMode(de->currentReceiver);
 	const bool muteAnalogRxForCodec2 = (rxMode == FDV);
     if (tx_index == 0) {
-        if (set->is_transmitting() || (p1SoftwareCwActive() && de->cw_key_down > 0))
+        if (set->is_transmitting() || txDraining()
+            || (p1SoftwareCwActive() && de->cw_key_down > 0))
             get_tx_iqData();
+        else
+            memset(&m_tx_iq_Buffer, 0x0, sizeof(m_tx_iq_Buffer));
     }
         for (int j = 0; j < buffersize; j++) {
 
@@ -3063,7 +3090,30 @@ void DataProcessor::writeData() {
         quint16 dataPort = (de->set->getCurrentMetisCard().protocol == 2) ? 1029 : DEVICE_PORT;
 
 		if (de->sendSocket->writeDatagram(m_outDatagram, m_deviceAddress, dataPort) < 0) {
-			DATA_PROCESSOR_DEBUG << "error sending data to device: " << de->sendSocket->errorString();
+			if (m_p1SendErrors++ == 0)
+				qWarning() << "DataProcessor::\terror sending data to device:" << de->sendSocket->errorString();
+		}
+
+		if (!m_p1SendClock.isValid()) {
+			m_p1SendClock.start();
+			m_p1LastSendMs = -1;
+			m_p1SendReportMs = 0;
+		}
+		const qint64 now = m_p1SendClock.elapsed();
+		if (m_p1LastSendMs >= 0)
+			m_p1MaxSendGapMs = qMax(m_p1MaxSendGapMs, now - m_p1LastSendMs);
+		m_p1LastSendMs = now;
+		++m_p1SendCount;
+		if (now - m_p1SendReportMs >= 5000) {
+			if (m_p1MaxSendGapMs > 100 || m_p1SendErrors > 0) {
+				qWarning().nospace() << "DataProcessor::\tProtocol 1 host send in last 5 s: "
+									 << m_p1SendCount << " packets, max gap " << m_p1MaxSendGapMs
+									 << " ms, " << m_p1SendErrors << " send errors";
+			}
+			m_p1SendReportMs = now;
+			m_p1MaxSendGapMs = 0;
+			m_p1SendCount = 0;
+			m_p1SendErrors = 0;
 		}
 
 		if (m_sendSequence != m_oldSendSequence + 1) {

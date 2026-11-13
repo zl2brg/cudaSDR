@@ -134,7 +134,20 @@ void WdspTxChannel::process(const double *audioIn, double *iqOut, int &error)
         return;
     }
 
+    // fexchange0 leaves out untouched while the channel is not exchanging.
+    const int outSamples = static_cast<int>(
+        static_cast<qint64>(m_bufferSize) * m_iqOutputRate / qMax(1, m_micSampleRate));
+    std::fill_n(iqOut, 2 * outSamples, 0.0);
     fexchange0(m_channelId, const_cast<double*>(audioIn), iqOut, &error);
+}
+
+void WdspTxChannel::stopChannel()
+{
+    // wait=0 would leave downflag/flushflag set with nobody to finish the
+    // ramp, and the next key-up would then be silent. wait=1 either sees the
+    // flush complete or times out and clears the flags itself.
+    if (isRunning())
+        setTxRun(false);
 }
 
 void WdspTxChannel::pushSpectrum(const double *iqData)

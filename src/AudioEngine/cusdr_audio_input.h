@@ -14,6 +14,7 @@
 
 #include "cusdr_settings.h"
 #include "Util/SpscRingBuffer.h"
+#include <atomic>
 #include <vector>
 
 #ifndef CUDASDR_CUSDR_AUDIO_INPUT_H
@@ -64,8 +65,15 @@ public:
     size_t readNetAudio(float* dest, size_t count);
     bool readMicAudioBlock(float* dest, size_t count);
     bool readNetAudioBlock(float* dest, size_t count);
-    size_t micAudioAvailable() const { return m_faudioRing.availableRead() + m_micFetchResidual.size(); }
-    size_t netAudioAvailable() const { return m_netAudioRing.availableRead() + m_netFetchResidual.size(); }
+    // Consumer (DataProcessor) thread only, like the read*Block functions.
+    size_t micAudioAvailable() const {
+        return m_faudioRing.availableRead()
+            + (m_micResidualClearPending.load(std::memory_order_acquire) ? 0 : m_micFetchResidual.size());
+    }
+    size_t netAudioAvailable() const {
+        return m_netAudioRing.availableRead()
+            + (m_netResidualClearPending.load(std::memory_order_acquire) ? 0 : m_netFetchResidual.size());
+    }
     bool hasPendingNetAudio() const { return netAudioAvailable() > 0; }
     bool hasPendingMicAudio() const { return micAudioAvailable() > 0; }
 
@@ -91,8 +99,11 @@ private:
     QMutex              m_mutex;
     bool                m_running;
     QVector<float>      m_residualBuffer;
+    // Owned by the consumer thread; other threads request a clear via the flags.
     std::vector<float>  m_micFetchResidual;
     std::vector<float>  m_netFetchResidual;
+    std::atomic<bool>   m_micResidualClearPending{false};
+    std::atomic<bool>   m_netResidualClearPending{false};
     int                 m_sampleRate;
     int                 m_bufferSize;
     int                 m_deviceIndex;

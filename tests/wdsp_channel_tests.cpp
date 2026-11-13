@@ -1,9 +1,69 @@
 #include <QtTest>
+#include <QElapsedTimer>
+#include <atomic>
+#include <cmath>
+#include <functional>
+#include <thread>
 #include "QtWDSP/WdspRxChannel.h"
 #include "QtWDSP/WdspTxChannel.h"
 
 namespace {
 constexpr int TX_ID = 10;
+constexpr int kBlock = 1024;
+constexpr int kBlockMs = 21; // 1024 samples at 48 kHz
+
+double blockPeak(const QVector<double> &iq)
+{
+    double peak = 0.0;
+    for (double v : iq)
+        peak = std::max(peak, std::fabs(v));
+    return peak;
+}
+
+// Stands in for DataProcessor::get_tx_iqData on its own thread: one silent
+// mic block per RX audio block, at real-time cadence.
+class TxPump {
+public:
+    TxPump(WdspTxChannel &tx, std::function<bool()> keepPumping)
+        : m_tx(tx), m_keepPumping(std::move(keepPumping)),
+          m_thread([this] { run(); }) {}
+    ~TxPump() { stop(); }
+
+    void stop()
+    {
+        m_quit.store(true);
+        if (m_thread.joinable())
+            m_thread.join();
+    }
+    double lastPeak() const { return m_lastPeak.load(); }
+
+private:
+    void run()
+    {
+        QVector<double> mic(2 * kBlock, 0.0);
+        QVector<double> iq(2 * kBlock, 0.0);
+        while (!m_quit.load()) {
+            if (m_keepPumping()) {
+                int error = 0;
+                m_tx.process(mic.data(), iq.data(), error);
+                m_lastPeak.store(blockPeak(iq));
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(kBlockMs));
+        }
+    }
+
+    WdspTxChannel &m_tx;
+    std::function<bool()> m_keepPumping;
+    std::atomic<bool> m_quit{false};
+    std::atomic<double> m_lastPeak{0.0};
+    std::thread m_thread;
+};
+
+void keyTune(WdspTxChannel &tx)
+{
+    tx.setPostGen(0, 1000.0, 0.99999, true);
+    tx.setTxRun(true);
+}
 }
 
 class WdspChannelTests : public QObject {
@@ -17,6 +77,10 @@ private slots:
     void testMultiChannelCoexistence();
     void testStaticHelpers();
     void testCfirOffForProtocol1OnForProtocol2();
+    void testTxProcessZeroesOutputWhenStopped();
+    void testTxUnkeyDrainsWhenPumpContinues();
+    void testTxUnkeyTimesOutWhenPumpStops();
+    void testTuneAfterStopWithoutPumpIsNotSilent();
 };
 
 void WdspChannelTests::testRxChannelLifecycle()
@@ -233,6 +297,99 @@ void WdspChannelTests::testCfirOffForProtocol1OnForProtocol2()
 
     QVERIFY(tx.open(1024, 2048, 48000, 96000, 192000, 1, false));
     QVERIFY(tx.cfirRun());
+    tx.close();
+}
+
+void WdspChannelTests::testTxProcessZeroesOutputWhenStopped()
+{
+    WdspTxChannel tx(TX_ID);
+    QVERIFY(tx.open(kBlock, 2048, 48000, 48000, 48000, 0, false));
+    QVector<double> mic(2 * kBlock, 0.1);
+    QVector<double> iq(2 * kBlock, 1.0);
+    int error = 0;
+    tx.process(mic.data(), iq.data(), error);
+    QCOMPARE(blockPeak(iq), 0.0);
+    tx.close();
+}
+
+// Settings flips to RX before Transmitter::setTxRun(false); the DataProcessor
+// keeps pumping while the channel still reports running, so the ramp-down
+// completes and the GUI thread is released well before WDSP's 100 ms timeout.
+void WdspChannelTests::testTxUnkeyDrainsWhenPumpContinues()
+{
+    WdspTxChannel tx(TX_ID);
+    QVERIFY(tx.open(kBlock, 2048, 48000, 48000, 48000, 0, false));
+
+    for (int cycle = 0; cycle < 5; ++cycle) {
+        std::atomic<bool> transmitting{true};
+        keyTune(tx);
+        TxPump pump(tx, [&] { return transmitting.load() || tx.isRunning(); });
+        QTest::qWait(250);
+        QVERIFY2(pump.lastPeak() > 0.3, qPrintable(QString::number(pump.lastPeak())));
+
+        transmitting.store(false);
+        QElapsedTimer t;
+        t.start();
+        tx.setPostGen(0, 0.0, 0.0, false);
+        tx.setTxRun(false);
+        const qint64 ms = t.elapsed();
+        qInfo() << "cycle" << cycle << "unkey with pump took" << ms << "ms";
+        QVERIFY(!tx.isRunning());
+        QVERIFY2(ms < 80, qPrintable(QString("unkey took %1 ms").arg(ms)));
+    }
+    tx.close();
+}
+
+// The old P1 behaviour: pumping stops as soon as Settings is RX, so every
+// unkey sits in SetChannelState's 100 ms poll on the GUI thread.
+void WdspChannelTests::testTxUnkeyTimesOutWhenPumpStops()
+{
+    WdspTxChannel tx(TX_ID);
+    QVERIFY(tx.open(kBlock, 2048, 48000, 48000, 48000, 0, false));
+
+    std::atomic<bool> transmitting{true};
+    keyTune(tx);
+    TxPump pump(tx, [&] { return transmitting.load(); });
+    QTest::qWait(250);
+
+    transmitting.store(false);
+    QTest::qWait(2 * kBlockMs);
+    QElapsedTimer t;
+    t.start();
+    tx.setTxRun(false);
+    const qint64 ms = t.elapsed();
+    qInfo() << "unkey without pump took" << ms << "ms";
+    QVERIFY(ms >= 90);
+    tx.close();
+}
+
+// Engine Stop tears the pump down first. WdspTxChannel::stopChannel must not
+// leave a pending ramp-down, or the next TUNE ramps itself straight back off.
+void WdspChannelTests::testTuneAfterStopWithoutPumpIsNotSilent()
+{
+    WdspTxChannel tx(TX_ID);
+    QVERIFY(tx.open(kBlock, 2048, 48000, 48000, 48000, 0, false));
+
+    {
+        std::atomic<bool> transmitting{true};
+        keyTune(tx);
+        TxPump pump(tx, [&] { return transmitting.load(); });
+        QTest::qWait(250);
+        QVERIFY(pump.lastPeak() > 0.3);
+        transmitting.store(false);
+    }
+    tx.stopChannel();
+    QVERIFY(!tx.isRunning());
+
+    std::atomic<bool> transmitting{true};
+    keyTune(tx);
+    TxPump pump(tx, [&] { return transmitting.load() || tx.isRunning(); });
+    QTest::qWait(300);
+    QVERIFY2(pump.lastPeak() > 0.3,
+             qPrintable(QString("TUNE after stop peak %1").arg(pump.lastPeak())));
+    transmitting.store(false);
+    tx.setTxRun(false);
+    pump.stop();
     tx.close();
 }
 
