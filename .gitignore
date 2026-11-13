@@ -35,8 +35,14 @@ windowsSettings.ini
 .tools-ci/
 AppDir/
 AppDir-ci/
+AppDir-deb/
+AppDir-deb-ci/
+debroot/
+debroot-ci/
 out/
+out-deb/
 *.AppImage
+*.deb
 
 # BFG report directory
 ..bfg-report/

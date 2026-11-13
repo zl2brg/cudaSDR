@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build cudaSDR (Release) and package an AppImage.
+# Build cudaSDR (Release) and package an AppImage and a .deb (BUILD_DEB=0 skips it).
 # Intended to run inside packaging/Dockerfile (local docker or GitHub Actions).
 set -euo pipefail
 
@@ -12,6 +12,7 @@ OUTPUT_DIR="${OUTPUT_DIR:-${ROOT}/out}"
 QT_VERSION="${QT_VERSION:-6.12.0}"
 QT_PREFIX="${QT_PREFIX:-/opt/Qt/${QT_VERSION}/gcc_64}"
 JOBS="${JOBS:-$(nproc)}"
+BUILD_DEB="${BUILD_DEB:-1}"
 
 log() { printf '==> %s\n' "$*"; }
 die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
@@ -110,3 +111,11 @@ for f in "${artifacts[@]}"; do
     fi
     ls -lh "${f}"
 done
+
+if [[ "${BUILD_DEB}" -eq 1 ]]; then
+    log "Packaging .deb into ${OUTPUT_DIR}..."
+    DEB_APPDIR="${DEB_APPDIR:-${ROOT}/AppDir-deb-ci}" \
+    PKGROOT="${PKGROOT:-${ROOT}/debroot-ci}" \
+        "${ROOT}/scripts/make_deb.sh" --skip-download
+    ls -lh "${OUTPUT_DIR}"/*.deb
+fi

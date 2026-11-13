@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Build the CI Docker image and run the same AppImage pipeline GitHub Actions uses.
+# Build the CI Docker image and run the same AppImage + .deb pipeline GitHub Actions uses.
+# Set BUILD_DEB=0 to skip the .deb.
 # No host Qt mount — Qt 6.12 is installed inside the image via aqtinstall.
 set -euo pipefail
 
@@ -71,6 +72,7 @@ echo "==> Running CI AppImage build in ${IMAGE}..."
     -e "BUILD_DIR=build-ci" \
     -e "OUTPUT_DIR=/out" \
     -e "APPIMAGE_EXTRACT_AND_RUN=1" \
+    -e "BUILD_DEB=${BUILD_DEB:-1}" \
     "${EXTRA_DOCKER_ARGS[@]}" \
     -v "${ROOT}:/src:rw" \
     -v "${OUT_DIR}:/out:rw" \
@@ -80,4 +82,4 @@ echo "==> Running CI AppImage build in ${IMAGE}..."
 
 echo
 echo "==> Done. Artifacts in ${OUT_DIR}:"
-ls -lh "${OUT_DIR}"/*.AppImage 2>/dev/null || ls -lh "${OUT_DIR}"
+ls -lh "${OUT_DIR}"/*.AppImage "${OUT_DIR}"/*.deb 2>/dev/null || ls -lh "${OUT_DIR}"

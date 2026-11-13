@@ -16,6 +16,7 @@ REQUIRED_QT_VERSION="${REQUIRED_QT_VERSION:-6.12.0}"
 DO_BUILD=0
 SKIP_DOWNLOAD=0
 CLEAN_APPDIR=1
+APPDIR_ONLY=0
 
 usage() {
     cat <<EOF
@@ -25,6 +26,8 @@ Options:
   --build           Run ./build.sh before packaging
   --no-clean        Keep an existing AppDir (default: wipe and recreate)
   --skip-download   Do not download linuxdeploy tools (must already exist)
+  --appdir-only     Populate the AppDir (binary, Qt, libs) but do not create
+                    an .AppImage (used by make_deb.sh)
   -h, --help        Show this help
 
 Environment:
@@ -44,6 +47,7 @@ while [[ $# -gt 0 ]]; do
         --build) DO_BUILD=1; shift ;;
         --no-clean) CLEAN_APPDIR=0; shift ;;
         --skip-download) SKIP_DOWNLOAD=1; shift ;;
+        --appdir-only) APPDIR_ONLY=1; shift ;;
         -h|--help) usage; exit 0 ;;
         *)
             echo "Unknown option: $1" >&2
@@ -354,6 +358,9 @@ mkdir -p "${OUTPUT_DIR}"
 export LDA_OUTPUT_VERSION="${LDA_OUTPUT_VERSION:-$(git -C "${ROOT}" describe --tags --always --dirty 2>/dev/null || date +%Y%m%d)}"
 export LINUXDEPLOY_OUTPUT_VERSION="${LINUXDEPLOY_OUTPUT_VERSION:-${LDA_OUTPUT_VERSION}}"
 
+OUTPUT_ARGS=(--output appimage)
+[[ "${APPDIR_ONLY}" -eq 1 ]] && OUTPUT_ARGS=()
+
 log "Running linuxdeploy (this can take a while)..."
 (
     cd "${OUTPUT_DIR}"
@@ -366,8 +373,13 @@ log "Running linuxdeploy (this can take a while)..."
         --desktop-file "${APPDIR}/cudasdr.desktop" \
         --icon-file "${APPDIR}/cudasdr.png" \
         --plugin qt \
-        --output appimage
+        "${OUTPUT_ARGS[@]}"
 )
+
+if [[ "${APPDIR_ONLY}" -eq 1 ]]; then
+    log "AppDir ready at ${APPDIR} (--appdir-only, no AppImage created)"
+    exit 0
+fi
 
 shopt -s nullglob
 artifacts=("${OUTPUT_DIR}"/*cudaSDR*.AppImage "${OUTPUT_DIR}"/*cudasdr*.AppImage)

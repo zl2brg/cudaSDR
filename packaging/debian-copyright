@@ -1,0 +1,24 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: cudaSDR
+Upstream-Contact: Simon Eatough <simon.eatough@gmail.com>
+Source: https://github.com/zl2brg/cudaSDR
+
+Files: *
+Copyright: 2010-2012 Hermann von Hasseln, DL3HVH and contributors
+           Simon Eatough, ZL2BRG and contributors
+License: LGPL-2
+ On Debian systems the full text of the GNU Library General Public License
+ version 2 is in /usr/share/common-licenses/LGPL-2.
+
+Files: wdsp-2.00/*
+Copyright: Warren Pratt, NR0V
+License: GPL-2
+ On Debian systems the full text of the GNU General Public License version 2
+ is in /usr/share/common-licenses/GPL-2.
+
+Files: opt/cudasdr/lib/libQt6* opt/cudasdr/plugins/*
+Copyright: The Qt Company Ltd. and other contributors
+License: LGPL-3
+ Qt 6 is bundled unmodified under the GNU Lesser General Public License
+ version 3. On Debian systems the full text is in
+ /usr/share/common-licenses/LGPL-3.

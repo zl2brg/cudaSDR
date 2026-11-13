@@ -1,4 +1,4 @@
-name: AppImage
+name: Linux packages (AppImage + deb)
 
 on:
   workflow_dispatch:
@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   appimage:
-    name: Build AppImage (Ubuntu 24.04 container)
+    name: Build AppImage and .deb (Ubuntu 24.04 container)
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -39,7 +39,7 @@ jobs:
           cache-from: type=gha,scope=cudasdr-ci-24.04
           cache-to: type=gha,mode=max,scope=cudasdr-ci-24.04
 
-      - name: Build AppImage in container
+      - name: Build AppImage and .deb in container
         env:
           GH_TOKEN: ${{ secrets.GH_PAT || github.token }}
           GITHUB_TOKEN: ${{ secrets.GH_PAT || github.token }}
@@ -52,6 +52,7 @@ jobs:
             -e BUILD_DIR=build-ci \
             -e OUTPUT_DIR=/out \
             -e APPIMAGE_EXTRACT_AND_RUN=1 \
+            -e BUILD_DEB=1 \
             -e GH_TOKEN \
             -e GITHUB_TOKEN \
             -v "$PWD:/src:rw" \
@@ -59,7 +60,23 @@ jobs:
             -w /src \
             cudasdr-ci:24.04 \
             ./scripts/ci_appimage.sh
-          ls -lh out/*.AppImage
+          ls -lh out/*.AppImage out/*.deb
+
+      - name: Smoke-test .deb in a clean Ubuntu 24.04 container
+        run: |
+          set -euo pipefail
+          docker run --rm -v "$PWD/out:/out:ro" ubuntu:24.04 bash -c '
+            set -euo pipefail
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update -qq
+            apt-get install -y -qq /out/*.deb >/dev/null
+            missing="$(ldd /opt/cudasdr/bin/cudasdr | grep "not found" || true)"
+            if [ -n "$missing" ]; then echo "$missing"; exit 1; fi
+            for p in /opt/cudasdr/plugins/platforms/*.so; do
+              if ldd "$p" | grep "not found"; then exit 1; fi
+            done
+            dpkg -s cudasdr | sed -n "/^Version/p;/^Depends/p"
+          '
 
       - name: Upload AppImage artifact
         uses: actions/upload-artifact@v4
@@ -68,8 +85,15 @@ jobs:
           path: out/*.AppImage
           if-no-files-found: error
 
-      - name: Attach AppImage to GitHub Release
-        # Keep this from failing the job: the AppImage artifact is already uploaded.
+      - name: Upload .deb artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cudasdr-deb-amd64
+          path: out/*.deb
+          if-no-files-found: error
+
+      - name: Attach packages to GitHub Release
+        # Keep this from failing the job: the artifacts are already uploaded.
         continue-on-error: true
         if: startsWith(github.ref, 'refs/tags/')
         env:
@@ -82,5 +106,5 @@ jobs:
               --title "${GITHUB_REF_NAME}" \
               --generate-notes
           fi
-          gh release upload "${GITHUB_REF_NAME}" out/*.AppImage --clobber
-          echo "Attached AppImage to release ${GITHUB_REF_NAME}"
+          gh release upload "${GITHUB_REF_NAME}" out/*.AppImage out/*.deb --clobber
+          echo "Attached AppImage and .deb to release ${GITHUB_REF_NAME}"
