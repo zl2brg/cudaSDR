@@ -44,6 +44,12 @@ out-deb/
 *.AppImage
 *.deb
 
+# Local scratch output
+.tmp_screencast_frames*/
+/output/
+/output.pdf
+/Screenshot_*.png
+
 # BFG report directory
 ..bfg-report/
 
