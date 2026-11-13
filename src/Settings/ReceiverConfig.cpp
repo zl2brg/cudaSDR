@@ -141,7 +141,7 @@ void ReceiverConfig::setFilterSlope(int slope) {
 
 void ReceiverConfig::setPanMode(PanGraphicsMode mode)
 {
-    if (mode < Line || mode > Solid)
+    if (mode < Line || mode > Palette)
         mode = Line;
     m_panMode = mode;
 }
@@ -172,6 +172,11 @@ void ReceiverConfig::setFftSize(int size)
     m_fftSize = SettingsUtils::clampIntRange(size, 0, 7, 1);
 }
 
+void ReceiverConfig::setFmsqLevel(int level)
+{
+    m_fmsqLevel = qBound(0, level, 100);
+}
+
 void ReceiverConfig::setFramesPerSecond(int fps)
 {
     m_framesPerSecond = SettingsUtils::clampIntRange(fps, 0, 200, 25);
@@ -186,12 +191,12 @@ void ReceiverConfig::setAveragingCnt(int count)
 
 void ReceiverConfig::setWaterfallOffsetLo(int offset)
 {
-    m_waterfallOffsetLo = SettingsUtils::clampIntRange(offset, -50, 50, -5);
+    m_waterfallOffsetLo = qBound(-200, offset, 200);
 }
 
 void ReceiverConfig::setWaterfallOffsetHi(int offset)
 {
-    m_waterfallOffsetHi = SettingsUtils::clampIntRange(offset, -50, 50, 20);
+    m_waterfallOffsetHi = qBound(-200, offset, 200);
 }
 
 void ReceiverConfig::setFilterIndex(int index)
@@ -354,6 +359,7 @@ void ReceiverConfig::applyTo(TReceiver &rx) const {
     rx.panAvMode = m_panAvMode;
     rx.panDetMode = m_panDetMode;
     rx.fftsize = m_fftSize;
+    rx.fmsqLevel = m_fmsqLevel;
     rx.framesPerSecond = m_framesPerSecond;
     rx.averagingCnt = m_averagingCnt;
     rx.waterfallOffsetLo = m_waterfallOffsetLo;
@@ -428,6 +434,7 @@ void ReceiverConfig::fromReceiver(const TReceiver &rx) {
     setPanAvMode(rx.panAvMode);
     setPanDetMode(rx.panDetMode);
     setFftSize(rx.fftsize);
+    setFmsqLevel(rx.fmsqLevel);
     setFramesPerSecond(rx.framesPerSecond);
     setAveragingCnt(rx.averagingCnt);
     setWaterfallOffsetLo(rx.waterfallOffsetLo);
@@ -521,6 +528,8 @@ void ReceiverConfig::load(const QJsonObject &json) {
         setPanDetMode(static_cast<PanDetectorMode>(json.value(QLatin1String("panDetMode")).toInt()));
     if (json.contains(QLatin1String("fftSize")))
         setFftSize(json.value(QLatin1String("fftSize")).toInt());
+    if (json.contains(QLatin1String("fmsqLevel")))
+        setFmsqLevel(json.value(QLatin1String("fmsqLevel")).toInt());
     if (json.contains(QLatin1String("framesPerSecond")))
         setFramesPerSecond(json.value(QLatin1String("framesPerSecond")).toInt());
     if (json.contains(QLatin1String("averagingCnt")))
@@ -667,6 +676,7 @@ void ReceiverConfig::save(QJsonObject &json) const {
     json[QLatin1String("panAvMode")] = static_cast<int>(m_panAvMode);
     json[QLatin1String("panDetMode")] = static_cast<int>(m_panDetMode);
     json[QLatin1String("fftSize")] = m_fftSize;
+    json[QLatin1String("fmsqLevel")] = m_fmsqLevel;
     json[QLatin1String("framesPerSecond")] = m_framesPerSecond;
     json[QLatin1String("averagingCnt")] = m_averagingCnt;
     json[QLatin1String("waterfallOffsetLo")] = m_waterfallOffsetLo;

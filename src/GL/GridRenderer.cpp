@@ -108,7 +108,7 @@ void GridRenderer::drawPanVerticalScale() {
     glEnable(GL_BLEND);
 
     const bool regenDBmScale = !m_dBmScaleFBO || m_panel->m_dBmScalePanadapterRenew
-                               || (m_panel->m_dBmScalePanadapterUpdate && !m_panel->m_dragDBmScale);
+                               || m_panel->m_dBmScalePanadapterUpdate;
 
     const qreal dpr = m_panel->devicePixelRatioF();
     const int devWidth = qMax(1, int(qRound(width * dpr)));
@@ -131,21 +131,12 @@ void GridRenderer::drawPanVerticalScale() {
         m_dBmScaleFBO->release();
         QOpenGLFramebufferObject::bindDefault();
 
-        if (!m_panel->m_dragDBmScale)
-            m_panel->m_dBmScalePanadapterUpdate = false;
+        m_panel->m_dBmScalePanadapterUpdate = false;
         m_panel->m_dBmScalePanadapterRenew = false;
         glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
     }
 
     m_panel->drawCachedTexture(m_panel->m_dBmScalePanRect, m_dBmScaleFBO->texture(), 0.0f);
-
-    if (m_panel->m_dragDBmScale && m_panel->m_overlayRenderer && m_dBmScaleFBO) {
-        QMatrix4x4 projection;
-        projection.ortho(0, m_panel->size().width(), m_panel->size().height(), 0, -10, 10);
-        const float alpha = (m_panel->m_receiver == m_panel->m_currentReceiver) ? 1.0f : 0.8f;
-        m_panel->m_overlayRenderer->drawDBmScaleTicks(projection, m_panel->m_dBmScalePanRect, m_panel->m_dBmScale,
-                                            m_panel->m_redGrid, m_panel->m_greenGrid, m_panel->m_blueGrid, alpha);
-    }
 }
 
 void GridRenderer::renderPanVerticalScale() {

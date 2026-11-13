@@ -253,7 +253,6 @@ private:
 	float		m_freqScalePosition;
 	float		m_freqScaleZoomFactor;
 
-	qreal		m_dBmPanDelta;
 	qreal		m_dBmScaleOffset;
 	qreal		m_panScale;
 	qreal		m_scaleMultOld;

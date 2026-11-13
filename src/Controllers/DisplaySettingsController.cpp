@@ -51,7 +51,7 @@ void DisplaySettingsController::bind(DisplayTabWidget* container, RadioModel* ra
             m_displayView->setPanAveragingMode(slice ? slice->panAveragingMode() : m_model->getPanAveragingMode(rx));
             m_displayView->setPanDetectorMode(slice ? slice->panDetectorMode() : m_model->getPanDetectorMode(rx));
             m_displayView->setfftSize(slice ? slice->fftSize() : m_model->getfftSize(rx));
-            m_displayView->setfmsqLevel(80); // default placeholder as Settings has no getter for this stub
+            m_displayView->setfmsqLevel(m_model->getfmsqLevel(rx));
         };
 
         // Load initial receiver values (rx = 0 by default)

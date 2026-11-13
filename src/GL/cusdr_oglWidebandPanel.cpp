@@ -719,8 +719,7 @@ void QGLWidebandPanel::drawVerticalScale() {
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glEnable(GL_BLEND);
 
-	const bool regenDBmScale = !m_dBmScaleFBO || m_dBmScaleRenew
-	                           || (m_dBmScaleUpdate && !m_dragDBmScale);
+	const bool regenDBmScale = !m_dBmScaleFBO || m_dBmScaleRenew || m_dBmScaleUpdate;
 
     const qreal dpr = devicePixelRatioF();
     const int devWidth = qMax(1, int(qRound(width * dpr)));
@@ -746,19 +745,11 @@ void QGLWidebandPanel::drawVerticalScale() {
 
         glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
 
-		if (!m_dragDBmScale)
-			m_dBmScaleUpdate = false;
+		m_dBmScaleUpdate = false;
 		m_dBmScaleRenew = false;
 	}
 
 	drawCachedTexture(m_dBmScaleRect, m_dBmScaleFBO ? m_dBmScaleFBO->texture() : 0, 0.0f);
-
-	if (m_dragDBmScale && m_overlayRenderer && m_dBmScaleFBO) {
-		QMatrix4x4 projection;
-		projection.ortho(0, size().width(), size().height(), 0, -10, 10);
-		m_overlayRenderer->drawDBmScaleTicks(projection, m_dBmScaleRect, m_dBmScale,
-		                                     m_redGrid, m_greenGrid, m_blueGrid, 1.0f);
-	}
 }
 
 void QGLWidebandPanel::drawHorizontalScale() {
@@ -1456,20 +1447,8 @@ void QGLWidebandPanel::mouseMoveEvent(QMouseEvent* event) {
 			}
 			else if (event->buttons() == Qt::RightButton) {
 				QPoint dPos = m_mouseDownPos - pos;
-				if (dPos.y() > 0)
-					m_dBmPanDelta = 1.0;
-				else if (dPos.y() < 0)
-					m_dBmPanDelta = -1.0f;
-				
-				m_dBmPanMax -= m_dBmPanDelta;
-
-				if (qAbs(m_dBmPanMax - m_dBmPanMin) < 10) {
-
-					m_dBmPanMin -= m_dBmPanDelta;
-					m_dBmPanMax += m_dBmPanDelta;
-				}
-				if (m_dBmPanMin < MINDBM) m_dBmPanMin = MINDBM;
-				if (m_dBmPanMax > MAXDBM) m_dBmPanMax = MAXDBM;
+				const qreal step = 0.5 * dPos.y();
+				m_dBmPanMax = qMin<qreal>(MAXDBM, qMax(m_dBmPanMin + 10.0, m_dBmPanMax - step));
 
 				set->setWidebanddBmScaleMin(m_dBmPanMin);
 				set->setWidebanddBmScaleMax(m_dBmPanMax);

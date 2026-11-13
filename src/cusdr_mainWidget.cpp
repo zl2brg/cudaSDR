@@ -106,7 +106,7 @@ MainWindow::MainWindow(RadioModel *model, Settings* settingsModel, QWidget *pare
 
 	// Window size now; dock layout is restored in setup() after the docks exist.
 	m_windowsSettingsFilename = "windowsSettings.ini";
-	QSettings settings(QCoreApplication::applicationDirPath() +  "/" + m_windowsSettingsFilename, QSettings::IniFormat);
+	QSettings settings(Settings::configFilePath(m_windowsSettingsFilename), QSettings::IniFormat);
 	restoreGeometry(settings.value("geometry").toByteArray());
 
 	// Dock windows options
@@ -653,7 +653,7 @@ void MainWindow::setupLayout() {
 
 void MainWindow::saveWindowLayout()
 {
-	QSettings settings(QCoreApplication::applicationDirPath() + "/" + m_windowsSettingsFilename, QSettings::IniFormat);
+	QSettings settings(Settings::configFilePath(m_windowsSettingsFilename), QSettings::IniFormat);
 	settings.setValue(QStringLiteral("geometry"), saveGeometry());
 	settings.setValue(QStringLiteral("windowState"), saveState());
 	if (centralwidget)
@@ -662,7 +662,7 @@ void MainWindow::saveWindowLayout()
 
 void MainWindow::restoreWindowLayout()
 {
-	QSettings settings(QCoreApplication::applicationDirPath() + "/" + m_windowsSettingsFilename, QSettings::IniFormat);
+	QSettings settings(Settings::configFilePath(m_windowsSettingsFilename), QSettings::IniFormat);
 	const QByteArray geometry = settings.value(QStringLiteral("geometry")).toByteArray();
 	if (!geometry.isEmpty())
 		restoreGeometry(geometry);

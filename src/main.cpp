@@ -267,8 +267,8 @@ int main(int argc, char *argv[]) {
     // NOTE: Replaced QThread::msleep() with the modern static QThread::msleep()
     QThread::msleep(500);
 
-    Settings::instance()->setSettingsFilename(QCoreApplication::applicationDirPath() +
-                                              "/" + Settings::instance()->getSettingsFilename());
+    Settings::instance()->setSettingsFilename(
+        Settings::configFilePath(Settings::instance()->getSettingsFilename()));
 
     Settings::instance()->setSettingsLoaded(Settings::instance()->loadPersistentSettings() >= 0);
 

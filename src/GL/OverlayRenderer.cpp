@@ -218,43 +218,6 @@ void OverlayRenderer::drawFrequencyScaleTicks(const QMatrix4x4& projection,
     endOverlayLines(this);
 }
 
-void OverlayRenderer::drawDBmScaleTicks(const QMatrix4x4& projection,
-                                        const QRect& dBmScalePanRect,
-                                        const TScale& dBmScale,
-                                        float r, float g, float b, float alpha) {
-    if (!m_shader || !m_shader->isLinked()) return;
-    if (dBmScalePanRect.isEmpty()) return;
-
-    const float x1 = float(dBmScalePanRect.right() - 4);
-    const float x2 = float(dBmScalePanRect.right());
-
-    beginOverlayLines(this);
-    m_shader->bind();
-    m_shader->setUniformValue("matrix", projection);
-    m_vao.bind();
-    m_vbo.bind();
-
-    QList<VertexData> tickData;
-    tickData.reserve(dBmScale.mainPointPositions.length() * 2);
-
-    for (int i = 0; i < dBmScale.mainPointPositions.length(); i++) {
-        const float y = float(dBmScalePanRect.top() + dBmScale.mainPointPositions.at(i));
-        tickData.append({ x1, y, 2.0f, r, g, b, alpha });
-        tickData.append({ x2, y, 2.0f, r, g, b, alpha });
-    }
-
-    if (!tickData.isEmpty()) {
-        m_vbo.allocate(tickData.data(), tickData.size() * (int)sizeof(VertexData));
-        m_shader->setAttributeBuffer(0, GL_FLOAT, 0, 3, sizeof(float) * 7);
-        m_shader->setAttributeBuffer(1, GL_FLOAT, sizeof(float) * 3, 4, sizeof(float) * 7);
-        glDrawArrays(GL_LINES, 0, tickData.size());
-    }
-
-    m_vao.release();
-    m_shader->release();
-    endOverlayLines(this);
-}
-
 void OverlayRenderer::drawCenterLine(const QMatrix4x4& projection,
                                      const QRect& panRect,
                                      const QRect& freqScalePanRect,

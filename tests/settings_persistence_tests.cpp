@@ -83,6 +83,7 @@ private slots:
     void loadCorruptedAndClampedValues();
     void loadAndSaveAllConfigModules();
     void savePersistsDBmPanScaleWithSliceModel();
+    void savePersistsDisplayAveragingAndDroppedSettings();
     void saveDoesNotWriteConflictingDuplicateIniKeys();
     void loadPersistentSettingsMigratesIniToJson();
     void loadPersistentSettingsPrefersJsonOverIni();
@@ -403,6 +404,80 @@ void SettingsPersistenceTests::savePersistsDBmPanScaleWithSliceModel()
 
     QCOMPARE(m_settings->getdBmPanScaleMin(0, (HamBand)m40), -95.5);
     QCOMPARE(m_settings->getdBmPanScaleMax(0, (HamBand)m40), 5.0);
+}
+
+void SettingsPersistenceTests::savePersistsDisplayAveragingAndDroppedSettings()
+{
+    writeSeedIni();
+    QVERIFY(m_settings->loadSettings() >= 0);
+
+    RadioModel *radio = new RadioModel(m_settings);
+    SliceModel *slice = new SliceModel(0, radio);
+    radio->addSlice(slice);
+    m_settings->setRadioModel(radio);
+    m_settings->syncSlicesWithSettings();
+    m_settings->setCurrentReceiver(0);
+
+    m_settings->setSpectrumAveragingCnt(0, 147);
+    m_settings->setPanAveragingMode(0, AV_MODE_LOG_RECURSIVE);
+    m_settings->setPanDetectorMode(0, DET_MODE_SAMPLE);
+    m_settings->setfmsqLevel(0, 42);
+    m_settings->setGraphicsState(0, Palette, Enhanced);
+    m_settings->setWaterfallOffesetLo(0, 80);
+    m_settings->setWaterfallOffesetHi(0, -80);
+    m_settings->setAGCAttackTime(1, 0.125);
+    m_settings->setAGCDecayTime(1, 0.5);
+    m_settings->setAGCHangTime(1, 0.25);
+    m_settings->setGraphicsState(-1, Palette, Simple);
+
+    QCOMPARE(slice->spectrumAveragingCnt(), 147);
+    QCOMPARE(slice->panAveragingMode(), AV_MODE_LOG_RECURSIVE);
+    QCOMPARE(slice->panDetectorMode(), DET_MODE_SAMPLE);
+    QCOMPARE(slice->panMode(), Palette);
+    QCOMPARE(slice->waterfallOffsetLo(), 80);
+    QCOMPARE(slice->waterfallOffsetHi(), -80);
+    QCOMPARE(m_settings->getSpectrumAveragingCnt(0), 147);
+    QCOMPARE(m_settings->getPanAveragingMode(0), AV_MODE_LOG_RECURSIVE);
+    QCOMPARE(m_settings->getPanDetectorMode(0), DET_MODE_SAMPLE);
+    QCOMPARE(m_settings->getfmsqLevel(0), 42);
+    QCOMPARE(m_settings->getWidebandOptions().panMode, Palette);
+
+    QVERIFY(m_settings->saveSettings() >= 0);
+
+    QSettings saved(m_iniPath, QSettings::IniFormat);
+    QCOMPARE(saved.value(QStringLiteral("receiver0/averagingCnt")).toInt(), 147);
+    QCOMPARE(saved.value(QStringLiteral("receiver0/PanAverageMode")).toInt(),
+             static_cast<int>(AV_MODE_LOG_RECURSIVE));
+    QCOMPARE(saved.value(QStringLiteral("receiver0/PanDetectorMode")).toInt(),
+             static_cast<int>(DET_MODE_SAMPLE));
+    QCOMPARE(saved.value(QStringLiteral("receiver0/fmsqLevel")).toInt(), 42);
+    QCOMPARE(saved.value(QStringLiteral("receiver0/panMode")).toString(), QStringLiteral("PALETTE"));
+    QCOMPARE(saved.value(QStringLiteral("receiver0/waterfallOffsetLo")).toInt(), 80);
+    QCOMPARE(saved.value(QStringLiteral("receiver0/waterfallOffsetHi")).toInt(), -80);
+    QCOMPARE(saved.value(QStringLiteral("receiver1/agcAttacktime")).toInt(), 125);
+    QCOMPARE(saved.value(QStringLiteral("receiver1/agcDecaytime")).toInt(), 500);
+    QCOMPARE(saved.value(QStringLiteral("receiver1/agcHangTime")).toInt(), 250);
+    QCOMPARE(saved.value(QStringLiteral("wideband/panMode")).toString(), QStringLiteral("PALETTE"));
+
+    m_settings->setRadioModel(nullptr);
+    delete radio;
+
+    Settings::delete_instance();
+    m_settings = Settings::instance();
+    m_settings->reopenSettingsStorage(m_iniPath);
+    QVERIFY(m_settings->loadPersistentSettings() >= 0);
+
+    QCOMPARE(m_settings->getSpectrumAveragingCnt(0), 147);
+    QCOMPARE(m_settings->getPanAveragingMode(0), AV_MODE_LOG_RECURSIVE);
+    QCOMPARE(m_settings->getPanDetectorMode(0), DET_MODE_SAMPLE);
+    QCOMPARE(m_settings->getfmsqLevel(0), 42);
+    QCOMPARE(m_settings->getPanadapterMode(0), Palette);
+    QCOMPARE(m_settings->getWaterfallOffsetLo(0), 80);
+    QCOMPARE(m_settings->getWaterfallOffsetHi(0), -80);
+    QCOMPARE(m_settings->getAGCAttackTime(1), 0.125);
+    QCOMPARE(m_settings->getAGCDecayTime(1), 0.5);
+    QCOMPARE(m_settings->getAGCHangTime(1), 0.25);
+    QCOMPARE(m_settings->getWidebandOptions().panMode, Palette);
 }
 
 void SettingsPersistenceTests::saveDoesNotWriteConflictingDuplicateIniKeys()

@@ -35,11 +35,6 @@ public:
                                  float zoomFactor,
                                  float r, float g, float b, float alpha);
 
-    void drawDBmScaleTicks(const QMatrix4x4& projection,
-                           const QRect& dBmScalePanRect,
-                           const TScale& dBmScale,
-                           float r, float g, float b, float alpha);
-
     void drawCenterLine(const QMatrix4x4& projection,
                         const QRect& panRect,
                         const QRect& freqScalePanRect,

@@ -195,6 +195,30 @@ void PanadapterInputController::calculateDbmScaleDrag(
     }
 }
 
+void PanadapterInputController::calculateDbmScaleZoom(
+    int deltaY,
+    bool symmetric,
+    qreal initialMin,
+    qreal initialMax,
+    qreal &outMin,
+    qreal &outMax)
+{
+    constexpr qreal kDbPerPixel = 0.5;
+    constexpr qreal kMinSpan = 10.0;
+
+    qreal step = kDbPerPixel * static_cast<qreal>(deltaY);
+    const qreal span = initialMax - initialMin;
+
+    if (symmetric) {
+        step = qMin(step, qMax<qreal>(0.0, (span - kMinSpan) / 2.0));
+        outMin = qMax<qreal>(MINDBM, initialMin + step);
+        outMax = qMin<qreal>(MAXDBM, initialMax - step);
+    } else {
+        outMin = initialMin;
+        outMax = qMin<qreal>(MAXDBM, qMax(initialMin + kMinSpan, initialMax - step));
+    }
+}
+
 void PanadapterInputController::getRegion(const QPoint &p) {
     if (!m_panel) return;
 
@@ -528,6 +552,10 @@ void PanadapterInputController::handleMouseRelease(QMouseEvent *event) {
         m_panel->m_dragFreqScale = false;
         m_panel->m_dragFreqScaleZoom = false;
         m_panel->m_freqScalePanadapterUpdate = true;
+        if (m_panel->m_dragDBmScale) {
+            m_panel->m_dragDBmScale = false;
+            m_panel->m_dBmScalePanadapterUpdate = true;
+        }
         if (m_panel->m_crossHair) {
             if (m_panel->cursor().shape() != Qt::BlankCursor)
                 m_panel->setCursor(Qt::BlankCursor);
@@ -538,7 +566,7 @@ void PanadapterInputController::handleMouseRelease(QMouseEvent *event) {
         return;
     }
 
-    const bool wasDragging = m_panel->m_dragMouse || m_panel->m_highlightFilter
+    const bool wasDragging = m_panel->m_dragMouse || m_panel->m_dragDBmScale || m_panel->m_highlightFilter
                              || m_panel->m_showFilterLeftBoundary || m_panel->m_showFilterRightBoundary;
     m_panel->m_dragMouse = false;
     m_panel->m_dragDBmScale = false;
@@ -882,51 +910,32 @@ void PanadapterInputController::handleMouseMove(QMouseEvent* event) {
 
                 m_panel->m_mouseDownPos = m_panel->m_mousePos;
                 m_panel->m_dBmScalePanadapterUpdate = true;
-            }
-            else if (event->buttons() == Qt::RightButton && event->modifiers() == Qt::ControlModifier) {
-                m_panel->m_dragDBmScale = true;
-                QPoint dPos = m_panel->m_mouseDownPos - m_panel->m_mousePos;
-                if (dPos.y() > 0)
-                    m_panel->m_dBmPanDelta = 0.5f;
-                else if (dPos.y() < 0)
-                    m_panel->m_dBmPanDelta = -0.5f;
-
-                m_panel->m_dBmPanMin += m_panel->m_dBmPanDelta;
-                m_panel->m_dBmPanMax -= m_panel->m_dBmPanDelta;
-
-                if (qAbs(m_panel->m_dBmPanMax - m_panel->m_dBmPanMin) < 10) {
-                    m_panel->m_dBmPanMin -= m_panel->m_dBmPanDelta;
-                    m_panel->m_dBmPanMax += m_panel->m_dBmPanDelta;
-                }
-                if (m_panel->m_dBmPanMin < MINDBM) m_panel->m_dBmPanMin = MINDBM;
-                if (m_panel->m_dBmPanMax > MAXDBM) m_panel->m_dBmPanMax = MAXDBM;
-
-                m_panel->set->setdBmPanScaleMin(m_panel->m_receiver, m_panel->m_dBmPanMin);
-                m_panel->set->setdBmPanScaleMax(m_panel->m_receiver, m_panel->m_dBmPanMax);
-                m_panel->m_mouseDownPos = m_panel->m_mousePos;
-                m_panel->m_dBmScalePanadapterUpdate = true;
+                m_panel->recomputeDisplayBinsFromCache();
+                m_panel->update();
             }
             else if (event->buttons() == Qt::RightButton) {
                 m_panel->m_dragDBmScale = true;
-                QPoint dPos = m_panel->m_mouseDownPos - m_panel->m_mousePos;
-                if (dPos.y() > 0)
-                    m_panel->m_dBmPanDelta = 0.5f;
-                else if (dPos.y() < 0)
-                    m_panel->m_dBmPanDelta = -0.5f;
-
-                m_panel->m_dBmPanMax -= m_panel->m_dBmPanDelta;
-
-                if (qAbs(m_panel->m_dBmPanMax - m_panel->m_dBmPanMin) < 10) {
-                    m_panel->m_dBmPanMin -= m_panel->m_dBmPanDelta;
-                    m_panel->m_dBmPanMax += m_panel->m_dBmPanDelta;
-                }
-                if (m_panel->m_dBmPanMin < MINDBM) m_panel->m_dBmPanMin = MINDBM;
-                if (m_panel->m_dBmPanMax > MAXDBM) m_panel->m_dBmPanMax = MAXDBM;
-
+                const QPoint dPos = m_panel->m_mouseDownPos - m_panel->m_mousePos;
+                const qreal oldMin = m_panel->m_dBmPanMin;
+                qreal newMin = oldMin;
+                qreal newMax = m_panel->m_dBmPanMax;
+                calculateDbmScaleZoom(
+                    dPos.y(),
+                    event->modifiers() == Qt::ControlModifier,
+                    m_panel->m_dBmPanMin,
+                    m_panel->m_dBmPanMax,
+                    newMin,
+                    newMax);
+                m_panel->m_dBmPanMin = newMin;
+                m_panel->m_dBmPanMax = newMax;
                 m_panel->set->setdBmPanScaleMin(m_panel->m_receiver, m_panel->m_dBmPanMin);
                 m_panel->set->setdBmPanScaleMax(m_panel->m_receiver, m_panel->m_dBmPanMax);
+
                 m_panel->m_mouseDownPos = m_panel->m_mousePos;
                 m_panel->m_dBmScalePanadapterUpdate = true;
+                if (newMin != oldMin)
+                    m_panel->recomputeDisplayBinsFromCache();
+                m_panel->update();
             }
             else {
                 m_panel->setCursor(Qt::ArrowCursor);

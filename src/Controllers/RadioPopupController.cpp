@@ -609,6 +609,7 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
             dispView->setPanSMeterSize(m_model->getPanadapterSMeterSize());
             dispView->setCallsign(m_model->getCallsign());
             dispView->setWidebandAveragingCnt(m_model->getSpectrumAveragingCnt(-1));
+            dispView->setfmsqLevel(m_model->getfmsqLevel(rx));
         }
 
         // View -> Model
@@ -617,13 +618,7 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
         });
 
         connect(dispView, &DisplayOptionsWidget::spectrumAveragingCntRequested, this, [this](int r, int val) {
-            if (r == -1) {
-                if (m_model) m_model->setSpectrumAveragingCnt(-1, val);
-            } else if (m_sliceModel && r == m_sliceModel->id()) {
-                m_sliceModel->setSpectrumAveragingCnt(val);
-            } else if (m_model) {
-                m_model->setSpectrumAveragingCnt(r, val);
-            }
+            if (m_model) m_model->setSpectrumAveragingCnt(r, val);
         });
 
         connect(dispView, &DisplayOptionsWidget::waterfallTimeRequested, this, [this](int r, int val) {
@@ -631,19 +626,11 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
         });
 
         connect(dispView, &DisplayOptionsWidget::waterfallOffsetLoRequested, this, [this](int r, int val) {
-            if (m_sliceModel && r == m_sliceModel->id()) {
-                m_sliceModel->setWaterfallOffsetLo(val);
-            } else if (m_model) {
-                m_model->setWaterfallOffesetLo(r, val);
-            }
+            if (m_model) m_model->setWaterfallOffesetLo(r, val);
         });
 
         connect(dispView, &DisplayOptionsWidget::waterfallOffsetHiRequested, this, [this](int r, int val) {
-            if (m_sliceModel && r == m_sliceModel->id()) {
-                m_sliceModel->setWaterfallOffsetHi(val);
-            } else if (m_model) {
-                m_model->setWaterfallOffesetHi(r, val);
-            }
+            if (m_model) m_model->setWaterfallOffesetHi(r, val);
         });
 
         connect(dispView, &DisplayOptionsWidget::sMeterHoldTimeRequested, this, [this](int val) {
@@ -663,36 +650,22 @@ void RadioPopupController::bind(RadioPopupWidget* view, SliceModel* sliceModel, 
         });
 
         connect(dispView, &DisplayOptionsWidget::graphicsStateRequested, this, [this](int r, int panadapterMode, int waterColorMode) {
-            if (r >= 0 && m_sliceModel && r == m_sliceModel->id()) {
-                m_sliceModel->setPanMode(static_cast<PanGraphicsMode>(panadapterMode));
-                m_sliceModel->setWaterfallMode(static_cast<WaterfallColorMode>(waterColorMode));
-            } else if (m_model) {
-                m_model->setGraphicsState(r, static_cast<PanGraphicsMode>(panadapterMode), static_cast<WaterfallColorMode>(waterColorMode));
+            if (m_model) {
+                m_model->setGraphicsState(r, static_cast<PanGraphicsMode>(panadapterMode),
+                                          static_cast<WaterfallColorMode>(waterColorMode));
             }
         });
 
         connect(dispView, &DisplayOptionsWidget::panAveragingModeRequested, this, [this](int r, int mode) {
-            if (m_sliceModel && r == m_sliceModel->id()) {
-                m_sliceModel->setPanAveragingMode(static_cast<PanAveragingMode>(mode));
-            } else if (m_model) {
-                m_model->setPanAveragingMode(r, static_cast<PanAveragingMode>(mode));
-            }
+            if (m_model) m_model->setPanAveragingMode(r, static_cast<PanAveragingMode>(mode));
         });
 
         connect(dispView, &DisplayOptionsWidget::panDetectorModeRequested, this, [this](int r, int mode) {
-            if (m_sliceModel && r == m_sliceModel->id()) {
-                m_sliceModel->setPanDetectorMode(static_cast<PanDetectorMode>(mode));
-            } else if (m_model) {
-                m_model->setPanDetectorMode(r, static_cast<PanDetectorMode>(mode));
-            }
+            if (m_model) m_model->setPanDetectorMode(r, static_cast<PanDetectorMode>(mode));
         });
 
         connect(dispView, &DisplayOptionsWidget::fftSizeRequested, this, [this](int r, int size) {
-            if (m_sliceModel && r == m_sliceModel->id()) {
-                m_sliceModel->setFftSize(size);
-            } else if (m_model) {
-                m_model->setfftSize(r, size);
-            }
+            if (m_model) m_model->setfftSize(r, size);
         });
 
         connect(dispView, &DisplayOptionsWidget::fmsqLevelRequested, this, [this](int r, int val) {

@@ -176,7 +176,7 @@ Settings::Settings(QObject *parent)
         settingsFilename = QFileInfo(overridePath).fileName();
         settings = new QSettings(overridePath, QSettings::IniFormat);
     } else {
-        settings = new QSettings(QCoreApplication::applicationDirPath() + "/" + settingsFilename, QSettings::IniFormat);
+        settings = new QSettings(configFilePath(settingsFilename), QSettings::IniFormat);
     }
     getConfigPath();
     m_titleString = "cudaSDR BETA";
@@ -634,6 +634,8 @@ int Settings::loadSettings() {
             m_receiverDataList[i].panMode = FilledLine;
         else if (str == "SOLID")
             m_receiverDataList[i].panMode = Solid;
+        else if (str == "PALETTE")
+            m_receiverDataList[i].panMode = Palette;
 
         cstr = m_rxStringList.at(i);
         cstr.append("/waterfallMode");
@@ -653,14 +655,12 @@ int Settings::loadSettings() {
         cstr = m_rxStringList.at(i);
         cstr.append("/waterfallOffsetLo");
         value = settings->value(cstr, -5).toInt();
-        if ((value < -50) || (value > 50)) value = -5;
-        m_receiverDataList[i].waterfallOffsetLo = value;
+        m_receiverDataList[i].waterfallOffsetLo = qBound(-200, value, 200);
 
         cstr = m_rxStringList.at(i);
         cstr.append("/waterfallOffsetHi");
         value = settings->value(cstr, 20).toInt();
-        if ((value < -50) || (value > 50)) value = 20;
-        m_receiverDataList[i].waterfallOffsetHi = value;
+        m_receiverDataList[i].waterfallOffsetHi = qBound(-200, value, 200);
 
         cstr = m_rxStringList.at(i);
         cstr.append("/filterHi");
@@ -687,6 +687,11 @@ int Settings::loadSettings() {
         value = settings->value(cstr, 5).toInt();
         if (value < 1)  value = 100;
         m_receiverDataList[i].averagingCnt = value;
+
+        cstr = m_rxStringList.at(i);
+        cstr.append("/fmsqLevel");
+        value = settings->value(cstr, 80).toInt();
+        m_receiverDataList[i].fmsqLevel = qBound(0, value, 100);
 
         cstr = m_rxStringList.at(i);
         cstr.append("/grid");
@@ -1473,6 +1478,8 @@ int Settings::saveSettings() {
             settings->setValue(str, "FILLEDLINE");
         else if (m_receiverDataList[i].panMode == Solid)
             settings->setValue(str, "SOLID");
+        else if (m_receiverDataList[i].panMode == Palette)
+            settings->setValue(str, "PALETTE");
 
         str = m_rxStringList.at(i);
         str.append("/waterfallMode");
@@ -1517,6 +1524,10 @@ int Settings::saveSettings() {
         str = m_rxStringList.at(i);
         str.append("/averagingCnt");
         settings->setValue(str, m_receiverDataList[i].averagingCnt);
+
+        str = m_rxStringList.at(i);
+        str.append("/fmsqLevel");
+        settings->setValue(str, m_receiverDataList[i].fmsqLevel);
 
         str = m_rxStringList.at(i);
         str.append("/grid");
@@ -1722,7 +1733,36 @@ QString Settings::defaultJsonConfigPath() const
         QFileInfo fi(settings->fileName());
         return fi.absolutePath() + "/" + fi.completeBaseName() + ".json";
     }
-    return QCoreApplication::applicationDirPath() + "/settings.json";
+    return configFilePath(QStringLiteral("settings.json"));
+}
+
+QString Settings::configFilePath(const QString &name)
+{
+    static const QString dir = [] {
+        const QString exeDir = QCoreApplication::applicationDirPath();
+        if (QFileInfo(exeDir).isWritable() && QFileInfo::exists(exeDir + QStringLiteral("/settings.ini")))
+            return exeDir;
+
+        const QString homeDir = QStandardPaths::writableLocation(QStandardPaths::HomeLocation)
+                                + QStringLiteral("/.cudaSDR");
+        QDir().mkpath(homeDir);
+        for (const QString &file : {QStringLiteral("settings.ini"),
+                                    QStringLiteral("settings.json"),
+                                    QStringLiteral("windowsSettings.ini")}) {
+            const QString src = exeDir + QLatin1Char('/') + file;
+            const QString dst = homeDir + QLatin1Char('/') + file;
+            if (QFileInfo::exists(src) && !QFileInfo::exists(dst)) {
+                // QFile::copy keeps the source mode, which is read-only on packaged installs.
+                if (QFile::copy(src, dst))
+                    QFile::setPermissions(dst, QFile::ReadOwner | QFile::WriteOwner
+                                                   | QFile::ReadGroup | QFile::ReadOther);
+                else
+                    qWarning() << "Could not copy" << src << "to" << dst;
+            }
+        }
+        return homeDir;
+    }();
+    return dir + QLatin1Char('/') + name;
 }
 
 QJsonObject Settings::toJson() const
@@ -2360,10 +2400,6 @@ void Settings::setGraphicsState(
     if (SliceModel* slice = sliceModel(rx)) {
         slice->setPanMode(panMode);
         slice->setWaterfallMode(waterfallColorMode);
-        QMutexLocker locker(&settingsMutex);
-        m_receiverDataList[rx].panMode = panMode;
-        m_receiverDataList[rx].waterfallMode = waterfallColorMode;
-        return;
     }
 
     QMutexLocker locker(&settingsMutex);
@@ -2374,8 +2410,11 @@ void Settings::setGraphicsState(
     } else if (rx >= 0 && rx < m_receiverDataList.size()) {
         m_receiverDataList[rx].panMode = panMode;
         m_receiverDataList[rx].waterfallMode = waterfallColorMode;
+    } else {
+        return;
     }
 
+    locker.unlock();
     emit graphicModeChanged(rx, panMode, waterfallColorMode);
 }
 
@@ -4020,8 +4059,7 @@ void Settings::setAGCVariableGain_dB(int rx, qreal value) {
 
 void Settings::setAGCAttackTime(int rx, qreal value) {
 
-    if (m_currentReceiver != rx) return;
-
+    if (rx < 0 || rx >= m_receiverDataList.size()) return;
     if (m_receiverDataList[rx].agcAttackTime == value) return;
     m_receiverDataList[rx].agcAttackTime = value;
 
@@ -4031,8 +4069,7 @@ void Settings::setAGCAttackTime(int rx, qreal value) {
 
 void Settings::setAGCDecayTime(int rx, qreal value) {
 
-    if (m_currentReceiver != rx) return;
-
+    if (rx < 0 || rx >= m_receiverDataList.size()) return;
     if (m_receiverDataList[rx].agcDecayTime == value) return;
     m_receiverDataList[rx].agcDecayTime = value;
 
@@ -4042,8 +4079,7 @@ void Settings::setAGCDecayTime(int rx, qreal value) {
 
 void Settings::setAGCHangTime(int rx, qreal value) {
 
-    if (m_currentReceiver != rx) return;
-
+    if (rx < 0 || rx >= m_receiverDataList.size()) return;
     if (m_receiverDataList[rx].agcHangTime == value) return;
     m_receiverDataList[rx].agcHangTime = value;
 
@@ -4508,20 +4544,17 @@ int Settings::getSpectrumAveragingCnt(int rx) {
 }
 
 void Settings::setSpectrumAveragingCnt(int rx, int value) {
-    if (SliceModel* slice = sliceModel(rx)) {
+    if (SliceModel* slice = sliceModel(rx))
         slice->setSpectrumAveragingCnt(value);
-        return;
-    }
 
- //   QMutexLocker locker(&settingsMutex);
-
-    //if (m_specAveragingCnt == value) return
     if (rx == -1) {
         m_widebandOptions.averagingCnt = value;
         m_widebandConfig->setAveragingCnt(value);
-    } else if (rx >= 0 && rx < m_receiverDataList.size())
+    } else if (rx >= 0 && rx < m_receiverDataList.size()) {
         m_receiverDataList[rx].averagingCnt = value;
-    qDebug() << "spec av" << value;
+    } else {
+        return;
+    }
     emit spectrumAveragingCntChanged(rx, value);
 }
 
@@ -4627,12 +4660,9 @@ void Settings::setWaterfallTime(int rx, int value) {
 }
 
 void Settings::setWaterfallOffesetLo(int rx, int value) {
-    if (SliceModel* slice = sliceModel(rx)) {
+    value = qBound(-200, value, 200);
+    if (SliceModel* slice = sliceModel(rx))
         slice->setWaterfallOffsetLo(value);
-        return;
-    }
-
-    QMutexLocker locker(&settingsMutex);
 
     if (rx < 0 || rx >= m_receiverDataList.size()) return;
     if (m_receiverDataList[rx].waterfallOffsetLo == value) return;
@@ -4642,12 +4672,9 @@ void Settings::setWaterfallOffesetLo(int rx, int value) {
 }
 
 void Settings::setWaterfallOffesetHi(int rx, int value) {
-    if (SliceModel* slice = sliceModel(rx)) {
+    value = qBound(-200, value, 200);
+    if (SliceModel* slice = sliceModel(rx))
         slice->setWaterfallOffsetHi(value);
-        return;
-    }
-
-    QMutexLocker locker(&settingsMutex);
 
     if (rx < 0 || rx >= m_receiverDataList.size()) return;
     if (m_receiverDataList[rx].waterfallOffsetHi == value) return;
@@ -4720,12 +4747,8 @@ void Settings::setdBmDistScaleMax(qreal value) {
 // **********************************************************************
 
 void Settings::setPanAveragingMode(int rx, PanAveragingMode mode) {
-    if (SliceModel* slice = sliceModel(rx)) {
+    if (SliceModel* slice = sliceModel(rx))
         slice->setPanAveragingMode(mode);
-        QMutexLocker locker(&settingsMutex);
-        m_receiverDataList[rx].panAvMode = mode;
-        return;
-    }
 
     if (rx < 0 || rx >= m_receiverDataList.size()) return;
     if (m_receiverDataList.at(rx).panAvMode == mode) return;
@@ -4735,16 +4758,11 @@ void Settings::setPanAveragingMode(int rx, PanAveragingMode mode) {
     qDebug() << "Pan average mode set to " << mode;
 
     emit panAveragingModeChanged(rx, mode);
-
 }
 
 void Settings::setPanDetectorMode(int rx, PanDetectorMode mode) {
-    if (SliceModel* slice = sliceModel(rx)) {
+    if (SliceModel* slice = sliceModel(rx))
         slice->setPanDetectorMode(mode);
-        QMutexLocker locker(&settingsMutex);
-        m_receiverDataList[rx].panDetMode = mode;
-        return;
-    }
 
     if (rx < 0 || rx >= m_receiverDataList.size()) return;
     if (m_receiverDataList.at(rx).panDetMode == mode) return;
@@ -4754,7 +4772,7 @@ void Settings::setPanDetectorMode(int rx, PanDetectorMode mode) {
     qDebug() << "Pan detector mode set to " << m_receiverDataList[rx].panDetMode;
 
     emit panDetectorModeChanged(rx, mode);
-};
+}
 
 
 int Settings::getAGCSlope(int rx) {
@@ -4766,10 +4784,9 @@ int Settings::getAGCSlope(int rx) {
 }
 
 void Settings::setfftSize(int rx, int size) {
-    if (SliceModel* slice = sliceModel(rx)) {
+    if (SliceModel* slice = sliceModel(rx))
         slice->setFftSize(size);
-        return;
-    }
+
     if (rx < 0 || rx >= m_receiverDataList.size()) return;
     if (m_receiverDataList[rx].fftsize == size) return;
     m_receiverDataList[rx].fftsize = size;
@@ -4780,11 +4797,17 @@ void Settings::setfftSize(int rx, int size) {
 void Settings::setfmsqLevel(int rx, int level) {
 
     if (rx < 0 || rx >= m_receiverDataList.size()) return;
+    level = qBound(0, level, 100);
     if (m_receiverDataList[rx].fmsqLevel == level) return;
     m_receiverDataList[rx].fmsqLevel = level;
     qDebug() << "fm sq level set to " << level;
     emit fmsqLevelChanged(rx, level);
 
+}
+
+int Settings::getfmsqLevel(int rx) const {
+    if (rx < 0 || rx >= m_receiverDataList.size()) return 80;
+    return m_receiverDataList.at(rx).fmsqLevel;
 }
 
 
@@ -4962,7 +4985,7 @@ void Settings::getConfigPath() {
 
     QDir dir(cfg_dir);
     if (!dir.exists()) {
-        dir.mkpath(".'");
+        dir.mkpath(".");
         qDebug() << "cfg dir does not exist - creating" << cfg_dir;
 
     }

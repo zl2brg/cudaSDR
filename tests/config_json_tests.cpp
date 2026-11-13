@@ -202,6 +202,17 @@ void ConfigJsonTests::testReceiverConfigJson() {
     full.setFftSize(4);
     full.setPanAvMode(AV_MODE_TIME_WINDOW);
     full.setPanDetMode(DET_MODE_AVERAGE);
+    full.setPanMode(static_cast<PanGraphicsMode>(99));
+    QCOMPARE(full.panMode(), Line);
+    full.setPanMode(Palette);
+    full.setWaterfallOffsetLo(250);
+    QCOMPARE(full.waterfallOffsetLo(), 200);
+    full.setWaterfallOffsetLo(80);
+    full.setWaterfallOffsetHi(-80);
+    full.setFmsqLevel(42);
+    full.setAgcAttackTime(0.125);
+    full.setAgcDecayTime(0.5);
+    full.setAgcHangTime(0.25);
     full.setAudioVolume(0.42f);
     full.setFilterLo(-2400);
     full.setFilterHi(-200);
@@ -234,6 +245,13 @@ void ConfigJsonTests::testReceiverConfigJson() {
     QCOMPARE(loaded.fftSize(), 4);
     QCOMPARE(loaded.panAvMode(), AV_MODE_TIME_WINDOW);
     QCOMPARE(loaded.panDetMode(), DET_MODE_AVERAGE);
+    QCOMPARE(loaded.panMode(), Palette);
+    QCOMPARE(loaded.waterfallOffsetLo(), 80);
+    QCOMPARE(loaded.waterfallOffsetHi(), -80);
+    QCOMPARE(loaded.fmsqLevel(), 42);
+    QCOMPARE(loaded.agcAttackTime(), 0.125);
+    QCOMPARE(loaded.agcDecayTime(), 0.5);
+    QCOMPARE(loaded.agcHangTime(), 0.25);
     QCOMPARE(loaded.audioVolume(), 0.42f);
     QCOMPARE(loaded.filterLo(), -2400.0);
     QCOMPARE(loaded.filterHi(), -200.0);
@@ -865,6 +883,15 @@ void ConfigJsonTests::testWidebandConfigJson() {
     QCOMPARE(loaded.dBmScaleMin(), -130.0);
     QCOMPARE(loaded.dBmScaleMax(), -20.0);
     QCOMPARE(loaded.panMode(), FilledLine);
+
+    config.setPanMode(static_cast<PanGraphicsMode>(99));
+    QCOMPARE(config.panMode(), Line);
+    config.setPanMode(Palette);
+    json = QJsonObject();
+    config.save(json);
+    QCOMPARE(json["panMode"].toInt(), static_cast<int>(Palette));
+    loaded.load(json);
+    QCOMPARE(loaded.panMode(), Palette);
 }
 
 void ConfigJsonTests::testPennyConfigJson() {

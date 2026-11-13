@@ -390,7 +390,6 @@ private:
 	qreal		m_freqScaleZoomFactor;
 	qreal		m_dBmPanMin;
 	qreal		m_dBmPanMax;
-	qreal		m_dBmPanDelta;
 	qreal		m_mouseWheelFreqStep;
 	qreal		m_secWaterfallMin;
 	qreal		m_secWaterfallMax;

@@ -5,6 +5,7 @@
 #include <QOpenGLContext>
 #include <QSurfaceFormat>
 #include <QtMath>
+#include <cstring>
 
 #ifndef GL_RED
 #define GL_RED 0x1903
@@ -20,16 +21,6 @@ namespace {
 
 constexpr int kPaletteLutSize = 256;
 constexpr float kEmptyDbm = -1000.0f;
-
-void expandPixelRow(const float* logical, int logicalWidth,
-                    float* devRow, int devWidth, qreal dpr)
-{
-    const qreal ratio = qMax<qreal>(1.0, dpr);
-    for (int x = 0; x < devWidth; ++x) {
-        const int lx = qBound(0, int(qFloor(x / ratio)), logicalWidth - 1);
-        devRow[x] = logical[lx];
-    }
-}
 
 TGL_ubyteRGBA packRgb(int r, int g, int b)
 {
@@ -61,7 +52,6 @@ WaterfallRenderer::WaterfallRenderer()
     , m_headLine(0)
     , m_oldWidth(0)
     , m_oldHeight(0)
-    , m_oldDpr(0.0f)
     , m_updatePending(false)
     , m_hasTexStorage(false)
     , m_glTexStorage2D(nullptr)
@@ -98,7 +88,6 @@ void WaterfallRenderer::release() {
     m_shader = nullptr;
     m_oldWidth = 0;
     m_oldHeight = 0;
-    m_oldDpr = 0.0f;
     m_headLine = 0;
     m_updatePending = true;
     m_lutMode = Simple;
@@ -250,7 +239,6 @@ void WaterfallRenderer::setupTexture(int width, int height) {
     }
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
     m_pboIndex = 0;
-    m_devRow.resize(width);
 
     QVector<float> quiet(width * height, kEmptyDbm);
     allocateTexture2D(GL_R32F, width, height, GL_RED, GL_FLOAT, quiet.constData());
@@ -261,32 +249,27 @@ void WaterfallRenderer::setupTexture(int width, int height) {
     m_updatePending = false;
 }
 
-void WaterfallRenderer::uploadNewRow(const float* logical, int logicalWidth,
-                                     int texWidth, int texHeight, qreal dpr)
+void WaterfallRenderer::uploadNewRow(const float* row, int width, int height)
 {
-    m_headLine = (m_headLine - 1 + texHeight) % texHeight;
+    m_headLine = (m_headLine - 1 + height) % height;
     glBindTexture(GL_TEXTURE_2D, m_textureId);
 
-    const int rowBytes = texWidth * int(sizeof(float));
+    const int rowBytes = width * int(sizeof(float));
     QOpenGLBuffer &pbo = m_pbo[m_pboIndex];
 
     if (pbo.isCreated()) {
         pbo.bind();
-        pbo.allocate(rowBytes);
 
-        auto *mapped = static_cast<float *>(
-            pbo.mapRange(0, rowBytes,
-                         QOpenGLBuffer::RangeWrite | QOpenGLBuffer::RangeInvalidateBuffer));
+        void *mapped = pbo.mapRange(0, rowBytes,
+                                    QOpenGLBuffer::RangeWrite | QOpenGLBuffer::RangeInvalidateBuffer);
         if (mapped) {
-            expandPixelRow(logical, logicalWidth, mapped, texWidth, dpr);
+            std::memcpy(mapped, row, size_t(rowBytes));
             pbo.unmap();
         } else {
-            m_devRow.resize(texWidth);
-            expandPixelRow(logical, logicalWidth, m_devRow.data(), texWidth, dpr);
-            pbo.write(0, m_devRow.constData(), rowBytes);
+            pbo.write(0, row, rowBytes);
         }
 
-        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, m_headLine, texWidth, 1,
+        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, m_headLine, width, 1,
                         GL_RED, GL_FLOAT, nullptr);
         pbo.release();
         m_pboIndex ^= 1;
@@ -294,37 +277,30 @@ void WaterfallRenderer::uploadNewRow(const float* logical, int logicalWidth,
     }
 
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
-    m_devRow.resize(texWidth);
-    expandPixelRow(logical, logicalWidth, m_devRow.data(), texWidth, dpr);
-    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, m_headLine, texWidth, 1,
-                    GL_RED, GL_FLOAT, m_devRow.constData());
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, m_headLine, width, 1,
+                    GL_RED, GL_FLOAT, row);
 }
 
 void WaterfallRenderer::render(const QMatrix4x4& projection, const QRect& rect, const QVarLengthArray<float>& intensity,
                                QSDR::_DataEngineState dataEngineState, float dpr, bool newLine, const WaterfallMapping& mapping) {
+    Q_UNUSED(dpr)
     if (rect.isEmpty() || !m_shader || !m_shader->isLinked())
         return;
 
-    const int logicalWidth = rect.width();
-    const int logicalHeight = rect.height();
-    const int texWidth = qMax(1, int(qRound(logicalWidth * dpr)));
-    const int texHeight = qMax(1, int(qRound(logicalHeight * dpr)));
-    const qreal ratio = qMax<qreal>(1.0, dpr);
+    const int texWidth = rect.width();
+    const int texHeight = rect.height();
 
     float top = (float)rect.top();
     float left = (float)rect.left();
-    float right = left + (float)logicalWidth;
-    float bottom = top + (float)logicalHeight;
+    float right = left + (float)texWidth;
+    float bottom = top + (float)texHeight;
 
-    if (m_textureId == 0 || m_oldWidth != texWidth || m_oldHeight != texHeight
-        || !qFuzzyCompare(m_oldDpr, dpr) || m_updatePending) {
+    if (m_textureId == 0 || m_oldWidth != texWidth || m_oldHeight != texHeight || m_updatePending)
         setupTexture(texWidth, texHeight);
-        m_oldDpr = dpr;
-    }
 
     if (newLine && dataEngineState == QSDR::DataEngineUp
-        && !intensity.isEmpty() && intensity.size() >= logicalWidth) {
-        uploadNewRow(intensity.constData(), logicalWidth, texWidth, texHeight, ratio);
+        && !intensity.isEmpty() && intensity.size() >= texWidth) {
+        uploadNewRow(intensity.constData(), texWidth, texHeight);
     }
 
     ensurePaletteLUT(mapping);

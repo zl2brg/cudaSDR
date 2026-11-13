@@ -67,7 +67,7 @@ void WidebandConfig::setdBmScaleMax(qreal value)
 
 void WidebandConfig::setPanMode(PanGraphicsMode mode)
 {
-    if (mode < Line || mode > Solid)
+    if (mode < Line || mode > Palette)
         mode = Line;
     if (m_panMode == mode)
         return;
@@ -118,6 +118,8 @@ void WidebandConfig::loadIni(QSettings *settings)
         setPanMode(FilledLine);
     else if (pan == QLatin1String("SOLID"))
         setPanMode(Solid);
+    else if (pan == QLatin1String("PALETTE"))
+        setPanMode(Palette);
     else
         setPanMode(Line);
 }
@@ -134,6 +136,8 @@ void WidebandConfig::saveIni(QSettings *settings) const
         settings->setValue(QStringLiteral("wideband/panMode"), QStringLiteral("FILLEDLINE"));
     else if (m_panMode == Solid)
         settings->setValue(QStringLiteral("wideband/panMode"), QStringLiteral("SOLID"));
+    else if (m_panMode == Palette)
+        settings->setValue(QStringLiteral("wideband/panMode"), QStringLiteral("PALETTE"));
     else
         settings->setValue(QStringLiteral("wideband/panMode"), QStringLiteral("LINE"));
 }

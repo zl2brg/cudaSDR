@@ -186,6 +186,7 @@ void QWDSPEngine::setupConnections() {
     connect(m_sliceModel, &SliceModel::fftSizeChanged, this, [this](int size){ setfftSize(m_rx, size); });
     connect(m_sliceModel, &SliceModel::spectrumAveragingCntChanged, this, [this](int count){ setPanAdaptorAveragingCnt(m_rx, count); });
     connect(m_sliceModel, &SliceModel::panAveragingModeChanged, this, [this](PanAveragingMode mode){ setPanAdaptorAveragingMode(m_rx, (int)mode); });
+    connect(m_sliceModel, &SliceModel::panDetectorModeChanged, this, [this](PanDetectorMode mode){ setPanAdaptorDetectorMode(m_rx, (int)mode); });
     connect(m_sliceModel, &SliceModel::nrModeChanged, this, [this](int mode){ setNoiseFilterMode(m_rx, mode); });
     connect(m_sliceModel, &SliceModel::nr2GainMethodChanged, this, [this](int mode){ setNr2GainMethod(m_rx, mode); });
     connect(m_sliceModel, &SliceModel::nr2NpeMethodChanged, this, [this](int mode){ setNr2NpeMethod(m_rx, mode); });

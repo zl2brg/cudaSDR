@@ -34,6 +34,10 @@ private slots:
     void testCalculatePanDragCenterFreq();
     void testCalculateFilterDragEdges();
     void testCalculateDbmScaleDrag();
+    void testCalculateDbmScaleZoomTopOnly();
+    void testCalculateDbmScaleZoomFloor();
+    void testCalculateDbmScaleZoomSymmetric();
+    void testCalculateDbmScaleZoomZeroDelta();
 };
 
 #include "GL/cusdr_oglReceiverPanel.h"
@@ -405,6 +409,66 @@ void PanadapterInputControllerTests::testCalculateDbmScaleDrag()
 
     QCOMPARE(qRound(outMin * 1000.0), qRound((-140.0 - 4.875) * 1000.0));
     QCOMPARE(qRound(outMax * 1000.0), qRound((-10.0 - 4.875) * 1000.0));
+}
+
+void PanadapterInputControllerTests::testCalculateDbmScaleZoomTopOnly()
+{
+    qreal outMin = 0.0;
+    qreal outMax = 0.0;
+
+    // Up 10 px at 0.5 dB/px narrows the span by 5 dB from the top.
+    PanadapterInputController::calculateDbmScaleZoom(10, false, -140.0, -10.0, outMin, outMax);
+    QCOMPARE(outMin, -140.0);
+    QCOMPARE(outMax, -15.0);
+
+    // Down 10 px widens it.
+    PanadapterInputController::calculateDbmScaleZoom(-10, false, -140.0, -10.0, outMin, outMax);
+    QCOMPARE(outMin, -140.0);
+    QCOMPARE(outMax, -5.0);
+
+    // Widening stops at MAXDBM.
+    PanadapterInputController::calculateDbmScaleZoom(-1000, false, -140.0, -10.0, outMin, outMax);
+    QCOMPARE(outMax, qreal(MAXDBM));
+}
+
+void PanadapterInputControllerTests::testCalculateDbmScaleZoomFloor()
+{
+    qreal outMin = 0.0;
+    qreal outMax = 0.0;
+
+    // A large upward drag stops at a 10 dB span without moving min.
+    PanadapterInputController::calculateDbmScaleZoom(1000, false, -140.0, -10.0, outMin, outMax);
+    QCOMPARE(outMin, -140.0);
+    QCOMPARE(outMax, -130.0);
+}
+
+void PanadapterInputControllerTests::testCalculateDbmScaleZoomSymmetric()
+{
+    qreal outMin = 0.0;
+    qreal outMax = 0.0;
+
+    PanadapterInputController::calculateDbmScaleZoom(10, true, -140.0, -10.0, outMin, outMax);
+    QCOMPARE(outMin, -135.0);
+    QCOMPARE(outMax, -15.0);
+
+    // Stops at a 10 dB span centred on the original window.
+    PanadapterInputController::calculateDbmScaleZoom(1000, true, -140.0, -10.0, outMin, outMax);
+    QCOMPARE(outMin, -80.0);
+    QCOMPARE(outMax, -70.0);
+}
+
+void PanadapterInputControllerTests::testCalculateDbmScaleZoomZeroDelta()
+{
+    qreal outMin = 0.0;
+    qreal outMax = 0.0;
+
+    PanadapterInputController::calculateDbmScaleZoom(0, false, -140.0, -10.0, outMin, outMax);
+    QCOMPARE(outMin, -140.0);
+    QCOMPARE(outMax, -10.0);
+
+    PanadapterInputController::calculateDbmScaleZoom(0, true, -140.0, -10.0, outMin, outMax);
+    QCOMPARE(outMin, -140.0);
+    QCOMPARE(outMax, -10.0);
 }
 
 QTEST_MAIN(PanadapterInputControllerTests)

@@ -104,6 +104,16 @@ public:
         qreal &outMin,
         qreal &outMax);
 
+    // deltaY > 0 (pointer moved up) narrows the span so the trace grows.
+    // symmetric moves both ends; otherwise only the top (max) moves.
+    static void calculateDbmScaleZoom(
+        int deltaY,
+        bool symmetric,
+        qreal initialMin,
+        qreal initialMax,
+        qreal &outMin,
+        qreal &outMax);
+
 private:
     void showRttyConfigMenu(const QPoint &pos);
     void applyRttyScrollLines(int deltaLines);

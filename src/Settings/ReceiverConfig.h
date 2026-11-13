@@ -90,6 +90,8 @@ public:
 
     int fftSize() const { return m_fftSize; }
     void setFftSize(int size);
+    int fmsqLevel() const { return m_fmsqLevel; }
+    void setFmsqLevel(int level);
     int framesPerSecond() const { return m_framesPerSecond; }
     void setFramesPerSecond(int fps);
     int averagingCnt() const { return m_averagingCnt; }
@@ -243,6 +245,7 @@ private:
     PanAveragingMode m_panAvMode = AV_MODE_RECURSIVE;
     PanDetectorMode m_panDetMode = DET_MODE_ROSENFELL;
     int m_fftSize = 1;
+    int m_fmsqLevel = 80;
     int m_framesPerSecond = 25;
     int m_averagingCnt = 5;
     int m_waterfallOffsetLo = -5;

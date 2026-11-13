@@ -448,7 +448,7 @@ typedef struct _receiver {
 	PanAveragingMode    panAvMode = AV_MODE_RECURSIVE;
 	PanDetectorMode     panDetMode = DET_MODE_ROSENFELL;
 	int 				fftsize = 1;
-	int					fmsqLevel = 0;
+	int					fmsqLevel = 80;
 
 	QList<qint64>		lastCenterFrequencyList;
 	QList<qint64>		lastVfoFrequencyList;
@@ -954,6 +954,11 @@ public:
     QString defaultJsonConfigPath() const;
 	/** Point settings storage at an absolute .ini path (primarily for tests). */
 	void    reopenSettingsStorage(const QString &absoluteIniPath);
+	/** Absolute path for a config file such as settings.ini or windowsSettings.ini.
+	 *  Uses the executable's directory when it is writable and already holds
+	 *  settings.ini (portable / build-tree runs); otherwise ~/.cudaSDR, copying
+	 *  any files found next to the executable on first use. */
+	static QString configFilePath(const QString &name);
 	QSDR::_ServerMode			getCurrentServerMode();
 	QSDR::_HWInterfaceMode		getHWInterface();
 	QSDR::_DataEngineState		getDataEngineState();
@@ -1174,6 +1179,7 @@ public:
 	int		getAGCHangLeveldB(int rx);
     int     getAGCSlope(int rx);
     int 	getfftSize(int rx);
+    int     getfmsqLevel(int rx) const;
     int     getNrAGC(int rx);
     int     getNr2GainMethod(int rx);
     int     getNr2NpeMethod(int rx);

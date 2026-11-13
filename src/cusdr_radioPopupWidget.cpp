@@ -62,12 +62,12 @@ namespace {
     static const char *kRadioPopupWidthKey = "window/radioPopupWidth";
 
     int loadSavedPopupWidth() {
-        QSettings popupSettings(QCoreApplication::applicationDirPath() + "/settings.ini", QSettings::IniFormat);
+        QSettings popupSettings(Settings::configFilePath(QStringLiteral("settings.ini")), QSettings::IniFormat);
         return popupSettings.value(kRadioPopupWidthKey, -1).toInt();
     }
 
     void savePopupWidth(int width) {
-        QSettings popupSettings(QCoreApplication::applicationDirPath() + "/settings.ini", QSettings::IniFormat);
+        QSettings popupSettings(Settings::configFilePath(QStringLiteral("settings.ini")), QSettings::IniFormat);
         popupSettings.setValue(kRadioPopupWidthKey, width);
     }
 }
